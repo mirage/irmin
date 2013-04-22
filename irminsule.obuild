@@ -1,0 +1,13 @@
+name        : irminsule
+version     : 0.0.1
+synopsis    : Distributed filesystem and block store that follows the same design principles as Git
+obuild-ver  : 1
+
+library irminsule
+  sub lib
+    src-dir   : src/
+    modules   : Lib
+    build-deps: cryptokit
+  src-dir   : src/
+  modules   : Database, Memory
+  build-deps: irminsule.lib
