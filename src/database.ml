@@ -72,7 +72,6 @@ module type LOW = sig
 
 end
 
-
 (** We use the low-level database to encoe a tree-like
     data-structure to model a *filesystem*, with two kinds of nodes:
     files nodes, which contain raw binary blobs; and directories nodes
