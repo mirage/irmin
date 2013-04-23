@@ -10,4 +10,4 @@ library irminsule
     build-deps: cryptokit
   src-dir   : src/
   modules   : Database, Memory
-  build-deps: irminsule.lib
+  build-deps: irminsule.lib, jsonm, uri

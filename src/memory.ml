@@ -196,3 +196,108 @@ module Tag: Database.TAG with module T = Types = struct
       raise Not_found
 
 end
+
+module J = struct
+
+  open Types
+
+  (* From http://erratique.ch/software/jsonm/doc/Jsonm.html#datamodel *)
+  type json =
+    [ `Null | `Bool of bool | `Float of float| `String of string
+    | `A of json list | `O of (string * json) list ]
+
+  exception Escape of ((int * int) * (int * int)) * Jsonm.error
+
+  let json_of_src ?encoding src =
+    let dec d = match Jsonm.decode d with
+      | `Lexeme l -> l
+      | `Error e -> raise (Escape (Jsonm.decoded_range d, e))
+      | `End | `Await -> assert false
+    in
+    let rec value v k d = match v with
+      | `Os -> obj [] k d  | `As -> arr [] k d
+      | `Null | `Bool _ | `String _ | `Float _ as v -> k v d
+      | _ -> assert false
+    and arr vs k d = match dec d with
+      | `Ae -> k (`A (List.rev vs)) d
+      | v -> value v (fun v -> arr (v :: vs) k) d
+    and obj ms k d = match dec d with
+      | `Oe -> k (`O (List.rev ms)) d
+      | `Name n -> value (dec d) (fun v -> obj ((n, v) :: ms) k) d
+      | _ -> assert false
+    in
+    let d = Jsonm.decoder ?encoding src in
+    try `JSON (value (dec d) (fun v _ -> v) d) with
+    | Escape (r, e) -> `Error (r, e)
+
+  let json_of_blob  (B b) = `String b
+  let json_of_key   (K k) = `String k
+  let json_of_tag   (T t) = `String t
+  let json_of_label (L l) = `String l
+
+  let json_of_tree tree =
+    let value = match tree.value with
+      | None    -> `Null
+      | Some  v -> json_of_key v in
+    let child (l, k) = `A [json_of_label l; json_of_key k] in
+    let children = match tree.children with
+      | [] -> `Null
+      | l  -> `A (List.map child l) in
+    `O [ ("value", value); ("children", children) ]
+
+  let json_of_revision r =
+    let parents =
+      List.map (fun r -> sha1 (Revision r)) r.parents in
+    let tree =
+      sha1 (Tree r.tree) in
+    `O [ ("parents", `A (List.map json_of_key parents));
+         ("tree"   , json_of_key tree) ]
+
+  let json_of_value = function
+    | Blob b     -> `O ("blob", json_of_blob b)
+    | Tree t     -> `O ("tree", json_of_tree t)
+    | Revision r -> `O ("revision", json_of_revision r)
+
+
+  let json_to_dst ~minify dst (json:json) =
+    let enc e l = ignore (Jsonm.encode e (`Lexeme l)) in
+    let rec value v k e = match v with
+      | `A vs -> arr vs k e
+      | `O ms -> obj ms k e
+      | `Null | `Bool _ | `Float _ | `String _ as v -> enc e v; k e
+    and arr vs k e = enc e `As; arr_vs vs k e
+    and arr_vs vs k e = match vs with
+      | v :: vs' -> value v (arr_vs vs' k) e
+      | [] -> enc e `Ae; k e
+    and obj ms k e = enc e `Os; obj_ms ms k e
+    and obj_ms ms k e = match ms with
+      | (n, v) :: ms -> enc e (`Name n); value v (obj_ms ms k) e
+      | [] -> enc e `Oe; k e
+    in
+    let e = Jsonm.encoder ~minify dst in
+    let finish e = ignore (Jsonm.encode e `End) in
+    match json with
+    | `A _ | `O _ as json -> value json finish e
+    | _ -> invalid_arg "invalid json text"
+
+  let string_of_json fn (json:json) = match json with
+    | `String k -> Some (fn k)
+    | _         -> None
+
+  let key_of_json = string_of_json (fun x -> K x)
+  let blob_of_json = string_of_json (fun x -> B x)
+
+end
+
+
+module Remote: Database.REMOTE with module T = Types = struct
+
+  module T = Types
+  open T
+
+  let watch _ = failwith "TODO"
+  let push _ = failwith "TODO"
+  let pull _ = failwith "TODO"
+  let discover _ = failwith "TODO"
+
+end
