@@ -37,6 +37,9 @@ module type TYPES = sig
   (** Abstract type for tags. *)
   type tag
 
+  (** Remote repository. *)
+  type remote
+
 end
 
 (** Datamodel for Irminsule backends *)
@@ -146,5 +149,27 @@ module type TAG = sig
 
   (** Write a new tag *)
   val tag: t -> tag -> revision -> unit
+
+end
+
+(** Remote actions. *)
+module type REMOTE = sig
+
+  module T: TYPES
+  open T
+
+  (** [discover current tags] return the diff of revisions between
+      the [current] state of what we known from world and the
+      state of [tags] in the remote repository. *)
+  val discover: remote -> revision list -> tag list -> revision list
+
+  (** Pull values *)
+  val pull: remote -> revision list -> (key * value) list
+
+  (** Push values *)
+  val push: remote -> (key * value) list -> unit
+
+  (** Watch for changes in a substree *)
+  val watch: remote -> tag -> (key * value) list
 
 end
