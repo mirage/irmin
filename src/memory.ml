@@ -64,6 +64,112 @@ module J = struct
 
   exception Escape of ((int * int) * (int * int)) * Jsonm.error
 
+  (* strings *)
+  let json_of_string s = `String s
+
+  let string_of_json fn (json:json) = match json with
+    | `String k -> fn k
+    | _         -> failwith "string_of_json"
+
+  (* list *)
+  let json_of_list fn = function
+    | [] -> `Null
+    | l  -> `A (List.map fn l)
+
+  let list_of_json fn (json:json) = match json with
+    | `Null -> []
+    | `A ks -> List.map fn ks
+    | _ -> failwith "list_of_json"
+
+  (* options *)
+  let json_of_option fn = function
+    | None   -> `Null
+    | Some x -> fn x
+
+  let option_of_json fn (json:json) = match json with
+    | `Null  -> None
+    |  _     -> Some (fn json)
+
+  (* pairs *)
+  let json_of_pair fk fv (k, v) =
+    `A [fk k; fv v]
+
+  let pair_of_json fk fv (json:json) = match json with
+    | `A [k; v] -> (fk k, fv v)
+    | _ -> failwith "pair_of_json"
+
+  (* keys *)
+  let json_of_key (K k) = json_of_string k
+  let json_of_keys = json_of_list json_of_key
+  let key_of_json = string_of_json (fun x -> K x)
+  let keys_of_json = list_of_json key_of_json
+
+  (* blobs *)
+  let json_of_blob (B b) = json_of_string b
+  let blob_of_json = string_of_json (fun x -> B x)
+
+  (* tags *)
+  let json_of_tag (T t) = json_of_string t
+  let json_of_tags  = json_of_list json_of_tag
+  let tag_of_json = string_of_json (fun x -> T x)
+  let tags_of_json = list_of_json tag_of_json
+
+  (* labels *)
+  let json_of_label (L l) = json_of_string l
+  let label_of_json = string_of_json (fun x -> L x)
+
+  (* trees *)
+  let json_of_tree tree =
+    let value = json_of_option json_of_key tree.value in
+    let child = json_of_pair json_of_label json_of_key in
+    let children = json_of_list child tree.children in
+    `O [ ("value", value); ("children", children) ]
+
+  let tree_of_json (json:json) = match json with
+    | `O [ ("value", value); ("children", children) ] ->
+      let value = option_of_json key_of_json value in
+      let children = list_of_json (pair_of_json label_of_json key_of_json) children in
+      let children = List.sort compare children in
+      { value; children }
+    | _ -> failwith "tree_of_json"
+
+  (* revisions *)
+  let json_of_revision r =
+    let parents = json_of_keys r.parents in
+    let tree = json_of_key r.tree in
+    `O [ ("parents", parents); ("tree"   , tree) ]
+
+  let revision_of_json (json:json) = match json with
+    | `O [ ("parents", parents); ("tree", tree) ] ->
+      let parents = keys_of_json parents in
+      let parents = List.sort compare parents in
+      let tree = key_of_json tree in
+      { parents; tree }
+    | _ -> failwith "revision_of_json"
+
+  (* values *)
+  let json_of_value = function
+    | Blob b     -> `O [ "blob"    , json_of_blob b ]
+    | Tree t     -> `O [ "tree"    , json_of_tree t ]
+    | Revision r -> `O [ "revision", json_of_revision r ]
+
+  let value_of_json = function
+    | `O [ "blob"    , json ] -> Blob (blob_of_json json)
+    | `O [ "tree"    , json ] -> Tree (tree_of_json json)
+    | `O [ "revision", json ] -> Revision (revision_of_json json)
+    | _ -> failwith "value_of_json"
+
+  let values_of_json = list_of_json value_of_json
+  let json_of_value_options = json_of_list (json_of_option json_of_value)
+
+ (* XXX: should be replaced by a streaming API *)
+  let discover_of_json = function
+    | `O [ ("local", local); ("remote", remote) ] ->
+      let keys = keys_of_json local in
+      let tags = tags_of_json remote in
+      keys, tags
+    | _ -> failwith "discover_of_json"
+
   let json_of_src ?encoding src =
     let dec d = match Jsonm.decode d with
       | `Lexeme l -> l
@@ -91,37 +197,6 @@ module J = struct
     | `JSON j  -> j
     | `Error _ -> failwith "json_of_string"
 
-  let json_of_blob  (B b) = `String b
-
-  let json_of_key   (K k) = `String k
-  let json_of_keys  ks    = `A (List.map json_of_key ks)
-
-  let json_of_tag   (T t) = `String t
-  let json_of_tags  ts    = `A (List.map json_of_tag ts)
-
-  let json_of_label (L l) = `String l
-
-  let json_of_tree tree =
-    let value = match tree.value with
-      | None    -> `Null
-      | Some  v -> json_of_key v in
-    let child (l, k) = `A [json_of_label l; json_of_key k] in
-    let children = match tree.children with
-      | [] -> `Null
-      | l  -> `A (List.map child l) in
-    `O [ ("value", value); ("children", children) ]
-
-  let json_of_revision r =
-    let parents = json_of_keys r.parents in
-    let tree = json_of_key r.tree in
-    `O [ ("parents", parents); ("tree"   , tree) ]
-
-  let json_of_value = function
-    | Blob b     -> `O [ "blob"    , json_of_blob b ]
-    | Tree t     -> `O [ "tree"    , json_of_tree t ]
-    | Revision r -> `O [ "revision", json_of_revision r ]
-
-
   let json_to_dst ~minify dst (json:json) =
     let enc e l = ignore (Jsonm.encode e (`Lexeme l)) in
     let rec value v k e = match v with
@@ -143,37 +218,7 @@ module J = struct
     | `A _ | `O _ as json -> value json finish e
     | _ -> invalid_arg "invalid json text"
 
-  let string_of_json fn (json:json) = match json with
-    | `String k -> fn k
-    | _         -> failwith "string_of_json"
-
-  let list_of_json fn (json:json) = match json with
-    | `A ks -> List.map fn ks
-    | _ -> failwith "list_of_json"
-
-  let key_of_json = string_of_json (fun x -> K x)
-  let keys_of_json = list_of_json key_of_json
-
-  let tag_of_json = string_of_json (fun x -> T x)
-  let tags_of_json = list_of_json tag_of_json
-
-  let revision_of_json (json:json) = match json with
-    | `O [ ("parents", parents); ("tree", tree) ] ->
-      let parents = keys_of_json parents in
-      let tree = key_of_json tree in
-      { parents; tree }
-    | _ -> failwith "revision_of_json"
-
-  let blob_of_json = string_of_json (fun x -> B x)
-
-  let discover_of_json = function
-    | `O [ ("local", local); ("remote", remote) ] ->
-      let keys = keys_of_json local in
-      let tags = tags_of_json remote in
-      keys, tags
-    | _ -> failwith "discover_of_json"
-
-  let string_of_json json =
+  let string_of_json (json:json) =
     let buf = Buffer.create 1024 in
     json_to_dst ~minify:false (`Buffer buf) json;
     Buffer.contents buf
