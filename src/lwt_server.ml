@@ -83,8 +83,20 @@ let process t ?body = function
     let json = Memory.J.json_of_keys keys in
     respond_json json
 
-  | ["action"; "pull"] -> failwith "TODO"
-  | ["action"; "push"] -> failwith "TODO"
+  | ["action"; "pull"] ->
+    lwt body = Body.string_of_body body in
+    let json = Memory.J.json_of_string body in
+    let keys = Memory.J.keys_of_json json in
+    let values = Memory.Remote.pull t keys in
+    let json = Memory.J.json_of_value_options values in
+    respond_json json
+
+  | ["action"; "push"] ->
+    lwt body = Body.string_of_body body in
+    let json = Memory.J.json_of_string body in
+    let values = Memory.J.values_of_json json in
+    Memory.Remote.push t values;
+    respond "OK"
 
   | ["action"; "revert"; key] ->
     let revision = match Memory.Low.read t (K key) with

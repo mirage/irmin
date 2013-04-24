@@ -355,7 +355,12 @@ end = struct
 
 end
 
-module Revision: Database.REVISION with module T = Types = struct
+module Revision: sig
+  include Database.REVISION with module T = Types
+  module Graph: Graph.Sig.I with type V.t = Types.revision
+  val mkgraph: Types.t ->
+    roots:Types.revision list -> sinks:Types.revision list -> Graph.t
+end = struct
 
   module T = Types
   open T
@@ -402,14 +407,17 @@ module Revision: Database.REVISION with module T = Types = struct
     let hash = Hashtbl.hash
     let equal = (=)
   end
-  module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
+  module Graph = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
 
-  let mkgraph t revs =
-    let g = G.create () in
+  let mkgraph t ~roots ~sinks =
+    let g = Graph.create () in
     let rec aux rev =
-      G.add_vertex g rev;
-      List.iter aux (pred t rev) in
-    List.iter aux revs;
+      if not (Graph.mem_vertex g rev) then (
+        Graph.add_vertex g rev;
+        if not (List.mem rev roots) then
+          List.iter aux (pred t rev)
+      ) in
+    List.iter aux sinks;
     g
 
 end
@@ -444,10 +452,26 @@ module Remote: Database.REMOTE with module T = Types = struct
   module T = Types
   open T
 
-  let discover _ = failwith "TODO"
+  let discover t revisions tags =
+    let sinks = List.fold_left (fun l tag ->
+        match Tag.revision t tag with
+        | None   -> l
+        | Some r -> r::l
+      ) [] tags in
+    let graph = Revision.mkgraph t ~roots:revisions ~sinks in
+    let revisions = ref [] in
+    Revision.Graph.iter_vertex (fun rev -> revisions := rev :: !revisions) graph;
+    List.map (fun r -> sha1 (Revision r)) !revisions
+
+  let pull t keys =
+    List.map (Low.read t) keys
+
+  let push t values =
+    List.iter (fun v ->
+        let _key = Low.write t in ()
+      ) values
+
   let watch _ = failwith "TODO"
-  let push _ = failwith "TODO"
-  let pull _ = failwith "TODO"
 
 end
 
