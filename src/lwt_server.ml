@@ -33,6 +33,12 @@ let (>>=) x f =
   | None   -> invalid_page "Invalid key"
   | Some x -> f x
 
+let snapshot t =
+  let root = Memory.save_dir t (Sys.getcwd ()) in
+  match Memory.Low.read t root with
+  | Some (Tree tree) -> tree
+  | _ -> failwith "snapshot"
+
 let make_server t =
 
   let callback conn_id ?body req =
@@ -45,6 +51,7 @@ let make_server t =
       let json = Memory.J.json_of_keys keys in
       let body = Memory.J.string_of_json json in
       Server.respond_string ~status:`OK ~body ()
+
     | "tree" :: labels ->
       Memory.Tag.revision t (T "HEAD") >>= fun head ->
       let tree = Memory.Revision.tree t head in
@@ -52,6 +59,16 @@ let make_server t =
       Memory.Tree.get t tree labels >>= fun key ->
       Memory.Low.read t key >>=
       respond_value
+
+    | ["snapshot"] ->
+      let tree = snapshot t in
+      Memory.Tag.revision t (T "HEAD") >>= fun head ->
+      let new_head = Memory.Revision.commit t [head] tree in
+      Memory.Tag.tag t (T "HEAD") new_head;
+      let K key = Memory.sha1 (Revision new_head) in
+      let body = Printf.sprintf "New HEAD: %s" key in
+      Server.respond_string ~status:`OK ~body ()
+
     | [key] ->
       begin match Memory.Low.read t (Memory.Types.K key) with
         | None   -> invalid_page "Invalid key"
@@ -65,12 +82,12 @@ let make_server t =
   let config = { Server.callback; conn_closed } in
   server ~address:"127.0.0.1" ~port:8081 config
 
-let _ =
+let init () =
   let t = Memory.create () in
-  let root = Memory.save_dir t (Sys.getcwd ()) in
-  match Memory.Low.read t root with
-  | Some (Tree tree) ->
-    let head = Memory.Revision.commit t [] tree in
-    Memory.Tag.tag t (T "HEAD") head;
-    Lwt_unix.run (make_server t)
-  | _ -> failwith "init"
+  let tree = snapshot t in
+  let head = Memory.Revision.commit t [] tree in
+  Memory.Tag.tag t (T "HEAD") head;
+  t
+
+let () =
+  Lwt_unix.run (make_server (init ()))
