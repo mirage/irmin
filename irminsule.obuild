@@ -3,11 +3,19 @@ version     : 0.0.1
 synopsis    : Distributed filesystem and block store that follows the same design principles as Git
 obuild-ver  : 1
 
+library irminsule-misc
+  src-dir   : src/
+  modules   : Lib
+  build-deps: cryptokit
+
 library irminsule
-  sub lib
-    src-dir   : src/
-    modules   : Lib
-    build-deps: cryptokit
   src-dir   : src/
   modules   : Database, Memory
-  build-deps: irminsule.lib, jsonm, uri
+  build-deps: irminsule-misc, jsonm, uri, ocamlgraph
+
+executable irminsule
+  src-dir   : src/
+  main-is   : lwt_server.ml
+  build-deps: cohttp.lwt, lwt.syntax, irminsule
+  pp        : camlp4o
+  
