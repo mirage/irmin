@@ -493,10 +493,11 @@ let save_file t file =
   let leaf = Tree.leaf key in
   Low.write t (Tree leaf)
 
-let rec save_dir t dir =
+let rec save_dir t ?(exclude=[]) dir =
   Printf.printf "save_dir: %s\n%!" dir;
-  let files = Sys.readdir dir in
-  let files = List.map (Filename.concat dir) (Array.to_list files) in
+  let files = Array.to_list (Sys.readdir dir) in
+  let files = List.filter (fun f -> not (List.mem f exclude)) files in
+  let files = List.map (Filename.concat dir) files in
   let dirs, files = List.partition Sys.is_directory files in
   let files = List.map (fun f -> L (Filename.basename f), save_file t f) files in
   let dirs = List.map (fun d -> L (Filename.basename d), save_dir t d) dirs in

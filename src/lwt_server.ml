@@ -51,8 +51,11 @@ let fmap f l =
       | Some x -> x::l
     ) [] l
 
+let path = ref (Sys.getcwd ())
+let exclude = ref None
+
 let snapshot t =
-  let root = Memory.save_dir t (Sys.getcwd ()) in
+  let root = Memory.save_dir t ?exclude:!exclude !path in
   Memory.Tree.read t root
 
 let process t ?body = function
@@ -159,7 +162,7 @@ let process t ?body = function
 
   | _ -> failwith "Invalid URI"
 
-let make_server t =
+let make_server t port =
 
   let callback conn_id ?body req =
     let path = Request.path req in
@@ -169,7 +172,7 @@ let make_server t =
   let conn_closed conn_id () =
     Printf.eprintf "conn %s closed\n%!" (Server.string_of_conn_id conn_id) in
   let config = { Server.callback; conn_closed } in
-  server ~address:"127.0.0.1" ~port:8081 config
+  server ~address:"127.0.0.1" ~port config
 
 let init () =
   let t = Memory.create () in
@@ -178,5 +181,13 @@ let init () =
   Memory.Tag.tag t (T "HEAD") head;
   t
 
-let () =
-  Lwt_unix.run (make_server (init ()))
+let start p port e =
+  begin match p with
+    | [p] -> path := p
+    | _   -> failwith "Too many paths"
+  end;
+  begin match e with
+    | [] -> ()
+    | _  -> exclude := Some e;
+  end;
+  Lwt_unix.run (make_server (init ()) port)

@@ -15,7 +15,7 @@ library irminsule
 
 executable irminsule
   src-dir   : src/
-  main-is   : lwt_server.ml
-  build-deps: cohttp.lwt, lwt.syntax, irminsule
+  main-is   : irminsule.ml
+  build-deps: cohttp.lwt, lwt.syntax, irminsule, cmdliner
   pp        : camlp4o
   
