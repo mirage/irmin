@@ -29,8 +29,8 @@ module Types = struct
   }
 
   type revision = {
-    parents: revision list;
-    tree   : tree;
+    parents: key list;
+    tree   : key;
   }
 
   type value =
@@ -86,6 +86,11 @@ module J = struct
     try `JSON (value (dec d) (fun v _ -> v) d) with
     | Escape (r, e) -> `Error (r, e)
 
+  let json_of_string str: json =
+    match json_of_src (`String str) with
+    | `JSON j  -> j
+    | `Error _ -> failwith "json_of_string"
+
   let json_of_blob  (B b) = `String b
 
   let json_of_key   (K k) = `String k
@@ -107,12 +112,9 @@ module J = struct
     `O [ ("value", value); ("children", children) ]
 
   let json_of_revision r =
-    let parents =
-      List.map (fun r -> sha1 (Revision r)) r.parents in
-    let tree =
-      sha1 (Tree r.tree) in
-    `O [ ("parents", `A (List.map json_of_key parents));
-         ("tree"   , json_of_key tree) ]
+    let parents = json_of_keys r.parents in
+    let tree = json_of_key r.tree in
+    `O [ ("parents", parents); ("tree"   , tree) ]
 
   let json_of_value = function
     | Blob b     -> `O [ "blob"    , json_of_blob b ]
@@ -142,11 +144,34 @@ module J = struct
     | _ -> invalid_arg "invalid json text"
 
   let string_of_json fn (json:json) = match json with
-    | `String k -> Some (fn k)
-    | _         -> None
+    | `String k -> fn k
+    | _         -> failwith "string_of_json"
+
+  let list_of_json fn (json:json) = match json with
+    | `A ks -> List.map fn ks
+    | _ -> failwith "list_of_json"
 
   let key_of_json = string_of_json (fun x -> K x)
+  let keys_of_json = list_of_json key_of_json
+
+  let tag_of_json = string_of_json (fun x -> T x)
+  let tags_of_json = list_of_json tag_of_json
+
+  let revision_of_json (json:json) = match json with
+    | `O [ ("parents", parents); ("tree", tree) ] ->
+      let parents = keys_of_json parents in
+      let tree = key_of_json tree in
+      { parents; tree }
+    | _ -> failwith "revision_of_json"
+
   let blob_of_json = string_of_json (fun x -> B x)
+
+  let discover_of_json = function
+    | `O [ ("local", local); ("remote", remote) ] ->
+      let keys = keys_of_json local in
+      let tags = tags_of_json remote in
+      keys, tags
+    | _ -> failwith "discover_of_json"
 
   let string_of_json json =
     let buf = Buffer.create 1024 in
@@ -185,6 +210,16 @@ end = struct
 
   module T = Types
   open T
+
+  let read t key = match Low.read t key with
+    | Some (Tree t) -> Some t
+    | _ -> None
+
+  let write t tree =
+    Low.write t (Tree tree)
+
+  let list t =
+    List.filter (fun k -> read t k <> None) (Low.list t)
 
   type node = {
     k: key;
@@ -280,17 +315,41 @@ module Revision: Database.REVISION with module T = Types = struct
   module T = Types
   open T
 
+  let read t key = match Low.read t key with
+    | Some (Revision r) -> Some r
+    | _ -> None
+
+  let write t rev =
+    Low.write t (Revision rev)
+
+  let list t =
+    List.filter (fun k -> read t k <> None) (Low.list t)
+
   let pred t rev =
-    rev.parents
+    List.fold_left (fun l k -> match read t k with
+        | None   -> l
+        | Some r -> r::l
+      ) [] rev.parents
 
   let tree t rev =
-    rev.tree
+    Tree.read t rev.tree
 
-  let commit t parents tree =
-    let rev = { parents; tree } in
-    let _key = Low.write t (Revision rev) in
-    rev
-
+  let commit t parents working_tree =
+    let commit () =
+      let parents = List.map (write t) parents in
+      let parents = List.sort compare parents in
+      let tree = Tree.write t working_tree in
+      let rev = { parents; tree } in
+      let _key = write t rev in
+      rev in
+    match parents with
+    | [parent] ->
+      (* Avoid empty commit *)
+      begin match tree t parent with
+        | None   -> commit ()
+        | Some t -> if t = working_tree then parent else commit ()
+      end
+    | _ -> commit ()
 
   module Vertex = struct
     type t = Types.revision

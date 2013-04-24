@@ -37,8 +37,24 @@ module type TYPES = sig
   (** Abstract type for tags. *)
   type tag
 
-  (** Remote repository. *)
-  type remote
+end
+
+(** A generic key/value store *)
+module type KV = sig
+
+  type t
+  type key
+  type value
+
+  (** Add a value in the store. Return the newly created key. *)
+  val write: t -> value -> key
+
+  (** Read the value associated to a key. Return [None] if nothing has
+      been associated to the key yet. *)
+  val read: t -> key -> value option
+
+  (** List all the nodes. *)
+  val list: t -> key list
 
 end
 
@@ -63,18 +79,12 @@ module type LOW = sig
   module T: TYPES
   open T
 
-  (** Add a value in the store. Return the newly created key. *)
-  val write: t -> value -> key
-
-  (** Read the value associated to a key. Return [None] if nothing has
-      been associated to the key yet. *)
-  val read: t -> key -> value option
+  include KV with type value := value
+              and type key   := key
+              and type t     := t
 
   (** Check whether a key is valid. *)
   val valid: t -> key -> bool
-
-  (** List all the nodes. *)
-  val list: t -> key list
 
 end
 
@@ -89,6 +99,10 @@ module type TREE = sig
 
   module T: TYPES
   open T
+
+  include KV with type value := tree
+              and type key   := key
+              and type t     := t
 
   (** Get the node contents. *)
   val get: t -> tree -> label list -> key option
@@ -125,11 +139,15 @@ module type REVISION = sig
   module T: TYPES
   open T
 
+  include KV with type value := revision
+              and type key   := key
+              and type t     := t
+
   (** Return the predecessor of a given revision. *)
   val pred: t -> revision -> revision list
 
   (** Return the sub-structure pointed out by a given revision. *)
-  val tree: t  -> revision -> tree
+  val tree: t  -> revision -> tree option
 
   (** Commit a new tree as the child of a list of revisions, and
       get the newly created revision. *)
@@ -168,16 +186,16 @@ module type REMOTE = sig
       [current] state of what we known from world and the state of
       [tags] in the remote repository. Return the missing repository
       keys. *)
-  val discover: remote -> revision list -> tag list -> key list
+  val discover: t -> revision list -> tag list -> key list
 
   (** Pull values. The order is kept between the received keys and the
       sent values. *)
-  val pull: remote -> key list -> value list
+  val pull: t -> key list -> value list
 
   (** Push values *)
-  val push: remote -> value list -> unit
+  val push: t -> value list -> unit
 
   (** Watch for changes in a substree. Return the new subtree keys. *)
-  val watch: remote -> tag -> label list -> key list
+  val watch: t -> tag -> label list -> key list
 
 end
