@@ -117,7 +117,6 @@ module Tree: Database.TREE with module T = Types = struct
     Low.write t (Tree { children; value = node.v })
 
   (* Save a trie in the database and return its corresponding tree.*)
-  (* XXX: not very efficient *)
   let mktree t trie =
     let key = save t trie in
     match Low.read t key with
@@ -312,9 +311,9 @@ module Remote: Database.REMOTE with module T = Types = struct
   module T = Types
   open T
 
+  let discover _ = failwith "TODO"
   let watch _ = failwith "TODO"
   let push _ = failwith "TODO"
   let pull _ = failwith "TODO"
-  let discover _ = failwith "TODO"
 
 end

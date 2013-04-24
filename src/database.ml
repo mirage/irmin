@@ -164,18 +164,20 @@ module type REMOTE = sig
   module T: TYPES
   open T
 
-  (** [discover current tags] return the diff of revisions between
-      the [current] state of what we known from world and the
-      state of [tags] in the remote repository. *)
-  val discover: remote -> revision list -> tag list -> revision list
+  (** [discover current tags] return the diff of revisions between the
+      [current] state of what we known from world and the state of
+      [tags] in the remote repository. Return the missing repository
+      keys. *)
+  val discover: remote -> revision list -> tag list -> key list
 
-  (** Pull values *)
-  val pull: remote -> revision list -> (key * value) list
+  (** Pull values. The order is kept between the received keys and the
+      sent values. *)
+  val pull: remote -> key list -> value list
 
   (** Push values *)
-  val push: remote -> (key * value) list -> unit
+  val push: remote -> value list -> unit
 
-  (** Watch for changes in a substree *)
-  val watch: remote -> tag -> (key * value) list
+  (** Watch for changes in a substree. Return the new subtree keys. *)
+  val watch: remote -> tag -> label list -> key list
 
 end
