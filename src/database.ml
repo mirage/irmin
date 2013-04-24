@@ -70,6 +70,9 @@ module type LOW = sig
       been associated to the key yet. *)
   val read: t -> key -> value option
 
+  (** Check whether a key is valid. *)
+  val valid: t -> key -> bool
+
   (** List all the nodes. *)
   val list: t -> key list
 
@@ -97,11 +100,14 @@ module type TREE = sig
   (** Implicit graph of nodes. *)
   val succ: t -> tree -> (label * tree) list
 
-  (** Merge two revisions. If the merge does not succeed for any
-      reasons (such as merge conflict, or not existing keys) , return
-      [None]. *)
-  val merge: t -> (value -> value -> value option) -> tree -> tree -> tree option
+  (** Merge two trees by applying a merge function over each value
+      stored at the same path in each tree (even if the values are
+      equal). If the merge does not succeed for any reasons (such as
+      merge conflict), it returns [None]. *)
+  val merge: t -> (value option -> value option -> value option) ->
+    tree -> tree -> tree option
 
+    (* XXX: more expressive merge function *)
 end
 
 (** We also use the low-level database to encode a *partial-order* of

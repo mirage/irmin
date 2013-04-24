@@ -68,6 +68,9 @@ module Low: Database.LOW with module T = Types = struct
     Hashtbl.add t.store sha1 value;
     sha1
 
+  let valid t key =
+    Hashtbl.mem t.store key
+
   let read t sha1 =
     try Some (Hashtbl.find t.store sha1)
     with Not_found -> None
@@ -82,7 +85,11 @@ module Tree: Database.TREE with module T = Types = struct
   module T = Types
   open T
 
-  type trie = (label, key) Lib.Trie.t
+  type node = {
+    k: key;
+    v: key option;
+  }
+  type trie = (label, node) Lib.Trie.t
 
   (* Convert a tree into a lazy trie *)
   let rec mktrie t tree: trie =
@@ -93,18 +100,21 @@ module Tree: Database.TREE with module T = Types = struct
     let children = lazy (
       List.map child tree.children
     ) in
-    Lib.Trie.create ?value:tree.value ~children ()
+    let value = {
+      k = sha1 (Tree tree);
+      v = tree.value
+    } in
+    Lib.Trie.create ~value ~children ()
 
   (* Save a lazy trie into a the database *)
-  (* XXX: not very ineficient *)
   let rec save t (trie:trie) =
-    let children = List.map (fun (label, tree) ->
-        (label, save t tree)
+    let children = List.map (fun (label, child) ->
+        let value = Lib.Trie.find child [] in
+        if Low.valid t value.k then (label, value.k)
+        else (label, save t child)
       ) (Lib.Trie.children trie) in
-    let value =
-      try Some (Lib.Trie.find trie [])
-      with Not_found -> None in
-    Low.write t (Tree { children; value })
+    let node = Lib.Trie.find trie [] in
+    Low.write t (Tree { children; value = node.v })
 
   (* Save a trie in the database and return its corresponding tree.*)
   (* XXX: not very efficient *)
@@ -116,14 +126,24 @@ module Tree: Database.TREE with module T = Types = struct
 
   let get t tree labels =
     let trie = mktrie t tree in
-    try Some (Lib.Trie.find trie labels)
+    try Some (Lib.Trie.find trie labels).k
     with Not_found -> None
+
+  let leaf key =
+    let tree = {
+      value = Some key;
+      children = [];
+    } in
+    {
+      k = sha1 (Tree tree);
+      v = Some key;
+    }
 
   (* XXX: not very efficient *)
   let set t tree labels value =
     let trie = mktrie t tree in
     let key = Low.write t value in
-    let trie = Lib.Trie.set trie labels key in
+    let trie = Lib.Trie.set trie labels (leaf key) in
     mktree t trie
 
   exception EAGAIN
@@ -134,13 +154,10 @@ module Tree: Database.TREE with module T = Types = struct
     let t2 = mktrie t t2 in
     let values l1 l2 =
       match l1, l2 with
-      | [k1], [k2] ->
-        begin match Low.read t k1, Low.read t k2 with
-          | None, _ | _, None -> raise Not_found
-          | Some v1, Some v2  ->
-            match fn v1 v2 with
-            | Some v3 -> let k3 = Low.write t v3 in [k3]
-            | None    -> raise EAGAIN
+      | [n1], [n2] ->
+        begin match fn (Low.read t n1.k) (Low.read t n2.k) with
+          | Some v3 -> let k3 = Low.write t v3 in [leaf k3]
+          | None    -> []
         end
       | _ -> raise Invalid_values
     in
