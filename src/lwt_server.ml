@@ -20,17 +20,28 @@ open Cohttp_lwt_unix
 
 open Memory.Types
 
-let invalid_page body =
+let respond body =
+  Server.respond_string ~status:`OK ~body ()
+
+let respond_json json =
+  let body = Memory.J.string_of_json json in
   Server.respond_string ~status:`OK ~body ()
 
 let respond_value value =
   let json = Memory.J.json_of_value value in
-  let body = Memory.J.string_of_json json in
+  respond_json json
+
+let respond_strings strs =
+  let json = `A (List.map (fun s -> `String s) strs) in
+  respond_json json
+
+let respond_new_head (K key) =
+  let body = Printf.sprintf "New HEAD: %s" key in
   Server.respond_string ~status:`OK ~body ()
 
 let (>>=) x f =
   match x with
-  | None   -> invalid_page "Invalid key"
+  | None   -> failwith "Invalid key"
   | Some x -> f x
 
 let snapshot t =
@@ -46,11 +57,50 @@ let make_server t =
     let path = Re_str.split_delim (Re_str.regexp_string "/") path in
     let path = List.filter ((<>) "") path in
     match path with
-    | [] ->
+    | [] -> respond_strings ["action"; "key"; "tag"; "tree" ]
+
+    | ["action"] -> respond_strings ["revert"; "snapshot"; "tag" ]
+
+    | ["action"; "revert"; key] ->
+      let revision = match Memory.Low.read t (K key) with
+        | Some (Revision r) -> r
+        | _ -> match Memory.Tag.revision t (T key) with
+          | Some r -> r
+          | None   -> failwith "revert" in
+      Memory.Tag.tag t (T "HEAD") revision;
+      respond_new_head (K key)
+
+    | ["action"; "snapshot"] ->
+      let tree = snapshot t in
+      Memory.Tag.revision t (T "HEAD") >>= fun head ->
+      let new_head = Memory.Revision.commit t [head] tree in
+      Memory.Tag.tag t (T "HEAD") new_head;
+      let key = Memory.sha1 (Revision new_head) in
+      respond_new_head key
+
+    | ["action"; "tag"; tag] ->
+      Memory.Tag.revision t (T "HEAD") >>= fun revision ->
+      Memory.Tag.tag t (T tag) revision;
+      respond (Printf.sprintf "new tag: %s" tag)
+
+    | ["key" ] ->
       let keys = Memory.Low.list t in
       let json = Memory.J.json_of_keys keys in
-      let body = Memory.J.string_of_json json in
-      Server.respond_string ~status:`OK ~body ()
+      respond_json json
+
+    | ["key"; key] ->
+      Memory.Low.read t (Memory.Types.K key) >>=
+      respond_value
+
+    | ["tag"] ->
+      let tags = Memory.Tag.tags t in
+      let json = Memory.J.json_of_tags tags in
+      respond_json json
+
+    | ["tag"; tag] ->
+      Memory.Tag.revision t (T tag) >>= fun revision ->
+      let json = Memory.J.json_of_revision revision in
+      respond_json json
 
     | "tree" :: labels ->
       Memory.Tag.revision t (T "HEAD") >>= fun head ->
@@ -60,21 +110,7 @@ let make_server t =
       Memory.Low.read t key >>=
       respond_value
 
-    | ["snapshot"] ->
-      let tree = snapshot t in
-      Memory.Tag.revision t (T "HEAD") >>= fun head ->
-      let new_head = Memory.Revision.commit t [head] tree in
-      Memory.Tag.tag t (T "HEAD") new_head;
-      let K key = Memory.sha1 (Revision new_head) in
-      let body = Printf.sprintf "New HEAD: %s" key in
-      Server.respond_string ~status:`OK ~body ()
-
-    | [key] ->
-      begin match Memory.Low.read t (Memory.Types.K key) with
-        | None   -> invalid_page "Invalid key"
-        | Some v -> respond_value v
-      end
-    | _ -> invalid_page "Invalid adress"
+    | _ -> failwith "Invalid URI"
   in
   let conn_closed conn_id () =
     Printf.eprintf "conn %s closed\n%!" (Server.string_of_conn_id conn_id)

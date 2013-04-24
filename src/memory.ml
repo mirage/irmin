@@ -92,6 +92,7 @@ module J = struct
   let json_of_keys  ks    = `A (List.map json_of_key ks)
 
   let json_of_tag   (T t) = `String t
+  let json_of_tags  ts    = `A (List.map json_of_tag ts)
 
   let json_of_label (L l) = `String l
 
