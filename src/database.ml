@@ -190,7 +190,7 @@ module type REMOTE = sig
 
   (** Pull values. The order is kept between the received keys and the
       sent values. *)
-  val pull: t -> key list -> value list
+  val pull: t -> key list -> value option list
 
   (** Push values *)
   val push: t -> value list -> unit
