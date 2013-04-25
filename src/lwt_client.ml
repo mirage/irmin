@@ -26,3 +26,49 @@ let commit port =
     lwt _ = Client.get (uri port "action/snapshot") in
     return ()
   )
+
+let json_of_result fn result =
+  match_lwt result with
+  | None           -> failwith "json_of_body"
+  | Some (_, body) ->
+    lwt str = Body.string_of_body body in
+    let res = fn (Memory.J.json_of_string str) in
+    return res
+
+let keys port =
+  let result = Client.get (uri port "key") in
+  json_of_result Memory.J.keys_of_json result
+
+let tags port =
+  let result = Client.get (uri port "tags") in
+  json_of_result Memory.J.tags_of_json result
+
+(* XXX: dummy implementation *)
+let discover src dst =
+  Lwt_unix.run (
+    lwt keys = keys src in
+    lwt tags = tags src in
+    let args = Memory.J.string_of_json (Memory.J.json_of_discover (keys,tags)) in
+    let body = Body.body_of_string args in
+    let result = Client.post ?body (uri dst "action/discover") in
+    lwt keys = json_of_result Memory.J.keys_of_json result in
+    List.iter (fun (Memory.Types.K k) -> Printf.printf "%s\n" k) keys;
+    return ()
+  )
+
+(* XXX: dummy implementation *)
+let pull src dst =
+  Lwt_unix.run (
+    Client.get (uri src "key") >>= function
+      | None           -> failwith "pull"
+      | Some (_, body) ->
+        Client.post ?body (uri dst "action/pull") >>= function
+          | None           -> failwith "pull"
+          | Some (_, body) ->
+            let _ = Client.post ?body (uri src "action/push") in
+            return ()
+  )
+
+(* XXX: dummy implementation *)
+let push src dst =
+  pull dst src

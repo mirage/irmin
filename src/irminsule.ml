@@ -49,6 +49,16 @@ let port_flag =
     "Select the port on which the irminsule webserver is listening. Default is 8081."
     Arg.int 8081
 
+let src_flag =
+  mk_opt ["i";"input";"s";"src"] "SRC"
+    "Select source irminsule instance."
+    Arg.int 8081
+
+let dst_flag =
+  mk_opt ["o";"output";"d";"dst"] "DST"
+    "Select the destination irminsule instance."
+    Arg.int 8081
+
 (* START *)
 let start_doc = "Start an irminsule daemon."
 let start =
@@ -76,6 +86,40 @@ let commit =
   ] in
   Term.(pure Lwt_client.commit $ port_flag),
   term_info "commit" ~doc ~man
+
+(* DISCOVER *)
+let discover_doc = "Discover revision changes between irminsule instances."
+let discover =
+  let doc = discover_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P discover_doc;
+  ] in
+  Term.(pure Lwt_client.discover $ src_flag $ dst_flag),
+  term_info "discover" ~doc ~man
+
+(* PULL *)
+let pull_doc = "Pull changes between irminsule instances."
+let pull =
+  let doc = pull_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P pull_doc;
+  ] in
+  Term.(pure Lwt_client.pull $ src_flag $ dst_flag),
+  term_info "pull" ~doc ~man
+
+(* PUSH *)
+let push_doc = "Push changes between irminsule instances."
+let push =
+  let doc = push_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P push_doc;
+  ] in
+  Term.(pure Lwt_client.push $ src_flag $ dst_flag),
+  term_info "push" ~doc ~man
+
 
 (* HELP *)
 let help =
@@ -120,9 +164,12 @@ let default =
       The most commonly used irminsule commands are:\n\
       \    start       %s\n\
       \    commit      %s\n\
+      \    push        %s\n\
+      \    pull        %s\n\
+      \    discover    %s\n\
       \n\
       See 'irminsule help <command>' for more information on a specific command.\n%!"
-      start_doc commit_doc in
+      start_doc commit_doc push_doc pull_doc discover_doc in
   Term.(pure usage $ (pure ())),
   Term.info "irminsule"
     ~version:(Path_generated.project_version)
@@ -134,6 +181,9 @@ let commands = [
   start;
   commit;
   help;
+  push;
+  pull;
+  discover;
 ]
 
 let () =

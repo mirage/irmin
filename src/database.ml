@@ -182,15 +182,26 @@ module type REMOTE = sig
   module T: TYPES
   open T
 
-  (** [discover current tags] return the diff of revisions between the
-      [current] state of what we known from world and the state of
-      [tags] in the remote repository. Return the missing repository
-      keys. *)
-  val discover: t -> revision list -> tag list -> key list
+  (** [discover local remote] return the diff of keys between the
+      [loal] state of what we known from world and the state of
+      [remote] in the remote repository. Return the missing keys. Note:
+      to minimize the diff size both the sender and the receiver
+      should make some clever choices in the choice of the keys.
 
-  (** Pull values. The order is kept between the received keys and the
-      sent values. *)
-  val pull: t -> key list -> value option list
+      Example of clever choice made by the sender:
+
+      - keep an up-to-date tag pointing to the last values pulled to
+        the server, and send only the cover elements of the partial
+        order of keys.
+
+      Example of clever choice made by the receiver:
+
+      - compute an history cut of the partial order of keys between
+        the cover elements he received and its own cover. *)
+  val discover: t -> key list -> tag list -> key list
+
+  (** Pull values. The order of received keys is *NOT* meaningful. *)
+  val pull: t -> key list -> value list
 
   (** Push values *)
   val push: t -> value list -> unit

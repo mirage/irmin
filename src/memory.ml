@@ -160,7 +160,7 @@ module J = struct
     | _ -> failwith "value_of_json"
 
   let values_of_json = list_of_json value_of_json
-  let json_of_value_options = json_of_list (json_of_option json_of_value)
+  let json_of_values = json_of_list json_of_value
 
  (* XXX: should be replaced by a streaming API *)
   let discover_of_json = function
@@ -169,6 +169,9 @@ module J = struct
       let tags = tags_of_json remote in
       keys, tags
     | _ -> failwith "discover_of_json"
+
+  let json_of_discover (keys, tags) =
+    `O [ ("local", json_of_keys keys); ("remote", json_of_tags tags) ]
 
   let json_of_src ?encoding src =
     let dec d = match Jsonm.decode d with
@@ -355,12 +358,7 @@ end = struct
 
 end
 
-module Revision: sig
-  include Database.REVISION with module T = Types
-  module Graph: Graph.Sig.I with type V.t = Types.revision
-  val mkgraph: Types.t ->
-    roots:Types.revision list -> sinks:Types.revision list -> Graph.t
-end = struct
+module Revision: Database.REVISION with module T = Types = struct
 
   module T = Types
   open T
@@ -401,25 +399,6 @@ end = struct
       end
     | _ -> commit ()
 
-  module Vertex = struct
-    type t = Types.revision
-    let compare = Pervasives.compare
-    let hash = Hashtbl.hash
-    let equal = (=)
-  end
-  module Graph = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
-
-  let mkgraph t ~roots ~sinks =
-    let g = Graph.create () in
-    let rec aux rev =
-      if not (Graph.mem_vertex g rev) then (
-        Graph.add_vertex g rev;
-        if not (List.mem rev roots) then
-          List.iter aux (pred t rev)
-      ) in
-    List.iter aux sinks;
-    g
-
 end
 
 module Tag: Database.TAG with module T = Types = struct
@@ -447,24 +426,70 @@ module Tag: Database.TAG with module T = Types = struct
 
 end
 
+module Vertex = struct
+  type t = Types.key
+  let compare = Pervasives.compare
+  let hash = Hashtbl.hash
+  let equal = (=)
+end
+
+module Label = struct
+  type t = Types.label option
+  let default = None
+  let compare = Pervasives.compare
+end
+
+module Graph = Graph.Imperative.Digraph.ConcreteBidirectionalLabeled(Vertex)(Label)
+
+let mkgraph t ~roots ~sinks =
+  let open Types in
+  let g = Graph.create () in
+  let rec add_one key =
+    if List.mem key roots then Graph.add_vertex g key
+    else add_all key
+  and add_all key =
+    if not (Graph.mem_vertex g key) then (
+      Graph.add_vertex g key;
+      match Low.read t key with
+      | None                      -> ()
+      | Some (Blob _)       -> ()
+      | Some (Revision rev) -> List.iter add_one rev.parents
+      | Some (Tree tree)    ->
+        List.iter (fun (label,child) ->
+            add_one child;
+            Graph.add_edge_e g (key, (Some label), child);
+          ) tree.children;
+        match tree.value with
+        | None       -> ()
+        | Some child ->
+          add_one child;
+          Graph.add_edge g key child
+    )
+  in
+  List.iter add_one sinks;
+  g
+
 module Remote: Database.REMOTE with module T = Types = struct
 
   module T = Types
   open T
 
-  let discover t revisions tags =
-    let sinks = List.fold_left (fun l tag ->
-        match Tag.revision t tag with
-        | None   -> l
-        | Some r -> r::l
+  let discover t keys tags =
+    let sinks = List.fold_left (fun sinks tag ->
+        try Hashtbl.find t.tags tag :: sinks
+        with Not_found -> sinks
       ) [] tags in
-    let graph = Revision.mkgraph t ~roots:revisions ~sinks in
-    let revisions = ref [] in
-    Revision.Graph.iter_vertex (fun rev -> revisions := rev :: !revisions) graph;
-    List.map (fun r -> sha1 (Revision r)) !revisions
+    let graph = mkgraph t ~roots:keys ~sinks in
+    let new_keys = ref [] in
+    Graph.iter_vertex (fun rev -> new_keys := rev :: !new_keys) graph;
+    !new_keys
 
   let pull t keys =
-    List.map (Low.read t) keys
+    List.fold_left (fun values k ->
+        match Low.read t k with
+        | None   -> values
+        | Some v -> v :: values
+      ) [] keys
 
   let push t values =
     List.iter (fun v ->

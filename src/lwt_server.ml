@@ -81,8 +81,7 @@ let process t ?body = function
     lwt body = Body.string_of_body body in
     let json = Memory.J.json_of_string body in
     let keys, tags = Memory.J.discover_of_json json in
-    let revisions = fmap (Memory.Revision.read t) keys in
-    let keys = Memory.Remote.discover t revisions tags in
+    let keys = Memory.Remote.discover t keys tags in
     let json = Memory.J.json_of_keys keys in
     respond_json json
 
@@ -91,7 +90,7 @@ let process t ?body = function
     let json = Memory.J.json_of_string body in
     let keys = Memory.J.keys_of_json json in
     let values = Memory.Remote.pull t keys in
-    let json = Memory.J.json_of_value_options values in
+    let json = Memory.J.json_of_values values in
     respond_json json
 
   | ["action"; "push"] ->
