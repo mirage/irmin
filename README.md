@@ -18,17 +18,24 @@ easier to apply replication and network coding techniques to improve
 resilience via replication, and to optimise scheduling across many
 hosts using MPTCP-style congestion control.
 
-### Status
+### Compile
 
-* The file [./src/database.ml] describes the API which is now more or
-  less stabilized.
+```
+opam install jsonm uri ocamlgraph cohttp cmdliner obuild lwt
+make
+```
 
-* The file [./src/memory.ml] is a very simple in-memory implementation
-  of the irminsule API.
+### Usage
 
-* The file [./src/irminsule.ml] is a simple command-line tool to drive
-  in-memory irminsule instances. You can start a dummy irminsule
-  instance using:
+* [API.ml](https://github.com/samoht/irminsule/blob/master/src/irminsule/API.ml)
+  describes the API which is now more or less stabilized.
+
+* [memory.ml](https://github.com/samoht/irminsule/blob/master/src/irminsule/memory.ml)
+  is a very simple in-memory implementation of the irminsule API.
+
+* [irminsule.ml](https://github.com/samoht/irminsule/blob/master/src/irminsule.ml)
+  is a simple command-line tool to drive in-memory irminsule
+  instances. You can start a dummy irminsule instance using:
 
   ```
   irminsule start . -x .git
@@ -67,9 +74,10 @@ hosts using MPTCP-style congestion control.
 * xenstore-like API
 * benchmark using xstest
 
-### Possible issues
+### Issues
 
-SHA1 is not immune to collisions,
-[http://stackoverflow.com/questions/9392365/how-would-git-handle-a-sha-1-collision-on-a-blob/9392525#9392525]
-is relevant here. The only problem being that the *inadvertent kind*
-needs to be handle properly (by properly telling the client)
+SHA1 is not immune to collisions, but
+[Linus](http://stackoverflow.com/questions/9392365/how-would-git-handle-a-sha-1-collision-on-a-blob/9392525#9392525)
+answer is still relevant in the case of irminsule. The only problem
+being that the *inadvertent kind* needs to be handle properly and
+reported back to the user.
