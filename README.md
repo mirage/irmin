@@ -66,3 +66,10 @@ hosts using MPTCP-style congestion control.
 * implement watch
 * xenstore-like API
 * benchmark using xstest
+
+### Possible issues
+
+SHA1 is not immune to collisions,
+[http://stackoverflow.com/questions/9392365/how-would-git-handle-a-sha-1-collision-on-a-blob/9392525#9392525]
+is relevant here. The only problem being that the *inadvertent kind*
+needs to be handle properly (by properly telling the client)
