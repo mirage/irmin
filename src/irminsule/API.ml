@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Datamodel for Irminsule backends *)
+
 module type TYPES = sig
 
   (** Database handler *)
@@ -58,13 +60,11 @@ module type KV = sig
 
 end
 
-(** Datamodel for Irminsule backends *)
-
 (** A low-level immutable and consistent key/value data-store:
 
     - *immutable* (eg. append-only) means that if you modify a value,
-    its computed key changes as well: hence you are creating a new
-    key/value pair. Hence ; and
+    its computed key changes as well and you are creating a new
+    key/value pair; and
 
     - *consistent* means that if two data-stores share the same
     values, they will have the same keys: the overall structure of the
@@ -88,12 +88,10 @@ module type LOW = sig
 
 end
 
-(** We use the low-level database to encoe a tree-like
-    data-structure to model a *filesystem*, with two kinds of nodes:
-    files nodes, which contain raw binary blobs; and directories nodes
-    which contain the list of names, metadatas (such as permissions)
-    and an ordered list of the keys of its sub-directories and
-    sub-files.
+(** We use the low-level database to encoe a tree-like data-structure
+    to model a *filesystem*, with two kinds of nodes: (i) files nodes,
+    which contain raw binary blobs; and (ii) directories nodes which
+    contain the list of sub-directories and sub-files.
 *)
 module type TREE = sig
 
@@ -121,13 +119,14 @@ module type TREE = sig
   val merge: t -> (value option -> value option -> value option) ->
     tree -> tree -> tree option
 
-    (* XXX: more expressive merge function *)
+  (* XXX: More expressive merge function *)
+  (* XXX: Need to be able to handle Xenstore transaction merges *)
 end
 
 (** We also use the low-level database to encode a *partial-order* of
     filesystem revisions. A revisions is a node which contains
-    metadata, the key of the filesystem root it is snapshoting and the
-    list of keys of its immediate predecessors. This last part is
+    the key of the filesystem root it is snapshoting and the
+    list of keys for its immediate predecessors. This last part is
     encoding the Hasse relation of the partial order, which is
     equivalent to the full partial-order relation (as they have the
     same transitive closure). As the data-store is consistent, finding
@@ -155,11 +154,12 @@ module type REVISION = sig
 
 end
 
-(** The *tag data-store* is a key/value store, where keys are
-    names created by users (and/or global names created by convention) and
-    values are keys from the low-level data-store. The tag data-store is
-    neither immutable nor consistent, so it is very different from the
-    low-level one. *)
+(** The *tag data-store* is a key/value store, where keys are names
+    created by users (and/or global names created by convention) and
+    values are keys from the low-level data-store. The tag data-store
+    is neither immutable nor consistent, so it is very different from
+    the low-level one.
+*)
 module type TAG = sig
 
   module T: TYPES

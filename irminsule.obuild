@@ -8,14 +8,19 @@ library irminsule-misc
   modules   : Lib
   build-deps: cryptokit
 
-library irminsule
+library irminsule-lib
   src-dir   : src/
-  modules   : Database, Memory
+  modules   : Irminsule
   build-deps: irminsule-misc, jsonm, uri, ocamlgraph
+
+library irminsule-lwt
+  src-dir   : src/
+  modules   : Lwt
+  build-deps: irminsule-lib, cohttp.lwt, lwt.syntax
+  pp        : camlp4o
 
 executable irminsule
   src-dir   : src/
   main-is   : irminsule.ml
-  build-deps: cohttp.lwt, lwt.syntax, irminsule, cmdliner
-  pp        : camlp4o
+  build-deps: irminsule-lib, irminsule-lwt, cmdliner
   

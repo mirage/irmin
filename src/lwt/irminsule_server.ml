@@ -18,6 +18,7 @@ open Lwt
 open Cohttp
 open Cohttp_lwt_unix
 
+open Irminsule
 open Memory.Types
 
 let respond body =

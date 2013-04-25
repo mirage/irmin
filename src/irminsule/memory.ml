@@ -228,7 +228,7 @@ module J = struct
 
 end
 
-module Low: Database.LOW with module T = Types = struct
+module Low: API.LOW with module T = Types = struct
 
   module T = Types
   open T
@@ -252,7 +252,7 @@ module Low: Database.LOW with module T = Types = struct
 end
 
 module Tree: sig
-  include Database.TREE with module T = Types
+  include API.TREE with module T = Types
   val leaf: Types.key -> Types.tree
 end = struct
 
@@ -358,7 +358,7 @@ end = struct
 
 end
 
-module Revision: Database.REVISION with module T = Types = struct
+module Revision: API.REVISION with module T = Types = struct
 
   module T = Types
   open T
@@ -401,7 +401,7 @@ module Revision: Database.REVISION with module T = Types = struct
 
 end
 
-module Tag: Database.TAG with module T = Types = struct
+module Tag: API.TAG with module T = Types = struct
 
   module T = Types
   open T
@@ -469,7 +469,7 @@ let mkgraph t ~roots ~sinks =
   List.iter add_one sinks;
   g
 
-module Remote: Database.REMOTE with module T = Types = struct
+module Remote: API.REMOTE with module T = Types = struct
 
   module T = Types
   open T
