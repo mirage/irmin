@@ -17,7 +17,9 @@
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
+module Body = Cohttp_lwt_body
 open Irminsule
+
 
 let uri port path =
   Uri.of_string (Printf.sprintf "http://127.0.0.1:%d/%s" port path)

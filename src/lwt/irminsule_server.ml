@@ -17,9 +17,10 @@
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
-
 open Irminsule
 open Memory.Types
+
+module Body = Cohttp_lwt_body
 
 let respond body =
   Server.respond_string ~status:`OK ~body ()
@@ -165,14 +166,14 @@ let process t ?body = function
 let make_server t port =
 
   let callback conn_id ?body req =
-    let path = Request.path req in
+    let path = Uri.path (Request.uri req) in
     let path = Re_str.split_delim (Re_str.regexp_string "/") path in
     let path = List.filter ((<>) "") path in
     process t ?body path in
   let conn_closed conn_id () =
     Printf.eprintf "conn %s closed\n%!" (Server.string_of_conn_id conn_id) in
   let config = { Server.callback; conn_closed } in
-  server ~address:"127.0.0.1" ~port config
+  Server.create ~address:"127.0.0.1" ~port config
 
 let init () =
   let t = Memory.create () in
