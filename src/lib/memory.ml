@@ -22,18 +22,9 @@ module Types = struct
 
   type blob = B of string
 
-  (* The key has two parts:
+  type key = K of string
 
-     - one is the SHA1 of the value, which is very deterministic and is
-      subject to collisions
-
-     - one is a randomly generated salt, which is used to uniquely
-      identify key instances, which is used to avoid possible
-      collisions. *)
-  type key = K of (string * int) (* int64 *)
-
-  let string_of_key (K (h,s)) =
-    Printf.sprintf "%s-%d" h s
+  let string_of_key (K h) = h
 
   type label = L of string
 
@@ -43,6 +34,11 @@ module Types = struct
   }
 
   type tree = key raw_tree
+
+  let empty_raw_tree: tree = {
+    value    = None;
+    children = [];
+  }
 
   let map_tree f t =
     let value = match t.value with
@@ -79,22 +75,19 @@ module Types = struct
 
   type remote = Uri.t
 
-  let sha1_of_key (K (sha1,_)) = sha1
+  let sha1_of_key (K sha1) =
+    sha1
 
   let sha1 (value: value) =
-(*    let value = match value with
+    let value = match value with
       | Blob b     -> Blob b
       | Tree t     -> Tree (map_tree sha1_of_key t)
-      | Revision r -> Revision (map_revision sha1_of_key r) in *)
-(*    let str = Marshal.to_string value [] in
-    Lib.Misc.sha1 str *)
-    ""(*string_of_int ()*)
-
-  let salt value = Hashtbl.hash value
-(*    Random.int64 Int64.max_int *)
+      | Revision r -> Revision (map_revision sha1_of_key r) in
+    let str = Marshal.to_string value [] in
+    Misc.sha1 str
 
   let key (value: value) =
-    K (sha1 value, salt value)
+    K (sha1 value)
 
 end
 
@@ -148,10 +141,10 @@ module J = struct
     | _ -> failwith "pair_of_json"
 
   (* keys *)
-  let json_of_key (K k) = json_of_pair json_of_string json_of_int64 k
+  let json_of_key (K k) = json_of_string k
   let json_of_keys = json_of_list json_of_key
-  let key_of_json json =
-    K (pair_of_json (string_of_json (fun x -> x)) int64_of_json json)
+
+  let key_of_json = string_of_json (fun x -> K x)
   let keys_of_json = list_of_json key_of_json
 
   (* blobs *)
@@ -557,27 +550,12 @@ let create () = {
   tags  = Hashtbl.create 64;
 }
 
-let save_file t file =
-  Printf.printf "save_file: %s\n%!" file;
-  let ic = open_in file in
-  let n = in_channel_length ic in
-  let str = String.create n in
-  really_input ic str 0 n;
-  close_in ic;
-  let key = Low.write t (Blob (B str)) in
+let save_queue t blob =
+  let key = Low.write t (Blob (B blob)) in
   let leaf = Tree.leaf key in
-  Low.write t (Tree leaf)
+  let root = Low.write t (Tree leaf) in
+  root, leaf
 
-let rec save_dir t ?(exclude=[]) dir =
-  Printf.printf "save_dir: %s\n%!" dir;
-  let files = Array.to_list (Sys.readdir dir) in
-  let files = List.filter (fun f -> not (List.mem f exclude)) files in
-  let files = List.map (Filename.concat dir) files in
-  let dirs, files = List.partition Sys.is_directory files in
-  let files = List.map (fun f -> L (Filename.basename f), save_file t f) files in
-  let dirs = List.map (fun d -> L (Filename.basename d), save_dir t d) dirs in
-  let tree = {
-    value    = None;
-    children = List.sort compare (files @ dirs);
-  } in
-  Low.write t (Tree tree)
+let init_queue t =
+  let key = Low.write t (Tree empty_raw_tree) in
+  key, empty_raw_tree
