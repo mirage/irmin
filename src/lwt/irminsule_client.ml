@@ -89,3 +89,6 @@ let watch _ =
 
 let clone _ =
   failwith "TODO"
+
+let dump _ =
+  failwith "TODO"

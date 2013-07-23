@@ -116,6 +116,17 @@ let peek =
   Term.(pure Irminsule_client.peek $ port_flag),
   term_info "peek" ~doc ~man
 
+(* DUMP *)
+let dump_doc = "Dump the queue contents."
+let dump =
+  let doc = dump_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P dump_doc;
+  ] in
+  Term.(pure Irminsule_client.dump $ port_flag),
+  term_info "dump" ~doc ~man
+
 (* PULL *)
 let pull_doc = "Pull changes between queues."
 let pull =
@@ -190,19 +201,21 @@ let default =
       \             <command> [<args>]\n\
       \n\
       The most commonly used irminsule commands are:\n\
-      \    init        %s\n\
-      \    add         %s\n\
-      \    take        %s\n\
-      \    peek        %s\n\
-      \    watch       %s\n\
-      \    clone       %s\n\
-      \    push        %s\n\
-      \    pull        %s\n\
+      \    init    %s\n\
+      \    add     %s\n\
+      \    take    %s\n\
+      \    peek    %s\n\
+      \    watch   %s\n\
+      \    dump    %s\n\
+      \    clone   %s\n\
+      \    push    %s\n\
+      \    pull    %s\n\
       \n\
       See `irmin help <command>` for more information on a specific command.\n%!"
-      init_doc add_doc take_doc peek_doc watch_doc clone_doc push_doc pull_doc in
+      init_doc add_doc take_doc peek_doc watch_doc dump_doc clone_doc push_doc
+      pull_doc in
   Term.(pure usage $ (pure ())),
-  Term.info "irminsule"
+  Term.info "irmin"
     ~version:Version.current
     ~sdocs:global_option_section
     ~doc
@@ -214,6 +227,7 @@ let commands = [
   take;
   peek;
   watch;
+  dump;
   clone;
   push;
   pull;
