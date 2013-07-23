@@ -18,7 +18,6 @@ open Lwt
 open Cohttp
 open Cohttp_lwt_unix
 module Body = Cohttp_lwt_body
-open Irminsule
 
 
 let uri port path =
@@ -29,6 +28,9 @@ let commit port =
     lwt _ = Client.get (uri port "action/snapshot") in
     return ()
   )
+
+let write _ = assert false
+
 
 let json_of_result fn result =
   match_lwt result with
@@ -55,7 +57,7 @@ let discover src dst =
     let body = Body.body_of_string args in
     let result = Client.post ?body (uri dst "action/discover") in
     lwt keys = json_of_result Memory.J.keys_of_json result in
-    List.iter (fun (Memory.Types.K k) -> Printf.printf "%s\n" k) keys;
+    List.iter (fun k -> Printf.printf "%s\n" (Memory.Types.string_of_key k)) keys;
     return ()
   )
 

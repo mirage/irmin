@@ -48,31 +48,28 @@ module type KV = sig
   type key
   type value
 
-  (** Add a value in the store. Return the newly created key. *)
+  (** Add a value in the store. *)
   val write: t -> value -> key
 
   (** Read the value associated to a key. Return [None] if nothing has
       been associated to the key yet. *)
   val read: t -> key -> value option
 
-  (** List all the nodes. *)
+  (** List all the keys. *)
   val list: t -> key list
 
 end
 
-(** A low-level immutable and consistent key/value data-store:
+(** A low-level immutable and consistent key/value
+    data-store. Deterministic computation of keys + immutability
+    induces two very nice properties on the database structure:
 
-    - *immutable* (eg. append-only) means that if you modify a value,
-    its computed key changes as well and you are creating a new
-    key/value pair; and
+    - if you modify a value, its computed key changes as well and you
+    are creating a new key/value pair; and
 
-    - *consistent* means that if two data-stores share the same
-    values, they will have the same keys: the overall structure of the
-    data-store only depend on the stored data and not on any external
-    user choices.
-
-    A good candidate for the [value -> key] function is *SHA1* (but
-    need to carrefuly take care of possible collisions).
+    - if two data-stores share the same values, they will have the
+    same keys: the overall structure of the data-store only depend on
+    the stored data and not on any external user choices.
 *)
 module type LOW = sig
 

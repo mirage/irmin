@@ -15,7 +15,6 @@
  *)
 
 open Cmdliner
-open Lib
 
 let global_option_section = "COMMON OPTIONS"
 let help_sections = [
@@ -59,44 +58,51 @@ let dst_flag =
     "Select the destination irminsule instance."
     Arg.int 8081
 
-(* START *)
-let start_doc = "Start an irminsule daemon."
-let start =
-  let doc = start_doc in
+(* INIT *)
+let init_doc = "Initialize an irminsule instance."
+let init =
+  let doc = init_doc in
   let man = [
     `S "DESCRIPTION";
-    `P start_doc;
+    `P init_doc;
   ] in
-  let path =
-    arg_list "PATH" "Local path this instance of irminsule is monitoring." Arg.string in
-  let exclude =
-    mk_opt ["x";"exclude"] "DIRS"
-      "Files to ignore"
-      Arg.(list string) [] in
-  Term.(pure Lwt_server.start $ path $ port_flag $ exclude),
-  term_info "start" ~doc ~man
+  Term.(pure Irminsule_server.init $ port_flag),
+  term_info "init" ~doc ~man
 
-(* COMMIT *)
-let commit_doc = "Commit the current state of the tree."
-let commit =
-  let doc = commit_doc in
+(* WRITE *)
+let write_doc = "Add an element to the queue."
+let write =
+  let doc = write_doc in
   let man = [
     `S "DESCRIPTION";
-    `P commit_doc;
+    `P write_doc;
   ] in
-  Term.(pure Lwt_client.commit $ port_flag),
-  term_info "commit" ~doc ~man
+  let values = arg_list "VALUE" "Values to add the the distributed queue." Arg.string in
+  Term.(pure Irminsule_client.write $ port_flag $values),
+  term_info "write" ~doc ~man
 
-(* DISCOVER *)
-let discover_doc = "Discover revision changes between irminsule instances."
-let discover =
-  let doc = discover_doc in
+(* WATCH *)
+let watch_doc = "Watch a queue."
+let watch =
+  let doc = watch_doc in
   let man = [
     `S "DESCRIPTION";
-    `P discover_doc;
+    `P watch_doc;
   ] in
-  Term.(pure Lwt_client.discover $ src_flag $ dst_flag),
-  term_info "discover" ~doc ~man
+  Term.(pure Irminsule_client.write $ port_flag),
+  term_info "watch" ~doc ~man
+
+(* READ *)
+let read_doc = "Read the latest element element of the queue."
+let read =
+  let doc = read_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P read_doc;
+  ] in
+  let values = arg_list "VALUE" "Values to add the the distributed queue." Arg.string in
+  Term.(pure Irminsule_client.write $ port_flag $values),
+  term_info "write" ~doc ~man
 
 (* PULL *)
 let pull_doc = "Pull changes between irminsule instances."
@@ -106,7 +112,7 @@ let pull =
     `S "DESCRIPTION";
     `P pull_doc;
   ] in
-  Term.(pure Lwt_client.pull $ src_flag $ dst_flag),
+  Term.(pure Irminsule_client.pull $ src_flag $ dst_flag),
   term_info "pull" ~doc ~man
 
 (* PUSH *)
@@ -117,16 +123,16 @@ let push =
     `S "DESCRIPTION";
     `P push_doc;
   ] in
-  Term.(pure Lwt_client.push $ src_flag $ dst_flag),
+  Term.(pure Irminsule_client.push $ src_flag $ dst_flag),
   term_info "push" ~doc ~man
 
 
 (* HELP *)
 let help =
-  let doc = "Display help about Mirari and Mirari commands." in
+  let doc = "Display help about Irminsule and Irminsule commands." in
   let man = [
     `S "DESCRIPTION";
-     `P "Prints help about Mirari commands.";
+     `P "Prints help about Irminsule commands.";
      `P "Use `$(mname) help topics' to get the full list of help topics.";
   ] in
   let topic =
@@ -147,43 +153,44 @@ let help =
   Term.info "help" ~doc ~man
 
 let default =
-  let doc = "Mirage application builder" in
+  let doc = "Irminsule, the database that never forgets." in
   let man = [
     `S "DESCRIPTION";
     `P "TODO";
-    `P "Use either $(b,irminsule <command> --help) or $(b,irminsule help <command>) \
+    `P "Use either $(b,$(mname) <command> --help) or $(b,$(mname) help <command>) \
         for more information on a specific command.";
   ] @  help_sections
   in
   let usage _ =
     Printf.printf
-      "usage: irminsule [--version]\n\
-      \                 [--help]\n\
-      \                 <command> [<args>]\n\
+      "usage: irmin [--version]\n\
+      \             [--help]\n\
+      \             <command> [<args>]\n\
       \n\
       The most commonly used irminsule commands are:\n\
-      \    start       %s\n\
-      \    commit      %s\n\
+      \    init        %s\n\
+      \    write       %s\n\
+      \    read        %s\n\
+      \    watch       %s\n\
       \    push        %s\n\
       \    pull        %s\n\
-      \    discover    %s\n\
       \n\
-      See 'irminsule help <command>' for more information on a specific command.\n%!"
-      start_doc commit_doc push_doc pull_doc discover_doc in
+      See '$(mname) help <command>' for more information on a specific command.\n%!"
+      init_doc write_doc read_doc watch_doc push_doc pull_doc in
   Term.(pure usage $ (pure ())),
   Term.info "irminsule"
-    ~version:(Path_generated.project_version)
+    ~version:Version.current
     ~sdocs:global_option_section
     ~doc
     ~man
 
 let commands = [
-  start;
-  commit;
-  help;
+  init;
+  write;
+  read;
+  watch;
   push;
   pull;
-  discover;
 ]
 
 let () =

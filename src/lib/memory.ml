@@ -14,29 +14,61 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let () =
+  Random.self_init ()
+
 (* In memory representation of Irminsule *)
 module Types = struct
 
   type blob = B of string
 
-  type key = K of string
+  (* The key has two parts:
+
+     - one is the SHA1 of the value, which is very deterministic and is
+      subject to collisions
+
+     - one is a randomly generated salt, which is used to uniquely
+      identify key instances, which is used to avoid possible
+      collisions. *)
+  type key = K of (string * int) (* int64 *)
+
+  let string_of_key (K (h,s)) =
+    Printf.sprintf "%s-%d" h s
 
   type label = L of string
 
-  type tree = {
-    value   : key option;
-    children: (label * key) list;
+  type 'a raw_tree = {
+    value   : 'a option;
+    children: (label * 'a) list;
   }
 
-  type revision = {
-    parents: key list;
-    tree   : key;
+  type tree = key raw_tree
+
+  let map_tree f t =
+    let value = match t.value with
+      | None   -> None
+      | Some k -> Some (f k) in
+    let children = List.map (fun (l,k) -> (l, f k)) t.children in
+    { value; children }
+
+  type 'a raw_revision = {
+    parents: 'a list;
+    tree   : 'a;
   }
 
-  type value =
+  type revision = key raw_revision
+
+  let map_revision f r =
+    let parents = List.map f r.parents in
+    let tree = f r.tree in
+    { parents; tree }
+
+  type 'a raw_value =
     | Blob of blob
-    | Tree of tree
-    | Revision of revision
+    | Tree of 'a raw_tree
+    | Revision of 'a raw_revision
+
+  type value = key raw_value
 
   type tag = T of string
 
@@ -47,11 +79,24 @@ module Types = struct
 
   type remote = Uri.t
 
-end
+  let sha1_of_key (K (sha1,_)) = sha1
 
-let sha1 (value: Types.value) =
-  let str = Marshal.to_string value [] in
-  Types.K (Lib.Misc.sha1 str)
+  let sha1 (value: value) =
+(*    let value = match value with
+      | Blob b     -> Blob b
+      | Tree t     -> Tree (map_tree sha1_of_key t)
+      | Revision r -> Revision (map_revision sha1_of_key r) in *)
+(*    let str = Marshal.to_string value [] in
+    Lib.Misc.sha1 str *)
+    ""(*string_of_int ()*)
+
+  let salt value = Hashtbl.hash value
+(*    Random.int64 Int64.max_int *)
+
+  let key (value: value) =
+    K (sha1 value, salt value)
+
+end
 
 module J = struct
 
@@ -67,9 +112,13 @@ module J = struct
   (* strings *)
   let json_of_string s = `String s
 
+  let json_of_int64 i = `String (string_of_int (*Int64.to_string*) i)
+
   let string_of_json fn (json:json) = match json with
     | `String k -> fn k
     | _         -> failwith "string_of_json"
+
+  let int64_of_json = string_of_json int_of_string (*Int64.of_string*)
 
   (* list *)
   let json_of_list fn = function
@@ -99,9 +148,10 @@ module J = struct
     | _ -> failwith "pair_of_json"
 
   (* keys *)
-  let json_of_key (K k) = json_of_string k
+  let json_of_key (K k) = json_of_pair json_of_string json_of_int64 k
   let json_of_keys = json_of_list json_of_key
-  let key_of_json = string_of_json (fun x -> K x)
+  let key_of_json json =
+    K (pair_of_json (string_of_json (fun x -> x)) int64_of_json json)
   let keys_of_json = list_of_json key_of_json
 
   (* blobs *)
@@ -234,16 +284,16 @@ module Low: API.LOW with module T = Types = struct
   open T
 
   let write t value =
-    let sha1 = sha1 value in
-    Hashtbl.add t.store sha1 value;
-    sha1
+    let key = key value in
+    Hashtbl.add t.store key value;
+    key
 
   let valid t key =
     Hashtbl.mem t.store key
 
-  let read t sha1 =
-    Printf.printf "Reading %s\n%!" (match sha1 with K k -> k);
-    try Some (Hashtbl.find t.store sha1)
+  let read t key =
+    Printf.printf "Reading %s\n%!" (string_of_key key);
+    try Some (Hashtbl.find t.store key)
     with Not_found -> None
 
   let list t =
@@ -273,7 +323,7 @@ end = struct
     k: key;
     v: key option;
   }
-  type trie = (label, node) Lib.Trie.t
+  type trie = (label, node) Trie.t
 
   (* Convert a tree into a lazy trie *)
   let rec mktrie t tree: trie =
@@ -286,20 +336,20 @@ end = struct
       List.map child tree.children
     ) in
     let value = {
-      k = sha1 (Tree tree);
+      k = key (Tree tree);
       v = tree.value
     } in
-    Lib.Trie.create ~value ~children ()
+    Trie.create ~value ~children ()
 
   (* Save a lazy trie into a the database *)
   let rec save t (trie:trie) =
     let children = List.map (fun (label, child) ->
-        let value = Lib.Trie.find child [] in
+        let value = Trie.find child [] in
         if Low.valid t value.k then (label, value.k)
         else (label, save t child)
-      ) (Lib.Trie.children trie) in
+      ) (Trie.children trie) in
     let children = List.sort compare children in
-    let node = Lib.Trie.find trie [] in
+    let node = Trie.find trie [] in
     Low.write t (Tree { children; value = node.v })
 
   (* Save a trie in the database and return its corresponding tree.*)
@@ -311,7 +361,7 @@ end = struct
 
   let get t tree labels =
     let trie = mktrie t tree in
-    try Some (Lib.Trie.find trie labels).k
+    try Some (Trie.find trie labels).k
     with Not_found -> None
 
   let leaf key = {
@@ -319,18 +369,18 @@ end = struct
     children = [];
   }
 
-  let node key =
-    let tree = leaf key in
+  let node k =
+    let tree = leaf k in
     {
-      k = sha1 (Tree tree);
-      v = Some key;
+      k = key (Tree tree);
+      v = Some k;
     }
 
   (* XXX: not very efficient *)
   let set t tree labels value =
     let trie = mktrie t tree in
     let key = Low.write t value in
-    let trie = Lib.Trie.set trie labels (node key) in
+    let trie = Trie.set trie labels (node key) in
     mktree t trie
 
   exception EAGAIN
@@ -348,12 +398,12 @@ end = struct
         end
       | _ -> raise Invalid_values
     in
-    try Some (mktree t (Lib.Trie.merge ~values t1 t2))
+    try Some (mktree t (Trie.merge ~values t1 t2))
     with EAGAIN | Not_found -> None
 
   let succ t tree =
     let trie = mktrie t tree in
-    let children = Lib.Trie.children trie in
+    let children = Trie.children trie in
     List.map (fun (label,trie) -> (label, mktree t trie)) children
 
 end
@@ -418,7 +468,7 @@ module Tag: API.TAG with module T = Types = struct
     with Not_found -> None
 
   let tag t tag revision =
-    let key = sha1 (Revision revision) in
+    let key = key (Revision revision) in
     if Hashtbl.mem t.store key then
       Hashtbl.replace t.tags tag key
     else

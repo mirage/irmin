@@ -17,7 +17,6 @@
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
-open Irminsule
 open Memory.Types
 
 module Body = Cohttp_lwt_body
@@ -37,8 +36,8 @@ let respond_strings strs =
   let json = `A (List.map (fun s -> `String s) strs) in
   respond_json json
 
-let respond_new_head (K key) =
-  let body = Printf.sprintf "New HEAD: %s" key in
+let respond_new_head key =
+  let body = Printf.sprintf "New HEAD: %s" (string_of_key key) in
   Server.respond_string ~status:`OK ~body ()
 
 let (>>=) x f =
@@ -102,21 +101,22 @@ let process t ?body = function
     Memory.Remote.push t values;
     respond "OK"
 
-  | ["action"; "revert"; key] ->
-    let revision = match Memory.Low.read t (K key) with
+  | ["action"; "revert"; hash; salt] ->
+    let key = K (hash, int_of_string (*Int64.of_string*) salt) in
+    let revision = match Memory.Low.read t key with
       | Some (Revision r) -> r
-      | _ -> match Memory.Tag.revision t (T key) with
+      | _ -> match Memory.Tag.revision t (T hash) with
         | Some r -> r
         | None   -> failwith "revert" in
     Memory.Tag.tag t (T "HEAD") revision;
-    respond_new_head (K key)
+    respond_new_head key
 
   | ["action"; "snapshot"] ->
     snapshot t >>= fun tree ->
     Memory.Tag.revision t (T "HEAD") >>= fun head ->
     let new_head = Memory.Revision.commit t [head] tree in
     Memory.Tag.tag t (T "HEAD") new_head;
-    let key = Memory.sha1 (Revision new_head) in
+    let key = Memory.Types.key (Revision new_head) in
     respond_new_head key
 
   | ["action"; "tag"; tag] ->
@@ -131,8 +131,9 @@ let process t ?body = function
     let json = Memory.J.json_of_keys keys in
     respond_json json
 
-  | ["key"; key] ->
-    Memory.Low.read t (Memory.Types.K key) >>=
+  | ["key"; hash; salt] ->
+    let key = K (hash, int_of_string (*Int64.of_string*) salt) in
+    Memory.Low.read t key >>=
     respond_value
 
   | ["revision"] ->
@@ -140,8 +141,9 @@ let process t ?body = function
     let json = Memory.J.json_of_keys keys in
     respond_json json
 
-  | ["revision"; key] ->
-    Memory.Revision.read t (K key) >>= fun revision ->
+  | ["revision"; hash; salt] ->
+    let key = K (hash, int_of_string (*Int64.of_string*) salt) in
+    Memory.Revision.read t key >>= fun revision ->
     respond_value (Revision revision)
 
   | ["tag"] ->
@@ -192,3 +194,6 @@ let start p port e =
     | _  -> exclude := Some e;
   end;
   Lwt_unix.run (make_server (init ()) port)
+
+let init _ =
+  failwith "TODO"
