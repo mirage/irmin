@@ -59,7 +59,7 @@ let dst_flag =
     Arg.int 8081
 
 (* INIT *)
-let init_doc = "Initialize an irminsule instance."
+let init_doc = "Initialize a queue."
 let init =
   let doc = init_doc in
   let man = [
@@ -69,17 +69,18 @@ let init =
   Term.(pure Irminsule_server.init $ port_flag),
   term_info "init" ~doc ~man
 
-(* WRITE *)
-let write_doc = "Add an element to the queue."
-let write =
-  let doc = write_doc in
+(* ADD *)
+let add_doc = "Add an element at the end of the queue."
+let add =
+  let doc = add_doc in
   let man = [
     `S "DESCRIPTION";
-    `P write_doc;
+    `P add_doc;
   ] in
-  let values = arg_list "VALUE" "Values to add the the distributed queue." Arg.string in
-  Term.(pure Irminsule_client.write $ port_flag $values),
-  term_info "write" ~doc ~man
+  let values =
+    arg_list "VALUES" "Values to add the the distributed queue." Arg.string in
+  Term.(pure Irminsule_client.add $ port_flag $values),
+  term_info "add" ~doc ~man
 
 (* WATCH *)
 let watch_doc = "Watch a queue."
@@ -89,23 +90,34 @@ let watch =
     `S "DESCRIPTION";
     `P watch_doc;
   ] in
-  Term.(pure Irminsule_client.write $ port_flag),
+  Term.(pure Irminsule_client.watch $ port_flag),
   term_info "watch" ~doc ~man
 
-(* READ *)
-let read_doc = "Read the latest element element of the queue."
-let read =
-  let doc = read_doc in
+(* TAKE *)
+let take_doc = "Removes and returns the first element in the queue."
+let take =
+  let doc = take_doc in
   let man = [
     `S "DESCRIPTION";
-    `P read_doc;
+    `P take_doc;
   ] in
-  let values = arg_list "VALUE" "Values to add the the distributed queue." Arg.string in
-  Term.(pure Irminsule_client.write $ port_flag $values),
-  term_info "write" ~doc ~man
+  Term.(pure Irminsule_client.take $ port_flag),
+  term_info "take" ~doc ~man
+
+(* PEEK *)
+let peek_doc = "Returns the first element in the queue, without removing it from \
+                the queue."
+let peek =
+  let doc = peek_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P peek_doc;
+  ] in
+  Term.(pure Irminsule_client.peek $ port_flag),
+  term_info "peek" ~doc ~man
 
 (* PULL *)
-let pull_doc = "Pull changes between irminsule instances."
+let pull_doc = "Pull changes between queues."
 let pull =
   let doc = pull_doc in
   let man = [
@@ -116,7 +128,7 @@ let pull =
   term_info "pull" ~doc ~man
 
 (* PUSH *)
-let push_doc = "Push changes between irminsule instances."
+let push_doc = "Push changes between queues."
 let push =
   let doc = push_doc in
   let man = [
@@ -126,6 +138,16 @@ let push =
   Term.(pure Irminsule_client.push $ src_flag $ dst_flag),
   term_info "push" ~doc ~man
 
+(* CLONE *)
+let clone_doc = "Clone an existing queue."
+let clone =
+  let doc = clone_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P clone_doc;
+  ] in
+  Term.(pure Irminsule_client.clone $ src_flag $ dst_flag),
+  term_info "clone" ~doc ~man
 
 (* HELP *)
 let help =
@@ -169,14 +191,16 @@ let default =
       \n\
       The most commonly used irminsule commands are:\n\
       \    init        %s\n\
-      \    write       %s\n\
-      \    read        %s\n\
+      \    add         %s\n\
+      \    take        %s\n\
+      \    peek        %s\n\
       \    watch       %s\n\
+      \    clone       %s\n\
       \    push        %s\n\
       \    pull        %s\n\
       \n\
-      See '$(mname) help <command>' for more information on a specific command.\n%!"
-      init_doc write_doc read_doc watch_doc push_doc pull_doc in
+      See `irmin help <command>` for more information on a specific command.\n%!"
+      init_doc add_doc take_doc peek_doc watch_doc clone_doc push_doc pull_doc in
   Term.(pure usage $ (pure ())),
   Term.info "irminsule"
     ~version:Version.current
@@ -186,9 +210,11 @@ let default =
 
 let commands = [
   init;
-  write;
-  read;
+  add;
+  take;
+  peek;
   watch;
+  clone;
   push;
   pull;
 ]

@@ -29,9 +29,6 @@ let commit port =
     return ()
   )
 
-let write _ = assert false
-
-
 let json_of_result fn result =
   match_lwt result with
   | None           -> failwith "json_of_body"
@@ -77,3 +74,18 @@ let pull src dst =
 (* XXX: dummy implementation *)
 let push src dst =
   pull dst src
+
+let add _ =
+  failwith "TODO"
+
+let take _ =
+  failwith "TODO"
+
+let peek _ =
+  failwith "TODO"
+
+let watch _ =
+  failwith "TODO"
+
+let clone _ =
+  failwith "TODO"
