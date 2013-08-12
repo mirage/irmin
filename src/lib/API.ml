@@ -16,49 +16,82 @@
 
 (** Datamodel for Irminsule backends *)
 
-module type TYPES = sig
-
-  (** Database handler *)
+(** Channels *)
+module type CHANNEL = sig
+  (** Abstract type for channels *)
   type t
 
-  (** The type of keys used to lookup stored values. *)
-  type key
+  (** Read [n] bytes on a channel *)
+  val read: t -> int -> Cstruct.t Lwt.t
 
-  (** The type of values. *)
-  type value
+  (** Read [n] bytes on a channel *)
+  val read_string: t -> int -> string Lwt.t
 
-  (** Label on edges. *)
-  type label
+  (** Write on a channel *)
+  val write: t -> Cstruct.t -> unit Lwt.t
 
-  (** Abstract type for tree-like filesystem. *)
-  type tree
-
-  (** Abstract type for revision values *)
-  type revision
-
-  (** Abstract type for tags. *)
-  type tag
+  (** Write on a channel *)
+  val write_string: t -> string -> unit Lwt.t
 
 end
 
-(** A generic key/value store *)
-module type KV = sig
-
+(** Base types *)
+module type BASE = sig
+  (** Abstract type *)
   type t
-  type key
-  type value
 
-  (** Add a value in the store. *)
-  val write: t -> value -> key
+  (** Pretty-printing *)
+  val to_string: t -> string
 
-  (** Read the value associated to a key. Return [None] if nothing has
-      been associated to the key yet. *)
-  val read: t -> key -> value option
+  (** Convert from JSON *)
+  val of_json: JSON.t -> t
 
-  (** List all the keys. *)
-  val list: t -> key list
+  (** Convert to JSON *)
+  val to_json: t -> JSON.t
+
+  (** Abstract channel *)
+  type channel
+
+  (** Read from a channel *)
+  val read: channel -> t Lwt.t
+
+  (** Write to a channel *)
+  val write: channel -> t -> unit Lwt.t
+
+  (** Write a list of elts *)
+  val writes: channel -> t list -> unit Lwt.t
+
+  (** Read a list of elts *)
+  val reads: channel -> t list Lwt.t
 
 end
+
+(** Keys *)
+module type KEY = sig
+
+  include BASE
+
+  (** Compute the key associated to any value. *)
+  val create: 'a -> t
+
+  (** Compute the key length *)
+  val length: t -> int
+
+  (** Grap of keys *)
+  type graph
+
+  module Graph: sig
+    include BASE with type t := graph
+    include (Graph.Sig.I with type t := graph and type V.t = t)
+  end
+
+end
+
+(** Values *)
+module type VALUE = BASE
+
+(** Tags *)
+module type TAG = BASE
 
 (** A low-level immutable and consistent key/value
     data-store. Deterministic computation of keys + immutability
@@ -71,83 +104,29 @@ end
     same keys: the overall structure of the data-store only depend on
     the stored data and not on any external user choices.
 *)
-module type LOW = sig
+module type STORE = sig
 
-  module T: TYPES
-  open T
+  (** Database handler *)
+  type t
 
-  include KV with type value := value
-              and type key   := key
-              and type t     := t
+  (** Type of keys *)
+  module K: KEY
 
-  (** Check whether a key is valid. *)
-  val valid: t -> key -> bool
+  (** Type of values *)
+  module V: VALUE
 
-end
+  (** Add a value in the store. *)
+  val write: t -> V.t -> K.t Lwt.t
 
-(** We use the low-level database to encoe a tree-like data-structure
-    to model a *filesystem*, with two kinds of nodes: (i) files nodes,
-    which contain raw binary blobs; and (ii) directories nodes which
-    contain the list of sub-directories and sub-files.
-*)
-module type TREE = sig
+  (** Read the value associated to a key. Return [None] if the key
+       does not exist in the store. *)
+  val read: t -> K.t -> V.t option Lwt.t
 
-  module T: TYPES
-  open T
+  (** Add a relation between two keys *)
+  val add_edge: t -> K.t -> K.t -> unit
 
-  include KV with type value := tree
-              and type key   := key
-              and type t     := t
-
-  (** Get the node contents. *)
-  val get: t -> tree -> label list -> key option
-
-  (** Save a a value of type ['b] and all its modified parent nodes if
-      needed. Return the the newly created tree root. *)
-  val set: t -> tree -> label list -> value -> tree
-
-  (** Implicit graph of nodes. *)
-  val succ: t -> tree -> (label * tree) list
-
-  (** Merge two trees by applying a merge function over each value
-      stored at the same path in each tree (even if the values are
-      equal). If the merge does not succeed for any reasons (such as
-      merge conflict), it returns [None]. *)
-  val merge: t -> (value option -> value option -> value option) ->
-    tree -> tree -> tree option
-
-  (* XXX: More expressive merge function *)
-  (* XXX: Need to be able to handle Xenstore transaction merges *)
-end
-
-(** We also use the low-level database to encode a *partial-order* of
-    filesystem revisions. A revisions is a node which contains
-    the key of the filesystem root it is snapshoting and the
-    list of keys for its immediate predecessors. This last part is
-    encoding the Hasse relation of the partial order, which is
-    equivalent to the full partial-order relation (as they have the
-    same transitive closure). As the data-store is consistent, finding
-    a common ancestor between two Irminsule instance is just a matter
-    a finding a common snapshot key.
-*)
-module type REVISION = sig
-
-  module T: TYPES
-  open T
-
-  include KV with type value := revision
-              and type key   := key
-              and type t     := t
-
-  (** Return the predecessor of a given revision. *)
-  val pred: t -> revision -> revision list
-
-  (** Return the sub-structure pointed out by a given revision. *)
-  val tree: t  -> revision -> tree option
-
-  (** Commit a new tree as the child of a list of revisions, and
-      get the newly created revision. *)
-  val commit: t -> revision list -> tree -> revision
+  (** Return the graph of keys *)
+  val keys: t -> K.graph
 
 end
 
@@ -157,53 +136,61 @@ end
     is neither immutable nor consistent, so it is very different from
     the low-level one.
 *)
-module type TAG = sig
+module type TAG_STORE = sig
 
-  module T: TYPES
-  open T
+  (** Database handler *)
+  type t
 
-  (** Get the list of tags *)
-  val tags: t -> tag list
+  (** Type of tags *)
+  module T: TAG
 
-  (** Read a tag *)
-  val revision: t -> tag -> revision option
+  (** Type of keys *)
+  module K: KEY
 
-  (** Write a new tag *)
-  val tag: t -> tag -> revision -> unit
+  (** Update a tag. If the tag didn't existed before, just create a
+      new tag. *)
+  val update: t -> T.t -> K.t -> unit Lwt.t
+
+  (** Read a tag. Return [None] if the tag does not exist in the
+      store. *)
+  val read: t -> T.t -> K.t option Lwt.t
+
+  (** List all the available tags *)
+  val list: t -> (T.t * K.t) list
 
 end
 
-(** Remote actions. *)
 module type REMOTE = sig
 
-  module T: TYPES
-  open T
+  (** Type of channels *)
+  module C: CHANNEL
 
-  (** [discover local remote] return the diff of keys between the
-      [loal] state of what we known from world and the state of
-      [remote] in the remote repository. Return the missing keys. Note:
-      to minimize the diff size both the sender and the receiver
-      should make some clever choices in the choice of the keys.
+  (** Type of keys *)
+  module K: KEY
 
-      Example of clever choice made by the sender:
+  (** Type of tags *)
+  module T: TAG
 
-      - keep an up-to-date tag pointing to the last values pulled to
-        the server, and send only the cover elements of the partial
-        order of keys.
+  (** Pull changes related to a given set of keys. Return the
+      transitive closure of all the unknown keys, with [roots] as
+      graph roots. If [root] is not set, return all the available
+      keys. *)
+  val pull_keys: C.t -> ?roots:K.t list -> K.graph Lwt.t
 
-      Example of clever choice made by the receiver:
+  (** Pull changes related to tags. If [tags] is is not set, return
+      all the available tags. *)
+  val pull_tags: C.t -> ?tags:T.t list -> (T.t * K.t) list Lwt.t
 
-      - compute an history cut of the partial order of keys between
-        the cover elements he received and its own cover. *)
-  val discover: t -> key list -> tag list -> key list
+  (** Push changes related to a given graph of keys. *)
+  val push_keys: C.t -> K.graph -> unit Lwt.t
 
-  (** Pull values. The order of received keys is *NOT* meaningful. *)
-  val pull: t -> key list -> value list
+  (** Push changes related to a given set of tags. *)
+  val push_tags: C.t -> (T.t * K.t) list -> unit Lwt.t
 
-  (** Push values *)
-  val push: t -> value list -> unit
-
-  (** Watch for changes in a substree. Return the new subtree keys. *)
-  val watch: t -> tag -> label list -> key list
+  (** Watch for changes for a given set of tags. Return the new
+      graph. Return a stream of ([tags] * [graphs]) where [tags] are
+      the updated tags and [graph] the corresponding set of new keys
+      (if any). *)
+  val watch: C.t -> T.t list -> (T.t list * K.graph) Lwt_stream.t
 
 end

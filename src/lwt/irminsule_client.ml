@@ -19,15 +19,38 @@ open Cohttp
 open Cohttp_lwt_unix
 module Body = Cohttp_lwt_body
 
+open Irminsule
 
+let add _ =
+  failwith "TODO"
+
+let watch _ =
+  failwith "TODO"
+
+let take _ =
+  failwith "TODO"
+
+let peek _ =
+  failwith "TODO"
+
+let dump _ =
+  failwith "TODO"
+
+let pull _ =
+  failwith "TODO"
+
+let push _ =
+  failwith "TODO"
+
+let clone _ =
+  failwith "TODO"
+
+(*
 let uri port path =
   Uri.of_string (Printf.sprintf "http://127.0.0.1:%d/%s" port path)
 
-let commit port =
-  Lwt_unix.run (
-    lwt _ = Client.get (uri port "action/snapshot") in
-    return ()
-  )
+let key k =
+  Printf.sprintf "key/%s" (Memory.Types.string_of_key k)
 
 let json_of_result fn result =
   match_lwt result with
@@ -75,8 +98,16 @@ let pull src dst =
 let push src dst =
   pull dst src
 
-let add _ =
-  failwith "TODO"
+let add dst values =
+  Lwt_unix.run (
+    List.iter (fun value ->
+        let args = Memory.J.string_of_json (Memory.J.json_of_string value) in
+        let body = Body.body_of_string args in
+        let _ = Client.post ?body (uri dst "action/add") in
+        ()
+      ) values;
+    return ()
+  )
 
 let take _ =
   failwith "TODO"
@@ -90,5 +121,22 @@ let watch _ =
 let clone _ =
   failwith "TODO"
 
-let dump _ =
-  failwith "TODO"
+let dump dst =
+  Lwt_unix.run (
+    Client.get (uri dst "dump/queue") >>= function
+      | None           ->
+        Printf.printf "<empty>";
+        return ()
+      | Some (_, body) ->
+        lwt json = Body.string_of_body body in
+        let keys = Memory.J.keys_of_json (Memory.J.json_of_string json) in
+        Lwt_list.iter_s (fun k ->
+            Client.get (uri dst (key k)) >>= function
+            | None           -> failwith "dump"
+            | Some (_, body) ->
+              lwt str = Body.string_of_body body in
+              Printf.printf "%s\n" str;
+              return ()
+          ) keys
+  )
+*)

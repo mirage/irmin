@@ -17,8 +17,11 @@
 open Lwt
 open Cohttp
 open Cohttp_lwt_unix
-open Memory.Types
 
+let init _ =
+  failwith "TODO"
+
+(*
 module Body = Cohttp_lwt_body
 
 let respond body =
@@ -144,6 +147,9 @@ let process t ?body = function
     Memory.Tag.revision t (T tag) >>= fun revision ->
     respond_value (Revision revision)
 
+  | ["dump"; "queue"] ->
+    Memory.Commit.read
+
   | _ -> failwith "Invalid URI"
 
 let make_server t port =
@@ -165,3 +171,5 @@ let init port =
   let head = Memory.Revision.commit t [] tree in
   Memory.Tag.tag t (T "HEAD") head;
   Lwt_unix.run (make_server t port)
+
+*)
