@@ -30,3 +30,15 @@ module Client (C: IrminAPI.CHANNEL)
     with type channel = C.t
      and module K = IrminImpl.Key(C)
      and module T = IrminImpl.Tag(C)
+
+(** Implement the protocol over abstract channels, keys and tags. [R]
+    contains the actual code to be executed by the server. *)
+module Server
+    (C: IrminAPI.CHANNEL)
+    (R: IrminAPI.REMOTE with type channel = unit
+                         and module K = IrminImpl.Key(C)
+                         and module T = IrminImpl.Tag(C)
+    ) :
+sig
+  val dispatch: C.t -> unit Lwt.t
+end

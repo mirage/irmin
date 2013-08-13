@@ -21,6 +21,9 @@ module type CHANNEL = sig
   (** Abstract type for channels *)
   type t
 
+  (** Close a channel *)
+  val close: t -> unit Lwt.t
+
   (** Read [n] bytes on a channel *)
   val read: t -> int -> Cstruct.t Lwt.t
 

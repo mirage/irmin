@@ -23,6 +23,8 @@ module Channel: IrminAPI.CHANNEL
   (* From https://github.com/djs55/ocaml-vnc/blob/master/lib/rfb_lwt.ml *)
   type t = Lwt_unix.file_descr
 
+  let close = Lwt_unix.close
+
   let read_string fd n =
     let buf = String.make n '\000' in
     let rec rread fd buf ofs len =
