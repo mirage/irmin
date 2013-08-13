@@ -42,6 +42,10 @@ module Types: sig
   (** Remote tags *)
   type remote_tag = R of string
 
+  type tag =
+    [ `Local of local_tag
+    | `Remote of remote_tag ]
+
 end
 
 open Types

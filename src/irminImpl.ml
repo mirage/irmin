@@ -33,6 +33,10 @@ module Types = struct
 
   type remote_tag = R of string
 
+  type tag =
+    [ `Local of local_tag
+    | `Remote of remote_tag ]
+
 end
 
 open Lwt
@@ -290,9 +294,6 @@ module Key: IrminAPI.KEY
     lwt () = edges_f e in
     return g
 
-    let reads _ =
-      failwith "TODO"
-
     let write fd g =
       let vertex = vertex g in
       let edges = edges g in
@@ -316,9 +317,11 @@ module Key: IrminAPI.KEY
       lwt () = vertex_f vertex in
       edges_f edges
 
-    let writes _ =
-      failwith "TODO"
-
+    include Iter(struct
+        type t = G.t
+        let read = read
+        let write = write
+      end)
   end
 
   type graph = Graph.t
@@ -360,11 +363,11 @@ module Revision: IrminAPI.BASE
   let write fd r =
     Key.writes fd (r.contents :: r.parents)
 
-  let reads _ =
-    failwith "TODO"
-
-  let writes _ =
-    failwith "TODO"
+  include Iter(struct
+      type t = revision
+      let read = read
+      let write = write
+    end)
 
 end
 
@@ -411,16 +414,17 @@ module Value: IrminAPI.BASE
     lwt () = Channel.write fd buf in
     cont ()
 
-  let reads _ =
-    failwith "TODO"
-
-  let writes _ =
-    failwith "TODO"
+  include Iter(struct
+      type t = value
+      let read = read
+      let write = write
+    end)
 
 end
 
 module Tag: IrminAPI.TAG
-  with type local = local_tag
+  with type t = tag
+   and type local = local_tag
    and type remote = remote_tag
    and type channel = Channel.t
 = struct
@@ -441,9 +445,7 @@ module Tag: IrminAPI.TAG
 
   type remote = R.t
 
-  type t =
-    | Local of local
-    | Remote of remote
+  type t = tag
 
   let remote (L s) = R s
 
@@ -452,38 +454,59 @@ module Tag: IrminAPI.TAG
   type channel = Channel.t
 
   let to_string = function
-    | Local t  -> Printf.sprintf "local/%s" (L.to_string t)
-    | Remote t -> Printf.sprintf "remote/%s" (R.to_string t)
+    | `Local t  -> Printf.sprintf "local/%s" (L.to_string t)
+    | `Remote t -> Printf.sprintf "remote/%s" (R.to_string t)
 
   let to_json = function
-    | Local t  -> `O [ ("local" , L.to_json t) ]
-    | Remote t -> `O [ ("remote", R.to_json t) ]
+    | `Local t  -> `O [ ("local" , L.to_json t) ]
+    | `Remote t -> `O [ ("remote", R.to_json t) ]
 
   let of_json = function
     | `O l ->
       let local = List.mem_assoc "local" l in
       let remote = List.mem_assoc "remote" l in
       if local && not remote then
-        Local (L.of_json (List.assoc "local" l))
+        `Local (L.of_json (List.assoc "local" l))
       else if remote && not local then
-        Remote (R.of_json (List.assoc "remote" l))
+        `Remote (R.of_json (List.assoc "remote" l))
       else if local && remote then
         failwith "TAG.of_json ('local' and 'remote')"
       else
         failwith "TAG.of_json (neither 'local' nor 'remote')"
     | _ -> failwith "TAG.of_json (not an object)"
 
-  let read _ =
-    failwith "TODO"
+  cstruct hdr {
+      uint8_t kind
+    } as big_endian
 
-  let write _ =
-    failwith "TODO"
+  let read fd =
+    lwt buf = Channel.read fd sizeof_hdr in
+    match get_hdr_kind buf with
+    | 0 ->
+      lwt t = L.read fd in
+      return (`Local t)
+    | 1 ->
+      lwt t = R.read fd in
+      return (`Remote t)
+    | _ -> failwith "Tag.read"
 
-  let reads _ =
-    failwith "TODO"
+  let write fd t =
+    let buf = Cstruct.create sizeof_hdr in
+    match t with
+    | `Local t ->
+      set_hdr_kind buf 0;
+      lwt () = Channel.write fd buf in
+      L.write fd t
+    | `Remote t ->
+      set_hdr_kind buf 1;
+      lwt () = Channel.write fd buf in
+      R.write fd t
 
-  let writes _ =
-    failwith "TODO"
+  include Iter(struct
+      type t = tag
+      let read = read
+      let write = write
+    end)
 
 end
 

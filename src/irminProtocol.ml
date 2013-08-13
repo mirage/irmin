@@ -74,11 +74,11 @@ module Action (C: IrminAPI.CHANNEL): IrminAPI.BASE
       | Watch     -> 4 in
     C.write_string fd (string_of_int kind)
 
-  let reads _ =
-    failwith "TODO"
-
-  let writes _ =
-    failwith "TODO"
+  include IrminImp.Iter(struct
+      type t = action
+      let read = read
+      let write = write
+    end)
 
 end
 

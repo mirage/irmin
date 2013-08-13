@@ -104,9 +104,7 @@ module type TAG = sig
   type remote
 
   (** Type of tags *)
-  type t =
-    | Local of local
-    | Remote of remote
+  type t
 
   (** Import a remote tag locally *)
   val local: remote -> local
