@@ -44,10 +44,10 @@ module type BASE = sig
   val to_string: t -> string
 
   (** Convert from JSON *)
-  val of_json: JSON.t -> t
+  val of_json: IrminJSON.t -> t
 
-  (** Convert to JSON *)
-  val to_json: t -> JSON.t
+  (** Convert to IrminJSON *)
+  val to_json: t -> IrminJSON.t
 
   (** Abstract channel *)
   type channel

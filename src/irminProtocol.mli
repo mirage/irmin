@@ -14,43 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Base irminsule datatypes *)
+(** Wire Protocol  *)
 
-(** Basic types *)
-module Types: sig
+(** Possible actions *)
+type action =
+  | Pull_keys
+  | Pull_tags
+  | Push_keys
+  | Push_tags
+  | Watch
 
-  (** Keys *)
-  type key = K of string
-
-  (** Blobs *)
-  type blob = B of string
-
-  (** Revisions *)
-  type revision = {
-    parents : key list;
-    contents: key;
-  }
-
-  (** Values *)
-  type value =
-    | Blob of blob
-    | Revision of revision
-
-  (** Tags *)
-  type tag = T of string
-
-end
-
-open Types
-
-(** Keys *)
-module Key: API.KEY with type t = key
-
-(** Values *)
-module Value: API.VALUE with type t = value
-
-(** Blobs *)
-module Blob: API.BASE with type t = blob
-
-(** Revisions *)
-module Revision: API.BASE with type t = revision
+(** Implement the protocol over abstract channels, keys and tags *)
+module Make (C: IrminAPI.CHANNEL) (K: IrminAPI.KEY) (T: IrminAPI.TAG) : IrminAPI.REMOTE
+  with module C = C
+   and module K = K
+   and module T = T

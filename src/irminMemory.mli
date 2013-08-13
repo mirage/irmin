@@ -14,18 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Wire Protocol  *)
+(** In-memory store *)
 
-(** Possible actions *)
-type action =
-  | Pull_keys
-  | Pull_tags
-  | Push_keys
-  | Push_tags
-  | Watch
+(** Functor to build an in-memory low-level store *)
+module Store (K: IrminAPI.KEY) (V: IrminAPI.VALUE) : IrminAPI.STORE
+  with module K = K
+   and module V = V
 
-(** Implement the protocol over abstract channels, keys and tags *)
-module Make (C: API.CHANNEL) (K: API.KEY) (T: API.TAG) : API.REMOTE
-  with module C = C
+(** Functor to build an in-memory tag store *)
+module Tag_store (T: IrminAPI.TAG) (K: IrminAPI.KEY) : IrminAPI.TAG_STORE
+  with module T = T
    and module K = K
-   and module T = T

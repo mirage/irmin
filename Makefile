@@ -13,17 +13,17 @@ TARGET=irmin
 all: $(TARGET)
 	@
 
-src/version.ml:
-	echo "let current = \"$(VERSION)\"" > src/version.ml
+src/irminVersion.ml:
+	echo "let current = \"$(VERSION)\"" > src/irminVersion.ml
 
 $(TARGET): _build/src/main.native
 	ln -s -f _build/src/main.native $(TARGET)
 
-_build/src/main.native: src/version.ml
+_build/src/main.native: src/irminVersion.ml
 	ocamlbuild $(INCLUDES) $(FLAGS) $(PACKAGES) $(SYNTAXES) main.native
 
 clean:
 	rm -rf $(TARGET) _build
 
 install:
-	cp $(TARGET) $(PREFIX)/bin src/version.ml
+	cp $(TARGET) $(PREFIX)/bin src/irminVersion.ml

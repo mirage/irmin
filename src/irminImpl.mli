@@ -14,14 +14,43 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** In-memory store *)
+(** Base irminsule datatypes *)
 
-(** Functor to build an in-memory low-level store *)
-module Store (K: API.KEY) (V: API.VALUE) : API.STORE
-  with module K = K
-   and module V = V
+(** Basic types *)
+module Types: sig
 
-(** Functor to build an in-memory tag store *)
-module Tag_store (T: API.TAG) (K: API.KEY) : API.TAG_STORE
-  with module T = T
-   and module K = K
+  (** Keys *)
+  type key = K of string
+
+  (** Blobs *)
+  type blob = B of string
+
+  (** Revisions *)
+  type revision = {
+    parents : key list;
+    contents: key;
+  }
+
+  (** Values *)
+  type value =
+    | Blob of blob
+    | Revision of revision
+
+  (** Tags *)
+  type tag = T of string
+
+end
+
+open Types
+
+(** Keys *)
+module Key: IrminAPI.KEY with type t = key
+
+(** Values *)
+module Value: IrminAPI.VALUE with type t = value
+
+(** Blobs *)
+module Blob: IrminAPI.BASE with type t = blob
+
+(** Revisions *)
+module Revision: IrminAPI.BASE with type t = revision

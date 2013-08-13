@@ -23,7 +23,7 @@ type action =
   | Push_tags
   | Watch
 
-module Action (C: API.CHANNEL): API.BASE
+module Action (C: IrminAPI.CHANNEL): IrminAPI.BASE
   with type t = action
    and type channel = C.t
 = struct
@@ -38,9 +38,9 @@ module Action (C: API.CHANNEL): API.BASE
     | Watch     -> "watch"
 
   let to_json t =
-    JSON.of_string (to_string t)
+    IrminJSON.of_string (to_string t)
 
-  let of_json j = match JSON.to_string j with
+  let of_json j = match IrminJSON.to_string j with
     | "pull-keys" -> Pull_keys
     | "pull-tags" -> Pull_tags
     | "push-keys" -> Push_keys
@@ -82,7 +82,7 @@ module Action (C: API.CHANNEL): API.BASE
 
 end
 
-module Make (C: API.CHANNEL) (K: API.KEY) (T: API.TAG) : API.REMOTE
+module Make (C: IrminAPI.CHANNEL) (K: IrminAPI.KEY) (T: IrminAPI.TAG) : IrminAPI.REMOTE
   with module C = C
    and module K = K
    and module T = T

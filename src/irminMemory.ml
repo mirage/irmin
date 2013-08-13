@@ -16,7 +16,7 @@
 
 open Lwt
 
-module Store (K: API.KEY) (V: API.VALUE) : API.STORE
+module Store (K: IrminAPI.KEY) (V: IrminAPI.VALUE) : IrminAPI.STORE
   with module K = K
    and module V = V
 = struct
@@ -53,7 +53,7 @@ module Store (K: API.KEY) (V: API.VALUE) : API.STORE
 
    end
 
-module Tag_store (T: API.TAG) (K: API.KEY) : API.TAG_STORE
+module Tag_store (T: IrminAPI.TAG) (K: IrminAPI.KEY) : IrminAPI.TAG_STORE
   with module T = T
    and module K = K
 = struct

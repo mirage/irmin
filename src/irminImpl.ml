@@ -36,7 +36,7 @@ end
 open Lwt
 open Types
 
-module Channel: API.CHANNEL
+module Channel: IrminAPI.CHANNEL
   with type t = Lwt_unix.file_descr
 = struct
 
@@ -69,7 +69,7 @@ module Channel: API.CHANNEL
 
 end
 
-module StringBase: API.BASE
+module StringBase: IrminAPI.BASE
   with type t = string
    and type channel = Channel.t
 = struct
@@ -80,9 +80,9 @@ module StringBase: API.BASE
 
   let to_string s = s
 
-  let to_json = JSON.of_string
+  let to_json = IrminJSON.of_string
 
-  let of_json = JSON.to_string
+  let of_json = IrminJSON.to_string
 
   cstruct hdr {
       uint32_t length
@@ -119,7 +119,7 @@ module StringBase: API.BASE
 
 end
 
-module Blob: API.BASE
+module Blob: IrminAPI.BASE
   with type t = blob
    and type channel = Channel.t
 = struct
@@ -132,10 +132,10 @@ module Blob: API.BASE
     Printf.sprintf "%S" b
 
   let to_json (B b) =
-    JSON.of_string b
+    IrminJSON.of_string b
 
   let of_json j =
-    B (JSON.to_string j)
+    B (IrminJSON.to_string j)
 
   let read fd =
     lwt str = StringBase.read fd in
@@ -154,7 +154,7 @@ module Blob: API.BASE
 
 end
 
-module Key: API.KEY
+module Key: IrminAPI.KEY
   with type t = key
    and type channel = Channel.t
 = struct
@@ -167,14 +167,14 @@ module Key: API.KEY
     Printf.sprintf "%s" k
 
   let to_json (K k) =
-    JSON.of_string k
+    IrminJSON.of_string k
 
   let of_json j =
-    K (JSON.to_string j)
+    K (IrminJSON.to_string j)
 
   let create value =
     let str = Marshal.to_string value [] in
-    K (Misc.sha1 str)
+    K (IrminMisc.sha1 str)
 
   let key_length = 20
 
@@ -238,16 +238,16 @@ module Key: API.KEY
       Buffer.contents buf
 
     let to_json g =
-      `O [ ("vertex", JSON.of_list to_json (vertex g));
-           ("edges" , JSON.of_list (JSON.of_pair to_json to_json) (edges g)) ]
+      `O [ ("vertex", IrminJSON.of_list to_json (vertex g));
+           ("edges" , IrminJSON.of_list (IrminJSON.of_pair to_json to_json) (edges g)) ]
 
     let of_json = function
       | `O l ->
         let vertex =
-          try JSON.to_list of_json (List.assoc "vertex" l)
+          try IrminJSON.to_list of_json (List.assoc "vertex" l)
           with Not_found -> failwith "Key.Graph.of_json (missing 'vertex')" in
         let edges =
-          try JSON.to_list (JSON.to_pair of_json of_json) (List.assoc "edges" l)
+          try IrminJSON.to_list (IrminJSON.to_pair of_json of_json) (List.assoc "edges" l)
           with Not_found -> [] in
         let g = G.create ~size:(List.length vertex) () in
         List.iter (G.add_vertex g) vertex;
@@ -317,7 +317,7 @@ module Key: API.KEY
 
 end
 
-module Revision: API.BASE
+module Revision: IrminAPI.BASE
   with type t = revision
    and type channel = Channel.t = struct
 
@@ -330,16 +330,16 @@ module Revision: API.BASE
       (String.concat "-" (List.map Key.to_string r.parents))
       (Key.to_string r.contents)
 
-  let of_json (json:JSON.t) = match json with
+  let of_json (json:IrminJSON.t) = match json with
     | `O [ ("parents", parents); ("contents", contents) ] ->
-      let parents = JSON.to_list Key.of_json parents in
+      let parents = IrminJSON.to_list Key.of_json parents in
       let parents = List.sort compare parents in
       let contents = Key.of_json contents in
       { parents; contents }
     | _ -> failwith "Revision.of_json"
 
   let to_json r =
-    let parents = JSON.of_list Key.to_json r.parents in
+    let parents = IrminJSON.of_list Key.to_json r.parents in
     let contents = Key.to_json r.contents in
     `O [ ("parents", parents); ("contents", contents) ]
 
@@ -360,7 +360,7 @@ module Revision: API.BASE
 
 end
 
-module Value: API.BASE
+module Value: IrminAPI.BASE
   with type t = value
    and type channel = Channel.t
 = struct
@@ -411,7 +411,7 @@ module Value: API.BASE
 
 end
 
-module Tag: API.BASE
+module Tag: IrminAPI.BASE
   with type t = tag
    and type channel = Channel.t
 = struct
@@ -424,10 +424,10 @@ module Tag: API.BASE
     Printf.sprintf "%s" t
 
   let to_json (T t) =
-    JSON.of_string t
+    IrminJSON.of_string t
 
   let of_json j =
-    T (JSON.to_string j)
+    T (IrminJSON.to_string j)
 
   let read fd =
     lwt string = StringBase.read fd in
@@ -446,6 +446,6 @@ module Tag: API.BASE
 
 end
 
-module Store = Memory.Store(Key)(Value)
-module Tag_store = Memory.Tag_store(Tag)(Key)
-module Remote = Protocol.Make(Channel)(Key)(Tag)
+module Store = IrminMemory.Store(Key)(Value)
+module Tag_store = IrminMemory.Tag_store(Tag)(Key)
+module Remote = IrminProtocol.Make(Channel)(Key)(Tag)
