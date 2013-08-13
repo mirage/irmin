@@ -176,31 +176,33 @@ module Key: API.KEY
     let str = Marshal.to_string value [] in
     K (Misc.sha1 str)
 
-  let length (K k) =
-    String.length k
+  let key_length = 20
 
-  cstruct hdr {
-      uint32_t key_length
-    } as big_endian
+  let length (K _) = key_length
 
   let read fd =
-    lwt buf = Channel.read fd sizeof_hdr in
-    let key_len = Int32.to_int (get_hdr_key_length buf) in
-    lwt key = Channel.read_string fd key_len in
+    lwt key = Channel.read_string fd key_length in
     return (K key)
 
   let write fd (K k) =
-    let key_len = String.length k in
-    let buf = Cstruct.create sizeof_hdr in
-    set_hdr_key_length buf (Int32.of_int key_len);
-    lwt () = Channel.write fd buf in
     Channel.write_string fd k
 
-  let reads _ =
-    failwith "TODO"
+  cstruct hdr {
+      uint32_t keys
+    } as big_endian
 
-  let writes _ =
-    failwith "TODO"
+  let reads fd =
+    lwt buf = Channel.read fd sizeof_hdr in
+    let keys = Int32.to_int (get_hdr_keys buf) in
+    let rec aux acc i =
+      if i <= 0 then return (List.rev acc)
+      else
+        lwt key = Channel.read_string fd key_length in
+        aux (K key :: acc) (i-1) in
+    aux [] keys
+
+  let writes fd keys =
+    Lwt_list.iter_s (write fd) keys
 
   module Vertex = struct
     type t = key
@@ -217,23 +219,94 @@ module Key: API.KEY
 
     include G
 
-    let to_string _ =
-      failwith "TODO"
+    let vertex g =
+      G.fold_vertex (fun v acc -> v :: acc) g []
 
-    let to_json _ =
-      failwith "TODO"
+    let edges g =
+      G.fold_edges (fun v1 v2 acc -> (v1, v2) :: acc) g []
 
-    let of_json _ =
-      failwith "TODO"
+    let to_string g =
+      let buf = Buffer.create 124 in
+      Printf.bprintf buf "digraph {\n";
+      G.iter_vertex (fun v ->
+          Printf.bprintf buf "%S;\n" (to_string v)
+        ) g;
+      G.iter_edges (fun v1 v2 ->
+          Printf.bprintf buf "%S -> %S;\n" (to_string v1) (to_string v2)
+        ) g;
+      Printf.bprintf buf "}\n";
+      Buffer.contents buf
 
-    let read _ =
-      failwith "TODO"
+    let to_json g =
+      `O [ ("vertex", JSON.of_list to_json (vertex g));
+           ("edges" , JSON.of_list (JSON.of_pair to_json to_json) (edges g)) ]
+
+    let of_json = function
+      | `O l ->
+        let vertex =
+          try JSON.to_list of_json (List.assoc "vertex" l)
+          with Not_found -> failwith "Key.Graph.of_json (missing 'vertex')" in
+        let edges =
+          try JSON.to_list (JSON.to_pair of_json of_json) (List.assoc "edges" l)
+          with Not_found -> [] in
+        let g = G.create ~size:(List.length vertex) () in
+        List.iter (G.add_vertex g) vertex;
+        List.iter (fun (v1,v2) -> G.add_edge g v1 v2) edges;
+        g
+      | _ -> failwith "Key.Graph.of_json (not an object)"
+
+    cstruct hdr {
+        uint32_t vertex;
+        uint32_t edges
+      } as big_endian
+
+    let read fd =
+    lwt buf = Channel.read fd sizeof_hdr in
+    let v = Int32.to_int (get_hdr_vertex buf) in
+    let e = Int32.to_int (get_hdr_edges buf) in
+    let g = G.create ~size:v () in
+    let rec vertex_f i =
+      if i <= 0 then return ()
+      else
+        lwt key = Channel.read_string fd key_length in
+        G.add_vertex g (K key);
+        vertex_f (i-1) in
+    let rec edges_f i =
+      if i <= 0 then return ()
+      else
+        lwt key1 = Channel.read_string fd key_length in
+        lwt key2 = Channel.read_string fd key_length in
+        G.add_edge g (K key1) (K key2);
+        edges_f (i-1) in
+    lwt () = vertex_f v in
+    lwt () = edges_f e in
+    return g
 
     let reads _ =
       failwith "TODO"
 
-    let write _ =
-      failwith "TODO"
+    let write fd g =
+      let vertex = vertex g in
+      let edges = edges g in
+      let v = List.length vertex in
+      let e = List.length edges in
+      let buf = Cstruct.create sizeof_hdr in
+      set_hdr_vertex buf (Int32.of_int v);
+      set_hdr_edges buf (Int32.of_int e);
+      lwt () = Channel.write fd buf in
+      let rec vertex_f = function
+        | []       -> return ()
+        | (K k)::t ->
+          lwt () = Channel.write_string fd k in
+          vertex_f t in
+      let rec edges_f = function
+        | []              -> return ()
+        | (K k1, K k2)::t ->
+          lwt () = Channel.write_string fd k1 in
+          lwt () = Channel.write_string fd k2 in
+          edges_f t in
+      lwt () = vertex_f vertex in
+      edges_f edges
 
     let writes _ =
       failwith "TODO"
