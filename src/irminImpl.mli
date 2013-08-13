@@ -36,8 +36,11 @@ module Types: sig
     | Blob of blob
     | Revision of revision
 
-  (** Tags *)
-  type tag = T of string
+  (** Local tags *)
+  type local_tag = L of string
+
+  (** Remote tags *)
+  type remote_tag = R of string
 
 end
 

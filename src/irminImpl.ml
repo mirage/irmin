@@ -29,7 +29,9 @@ module Types = struct
     | Blob of blob
     | Revision of revision
 
-  type tag = T of string
+  type local_tag = L of string
+
+  type remote_tag = R of string
 
 end
 
@@ -69,20 +71,29 @@ module Channel: IrminAPI.CHANNEL
 
 end
 
-module StringBase: IrminAPI.BASE
-  with type t = string
+module type StringArg = sig
+  type t
+  val to_string: t -> string
+  val of_string: string -> t
+end
+
+module StringBase(A: StringArg): IrminAPI.BASE
+  with type t = A.t
    and type channel = Channel.t
 = struct
 
-  type t = string
+  type t = A.t
 
   type channel = Channel.t
 
-  let to_string s = s
+  let to_string s =
+    Printf.sprintf "%S" (A.to_string s)
 
-  let to_json = IrminJSON.of_string
+  let to_json t =
+    IrminJSON.of_string (A.to_string t)
 
-  let of_json = IrminJSON.to_string
+  let of_json j =
+    A.of_string (IrminJSON.to_string j)
 
   cstruct hdr {
       uint32_t length
@@ -92,9 +103,10 @@ module StringBase: IrminAPI.BASE
     lwt buf = Channel.read fd sizeof_hdr in
     let len = Int32.to_int (get_hdr_length buf) in
     lwt str = Channel.read_string fd len in
-    return str
+    return (A.of_string str)
 
-  let write fd str =
+  let write fd t =
+    let str = A.to_string t in
     let len = String.length str in
     let buf = Cstruct.create sizeof_hdr in
     set_hdr_length buf (Int32.of_int len);
@@ -107,15 +119,15 @@ module StringBase: IrminAPI.BASE
     let rec aux acc i =
       if i <= 0 then return (List.rev acc)
       else
-        lwt str = read fd in
-        aux (str :: acc) (i-1) in
+        lwt t = read fd in
+        aux (t :: acc) (i-1) in
     aux [] len
 
-  let writes fd strings =
-    let len = List.length strings in
+  let writes fd ts =
+    let len = List.length ts in
     let buf = Cstruct.create sizeof_hdr in
     set_hdr_length buf (Int32.of_int len);
-    Lwt_list.iter_s (write fd) strings
+    Lwt_list.iter_s (write fd) ts
 
 end
 
@@ -124,33 +136,13 @@ module Blob: IrminAPI.BASE
    and type channel = Channel.t
 = struct
 
-  type t = blob
+  module S = StringBase(struct
+      type t = blob
+      let to_string (B s) = s
+      let of_string s = B s
+    end)
 
-  type channel = Channel.t
-
-  let to_string (B b) =
-    Printf.sprintf "%S" b
-
-  let to_json (B b) =
-    IrminJSON.of_string b
-
-  let of_json j =
-    B (IrminJSON.to_string j)
-
-  let read fd =
-    lwt str = StringBase.read fd in
-    return (B str)
-
-  let write fd (B string) =
-    StringBase.write fd string
-
-  let reads fd =
-    lwt strings = StringBase.reads fd in
-    return (List.map (fun b -> B b) strings)
-
-  let writes fd blobs =
-    let strings = List.map (fun (B b) -> b) blobs in
-    StringBase.writes fd strings
+  include S
 
 end
 
@@ -247,7 +239,8 @@ module Key: IrminAPI.KEY
           try IrminJSON.to_list of_json (List.assoc "vertex" l)
           with Not_found -> failwith "Key.Graph.of_json (missing 'vertex')" in
         let edges =
-          try IrminJSON.to_list (IrminJSON.to_pair of_json of_json) (List.assoc "edges" l)
+          try IrminJSON.to_list
+                (IrminJSON.to_pair of_json of_json) (List.assoc "edges" l)
           with Not_found -> [] in
         let g = G.create ~size:(List.length vertex) () in
         List.iter (G.add_vertex g) vertex;
@@ -411,38 +404,71 @@ module Value: IrminAPI.BASE
 
 end
 
-module Tag: IrminAPI.BASE
-  with type t = tag
+module Tag: IrminAPI.TAG
+  with type local = local_tag
+   and type remote = remote_tag
    and type channel = Channel.t
 = struct
 
-  type t = tag
+  module L = StringBase(struct
+      type t = local_tag
+      let to_string (L s) = s
+      let of_string s = L s
+    end)
+
+  module R = StringBase(struct
+      type t = remote_tag
+      let to_string (R s) = s
+      let of_string s = R s
+    end)
+
+  type local = L.t
+
+  type remote = R.t
+
+  type t =
+    | Local of local
+    | Remote of remote
+
+  let remote (L s) = R s
+
+  let local (R s) = L s
 
   type channel = Channel.t
 
-  let to_string (T t) =
-    Printf.sprintf "%s" t
+  let to_string = function
+    | Local t  -> Printf.sprintf "local/%s" (L.to_string t)
+    | Remote t -> Printf.sprintf "remote/%s" (R.to_string t)
 
-  let to_json (T t) =
-    IrminJSON.of_string t
+  let to_json = function
+    | Local t  -> `O [ ("local" , L.to_json t) ]
+    | Remote t -> `O [ ("remote", R.to_json t) ]
 
-  let of_json j =
-    T (IrminJSON.to_string j)
+  let of_json = function
+    | `O l ->
+      let local = List.mem_assoc "local" l in
+      let remote = List.mem_assoc "remote" l in
+      if local && not remote then
+        Local (L.of_json (List.assoc "local" l))
+      else if remote && not local then
+        Remote (R.of_json (List.assoc "remote" l))
+      else if local && remote then
+        failwith "TAG.of_json ('local' and 'remote')"
+      else
+        failwith "TAG.of_json (neither 'local' nor 'remote')"
+    | _ -> failwith "TAG.of_json (not an object)"
 
-  let read fd =
-    lwt string = StringBase.read fd in
-    return (T string)
+  let read _ =
+    failwith "TODO"
 
-  let write fd (T string) =
-    StringBase.write fd string
+  let write _ =
+    failwith "TODO"
 
-  let reads fd =
-    lwt strings = StringBase.reads fd in
-    return (List.map (fun t -> T t) strings)
+  let reads _ =
+    failwith "TODO"
 
-  let writes fd tags =
-    let strings = List.map (fun (T t) -> t) tags in
-    StringBase.writes fd strings
+  let writes _ =
+    failwith "TODO"
 
 end
 
