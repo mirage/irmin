@@ -82,7 +82,10 @@ module Action (C: IrminAPI.CHANNEL): IrminAPI.BASE
 
 end
 
-module Make (C: IrminAPI.CHANNEL) (K: IrminAPI.KEY) (T: IrminAPI.TAG) : IrminAPI.REMOTE
+module Client
+    (C: IrminAPI.CHANNEL)
+    (K: IrminAPI.KEY with type channel = C.t)
+    (T: IrminAPI.TAG with type channel = C.t): IrminAPI.REMOTE
   with module C = C
    and module K = K
    and module T = T
@@ -93,10 +96,18 @@ module Make (C: IrminAPI.CHANNEL) (K: IrminAPI.KEY) (T: IrminAPI.TAG) : IrminAPI
   module T = T
   module A = Action(C)
 
-  let pull_keys _ =
-    failwith "TODO"
+  module TRV = IrminImp.TagVal(T.R)
 
-  let pull_tags _ =
+  module TLV = IrminImpl.TagVal(T.L)
+
+  let pull_keys fd roots tags =
+    lwt () = A.write fd Pull_keys in
+    lwt () = K.writes fd roots in
+    lwt () = T.R.writes fd tags in
+    K.Graph.read fd
+
+  let pull_tags fd =
+    lwt () = A.write fd Pull_tags in
     failwith "TODO"
 
   let push_keys _ =
@@ -123,3 +134,5 @@ let json_of_discover (keys, tags) =
   `O [ ("local", json_of_keys keys); ("remote", json_of_tags tags) ]
 
 *)
+
+module Client = IrminProtocol.Client(IrminImpl.Channel)(IrminImpl.Key)(IrminImpl.Tag)

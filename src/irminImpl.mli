@@ -46,14 +46,51 @@ end
 
 open Types
 
+module Channel: IrminAPI.CHANNEL
+  with type t = Lwt_unix.file_descr
+
 (** Keys *)
-module Key: IrminAPI.KEY with type t = key
+module Key: IrminAPI.KEY
+  with type t = key
+   and type channel = Channel.t
 
 (** Values *)
-module Value: IrminAPI.VALUE with type t = value
+module Value: IrminAPI.VALUE
+  with type t = value
+   and type channel = Channel.t
 
 (** Blobs *)
-module Blob: IrminAPI.BASE with type t = blob
+module Blob: IrminAPI.BASE
+  with type t = blob
+   and type channel = Channel.t
 
 (** Revisions *)
-module Revision: IrminAPI.BASE with type t = revision
+module Revision: IrminAPI.BASE
+  with type t = revision
+   and type channel = Channel.t
+
+(** {2 Helpers} *)
+
+(** Arguements for the [Iter] functor *)
+module type IterArg = sig
+
+  (** Abstract type of constucted values *)
+  type t
+
+  (** How to read a value *)
+  val read: Channel.t -> t Lwt.t
+
+  (** How to write a value *)
+  val write: Channel.t -> t -> unit Lwt.t
+end
+
+(** Build (binary) iterators from single readers/writers *)
+module Iter(A: IterArg): sig
+
+  (** Read a list of values *)
+  val reads: Channel.t -> A.t list Lwt.t
+
+  (** Write a list of values *)
+  val writes: Channel.t -> A.t list -> unit Lwt.t
+
+end

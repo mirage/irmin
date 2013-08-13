@@ -81,8 +81,12 @@ module type KEY = sig
   type graph
 
   module Graph: sig
-    include BASE with type t := graph
-    include (Graph.Sig.I with type t := graph and type V.t = t)
+    include BASE
+      with type t := graph
+       and type channel := channel
+    include (Graph.Sig.I
+             with type t := graph
+              and type V.t = t)
   end
 
 end
@@ -111,8 +115,14 @@ module type TAG = sig
   val remote: local -> remote
 
   include BASE with type t := t
-  module L: BASE with type t = local
-  module R: BASE with type t = remote
+
+  module L: BASE
+    with type t = local
+     and type channel := channel
+
+  module R: BASE
+    with type t = remote
+     and type channel := channel
 end
 
 (** A low-level immutable and consistent key/value

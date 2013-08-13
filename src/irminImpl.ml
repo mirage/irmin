@@ -131,6 +131,33 @@ module StringBase(A: StringArg): IrminAPI.BASE
 
 end
 
+module type IterArg = sig
+  type t
+  val read: Channel.t -> t Lwt.t
+  val write: Channel.t -> t -> unit Lwt.t
+end
+
+module Iter(A: IterArg) = struct
+
+  cstruct hdr {
+      uint32_t keys
+    } as big_endian
+
+  let reads fd =
+    lwt buf = Channel.read fd sizeof_hdr in
+    let keys = Int32.to_int (get_hdr_keys buf) in
+    let rec aux acc i =
+      if i <= 0 then return (List.rev acc)
+      else
+        lwt t = A.read fd in
+        aux (t :: acc) (i-1) in
+    aux [] keys
+
+  let writes fd ts =
+    Lwt_list.iter_s (A.write fd) ts
+
+end
+
 module Blob: IrminAPI.BASE
   with type t = blob
    and type channel = Channel.t
@@ -179,22 +206,11 @@ module Key: IrminAPI.KEY
   let write fd (K k) =
     Channel.write_string fd k
 
-  cstruct hdr {
-      uint32_t keys
-    } as big_endian
-
-  let reads fd =
-    lwt buf = Channel.read fd sizeof_hdr in
-    let keys = Int32.to_int (get_hdr_keys buf) in
-    let rec aux acc i =
-      if i <= 0 then return (List.rev acc)
-      else
-        lwt key = Channel.read_string fd key_length in
-        aux (K key :: acc) (i-1) in
-    aux [] keys
-
-  let writes fd keys =
-    Lwt_list.iter_s (write fd) keys
+  include Iter(struct
+      type t = key
+      let read = read
+      let write = write
+    end)
 
   module Vertex = struct
     type t = key
@@ -202,12 +218,11 @@ module Key: IrminAPI.KEY
     let hash (K k) = Hashtbl.hash k
     let equal (K k1) (K k2) = String.compare k1 k2 = 0
   end
+  module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
 
   module Graph = struct
 
     type channel = Channel.t
-
-    module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
 
     include G
 
@@ -472,6 +487,46 @@ module Tag: IrminAPI.TAG
 
 end
 
+(* Pair of tag * key *)
+module TagKey (T: IrminAPI.BASE with type channel = Channel.t) = struct
+
+  type t = T.t * Key.t
+
+  let to_string (t, key) =
+    Printf.sprintf "%s:%s" (T.to_string t) (Key.to_string key)
+
+  let to_json (t, key) =
+    `O [ ("tag", T.to_json t);
+         ("key", Key.to_json key)]
+
+  let of_json = function
+    | `O l ->
+      let tag =
+        try List.assoc "tag" l
+        with Not_found -> failwith "TagKey.of_json: missing tag" in
+      let key =
+        try List.assoc "key" l
+        with Not_found -> failwith "TagKey.of_json: missing key" in
+      (T.of_json tag, Key.of_json key)
+    | _ -> failwith "TagKey.of_json: not an object"
+
+  let read fd =
+    lwt tag = T.read fd in
+    lwt key = Key.read fd in
+    return (tag, key)
+
+  let write fd (tag, key) =
+    lwt () = T.write fd tag in
+    Key.write fd key
+
+  include Iter(struct
+      type t = T.t * Key.t
+      let read = read
+      let write = write
+    end)
+
+end
+
+
 module Store = IrminMemory.Store(Key)(Value)
 module Tag_store = IrminMemory.Tag_store(Tag)(Key)
-module Remote = IrminProtocol.Make(Channel)(Key)(Tag)
