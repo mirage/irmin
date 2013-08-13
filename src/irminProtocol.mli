@@ -14,31 +14,50 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Wire Protocol  *)
+(** Queue Implementation *)
 
-(** Possible actions *)
-type action =
-  | Pull_keys
-  | Pull_tags
-  | Push_keys
-  | Push_tags
-  | Watch
+(** {2 Base type} *)
 
-(** Implement the protocol over abstract channels, keys and tags *)
-module Client (C: IrminAPI.CHANNEL)
-  : IrminAPI.REMOTE
-    with type channel = C.t
-     and module K = IrminImpl.Key(C)
-     and module T = IrminImpl.Tag(C)
+module type S = sig
 
-(** Implement the protocol over abstract channels, keys and tags. [R]
-    contains the actual code to be executed by the server. *)
-module Server
-    (C: IrminAPI.CHANNEL)
-    (R: IrminAPI.REMOTE with type channel = unit
-                         and module K = IrminImpl.Key(C)
-                         and module T = IrminImpl.Tag(C)
-    ) :
-sig
-  val dispatch: C.t -> unit Lwt.t
+  type channel
+
+  (** Keys *)
+  module Key: sig
+    include IrminAPI.KEY
+    include IrminAPI.IO
+      with type t := t
+       and type channel := channel
+  end
+
+  (** Values *)
+  module Value: sig
+    include IrminAPI.VALUE
+    include IrminAPI.IO
+      with type t := t
+       and type channel := channel
+  end
+
+  (** Tags *)
+  module Tag: sig
+    include IrminAPI.TAG
+    include IrminAPI.IO
+      with type t := t
+       and type channel := channel
+  end
+
+  (** Implement the client actions over abstract keys and tags *)
+  module Client: IrminAPI.REMOTE
+    with type channel := channel
+     and type key = Key.t
+     and type tag = Tag.t
+
+  (** Implement the server actions over abstract channels, keys and tags. [R]
+      contains the actual code to be executed by the server. *)
+  module Server: sig
+    val dispatch: channel -> unit Lwt.t
+  end
+
 end
+
+module Make (C: IrminAPI.CHANNEL): S with type channel = C.t

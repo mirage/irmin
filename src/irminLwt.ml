@@ -51,10 +51,4 @@ module Channel: IrminAPI.CHANNEL
 
 end
 
-module Key = IrminImpl.Key(Channel)
-module Value = IrminImpl.Value(Channel)
-module Tag = IrminImpl.Tag(Channel)
-module Client = IrminProtocol.Client(Channel)
-
-module Store = IrminMemory.Store(Key)(Value)
-module Tag_store = IrminMemory.Tag_store(Tag)(Key)
+include IrminProtocol.Make(Channel)

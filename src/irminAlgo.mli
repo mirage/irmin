@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of the Irminsule protocol using Lwt channels *)
+(** Core algorithms *)
 
-include IrminProtocol.S with type channel = Lwt_unix.file_descr
+module Make (K: IrminAPI.KEY) (T: IrminAPI.TAG) : IrminAPI.REMOTE
+  with type channel = unit
+   and type key = K.t
+   and type tag = T.t
