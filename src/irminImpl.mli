@@ -16,85 +16,65 @@
 
 (** Base irminsule datatypes *)
 
-(** Basic types *)
-module Types: sig
-
-  (** Keys *)
-  type key = K of string
-
-  (** Blobs *)
-  type blob = B of string
-
-  (** Revisions *)
-  type revision = {
-    parents : key list;
-    contents: key;
-  }
-
-  (** Values *)
-  type value =
-    | Blob of blob
-    | Revision of revision
-
-  (** Local tags *)
-  type local_tag = L of string
-
-  (** Remote tags *)
-  type remote_tag = R of string
-
-  type tag =
-    [ `Local of local_tag
-    | `Remote of remote_tag ]
-
-end
-
-open Types
-
-module Channel: IrminAPI.CHANNEL
-  with type t = Lwt_unix.file_descr
+(** {2 Basic types} *)
 
 (** Keys *)
-module Key: IrminAPI.KEY
-  with type t = key
-   and type channel = Channel.t
-
-(** Values *)
-module Value: IrminAPI.VALUE
-  with type t = value
-   and type channel = Channel.t
+type key = K of string
 
 (** Blobs *)
-module Blob: IrminAPI.BASE
-  with type t = blob
-   and type channel = Channel.t
+type blob = B of string
 
 (** Revisions *)
-module Revision: IrminAPI.BASE
-  with type t = revision
-   and type channel = Channel.t
+type revision = {
+  parents : key list;
+  contents: key;
+}
+
+(** Values *)
+type value =
+  | Blob of blob
+  | Revision of revision
+
+(** Local tags *)
+type local_tag = L of string
+
+(** Remote tags *)
+type remote_tag = R of string
+
+(** Tags *)
+type tag =
+  [ `Local of local_tag
+  | `Remote of remote_tag ]
+
+(** Keys *)
+module Key (C: IrminAPI.CHANNEL): IrminAPI.KEY
+  with type t = key
+   and type channel = C.t
+
+(** Values *)
+module Value (C: IrminAPI.CHANNEL): IrminAPI.VALUE
+  with type t = value
+   and type channel = C.t
+
+(** Tags *)
+module Tag (C: IrminAPI.CHANNEL):  IrminAPI.TAG
+  with type t = tag
+   and type channel = C.t
 
 (** {2 Helpers} *)
 
-(** Arguements for the [Iter] functor *)
-module type IterArg = sig
+(** List of elements *)
+module MakeList
+    (C: IrminAPI.CHANNEL)
+    (E: IrminAPI.BASE with type channel = C.t)
+  : IrminAPI.BASE
+    with type t = E.t list
+     and type channel = C.t
 
-  (** Abstract type of constucted values *)
-  type t
-
-  (** How to read a value *)
-  val read: Channel.t -> t Lwt.t
-
-  (** How to write a value *)
-  val write: Channel.t -> t -> unit Lwt.t
-end
-
-(** Build (binary) iterators from single readers/writers *)
-module Iter(A: IterArg): sig
-
-  (** Read a list of values *)
-  val reads: Channel.t -> A.t list Lwt.t
-
-  (** Write a list of values *)
-  val writes: Channel.t -> A.t list -> unit Lwt.t
-
-end
+(** Cartesian product *)
+module MakeProduct
+    (C: IrminAPI.CHANNEL)
+    (K: IrminAPI.BASE with type channel = C.t)
+    (V: IrminAPI.BASE with type channel = C.t)
+  : IrminAPI.BASE with type t = K.t * V.t
+                   and type channel = C.t

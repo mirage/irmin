@@ -14,66 +14,28 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Types = struct
-
-  type key = K of string
-
-  type blob = B of string
-
-  type revision = {
-    parents : key list;
-    contents: key;
-  }
-
-  type value =
-    | Blob of blob
-    | Revision of revision
-
-  type local_tag = L of string
-
-  type remote_tag = R of string
-
-  type tag =
-    [ `Local of local_tag
-    | `Remote of remote_tag ]
-
-end
-
 open Lwt
-open Types
 
-module Channel: IrminAPI.CHANNEL
-  with type t = Lwt_unix.file_descr
-= struct
+type key = K of string
 
-  (* From https://github.com/djs55/ocaml-vnc/blob/master/lib/rfb_lwt.ml *)
-  type t = Lwt_unix.file_descr
+type blob = B of string
 
-  let read_string fd n =
-    let buf = String.make n '\000' in
-    let rec rread fd buf ofs len =
-      lwt n = Lwt_unix.read fd buf ofs len in
-      if n = 0 then raise End_of_file;
-      if n < len then rread fd buf (ofs + n) (len - n) else return () in
-    lwt () = rread fd buf 0 n in
-    return buf
+type revision = {
+  parents : key list;
+  contents: key;
+}
 
-  let write_string fd buf =
-    let rec rwrite fd buf ofs len =
-      lwt n = Lwt_unix.write fd buf ofs len in
-      if n = 0 then raise End_of_file;
-      if n < len then rwrite fd buf (ofs + n) (len - n) else return () in
-    lwt () = rwrite fd buf 0 (String.length buf) in
-    return ()
+type value =
+  | Blob of blob
+  | Revision of revision
 
-  let read fd n =
-    lwt result = read_string fd n in
-    return (Cstruct.of_string result)
+type local_tag = L of string
 
-  let write fd buf =
-    write_string fd (Cstruct.to_string buf)
+type remote_tag = R of string
 
-end
+type tag =
+  [ `Local of local_tag
+  | `Remote of remote_tag ]
 
 module type StringArg = sig
   type t
@@ -81,14 +43,14 @@ module type StringArg = sig
   val of_string: string -> t
 end
 
-module StringBase(A: StringArg): IrminAPI.BASE
+module StringBase(C: IrminAPI.CHANNEL)(A: StringArg): IrminAPI.BASE
   with type t = A.t
-   and type channel = Channel.t
+   and type channel = C.t
 = struct
 
   type t = A.t
 
-  type channel = Channel.t
+  type channel = C.t
 
   let to_string s =
     Printf.sprintf "%S" (A.to_string s)
@@ -104,9 +66,9 @@ module StringBase(A: StringArg): IrminAPI.BASE
     } as big_endian
 
   let read fd =
-    lwt buf = Channel.read fd sizeof_hdr in
+    lwt buf = C.read fd sizeof_hdr in
     let len = Int32.to_int (get_hdr_length buf) in
-    lwt str = Channel.read_string fd len in
+    lwt str = C.read_string fd len in
     return (A.of_string str)
 
   let write fd t =
@@ -114,11 +76,11 @@ module StringBase(A: StringArg): IrminAPI.BASE
     let len = String.length str in
     let buf = Cstruct.create sizeof_hdr in
     set_hdr_length buf (Int32.of_int len);
-    lwt () = Channel.write fd buf in
-    Channel.write_string fd str
+    lwt () = C.write fd buf in
+    C.write_string fd str
 
   let reads fd =
-    lwt buf = Channel.read fd sizeof_hdr in
+    lwt buf = C.read fd sizeof_hdr in
     let len = Int32.to_int (get_hdr_length buf) in
     let rec aux acc i =
       if i <= 0 then return (List.rev acc)
@@ -135,39 +97,95 @@ module StringBase(A: StringArg): IrminAPI.BASE
 
 end
 
-module type IterArg = sig
-  type t
-  val read: Channel.t -> t Lwt.t
-  val write: Channel.t -> t -> unit Lwt.t
-end
+module MakeList
+    (C: IrminAPI.CHANNEL)
+    (E: IrminAPI.BASE with type channel = C.t)
+  : IrminAPI.BASE
+    with type t = E.t list
+     and type channel = C.t
+= struct
 
-module Iter(A: IterArg) = struct
+  type t = E.t list
+
+  type channel = C.t
+
+  let to_string t =
+    String.concat "\n" (List.rev (List.rev_map E.to_string t))
+
+  let to_json t =
+    `A (List.rev (List.rev_map E.to_json t))
+
+  let of_json = function
+    | `A l -> List.rev (List.rev_map E.of_json l)
+    | _    -> failwith "List.of_json"
 
   cstruct hdr {
       uint32_t keys
     } as big_endian
 
-  let reads fd =
-    lwt buf = Channel.read fd sizeof_hdr in
+  let read fd =
+    lwt buf = C.read fd sizeof_hdr in
     let keys = Int32.to_int (get_hdr_keys buf) in
     let rec aux acc i =
       if i <= 0 then return (List.rev acc)
       else
-        lwt t = A.read fd in
+        lwt t = E.read fd in
         aux (t :: acc) (i-1) in
     aux [] keys
 
-  let writes fd ts =
-    Lwt_list.iter_s (A.write fd) ts
+  let write fd t =
+    Lwt_list.iter_s (E.write fd) t
 
 end
 
-module Blob: IrminAPI.BASE
-  with type t = blob
-   and type channel = Channel.t
+module MakeProduct
+    (C: IrminAPI.CHANNEL)
+    (K: IrminAPI.BASE with type channel = C.t)
+    (V: IrminAPI.BASE with type channel = C.t)
+  : IrminAPI.BASE
+    with type t = K.t * V.t
+     and type channel = C.t
 = struct
 
-  module S = StringBase(struct
+  type t = K.t * V.t
+
+  type channel = C.t
+
+  let to_string (key, value) =
+    Printf.sprintf "%s:%s" (K.to_string key) (V.to_string value)
+
+  let to_json (key, value) =
+    `O [ ("tag", K.to_json key);
+         ("key", V.to_json value)]
+
+  let of_json = function
+    | `O l ->
+      let key =
+        try List.assoc "tag" l
+        with Not_found -> failwith "TagKey.of_json: missing tag" in
+      let value =
+        try List.assoc "key" l
+        with Not_found -> failwith "TagKey.of_json: missing key" in
+      (K.of_json key, V.of_json value)
+    | _ -> failwith "TagKey.of_json: not an object"
+
+  let read fd =
+    lwt tag = K.read fd in
+    lwt key = V.read fd in
+    return (tag, key)
+
+  let write fd (key, value) =
+    lwt () = K.write fd key in
+    V.write fd value
+
+end
+
+module Blob(C: IrminAPI.CHANNEL): IrminAPI.BASE
+  with type t = blob
+   and type channel = C.t
+= struct
+
+  module S = StringBase(C)(struct
       type t = blob
       let to_string (B s) = s
       let of_string s = B s
@@ -177,14 +195,14 @@ module Blob: IrminAPI.BASE
 
 end
 
-module Key: IrminAPI.KEY
+module Key(C: IrminAPI.CHANNEL): IrminAPI.KEY
   with type t = key
-   and type channel = Channel.t
+   and type channel = C.t
 = struct
 
   type t = key
 
-  type channel = Channel.t
+  type channel = C.t
 
   let to_string (K k) =
     Printf.sprintf "%s" k
@@ -204,17 +222,11 @@ module Key: IrminAPI.KEY
   let length (K _) = key_length
 
   let read fd =
-    lwt key = Channel.read_string fd key_length in
+    lwt key = C.read_string fd key_length in
     return (K key)
 
   let write fd (K k) =
-    Channel.write_string fd k
-
-  include Iter(struct
-      type t = key
-      let read = read
-      let write = write
-    end)
+    C.write_string fd k
 
   module Vertex = struct
     type t = key
@@ -226,7 +238,7 @@ module Key: IrminAPI.KEY
 
   module Graph = struct
 
-    type channel = Channel.t
+    type channel = C.t
 
     include G
 
@@ -273,21 +285,21 @@ module Key: IrminAPI.KEY
       } as big_endian
 
     let read fd =
-    lwt buf = Channel.read fd sizeof_hdr in
+    lwt buf = C.read fd sizeof_hdr in
     let v = Int32.to_int (get_hdr_vertex buf) in
     let e = Int32.to_int (get_hdr_edges buf) in
     let g = G.create ~size:v () in
     let rec vertex_f i =
       if i <= 0 then return ()
       else
-        lwt key = Channel.read_string fd key_length in
+        lwt key = C.read_string fd key_length in
         G.add_vertex g (K key);
         vertex_f (i-1) in
     let rec edges_f i =
       if i <= 0 then return ()
       else
-        lwt key1 = Channel.read_string fd key_length in
-        lwt key2 = Channel.read_string fd key_length in
+        lwt key1 = C.read_string fd key_length in
+        lwt key2 = C.read_string fd key_length in
         G.add_edge g (K key1) (K key2);
         edges_f (i-1) in
     lwt () = vertex_f v in
@@ -302,39 +314,37 @@ module Key: IrminAPI.KEY
       let buf = Cstruct.create sizeof_hdr in
       set_hdr_vertex buf (Int32.of_int v);
       set_hdr_edges buf (Int32.of_int e);
-      lwt () = Channel.write fd buf in
+      lwt () = C.write fd buf in
       let rec vertex_f = function
         | []       -> return ()
         | (K k)::t ->
-          lwt () = Channel.write_string fd k in
+          lwt () = C.write_string fd k in
           vertex_f t in
       let rec edges_f = function
         | []              -> return ()
         | (K k1, K k2)::t ->
-          lwt () = Channel.write_string fd k1 in
-          lwt () = Channel.write_string fd k2 in
+          lwt () = C.write_string fd k1 in
+          lwt () = C.write_string fd k2 in
           edges_f t in
       lwt () = vertex_f vertex in
       edges_f edges
 
-    include Iter(struct
-        type t = G.t
-        let read = read
-        let write = write
-      end)
   end
 
   type graph = Graph.t
 
 end
 
-module Revision: IrminAPI.BASE
+module Revision(C: IrminAPI.CHANNEL): IrminAPI.BASE
   with type t = revision
-   and type channel = Channel.t = struct
+   and type channel = C.t = struct
 
   type t = revision
 
-  type channel = Channel.t
+  type channel = C.t
+
+  module Key = Key(C)
+  module Keys = MakeList(C)(Key)
 
   let to_string r =
     Printf.sprintf "[%s => %s]"
@@ -355,30 +365,28 @@ module Revision: IrminAPI.BASE
     `O [ ("parents", parents); ("contents", contents) ]
 
   let read fd =
-    lwt keys = Key.reads fd in
+    lwt keys = Keys.read fd in
     match keys with
     | []   -> failwith "Revision.read"
     | h::t -> return { contents = h; parents = t }
 
   let write fd r =
-    Key.writes fd (r.contents :: r.parents)
-
-  include Iter(struct
-      type t = revision
-      let read = read
-      let write = write
-    end)
+    Keys.write fd (r.contents :: r.parents)
 
 end
 
-module Value: IrminAPI.BASE
+module Value(C: IrminAPI.CHANNEL): IrminAPI.BASE
   with type t = value
-   and type channel = Channel.t
+   and type channel = C.t
 = struct
 
   type t = value
 
-  type channel = Channel.t
+  type channel = C.t
+
+  module Blob = Blob(C)
+
+  module Revision = Revision(C)
 
   let to_string = function
     | Blob b     -> Blob.to_string b
@@ -398,7 +406,7 @@ module Value: IrminAPI.BASE
     } as big_endian
 
   let read fd =
-    lwt buf = Channel.read fd sizeof_hdr in
+    lwt buf = C.read fd sizeof_hdr in
     let kind = get_hdr_kind buf in
     match kind with
     | 0 -> lwt b = Blob.read fd in return (Blob b)
@@ -411,31 +419,25 @@ module Value: IrminAPI.BASE
       | Revision r -> 1, fun () -> Revision.write fd r in
     let buf = Cstruct.create sizeof_hdr in
     set_hdr_kind buf kind;
-    lwt () = Channel.write fd buf in
+    lwt () = C.write fd buf in
     cont ()
-
-  include Iter(struct
-      type t = value
-      let read = read
-      let write = write
-    end)
 
 end
 
-module Tag: IrminAPI.TAG
+module Tag(C: IrminAPI.CHANNEL): IrminAPI.TAG
   with type t = tag
    and type local = local_tag
    and type remote = remote_tag
-   and type channel = Channel.t
+   and type channel = C.t
 = struct
 
-  module L = StringBase(struct
+  module L = StringBase(C)(struct
       type t = local_tag
       let to_string (L s) = s
       let of_string s = L s
     end)
 
-  module R = StringBase(struct
+  module R = StringBase(C)(struct
       type t = remote_tag
       let to_string (R s) = s
       let of_string s = R s
@@ -451,7 +453,7 @@ module Tag: IrminAPI.TAG
 
   let local (R s) = L s
 
-  type channel = Channel.t
+  type channel = C.t
 
   let to_string = function
     | `Local t  -> Printf.sprintf "local/%s" (L.to_string t)
@@ -480,7 +482,7 @@ module Tag: IrminAPI.TAG
     } as big_endian
 
   let read fd =
-    lwt buf = Channel.read fd sizeof_hdr in
+    lwt buf = C.read fd sizeof_hdr in
     match get_hdr_kind buf with
     | 0 ->
       lwt t = L.read fd in
@@ -495,61 +497,11 @@ module Tag: IrminAPI.TAG
     match t with
     | `Local t ->
       set_hdr_kind buf 0;
-      lwt () = Channel.write fd buf in
+      lwt () = C.write fd buf in
       L.write fd t
     | `Remote t ->
       set_hdr_kind buf 1;
-      lwt () = Channel.write fd buf in
+      lwt () = C.write fd buf in
       R.write fd t
 
-  include Iter(struct
-      type t = tag
-      let read = read
-      let write = write
-    end)
-
 end
-
-(* Pair of tag * key *)
-module TagKey (T: IrminAPI.BASE with type channel = Channel.t) = struct
-
-  type t = T.t * Key.t
-
-  let to_string (t, key) =
-    Printf.sprintf "%s:%s" (T.to_string t) (Key.to_string key)
-
-  let to_json (t, key) =
-    `O [ ("tag", T.to_json t);
-         ("key", Key.to_json key)]
-
-  let of_json = function
-    | `O l ->
-      let tag =
-        try List.assoc "tag" l
-        with Not_found -> failwith "TagKey.of_json: missing tag" in
-      let key =
-        try List.assoc "key" l
-        with Not_found -> failwith "TagKey.of_json: missing key" in
-      (T.of_json tag, Key.of_json key)
-    | _ -> failwith "TagKey.of_json: not an object"
-
-  let read fd =
-    lwt tag = T.read fd in
-    lwt key = Key.read fd in
-    return (tag, key)
-
-  let write fd (tag, key) =
-    lwt () = T.write fd tag in
-    Key.write fd key
-
-  include Iter(struct
-      type t = T.t * Key.t
-      let read = read
-      let write = write
-    end)
-
-end
-
-
-module Store = IrminMemory.Store(Key)(Value)
-module Tag_store = IrminMemory.Tag_store(Tag)(Key)

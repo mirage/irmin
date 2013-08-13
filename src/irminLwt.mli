@@ -14,19 +14,29 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Wire Protocol  *)
+(** Implementation of the Irminsule protocol using Lwt channels *)
 
-(** Possible actions *)
-type action =
-  | Pull_keys
-  | Pull_tags
-  | Push_keys
-  | Push_tags
-  | Watch
+(** Concrete keys *)
+module Key: IrminAPI.KEY
+  with type channel = Lwt_unix.file_descr
+   and type t = IrminImpl.key
 
-(** Implement the protocol over abstract channels, keys and tags *)
-module Client (C: IrminAPI.CHANNEL)
-  : IrminAPI.REMOTE
-    with type channel = C.t
-     and module K = IrminImpl.Key(C)
-     and module T = IrminImpl.Tag(C)
+(** Concrete values *)
+module Value: IrminAPI.VALUE
+  with type channel = Lwt_unix.file_descr
+   and type t = IrminImpl.value
+
+(** Concrete tags *)
+module Tag: IrminAPI.TAG
+  with type channel = Lwt_unix.file_descr
+   and type t = IrminImpl.tag
+
+(** Concrete low-level store *)
+module Store: IrminAPI.STORE
+  with module K = Key
+   and module V = Value
+
+(** Concrete tag store *)
+module Tag_store: IrminAPI.TAG_STORE
+  with module T = Tag
+   and module K = Key

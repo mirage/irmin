@@ -19,7 +19,7 @@ open Cohttp
 open Cohttp_lwt_unix
 module Body = Cohttp_lwt_body
 
-open IrminImpl
+open IrminLwt
 
 module Client = struct
 

@@ -74,65 +74,67 @@ module Action (C: IrminAPI.CHANNEL): IrminAPI.BASE
       | Watch     -> 4 in
     C.write_string fd (string_of_int kind)
 
-  include IrminImp.Iter(struct
-      type t = action
-      let read = read
-      let write = write
-    end)
-
 end
 
-module Client
+module MakeClient
     (C: IrminAPI.CHANNEL)
     (K: IrminAPI.KEY with type channel = C.t)
-    (T: IrminAPI.TAG with type channel = C.t): IrminAPI.REMOTE
-  with module C = C
-   and module K = K
-   and module T = T
+    (T: IrminAPI.TAG with type channel = C.t)
+  : IrminAPI.REMOTE with type channel = C.t
+                     and module K = K
+                     and module T = T
 = struct
 
-  module C = C
+  module Action = Action(C)
+
+  type channel = C.t
+
   module K = K
+  module Ks = IrminImpl.MakeList(C)(K)
+
   module T = T
-  module A = Action(C)
 
-  module TRV = IrminImp.TagVal(T.R)
+  module TRK = IrminImpl.MakeProduct(C)(T.R)(K)
+  module TRKs = IrminImpl.MakeList(C)(TRK)
 
-  module TLV = IrminImpl.TagVal(T.L)
+  module TLK = IrminImpl.MakeProduct(C)(T.L)(K)
+  module TLKs = IrminImpl.MakeList(C)(TLK)
+
+  module TRs = IrminImpl.MakeList(C)(T.R)
+
+  module TRG = IrminImpl.MakeProduct(C)(TRs)(K.Graph)
 
   let pull_keys fd roots tags =
-    lwt () = A.write fd Pull_keys in
-    lwt () = K.writes fd roots in
-    lwt () = T.R.writes fd tags in
+    lwt () = Action.write fd Pull_keys in
+    lwt () = Ks.write fd roots in
+    lwt () = TRs.write fd tags in
     K.Graph.read fd
 
   let pull_tags fd =
-    lwt () = A.write fd Pull_tags in
-    failwith "TODO"
+    lwt () = Action.write fd Pull_tags in
+    TRKs.read fd
 
-  let push_keys _ =
-    failwith "TODO"
+  let push_keys fd graph tags =
+    lwt () = Action.write fd Push_keys in
+    lwt () = K.Graph.write fd graph in
+    TLKs.write fd tags
 
-  let push_tags _ =
-    failwith "TODO"
+  let push_tags fd tags =
+    lwt () = Action.write fd Push_tags in
+    TRKs.write fd tags
 
-  let watch _ =
-    failwith "TODO"
+  let watch fd tags =
+    lwt () = Action.write fd Watch in
+    lwt () = TRs.write fd tags in
+    let read () =
+      try
+        lwt t = TRG.read fd in
+        return (Some t)
+      with End_of_file ->
+        return None in
+    return (Lwt_stream.from read)
 
 end
 
-(*
-(* XXX: should be replaced by a streaming API *)
-let discover_of_json = function
-  | `O [ ("local", local); ("remote", remote) ] ->
-    let keys = keys_of_json local in
-    let tags = tags_of_json remote in
-    keys, tags
-  | _ -> failwith "discover_of_json"
-
-let json_of_discover (keys, tags) =
-  `O [ ("local", json_of_keys keys); ("remote", json_of_tags tags) ]
-
-*)
-
-module Client = IrminProtocol.Client(IrminImpl.Channel)(IrminImpl.Key)(IrminImpl.Tag)
+module Client (C: IrminAPI.CHANNEL) =
+  MakeClient(C)(IrminImpl.Key(C))(IrminImpl.Tag(C))

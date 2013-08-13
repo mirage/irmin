@@ -58,12 +58,6 @@ module type BASE = sig
   (** Write to a channel *)
   val write: channel -> t -> unit Lwt.t
 
-  (** Write a list of elts *)
-  val writes: channel -> t list -> unit Lwt.t
-
-  (** Read a list of elts *)
-  val reads: channel -> t list Lwt.t
-
 end
 
 (** Keys *)
@@ -81,12 +75,12 @@ module type KEY = sig
   type graph
 
   module Graph: sig
-    include BASE
-      with type t := graph
-       and type channel := channel
     include (Graph.Sig.I
              with type t := graph
               and type V.t = t)
+    include BASE
+      with type t = graph
+       and type channel = channel
   end
 
 end
@@ -116,11 +110,11 @@ module type TAG = sig
 
   module L: BASE
     with type t = local
-     and type channel := channel
+     and type channel = channel
 
   module R: BASE
     with type t = remote
-     and type channel := channel
+     and type channel = channel
 end
 
 (** A low-level immutable and consistent key/value
@@ -192,8 +186,8 @@ end
 
 module type REMOTE = sig
 
-  (** Type of channels *)
-  module C: CHANNEL
+  (** Abstract type for channels *)
+  type channel
 
   (** Type of keys *)
   module K: KEY
@@ -206,25 +200,25 @@ module type REMOTE = sig
       unknown keys, with [roots] as graph roots and [tags] as graph
       sinks. If [root] is the empty list, return the complete history
       up-to the given remote tags. *)
-  val pull_keys: C.t -> K.t list -> T.remote list -> K.graph Lwt.t
+  val pull_keys: channel -> K.t list -> T.remote list -> K.graph Lwt.t
 
   (** Get all the remote tags. *)
-  val pull_tags: C.t -> (T.remote * K.t) list Lwt.t
+  val pull_tags: channel -> (T.remote * K.t) list Lwt.t
 
   (** Push changes related to a given (sub)-graph of keys, given set
       of local tags (which should belong to the graph). The does not
       modify the local tags on the remote instance. It is the user
       responsability to compute the smallest possible graph
       beforhand. *)
-  val push_keys: C.t -> K.graph -> (T.local * K.t) list -> unit Lwt.t
+  val push_keys: channel -> K.graph -> (T.local * K.t) list -> unit Lwt.t
 
   (** Modify the local tags of the remote instance. *)
-  val push_tags: C.t -> (T.remote * K.t) list -> unit Lwt.t
+  val push_tags: channel -> (T.remote * K.t) list -> unit Lwt.t
 
   (** Watch for changes for a given set of tags. Return the new
       graph. Return a stream of ([tags] * [graphs]) where [tags] are
       the updated tags and [graph] the corresponding set of new keys
       (if any). *)
-  val watch: C.t -> T.remote list -> (T.remote list * K.graph) Lwt_stream.t
+  val watch: channel -> T.remote list -> (T.remote list * K.graph) Lwt_stream.t Lwt.t
 
 end
