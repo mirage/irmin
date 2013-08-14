@@ -16,7 +16,8 @@
 
 (** Core algorithms *)
 
-module Make (K: IrminAPI.KEY) (T: IrminAPI.TAG) : IrminAPI.REMOTE
-  with type channel = unit
-   and type key = K.t
-   and type tag = T.t
+open IrminTypes
+
+module Make (K: KEY) (T: TAG) : REMOTE with type channel = unit
+                                        and type key = K.t
+                                        and type tag = T.t

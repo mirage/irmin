@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (K: IrminAPI.KEY) (T: IrminAPI.TAG) = struct
+open IrminTypes
+
+module Make (K: KEY) (T: TAG) = struct
 
   (** Type of keys *)
   type key = K.t

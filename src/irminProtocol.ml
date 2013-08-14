@@ -15,6 +15,7 @@
  *)
 
 open Lwt
+open IrminTypes
 
 type key = K of string
 
@@ -44,30 +45,26 @@ module type S = sig
   type channel
 
   module Key: sig
-    include IrminAPI.KEY
-    include IrminAPI.IO
-      with type t := t
-       and type channel := channel
+    include KEY
+    include IO with type t := t
+                and type channel := channel
   end
 
   module Value: sig
-    include IrminAPI.VALUE
-    include IrminAPI.IO
-      with type t := t
-       and type channel := channel
+    include VALUE
+    include IO with type t := t
+                and type channel := channel
   end
 
   module Tag: sig
-    include IrminAPI.TAG
-    include IrminAPI.IO
-      with type t := t
-       and type channel := channel
+    include TAG
+    include IO with type t := t
+                and type channel := channel
   end
 
-  module Client: IrminAPI.REMOTE
-    with type channel := channel
-     and type key = Key.t
-     and type tag = Tag.t
+  module Client: REMOTE with type channel := channel
+                         and type key = Key.t
+                         and type tag = Tag.t
 
   module Server: sig
     val dispatch: channel -> unit Lwt.t
@@ -75,7 +72,7 @@ module type S = sig
 
 end
 
-module Make (C: IrminAPI.CHANNEL) = struct
+module Make (C: CHANNEL) = struct
 
   type channel = C.t
 
@@ -120,7 +117,7 @@ module Make (C: IrminAPI.CHANNEL) = struct
 
   end
 
-  module MakeList (E: IrminAPI.IO with type channel = C.t) = struct
+  module MakeList (E: IO with type channel = C.t) = struct
 
     type t = E.t list
 
@@ -156,8 +153,8 @@ module Make (C: IrminAPI.CHANNEL) = struct
   end
 
   module MakeProduct
-      (K: IrminAPI.IO with type channel = C.t)
-      (V: IrminAPI.IO with type channel = C.t)
+      (K: IO with type channel = C.t)
+      (V: IO with type channel = C.t)
   = struct
 
     type t = K.t * V.t

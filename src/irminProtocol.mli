@@ -16,6 +16,8 @@
 
 (** Queue Implementation *)
 
+open IrminTypes
+
 (** {2 Base type} *)
 
 module type S = sig
@@ -24,30 +26,30 @@ module type S = sig
 
   (** Keys *)
   module Key: sig
-    include IrminAPI.KEY
-    include IrminAPI.IO
+    include KEY
+    include IO
       with type t := t
        and type channel := channel
   end
 
   (** Values *)
   module Value: sig
-    include IrminAPI.VALUE
-    include IrminAPI.IO
+    include VALUE
+    include IO
       with type t := t
        and type channel := channel
   end
 
   (** Tags *)
   module Tag: sig
-    include IrminAPI.TAG
-    include IrminAPI.IO
+    include TAG
+    include IO
       with type t := t
        and type channel := channel
   end
 
   (** Implement the client actions over abstract keys and tags *)
-  module Client: IrminAPI.REMOTE
+  module Client: REMOTE
     with type channel := channel
      and type key = Key.t
      and type tag = Tag.t
@@ -60,4 +62,4 @@ module type S = sig
 
 end
 
-module Make (C: IrminAPI.CHANNEL): S with type channel = C.t
+module Make (C: CHANNEL): S with type channel = C.t

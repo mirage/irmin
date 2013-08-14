@@ -15,10 +15,9 @@
  *)
 
 open Lwt
+open IrminTypes
 
-module Channel: IrminAPI.CHANNEL
-  with type t = Lwt_unix.file_descr
-= struct
+module Channel: CHANNEL with type t = Lwt_unix.file_descr = struct
 
   (* From https://github.com/djs55/ocaml-vnc/blob/master/lib/rfb_lwt.ml *)
   type t = Lwt_unix.file_descr
