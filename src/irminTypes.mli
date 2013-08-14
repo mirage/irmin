@@ -79,7 +79,7 @@ module type KEY_STORE = sig
   val add_relation: t -> key -> key -> unit Lwt.t
 
   (** Return the list of keys *)
-  val keys: t -> key list Lwt.t
+  val list: t -> key list Lwt.t
 
   (** Return the predecessors *)
   val pred: t -> key -> key list Lwt.t
@@ -195,10 +195,13 @@ module type IO = sig
 
 end
 
-(** {2 Actions} *)
+(** {1 Synchronization} *)
 
-(** Signature for remote actions *)
-module type REMOTE = sig
+(** Signature for synchronization actions *)
+module type SYNC = sig
+
+  (** Abstract channel *)
+  type t
 
   (** Type of keys *)
   type key
@@ -209,32 +212,69 @@ module type REMOTE = sig
   (** Type of remote tags *)
   type tag
 
-  (** Type of channel *)
-  type channel
-
   (** [pull_keys fd roots tags] pulls changes related to a given set
       known remote [tags]. Return the transitive closure of all the
       unknown keys, with [roots] as graph roots and [tags] as graph
       sinks. If [root] is the empty list, return the complete history
       up-to the given remote tags. *)
-  val pull_keys: channel -> key list -> tag list -> graph Lwt.t
+  val pull_keys: t -> key list -> tag list -> graph Lwt.t
 
   (** Get all the remote tags. *)
-  val pull_tags: channel -> (tag * key) list Lwt.t
+  val pull_tags: t -> (tag * key) list Lwt.t
 
   (** Push changes related to a given (sub)-graph of keys, given set
       of local tags (which should belong to the graph). The does not
       modify the local tags on the remote instance. It is the user
       responsability to compute the smallest possible graph
       beforhand. *)
-  val push_keys: channel -> graph -> (tag * key) list -> unit Lwt.t
+  val push_keys: t -> graph -> (tag * key) list -> unit Lwt.t
 
   (** Modify the local tags of the remote instance. *)
-  val push_tags: channel -> (tag * key) list -> unit Lwt.t
+  val push_tags: t -> (tag * key) list -> unit Lwt.t
 
   (** Watch for changes for a given set of tags. Call a callback on
       each event ([tags] * [graphs]) where [tags] are the updated tags
       and [graph] the corresponding set of new keys (if any). *)
-  val watch: channel -> tag list -> (tag list -> graph -> unit Lwt.t) -> unit Lwt.t
+  val watch: t -> tag list -> (tag list -> graph -> unit Lwt.t) -> unit Lwt.t
+
+end
+
+(** {2 Operations} *)
+module type OPERATIONS = sig
+
+  (** Type of channel *)
+  type t
+
+  (** Type of keys *)
+  type key
+
+  (** Type of values *)
+  type value
+
+  (** Type of tags *)
+  type tag
+
+  (** Key store *)
+  module Key_store: KEY_STORE
+    with type t = t
+     and type key = key
+
+  (** Value store *)
+  module Value_store: VALUE_STORE
+    with type t = t
+     and type key = key
+     and type value = value
+
+  (** Tag store *)
+  module Tag_store: TAG_STORE
+    with type t = t
+     and type key = key
+     and type tag = tag
+
+  (** Sync operations *)
+  module Sync: SYNC
+    with type t = t
+     and type key = key
+     and type tag = tag
 
 end

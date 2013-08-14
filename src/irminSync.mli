@@ -19,6 +19,6 @@
 open IrminTypes
 
 module Make (KS: KEY_STORE) (TS: TAG_STORE with type key = KS.key):
-  REMOTE with type channel = unit
-          and type key = KS.key
-          and type tag = TS.tag
+  SYNC with type t = unit
+        and type key = KS.key
+        and type tag = TS.tag

@@ -53,6 +53,41 @@ module List  (C: CHANNEL) (E: IO with type channel = C.t) = struct
 
 end
 
+module Option  (C: CHANNEL) (E: IO with type channel = C.t) = struct
+
+  type t = E.t option
+
+  type channel = C.t
+
+  let pretty = function
+    | None   -> "<none>"
+    | Some e -> E.pretty e
+
+  let to_json = function
+    | None   -> `Null
+    | Some e -> E.to_json e
+
+  let of_json = function
+    | `Null -> None
+    | j     -> Some (E.of_json j)
+
+  module L = List(C)(E)
+
+  let read fd =
+    lwt l = L.read fd in
+    match l with
+    | []  -> Lwt.return None
+    | [e] -> Lwt.return (Some e)
+    | _   -> failwith "Option.read"
+
+  let write fd t =
+    let l = match t with
+      | None   -> []
+      | Some e -> [e] in
+    L.write fd l
+
+end
+
 module Pair (C: CHANNEL)
     (K: IO with type channel = C.t) (V: IO with type channel = C.t)
 = struct

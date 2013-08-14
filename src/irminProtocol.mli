@@ -14,40 +14,55 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Queue Implementation *)
+(** Protocol implementation *)
 
 open IrminTypes
 
-(** Signature *)
-module type S = sig
+module Disk (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
+  OPERATIONS with type key = K.t
+              and type t = C.t
 
-  (** Abstract type for channels *)
+(** Client implementation (eg. needs a server on the other side of the
+    channel) *)
+module Client (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
+  OPERATIONS with type key = K.t
+              and type t = C.t
+
+(** Signature for server *)
+module type SERVER = sig
+
+  (** The channel to reach the server *)
   type channel
 
-  (** Implementation of keys *)
-  module Key: KEY
+  (** The channel the server is using to reach the key store *)
+  module KS: KEY_STORE
 
-  (** Implementation of values *)
-  module Value: VALUE
+  (** The channel the server is using to reach the tag store *)
+  module TS: TAG_STORE
 
-  (** Implementation of tags *)
-  module Tag: TAG
+  (** The channel the server is using to reach the value store *)
+  module VS: VALUE_STORE
 
-  (** Implementation of clients *)
-  module Client: REMOTE with type key = Key.t
-                         and type tag = Tag.t
-                         and type channel = channel
+  (** Server type  *)
+  type t = {
+    keys  : KS.t;
+    tags  : TS.t;
+    values: VS.t;
+  }
 
-  (** Implementation of servers (just need the dispatch function) *)
-  module Server
-      (KS: KEY_STORE with type key = Key.t)
-      (TS: TAG_STORE with type key = Key.t and type tag = Tag.t):
-  sig
-    val dispatch: channel -> unit Lwt.t
-  end
+  (** Run the server thread *)
+  val run: t -> channel -> unit Lwt.t
 
 end
 
-module Make (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
-  S with type channel = C.t
-     and type Key.t = K.t
+(** Implementation of servers. Expose a process function. *)
+module Server
+    (C: CHANNEL)
+    (K: IrminKey.S with type channel = C.t)
+    (KS: KEY_STORE with type key = K.t)
+    (TS: TAG_STORE with type key = K.t and type tag = IrminTag.t)
+    (VS: VALUE_STORE with type key = K.t and type value = K.t IrminValue.t):
+  SERVER with type channel = C.t
+          and module KS = KS
+          and module TS = TS
+          and module VS = VS

@@ -18,11 +18,18 @@
 
 open IrminTypes
 
-(** Lift IO operation to list *)
+(** Lift IO operation to lists *)
 module List
     (C: CHANNEL)
     (E: IO with type channel = C.t):
   IO with type t = E.t list
+      and type channel = C.t
+
+(** Lift IO operation to options *)
+module Option
+    (C: CHANNEL)
+    (E: IO with type channel = C.t):
+  IO with type t = E.t option
       and type channel = C.t
 
 

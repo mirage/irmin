@@ -27,8 +27,8 @@ module Make (KS: KEY_STORE) (TS: TAG_STORE with type key = KS.key) = struct
   (** Type of remote tags *)
   type tag = TS.tag
 
-  (** Type of channel *)
-  type channel = unit
+  (** Dummy channels *)
+  type t = unit
 
   let pull_keys () _ =
     failwith "TODO"

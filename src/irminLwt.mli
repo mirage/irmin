@@ -16,6 +16,28 @@
 
 (** Implementation of the Irminsule protocol using Lwt channels *)
 
-include IrminProtocol.S
+open IrminTypes
+
+module Key: IrminKey.S
   with type channel = Lwt_unix.file_descr
-   and type Key.t = IrminKey.t
+
+module Value: IrminValue.S
+  with type channel = Lwt_unix.file_descr
+   and type t = Key.t IrminValue.t
+
+module Tag: IrminTag.S
+  with type channel = Lwt_unix.file_descr
+
+module Client: OPERATIONS
+  with type key = IrminKey.t
+   and type t = Lwt_unix.file_descr
+
+module MemoryServer: IrminProtocol.SERVER
+   with type channel = Lwt_unix.file_descr
+    and module KS = IrminMemory.Key_store(Key)
+    and module VS = IrminMemory.Value_store(Key)(Value)
+    and module TS = IrminMemory.Tag_store(Tag)(Key)
+
+module Disk: OPERATIONS
+  with type key = IrminKey.t
+   and type t = Lwt_unix.file_descr

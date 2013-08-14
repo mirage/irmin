@@ -39,7 +39,7 @@ module Key_store (K: KEY) = struct
     G.add_edge g k1 k2;
     Lwt.return ()
 
-  let keys g =
+  let list g =
     let keys = G.fold_vertex (fun k acc -> k :: acc) g [] in
     Lwt.return keys
 
