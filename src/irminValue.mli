@@ -14,35 +14,39 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Blobs *)
+
 open IrminTypes
 
-module Make (KS: KEY_STORE) (TS: TAG_STORE with type key = KS.key) = struct
-
-  (** Type of keys *)
-  type key = KS.key
-
-  (** Graph of keys *)
-  type graph = key list * (key * key) list
-
-  (** Type of remote tags *)
-  type tag = TS.tag
-
-  (** Type of channel *)
-  type channel = unit
-
-  let pull_keys () _ =
-    failwith "TODO"
-
-  let pull_tags () =
-    failwith "TODO"
-
-  let push_keys () _ =
-    failwith "TODO"
-
-  let push_tags () _ =
-    failwith "TODO"
-
-  let watch () _ =
-    failwith "TODO"
-
+(** Signature for value implementations *)
+module type S = sig
+  include VALUE
+  include IO with type t := t
 end
+
+(** Default blob type *)
+type blob = B of string
+
+(** Default blob implementation *)
+module Blob (C: CHANNEL): S with type t = blob
+                             and type channel = C.t
+
+(** Default revision type *)
+type 'a revision = {
+  parents : 'a list;
+  contents: 'a;
+}
+
+module Revision (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
+  S with type t = K.t revision
+     and type channel = C.t
+
+(** Default value type *)
+type 'a t =
+  | Blob of blob
+  | Revision of 'a revision
+
+(** Default value implementation *)
+module Make (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
+  S with type t = K.t t
+     and type channel = C.t

@@ -24,7 +24,7 @@ module type BASE = sig
   type t
 
   (** Pretty-printing *)
-  val to_string: t -> string
+  val pretty: t -> string
 
   (** Convert from JSON *)
   val of_json: IrminJSON.t -> t
@@ -38,6 +38,12 @@ end
 module type KEY = sig
 
   include BASE
+
+  (** Compare two keys *)
+  val compare: t -> t -> int
+
+  (** Hash a key *)
+  val hash: t -> int
 
   (** Compute the key associated to any value. *)
   val create: 'a -> t
@@ -66,7 +72,7 @@ module type KEY_STORE = sig
   type key
 
   (** Add a key *)
-  val add_key: t -> key -> unit
+  val add_key: t -> key -> unit Lwt.t
 
   (** Add a relation: [add_relation t k1 k2] means that [k1] is now a
       predecessor of [k2] in [t]. *)
@@ -76,10 +82,10 @@ module type KEY_STORE = sig
   val keys: t -> key list Lwt.t
 
   (** Return the predecessors *)
-  val preds: t -> key -> key list Lwt.t
+  val pred: t -> key -> key list Lwt.t
 
   (** Return the successors *)
-  val succs: t -> key -> key list Lwt.t
+  val succ: t -> key -> key list Lwt.t
 
 end
 

@@ -16,33 +16,17 @@
 
 open IrminTypes
 
-module Make (KS: KEY_STORE) (TS: TAG_STORE with type key = KS.key) = struct
-
-  (** Type of keys *)
-  type key = KS.key
-
-  (** Graph of keys *)
-  type graph = key list * (key * key) list
-
-  (** Type of remote tags *)
-  type tag = TS.tag
-
-  (** Type of channel *)
-  type channel = unit
-
-  let pull_keys () _ =
-    failwith "TODO"
-
-  let pull_tags () =
-    failwith "TODO"
-
-  let push_keys () _ =
-    failwith "TODO"
-
-  let push_tags () _ =
-    failwith "TODO"
-
-  let watch () _ =
-    failwith "TODO"
-
+module type S = sig
+  include TAG
+  include IO with type t := t
 end
+
+type t = T of string
+type tag = t
+
+module Make(C: CHANNEL) =
+  IrminIO.String(C)(struct
+    type t = tag
+    let to_string (T s) = s
+    let of_string s = T s
+  end)

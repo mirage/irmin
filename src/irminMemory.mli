@@ -16,12 +16,18 @@
 
 (** In-memory store *)
 
+open IrminTypes
+
 (** Functor to build an in-memory low-level store *)
-module Store (K: IrminAPI.KEY) (V: IrminAPI.VALUE) : IrminAPI.STORE
-  with module K = K
-   and module V = V
+module Key_store (K: KEY) : KEY_STORE
+  with type key = K.t
+
+(** Functor to build an in-memory low-level store *)
+module Value_store (K: KEY) (V: VALUE) : VALUE_STORE
+  with type key = K.t
+   and type value = V.t
 
 (** Functor to build an in-memory tag store *)
-module Tag_store (T: IrminAPI.TAG) (K: IrminAPI.KEY) : IrminAPI.TAG_STORE
-  with module T = T
-   and module K = K
+module Tag_store (T: TAG) (K: KEY) : TAG_STORE
+  with type tag = T.t
+   and type key = K.t

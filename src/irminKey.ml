@@ -16,33 +16,46 @@
 
 open IrminTypes
 
-module Make (KS: KEY_STORE) (TS: TAG_STORE with type key = KS.key) = struct
+module type S = sig
+  include KEY
+  include IO with type t := t
+end
 
-  (** Type of keys *)
-  type key = KS.key
+type t = K of string
+type key = t
 
-  (** Graph of keys *)
-  type graph = key list * (key * key) list
+module SHA1 (C: CHANNEL) = struct
 
-  (** Type of remote tags *)
-  type tag = TS.tag
+  type t = key
 
-  (** Type of channel *)
-  type channel = unit
+  type channel = C.t
 
-  let pull_keys () _ =
-    failwith "TODO"
+  let compare (K k1) (K k2) = String.compare k1 k2
 
-  let pull_tags () =
-    failwith "TODO"
+  let hash (K k) = Hashtbl.hash k
 
-  let push_keys () _ =
-    failwith "TODO"
+  let pretty (K k) =
+    Printf.sprintf "%s" (IrminMisc.hex_encode k)
 
-  let push_tags () _ =
-    failwith "TODO"
+  let to_json (K k) =
+    IrminJSON.of_string k
 
-  let watch () _ =
-    failwith "TODO"
+  let of_json j =
+    K (IrminJSON.to_string j)
+
+  let create value =
+    let str = Marshal.to_string value [] in
+    K (IrminMisc.sha1 str)
+
+  let key_length = 20
+
+  let length (K _) = key_length
+
+  let read fd =
+    lwt key = C.read_string fd key_length in
+    Lwt.return (K key)
+
+  let write fd (K k) =
+    C.write_string fd k
 
 end

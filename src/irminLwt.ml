@@ -50,4 +50,14 @@ module Channel: CHANNEL with type t = Lwt_unix.file_descr = struct
 
 end
 
-include IrminProtocol.Make(Channel)
+module SHA1 = IrminKey.SHA1(Channel)
+
+include IrminProtocol.Make(Channel)(SHA1)
+
+module Key_store = IrminMemory.Key_store(Key)
+
+module Value_store = IrminMemory.Value_store(Key)(Value)
+
+module Tag_store = IrminMemory.Tag_store(Tag)(Key)
+
+module MemoryServer = Server(Key_store)(Tag_store)

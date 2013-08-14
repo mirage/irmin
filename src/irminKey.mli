@@ -14,35 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Implementation of keys *)
+
 open IrminTypes
 
-module Make (KS: KEY_STORE) (TS: TAG_STORE with type key = KS.key) = struct
-
-  (** Type of keys *)
-  type key = KS.key
-
-  (** Graph of keys *)
-  type graph = key list * (key * key) list
-
-  (** Type of remote tags *)
-  type tag = TS.tag
-
-  (** Type of channel *)
-  type channel = unit
-
-  let pull_keys () _ =
-    failwith "TODO"
-
-  let pull_tags () =
-    failwith "TODO"
-
-  let push_keys () _ =
-    failwith "TODO"
-
-  let push_tags () _ =
-    failwith "TODO"
-
-  let watch () _ =
-    failwith "TODO"
-
+(** Signature for IO keys *)
+module type S = sig
+  include KEY
+  include IO with type t := t
 end
+
+type t = K of string
+
+(** SHA1 keys *)
+module SHA1 (C: CHANNEL): S with type t = t
+                             and type channel = C.t

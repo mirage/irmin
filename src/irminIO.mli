@@ -14,35 +14,34 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Compose IO operations *)
+
 open IrminTypes
 
-module Make (KS: KEY_STORE) (TS: TAG_STORE with type key = KS.key) = struct
+(** Lift IO operation to list *)
+module List
+    (C: CHANNEL)
+    (E: IO with type channel = C.t):
+  IO with type t = E.t list
+      and type channel = C.t
 
-  (** Type of keys *)
-  type key = KS.key
 
-  (** Graph of keys *)
-  type graph = key list * (key * key) list
+(** Lift IO operations to pairs *)
+module Pair
+    (C: CHANNEL)
+    (K: IO with type channel = C.t)
+    (V: IO with type channel = C.t):
+  IO with type t = K.t * V.t
+      and type channel = C.t
 
-  (** Type of remote tags *)
-  type tag = TS.tag
-
-  (** Type of channel *)
-  type channel = unit
-
-  let pull_keys () _ =
-    failwith "TODO"
-
-  let pull_tags () =
-    failwith "TODO"
-
-  let push_keys () _ =
-    failwith "TODO"
-
-  let push_tags () _ =
-    failwith "TODO"
-
-  let watch () _ =
-    failwith "TODO"
-
+(** serialization to strings *)
+module type STRINGABLE = sig
+  type t
+  val to_string: t -> string
+  val of_string: string -> t
 end
+
+(** Lift IO operations to strings *)
+module String (C: CHANNEL) (S: STRINGABLE):
+  IO with type t = S.t
+      and type channel = C.t

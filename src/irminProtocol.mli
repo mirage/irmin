@@ -18,48 +18,36 @@
 
 open IrminTypes
 
-(** {2 Base type} *)
-
+(** Signature *)
 module type S = sig
 
+  (** Abstract type for channels *)
   type channel
 
-  (** Keys *)
-  module Key: sig
-    include KEY
-    include IO
-      with type t := t
-       and type channel := channel
-  end
+  (** Implementation of keys *)
+  module Key: KEY
 
-  (** Values *)
-  module Value: sig
-    include VALUE
-    include IO
-      with type t := t
-       and type channel := channel
-  end
+  (** Implementation of values *)
+  module Value: VALUE
 
-  (** Tags *)
-  module Tag: sig
-    include TAG
-    include IO
-      with type t := t
-       and type channel := channel
-  end
+  (** Implementation of tags *)
+  module Tag: TAG
 
-  (** Implement the client actions over abstract keys and tags *)
-  module Client: REMOTE
-    with type channel := channel
-     and type key = Key.t
-     and type tag = Tag.t
+  (** Implementation of clients *)
+  module Client: REMOTE with type key = Key.t
+                         and type tag = Tag.t
+                         and type channel = channel
 
-  (** Implement the server actions over abstract channels, keys and tags. [R]
-      contains the actual code to be executed by the server. *)
-  module Server: sig
+  (** Implementation of servers (just need the dispatch function) *)
+  module Server
+      (KS: KEY_STORE with type key = Key.t)
+      (TS: TAG_STORE with type key = Key.t and type tag = Tag.t):
+  sig
     val dispatch: channel -> unit Lwt.t
   end
 
 end
 
-module Make (C: CHANNEL): S with type channel = C.t
+module Make (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
+  S with type channel = C.t
+     and type Key.t = K.t

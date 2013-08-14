@@ -16,4 +16,6 @@
 
 (** Implementation of the Irminsule protocol using Lwt channels *)
 
-include IrminProtocol.S with type channel = Lwt_unix.file_descr
+include IrminProtocol.S
+  with type channel = Lwt_unix.file_descr
+   and type Key.t = IrminKey.t
