@@ -14,30 +14,26 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** In-memory store *)
-
 open IrminTypes
 
-(** Functor to build an in-memory low-level store *)
-module Key_store (K: KEY): sig
-  include KEY_STORE with type key = K.t
+type t = [ `File of string
+         | `Local of string
+         | `Remote of (string * int) ]
 
-  (** Create a fresh store *)
-  val create: unit -> t
-end
+val init: t -> unit
 
-(** Functor to build an in-memory low-level store *)
-module Value_store (K: KEY) (V: VALUE): sig
-  include VALUE_STORE with type key = K.t and type value = V.t
+val add: t -> string list -> unit
 
-  (** Create a fresh store *)
-  val create: unit -> t
-end
+val watch: t -> unit
 
-(** Functor to build an in-memory tag store *)
-module Tag_store (T: TAG) (K: KEY): sig
-  include TAG_STORE with type tag = T.t and type key = K.t
+val take: t -> unit
 
-  (** Create a fresh store *)
-  val create: unit -> t
-end
+val peek: t -> unit
+
+val dump: t -> unit
+
+val pull: t -> unit
+
+val push: t -> unit
+
+val clone: t -> unit

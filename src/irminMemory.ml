@@ -31,6 +31,9 @@ module Key_store (K: KEY) = struct
 
   type t = G.t
 
+  let create () =
+    G.create ~size:1024 ()
+
   let add_key g k =
     G.add_vertex g k;
     Lwt.return ()
@@ -62,6 +65,9 @@ module Value_store (K: KEY) (V: VALUE) = struct
 
   type t = (K.t, V.t) Hashtbl.t
 
+  let create () =
+    Hashtbl.create ()
+
   let write t value =
     let key = K.create value in
     Hashtbl.add t key value;
@@ -81,6 +87,9 @@ module Tag_store (T: TAG) (K: KEY) = struct
   type key = K.t
 
   type t = (T.t, K.t) Hashtbl.t
+
+  let create () =
+    Hashtbl.create ()
 
   let update t tag key =
     Printf.printf "Update %s to %s\n%!" (T.pretty tag) (K.pretty key);

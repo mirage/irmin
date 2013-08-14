@@ -43,20 +43,8 @@ let arg_list name doc conv =
   let doc = Arg.info ~docv:name ~doc [] in
   Arg.(non_empty & pos_all conv [] & doc)
 
-let port_flag =
-  mk_opt ["p";"port"] "PORT"
-    "Select the port on which the irminsule webserver is listening. Default is 8081."
-    Arg.int 8081
-
-let src_flag =
-  mk_opt ["i";"input";"s";"src"] "SRC"
-    "Select source irminsule instance."
-    Arg.int 8081
-
-let dst_flag =
-  mk_opt ["o";"output";"d";"dst"] "DST"
-    "Select the destination irminsule instance."
-    Arg.int 8081
+let default =
+  Term.pure (`File "/tmp/irmin.dat")
 
 (* INIT *)
 let init_doc = "Initialize a queue."
@@ -66,7 +54,7 @@ let init =
     `S "DESCRIPTION";
     `P init_doc;
   ] in
-  Term.(pure IrminHTTP.Server.init $ port_flag),
+  Term.(pure IrminQueue.init $ default),
   term_info "init" ~doc ~man
 
 (* ADD *)
@@ -79,7 +67,7 @@ let add =
   ] in
   let values =
     arg_list "VALUES" "Values to add the the distributed queue." Arg.string in
-  Term.(pure IrminHTTP.Client.add $ port_flag $values),
+  Term.(pure IrminQueue.add $ default $ values),
   term_info "add" ~doc ~man
 
 (* WATCH *)
@@ -90,7 +78,7 @@ let watch =
     `S "DESCRIPTION";
     `P watch_doc;
   ] in
-  Term.(pure IrminHTTP.Client.watch $ port_flag),
+  Term.(pure IrminQueue.watch $ default),
   term_info "watch" ~doc ~man
 
 (* TAKE *)
@@ -101,7 +89,7 @@ let take =
     `S "DESCRIPTION";
     `P take_doc;
   ] in
-  Term.(pure IrminHTTP.Client.take $ port_flag),
+  Term.(pure IrminQueue.take $ default),
   term_info "take" ~doc ~man
 
 (* PEEK *)
@@ -113,7 +101,7 @@ let peek =
     `S "DESCRIPTION";
     `P peek_doc;
   ] in
-  Term.(pure IrminHTTP.Client.peek $ port_flag),
+  Term.(pure IrminQueue.peek $ default),
   term_info "peek" ~doc ~man
 
 (* DUMP *)
@@ -124,7 +112,7 @@ let dump =
     `S "DESCRIPTION";
     `P dump_doc;
   ] in
-  Term.(pure IrminHTTP.Client.dump $ port_flag),
+  Term.(pure IrminQueue.dump $ default),
   term_info "dump" ~doc ~man
 
 (* PULL *)
@@ -135,7 +123,7 @@ let pull =
     `S "DESCRIPTION";
     `P pull_doc;
   ] in
-  Term.(pure IrminHTTP.Client.pull $ src_flag $ dst_flag),
+  Term.(pure IrminQueue.pull $ default),
   term_info "pull" ~doc ~man
 
 (* PUSH *)
@@ -146,7 +134,7 @@ let push =
     `S "DESCRIPTION";
     `P push_doc;
   ] in
-  Term.(pure IrminHTTP.Client.push $ src_flag $ dst_flag),
+  Term.(pure IrminQueue.push $ default),
   term_info "push" ~doc ~man
 
 (* CLONE *)
@@ -157,7 +145,7 @@ let clone =
     `S "DESCRIPTION";
     `P clone_doc;
   ] in
-  Term.(pure IrminHTTP.Client.clone $ src_flag $ dst_flag),
+  Term.(pure IrminQueue.clone $ default),
   term_info "clone" ~doc ~man
 
 (* HELP *)
