@@ -16,9 +16,10 @@
 
 open IrminTypes
 
-type t = [ `File of string
-         | `Local of string
-         | `Remote of (string * int) ]
+type t =
+  [ `File of string
+  | `Local of string
+  | `Remote of (string * int) ]
 
 val init: t -> unit
 

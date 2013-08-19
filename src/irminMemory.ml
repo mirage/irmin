@@ -57,7 +57,7 @@ module Key_store (K: KEY) = struct
 
 end
 
-module Value_store (K: KEY) (V: VALUE) = struct
+module Value_store (K: KEY) (V: VALUE with type key = K.t) = struct
 
   type key = K.t
 
@@ -66,10 +66,10 @@ module Value_store (K: KEY) (V: VALUE) = struct
   type t = (K.t, V.t) Hashtbl.t
 
   let create () =
-    Hashtbl.create ()
+    Hashtbl.create 1024
 
   let write t value =
-    let key = K.create value in
+    let key = V.key value in
     Hashtbl.add t key value;
     Lwt.return key
 
@@ -89,7 +89,7 @@ module Tag_store (T: TAG) (K: KEY) = struct
   type t = (T.t, K.t) Hashtbl.t
 
   let create () =
-    Hashtbl.create ()
+    Hashtbl.create 1024
 
   let update t tag key =
     Printf.printf "Update %s to %s\n%!" (T.pretty tag) (K.pretty key);

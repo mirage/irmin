@@ -16,17 +16,12 @@
 
 open IrminTypes
 
-module type S = sig
-  include TAG
-  include IO with type t := t
+type tag = T of string
+
+module S = struct
+  type t = tag
+  let to_string (T s) = s
+  let of_string s = T s
 end
 
-type t = T of string
-type tag = t
-
-module Make(C: CHANNEL) =
-  IrminIO.String(C)(struct
-    type t = tag
-    let to_string (T s) = s
-    let of_string s = T s
-  end)
+include IrminIO.String(S)

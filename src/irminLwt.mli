@@ -18,26 +18,24 @@
 
 open IrminTypes
 
-module Key: IrminKey.S
-  with type channel = Lwt_unix.file_descr
+module Key: KEY with type t = IrminKey.sha1
 
-module Value: IrminValue.S
-  with type channel = Lwt_unix.file_descr
-   and type t = Key.t IrminValue.t
+module Value: VALUE with type key = Key.t
 
-module Tag: IrminTag.S
-  with type channel = Lwt_unix.file_descr
+module Tag: TAG with type t = IrminTag.t
 
-module Client: OPERATIONS
-  with type key = IrminKey.t
-   and type t = Lwt_unix.file_descr
+module Key_store: KEY_STORE with type key = Key.t
 
-module MemoryServer: IrminProtocol.SERVER
-   with type channel = Lwt_unix.file_descr
-    and module KS = IrminMemory.Key_store(Key)
-    and module VS = IrminMemory.Value_store(Key)(Value)
-    and module TS = IrminMemory.Tag_store(Tag)(Key)
+module Value_store: VALUE_STORE with type key = Key.t and type value = Value.t
 
-module Disk: OPERATIONS
-  with type key = IrminKey.t
-   and type t = Lwt_unix.file_descr
+module Tag_store: TAG_STORE with type key = Key.t and type tag = Tag.t
+
+module Client: (module type of IrminProtocol.Client(Key)(Value)(Tag))
+
+module MemoryServer: (module type of
+                       IrminProtocol.Server
+                         (Key)(Value)(Tag)
+                         (Key_store)(Value_store)(Tag_store)
+                     )
+
+module Disk: (module type of IrminProtocol.Disk(Key)(Value)(Tag))

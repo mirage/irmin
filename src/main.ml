@@ -44,7 +44,7 @@ let arg_list name doc conv =
   Arg.(non_empty & pos_all conv [] & doc)
 
 let default =
-  Term.pure (`File "/tmp/irmin.dat")
+  Term.pure (`Remote ("http://127.0.0.1", 1234))
 
 (* INIT *)
 let init_doc = "Initialize a queue."

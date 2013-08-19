@@ -18,28 +18,69 @@
 
 open IrminTypes
 
+(** Create a new buffer. *)
+val create: int -> (int -> unit Lwt.t) -> bufIO
+
+(** Wait for all array elements in the range to be available *)
+val poll: bufIO -> int -> unit Lwt.t
+
+(** {Basic IO operations} *)
+
+(** Get/set big-endian integers of various sizes. *)
+
+(** [get_char buf] return the character stored in [buf]. *)
+val get_char: bufIO -> char Lwt.t
+
+(** [get_uint8 buf] is the 8 bit unsigned integer stored in [buf]. *)
+val get_uint8: bufIO -> int Lwt.t
+
+(** [get_uint16 buf] is the 16 bit long big-endian unsigned integer
+    stored in [buf]. *)
+val get_uint16: bufIO -> int Lwt.t
+
+(** [get_uint32 buf] is the 32 bit long big-endian unsigned integer
+    stored in [buf]. *)
+val get_uint32: bufIO -> int32 Lwt.t
+
+(** [get_uint64 buf] is the 64 bit long big-endian unsigned integer
+    stored in [buf]. *)
+val get_uint64: bufIO -> int64 Lwt.t
+
+(** [get_string buf len] is the string of size [len] stored in [buf]. *)
+val get_string: bufIO -> int -> string Lwt.t
+
+(** [set_char buf off c] write the character [c] in [buf] at offset
+    [off]. *)
+val set_char: bufIO -> char -> unit Lwt.t
+
+(** [set_uint8 buf] write the 8 bit long integer stored in [buf]. *)
+val set_uint8: bufIO -> int -> unit Lwt.t
+
+(** [set_uint16 buf i] writes the 16 bit long big-endian unsigned
+    integer [i] in [buf]. *)
+val set_uint16: bufIO -> int -> unit Lwt.t
+
+(** [set_uint32 buf i] writes the 32 bit long big-endian unsigned
+    integer [i] in [buf]. *)
+val set_uint32: bufIO -> int32 -> unit Lwt.t
+
+(** [set_uint64 buf i] writes the 64 bit long big-endian unsigned
+    integer [i] in [buf]. *)
+val set_uint64: bufIO -> int64 -> unit Lwt.t
+
+(** [set_string buf str] write the string [str] into [buf]. *)
+val set_string: bufIO -> string -> unit Lwt.t
+
+(** {2 Lifts} *)
+
 (** Lift IO operation to lists *)
-module List
-    (C: CHANNEL)
-    (E: IO with type channel = C.t):
-  IO with type t = E.t list
-      and type channel = C.t
+module List (E: BASE): BASE with type t = E.t list
 
 (** Lift IO operation to options *)
-module Option
-    (C: CHANNEL)
-    (E: IO with type channel = C.t):
-  IO with type t = E.t option
-      and type channel = C.t
-
+module Option (E: BASE): BASE with type t = E.t option
 
 (** Lift IO operations to pairs *)
-module Pair
-    (C: CHANNEL)
-    (K: IO with type channel = C.t)
-    (V: IO with type channel = C.t):
-  IO with type t = K.t * V.t
-      and type channel = C.t
+module Pair (K: BASE) (V: BASE): BASE with type t = K.t * V.t
 
 (** serialization to strings *)
 module type STRINGABLE = sig
@@ -49,6 +90,43 @@ module type STRINGABLE = sig
 end
 
 (** Lift IO operations to strings *)
-module String (C: CHANNEL) (S: STRINGABLE):
-  IO with type t = S.t
-      and type channel = C.t
+module String (S: STRINGABLE): BASE with type t = S.t
+
+(** {2 Lwt channels} *)
+
+module Lwt_channel: sig
+
+  type t = Lwt_unix.file_descr
+
+  val close: t -> unit Lwt.t
+
+  val read_string: t -> int -> string Lwt.t
+
+  val read_buf: t -> int -> bufIO Lwt.t
+
+  val write_string: t -> string -> unit Lwt.t
+
+  val write_buf: t -> bufIO -> int -> unit Lwt.t
+
+  val read_header: t -> int Lwt.t
+
+  val write_header: t -> int -> unit Lwt.t
+
+  val ready: t -> int -> unit Lwt.t
+
+end
+
+(** Extend [BASE] with channel operations *)
+module Channel (B: BASE): sig
+
+  include BASE with type t = B.t
+
+  type channel = Lwt_channel.t
+
+   (** Read on a channel *)
+  val read_fd: channel -> B.t Lwt.t
+
+  (** Write on a channel *)
+  val write_fd: channel -> B.t -> unit Lwt.t
+
+end

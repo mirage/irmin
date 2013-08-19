@@ -2,7 +2,7 @@ VERSION=0.1
 PREFIX?=/usr/local
 .PHONY: all test
 
-PACKAGES=-pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,cstruct.lwt,lwt
+PACKAGES=-pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,lwt,ocplib-endian,cstruct
 SYNTAXES= -tags "syntax(camlp4o)" -pkgs lwt.syntax,cohttp.lwt,cstruct.syntax
 FLAGS=-use-ocamlfind -cflags "-bin-annot" -no-links
 INCLUDES=-Is src,src/lib,src/lwt

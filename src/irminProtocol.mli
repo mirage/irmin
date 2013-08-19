@@ -18,36 +18,35 @@
 
 open IrminTypes
 
-module Disk (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
-  OPERATIONS with type key = K.t
-              and type t = C.t
-
 (** Client implementation (eg. needs a server on the other side of the
     channel) *)
-module Client (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
-  OPERATIONS with type key = K.t
-              and type t = C.t
+module Client (K: KEY) (V: VALUE with type key = K.t) (T: TAG): sig
+  module Key_store: KEY_STORE with type t = Lwt_unix.file_descr
+  module Value_store: VALUE_STORE with type t = Lwt_unix.file_descr
+  module Tag_store: TAG_STORE with type t = Lwt_unix.file_descr
+  module Sync: SYNC with type t = Lwt_unix.file_descr
+end
 
 (** Signature for server *)
 module type SERVER = sig
 
   (** The channel to reach the server *)
-  type channel
+  type channel = Lwt_unix.file_descr
 
   (** The channel the server is using to reach the key store *)
-  module KS: KEY_STORE
+  type key_store
 
   (** The channel the server is using to reach the tag store *)
-  module TS: TAG_STORE
+  type tag_store
 
   (** The channel the server is using to reach the value store *)
-  module VS: VALUE_STORE
+  type value_store
 
   (** Server type  *)
   type t = {
-    keys  : KS.t;
-    tags  : TS.t;
-    values: VS.t;
+    keys  : key_store;
+    tags  : tag_store;
+    values: value_store;
   }
 
   (** Run the server thread *)
@@ -57,12 +56,20 @@ end
 
 (** Implementation of servers. Expose a process function. *)
 module Server
-    (C: CHANNEL)
-    (K: IrminKey.S with type channel = C.t)
+    (K: KEY) (V: VALUE with type key = K.t) (T: TAG)
     (KS: KEY_STORE with type key = K.t)
-    (TS: TAG_STORE with type key = K.t and type tag = IrminTag.t)
-    (VS: VALUE_STORE with type key = K.t and type value = K.t IrminValue.t):
-  SERVER with type channel = C.t
-          and module KS = KS
-          and module TS = TS
-          and module VS = VS
+    (VS: VALUE_STORE with type key = K.t and type value = V.t)
+    (TS: TAG_STORE with type key = K.t and type tag = T.t)
+  : SERVER with type key_store = KS.t
+            and type value_store = VS.t
+            and type tag_store = TS.t
+
+(** Disk *)
+module Disk (K: KEY) (V: VALUE with type key = K.t) (T: TAG): sig
+  type t
+  val with_file: string -> (t -> 'a) -> 'a
+  val init: string -> unit Lwt.t
+  module Key_store: KEY_STORE with type t = t
+  module Value_store: VALUE_STORE with type t = t
+  module Tag_store: TAG_STORE with type t = t
+end

@@ -15,10 +15,9 @@
  *)
 
 open Lwt
-
 open IrminTypes
 
-type t =
+type action =
   (* Key store *)
   | Key_add_key
   | Key_add_relation
@@ -40,7 +39,9 @@ type t =
   | Sync_push_tags
   | Sync_watch
 
-module Action (C: CHANNEL) = struct
+module Action = struct
+
+  type t = action
 
   let actions = [|
     Key_add_key      , "key-add-key";
@@ -98,79 +99,90 @@ module Action (C: CHANNEL) = struct
     IrminJSON.of_string (pretty t)
 
   let of_json j =
-    try rev_assoc (IrminJSON.to_string j)
-    with Not_found -> failwith "Action.of_json"
+    match rev_assoc (IrminJSON.to_string j) with
+    | None   -> failwith "Action.of_json"
+    | Some t -> t
 
-  cstruct hdr {
-      uint8_t kind
-    } as big_endian
+  let sizeof t =
+    1
 
-  let read fd =
-    lwt buf = C.read fd sizeof_hdr in
+  let read buf =
+    lwt kind = IrminIO.get_uint8 buf in
     let kind =
-      try action (get_hdr_kind buf)
-      with Not_found -> failwith "Action.read" in
+      match action kind with
+      | None   -> failwith "Action.read"
+      | Some t -> t in
     return kind
 
-  let write fd t =
+  let write buf t =
     let kind = index t in
-    C.write_string fd (string_of_int kind)
+    IrminIO.set_uint8 buf kind
 
 end
 
-module Client (C: CHANNEL) (K: IrminKey.S with type channel = C.t) = struct
+module Client (K: KEY) (V: VALUE with type key = K.t) (T: TAG) = struct
 
-  module Action = Action(C)
-  module Key = K
-  module Keys = IrminIO.List(C)(Key)
-  module KeyPair = IrminIO.Pair(C)(Key)(Key)
-  module KeyPairs = IrminIO.List(C)(KeyPair)
-  module Value = IrminValue.Make(C)(Key)
-  module ValueOption = IrminIO.Option(C)(Value)
-  module KeyOption = IrminIO.Option(C)(Key)
-  module Tag = IrminTag.Make(C)
-  module Tags = IrminIO.List(C)(Tag)
-  module TagKey = IrminIO.Pair(C)(Tag)(Key)
-  module TagKeys = IrminIO.List(C)(TagKey)
-  module Graph = IrminIO.Pair(C)(Keys)(KeyPairs)
-  module TagsGraph = IrminIO.Pair(C)(Tags)(Graph)
+  open IrminIO
+
+  module Key = Channel(K)
+  module Keys = Channel(List(Key))
+  module KeyPair = Channel(Pair(Key)(Key))
+  module KeyPairs = Channel(List(KeyPair))
+  module KeyOption = Channel(Option(Key))
+
+  module Value = Channel(V)
+  module ValueOption = Channel(Option(Value))
+
+  module Tag = Channel(T)
+  module Tags = Channel(List(Tag))
+  module KeysTags = Channel(Pair(Keys)(Tags))
+  module TagKey = Channel(Pair(Tag)(Key))
+  module TagKeys = Channel(List(TagKey))
+
+  module Graph = Channel(Pair(Keys)(KeyPairs))
+  module TagsGraph = Channel(Pair(Tags)(Graph))
+  module GraphTagKeys = Channel(Pair(Graph)(TagKeys))
+
+  module Action = Channel(Action)
+  module ActionKey = Channel(Pair(Action)(Key))
+  module ActionKeyPair = Channel(Pair(Action)(KeyPair))
+  module ActionValue = Channel(Pair(Action)(Value))
+  module ActionTag = Channel(Pair(Action)(Tag))
+  module ActionTagKey = Channel(Pair(Action)(TagKey))
+  module ActionTagKeys = Channel(Pair(Action)(TagKeys))
+  module ActionKeysTags = Channel(Pair(Action)(KeysTags))
+  module ActionGraphTagKeys = Channel(Pair(Action)(GraphTagKeys))
+  module ActionTags = Channel(Pair(Action)(Tags))
 
   module T = struct
-    type t = C.t
+    type t = Lwt_unix.file_descr
     type key = Key.t
     type tag = Tag.t
     type value = Value.t
     type graph = key list * (key * key) list
   end
 
-  include T
-
   module Key_store = struct
 
     include T
 
     let add_key fd key =
-      lwt () = Action.write fd Key_add_key in
-      Key.write fd key
+      ActionKey.write_fd fd (Key_add_key, key)
 
     let add_relation fd k1 k2 =
-      lwt () = Action.write fd Key_add_relation in
-      lwt () = Key.write fd k1 in
-      Key.write fd k2
+      ActionKeyPair.write_fd fd (Key_add_relation, (k1, k2))
 
     let list fd =
-      lwt () = Action.write fd Key_list in
-      Keys.read fd
+      lwt () = Action.write_fd fd Key_list in
+      Keys.read_fd fd
 
-    let pred fd k =
-      lwt () = Action.write fd Key_pred in
-      lwt () = Key.write fd k in
-      Keys.read fd
+    let pred fd key =
+      lwt () = ActionKey.write_fd fd (Key_pred, key) in
+      Keys.read_fd fd
 
-    let succ fd k =
-      lwt () = Action.write fd Key_succ in
-      lwt () = Key.write fd k in
-      Keys.read fd
+    let succ fd key =
+      lwt () = ActionKey.write_fd fd (Key_succ, key) in
+      Keys.read_fd fd
 
   end
 
@@ -178,15 +190,13 @@ module Client (C: CHANNEL) (K: IrminKey.S with type channel = C.t) = struct
 
     include T
 
-    let write fd v =
-      lwt () = Action.write fd Value_write in
-      lwt () = Value.write fd v in
-      Key.read fd
+    let write fd value =
+      lwt () = ActionValue.write_fd fd (Value_write, value) in
+      Key.read_fd fd
 
-    let read fd k =
-      lwt () = Action.write fd Value_read in
-      lwt () = Key.write fd k in
-      ValueOption.read fd
+    let read fd key =
+      lwt () = ActionKey.write_fd fd (Value_read, key) in
+      ValueOption.read_fd fd
 
   end
 
@@ -195,22 +205,18 @@ module Client (C: CHANNEL) (K: IrminKey.S with type channel = C.t) = struct
     include T
 
     let update fd tag key =
-      lwt () = Action.write fd Tag_update in
-      lwt () = Tag.write fd tag in
-      Key.write fd key
+      ActionTagKey.write_fd fd (Tag_update, (tag, key))
 
     let remove fd tag =
-      lwt () = Action.write fd Tag_remove in
-      Tag.write fd tag
+      ActionTag.write_fd fd (Tag_remove, tag)
 
     let read fd tag =
-      lwt () = Action.write fd Tag_read in
-      lwt () = Tag.write fd tag in
-      KeyOption.read fd
+      lwt () = ActionTag.write_fd fd (Tag_read, tag) in
+      KeyOption.read_fd fd
 
     let list fd =
-      lwt () = Action.write fd Tag_list in
-      Tags.read fd
+      lwt () = Action.write_fd fd Tag_list in
+      Tags.read_fd fd
 
   end
 
@@ -219,30 +225,24 @@ module Client (C: CHANNEL) (K: IrminKey.S with type channel = C.t) = struct
     include T
 
     let pull_keys fd roots tags =
-      lwt () = Action.write fd Sync_pull_keys in
-      lwt () = Keys.write fd roots in
-      lwt () = Tags.write fd tags in
-      Graph.read fd
+      lwt () = ActionKeysTags.write_fd fd (Sync_pull_keys, (roots, tags)) in
+      Graph.read_fd fd
 
     let pull_tags fd =
-      lwt () = Action.write fd Sync_pull_tags in
-      TagKeys.read fd
+      lwt () = Action.write_fd fd Sync_pull_tags in
+      TagKeys.read_fd fd
 
     let push_keys fd graph tags =
-      lwt () = Action.write fd Sync_push_keys in
-      lwt () = Graph.write fd graph in
-      TagKeys.write fd tags
+      ActionGraphTagKeys.write_fd fd (Sync_push_keys, (graph, tags))
 
     let push_tags fd tags =
-      lwt () = Action.write fd Sync_push_tags in
-      TagKeys.write fd tags
+      ActionTagKeys.write_fd fd (Sync_push_tags, tags)
 
     let watch fd tags callback =
-      lwt () = Action.write fd Sync_watch in
-      lwt () = Tags.write fd tags in
+      lwt () = ActionTags.write_fd fd (Sync_watch, tags) in
       let read () =
         try
-          lwt (tags, graph) = TagsGraph.read fd in
+          lwt (tags, graph) = TagsGraph.read_fd fd in
           callback tags graph
         with End_of_file ->
           return () in
@@ -253,50 +253,65 @@ module Client (C: CHANNEL) (K: IrminKey.S with type channel = C.t) = struct
 end
 
 module type SERVER = sig
-  type channel
-  module KS: KEY_STORE
-  module TS: TAG_STORE
-  module VS: VALUE_STORE
+  type channel = Lwt_unix.file_descr
+  type key_store
+  type tag_store
+  type value_store
   type t = {
-    keys: KS.t;
-    tags: TS.t;
-    values: VS.t;
+    keys  : key_store;
+    tags  : tag_store;
+    values: value_store;
   }
   val run: t -> channel -> unit Lwt.t
 end
 
-module Server (C: CHANNEL)
-    (K: IrminKey.S with type channel = C.t)
+module Server (K: KEY) (V: VALUE with type key = K.t) (T: TAG)
     (KS: KEY_STORE with type key = K.t)
-    (TS: TAG_STORE with type key = K.t and type tag = IrminTag.t)
-    (VS: VALUE_STORE with type key = K.t and type value = K.t IrminValue.t)
+    (VS: VALUE_STORE with type key = K.t and type value = V.t)
+    (TS: TAG_STORE with type key = K.t and type tag = T.t)
 = struct
 
-  module Action = Action(C)
-  module Key = K
-  module Keys = IrminIO.List(C)(Key)
-  module KeyPair = IrminIO.Pair(C)(Key)(Key)
-  module KeyPairs = IrminIO.List(C)(KeyPair)
-  module Value = IrminValue.Make(C)(Key)
-  module ValueOption = IrminIO.Option(C)(Value)
-  module KeyOption = IrminIO.Option(C)(Key)
-  module Tag = IrminTag.Make(C)
-  module Tags = IrminIO.List(C)(Tag)
-  module TagKey = IrminIO.Pair(C)(Tag)(Key)
-  module TagKeys = IrminIO.List(C)(TagKey)
-  module Graph = IrminIO.Pair(C)(Keys)(KeyPairs)
-  module TagsGraph = IrminIO.Pair(C)(Tags)(Graph)
+  open IrminIO
 
-  type channel = C.t
-  module KS = KS
-  module TS = TS
-  module VS = VS
+  module Key = Channel(K)
+  module Keys = Channel(List(Key))
+  module KeyPair = Channel(Pair(Key)(Key))
+  module KeyPairs = Channel(List(KeyPair))
+  module KeyOption = Channel(Option(Key))
+
+  module Value = Channel(V)
+  module ValueOption = Channel(Option(Value))
+
+  module Tag = Channel(T)
+  module Tags = Channel(List(Tag))
+  module KeysTags = Channel(Pair(Keys)(Tags))
+  module TagKey = Channel(Pair(Tag)(Key))
+  module TagKeys = Channel(List(TagKey))
+
+  module Graph = Channel(Pair(Keys)(KeyPairs))
+  module TagsGraph = Channel(Pair(Tags)(Graph))
+  module GraphTagKeys = Channel(Pair(Graph)(TagKeys))
+
+  module Action = Channel(Action)
+  module ActionKey = Channel(Pair(Action)(Key))
+  module ActionKeyPair = Channel(Pair(Action)(KeyPair))
+  module ActionValue = Channel(Pair(Action)(Value))
+  module ActionTag = Channel(Pair(Action)(Tag))
+  module ActionTagKey = Channel(Pair(Action)(TagKey))
+  module ActionTagKeys = Channel(Pair(Action)(TagKeys))
+  module ActionKeysTags = Channel(Pair(Action)(KeysTags))
+  module ActionGraphTagKeys = Channel(Pair(Action)(GraphTagKeys))
+  module ActionTags = Channel(Pair(Action)(Tags))
 
   module T = struct
+    type channel = IrminIO.Lwt_channel.t
+    type key_store = KS.t
+    type value_store = VS.t
+    type tag_store = TS.t
     type t = {
-      keys:   KS.t;
-      tags  : TS.t;
-      values: VS.t;
+      keys:   key_store;
+      tags  : tag_store;
+      values: value_store;
     }
     type key = Key.t
     type tag = Tag.t
@@ -309,28 +324,27 @@ module Server (C: CHANNEL)
 
     include T
 
-    let add_key t fd =
-      lwt k = Key.read fd in
+    let add_key t buf =
+      lwt k = Key.read buf in
       KS.add_key t.keys k
 
-    let add_relation t fd =
-      lwt k1 = Key.read fd in
-      lwt k2 = Key.read fd in
+    let add_relation t buf =
+      lwt (k1, k2) = KeyPair.read buf in
       KS.add_relation t.keys k1 k2
 
-    let list t fd =
+    let list t buf =
       lwt keys = KS.list t.keys in
-      Keys.write fd keys
+      Keys.write buf keys
 
-    let pred t fd =
-      lwt k = Key.read fd in
+    let pred t buf =
+      lwt k = Key.read buf in
       lwt keys = KS.pred t.keys k in
-      Keys.write fd keys
+      Keys.write buf keys
 
-    let succ t fd =
-      lwt k = Key.read fd in
+    let succ t buf =
+      lwt k = Key.read buf in
       lwt keys = KS.succ t.keys k in
-      Keys.write fd keys
+      Keys.write buf keys
 
   end
 
@@ -338,15 +352,15 @@ module Server (C: CHANNEL)
 
     include T
 
-    let write t fd =
-      lwt v = Value.read fd in
+    let write t buf =
+      lwt v = Value.read buf in
       lwt k = VS.write t.values v in
-      Key.write fd k
+      Key.write buf k
 
-    let read t fd =
-      lwt k = Key.read fd in
+    let read t buf =
+      lwt k = Key.read buf in
       lwt vo = VS.read t.values k in
-      ValueOption.write fd vo
+      ValueOption.write buf vo
 
   end
 
@@ -354,23 +368,23 @@ module Server (C: CHANNEL)
 
     include T
 
-    let update t fd =
-      lwt tag = Tag.read fd in
-      lwt key = Key.read fd in
+    let update t buf =
+      lwt tag = Tag.read buf in
+      lwt key = Key.read buf in
       TS.update t.tags tag key
 
-    let remove t fd =
-      lwt tag = Tag.read fd in
+    let remove t buf =
+      lwt tag = Tag.read buf in
       TS.remove t.tags tag
 
-    let read t fd =
-      lwt tag = Tag.read fd in
+    let read t buf =
+      lwt tag = Tag.read buf in
       lwt ko = TS.read t.tags tag in
-      KeyOption.write fd ko
+      KeyOption.write buf ko
 
-    let list t fd =
+    let list t buf =
       lwt tags = TS.list t.tags in
-      Tags.write fd tags
+      Tags.write buf tags
 
   end
 
@@ -380,41 +394,40 @@ module Server (C: CHANNEL)
 
     module S = IrminSync.Make(KS)(TS)
 
-    let pull_keys t fd =
-      lwt keys = Keys.read fd in
-      lwt tags = Tags.read fd in
+    let pull_keys t buf =
+      lwt keys = Keys.read buf in
+      lwt tags = Tags.read buf in
       lwt graph = S.pull_keys () keys tags in
-      Graph.write fd graph
+      Graph.write buf graph
 
-    let pull_tags t fd =
+    let pull_tags t buf =
       lwt tags = S.pull_tags () in
-      TagKeys.write fd tags
+      TagKeys.write buf tags
 
-    let push_keys t fd =
-      lwt graph = Graph.read fd in
-      lwt tags = TagKeys.read fd in
+    let push_keys t buf =
+      lwt graph = Graph.read buf in
+      lwt tags = TagKeys.read buf in
       S.push_keys () graph tags
 
-    let push_tags t fd =
-      lwt tags = TagKeys.read fd in
+    let push_tags t buf =
+      lwt tags = TagKeys.read buf in
       S.push_tags () tags
 
-    let watch t fd =
-      lwt tags = Tags.read fd in
+    let watch fd t buf =
+      lwt tags = Tags.read buf in
       try_lwt
         S.watch () tags (fun tags graph ->
-            TagsGraph.write fd (tags, graph)
+            TagsGraph.write buf (tags, graph)
           )
       with _ ->
-        C.close fd
+        IrminIO.Lwt_channel.close fd
 
   end
 
   let run t fd =
-    lwt action = Action.read fd in
-    let action = match action with
-      | None   -> failwith "Unknown action"
-      | Some a -> a in
+    lwt len = IrminIO.Lwt_channel.read_header fd in
+    let buf = IrminIO.create len (IrminIO.Lwt_channel.ready fd) in
+    lwt action = Action.read buf in
     let fn = match action with
       | Key_add_key      -> Key_store.add_key
       | Key_add_relation -> Key_store.add_relation
@@ -431,110 +444,46 @@ module Server (C: CHANNEL)
       | Sync_pull_tags   -> Sync.pull_tags
       | Sync_push_keys   -> Sync.push_keys
       | Sync_push_tags   -> Sync.push_tags
-      | Sync_watch       -> Sync.watch in
-    fn t fd
+      | Sync_watch       -> Sync.watch fd in
+    fn t buf
 
 end
 
-module Disk  (C: CHANNEL) (K: IrminKey.S with type channel = C.t) = struct
+module Disk (K: KEY) (V: VALUE with type key = K.t) (T: TAG) = struct
 
-  module Key = K
-  module Keys = IrminIO.List(C)(Key)
-  module KeyPair = IrminIO.Pair(C)(Key)(Key)
-  module KeyPairs = IrminIO.List(C)(KeyPair)
-  module Value = IrminValue.Make(C)(Key)
-  module ValueOption = IrminIO.Option(C)(Value)
-  module KeyOption = IrminIO.Option(C)(Key)
-  module Tag = IrminTag.Make(C)
-  module Tags = IrminIO.List(C)(Tag)
-  module TagKey = IrminIO.Pair(C)(Tag)(Key)
-  module TagKeys = IrminIO.List(C)(TagKey)
-  module Graph = IrminIO.Pair(C)(Keys)(KeyPairs)
-  module TagsGraph = IrminIO.Pair(C)(Tags)(Graph)
+  type t = unit
 
-  type t = C.t
-  type key = Key.t
-  type tag = Tag.t
-  type value = Value.t
+  let with_file _ fn = fn ()
+
+  let init _ = Lwt.return ()
 
   module Key_store = struct
-
-    type t = C.t
-    type key = Key.t
-
-    let add_key t key =
-      failwith "TODO"
-
-    let add_relation t k1 k2 =
-      failwith "TODO"
-
-    let list t =
-      failwith "TODO"
-
-    let pred t k =
-      failwith "TODO"
-
-    let succ t k =
-      failwith "TODO"
-
+    type key = unit
+    type t = unit
+    let succ _ = failwith "TODO"
+    let pred _ = failwith "TODO"
+    let list _ = failwith "TODO"
+    let add_relation _ = failwith "TODO"
+    let add_key _ = failwith "TODO"
+    let key _ = failwith "TODO"
   end
 
   module Value_store = struct
-
-    type t = C.t
-    type key = Key.t
-    type value = Value.t
-
-    let write t v =
-      failwith "TODO"
-
-    let read t v =
-      failwith "TODO"
-
+    type t = unit
+    type key = unit
+    type value = unit
+    let write _ = failwith "TODO"
+    let read _ = failwith "TODO"
   end
 
   module Tag_store = struct
-
-    type t = C.t
-    type tag = Tag.t
-    type key = Key.t
-
-    let update t tag key =
-      failwith "TODO"
-
-    let remove t tag =
-      failwith "TODO"
-
-    let read t tag =
-      failwith "TODO"
-
-    let list t =
-      failwith "TODO"
-
-  end
-
-  module Sync = struct
-
-    type t = C.t
-    type key = Key.t
-    type graph = key list * (key * key) list
-    type tag = Tag.t
-
-    let pull_keys t keys tags =
-      failwith "TODO"
-
-    let pull_tags t =
-      failwith "TODO"
-
-    let push_keys t graph keys =
-      failwith "TODO"
-
-    let push_tags t tags =
-      failwith "TODO"
-
-    let watch t tags =
-      failwith "Bad operation"
-
+    type t = unit
+    type tag = unit
+    type key = unit
+    let update _ = failwith "TODO"
+    let remove _ = failwith "TODO"
+    let read _ = failwith "TODO"
+    let list _ = failwith "TODO"
   end
 
 end

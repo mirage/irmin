@@ -16,46 +16,44 @@
 
 open IrminTypes
 
-module type S = sig
-  include KEY
-  include IO with type t := t
-end
+type sha1 = SHA1 of string
 
-type t = K of string
-type key = t
+module SHA1 = struct
 
-module SHA1 (C: CHANNEL) = struct
+  type t = sha1
 
-  type t = key
+  let compare (SHA1 k1) (SHA1 k2) = String.compare k1 k2
 
-  type channel = C.t
+  let hash (SHA1 k) = Hashtbl.hash k
 
-  let compare (K k1) (K k2) = String.compare k1 k2
-
-  let hash (K k) = Hashtbl.hash k
-
-  let pretty (K k) =
+  let pretty (SHA1 k) =
     Printf.sprintf "%s" (IrminMisc.hex_encode k)
 
-  let to_json (K k) =
+  let to_json (SHA1 k) =
     IrminJSON.of_string k
 
   let of_json j =
-    K (IrminJSON.to_string j)
+    SHA1 (IrminJSON.to_string j)
 
-  let create value =
-    let str = Marshal.to_string value [] in
-    K (IrminMisc.sha1 str)
+  let of_string str =
+    SHA1 (IrminMisc.sha1 str)
+
+  let concat l =
+    let l = List.fold_left (fun acc (SHA1 s) -> s :: acc) [] l in
+    let s = String.concat "" (List.sort String.compare l) in
+    of_string s
 
   let key_length = 20
 
-  let length (K _) = key_length
+  let length (SHA1 _) = key_length
 
-  let read fd =
-    lwt key = C.read_string fd key_length in
-    Lwt.return (K key)
+  let sizeof _ = key_length
 
-  let write fd (K k) =
-    C.write_string fd k
+  let read buf =
+    lwt str = IrminIO.get_string buf key_length in
+    Lwt.return (SHA1 str)
+
+  let write buf (SHA1 str) =
+    IrminIO.set_string buf str
 
 end

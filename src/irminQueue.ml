@@ -16,12 +16,40 @@
 
 open IrminTypes
 
-type t = [ `File of string
-         | `Local of string
-         | `Remote of (string * int) ]
+type t =
+  [ `File of string
+  | `Local of string
+  | `Remote of (string * int) ]
 
-let init _ =
-  failwith "TODO"
+let fd = function
+  | `File f  -> Lwt_unix.(openfile f [O_RDWR; O_NONBLOCK] 0x644)
+  | `Local f ->
+    let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
+    Lwt_unix.(bind fd (ADDR_UNIX f));
+    Lwt.return fd
+  | `Remote (host,port) ->
+    let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
+    lwt host = Lwt_unix.gethostbyname host in
+    let addr = host.Lwt_unix.h_addr_list.(0) in
+    Lwt_unix.(bind fd (ADDR_INET (addr,port)));
+    Lwt.return fd
+
+module File = struct
+
+  let init f =
+    if Sys.file_exists f then (
+      Printf.printf "%s already exists" f;
+      failwith "init"
+    ) else
+      lwt () = IrminLwt.Disk.init f in
+      Lwt.return ()
+
+end
+
+let init = function
+  | `File f   -> Lwt_unix.run (File.init f)
+  | `Local _  -> failwith "TODO"
+  | `Remote _ -> failwith "TODO"
 
 let add _ =
   failwith "TODO"

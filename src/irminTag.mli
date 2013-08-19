@@ -18,12 +18,7 @@
 
 open IrminTypes
 
-module type S = sig
-  include TAG
-  include IO with type t := t
-end
+(** Basic types *)
+type tag = T of string
 
-type t = T of string
-
-module Make(C: CHANNEL): S with type t = t
-                            and type channel = C.t
+include TAG with type t = tag

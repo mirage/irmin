@@ -17,50 +17,18 @@
 open Lwt
 open IrminTypes
 
-module Channel: CHANNEL with type t = Lwt_unix.file_descr = struct
-
-  (* From https://github.com/djs55/ocaml-vnc/blob/master/lib/rfb_lwt.ml *)
-  type t = Lwt_unix.file_descr
-
-  let close = Lwt_unix.close
-
-  let read_string fd n =
-    let buf = String.make n '\000' in
-    let rec rread fd buf ofs len =
-      lwt n = Lwt_unix.read fd buf ofs len in
-      if n = 0 then raise End_of_file;
-      if n < len then rread fd buf (ofs + n) (len - n) else return () in
-    lwt () = rread fd buf 0 n in
-    return buf
-
-  let write_string fd buf =
-    let rec rwrite fd buf ofs len =
-      lwt n = Lwt_unix.write fd buf ofs len in
-      if n = 0 then raise End_of_file;
-      if n < len then rwrite fd buf (ofs + n) (len - n) else return () in
-    lwt () = rwrite fd buf 0 (String.length buf) in
-    return ()
-
-  let read fd n =
-    lwt result = read_string fd n in
-    return (Cstruct.of_string result)
-
-  let write fd buf =
-    write_string fd (Cstruct.to_string buf)
-
-end
-
-module Key = IrminKey.SHA1(Channel)
-module Value = IrminValue.Make(Channel)(Key)
-module Tag = IrminTag.Make(Channel)
+module Key = IrminKey.SHA1
+module Value = IrminValue.Make(Key)(IrminValue.Blob(Key))
+module Tag = IrminTag
 
 module Key_store = IrminMemory.Key_store(Key)
 module Value_store = IrminMemory.Value_store(Key)(Value)
 module Tag_store = IrminMemory.Tag_store(Tag)(Key)
 
-module Client = IrminProtocol.Client(Channel)(Key)
+module Client = IrminProtocol.Client(Key)(Value)(Tag)
 
 module MemoryServer =
-  IrminProtocol.Server(Channel)(Key)(Key_store)(Tag_store)(Value_store)
+  IrminProtocol.Server(Key)(Value)(Tag)(Key_store)(Value_store)(Tag_store)
 
-module Disk = IrminProtocol.Disk(Channel)(Key)
+module Disk =
+  IrminProtocol.Disk(Key)(Value)(Tag)

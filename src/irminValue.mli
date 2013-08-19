@@ -18,35 +18,13 @@
 
 open IrminTypes
 
-(** Signature for value implementations *)
-module type S = sig
-  include VALUE
-  include IO with type t := t
-end
+(** [Make(Key)(Blob)] builds a value module where basic blobs have
+    the signature defined by [Blob] and keys have the signature
+    defined by [Key]. *)
+module Make (K: KEY) (B: VALUE with type key = K.t): VALUE with type key = K.t
 
-(** Default blob type *)
+(** Basic types *)
 type blob = B of string
 
-(** Default blob implementation *)
-module Blob (C: CHANNEL): S with type t = blob
-                             and type channel = C.t
-
-(** Default revision type *)
-type 'a revision = {
-  parents : 'a list;
-  contents: 'a;
-}
-
-module Revision (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
-  S with type t = K.t revision
-     and type channel = C.t
-
-(** Default value type *)
-type 'a t =
-  | Blob of blob
-  | Revision of 'a revision
-
-(** Default value implementation *)
-module Make (C: CHANNEL) (K: IrminKey.S with type channel = C.t):
-  S with type t = K.t t
-     and type channel = C.t
+(** Basic string blobs *)
+module Blob (K: KEY): VALUE with type t = blob and type key = K.t

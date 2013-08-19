@@ -18,6 +18,14 @@
 
 (** {2 Base types} *)
 
+(** Buffered IOs. It is a bigarray plus a blocking function which
+    returns when the page containing the nth elements is ready.  *)
+type bufIO = {
+  buffer: (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t;
+  ready: int -> unit Lwt.t;
+  mutable offset: int;
+}
+
 (** Base types *)
 module type BASE = sig
   (** Abstract type *)
@@ -32,6 +40,15 @@ module type BASE = sig
   (** Convert to IrminJSON *)
   val to_json: t -> IrminJSON.t
 
+  (** Size of serialized value (to pre-allocate buffers if needed) *)
+  val sizeof: t -> int
+
+  (** Write to a buffered bigarray, at a given offset. *)
+  val write: bufIO -> t -> unit Lwt.t
+
+  (** Read a buffered bigarray at a given ofset. *)
+  val read: bufIO -> t Lwt.t
+
 end
 
 (** Keys *)
@@ -39,22 +56,41 @@ module type KEY = sig
 
   include BASE
 
-  (** Compare two keys *)
+  (** Compare two keys. *)
   val compare: t -> t -> int
 
-  (** Hash a key *)
+  (** Hash a key. *)
   val hash: t -> int
 
-  (** Compute the key associated to any value. *)
-  val create: 'a -> t
+  (** Compute a key from a string. *)
+  val of_string: string ->t
 
-  (** Compute the key length *)
+  (** Compute a key from a list of keys. *)
+  val concat: t list -> t
+
+  (** Compute the key length. *)
   val length: t -> int
 
 end
 
 (** Values *)
-module type VALUE = BASE
+module type VALUE = sig
+
+  include BASE
+
+  (** Type of keys *)
+  type key
+
+  (** Compute a key *)
+  val key: t -> key
+
+  (** Return the predecessors *)
+  val pred: t -> key list
+
+  (** How to merge two values. Need to know how to merge keys. *)
+  val merge: (key -> key -> key option) -> t -> t -> t option
+
+end
 
 (** Tags *)
 module type TAG = BASE
@@ -153,54 +189,12 @@ module type TAG_STORE = sig
 
 end
 
-(** {2 Input/Outputs} *)
-
-(** Channel abstraction *)
-module type CHANNEL = sig
-
-  (** Abstract type for channels *)
-  type t
-
-  (** Close a channel *)
-  val close: t -> unit Lwt.t
-
-  (** Read [n] bytes on a channel *)
-  val read: t -> int -> Cstruct.t Lwt.t
-
-  (** Read [n] bytes on a channel *)
-  val read_string: t -> int -> string Lwt.t
-
-  (** Write on a channel *)
-  val write: t -> Cstruct.t -> unit Lwt.t
-
-  (** Write on a channel *)
-  val write_string: t -> string -> unit Lwt.t
-
-end
-
-(** [BASE] extended with IO capabilities *)
-module type IO = sig
-
-  (** Abstract type *)
-  include BASE
-
-  (** Abstract channel *)
-  type channel
-
-  (** Read from a channel *)
-  val read: channel -> t Lwt.t
-
-  (** Write to a channel *)
-  val write: channel -> t -> unit Lwt.t
-
-end
-
 (** {1 Synchronization} *)
 
 (** Signature for synchronization actions *)
 module type SYNC = sig
 
-  (** Abstract channel *)
+  (** Remote Irminsule instannce *)
   type t
 
   (** Type of keys *)
@@ -236,45 +230,5 @@ module type SYNC = sig
       each event ([tags] * [graphs]) where [tags] are the updated tags
       and [graph] the corresponding set of new keys (if any). *)
   val watch: t -> tag list -> (tag list -> graph -> unit Lwt.t) -> unit Lwt.t
-
-end
-
-(** {2 Operations} *)
-module type OPERATIONS = sig
-
-  (** Type of channel *)
-  type t
-
-  (** Type of keys *)
-  type key
-
-  (** Type of values *)
-  type value
-
-  (** Type of tags *)
-  type tag
-
-  (** Key store *)
-  module Key_store: KEY_STORE
-    with type t = t
-     and type key = key
-
-  (** Value store *)
-  module Value_store: VALUE_STORE
-    with type t = t
-     and type key = key
-     and type value = value
-
-  (** Tag store *)
-  module Tag_store: TAG_STORE
-    with type t = t
-     and type key = key
-     and type tag = tag
-
-  (** Sync operations *)
-  module Sync: SYNC
-    with type t = t
-     and type key = key
-     and type tag = tag
 
 end

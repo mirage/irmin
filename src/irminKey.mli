@@ -18,14 +18,7 @@
 
 open IrminTypes
 
-(** Signature for IO keys *)
-module type S = sig
-  include KEY
-  include IO with type t := t
-end
-
-type t = K of string
+type sha1 = private SHA1 of string
 
 (** SHA1 keys *)
-module SHA1 (C: CHANNEL): S with type t = t
-                             and type channel = C.t
+module SHA1: KEY with type t = sha1

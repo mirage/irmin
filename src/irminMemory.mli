@@ -27,7 +27,7 @@ module Key_store (K: KEY): sig
 end
 
 (** Functor to build an in-memory low-level store *)
-module Value_store (K: KEY) (V: VALUE): sig
+module Value_store (K: KEY) (V: VALUE with type key = K.t): sig
   include VALUE_STORE with type key = K.t and type value = V.t
 
   (** Create a fresh store *)
