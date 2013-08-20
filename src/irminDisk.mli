@@ -34,7 +34,10 @@ module type S = sig
   module Key_store: KEY_STORE with type t = t
 
   (** Persist values *)
-  module Value_store: VALUE_STORE with type t = t
+  module Value_store: sig
+    include VALUE_STORE with type t = t
+    val dump: t -> unit Lwt.t
+  end
 
   (** Persists tags *)
   module Tag_store: TAG_STORE with type t = t

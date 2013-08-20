@@ -21,7 +21,10 @@ module type S = sig
   val create: string -> t
   val init: string -> unit Lwt.t
   module Key_store  : KEY_STORE   with type t = t
-  module Value_store: VALUE_STORE with type t = t
+  module Value_store: sig
+    include VALUE_STORE with type t = t
+    val dump: t -> unit Lwt.t
+  end
   module Tag_store  : TAG_STORE   with type t = t
 end
 
@@ -177,6 +180,17 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
         Lwt.return (Some value)
       else
         Lwt.return None
+
+    let dump t =
+      lwt keys = basenames K.of_hex (values t.root) in
+      lwt values = Lwt_list.map_s (fun key ->
+          lwt value = with_file (t.value key) XValue.read_fd in
+          Lwt.return (key, value)
+        ) keys in
+      List.iter (fun (key, value) ->
+          Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
+        ) values;
+      Lwt.return ()
 
   end
 
