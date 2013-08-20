@@ -73,7 +73,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
   type t = files
 
   let with_file (file:string) (fn:Lwt_unix.file_descr -> 'a Lwt.t): 'a Lwt.t =
-    lwt fd = Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK] 0x644) in
+    lwt fd = Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) in
     try
       lwt r = fn fd in
       lwt () = Lwt_unix.close fd in
