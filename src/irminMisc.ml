@@ -49,4 +49,4 @@ let hex_decode h =
 let sha1 str =
   let hash = Cryptokit.Hash.sha1 () in
   hash#add_string str;
-  str
+  hash#result
