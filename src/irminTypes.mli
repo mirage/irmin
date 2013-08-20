@@ -90,8 +90,8 @@ module type VALUE = sig
   (** Compute a key *)
   val key: t -> Key.t
 
-  (** Convert a raw string to a blob value *)
-  val of_string: string -> t
+  (** Convert a raw string to a value *)
+  val blob: string -> t
 
   (** Return the predecessors *)
   val pred: t -> Key.t list
@@ -136,7 +136,7 @@ module type KEY_STORE = sig
   (** Return the list of keys *)
   val list: t -> Key.t list Lwt.t
 
-  (** Return the predecessors *)
+  (** Return the immediate predecessors *)
   val pred: t -> Key.t -> Key.t list Lwt.t
 
   (** Return the successors *)

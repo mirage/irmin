@@ -33,8 +33,8 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | Blob of Blob.t
     | Revision of revision
 
-  let of_string str =
-    Blob (B.of_string str)
+  let blob str =
+    Blob (B.blob str)
 
   module Revision = struct
 
@@ -152,6 +152,6 @@ module Blob (K: KEY) = struct
 
   module Key = K
 
-  let of_string str = B str
+  let blob str = B str
 
 end

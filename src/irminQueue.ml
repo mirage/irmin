@@ -17,6 +17,10 @@
 open IrminTypes
 open IrminLwt
 
+let head = Tag.of_name "HEAD"
+let tail = Tag.of_name "TAIL"
+
+exception Empty
 
 type t =
   [ `Dir of string ]
@@ -27,27 +31,44 @@ let init = function
 let create = function
   | `Dir f -> Disk.create f
 
-let add f elts =
-  let result =
-    let t = create f in
-    let values = List.map Value.of_string elts in
-    lwt keys = Lwt_list.map_s (fun value ->
-        Disk.Value_store.write t value
-      ) values in
-    List.iter (fun key ->
-        Printf.printf "New key: %s\n" (Key.pretty key)
-      ) keys;
-    Lwt.return () in
-  Lwt_unix.run result
-
+let add f = function
+  | []     -> ()
+  | values ->
+    let result =
+      let t = create f in
+      lwt keys = Lwt_list.map_s (fun value ->
+          lwt key = Disk.Value_store.write t value in
+          Lwt.return (key, value)
+        ) values in
+      List.iter (fun (key, value) ->
+          Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
+        ) keys;
+      lwt () = Disk.Tag_store.update t head (fst (List.hd (List.rev keys))) in
+      Disk.Value_store.dump t
+    in
+    Lwt_unix.run result
 
 let watch _ =
   failwith "TODO"
 
-let take _ =
-  failwith "TODO"
+let peek f =
+  let result =
+    let t = create f in
+    lwt head = Disk.Tag_store.read t head in
+    match head with
+    | None   -> raise Empty
+    | Some h ->
+      lwt keys = Disk.Key_store.pred t h in
+      match keys with
+      | []   -> raise Empty
+      | k::_ ->
+        lwt v = Disk.Value_store.read t k in
+        match v with
+        | None   -> raise Empty
+        | Some v -> Lwt.return v in
+  Lwt_unix.run result
 
-let peek _ =
+let take _ =
   failwith "TODO"
 
 let dump _ =

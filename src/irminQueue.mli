@@ -15,19 +15,20 @@
  *)
 
 open IrminTypes
+open IrminLwt
 
 type t =
   [ `Dir of string ]
 
 val init: t -> unit
 
-val add: t -> string list -> unit
+val add: t -> Value.t list -> unit
 
 val watch: t -> unit
 
 val take: t -> unit
 
-val peek: t -> unit
+val peek: t -> Value.t
 
 val dump: t -> unit
 
