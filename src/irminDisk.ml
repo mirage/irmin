@@ -88,7 +88,9 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
     else (
       Unix.mkdir dir 0o755;
       Unix.mkdir (values dir) 0o755;
-      Unix.mkdir (tags dir) 00755;
+      Unix.mkdir (tags dir) 0o755;
+      Unix.mkdir (succ_keys dir) 0o755;
+      Unix.mkdir (pred_keys dir) 0o755;
     );
     Lwt.return ()
 
