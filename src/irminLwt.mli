@@ -18,24 +18,32 @@
 
 open IrminTypes
 
+(** SHA1 keys *)
 module Key: KEY with type t = IrminKey.sha1
 
-module Value: VALUE with type key = Key.t
+(** Blob/revision values *)
+module Value: VALUE with module Key = Key
 
+(** Basic tags *)
 module Tag: TAG with type t = IrminTag.t
 
-module Key_store: KEY_STORE with type key = Key.t
+(** Disk access *)
+module Disk: IrminDisk.S
+  with module Key_store.Key = Key
+   and module Value_store.Key = Key
+   and module Value_store.Value = Value
+   and module Tag_store.Key = Key
+   and module Tag_store.Tag = Tag
 
-module Value_store: VALUE_STORE with type key = Key.t and type value = Value.t
+(** Client bindings *)
+module Client: IrminRemote.CLIENT with type t = Lwt_unix.file_descr
 
-module Tag_store: TAG_STORE with type key = Key.t and type tag = Tag.t
+(** Server which keeps everything into memory *)
+module MemoryServer: IrminRemote.SERVER with type t = Lwt_unix.file_descr
 
-module Client: (module type of IrminProtocol.Client(Key)(Value)(Tag))
+(** Server which persists everything into disk *)
+module DiskServer: IrminRemote.SERVER with type t = Lwt_unix.file_descr
 
-module MemoryServer: (module type of
-                       IrminProtocol.Server
-                         (Key)(Value)(Tag)
-                         (Key_store)(Value_store)(Tag_store)
-                     )
-
-module Disk: (module type of IrminProtocol.Disk(Key)(Value)(Tag))
+(** Server which keeps the key-store in memory and persist tags and
+    values only. *)
+module MixedServer: IrminRemote.SERVER with type t = Lwt_unix.file_descr

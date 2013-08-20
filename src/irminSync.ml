@@ -16,16 +16,16 @@
 
 open IrminTypes
 
-module Make (KS: KEY_STORE) (TS: TAG_STORE with type key = KS.key) = struct
+module Make (KS: KEY_STORE) (TS: TAG_STORE with module Key = KS.Key) = struct
 
   (** Type of keys *)
-  type key = KS.key
+  module Key = KS.Key
 
   (** Graph of keys *)
-  type graph = key list * (key * key) list
+  type graph = Key.t list * (Key.t * Key.t) list
 
   (** Type of remote tags *)
-  type tag = TS.tag
+  module Tag = TS.Tag
 
   (** Dummy channels *)
   type t = unit

@@ -21,10 +21,10 @@ open IrminTypes
 (** [Make(Key)(Blob)] builds a value module where basic blobs have
     the signature defined by [Blob] and keys have the signature
     defined by [Key]. *)
-module Make (K: KEY) (B: VALUE with type key = K.t): VALUE with type key = K.t
+module Make (K: KEY) (B: VALUE with module Key = K): VALUE with module Key = K
 
 (** Basic types *)
 type blob = B of string
 
 (** Basic string blobs *)
-module Blob (K: KEY): VALUE with type t = blob and type key = K.t
+module Blob (K: KEY): VALUE with type t = blob and module Key = K

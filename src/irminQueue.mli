@@ -17,9 +17,7 @@
 open IrminTypes
 
 type t =
-  [ `File of string
-  | `Local of string
-  | `Remote of (string * int) ]
+  [ `Dir of string ]
 
 val init: t -> unit
 

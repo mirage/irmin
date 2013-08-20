@@ -16,23 +16,25 @@
 
 open IrminTypes
 
-module Make (K: KEY)  (B: VALUE with type key = K.t) = struct
+module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
   module Blob = B
 
   module Key = K
+
   module Keys = IrminIO.List(K)
 
-  type key = Key.t
-
   type revision = {
-    parents : key list;
-    contents: key;
+    parents : Key.t list;
+    contents: Key.t;
   }
 
   type t =
     | Blob of Blob.t
     | Revision of revision
+
+  let of_string str =
+    Blob (B.of_string str)
 
   module Revision = struct
 
@@ -148,6 +150,8 @@ module Blob (K: KEY) = struct
   let key (B str) =
     K.of_string str
 
-  type key = K.t
+  module Key = K
+
+  let of_string str = B str
 
 end

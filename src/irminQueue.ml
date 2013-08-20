@@ -15,44 +15,31 @@
  *)
 
 open IrminTypes
+open IrminLwt
+
 
 type t =
-  [ `File of string
-  | `Local of string
-  | `Remote of (string * int) ]
-
-let fd = function
-  | `File f  -> Lwt_unix.(openfile f [O_RDWR; O_NONBLOCK] 0x644)
-  | `Local f ->
-    let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
-    Lwt_unix.(bind fd (ADDR_UNIX f));
-    Lwt.return fd
-  | `Remote (host,port) ->
-    let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
-    lwt host = Lwt_unix.gethostbyname host in
-    let addr = host.Lwt_unix.h_addr_list.(0) in
-    Lwt_unix.(bind fd (ADDR_INET (addr,port)));
-    Lwt.return fd
-
-module File = struct
-
-  let init f =
-    if Sys.file_exists f then (
-      Printf.printf "%s already exists" f;
-      failwith "init"
-    ) else
-      lwt () = IrminLwt.Disk.init f in
-      Lwt.return ()
-
-end
+  [ `Dir of string ]
 
 let init = function
-  | `File f   -> Lwt_unix.run (File.init f)
-  | `Local _  -> failwith "TODO"
-  | `Remote _ -> failwith "TODO"
+  | `Dir f -> Lwt_unix.run (Disk.init f)
 
-let add _ =
-  failwith "TODO"
+let create = function
+  | `Dir f -> Disk.create f
+
+let add f elts =
+  let result =
+    let t = create f in
+    let values = List.map Value.of_string elts in
+    lwt keys = Lwt_list.map_s (fun value ->
+        Disk.Value_store.write t value
+      ) values in
+    List.iter (fun key ->
+        Printf.printf "New key: %s\n" (Key.pretty key)
+      ) keys;
+    Lwt.return () in
+  Lwt_unix.run result
+
 
 let watch _ =
   failwith "TODO"

@@ -14,18 +14,37 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** Disk persistence *)
+
 open IrminTypes
 
-type tag = T of string
+(** Main signature *)
+module type S = sig
 
-module S = struct
-  type t = tag
-  let to_string (T s) = s
-  let of_string s = T s
+  (** Abstract type for the disk location *)
+  type t
+
+  (** Create a disk handler from a directory name *)
+  val create: string -> t
+
+  (** Initialize a disk *)
+  val init: string -> unit Lwt.t
+
+  (** Persist keys *)
+  module Key_store: KEY_STORE with type t = t
+
+  (** Persist values *)
+  module Value_store: VALUE_STORE with type t = t
+
+  (** Persists tags *)
+  module Tag_store: TAG_STORE with type t = t
+
 end
 
-include IrminIO.String(S)
-
-let of_name t = (T t)
-
-let to_name (T t) = t
+(** Disk *)
+module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG)
+  : S with module Key_store.Key = K
+       and module Value_store.Key = K
+       and module Tag_store.Key = K
+       and module Value_store.Value = V
+       and module Tag_store.Tag = T

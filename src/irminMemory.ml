@@ -18,6 +18,8 @@ open IrminTypes
 
 module Key_store (K: KEY) = struct
 
+  module Key = K
+
   module Vertex = struct
     type t = K.t
     let compare = K.compare
@@ -26,8 +28,6 @@ module Key_store (K: KEY) = struct
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
-
-  type key = K.t
 
   type t = G.t
 
@@ -57,11 +57,11 @@ module Key_store (K: KEY) = struct
 
 end
 
-module Value_store (K: KEY) (V: VALUE with type key = K.t) = struct
+module Value_store (K: KEY) (V: VALUE with module Key = K) = struct
 
-  type key = K.t
+  module Key = K
 
-  type value = V.t
+  module Value = V
 
   type t = (K.t, V.t) Hashtbl.t
 
@@ -82,9 +82,9 @@ end
 
 module Tag_store (T: TAG) (K: KEY) = struct
 
-  type tag = T.t
+  module Tag = T
 
-  type key = K.t
+  module Key = K
 
   type t = (T.t, K.t) Hashtbl.t
 

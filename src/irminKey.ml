@@ -38,6 +38,12 @@ module SHA1 = struct
   let of_string str =
     SHA1 (IrminMisc.sha1 str)
 
+  let to_hex (SHA1 str) =
+    IrminMisc.hex_encode str
+
+  let of_hex hex =
+    SHA1 (IrminMisc.hex_decode hex)
+
   let concat l =
     let l = List.fold_left (fun acc (SHA1 s) -> s :: acc) [] l in
     let s = String.concat "" (List.sort String.compare l) in

@@ -62,8 +62,14 @@ module type KEY = sig
   (** Hash a key. *)
   val hash: t -> int
 
-  (** Compute a key from a string. *)
+  (** Compute a key from a raw string. *)
   val of_string: string ->t
+
+  (** Convert a key to an hexa representation. *)
+  val to_hex: t -> string
+
+  (** Convert an hexa representation to a key. *)
+  val of_hex: string -> t
 
   (** Compute a key from a list of keys. *)
   val concat: t list -> t
@@ -79,21 +85,34 @@ module type VALUE = sig
   include BASE
 
   (** Type of keys *)
-  type key
+  module Key: KEY
 
   (** Compute a key *)
-  val key: t -> key
+  val key: t -> Key.t
+
+  (** Convert a raw string to a blob value *)
+  val of_string: string -> t
 
   (** Return the predecessors *)
-  val pred: t -> key list
+  val pred: t -> Key.t list
 
   (** How to merge two values. Need to know how to merge keys. *)
-  val merge: (key -> key -> key option) -> t -> t -> t option
+  val merge: (Key.t -> Key.t -> Key.t option) -> t -> t -> t option
 
 end
 
 (** Tags *)
-module type TAG = BASE
+module type TAG = sig
+
+  include BASE
+
+  (** Convert a tag to a suitable name *)
+  val to_name: t -> string
+
+  (** Convert a name to a tag *)
+  val of_name: string -> t
+
+end
 
 (** {2 Stores} *)
 
@@ -105,23 +124,23 @@ module type KEY_STORE = sig
   type t
 
   (** Type of keys *)
-  type key
+  module Key: KEY
 
   (** Add a key *)
-  val add_key: t -> key -> unit Lwt.t
+  val add_key: t -> Key.t -> unit Lwt.t
 
   (** Add a relation: [add_relation t k1 k2] means that [k1] is now a
       predecessor of [k2] in [t]. *)
-  val add_relation: t -> key -> key -> unit Lwt.t
+  val add_relation: t -> Key.t -> Key.t -> unit Lwt.t
 
   (** Return the list of keys *)
-  val list: t -> key list Lwt.t
+  val list: t -> Key.t list Lwt.t
 
   (** Return the predecessors *)
-  val pred: t -> key -> key list Lwt.t
+  val pred: t -> Key.t -> Key.t list Lwt.t
 
   (** Return the successors *)
-  val succ: t -> key -> key list Lwt.t
+  val succ: t -> Key.t -> Key.t list Lwt.t
 
 end
 
@@ -142,17 +161,17 @@ module type VALUE_STORE = sig
   type t
 
   (** Type of keys *)
-  type key
+  module Key: KEY
 
   (** Type of values *)
-  type value
+  module Value: VALUE with module Key = Key
 
   (** Add a value in the store. *)
-  val write: t -> value -> key Lwt.t
+  val write: t -> Value.t -> Key.t Lwt.t
 
   (** Read the value associated to a key. Return [None] if the key
        does not exist in the store. *)
-  val read: t -> key -> value option Lwt.t
+  val read: t -> Key.t -> Value.t option Lwt.t
 
 end
 
@@ -168,24 +187,24 @@ module type TAG_STORE = sig
   type t
 
   (** Type of tags *)
-  type tag
+  module Tag: TAG
 
   (** Type of keys *)
-  type key
+  module Key: KEY
 
   (** Update a tag. If the tag does not exist before, just create a
       new tag. *)
-  val update: t -> tag -> key -> unit Lwt.t
+  val update: t -> Tag.t -> Key.t -> unit Lwt.t
 
   (** Remove a tag. *)
-  val remove: t -> tag -> unit Lwt.t
+  val remove: t -> Tag.t -> unit Lwt.t
 
   (** Read a tag. Return [None] if the tag does not exist in the
       store. *)
-  val read: t -> tag -> key option Lwt.t
+  val read: t -> Tag.t -> Key.t option Lwt.t
 
   (** List all the available tags *)
-  val list: t -> tag list Lwt.t
+  val list: t -> Tag.t list Lwt.t
 
 end
 
@@ -198,37 +217,37 @@ module type SYNC = sig
   type t
 
   (** Type of keys *)
-  type key
+  module Key: KEY
 
   (** Graph of keys *)
-  type graph = key list * (key * key) list
+  type graph = Key.t list * (Key.t * Key.t) list
 
   (** Type of remote tags *)
-  type tag
+  module Tag: TAG
 
   (** [pull_keys fd roots tags] pulls changes related to a given set
       known remote [tags]. Return the transitive closure of all the
       unknown keys, with [roots] as graph roots and [tags] as graph
       sinks. If [root] is the empty list, return the complete history
       up-to the given remote tags. *)
-  val pull_keys: t -> key list -> tag list -> graph Lwt.t
+  val pull_keys: t -> Key.t list -> Tag.t list -> graph Lwt.t
 
   (** Get all the remote tags. *)
-  val pull_tags: t -> (tag * key) list Lwt.t
+  val pull_tags: t -> (Tag.t * Key.t) list Lwt.t
 
   (** Push changes related to a given (sub)-graph of keys, given set
       of local tags (which should belong to the graph). The does not
       modify the local tags on the remote instance. It is the user
       responsability to compute the smallest possible graph
       beforhand. *)
-  val push_keys: t -> graph -> (tag * key) list -> unit Lwt.t
+  val push_keys: t -> graph -> (Tag.t * Key.t) list -> unit Lwt.t
 
   (** Modify the local tags of the remote instance. *)
-  val push_tags: t -> (tag * key) list -> unit Lwt.t
+  val push_tags: t -> (Tag.t * Key.t) list -> unit Lwt.t
 
   (** Watch for changes for a given set of tags. Call a callback on
       each event ([tags] * [graphs]) where [tags] are the updated tags
       and [graph] the corresponding set of new keys (if any). *)
-  val watch: t -> tag list -> (tag list -> graph -> unit Lwt.t) -> unit Lwt.t
+  val watch: t -> Tag.t list -> (Tag.t list -> graph -> unit Lwt.t) -> unit Lwt.t
 
 end

@@ -20,15 +20,18 @@ open IrminTypes
 module Key = IrminKey.SHA1
 module Value = IrminValue.Make(Key)(IrminValue.Blob(Key))
 module Tag = IrminTag
+module Client = IrminRemote.Client(Key)(Value)(Tag)
 
-module Key_store = IrminMemory.Key_store(Key)
-module Value_store = IrminMemory.Value_store(Key)(Value)
-module Tag_store = IrminMemory.Tag_store(Tag)(Key)
+module Memory = struct
+  module Key_store = IrminMemory.Key_store(Key)
+  module Value_store = IrminMemory.Value_store(Key)(Value)
+  module Tag_store = IrminMemory.Tag_store(Tag)(Key)
+end
 
-module Client = IrminProtocol.Client(Key)(Value)(Tag)
+module Disk = IrminDisk.Disk(Key)(Value)(Tag)
 
-module MemoryServer =
-  IrminProtocol.Server(Key)(Value)(Tag)(Key_store)(Value_store)(Tag_store)
+module Server = IrminRemote.Server(Key)(Value)(Tag)
 
-module Disk =
-  IrminProtocol.Disk(Key)(Value)(Tag)
+module MemoryServer = Server(Memory.Key_store)(Memory.Value_store)(Memory.Tag_store)
+module DiskServer   = Server(Disk  .Key_store)(Disk  .Value_store)(Disk  .Tag_store)
+module MixedServer  = Server(Memory.Key_store)(Disk  .Value_store)(Disk  .Tag_store)
