@@ -27,11 +27,9 @@ end
 
 module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
-  open IrminIO
-
-  module XKey = Channel(K)
-  module XKeys = Channel(List(K))
-  module XValue = Channel(V)
+  module XKey = IrminIO.Channel(K)
+  module XKeys = IrminIO.Channel(IrminIO.List(K))
+  module XValue = IrminIO.Channel(V)
 
   exception Error of string
 
