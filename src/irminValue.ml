@@ -68,6 +68,12 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     let write buf t =
       Keys.write buf (t.contents :: t.parents)
 
+    let equal r1 r2 =
+      Key.equal r1.contents r2.contents
+      && List.length r1.parents = List.length r2.parents
+      && List.for_all2 Key.equal
+        (List.sort Key.compare r1.parents) (List.sort Key.compare r2.parents)
+
   end
 
   let pretty = function
@@ -129,6 +135,12 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
         end
       | _ -> None
 
+  let equal v1 v2 =
+    match v1, v2 with
+    | Blob b1    , Blob b2     -> B.equal b1 b2
+    | Revision r1, Revision r2 -> Revision.equal r1 r2
+    | _ -> false
+
 end
 
 type blob = B of string
@@ -154,4 +166,5 @@ module Blob (K: KEY) = struct
 
   let blob str = B str
 
+  let equal (B b1) (B b2) = String.compare b1 b1 = 0
 end

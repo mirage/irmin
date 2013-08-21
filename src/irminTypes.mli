@@ -62,6 +62,9 @@ module type KEY = sig
   (** Hash a key. *)
   val hash: t -> int
 
+  (** Are two keys equal *)
+  val equal: t -> t -> bool
+
   (** Compute a key from a raw string. *)
   val of_string: string ->t
 
@@ -86,6 +89,9 @@ module type VALUE = sig
 
   (** Type of keys *)
   module Key: KEY
+
+  (** Are two values equal ? *)
+  val equal: t -> t -> bool
 
   (** Compute a key *)
   val key: t -> Key.t

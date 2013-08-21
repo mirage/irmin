@@ -26,6 +26,8 @@ module SHA1 = struct
 
   let hash (SHA1 k) = Hashtbl.hash k
 
+  let equal (SHA1 k1) (SHA1 k2) = String.compare k1 k2 = 0
+
   let pretty (SHA1 k) =
     Printf.sprintf "%s" (IrminMisc.hex_encode k)
 
