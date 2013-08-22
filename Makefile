@@ -28,7 +28,7 @@ _build/src/$(MAIN).native: src/irminVersion.ml
 test:
 	$(BUILD) -pkg ounit $(TESTS:%=tests/%.native)
 	for test in $(TESTS); do \
-	  ./_build/tests/$$test.native; \
+	  IRMIN_DEBUG=1 ./_build/tests/$$test.native; \
 	done
 clean:
 	rm -rf $(TARGET) _build

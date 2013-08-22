@@ -15,6 +15,7 @@
  *)
 
 open IrminTypes
+open IrminMisc
 
 (* From cstruct *)
 type buffer = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
@@ -50,6 +51,7 @@ let set_char t c =
     )
 
 let set_uint8 t c =
+  Printf.printf "t.[%d] <- %dn%!" t.offset c;
   set t 1 (fun t ->
       EndianBigstring.BigEndian.set_int8 t.buffer t.offset c;
     )
@@ -116,6 +118,32 @@ let get_string t len =
 module OCamlList = List
 module OCamlString = String
 
+exception Parse_error of string
+
+let dump_buffer ~all t =
+  let length = Bigarray.Array1.dim t.buffer in
+  let str =
+    if all then String.create length
+    else String.create (length - t.offset) in
+  if all then
+    unsafe_blit_bigstring_to_string t.buffer 0 str 0 length
+  else
+    unsafe_blit_bigstring_to_string t.buffer t.offset str 0 length;
+  Printf.eprintf "\027[33m[[ offset:%d len:%d %S ]]\027[m\n" t.offset length str
+
+let parse_error_buf buf fmt =
+  Printf.kprintf (fun str ->
+      Printf.eprintf "\027[31mParse error:\027[m %s\n" str;
+      dump_buffer ~all:true buf;
+      raise_lwt (Parse_error str)
+    ) fmt
+
+let parse_error fmt =
+  Printf.kprintf (fun str ->
+      Printf.eprintf "\027[31mParse error:\027[m %s\n" str;
+      raise (Parse_error str)
+    ) fmt
+
 module List  (E: BASE) = struct
 
   type t = E.t list
@@ -128,7 +156,7 @@ module List  (E: BASE) = struct
 
   let of_json = function
     | `A l -> OCamlList.rev (List.rev_map E.of_json l)
-    | _    -> failwith "MakeList.of_json"
+    | _    -> parse_error "List.of_json"
 
   let sizeof l =
     List.fold_left (fun acc e ->
@@ -136,6 +164,7 @@ module List  (E: BASE) = struct
       ) 4 l
 
   let read buf =
+    debug "List.read";
     lwt keys = get_uint32 buf in
     let rec aux acc i =
       if i <= 0 then Lwt.return (OCamlList.rev acc)
@@ -145,6 +174,7 @@ module List  (E: BASE) = struct
     aux [] (Int32.to_int keys)
 
   let write buf t =
+    debug "List.write";
     let len = Int32.of_int (List.length t) in
     lwt () = set_uint32 buf len in
     Lwt_list.iter_s (E.write buf) t
@@ -174,13 +204,15 @@ module Option (E: BASE) = struct
     | Some e -> 4 + E.sizeof e
 
   let read buf =
+    debug "Option.read";
     lwt l = L.read buf in
     match l with
     | []  -> Lwt.return None
     | [e] -> Lwt.return (Some e)
-    | _   -> failwith "Option.read"
+    | _   -> parse_error_buf buf "Option.read"
 
   let write buf t =
+    debug "Option.write";
     let l = match t with
       | None   -> []
       | Some e -> [e] in
@@ -203,22 +235,24 @@ module Pair (K: BASE) (V: BASE) = struct
     | `O l ->
       let key =
         try OCamlList.assoc "tag" l
-        with Not_found -> failwith "MakeProduct.of_json: missing tag" in
+        with Not_found -> parse_error "Product.of_json: missing tag" in
       let value =
         try OCamlList.assoc "key" l
-        with Not_found -> failwith "MakeProduct.of_json: missing key" in
+        with Not_found -> parse_error "Product.of_json: missing key" in
       (K.of_json key, V.of_json value)
-    | _ -> failwith "Product.of_json: not an object"
+    | _ -> parse_error "Product.of_json: not an object"
 
   let sizeof (key, value) =
     K.sizeof key + V.sizeof value
 
   let read buf =
+    debug "Pair.read";
     lwt tag = K.read buf in
     lwt key = V.read buf in
     Lwt.return (tag, key)
 
   let write buf (key, value) =
+    debug "Pair.write";
     lwt () = K.write buf key in
     V.write buf value
 
@@ -247,11 +281,13 @@ module String  (S: STRINGABLE) = struct
     4 + String.length (S.to_string s)
 
   let read buf =
+    debug "String.read";
     lwt len = get_uint32 buf in
     lwt str = get_string buf (Int32.to_int len) in
     Lwt.return (S.of_string str)
 
   let write buf t =
+    debug "String.write";
     let str = S.to_string t in
     let len = String.length str in
     lwt () = set_uint32 buf (Int32.of_int len) in
@@ -269,6 +305,7 @@ module Lwt_channel = struct
   let ready _ _ = Lwt.return ()
 
   let read_string fd len =
+    debug "Lwt_channel.read_string %d" len;
     let buf = OCamlString.create len in
     let rec rread fd buf ofs len =
       lwt n = Lwt_unix.read fd buf ofs len in
@@ -278,6 +315,7 @@ module Lwt_channel = struct
     Lwt.return buf
 
   let read_buf fd len =
+    debug "Lwt_channel.read_buf %d" len;
     let buf = Bigarray.Array1.create Bigarray.char Bigarray.c_layout len in
     let rec rread fd buf ofs len =
       lwt n = Lwt_bytes.read fd buf ofs len in
@@ -292,6 +330,7 @@ module Lwt_channel = struct
     Lwt.return buffer
 
   let write_string fd buf =
+    debug "Lwt_channel.write_string";
     let rec rwrite fd buf ofs len =
       lwt n = Lwt_unix.write fd buf ofs len in
       if n = 0 then raise End_of_file;
@@ -299,6 +338,7 @@ module Lwt_channel = struct
     rwrite fd buf 0 (OCamlString.length buf)
 
   let write_buf fd buf len =
+    debug "Lwt_channel.write_buf %d" len;
     let rec rwrite fd buf ofs len =
       lwt n = Lwt_bytes.write fd buf ofs len in
       if n = 0 then raise End_of_file;
@@ -306,11 +346,13 @@ module Lwt_channel = struct
     rwrite fd buf.buffer buf.offset len
 
   let read_header fd =
+    debug "Lwt_channel.read_header";
     lwt str = read_string fd 4 in
     let len = EndianString.BigEndian.get_int32 str 0 in
     Lwt.return (Int32.to_int len)
 
   let write_header fd len =
+    debug "Lwt_channel.write_header";
     let str = OCamlString.create 4 in
     EndianString.BigEndian.set_int32 str 0 (Int32.of_int len);
     write_string fd str
@@ -324,15 +366,16 @@ module Channel (B: BASE) = struct
   type channel = Lwt_channel.t
 
   let read_fd fd =
+    debug "Channel.read_fd";
     lwt len = Lwt_channel.read_header fd in
     lwt buf = Lwt_channel.read_buf fd len in
     B.read buf
 
   let write_fd fd t =
+    debug "Channel.write_fd";
     let len = B.sizeof t in
     let buf = create len (Lwt_channel.ready fd) in
     lwt () = Lwt_channel.write_header fd len in
     Lwt_channel.write_buf fd buf len
-
 
 end

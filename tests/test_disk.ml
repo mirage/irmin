@@ -54,7 +54,7 @@ let test_values () =
   Lwt_unix.run (with_db test)
 
 let suite =
-  "Disk test" >:::
+  "disk" >:::
     [" Basic disk operations for values"
      >:: test_values
     ]

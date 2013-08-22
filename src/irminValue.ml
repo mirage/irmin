@@ -15,6 +15,7 @@
  *)
 
 open IrminTypes
+open IrminMisc
 
 module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
@@ -49,7 +50,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
         let parents = List.sort compare parents in
         let contents = K.of_json contents in
         { parents; contents }
-      | _ -> failwith "Revision.of_json"
+      | _ -> IrminIO.parse_error "Revision.of_json"
 
     let to_json r =
       let parents = IrminJSON.of_list K.to_json r.parents in
@@ -60,12 +61,14 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       Keys.sizeof (t.contents :: t.parents)
 
     let read buf =
+      debug "Revision.read";
       lwt keys = Keys.read buf in
       match keys with
-      | []   -> failwith "Revision.read"
+      | []   -> IrminIO.parse_error_buf buf "Revision.read"
       | h::t -> Lwt.return { contents = h; parents = t }
 
     let write buf t =
+      debug "Revision.write";
       Keys.write buf (t.contents :: t.parents)
 
     let equal r1 r2 =
@@ -87,7 +90,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
   let of_json = function
     | `O [ "blob"    , json ] -> Blob (Blob.of_json json)
     | `O [ "revision", json ] -> Revision (Revision.of_json json)
-    | _ -> failwith "value_of_json"
+    | _ -> IrminIO.parse_error "value_of_json"
 
   let sizeof t =
     4
@@ -96,20 +99,24 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       | Revision r -> Revision.sizeof r
 
   let read buf =
+    debug "Value.read";
     lwt kind = IrminIO.get_uint8 buf in
     match kind with
     | 0 -> lwt b = Blob.read buf in Lwt.return (Blob b)
     | 1 -> lwt r = Revision.read buf in Lwt.return (Revision r)
-    | _ -> failwith "Value.of_cstruct"
+    | _ -> IrminIO.parse_error_buf buf "Value.of_cstruct"
 
   let write buf t =
+    debug "Value.write";
     let kind = match t with
       | Blob _     -> 0
       | Revision _ -> 1 in
     lwt () = IrminIO.set_uint8 buf kind in
-    match t with
-    | Blob b     -> Blob.write buf b
-    | Revision r -> Revision.write buf r
+    lwt () = match t with
+      | Blob b     -> Blob.write buf b
+      | Revision r -> Revision.write buf r in
+    IrminIO.dump_buffer ~all:true buf;
+    Lwt.return ()
 
   let pred = function
     | Revision { parents } -> parents

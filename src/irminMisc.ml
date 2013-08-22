@@ -50,3 +50,21 @@ let sha1 str =
   let hash = Cryptokit.Hash.sha1 () in
   hash#add_string str;
   hash#result
+
+(* from ocp-index indexMisc *)
+let debug_enabled =
+  try match Sys.getenv "IRMIN_DEBUG" with "" | "0" -> false | _ -> true
+  with Not_found -> false
+
+let debug =
+  if debug_enabled then
+    fun fmt -> Printf.eprintf ("\027[36m"^^fmt^^"\027[m%!\n")
+  else
+    fun fmt -> Printf.ifprintf stderr fmt
+
+let timer () =
+  if debug_enabled then
+    let t = Sys.time () in
+    fun () -> Sys.time () -. t
+  else
+    fun () -> 0.

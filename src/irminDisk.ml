@@ -15,6 +15,7 @@
  *)
 
 open IrminTypes
+open IrminMisc
 
 module type S = sig
   type t
@@ -73,6 +74,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
   type t = files
 
   let with_file (file:string) (fn:Lwt_unix.file_descr -> 'a Lwt.t): 'a Lwt.t =
+    debug "Disk.with_file %s" file;
     lwt fd = Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) in
     try
       lwt r = fn fd in
@@ -167,16 +169,21 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let write t value =
       let key = V.key value in
-      lwt () = Key_store.add_key t key in
-      let preds = V.pred value in
-      lwt () = Lwt_list.iter_s (fun k -> Key_store.add_relation t k key) preds in
-      lwt () = with_file (t.value key) (fun fd ->
-          XValue.write_fd fd value
-        ) in
-      Lwt.return key
+      let file = t.value key in
+      if Sys.file_exists file then
+        Lwt.return key
+      else
+        lwt () = Key_store.add_key t key in
+        let preds = V.pred value in
+        lwt () = Lwt_list.iter_s (fun k -> Key_store.add_relation t k key) preds in
+        lwt () = with_file file (fun fd ->
+            XValue.write_fd fd value
+          ) in
+        Lwt.return key
 
     let read t key =
       let file = t.value key in
+      IrminMisc.debug "Value_store.read %s" file;
       if Sys.file_exists file then
         lwt value = with_file file XValue.read_fd in
         Lwt.return (Some value)

@@ -24,3 +24,6 @@ val hex_decode: string -> string
 
 (** Compute the sha1 of a binary string *)
 val sha1: string -> string
+
+(** Debug *)
+val debug: ('a, out_channel, unit) format -> 'a

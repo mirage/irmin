@@ -24,6 +24,20 @@ val create: int -> (int -> unit Lwt.t) -> bufIO
 (** Wait for all array elements in the range to be available *)
 val poll: bufIO -> int -> unit Lwt.t
 
+(** {2 Errors} *)
+
+(** Parse error *)
+exception Parse_error of string
+
+(** Eventualy raise a exception *)
+val parse_error_buf: bufIO -> ('a, unit, string, 'b Lwt.t) format4 -> 'a
+
+(** Raise an exception *)
+val parse_error: ('a, unit, string, 'b) format4 -> 'a
+
+(** Dump the buffer *)
+val dump_buffer: all:bool -> bufIO -> unit
+
 (** {Basic IO operations} *)
 
 (** Get/set big-endian integers of various sizes. *)
