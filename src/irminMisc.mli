@@ -26,4 +26,4 @@ val hex_decode: string -> string
 val sha1: string -> string
 
 (** Debug *)
-val debug: ('a, out_channel, unit) format -> 'a
+val debug: string -> ('a, out_channel, unit) format -> 'a

@@ -31,6 +31,8 @@ end
 
 module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
+  let debug fmt = IrminMisc.debug "DISK" fmt
+
   module XKey = IrminIO.Channel(K)
   module XKeys = IrminIO.Channel(IrminIO.List(K))
   module XValue = IrminIO.Channel(V)
@@ -73,16 +75,25 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   type t = files
 
-  let with_file (file:string) (fn:Lwt_unix.file_descr -> 'a Lwt.t): 'a Lwt.t =
-    debug "Disk.with_file %s" file;
+  let with_file file fn =
+    debug "with_file %s" file;
     lwt fd = Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) in
+    let t = IrminIO.Lwt_channel.create fd file in
     try
-      lwt r = fn fd in
-      lwt () = Lwt_unix.close fd in
+      lwt r = fn t in
+      lwt () = IrminIO.Lwt_channel.close t in
       Lwt.return r
     with e ->
-      lwt () = Lwt_unix.close fd in
+      lwt () = IrminIO.Lwt_channel.close t in
       raise_lwt e
+
+  let with_maybe_file file fn default =
+    if Sys.file_exists file then
+      with_file file fn
+    else (
+      debug "with_maybe_file: %s does not exist, skipping" file;
+      Lwt.return default
+    )
 
   let init dir =
     if Sys.file_exists dir then
@@ -120,46 +131,46 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module Key_store = struct
 
+    let debug fmt = IrminMisc.debug "DISK-KEY" fmt
+
     module Key = K
 
     type t = files
 
     let succ t key =
-      with_file (t.succ key) XKeys.read_fd
+      debug "succ %s" (K.pretty key);
+      lwt keys = with_maybe_file (t.succ key) XKeys.read_fd [] in
+      Lwt.return (Key.Set.of_list keys)
 
     let pred t key =
-      with_file (t.pred key) XKeys.read_fd
+      debug "pred %s" (K.pretty key);
+      lwt keys = with_maybe_file (t.pred key) XKeys.read_fd [] in
+      Lwt.return (Key.Set.of_list keys)
 
     let list t =
+      debug "list";
       basenames K.of_hex (values t.root)
 
-    let add_key t k =
-      let add file =
-        if not (Sys.file_exists file) then
-          with_file file (fun fd ->
-              XKeys.write_fd fd []
-            ) else
-          Lwt.return () in
-      lwt () = add (t.pred k) in
-      lwt () = add (t.succ k) in
-      Lwt.return ()
-
-    let add_relation t k1 k2 =
-      let add file k =
-        with_file file (fun fd ->
-            lwt keys = XKeys.read_fd fd in
-            lwt _ = Lwt_unix.lseek fd 0 Lwt_unix.SEEK_SET in
-            XKeys.write_fd fd (k :: keys)
+    let add t key pred_keys =
+      debug "add %s %s" (K.pretty key) (K.Set.pretty pred_keys);
+      let aux file new_keys =
+        lwt old_keys = with_maybe_file file XKeys.read_fd [] in
+        let keys = Key.Set.union new_keys (Key.Set.of_list old_keys) in
+        if Sys.file_exists file then Sys.remove file;
+        if Key.Set.is_empty keys then Lwt.return ()
+        else with_file file (fun fd ->
+            XKeys.write_fd fd (Key.Set.to_list keys)
           ) in
-      lwt () = add_key t k1 in
-      lwt () = add_key t k2 in
-      lwt () = add (t.pred k2) k1 in
-      lwt () = add (t.succ k1) k2 in
-      Lwt.return ()
+      lwt () = aux (t.pred key) pred_keys in
+      Lwt_list.iter_s (fun k ->
+          aux (t.succ k) (Key.Set.singleton k)
+        ) (Key.Set.to_list pred_keys)
 
   end
 
   module Value_store = struct
+
+    let debug fmt = IrminMisc.debug "DISK-VALUE" fmt
 
     module Key = K
 
@@ -168,22 +179,23 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
     type t = files
 
     let write t value =
+      debug "write %s" (V.pretty value);
       let key = V.key value in
       let file = t.value key in
       if Sys.file_exists file then
         Lwt.return key
       else
-        lwt () = Key_store.add_key t key in
         let preds = V.pred value in
-        lwt () = Lwt_list.iter_s (fun k -> Key_store.add_relation t k key) preds in
+        lwt () = Key_store.add t key preds in
         lwt () = with_file file (fun fd ->
             XValue.write_fd fd value
           ) in
         Lwt.return key
 
     let read t key =
+      debug "read %s" (K.pretty key);
       let file = t.value key in
-      IrminMisc.debug "Value_store.read %s" file;
+      debug "read %s" file;
       if Sys.file_exists file then
         lwt value = with_file file XValue.read_fd in
         Lwt.return (Some value)
@@ -205,6 +217,8 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module Tag_store = struct
 
+    let debug fmt = IrminMisc.debug "DISK-TAG" fmt
+
     module Key = K
 
     module Tag = T
@@ -212,18 +226,21 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
     type t = files
 
     let remove t tag =
+      debug "remove %s" (T.to_name tag);
       let file = t.tag tag in
       if Sys.file_exists file then
         Unix.unlink file;
       Lwt.return ()
 
     let update t tag key =
+      debug "update %s %s" (T.to_name tag) (K.pretty key);
       lwt () = remove t tag in
       with_file (t.tag tag) (fun fd ->
           XKey.write_fd fd key
         )
 
     let read t tag =
+      debug "read %s" (T.to_name tag);
       let file = t.tag tag in
       if Sys.file_exists file then
         lwt key = with_file file XKey.read_fd in
@@ -232,6 +249,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
         Lwt.return None
 
     let list t =
+      debug "list";
       basenames T.of_name (tags t.root)
 
   end

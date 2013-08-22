@@ -110,7 +110,11 @@ module String (S: STRINGABLE): BASE with type t = S.t
 
 module Lwt_channel: sig
 
-  type t = Lwt_unix.file_descr
+  type t
+
+  val create: Lwt_unix.file_descr -> string -> t
+
+  val name: t -> string
 
   val close: t -> unit Lwt.t
 
@@ -122,9 +126,9 @@ module Lwt_channel: sig
 
   val write_buf: t -> bufIO -> int -> unit Lwt.t
 
-  val read_header: t -> int Lwt.t
+  val read_length: t -> int Lwt.t
 
-  val write_header: t -> int -> unit Lwt.t
+  val write_length: t -> int -> unit Lwt.t
 
   val ready: t -> int -> unit Lwt.t
 

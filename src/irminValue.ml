@@ -19,6 +19,8 @@ open IrminMisc
 
 module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
+  let debug fmt = IrminMisc.debug "VALUE" fmt
+
   module Blob = B
 
   module Key = K
@@ -38,6 +40,8 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     Blob (B.blob str)
 
   module Revision = struct
+
+    let debug fmt = IrminMisc.debug "REVISION" fmt
 
     let pretty r =
       Printf.sprintf "[%s => %s]"
@@ -61,14 +65,14 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       Keys.sizeof (t.contents :: t.parents)
 
     let read buf =
-      debug "Revision.read";
+      debug "read";
       lwt keys = Keys.read buf in
       match keys with
       | []   -> IrminIO.parse_error_buf buf "Revision.read"
       | h::t -> Lwt.return { contents = h; parents = t }
 
     let write buf t =
-      debug "Revision.write";
+      debug "write";
       Keys.write buf (t.contents :: t.parents)
 
     let equal r1 r2 =
@@ -99,7 +103,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       | Revision r -> Revision.sizeof r
 
   let read buf =
-    debug "Value.read";
+    debug "read";
     lwt kind = IrminIO.get_uint8 buf in
     match kind with
     | 0 -> lwt b = Blob.read buf in Lwt.return (Blob b)
@@ -107,7 +111,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | _ -> IrminIO.parse_error_buf buf "Value.of_cstruct"
 
   let write buf t =
-    debug "Value.write";
+    debug "write";
     let kind = match t with
       | Blob _     -> 0
       | Revision _ -> 1 in
@@ -119,8 +123,8 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     Lwt.return ()
 
   let pred = function
-    | Revision { parents } -> parents
-    | Blob _               -> []
+    | Revision { parents } -> Key.Set.of_list parents
+    | Blob _               -> Key.Set.empty
 
   let key = function
     | Blob b     -> B.key b
@@ -162,9 +166,9 @@ module Blob (K: KEY) = struct
 
   let merge _ b1 b2 = None
 
-  let pred _ = []
+  let pred _ = K.Set.empty
 
-  let succ _ = []
+  let succ _ = K.Set.empty
 
   let key (B str) =
     K.of_string str

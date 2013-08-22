@@ -36,14 +36,14 @@ module Disk: IrminDisk.S
    and module Tag_store.Tag = Tag
 
 (** Client bindings *)
-module Client: IrminRemote.CLIENT with type t = Lwt_unix.file_descr
+module Client: IrminRemote.CLIENT with type t = IrminIO.Lwt_channel.t
 
 (** Server which keeps everything into memory *)
-module MemoryServer: IrminRemote.SERVER with type t = Lwt_unix.file_descr
+module MemoryServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t
 
 (** Server which persists everything into disk *)
-module DiskServer: IrminRemote.SERVER with type t = Lwt_unix.file_descr
+module DiskServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t
 
 (** Server which keeps the key-store in memory and persist tags and
     values only. *)
-module MixedServer: IrminRemote.SERVER with type t = Lwt_unix.file_descr
+module MixedServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t

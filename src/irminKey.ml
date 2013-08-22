@@ -20,13 +20,19 @@ type sha1 = SHA1 of string
 
 module SHA1 = struct
 
-  type t = sha1
+  module T = struct
 
-  let compare (SHA1 k1) (SHA1 k2) = String.compare k1 k2
+    type t = sha1
 
-  let hash (SHA1 k) = Hashtbl.hash k
+    let compare (SHA1 k1) (SHA1 k2) = String.compare k1 k2
 
-  let equal (SHA1 k1) (SHA1 k2) = String.compare k1 k2 = 0
+    let hash (SHA1 k) = Hashtbl.hash k
+
+    let equal (SHA1 k1) (SHA1 k2) = String.compare k1 k2 = 0
+
+  end
+
+  include T
 
   let pretty (SHA1 k) =
     Printf.sprintf "%s" (IrminMisc.hex_encode k)
@@ -63,5 +69,20 @@ module SHA1 = struct
 
   let write buf (SHA1 str) =
     IrminIO.set_string buf str
+
+  module Set = struct
+
+    include Set.Make(T)
+
+    let of_list l =
+      List.fold_left (fun acc elt -> add elt acc) empty l
+
+    let to_list s =
+      elements s
+
+    let pretty s =
+      String.concat ", " (List.map pretty (to_list s))
+
+  end
 
 end

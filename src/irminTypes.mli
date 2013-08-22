@@ -56,6 +56,15 @@ module type KEY = sig
 
   include BASE
 
+  (** Set of keys *)
+  module Set: sig
+    include Set.S with type elt = t
+    (** It's quite anoying to have to define that again ... *)
+    val of_list: elt list -> t
+    val to_list: t -> elt list
+    val pretty: t -> string
+  end
+
   (** Compare two keys. *)
   val compare: t -> t -> int
 
@@ -100,7 +109,7 @@ module type VALUE = sig
   val blob: string -> t
 
   (** Return the predecessors *)
-  val pred: t -> Key.t list
+  val pred: t -> Key.Set.t
 
   (** How to merge two values. Need to know how to merge keys. *)
   val merge: (Key.t -> Key.t -> Key.t option) -> t -> t -> t option
@@ -132,21 +141,17 @@ module type KEY_STORE = sig
   (** Type of keys *)
   module Key: KEY
 
-  (** Add a key *)
-  val add_key: t -> Key.t -> unit Lwt.t
-
-  (** Add a relation: [add_relation t k1 k2] means that [k1] is now a
-      predecessor of [k2] in [t]. *)
-  val add_relation: t -> Key.t -> Key.t -> unit Lwt.t
+  (** Add a key and its predecessors *)
+  val add: t -> Key.t -> Key.Set.t -> unit Lwt.t
 
   (** Return the list of keys *)
   val list: t -> Key.t list Lwt.t
 
   (** Return the immediate predecessors *)
-  val pred: t -> Key.t -> Key.t list Lwt.t
+  val pred: t -> Key.t -> Key.Set.t Lwt.t
 
   (** Return the successors *)
-  val succ: t -> Key.t -> Key.t list Lwt.t
+  val succ: t -> Key.t -> Key.Set.t Lwt.t
 
 end
 

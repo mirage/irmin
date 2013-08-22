@@ -35,11 +35,15 @@ module Key_store (K: KEY) = struct
     G.create ~size:1024 ()
 
   let add_key g k =
-    G.add_vertex g k;
-    Lwt.return ()
+    G.add_vertex g k
 
   let add_relation g k1 k2 =
-    G.add_edge g k1 k2;
+    G.add_edge g k1 k2
+
+  let add g key preds =
+    add_key g key;
+    Key.Set.iter (add_key g) preds;
+    Key.Set.iter (fun pred -> add_relation g pred key) preds;
     Lwt.return ()
 
   let list g =
@@ -48,12 +52,12 @@ module Key_store (K: KEY) = struct
 
   (* XXX: G.pred is in O(max(|V|,|E|)) *)
   let pred g k =
-    try Lwt.return (G.pred g k)
-    with Not_found -> Lwt.return []
+    try Lwt.return (Key.Set.of_list (G.pred g k))
+    with Not_found -> Lwt.return Key.Set.empty
 
   let succ g k =
-    try Lwt.return (G.succ g k)
-    with Not_found -> Lwt.return []
+    try Lwt.return (Key.Set.of_list (G.succ g k))
+    with Not_found -> Lwt.return Key.Set.empty
 
 end
 

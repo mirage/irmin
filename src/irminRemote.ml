@@ -18,8 +18,7 @@ open IrminTypes
 
 type action =
   (* Key store *)
-  | Key_add_key
-  | Key_add_relation
+  | Key_add
   | Key_list
   | Key_pred
   | Key_succ
@@ -43,8 +42,7 @@ module Action = struct
   type t = action
 
   let actions = [|
-    Key_add_key      , "key-add-key";
-    Key_add_relation , "key-add-relation";
+    Key_add          , "key-add";
     Key_list         , "key-list";
     Key_pred         , "key-pred";
     Key_succ         , "key-succ";
@@ -145,6 +143,7 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module XKey = Channel(K)
   module XKeys = Channel(List(K))
+  module XKeyKeys = Channel(Pair(K)(XKeys))
   module XKeyPair = Channel(Pair(K)(K))
   module XKeyPairs = Channel(List(XKeyPair))
   module XKeyOption = Channel(Option(K))
@@ -164,16 +163,16 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module XAction = Channel(Action)
   module XActionKey = Channel(Pair(Action)(K))
-  module XActionKeyPair = Channel(Pair(Action)(XKeyPair))
+  module XActionKeys = Channel(Pair(Action)(XKeys))
   module XActionValue = Channel(Pair(Action)(V))
   module XActionTag = Channel(Pair(Action)(T))
+  module XActionTags = Channel(Pair(Action)(XTags))
   module XActionTagKey = Channel(Pair(Action)(XTagKey))
   module XActionTagKeys = Channel(Pair(Action)(XTagKeys))
   module XActionKeysTags = Channel(Pair(Action)(XKeysTags))
   module XActionGraphTagKeys = Channel(Pair(Action)(XGraphTagKeys))
-  module XActionTags = Channel(Pair(Action)(XTags))
 
-  type t = Lwt_unix.file_descr
+  type t = Lwt_channel.t
 
   module T = struct
 
@@ -185,7 +184,7 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     type graph = Key.t list * (Key.t * Key.t) list
 
-    type t = Lwt_unix.file_descr
+    type t = Lwt_channel.t
 
   end
 
@@ -194,11 +193,8 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     include T
 
-    let add_key fd key =
-      XActionKey.write_fd fd (Key_add_key, key)
-
-    let add_relation fd k1 k2 =
-      XActionKeyPair.write_fd fd (Key_add_relation, (k1, k2))
+    let add fd key preds =
+      XActionKeys.write_fd fd (Key_add, (key :: (K.Set.to_list preds)))
 
     let list fd =
       lwt () = XAction.write_fd fd Key_list in
@@ -206,11 +202,13 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let pred fd key =
       lwt () = XActionKey.write_fd fd (Key_pred, key) in
-      XKeys.read_fd fd
+      lwt keys = XKeys.read_fd fd in
+      Lwt.return (K.Set.of_list keys)
 
     let succ fd key =
       lwt () = XActionKey.write_fd fd (Key_succ, key) in
-      XKeys.read_fd fd
+      lwt keys = XKeys.read_fd fd in
+      Lwt.return (K.Set.of_list keys)
 
   end
 
@@ -303,6 +301,7 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
 
   module XKey = Channel(K)
   module XKeys = Channel(List(K))
+  module XKeyKeys = Channel(Pair(K)(XKeys))
   module XKeyPair = Channel(Pair(K)(K))
   module XKeyPairs = Channel(List(XKeyPair))
   module XKeyOption = Channel(Option(K))
@@ -328,13 +327,9 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
 
   module XKey_store = struct
 
-    let add_key t buf =
-      lwt k = XKey.read buf in
-      KS.add_key t.keys k
-
-    let add_relation t buf =
-      lwt (k1, k2) = XKeyPair.read buf in
-      KS.add_relation t.keys k1 k2
+    let add t buf =
+      lwt (k1, k2s) = XKeyKeys.read buf in
+      KS.add t.keys k1 (K.Set.of_list k2s)
 
     let list t buf =
       lwt keys = KS.list t.keys in
@@ -343,12 +338,12 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
     let pred t buf =
       lwt k = XKey.read buf in
       lwt keys = KS.pred t.keys k in
-      XKeys.write buf keys
+      XKeys.write buf (K.Set.to_list keys)
 
     let succ t buf =
       lwt k = XKey.read buf in
       lwt keys = KS.succ t.keys k in
-      XKeys.write buf keys
+      XKeys.write buf (K.Set.to_list keys)
 
   end
 
@@ -420,12 +415,11 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
   end
 
   let run t fd =
-    lwt len = IrminIO.Lwt_channel.read_header fd in
+    lwt len = IrminIO.Lwt_channel.read_length fd in
     let buf = IrminIO.create len (IrminIO.Lwt_channel.ready fd) in
     lwt action = Action.read buf in
     let fn = match action with
-      | Key_add_key      -> XKey_store.add_key
-      | Key_add_relation -> XKey_store.add_relation
+      | Key_add          -> XKey_store.add
       | Key_list         -> XKey_store.list
       | Key_pred         -> XKey_store.pred
       | Key_succ         -> XKey_store.succ

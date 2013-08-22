@@ -58,9 +58,10 @@ let debug_enabled =
 
 let debug =
   if debug_enabled then
-    fun fmt -> Printf.eprintf ("\027[36m"^^fmt^^"\027[m%!\n")
+    fun section fmt ->
+      Printf.fprintf stderr ("\027[36m%15s\027[m "^^fmt^^"\n%!") section
   else
-    fun fmt -> Printf.ifprintf stderr fmt
+    fun _ fmt -> Printf.ifprintf stderr fmt
 
 let timer () =
   if debug_enabled then

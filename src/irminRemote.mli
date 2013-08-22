@@ -42,7 +42,7 @@ end
 (** Client implementation (eg. needs a server on the other side of the
     channel) *)
 module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG)
-  : CLIENT with type t = Lwt_unix.file_descr
+  : CLIENT with type t = IrminIO.Lwt_channel.t
 
 (** Signature for servers *)
 module type SERVER = sig
@@ -80,4 +80,4 @@ module Server
   : SERVER with module Key_store = KS
             and module Value_store = VS
             and module Tag_store = TS
-            and type t = Lwt_unix.file_descr
+            and type t = IrminIO.Lwt_channel.t
