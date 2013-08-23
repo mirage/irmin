@@ -14,28 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Miscellaneous functions *)
+open IrminLwt
+open OUnit
+open Test_common
 
-(** Encode a binary string to hexa *)
-val hex_encode: string -> string
+let test_init () =
+  clean test_db;
+  IrminQueue.init (`Dir test_db)
 
-(** Decode an hexa string to binary *)
-val hex_decode: string -> string
+let suite =
+  "QUEUE" >:::
+    [ "init" >:: test_init; ]
 
-(** Compute the sha1 of a binary string *)
-val sha1: string -> string
-
-(** Debug *)
-val debug: string -> ('a, out_channel, unit) format -> 'a
-
-(** Is debug enabled ? *)
-val debug_enabled: bool
-
-(** Overwrite stdlib's [OrderedType] *)
-module type SetOrderedType = sig
-  include Set.OrderedType
-  val pretty: t -> string
-end
-
-(** Overwrite stdlib's [Set.Make] *)
-module SetMake (B: SetOrderedType): IrminTypes.SET with type elt = B.t
+let () =
+  run_tests suite

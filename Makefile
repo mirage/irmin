@@ -1,7 +1,7 @@
 VERSION  = 0.1
 PREFIX  ?= /usr/local
 MAIN     = irminMain
-TESTS    = test_disk
+TESTS    = test_disk test_queue
 TARGET   = irmin
 
 PACKAGES = -pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,lwt,ocplib-endian,cstruct

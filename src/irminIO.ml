@@ -124,16 +124,17 @@ module OCamlString = String
 exception Parse_error of string
 
 let dump_buffer ~all t =
-  let length = Bigarray.Array1.dim t.buffer in
-  let str =
-    if all then String.create length
-    else String.create (length - t.offset) in
-  if all then
-    unsafe_blit_bigstring_to_string t.buffer 0 str 0 length
-  else
-    unsafe_blit_bigstring_to_string t.buffer t.offset str 0 length;
-  Printf.eprintf "%16s\027[33m[[ offset:%d len:%d %S ]]\027[m\n" ""
-    t.offset length str
+  if IrminMisc.debug_enabled then
+    let length = Bigarray.Array1.dim t.buffer in
+    let str =
+      if all then String.create length
+      else String.create (length - t.offset) in
+    if all then
+      unsafe_blit_bigstring_to_string t.buffer 0 str 0 length
+    else
+      unsafe_blit_bigstring_to_string t.buffer t.offset str 0 length;
+    Printf.eprintf "%16s\027[33m[[ offset:%d len:%d %S ]]\027[m\n" ""
+      t.offset length str
 
 let parse_error_buf buf fmt =
   Printf.kprintf (fun str ->

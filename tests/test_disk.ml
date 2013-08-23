@@ -23,7 +23,6 @@ let test_keys () =
   let k2 = Value.key (Value.blob "") in
   let k1s = Key.Set.singleton k1 in
   let k2s = Key.Set.singleton k2 in
-  let test_db = "test-db" in
   let module KV = Disk.Key_store in
   let test t =
     lwt () = KV.add t k1 k2s in
@@ -37,12 +36,30 @@ let test_keys () =
   in
   Lwt_unix.run (with_db test_db test)
 
+let test_values () =
+  let v1 = Value.blob "foo" in
+  let v2 = Value.blob "" in
+  let module DV = Disk.Value_store in
+  let test t =
+    lwt k1 = DV.write t v1 in
+    lwt k1' = DV.write t v1 in
+    lwt k2 = DV.write t v2 in
+    lwt k2' = DV.write t v2 in
+    lwt v1' = DV.read t k1 in
+    lwt v2' = DV.read t k2 in
+    assert_key_equal "k1" k1 k1';
+    assert_key_equal "k2" k2 k2';
+    assert_value_opt_equal "v1" (Some v1) v1';
+    assert_value_opt_equal "v2" (Some v2) v2';
+    Lwt.return ()
+  in
+  Lwt_unix.run (with_db test_db test)
+
 let test_tags () =
   let k1 = Value.key (Value.blob "foo") in
   let k2 = Value.key (Value.blob "") in
   let t1 = Tag.of_name "foo" in
   let t2 = Tag.of_name "bar" in
-  let test_db = "test-db" in
   let module KT = Disk.Tag_store in
   let test t =
     lwt () = KT.update t t1 k1 in
@@ -66,12 +83,12 @@ let test_tags () =
   Lwt_unix.run (with_db test_db test)
 
 let suite =
-  "disk" >:::
+  "DISK" >:::
     [
       "Basic disk operations for values" >:: test_values;
       "Basic disk operations for keys"   >:: test_keys;
       "Basic disk operations for tags"   >:: test_tags;
     ]
 
-let _ =
-  run_test_tt_main suite
+let () =
+  run_tests suite
