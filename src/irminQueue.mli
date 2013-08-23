@@ -20,6 +20,8 @@ open IrminLwt
 type t =
   [ `Dir of string ]
 
+val is_empty: t -> bool
+
 val init: t -> unit
 
 val add: t -> Value.t list -> unit

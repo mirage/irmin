@@ -33,22 +33,42 @@ let init = function
 let create = function
   | `Dir f -> Disk.create f
 
+let is_empty f =
+  debug "is-empty";
+  let t = create f in
+  let result =
+    lwt tag_head = Disk.Tag_store.read t head in
+    lwt tag_tail = Disk.Tag_store.read t tail in
+    match tag_head, tag_tail with
+    | None  , None   -> Lwt.return true
+    | Some _, Some _ -> Lwt.return false
+    | _ -> failwith "is_empty"
+  in
+  Lwt_unix.run result
+
 let add f = function
   | []     -> ()
   | values ->
+    debug "add";
+    let empty = is_empty f in
     let result =
       let t = create f in
-      lwt keys = Lwt_list.map_s (fun value ->
+      lwt preds = Lwt_list.fold_left_s (fun preds value ->
           lwt key = Disk.Value_store.write t value in
-          Lwt.return (key, value)
-        ) values in
-      List.iter (fun (key, value) ->
-          debug "add: %s %s\n" (Key.pretty key) (Value.pretty value)
-        ) keys;
-      let key_head = fst (List.hd (List.rev keys)) in
-      debug "key-head: %s" (Key.pretty key_head);
+          debug "add blob key:%s value:%s" (Key.pretty key) (Value.pretty value);
+          let revision = Value.revision key preds in
+          lwt key_head = Disk.Value_store.write t revision in
+          debug "add revision key:%s value:%s"
+            (Key.pretty key_head) (Value.pretty revision);
+          Lwt.return [key_head]
+        ) [] values in
+      let key_head = match preds with
+        | []   -> failwith "IrminQueue.add"
+        | k::_ -> k in
       lwt () = Disk.Tag_store.update t head key_head in
-
+      lwt () =
+        if empty then Disk.Tag_store.update t tail key_head
+        else Lwt.return () in
       Disk.Value_store.dump t
     in
     Lwt_unix.run result
@@ -56,21 +76,33 @@ let add f = function
 let watch _ =
   failwith "TODO"
 
+let empty fmt =
+  Printf.kprintf (fun str ->
+      IrminMisc.error "QUEUE" "%s" str;
+      raise_lwt Empty
+    ) fmt
+
+let value_of_key t key =
+  lwt v = Disk.Value_store.read t key in
+  match v with
+  | None   -> empty "No value!"
+  | Some v -> Lwt.return v
+
 let peek f =
   let result =
     let t = create f in
     lwt head = Disk.Tag_store.read t head in
     match head with
-    | None   -> raise Empty
+    | None   -> empty "No head!"
     | Some h ->
       lwt keys = Disk.Key_store.pred t h in
       match Key.Set.to_list keys with
-      | []   -> raise Empty
+      | []   -> empty "No pred!"
       | k::_ ->
-        lwt v = Disk.Value_store.read t k in
-        match v with
-        | None   -> raise Empty
-        | Some v -> Lwt.return v in
+        lwt v = value_of_key t k in
+        match Value.contents v with
+        | None  -> empty "No content!"
+        | Some k -> value_of_key t k in
   Lwt_unix.run result
 
 let take _ =

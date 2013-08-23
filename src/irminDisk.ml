@@ -189,8 +189,8 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       if Sys.file_exists file then
         Lwt.return key
       else
-        let preds = V.pred value in
-        lwt () = Key_store.add t key preds in
+        let parents = V.parents value in
+        lwt () = Key_store.add t key parents in
         lwt () = with_file file (fun fd ->
             XValue.write_fd fd value
           ) in
@@ -230,16 +230,18 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
     type t = files
 
     let remove t tag =
-      debug "remove %s" (T.to_name tag);
       let file = t.tag tag in
-      if Sys.file_exists file then
+      if Sys.file_exists file then (
+        debug "remove %s" (T.to_name tag);
         Unix.unlink file;
+      );
       Lwt.return ()
 
     let update t tag key =
       debug "update %s %s" (T.to_name tag) (K.pretty key);
       lwt () = remove t tag in
       with_file (t.tag tag) (fun fd ->
+          debug "add %s" (T.to_name tag);
           XKey.write_fd fd key
         )
 

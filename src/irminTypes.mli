@@ -110,8 +110,14 @@ module type VALUE = sig
   (** Convert a raw string to a value *)
   val blob: string -> t
 
-  (** Return the predecessors *)
-  val pred: t -> Key.Set.t
+  (** Create a new revision *)
+  val revision: Key.t -> Key.t list -> t
+
+  (** Return the eventual contents key. *)
+  val contents: t -> Key.t option
+
+  (** Return the eventual parents *)
+  val parents: t -> Key.Set.t
 
   (** How to merge two values. Need to know how to merge keys. *)
   val merge: (Key.t -> Key.t -> Key.t option) -> t -> t -> t option

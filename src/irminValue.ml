@@ -39,6 +39,9 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
   let blob str =
     Blob (B.blob str)
 
+  let revision contents parents =
+    Revision { contents; parents }
+
   module Revision = struct
 
     let debug fmt = IrminMisc.debug "REVISION" fmt
@@ -127,9 +130,13 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     IrminIO.dump_buffer ~all:true buf;
     Lwt.return ()
 
-  let pred = function
+  let parents = function
     | Revision { parents } -> Key.Set.of_list parents
     | Blob _               -> Key.Set.empty
+
+  let contents = function
+    | Revision { contents } -> Some contents
+    | Blob _                -> None
 
   let key = function
     | Blob b     -> B.key b
@@ -178,9 +185,9 @@ module Blob (K: KEY) = struct
 
   let merge _ b1 b2 = None
 
-  let pred _ = K.Set.empty
+  let parents _ = K.Set.empty
 
-  let succ _ = K.Set.empty
+  let contents _ = None
 
   let key (B str) =
     K.of_string str
@@ -188,6 +195,9 @@ module Blob (K: KEY) = struct
   module Key = K
 
   let blob str = B str
+
+  let revision _ =
+    failwith "Blob.revision"
 
   let equal (B b1) (B b2) = String.compare b1 b1 = 0
 end
