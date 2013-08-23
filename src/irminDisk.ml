@@ -163,7 +163,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
           ) in
       lwt () = aux (t.pred key) pred_keys in
       Lwt_list.iter_s (fun k ->
-          aux (t.succ k) (Key.Set.singleton k)
+          aux (t.succ k) (Key.Set.singleton key)
         ) (Key.Set.to_list pred_keys)
 
   end
