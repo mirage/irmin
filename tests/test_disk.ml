@@ -109,8 +109,9 @@ let test_tags () =
 
 let suite =
   "disk" >:::
-    ["Basic disk operations for values" >:: test_values;
-     "Basic disk operations for keys"   >:: test_keys;
+    [
+      "Basic disk operations for values" >:: test_values;
+      "Basic disk operations for keys"   >:: test_keys;
     ]
 
 let _ =
