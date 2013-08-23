@@ -33,9 +33,9 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   let debug fmt = IrminMisc.debug "DISK" fmt
 
-  module XKey = IrminIO.Channel(K)
-  module XKeys = IrminIO.Channel(IrminIO.List(K))
-  module XValue = IrminIO.Channel(V)
+  module XKey = IrminIO.File(K)
+  module XKeys = IrminIO.File(IrminIO.List(K))
+  module XValue = IrminIO.File(V)
 
   exception Error of string
 

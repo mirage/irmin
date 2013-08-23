@@ -72,7 +72,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       | h::t -> Lwt.return { contents = h; parents = t }
 
     let write buf t =
-      debug "write";
+      debug "write %s" (pretty t);
       Keys.write buf (t.contents :: t.parents)
 
     let equal r1 r2 =
@@ -97,7 +97,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | _ -> IrminIO.parse_error "value_of_json"
 
   let sizeof t =
-    4
+    1
     + match t with
       | Blob b     -> Blob.sizeof b
       | Revision r -> Revision.sizeof r
@@ -111,11 +111,12 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | _ -> IrminIO.parse_error_buf buf "Value.of_cstruct"
 
   let write buf t =
-    debug "write";
+    debug "write %s" (pretty t);
     let kind = match t with
       | Blob _     -> 0
       | Revision _ -> 1 in
     lwt () = IrminIO.set_uint8 buf kind in
+    IrminIO.dump_buffer ~all:true buf;
     lwt () = match t with
       | Blob b     -> Blob.write buf b
       | Revision r -> Revision.write buf r in

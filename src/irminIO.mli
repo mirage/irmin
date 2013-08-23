@@ -135,16 +135,22 @@ module Lwt_channel: sig
 end
 
 (** Extend [BASE] with channel operations *)
-module Channel (B: BASE): sig
+module type CHANNEL = sig
 
-  include BASE with type t = B.t
+  include BASE
 
   type channel = Lwt_channel.t
 
    (** Read on a channel *)
-  val read_fd: channel -> B.t Lwt.t
+  val read_fd: channel -> t Lwt.t
 
   (** Write on a channel *)
-  val write_fd: channel -> B.t -> unit Lwt.t
+  val write_fd: channel -> t -> unit Lwt.t
 
 end
+
+(** Wire operation *)
+module Wire (B: BASE): CHANNEL with type t = B.t
+
+(** File operations *)
+module File (B: BASE): CHANNEL with type t = B.t

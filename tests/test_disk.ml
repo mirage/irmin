@@ -24,7 +24,6 @@ let with_db fn =
   let t = Disk.create test_db in
   try_lwt fn t
   with e ->
-    clean ();
     raise_lwt e
 
 let assert_key_equal =

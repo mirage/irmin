@@ -19,11 +19,16 @@ open IrminTypes
 (* From cstruct *)
 type buffer = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
 
-let create len ready = {
-  buffer = Bigarray.Array1.create Bigarray.char Bigarray.c_layout len;
-  offset = 0;
-  ready;
-}
+let create len ready =
+  let buffer = Bigarray.Array1.create Bigarray.char Bigarray.c_layout len in
+  for i = 0 to len-1 do
+    buffer.{i} <- 'x';
+  done;
+  {
+    buffer;
+    offset = 0;
+    ready;
+  }
 
 external unsafe_blit_string_to_bigstring
   : string -> int -> buffer -> int -> int -> unit
@@ -50,7 +55,6 @@ let set_char t c =
     )
 
 let set_uint8 t c =
-  Printf.printf "t.[%d] <- %dn%!" t.offset c;
   set t 1 (fun t ->
       EndianBigstring.BigEndian.set_int8 t.buffer t.offset c;
     )
@@ -161,9 +165,10 @@ module List  (E: BASE) = struct
     | _    -> parse_error "List.of_json"
 
   let sizeof l =
+    4 +
     List.fold_left (fun acc e ->
         acc + E.sizeof e
-      ) 4 l
+      ) 0 l
 
   let read buf =
     debug "read";
@@ -295,8 +300,8 @@ module String  (S: STRINGABLE) = struct
     Lwt.return (S.of_string str)
 
   let write buf t =
-    debug "write";
     let str = S.to_string t in
+    debug "write %s" str;
     let len = String.length str in
     lwt () = set_uint32 buf (Int32.of_int len) in
     set_string buf str
@@ -323,18 +328,20 @@ module Lwt_channel = struct
 
   let read_string t len =
     debug "read_string %s %d" t.name len;
-    let buf = OCamlString.create len in
-    let rec rread fd buf ofs len =
-      lwt n = Lwt_unix.read fd buf ofs len in
+    let str = OCamlString.create len in
+    let rec rread fd str ofs len =
+      lwt n = Lwt_unix.read fd str ofs len in
       if n = 0 then raise End_of_file;
-      if n < len then rread fd buf (ofs + n) (len - n) else Lwt.return () in
-    lwt () = rread t.fd buf 0 len in
-    Lwt.return buf
+      if n < len then rread fd str (ofs + n) (len - n) else Lwt.return () in
+    lwt () = rread t.fd str 0 len in
+    debug "read: %s" str;
+    Lwt.return str
 
   let read_buf t len =
     debug "read_buf %s %d" t.name len;
     let buf = Bigarray.Array1.create Bigarray.char Bigarray.c_layout len in
     let rec rread fd buf ofs len =
+      debug "rread ofs=%d len=%d" ofs len;
       lwt n = Lwt_bytes.read fd buf ofs len in
       if n = 0 then raise End_of_file;
       if n < len then rread fd buf (ofs + n) (len - n) else Lwt.return () in
@@ -344,15 +351,16 @@ module Lwt_channel = struct
       offset = 0;
       ready  = ready t.fd;
     } in
+    dump_buffer ~all:true buffer;
     Lwt.return buffer
 
-  let write_string t buf =
-    debug "write_string %s" t.name;
-    let rec rwrite fd buf ofs len =
-      lwt n = Lwt_unix.write fd buf ofs len in
+  let write_string t str =
+    debug "write_string %s %S" t.name str;
+    let rec rwrite fd str ofs len =
+      lwt n = Lwt_unix.write fd str ofs len in
       if n = 0 then raise End_of_file;
-      if n < len then rwrite fd buf (ofs + n) (len - n) else Lwt.return () in
-    rwrite t.fd buf 0 (OCamlString.length buf)
+      if n < len then rwrite fd str (ofs + n) (len - n) else Lwt.return () in
+    rwrite t.fd str 0 (OCamlString.length str)
 
   let write_buf t buf len =
     debug "write_buf %s %d" t.name len;
@@ -361,25 +369,60 @@ module Lwt_channel = struct
       lwt n = Lwt_bytes.write fd buf ofs len in
       if n = 0 then raise End_of_file;
       if n < len then rwrite fd buf (ofs + n) (len - n) else Lwt.return () in
-    rwrite t.fd buf.buffer buf.offset len
+    rwrite t.fd buf.buffer 0 len
 
   let read_length t =
-    debug "read_size %s" t.name;
+    debug "read_length %s" t.name;
     lwt str = read_string t 4 in
     let len = EndianString.BigEndian.get_int32 str 0 in
     Lwt.return (Int32.to_int len)
 
   let write_length t len =
-    debug "write_size %s %dl" t.name len;
+    debug "write_length %s %dl" t.name len;
     let str = OCamlString.create 4 in
     EndianString.BigEndian.set_int32 str 0 (Int32.of_int len);
     write_string t str
 
+  let length t =
+    lwt len = Lwt_unix.(lseek t.fd 0 SEEK_END) in
+    lwt _ = Lwt_unix.(lseek t.fd 0 SEEK_SET) in
+    Lwt.return len
+
 end
 
-module Channel (B: BASE) = struct
+module type CHANNEL = sig
+  include BASE
+  type channel = Lwt_channel.t
+  val read_fd: channel -> t Lwt.t
+  val write_fd: channel -> t -> unit Lwt.t
+end
 
-  let debug = IrminMisc.debug "IO-CHANNEL"
+module File (B: BASE) = struct
+
+  let debug = IrminMisc.debug "IO-FILE"
+
+  include B
+
+  type channel = Lwt_channel.t
+
+  let read_fd fd =
+    debug "read_fd %s" (Lwt_channel.name fd);
+    lwt len = Lwt_channel.length fd in
+    lwt buf = Lwt_channel.read_buf fd len in
+    B.read buf
+
+  let write_fd fd t =
+    debug "write_fd %s" (Lwt_channel.name fd);
+    let len = B.sizeof t in
+    let buf = create len (Lwt_channel.ready fd) in
+    lwt () = B.write buf t in
+    Lwt_channel.write_buf fd buf len
+
+end
+
+module Wire (B: BASE) = struct
+
+  let debug = IrminMisc.debug "IO-WIRE"
 
   include B
 
@@ -395,6 +438,7 @@ module Channel (B: BASE) = struct
     debug "write_fd %s" (Lwt_channel.name fd);
     let len = B.sizeof t in
     let buf = create len (Lwt_channel.ready fd) in
+    lwt () = B.write buf t in
     lwt () = Lwt_channel.write_length fd len in
     Lwt_channel.write_buf fd buf len
 
