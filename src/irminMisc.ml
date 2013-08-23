@@ -51,20 +51,26 @@ let sha1 str =
   hash#add_string str;
   hash#result
 
-(* from ocp-index indexMisc *)
-let debug_enabled =
-  try match Sys.getenv "IRMIN_DEBUG" with "" | "0" -> false | _ -> true
-  with Not_found -> false
+let debug_mode =
+  let debug =
+    try match Sys.getenv "IRMIN_DEBUG" with "" | "0" -> false | _ -> true
+    with Not_found -> false in
+  ref debug
 
-let debug =
-  if debug_enabled then
-    fun section fmt ->
-      Printf.fprintf stderr ("\027[36m%15s\027[m "^^fmt^^"\n%!") section
+let set_debug_mode b =
+  debug_mode := b
+
+let debug_enabled () =
+  !debug_mode
+
+let debug section fmt =
+  if !debug_mode then
+    Printf.fprintf stderr ("\027[36m%15s\027[m "^^fmt^^"\n%!") section
   else
-    fun _ fmt -> Printf.ifprintf stderr fmt
+    Printf.ifprintf stderr fmt
 
 let timer () =
-  if debug_enabled then
+  if debug_enabled () then
     let t = Sys.time () in
     fun () -> Sys.time () -. t
   else

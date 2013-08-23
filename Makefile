@@ -28,10 +28,10 @@ _build/src/$(MAIN).native: src/irminVersion.ml
 test:
 	$(BUILD) -pkg ounit $(TESTS:%=tests/%.native)
 	for test in $(TESTS); do \
-	  IRMIN_DEBUG=1 ./_build/tests/$$test.native; \
+	  ./_build/tests/$$test.native; \
 	done
 clean:
-	rm -rf $(TARGET) _build test-db
+	rm -rf $(TARGET) _build test-db test-output
 
 install:
 	cp $(TARGET) $(PREFIX)/bin src/irminVersion.ml

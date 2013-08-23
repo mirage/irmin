@@ -124,7 +124,7 @@ module OCamlString = String
 exception Parse_error of string
 
 let dump_buffer ~all t =
-  if IrminMisc.debug_enabled then
+  if IrminMisc.debug_enabled () then
     let length = Bigarray.Array1.dim t.buffer in
     let str =
       if all then String.create length

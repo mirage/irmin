@@ -185,6 +185,7 @@ let run_tests suite =
   let output_file = "test-output" in
   let stdout = redirect stdout output_file in
   let _ = redirect stderr output_file in
+  IrminMisc.set_debug_mode true;
   let results = perform_test (PrettyPrint.fprint_event stdout output_file) suite in
   match List.filter (fun r -> not (success r)) results with
   | [] -> Printf.fprintf stdout "%s\n" (PrettyPrint.green "Success!")

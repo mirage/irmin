@@ -29,7 +29,10 @@ val sha1: string -> string
 val debug: string -> ('a, out_channel, unit) format -> 'a
 
 (** Is debug enabled ? *)
-val debug_enabled: bool
+val debug_enabled: unit -> bool
+
+(** Set the debug mode (default is the value of [IRMIN_DEBUG] env variable. *)
+val set_debug_mode: bool -> unit
 
 (** Overwrite stdlib's [OrderedType] *)
 module type SetOrderedType = sig
