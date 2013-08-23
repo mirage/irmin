@@ -24,7 +24,11 @@ module S = struct
   let of_string s = T s
 end
 
-include IrminIO.String(S)
+module T = IrminIO.String(S)
+
+module Set = IrminMisc.SetMake(T)
+
+include T
 
 let of_name t = (T t)
 

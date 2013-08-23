@@ -124,6 +124,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
   let basenames fn dir =
     let files = Lwt_unix.files_of_directory dir in
     lwt files = Lwt_stream.to_list files in
+    let files = List.filter (fun f -> f <> "." && f <> "..") files in
     Lwt_list.map_s (fun f ->
         let b = Filename.basename f in
         Lwt.return (fn b)
@@ -147,9 +148,12 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       lwt keys = with_maybe_file (t.pred key) XKeys.read_fd [] in
       Lwt.return (Key.Set.of_list keys)
 
-    let list t =
-      debug "list";
-      basenames K.of_hex (values t.root)
+    let all t =
+      debug "all";
+      lwt pred = basenames K.of_hex (pred_keys t.root) in
+      lwt succ = basenames K.of_hex (succ_keys t.root) in
+      let keys = Key.Set.union (Key.Set.of_list pred) (Key.Set.of_list succ) in
+      Lwt.return keys
 
     let add t key pred_keys =
       debug "add %s %s" (K.pretty key) (K.Set.pretty pred_keys);
@@ -248,9 +252,10 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       else
         Lwt.return None
 
-    let list t =
-      debug "list";
-      basenames T.of_name (tags t.root)
+    let all t =
+      debug "all";
+      lwt tags = basenames T.of_name (tags t.root) in
+      Lwt.return (Tag.Set.of_list tags)
 
   end
 

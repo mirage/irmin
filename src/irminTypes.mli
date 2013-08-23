@@ -31,6 +31,9 @@ module type BASE = sig
   (** Abstract type *)
   type t
 
+  (** Compare two values. *)
+  val compare: t -> t -> int
+
   (** Pretty-printing *)
   val pretty: t -> string
 
@@ -51,28 +54,27 @@ module type BASE = sig
 
 end
 
+(** It's quite anoying to have to define that again ... *)
+module type SET = sig
+  include Set.S
+  val of_list: elt list -> t
+  val to_list: t -> elt list
+  val pretty: t -> string
+end
+
 (** Keys *)
 module type KEY = sig
 
   include BASE
-
-  (** Set of keys *)
-  module Set: sig
-    include Set.S with type elt = t
-    (** It's quite anoying to have to define that again ... *)
-    val of_list: elt list -> t
-    val to_list: t -> elt list
-    val pretty: t -> string
-  end
-
-  (** Compare two keys. *)
-  val compare: t -> t -> int
 
   (** Hash a key. *)
   val hash: t -> int
 
   (** Are two keys equal *)
   val equal: t -> t -> bool
+
+  (** Set of keys *)
+  module Set: SET with type elt = t
 
   (** Compute a key from a raw string. *)
   val of_string: string ->t
@@ -121,6 +123,8 @@ module type TAG = sig
 
   include BASE
 
+  module Set: SET with type elt = t
+
   (** Convert a tag to a suitable name *)
   val to_name: t -> string
 
@@ -144,8 +148,8 @@ module type KEY_STORE = sig
   (** Add a key and its predecessors *)
   val add: t -> Key.t -> Key.Set.t -> unit Lwt.t
 
-  (** Return the list of keys *)
-  val list: t -> Key.t list Lwt.t
+  (** Return all the available keys *)
+  val all: t -> Key.Set.t Lwt.t
 
   (** Return the immediate predecessors *)
   val pred: t -> Key.t -> Key.Set.t Lwt.t
@@ -215,7 +219,7 @@ module type TAG_STORE = sig
   val read: t -> Tag.t -> Key.t option Lwt.t
 
   (** List all the available tags *)
-  val list: t -> Tag.t list Lwt.t
+  val all: t -> Tag.Set.t Lwt.t
 
 end
 

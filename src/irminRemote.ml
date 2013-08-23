@@ -59,6 +59,8 @@ module Action = struct
     Sync_watch       , "watch";
   |]
 
+  let compare = Pervasives.compare
+
   let find pred =
     let rec aux i =
       if i <= 0 then raise Not_found
@@ -174,7 +176,7 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   type t = Lwt_channel.t
 
-  module T = struct
+  module Type = struct
 
     module Key = K
 
@@ -191,14 +193,15 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module Key_store = struct
 
-    include T
+    include Type
 
     let add fd key preds =
       XActionKeys.write_fd fd (Key_add, (key :: (K.Set.to_list preds)))
 
-    let list fd =
+    let all fd =
       lwt () = XAction.write_fd fd Key_list in
-      XKeys.read_fd fd
+      lwt keys = XKeys.read_fd fd in
+      Lwt.return (K.Set.of_list keys)
 
     let pred fd key =
       lwt () = XActionKey.write_fd fd (Key_pred, key) in
@@ -214,7 +217,7 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module Value_store = struct
 
-    include T
+    include Type
 
     let write fd value =
       lwt () = XActionValue.write_fd fd (Value_write, value) in
@@ -228,7 +231,7 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module Tag_store = struct
 
-    include T
+    include Type
 
     let update fd tag key =
       XActionTagKey.write_fd fd (Tag_update, (tag, key))
@@ -240,15 +243,16 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       lwt () = XActionTag.write_fd fd (Tag_read, tag) in
       XKeyOption.read_fd fd
 
-    let list fd =
+    let all fd =
       lwt () = XAction.write_fd fd Tag_list in
-      XTags.read_fd fd
+      lwt tags = XTags.read_fd fd in
+      Lwt.return (T.Set.of_list tags)
 
   end
 
   module Sync = struct
 
-    include T
+    include Type
 
     let pull_keys fd roots tags =
       lwt () = XActionKeysTags.write_fd fd (Sync_pull_keys, (roots, tags)) in
@@ -331,9 +335,9 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
       lwt (k1, k2s) = XKeyKeys.read buf in
       KS.add t.keys k1 (K.Set.of_list k2s)
 
-    let list t buf =
-      lwt keys = KS.list t.keys in
-      XKeys.write buf keys
+    let all t buf =
+      lwt keys = KS.all t.keys in
+      XKeys.write buf (K.Set.to_list keys)
 
     let pred t buf =
       lwt k = XKey.read buf in
@@ -376,9 +380,9 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
       lwt ko = TS.read t.tags tag in
       XKeyOption.write buf ko
 
-    let list t buf =
-      lwt tags = TS.list t.tags in
-      XTags.write buf tags
+    let all t buf =
+      lwt tags = TS.all t.tags in
+      XTags.write buf (T.Set.to_list tags)
 
   end
 
@@ -420,7 +424,7 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
     lwt action = Action.read buf in
     let fn = match action with
       | Key_add          -> XKey_store.add
-      | Key_list         -> XKey_store.list
+      | Key_list         -> XKey_store.all
       | Key_pred         -> XKey_store.pred
       | Key_succ         -> XKey_store.succ
       | Value_write      -> XValue_store.write
@@ -428,7 +432,7 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
       | Tag_update       -> XTag_store.update
       | Tag_remove       -> XTag_store.remove
       | Tag_read         -> XTag_store.read
-      | Tag_list         -> XTag_store.list
+      | Tag_list         -> XTag_store.all
       | Sync_pull_keys   -> XSync.pull_keys
       | Sync_pull_tags   -> XSync.pull_tags
       | Sync_push_keys   -> XSync.push_keys

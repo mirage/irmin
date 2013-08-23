@@ -30,12 +30,14 @@ module SHA1 = struct
 
     let equal (SHA1 k1) (SHA1 k2) = String.compare k1 k2 = 0
 
+    let pretty (SHA1 k) =
+      Printf.sprintf "%s" (IrminMisc.hex_encode k)
+
   end
 
-  include T
+  module Set = IrminMisc.SetMake(T)
 
-  let pretty (SHA1 k) =
-    Printf.sprintf "%s" (IrminMisc.hex_encode k)
+  include T
 
   let to_json (SHA1 k) =
     IrminJSON.of_string k
@@ -69,22 +71,5 @@ module SHA1 = struct
 
   let write buf (SHA1 str) =
     IrminIO.set_string buf str
-
-  module Set = struct
-
-    include Set.Make(T)
-
-    let of_list l =
-      List.fold_left (fun acc elt -> add elt acc) empty l
-
-    let to_list s =
-      elements s
-
-    let pretty s =
-      if is_empty s then "{}"
-      else
-        "{ "^ String.concat ", " (List.map pretty (to_list s)) ^ " }"
-
-  end
 
 end

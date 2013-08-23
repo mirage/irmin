@@ -24,26 +24,20 @@ let printer_opt fn = function
   | None   -> "<none>"
   | Some v -> fn v
 
-let assert_key_equal =
-  assert_equal ~cmp:Key.equal ~printer:Key.pretty
+let assert_key_equal msg =
+  assert_equal ~msg ~cmp:Key.equal ~printer:Key.pretty
 
-let assert_key_opt_equal =
-  assert_equal ~cmp:(cmp_opt Key.equal) ~printer:(printer_opt Key.pretty)
+let assert_key_opt_equal msg =
+  assert_equal ~msg ~cmp:(cmp_opt Key.equal) ~printer:(printer_opt Key.pretty)
 
-let assert_keys_equal =
-  assert_equal ~cmp:Key.Set.equal ~printer:Key.Set.pretty
+let assert_keys_equal msg =
+  assert_equal ~msg ~cmp:Key.Set.equal ~printer:Key.Set.pretty
 
-let assert_value_opt_equal =
-  assert_equal ~cmp:(cmp_opt Value.equal) ~printer:(printer_opt Value.pretty)
+let assert_value_opt_equal msg =
+  assert_equal ~msg ~cmp:(cmp_opt Value.equal) ~printer:(printer_opt Value.pretty)
 
-let assert_tags_equal =
-  let compare_tag t1 t2 =
-    String.compare (Tag.to_name t1) (Tag.to_name t2) in
-  let cmp t1s t2s =
-    compare (List.sort compare_tag t1s) (List.sort compare_tag t2s) = 0 in
-  let printer ts =
-    String.concat ", " (List.map Tag.pretty ts) in
-  assert_equal ~cmp ~printer
+let assert_tags_equal msg =
+  assert_equal ~msg ~cmp:Tag.Set.equal ~printer:Tag.Set.pretty
 
 let test_values () =
   let v1 = Value.blob "foo" in
@@ -57,10 +51,10 @@ let test_values () =
     lwt k2' = DV.write t v2 in
     lwt v1' = DV.read t k1 in
     lwt v2' = DV.read t k2 in
-    assert_key_equal k1 k1';
-    assert_key_equal k2 k2';
-    assert_value_opt_equal (Some v1) v1';
-    assert_value_opt_equal (Some v2) v2';
+    assert_key_equal "k1" k1 k1';
+    assert_key_equal "k2" k2 k2';
+    assert_value_opt_equal "v1" (Some v1) v1';
+    assert_value_opt_equal "v2" (Some v2) v2';
     Lwt.return ()
   in
   Lwt_unix.run (with_db test_db test)
@@ -76,10 +70,10 @@ let test_keys () =
     lwt () = KV.add t k1 k2s in
     lwt k1s' = KV.succ t k2 in
     lwt k2s' = KV.pred t k1 in
-    lwt ks = KV.list t in
-    assert_keys_equal k1s k1s';
-    assert_keys_equal k2s k2s';
-    assert_keys_equal (Key.Set.of_list ks) (Key.Set.union k1s k2s);
+    lwt ks = KV.all t in
+    assert_keys_equal "k1" k1s k1s';
+    assert_keys_equal "k2" k2s k2s';
+    assert_keys_equal "list" ks (Key.Set.union k1s k2s);
     Lwt.return ()
   in
   Lwt_unix.run (with_db test_db test)
@@ -96,18 +90,18 @@ let test_tags () =
     lwt () = KT.update t t2 k2 in
     lwt k1' = KT.read t t1 in
     lwt k2' = KT.read t t2 in
-    assert_key_opt_equal (Some k1) k1';
-    assert_key_opt_equal (Some k2) k2';
+    assert_key_opt_equal "t1" (Some k1) k1';
+    assert_key_opt_equal "t2" (Some k2) k2';
     lwt () = KT.update t t1 k2 in
     lwt k2'' = KT.read t t1 in
-    assert_key_opt_equal (Some k2) k2'';
-    lwt l = KT.list t in
-    assert_tags_equal l [t1; t2];
+    assert_key_opt_equal "t1-after-update" (Some k2) k2'';
+    lwt set = KT.all t in
+    assert_tags_equal "all" set (Tag.Set.of_list [t1; t2]);
     lwt () = KT.remove t t1 in
     lwt none = KT.read t t1 in
-    assert_key_opt_equal None none;
-    lwt l = KT.list t in
-    assert_tags_equal l [t2];
+    assert_key_opt_equal "remove" None none;
+    lwt set = KT.all t in
+    assert_tags_equal "all-after-remove" set (Tag.Set.singleton t2);
     Lwt.return ()
   in
   Lwt_unix.run (with_db test_db test)

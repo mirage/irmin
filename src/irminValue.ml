@@ -78,8 +78,12 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     let equal r1 r2 =
       Key.equal r1.contents r2.contents
       && List.length r1.parents = List.length r2.parents
-      && List.for_all2 Key.equal
-        (List.sort Key.compare r1.parents) (List.sort Key.compare r2.parents)
+      && Key.Set.equal (Key.Set.of_list r1.parents) (Key.Set.of_list r2.parents)
+
+    let compare r1 r2 =
+      match Key.compare r1.contents r2.contents with
+      | 0 -> Key.Set.compare (Key.Set.of_list r1.parents) (Key.Set.of_list r2.parents)
+      | i -> i
 
   end
 
@@ -152,6 +156,13 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | Blob b1    , Blob b2     -> B.equal b1 b2
     | Revision r1, Revision r2 -> Revision.equal r1 r2
     | _ -> false
+
+  let compare v1 v2 =
+    match v1, v2 with
+    | Blob _     , Revision _  -> 1
+    | Revision _ , Blob _      -> -1
+    | Blob b1    , Blob b2     -> B.compare b1 b2
+    | Revision r1, Revision r2 -> Revision.compare r1 r2
 
 end
 

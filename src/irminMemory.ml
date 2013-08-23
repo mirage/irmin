@@ -46,9 +46,9 @@ module Key_store (K: KEY) = struct
     Key.Set.iter (fun pred -> add_relation g pred key) preds;
     Lwt.return ()
 
-  let list g =
+  let all g =
     let keys = G.fold_vertex (fun k acc -> k :: acc) g [] in
-    Lwt.return keys
+    Lwt.return (K.Set.of_list keys)
 
   (* XXX: G.pred is in O(max(|V|,|E|)) *)
   let pred g k =
@@ -109,8 +109,8 @@ module Tag_store (T: TAG) (K: KEY) = struct
     try Lwt.return (Some (Hashtbl.find t tag))
     with Not_found -> Lwt.return None
 
-  let list t =
+  let all t =
     let elts = Hashtbl.fold (fun t _ acc -> t :: acc) t [] in
-    Lwt.return elts
+    Lwt.return (T.Set.of_list elts)
 
 end

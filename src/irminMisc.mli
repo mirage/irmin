@@ -27,3 +27,12 @@ val sha1: string -> string
 
 (** Debug *)
 val debug: string -> ('a, out_channel, unit) format -> 'a
+
+(** Overwrite stdlib's [OrderedType] *)
+module type SetOrderedType = sig
+  include Set.OrderedType
+  val pretty: t -> string
+end
+
+(** Overwrite stdlib's [Set.Make] *)
+module SetMake (B: SetOrderedType): IrminTypes.SET with type elt = B.t

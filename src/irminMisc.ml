@@ -69,3 +69,25 @@ let timer () =
     fun () -> Sys.time () -. t
   else
     fun () -> 0.
+
+module type SetOrderedType = sig
+  include Set.OrderedType
+  val pretty: t -> string
+end
+
+module SetMake (B: SetOrderedType) = struct
+
+  include Set.Make(B)
+
+  let of_list l =
+    List.fold_left (fun acc elt -> add elt acc) empty l
+
+  let to_list s =
+    elements s
+
+  let pretty s =
+    if is_empty s then "{}"
+    else
+      "{ "^ String.concat ", " (List.map B.pretty (to_list s)) ^ " }"
+
+end
