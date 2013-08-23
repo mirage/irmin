@@ -17,6 +17,8 @@
 open IrminTypes
 open IrminLwt
 
+let debug fmt = IrminMisc.debug "QUEUE" fmt
+
 let head = Tag.of_name "HEAD"
 let tail = Tag.of_name "TAIL"
 
@@ -41,7 +43,7 @@ let add f = function
           Lwt.return (key, value)
         ) values in
       List.iter (fun (key, value) ->
-          Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
+          debug "add: %s %s\n" (Key.pretty key) (Value.pretty value)
         ) keys;
       lwt () = Disk.Tag_store.update t head (fst (List.hd (List.rev keys))) in
       Disk.Value_store.dump t
