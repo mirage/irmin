@@ -37,6 +37,9 @@ let assert_key_opt_equal msg =
 let assert_keys_equal msg =
   assert_equal ~msg ~cmp:Key.Set.equal ~printer:Key.Set.pretty
 
+let assert_value_equal msg =
+  assert_equal ~msg ~cmp:Value.equal ~printer:Value.pretty
+
 let assert_value_opt_equal msg =
   assert_equal ~msg ~cmp:(cmp_opt Value.equal) ~printer:(printer_opt Value.pretty)
 
@@ -59,95 +62,100 @@ let with_db test_db fn =
   with e ->
     raise_lwt e
 
-let red fmt = Printf.sprintf "\027[31m%s\027[m" fmt
-let green fmt = Printf.sprintf "\027[32m%s\027[m" fmt
-let yellow fmt = Printf.sprintf "\027[33m%s\027[m" fmt
-let blue fmt = Printf.sprintf "\027[36m%s\027[m" fmt
+module PrettyPrint = struct
 
-let with_process_in cmd f =
-  let ic = Unix.open_process_in cmd in
-  try
-    let r = f ic in
-    ignore (Unix.close_process_in ic) ; r
-  with exn ->
-    ignore (Unix.close_process_in ic) ; raise exn
+  let red fmt = Printf.sprintf "\027[31m%s\027[m" fmt
+  let green fmt = Printf.sprintf "\027[32m%s\027[m" fmt
+  let yellow fmt = Printf.sprintf "\027[33m%s\027[m" fmt
+  let blue fmt = Printf.sprintf "\027[36m%s\027[m" fmt
 
-let get_terminal_columns () =
-  let split s c =
-    Re_str.split (Re_str.regexp (Printf.sprintf "[%c]" c)) s in
-  try           (* terminfo *)
-    with_process_in "tput cols"
-      (fun ic -> int_of_string (input_line ic))
-  with _ -> try (* GNU stty *)
-      with_process_in "stty size"
-        (fun ic ->
-          match split (input_line ic) ' ' with
-          | [_ ; v] -> int_of_string v
-          | _ -> failwith "stty")
-    with _ -> try (* shell envvar *)
-        int_of_string (Sys.getenv "COLUMNS")
-      with _ ->
-        80
+  let with_process_in cmd f =
+    let ic = Unix.open_process_in cmd in
+    try
+      let r = f ic in
+      ignore (Unix.close_process_in ic) ; r
+    with exn ->
+      ignore (Unix.close_process_in ic) ; raise exn
 
-let terminal_columns =
-  let v = Lazy.lazy_from_fun get_terminal_columns in
-  fun () ->
-    if Unix.isatty Unix.stdout
-    then Lazy.force v
-    else max_int
+  let get_terminal_columns () =
+    let split s c =
+      Re_str.split (Re_str.regexp (Printf.sprintf "[%c]" c)) s in
+    try           (* terminfo *)
+      with_process_in "tput cols"
+        (fun ic -> int_of_string (input_line ic))
+    with _ -> try (* GNU stty *)
+        with_process_in "stty size"
+          (fun ic ->
+             match split (input_line ic) ' ' with
+             | [_ ; v] -> int_of_string v
+             | _ -> failwith "stty")
+      with _ -> try (* shell envvar *)
+          int_of_string (Sys.getenv "COLUMNS")
+        with _ ->
+          80
 
-let indent_left s nb =
-  let nb = nb - String.length s in
-  if nb <= 0 then
-    s
-  else
-    s ^ String.make nb ' '
+  let terminal_columns =
+    let v = Lazy.lazy_from_fun get_terminal_columns in
+    fun () ->
+      if Unix.isatty Unix.stdout
+      then Lazy.force v
+      else max_int
 
-let indent_right s nb =
-  let nb = nb - String.length s in
-  if nb <= 0 then
-    s
-  else
-    String.make nb ' ' ^ s
+  let indent_left s nb =
+    let nb = nb - String.length s in
+    if nb <= 0 then
+      s
+    else
+      s ^ String.make nb ' '
 
-let left_column = 70
-let right_column =
-  terminal_columns () - left_column + 16 (* padding due to escape chars *)
+  let indent_right s nb =
+    let nb = nb - String.length s in
+    if nb <= 0 then
+      s
+    else
+      String.make nb ' ' ^ s
 
-let error fmt =
-  Printf.kprintf (fun str ->
-      Printf.printf "%s\n%s\n" (indent_right (red "[ERROR]") right_column) str
-    ) fmt
+  let left_column = 70
+  let right_column =
+    terminal_columns () - left_column + 16 (* padding due to escape chars *)
 
-let string_of_node ~head = function
-  | ListItem i -> Printf.sprintf "%3d" i
-  | Label l    -> if head then Printf.sprintf "%-20s" (blue l) else l
+  let error fmt =
+    Printf.kprintf (fun str ->
+        Printf.printf "%s\n%s\n" (indent_right (red "[ERROR]") right_column) str
+      ) fmt
 
-let string_of_path path = match List.rev path with
-  | []   -> "--"
-  | h::t -> string_of_node ~head:true h
-            ^ String.concat " " (List.map (string_of_node ~head:false) t)
+  let string_of_node ~head = function
+    | ListItem i -> Printf.sprintf "%3d" i
+    | Label l    -> if head then Printf.sprintf "%-20s" (blue l) else l
 
-let print_result = function
-  | RSuccess p     -> Printf.printf "%s\n" (indent_right (green "[OK]") right_column)
-  | RFailure (_,s) -> error "Failure: %s\n" s
-  | RError (_, s)  -> error "%s\n" s
-  | RSkip _        -> ()
-  | RTodo _        -> ()
+  let string_of_path path = match List.rev path with
+    | []   -> "--"
+    | h::t -> string_of_node ~head:true h
+              ^ String.concat " " (List.map (string_of_node ~head:false) t)
 
-let print_event = function
-  | EStart p  -> Printf.printf "%s" (indent_left (string_of_path p) left_column)
-  | EResult r -> print_result r
-  | EEnd p    -> ()
+  let print_result = function
+    | RSuccess p     -> Printf.printf "%s\n" (indent_right (green "[OK]") right_column)
+    | RFailure (_,s) -> error "Failure: %s\n" s
+    | RError (_, s)  -> error "%s\n" s
+    | RSkip _        -> ()
+    | RTodo _        -> ()
+
+  let print_event = function
+    | EStart p  -> Printf.printf "%s" (indent_left (string_of_path p) left_column)
+    | EResult r -> print_result r
+    | EEnd p    -> ()
+
+end
 
 let success = function
   | RSuccess _ | RSkip _ -> true
   | _ -> false
 
 let run_tests suite =
-  let results = perform_test print_event suite in
+  let results = perform_test PrettyPrint.print_event suite in
   match List.filter (fun r -> not (success r)) results with
-  | [] -> Printf.printf "%s\n" (green "Success!")
+  | [] -> Printf.printf "%s\n" (PrettyPrint.green "Success!")
   | l  ->
-    Printf.printf "%s\n" (red (Printf.sprintf "%d errors." (List.length l)));
+    let msg = Printf.sprintf "%d errors." (List.length l) in
+    Printf.printf "%s\n" (PrettyPrint.red msg);
     exit 1
