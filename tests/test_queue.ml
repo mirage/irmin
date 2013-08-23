@@ -22,9 +22,20 @@ let test_init () =
   clean test_db;
   IrminQueue.init (`Dir test_db)
 
+let test_add_and_peek () =
+  let t = `Dir test_db in
+  let v1 = Value.blob "foo" in
+  let v2 = Value.blob "" in
+  IrminQueue.add t [v1; v2];
+  let v1' = IrminQueue.peek t in
+  assert_value_equal "v1" v1 v1'
+
 let suite =
   "QUEUE" >:::
-    [ "init" >:: test_init; ]
+    [
+      "Init a queue"                           >:: test_init;
+      "Add elements to the queue and peek one" >:: test_add_and_peek;
+    ]
 
 let () =
   run_tests suite
