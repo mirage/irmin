@@ -31,7 +31,7 @@ test:
 	  IRMIN_DEBUG=1 ./_build/tests/$$test.native; \
 	done
 clean:
-	rm -rf $(TARGET) _build
+	rm -rf $(TARGET) _build test-db
 
 install:
 	cp $(TARGET) $(PREFIX)/bin src/irminVersion.ml

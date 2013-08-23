@@ -2,3 +2,4 @@ src/version.ml
 _build/
 irminsule
 *~
+test-db/
