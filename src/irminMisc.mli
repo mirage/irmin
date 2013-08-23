@@ -28,6 +28,9 @@ val sha1: string -> string
 (** Debug *)
 val debug: string -> ('a, out_channel, unit) format -> 'a
 
+(** Error *)
+val error: string -> ('a, unit, string, unit) format4 -> 'a
+
 (** Is debug enabled ? *)
 val debug_enabled: unit -> bool
 
