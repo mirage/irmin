@@ -59,7 +59,7 @@ let peek f =
     | None   -> raise Empty
     | Some h ->
       lwt keys = Disk.Key_store.pred t h in
-      match keys with
+      match Key.Set.to_list keys with
       | []   -> raise Empty
       | k::_ ->
         lwt v = Disk.Value_store.read t k in
