@@ -45,7 +45,10 @@ let add f = function
       List.iter (fun (key, value) ->
           debug "add: %s %s\n" (Key.pretty key) (Value.pretty value)
         ) keys;
-      lwt () = Disk.Tag_store.update t head (fst (List.hd (List.rev keys))) in
+      let key_head = fst (List.hd (List.rev keys)) in
+      debug "key-head: %s" (Key.pretty key_head);
+      lwt () = Disk.Tag_store.update t head key_head in
+
       Disk.Value_store.dump t
     in
     Lwt_unix.run result

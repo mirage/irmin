@@ -119,9 +119,30 @@ module PrettyPrint = struct
   let right_column =
     terminal_columns () - left_column + 16 (* padding due to escape chars *)
 
-  let error fmt =
+  let string_of_channel ic =
+    let n = 32768 in
+    let s = String.create n in
+    let b = Buffer.create 1024 in
+    let rec iter ic b s =
+      let nread =
+        try input ic s 0 n
+        with End_of_file -> 0 in
+      if nread > 0 then (
+        Buffer.add_substring b s 0 nread;
+        iter ic b s
+      ) in
+    iter ic b s;
+    Buffer.contents b
+
+  let error oc file fmt =
+    let file = open_in file in
+    let output = string_of_channel file in
+    close_in file;
     Printf.kprintf (fun str ->
-        Printf.printf "%s\n%s\n" (indent_right (red "[ERROR]") right_column) str
+        Printf.fprintf oc "%s\n%s\n%s\n%s\n%s\n"
+          (indent_right (red "[ERROR]") right_column)
+          (red "output:") output
+          (red "error:") str
       ) fmt
 
   let string_of_node ~head = function
@@ -133,16 +154,17 @@ module PrettyPrint = struct
     | h::t -> string_of_node ~head:true h
               ^ String.concat " " (List.map (string_of_node ~head:false) t)
 
-  let print_result = function
-    | RSuccess p     -> Printf.printf "%s\n" (indent_right (green "[OK]") right_column)
-    | RFailure (_,s) -> error "Failure: %s\n" s
-    | RError (_, s)  -> error "%s\n" s
+  let fprint_result oc file = function
+    | RSuccess p     ->
+      Printf.fprintf oc "%s\n" (indent_right (green "[OK]") right_column)
+    | RFailure (_,s) -> error oc file "Failure: %s\n" s
+    | RError (_, s)  -> error oc file "%s\n" s
     | RSkip _        -> ()
     | RTodo _        -> ()
 
-  let print_event = function
-    | EStart p  -> Printf.printf "%s" (indent_left (string_of_path p) left_column)
-    | EResult r -> print_result r
+  let fprint_event oc file = function
+    | EStart p  -> Printf.fprintf oc "%s" (indent_left (string_of_path p) left_column)
+    | EResult r -> fprint_result oc file r
     | EEnd p    -> ()
 
 end
@@ -151,11 +173,23 @@ let success = function
   | RSuccess _ | RSkip _ -> true
   | _ -> false
 
+let redirect oc file =
+  let oc = Unix.descr_of_out_channel oc in
+  let tmp = Unix.dup oc in
+  let fd = Unix.(openfile file [O_WRONLY; O_TRUNC; O_CREAT] 0o666) in
+  Unix.dup2 fd oc;
+  Unix.close fd;
+  Unix.out_channel_of_descr tmp
+
 let run_tests suite =
-  let results = perform_test PrettyPrint.print_event suite in
+  let output_file = "test-output" in
+  let stdout = redirect stdout output_file in
+  let _ = redirect stderr output_file in
+  let results = perform_test (PrettyPrint.fprint_event stdout output_file) suite in
   match List.filter (fun r -> not (success r)) results with
-  | [] -> Printf.printf "%s\n" (PrettyPrint.green "Success!")
+  | [] -> Printf.fprintf stdout "%s\n" (PrettyPrint.green "Success!")
   | l  ->
-    let msg = Printf.sprintf "%d errors." (List.length l) in
-    Printf.printf "%s\n" (PrettyPrint.red msg);
+    let s = if List.length l = 1 then "" else "s" in
+    let msg = Printf.sprintf "%d error%s!" (List.length l) s in
+    Printf.fprintf stdout "%s\n" (PrettyPrint.red msg);
     exit 1
