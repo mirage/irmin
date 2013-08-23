@@ -17,11 +17,6 @@
 open IrminLwt
 open OUnit
 
-let cmp_opt fn x y =
-  match x, y with
-  | Some x, Some y -> fn x y
-  | _ -> false
-
 let clean test_db =
   if Sys.file_exists test_db then
     let cmd = Printf.sprintf "rm -rf %s" test_db in
@@ -35,6 +30,13 @@ let with_db test_db fn =
   try_lwt fn t
   with e ->
     raise_lwt e
+
+let cmp_opt fn x y =
+  match x, y with
+  | Some x, Some y -> fn x y
+  | None  , None   -> true
+  | Some _, None
+  | None  , Some _ -> false
 
 let printer_opt fn = function
   | None   -> "<none>"

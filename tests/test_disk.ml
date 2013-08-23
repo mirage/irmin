@@ -70,6 +70,7 @@ let suite =
     [
       "Basic disk operations for values" >:: test_values;
       "Basic disk operations for keys"   >:: test_keys;
+      "Basic disk operations for tags"   >:: test_tags;
     ]
 
 let _ =
