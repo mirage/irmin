@@ -81,7 +81,9 @@ module SHA1 = struct
       elements s
 
     let pretty s =
-      String.concat ", " (List.map pretty (to_list s))
+      if is_empty s then "{}"
+      else
+        "{ "^ String.concat ", " (List.map pretty (to_list s)) ^ " }"
 
   end
 
