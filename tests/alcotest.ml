@@ -14,10 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let red fmt = Printf.sprintf "\027[31m%s\027[m" fmt
-let green fmt = Printf.sprintf "\027[32m%s\027[m" fmt
-let yellow fmt = Printf.sprintf "\027[33m%s\027[m" fmt
-let blue fmt = Printf.sprintf "\027[36m%s\027[m" fmt
+let red fmt = Printf.sprintf ("\027[31m"^^fmt^^"\027[m")
+let green fmt = Printf.sprintf ("\027[32m"^^fmt^^"\027[m")
+let yellow fmt = Printf.sprintf ("\027[33m"^^fmt^^"\027[m")
+let blue fmt = Printf.sprintf ("\027[36m"^^fmt^^"\027[m")
+
+let red_s = red "%s"
+let green_s = green "%s"
+let yellow_s = yellow "%s"
+let blue_s = blue "%s"
 
 let with_process_in cmd f =
   let ic = Unix.open_process_in cmd in
@@ -101,28 +106,37 @@ let file_of_path path ext =
 let output_file path =
   Filename.concat !log_dir (file_of_path path "output")
 
+let errors = ref []
+
 let error path fmt =
-  let file = output_file path in
-  let file = open_in file in
+  let filename = output_file path in
+  let file = open_in filename in
   let output = string_of_channel file in
   close_in file;
+  printf "%s\n%!" (indent_right (red "[ERROR]") right_column);
   Printf.kprintf (fun str ->
-      printf "%s\n%s\n%s\n%s\n%s\n"
-        (indent_right (red "[ERROR]") right_column)
-        (red "output:") output
-        (red "error:") str
+      let error =
+        Printf.sprintf "%s\n%s\n%s\n%s\n%!"
+          (red "-- %s --" filename) output
+          (red "error:") str in
+      errors := error :: !errors
     ) fmt
+
 
 let string_of_node ~head = function
   | OUnit.ListItem i -> Printf.sprintf "%3d" i
-  | OUnit.Label l    -> if head then Printf.sprintf "%-20s" (blue l) else l
+  | OUnit.Label l    -> if head then Printf.sprintf "%-20s" (blue_s l) else l
 
-let string_of_path path = match List.rev path with
-  | []   -> "--"
-  | h::t -> string_of_node ~head:true h
-            ^ String.concat " " (List.map (string_of_node ~head:false) t)
+let string_of_path path =
+  let rec aux = function
+    | []   -> "--"
+    | OUnit.ListItem _ :: t -> aux t
+    | h::t -> string_of_node ~head:true h
+              ^ String.concat " " (List.map (string_of_node ~head:false) t) in
+  aux (List.rev path)
+
 let right msg =
-  printf "%s\n" (indent_right msg right_column)
+  printf "%s\n%!" (indent_right msg right_column)
 
 let print_result = function
   | OUnit.RSuccess p     -> right (green "[OK]")
@@ -132,7 +146,7 @@ let print_result = function
   | OUnit.RTodo _        -> right (yellow "[TODO]")
 
 let print_event = function
-  | OUnit.EStart p  -> printf "%s" (indent_left (string_of_path p) left_column)
+  | OUnit.EStart p  -> printf "%s%!" (indent_left (string_of_path p) left_column)
   | OUnit.EResult r -> print_result r
   | OUnit.EEnd p    -> ()
 
@@ -195,13 +209,14 @@ let run test =
   let total_time = Sys.time () -. start_time in
   match List.filter failure results with
   | [] ->
-    printf "%s in %.3fs. %d tests run.\n"
+    printf "%s in %.3fs. %d tests run.\n%!"
       (green "Test Successfull") total_time (List.length results)
   | l  ->
+    List.iter (fun error -> printf "%s\n" error) (List.rev !errors);
     let s = if List.length l = 1 then "" else "s" in
     let msg = Printf.sprintf "%d error%s!" (List.length l) s in
-    printf "%s in %.3fs. %d tests run.\n"
-      (red msg) total_time (List.length results);
+    printf "%s in %.3fs. %d tests run.\n%!"
+      (red_s msg) total_time (List.length results);
     exit 1
 
 let docs = Hashtbl.create 16
