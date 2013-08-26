@@ -132,9 +132,9 @@ let error path fmt =
       let path = List.rev (List.tl (List.rev path)) in
       let doc = try Hashtbl.find docs path with Not_found -> "XXX" in
       let error =
-        Printf.sprintf "%s\n%s\n%s:\n%s\n"
+        Printf.sprintf "%s\n%s\n%s:\n%s\n%s\n"
           (red "-- %s Failed --" (OUnit.string_of_path path))
-          doc filename output in
+          doc filename output str in
       errors := error :: !errors
     ) fmt
 
