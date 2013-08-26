@@ -106,23 +106,6 @@ let file_of_path path ext =
 let output_file path =
   Filename.concat !log_dir (file_of_path path "output")
 
-let errors = ref []
-
-let error path fmt =
-  let filename = output_file path in
-  let file = open_in filename in
-  let output = string_of_channel file in
-  close_in file;
-  printf "%s\n%!" (indent_right (red "[ERROR]") right_column);
-  Printf.kprintf (fun str ->
-      let error =
-        Printf.sprintf "%s\n%s\n%s\n%s\n%!"
-          (red "-- %s --" filename) output
-          (red "error:") str in
-      errors := error :: !errors
-    ) fmt
-
-
 let string_of_node ~head = function
   | OUnit.ListItem i -> Printf.sprintf "%3d" i
   | OUnit.Label l    -> if head then Printf.sprintf "%-20s" (blue_s l) else l
@@ -134,6 +117,26 @@ let string_of_path path =
     | h::t -> string_of_node ~head:true h
               ^ String.concat " " (List.map (string_of_node ~head:false) t) in
   aux (List.rev path)
+
+let errors = ref []
+let docs = Hashtbl.create 16
+let tests = ref []
+
+let error path fmt =
+  let filename = output_file path in
+  let file = open_in filename in
+  let output = string_of_channel file in
+  close_in file;
+  printf "%s\n%!" (indent_right (red "[ERROR]") right_column);
+  Printf.kprintf (fun str ->
+      let path = List.rev (List.tl (List.rev path)) in
+      let doc = try Hashtbl.find docs path with Not_found -> "XXX" in
+      let error =
+        Printf.sprintf "%s\n%s\n%s:\n%s\n"
+          (red "-- %s Failed --" (OUnit.string_of_path path))
+          doc filename output in
+      errors := error :: !errors
+    ) fmt
 
 let right msg =
   printf "%s\n%!" (indent_right msg right_column)
@@ -218,9 +221,6 @@ let run test =
     printf "%s in %.3fs. %d tests run.\n%!"
       (red_s msg) total_time (List.length results);
     exit 1
-
-let docs = Hashtbl.create 16
-let tests = ref []
 
 let list_tests () =
   Hashtbl.iter (fun path doc ->
