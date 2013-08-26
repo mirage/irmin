@@ -20,17 +20,19 @@ open IrminLwt
 type t =
   [ `Dir of string ]
 
-val is_empty: t -> bool
+val is_empty: t -> bool Lwt.t
 
-val init: t -> unit
+val init: t -> unit Lwt.t
 
-val add: t -> Value.t list -> unit
+val add: t -> Value.t list -> unit Lwt.t
+
+val peek: t -> Value.t Lwt.t
+
+(* TODO *)
 
 val watch: t -> unit
 
 val take: t -> unit
-
-val peek: t -> Value.t
 
 val dump: t -> unit
 

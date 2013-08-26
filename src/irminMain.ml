@@ -58,6 +58,9 @@ let values =
 let default =
   Term.pure (`Dir ".irmin")
 
+let run t =
+  Lwt_unix.run t
+
 (* INIT *)
 let init_doc = "Initialize a queue."
 let init =
@@ -66,7 +69,9 @@ let init =
     `S "DESCRIPTION";
     `P init_doc;
   ] in
-  Term.(pure IrminQueue.init $ default),
+  let init t =
+    run (IrminQueue.init t) in
+  Term.(pure init $ default),
   term_info "init" ~doc ~man
 
 (* ADD *)
@@ -77,7 +82,9 @@ let add =
     `S "DESCRIPTION";
     `P add_doc;
   ] in
-  Term.(pure IrminQueue.add $ default $ values),
+  let add t values =
+    run (IrminQueue.add t values) in
+  Term.(pure add $ default $ values),
   term_info "add" ~doc ~man
 
 (* WATCH *)
@@ -112,7 +119,7 @@ let peek =
     `P peek_doc;
   ] in
   let peek t =
-    let elt = IrminQueue.peek t in
+    let elt = run (IrminQueue.peek t) in
     Printf.printf "%s\n" (IrminLwt.Value.pretty elt) in
   Term.(pure peek $ default),
   term_info "peek" ~doc ~man
