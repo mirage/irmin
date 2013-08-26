@@ -144,8 +144,8 @@ let right msg =
 
 let print_result = function
   | OUnit.RSuccess p     -> right (green "[OK]")
-  | OUnit.RFailure (p,s) -> error p "Failure: %s\n" s
-  | OUnit.RError (p, s)  -> error p "%s\n" s
+  | OUnit.RFailure (p,s) -> error p "Failure: %s" s
+  | OUnit.RError (p, s)  -> error p "%s" s
   | OUnit.RSkip _        -> right (yellow "[SKIP]")
   | OUnit.RTodo _        -> right (yellow "[TODO]")
 
@@ -224,14 +224,19 @@ let run test =
     exit 1
 
 let list_tests () =
-  Hashtbl.iter (fun path doc ->
+  let list = Hashtbl.fold (fun k v l -> (k,v) :: l) docs [] in
+  let list = List.sort (fun (x,_) (y,_) -> compare (List.rev x) (List.rev y)) list in
+  List.iter (fun (path, doc) ->
       printf "%s    %s\n" (string_of_path path) doc
-    ) docs
+    ) list
 
 let register name ts =
   let ts = List.mapi (fun i (doc, t) ->
       max_label := max !max_label (String.length name);
       let path = [ OUnit.ListItem i;OUnit.Label name ] in
+      let doc =
+        if doc.[String.length doc - 1] = '.' then doc
+        else doc ^ "." in
       Hashtbl.add docs path doc;
       OUnit.TestCase t
     ) ts in
