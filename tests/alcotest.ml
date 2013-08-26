@@ -70,9 +70,11 @@ let indent_right s nb =
   else
     String.make nb ' ' ^ s
 
-let left_column = 70
-  let right_column =
-    terminal_columns () - left_column + 16 (* padding due to escape chars *)
+let left_column =
+  70
+
+let right_column =
+  terminal_columns () - left_column + 16 (* padding due to escape chars *)
 
 let string_of_channel ic =
   let n = 32768 in
@@ -100,7 +102,7 @@ let printf fmt = Printf.fprintf mystdout fmt
 let log_dir = ref (Sys.getcwd ())
 
 let file_of_path path ext =
-  let path = List.rev path in
+  let path = List.tl (List.rev path) in
   Printf.sprintf "%s.%s" (String.concat "-" (List.map OUnit.string_of_node path)) ext
 
 let output_file path =
@@ -123,6 +125,15 @@ let errors = ref []
 let docs = Hashtbl.create 16
 let tests = ref []
 
+let doc_of_path path =
+  let path = List.rev (List.tl (List.rev path)) in
+  try Hashtbl.find docs path
+  with Not_found -> ""
+
+let short_string_of_path path =
+  let path = List.rev (List.tl (List.rev path)) in
+  OUnit.string_of_path path
+
 let error path fmt =
   let filename = output_file path in
   let file = open_in filename in
@@ -130,12 +141,11 @@ let error path fmt =
   close_in file;
   printf "%s\n%!" (indent_right (red "[ERROR]") right_column);
   Printf.kprintf (fun str ->
-      let path = List.rev (List.tl (List.rev path)) in
-      let doc = try Hashtbl.find docs path with Not_found -> "XXX" in
       let error =
         Printf.sprintf "%s\n%s\n%s:\n%s\n%s\n"
-          (red "-- %s Failed --" (OUnit.string_of_path path))
-          doc filename output str in
+          (red "-- %s Failed --" (short_string_of_path path))
+          (doc_of_path path)
+          filename output str in
       errors := error :: !errors
     ) fmt
 
@@ -150,14 +160,25 @@ let print_result = function
   | OUnit.RTodo _        -> right (yellow "[TODO]")
 
 let print_event = function
-  | OUnit.EStart p  -> printf "%s%!" (indent_left (string_of_path p) left_column)
+  | OUnit.EStart p  ->
+    let contents = Printf.sprintf "%s   %s" (string_of_path p) (doc_of_path p) in
+    printf "%s%!" (indent_left contents left_column)
   | OUnit.EResult r -> print_result r
   | OUnit.EEnd p    -> ()
 
 let failure = function
   | OUnit.RSuccess _
-  | OUnit.RSkip _ -> false
-  | _ -> true
+  | OUnit.RSkip _  -> false
+  | OUnit.RError _
+  | OUnit.RFailure _
+  | OUnit.RTodo _ -> true
+
+let has_run = function
+  | OUnit.RSuccess _
+  | OUnit.RError _
+  | OUnit.RFailure _ -> true
+  | OUnit.RSkip _
+  | OUnit.RTodo _    -> false
 
 let redirect oc file =
   let oc = Unix.descr_of_out_channel oc in
@@ -176,26 +197,56 @@ let map_test fn test =
       OUnit.TestLabel (l, t) in
   aux [] test
 
-let filter_test labels test =
-  let rec aux prefix suffix test = match suffix, test with
+let same_label x y =
+  (String.lowercase x) = (String.lowercase y)
+
+let skip =
+  OUnit.TestCase (fun () -> OUnit.skip_if true "Not selected")
+
+let skip_label l =
+  OUnit.TestLabel (l, skip)
+
+let filter_test ~subst labels test =
+  let rec aux prefix suffix test =
+    match suffix, test with
     | []       , _
     | _        , OUnit.TestCase _ -> Some test
     | h::suffix, OUnit.TestLabel (l ,t) ->
-      if h = l then match aux (h :: prefix) suffix t with
-        | None  -> None
+      if same_label h l then match aux (h :: prefix) suffix t with
+        | None  -> if subst then Some (OUnit.TestLabel (l, skip)) else None
         | Some t ->Some (OUnit.TestLabel (l, t))
       else None
     | h::suffix, OUnit.TestList tl ->
       let tl, _ = List.fold_left (fun (tl, i) t ->
-          if string_of_int i = h then match aux (h :: prefix) suffix t with
-            | None   -> tl   , i+1
-            | Some t -> t::tl, i+1
-          else tl, i+1
+          if same_label (string_of_int i) h then match aux (h :: prefix) suffix t with
+            | None   -> (if subst then skip :: tl else tl), i+1
+            | Some t -> (t :: tl), i+1
+          else          (if subst then skip :: tl else tl), i+1
         ) ([], 0) tl in
       match List.rev tl with
       | [] -> None
       | tl -> Some (OUnit.TestList tl) in
-  aux [] labels test
+  match test with
+  | OUnit.TestCase _
+  | OUnit.TestLabel _ -> aux [] labels test
+  | OUnit.TestList tl ->
+    let tl = List.fold_left (fun acc test ->
+        match aux [] labels test with
+        | None   -> if subst then skip :: acc else acc
+        | Some r -> r :: acc
+      ) [] tl in
+    if tl = [] then None else Some (OUnit.TestList tl)
+
+let filter_tests ~subst labels tests =
+  List.fold_left (fun acc test ->
+      match test with
+      | OUnit.TestCase _
+      | OUnit.TestList _ -> assert false
+      | OUnit.TestLabel (l, _) ->
+        match filter_test ~subst labels test with
+        | None   -> if subst then skip_label l :: acc else acc
+        | Some r -> r :: acc
+    ) [] tests
 
 let redirect_test_output labels test_fun =
   fun () ->
@@ -211,16 +262,18 @@ let run test =
   let test = map_test redirect_test_output test in
   let results = OUnit.perform_test print_event test in
   let total_time = Sys.time () -. start_time in
+  let runs = List.length (List.filter has_run results) in
+  let s = if runs = 1 then "" else "s" in
   match List.filter failure results with
   | [] ->
-    printf "%s in %.3fs. %d tests run.\n%!"
-      (green "Test Successfull") total_time (List.length results)
+    printf "%s in %.3fs. %d test%s ran.\n%!"
+      (green "Test Successfull") total_time runs s
   | l  ->
     List.iter (fun error -> printf "%s\n" error) (List.rev !errors);
-    let s = if List.length l = 1 then "" else "s" in
-    let msg = Printf.sprintf "%d error%s!" (List.length l) s in
-    printf "%s in %.3fs. %d tests run.\n%!"
-      (red_s msg) total_time (List.length results);
+    let s1 = if List.length l = 1 then "" else "s" in
+    let msg = Printf.sprintf "%d error%s!" (List.length l) s1 in
+    printf "%s in %.3fs. %d test%s ran.\n%!"
+      (red_s msg) total_time runs s;
     exit 1
 
 let list_tests () =
@@ -248,10 +301,12 @@ let run_registred_tests dir =
 
 let run_subtest dir labels =
   log_dir := dir;
-  let test = OUnit.TestList !tests in
-  match filter_test labels test with
-  | None   -> ()
-  | Some t -> run test
+  let is_empty = filter_tests ~subst:false labels !tests = [] in
+  if is_empty then (
+    printf "%s\n" (red "Invalid request!"); exit 1
+  ) else
+    let tests = filter_tests ~subst:true labels !tests in
+    run (OUnit.TestList tests)
 
 open Cmdliner
 
@@ -269,8 +324,7 @@ let test_cmd =
   let test =
     let doc = "A ':' separated list of labels, designing the prefix of \
                the tests to run." in
-    Arg.(required & pos 0 (some & list ~sep:':' string) (Some [])
-         & info [] ~doc ~docv:"TEST") in
+    Arg.(value & pos_all string [] & info [] ~doc ~docv:"TEST") in
   Term.(pure run_subtest $ test_dir $ test),
   Term.info "test" ~doc
 
