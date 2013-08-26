@@ -26,10 +26,10 @@ let test_keys () =
   let module KV = Disk.Key_store in
   let test t =
     lwt () = KV.add t k1 k2s in
-    lwt k1s' = KV.succ t k2 in
+    lwt nil' = KV.pred t k2 in
     lwt k2s' = KV.pred t k1 in
     lwt ks = KV.all t in
-    assert_keys_equal "k1" k1s k1s';
+    assert_keys_equal "nil" Key.Set.empty nil';
     assert_keys_equal "k2" k2s k2s';
     assert_keys_equal "list" ks (Key.Set.union k1s k2s);
     Lwt.return ()
@@ -83,12 +83,9 @@ let test_tags () =
   Lwt_unix.run (with_db test_db test)
 
 let suite =
-  "DISK" >:::
-    [
-      "Basic disk operations for values" >:: test_values;
-      "Basic disk operations for keys"   >:: test_keys;
-      "Basic disk operations for tags"   >:: test_tags;
-    ]
-
-let () =
-  run_tests suite
+  "DISK",
+  [
+    "Basic disk operations for values", test_values;
+    "Basic disk operations for keys"  , test_keys;
+    "Basic disk operations for tags"  , test_tags;
+  ]

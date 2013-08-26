@@ -31,11 +31,8 @@ let test_add_and_peek () =
   assert_value_equal "v1" v1 v1'
 
 let suite =
-  "QUEUE" >:::
-    [
-      "Init a queue"                           >:: test_init;
-      "Add elements to the queue and peek one" >:: test_add_and_peek;
-    ]
-
-let () =
-  run_tests suite
+  "QUEUE",
+  [
+    "Init a queue"                          , test_init;
+    "Add elements to the queue and peek one", test_add_and_peek;
+  ]
