@@ -106,16 +106,17 @@ let file_of_path path ext =
 let output_file path =
   Filename.concat !log_dir (file_of_path path "output")
 
-let string_of_node ~head = function
+let max_label = ref 0
+
+let string_of_node = function
   | OUnit.ListItem i -> Printf.sprintf "%3d" i
-  | OUnit.Label l    -> if head then Printf.sprintf "%-20s" (blue_s l) else l
+  | OUnit.Label l    -> indent_left (Printf.sprintf "%s" (blue_s l)) (!max_label+8)
 
 let string_of_path path =
   let rec aux = function
     | []   -> "--"
     | OUnit.ListItem _ :: t -> aux t
-    | h::t -> string_of_node ~head:true h
-              ^ String.concat " " (List.map (string_of_node ~head:false) t) in
+    | h::t -> string_of_node h ^ String.concat " " (List.map string_of_node t) in
   aux (List.rev path)
 
 let errors = ref []
@@ -229,6 +230,7 @@ let list_tests () =
 
 let register name ts =
   let ts = List.mapi (fun i (doc, t) ->
+      max_label := max !max_label (String.length name);
       let path = [ OUnit.ListItem i;OUnit.Label name ] in
       Hashtbl.add docs path doc;
       OUnit.TestCase t
