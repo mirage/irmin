@@ -1,7 +1,7 @@
 VERSION  = 0.1
 PREFIX  ?= /usr/local
 MAIN     = irminMain
-TESTS    = test_disk test_queue
+TESTS    = test
 TARGET   = irmin
 
 PACKAGES = -pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,lwt,ocplib-endian,cstruct
@@ -26,10 +26,9 @@ _build/src/$(MAIN).native: src/irminVersion.ml
 	$(BUILD) $(MAIN).native
 
 test:
-	$(BUILD) -pkg ounit $(TESTS:%=tests/%.native)
-	for test in $(TESTS); do \
-	  ./_build/tests/$$test.native; \
-	done
+	$(BUILD) -pkg ounit tests/$(TESTS).native
+	./_build/tests/$(TESTS).native
+
 clean:
 	rm -rf $(TARGET) _build test-db test-output
 
