@@ -27,6 +27,16 @@ let printer_opt fn = function
   | None   -> "<none>"
   | Some v -> fn v
 
+let rec cmp_list fn x y =
+  match x, y with
+  | xh::xt, yh::yt -> fn xh yh && cmp_list fn xt yt
+  | []    , []     -> true
+  | _              -> false
+
+let printer_list fn = function
+  | [] -> "[]"
+  | l  -> Printf.sprintf "[ %s ]" (String.concat ", " (List.map fn l))
+
 let assert_key_equal msg =
   OUnit.assert_equal ~msg ~cmp:Key.equal ~printer:Key.pretty
 
@@ -36,11 +46,20 @@ let assert_key_opt_equal msg =
 let assert_keys_equal msg =
   OUnit.assert_equal ~msg ~cmp:Key.Set.equal ~printer:Key.Set.pretty
 
+let assert_keyl_equal msg =
+  OUnit.assert_equal ~msg ~cmp:(cmp_list Key.equal) ~printer:(printer_list Key.pretty)
+
+
 let assert_value_equal msg =
   OUnit.assert_equal ~msg ~cmp:Value.equal ~printer:Value.pretty
 
 let assert_value_opt_equal msg =
   OUnit.assert_equal ~msg ~cmp:(cmp_opt Value.equal) ~printer:(printer_opt Value.pretty)
+
+let assert_valuel_equal msg =
+  OUnit.assert_equal ~msg
+    ~cmp:(cmp_list Value.equal) ~printer:(printer_list Value.pretty)
+
 
 let assert_tags_equal msg =
   OUnit.assert_equal ~msg ~cmp:Tag.Set.equal ~printer:Tag.Set.pretty

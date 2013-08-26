@@ -28,11 +28,13 @@ val add: t -> Value.t list -> unit Lwt.t
 
 val peek: t -> Value.t Lwt.t
 
+val take: t -> Value.t Lwt.t
+
+val to_list: t -> Value.t list Lwt.t
+
 (* TODO *)
 
 val watch: t -> unit
-
-val take: t -> unit
 
 val dump: t -> unit
 

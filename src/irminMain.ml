@@ -106,7 +106,9 @@ let take =
     `S "DESCRIPTION";
     `P take_doc;
   ] in
-  Term.(pure IrminQueue.take $ default),
+  let take t =
+    run (IrminQueue.take t) in
+  Term.(pure take $ default),
   term_info "take" ~doc ~man
 
 (* PEEK *)

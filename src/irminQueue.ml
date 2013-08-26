@@ -67,9 +67,6 @@ let add f = function
       else Lwt.return () in
     Disk.Value_store.dump t
 
-let watch _ =
-  failwith "TODO"
-
 let empty fmt =
   Printf.kprintf (fun str ->
       IrminMisc.error "QUEUE" "%s" str;
@@ -97,7 +94,13 @@ let peek f =
       | None  -> empty "No content!"
       | Some k -> value_of_key t k
 
+let to_list _ =
+  failwith "TODO"
+
 let take _ =
+  failwith "TODO"
+
+let watch _ =
   failwith "TODO"
 
 let dump _ =
