@@ -23,5 +23,6 @@ type test_case = string * (unit -> unit)
 (** A test has a name and contains a list of test cases *)
 type test = string * test_case list
 
-(** Run a test suite *)
-val run: test list -> unit
+(** Run a test suite. The first argument is the name of the tested
+    lib. *)
+val run: string -> test list -> unit

@@ -14,6 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(* global state *)
+
+let errors = ref []
+let docs = Hashtbl.create 16
+let tests = ref []
+let global_name = ref (Filename.basename Sys.argv.(0))
+let max_label = ref 0
+let max_doc = ref 0
+
+(* Printers *)
+
 let red fmt = Printf.sprintf ("\027[31m"^^fmt^^"\027[m")
 let green fmt = Printf.sprintf ("\027[32m"^^fmt^^"\027[m")
 let yellow fmt = Printf.sprintf ("\027[33m"^^fmt^^"\027[m")
@@ -32,7 +43,14 @@ let with_process_in cmd f =
   with exn ->
     ignore (Unix.close_process_in ic) ; raise exn
 
-let get_terminal_columns () =
+
+let dup oc =
+  Unix.out_channel_of_descr (Unix.dup (Unix.descr_of_out_channel oc))
+
+let mystdout = dup stdout
+let mystderr = dup stderr
+
+let terminal_columns =
   let split s c =
     Re_str.split (Re_str.regexp (Printf.sprintf "[%c]" c)) s in
   try           (* terminfo *)
@@ -49,13 +67,6 @@ let get_terminal_columns () =
       with _ ->
         80
 
-let terminal_columns =
-  let v = Lazy.lazy_from_fun get_terminal_columns in
-  fun () ->
-    if Unix.isatty Unix.stdout
-    then Lazy.force v
-    else max_int
-
 let indent_left s nb =
   let nb = nb - String.length s in
   if nb <= 0 then
@@ -70,11 +81,21 @@ let indent_right s nb =
   else
     String.make nb ' ' ^ s
 
-let left_column =
-  70
+let left_column () =
+  !max_label + !max_doc + 16
 
-let right_column =
-  terminal_columns () - left_column + 16 (* padding due to escape chars *)
+let right_column () =
+  terminal_columns
+  - left_column ()
+  + 16
+
+let printf fmt = Printf.fprintf mystdout fmt
+
+let right s =
+  printf "%s\n%!" (indent_right s (right_column ()))
+
+let left s =
+  printf "%s%!" (indent_left s (left_column ()))
 
 let string_of_channel ic =
   let n = 32768 in
@@ -91,14 +112,6 @@ let string_of_channel ic =
   iter ic b s;
   Buffer.contents b
 
-let dup oc =
-  Unix.out_channel_of_descr (Unix.dup (Unix.descr_of_out_channel oc))
-
-let mystdout = dup stdout
-let mystderr = dup stderr
-
-let printf fmt = Printf.fprintf mystdout fmt
-
 let log_dir = ref (Sys.getcwd ())
 
 let file_of_path path ext =
@@ -107,8 +120,6 @@ let file_of_path path ext =
 
 let output_file path =
   Filename.concat !log_dir (file_of_path path "output")
-
-let max_label = ref 0
 
 let string_of_node = function
   | OUnit.ListItem i -> Printf.sprintf "%3d" i
@@ -120,10 +131,6 @@ let string_of_path path =
     | OUnit.ListItem _ :: t -> aux t
     | h::t -> string_of_node h ^ String.concat " " (List.map string_of_node t) in
   aux (List.rev path)
-
-let errors = ref []
-let docs = Hashtbl.create 16
-let tests = ref []
 
 let doc_of_path path =
   let path = List.rev (List.tl (List.rev path)) in
@@ -139,7 +146,7 @@ let error path fmt =
   let file = open_in filename in
   let output = string_of_channel file in
   close_in file;
-  printf "%s\n%!" (indent_right (red "[ERROR]") right_column);
+  right (red "[ERROR]");
   Printf.kprintf (fun str ->
       let error =
         Printf.sprintf "%s\n%s\n%s:\n%s\n%s\n"
@@ -148,9 +155,6 @@ let error path fmt =
           filename output str in
       errors := error :: !errors
     ) fmt
-
-let right msg =
-  printf "%s\n%!" (indent_right msg right_column)
 
 let print_result = function
   | OUnit.RSuccess p     -> right (green "[OK]")
@@ -161,8 +165,7 @@ let print_result = function
 
 let print_event = function
   | OUnit.EStart p  ->
-    let contents = Printf.sprintf "%s   %s" (string_of_path p) (doc_of_path p) in
-    printf "%s%!" (indent_left contents left_column)
+    left (Printf.sprintf "%s   %s" (string_of_path p) (doc_of_path p))
   | OUnit.EResult r -> print_result r
   | OUnit.EEnd p    -> ()
 
@@ -286,6 +289,7 @@ let list_tests () =
 let register name ts =
   let ts = List.mapi (fun i (doc, t) ->
       max_label := max !max_label (String.length name);
+      max_doc := max !max_doc (String.length doc);
       let path = [ OUnit.ListItem i;OUnit.Label name ] in
       let doc =
         if doc.[String.length doc - 1] = '.' then doc
@@ -317,14 +321,13 @@ let test_dir =
 let default_cmd =
   let doc = "Run all the tests." in
   Term.(pure run_registred_tests $ test_dir),
-  Term.info (Filename.basename Sys.argv.(0)) ~version:"0.1.0" ~doc
+  Term.info !global_name ~version:"0.1.0" ~doc
 
 let test_cmd =
   let doc = "Run a given test." in
   let test =
-    let doc = "A ':' separated list of labels, designing the prefix of \
-               the tests to run." in
-    Arg.(value & pos_all string [] & info [] ~doc ~docv:"TEST") in
+    let doc = "The list of labels identifying a subsets of the tests to run" in
+    Arg.(value & pos_all string [] & info [] ~doc ~docv:"LABEL") in
   Term.(pure run_subtest $ test_dir $ test),
   Term.info "test" ~doc
 
@@ -337,7 +340,8 @@ type test_case = string * (unit -> unit)
 
 type test = string * test_case list
 
-let run tl =
+let run name tl =
+  global_name := name;
   List.iter (fun (name, tests) -> register name tests) tl;
   match Term.eval_choice default_cmd [list_cmd; test_cmd] with
   | `Error _ -> exit 1
