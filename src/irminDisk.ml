@@ -47,28 +47,25 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   let (/) = Filename.concat
 
-  let pred_keys dir = dir / "pred-keys"
+  let keys_dir dir = dir / "keys"
 
-  let pred_key dir k = pred_keys dir / K.to_hex k
+  let key_file dir k = keys_dir dir / K.to_hex k
 
-  let succ_keys dir = dir / "succ-keys"
+  let all_keys dir = keys_dir dir / "index"
 
-  let succ_key dir k = succ_keys dir / K.to_hex k
+  let values_dir dir = dir / "values"
 
-  let values dir = dir / "objects"
+  let value_file dir k = values_dir dir / K.to_hex k
 
-  let value dir k = values dir / K.to_hex k
+  let tags_dir dir = dir / "tags"
 
-  let tags dir = dir / "tags"
-
-  let tag dir t = tags dir / T.to_name t
+  let tag_file dir t = tags_dir dir / T.to_name t
 
   type file = string
 
   type files = {
     root : string;
-    pred : K.t -> file;
-    succ : K.t -> file;
+    key  : K.t -> file;
     value: K.t -> file;
     tag  : T.t -> file;
   }
@@ -100,10 +97,9 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       error "%s already exists!" dir
     else (
       Unix.mkdir dir 0o755;
-      Unix.mkdir (values dir) 0o755;
-      Unix.mkdir (tags dir) 0o755;
-      Unix.mkdir (succ_keys dir) 0o755;
-      Unix.mkdir (pred_keys dir) 0o755;
+      Unix.mkdir (keys_dir dir) 0o755;
+      Unix.mkdir (values_dir dir) 0o755;
+      Unix.mkdir (tags_dir dir) 0o755;
     );
     Lwt.return ()
 
@@ -115,10 +111,9 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
     else
       {
         root  = dir;
-        pred  = pred_key dir;
-        succ  = succ_key dir;
-        value = value dir;
-        tag   = tag dir;
+        key   = key_file dir;
+        value = value_file dir;
+        tag   = tag_file dir;
       }
 
   let basenames fn dir =
@@ -138,37 +133,35 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     type t = files
 
-    let succ t key =
-      debug "succ %s" (K.pretty key);
-      lwt keys = with_maybe_file (t.succ key) XKeys.read_fd [] in
-      Lwt.return (Key.Set.of_list keys)
-
     let pred t key =
       debug "pred %s" (K.pretty key);
-      lwt keys = with_maybe_file (t.pred key) XKeys.read_fd [] in
+      lwt keys = with_maybe_file (t.key key) XKeys.read_fd [] in
       Lwt.return (Key.Set.of_list keys)
 
     let all t =
       debug "all";
-      lwt pred = basenames K.of_hex (pred_keys t.root) in
-      lwt succ = basenames K.of_hex (succ_keys t.root) in
-      let keys = Key.Set.union (Key.Set.of_list pred) (Key.Set.of_list succ) in
-      Lwt.return keys
+      lwt keys = with_maybe_file (all_keys t.root)  XKeys.read_fd [] in
+      Lwt.return (Key.Set.of_list keys)
+
+    let update_index t keys =
+      lwt old_keys = all t in
+      let keys = Key.Set.union old_keys keys in
+      let keys = Key.Set.to_list keys in
+      with_file (all_keys t.root) (fun fd -> XKeys.write_fd fd keys)
 
     let add t key pred_keys =
       debug "add %s %s" (K.pretty key) (K.Set.pretty pred_keys);
-      let aux file new_keys =
-        lwt old_keys = with_maybe_file file XKeys.read_fd [] in
-        let keys = Key.Set.union new_keys (Key.Set.of_list old_keys) in
-        if Sys.file_exists file then Sys.remove file;
+      let file = t.key key in
+      lwt old_keys = with_maybe_file file XKeys.read_fd [] in
+      let keys = Key.Set.union pred_keys (Key.Set.of_list old_keys) in
+      if Sys.file_exists file then Sys.remove file;
+      lwt () =
         if Key.Set.is_empty keys then Lwt.return ()
         else with_file file (fun fd ->
             XKeys.write_fd fd (Key.Set.to_list keys)
           ) in
-      lwt () = aux (t.pred key) pred_keys in
-      Lwt_list.iter_s (fun k ->
-          aux (t.succ k) (Key.Set.singleton key)
-        ) (Key.Set.to_list pred_keys)
+      let keys = Key.Set.union (Key.Set.singleton key) pred_keys in
+      update_index t keys
 
   end
 
@@ -207,7 +200,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
         Lwt.return None
 
     let dump t =
-      lwt keys = basenames K.of_hex (values t.root) in
+      lwt keys = basenames K.of_hex (values_dir t.root) in
       lwt values = Lwt_list.map_s (fun key ->
           lwt value = with_file (t.value key) XValue.read_fd in
           Lwt.return (key, value)
@@ -256,7 +249,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let all t =
       debug "all";
-      lwt tags = basenames T.of_name (tags t.root) in
+      lwt tags = basenames T.of_name (tags_dir t.root) in
       Lwt.return (Tag.Set.of_list tags)
 
   end

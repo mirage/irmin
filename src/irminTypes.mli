@@ -160,9 +160,6 @@ module type KEY_STORE = sig
   (** Return the immediate predecessors *)
   val pred: t -> Key.t -> Key.Set.t Lwt.t
 
-  (** Return the successors *)
-  val succ: t -> Key.t -> Key.Set.t Lwt.t
-
 end
 
 (** The *value store* is a low-level immutable and consistent

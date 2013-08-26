@@ -21,7 +21,6 @@ type action =
   | Key_add
   | Key_list
   | Key_pred
-  | Key_succ
   (* Value store *)
   | Value_write
   | Value_read
@@ -45,7 +44,6 @@ module Action = struct
     Key_add          , "key-add";
     Key_list         , "key-list";
     Key_pred         , "key-pred";
-    Key_succ         , "key-succ";
     Value_write      , "value-write";
     Value_read       , "value-read";
     Tag_update       , "tag-update";
@@ -208,11 +206,6 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       lwt keys = XKeys.read_fd fd in
       Lwt.return (K.Set.of_list keys)
 
-    let succ fd key =
-      lwt () = XActionKey.write_fd fd (Key_succ, key) in
-      lwt keys = XKeys.read_fd fd in
-      Lwt.return (K.Set.of_list keys)
-
   end
 
   module Value_store = struct
@@ -344,11 +337,6 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
       lwt keys = KS.pred t.keys k in
       XKeys.write buf (K.Set.to_list keys)
 
-    let succ t buf =
-      lwt k = XKey.read buf in
-      lwt keys = KS.succ t.keys k in
-      XKeys.write buf (K.Set.to_list keys)
-
   end
 
   module XValue_store = struct
@@ -426,7 +414,6 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
       | Key_add          -> XKey_store.add
       | Key_list         -> XKey_store.all
       | Key_pred         -> XKey_store.pred
-      | Key_succ         -> XKey_store.succ
       | Value_write      -> XValue_store.write
       | Value_read       -> XValue_store.read
       | Tag_update       -> XTag_store.update
