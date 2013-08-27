@@ -22,6 +22,7 @@ let tests = ref []
 let global_name = ref (Filename.basename Sys.argv.(0))
 let max_label = ref 0
 let max_doc = ref 0
+let verbose = ref false
 
 (* Printers *)
 
@@ -280,7 +281,8 @@ let run test =
     printf "%s in %.3fs. %d test%s ran.\n%!"
       (green "Test Successfull") total_time runs s
   | l  ->
-    List.iter (fun error -> printf "%s\n" error) (List.rev !errors);
+    if !verbose then
+      List.iter (fun error -> printf "%s\n" error) (List.rev !errors);
     let s1 = if List.length l = 1 then "" else "s" in
     let msg = Printf.sprintf "%d error%s!" (List.length l) s1 in
     printf "%s in %.3fs. %d test%s ran.\n%!"
@@ -307,11 +309,13 @@ let register name ts =
     ) ts in
   tests := !tests @ [ OUnit.TestLabel (name, OUnit.TestList ts) ]
 
-let run_registred_tests dir =
+let run_registred_tests dir verb =
+  verbose := verb;
   log_dir := dir;
   run (OUnit.TestList !tests)
 
-let run_subtest dir labels =
+let run_subtest dir verb labels =
+  verbose := verb || true;
   log_dir := dir;
   let is_empty = filter_tests ~subst:false labels !tests = [] in
   if is_empty then (
@@ -326,9 +330,13 @@ let test_dir =
   let doc = "Where to store the log files of the tests." in
   Arg.(value & opt string "./_tests/"  & info ["-o"] ~docv:"DIR" ~doc)
 
+let verbose =
+  let doc = "Display the output for test errors." in
+  Arg.(value & flag & info ["v";"verbose"] ~docv:"" ~doc)
+
 let default_cmd =
   let doc = "Run all the tests." in
-  Term.(pure run_registred_tests $ test_dir),
+  Term.(pure run_registred_tests $ test_dir $ verbose),
   Term.info !global_name ~version:"0.1.0" ~doc
 
 let test_cmd =
@@ -336,7 +344,7 @@ let test_cmd =
   let test =
     let doc = "The list of labels identifying a subsets of the tests to run" in
     Arg.(value & pos_all string [] & info [] ~doc ~docv:"LABEL") in
-  Term.(pure run_subtest $ test_dir $ test),
+  Term.(pure run_subtest $ test_dir $ verbose $ test),
   Term.info "test" ~doc
 
 let list_cmd =
