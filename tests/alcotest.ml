@@ -160,6 +160,7 @@ let error path fmt =
           (red "-- %s Failed --" (short_string_of_path path))
           (doc_of_path path)
           filename output str in
+      Printf.eprintf "%s\n%!" str;
       errors := error :: !errors
     ) fmt
 
