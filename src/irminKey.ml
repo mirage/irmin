@@ -73,3 +73,94 @@ module SHA1 = struct
     IrminIO.set_string buf str
 
 end
+
+module Graph
+    (KS: KEY_STORE)
+    (VS: VALUE_STORE with type t = KS.t and module Key = KS.Key)
+    (TS: TAG_STORE with type t = KS.t and module Key = KS.Key) = struct
+
+  let debug = IrminMisc.debug "GRAPH"
+  module Key = KS.Key
+  module Value = VS.Value
+  module Tag = TS.Tag
+
+  module G = Graph.Imperative.Digraph.ConcreteBidirectional(Key)
+  module GO = Graph.Oper.I(G)
+  module Topological = Graph.Topological.Make(G)
+  include G
+  include GO
+  let attributes = ref (fun _ -> [])
+  let graph_name = ref None
+  module Dot = Graph.Graphviz.Dot(struct
+      include G
+      let edge_attributes _ = []
+      let default_edge_attributes _ = []
+      let vertex_name k = Key.pretty k
+      let vertex_attributes k = !attributes k
+      let default_vertex_attributes _ = []
+      let get_subgraph _ = None
+      let graph_attributes _ =
+        match !graph_name with
+        | None   -> []
+        | Some n -> [`Label n]
+    end)
+
+  let dump t g name =
+    if IrminMisc.debug_enabled () then (
+      lwt tags = TS.all t in
+      lwt tags = Lwt_list.fold_left_s (fun tags tag ->
+          lwt key = TS.read t tag in
+          match key with
+          | None     -> failwith "Unknonw key!"
+          | Some key -> Lwt.return ((key, Tag.to_name tag) :: tags)
+        ) [] (Tag.Set.to_list tags) in
+      let label_tags k =
+        let tags = List.fold_left (fun tags (key, tag) ->
+            if key = k then tag :: tags else tags
+          ) [] tags in
+        List.map (fun tag -> `Label tag) tags in
+      lwt keys = KS.all t in
+      lwt values = Lwt_list.fold_left_s (fun values key ->
+          lwt value = VS.read t key in
+          match value with
+          | None   -> Lwt.return values
+          | Some v ->
+            match Value.contents v with
+            | None   -> Lwt.return values
+            | Some k -> Lwt.return ((key, `Label (Key.pretty k)) :: values)
+        ) [] (Key.Set.to_list keys) in
+      let label_value k =
+        try [List.assoc k values]
+        with Not_found -> [] in
+      let attrs k =
+        label_tags k @ label_value k in
+      attributes := attrs;
+      graph_name := Some name;
+      Printf.eprintf "%!";
+      Dot.output_graph stderr g;
+      Printf.eprintf "\n\n%!";
+      Lwt.return ()
+    ) else
+      Lwt.return ()
+
+  let of_store t keys =
+    let g = G.create () in
+    lwt keys = match keys with
+      | []  -> lwt set = KS.all t in Lwt.return (Key.Set.to_list set)
+      | _   -> Lwt.return keys in
+    let marks = Hashtbl.create 1024 in
+    let rec add key =
+      if Hashtbl.mem marks key then Lwt.return ()
+      else (
+        Hashtbl.add marks key true;
+        debug "ADD %s" (Key.pretty key);
+        if not (G.mem_vertex g key) then G.add_vertex g key;
+        lwt keys = KS.pred t key in
+        List.iter (fun k -> G.add_edge g k key) (Key.Set.to_list keys);
+        Lwt_list.iter_s add (Key.Set.to_list keys)
+      ) in
+    lwt () = Lwt_list.iter_s add keys in
+    let g = GO.add_transitive_closure g in
+    Lwt.return g
+
+end

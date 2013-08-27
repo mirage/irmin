@@ -28,6 +28,9 @@ val sha1: string -> string
 (** Debug *)
 val debug: string -> ('a, out_channel, unit) format -> 'a
 
+(** Info *)
+val info: string ->  ('a, out_channel, unit) format -> 'a
+
 (** Error *)
 val error: string -> ('a, unit, string, unit) format4 -> 'a
 

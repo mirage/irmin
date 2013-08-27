@@ -27,18 +27,25 @@ exception Empty
 type t =
   [ `Dir of string ]
 
+type state = {
+  disk: Disk.t;
+  head: Key.t option;
+  tail: Key.t option;
+}
+
 let init = function
   | `Dir f -> Disk.init f
 
 let create = function
-  | `Dir f -> Disk.create f
+  | `Dir f ->
+    let disk = Disk.create f in
+    lwt head = Disk.Tag_store.read disk head in
+    lwt tail = Disk.Tag_store.read disk tail in
+    Lwt.return { disk; head; tail }
 
-let is_empty f =
+let is_empty t =
   debug "is-empty";
-  let t = create f in
-  lwt tag_head = Disk.Tag_store.read t head in
-  lwt tag_tail = Disk.Tag_store.read t tail in
-  match tag_head, tag_tail with
+  match t.head, t.tail with
   | None  , None   -> Lwt.return true
   | Some _, Some _ -> Lwt.return false
   | _ -> failwith "is_empty"
@@ -47,25 +54,28 @@ let add f = function
   | []     -> Lwt.return ()
   | values ->
     debug "add";
-    lwt empty = is_empty f in
-    let t = create f in
+    lwt t = create f in
+    lwt empty = is_empty t in
+    let preds = match t.head with
+      | None   -> []
+      | Some h -> [h] in
     lwt preds = Lwt_list.fold_left_s (fun preds value ->
-        lwt key = Disk.Value_store.write t value in
+        lwt key = Disk.Value_store.write t.disk value in
         debug "add blob key:%s value:%s" (Key.pretty key) (Value.pretty value);
         let revision = Value.revision key preds in
-        lwt key_head = Disk.Value_store.write t revision in
+        lwt key_head = Disk.Value_store.write t.disk revision in
         debug "add revision key:%s value:%s"
           (Key.pretty key_head) (Value.pretty revision);
         Lwt.return [key_head]
-      ) [] values in
+      ) preds values in
     let key_head = match preds with
       | []   -> failwith "IrminQueue.add"
       | k::_ -> k in
-    lwt () = Disk.Tag_store.update t head key_head in
+    lwt () = Disk.Tag_store.update t.disk head key_head in
     lwt () =
-      if empty then Disk.Tag_store.update t tail key_head
+      if empty then Disk.Tag_store.update t.disk tail key_head
       else Lwt.return () in
-    Disk.Value_store.dump t
+    Disk.Value_store.dump t.disk
 
 let empty fmt =
   Printf.kprintf (fun str ->
@@ -79,23 +89,44 @@ let value_of_key t key =
   | None   -> empty "No value!"
   | Some v -> Lwt.return v
 
+let contents t key =
+  lwt v = value_of_key t.disk key in
+  match Value.contents v with
+  | None   -> empty "No content!"
+  | Some k -> value_of_key t.disk k
+
 let peek f =
-  let t = create f in
-  lwt head = Disk.Tag_store.read t head in
-  match head with
+  lwt t = create f in
+  match t.head with
   | None   -> empty "No head!"
   | Some h ->
-    lwt keys = Disk.Key_store.pred t h in
+    lwt keys = Disk.Key_store.pred t.disk h in
     match Key.Set.to_list keys with
     | []   -> empty "No pred!"
-    | k::_ ->
-      lwt v = value_of_key t k in
-      match Value.contents v with
-      | None  -> empty "No content!"
-      | Some k -> value_of_key t k
+    | k::_ -> contents t k
 
-let to_list _ =
-  failwith "TODO"
+module Graph = IrminKey.Graph(Disk.Key_store)(Disk.Value_store)(Disk.Tag_store)
+
+let to_list f =
+  lwt t = create f in
+  match t.head, t.tail with
+  | None, _  | _, None   -> Lwt.return []
+  | Some head, Some tail ->
+    lwt g = Graph.of_store t.disk [head] in
+    lwt ga = Graph.of_store t.disk [] in
+    lwt () = Graph.dump t.disk g "HEAD" in
+    lwt () = Graph.dump t.disk ga "ALL" in
+    let keys = Graph.Topological.fold (fun key acc ->
+        let preds = Key.Set.of_list (Graph.pred g key) in
+        debug "PREDS(%s) = %s" (Key.pretty key) (Key.Set.pretty preds);
+        if key = tail || Key.Set.mem tail preds then key :: acc
+        else acc
+      ) g [] in
+    lwt values = Lwt_list.fold_left_s (fun acc key ->
+        lwt value = contents t key in
+        Lwt.return (value :: acc)
+      ) [] keys in
+    Lwt.return values
 
 let take _ =
   failwith "TODO"
@@ -114,3 +145,7 @@ let push _ =
 
 let clone _ =
   failwith "TODO"
+
+let is_empty f =
+  lwt t = create f in
+  is_empty t

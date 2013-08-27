@@ -69,6 +69,12 @@ let debug section fmt =
   else
     Printf.ifprintf stderr fmt
 
+let info section fmt =
+  if !debug_mode then
+    Printf.fprintf stderr ("\027[33m%15s\027[m "^^fmt^^"\n%!") section
+  else
+    Printf.ifprintf stderr fmt
+
 let error section fmt =
   Printf.kprintf (fun str ->
       Printf.eprintf "\027[31m%15s\027[m Error: %s\n%!" section str

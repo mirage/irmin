@@ -47,7 +47,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     let debug fmt = IrminMisc.debug "REVISION" fmt
 
     let pretty r =
-      Printf.sprintf "[%s => %s]"
+      Printf.sprintf "[parents:%s | contents:%s]"
         (String.concat "-" (List.map K.pretty r.parents))
         (K.pretty r.contents)
 
