@@ -64,7 +64,8 @@ let suite =
   "QUEUE",
   List.map (fun (doc,t) -> doc, fun () -> Lwt_unix.run (t ()))
     [
-      "Create a fresh queue"          , test_init;
-      "Peek an element from the queue", test_peek;
-      "Take an element from the queue", test_take;
+      "Create a fresh queue"              , test_init;
+      "Peek an element from the queue"    , test_peek;
+      "List all the elements in the queue", test_list;
+      "Take an element from the queue"    , test_take;
     ]
