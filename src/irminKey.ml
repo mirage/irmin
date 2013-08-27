@@ -127,7 +127,13 @@ module Graph
           | Some v ->
             match Value.contents v with
             | None   -> Lwt.return values
-            | Some k -> Lwt.return ((key, `Label (Key.pretty k)) :: values)
+            | Some k ->
+              lwt v = VS.read t k in
+              match v with
+              | None   -> Lwt.return values
+              | Some v ->
+                let label = Printf.sprintf "%S" (Value.pretty v) in
+                Lwt.return ((key, `Label label) :: values)
         ) [] (Key.Set.to_list keys) in
       let label_value k =
         try [List.assoc k values]
@@ -143,24 +149,30 @@ module Graph
     ) else
       Lwt.return ()
 
-  let of_store t keys =
+  let of_store t ?roots ?sinks () =
     let g = G.create () in
-    lwt keys = match keys with
-      | []  -> lwt set = KS.all t in Lwt.return (Key.Set.to_list set)
-      | _   -> Lwt.return keys in
+    lwt keys = match sinks with
+      | None      -> KS.all t
+      | Some keys -> Lwt.return keys in
     let marks = Hashtbl.create 1024 in
+    let mark key = Hashtbl.add marks key true in
+    let has_mark key = Hashtbl.mem marks key in
+    let () = match roots with
+      | None      -> ()
+      | Some keys ->
+        Key.Set.iter mark keys;
+        Key.Set.iter (G.add_vertex g) keys in
     let rec add key =
-      if Hashtbl.mem marks key then Lwt.return ()
+      if has_mark key then Lwt.return ()
       else (
-        Hashtbl.add marks key true;
+        mark key;
         debug "ADD %s" (Key.pretty key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
         lwt keys = KS.pred t key in
         List.iter (fun k -> G.add_edge g k key) (Key.Set.to_list keys);
         Lwt_list.iter_s add (Key.Set.to_list keys)
       ) in
-    lwt () = Lwt_list.iter_s add keys in
-    let g = GO.add_transitive_closure g in
+    lwt () = Lwt_list.iter_s add (Key.Set.to_list keys) in
     Lwt.return g
 
 end

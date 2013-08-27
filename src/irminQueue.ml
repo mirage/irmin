@@ -50,32 +50,37 @@ let is_empty t =
   | Some _, Some _ -> Lwt.return false
   | _ -> failwith "is_empty"
 
+(* ADD(y)
+
+  Before:
+
+    X -> .... -> Y
+    |            |
+   HEAD         TAIL
+
+  After:
+
+    X -> .... -> Y -> y
+    |            |
+   HEAD         TAIL
+
+*)
+let add_one f value =
+  lwt t = create f in
+  lwt key = Disk.Value_store.write t.disk value in
+  let parents = match t.tail with
+    | None   -> Key.Set.empty
+    | Some k -> Key.Set.singleton k in
+    let revision = Value.revision key parents in
+    lwt new_tail = Disk.Value_store.write t.disk revision in
+    lwt () = match t.head with
+      | None   -> Disk.Tag_store.update t.disk head new_tail
+      | Some k -> Lwt.return () in
+  Disk.Tag_store.update t.disk tail new_tail
+
 let add f = function
   | []     -> Lwt.return ()
-  | values ->
-    debug "add";
-    lwt t = create f in
-    lwt empty = is_empty t in
-    let preds = match t.head with
-      | None   -> []
-      | Some h -> [h] in
-    lwt preds = Lwt_list.fold_left_s (fun preds value ->
-        lwt key = Disk.Value_store.write t.disk value in
-        debug "add blob key:%s value:%s" (Key.pretty key) (Value.pretty value);
-        let revision = Value.revision key preds in
-        lwt key_head = Disk.Value_store.write t.disk revision in
-        debug "add revision key:%s value:%s"
-          (Key.pretty key_head) (Value.pretty revision);
-        Lwt.return [key_head]
-      ) preds values in
-    let key_head = match preds with
-      | []   -> failwith "IrminQueue.add"
-      | k::_ -> k in
-    lwt () = Disk.Tag_store.update t.disk head key_head in
-    lwt () =
-      if empty then Disk.Tag_store.update t.disk tail key_head
-      else Lwt.return () in
-    Disk.Value_store.dump t.disk
+  | values -> Lwt_list.iter_s (add_one f) values
 
 let empty fmt =
   Printf.kprintf (fun str ->
@@ -84,52 +89,91 @@ let empty fmt =
     ) fmt
 
 let value_of_key t key =
-  lwt v = Disk.Value_store.read t key in
+  lwt v = Disk.Value_store.read t.disk key in
   match v with
   | None   -> empty "No value!"
   | Some v -> Lwt.return v
 
 let contents t key =
-  lwt v = value_of_key t.disk key in
+  lwt v = value_of_key t key in
   match Value.contents v with
   | None   -> empty "No content!"
-  | Some k -> value_of_key t.disk k
+  | Some k -> value_of_key t k
 
 let peek f =
   lwt t = create f in
   match t.head with
-  | None   -> empty "No head!"
-  | Some h ->
-    lwt keys = Disk.Key_store.pred t.disk h in
-    match Key.Set.to_list keys with
-    | []   -> empty "No pred!"
-    | k::_ -> contents t k
+  | None     -> empty "No head!"
+  | Some key -> contents t key
 
 module Graph = IrminKey.Graph(Disk.Key_store)(Disk.Value_store)(Disk.Tag_store)
 
+let graph t =
+  match t.head, t.tail with
+  | Some head, Some tail ->
+    let roots = Key.Set.singleton head in
+    let sinks = Key.Set.singleton tail in
+    lwt g = Graph.of_store t.disk ~roots ~sinks () in
+    Lwt.return (Some g)
+  | _ ->
+    Lwt.return None
+
 let to_list f =
   lwt t = create f in
-  match t.head, t.tail with
-  | None, _  | _, None   -> Lwt.return []
-  | Some head, Some tail ->
-    lwt g = Graph.of_store t.disk [head] in
-    lwt ga = Graph.of_store t.disk [] in
+  lwt ga = Graph.of_store t.disk () in
+  lwt () = Graph.dump t.disk ga "ALL" in
+  lwt g = graph t in
+  match g with
+  | None   -> Lwt.return []
+  | Some g ->
     lwt () = Graph.dump t.disk g "HEAD" in
-    lwt () = Graph.dump t.disk ga "ALL" in
-    let keys = Graph.Topological.fold (fun key acc ->
-        let preds = Key.Set.of_list (Graph.pred g key) in
-        debug "PREDS(%s) = %s" (Key.pretty key) (Key.Set.pretty preds);
-        if key = tail || Key.Set.mem tail preds then key :: acc
-        else acc
-      ) g [] in
+    let keys = Graph.Topological.fold (fun key acc -> key :: acc) g [] in
     lwt values = Lwt_list.fold_left_s (fun acc key ->
         lwt value = contents t key in
         Lwt.return (value :: acc)
       ) [] keys in
     Lwt.return values
 
-let take _ =
-  failwith "TODO"
+(* TAKE() = x
+
+  Before:
+
+    x -> X -> .... -> Y
+    |                 |
+   HEAD              TAIL
+
+  After:
+
+    x -> X -> .... -> Y
+         |            |
+        HEAD         TAIL
+
+*)
+
+(* XXX: that a bit too expensive as you have to reconstruct the graph
+   of keys to compute the successors ... *)
+let take f =
+  lwt t = create f in
+  match t.head with
+  | None     -> empty "No tail!"
+  | Some key ->
+    let move_head new_head =
+      lwt () = Disk.Tag_store.update t.disk head new_head in
+      contents t key in
+    let empty () =
+      lwt () = Disk.Tag_store.remove t.disk head in
+      lwt () = Disk.Tag_store.remove t.disk tail in
+      contents t key in
+    lwt g = graph t in
+    match g with
+    | None   -> failwith "take"
+    | Some g ->
+      match Graph.succ g key with
+      | []         -> empty ()
+      | [new_head] -> move_head new_head
+      | k::keys    ->
+        (* XXX: need to rewrite the history to insert k before all the [keys] *)
+        failwith "TODO"
 
 let watch _ =
   failwith "TODO"

@@ -32,6 +32,6 @@ module Graph
   module Topological: sig
     val fold: (KS.Key.t -> 'a -> 'a) -> t -> 'a -> 'a
   end
-  val of_store: KS.t -> KS.Key.t list -> t Lwt.t
+  val of_store: KS.t -> ?roots:KS.Key.Set.t -> ?sinks:KS.Key.Set.t -> unit -> t Lwt.t
   val dump: KS.t -> t -> string -> unit Lwt.t
 end

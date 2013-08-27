@@ -28,7 +28,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
   module Keys = IrminIO.List(K)
 
   type revision = {
-    parents : Key.t list;
+    parents : Key.Set.t;
     contents: Key.t;
   }
 
@@ -48,44 +48,43 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
     let pretty r =
       Printf.sprintf "[parents:%s | contents:%s]"
-        (String.concat "-" (List.map K.pretty r.parents))
-        (K.pretty r.contents)
+        (K.Set.pretty r.parents) (K.pretty r.contents)
 
     let of_json (json:IrminJSON.t) = match json with
       | `O [ ("parents", parents); ("contents", contents) ] ->
         let parents = IrminJSON.to_list K.of_json parents in
-        let parents = List.sort compare parents in
+        let parents = Key.Set.of_list parents in
         let contents = K.of_json contents in
         { parents; contents }
       | _ -> IrminIO.parse_error "Revision.of_json"
 
     let to_json r =
-      let parents = IrminJSON.of_list K.to_json r.parents in
+      let parents = IrminJSON.of_list K.to_json (Key.Set.to_list r.parents) in
       let contents = K.to_json r.contents in
       `O [ ("parents", parents); ("contents", contents) ]
 
     let sizeof t =
-      Keys.sizeof (t.contents :: t.parents)
+      Keys.sizeof (t.contents :: Key.Set.to_list t.parents)
 
     let read buf =
       debug "read";
       lwt keys = Keys.read buf in
       match keys with
       | []   -> IrminIO.parse_error_buf buf "Revision.read"
-      | h::t -> Lwt.return { contents = h; parents = t }
+      | h::t -> Lwt.return { contents = h; parents = Key.Set.of_list t }
 
     let write buf t =
       debug "write %s" (pretty t);
-      Keys.write buf (t.contents :: t.parents)
+      Keys.write buf (t.contents :: Key.Set.to_list t.parents)
 
     let equal r1 r2 =
       Key.equal r1.contents r2.contents
-      && List.length r1.parents = List.length r2.parents
-      && Key.Set.equal (Key.Set.of_list r1.parents) (Key.Set.of_list r2.parents)
+      && Key.Set.cardinal r1.parents = Key.Set.cardinal r2.parents
+      && Key.Set.equal r1.parents r2.parents
 
     let compare r1 r2 =
       match Key.compare r1.contents r2.contents with
-      | 0 -> Key.Set.compare (Key.Set.of_list r1.parents) (Key.Set.of_list r2.parents)
+      | 0 -> Key.Set.compare r1.parents r2.parents
       | i -> i
 
   end
@@ -131,7 +130,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     Lwt.return ()
 
   let parents = function
-    | Revision { parents } -> Key.Set.of_list parents
+    | Revision { parents } -> parents
     | Blob _               -> Key.Set.empty
 
   let contents = function
@@ -140,7 +139,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
   let key = function
     | Blob b     -> B.key b
-    | Revision r -> Key.concat (r.contents :: r.parents)
+    | Revision r -> Key.concat (r.contents :: Key.Set.to_list r.parents)
 
   let merge merge_keys v1 v2 =
     if v1 = v2 then Some v1
@@ -151,7 +150,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
           | Some b -> Some (Blob b)
         end
       | Revision r1, Revision r2 ->
-        let parents = [key v1; key v2] in
+        let parents = Key.Set.of_list [key v1; key v2] in
         begin match merge_keys r1.contents r2.contents with
           | None          -> None
           | Some contents -> Some (Revision { parents; contents })

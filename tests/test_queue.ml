@@ -53,12 +53,14 @@ let test_take () =
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
   lwt () = IrminQueue.add t [v1; v2] in
+  lwt v1v2 = IrminQueue.to_list t in
+  assert_valuel_equal "v1v2" [v1;v2] v1v2;
   lwt v1' = IrminQueue.take t in
   assert_value_equal "v1" v1 v1';
-  lwt v2' = IrminQueue.to_list t in
-  assert_valuel_equal "v2-list" [v2] v2';
-  lwt v2'' = IrminQueue.take t in
-  assert_value_equal "v2" v2 v2'';
+  lwt v2l = IrminQueue.to_list t in
+  assert_valuel_equal "v2-list" [v2] v2l;
+  lwt v2' = IrminQueue.take t in
+  assert_value_equal "v2" v2 v2';
   lwt nil = IrminQueue.to_list t in
   assert_valuel_equal "nil" nil [];
   Lwt.return ()

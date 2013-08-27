@@ -111,7 +111,7 @@ module type VALUE = sig
   val blob: string -> t
 
   (** Create a new revision *)
-  val revision: Key.t -> Key.t list -> t
+  val revision: Key.t -> Key.Set.t -> t
 
   (** Return the eventual contents key. *)
   val contents: t -> Key.t option
