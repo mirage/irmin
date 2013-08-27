@@ -26,3 +26,8 @@ type test = string * test_case list
 (** Run a test suite. The first argument is the name of the tested
     lib. *)
 val run: string -> test list -> unit
+
+(** {2 Display} *)
+
+(** Draw a line on the given channel *)
+val line: out_channel -> ?color:[`Blue|`Yellow] -> char -> unit

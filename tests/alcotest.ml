@@ -67,6 +67,13 @@ let terminal_columns =
       with _ ->
         80
 
+let line oc ?color c =
+  let line = match color with
+    | Some `Blue   -> blue_s (String.make terminal_columns c)
+    | Some `Yellow -> yellow_s (String.make terminal_columns c)
+    | None         -> String.make terminal_columns c in
+  Printf.fprintf oc "%s\n%!" line
+
 let indent_left s nb =
   let nb = nb - String.length s in
   if nb <= 0 then
