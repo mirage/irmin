@@ -23,6 +23,7 @@ let test_init () =
   IrminQueue.init (`Dir test_db)
 
 let test_peek () =
+  lwt () = test_init () in
   let t = `Dir test_db in
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
@@ -32,6 +33,7 @@ let test_peek () =
   Lwt.return ()
 
 let test_list () =
+  lwt () = test_init () in
   let t = `Dir test_db in
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
@@ -46,6 +48,7 @@ let test_list () =
   Lwt.return ()
 
 let test_take () =
+  lwt () = test_init () in
   let t = `Dir test_db in
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
