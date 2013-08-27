@@ -37,26 +37,39 @@ let printer_list fn = function
   | [] -> "[]"
   | l  -> Printf.sprintf "[ %s ]" (String.concat ", " (List.map fn l))
 
+let line msg =
+  let line () =
+    if IrminMisc.debug_enabled () then Alcotest.line stderr ~color:`Yellow '-' in
+  line ();
+  IrminMisc.info "ASSERT" "%s" msg;
+  line ()
+
 let assert_key_equal msg =
+  line msg;
   OUnit.assert_equal ~msg ~cmp:Key.equal ~printer:Key.pretty
 
 let assert_key_opt_equal msg =
+  line msg;
   OUnit.assert_equal ~msg ~cmp:(cmp_opt Key.equal) ~printer:(printer_opt Key.pretty)
 
 let assert_keys_equal msg =
+  line msg;
   OUnit.assert_equal ~msg ~cmp:Key.Set.equal ~printer:Key.Set.pretty
 
 let assert_keyl_equal msg =
+  line msg;
   OUnit.assert_equal ~msg ~cmp:(cmp_list Key.equal) ~printer:(printer_list Key.pretty)
 
-
 let assert_value_equal msg =
+  line msg;
   OUnit.assert_equal ~msg ~cmp:Value.equal ~printer:Value.pretty
 
 let assert_value_opt_equal msg =
+  line msg;
   OUnit.assert_equal ~msg ~cmp:(cmp_opt Value.equal) ~printer:(printer_opt Value.pretty)
 
 let assert_valuel_equal msg =
+  line msg;
   OUnit.assert_equal ~msg
     ~cmp:(cmp_list Value.equal) ~printer:(printer_list Value.pretty)
 
