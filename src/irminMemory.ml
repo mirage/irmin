@@ -90,14 +90,15 @@ module Tag_store (T: TAG) (K: KEY) = struct
 
   module Key = K
 
-  type t = (T.t, K.t) Hashtbl.t
+  type t = (Tag.t, Key.Set.t) Hashtbl.t
 
   let create () =
     Hashtbl.create 1024
 
-  let update t tag key =
-    Printf.printf "Update %s to %s\n%!" (T.pretty tag) (K.pretty key);
-    Hashtbl.replace t tag key;
+  let update t tag keys =
+    Printf.printf "Update %s to %s\n%!" (Tag.pretty tag) (Key.Set.pretty keys);
+    if Key.Set.is_empty keys then Hashtbl.remove t tag
+    else Hashtbl.replace t tag keys;
     Lwt.return ()
 
   let remove t tag =
@@ -105,12 +106,12 @@ module Tag_store (T: TAG) (K: KEY) = struct
     Lwt.return ()
 
   let read t tag =
-    Printf.printf "Reading %s\n%!" (T.pretty tag);
-    try Lwt.return (Some (Hashtbl.find t tag))
-    with Not_found -> Lwt.return None
+    Printf.printf "Reading %s\n%!" (Tag.pretty tag);
+    try Lwt.return (Hashtbl.find t tag)
+    with Not_found -> Lwt.return Key.Set.empty
 
   let all t =
     let elts = Hashtbl.fold (fun t _ acc -> t :: acc) t [] in
-    Lwt.return (T.Set.of_list elts)
+    Lwt.return (Tag.Set.of_list elts)
 
 end

@@ -26,13 +26,25 @@ type bufIO = {
   mutable offset: int;
 }
 
+(** It's quite anoying to have to define that again ... *)
+module type SET = sig
+  include Set.S
+  val of_list: elt list -> t
+  val to_list: t -> elt list
+  val pretty: t -> string
+end
+
 (** Base types *)
 module type BASE = sig
+
   (** Abstract type *)
   type t
 
-  (** Compare two values. *)
+  (** Compare two elements. *)
   val compare: t -> t -> int
+
+  (** Are two elements equal ? *)
+  val equal: t -> t -> bool
 
   (** Pretty-printing *)
   val pretty: t -> string
@@ -43,7 +55,7 @@ module type BASE = sig
   (** Convert to IrminJSON *)
   val to_json: t -> IrminJSON.t
 
-  (** Size of serialized value (to pre-allocate buffers if needed) *)
+  (** Size of serialized value (to pre-allocate buffers if needed). *)
   val sizeof: t -> int
 
   (** Write to a buffered bigarray, at a given offset. *)
@@ -52,14 +64,9 @@ module type BASE = sig
   (** Read a buffered bigarray at a given ofset. *)
   val read: bufIO -> t Lwt.t
 
-end
+  (** Set of elements *)
+  module Set: SET with type elt = t
 
-(** It's quite anoying to have to define that again ... *)
-module type SET = sig
-  include Set.S
-  val of_list: elt list -> t
-  val to_list: t -> elt list
-  val pretty: t -> string
 end
 
 (** Keys *)
@@ -67,14 +74,8 @@ module type KEY = sig
 
   include BASE
 
-  (** Hash a key. *)
+  (** Compute the hash of a key. *)
   val hash: t -> int
-
-  (** Are two keys equal *)
-  val equal: t -> t -> bool
-
-  (** Set of keys *)
-  module Set: SET with type elt = t
 
   (** Compute a key from a raw string. *)
   val of_string: string ->t
@@ -101,9 +102,6 @@ module type VALUE = sig
   (** Type of keys *)
   module Key: KEY
 
-  (** Are two values equal ? *)
-  val equal: t -> t -> bool
-
   (** Compute a key *)
   val key: t -> Key.t
 
@@ -128,8 +126,6 @@ end
 module type TAG = sig
 
   include BASE
-
-  module Set: SET with type elt = t
 
   (** Convert a tag to a suitable name *)
   val to_name: t -> string
@@ -212,14 +208,14 @@ module type TAG_STORE = sig
 
   (** Update a tag. If the tag does not exist before, just create a
       new tag. *)
-  val update: t -> Tag.t -> Key.t -> unit Lwt.t
+  val update: t -> Tag.t -> Key.Set.t -> unit Lwt.t
 
   (** Remove a tag. *)
   val remove: t -> Tag.t -> unit Lwt.t
 
   (** Read a tag. Return [None] if the tag does not exist in the
       store. *)
-  val read: t -> Tag.t -> Key.t option Lwt.t
+  val read: t -> Tag.t -> Key.Set.t Lwt.t
 
   (** List all the available tags *)
   val all: t -> Tag.Set.t Lwt.t
@@ -238,7 +234,7 @@ module type SYNC = sig
   module Key: KEY
 
   (** Graph of keys *)
-  type graph = Key.t list * (Key.t * Key.t) list
+  type graph = Key.Set.t * (Key.t * Key.t) list
 
   (** Type of remote tags *)
   module Tag: TAG
@@ -248,24 +244,24 @@ module type SYNC = sig
       unknown keys, with [roots] as graph roots and [tags] as graph
       sinks. If [root] is the empty list, return the complete history
       up-to the given remote tags. *)
-  val pull_keys: t -> Key.t list -> Tag.t list -> graph Lwt.t
+  val pull_keys: t -> Key.Set.t -> Tag.Set.t -> graph Lwt.t
 
   (** Get all the remote tags. *)
-  val pull_tags: t -> (Tag.t * Key.t) list Lwt.t
+  val pull_tags: t -> (Tag.t * Key.Set.t) list Lwt.t
 
   (** Push changes related to a given (sub)-graph of keys, given set
       of local tags (which should belong to the graph). The does not
       modify the local tags on the remote instance. It is the user
       responsability to compute the smallest possible graph
       beforhand. *)
-  val push_keys: t -> graph -> (Tag.t * Key.t) list -> unit Lwt.t
+  val push_keys: t -> graph -> (Tag.t * Key.Set.t) list -> unit Lwt.t
 
   (** Modify the local tags of the remote instance. *)
-  val push_tags: t -> (Tag.t * Key.t) list -> unit Lwt.t
+  val push_tags: t -> (Tag.t * Key.Set.t) list -> unit Lwt.t
 
   (** Watch for changes for a given set of tags. Call a callback on
       each event ([tags] * [graphs]) where [tags] are the updated tags
       and [graph] the corresponding set of new keys (if any). *)
-  val watch: t -> Tag.t list -> (Tag.t list -> graph -> unit Lwt.t) -> unit Lwt.t
+  val watch: t -> Tag.Set.t -> (Tag.Set.t -> graph -> unit Lwt.t) -> unit Lwt.t
 
 end

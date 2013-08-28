@@ -170,6 +170,13 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | Blob b1    , Blob b2     -> B.compare b1 b2
     | Revision r1, Revision r2 -> Revision.compare r1 r2
 
+  module Set = IrminMisc.SetMake(struct
+      type tmp = t
+      type t = tmp
+      let compare = compare
+      let pretty = pretty
+    end)
+
 end
 
 type blob = B of string

@@ -41,6 +41,14 @@ let create = function
     let disk = Disk.create f in
     lwt head = Disk.Tag_store.read disk head in
     lwt tail = Disk.Tag_store.read disk tail in
+    let head = match Key.Set.to_list head with
+      | []  -> None
+      | [k] -> Some k
+      | _   -> failwith "head" in
+    let tail = match Key.Set.to_list tail with
+      | []  -> None
+      | [k] -> Some k
+      | _   -> failwith "tail" in
     Lwt.return { disk; head; tail }
 
 let is_empty t =
@@ -71,11 +79,12 @@ let add_one f value =
   let parents = match t.tail with
     | None   -> Key.Set.empty
     | Some k -> Key.Set.singleton k in
-    let revision = Value.revision key parents in
-    lwt new_tail = Disk.Value_store.write t.disk revision in
-    lwt () = match t.head with
-      | None   -> Disk.Tag_store.update t.disk head new_tail
-      | Some k -> Lwt.return () in
+  let revision = Value.revision key parents in
+  lwt new_tail = Disk.Value_store.write t.disk revision in
+  let new_tail = Key.Set.singleton new_tail in
+  lwt () = match t.head with
+    | None   -> Disk.Tag_store.update t.disk head new_tail
+    | Some k -> Lwt.return () in
   Disk.Tag_store.update t.disk tail new_tail
 
 let add f = function
@@ -158,6 +167,7 @@ let take f =
   | None     -> empty "No tail!"
   | Some key ->
     let move_head new_head =
+      let new_head = Key.Set.singleton new_head in
       lwt () = Disk.Tag_store.update t.disk head new_head in
       contents t key in
     let empty () =

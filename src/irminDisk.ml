@@ -230,26 +230,26 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       );
       Lwt.return ()
 
-    let update t tag key =
-      debug "update %s %s" (T.to_name tag) (K.pretty key);
+    let update t tag keys =
+      debug "update %s %s" (Tag.to_name tag) (Key.Set.pretty keys);
       lwt () = remove t tag in
       with_file (t.tag tag) (fun fd ->
-          debug "add %s" (T.to_name tag);
-          XKey.write_fd fd key
+          debug "add %s" (Tag.to_name tag);
+          XKeys.write_fd fd (Key.Set.to_list keys)
         )
 
     let read t tag =
-      debug "read %s" (T.to_name tag);
+      debug "read %s" (Tag.to_name tag);
       let file = t.tag tag in
       if Sys.file_exists file then
-        lwt key = with_file file XKey.read_fd in
-        Lwt.return (Some key)
+        lwt keys = with_file file XKeys.read_fd in
+        Lwt.return (Key.Set.of_list keys)
       else
-        Lwt.return None
+        Lwt.return Key.Set.empty
 
     let all t =
       debug "all";
-      lwt tags = basenames T.of_name (tags_dir t.root) in
+      lwt tags = basenames Tag.of_name (tags_dir t.root) in
       Lwt.return (Tag.Set.of_list tags)
 
   end

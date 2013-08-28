@@ -22,7 +22,7 @@ module Make (KS: KEY_STORE) (TS: TAG_STORE with module Key = KS.Key) = struct
   module Key = KS.Key
 
   (** Graph of keys *)
-  type graph = Key.t list * (Key.t * Key.t) list
+  type graph = Key.Set.t * (Key.t * Key.t) list
 
   (** Type of remote tags *)
   module Tag = TS.Tag

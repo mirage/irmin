@@ -56,26 +56,26 @@ let test_values () =
   Lwt_unix.run (with_db test_db test)
 
 let test_tags () =
-  let k1 = Value.key (Value.blob "foo") in
-  let k2 = Value.key (Value.blob "") in
+  let k1s = Key.Set.singleton (Value.key (Value.blob "foo")) in
+  let k2s = Key.Set.singleton (Value.key (Value.blob "")) in
   let t1 = Tag.of_name "foo" in
   let t2 = Tag.of_name "bar" in
   let module KT = Disk.Tag_store in
   let test t =
-    lwt () = KT.update t t1 k1 in
-    lwt () = KT.update t t2 k2 in
-    lwt k1' = KT.read t t1 in
-    lwt k2' = KT.read t t2 in
-    assert_key_opt_equal "t1" (Some k1) k1';
-    assert_key_opt_equal "t2" (Some k2) k2';
-    lwt () = KT.update t t1 k2 in
-    lwt k2'' = KT.read t t1 in
-    assert_key_opt_equal "t1-after-update" (Some k2) k2'';
+    lwt () = KT.update t t1 k1s in
+    lwt () = KT.update t t2 k2s in
+    lwt k1s' = KT.read t t1 in
+    lwt k2s' = KT.read t t2 in
+    assert_keys_equal "t1" k1s k1s';
+    assert_keys_equal "t2" k2s k2s';
+    lwt () = KT.update t t1 k2s in
+    lwt k2s'' = KT.read t t1 in
+    assert_keys_equal "t1-after-update" k2s k2s'';
     lwt set = KT.all t in
     assert_tags_equal "all" set (Tag.Set.of_list [t1; t2]);
     lwt () = KT.remove t t1 in
-    lwt none = KT.read t t1 in
-    assert_key_opt_equal "remove" None none;
+    lwt empty = KT.read t t1 in
+    assert_keys_equal "empty" Key.Set.empty empty;
     lwt set = KT.all t in
     assert_tags_equal "all-after-remove" set (Tag.Set.singleton t2);
     Lwt.return ()

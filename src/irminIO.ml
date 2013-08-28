@@ -153,16 +153,27 @@ module List  (E: BASE) = struct
 
   let debug fmt = IrminMisc.debug "IO.LIST" fmt
 
-  type t = E.t list
+  module T = struct
 
-  let rec compare l1 l2 = match l1, l2 with
-    | []    , []     -> 0
-    | h1::t1, h2::t2 -> if E.compare h1 h2 = 0 then 0 else compare t1 t2
-    | _::_  , []     -> 1
-    | []    , _::_   -> -1
+    type t = E.t list
 
-  let pretty t =
-    String.concat "\n" (OCamlList.rev (OCamlList.rev_map E.pretty t))
+    let rec compare l1 l2 = match l1, l2 with
+      | []    , []     -> 0
+      | h1::t1, h2::t2 -> if E.compare h1 h2 = 0 then 0 else compare t1 t2
+      | _::_  , []     -> 1
+      | []    , _::_   -> -1
+
+    let pretty t =
+      String.concat "\n" (OCamlList.rev (OCamlList.rev_map E.pretty t))
+
+    let equal l1 l2 =
+      compare l1 l2 = 0
+
+  end
+
+  module Set = IrminMisc.SetMake(T)
+
+  include T
 
   let to_json t =
     `A (OCamlList.rev (OCamlList.rev_map E.to_json t))
@@ -195,21 +206,72 @@ module List  (E: BASE) = struct
 
 end
 
+module Set (E: BASE) = struct
+
+  module L = List(E)
+
+  module T = struct
+
+    type t = E.Set.t
+
+    let compare = E.Set.compare
+
+    let pretty = E.Set.pretty
+
+    let equal = E.Set.equal
+
+  end
+
+  module Set = IrminMisc.SetMake(T)
+
+  include T
+
+  let to_json t =
+    L.to_json (E.Set.to_list t)
+
+  let of_json j =
+    E.Set.of_list (L.of_json j)
+
+  let sizeof t =
+    L.sizeof (E.Set.to_list t)
+
+  let read buf =
+    lwt l = L.read buf in
+    Lwt.return (E.Set.of_list l)
+
+  let write buf t =
+    L.write buf (E.Set.to_list t)
+
+end
+
 module Option (E: BASE) = struct
 
   let debug fmt = IrminMisc.debug "IO.OPTION" fmt
 
-  type t = E.t option
+  module L = List(E)
 
-  let compare o1 o2 = match o1, o2 with
-    | None   , None    -> 0
-    | Some _ , None    -> 1
-    | None   , Some _  -> -1
-    | Some e1, Some e2 -> E.compare e1 e2
+  module T = struct
 
-  let pretty = function
-    | None   -> "<none>"
-    | Some e -> E.pretty e
+    type t = E.t option
+
+    let compare o1 o2 = match o1, o2 with
+      | None   , None    -> 0
+      | Some _ , None    -> 1
+      | None   , Some _  -> -1
+      | Some e1, Some e2 -> E.compare e1 e2
+
+    let pretty = function
+      | None   -> "<none>"
+      | Some e -> E.pretty e
+
+    let equal o1 o2 =
+      compare o1 o2 = 0
+
+  end
+
+  module Set = IrminMisc.SetMake(T)
+
+  include T
 
   let to_json = function
     | None   -> `Null
@@ -218,8 +280,6 @@ module Option (E: BASE) = struct
   let of_json = function
     | `Null -> None
     | j     -> Some (E.of_json j)
-
-  module L = List(E)
 
   let sizeof = function
     | None   -> 4
@@ -246,15 +306,26 @@ module Pair (K: BASE) (V: BASE) = struct
 
   let debug fmt = IrminMisc.debug "IO-PAIR" fmt
 
-  type t = K.t * V.t
+  module T = struct
 
-  let compare (k1,v1) (k2,v2) =
-    match K.compare k1 k2 with
-    | 0 -> V.compare v1 v2
-    | i -> i
+    type t = K.t * V.t
 
-  let pretty (key, value) =
-    Printf.sprintf "%s:%s" (K.pretty key) (V.pretty value)
+    let compare (k1,v1) (k2,v2) =
+      match K.compare k1 k2 with
+      | 0 -> V.compare v1 v2
+      | i -> i
+
+    let pretty (key, value) =
+      Printf.sprintf "%s:%s" (K.pretty key) (V.pretty value)
+
+    let equal t1 t2 =
+      compare t1 t2 = 0
+
+  end
+
+  module Set = IrminMisc.SetMake(T)
+
+  include T
 
   let to_json (key, value) =
     `O [ ("tag", K.to_json key);
@@ -297,12 +368,23 @@ module String  (S: STRINGABLE) = struct
 
   let debug fmt = IrminMisc.debug "IO.STRING" fmt
 
-  type t = S.t
+  module T = struct
 
-  let compare s1 s2 = String.compare (S.to_string s1) (S.to_string s2)
+    type t = S.t
 
-  let pretty s =
-    Printf.sprintf "%S" (S.to_string s)
+    let compare s1 s2 = String.compare (S.to_string s1) (S.to_string s2)
+
+    let pretty s =
+      Printf.sprintf "%S" (S.to_string s)
+
+    let equal s1 s2 =
+      compare s1 s2 = 0
+
+  end
+
+  module Set = IrminMisc.SetMake(T)
+
+  include T
 
   let to_json t =
     IrminJSON.of_string (S.to_string t)

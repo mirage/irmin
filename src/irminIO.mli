@@ -87,14 +87,17 @@ val set_string: bufIO -> string -> unit Lwt.t
 
 (** {2 Lifts} *)
 
-(** Lift IO operation to lists *)
+(** Lift IO operation to lists. *)
 module List (E: BASE): BASE with type t = E.t list
 
-(** Lift IO operation to options *)
+(** Lift IO operation to options. *)
 module Option (E: BASE): BASE with type t = E.t option
 
-(** Lift IO operations to pairs *)
+(** Lift IO operations to pairs. *)
 module Pair (K: BASE) (V: BASE): BASE with type t = K.t * V.t
+
+(** List IO operations to sets. *)
+module Set (E: BASE): BASE with type t = E.Set.t
 
 (** serialization to strings *)
 module type STRINGABLE = sig

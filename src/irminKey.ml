@@ -109,10 +109,11 @@ module Graph
     if IrminMisc.debug_enabled () then (
       lwt tags = TS.all t in
       lwt tags = Lwt_list.fold_left_s (fun tags tag ->
-          lwt key = TS.read t tag in
-          match key with
-          | None     -> failwith "Unknonw key!"
-          | Some key -> Lwt.return ((key, Tag.to_name tag) :: tags)
+          lwt keys = TS.read t tag in
+          let keys = Key.Set.fold (fun key tags ->
+              (key, Tag.to_name tag) :: tags
+            ) keys [] in
+          Lwt.return keys
         ) [] (Tag.Set.to_list tags) in
       let label_tags k =
         let tags = List.fold_left (fun tags (key, tag) ->
