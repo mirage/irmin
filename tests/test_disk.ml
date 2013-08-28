@@ -31,7 +31,7 @@ let test_keys () =
     lwt ks = KV.all t in
     assert_keys_equal "nil" Key.Set.empty nil';
     assert_keys_equal "k2" k2s k2s';
-    assert_keys_equal "list" ks (Key.Set.union k1s k2s);
+    assert_keys_equal "list" (Key.Set.union k1s k2s) ks;
     Lwt.return ()
   in
   Lwt_unix.run (with_db test_db test)
@@ -72,12 +72,12 @@ let test_tags () =
     lwt k2s'' = KT.read t t1 in
     assert_keys_equal "t1-after-update" k2s k2s'';
     lwt set = KT.all t in
-    assert_tags_equal "all" set (Tag.Set.of_list [t1; t2]);
+    assert_tags_equal "all" (Tag.Set.of_list [t1; t2]) set;
     lwt () = KT.remove t t1 in
     lwt empty = KT.read t t1 in
     assert_keys_equal "empty" Key.Set.empty empty;
     lwt set = KT.all t in
-    assert_tags_equal "all-after-remove" set (Tag.Set.singleton t2);
+    assert_tags_equal "all-after-remove" (Tag.Set.singleton t2) set;
     Lwt.return ()
   in
   Lwt_unix.run (with_db test_db test)

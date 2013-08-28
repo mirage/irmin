@@ -27,7 +27,8 @@ let test_peek () =
   let t = `Dir test_db in
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
-  lwt () = IrminQueue.add t [v1; v2] in
+  lwt () = IrminQueue.add t v1 in
+  lwt () = IrminQueue.add t v2 in
   lwt v1' = IrminQueue.peek t in
   assert_value_equal "v1" v1 v1';
   Lwt.return ()
@@ -38,11 +39,11 @@ let test_list () =
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
   lwt nil = IrminQueue.to_list t in
-  assert_valuel_equal "nil" nil [];
-  lwt () = IrminQueue.add t [v1] in
+  assert_valuel_equal "nil" [] nil;
+  lwt () = IrminQueue.add t v1 in
   lwt v1' = IrminQueue.to_list t in
   assert_valuel_equal "v1" [v1] v1';
-  lwt () = IrminQueue.add t [v2] in
+  lwt () = IrminQueue.add t v2 in
   lwt v1v2 = IrminQueue.to_list t in
   assert_valuel_equal "v1-v2" [v1; v2] v1v2;
   Lwt.return ()
@@ -52,7 +53,8 @@ let test_take () =
   let t = `Dir test_db in
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
-  lwt () = IrminQueue.add t [v1; v2] in
+  lwt () = IrminQueue.add t v1 in
+  lwt () = IrminQueue.add t v2 in
   lwt v1v2 = IrminQueue.to_list t in
   assert_valuel_equal "v1v2" [v1;v2] v1v2;
   lwt v1' = IrminQueue.take t in
@@ -62,7 +64,7 @@ let test_take () =
   lwt v2' = IrminQueue.take t in
   assert_value_equal "v2" v2 v2';
   lwt nil = IrminQueue.to_list t in
-  assert_valuel_equal "nil" nil [];
+  assert_valuel_equal "nil" [] nil;
   Lwt.return ()
 
 let suite =

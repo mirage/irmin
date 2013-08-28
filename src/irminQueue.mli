@@ -24,7 +24,7 @@ val is_empty: t -> bool Lwt.t
 
 val init: t -> unit Lwt.t
 
-val add: t -> Value.t list -> unit Lwt.t
+val add: t -> Value.t -> unit Lwt.t
 
 val peek: t -> Value.t Lwt.t
 

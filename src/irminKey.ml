@@ -79,7 +79,8 @@ module Graph
     (VS: VALUE_STORE with type t = KS.t and module Key = KS.Key)
     (TS: TAG_STORE with type t = KS.t and module Key = KS.Key) = struct
 
-  let debug = IrminMisc.debug "GRAPH"
+  let debug fmt = IrminMisc.debug "GRAPH" fmt
+
   module Key = KS.Key
   module Value = VS.Value
   module Tag = TS.Tag
@@ -112,7 +113,7 @@ module Graph
           lwt keys = TS.read t tag in
           let keys = Key.Set.fold (fun key tags ->
               (key, Tag.to_name tag) :: tags
-            ) keys [] in
+            ) keys tags in
           Lwt.return keys
         ) [] (Tag.Set.to_list tags) in
       let label_tags k =
