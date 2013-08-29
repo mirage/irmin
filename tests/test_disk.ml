@@ -18,11 +18,16 @@ open IrminLwt
 open OUnit
 open Test_common
 
+let v1 = Value.of_blob "foo"
+let v2 = Value.of_blob ""
+let k1 = Value.key v1
+let k2 = Value.key v2
+let k1s = Key.Set.singleton k1
+let k2s = Key.Set.singleton k2
+let t1 = Tag.of_name "foo"
+let t2 = Tag.of_name "bar"
+
 let test_keys () =
-  let k1 = Value.key (Value.blob "foo") in
-  let k2 = Value.key (Value.blob "") in
-  let k1s = Key.Set.singleton k1 in
-  let k2s = Key.Set.singleton k2 in
   let module KV = Disk.Key_store in
   let test t =
     lwt () = KV.add t k1 k2s in
@@ -37,8 +42,6 @@ let test_keys () =
   Lwt_unix.run (with_db test_db test)
 
 let test_values () =
-  let v1 = Value.blob "foo" in
-  let v2 = Value.blob "" in
   let module DV = Disk.Value_store in
   let test t =
     lwt k1 = DV.write t v1 in
@@ -56,10 +59,6 @@ let test_values () =
   Lwt_unix.run (with_db test_db test)
 
 let test_tags () =
-  let k1s = Key.Set.singleton (Value.key (Value.blob "foo")) in
-  let k2s = Key.Set.singleton (Value.key (Value.blob "")) in
-  let t1 = Tag.of_name "foo" in
-  let t2 = Tag.of_name "bar" in
   let module KT = Disk.Tag_store in
   let test t =
     lwt () = KT.update t t1 k1s in

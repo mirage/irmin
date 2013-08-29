@@ -36,8 +36,12 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | Blob of Blob.t
     | Revision of revision
 
-  let blob str =
-    Blob (B.blob str)
+  let of_blob str =
+    Blob (B.of_blob str)
+
+  let to_blob = function
+    | Blob b     -> B.to_blob b
+    | Revision _ -> None
 
   let revision contents parents =
     Revision { contents; parents }
@@ -199,7 +203,9 @@ module Blob (K: KEY) = struct
 
   module Key = K
 
-  let blob str = B str
+  let of_blob str = B str
+
+  let to_blob (B str) = Some str
 
   let revision _ =
     failwith "Blob.revision"

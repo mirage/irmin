@@ -96,22 +96,25 @@ module type VALUE = sig
 
   include BASE
 
-  (** Type of keys *)
+  (** Type of keys. *)
   module Key: KEY
 
-  (** Compute a key *)
+  (** Compute a key. *)
   val key: t -> Key.t
 
-  (** Convert a raw string to a value *)
-  val blob: string -> t
+  (** Convert a raw string to a value. *)
+  val of_blob: string -> t
 
-  (** Create a new revision *)
+  (** Get the underlying raw blob. *)
+  val to_blob: t -> string option
+
+  (** Create a new revision. *)
   val revision: Key.t -> Key.Set.t -> t
 
   (** Return the eventual contents key. *)
   val contents: t -> Key.t option
 
-  (** Return the eventual parents *)
+  (** Return the eventual parents. *)
   val parents: t -> Key.Set.t
 
   (** How to merge two values. Need to know how to merge keys. *)

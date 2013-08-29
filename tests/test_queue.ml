@@ -19,6 +19,8 @@ open OUnit
 open Test_common
 
 let t = IrminQueue.create (`Dir test_db)
+let v1 = Value.of_blob "foo"
+let v2 = Value.of_blob ""
 
 let test_init () =
   clean test_db;
@@ -26,8 +28,6 @@ let test_init () =
 
 let test_peek () =
   lwt () = test_init () in
-  let v1 = Value.blob "foo" in
-  let v2 = Value.blob "" in
   lwt () = IrminQueue.add t v1 in
   lwt () = IrminQueue.add t v2 in
   lwt v1' = IrminQueue.peek t in
@@ -36,8 +36,6 @@ let test_peek () =
 
 let test_list () =
   lwt () = test_init () in
-  let v1 = Value.blob "foo" in
-  let v2 = Value.blob "" in
   lwt nil = IrminQueue.to_list t in
   assert_valuel_equal "nil" [] nil;
   lwt () = IrminQueue.add t v1 in
@@ -50,8 +48,6 @@ let test_list () =
 
 let test_take () =
   lwt () = test_init () in
-  let v1 = Value.blob "foo" in
-  let v2 = Value.blob "" in
   lwt () = IrminQueue.add t v1 in
   lwt () = IrminQueue.add t v2 in
   lwt v1v2 = IrminQueue.to_list t in
