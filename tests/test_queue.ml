@@ -18,13 +18,14 @@ open IrminLwt
 open OUnit
 open Test_common
 
+let t = IrminQueue.create (`Dir test_db)
+
 let test_init () =
   clean test_db;
-  IrminQueue.init (`Dir test_db)
+  IrminQueue.init t
 
 let test_peek () =
   lwt () = test_init () in
-  let t = `Dir test_db in
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
   lwt () = IrminQueue.add t v1 in
@@ -35,7 +36,6 @@ let test_peek () =
 
 let test_list () =
   lwt () = test_init () in
-  let t = `Dir test_db in
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
   lwt nil = IrminQueue.to_list t in
@@ -50,7 +50,6 @@ let test_list () =
 
 let test_take () =
   lwt () = test_init () in
-  let t = `Dir test_db in
   let v1 = Value.blob "foo" in
   let v2 = Value.blob "" in
   lwt () = IrminQueue.add t v1 in

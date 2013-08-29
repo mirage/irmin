@@ -21,102 +21,49 @@ let debug fmt = IrminMisc.debug "QUEUE" fmt
 
 module Graph = IrminKey.Graph(Disk.Key_store)(Disk.Value_store)(Disk.Tag_store)
 
-(*
- - 'front' events are the queue heads, it will be updated by [Queue.take]
-   - 'back'  event is the queue tail, it will be updated by  [Queue.add]
-
-   You can have multiple 'front's but only one 'back', because you
-   have mulitple producer of events -- the eventual other irminsule
-   instances -- but only one consummer (the local instance).
-
-   An example of key graph:
-
-    X -> .... -> Y
-    |     /       |
-    |    X        |
-    |    |        |
-  FRONT  |       BACK
-       FRONT
-
-   XXX: To optimize [Queue.take] we must add a 'staging' area where
-   the distributed queue is nicely flattened and represented as a
-   doubly-linked list.
-
-*)
-
-let front = Tag.of_name "FRONT"
-let back = Tag.of_name "BACK"
-
 exception Empty
 
-type t =
-  [ `Dir of string ]
+let default_front = Tag.of_name "FRONT"
+let default_back = Tag.of_name "BACK"
 
-type state = {
-  disk: Disk.t;
-  fronts: Key.Set.t;
-  back  : Key.t option;
+type t = {
+  source: [ `Dir of string ];
+  front : Tag.t;
+  back  : Tag.t;
+  disk  : Disk.t;
 }
 
-let init = function
-  | `Dir f -> Disk.init f
+let init { source = `Dir f } =
+  Disk.init f
 
-let create = function
-  | `Dir f ->
-    let disk = Disk.create f in
-    lwt fronts = Disk.Tag_store.read disk front in
-    lwt back = Disk.Tag_store.read disk back in
-    let back = match Key.Set.to_list back with
-      | []  -> None
-      | [k] -> Some k
-      | _   -> failwith "multiple BACK" in
-    Lwt.return { disk; fronts; back }
+let create ?(front = default_front) ?(back = default_back) source =
+  let disk = match source with `Dir f -> Disk.create f in
+  { source; front; back; disk }
 
 let is_empty t =
-  Key.Set.is_empty t.fronts
+  lwt fronts = Disk.Tag_store.read t.disk t.front in
+  lwt backs  = Disk.Tag_store.read t.disk t.back in
+  Lwt.return (Key.Set.is_empty fronts || Key.Set.is_empty backs)
 
 let graph t =
-  if is_empty t then Lwt.return (Graph.create ())
-  else match t.back with
-    | None      -> Lwt.return (Graph.create ())
-    | Some back ->
-      let roots = t.fronts in
-      let sinks = Key.Set.singleton back in
-      lwt g = Graph.of_store t.disk ~roots ~sinks () in
-      Lwt.return g
+  lwt fronts = Disk.Tag_store.read t.disk t.front in
+  lwt backs  = Disk.Tag_store.read t.disk t.back in
+  if Key.Set.is_empty fronts || Key.Set.is_empty backs then
+    Lwt.return (Graph.create ())
+  else
+    Graph.of_store t.disk ~roots:fronts ~sinks:backs ()
 
-(* ADD(y)
-
-   Before:
-
-     X -> .... -> Y
-     |            |
-   FRONT         BACK
-
-   After:
-
-     X -> .... -> Y -> y
-     |                 |
-   FRONT              BACK
-
-*)
-
-let add f value =
-  lwt t = create f in
+let add t value =
   lwt key = Disk.Value_store.write t.disk value in
-  let parents = match t.back with
-    | None   -> Key.Set.empty
-    | Some k -> Key.Set.singleton k in
-  let revision = Value.revision key parents in
+  lwt fronts = Disk.Tag_store.read t.disk t.front in
+  lwt backs  = Disk.Tag_store.read t.disk t.back in
+  let revision = Value.revision key backs in
   lwt new_back = Disk.Value_store.write t.disk revision in
   let new_back = Key.Set.singleton new_back in
   lwt () =
-    if not (Key.Set.is_empty t.fronts) then Lwt.return ()
-    else Disk.Tag_store.update t.disk front new_back in
-  lwt () = Disk.Tag_store.update t.disk back new_back in
-  lwt t = create f in
-  lwt ga = Graph.of_store t.disk () in
-  Graph.dump t.disk ga "ADD"
+    if not (Key.Set.is_empty fronts) then Lwt.return ()
+    else Disk.Tag_store.update t.disk t.front new_back in
+  Disk.Tag_store.update t.disk t.back new_back
 
 let empty fmt =
   Printf.kprintf (fun str ->
@@ -136,8 +83,7 @@ let contents t key =
   | None   -> empty "No content!"
   | Some k -> value_of_key t k
 
-let to_list f =
-  lwt t = create f in
+let to_list t =
   lwt ga = Graph.of_store t.disk () in
   lwt () = Graph.dump t.disk ga "ALL" in
   lwt g = graph t in
@@ -149,43 +95,25 @@ let to_list f =
     ) [] keys in
   Lwt.return values
 
-(* TAKE() = x
+let peek t =
+  lwt fronts = Disk.Tag_store.read t.disk t.front in
+  try
+    let key = Key.Set.choose fronts in
+    contents t key
+  with Not_found ->
+    empty "FRONT"
 
-  Before:
-
-      X
-        \
-    x -> X -> .... -> Y
-    |                 |
-  FRONT              BACK
-
-  After:
-
-      X
-        \
-    x -> X -> .... -> Y
-         |            |
-       FRONT         BACK
-
-*)
-
-let peek f =
-  lwt t = create f in
-  match Key.Set.to_list t.fronts with
-  | []     -> empty "empty FRONT"
-  | key::_ -> contents t key
-
-let take f =
-  lwt t = create f in
+let take t =
+  lwt fronts = Disk.Tag_store.read t.disk t.front in
   lwt key =
-    try Lwt.return (Key.Set.choose t.fronts)
+    try Lwt.return (Key.Set.choose fronts)
     with Not_found -> empty "FRONT" in
-  let fronts = Key.Set.remove key t.fronts in
+  let fronts = Key.Set.remove key fronts in
   let move_front new_fronts =
     let new_fronts = Key.Set.union new_fronts fronts in
     lwt () =
-      if Key.Set.is_empty new_fronts then Disk.Tag_store.remove t.disk front
-      else Disk.Tag_store.update t.disk front new_fronts in
+      if Key.Set.is_empty new_fronts then Disk.Tag_store.remove t.disk t.front
+      else Disk.Tag_store.update t.disk t.front new_fronts in
     contents t key in
   (* XXX: use a staging area *)
   lwt g = graph t in
@@ -213,7 +141,3 @@ let push _ =
 
 let clone _ =
   failwith "TODO"
-
-let is_empty f =
-  lwt t = create f in
-  Lwt.return (is_empty t)
