@@ -66,8 +66,8 @@ module SHA1 = struct
   let sizeof _ = key_length
 
   let read buf =
-    lwt str = IrminIO.get_string buf key_length in
-    Lwt.return (SHA1 str)
+    let str = IrminIO.get_string buf key_length in
+    SHA1 str
 
   let write buf (SHA1 str) =
     IrminIO.set_string buf str

@@ -30,6 +30,7 @@ let create len ready =
     ready;
   }
 
+(* From ocaml-cstruct *)
 external unsafe_blit_string_to_bigstring
   : string -> int -> buffer -> int -> int -> unit
   = "caml_blit_string_to_bigstring" "noalloc"
@@ -38,16 +39,35 @@ external unsafe_blit_bigstring_to_string
   : buffer -> int -> string -> int -> int -> unit
   = "caml_blit_bigstring_to_string" "noalloc"
 
-let poll t len =
-  for_lwt i = t.offset to t.offset + len do
-    t.ready i
-  done
+let invalid_arg fmt =
+  let b = Buffer.create 20 in (* for thread safety. *)
+  let ppf = Format.formatter_of_buffer b in
+  let k ppf = Format.pp_print_flush ppf (); invalid_arg (Buffer.contents b) in
+  Format.kfprintf k ppf fmt
+
+let invalid_bounds j l =
+  invalid_arg "invalid bounds (index %d, length %d)" j l
+
+let length t =
+  Bigarray.Array1.dim t.buffer - t.offset
+
+let blit_from_string src srcoff dst dstoff len =
+  if String.length src - srcoff < len then
+    raise (Invalid_argument (invalid_bounds srcoff len));
+  if length dst - dstoff < len then
+    raise (Invalid_argument (invalid_bounds dstoff len));
+  unsafe_blit_string_to_bigstring src srcoff dst.buffer (dst.offset+dstoff) len
+
+let blit_to_string src srcoff dst dstoff len =
+  if length src - srcoff < len then
+    raise (Invalid_argument (invalid_bounds srcoff len));
+  if String.length dst - dstoff < len then
+    raise (Invalid_argument (invalid_bounds dstoff len));
+  unsafe_blit_bigstring_to_string src.buffer (src.offset+srcoff) dst dstoff len
 
 let set t len fn =
-  lwt () = poll t len in
   fn t;
-  t.offset <- t.offset + len;
-  Lwt.return ()
+  t.offset <- t.offset + len
 
 let set_char t c =
   set t 1 (fun t ->
@@ -77,14 +97,13 @@ let set_uint64 t c =
 let set_string t str =
   let len = String.length str in
   set t len (fun t ->
-      unsafe_blit_string_to_bigstring str 0 t.buffer t.offset len;
+      blit_from_string str 0 t 0 len;
     )
 
 let get t n fn =
-  lwt () = poll t n in
   let i = fn t in
   t.offset <- t.offset + n;
-  Lwt.return i
+  i
 
 let get_char t =
   get t 1 (fun t ->
@@ -114,9 +133,9 @@ let get_uint64 t =
 let get_string t len =
   let str = String.create len in
   get t len (fun t ->
-      unsafe_blit_bigstring_to_string t.buffer t.offset str 0 len;
-      str
-    )
+      blit_to_string t 0 str 0 len;
+    );
+  str
 
 module OCamlList = List
 module OCamlString = String
@@ -132,7 +151,7 @@ let dump_buffer ~all t =
     if all then
       unsafe_blit_bigstring_to_string t.buffer 0 str 0 length
     else
-      unsafe_blit_bigstring_to_string t.buffer t.offset str 0 length;
+      unsafe_blit_bigstring_to_string t.buffer t.offset str 0 (length - t.offset);
     Printf.eprintf "%16s\027[33m[[ offset:%d len:%d %S ]]\027[m\n" ""
       t.offset length str
 
@@ -140,7 +159,7 @@ let parse_error_buf buf fmt =
   Printf.kprintf (fun str ->
       Printf.eprintf "\027[31mParse error:\027[m %s\n" str;
       dump_buffer ~all:true buf;
-      raise_lwt (Parse_error str)
+      raise (Parse_error str)
     ) fmt
 
 let parse_error fmt =
@@ -190,19 +209,19 @@ module List  (E: BASE) = struct
 
   let read buf =
     debug "read";
-    lwt keys = get_uint32 buf in
+    let keys = get_uint32 buf in
     let rec aux acc i =
-      if i <= 0 then Lwt.return (OCamlList.rev acc)
+      if i <= 0 then OCamlList.rev acc
       else
-        lwt t = E.read buf in
+        let t = E.read buf in
         aux (t :: acc) (i-1) in
     aux [] (Int32.to_int keys)
 
   let write buf t =
     debug "write";
     let len = Int32.of_int (List.length t) in
-    lwt () = set_uint32 buf len in
-    Lwt_list.iter_s (E.write buf) t
+    let () = set_uint32 buf len in
+    List.iter (E.write buf) t
 
 end
 
@@ -236,8 +255,8 @@ module Set (E: BASE) = struct
     L.sizeof (E.Set.to_list t)
 
   let read buf =
-    lwt l = L.read buf in
-    Lwt.return (E.Set.of_list l)
+    let l = L.read buf in
+    E.Set.of_list l
 
   let write buf t =
     L.write buf (E.Set.to_list t)
@@ -287,10 +306,10 @@ module Option (E: BASE) = struct
 
   let read buf =
     debug "read";
-    lwt l = L.read buf in
+    let l = L.read buf in
     match l with
-    | []  -> Lwt.return None
-    | [e] -> Lwt.return (Some e)
+    | []  -> None
+    | [e] -> Some e
     | _   -> parse_error_buf buf "Option.read"
 
   let write buf t =
@@ -347,13 +366,13 @@ module Pair (K: BASE) (V: BASE) = struct
 
   let read buf =
     debug "read";
-    lwt tag = K.read buf in
-    lwt key = V.read buf in
-    Lwt.return (tag, key)
+    let tag = K.read buf in
+    let key = V.read buf in
+    (tag, key)
 
   let write buf (key, value) =
     debug "write";
-    lwt () = K.write buf key in
+    K.write buf key;
     V.write buf value
 
 end
@@ -397,15 +416,15 @@ module String  (S: STRINGABLE) = struct
 
   let read buf =
     debug "read";
-    lwt len = get_uint32 buf in
-    lwt str = get_string buf (Int32.to_int len) in
-    Lwt.return (S.of_string str)
+    let len = get_uint32 buf in
+    let str = get_string buf (Int32.to_int len) in
+    S.of_string str
 
   let write buf t =
     let str = S.to_string t in
     debug "write %s" str;
     let len = String.length str in
-    lwt () = set_uint32 buf (Int32.of_int len) in
+    set_uint32 buf (Int32.of_int len);
     set_string buf str
 
 end
@@ -490,6 +509,14 @@ module Lwt_channel = struct
     lwt _ = Lwt_unix.(lseek t.fd 0 SEEK_SET) in
     Lwt.return len
 
+  let write_unit t =
+    write_string t "U"
+
+  let read_unit t =
+    lwt str = read_string t 1 in
+    assert (str = "U");
+    Lwt.return ()
+
 end
 
 module type CHANNEL = sig
@@ -511,13 +538,13 @@ module File (B: BASE) = struct
     debug "read_fd %s" (Lwt_channel.name fd);
     lwt len = Lwt_channel.length fd in
     lwt buf = Lwt_channel.read_buf fd len in
-    B.read buf
+    Lwt.return (B.read buf)
 
   let write_fd fd t =
     debug "write_fd %s" (Lwt_channel.name fd);
     let len = B.sizeof t in
     let buf = create len (Lwt_channel.ready fd) in
-    lwt () = B.write buf t in
+    B.write buf t;
     Lwt_channel.write_buf fd buf len
 
 end
@@ -534,13 +561,13 @@ module Wire (B: BASE) = struct
     debug "read_fd %s" (Lwt_channel.name fd);
     lwt len = Lwt_channel.read_length fd in
     lwt buf = Lwt_channel.read_buf fd len in
-    B.read buf
+    Lwt.return (B.read buf)
 
   let write_fd fd t =
     debug "write_fd %s" (Lwt_channel.name fd);
     let len = B.sizeof t in
     let buf = create len (Lwt_channel.ready fd) in
-    lwt () = B.write buf t in
+    B.write buf t;
     lwt () = Lwt_channel.write_length fd len in
     Lwt_channel.write_buf fd buf len
 

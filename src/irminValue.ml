@@ -68,10 +68,10 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
     let read buf =
       debug "read";
-      lwt keys = Keys.read buf in
+      let keys = Keys.read buf in
       match keys with
       | []   -> IrminIO.parse_error_buf buf "Revision.read"
-      | h::t -> Lwt.return { contents = h; parents = Key.Set.of_list t }
+      | h::t -> { contents = h; parents = Key.Set.of_list t }
 
     let write buf t =
       debug "write %s" (pretty t);
@@ -110,10 +110,10 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
   let read buf =
     debug "read";
-    lwt kind = IrminIO.get_uint8 buf in
+    let kind = IrminIO.get_uint8 buf in
     match kind with
-    | 0 -> lwt b = Blob.read buf in Lwt.return (Blob b)
-    | 1 -> lwt r = Revision.read buf in Lwt.return (Revision r)
+    | 0 -> Blob (Blob.read buf)
+    | 1 -> Revision (Revision.read buf)
     | _ -> IrminIO.parse_error_buf buf "Value.of_cstruct"
 
   let write buf t =
@@ -121,13 +121,12 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     let kind = match t with
       | Blob _     -> 0
       | Revision _ -> 1 in
-    lwt () = IrminIO.set_uint8 buf kind in
+    IrminIO.set_uint8 buf kind;
     IrminIO.dump_buffer ~all:true buf;
-    lwt () = match t with
+    let () = match t with
       | Blob b     -> Blob.write buf b
       | Revision r -> Revision.write buf r in
-    IrminIO.dump_buffer ~all:true buf;
-    Lwt.return ()
+    IrminIO.dump_buffer ~all:true buf
 
   let parents = function
     | Revision { parents } -> parents

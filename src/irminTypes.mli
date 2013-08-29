@@ -59,10 +59,10 @@ module type BASE = sig
   val sizeof: t -> int
 
   (** Write to a buffered bigarray, at a given offset. *)
-  val write: bufIO -> t -> unit Lwt.t
+  val write: bufIO -> t -> unit
 
   (** Read a buffered bigarray at a given ofset. *)
-  val read: bufIO -> t Lwt.t
+  val read: bufIO -> t
 
   (** Set of elements *)
   module Set: SET with type elt = t

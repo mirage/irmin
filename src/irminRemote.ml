@@ -114,12 +114,12 @@ module Action = struct
     1
 
   let read buf =
-    lwt kind = IrminIO.get_uint8 buf in
+    let kind = IrminIO.get_uint8 buf in
     let kind =
       match action kind with
       | None   -> failwith "Action.read"
       | Some t -> t in
-    Lwt.return kind
+    kind
 
   let write buf t =
     let kind = index t in
@@ -197,12 +197,15 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   end
 
+  let read_unit = Lwt_channel.read_unit
+
   module Key_store = struct
 
     include Type
 
     let add fd key preds =
-      XActionKeyKeys.write_fd fd (Key_add, (key, preds))
+      lwt () = XActionKeyKeys.write_fd fd (Key_add, (key, preds)) in
+      read_unit fd
 
     let all fd =
       lwt () = XAction.write_fd fd Key_list in
@@ -235,20 +238,20 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
     include Type
 
     let update fd tag keys =
-      XActionTagKeys.write_fd fd (Tag_update, (tag, keys))
+      lwt () = XActionTagKeys.write_fd fd (Tag_update, (tag, keys)) in
+      read_unit fd
 
     let remove fd tag =
-      XActionTag.write_fd fd (Tag_remove, tag)
+      lwt () = XActionTag.write_fd fd (Tag_remove, tag) in
+      read_unit fd
 
     let read fd tag =
       lwt () = XActionTag.write_fd fd (Tag_read, tag) in
-      lwt keys = XKeys.read_fd fd in
-      Lwt.return keys
+      XKeys.read_fd fd
 
     let all fd =
       lwt () = XAction.write_fd fd Tag_list in
-      lwt tags = XTags.read_fd fd in
-      Lwt.return tags
+      XTags.read_fd fd
 
   end
 
@@ -265,10 +268,12 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       XTagKeyss.read_fd fd
 
     let push_keys fd graph tags =
-      XActionGraphTagKeyss.write_fd fd (Sync_push_keys, (graph, tags))
+      lwt () = XActionGraphTagKeyss.write_fd fd (Sync_push_keys, (graph, tags)) in
+      read_unit fd
 
     let push_tags fd tags =
-      XActionTagKeyss.write_fd fd (Sync_push_tags, tags)
+      lwt () = XActionTagKeyss.write_fd fd (Sync_push_tags, tags) in
+      read_unit fd
 
     let watch fd tags callback =
       lwt () = XActionTags.write_fd fd (Sync_watch, tags) in
@@ -334,55 +339,60 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
     tags  : TS.t;
   }
 
+  let write_unit = Lwt_channel.write_unit
+
   module XKey_store = struct
 
-    let add t buf =
-      lwt (k1, k2s) = XKeyKeys.read buf in
-      KS.add t.keys k1 k2s
+    let add t buf fd =
+      let (k1, k2s) = XKeyKeys.read buf in
+      lwt () = KS.add t.keys k1 k2s in
+      write_unit fd
 
-    let all t buf =
+    let all t buf fd =
       lwt keys = KS.all t.keys in
-      XKeys.write buf keys
+      XKeys.write_fd fd keys
 
-    let pred t buf =
-      lwt k = XKey.read buf in
+    let pred t buf fd =
+      let k = XKey.read buf in
       lwt keys = KS.pred t.keys k in
-      XKeys.write buf keys
+      XKeys.write_fd fd keys
 
   end
 
   module XValue_store = struct
 
-    let write t buf =
-      lwt v = XValue.read buf in
+    let write t buf fd =
+      let v = XValue.read buf in
       lwt k = VS.write t.values v in
-      XKey.write buf k
+      XKey.write_fd fd k
 
-    let read t buf =
-      lwt k = XKey.read buf in
+    let read t buf fd =
+      let k = XKey.read buf in
       lwt vo = VS.read t.values k in
-      XValueOption.write buf vo
+      XValueOption.write_fd fd vo
 
   end
 
   module XTag_store = struct
 
-    let update t buf =
-      lwt (tag, keys) = XTagKeys.read buf in
-      TS.update t.tags tag keys
+    let update t buf fd =
+      let (tag, keys) = XTagKeys.read buf in
+      lwt () = TS.update t.tags tag keys in
+      write_unit fd
 
-    let remove t buf =
-      lwt tag = XTag.read buf in
-      TS.remove t.tags tag
+    let remove t buf fd =
+      let tag = XTag.read buf in
+      lwt () = TS.remove t.tags tag in
+      write_unit fd
 
-    let read t buf =
-      lwt tag = XTag.read buf in
+    let read t buf fd =
+      let tag = XTag.read buf in
       lwt keys = TS.read t.tags tag in
-      XKeys.write buf keys
+      XKeys.write_fd fd keys
 
-    let all t buf =
+    let all t buf fd =
       lwt tags = TS.all t.tags in
-      XTags.write buf tags
+      XTags.write_fd fd tags
 
   end
 
@@ -390,28 +400,30 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
 
     module S = IrminSync.Make(KS)(TS)
 
-    let pull_keys t buf =
-      lwt (keys, tags) = XKeysTags.read buf in
+    let pull_keys t buf fd =
+      let (keys, tags) = XKeysTags.read buf in
       lwt graph = S.pull_keys () keys tags in
-      XGraph.write buf graph
+      XGraph.write_fd fd graph
 
-    let pull_tags t buf =
+    let pull_tags t buf fd =
       lwt tags = S.pull_tags () in
-      XTagKeyss.write buf tags
+      XTagKeyss.write_fd fd tags
 
-    let push_keys t buf =
-      lwt (graph, tags) = XGraphTagKeyss.read buf in
-      S.push_keys () graph tags
+    let push_keys t buf fd =
+      let (graph, tags) = XGraphTagKeyss.read buf in
+      lwt () = S.push_keys () graph tags in
+      write_unit fd
 
-    let push_tags t buf =
-      lwt tags = XTagKeyss.read buf in
-      S.push_tags () tags
+    let push_tags t buf fd =
+      let tags = XTagKeyss.read buf in
+      lwt () = S.push_tags () tags in
+      write_unit fd
 
-    let watch fd t buf =
-      lwt tags = XTags.read buf in
+    let watch t buf fd =
+      let tags = XTags.read buf in
       try_lwt
         S.watch () tags (fun tags graph ->
-            XTagsGraph.write buf (tags, graph)
+            XTagsGraph.write_fd fd (tags, graph)
           )
       with _ ->
         IrminIO.Lwt_channel.close fd
@@ -421,7 +433,7 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
   let run t fd =
     lwt len = IrminIO.Lwt_channel.read_length fd in
     let buf = IrminIO.create len (IrminIO.Lwt_channel.ready fd) in
-    lwt action = Action.read buf in
+    let action = Action.read buf in
     let fn = match action with
       | Key_add          -> XKey_store.add
       | Key_list         -> XKey_store.all
@@ -436,8 +448,8 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
       | Sync_pull_tags   -> XSync.pull_tags
       | Sync_push_keys   -> XSync.push_keys
       | Sync_push_tags   -> XSync.push_tags
-      | Sync_watch       -> XSync.watch fd in
-    fn t buf
+      | Sync_watch       -> XSync.watch in
+    fn t buf fd
 
   type t = Lwt_channel.t
   module Key_store = KS

@@ -21,16 +21,13 @@ open IrminTypes
 (** Create a new buffer. *)
 val create: int -> (int -> unit Lwt.t) -> bufIO
 
-(** Wait for all array elements in the range to be available *)
-val poll: bufIO -> int -> unit Lwt.t
-
 (** {2 Errors} *)
 
 (** Parse error *)
 exception Parse_error of string
 
 (** Eventualy raise a exception *)
-val parse_error_buf: bufIO -> ('a, unit, string, 'b Lwt.t) format4 -> 'a
+val parse_error_buf: bufIO -> ('a, unit, string, 'b) format4 -> 'a
 
 (** Raise an exception *)
 val parse_error: ('a, unit, string, 'b) format4 -> 'a
@@ -43,47 +40,47 @@ val dump_buffer: all:bool -> bufIO -> unit
 (** Get/set big-endian integers of various sizes. *)
 
 (** [get_char buf] return the character stored in [buf]. *)
-val get_char: bufIO -> char Lwt.t
+val get_char: bufIO -> char
 
 (** [get_uint8 buf] is the 8 bit unsigned integer stored in [buf]. *)
-val get_uint8: bufIO -> int Lwt.t
+val get_uint8: bufIO -> int
 
 (** [get_uint16 buf] is the 16 bit long big-endian unsigned integer
     stored in [buf]. *)
-val get_uint16: bufIO -> int Lwt.t
+val get_uint16: bufIO -> int
 
 (** [get_uint32 buf] is the 32 bit long big-endian unsigned integer
     stored in [buf]. *)
-val get_uint32: bufIO -> int32 Lwt.t
+val get_uint32: bufIO -> int32
 
 (** [get_uint64 buf] is the 64 bit long big-endian unsigned integer
     stored in [buf]. *)
-val get_uint64: bufIO -> int64 Lwt.t
+val get_uint64: bufIO -> int64
 
 (** [get_string buf len] is the string of size [len] stored in [buf]. *)
-val get_string: bufIO -> int -> string Lwt.t
+val get_string: bufIO -> int -> string
 
 (** [set_char buf off c] write the character [c] in [buf] at offset
     [off]. *)
-val set_char: bufIO -> char -> unit Lwt.t
+val set_char: bufIO -> char -> unit
 
 (** [set_uint8 buf] write the 8 bit long integer stored in [buf]. *)
-val set_uint8: bufIO -> int -> unit Lwt.t
+val set_uint8: bufIO -> int -> unit
 
 (** [set_uint16 buf i] writes the 16 bit long big-endian unsigned
     integer [i] in [buf]. *)
-val set_uint16: bufIO -> int -> unit Lwt.t
+val set_uint16: bufIO -> int -> unit
 
 (** [set_uint32 buf i] writes the 32 bit long big-endian unsigned
     integer [i] in [buf]. *)
-val set_uint32: bufIO -> int32 -> unit Lwt.t
+val set_uint32: bufIO -> int32 -> unit
 
 (** [set_uint64 buf i] writes the 64 bit long big-endian unsigned
     integer [i] in [buf]. *)
-val set_uint64: bufIO -> int64 -> unit Lwt.t
+val set_uint64: bufIO -> int64 -> unit
 
 (** [set_string buf str] write the string [str] into [buf]. *)
-val set_string: bufIO -> string -> unit Lwt.t
+val set_string: bufIO -> string -> unit
 
 (** {2 Lifts} *)
 
@@ -134,6 +131,10 @@ module Lwt_channel: sig
   val write_length: t -> int -> unit Lwt.t
 
   val ready: t -> int -> unit Lwt.t
+
+  val write_unit: t -> unit Lwt.t
+
+  val read_unit: t -> unit Lwt.t
 
 end
 
