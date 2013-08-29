@@ -17,6 +17,19 @@
 open IrminTypes
 open IrminMisc
 
+exception Error of string
+
+let error fmt =
+  Printf.kprintf (fun str ->
+      Printf.eprintf "fatal: %s\n%!" str;
+      raise_lwt (Error str)
+    ) fmt
+
+let warning fmt =
+  Printf.kprintf (fun str ->
+      Printf.eprintf "%s\n%!" str
+    ) fmt
+
 module type S = sig
   type t
   val create: string -> t
@@ -36,14 +49,6 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
   module XKey = IrminIO.File(K)
   module XKeys = IrminIO.File(IrminIO.List(K))
   module XValue = IrminIO.File(V)
-
-  exception Error of string
-
-  let error fmt =
-    Printf.kprintf (fun str ->
-        Printf.eprintf "%s\n!" str;
-        raise (Error str)
-      ) fmt
 
   let (/) = Filename.concat
 
@@ -72,6 +77,14 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   type t = files
 
+  let check t =
+    if not (Sys.file_exists t.root) then
+      error "Not an Irminsule repository: %s/" t.root
+    else if not (Sys.is_directory t.root) then
+      error "%s is not a directory!" t.root
+    else
+      Lwt.return ()
+
   let with_file file fn =
     debug "with_file %s" file;
     lwt fd = Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) in
@@ -94,27 +107,21 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   let init dir =
     if Sys.file_exists dir then
-      error "%s already exists!" dir
-    else (
-      Unix.mkdir dir 0o755;
-      Unix.mkdir (keys_dir dir) 0o755;
-      Unix.mkdir (values_dir dir) 0o755;
-      Unix.mkdir (tags_dir dir) 0o755;
-    );
+      warning "Reinitialized existing Irminsule repository in %s/" dir;
+    let mkdir dir =
+      if not (Sys.file_exists dir) then Unix.mkdir dir 0o755 in
+    mkdir dir;
+    mkdir (keys_dir dir);
+    mkdir (values_dir dir);
+    mkdir (tags_dir dir);
     Lwt.return ()
 
-  let create dir =
-    if not (Sys.file_exists dir) then
-      error "%s does not exist!" dir
-    else if not (Sys.is_directory dir) then
-      error "%s is not a directory!" dir
-    else
-      {
-        root  = dir;
-        key   = key_file dir;
-        value = value_file dir;
-        tag   = tag_file dir;
-      }
+  let create dir = {
+    root  = dir;
+    key   = key_file dir;
+    value = value_file dir;
+    tag   = tag_file dir;
+  }
 
   let basenames fn dir =
     let files = Lwt_unix.files_of_directory dir in
@@ -135,11 +142,13 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let pred t key =
       debug "pred %s" (K.pretty key);
+      lwt () = check t in
       lwt keys = with_maybe_file (t.key key) XKeys.read_fd [] in
       Lwt.return (Key.Set.of_list keys)
 
     let all t =
       debug "all";
+      lwt () = check t in
       lwt keys = with_maybe_file (all_keys t.root)  XKeys.read_fd [] in
       Lwt.return (Key.Set.of_list keys)
 
@@ -151,6 +160,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let add t key pred_keys =
       debug "add %s %s" (K.pretty key) (K.Set.pretty pred_keys);
+      lwt () = check t in
       let file = t.key key in
       lwt old_keys = with_maybe_file file XKeys.read_fd [] in
       let keys = Key.Set.union pred_keys (Key.Set.of_list old_keys) in
@@ -177,6 +187,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let write t value =
       debug "write %s" (V.pretty value);
+      lwt () = check t in
       let key = V.key value in
       let file = t.value key in
       if Sys.file_exists file then
@@ -191,8 +202,8 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let read t key =
       debug "read %s" (K.pretty key);
+      lwt () = check t in
       let file = t.value key in
-      debug "read %s" file;
       if Sys.file_exists file then
         lwt value = with_file file XValue.read_fd in
         Lwt.return (Some value)
@@ -223,6 +234,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
     type t = files
 
     let remove t tag =
+      lwt () = check t in
       let file = t.tag tag in
       if Sys.file_exists file then (
         debug "remove %s" (T.to_name tag);
@@ -232,6 +244,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let update t tag keys =
       debug "update %s %s" (Tag.to_name tag) (Key.Set.pretty keys);
+      lwt () = check t in
       lwt () = remove t tag in
       with_file (t.tag tag) (fun fd ->
           debug "add %s" (Tag.to_name tag);
@@ -240,6 +253,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let read t tag =
       debug "read %s" (Tag.to_name tag);
+      lwt () = check t in
       let file = t.tag tag in
       if Sys.file_exists file then
         lwt keys = with_file file XKeys.read_fd in
@@ -249,6 +263,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let all t =
       debug "all";
+      lwt () = check t in
       lwt tags = basenames Tag.of_name (tags_dir t.root) in
       Lwt.return (Tag.Set.of_list tags)
 

@@ -18,6 +18,9 @@
 
 open IrminTypes
 
+(** Disk-related errors. *)
+exception Error of string
+
 (** Main signature *)
 module type S = sig
 
