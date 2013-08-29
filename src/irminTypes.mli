@@ -18,12 +18,9 @@
 
 (** {2 Base types} *)
 
-(** Buffered IOs. It is a bigarray plus a blocking function which
-    returns when the page containing the nth elements is ready.  *)
+(** Buffered IOs are mutable cstruct buffers. *)
 type bufIO = {
-  buffer: (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t;
-  ready: int -> unit Lwt.t;
-  mutable offset: int;
+  mutable buffer: Cstruct.t;
 }
 
 (** It's quite anoying to have to define that again ... *)

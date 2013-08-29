@@ -16,124 +16,61 @@
 
 open IrminTypes
 
-(* From cstruct *)
-type buffer = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+let create len =
+  let buffer = Cstruct.create len in
+  let str = String.make len 'x' in
+  Cstruct.blit_from_string str 0 buffer 0 len;
+  { buffer }
 
-let create len ready =
-  let buffer = Bigarray.Array1.create Bigarray.char Bigarray.c_layout len in
-  for i = 0 to len-1 do
-    buffer.{i} <- 'x';
-  done;
-  {
-    buffer;
-    offset = 0;
-    ready;
-  }
-
-(* From ocaml-cstruct *)
-external unsafe_blit_string_to_bigstring
-  : string -> int -> buffer -> int -> int -> unit
-  = "caml_blit_string_to_bigstring" "noalloc"
-
-external unsafe_blit_bigstring_to_string
-  : buffer -> int -> string -> int -> int -> unit
-  = "caml_blit_bigstring_to_string" "noalloc"
-
-let invalid_arg fmt =
-  let b = Buffer.create 20 in (* for thread safety. *)
-  let ppf = Format.formatter_of_buffer b in
-  let k ppf = Format.pp_print_flush ppf (); invalid_arg (Buffer.contents b) in
-  Format.kfprintf k ppf fmt
-
-let invalid_bounds j l =
-  invalid_arg "invalid bounds (index %d, length %d)" j l
-
-let length t =
-  Bigarray.Array1.dim t.buffer - t.offset
-
-let blit_from_string src srcoff dst dstoff len =
-  if String.length src - srcoff < len then
-    raise (Invalid_argument (invalid_bounds srcoff len));
-  if length dst - dstoff < len then
-    raise (Invalid_argument (invalid_bounds dstoff len));
-  unsafe_blit_string_to_bigstring src srcoff dst.buffer (dst.offset+dstoff) len
-
-let blit_to_string src srcoff dst dstoff len =
-  if length src - srcoff < len then
-    raise (Invalid_argument (invalid_bounds srcoff len));
-  if String.length dst - dstoff < len then
-    raise (Invalid_argument (invalid_bounds dstoff len));
-  unsafe_blit_bigstring_to_string src.buffer (src.offset+srcoff) dst dstoff len
-
-let set t len fn =
-  fn t;
-  t.offset <- t.offset + len
+let set t len fn c =
+  fn t.buffer 0 c;
+  t.buffer <- Cstruct.shift t.buffer len
 
 let set_char t c =
-  set t 1 (fun t ->
-      EndianBigstring.BigEndian.set_char t.buffer t.offset c;
-    )
+  set t 1 Cstruct.set_char c
 
 let set_uint8 t c =
-  set t 1 (fun t ->
-      EndianBigstring.BigEndian.set_int8 t.buffer t.offset c;
-    )
+  set t 1 Cstruct.set_uint8 c
 
 let set_uint16 t c =
-  set t 2 (fun t ->
-      EndianBigstring.BigEndian.set_int16 t.buffer t.offset c;
-    )
+  set t 2 Cstruct.BE.set_uint16 c
 
 let set_uint32 t c =
-  set t 4 (fun t ->
-      EndianBigstring.BigEndian.set_int32 t.buffer t.offset c;
-    )
+  set t 4 Cstruct.BE.set_uint32 c
 
 let set_uint64 t c =
-  set t 8 (fun t ->
-      EndianBigstring.BigEndian.set_int64 t.buffer t.offset c;
-    )
+  set t 8 Cstruct.BE.set_uint64 c
 
 let set_string t str =
   let len = String.length str in
-  set t len (fun t ->
-      blit_from_string str 0 t 0 len;
-    )
+  set t len (fun _ _ _ ->
+      Cstruct.blit_from_string str 0 t.buffer 0 len;
+    ) str
 
 let get t n fn =
-  let i = fn t in
-  t.offset <- t.offset + n;
+  let i = fn t.buffer 0 in
+  t.buffer <- Cstruct.shift t.buffer n;
   i
 
 let get_char t =
-  get t 1 (fun t ->
-      EndianBigstring.BigEndian.get_char t.buffer t.offset
-    )
+  get t 1 Cstruct.get_char
 
 let get_uint8 t =
-  get t 1 (fun t ->
-      EndianBigstring.BigEndian.get_uint8 t.buffer t.offset
-    )
+  get t 1 Cstruct.get_uint8
 
 let get_uint16 t =
-  get t 2 (fun t ->
-      EndianBigstring.BigEndian.get_uint16 t.buffer t.offset
-    )
+  get t 2 Cstruct.BE.get_uint16
 
 let get_uint32 t =
-  get t 4 (fun t ->
-      EndianBigstring.BigEndian.get_int32 t.buffer t.offset
-    )
+  get t 4 Cstruct.BE.get_uint32
 
 let get_uint64 t =
-  get t 8 (fun t ->
-      EndianBigstring.BigEndian.get_int64 t.buffer t.offset
-    )
+  get t 8 Cstruct.BE.get_uint64
 
 let get_string t len =
   let str = String.create len in
-  get t len (fun t ->
-      blit_to_string t 0 str 0 len;
+  get t len (fun _ _ ->
+      Cstruct.blit_to_string t.buffer 0 str 0 len;
     );
   str
 
@@ -142,23 +79,17 @@ module OCamlString = String
 
 exception Parse_error of string
 
-let dump_buffer ~all t =
+let dump_buffer t =
   if IrminMisc.debug_enabled () then
-    let length = Bigarray.Array1.dim t.buffer in
-    let str =
-      if all then String.create length
-      else String.create (length - t.offset) in
-    if all then
-      unsafe_blit_bigstring_to_string t.buffer 0 str 0 length
-    else
-      unsafe_blit_bigstring_to_string t.buffer t.offset str 0 (length - t.offset);
-    Printf.eprintf "%16s\027[33m[[ offset:%d len:%d %S ]]\027[m\n" ""
-      t.offset length str
+    let debug = Cstruct.debug t.buffer in
+    let str = Cstruct.to_string t.buffer in
+    Printf.eprintf "%16s\027[33m[[ %s %S ]]\027[m\n" ""
+      debug str
 
 let parse_error_buf buf fmt =
   Printf.kprintf (fun str ->
       Printf.eprintf "\027[31mParse error:\027[m %s\n" str;
-      dump_buffer ~all:true buf;
+      dump_buffer buf;
       raise (Parse_error str)
     ) fmt
 
@@ -438,8 +369,6 @@ module Lwt_channel = struct
     name: string;
   }
 
-  let create fd name = { fd; name }
-
   let name t = t.name
 
   let close t = Lwt_unix.close t.fd
@@ -460,20 +389,16 @@ module Lwt_channel = struct
 
   let read_buf t len =
     debug "read_buf %s %d" t.name len;
-    let buf = Bigarray.Array1.create Bigarray.char Bigarray.c_layout len in
+    let bufIO = create len in
+    let buf = bufIO.buffer.Cstruct.buffer in
     let rec rread fd buf ofs len =
       debug "rread ofs=%d len=%d" ofs len;
       lwt n = Lwt_bytes.read fd buf ofs len in
       if n = 0 then raise End_of_file;
       if n < len then rread fd buf (ofs + n) (len - n) else Lwt.return () in
     lwt () = rread t.fd buf 0 len in
-    let buffer = {
-      buffer = buf;
-      offset = 0;
-      ready  = ready t.fd;
-    } in
-    dump_buffer ~all:true buffer;
-    Lwt.return buffer
+    dump_buffer bufIO;
+    Lwt.return bufIO
 
   let write_string t str =
     debug "write_string %s %S" t.name str;
@@ -485,12 +410,12 @@ module Lwt_channel = struct
 
   let write_buf t buf len =
     debug "write_buf %s %d" t.name len;
-    dump_buffer ~all:true buf;
+    dump_buffer buf;
     let rec rwrite fd buf ofs len =
       lwt n = Lwt_bytes.write fd buf ofs len in
       if n = 0 then raise End_of_file;
       if n < len then rwrite fd buf (ofs + n) (len - n) else Lwt.return () in
-    rwrite t.fd buf.buffer 0 len
+    rwrite t.fd buf.buffer.Cstruct.buffer 0 len
 
   let read_length t =
     debug "read_length %s" t.name;
@@ -516,6 +441,8 @@ module Lwt_channel = struct
     lwt str = read_string t 1 in
     assert (str = "U");
     Lwt.return ()
+
+  let create fd name = { fd; name }
 
 end
 
@@ -543,7 +470,7 @@ module File (B: BASE) = struct
   let write_fd fd t =
     debug "write_fd %s" (Lwt_channel.name fd);
     let len = B.sizeof t in
-    let buf = create len (Lwt_channel.ready fd) in
+    let buf = create len in
     B.write buf t;
     Lwt_channel.write_buf fd buf len
 
@@ -566,7 +493,7 @@ module Wire (B: BASE) = struct
   let write_fd fd t =
     debug "write_fd %s" (Lwt_channel.name fd);
     let len = B.sizeof t in
-    let buf = create len (Lwt_channel.ready fd) in
+    let buf = create len in
     B.write buf t;
     lwt () = Lwt_channel.write_length fd len in
     Lwt_channel.write_buf fd buf len

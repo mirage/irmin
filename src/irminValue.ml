@@ -122,11 +122,11 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       | Blob _     -> 0
       | Revision _ -> 1 in
     IrminIO.set_uint8 buf kind;
-    IrminIO.dump_buffer ~all:true buf;
+    IrminIO.dump_buffer buf;
     let () = match t with
       | Blob b     -> Blob.write buf b
       | Revision r -> Revision.write buf r in
-    IrminIO.dump_buffer ~all:true buf
+    IrminIO.dump_buffer buf
 
   let parents = function
     | Revision { parents } -> parents

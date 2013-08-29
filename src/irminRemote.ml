@@ -432,7 +432,7 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
 
   let run t fd =
     lwt len = IrminIO.Lwt_channel.read_length fd in
-    let buf = IrminIO.create len (IrminIO.Lwt_channel.ready fd) in
+    let buf = IrminIO.create len in
     let action = Action.read buf in
     let fn = match action with
       | Key_add          -> XKey_store.add

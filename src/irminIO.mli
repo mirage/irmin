@@ -19,7 +19,7 @@
 open IrminTypes
 
 (** Create a new buffer. *)
-val create: int -> (int -> unit Lwt.t) -> bufIO
+val create: int -> bufIO
 
 (** {2 Errors} *)
 
@@ -33,7 +33,7 @@ val parse_error_buf: bufIO -> ('a, unit, string, 'b) format4 -> 'a
 val parse_error: ('a, unit, string, 'b) format4 -> 'a
 
 (** Dump the buffer *)
-val dump_buffer: all:bool -> bufIO -> unit
+val dump_buffer: bufIO -> unit
 
 (** {Basic IO operations} *)
 
