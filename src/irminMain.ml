@@ -18,48 +18,54 @@ open Cmdliner
 open IrminLwt
 
 let global_option_section = "COMMON OPTIONS"
-let help_sections = [
-  `S global_option_section;
-  `P "These options are common to all commands.";
-]
-
-(* Helpers *)
-let mk_flag ?section flags doc =
-  let doc = Arg.info ?docs:section ~doc flags in
-  Arg.(value & flag & doc)
-
-let mk_opt ?section flags value doc conv default =
-  let doc = Arg.info ?docs:section ~docv:value ~doc flags in
-  Arg.(value & opt conv default & doc)
-
-let mk_required ?section flags value doc conv default =
-  let doc = Arg.info ?docs:section ~docv:value ~doc flags in
-  Arg.(required & opt conv default & doc)
-
-let term_info title ~doc ~man =
-  let man = man @ help_sections in
-  Term.info ~sdocs:global_option_section ~doc ~man title
-
-let arg_list name doc conv =
-  let doc = Arg.info ~docv:name ~doc [] in
-  Arg.(non_empty & pos_all conv [] & doc)
 
 let pr_str = Format.pp_print_string
 
 let value_conv =
-  let parse str = `Ok (Value.blob str) in
-  let print ppf v = pr_str ppf (Value.pretty v) in
+  let parse str = `Ok (Value.of_blob str) in
+  let print ppf v =
+    match Value.to_blob v with
+    | None   -> pr_str ppf (Value.pretty v)
+    | Some b -> pr_str ppf b in
   parse, print
 
-let values =
-  let doc = Arg.info ~docv:"VALUES" ~doc:"Values to add the the distributed queue." [] in
-  Arg.(non_empty & pos_all value_conv [] & doc)
+let source_conv =
+  let parse str = `Ok (`Dir str) in
+  let print ppf (`Dir str) = pr_str ppf str in
+  parse, print
 
-let default =
-  Term.pure (`Dir ".irmin")
+let tag_conv =
+  let parse str = `Ok (Tag.of_name str) in
+  let print ppf tag = pr_str ppf (Tag.to_name tag) in
+  parse, print
+
+let value =
+  let doc =
+    Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
+  Arg.(required & pos 0 (some value_conv) None & doc)
+
+let queue =
+  let source =
+    let doc =
+      Arg.info ~docv:"SOURCE" ~doc:"Queue source." ["s";"source"] in
+    Arg.(value & opt source_conv (`Dir ".irmin") & doc) in
+  let front =
+    let doc =
+      Arg.info ~docv:"FRONT" ~doc:"Tags of front elements." ["f";"front"] in
+    Arg.(value & opt tag_conv IrminQueue.default_front & doc) in
+  let back =
+    let doc =
+      Arg.info ~docv:"BACK" ~doc:"Tags of back elements." ["b";"back"] in
+    Arg.(value & opt tag_conv IrminQueue.default_back & doc) in
+  let create front back source = IrminQueue.create ~front ~back source in
+  Term.(pure create $ front $ back $ source)
 
 let run t =
-  Lwt_unix.run t
+  Lwt_unix.run begin
+    try_lwt t
+    with IrminDisk.Error _ -> exit 2
+  end
+
 
 (* INIT *)
 let init_doc = "Initialize a queue."
@@ -71,8 +77,8 @@ let init =
   ] in
   let init t =
     run (IrminQueue.init t) in
-  Term.(pure init $ default),
-  term_info "init" ~doc ~man
+  Term.(pure init $ queue),
+  Term.info "init" ~doc ~man
 
 (* ADD *)
 let add_doc = "Add an element at the end of the queue."
@@ -82,10 +88,10 @@ let add =
     `S "DESCRIPTION";
     `P add_doc;
   ] in
-  let add t values =
-    run (IrminQueue.add t values) in
-  Term.(pure add $ default $ values),
-  term_info "add" ~doc ~man
+  let add t value =
+    run (IrminQueue.add t value) in
+  Term.(pure add $ queue $ value),
+  Term.info "add" ~doc ~man
 
 (* WATCH *)
 let watch_doc = "Watch a queue."
@@ -95,8 +101,8 @@ let watch =
     `S "DESCRIPTION";
     `P watch_doc;
   ] in
-  Term.(pure IrminQueue.watch $ default),
-  term_info "watch" ~doc ~man
+  Term.(pure IrminQueue.watch $ queue),
+  Term.info "watch" ~doc ~man
 
 (* TAKE *)
 let take_doc = "Removes and returns the first element in the queue."
@@ -107,9 +113,13 @@ let take =
     `P take_doc;
   ] in
   let take t =
-    run (IrminQueue.take t) in
-  Term.(pure take $ default),
-  term_info "take" ~doc ~man
+    run begin
+      lwt value = IrminQueue.take t in
+      Printf.printf "%s" (Value.pretty value);
+      Lwt.return ()
+    end in
+  Term.(pure take $ queue),
+  Term.info "take" ~doc ~man
 
 (* PEEK *)
 let peek_doc = "Returns the first element in the queue, without removing it from \
@@ -123,19 +133,30 @@ let peek =
   let peek t =
     let elt = run (IrminQueue.peek t) in
     Printf.printf "%s\n" (IrminLwt.Value.pretty elt) in
-  Term.(pure peek $ default),
-  term_info "peek" ~doc ~man
+  Term.(pure peek $ queue),
+  Term.info "peek" ~doc ~man
 
-(* DUMP *)
-let dump_doc = "Dump the queue contents."
-let dump =
-  let doc = dump_doc in
+(* LIST *)
+let list_doc = "List the queue contents."
+let list =
+  let doc = list_doc in
   let man = [
     `S "DESCRIPTION";
-    `P dump_doc;
+    `P list_doc;
   ] in
-  Term.(pure IrminQueue.dump $ default),
-  term_info "dump" ~doc ~man
+  let list t =
+    run begin
+      lwt values = IrminQueue.to_list t in
+      let blobs = List.map (fun v ->
+          match Value.to_blob v with
+          | None   -> assert false
+          | Some b -> b
+        ) values in
+      List.iter (Printf.printf "%s\n") blobs;
+      Lwt.return ()
+    end in
+  Term.(pure list $ queue),
+  Term.info "list" ~doc ~man
 
 (* PULL *)
 let pull_doc = "Pull changes between queues."
@@ -145,8 +166,8 @@ let pull =
     `S "DESCRIPTION";
     `P pull_doc;
   ] in
-  Term.(pure IrminQueue.pull $ default),
-  term_info "pull" ~doc ~man
+  Term.(pure IrminQueue.pull $ queue),
+  Term.info "pull" ~doc ~man
 
 (* PUSH *)
 let push_doc = "Push changes between queues."
@@ -156,8 +177,8 @@ let push =
     `S "DESCRIPTION";
     `P push_doc;
   ] in
-  Term.(pure IrminQueue.push $ default),
-  term_info "push" ~doc ~man
+  Term.(pure IrminQueue.push $ queue),
+  Term.info "push" ~doc ~man
 
 (* CLONE *)
 let clone_doc = "Clone an existing queue."
@@ -167,8 +188,8 @@ let clone =
     `S "DESCRIPTION";
     `P clone_doc;
   ] in
-  Term.(pure IrminQueue.clone $ default),
-  term_info "clone" ~doc ~man
+  Term.(pure IrminQueue.clone $ queue),
+  Term.info "clone" ~doc ~man
 
 (* HELP *)
 let help =
@@ -202,8 +223,7 @@ let default =
     `P "TODO";
     `P "Use either $(b,$(mname) <command> --help) or $(b,$(mname) help <command>) \
         for more information on a specific command.";
-  ] @  help_sections
-  in
+  ] in
   let usage _ =
     Printf.printf
       "usage: irmin [--version]\n\
@@ -216,13 +236,13 @@ let default =
       \    take    %s\n\
       \    peek    %s\n\
       \    watch   %s\n\
-      \    dump    %s\n\
+      \    list    %s\n\
       \    clone   %s\n\
       \    push    %s\n\
       \    pull    %s\n\
       \n\
       See `irmin help <command>` for more information on a specific command.\n%!"
-      init_doc add_doc take_doc peek_doc watch_doc dump_doc clone_doc push_doc
+      init_doc add_doc take_doc peek_doc watch_doc list_doc clone_doc push_doc
       pull_doc in
   Term.(pure usage $ (pure ())),
   Term.info "irmin"
@@ -237,7 +257,7 @@ let commands = [
   take;
   peek;
   watch;
-  dump;
+  list;
   clone;
   push;
   pull;

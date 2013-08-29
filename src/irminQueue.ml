@@ -130,9 +130,6 @@ let take t =
 let watch _ =
   failwith "TODO"
 
-let dump _ =
-  failwith "TODO"
-
 let pull _ =
   failwith "TODO"
 

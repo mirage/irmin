@@ -144,8 +144,6 @@ val to_list: t -> Value.t list Lwt.t
 
 val watch: t -> unit
 
-val dump: t -> unit
-
 val pull: t -> unit
 
 val push: t -> unit
