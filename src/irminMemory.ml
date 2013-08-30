@@ -16,15 +16,16 @@
 
 open IrminTypes
 
-module Key_store (K: KEY) = struct
+module Key_store (C: CORE) = struct
 
-  module Key = K
+  module C = C
+  open C
 
   module Vertex = struct
-    type t = K.t
-    let compare = K.compare
-    let hash = K.hash
-    let equal k1 k2 = K.compare k1 k2 = 0
+    type t = Key.t
+    let compare = Key.compare
+    let hash = Key.hash
+    let equal k1 k2 = Key.compare k1 k2 = 0
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
@@ -48,7 +49,7 @@ module Key_store (K: KEY) = struct
 
   let all g =
     let keys = G.fold_vertex (fun k acc -> k :: acc) g [] in
-    Lwt.return (K.Set.of_list keys)
+    Lwt.return (Key.Set.of_list keys)
 
   (* XXX: G.pred is in O(max(|V|,|E|)) *)
   let pred g k =
@@ -61,34 +62,32 @@ module Key_store (K: KEY) = struct
 
 end
 
-module Value_store (K: KEY) (V: VALUE with module Key = K) = struct
+module Value_store (C: CORE) = struct
 
-  module Key = K
+  module C = C
+  open C
 
-  module Value = V
-
-  type t = (K.t, V.t) Hashtbl.t
+  type t = (Key.t, Value.t) Hashtbl.t
 
   let create () =
     Hashtbl.create 1024
 
   let write t value =
-    let key = V.key value in
+    let key = Value.key value in
     Hashtbl.add t key value;
     Lwt.return key
 
   let read t key =
-    Printf.printf "Reading %s\n%!" (K.pretty key);
+    Printf.printf "Reading %s\n%!" (Key.pretty key);
     try Lwt.return (Some (Hashtbl.find t key))
     with Not_found -> Lwt.return None
 
 end
 
-module Tag_store (T: TAG) (K: KEY) = struct
+module Tag_store (C: CORE) = struct
 
-  module Tag = T
-
-  module Key = K
+  module C = C
+  open C
 
   type t = (Tag.t, Key.Set.t) Hashtbl.t
 
@@ -114,4 +113,19 @@ module Tag_store (T: TAG) (K: KEY) = struct
     let elts = Hashtbl.fold (fun t _ acc -> t :: acc) t [] in
     Lwt.return (Tag.Set.of_list elts)
 
+end
+
+module Make (C: CORE): STORE with module C = C = struct
+  module C = C
+  module Key_store = Key_store(C)
+  module Value_store = Value_store(C)
+  module Tag_store = Tag_store(C)
+  type t = {
+    k: Key_store.t;
+    v: Value_store.t;
+    t: Tag_store.t;
+  }
+  let key_store t = t.k
+  let value_store t = t.v
+  let tag_store t = t.t
 end

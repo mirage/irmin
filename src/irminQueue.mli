@@ -46,8 +46,12 @@ open IrminLwt
 *)
 type t
 
+type source =
+  [ `Dir  of string
+  | `Unix of string ]
+
 (** Create a queue abstract object. *)
-val create: ?front:Tag.t -> ?back:Tag.t -> [`Dir of string] -> t
+val create: ?front:Tag.t -> ?back:Tag.t -> source -> t
 
 (** Default front tag. *)
 val default_front: Tag.t
@@ -139,6 +143,9 @@ val peek: t -> Value.t Lwt.t
 (** Return all the values between front and back values, in the
     topological order. *)
 val to_list: t -> Value.t list Lwt.t
+
+(** Run an Irminsule server. *)
+val server: t -> string -> unit Lwt.t
 
 (* TODO *)
 

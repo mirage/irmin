@@ -130,11 +130,11 @@ module Lwt_channel: sig
 
   val write_length: t -> int -> unit Lwt.t
 
-  val ready: t -> int -> unit Lwt.t
-
   val write_unit: t -> unit Lwt.t
 
   val read_unit: t -> unit Lwt.t
+
+  val unix_socket: string -> t
 
 end
 

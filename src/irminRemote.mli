@@ -21,19 +21,16 @@ open IrminTypes
 (** Signature for clients *)
 module type CLIENT = sig
 
-  (** Abstract channels *)
-  type t
+  (** Clients communicate with servers using file descriptors. *)
+  type t = IrminIO.Lwt_channel.t
 
-  (** Access the remote key store *)
-  module Key_store: KEY_STORE with type t = t
+  (** Clients transparentely access the server store. *)
+  include STORE with type t := t
+                 and type Key_store.t = t
+                 and type Value_store.t = t
+                 and type Tag_store.t = t
 
-  (** Access the remote value store *)
-  module Value_store: VALUE_STORE with type t = t
-
-  (** Access the remote tag store *)
-  module Tag_store: TAG_STORE with type t = t
-
-  (** Sync with a remote server *)
+  (** And they also got synchronization operations. *)
   module Sync: SYNC with type t = t
 
 end
@@ -41,43 +38,21 @@ end
 
 (** Client implementation (eg. needs a server on the other side of the
     channel) *)
-module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG)
-  : CLIENT with type t = IrminIO.Lwt_channel.t
+module Client (C: CORE): CLIENT with module C = C
 
 (** Signature for servers *)
 module type SERVER = sig
 
-  (** Abstract channels between the client and server *)
-  type t
+  (** Servers communicate with clients using file descriptors. *)
+  type t = IrminIO.Lwt_channel.t
 
-  (** The server handles to manage its key store *)
-  module Key_store: KEY_STORE
-
-  (** The server handles to manage its value store *)
-  module Value_store: VALUE_STORE
-
-  (** The server handles to manage its tag store *)
-  module Tag_store: TAG_STORE
-
-  (** All the server handlers  *)
-  type stores = {
-    keys  : Key_store.t;
-    values: Value_store.t;
-    tags  : Tag_store.t;
-  }
+  (** How the server manage its state. *)
+  module State: STORE
 
   (** Run the server thread *)
-  val run: stores -> t -> unit Lwt.t
+  val run: State.t -> t -> unit Lwt.t
 
 end
 
-(** Implementation of servers. Expose a process function. *)
-module Server
-    (K: KEY) (V: VALUE with module Key = K) (T: TAG)
-    (KS: KEY_STORE with module Key = K)
-    (VS: VALUE_STORE with module Key = K and module Value = V)
-    (TS: TAG_STORE with module Key = K and module Tag = T)
-  : SERVER with module Key_store = KS
-            and module Value_store = VS
-            and module Tag_store = TS
-            and type t = IrminIO.Lwt_channel.t
+(** Implementation of servers. *)
+module Server (S: STORE): SERVER with module State = S

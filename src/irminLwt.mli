@@ -18,22 +18,22 @@
 
 open IrminTypes
 
-(** SHA1 keys *)
-module Key: KEY with type t = IrminKey.sha1
+(** Types of keys *)
+module Key: KEY with type t = IrminKey.SHA1.t and type Set.t = IrminKey.SHA1.Set.t
 
-(** Blob/revision values *)
+(** Types of values *)
 module Value: VALUE with module Key = Key
 
-(** Basic tags *)
+(** Types of tags *)
 module Tag: TAG with type t = IrminTag.t
 
-(** Disk access *)
-module Disk: IrminDisk.S
-  with module Key_store.Key = Key
-   and module Value_store.Key = Key
-   and module Value_store.Value = Value
-   and module Tag_store.Key = Key
-   and module Tag_store.Tag = Tag
+(** Core types. *)
+module C: CORE with module Key = Key
+                and module Value = Value
+                and module Tag = Tag
+
+ (** Disk access *)
+module Disk: IrminDisk.S with module C = C
 
 (** Client bindings *)
 module Client: IrminRemote.CLIENT with type t = IrminIO.Lwt_channel.t
@@ -43,7 +43,8 @@ module MemoryServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t
 
 (** Server which persists everything into disk *)
 module DiskServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t
+                                       and module State := Disk
 
 (** Server which keeps the key-store in memory and persist tags and
     values only. *)
-module MixedServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t
+module MixServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t

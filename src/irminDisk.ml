@@ -32,50 +32,61 @@ let warning fmt =
 
 module type S = sig
   type t
+  include STORE with type t := t
+                 and type Key_store.t = t
+                 and type Value_store.t = t
+                 and type Tag_store.t = t
   val create: string -> t
   val init: string -> unit Lwt.t
-  module Key_store  : KEY_STORE   with type t = t
-  module Value_store: sig
-    include VALUE_STORE with type t = t
-    val dump: t -> unit Lwt.t
-  end
-  module Tag_store  : TAG_STORE   with type t = t
+  val dump: t -> unit Lwt.t
 end
 
-module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
+module Make (C: CORE) = struct
 
   let debug fmt = IrminMisc.debug "DISK" fmt
 
-  module XKey = IrminIO.File(K)
-  module XKeys = IrminIO.File(IrminIO.List(K))
-  module XValue = IrminIO.File(V)
+  open C
+
+  module XKey = IrminIO.File(Key)
+  module XKeys = IrminIO.File(IrminIO.List(Key))
+  module XValue = IrminIO.File(Value)
 
   let (/) = Filename.concat
 
   let keys_dir dir = dir / "keys"
 
-  let key_file dir k = keys_dir dir / K.to_hex k
+  let key_file dir k = keys_dir dir / Key.to_hex k
 
   let all_keys dir = keys_dir dir / "index"
 
   let values_dir dir = dir / "values"
 
-  let value_file dir k = values_dir dir / K.to_hex k
+  let value_file dir k = values_dir dir / Key.to_hex k
 
   let tags_dir dir = dir / "tags"
 
-  let tag_file dir t = tags_dir dir / T.to_name t
+  let tag_file dir t = tags_dir dir / Tag.to_string t
 
   type file = string
 
-  type files = {
-    root : string;
-    key  : K.t -> file;
-    value: K.t -> file;
-    tag  : T.t -> file;
-  }
+  module T = struct
 
-  type t = files
+    type t = {
+      root : string;
+      key  : Key.t -> file;
+      value: Key.t -> file;
+      tag  : Tag.t -> file;
+    }
+
+    let key_store t = t
+    let value_store t = t
+    let tag_store t = t
+
+    module C = C
+
+  end
+
+  include T
 
   let check t =
     if not (Sys.file_exists t.root) then
@@ -132,16 +143,25 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
         Lwt.return (fn b)
       ) files
 
+  let dump t =
+    lwt keys = basenames Key.of_hex (values_dir t.root) in
+    lwt values = Lwt_list.map_s (fun key ->
+        lwt value = with_file (t.value key) XValue.read_fd in
+        Lwt.return (key, value)
+      ) keys in
+    List.iter (fun (key, value) ->
+        Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
+      ) values;
+    Lwt.return ()
+
   module Key_store = struct
 
     let debug fmt = IrminMisc.debug "DISK-KEY" fmt
 
-    module Key = K
-
-    type t = files
+    include T
 
     let pred t key =
-      debug "pred %s" (K.pretty key);
+      debug "pred %s" (Key.pretty key);
       lwt () = check t in
       lwt keys = with_maybe_file (t.key key) XKeys.read_fd [] in
       Lwt.return (Key.Set.of_list keys)
@@ -159,7 +179,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       with_file (all_keys t.root) (fun fd -> XKeys.write_fd fd keys)
 
     let add t key pred_keys =
-      debug "add %s %s" (K.pretty key) (K.Set.pretty pred_keys);
+      debug "add %s %s" (Key.pretty key) (Key.Set.pretty pred_keys);
       lwt () = check t in
       let file = t.key key in
       lwt old_keys = with_maybe_file file XKeys.read_fd [] in
@@ -179,21 +199,17 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
     let debug fmt = IrminMisc.debug "DISK-VALUE" fmt
 
-    module Key = K
-
-    module Value = V
-
-    type t = files
+    include T
 
     let write t value =
-      debug "write %s" (V.pretty value);
+      debug "write %s" (Value.pretty value);
       lwt () = check t in
-      let key = V.key value in
+      let key = Value.key value in
       let file = t.value key in
       if Sys.file_exists file then
         Lwt.return key
       else
-        let parents = V.parents value in
+        let parents = Value.parents value in
         lwt () = Key_store.add t key parents in
         lwt () = with_file file (fun fd ->
             XValue.write_fd fd value
@@ -201,7 +217,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
         Lwt.return key
 
     let read t key =
-      debug "read %s" (K.pretty key);
+      debug "read %s" (Key.pretty key);
       lwt () = check t in
       let file = t.value key in
       if Sys.file_exists file then
@@ -210,49 +226,34 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
       else
         Lwt.return None
 
-    let dump t =
-      lwt keys = basenames K.of_hex (values_dir t.root) in
-      lwt values = Lwt_list.map_s (fun key ->
-          lwt value = with_file (t.value key) XValue.read_fd in
-          Lwt.return (key, value)
-        ) keys in
-      List.iter (fun (key, value) ->
-          Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
-        ) values;
-      Lwt.return ()
-
   end
 
   module Tag_store = struct
 
     let debug fmt = IrminMisc.debug "DISK-TAG" fmt
 
-    module Key = K
-
-    module Tag = T
-
-    type t = files
+    include T
 
     let remove t tag =
       lwt () = check t in
       let file = t.tag tag in
       if Sys.file_exists file then (
-        debug "remove %s" (T.to_name tag);
+        debug "remove %s" (Tag.to_string tag);
         Unix.unlink file;
       );
       Lwt.return ()
 
     let update t tag keys =
-      debug "update %s %s" (Tag.to_name tag) (Key.Set.pretty keys);
+      debug "update %s %s" (Tag.pretty tag) (Key.Set.pretty keys);
       lwt () = check t in
       lwt () = remove t tag in
       with_file (t.tag tag) (fun fd ->
-          debug "add %s" (Tag.to_name tag);
+          debug "add %s" (Tag.to_string tag);
           XKeys.write_fd fd (Key.Set.to_list keys)
         )
 
     let read t tag =
-      debug "read %s" (Tag.to_name tag);
+      debug "read %s" (Tag.pretty tag);
       lwt () = check t in
       let file = t.tag tag in
       if Sys.file_exists file then
@@ -264,7 +265,7 @@ module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
     let all t =
       debug "all";
       lwt () = check t in
-      lwt tags = basenames Tag.of_name (tags_dir t.root) in
+      lwt tags = basenames Tag.of_string (tags_dir t.root) in
       Lwt.return (Tag.Set.of_list tags)
 
   end

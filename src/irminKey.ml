@@ -74,16 +74,12 @@ module SHA1 = struct
 
 end
 
-module Graph
-    (KS: KEY_STORE)
-    (VS: VALUE_STORE with type t = KS.t and module Key = KS.Key)
-    (TS: TAG_STORE with type t = KS.t and module Key = KS.Key) = struct
+module Graph (S: STORE) = struct
 
   let debug fmt = IrminMisc.debug "GRAPH" fmt
 
-  module Key = KS.Key
-  module Value = VS.Value
-  module Tag = TS.Tag
+  open S
+  open C
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(Key)
   module GO = Graph.Oper.I(G)
@@ -108,11 +104,11 @@ module Graph
 
   let dump t g name =
     if IrminMisc.debug_enabled () then (
-      lwt tags = TS.all t in
+      lwt tags = Tag_store.all (tag_store t) in
       lwt tags = Lwt_list.fold_left_s (fun tags tag ->
-          lwt keys = TS.read t tag in
+          lwt keys = Tag_store.read (tag_store t) tag in
           let keys = Key.Set.fold (fun key tags ->
-              (key, Tag.to_name tag) :: tags
+              (key, Tag.to_string tag) :: tags
             ) keys tags in
           Lwt.return keys
         ) [] (Tag.Set.to_list tags) in
@@ -121,16 +117,16 @@ module Graph
             if key = k then tag :: tags else tags
           ) [] tags in
         List.map (fun tag -> `Label tag) tags in
-      lwt keys = KS.all t in
+      lwt keys = Key_store.all (key_store t) in
       lwt values = Lwt_list.fold_left_s (fun values key ->
-          lwt value = VS.read t key in
+          lwt value = Value_store.read (value_store t) key in
           match value with
           | None   -> Lwt.return values
           | Some v ->
             match Value.contents v with
             | None   -> Lwt.return values
             | Some k ->
-              lwt v = VS.read t k in
+              lwt v = Value_store.read (value_store t) k in
               match v with
               | None   -> Lwt.return values
               | Some v ->
@@ -154,7 +150,7 @@ module Graph
   let of_store t ?roots ?sinks () =
     let g = G.create () in
     lwt keys = match sinks with
-      | None      -> KS.all t
+      | None      -> Key_store.all (key_store t)
       | Some keys -> Lwt.return keys in
     let marks = Hashtbl.create 1024 in
     let mark key = Hashtbl.add marks key true in
@@ -170,7 +166,7 @@ module Graph
         mark key;
         debug "ADD %s" (Key.pretty key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
-        lwt keys = KS.pred t key in
+        lwt keys = Key_store.pred (key_store t) key in
         List.iter (fun k -> G.add_edge g k key) (Key.Set.to_list keys);
         Lwt_list.iter_s add (Key.Set.to_list keys)
       ) in

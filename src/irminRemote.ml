@@ -129,41 +129,32 @@ end
 
 (** Signature for clients *)
 module type CLIENT = sig
-
-  (** Abstract channels *)
-  type t
-
-  (** Access the remote key store *)
-  module Key_store: KEY_STORE with type t = t
-
-  (** Access the remote value store *)
-  module Value_store: VALUE_STORE with type t = t
-
-  (** Access the remote tag store *)
-  module Tag_store: TAG_STORE with type t = t
-
-  (** Sync with a remote server *)
+  type t = IrminIO.Lwt_channel.t
+  include STORE with type t := t
+                 and type Key_store.t = t
+                 and type Value_store.t = t
+                 and type Tag_store.t = t
   module Sync: SYNC with type t = t
-
 end
 
-module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
+module Client (C: CORE) = struct
 
+  open C
   open IrminIO
 
-  module XKey = Wire(K)
-  module XKeys = Wire(Set(K))
-  module XKeyKeys = Wire(Pair(K)(XKeys))
-  module XKeyPair = Wire(Pair(K)(K))
+  module XKey = Wire(Key)
+  module XKeys = Wire(Set(Key))
+  module XKeyKeys = Wire(Pair(Key)(XKeys))
+  module XKeyPair = Wire(Pair(Key)(Key))
   module XKeyPairs = Wire(List(XKeyPair))
 
-  module XValue = Wire(V)
-  module XValueOption = Wire(Option(V))
+  module XValue = Wire(Value)
+  module XValueOption = Wire(Option(Value))
 
-  module XTag = Wire(T)
-  module XTags = Wire(Set(T))
+  module XTag = Wire(Tag)
+  module XTags = Wire(Set(Tag))
   module XKeysTags = Wire(Pair(XKeys)(XTags))
-  module XTagKeys = Wire(Pair(T)(XKeys))
+  module XTagKeys = Wire(Pair(Tag)(XKeys))
   module XTagKeyss = Wire(List(XTagKeys))
 
   module XGraph = Wire(Pair(XKeys)(XKeyPairs))
@@ -171,37 +162,39 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
   module XGraphTagKeyss = Wire(Pair(XGraph)(XTagKeyss))
 
   module XAction = Wire(Action)
-  module XActionKey = Wire(Pair(Action)(K))
+  module XActionKey = Wire(Pair(Action)(Key))
   module XActionKeyKeys = Wire(Pair(Action)(Pair(XKey)(XKeys)))
-  module XActionValue = Wire(Pair(Action)(V))
-  module XActionTag = Wire(Pair(Action)(T))
+  module XActionValue = Wire(Pair(Action)(Value))
+  module XActionTag = Wire(Pair(Action)(Tag))
   module XActionTags = Wire(Pair(Action)(XTags))
   module XActionTagKeys = Wire(Pair(Action)(XTagKeys))
   module XActionTagKeyss = Wire(Pair(Action)(XTagKeyss))
   module XActionKeysTags = Wire(Pair(Action)(XKeysTags))
   module XActionGraphTagKeyss = Wire(Pair(Action)(XGraphTagKeyss))
 
-  type t = Lwt_channel.t
-
-  module Type = struct
-
-    module Key = K
-
-    module Value = V
-
-    module Tag = T
-
-    type graph = Key.Set.t * (Key.t * Key.t) list
+  module Types = struct
 
     type t = Lwt_channel.t
 
+    module C = C
+
+    let key_store t = t
+
+    let value_store t = t
+
+    let tag_store t = t
+
+    type graph = Key.Set.t * (Key.t * Key.t) list
+
   end
+
+  include Types
 
   let read_unit = Lwt_channel.read_unit
 
   module Key_store = struct
 
-    include Type
+    include Types
 
     let add fd key preds =
       lwt () = XActionKeyKeys.write_fd fd (Key_add, (key, preds)) in
@@ -221,7 +214,7 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module Value_store = struct
 
-    include Type
+    include Types
 
     let write fd value =
       lwt () = XActionValue.write_fd fd (Value_write, value) in
@@ -235,7 +228,7 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module Tag_store = struct
 
-    include Type
+    include Types
 
     let update fd tag keys =
       lwt () = XActionTagKeys.write_fd fd (Tag_update, (tag, keys)) in
@@ -257,7 +250,7 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 
   module Sync = struct
 
-    include Type
+    include Types
 
     let pull_keys fd roots tags =
       lwt () = XActionKeysTags.write_fd fd (Sync_pull_keys, (roots, tags)) in
@@ -290,139 +283,135 @@ module Client (K: KEY) (V: VALUE with module Key = K) (T: TAG) = struct
 end
 
 module type SERVER = sig
-  type t
-  module Key_store: KEY_STORE
-  module Value_store: VALUE_STORE
-  module Tag_store: TAG_STORE
-  type stores = {
-    keys  : Key_store.t;
-    values: Value_store.t;
-    tags  : Tag_store.t;
-  }
-  val run: stores -> t -> unit Lwt.t
+  type t = IrminIO.Lwt_channel.t
+  module State: STORE
+  val run: State.t -> t -> unit Lwt.t
 end
 
-module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
-    (KS: KEY_STORE with module Key = K)
-    (VS: VALUE_STORE with module Key = K and module Value = V)
-    (TS: TAG_STORE with module Key = K and module Tag = T)
-= struct
+module Server (S: STORE) = struct
 
   open IrminIO
 
-  module Key = K
-  module Value = V
-  module Tag = T
+  module State = S
 
-  module XKey = Wire(K)
-  module XKeys = Wire(Set(K))
-  module XKeyKeys = Wire(Pair(K)(XKeys))
-  module XKeyPair = Wire(Pair(K)(K))
+  module C = S.C
+  open C
+
+  type t = Lwt_channel.t
+
+  module Key_store = S.Key_store
+  module Value_store = S.Value_store
+  module Tag_store = S.Tag_store
+
+  module XKey = Wire(Key)
+  module XKeys = Wire(Set(Key))
+  module XKeyKeys = Wire(Pair(Key)(XKeys))
+  module XKeyPair = Wire(Pair(Key)(Key))
   module XKeyPairs = Wire(List(XKeyPair))
 
-  module XValue = Wire(V)
-  module XValueOption = Wire(Option(V))
+  module XValue = Wire(Value)
+  module XValueOption = Wire(Option(Value))
 
-  module XTag = Wire(T)
-  module XTags = Wire(Set(T))
+  module XTag = Wire(Tag)
+  module XTags = Wire(Set(Tag))
   module XKeysTags = Wire(Pair(XKeys)(XTags))
-  module XTagKeys = Wire(Pair(T)(XKeys))
+  module XTagKeys = Wire(Pair(Tag)(XKeys))
   module XTagKeyss = Wire(List(XTagKeys))
 
   module XGraph = Wire(Pair(XKeys)(XKeyPairs))
   module XTagsGraph = Wire(Pair(XTags)(XGraph))
   module XGraphTagKeyss = Wire(Pair(XGraph)(XTagKeyss))
 
-  type stores = {
-    keys:   KS.t;
-    values: VS.t;
-    tags  : TS.t;
-  }
-
   let write_unit = Lwt_channel.write_unit
 
   module XKey_store = struct
 
+    let proj = State.key_store
+
     let add t buf fd =
       let (k1, k2s) = XKeyKeys.read buf in
-      lwt () = KS.add t.keys k1 k2s in
+      lwt () = Key_store.add (proj t) k1 k2s in
       write_unit fd
 
     let all t buf fd =
-      lwt keys = KS.all t.keys in
+      lwt keys = Key_store.all (proj t) in
       XKeys.write_fd fd keys
 
     let pred t buf fd =
       let k = XKey.read buf in
-      lwt keys = KS.pred t.keys k in
+      lwt keys = Key_store.pred (proj t) k in
       XKeys.write_fd fd keys
 
   end
 
   module XValue_store = struct
 
+    let proj = State.value_store
+
     let write t buf fd =
       let v = XValue.read buf in
-      lwt k = VS.write t.values v in
+      lwt k = Value_store.write (proj t) v in
       XKey.write_fd fd k
 
     let read t buf fd =
       let k = XKey.read buf in
-      lwt vo = VS.read t.values k in
+      lwt vo = Value_store.read (proj t) k in
       XValueOption.write_fd fd vo
 
   end
 
   module XTag_store = struct
 
+    let proj = State.tag_store
+
     let update t buf fd =
       let (tag, keys) = XTagKeys.read buf in
-      lwt () = TS.update t.tags tag keys in
+      lwt () = Tag_store.update (proj t) tag keys in
       write_unit fd
 
     let remove t buf fd =
       let tag = XTag.read buf in
-      lwt () = TS.remove t.tags tag in
+      lwt () = Tag_store.remove (proj t) tag in
       write_unit fd
 
     let read t buf fd =
       let tag = XTag.read buf in
-      lwt keys = TS.read t.tags tag in
+      lwt keys = Tag_store.read (proj t) tag in
       XKeys.write_fd fd keys
 
     let all t buf fd =
-      lwt tags = TS.all t.tags in
+      lwt tags = Tag_store.all (proj t) in
       XTags.write_fd fd tags
 
   end
 
   module XSync = struct
 
-    module S = IrminSync.Make(KS)(TS)
+    module Sync = IrminSync.Make(S)
 
-    let pull_keys t buf fd =
+    let pull_keys _ buf fd =
       let (keys, tags) = XKeysTags.read buf in
-      lwt graph = S.pull_keys () keys tags in
+      lwt graph = Sync.pull_keys () keys tags in
       XGraph.write_fd fd graph
 
-    let pull_tags t buf fd =
-      lwt tags = S.pull_tags () in
+    let pull_tags _ buf fd =
+      lwt tags = Sync.pull_tags () in
       XTagKeyss.write_fd fd tags
 
-    let push_keys t buf fd =
+    let push_keys _ buf fd =
       let (graph, tags) = XGraphTagKeyss.read buf in
-      lwt () = S.push_keys () graph tags in
+      lwt () = Sync.push_keys () graph tags in
       write_unit fd
 
-    let push_tags t buf fd =
+    let push_tags _ buf fd =
       let tags = XTagKeyss.read buf in
-      lwt () = S.push_tags () tags in
+      lwt () = Sync.push_tags () tags in
       write_unit fd
 
-    let watch t buf fd =
+    let watch _ buf fd =
       let tags = XTags.read buf in
       try_lwt
-        S.watch () tags (fun tags graph ->
+        Sync.watch () tags (fun tags graph ->
             XTagsGraph.write_fd fd (tags, graph)
           )
       with _ ->
@@ -450,10 +439,5 @@ module Server (K: KEY) (V: VALUE with module Key = K) (T: TAG)
       | Sync_push_tags   -> XSync.push_tags
       | Sync_watch       -> XSync.watch in
     fn t buf fd
-
-  type t = Lwt_channel.t
-  module Key_store = KS
-  module Value_store = VS
-  module Tag_store = TS
 
 end

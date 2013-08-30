@@ -373,9 +373,6 @@ module Lwt_channel = struct
 
   let close t = Lwt_unix.close t.fd
 
-  (* XXX: not optimized *)
-  let ready _ _ = Lwt.return ()
-
   let read_string t len =
     debug "read_string %s %d" t.name len;
     let str = OCamlString.create len in
@@ -443,6 +440,11 @@ module Lwt_channel = struct
     Lwt.return ()
 
   let create fd name = { fd; name }
+
+  let unix_socket file =
+    let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
+    Lwt_unix.bind fd (Lwt_unix.ADDR_UNIX file);
+    create fd file
 
 end
 

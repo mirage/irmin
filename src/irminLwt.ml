@@ -17,21 +17,34 @@
 open Lwt
 open IrminTypes
 
-module Key = IrminKey.SHA1
+module Key   = IrminKey.SHA1
 module Value = IrminValue.Make(Key)(IrminValue.Blob(Key))
-module Tag = IrminTag
-module Client = IrminRemote.Client(Key)(Value)(Tag)
+module Tag   = IrminTag
 
-module Memory = struct
-  module Key_store = IrminMemory.Key_store(Key)
-  module Value_store = IrminMemory.Value_store(Key)(Value)
-  module Tag_store = IrminMemory.Tag_store(Tag)(Key)
+module C = struct
+  module Key = Key
+  module Value = Value
+  module Tag = Tag
 end
 
-module Disk = IrminDisk.Disk(Key)(Value)(Tag)
+module Client = IrminRemote.Client(C)
+module Memory = IrminMemory.Make(C)
+module Disk = IrminDisk.Make(C)
+module Mix: STORE = struct
+  module C = C
+  module Key_store = Memory.Key_store
+  module Value_store = Disk.Value_store
+  module Tag_store = Disk.Tag_store
+  type t = {
+    key  : Memory.Key_store.t;
+    value: Disk.Value_store.t;
+    tag  : Disk.Tag_store.t;
+  }
+  let key_store t = t.key
+  let value_store t = t.value
+  let tag_store t = t.tag
+end
 
-module Server = IrminRemote.Server(Key)(Value)(Tag)
-
-module MemoryServer = Server(Memory.Key_store)(Memory.Value_store)(Memory.Tag_store)
-module DiskServer   = Server(Disk  .Key_store)(Disk  .Value_store)(Disk  .Tag_store)
-module MixedServer  = Server(Memory.Key_store)(Disk  .Value_store)(Disk  .Tag_store)
+module MemoryServer = IrminRemote.Server(Memory)
+module DiskServer   = IrminRemote.Server(Disk)
+module MixServer    = IrminRemote.Server(Mix)

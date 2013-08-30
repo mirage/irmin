@@ -24,33 +24,25 @@ exception Error of string
 (** Main signature *)
 module type S = sig
 
-  (** Abstract type for the disk location *)
+  (** Abstract type for disk handlers. *)
   type t
 
-  (** Create a disk handler from a directory name *)
+  (** A disk store is a global store. *)
+  include STORE with type t := t
+                 and type Key_store.t = t
+                 and type Value_store.t = t
+                 and type Tag_store.t = t
+
+  (** Create a disk handler from a directory name. *)
   val create: string -> t
 
-  (** Initialize a disk *)
+  (** Initialize a disk. *)
   val init: string -> unit Lwt.t
 
-  (** Persist keys *)
-  module Key_store: KEY_STORE with type t = t
-
-  (** Persist values *)
-  module Value_store: sig
-    include VALUE_STORE with type t = t
-    val dump: t -> unit Lwt.t
-  end
-
-  (** Persists tags *)
-  module Tag_store: TAG_STORE with type t = t
+  (** Dump the disk state. *)
+  val dump: t -> unit Lwt.t
 
 end
 
-(** Disk *)
-module Disk (K: KEY) (V: VALUE with module Key = K) (T: TAG)
-  : S with module Key_store.Key = K
-       and module Value_store.Key = K
-       and module Tag_store.Key = K
-       and module Value_store.Value = V
-       and module Tag_store.Tag = T
+(** Functor to create an on-disk Irminsule instance.*)
+module Make (C: CORE): S with module C = C

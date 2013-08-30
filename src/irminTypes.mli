@@ -75,7 +75,7 @@ module type KEY = sig
   val hash: t -> int
 
   (** Compute a key from a raw string. *)
-  val of_string: string ->t
+  val of_string: string -> t
 
   (** Convert a key to an hexa representation. *)
   val to_hex: t -> string
@@ -103,10 +103,10 @@ module type VALUE = sig
   val key: t -> Key.t
 
   (** Convert a raw string to a value. *)
-  val of_blob: string -> t
+  val of_string: string -> t
 
   (** Get the underlying raw blob. *)
-  val to_blob: t -> string option
+  val to_string: t -> string option
 
   (** Create a new revision. *)
   val revision: Key.t -> Key.Set.t -> t
@@ -128,10 +128,24 @@ module type TAG = sig
   include BASE
 
   (** Convert a tag to a suitable name *)
-  val to_name: t -> string
+  val to_string: t -> string
 
   (** Convert a name to a tag *)
-  val of_name: string -> t
+  val of_string: string -> t
+
+end
+
+(** Ground consistent types. *)
+module type CORE = sig
+
+  (** Keys. *)
+  module Key: KEY
+
+  (** Values. *)
+  module Value: VALUE with module Key = Key
+
+  (** Tags. *)
+  module Tag: TAG
 
 end
 
@@ -141,20 +155,20 @@ end
     and edges). *)
 module type KEY_STORE = sig
 
-  (** Database handler *)
+  (** Database handler. *)
   type t
 
-  (** Type of keys *)
-  module Key: KEY
+  (** Core types. *)
+  module C: CORE
 
   (** Add a key and its predecessors *)
-  val add: t -> Key.t -> Key.Set.t -> unit Lwt.t
+  val add: t -> C.Key.t -> C.Key.Set.t -> unit Lwt.t
 
   (** Return all the available keys *)
-  val all: t -> Key.Set.t Lwt.t
+  val all: t -> C.Key.Set.t Lwt.t
 
   (** Return the immediate predecessors *)
-  val pred: t -> Key.t -> Key.Set.t Lwt.t
+  val pred: t -> C.Key.t -> C.Key.Set.t Lwt.t
 
 end
 
@@ -174,18 +188,15 @@ module type VALUE_STORE = sig
   (** Database handler *)
   type t
 
-  (** Type of keys *)
-  module Key: KEY
-
-  (** Type of values *)
-  module Value: VALUE with module Key = Key
+  (** Core types. *)
+  module C: CORE
 
   (** Add a value in the store. *)
-  val write: t -> Value.t -> Key.t Lwt.t
+  val write: t -> C.Value.t -> C.Key.t Lwt.t
 
   (** Read the value associated to a key. Return [None] if the key
        does not exist in the store. *)
-  val read: t -> Key.t -> Value.t option Lwt.t
+  val read: t -> C.Key.t -> C.Value.t option Lwt.t
 
 end
 
@@ -200,68 +211,91 @@ module type TAG_STORE = sig
   (** Database handler *)
   type t
 
-  (** Type of tags *)
-  module Tag: TAG
-
-  (** Type of keys *)
-  module Key: KEY
+  (** Core types. *)
+  module C: CORE
 
   (** Update a tag. If the tag does not exist before, just create a
       new tag. *)
-  val update: t -> Tag.t -> Key.Set.t -> unit Lwt.t
+  val update: t -> C.Tag.t -> C.Key.Set.t -> unit Lwt.t
 
   (** Remove a tag. *)
-  val remove: t -> Tag.t -> unit Lwt.t
+  val remove: t -> C.Tag.t -> unit Lwt.t
 
   (** Read a tag. Return [None] if the tag does not exist in the
       store. *)
-  val read: t -> Tag.t -> Key.Set.t Lwt.t
+  val read: t -> C.Tag.t -> C.Key.Set.t Lwt.t
 
   (** List all the available tags *)
-  val all: t -> Tag.Set.t Lwt.t
+  val all: t -> C.Tag.Set.t Lwt.t
+
+end
+
+(** Global store. *)
+module type STORE = sig
+
+  (** Core types. *)
+  module C: CORE
+
+  (** Persist keys. *)
+  module Key_store: KEY_STORE with module C = C
+
+  (** Persist values. *)
+  module Value_store: VALUE_STORE with module C = C
+
+  (** Persists tags. *)
+  module Tag_store: TAG_STORE with module C = C
+
+  (** Abstract type for store. *)
+  type t
+
+  (** Projection to the key store handle. *)
+  val key_store: t -> Key_store.t
+
+  (** Projection to the value store handle. *)
+  val value_store: t -> Value_store.t
+
+  (** Projection to the tag store handle. *)
+  val tag_store: t -> Tag_store.t
 
 end
 
 (** {1 Synchronization} *)
 
-(** Signature for synchronization actions *)
+(** Signature for synchronization actions. *)
 module type SYNC = sig
 
-  (** Remote Irminsule instannce *)
+  (** Remote Irminsule instance. *)
   type t
 
-  (** Type of keys *)
-  module Key: KEY
+  (** Core types. *)
+  module C: CORE
 
   (** Graph of keys *)
-  type graph = Key.Set.t * (Key.t * Key.t) list
-
-  (** Type of remote tags *)
-  module Tag: TAG
+  type graph = C.Key.Set.t * (C.Key.t * C.Key.t) list
 
   (** [pull_keys fd roots tags] pulls changes related to a given set
       known remote [tags]. Return the transitive closure of all the
       unknown keys, with [roots] as graph roots and [tags] as graph
       sinks. If [root] is the empty list, return the complete history
       up-to the given remote tags. *)
-  val pull_keys: t -> Key.Set.t -> Tag.Set.t -> graph Lwt.t
+  val pull_keys: t -> C.Key.Set.t -> C.Tag.Set.t -> graph Lwt.t
 
   (** Get all the remote tags. *)
-  val pull_tags: t -> (Tag.t * Key.Set.t) list Lwt.t
+  val pull_tags: t -> (C.Tag.t * C.Key.Set.t) list Lwt.t
 
   (** Push changes related to a given (sub)-graph of keys, given set
       of local tags (which should belong to the graph). The does not
       modify the local tags on the remote instance. It is the user
       responsability to compute the smallest possible graph
       beforhand. *)
-  val push_keys: t -> graph -> (Tag.t * Key.Set.t) list -> unit Lwt.t
+  val push_keys: t -> graph -> (C.Tag.t * C.Key.Set.t) list -> unit Lwt.t
 
   (** Modify the local tags of the remote instance. *)
-  val push_tags: t -> (Tag.t * Key.Set.t) list -> unit Lwt.t
+  val push_tags: t -> (C.Tag.t * C.Key.Set.t) list -> unit Lwt.t
 
   (** Watch for changes for a given set of tags. Call a callback on
       each event ([tags] * [graphs]) where [tags] are the updated tags
       and [graph] the corresponding set of new keys (if any). *)
-  val watch: t -> Tag.Set.t -> (Tag.Set.t -> graph -> unit Lwt.t) -> unit Lwt.t
+  val watch: t -> C.Tag.Set.t -> (C.Tag.Set.t -> graph -> unit Lwt.t) -> unit Lwt.t
 
 end

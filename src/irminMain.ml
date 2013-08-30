@@ -22,21 +22,23 @@ let global_option_section = "COMMON OPTIONS"
 let pr_str = Format.pp_print_string
 
 let value_conv =
-  let parse str = `Ok (Value.of_blob str) in
+  let parse str = `Ok (Value.of_string str) in
   let print ppf v =
-    match Value.to_blob v with
+    match Value.to_string v with
     | None   -> pr_str ppf (Value.pretty v)
     | Some b -> pr_str ppf b in
   parse, print
 
-let source_conv =
-  let parse str = `Ok (`Dir str) in
-  let print ppf (`Dir str) = pr_str ppf str in
+let tag_conv =
+  let parse str = `Ok (Tag.of_string str) in
+  let print ppf tag = pr_str ppf (Tag.to_string tag) in
   parse, print
 
-let tag_conv =
-  let parse str = `Ok (Tag.of_name str) in
-  let print ppf tag = pr_str ppf (Tag.to_name tag) in
+let source_conv =
+  let parse str = `Ok (`Dir str) in
+  let print ppf = function
+    | `Dir str
+    | `Unix str -> pr_str ppf str in
   parse, print
 
 let value =
@@ -57,7 +59,8 @@ let queue =
     let doc =
       Arg.info ~docv:"BACK" ~doc:"Tags of back elements." ["b";"back"] in
     Arg.(value & opt tag_conv IrminQueue.default_back & doc) in
-  let create front back source = IrminQueue.create ~front ~back source in
+  let create front back source =
+    IrminQueue.create ~front ~back source in
   Term.(pure create $ front $ back $ source)
 
 let run t =
@@ -65,7 +68,6 @@ let run t =
     try_lwt t
     with IrminDisk.Error _ -> exit 2
   end
-
 
 (* INIT *)
 let init_doc = "Initialize a queue."
@@ -75,9 +77,19 @@ let init =
     `S "DESCRIPTION";
     `P init_doc;
   ] in
-  let init t =
-    run (IrminQueue.init t) in
-  Term.(pure init $ queue),
+  let daemon =
+    let doc =
+      Arg.info ~docv:"Unix socket filename." ~doc:"Start an Irminsule server."
+        ["d";"daemon"] in
+    Arg.(value & opt (some string) None  & doc) in
+  let init t daemon =
+    run begin
+      lwt () = IrminQueue.init t in
+      match daemon with
+      | None      -> Lwt.return ()
+      | Some file -> IrminQueue.server t file
+    end in
+  Term.(pure init $ queue $ daemon),
   Term.info "init" ~doc ~man
 
 (* ADD *)
@@ -148,7 +160,7 @@ let list =
     run begin
       lwt values = IrminQueue.to_list t in
       let blobs = List.map (fun v ->
-          match Value.to_blob v with
+          match Value.to_string v with
           | None   -> assert false
           | Some b -> b
         ) values in

@@ -28,6 +28,6 @@ module T = IrminIO.String(S)
 
 include T
 
-let of_name t = (T t)
+let of_string t = (T t)
 
-let to_name (T t) = t
+let to_string (T t) = t

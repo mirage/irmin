@@ -18,7 +18,5 @@
 
 open IrminTypes
 
-module Make (KS: KEY_STORE) (TS: TAG_STORE with module Key = KS.Key):
-  SYNC with type t = unit
-        and module Key = KS.Key
-        and module Tag = TS.Tag
+module Make (S: STORE): SYNC with type t = unit
+                              and module C = S.C

@@ -23,15 +23,12 @@ type sha1 = private SHA1 of string
 (** SHA1 keys *)
 module SHA1: KEY with type t = sha1
 
-module Graph
-    (KS: KEY_STORE)
-    (VS: VALUE_STORE with type t = KS.t and module Key = KS.Key)
-    (TS: TAG_STORE with type t = KS.t and module Key = KS.Key): sig
-  include Graph.Sig.I with type V.t = KS.Key.t
+module Graph (S: STORE): sig
+  include Graph.Sig.I with type V.t = S.C.Key.t
   include Graph.Oper.S with type g := t
   module Topological: sig
-    val fold: (KS.Key.t -> 'a -> 'a) -> t -> 'a -> 'a
+    val fold: (V.t -> 'a -> 'a) -> t -> 'a -> 'a
   end
-  val of_store: KS.t -> ?roots:KS.Key.Set.t -> ?sinks:KS.Key.Set.t -> unit -> t Lwt.t
-  val dump: KS.t -> t -> string -> unit Lwt.t
+  val of_store: S.t -> ?roots:S.C.Key.Set.t -> ?sinks:S.C.Key.Set.t -> unit -> t Lwt.t
+  val dump: S.t -> t -> string -> unit Lwt.t
 end
