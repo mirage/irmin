@@ -18,9 +18,9 @@ open IrminLwt
 open OUnit
 open Test_common
 
-let t = IrminQueue.create (`Dir test_db)
-let v1 = Value.of_blob "foo"
-let v2 = Value.of_blob ""
+let t = IrminQueue.create (Dir test_db)
+let v1 = Value.of_string "foo"
+let v2 = Value.of_string ""
 
 let test_init () =
   clean test_db;

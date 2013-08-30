@@ -18,14 +18,14 @@ open IrminLwt
 open OUnit
 open Test_common
 
-let v1 = Value.of_blob "foo"
-let v2 = Value.of_blob ""
+let v1 = Value.of_string "foo"
+let v2 = Value.of_string ""
 let k1 = Value.key v1
 let k2 = Value.key v2
 let k1s = Key.Set.singleton k1
 let k2s = Key.Set.singleton k2
-let t1 = Tag.of_name "foo"
-let t2 = Tag.of_name "bar"
+let t1 = Tag.of_string "foo"
+let t2 = Tag.of_string "bar"
 
 let test_keys () =
   let module KV = Disk.Key_store in
