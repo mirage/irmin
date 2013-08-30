@@ -47,7 +47,7 @@ open IrminLwt
 type t
 
 (** Create a queue abstract object. *)
-val create: ?front:Tag.t -> ?back:Tag.t -> source -> t
+val create: ?front:Tag.t -> ?back:Tag.t -> source -> t Lwt.t
 
 (** Default front tag. *)
 val default_front: Tag.t
@@ -141,14 +141,14 @@ val peek: t -> Value.t Lwt.t
 val to_list: t -> Value.t list Lwt.t
 
 (** Run an Irminsule server. *)
-val server: t -> string -> unit Lwt.t
+val server: t -> limit:int -> string -> unit Lwt.t
 
 (* TODO *)
 
-val watch: t -> unit
+val watch: t -> unit Lwt.t
 
-val pull: t -> unit
+val pull: t -> unit Lwt.t
 
-val push: t -> unit
+val push: t -> unit Lwt.t
 
-val clone: t -> unit
+val clone: t -> unit Lwt.t

@@ -116,6 +116,8 @@ module Lwt_channel: sig
 
   val name: t -> string
 
+  val channel: t -> Lwt_unix.file_descr
+
   val close: t -> unit Lwt.t
 
   val read_string: t -> int -> string Lwt.t
@@ -134,7 +136,9 @@ module Lwt_channel: sig
 
   val read_unit: t -> unit Lwt.t
 
-  val unix_socket: string -> t
+  val unix_socket_server: limit:int -> string -> t
+
+  val unix_socket_client: string -> t Lwt.t
 
 end
 

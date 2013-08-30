@@ -371,6 +371,8 @@ module Lwt_channel = struct
 
   let name t = t.name
 
+  let channel t = t.fd
+
   let close t = Lwt_unix.close t.fd
 
   let read_string t len =
@@ -441,10 +443,16 @@ module Lwt_channel = struct
 
   let create fd name = { fd; name }
 
-  let unix_socket file =
+  let unix_socket_server ~limit file =
     let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
     Lwt_unix.bind fd (Lwt_unix.ADDR_UNIX file);
+    Lwt_unix.listen fd limit;
     create fd file
+
+  let unix_socket_client file =
+    let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
+    lwt () = Lwt_unix.connect fd (Lwt_unix.ADDR_UNIX file) in
+    Lwt.return (create fd file)
 
 end
 
