@@ -18,13 +18,15 @@
 
 open IrminTypes
 
-(** Types of keys *)
+(** {2 Core} *)
+
+(** Types of keys. *)
 module Key: KEY with type t = IrminKey.SHA1.t and type Set.t = IrminKey.SHA1.Set.t
 
-(** Types of values *)
+(** Types of values. *)
 module Value: VALUE with module Key = Key
 
-(** Types of tags *)
+(** Types of tags. *)
 module Tag: TAG with type t = IrminTag.t
 
 (** Core types. *)
@@ -32,11 +34,31 @@ module C: CORE with module Key = Key
                 and module Value = Value
                 and module Tag = Tag
 
- (** Disk access *)
+(** {2 Store} *)
+
+ (** Disk access. *)
 module Disk: IrminDisk.S with module C = C
+
+(** Memory acces. *)
+module Memory: STORE with module C = C
 
 (** Client bindings *)
 module Client: IrminRemote.CLIENT with type t = IrminIO.Lwt_channel.t
+
+(** Generic store handle. *)
+type t =
+  | Disk of Disk.t
+  | Memory of Memory.t
+  | Client of Client.t
+
+(** Generic store implementation. *)
+include STORE with type t := t
+               and module C := C
+
+(** Store creation. *)
+val create: [`Dir of string | `Unix of string] -> t
+
+(** {2 Servers} *)
 
 (** Server which keeps everything into memory *)
 module MemoryServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t

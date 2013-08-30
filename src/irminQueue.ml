@@ -19,7 +19,7 @@ open IrminLwt
 
 let debug fmt = IrminMisc.debug "QUEUE" fmt
 
-module Graph = IrminKey.Graph(Disk)
+module Graph = IrminKey.Graph(IrminLwt)
 
 exception Empty
 
@@ -34,7 +34,12 @@ type t = {
   source: source;
   front : Tag.t;
   back  : Tag.t;
+  store : IrminLwt.t;
 }
+
+let key_store t = key_store t.store
+let value_store t = value_store t.store
+let tag_store t = tag_store t.store
 
 exception Error of string
 
@@ -52,39 +57,39 @@ let init t =
     else error "%s does not exist." f
 
 let create ?(front = default_front) ?(back = default_back) source =
-  { source; front; back }
+  let store = create source in
+  { source; front; back; store }
 
-let fd = function
-  | { source = `Dir f  } -> Disk.create f
-  | { source = `Unix _ } -> failwith "TODO"
+let fronts t =
+  Tag_store.read (tag_store t) t.front
+
+let backs t =
+  Tag_store.read (tag_store t) t.back
 
 let is_empty t =
-  let fd = fd t in
-  lwt fronts = Disk.Tag_store.read fd t.front in
-  lwt backs  = Disk.Tag_store.read fd t.back in
+  lwt fronts = fronts t in
+  lwt backs  = backs t in
   Lwt.return (Key.Set.is_empty fronts || Key.Set.is_empty backs)
 
 let graph t =
-  let fd = fd t in
-  lwt fronts = Disk.Tag_store.read fd t.front in
-  lwt backs  = Disk.Tag_store.read fd t.back in
+  lwt fronts = fronts t in
+  lwt backs  = backs t in
   if Key.Set.is_empty fronts || Key.Set.is_empty backs then
     Lwt.return (Graph.create ())
   else
-    Graph.of_store fd ~roots:fronts ~sinks:backs ()
+    Graph.of_store t.store ~roots:fronts ~sinks:backs ()
 
 let add t value =
-  let fd = fd t in
-  lwt key = Disk.Value_store.write fd value in
-  lwt fronts = Disk.Tag_store.read fd t.front in
-  lwt backs  = Disk.Tag_store.read fd t.back in
+  lwt key = Value_store.write (value_store t) value in
+  lwt fronts = fronts t in
+  lwt backs  = backs t in
   let revision = Value.revision key backs in
-  lwt new_back = Disk.Value_store.write fd revision in
+  lwt new_back = Value_store.write (value_store t) revision in
   let new_back = Key.Set.singleton new_back in
   lwt () =
     if not (Key.Set.is_empty fronts) then Lwt.return ()
-    else Disk.Tag_store.update fd t.front new_back in
-  Disk.Tag_store.update fd t.back new_back
+    else Tag_store.update (tag_store t) t.front new_back in
+  Tag_store.update (tag_store t) t.back new_back
 
 let empty fmt =
   Printf.kprintf (fun str ->
@@ -93,8 +98,7 @@ let empty fmt =
     ) fmt
 
 let value_of_key t key =
-  let fd = fd t in
-  lwt v = Disk.Value_store.read fd key in
+  lwt v = Value_store.read (value_store t) key in
   match v with
   | None   -> empty "No value!"
   | Some v -> Lwt.return v
@@ -106,11 +110,10 @@ let contents t key =
   | Some k -> value_of_key t k
 
 let to_list t =
-  let fd = fd t in
-  lwt ga = Graph.of_store fd () in
-  lwt () = Graph.dump fd ga "ALL" in
+  lwt ga = Graph.of_store t.store () in
+  lwt () = Graph.dump t.store ga "ALL" in
   lwt g = graph t in
-  lwt () = Graph.dump fd g "FRONTS" in
+  lwt () = Graph.dump t.store g "FRONTS" in
   let keys = Graph.Topological.fold (fun key acc -> key :: acc) g [] in
   lwt values = Lwt_list.fold_left_s (fun acc key ->
       lwt value = contents t key in
@@ -119,8 +122,7 @@ let to_list t =
   Lwt.return values
 
 let peek t =
-  let fd = fd t in
-  lwt fronts = Disk.Tag_store.read fd t.front in
+  lwt fronts = fronts t in
   try
     let key = Key.Set.choose fronts in
     contents t key
@@ -128,8 +130,7 @@ let peek t =
     empty "FRONT"
 
 let take t =
-  let fd = fd t in
-  lwt fronts = Disk.Tag_store.read fd t.front in
+  lwt fronts = Tag_store.read (tag_store t) t.front in
   lwt key =
     try Lwt.return (Key.Set.choose fronts)
     with Not_found -> empty "FRONT" in
@@ -137,8 +138,8 @@ let take t =
   let move_front new_fronts =
     let new_fronts = Key.Set.union new_fronts fronts in
     lwt () =
-      if Key.Set.is_empty new_fronts then Disk.Tag_store.remove fd t.front
-      else Disk.Tag_store.update fd t.front new_fronts in
+      if Key.Set.is_empty new_fronts then Tag_store.remove (tag_store t) t.front
+      else Tag_store.update (tag_store t) t.front new_fronts in
     contents t key in
   (* XXX: use a staging area *)
   lwt g = graph t in
@@ -146,16 +147,17 @@ let take t =
   | []   -> move_front Key.Set.empty
   | keys ->
     lwt new_fronts = Lwt_list.filter_s (fun key ->
-        lwt preds = Disk.Key_store.pred fd key in
+        lwt preds = Key_store.pred (key_store t) key in
         let todo = Key.Set.inter preds fronts in
         Lwt.return (Key.Set.is_empty todo)
       ) keys in
     move_front (Key.Set.of_list new_fronts)
 
 let server t file =
-  let t = fd t in
   let fd = IrminIO.Lwt_channel.unix_socket file in
-  DiskServer.run t fd
+  match t.source with
+  | `Dir d  -> DiskServer.run (Disk.create d) fd
+  | `Unix _ -> failwith "TODO"
 
 let watch _ =
   failwith "TODO"

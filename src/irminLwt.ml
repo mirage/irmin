@@ -36,15 +36,112 @@ module Mix: STORE = struct
   module Value_store = Disk.Value_store
   module Tag_store = Disk.Tag_store
   type t = {
-    key  : Memory.Key_store.t;
-    value: Disk.Value_store.t;
-    tag  : Disk.Tag_store.t;
+    memory: Memory.t;
+    disk  : Disk.t;
   }
-  let key_store t = t.key
-  let value_store t = t.value
-  let tag_store t = t.tag
+  let key_store t = Memory.key_store t.memory
+  let value_store t = Disk.value_store t.disk
+  let tag_store t = Disk.tag_store t.disk
 end
 
 module MemoryServer = IrminRemote.Server(Memory)
 module DiskServer   = IrminRemote.Server(Disk)
 module MixServer    = IrminRemote.Server(Mix)
+
+type t =
+  | Disk of Disk.t
+  | Memory of Memory.t
+  | Client of Client.t
+
+let create = function
+  | `Dir f  -> Disk (Disk.create f)
+  | `Unix f -> Client (IrminIO.Lwt_channel.unix_socket f)
+
+type ('a,'b, 'c) s =
+  | XDisk of 'a
+  | XMemory of 'b
+  | XClient of 'c
+
+let key_store = function
+  | Disk t   -> XDisk (Disk.key_store t)
+  | Memory t -> XMemory (Memory.key_store t)
+  | Client t -> XClient (Client.key_store t)
+
+let value_store = function
+  | Disk t   -> XDisk (Disk.value_store t)
+  | Memory t -> XMemory (Memory.value_store t)
+  | Client t -> XClient (Client.value_store t)
+
+let tag_store = function
+  | Disk t   -> XDisk (Disk.tag_store t)
+  | Memory t -> XMemory (Memory.tag_store t)
+  | Client t -> XClient (Client.tag_store t)
+
+module Key_store = struct
+
+  module C = C
+
+  type t = (Disk.Key_store.t, Memory.Key_store.t, Client.Key_store.t) s
+
+  let add = function
+    | XDisk t   -> Disk.Key_store.add t
+    | XMemory t -> Memory.Key_store.add t
+    | XClient t -> Client.Key_store.add t
+
+  let all = function
+    | XDisk t   -> Disk.Key_store.all t
+    | XMemory t -> Memory.Key_store.all t
+    | XClient t -> Client.Key_store.all t
+
+  let pred = function
+    | XDisk t   -> Disk.Key_store.pred t
+    | XMemory t -> Memory.Key_store.pred t
+    | XClient t -> Client.Key_store.pred t
+
+end
+
+module Value_store = struct
+
+  module C = C
+
+  type t = (Disk.Value_store.t, Memory.Value_store.t, Client.Value_store.t) s
+
+  let read = function
+    | XDisk t   -> Disk.Value_store.read t
+    | XMemory t -> Memory.Value_store.read t
+    | XClient t -> Client.Value_store.read t
+
+  let write = function
+    | XDisk t   -> Disk.Value_store.write t
+    | XMemory t -> Memory.Value_store.write t
+    | XClient t -> Client.Value_store.write t
+
+end
+
+module Tag_store = struct
+
+  module C = C
+
+  type t = (Disk.Tag_store.t, Memory.Tag_store.t, Client.Tag_store.t) s
+
+  let read = function
+    | XDisk t   -> Disk.Tag_store.read t
+    | XMemory t -> Memory.Tag_store.read t
+    | XClient t -> Client.Tag_store.read t
+
+  let remove = function
+    | XDisk t   -> Disk.Tag_store.remove t
+    | XMemory t -> Memory.Tag_store.remove t
+    | XClient t -> Client.Tag_store.remove t
+
+  let all = function
+    | XDisk t   -> Disk.Tag_store.all t
+    | XMemory t -> Memory.Tag_store.all t
+    | XClient t -> Client.Tag_store.all t
+
+  let update = function
+    | XDisk t   -> Disk.Tag_store.update t
+    | XMemory t -> Memory.Tag_store.update t
+    | XClient t -> Client.Tag_store.update t
+
+end

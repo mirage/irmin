@@ -44,17 +44,3 @@ end
 
 (** Functor to build an in-memory global store. *)
 module Make (C: CORE): STORE with module C = C
-
-(*with type C.Key.t = C.Key.t
-                              and type C.Key.Set.t = C.Key.Set.t
-                              and type C.Value.t = C.Value.t
-                              and type C.Value.Set.t = C.Value.Set.t
-                              and type C.Tag.t = C.Tag.t
-                              and type C.Tag.Set.t = C.Tag.Set.t
-*)
-
-
-
-(*
-module C = C
-*)
