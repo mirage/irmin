@@ -16,13 +16,24 @@
 
 open IrminTypes
 
+let debug fmt = IrminMisc.debug "IO" fmt
+
 let create len =
   let buffer = Cstruct.create len in
   let str = String.make len 'x' in
   Cstruct.blit_from_string str 0 buffer 0 len;
   { buffer }
 
+let dump_buffer t =
+  if IrminMisc.debug_enabled () then
+    let debug = Cstruct.debug t.buffer in
+    let str = Cstruct.to_string t.buffer in
+    Printf.eprintf "%16s\027[33m[[ %s %S ]]\027[m\n" ""
+      debug str
+
 let set t len fn c =
+  debug "set len:%d" len;
+  dump_buffer t;
   fn t.buffer 0 c;
   t.buffer <- Cstruct.shift t.buffer len
 
@@ -79,13 +90,6 @@ module OCamlString = String
 
 exception Parse_error of string
 
-let dump_buffer t =
-  if IrminMisc.debug_enabled () then
-    let debug = Cstruct.debug t.buffer in
-    let str = Cstruct.to_string t.buffer in
-    Printf.eprintf "%16s\027[33m[[ %s %S ]]\027[m\n" ""
-      debug str
-
 let parse_error_buf buf fmt =
   Printf.kprintf (fun str ->
       Printf.eprintf "\027[31mParse error:\027[m %s\n" str;
@@ -133,6 +137,7 @@ module List  (E: BASE) = struct
     | _    -> parse_error "List.of_json"
 
   let sizeof l =
+    debug "sizeof";
     4 +
     List.fold_left (fun acc e ->
         acc + E.sizeof e
@@ -183,6 +188,7 @@ module Set (E: BASE) = struct
     E.Set.of_list (L.of_json j)
 
   let sizeof t =
+    debug "sizeof";
     L.sizeof (E.Set.to_list t)
 
   let read buf =
@@ -231,7 +237,9 @@ module Option (E: BASE) = struct
     | `Null -> None
     | j     -> Some (E.of_json j)
 
-  let sizeof = function
+  let sizeof t =
+    debug "sizeof";
+    match t with
     | None   -> 4
     | Some e -> 4 + E.sizeof e
 
@@ -293,7 +301,10 @@ module Pair (K: BASE) (V: BASE) = struct
     | _ -> parse_error "Product.of_json: not an object"
 
   let sizeof (key, value) =
-    K.sizeof key + V.sizeof value
+    let k = K.sizeof key in
+    let v = V.sizeof value in
+    debug "sizeof k:%d v:%d" k v;
+    k+v
 
   let read buf =
     debug "read";
@@ -303,6 +314,7 @@ module Pair (K: BASE) (V: BASE) = struct
 
   let write buf (key, value) =
     debug "write";
+    dump_buffer buf;
     K.write buf key;
     V.write buf value
 
@@ -343,6 +355,7 @@ module String  (S: STRINGABLE) = struct
     S.of_string (IrminJSON.to_string j)
 
   let sizeof s =
+    debug "sizeof";
     4 + String.length (S.to_string s)
 
   let read buf =
@@ -465,7 +478,7 @@ end
 
 module File (B: BASE) = struct
 
-  let debug = IrminMisc.debug "IO-FILE"
+  let debug fmt = IrminMisc.debug "IO-FILE" fmt
 
   include B
 
@@ -478,8 +491,8 @@ module File (B: BASE) = struct
     Lwt.return (B.read buf)
 
   let write_fd fd t =
-    debug "write_fd %s" (Lwt_channel.name fd);
     let len = B.sizeof t in
+    debug "write_fd fd:%s len:%d" (Lwt_channel.name fd) len;
     let buf = create len in
     B.write buf t;
     Lwt_channel.write_buf fd buf len
@@ -488,7 +501,7 @@ end
 
 module Wire (B: BASE) = struct
 
-  let debug = IrminMisc.debug "IO-WIRE"
+  let debug fmt = IrminMisc.debug "IO-WIRE" fmt
 
   include B
 
@@ -501,8 +514,8 @@ module Wire (B: BASE) = struct
     Lwt.return (B.read buf)
 
   let write_fd fd t =
-    debug "write_fd %s" (Lwt_channel.name fd);
     let len = B.sizeof t in
+    debug "write_fd fd:%s len:%d" (Lwt_channel.name fd) len;
     let buf = create len in
     B.write buf t;
     lwt () = Lwt_channel.write_length fd len in

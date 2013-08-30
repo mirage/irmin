@@ -35,7 +35,9 @@ let tag_conv =
   parse, print
 
 let source_conv =
-  let parse str = `Ok (Dir str) in
+  let parse str =
+    if Sys.file_exists str && not (Sys.is_directory str) then `Ok (Unix str)
+    else `Ok (Dir str) in
   let print ppf = function
     | Dir str
     | Unix str -> pr_str ppf str

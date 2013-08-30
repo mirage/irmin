@@ -68,6 +68,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       `O [ ("parents", parents); ("contents", contents) ]
 
     let sizeof t =
+      debug "sizeof";
       Keys.sizeof (t.contents :: Key.Set.to_list t.parents)
 
     let read buf =
@@ -107,6 +108,7 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | _ -> IrminIO.parse_error "value_of_json"
 
   let sizeof t =
+    debug "sizeof";
     1
     + match t with
       | Blob b     -> Blob.sizeof b

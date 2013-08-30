@@ -20,6 +20,8 @@ type sha1 = SHA1 of string
 
 module SHA1 = struct
 
+  let debug fmt = IrminMisc.debug "SHA1" fmt
+
   module T = struct
 
     type t = sha1
@@ -63,7 +65,9 @@ module SHA1 = struct
 
   let length (SHA1 _) = key_length
 
-  let sizeof _ = key_length
+  let sizeof _ =
+    debug "sizeof";
+    key_length
 
   let read buf =
     let str = IrminIO.get_string buf key_length in
