@@ -115,7 +115,12 @@ module Tag_store (C: CORE) = struct
 
 end
 
-module Make (C: CORE): STORE with module C = C = struct
+module type S = sig
+  include STORE
+  val create: unit -> t
+end
+
+module Make (C: CORE) = struct
   module C = C
   module Key_store = Key_store(C)
   module Value_store = Value_store(C)
@@ -128,4 +133,9 @@ module Make (C: CORE): STORE with module C = C = struct
   let key_store t = t.k
   let value_store t = t.v
   let tag_store t = t.t
+  let create () = {
+    k = Key_store.create ();
+    v = Value_store.create ();
+    t = Tag_store.create ();
+  }
 end

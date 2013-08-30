@@ -35,10 +35,11 @@ let tag_conv =
   parse, print
 
 let source_conv =
-  let parse str = `Ok (`Dir str) in
+  let parse str = `Ok (Dir str) in
   let print ppf = function
-    | `Dir str
-    | `Unix str -> pr_str ppf str in
+    | Dir str
+    | Unix str -> pr_str ppf str
+    | InMemory -> pr_str ppf "<in-memory>" in
   parse, print
 
 let value =
@@ -50,7 +51,7 @@ let queue =
   let source =
     let doc =
       Arg.info ~docv:"SOURCE" ~doc:"Queue source." ["s";"source"] in
-    Arg.(value & opt source_conv (`Dir ".irmin") & doc) in
+    Arg.(value & opt source_conv (Dir ".irmin") & doc) in
   let front =
     let doc =
       Arg.info ~docv:"FRONT" ~doc:"Tags of front elements." ["f";"front"] in

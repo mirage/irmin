@@ -48,31 +48,48 @@ module MemoryServer = IrminRemote.Server(Memory)
 module DiskServer   = IrminRemote.Server(Disk)
 module MixServer    = IrminRemote.Server(Mix)
 
-type t =
+type source =
+  | Dir of string
+  | Unix of string
+  | InMemory
+
+type handle =
   | Disk of Disk.t
   | Memory of Memory.t
   | Client of Client.t
 
-let create = function
-  | `Dir f  -> Disk (Disk.create f)
-  | `Unix f -> Client (IrminIO.Lwt_channel.unix_socket f)
+type t = {
+  keys  : handle;
+  values: handle;
+  tags  : handle;
+}
+
+let create ~keys ~values ~tags =
+  let source = function
+    | Dir f    -> Disk (Disk.create f)
+    | Unix f   -> Client (IrminIO.Lwt_channel.unix_socket f)
+    | InMemory -> Memory (Memory.create ()) in
+  let keys   = source keys in
+  let values = source values in
+  let tags   = source tags in
+  { keys; values; tags }
 
 type ('a,'b, 'c) s =
   | XDisk of 'a
   | XMemory of 'b
   | XClient of 'c
 
-let key_store = function
+let key_store t = match t.keys with
   | Disk t   -> XDisk (Disk.key_store t)
   | Memory t -> XMemory (Memory.key_store t)
   | Client t -> XClient (Client.key_store t)
 
-let value_store = function
+let value_store t = match t.values with
   | Disk t   -> XDisk (Disk.value_store t)
   | Memory t -> XMemory (Memory.value_store t)
   | Client t -> XClient (Client.value_store t)
 
-let tag_store = function
+let tag_store t = match t.tags with
   | Disk t   -> XDisk (Disk.tag_store t)
   | Memory t -> XMemory (Memory.tag_store t)
   | Client t -> XClient (Client.tag_store t)

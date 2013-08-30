@@ -20,6 +20,7 @@ open IrminTypes
 
 (** Functor to build an in-memory low-level store *)
 module Key_store (C: CORE): sig
+
   include KEY_STORE with module C = C
 
   (** Create a fresh store *)
@@ -28,6 +29,7 @@ end
 
 (** Functor to build an in-memory low-level store *)
 module Value_store (C: CORE): sig
+
   include VALUE_STORE with module C = C
 
   (** Create a fresh store *)
@@ -36,11 +38,23 @@ end
 
 (** Functor to build an in-memory tag store. *)
 module Tag_store (C: CORE): sig
+
   include TAG_STORE with module C = C
 
   (** Create a fresh store *)
   val create: unit -> t
 end
 
+module type S = sig
+
+  (** In-memory store *)
+  include STORE
+
+  (** Create a fresh store *)
+  val create: unit -> t
+
+end
+
+
 (** Functor to build an in-memory global store. *)
-module Make (C: CORE): STORE with module C = C
+module Make (C: CORE): S with module C = C

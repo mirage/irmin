@@ -46,10 +46,6 @@ open IrminLwt
 *)
 type t
 
-type source =
-  [ `Dir  of string
-  | `Unix of string ]
-
 (** Create a queue abstract object. *)
 val create: ?front:Tag.t -> ?back:Tag.t -> source -> t
 

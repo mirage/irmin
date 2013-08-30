@@ -40,28 +40,42 @@ module C: CORE with module Key = Key
 module Disk: IrminDisk.S with module C = C
 
 (** Memory acces. *)
-module Memory: STORE with module C = C
+module Memory: IrminMemory.S with module C = C
 
 (** Client bindings *)
 module Client: IrminRemote.CLIENT with type t = IrminIO.Lwt_channel.t
 
 (** Generic store handle. *)
-type t =
+type handle =
   | Disk of Disk.t
   | Memory of Memory.t
   | Client of Client.t
+
+(** Generic store. *)
+type t = {
+  keys  : handle;
+  values: handle;
+  tags  : handle;
+}
 
 (** Generic store implementation. *)
 include STORE with type t := t
                and module C := C
 
+(** Store source. *)
+type source =
+  | Dir of string
+  | Unix of string
+  | InMemory
+
 (** Store creation. *)
-val create: [`Dir of string | `Unix of string] -> t
+val create: keys:source -> values:source -> tags:source -> t
 
 (** {2 Servers} *)
 
 (** Server which keeps everything into memory *)
 module MemoryServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t
+                                         and module State := Memory
 
 (** Server which persists everything into disk *)
 module DiskServer: IrminRemote.SERVER with type t = IrminIO.Lwt_channel.t

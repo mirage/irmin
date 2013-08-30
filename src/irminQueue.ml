@@ -26,10 +26,6 @@ exception Empty
 let default_front = Tag.of_string "FRONT"
 let default_back = Tag.of_string "BACK"
 
-type source =
-  [ `Dir  of string
-  | `Unix of string ]
-
 type t = {
   source: source;
   front : Tag.t;
@@ -51,13 +47,14 @@ let error fmt =
 
 let init t =
   match t.source with
-  | `Dir f  -> Disk.init f
-  | `Unix f ->
+  | Dir f     -> Disk.init f
+  | InMemory  -> Lwt.return ()
+  | Unix f    ->
     if Sys.file_exists f then Lwt.return ()
     else error "%s does not exist." f
 
 let create ?(front = default_front) ?(back = default_back) source =
-  let store = create source in
+  let store = create ~keys:source ~values:source ~tags:source in
   { source; front; back; store }
 
 let fronts t =
@@ -156,8 +153,10 @@ let take t =
 let server t file =
   let fd = IrminIO.Lwt_channel.unix_socket file in
   match t.source with
-  | `Dir d  -> DiskServer.run (Disk.create d) fd
-  | `Unix _ -> failwith "TODO"
+  | Dir d    -> DiskServer.run (Disk.create d) fd
+  | Unix _   -> failwith "TODO"
+  | InMemory -> MemoryServer.run (Memory.create ()) fd
+
 
 let watch _ =
   failwith "TODO"
