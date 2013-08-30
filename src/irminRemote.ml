@@ -420,24 +420,42 @@ module Server (S: STORE) = struct
   end
 
   let run t fd =
-    lwt len = IrminIO.Lwt_channel.read_length fd in
-    let buf = IrminIO.create len in
-    let action = Action.read buf in
-    let fn = match action with
-      | Key_add          -> XKey_store.add
-      | Key_list         -> XKey_store.all
-      | Key_pred         -> XKey_store.pred
-      | Value_write      -> XValue_store.write
-      | Value_read       -> XValue_store.read
-      | Tag_update       -> XTag_store.update
-      | Tag_remove       -> XTag_store.remove
-      | Tag_read         -> XTag_store.read
-      | Tag_list         -> XTag_store.all
-      | Sync_pull_keys   -> XSync.pull_keys
-      | Sync_pull_tags   -> XSync.pull_tags
-      | Sync_push_keys   -> XSync.push_keys
-      | Sync_push_tags   -> XSync.push_tags
-      | Sync_watch       -> XSync.watch in
-    fn t buf fd
+    let process (fd, sockaddr) =
+      let name = match sockaddr with
+        | Lwt_unix.ADDR_UNIX s         -> s
+        | Lwt_unix.ADDR_INET (ip,port) ->
+          Unix.string_of_inet_addr ip ^ ":" ^ string_of_int port in
+      Printf.printf "New connection from %s\n%!" name;
+      let fd = IrminIO.Lwt_channel.create fd name in
+      lwt len = IrminIO.Lwt_channel.read_length fd in
+      let buf = IrminIO.create len in
+      let action = Action.read buf in
+      let fn = match action with
+        | Key_add          -> XKey_store.add
+        | Key_list         -> XKey_store.all
+        | Key_pred         -> XKey_store.pred
+        | Value_write      -> XValue_store.write
+        | Value_read       -> XValue_store.read
+        | Tag_update       -> XTag_store.update
+        | Tag_remove       -> XTag_store.remove
+        | Tag_read         -> XTag_store.read
+        | Tag_list         -> XTag_store.all
+        | Sync_pull_keys   -> XSync.pull_keys
+        | Sync_pull_tags   -> XSync.pull_tags
+        | Sync_push_keys   -> XSync.push_keys
+        | Sync_push_tags   -> XSync.push_tags
+        | Sync_watch       -> XSync.watch in
+      fn t buf fd in
+    Printf.printf "Listening on %s.\n%!" (Lwt_channel.name fd);
+    Sys.catch_break true;
+    try
+      while_lwt true do
+        lwt client = Lwt_unix.accept (Lwt_channel.channel fd) in
+        process client
+      done
+    with e ->
+      Printf.printf "Closing connection ...\n%!";
+      lwt () = Lwt_channel.close fd in
+      raise_lwt e
 
 end

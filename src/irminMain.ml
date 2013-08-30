@@ -85,10 +85,11 @@ let init =
     Arg.(value & opt (some string) None  & doc) in
   let init t daemon =
     run begin
+      lwt t = t in
       lwt () = IrminQueue.init t in
       match daemon with
       | None      -> Lwt.return ()
-      | Some file -> IrminQueue.server t file
+      | Some file -> IrminQueue.server t ~limit:10 file
     end in
   Term.(pure init $ queue $ daemon),
   Term.info "init" ~doc ~man
@@ -102,7 +103,10 @@ let add =
     `P add_doc;
   ] in
   let add t value =
-    run (IrminQueue.add t value) in
+    run begin
+      lwt t = t in
+      IrminQueue.add t value
+    end in
   Term.(pure add $ queue $ value),
   Term.info "add" ~doc ~man
 
@@ -114,7 +118,12 @@ let watch =
     `S "DESCRIPTION";
     `P watch_doc;
   ] in
-  Term.(pure IrminQueue.watch $ queue),
+  let watch t =
+    run begin
+      lwt t = t in
+      IrminQueue.watch t
+    end in
+  Term.(pure watch $ queue),
   Term.info "watch" ~doc ~man
 
 (* TAKE *)
@@ -127,6 +136,7 @@ let take =
   ] in
   let take t =
     run begin
+      lwt t = t in
       lwt value = IrminQueue.take t in
       Printf.printf "%s" (Value.pretty value);
       Lwt.return ()
@@ -144,7 +154,10 @@ let peek =
     `P peek_doc;
   ] in
   let peek t =
-    let elt = run (IrminQueue.peek t) in
+    let elt = run begin
+        lwt t = t in
+        IrminQueue.peek t
+      end in
     Printf.printf "%s\n" (IrminLwt.Value.pretty elt) in
   Term.(pure peek $ queue),
   Term.info "peek" ~doc ~man
@@ -159,6 +172,7 @@ let list =
   ] in
   let list t =
     run begin
+      lwt t = t in
       lwt values = IrminQueue.to_list t in
       let blobs = List.map (fun v ->
           match Value.to_string v with
@@ -179,7 +193,12 @@ let pull =
     `S "DESCRIPTION";
     `P pull_doc;
   ] in
-  Term.(pure IrminQueue.pull $ queue),
+  let pull t =
+    run begin
+      lwt t = t in
+      IrminQueue.pull t
+    end in
+  Term.(pure pull $ queue),
   Term.info "pull" ~doc ~man
 
 (* PUSH *)
@@ -190,7 +209,12 @@ let push =
     `S "DESCRIPTION";
     `P push_doc;
   ] in
-  Term.(pure IrminQueue.push $ queue),
+  let push t =
+    run begin
+      lwt t = t in
+      IrminQueue.push t
+    end in
+  Term.(pure push $ queue),
   Term.info "push" ~doc ~man
 
 (* CLONE *)
@@ -201,7 +225,12 @@ let clone =
     `S "DESCRIPTION";
     `P clone_doc;
   ] in
-  Term.(pure IrminQueue.clone $ queue),
+  let clone t =
+    run begin
+      lwt t = t in
+      IrminQueue.clone t
+    end in
+  Term.(pure clone $ queue),
   Term.info "clone" ~doc ~man
 
 (* HELP *)
@@ -225,7 +254,6 @@ let help =
       | `Error e                -> `Error (false, e)
       | `Ok t when t = "topics" -> List.iter print_endline cmds; `Ok ()
       | `Ok t                   -> `Help (man_format, Some t) in
-
   Term.(ret (pure help $Term.man_format $Term.choice_names $topic)),
   Term.info "help" ~doc ~man
 

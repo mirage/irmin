@@ -66,13 +66,15 @@ type t = {
 
 let create ~keys ~values ~tags =
   let source = function
-    | Dir f    -> Disk (Disk.create f)
-    | Unix f   -> Client (IrminIO.Lwt_channel.unix_socket f)
-    | InMemory -> Memory (Memory.create ()) in
-  let keys   = source keys in
-  let values = source values in
-  let tags   = source tags in
-  { keys; values; tags }
+    | Dir f    -> Lwt.return (Disk (Disk.create f))
+    | InMemory -> Lwt.return (Memory (Memory.create ()))
+    | Unix f   ->
+      lwt fd = IrminIO.Lwt_channel.unix_socket_client f in
+      Lwt.return (Client fd) in
+  lwt keys   = source keys in
+  lwt values = source values in
+  lwt tags   = source tags in
+  Lwt.return { keys; values; tags }
 
 type ('a,'b, 'c) s =
   | XDisk of 'a

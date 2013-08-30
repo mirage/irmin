@@ -69,7 +69,7 @@ type source =
   | InMemory
 
 (** Store creation. *)
-val create: keys:source -> values:source -> tags:source -> t
+val create: keys:source -> values:source -> tags:source -> t Lwt.t
 
 (** {2 Servers} *)
 
