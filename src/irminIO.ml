@@ -27,7 +27,7 @@ let create len =
 let dump_buffer t =
   if IrminMisc.debug_enabled () then
     let debug = Cstruct.debug t.buffer in
-    let str = Cstruct.to_string t.buffer in
+    let str = Cstruct.to_string (Cstruct.shift t.buffer (-t.buffer.Cstruct.off)) in
     Printf.eprintf "%16s\027[33m[[ %s %S ]]\027[m\n" ""
       debug str
 
@@ -396,7 +396,7 @@ module Lwt_channel = struct
       if n = 0 then raise End_of_file;
       if n < len then rread fd str (ofs + n) (len - n) else Lwt.return () in
     lwt () = rread t.fd str 0 len in
-    debug "read: %s" str;
+    debug "read: %S" str;
     Lwt.return str
 
   let read_buf t len =
