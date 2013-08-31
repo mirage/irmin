@@ -50,7 +50,7 @@ module type SERVER = sig
   module State: STORE
 
   (** Run the server thread *)
-  val run: State.t -> t -> unit Lwt.t
+  val run: State.t -> ?timeout:float -> t -> unit Lwt.t
 
 end
 

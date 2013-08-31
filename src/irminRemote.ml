@@ -38,6 +38,8 @@ type action =
 
 module Action = struct
 
+  let debug fmt = IrminMisc.debug "ACTION" fmt
+
   let actions = [|
     Key_add          , "key-add";
     Key_list         , "key-list";
@@ -62,7 +64,7 @@ module Action = struct
         let a, s = actions.(i) in
         if pred (a, s) then (a, s, i)
         else aux (i-1) in
-    aux (Array.length actions)
+    aux (Array.length actions - 1)
 
   let assoc a =
     let _, s, _ =
@@ -114,6 +116,7 @@ module Action = struct
     1
 
   let read buf =
+    debug "read";
     let kind = IrminIO.get_uint8 buf in
     let kind =
       match action kind with
@@ -122,6 +125,7 @@ module Action = struct
     kind
 
   let write buf t =
+    debug "write %s" (pretty t);
     let kind = index t in
     IrminIO.set_uint8 buf kind
 
@@ -285,10 +289,12 @@ end
 module type SERVER = sig
   type t = IrminIO.Lwt_channel.t
   module State: STORE
-  val run: State.t -> t -> unit Lwt.t
+  val run: State.t -> ?timeout:float -> t -> unit Lwt.t
 end
 
 module Server (S: STORE) = struct
+
+  let debug fmt = IrminMisc.debug "SERVER" fmt
 
   open IrminIO
 
@@ -419,15 +425,18 @@ module Server (S: STORE) = struct
 
   end
 
-  let run t fd =
-    let process (fd, sockaddr) =
-      let name = match sockaddr with
-        | Lwt_unix.ADDR_UNIX s         -> s
-        | Lwt_unix.ADDR_INET (ip,port) ->
-          Unix.string_of_inet_addr ip ^ ":" ^ string_of_int port in
-      Printf.printf "New connection from %s\n%!" name;
-      let fd = IrminIO.Lwt_channel.create fd name in
-      lwt len = IrminIO.Lwt_channel.read_length fd in
+  let channel (fd, sockaddr) =
+    let name = match sockaddr with
+      | Lwt_unix.ADDR_UNIX s         -> "unix-"^s
+      | Lwt_unix.ADDR_INET (ip,port) ->
+        "inet-"^Unix.string_of_inet_addr ip^":"^string_of_int port in
+    IrminIO.Lwt_channel.create fd name
+
+  let run t ?timeout listen =
+    let process client =
+      Printf.printf "New connection from %s\n%!" (Lwt_channel.name client);
+      lwt len = IrminIO.Lwt_channel.read_length client in
+      debug " ... processs";
       let buf = IrminIO.create len in
       let action = Action.read buf in
       let fn = match action with
@@ -445,17 +454,26 @@ module Server (S: STORE) = struct
         | Sync_push_keys   -> XSync.push_keys
         | Sync_push_tags   -> XSync.push_tags
         | Sync_watch       -> XSync.watch in
-      fn t buf fd in
-    Printf.printf "Listening on %s.\n%!" (Lwt_channel.name fd);
+      fn t buf client in
+    Printf.printf "Listening on %s.\n%!" (Lwt_channel.name listen);
     Sys.catch_break true;
     try
       while_lwt true do
-        lwt client = Lwt_unix.accept (Lwt_channel.channel fd) in
-        process client
+        lwt client = Lwt_unix.accept (Lwt_channel.channel listen) in
+        let client = channel client in
+        let events = match timeout with
+          | None   -> [ process client ]
+          | Some t ->
+            let timeout = Lwt_unix.sleep t in
+            [ process client; timeout ] in
+        lwt () =
+          try_lwt Lwt.pick events
+          with _ -> Lwt.return () in
+        IrminIO.Lwt_channel.close client
       done
     with e ->
       Printf.printf "Closing connection ...\n%!";
-      lwt () = Lwt_channel.close fd in
+      lwt () = Lwt_channel.close listen in
       raise_lwt e
 
 end

@@ -105,7 +105,7 @@ let parse_error fmt =
 
 module List  (E: BASE) = struct
 
-  let debug fmt = IrminMisc.debug "IO.LIST" fmt
+  let debug fmt = IrminMisc.debug "IO-LIST" fmt
 
   module T = struct
 
@@ -154,7 +154,7 @@ module List  (E: BASE) = struct
     aux [] (Int32.to_int keys)
 
   let write buf t =
-    debug "write";
+    debug "write %s" (pretty t);
     let len = Int32.of_int (List.length t) in
     let () = set_uint32 buf len in
     List.iter (E.write buf) t
@@ -202,7 +202,7 @@ end
 
 module Option (E: BASE) = struct
 
-  let debug fmt = IrminMisc.debug "IO.OPTION" fmt
+  let debug fmt = IrminMisc.debug "IO-OPTION" fmt
 
   module L = List(E)
 
@@ -252,7 +252,7 @@ module Option (E: BASE) = struct
     | _   -> parse_error_buf buf "Option.read"
 
   let write buf t =
-    debug "write";
+    debug "write %s" (pretty t);
     let l = match t with
       | None   -> []
       | Some e -> [e] in
@@ -312,8 +312,8 @@ module Pair (K: BASE) (V: BASE) = struct
     let key = V.read buf in
     (tag, key)
 
-  let write buf (key, value) =
-    debug "write";
+  let write buf (key, value as t) =
+    debug "write %s" (pretty t);
     dump_buffer buf;
     K.write buf key;
     V.write buf value
@@ -328,7 +328,7 @@ end
 
 module String  (S: STRINGABLE) = struct
 
-  let debug fmt = IrminMisc.debug "IO.STRING" fmt
+  let debug fmt = IrminMisc.debug "IO-STRING" fmt
 
   module T = struct
 
@@ -365,8 +365,8 @@ module String  (S: STRINGABLE) = struct
     S.of_string str
 
   let write buf t =
+    debug "write %s" (pretty t);
     let str = S.to_string t in
-    debug "write %s" str;
     let len = String.length str in
     set_uint32 buf (Int32.of_int len);
     set_string buf str
@@ -389,18 +389,18 @@ module Lwt_channel = struct
   let close t = Lwt_unix.close t.fd
 
   let read_string t len =
-    debug "read_string %s %d" t.name len;
+    debug "read_string %s len:%d" t.name len;
     let str = OCamlString.create len in
     let rec rread fd str ofs len =
       lwt n = Lwt_unix.read fd str ofs len in
+      debug " ... read_string n:%d" n;
       if n = 0 then raise End_of_file;
       if n < len then rread fd str (ofs + n) (len - n) else Lwt.return () in
     lwt () = rread t.fd str 0 len in
-    debug "read: %S" str;
     Lwt.return str
 
   let read_buf t len =
-    debug "read_buf %s %d" t.name len;
+    debug "read_buf %s len:%d" t.name len;
     let bufIO = create len in
     let buf = bufIO.buffer.Cstruct.buffer in
     let rec rread fd buf ofs len =
@@ -420,26 +420,31 @@ module Lwt_channel = struct
       if n < len then rwrite fd str (ofs + n) (len - n) else Lwt.return () in
     rwrite t.fd str 0 (OCamlString.length str)
 
-  let write_buf t buf len =
-    debug "write_buf %s %d" t.name len;
+  let write_buf t buf =
+    debug "write_buf %s" t.name;
     dump_buffer buf;
     let rec rwrite fd buf ofs len =
+      debug " ... write_buf %d" len;
       lwt n = Lwt_bytes.write fd buf ofs len in
       if n = 0 then raise End_of_file;
       if n < len then rwrite fd buf (ofs + n) (len - n) else Lwt.return () in
-    rwrite t.fd buf.buffer.Cstruct.buffer 0 len
+    let ba = buf.buffer.Cstruct.buffer in
+    rwrite t.fd ba 0 (Bigarray.Array1.dim ba)
 
   let read_length t =
-    debug "read_length %s" t.name;
+    debug "read_length %S" t.name;
     lwt str = read_string t 4 in
     let len = EndianString.BigEndian.get_int32 str 0 in
+    debug " ... read_length: %ld" len;
     Lwt.return (Int32.to_int len)
 
   let write_length t len =
     debug "write_length %s %dl" t.name len;
     let str = OCamlString.create 4 in
     EndianString.BigEndian.set_int32 str 0 (Int32.of_int len);
-    write_string t str
+    lwt () = write_string t str in
+    debug " ... write_length";
+    Lwt.return ()
 
   let write_unit t =
     write_string t "U"
@@ -480,17 +485,19 @@ module Channel (B: BASE) = struct
   type channel = Lwt_channel.t
 
   let read_fd fd =
+    debug "read_fd %s" (Lwt_channel.name fd);
     lwt len = Lwt_channel.read_length fd in
-    debug "read_fd %s len:%d" (Lwt_channel.name fd) len;
     lwt buf = Lwt_channel.read_buf fd len in
     Lwt.return (B.read buf)
 
   let write_fd fd t =
     let len = B.sizeof t in
-    debug "write_fd fd:%s len:%d" (Lwt_channel.name fd) len;
+    debug "write_fd %s len:%d %s" (Lwt_channel.name fd) len (B.pretty t);
     let buf = create len in
     B.write buf t;
     lwt () = Lwt_channel.write_length fd len in
-    Lwt_channel.write_buf fd buf len
+    lwt () = Lwt_channel.write_buf fd buf in
+    debug " ... write_fd";
+    Lwt.return ()
 
 end

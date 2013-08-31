@@ -126,7 +126,9 @@ module Lwt_channel: sig
 
   val write_string: t -> string -> unit Lwt.t
 
-  val write_buf: t -> bufIO -> int -> unit Lwt.t
+  (** Serialize the *complete* underlyin bigarray buffer, ie. it does
+      not take the windows overlay into account at all. *)
+  val write_buf: t -> bufIO -> unit Lwt.t
 
   val read_length: t -> int Lwt.t
 
