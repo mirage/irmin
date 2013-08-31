@@ -157,8 +157,5 @@ module type CHANNEL = sig
 
 end
 
-(** Wire operation *)
-module Wire (B: BASE): CHANNEL with type t = B.t
-
-(** File operations *)
-module File (B: BASE): CHANNEL with type t = B.t
+(** Channel operations. *)
+module Channel (B: BASE): CHANNEL with type t = B.t

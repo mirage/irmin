@@ -47,9 +47,9 @@ module Make (C: CORE) = struct
 
   open C
 
-  module XKey = IrminIO.File(Key)
-  module XKeys = IrminIO.File(IrminIO.List(Key))
-  module XValue = IrminIO.File(Value)
+  module XKey = IrminIO.Channel(Key)
+  module XKeys = IrminIO.Channel(IrminIO.List(Key))
+  module XValue = IrminIO.Channel(Value)
 
   let (/) = Filename.concat
 

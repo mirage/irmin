@@ -441,11 +441,6 @@ module Lwt_channel = struct
     EndianString.BigEndian.set_int32 str 0 (Int32.of_int len);
     write_string t str
 
-  let length t =
-    lwt len = Lwt_unix.(lseek t.fd 0 SEEK_END) in
-    lwt _ = Lwt_unix.(lseek t.fd 0 SEEK_SET) in
-    Lwt.return len
-
   let write_unit t =
     write_string t "U"
 
@@ -476,40 +471,17 @@ module type CHANNEL = sig
   val write_fd: channel -> t -> unit Lwt.t
 end
 
-module File (B: BASE) = struct
+module Channel (B: BASE) = struct
 
-  let debug fmt = IrminMisc.debug "IO-FILE" fmt
-
-  include B
-
-  type channel = Lwt_channel.t
-
-  let read_fd fd =
-    debug "read_fd %s" (Lwt_channel.name fd);
-    lwt len = Lwt_channel.length fd in
-    lwt buf = Lwt_channel.read_buf fd len in
-    Lwt.return (B.read buf)
-
-  let write_fd fd t =
-    let len = B.sizeof t in
-    debug "write_fd fd:%s len:%d" (Lwt_channel.name fd) len;
-    let buf = create len in
-    B.write buf t;
-    Lwt_channel.write_buf fd buf len
-
-end
-
-module Wire (B: BASE) = struct
-
-  let debug fmt = IrminMisc.debug "IO-WIRE" fmt
+  let debug fmt = IrminMisc.debug "IO-FD" fmt
 
   include B
 
   type channel = Lwt_channel.t
 
   let read_fd fd =
-    debug "read_fd %s" (Lwt_channel.name fd);
     lwt len = Lwt_channel.read_length fd in
+    debug "read_fd %s len:%d" (Lwt_channel.name fd) len;
     lwt buf = Lwt_channel.read_buf fd len in
     Lwt.return (B.read buf)
 

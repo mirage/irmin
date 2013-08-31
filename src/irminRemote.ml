@@ -142,35 +142,35 @@ module Client (C: CORE) = struct
   open C
   open IrminIO
 
-  module XKey = Wire(Key)
-  module XKeys = Wire(Set(Key))
-  module XKeyKeys = Wire(Pair(Key)(XKeys))
-  module XKeyPair = Wire(Pair(Key)(Key))
-  module XKeyPairs = Wire(List(XKeyPair))
+  module XKey = Channel(Key)
+  module XKeys = Channel(Set(Key))
+  module XKeyKeys = Channel(Pair(Key)(XKeys))
+  module XKeyPair = Channel(Pair(Key)(Key))
+  module XKeyPairs = Channel(List(XKeyPair))
 
-  module XValue = Wire(Value)
-  module XValueOption = Wire(Option(Value))
+  module XValue = Channel(Value)
+  module XValueOption = Channel(Option(Value))
 
-  module XTag = Wire(Tag)
-  module XTags = Wire(Set(Tag))
-  module XKeysTags = Wire(Pair(XKeys)(XTags))
-  module XTagKeys = Wire(Pair(Tag)(XKeys))
-  module XTagKeyss = Wire(List(XTagKeys))
+  module XTag = Channel(Tag)
+  module XTags = Channel(Set(Tag))
+  module XKeysTags = Channel(Pair(XKeys)(XTags))
+  module XTagKeys = Channel(Pair(Tag)(XKeys))
+  module XTagKeyss = Channel(List(XTagKeys))
 
-  module XGraph = Wire(Pair(XKeys)(XKeyPairs))
-  module XTagsGraph = Wire(Pair(XTags)(XGraph))
-  module XGraphTagKeyss = Wire(Pair(XGraph)(XTagKeyss))
+  module XGraph = Channel(Pair(XKeys)(XKeyPairs))
+  module XTagsGraph = Channel(Pair(XTags)(XGraph))
+  module XGraphTagKeyss = Channel(Pair(XGraph)(XTagKeyss))
 
-  module XAction = Wire(Action)
-  module XActionKey = Wire(Pair(Action)(Key))
-  module XActionKeyKeys = Wire(Pair(Action)(Pair(XKey)(XKeys)))
-  module XActionValue = Wire(Pair(Action)(Value))
-  module XActionTag = Wire(Pair(Action)(Tag))
-  module XActionTags = Wire(Pair(Action)(XTags))
-  module XActionTagKeys = Wire(Pair(Action)(XTagKeys))
-  module XActionTagKeyss = Wire(Pair(Action)(XTagKeyss))
-  module XActionKeysTags = Wire(Pair(Action)(XKeysTags))
-  module XActionGraphTagKeyss = Wire(Pair(Action)(XGraphTagKeyss))
+  module XAction = Channel(Action)
+  module XActionKey = Channel(Pair(Action)(Key))
+  module XActionKeyKeys = Channel(Pair(Action)(Pair(XKey)(XKeys)))
+  module XActionValue = Channel(Pair(Action)(Value))
+  module XActionTag = Channel(Pair(Action)(Tag))
+  module XActionTags = Channel(Pair(Action)(XTags))
+  module XActionTagKeys = Channel(Pair(Action)(XTagKeys))
+  module XActionTagKeyss = Channel(Pair(Action)(XTagKeyss))
+  module XActionKeysTags = Channel(Pair(Action)(XKeysTags))
+  module XActionGraphTagKeyss = Channel(Pair(Action)(XGraphTagKeyss))
 
   module Types = struct
 
@@ -303,24 +303,24 @@ module Server (S: STORE) = struct
   module Value_store = S.Value_store
   module Tag_store = S.Tag_store
 
-  module XKey = Wire(Key)
-  module XKeys = Wire(Set(Key))
-  module XKeyKeys = Wire(Pair(Key)(XKeys))
-  module XKeyPair = Wire(Pair(Key)(Key))
-  module XKeyPairs = Wire(List(XKeyPair))
+  module XKey = Channel(Key)
+  module XKeys = Channel(Set(Key))
+  module XKeyKeys = Channel(Pair(Key)(XKeys))
+  module XKeyPair = Channel(Pair(Key)(Key))
+  module XKeyPairs = Channel(List(XKeyPair))
 
-  module XValue = Wire(Value)
-  module XValueOption = Wire(Option(Value))
+  module XValue = Channel(Value)
+  module XValueOption = Channel(Option(Value))
 
-  module XTag = Wire(Tag)
-  module XTags = Wire(Set(Tag))
-  module XKeysTags = Wire(Pair(XKeys)(XTags))
-  module XTagKeys = Wire(Pair(Tag)(XKeys))
-  module XTagKeyss = Wire(List(XTagKeys))
+  module XTag = Channel(Tag)
+  module XTags = Channel(Set(Tag))
+  module XKeysTags = Channel(Pair(XKeys)(XTags))
+  module XTagKeys = Channel(Pair(Tag)(XKeys))
+  module XTagKeyss = Channel(List(XTagKeys))
 
-  module XGraph = Wire(Pair(XKeys)(XKeyPairs))
-  module XTagsGraph = Wire(Pair(XTags)(XGraph))
-  module XGraphTagKeyss = Wire(Pair(XGraph)(XTagKeyss))
+  module XGraph = Channel(Pair(XKeys)(XKeyPairs))
+  module XTagsGraph = Channel(Pair(XTags)(XGraph))
+  module XGraphTagKeyss = Channel(Pair(XGraph)(XTagKeyss))
 
   let write_unit = Lwt_channel.write_unit
 
