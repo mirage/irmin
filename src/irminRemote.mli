@@ -22,7 +22,7 @@ open IrminTypes
 module type CLIENT = sig
 
   (** Clients communicate with servers using file descriptors. *)
-  type t = IrminIO.Lwt_channel.t
+  type t = unit -> IrminIO.Lwt_channel.t Lwt.t
 
   (** Clients transparentely access the server store. *)
   include STORE with type t := t

@@ -43,7 +43,7 @@ module Disk: IrminDisk.S with module C = C
 module Memory: IrminMemory.S with module C = C
 
 (** Client bindings *)
-module Client: IrminRemote.CLIENT with type t = IrminIO.Lwt_channel.t
+module Client: IrminRemote.CLIENT with module C = C
 
 (** Generic store handle. *)
 type handle =
@@ -69,7 +69,7 @@ type source =
   | InMemory
 
 (** Store creation. *)
-val create: keys:source -> values:source -> tags:source -> t Lwt.t
+val create: keys:source -> values:source -> tags:source -> t
 
 (** {2 Servers} *)
 

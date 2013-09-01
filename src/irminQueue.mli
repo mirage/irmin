@@ -47,7 +47,7 @@ open IrminLwt
 type t
 
 (** Create a queue abstract object. *)
-val create: ?front:Tag.t -> ?back:Tag.t -> source -> t Lwt.t
+val create: ?front:Tag.t -> ?back:Tag.t -> source -> t
 
 (** Default front tag. *)
 val default_front: Tag.t

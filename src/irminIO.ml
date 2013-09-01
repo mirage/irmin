@@ -145,13 +145,14 @@ module List  (E: BASE) = struct
 
   let read buf =
     debug "read";
-    let keys = get_uint32 buf in
+    let keys = Int32.to_int (get_uint32 buf) in
     let rec aux acc i =
       if i <= 0 then OCamlList.rev acc
       else
         let t = E.read buf in
         aux (t :: acc) (i-1) in
-    aux [] (Int32.to_int keys)
+    if keys = 0 then []
+    else aux [] keys
 
   let write buf t =
     debug "write %s" (pretty t);
@@ -394,8 +395,9 @@ module Lwt_channel = struct
     let rec rread fd str ofs len =
       lwt n = Lwt_unix.read fd str ofs len in
       debug " ... read_string n:%d" n;
-      if n = 0 then raise End_of_file;
-      if n < len then rread fd str (ofs + n) (len - n) else Lwt.return () in
+      if n = 0 then raise_lwt End_of_file
+      else if n < len then rread fd str (ofs + n) (len - n)
+      else Lwt.return () in
     lwt () = rread t.fd str 0 len in
     Lwt.return str
 
@@ -406,8 +408,9 @@ module Lwt_channel = struct
     let rec rread fd buf ofs len =
       debug "rread ofs=%d len=%d" ofs len;
       lwt n = Lwt_bytes.read fd buf ofs len in
-      if n = 0 then raise End_of_file;
-      if n < len then rread fd buf (ofs + n) (len - n) else Lwt.return () in
+      if n = 0 then raise_lwt End_of_file
+      else if n < len then rread fd buf (ofs + n) (len - n)
+      else Lwt.return () in
     lwt () = rread t.fd buf 0 len in
     dump_buffer bufIO;
     Lwt.return bufIO
@@ -416,8 +419,9 @@ module Lwt_channel = struct
     debug "write_string %s %S" t.name str;
     let rec rwrite fd str ofs len =
       lwt n = Lwt_unix.write fd str ofs len in
-      if n = 0 then raise End_of_file;
-      if n < len then rwrite fd str (ofs + n) (len - n) else Lwt.return () in
+      if n = 0 then raise_lwt End_of_file
+      else if n < len then rwrite fd str (ofs + n) (len - n)
+      else Lwt.return () in
     rwrite t.fd str 0 (OCamlString.length str)
 
   let write_buf t buf =
@@ -426,8 +430,9 @@ module Lwt_channel = struct
     let rec rwrite fd buf ofs len =
       debug " ... write_buf %d" len;
       lwt n = Lwt_bytes.write fd buf ofs len in
-      if n = 0 then raise End_of_file;
-      if n < len then rwrite fd buf (ofs + n) (len - n) else Lwt.return () in
+      if n = 0 then raise_lwt End_of_file
+      else if n < len then rwrite fd buf (ofs + n) (len - n)
+      else Lwt.return () in
     let ba = buf.buffer.Cstruct.buffer in
     rwrite t.fd ba 0 (Bigarray.Array1.dim ba)
 
@@ -457,12 +462,14 @@ module Lwt_channel = struct
   let create fd name = { fd; name }
 
   let unix_socket_server ~limit file =
+    debug "unix-socker-server %s" file;
     let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
     Lwt_unix.bind fd (Lwt_unix.ADDR_UNIX file);
     Lwt_unix.listen fd limit;
     create fd file
 
   let unix_socket_client file =
+    debug "unix-socket-client %s" file;
     let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
     lwt () = Lwt_unix.connect fd (Lwt_unix.ADDR_UNIX file) in
     Lwt.return (create fd file)
@@ -487,7 +494,10 @@ module Channel (B: BASE) = struct
   let read_fd fd =
     debug "read_fd %s" (Lwt_channel.name fd);
     lwt len = Lwt_channel.read_length fd in
+    debug " ... read_fd len:%d" len;
     lwt buf = Lwt_channel.read_buf fd len in
+    debug " ... read_buf";
+    dump_buffer buf;
     Lwt.return (B.read buf)
 
   let write_fd fd t =
@@ -498,6 +508,7 @@ module Channel (B: BASE) = struct
     lwt () = Lwt_channel.write_length fd len in
     lwt () = Lwt_channel.write_buf fd buf in
     debug " ... write_fd";
+    dump_buffer buf;
     Lwt.return ()
 
 end

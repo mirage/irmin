@@ -133,7 +133,7 @@ end
 
 (** Signature for clients *)
 module type CLIENT = sig
-  type t = IrminIO.Lwt_channel.t
+  type t = unit -> IrminIO.Lwt_channel.t Lwt.t
   include STORE with type t := t
                  and type Key_store.t = t
                  and type Value_store.t = t
@@ -178,7 +178,7 @@ module Client (C: CORE) = struct
 
   module Types = struct
 
-    type t = Lwt_channel.t
+    type t = unit -> Lwt_channel.t Lwt.t
 
     module C = C
 
@@ -200,16 +200,19 @@ module Client (C: CORE) = struct
 
     include Types
 
-    let add fd key preds =
+    let add t key preds =
+      lwt fd = t () in
       lwt () = XActionKeyKeys.write_fd fd (Key_add, (key, preds)) in
       read_unit fd
 
-    let all fd =
+    let all t =
+      lwt fd = t () in
       lwt () = XAction.write_fd fd Key_list in
       lwt keys = XKeys.read_fd fd in
       Lwt.return keys
 
-    let pred fd key =
+    let pred t key =
+      lwt fd = t () in
       lwt () = XActionKey.write_fd fd (Key_pred, key) in
       lwt keys = XKeys.read_fd fd in
       Lwt.return keys
@@ -220,11 +223,13 @@ module Client (C: CORE) = struct
 
     include Types
 
-    let write fd value =
+    let write t value =
+      lwt fd = t () in
       lwt () = XActionValue.write_fd fd (Value_write, value) in
       XKey.read_fd fd
 
-    let read fd key =
+    let read t key =
+      lwt fd = t () in
       lwt () = XActionKey.write_fd fd (Value_read, key) in
       XValueOption.read_fd fd
 
@@ -234,19 +239,23 @@ module Client (C: CORE) = struct
 
     include Types
 
-    let update fd tag keys =
+    let update t tag keys =
+      lwt fd = t () in
       lwt () = XActionTagKeys.write_fd fd (Tag_update, (tag, keys)) in
       read_unit fd
 
-    let remove fd tag =
+    let remove t tag =
+      lwt fd = t () in
       lwt () = XActionTag.write_fd fd (Tag_remove, tag) in
       read_unit fd
 
-    let read fd tag =
+    let read t tag =
+      lwt fd = t () in
       lwt () = XActionTag.write_fd fd (Tag_read, tag) in
       XKeys.read_fd fd
 
-    let all fd =
+    let all t =
+      lwt fd = t () in
       lwt () = XAction.write_fd fd Tag_list in
       XTags.read_fd fd
 
@@ -256,23 +265,28 @@ module Client (C: CORE) = struct
 
     include Types
 
-    let pull_keys fd roots tags =
+    let pull_keys t roots tags =
+      lwt fd = t () in
       lwt () = XActionKeysTags.write_fd fd (Sync_pull_keys, (roots, tags)) in
       XGraph.read_fd fd
 
-    let pull_tags fd =
+    let pull_tags t =
+      lwt fd = t () in
       lwt () = XAction.write_fd fd Sync_pull_tags in
       XTagKeyss.read_fd fd
 
-    let push_keys fd graph tags =
+    let push_keys t graph tags =
+      lwt fd = t () in
       lwt () = XActionGraphTagKeyss.write_fd fd (Sync_push_keys, (graph, tags)) in
       read_unit fd
 
-    let push_tags fd tags =
+    let push_tags t tags =
+      lwt fd = t () in
       lwt () = XActionTagKeyss.write_fd fd (Sync_push_tags, tags) in
       read_unit fd
 
-    let watch fd tags callback =
+    let watch t tags callback =
+      lwt fd = t () in
       lwt () = XActionTags.write_fd fd (Sync_watch, tags) in
       let read () =
         try
@@ -434,10 +448,11 @@ module Server (S: STORE) = struct
 
   let run t ?timeout listen =
     let process client =
+      let client = channel client in
       Printf.printf "New connection from %s\n%!" (Lwt_channel.name client);
       lwt len = IrminIO.Lwt_channel.read_length client in
       debug " ... processs";
-      let buf = IrminIO.create len in
+      lwt buf = Lwt_channel.read_buf client len in
       let action = Action.read buf in
       let fn = match action with
         | Key_add          -> XKey_store.add
@@ -460,16 +475,21 @@ module Server (S: STORE) = struct
     try
       while_lwt true do
         lwt client = Lwt_unix.accept (Lwt_channel.channel listen) in
-        let client = channel client in
         let events = match timeout with
           | None   -> [ process client ]
           | Some t ->
-            let timeout = Lwt_unix.sleep t in
+            let timeout =
+              lwt () = Lwt_unix.sleep t in
+              Printf.printf "Timeout!\n%!";
+              Lwt.return () in
             [ process client; timeout ] in
         lwt () =
           try_lwt Lwt.pick events
           with _ -> Lwt.return () in
-        IrminIO.Lwt_channel.close client
+        try_lwt
+          Lwt_unix.close (fst client)
+        with _ ->
+          Lwt.return ()
       done
     with e ->
       Printf.printf "Closing connection ...\n%!";

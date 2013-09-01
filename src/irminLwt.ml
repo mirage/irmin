@@ -17,6 +17,8 @@
 open Lwt
 open IrminTypes
 
+let debug fmt = IrminMisc.debug "LWT" fmt
+
 module Key   = IrminKey.SHA1
 module Value = IrminValue.Make(Key)(IrminValue.Blob(Key))
 module Tag   = IrminTag
@@ -65,16 +67,19 @@ type t = {
 }
 
 let create ~keys ~values ~tags =
-  let source = function
-    | Dir f    -> Lwt.return (Disk (Disk.create f))
-    | InMemory -> Lwt.return (Memory (Memory.create ()))
+  debug "create";
+  let source s =
+    match s with
+    | Dir f    -> Disk (Disk.create f)
+    | InMemory -> Memory (Memory.create ())
     | Unix f   ->
-      lwt fd = IrminIO.Lwt_channel.unix_socket_client f in
-      Lwt.return (Client fd) in
-  lwt keys   = source keys in
-  lwt values = source values in
-  lwt tags   = source tags in
-  Lwt.return { keys; values; tags }
+      let fd () =
+        IrminIO.Lwt_channel.unix_socket_client f in
+      Client fd in
+  let keys   = source keys in
+  let values = source values in
+  let tags   = source tags in
+  { keys; values; tags }
 
 type ('a,'b, 'c) s =
   | XDisk of 'a

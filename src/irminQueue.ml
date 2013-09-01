@@ -54,8 +54,9 @@ let init t =
     else error "%s does not exist." f
 
 let create ?(front = default_front) ?(back = default_back) source =
-  lwt store = create ~keys:source ~values:source ~tags:source in
-  Lwt.return { source; front; back; store }
+  debug "create";
+  let store = create ~keys:source ~values:source ~tags:source in
+  { source; front; back; store }
 
 let fronts t =
   Tag_store.read (tag_store t) t.front
@@ -153,9 +154,9 @@ let take t =
 let server t ~limit file =
   let fd = IrminIO.Lwt_channel.unix_socket_server ~limit file in
   match t.source with
-  | Dir d    -> DiskServer.run (Disk.create d) fd
+  | Dir d    -> DiskServer.run ~timeout:2. (Disk.create d) fd
   | Unix _   -> failwith "TODO"
-  | InMemory -> MemoryServer.run (Memory.create ()) fd
+  | InMemory -> MemoryServer.run ~timeout:2. (Memory.create ()) fd
 
 
 let watch _ =

@@ -87,7 +87,6 @@ let init =
     Arg.(value & opt (some string) None  & doc) in
   let init t daemon =
     run begin
-      lwt t = t in
       lwt () = IrminQueue.init t in
       match daemon with
       | None      -> Lwt.return ()
@@ -106,7 +105,6 @@ let add =
   ] in
   let add t value =
     run begin
-      lwt t = t in
       IrminQueue.add t value
     end in
   Term.(pure add $ queue $ value),
@@ -122,7 +120,6 @@ let watch =
   ] in
   let watch t =
     run begin
-      lwt t = t in
       IrminQueue.watch t
     end in
   Term.(pure watch $ queue),
@@ -138,7 +135,6 @@ let take =
   ] in
   let take t =
     run begin
-      lwt t = t in
       lwt value = IrminQueue.take t in
       Printf.printf "%s" (Value.pretty value);
       Lwt.return ()
@@ -157,7 +153,6 @@ let peek =
   ] in
   let peek t =
     let elt = run begin
-        lwt t = t in
         IrminQueue.peek t
       end in
     Printf.printf "%s\n" (IrminLwt.Value.pretty elt) in
@@ -174,7 +169,6 @@ let list =
   ] in
   let list t =
     run begin
-      lwt t = t in
       lwt values = IrminQueue.to_list t in
       let blobs = List.map (fun v ->
           match Value.to_string v with
@@ -197,7 +191,6 @@ let pull =
   ] in
   let pull t =
     run begin
-      lwt t = t in
       IrminQueue.pull t
     end in
   Term.(pure pull $ queue),
@@ -213,7 +206,6 @@ let push =
   ] in
   let push t =
     run begin
-      lwt t = t in
       IrminQueue.push t
     end in
   Term.(pure push $ queue),
@@ -229,7 +221,6 @@ let clone =
   ] in
   let clone t =
     run begin
-      lwt t = t in
       IrminQueue.clone t
     end in
   Term.(pure clone $ queue),
