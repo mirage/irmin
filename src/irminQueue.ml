@@ -154,9 +154,13 @@ let take t =
 let server t ~limit file =
   let fd = IrminIO.Lwt_channel.unix_socket_server ~limit file in
   match t.source with
-  | Dir d    -> DiskServer.run ~timeout:2. (Disk.create d) fd
+  | Dir d    ->
+    debug "on-disk server";
+    DiskServer.run ~timeout:2. (Disk.create d) fd
   | Unix _   -> failwith "TODO"
-  | InMemory -> MemoryServer.run ~timeout:2. (Memory.create ()) fd
+  | InMemory ->
+    debug "in-memory server";
+    MemoryServer.run ~timeout:2. (Memory.create ()) fd
 
 
 let watch _ =

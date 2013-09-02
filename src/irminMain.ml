@@ -36,12 +36,13 @@ let tag_conv =
 
 let source_conv =
   let parse str =
-    if Sys.file_exists str && not (Sys.is_directory str) then `Ok (Unix str)
+    if str = ":" then `Ok InMemory
+    else if Sys.file_exists str && not (Sys.is_directory str) then `Ok (Unix str)
     else `Ok (Dir str) in
   let print ppf = function
     | Dir str
     | Unix str -> pr_str ppf str
-    | InMemory -> pr_str ppf "<in-memory>" in
+    | InMemory -> pr_str ppf ":" in
   parse, print
 
 let value =
@@ -54,6 +55,10 @@ let queue =
     let doc =
       Arg.info ~docv:"SOURCE" ~doc:"Queue source." ["s";"source"] in
     Arg.(value & opt source_conv (Dir ".irmin") & doc) in
+  let in_memory =
+    let doc = Arg.info ~doc:"In-memory source. Equivalent to `source :`"
+        ["m";"in-memory"] in
+    Arg.(value & flag & doc) in
   let front =
     let doc =
       Arg.info ~docv:"FRONT" ~doc:"Tags of front elements." ["f";"front"] in
@@ -62,9 +67,10 @@ let queue =
     let doc =
       Arg.info ~docv:"BACK" ~doc:"Tags of back elements." ["b";"back"] in
     Arg.(value & opt tag_conv IrminQueue.default_back & doc) in
-  let create front back source =
+  let create front back source in_memory =
+    let source = if in_memory then InMemory else source in
     IrminQueue.create ~front ~back source in
-  Term.(pure create $ front $ back $ source)
+  Term.(pure create $ front $ back $ source $ in_memory)
 
 let run t =
   Lwt_unix.run begin
