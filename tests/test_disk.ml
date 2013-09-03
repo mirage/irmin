@@ -33,7 +33,8 @@ let test_keys () =
     lwt () = KV.add t k1 k2s in
     lwt nil' = KV.pred t k2 in
     lwt k2s' = KV.pred t k1 in
-    lwt ks = KV.all t in
+    lwt ksg = KV.keys t () in
+    let ks = Key.Graph.vertex ksg in
     assert_keys_equal "nil" Key.Set.empty nil';
     assert_keys_equal "k2" k2s k2s';
     assert_keys_equal "list" (Key.Set.union k1s k2s) ks;

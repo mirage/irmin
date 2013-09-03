@@ -62,6 +62,9 @@ type t = {
 include STORE with type t := t
                and module C := C
 
+(** Sync *)
+module Sync: SYNC with module C = C
+
 (** Store source. *)
 type source =
   | Dir of string

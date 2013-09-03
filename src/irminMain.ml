@@ -50,10 +50,10 @@ let value =
     Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
   Arg.(required & pos 0 (some value_conv) None & doc)
 
-let queue =
+let queue ?(source=["s";"source"]) () =
   let source =
     let doc =
-      Arg.info ~docv:"SOURCE" ~doc:"Queue source." ["s";"source"] in
+      Arg.info ~docv:"SOURCE" ~doc:"Queue source." source in
     Arg.(value & opt source_conv (Dir ".irmin") & doc) in
   let in_memory =
     let doc = Arg.info ~doc:"In-memory source. Equivalent to `source :`"
@@ -98,7 +98,7 @@ let init =
       | None      -> Lwt.return ()
       | Some file -> IrminQueue.server t ~limit:10 file
     end in
-  Term.(pure init $ queue $ daemon),
+  Term.(pure init $ queue () $ daemon),
   Term.info "init" ~doc ~man
 
 (* ADD *)
@@ -113,7 +113,7 @@ let add =
     run begin
       IrminQueue.add t value
     end in
-  Term.(pure add $ queue $ value),
+  Term.(pure add $ queue () $ value),
   Term.info "add" ~doc ~man
 
 (* WATCH *)
@@ -128,7 +128,7 @@ let watch =
     run begin
       IrminQueue.watch t
     end in
-  Term.(pure watch $ queue),
+  Term.(pure watch $ queue ()),
   Term.info "watch" ~doc ~man
 
 (* TAKE *)
@@ -145,7 +145,7 @@ let take =
       Printf.printf "%s" (Value.pretty value);
       Lwt.return ()
     end in
-  Term.(pure take $ queue),
+  Term.(pure take $ queue ()),
   Term.info "take" ~doc ~man
 
 (* PEEK *)
@@ -162,7 +162,7 @@ let peek =
         IrminQueue.peek t
       end in
     Printf.printf "%s\n" (IrminLwt.Value.pretty elt) in
-  Term.(pure peek $ queue),
+  Term.(pure peek $ queue ()),
   Term.info "peek" ~doc ~man
 
 (* LIST *)
@@ -184,7 +184,7 @@ let list =
       List.iter (Printf.printf "%s\n") blobs;
       Lwt.return ()
     end in
-  Term.(pure list $ queue),
+  Term.(pure list $ queue ()),
   Term.info "list" ~doc ~man
 
 (* PULL *)
@@ -195,11 +195,11 @@ let pull =
     `S "DESCRIPTION";
     `P pull_doc;
   ] in
-  let pull t =
+  let pull t origin =
     run begin
-      IrminQueue.pull t
+      IrminQueue.pull t ~origin
     end in
-  Term.(pure pull $ queue),
+  Term.(pure pull $ queue () $ queue ~source:["origin"] ()),
   Term.info "pull" ~doc ~man
 
 (* PUSH *)
@@ -214,7 +214,7 @@ let push =
     run begin
       IrminQueue.push t
     end in
-  Term.(pure push $ queue),
+  Term.(pure push $ queue ()),
   Term.info "push" ~doc ~man
 
 (* CLONE *)
@@ -229,7 +229,7 @@ let clone =
     run begin
       IrminQueue.clone t
     end in
-  Term.(pure clone $ queue),
+  Term.(pure clone $ queue ()),
   Term.info "clone" ~doc ~man
 
 (* HELP *)

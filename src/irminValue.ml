@@ -15,7 +15,6 @@
  *)
 
 open IrminTypes
-open IrminMisc
 
 module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
@@ -71,16 +70,16 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       debug "sizeof";
       Keys.sizeof (t.contents :: Key.Set.to_list t.parents)
 
-    let read buf =
-      debug "read";
-      let keys = Keys.read buf in
+    let get buf =
+      debug "get";
+      let keys = Keys.get buf in
       match keys with
       | []   -> IrminIO.parse_error_buf buf "Revision.read"
       | h::t -> { contents = h; parents = Key.Set.of_list t }
 
-    let write buf t =
-      debug "write %s" (pretty t);
-      Keys.write buf (t.contents :: Key.Set.to_list t.parents)
+    let set buf t =
+      debug "set %s" (pretty t);
+      Keys.set buf (t.contents :: Key.Set.to_list t.parents)
 
     let equal r1 r2 =
       Key.equal r1.contents r2.contents
@@ -93,6 +92,8 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       | i -> i
 
   end
+
+  let hash = Hashtbl.hash
 
   let pretty = function
     | Blob b     -> "B" ^ Blob.pretty b
@@ -114,33 +115,33 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
       | Blob b     -> Blob.sizeof b
       | Revision r -> Revision.sizeof r
 
-  let read buf =
-    debug "read";
+  let get buf =
+    debug "get";
     let kind = IrminIO.get_uint8 buf in
     match kind with
-    | 0 -> Blob (Blob.read buf)
-    | 1 -> Revision (Revision.read buf)
+    | 0 -> Blob (Blob.get buf)
+    | 1 -> Revision (Revision.get buf)
     | _ -> IrminIO.parse_error_buf buf "Value.of_cstruct"
 
-  let write buf t =
-    debug "write %s" (pretty t);
+  let set buf t =
+    debug "set %s" (pretty t);
     let kind = match t with
       | Blob _     -> 0
       | Revision _ -> 1 in
     IrminIO.set_uint8 buf kind;
     IrminIO.dump_buffer buf;
     let () = match t with
-      | Blob b     -> Blob.write buf b
-      | Revision r -> Revision.write buf r in
+      | Blob b     -> Blob.set buf b
+      | Revision r -> Revision.set buf r in
     IrminIO.dump_buffer buf
 
   let parents = function
-    | Revision { parents } -> parents
-    | Blob _               -> Key.Set.empty
+    | Revision { parents; _ } -> parents
+    | Blob _                  -> Key.Set.empty
 
   let contents = function
-    | Revision { contents } -> Some contents
-    | Blob _                -> None
+    | Revision { contents; _ } -> Some contents
+    | Blob _                   -> None
 
   let key = function
     | Blob b     -> B.key b
@@ -160,13 +161,15 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
           | None          -> None
           | Some contents -> Some (Revision { parents; contents })
         end
-      | _ -> None
+      | Blob _    , Revision _
+      | Revision _, Blob _ -> None
 
   let equal v1 v2 =
     match v1, v2 with
     | Blob b1    , Blob b2     -> B.equal b1 b2
     | Revision r1, Revision r2 -> Revision.equal r1 r2
-    | _ -> false
+    | Blob _     , Revision _
+    | Revision _ , Blob _      -> false
 
   let compare v1 v2 =
     match v1, v2 with
@@ -174,13 +177,6 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | Revision _ , Blob _      -> -1
     | Blob b1    , Blob b2     -> B.compare b1 b2
     | Revision r1, Revision r2 -> Revision.compare r1 r2
-
-  module Set = IrminMisc.SetMake(struct
-      type tmp = t
-      type t = tmp
-      let compare = compare
-      let pretty = pretty
-    end)
 
 end
 
@@ -194,7 +190,7 @@ module Blob (K: KEY) = struct
       let of_string s = B s
     end)
 
-  let merge _ b1 b2 = None
+  let merge _ _ _ = None
 
   let parents _ = K.Set.empty
 
@@ -212,5 +208,6 @@ module Blob (K: KEY) = struct
   let revision _ =
     failwith "Blob.revision"
 
-  let equal (B b1) (B b2) = String.compare b1 b1 = 0
+  let equal (B b1) (B b2) = String.compare b1 b2 = 0
+
 end

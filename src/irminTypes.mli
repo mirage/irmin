@@ -23,14 +23,6 @@ type bufIO = {
   mutable buffer: Cstruct.t;
 }
 
-(** It's quite anoying to have to define that again ... *)
-module type SET = sig
-  include Set.S
-  val of_list: elt list -> t
-  val to_list: t -> elt list
-  val pretty: t -> string
-end
-
 (** Base types *)
 module type BASE = sig
 
@@ -43,6 +35,9 @@ module type BASE = sig
   (** Are two elements equal ? *)
   val equal: t -> t -> bool
 
+  (** Compute the hash of an element. *)
+  val hash: t -> int
+
   (** Pretty-printing *)
   val pretty: t -> string
 
@@ -52,27 +47,85 @@ module type BASE = sig
   (** Convert to IrminJSON *)
   val to_json: t -> IrminJSON.t
 
-  (** Size of serialized value (to pre-allocate buffers if needed). *)
+  (** Prettify. *)
+  val pretty: t -> string
+
+  (** Size of serialized value (to pre-allocate bufIO). *)
   val sizeof: t -> int
 
-  (** Write to a buffered bigarray, at a given offset. *)
-  val write: bufIO -> t -> unit
+  (** Unmarshal from bufIO. *)
+  val get: bufIO -> t
 
-  (** Read a buffered bigarray at a given ofset. *)
-  val read: bufIO -> t
-
-  (** Set of elements *)
-  module Set: SET with type elt = t
+  (** Marshal to bufIO. *)
+  val set: bufIO -> t -> unit
 
 end
+
+(** It's quite anoying to have to define that again ... *)
+module type SET = sig
+
+  (** Extend set's stdlib. *)
+  include Set.S
+
+  (** Convert a list to a set. *)
+  val of_list: elt list -> t
+
+  (** Convert a set to a list. *)
+  val to_list: t -> elt list
+
+  (** Implement the base operations. *)
+  include BASE with type t := t
+
+end
+
+(** Base & set *)
+module type BASESET = sig
+  include BASE
+  module Set: SET with type elt = t
+end
+
+(** Signature for graphs *)
+module type GRAPH = sig
+
+  (** Type of keys *)
+  module Vertex: BASESET
+
+  (** Mutable directed graph *)
+  include Graph.Sig.I with type V.t = Vertex.t
+  include Graph.Oper.S with type g := t
+
+  (** Topoogical traversal *)
+  module Topological: sig
+    val fold: (V.t -> 'a -> 'a) -> t -> 'a -> 'a
+  end
+
+  (** Get all the vertices. *)
+  val vertex: t -> Vertex.Set.t
+
+  (** Get all the relations. *)
+  val edges: t -> (vertex * vertex) list
+
+  (** [make keys ~sources ~sinks pred ()] creates a graph contening
+      at most the given keys, with the given [sources] and [sinks]. [pred]
+      is used to compute the vertex relations of the resulting graph. *)
+  val make: Vertex.Set.t
+    -> ?sources:Vertex.Set.t -> ?sinks:Vertex.Set.t
+    -> (Vertex.t -> Vertex.Set.t Lwt.t) -> t Lwt.t
+
+  (** [dump g tags name] dumps the graph contents [g], which the
+      vertices labelled by [tags]. [name] is the graph global label.  *)
+  val dump: t -> (vertex * string) list -> string -> unit
+
+  (** Implements the base operations. *)
+  include BASE with type t := t
+
+end
+
 
 (** Keys *)
 module type KEY = sig
 
-  include BASE
-
-  (** Compute the hash of a key. *)
-  val hash: t -> int
+  include BASESET
 
   (** Compute a key from a raw string. *)
   val of_string: string -> t
@@ -88,6 +141,10 @@ module type KEY = sig
 
   (** Compute the key length. *)
   val length: t -> int
+
+  (** Graph of keys *)
+  module Graph: GRAPH with type Vertex.t = t
+                       and type Vertex.Set.t = Set.t
 
 end
 
@@ -125,7 +182,7 @@ end
 (** Tags *)
 module type TAG = sig
 
-  include BASE
+  include BASESET
 
   (** Convert a tag to a suitable name *)
   val to_string: t -> string
@@ -164,8 +221,12 @@ module type KEY_STORE = sig
   (** Add a key and its predecessors *)
   val add: t -> C.Key.t -> C.Key.Set.t -> unit Lwt.t
 
-  (** Return all the available keys *)
-  val all: t -> C.Key.Set.t Lwt.t
+  (** [keys t ~sources ~sinks ()] returns the keys in the store. If
+      [sources] is set, return only the keys greater than the given
+      [sources]. If [sinks] is set, return only the key lesser than
+      the given [sinks].*)
+  val keys: t -> ?sources:C.Key.Set.t -> ?sinks:C.Key.Set.t -> unit
+    -> C.Key.Graph.t Lwt.t
 
   (** Return the immediate predecessors *)
   val pred: t -> C.Key.t -> C.Key.Set.t Lwt.t
@@ -261,6 +322,21 @@ end
 
 (** {1 Synchronization} *)
 
+(** Event type *)
+module type EVENT = sig
+
+  module C: CORE
+
+  (** Type of abstract events. *)
+  type t =
+    | Tag of (C.Tag.t * C.Key.Set.t)  (** A tag has been updated. *)
+    | Graph of C.Key.Graph.t        (** New keys have been added. *)
+
+  (** Base function on base events. *)
+  include BASE with type t := t
+
+end
+
 (** Signature for synchronization actions. *)
 module type SYNC = sig
 
@@ -270,32 +346,22 @@ module type SYNC = sig
   (** Core types. *)
   module C: CORE
 
-  (** Graph of keys *)
-  type graph = C.Key.Set.t * (C.Key.t * C.Key.t) list
-
-  (** [pull_keys fd roots tags] pulls changes related to a given set
-      known remote [tags]. Return the transitive closure of all the
-      unknown keys, with [roots] as graph roots and [tags] as graph
-      sinks. If [root] is the empty list, return the complete history
-      up-to the given remote tags. *)
-  val pull_keys: t -> C.Key.Set.t -> C.Tag.Set.t -> graph Lwt.t
+  (** [pull_keys fd ?sources ?sinks ()] pulls changes related to a
+      given set known remote [sinks] tags. Return the transitive
+      closure of all the unknown keys, with [sources] as graph sources
+      and [sinks] as graph sinks. If [sources] is empty, return the
+      complete history up-to the given remote tags. *)
+  val pull_keys: t -> sources:C.Key.Set.t -> sinks:C.Tag.Set.t -> C.Key.Graph.t Lwt.t
 
   (** Get all the remote tags. *)
   val pull_tags: t -> (C.Tag.t * C.Key.Set.t) list Lwt.t
 
-  (** Push changes related to a given (sub)-graph of keys, given set
-      of local tags (which should belong to the graph). The does not
-      modify the local tags on the remote instance. It is the user
-      responsability to compute the smallest possible graph
-      beforhand. *)
-  val push_keys: t -> graph -> (C.Tag.t * C.Key.Set.t) list -> unit Lwt.t
-
-  (** Modify the local tags of the remote instance. *)
-  val push_tags: t -> (C.Tag.t * C.Key.Set.t) list -> unit Lwt.t
+  (** Events. *)
+  module Event: EVENT with module C = C
 
   (** Watch for changes for a given set of tags. Call a callback on
       each event ([tags] * [graphs]) where [tags] are the updated tags
       and [graph] the corresponding set of new keys (if any). *)
-  val watch: t -> C.Tag.Set.t -> (C.Tag.Set.t -> graph -> unit Lwt.t) -> unit Lwt.t
+  val watch: t -> C.Tag.Set.t -> (Event.t -> unit Lwt.t) -> unit Lwt.t
 
 end

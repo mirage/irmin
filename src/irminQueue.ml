@@ -14,12 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminTypes
 open IrminLwt
 
 let debug fmt = IrminMisc.debug "QUEUE" fmt
-
-module Graph = IrminKey.Graph(IrminLwt)
 
 exception Empty
 
@@ -69,14 +66,6 @@ let is_empty t =
   lwt backs  = backs t in
   Lwt.return (Key.Set.is_empty fronts || Key.Set.is_empty backs)
 
-let graph t =
-  lwt fronts = fronts t in
-  lwt backs  = backs t in
-  if Key.Set.is_empty fronts || Key.Set.is_empty backs then
-    Lwt.return (Graph.create ())
-  else
-    Graph.of_store t.store ~roots:fronts ~sinks:backs ()
-
 let add t value =
   lwt key = Value_store.write (value_store t) value in
   lwt fronts = fronts t in
@@ -108,11 +97,8 @@ let contents t key =
   | Some k -> value_of_key t k
 
 let to_list t =
-  lwt ga = Graph.of_store t.store () in
-  lwt () = Graph.dump t.store ga "ALL" in
-  lwt g = graph t in
-  lwt () = Graph.dump t.store g "FRONTS" in
-  let keys = Graph.Topological.fold (fun key acc -> key :: acc) g [] in
+  lwt g = Key_store.keys (key_store t) () in
+  let keys = Key.Graph.Topological.fold (fun key acc -> key :: acc) g [] in
   lwt values = Lwt_list.fold_left_s (fun acc key ->
       lwt value = contents t key in
       Lwt.return (value :: acc)
@@ -129,6 +115,7 @@ let peek t =
 
 let take t =
   lwt fronts = Tag_store.read (tag_store t) t.front in
+  lwt backs  = Tag_store.read (tag_store t) t.back in
   lwt key =
     try Lwt.return (Key.Set.choose fronts)
     with Not_found -> empty "FRONT" in
@@ -140,8 +127,8 @@ let take t =
       else Tag_store.update (tag_store t) t.front new_fronts in
     contents t key in
   (* XXX: use a staging area *)
-  lwt g = graph t in
-  match Graph.succ g key with
+  lwt g = Key_store.keys (key_store t) ~sources:fronts ~sinks:backs () in
+  match Key.Graph.succ g key with
   | []   -> move_front Key.Set.empty
   | keys ->
     lwt new_fronts = Lwt_list.filter_s (fun key ->
@@ -150,6 +137,15 @@ let take t =
         Lwt.return (Key.Set.is_empty todo)
       ) keys in
     move_front (Key.Set.of_list new_fronts)
+
+let pull t ~origin =
+  lwt fronts = fronts origin in
+  lwt g = Key_store.keys (key_store origin) ~sources:fronts () in
+  let vertex = Key.Set.to_list (Key.Graph.vertex g) in
+  Lwt_list.iter_s (fun k ->
+      let preds = Key.Set.of_list (Key.Graph.pred g k) in
+      Key_store.add (key_store t) k preds
+    ) vertex
 
 let server t ~limit file =
   let fd = IrminIO.Lwt_channel.unix_socket_server ~limit file in
@@ -164,9 +160,6 @@ let server t ~limit file =
 
 
 let watch _ =
-  failwith "TODO"
-
-let pull _ =
   failwith "TODO"
 
 let push _ =

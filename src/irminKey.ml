@@ -14,13 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminTypes
-
 type sha1 = SHA1 of string
 
 module SHA1 = struct
 
   let debug fmt = IrminMisc.debug "SHA1" fmt
+
+  let key_length = 20
 
   module T = struct
 
@@ -35,17 +35,33 @@ module SHA1 = struct
     let pretty (SHA1 k) =
       Printf.sprintf "%s" (IrminMisc.hex_encode k)
 
+    let to_json (SHA1 k) =
+      IrminJSON.of_string k
+
+    let of_json j =
+      SHA1 (IrminJSON.to_string j)
+
+    let sizeof _ =
+      debug "sizeof";
+      key_length
+
+    let get buf =
+      let str = IrminIO.get_string buf key_length in
+      SHA1 str
+
+    let set buf (SHA1 str) =
+      IrminIO.set_string buf str
+
   end
 
-  module Set = IrminMisc.SetMake(T)
+  module Set = IrminContainer.Set(T)
+
+  module Graph = IrminContainer.Graph(struct
+      include T
+      module Set = Set
+    end)
 
   include T
-
-  let to_json (SHA1 k) =
-    IrminJSON.of_string k
-
-  let of_json j =
-    SHA1 (IrminJSON.to_string j)
 
   let of_string str =
     SHA1 (IrminMisc.sha1 str)
@@ -61,120 +77,6 @@ module SHA1 = struct
     let s = String.concat "" (List.sort String.compare l) in
     of_string s
 
-  let key_length = 20
-
   let length (SHA1 _) = key_length
-
-  let sizeof _ =
-    debug "sizeof";
-    key_length
-
-  let read buf =
-    let str = IrminIO.get_string buf key_length in
-    SHA1 str
-
-  let write buf (SHA1 str) =
-    IrminIO.set_string buf str
-
-end
-
-module Graph (S: STORE) = struct
-
-  let debug fmt = IrminMisc.debug "GRAPH" fmt
-
-  open S
-  open C
-
-  module G = Graph.Imperative.Digraph.ConcreteBidirectional(Key)
-  module GO = Graph.Oper.I(G)
-  module Topological = Graph.Topological.Make(G)
-  include G
-  include GO
-  let attributes = ref (fun _ -> [])
-  let graph_name = ref None
-  module Dot = Graph.Graphviz.Dot(struct
-      include G
-      let edge_attributes _ = []
-      let default_edge_attributes _ = []
-      let vertex_name k = Key.pretty k
-      let vertex_attributes k = !attributes k
-      let default_vertex_attributes _ = []
-      let get_subgraph _ = None
-      let graph_attributes _ =
-        match !graph_name with
-        | None   -> []
-        | Some n -> [`Label n]
-    end)
-
-  let dump t g name =
-    if IrminMisc.debug_enabled () then (
-      lwt tags = Tag_store.all (tag_store t) in
-      lwt tags = Lwt_list.fold_left_s (fun tags tag ->
-          lwt keys = Tag_store.read (tag_store t) tag in
-          let keys = Key.Set.fold (fun key tags ->
-              (key, Tag.to_string tag) :: tags
-            ) keys tags in
-          Lwt.return keys
-        ) [] (Tag.Set.to_list tags) in
-      let label_tags k =
-        let tags = List.fold_left (fun tags (key, tag) ->
-            if key = k then tag :: tags else tags
-          ) [] tags in
-        List.map (fun tag -> `Label tag) tags in
-      lwt keys = Key_store.all (key_store t) in
-      lwt values = Lwt_list.fold_left_s (fun values key ->
-          lwt value = Value_store.read (value_store t) key in
-          match value with
-          | None   -> Lwt.return values
-          | Some v ->
-            match Value.contents v with
-            | None   -> Lwt.return values
-            | Some k ->
-              lwt v = Value_store.read (value_store t) k in
-              match v with
-              | None   -> Lwt.return values
-              | Some v ->
-                let label = Printf.sprintf "%S" (Value.pretty v) in
-                Lwt.return ((key, `Label label) :: values)
-        ) [] (Key.Set.to_list keys) in
-      let label_value k =
-        try [List.assoc k values]
-        with Not_found -> [] in
-      let attrs k =
-        label_tags k @ label_value k in
-      attributes := attrs;
-      graph_name := Some name;
-      Printf.eprintf "%!";
-      Dot.output_graph stderr g;
-      Printf.eprintf "\n\n%!";
-      Lwt.return ()
-    ) else
-      Lwt.return ()
-
-  let of_store t ?roots ?sinks () =
-    let g = G.create () in
-    lwt keys = match sinks with
-      | None      -> Key_store.all (key_store t)
-      | Some keys -> Lwt.return keys in
-    let marks = Hashtbl.create 1024 in
-    let mark key = Hashtbl.add marks key true in
-    let has_mark key = Hashtbl.mem marks key in
-    let () = match roots with
-      | None      -> ()
-      | Some keys ->
-        Key.Set.iter mark keys;
-        Key.Set.iter (G.add_vertex g) keys in
-    let rec add key =
-      if has_mark key then Lwt.return ()
-      else (
-        mark key;
-        debug "ADD %s" (Key.pretty key);
-        if not (G.mem_vertex g key) then G.add_vertex g key;
-        lwt keys = Key_store.pred (key_store t) key in
-        List.iter (fun k -> G.add_edge g k key) (Key.Set.to_list keys);
-        Lwt_list.iter_s add (Key.Set.to_list keys)
-      ) in
-    lwt () = Lwt_list.iter_s add (Key.Set.to_list keys) in
-    Lwt.return g
 
 end

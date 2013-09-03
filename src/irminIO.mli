@@ -93,9 +93,6 @@ module Option (E: BASE): BASE with type t = E.t option
 (** Lift IO operations to pairs. *)
 module Pair (K: BASE) (V: BASE): BASE with type t = K.t * V.t
 
-(** List IO operations to sets. *)
-module Set (E: BASE): BASE with type t = E.Set.t
-
 (** serialization to strings *)
 module type STRINGABLE = sig
   type t
@@ -149,6 +146,7 @@ module type CHANNEL = sig
 
   include BASE
 
+  (** Type of channels. *)
   type channel = Lwt_channel.t
 
    (** Read on a channel *)

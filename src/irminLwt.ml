@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open IrminTypes
 
 let debug fmt = IrminMisc.debug "LWT" fmt
@@ -55,117 +54,128 @@ type source =
   | Unix of string
   | InMemory
 
-type handle =
-  | Disk of Disk.t
-  | Memory of Memory.t
-  | Client of Client.t
+module Store = struct
 
-type t = {
-  keys  : handle;
-  values: handle;
-  tags  : handle;
-}
+  type handle =
+    | Disk of Disk.t
+    | Memory of Memory.t
+    | Client of Client.t
 
-let create ~keys ~values ~tags =
-  debug "create";
-  let source s =
-    match s with
-    | Dir f    -> Disk (Disk.create f)
-    | InMemory -> Memory (Memory.create ())
-    | Unix f   ->
-      let fd () =
-        IrminIO.Lwt_channel.unix_socket_client f in
-      Client fd in
-  let keys   = source keys in
-  let values = source values in
-  let tags   = source tags in
-  { keys; values; tags }
+  type t = {
+    keys  : handle;
+    values: handle;
+    tags  : handle;
+  }
 
-type ('a,'b, 'c) s =
-  | XDisk of 'a
-  | XMemory of 'b
-  | XClient of 'c
+  let create ~keys ~values ~tags =
+    debug "create";
+    let source s =
+      match s with
+      | Dir f    -> Disk (Disk.create f)
+      | InMemory -> Memory (Memory.create ())
+      | Unix f   ->
+        let fd () =
+          IrminIO.Lwt_channel.unix_socket_client f in
+        Client fd in
+    let keys   = source keys in
+    let values = source values in
+    let tags   = source tags in
+    { keys; values; tags }
 
-let key_store t = match t.keys with
-  | Disk t   -> XDisk (Disk.key_store t)
-  | Memory t -> XMemory (Memory.key_store t)
-  | Client t -> XClient (Client.key_store t)
+  type ('a,'b, 'c) s =
+    | XDisk of 'a
+    | XMemory of 'b
+    | XClient of 'c
 
-let value_store t = match t.values with
-  | Disk t   -> XDisk (Disk.value_store t)
-  | Memory t -> XMemory (Memory.value_store t)
-  | Client t -> XClient (Client.value_store t)
+  let key_store t = match t.keys with
+    | Disk t   -> XDisk (Disk.key_store t)
+    | Memory t -> XMemory (Memory.key_store t)
+    | Client t -> XClient (Client.key_store t)
 
-let tag_store t = match t.tags with
-  | Disk t   -> XDisk (Disk.tag_store t)
-  | Memory t -> XMemory (Memory.tag_store t)
-  | Client t -> XClient (Client.tag_store t)
+  let value_store t = match t.values with
+    | Disk t   -> XDisk (Disk.value_store t)
+    | Memory t -> XMemory (Memory.value_store t)
+    | Client t -> XClient (Client.value_store t)
 
-module Key_store = struct
+  let tag_store t = match t.tags with
+    | Disk t   -> XDisk (Disk.tag_store t)
+    | Memory t -> XMemory (Memory.tag_store t)
+    | Client t -> XClient (Client.tag_store t)
 
-  module C = C
+  module Key_store = struct
 
-  type t = (Disk.Key_store.t, Memory.Key_store.t, Client.Key_store.t) s
+    module C = C
 
-  let add = function
-    | XDisk t   -> Disk.Key_store.add t
-    | XMemory t -> Memory.Key_store.add t
-    | XClient t -> Client.Key_store.add t
+    type t = (Disk.Key_store.t, Memory.Key_store.t, Client.Key_store.t) s
 
-  let all = function
-    | XDisk t   -> Disk.Key_store.all t
-    | XMemory t -> Memory.Key_store.all t
-    | XClient t -> Client.Key_store.all t
+    let add = function
+      | XDisk t   -> Disk.Key_store.add t
+      | XMemory t -> Memory.Key_store.add t
+      | XClient t -> Client.Key_store.add t
 
-  let pred = function
-    | XDisk t   -> Disk.Key_store.pred t
-    | XMemory t -> Memory.Key_store.pred t
-    | XClient t -> Client.Key_store.pred t
+    let keys = function
+      | XDisk t   -> Disk.Key_store.keys t
+      | XMemory t -> Memory.Key_store.keys t
+      | XClient t -> Client.Key_store.keys t
+
+    let pred = function
+      | XDisk t   -> Disk.Key_store.pred t
+      | XMemory t -> Memory.Key_store.pred t
+      | XClient t -> Client.Key_store.pred t
+
+  end
+
+  module Value_store = struct
+
+    module C = C
+
+    type t = (Disk.Value_store.t, Memory.Value_store.t, Client.Value_store.t) s
+
+    let read = function
+      | XDisk t   -> Disk.Value_store.read t
+      | XMemory t -> Memory.Value_store.read t
+      | XClient t -> Client.Value_store.read t
+
+    let write = function
+      | XDisk t   -> Disk.Value_store.write t
+      | XMemory t -> Memory.Value_store.write t
+      | XClient t -> Client.Value_store.write t
+
+  end
+
+  module Tag_store = struct
+
+    module C = C
+
+    type t = (Disk.Tag_store.t, Memory.Tag_store.t, Client.Tag_store.t) s
+
+    let read = function
+      | XDisk t   -> Disk.Tag_store.read t
+      | XMemory t -> Memory.Tag_store.read t
+      | XClient t -> Client.Tag_store.read t
+
+    let remove = function
+      | XDisk t   -> Disk.Tag_store.remove t
+      | XMemory t -> Memory.Tag_store.remove t
+      | XClient t -> Client.Tag_store.remove t
+
+    let all = function
+      | XDisk t   -> Disk.Tag_store.all t
+      | XMemory t -> Memory.Tag_store.all t
+      | XClient t -> Client.Tag_store.all t
+
+    let update = function
+      | XDisk t   -> Disk.Tag_store.update t
+      | XMemory t -> Memory.Tag_store.update t
+      | XClient t -> Client.Tag_store.update t
+
+  end
 
 end
 
-module Value_store = struct
+module Sync = IrminSync.Make(struct
+    include Store
+    module C = C
+  end)
 
-  module C = C
-
-  type t = (Disk.Value_store.t, Memory.Value_store.t, Client.Value_store.t) s
-
-  let read = function
-    | XDisk t   -> Disk.Value_store.read t
-    | XMemory t -> Memory.Value_store.read t
-    | XClient t -> Client.Value_store.read t
-
-  let write = function
-    | XDisk t   -> Disk.Value_store.write t
-    | XMemory t -> Memory.Value_store.write t
-    | XClient t -> Client.Value_store.write t
-
-end
-
-module Tag_store = struct
-
-  module C = C
-
-  type t = (Disk.Tag_store.t, Memory.Tag_store.t, Client.Tag_store.t) s
-
-  let read = function
-    | XDisk t   -> Disk.Tag_store.read t
-    | XMemory t -> Memory.Tag_store.read t
-    | XClient t -> Client.Tag_store.read t
-
-  let remove = function
-    | XDisk t   -> Disk.Tag_store.remove t
-    | XMemory t -> Memory.Tag_store.remove t
-    | XClient t -> Client.Tag_store.remove t
-
-  let all = function
-    | XDisk t   -> Disk.Tag_store.all t
-    | XMemory t -> Memory.Tag_store.all t
-    | XClient t -> Client.Tag_store.all t
-
-  let update = function
-    | XDisk t   -> Disk.Tag_store.update t
-    | XMemory t -> Memory.Tag_store.update t
-    | XClient t -> Client.Tag_store.update t
-
-end
+include Store

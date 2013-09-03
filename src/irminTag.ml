@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminTypes
-
 type tag = T of string
 
 module S = struct
@@ -25,6 +23,8 @@ module S = struct
 end
 
 module T = IrminIO.String(S)
+
+module Set = IrminContainer.Set(T)
 
 include T
 

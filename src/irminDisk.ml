@@ -15,7 +15,6 @@
  *)
 
 open IrminTypes
-open IrminMisc
 
 exception Error of string
 
@@ -166,15 +165,16 @@ module Make (C: CORE) = struct
       lwt keys = with_maybe_file (t.key key) XKeys.read_fd [] in
       Lwt.return (Key.Set.of_list keys)
 
-    let all t =
-      debug "all";
+    let keys t ?sources ?sinks () =
+      debug "keys";
       lwt () = check t in
       lwt keys = with_maybe_file (all_keys t.root)  XKeys.read_fd [] in
-      Lwt.return (Key.Set.of_list keys)
+      Key.Graph.make (Key.Set.of_list keys) ?sources ?sinks (pred t)
 
-    let update_index t keys =
-      lwt old_keys = all t in
-      let keys = Key.Set.union old_keys keys in
+    let update_index t ks =
+      lwt g = keys t () in
+      let old_keys = Key.Graph.vertex g in
+      let keys = Key.Set.union old_keys ks in
       let keys = Key.Set.to_list keys in
       with_file (all_keys t.root) (fun fd -> XKeys.write_fd fd keys)
 

@@ -14,12 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Core algorithms *)
+(** Various containers. *)
 
 open IrminTypes
 
-(** Events. *)
-module Event (C: CORE): EVENT with module C = C
+(** Overwrite stdlib's [Set.Make] *)
+module Set (B: BASE): SET with type elt = B.t
 
-(** Synchronization primitive. *)
-module Make (S: STORE): SYNC with module C = S.C and type t = unit
+(** Create a graph *)
+module Graph (B: BASESET): GRAPH with type Vertex.t = B.t
+                                  and type Vertex.Set.t = B.Set.t

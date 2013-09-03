@@ -21,25 +21,16 @@ module Key_store (C: CORE) = struct
   module C = C
   open C
 
-  module Vertex = struct
-    type t = Key.t
-    let compare = Key.compare
-    let hash = Key.hash
-    let equal k1 k2 = Key.compare k1 k2 = 0
-  end
-
-  module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
-
-  type t = G.t
+  type t = Key.Graph.t
 
   let create () =
-    G.create ~size:1024 ()
+    Key.Graph.create ~size:1024 ()
 
   let add_key g k =
-    G.add_vertex g k
+    Key.Graph.add_vertex g k
 
   let add_relation g k1 k2 =
-    G.add_edge g k1 k2
+    Key.Graph.add_edge g k1 k2
 
   let add g key preds =
     add_key g key;
@@ -47,17 +38,16 @@ module Key_store (C: CORE) = struct
     Key.Set.iter (fun pred -> add_relation g pred key) preds;
     Lwt.return ()
 
-  let all g =
-    let keys = G.fold_vertex (fun k acc -> k :: acc) g [] in
-    Lwt.return (Key.Set.of_list keys)
+  let keys g ?sources ?sinks () =
+    let keys = Key.Graph.vertex g in
+    let pred k =
+      let preds = Key.Graph.pred g k in
+      Lwt.return (Key.Set.of_list preds) in
+    Key.Graph.make keys ?sources ?sinks pred
 
   (* XXX: G.pred is in O(max(|V|,|E|)) *)
   let pred g k =
-    try Lwt.return (Key.Set.of_list (G.pred g k))
-    with Not_found -> Lwt.return Key.Set.empty
-
-  let succ g k =
-    try Lwt.return (Key.Set.of_list (G.succ g k))
+    try Lwt.return (Key.Set.of_list (Key.Graph.pred g k))
     with Not_found -> Lwt.return Key.Set.empty
 
 end

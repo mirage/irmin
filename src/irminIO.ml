@@ -103,31 +103,25 @@ let parse_error fmt =
       raise (Parse_error str)
     ) fmt
 
-module List  (E: BASE) = struct
+module List (E: BASE) = struct
 
   let debug fmt = IrminMisc.debug "IO-LIST" fmt
 
-  module T = struct
+  type t = E.t list
 
-    type t = E.t list
+  let rec compare l1 l2 = match l1, l2 with
+    | []    , []     -> 0
+    | h1::t1, h2::t2 -> if E.compare h1 h2 = 0 then 0 else compare t1 t2
+    | _::_  , []     -> 1
+    | []    , _::_   -> -1
 
-    let rec compare l1 l2 = match l1, l2 with
-      | []    , []     -> 0
-      | h1::t1, h2::t2 -> if E.compare h1 h2 = 0 then 0 else compare t1 t2
-      | _::_  , []     -> 1
-      | []    , _::_   -> -1
+  let pretty t =
+    String.concat "\n" (OCamlList.rev (OCamlList.rev_map E.pretty t))
 
-    let pretty t =
-      String.concat "\n" (OCamlList.rev (OCamlList.rev_map E.pretty t))
+  let equal l1 l2 =
+    compare l1 l2 = 0
 
-    let equal l1 l2 =
-      compare l1 l2 = 0
-
-  end
-
-  module Set = IrminMisc.SetMake(T)
-
-  include T
+  let hash = Hashtbl.hash
 
   let to_json t =
     `A (OCamlList.rev (OCamlList.rev_map E.to_json t))
@@ -143,61 +137,22 @@ module List  (E: BASE) = struct
         acc + E.sizeof e
       ) 0 l
 
-  let read buf =
-    debug "read";
+  let get buf =
+    debug "get";
     let keys = Int32.to_int (get_uint32 buf) in
     let rec aux acc i =
       if i <= 0 then OCamlList.rev acc
       else
-        let t = E.read buf in
+        let t = E.get buf in
         aux (t :: acc) (i-1) in
     if keys = 0 then []
     else aux [] keys
 
-  let write buf t =
-    debug "write %s" (pretty t);
+  let set buf t =
+    debug "set %s" (pretty t);
     let len = Int32.of_int (List.length t) in
     let () = set_uint32 buf len in
-    List.iter (E.write buf) t
-
-end
-
-module Set (E: BASE) = struct
-
-  module L = List(E)
-
-  module T = struct
-
-    type t = E.Set.t
-
-    let compare = E.Set.compare
-
-    let pretty = E.Set.pretty
-
-    let equal = E.Set.equal
-
-  end
-
-  module Set = IrminMisc.SetMake(T)
-
-  include T
-
-  let to_json t =
-    L.to_json (E.Set.to_list t)
-
-  let of_json j =
-    E.Set.of_list (L.of_json j)
-
-  let sizeof t =
-    debug "sizeof";
-    L.sizeof (E.Set.to_list t)
-
-  let read buf =
-    let l = L.read buf in
-    E.Set.of_list l
-
-  let write buf t =
-    L.write buf (E.Set.to_list t)
+    List.iter (E.set buf) t
 
 end
 
@@ -207,28 +162,24 @@ module Option (E: BASE) = struct
 
   module L = List(E)
 
-  module T = struct
+  type t = E.t option
 
-    type t = E.t option
+  let compare o1 o2 = match o1, o2 with
+    | None   , None    -> 0
+    | Some _ , None    -> 1
+    | None   , Some _  -> -1
+    | Some e1, Some e2 -> E.compare e1 e2
 
-    let compare o1 o2 = match o1, o2 with
-      | None   , None    -> 0
-      | Some _ , None    -> 1
-      | None   , Some _  -> -1
-      | Some e1, Some e2 -> E.compare e1 e2
+  let pretty = function
+    | None   -> "<none>"
+    | Some e -> E.pretty e
 
-    let pretty = function
-      | None   -> "<none>"
-      | Some e -> E.pretty e
+  let equal o1 o2 =
+    compare o1 o2 = 0
 
-    let equal o1 o2 =
-      compare o1 o2 = 0
-
-  end
-
-  module Set = IrminMisc.SetMake(T)
-
-  include T
+  let hash = function
+    | None   -> 0
+    | Some e -> E.hash e
 
   let to_json = function
     | None   -> `Null
@@ -244,20 +195,20 @@ module Option (E: BASE) = struct
     | None   -> 4
     | Some e -> 4 + E.sizeof e
 
-  let read buf =
-    debug "read";
-    let l = L.read buf in
+  let get buf =
+    debug "get";
+    let l = L.get buf in
     match l with
     | []  -> None
     | [e] -> Some e
-    | _   -> parse_error_buf buf "Option.read"
+    | _   -> parse_error_buf buf "Option.get"
 
-  let write buf t =
-    debug "write %s" (pretty t);
+  let set buf t =
+    debug "set %s" (pretty t);
     let l = match t with
       | None   -> []
       | Some e -> [e] in
-    L.write buf l
+    L.set buf l
 
 end
 
@@ -265,26 +216,21 @@ module Pair (K: BASE) (V: BASE) = struct
 
   let debug fmt = IrminMisc.debug "IO-PAIR" fmt
 
-  module T = struct
+  type t = K.t * V.t
 
-    type t = K.t * V.t
+  let compare (k1,v1) (k2,v2) =
+    match K.compare k1 k2 with
+    | 0 -> V.compare v1 v2
+    | i -> i
 
-    let compare (k1,v1) (k2,v2) =
-      match K.compare k1 k2 with
-      | 0 -> V.compare v1 v2
-      | i -> i
+  let pretty (key, value) =
+    Printf.sprintf "%s:%s" (K.pretty key) (V.pretty value)
 
-    let pretty (key, value) =
-      Printf.sprintf "%s:%s" (K.pretty key) (V.pretty value)
+  let equal t1 t2 =
+    compare t1 t2 = 0
 
-    let equal t1 t2 =
-      compare t1 t2 = 0
-
-  end
-
-  module Set = IrminMisc.SetMake(T)
-
-  include T
+  let hash (key, value) =
+    Hashtbl.hash (K.hash key, V.hash value)
 
   let to_json (key, value) =
     `O [ ("tag", K.to_json key);
@@ -307,17 +253,17 @@ module Pair (K: BASE) (V: BASE) = struct
     debug "sizeof k:%d v:%d" k v;
     k+v
 
-  let read buf =
-    debug "read";
-    let tag = K.read buf in
-    let key = V.read buf in
+  let get buf =
+    debug "get";
+    let tag = K.get buf in
+    let key = V.get buf in
     (tag, key)
 
-  let write buf (key, value as t) =
-    debug "write %s" (pretty t);
+  let set buf (key, value as t) =
+    debug "set %s" (pretty t);
     dump_buffer buf;
-    K.write buf key;
-    V.write buf value
+    K.set buf key;
+    V.set buf value
 
 end
 
@@ -331,23 +277,17 @@ module String  (S: STRINGABLE) = struct
 
   let debug fmt = IrminMisc.debug "IO-STRING" fmt
 
-  module T = struct
+  type t = S.t
 
-    type t = S.t
+  let compare s1 s2 = String.compare (S.to_string s1) (S.to_string s2)
 
-    let compare s1 s2 = String.compare (S.to_string s1) (S.to_string s2)
+  let pretty s =
+    Printf.sprintf "%S" (S.to_string s)
 
-    let pretty s =
-      Printf.sprintf "%S" (S.to_string s)
+  let equal s1 s2 =
+    compare s1 s2 = 0
 
-    let equal s1 s2 =
-      compare s1 s2 = 0
-
-  end
-
-  module Set = IrminMisc.SetMake(T)
-
-  include T
+  let hash = Hashtbl.hash
 
   let to_json t =
     IrminJSON.of_string (S.to_string t)
@@ -359,14 +299,14 @@ module String  (S: STRINGABLE) = struct
     debug "sizeof";
     4 + String.length (S.to_string s)
 
-  let read buf =
-    debug "read";
+  let get buf =
+    debug "get";
     let len = get_uint32 buf in
     let str = get_string buf (Int32.to_int len) in
     S.of_string str
 
-  let write buf t =
-    debug "write %s" (pretty t);
+  let set buf t =
+    debug "set %s" (pretty t);
     let str = S.to_string t in
     let len = String.length str in
     set_uint32 buf (Int32.of_int len);
@@ -498,13 +438,13 @@ module Channel (B: BASE) = struct
     lwt buf = Lwt_channel.read_buf fd len in
     debug " ... read_buf";
     dump_buffer buf;
-    Lwt.return (B.read buf)
+    Lwt.return (B.get buf)
 
   let write_fd fd t =
     let len = B.sizeof t in
     debug "write_fd %s len:%d %s" (Lwt_channel.name fd) len (B.pretty t);
     let buf = create len in
-    B.write buf t;
+    B.set buf t;
     lwt () = Lwt_channel.write_length fd len in
     lwt () = Lwt_channel.write_buf fd buf in
     debug " ... write_fd";

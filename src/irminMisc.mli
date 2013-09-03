@@ -39,12 +39,3 @@ val debug_enabled: unit -> bool
 
 (** Set the debug mode (default is the value of [IRMIN_DEBUG] env variable. *)
 val set_debug_mode: bool -> unit
-
-(** Overwrite stdlib's [OrderedType] *)
-module type SetOrderedType = sig
-  include Set.OrderedType
-  val pretty: t -> string
-end
-
-(** Overwrite stdlib's [Set.Make] *)
-module SetMake (B: SetOrderedType): IrminTypes.SET with type elt = B.t

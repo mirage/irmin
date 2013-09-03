@@ -21,14 +21,14 @@ open Test_common
 let v1 = Value.of_string "foo"
 let v2 = Value.of_string ""
 
+let t = IrminQueue.create (Dir test_db)
+
 let test_init () =
   clean test_db;
-  lwt t = IrminQueue.create (Dir test_db) in
   IrminQueue.init t
 
 let test_peek () =
   lwt () = test_init () in
-  lwt t = IrminQueue.create (Dir test_db) in
   lwt () = IrminQueue.add t v1 in
   lwt () = IrminQueue.add t v2 in
   lwt v1' = IrminQueue.peek t in
@@ -37,7 +37,6 @@ let test_peek () =
 
 let test_list () =
   lwt () = test_init () in
-  lwt t = IrminQueue.create (Dir test_db) in
   lwt nil = IrminQueue.to_list t in
   assert_valuel_equal "nil" [] nil;
   lwt () = IrminQueue.add t v1 in
@@ -50,7 +49,6 @@ let test_list () =
 
 let test_take () =
   lwt () = test_init () in
-  lwt t = IrminQueue.create (Dir test_db) in
   lwt () = IrminQueue.add t v1 in
   lwt () = IrminQueue.add t v2 in
   lwt v1v2 = IrminQueue.to_list t in
