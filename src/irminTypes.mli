@@ -119,6 +119,12 @@ module type GRAPH = sig
     ?overlay:(vertex * vertex) list ->
     string -> unit
 
+  (** Compute the minimum vertex. *)
+  val min: t -> Vertex.Set.t
+
+  (** Compute the maximun vertex. *)
+  val max: t -> Vertex.Set.t
+
   (** Implements the base operations. *)
   include BASE with type t := t
 
@@ -168,8 +174,12 @@ module type VALUE = sig
   (** Get the underlying raw blob. *)
   val to_string: t -> string option
 
-  (** Create a new revision. *)
-  val revision: Key.t -> Key.Set.t -> t
+  (** [revision contents parents] creates a new revision with (a
+      possibly empty) [contents] and the given [parents]. *)
+  val revision: Key.t option -> Key.Set.t -> t
+
+  (** Is a value actually a blob ? *)
+  val is_blob: t -> bool
 
   (** Return the eventual contents key. *)
   val contents: t -> Key.t option

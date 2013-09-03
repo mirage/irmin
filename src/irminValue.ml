@@ -28,12 +28,16 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
   type revision = {
     parents : Key.Set.t;
-    contents: Key.t;
+    contents: Key.t option;
   }
 
   type t =
     | Blob of Blob.t
     | Revision of revision
+
+  let is_blob = function
+    | Blob _     -> true
+    | Revision _ -> false
 
   let of_string str =
     Blob (B.of_string str)
@@ -51,45 +55,56 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
 
     let pretty r =
       Printf.sprintf "[parents:%s | contents:%s]"
-        (K.Set.pretty r.parents) (K.pretty r.contents)
+        (K.Set.pretty r.parents)
+        (match r.contents with None -> "" | Some c -> K.pretty c)
 
     let of_json (json:IrminJSON.t) = match json with
-      | `O [ ("parents", parents); ("contents", contents) ] ->
-        let parents = IrminJSON.to_list K.of_json parents in
+      | `O list ->
+        let contents =
+          try Some (List.assoc "contents" list)
+          with Not_found -> None in
+        let contents = match contents with
+          | None   -> None
+          | Some j -> Some (K.of_json j) in
+        let parents =
+          try Some (List.assoc "parents" list)
+          with Not_found -> None in
+        let parents = match parents with
+          | None   -> []
+          | Some j -> IrminJSON.to_list K.of_json j in
         let parents = Key.Set.of_list parents in
-        let contents = K.of_json contents in
         { parents; contents }
       | _ -> IrminIO.parse_error "Revision.of_json"
 
     let to_json r =
-      let parents = IrminJSON.of_list K.to_json (Key.Set.to_list r.parents) in
-      let contents = K.to_json r.contents in
-      `O [ ("parents", parents); ("contents", contents) ]
+      let parents = match Key.Set.to_list r.parents with
+        | []      -> []
+        | parents -> [ "parents", IrminJSON.of_list K.to_json parents ] in
+      let contents = match r.contents with
+        | None    -> []
+        | Some c  -> [ "contents", K.to_json c ] in
+      `O (parents @ contents)
+
+    module CP = IrminIO.Pair(IrminIO.Option(Key))(Key.Set)
 
     let sizeof t =
       debug "sizeof";
-      Keys.sizeof (t.contents :: Key.Set.to_list t.parents)
+      CP.sizeof (t.contents, t.parents)
 
     let get buf =
       debug "get";
-      let keys = Keys.get buf in
-      match keys with
-      | []   -> IrminIO.parse_error_buf buf "Revision.read"
-      | h::t -> { contents = h; parents = Key.Set.of_list t }
+      let contents, parents = CP.get buf in
+      { contents; parents }
 
     let set buf t =
       debug "set %s" (pretty t);
-      Keys.set buf (t.contents :: Key.Set.to_list t.parents)
+      CP.set buf (t.contents, t.parents)
 
     let equal r1 r2 =
-      Key.equal r1.contents r2.contents
-      && Key.Set.cardinal r1.parents = Key.Set.cardinal r2.parents
-      && Key.Set.equal r1.parents r2.parents
+      CP.equal (r1.contents, r1.parents) (r2.contents, r2.parents)
 
     let compare r1 r2 =
-      match Key.compare r1.contents r2.contents with
-      | 0 -> Key.Set.compare r1.parents r2.parents
-      | i -> i
+      CP.compare (r1.contents, r1.parents) (r2.contents, r2.parents)
 
   end
 
@@ -140,12 +155,15 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
     | Blob _                  -> Key.Set.empty
 
   let contents = function
-    | Revision { contents; _ } -> Some contents
+    | Revision { contents; _ } -> contents
     | Blob _                   -> None
 
   let key = function
     | Blob b     -> B.key b
-    | Revision r -> Key.concat (r.contents :: Key.Set.to_list r.parents)
+    | Revision r ->
+      match r.contents with
+      | None   -> Key.concat (Key.Set.to_list r.parents)
+      | Some c -> Key.concat (c :: Key.Set.to_list r.parents)
 
   let merge merge_keys v1 v2 =
     if v1 = v2 then Some v1
@@ -157,9 +175,17 @@ module Make (K: KEY)  (B: VALUE with module Key = K) = struct
         end
       | Revision r1, Revision r2 ->
         let parents = Key.Set.of_list [key v1; key v2] in
-        begin match merge_keys r1.contents r2.contents with
-          | None          -> None
-          | Some contents -> Some (Revision { parents; contents })
+        let revision contents =
+          Some (Revision { parents; contents }) in
+        begin match r1.contents, r2.contents with
+          | None   , None    -> revision None
+          | Some _ , None    -> revision r1.contents
+          | None   , Some _  -> revision r2.contents
+          | Some c1, Some c2 ->
+            let contents = merge_keys c1 c2 in
+            match contents with
+            | None           -> None
+            | Some _         -> revision contents
         end
       | Blob _    , Revision _
       | Revision _, Blob _ -> None
@@ -185,6 +211,7 @@ type blob = B of string
 module Blob (K: KEY) = struct
 
   include IrminIO.String(struct
+      let name = "BLOB"
       type t = blob
       let to_string (B s) = s
       let of_string s = B s
@@ -195,6 +222,8 @@ module Blob (K: KEY) = struct
   let parents _ = K.Set.empty
 
   let contents _ = None
+
+  let is_blob _ = true
 
   let key (B str) =
     K.of_string str

@@ -107,6 +107,18 @@ module Graph (B: BASESET) = struct
     lwt () = Lwt_list.iter_s add (Vertex.Set.to_list keys) in
     Lwt.return g
 
+  let min g =
+    G.fold_vertex (fun v acc ->
+        if G.in_degree g v = 0 then Vertex.Set.add v acc
+        else acc
+      ) g Vertex.Set.empty
+
+  let max g =
+    G.fold_vertex (fun v acc ->
+        if G.out_degree g v = 0 then Vertex.Set.add v acc
+        else acc
+      ) g Vertex.Set.empty
+
   let vertex_attributes = ref (fun _ -> [])
   let edge_attributes = ref (fun _ -> [])
   let graph_name = ref None

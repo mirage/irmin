@@ -24,6 +24,8 @@ let v1 = Value.of_string "foo"
 let v2 = Value.of_string ""
 
 let t = IrminQueue.create (Dir test_db)
+let test_db_1 = test_db ^ ".1"
+let t1 = IrminQueue.create (Dir test_db_1)
 
 let test_init () =
   clean test_db;
@@ -65,6 +67,18 @@ let test_take () =
   assert_valuel_equal "nil" [] nil;
   Lwt.return ()
 
+let test_clone () =
+  lwt () = test_init () in
+  clean test_db_1;
+  lwt () = IrminQueue.add t v1 in
+  lwt () = IrminQueue.add t v2 in
+  lwt v1v2 = IrminQueue.to_list t in
+  assert_valuel_equal "v1v2" [v1;v2] v1v2;
+  lwt () = IrminQueue.clone t1 ~origin:t in
+  lwt v1v2' = IrminQueue.to_list t1 in
+  assert_valuel_equal "v1v2'" [v1;v2] v1v2';
+  Lwt.return ()
+
 let suite =
   "QUEUE",
   List.map (fun (doc,t) -> doc, fun () -> Lwt_unix.run (t ()))
@@ -73,4 +87,5 @@ let suite =
       "Peek an element from the queue"    , test_peek;
       "List all the elements in the queue", test_list;
       "Take an element from the queue"    , test_take;
+      "Clone a fresh queue"               , test_clone;
     ]

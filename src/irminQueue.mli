@@ -140,8 +140,11 @@ val peek: t -> Value.t Lwt.t
     topological order. *)
 val to_list: t -> Value.t list Lwt.t
 
-(** Synchronize two irminsule instances. *)
+(** Synchronize the current state with [origin]. *)
 val pull: t -> origin:t -> unit Lwt.t
+
+(** Clone the state of [origin]. *)
+val clone: t -> origin:t -> unit Lwt.t
 
 (** Run an Irminsule server. *)
 val server: t -> limit:int -> string -> unit Lwt.t
@@ -149,7 +152,3 @@ val server: t -> limit:int -> string -> unit Lwt.t
 (* TODO *)
 
 val watch: t -> unit Lwt.t
-
-val push: t -> unit Lwt.t
-
-val clone: t -> unit Lwt.t

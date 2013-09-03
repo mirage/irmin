@@ -268,6 +268,7 @@ module Pair (K: BASE) (V: BASE) = struct
 end
 
 module type STRINGABLE = sig
+  val name: string
   type t
   val to_string: t -> string
   val of_string: string -> t
@@ -275,7 +276,7 @@ end
 
 module String  (S: STRINGABLE) = struct
 
-  let debug fmt = IrminMisc.debug "IO-STRING" fmt
+  let debug fmt = IrminMisc.debug ("IO-"^S.name) fmt
 
   type t = S.t
 

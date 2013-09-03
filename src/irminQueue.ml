@@ -49,17 +49,17 @@ let empty fmt =
       raise_lwt Empty
     ) fmt
 
-let value_of_key t key =
-  lwt v = Value_store.read (value_store t) key in
-  match v with
+let read_key t key =
+  lwt value = Value_store.read (value_store t) key in
+  match value with
   | None   -> empty "No value!"
   | Some v -> Lwt.return v
 
-let contents t key =
-  lwt v = value_of_key t key in
-  match Value.contents v with
+let read_contents t key =
+  lwt value = read_key t key in
+  match Value.contents value with
   | None   -> empty "No content!"
-  | Some k -> value_of_key t k
+  | Some k -> read_key t k
 
 let dump t name =
   lwt tags = Tag_store.all (tag_store t) in
@@ -72,17 +72,18 @@ let dump t name =
   lwt g = Key_store.keys (key_store t) () in
   let keys = Key.Set.to_list (Key.Graph.vertex g) in
   lwt labels = Lwt_list.fold_left_s (fun labels key ->
-      lwt v = value_of_key t key in
-      let labels = match Value.contents v with
-        | None   -> (key, "value:"^Value.pretty v) :: labels
-        | Some _ -> labels in
+      lwt value = read_key t key in
+      let labels =
+        if Value.is_blob value then (key, "blob:"^Value.pretty value) :: labels
+        else labels in
       Lwt.return labels
     ) labels keys in
   lwt overlay = Lwt_list.fold_left_s (fun overlay key ->
-      lwt v = value_of_key t key in
-      match Value.contents v with
-      | None   -> Lwt.return overlay
-      | Some k -> Lwt.return ((k, key) :: overlay)
+      lwt value = read_key t key in
+      let overlay = match Value.contents value with
+        | None  -> overlay
+        | Some k -> ((k, key) :: overlay) in
+      Lwt.return overlay
     ) [] keys in
   Key.Graph.dump g ~labels ~overlay name;
   Lwt.return ()
@@ -114,11 +115,13 @@ let is_empty t =
 let add t value =
   lwt () = dump t "before-add" in
   lwt key = Value_store.write (value_store t) value in
+  lwt () = Key_store.add (key_store t) key Key.Set.empty in
   lwt fronts = fronts t in
   lwt backs  = backs t in
-  let revision = Value.revision key backs in
-  lwt new_back = Value_store.write (value_store t) revision in
-  let new_back = Key.Set.singleton new_back in
+  let revision_value = Value.revision (Some key) backs in
+  lwt revision_key = Value_store.write (value_store t) revision_value in
+  lwt () = Key_store.add (key_store t) revision_key backs in
+  let new_back = Key.Set.singleton revision_key in
   lwt () =
     if not (Key.Set.is_empty fronts) then Lwt.return ()
     else Tag_store.update (tag_store t) t.front new_back in
@@ -126,26 +129,37 @@ let add t value =
   lwt () = dump t "after-add" in
   Lwt.return ()
 
-let to_list t =
+let keys t =
   lwt fronts = fronts t in
   lwt backs = backs t in
   if Key.Set.is_empty fronts then
     Lwt.return []
   else
     lwt g = Key_store.keys (key_store t) ~sources:fronts ~sinks:backs () in
-    lwt () = dump t "to-list" in
     let keys = Key.Graph.Topological.fold (fun key acc -> key :: acc) g [] in
-    lwt values = Lwt_list.fold_left_s (fun acc key ->
-        lwt value = contents t key in
-        Lwt.return (value :: acc)
+    lwt keys = Lwt_list.fold_left_s (fun acc key ->
+        lwt value = read_key t key in
+        match Value.contents value with
+        | None   -> Lwt.return acc
+        | Some k -> Lwt.return (k :: acc)
       ) [] keys in
-    Lwt.return values
+    Lwt.return (List.rev keys)
+
+let to_list t =
+  lwt keys = keys t in
+  lwt () = dump t "to-list" in
+  Lwt_list.fold_left_s (fun acc key ->
+      lwt value = Value_store.read (value_store t) key in
+      match value with
+      | None   -> Lwt.return acc
+      | Some v -> Lwt.return (v :: acc)
+    ) [] keys
 
 let peek t =
   lwt fronts = fronts t in
   try
     let key = Key.Set.choose fronts in
-    contents t key
+    read_contents t key
   with Not_found ->
     empty "FRONT"
 
@@ -164,7 +178,7 @@ let take t =
       if Key.Set.is_empty new_fronts then Tag_store.remove (tag_store t) t.front
       else Tag_store.update (tag_store t) t.front new_fronts in
     lwt () = dump t "after-take" in
-    contents t key in
+    read_contents t key in
   (* XXX: use a staging area *)
   match Key.Graph.succ g key with
   | []   -> move_front Key.Set.empty
@@ -177,13 +191,48 @@ let take t =
     move_front (Key.Set.of_list new_fronts)
 
 let pull t ~origin =
-  lwt fronts = fronts origin in
-  lwt g = Key_store.keys (key_store origin) ~sources:fronts () in
-  let vertex = Key.Set.to_list (Key.Graph.vertex g) in
-  Lwt_list.iter_s (fun k ->
+  lwt () = dump origin "origin" in
+  lwt remote_fronts = fronts origin in
+  lwt remote_backs = backs origin in
+  lwt local_fronts = fronts t in
+  lwt local_backs = backs t in
+  (* XXX: inefficient *)
+  lwt remote_queue = keys origin in
+  let sources = Key.Set.union remote_fronts (Key.Set.of_list remote_queue) in
+  lwt g =
+    Key_store.keys (key_store origin) ~sources ~sinks:remote_backs () in
+  Key.Graph.dump g "pull";
+  let keys = Key.Set.to_list (Key.Graph.vertex g) in
+  (* Add new keys *)
+  lwt () = Lwt_list.iter_s (fun k ->
       let preds = Key.Set.of_list (Key.Graph.pred g k) in
       Key_store.add (key_store t) k preds
-    ) vertex
+    ) keys in
+  (* Add a new merge commit, and update the 'back' tag to point to it *)
+  let parents = Key.Set.union local_backs remote_backs in
+  let merge_value = Value.revision None parents in
+  lwt merge_key = Value_store.write (value_store t) merge_value in
+  lwt () = Key_store.add (key_store t) merge_key parents in
+  lwt () = Tag_store.update (tag_store t) t.back (Key.Set.singleton merge_key) in
+  (* XXX: pulling values could be done on demand *)
+  lwt () = Lwt_list.iter_s (fun k ->
+      lwt v = Value_store.read (value_store origin) k in
+      match v with
+      | None   -> failwith "pull value"
+      | Some v ->
+        lwt local_k = Value_store.write (value_store t) v in
+        assert (k = local_k);
+        Lwt.return ()
+    ) keys in
+  (* Fix empty local queues *)
+  lwt () =
+    if not (Key.Set.is_empty local_fronts) then Lwt.return ()
+    else Tag_store.update (tag_store t) t.front (Key.Graph.min g) in
+  dump t "local"
+
+let clone t ~origin =
+  lwt () = init t in
+  pull t ~origin
 
 let server t ~limit file =
   let fd = IrminIO.Lwt_channel.unix_socket_server ~limit file in
@@ -198,10 +247,4 @@ let server t ~limit file =
 
 
 let watch _ =
-  failwith "TODO"
-
-let push _ =
-  failwith "TODO"
-
-let clone _ =
   failwith "TODO"

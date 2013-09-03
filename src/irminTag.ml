@@ -17,6 +17,7 @@
 type tag = T of string
 
 module S = struct
+  let name = "TAG"
   type t = tag
   let to_string (T s) = s
   let of_string s = T s

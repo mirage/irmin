@@ -95,6 +95,7 @@ module Pair (K: BASE) (V: BASE): BASE with type t = K.t * V.t
 
 (** serialization to strings *)
 module type STRINGABLE = sig
+  val name: string
   type t
   val to_string: t -> string
   val of_string: string -> t

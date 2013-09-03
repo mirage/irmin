@@ -202,21 +202,6 @@ let pull =
   Term.(pure pull $ queue () $ queue ~source:["origin"] ()),
   Term.info "pull" ~doc ~man
 
-(* PUSH *)
-let push_doc = "Push changes between queues."
-let push =
-  let doc = push_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P push_doc;
-  ] in
-  let push t =
-    run begin
-      IrminQueue.push t
-    end in
-  Term.(pure push $ queue ()),
-  Term.info "push" ~doc ~man
-
 (* CLONE *)
 let clone_doc = "Clone an existing queue."
 let clone =
@@ -225,11 +210,11 @@ let clone =
     `S "DESCRIPTION";
     `P clone_doc;
   ] in
-  let clone t =
+  let clone t origin =
     run begin
-      IrminQueue.clone t
+      IrminQueue.clone t ~origin
     end in
-  Term.(pure clone $ queue ()),
+  Term.(pure clone $ queue () $ queue ~source:["origin"] ()),
   Term.info "clone" ~doc ~man
 
 (* HELP *)
@@ -278,11 +263,10 @@ let default =
       \    watch   %s\n\
       \    list    %s\n\
       \    clone   %s\n\
-      \    push    %s\n\
       \    pull    %s\n\
       \n\
       See `irmin help <command>` for more information on a specific command.\n%!"
-      init_doc add_doc take_doc peek_doc watch_doc list_doc clone_doc push_doc
+      init_doc add_doc take_doc peek_doc watch_doc list_doc clone_doc
       pull_doc in
   Term.(pure usage $ (pure ())),
   Term.info "irmin"
@@ -299,7 +283,6 @@ let commands = [
   watch;
   list;
   clone;
-  push;
   pull;
 ]
 

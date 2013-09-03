@@ -209,8 +209,6 @@ module Make (C: CORE) = struct
       if Sys.file_exists file then
         Lwt.return key
       else
-        let parents = Value.parents value in
-        lwt () = Key_store.add t key parents in
         lwt () = with_file file (fun fd ->
             XValue.write_fd fd value
           ) in
