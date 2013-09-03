@@ -22,6 +22,7 @@ let debug fmt = IrminMisc.debug "TEST-QUEUE" fmt
 
 let v1 = Value.of_string "foo"
 let v2 = Value.of_string ""
+let v3 = Value.of_string "bar"
 
 let t = IrminQueue.create (Dir test_db)
 let test_db_1 = test_db ^ ".1"
@@ -79,6 +80,25 @@ let test_clone () =
   assert_valuel_equal "v1v2'" [v1;v2] v1v2';
   Lwt.return ()
 
+let test_pull () =
+  lwt () = test_clone () in
+  lwt () = IrminQueue.add t v3 in
+  let base () =
+    lwt v1v2v3 = IrminQueue.to_list t in
+    assert_valuel_equal "v1v2v3" [v1;v2;v3] v1v2v3;
+    lwt v1v2 = IrminQueue.to_list t1 in
+    assert_valuel_equal "v1v2" [v1;v2] v1v2;
+    Lwt.return () in
+  lwt () = base () in
+  lwt () = IrminQueue.pull t ~origin:t1 in
+  lwt () = base () in
+  lwt () = IrminQueue.pull t1 ~origin:t in
+  lwt v1v2v3 = IrminQueue.to_list t in
+  assert_valuel_equal "v1v2v3" [v1;v2;v3] v1v2v3;
+  lwt v1v2v3' = IrminQueue.to_list t1 in
+  assert_valuel_equal "v1v2v3" [v1;v2;v3] v1v2v3';
+  Lwt.return ()
+
 let suite =
   "QUEUE",
   List.map (fun (doc,t) -> doc, fun () -> Lwt_unix.run (t ()))
@@ -88,4 +108,5 @@ let suite =
       "List all the elements in the queue", test_list;
       "Take an element from the queue"    , test_take;
       "Clone a fresh queue"               , test_clone;
+      "Pull between two queues"           , test_pull;
     ]
