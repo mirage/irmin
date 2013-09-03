@@ -303,6 +303,7 @@ module String  (S: STRINGABLE) = struct
     debug "get";
     let len = get_uint32 buf in
     let str = get_string buf (Int32.to_int len) in
+    debug " ... get %s" str;
     S.of_string str
 
   let set buf t =

@@ -42,6 +42,51 @@ let error fmt =
       raise_lwt (Error str)
     ) fmt
 
+
+let empty fmt =
+  Printf.kprintf (fun str ->
+      IrminMisc.error "QUEUE" "%s" str;
+      raise_lwt Empty
+    ) fmt
+
+let value_of_key t key =
+  lwt v = Value_store.read (value_store t) key in
+  match v with
+  | None   -> empty "No value!"
+  | Some v -> Lwt.return v
+
+let contents t key =
+  lwt v = value_of_key t key in
+  match Value.contents v with
+  | None   -> empty "No content!"
+  | Some k -> value_of_key t k
+
+let dump t name =
+  lwt tags = Tag_store.all (tag_store t) in
+  lwt labels = Lwt_list.fold_left_s (fun tags tag ->
+      lwt keys = Tag_store.read (tag_store t) tag in
+      let labels =
+        Key.Set.fold (fun key tags -> (key, Tag.to_string tag) :: tags) keys tags in
+      Lwt.return labels
+    ) [] (Tag.Set.to_list tags) in
+  lwt g = Key_store.keys (key_store t) () in
+  let keys = Key.Set.to_list (Key.Graph.vertex g) in
+  lwt labels = Lwt_list.fold_left_s (fun labels key ->
+      lwt v = value_of_key t key in
+      let labels = match Value.contents v with
+        | None   -> (key, "value:"^Value.pretty v) :: labels
+        | Some _ -> labels in
+      Lwt.return labels
+    ) labels keys in
+  lwt overlay = Lwt_list.fold_left_s (fun overlay key ->
+      lwt v = value_of_key t key in
+      match Value.contents v with
+      | None   -> Lwt.return overlay
+      | Some k -> Lwt.return ((k, key) :: overlay)
+    ) [] keys in
+  Key.Graph.dump g ~labels ~overlay name;
+  Lwt.return ()
+
 let init t =
   match t.source with
   | Dir f     -> Disk.init f
@@ -67,6 +112,7 @@ let is_empty t =
   Lwt.return (Key.Set.is_empty fronts || Key.Set.is_empty backs)
 
 let add t value =
+  lwt () = dump t "before-add" in
   lwt key = Value_store.write (value_store t) value in
   lwt fronts = fronts t in
   lwt backs  = backs t in
@@ -76,34 +122,24 @@ let add t value =
   lwt () =
     if not (Key.Set.is_empty fronts) then Lwt.return ()
     else Tag_store.update (tag_store t) t.front new_back in
-  Tag_store.update (tag_store t) t.back new_back
-
-let empty fmt =
-  Printf.kprintf (fun str ->
-      IrminMisc.error "QUEUE" "%s" str;
-      raise_lwt Empty
-    ) fmt
-
-let value_of_key t key =
-  lwt v = Value_store.read (value_store t) key in
-  match v with
-  | None   -> empty "No value!"
-  | Some v -> Lwt.return v
-
-let contents t key =
-  lwt v = value_of_key t key in
-  match Value.contents v with
-  | None   -> empty "No content!"
-  | Some k -> value_of_key t k
+  lwt () = Tag_store.update (tag_store t) t.back new_back in
+  lwt () = dump t "after-add" in
+  Lwt.return ()
 
 let to_list t =
-  lwt g = Key_store.keys (key_store t) () in
-  let keys = Key.Graph.Topological.fold (fun key acc -> key :: acc) g [] in
-  lwt values = Lwt_list.fold_left_s (fun acc key ->
-      lwt value = contents t key in
-      Lwt.return (value :: acc)
-    ) [] keys in
-  Lwt.return values
+  lwt fronts = fronts t in
+  lwt backs = backs t in
+  if Key.Set.is_empty fronts then
+    Lwt.return []
+  else
+    lwt g = Key_store.keys (key_store t) ~sources:fronts ~sinks:backs () in
+    lwt () = dump t "to-list" in
+    let keys = Key.Graph.Topological.fold (fun key acc -> key :: acc) g [] in
+    lwt values = Lwt_list.fold_left_s (fun acc key ->
+        lwt value = contents t key in
+        Lwt.return (value :: acc)
+      ) [] keys in
+    Lwt.return values
 
 let peek t =
   lwt fronts = fronts t in
@@ -114,8 +150,10 @@ let peek t =
     empty "FRONT"
 
 let take t =
+  lwt () = dump t "before-take" in
   lwt fronts = Tag_store.read (tag_store t) t.front in
   lwt backs  = Tag_store.read (tag_store t) t.back in
+  lwt g = Key_store.keys (key_store t) ~sources:fronts ~sinks:backs () in
   lwt key =
     try Lwt.return (Key.Set.choose fronts)
     with Not_found -> empty "FRONT" in
@@ -125,9 +163,9 @@ let take t =
     lwt () =
       if Key.Set.is_empty new_fronts then Tag_store.remove (tag_store t) t.front
       else Tag_store.update (tag_store t) t.front new_fronts in
+    lwt () = dump t "after-take" in
     contents t key in
   (* XXX: use a staging area *)
-  lwt g = Key_store.keys (key_store t) ~sources:fronts ~sinks:backs () in
   match Key.Graph.succ g key with
   | []   -> move_front Key.Set.empty
   | keys ->

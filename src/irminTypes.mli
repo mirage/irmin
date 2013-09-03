@@ -114,7 +114,10 @@ module type GRAPH = sig
 
   (** [dump g tags name] dumps the graph contents [g], which the
       vertices labelled by [tags]. [name] is the graph global label.  *)
-  val dump: t -> (vertex * string) list -> string -> unit
+  val dump: t ->
+    ?labels:(vertex * string) list ->
+    ?overlay:(vertex * vertex) list ->
+    string -> unit
 
   (** Implements the base operations. *)
   include BASE with type t := t

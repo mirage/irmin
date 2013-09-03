@@ -18,6 +18,8 @@ open IrminLwt
 open OUnit
 open Test_common
 
+let debug fmt = IrminMisc.debug "TEST-QUEUE" fmt
+
 let v1 = Value.of_string "foo"
 let v2 = Value.of_string ""
 

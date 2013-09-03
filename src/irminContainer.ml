@@ -107,14 +107,15 @@ module Graph (B: BASESET) = struct
     lwt () = Lwt_list.iter_s add (Vertex.Set.to_list keys) in
     Lwt.return g
 
-  let attributes = ref (fun _ -> [])
+  let vertex_attributes = ref (fun _ -> [])
+  let edge_attributes = ref (fun _ -> [])
   let graph_name = ref None
   module Dot = Graph.Graphviz.Dot(struct
       include G
-      let edge_attributes _ = []
+      let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
       let vertex_name k = Vertex.pretty k
-      let vertex_attributes k = !attributes k
+      let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None
       let graph_attributes _ =
@@ -123,14 +124,19 @@ module Graph (B: BASESET) = struct
         | Some n -> [`Label n]
     end)
 
-  let dump g tags name =
+  let dump g ?(labels=[]) ?(overlay=[]) name =
     if IrminMisc.debug_enabled () then
-      let attrs k =
+      let g = G.copy g in
+      List.iter (fun (v1,v2) -> G.add_edge g v1 v2) overlay;
+      let eattrs e =
+        if List.mem e overlay then [`Label "overlay"] else [] in
+      let vattrs k =
         let tags = List.fold_left
             (fun accu (ki,ti) -> if k=ki then ti::accu else accu)
-            [] tags in
+            [] labels in
         List.map (fun t -> `Label t) tags in
-      attributes := attrs;
+      vertex_attributes := vattrs;
+      edge_attributes := eattrs;
       graph_name := Some name;
       Printf.eprintf "%!";
       Dot.output_graph stderr g;
