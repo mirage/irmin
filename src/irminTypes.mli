@@ -188,6 +188,7 @@ module type VALUE = sig
   val parents: t -> Key.Set.t
 
   (** How to merge two values. Need to know how to merge keys. *)
+  (* XXX: val merge: Key.t * t -> Key.t * t -> t option *)
   val merge: (Key.t -> Key.t -> Key.t option) -> t -> t -> t option
 
 end
