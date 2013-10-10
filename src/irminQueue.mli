@@ -16,7 +16,6 @@
 
 (** Distributed queues *)
 
-open IrminTypes
 open IrminLwt
 
 (** - [front] tags values which are the queue heads. This tag is

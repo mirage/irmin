@@ -47,9 +47,6 @@ module type BASE = sig
   (** Convert to IrminJSON *)
   val to_json: t -> IrminJSON.t
 
-  (** Prettify. *)
-  val pretty: t -> string
-
   (** Size of serialized value (to pre-allocate bufIO). *)
   val sizeof: t -> int
 
