@@ -14,39 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception Conflict
-
-module type S = sig
-  include IrminBase.S
-  val merge: old:t -> t -> t
+module STORE: sig
+  type t
+  type key
+  type value
+  val write: t -> key -> value -> unit Lwt.t
+  val read: t -> key -> value option Lwt.t
+  val list: t -> key list Lwt.t
 end
 
+module type RAW = S with type value := IrminBuffer.t
 
-module String  = struct
+module Make (R: RAW) (B: IrminBase.S) = struct
 
-  let debug fmt = IrminLog.debug "VALUE" fmt
+  open Lwt
 
-  module S = IrminBase.PrivateString
+  let read t k =
+    Store.read t k >>= function
+    | None   -> None
+    | Some b -> Some (Value.get b)
 
-  include S
-
-  let name = "value"
-
-  type key = K.t
-
-  let dump = to_string
-
-  let create = of_string
-
-  let key v =
-    K.of_string (to_string v)
-
-  (* Simple scheme where we keep only the most recently changed
-     string *)
-  let merge ~old t1 t2 =
-    if S.compare t1 t2 = 0 then t1
-    else if S.compare old t1 = 0 then t2
-    else if S.compare old t2 = 0 then t1
-    else raise Conflict
+  let write t k v =
+    let ba = IrminBuffer.create_ba (Value.sizeof v) in
+    Value.set ba v >>= fun () ->
+    Store.write t k ba >>= fun () ->
+    Value.get ba
 
 end

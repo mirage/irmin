@@ -14,12 +14,4 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Core algorithms *)
-
-open IrminTypes
-
-(** Events. *)
-module Event (C: CORE): EVENT with module C = C
-
-(** Synchronization primitive. *)
-module Make (S: STORE): SYNC with module C = S.C and type t = unit
+(** Synchronization Primitive *)

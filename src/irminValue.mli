@@ -14,17 +14,34 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Blobs *)
+(** Values. *)
 
-open IrminTypes
+exception Conflict
+(** Exception raised during merge conflicts. *)
 
-(** [Make(Key)(Blob)] builds a value module where basic blobs have
-    the signature defined by [Blob] and keys have the signature
-    defined by [Key]. *)
-module Make (K: KEY) (B: VALUE with module Key = K): VALUE with module Key = K
+module type S = sig
 
-(** Basic types *)
-type blob = B of string
+  (** Signature for values. *)
 
-(** Basic string blobs *)
-module Blob (K: KEY): VALUE with type t = blob and module Key = K
+  include IrminBase.S
+  (** Base types. *)
+
+  val merge: old: t -> t -> t
+  (** Merge function. *)
+
+end
+
+(** Build a value store. *)
+
+module String: sig
+
+  (** String values, where only the last modified value is kept on
+      merge. If the value has been modified concurrently, the [merge]
+      function raises [Conflict]. *)
+
+  include S
+
+  val create: string -> t
+  (** Create a value from a string. *)
+
+end

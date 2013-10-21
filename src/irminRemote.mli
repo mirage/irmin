@@ -14,40 +14,41 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Protocol implementation *)
-
-open IrminTypes
+(** Remote client/server *)
 
 (** Signature for clients *)
 module type CLIENT = sig
 
+  type channel
+
   (** Clients communicate with servers using file descriptors. *)
-  type t = unit -> IrminIO.Lwt_channel.t Lwt.t
+  type t = unit -> channel Lwt.t
 
   (** Clients transparentely access the server store. *)
-  include STORE with type t := t
-                 and type Key_store.t = t
-                 and type Value_store.t = t
-                 and type Tag_store.t = t
+  include IrminStore.S with type t := t
+                        and type Key_store.t = t
+                        and type Value_store.t = t
+                        and type Tag_store.t = t
 
   (** And they also got synchronization operations. *)
-  module Sync: SYNC with type t = t
+  module Sync: IrminSync.S with type t := t
 
 end
 
-
 (** Client implementation (eg. needs a server on the other side of the
     channel) *)
-module Client (C: CORE): CLIENT with module C = C
+module Make_client (C: IrminStore.CORE): CLIENT with module Core = C
+
+val client: string -> (module IrminStore.S)
 
 (** Signature for servers *)
 module type SERVER = sig
 
   (** Servers communicate with clients using file descriptors. *)
-  type t = IrminIO.Lwt_channel.t
+  type t
 
   (** How the server manage its state. *)
-  module State: STORE
+  module State: IrminStore.S
 
   (** Run the server thread *)
   val run: State.t -> ?timeout:float -> t -> unit Lwt.t
@@ -55,4 +56,4 @@ module type SERVER = sig
 end
 
 (** Implementation of servers. *)
-module Server (S: STORE): SERVER with module State = S
+module Server (S: IrminStore.S): SERVER with module State = S

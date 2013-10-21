@@ -14,21 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type tag = T of string
-
-module S = struct
-  let name = "TAG"
-  type t = tag
-  let to_string (T s) = s
-  let of_string s = T s
+module type S = sig
+  include IrminBase.S
+  val to_string: t -> string
+  val of_string: string -> t
 end
 
-module T = IrminIO.String(S)
-
-module Set = IrminContainer.Set(T)
-
-include T
-
-let of_string t = (T t)
-
-let to_string (T t) = t
+module Simple = struct
+  include IrminBase.PrivateString
+  let name = "tag"
+end

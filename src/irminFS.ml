@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminTypes
-
 exception Error of string
 
 let error fmt =
@@ -31,24 +29,25 @@ let warning fmt =
 
 module type S = sig
   type t
-  include STORE with type t := t
-                 and type Key_store.t = t
-                 and type Value_store.t = t
-                 and type Tag_store.t = t
+  include IrminStore.S with type t := t
+                        and type Key_store.t = t
+                        and type Value_store.t = t
+                        and type Tag_store.t = t
   val create: string -> t
   val init: string -> unit Lwt.t
   val dump: t -> unit Lwt.t
 end
 
-module Make (C: CORE) = struct
+module Make (C: IrminStore.CORE) (FD: IrminChannel.S) = struct
 
-  let debug fmt = IrminMisc.debug "DISK" fmt
+  let debug fmt = IrminLog.debug "DISK" fmt
 
   open C
 
-  module XKey = IrminIO.Channel(Key)
-  module XKeys = IrminIO.Channel(IrminIO.List(Key))
-  module XValue = IrminIO.Channel(Value)
+  module XKey = IrminChannel.Make(Key)(FD)
+  module XKeys = IrminChannel.Make(IrminBase.List(Key))(FD)
+  module XValue = IrminChannel.Make(Value)(FD)
+  module KeySet = IrminSet.Make(Key)
 
   let (/) = Filename.concat
 
@@ -97,14 +96,13 @@ module Make (C: CORE) = struct
 
   let with_file file fn =
     debug "with_file %s" file;
-    lwt fd = Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) in
-    let t = IrminIO.Lwt_channel.create fd file in
+    lwt t = FD.of_file file in
     try
       lwt r = fn t in
-      lwt () = IrminIO.Lwt_channel.close t in
+      lwt () = FD.close t in
       Lwt.return r
     with e ->
-      lwt () = IrminIO.Lwt_channel.close t in
+      lwt () = FD.close t in
       raise_lwt e
 
   let with_maybe_file file fn default =
@@ -145,7 +143,7 @@ module Make (C: CORE) = struct
   let dump t =
     lwt keys = basenames Key.of_hex (values_dir t.root) in
     lwt values = Lwt_list.map_s (fun key ->
-        lwt value = with_file (t.value key) XValue.read_fd in
+        lwt value = with_file (t.value key) XValue.read_channel in
         Lwt.return (key, value)
       ) keys in
     List.iter (fun (key, value) ->
@@ -155,49 +153,48 @@ module Make (C: CORE) = struct
 
   module Key_store = struct
 
-    let debug fmt = IrminMisc.debug "DISK-KEY" fmt
+    let debug fmt = IrminLog.debug "DISK-KEY" fmt
 
     include T
 
     let pred t key =
       debug "pred %s" (Key.pretty key);
       lwt () = check t in
-      lwt keys = with_maybe_file (t.key key) XKeys.read_fd [] in
-      Lwt.return (Key.Set.of_list keys)
+      with_maybe_file (t.key key) XKeys.read_channel []
 
     let keys t ?sources ?sinks () =
       debug "keys";
       lwt () = check t in
-      lwt keys = with_maybe_file (all_keys t.root)  XKeys.read_fd [] in
-      Key.Graph.make (Key.Set.of_list keys) ?sources ?sinks (pred t)
+      lwt keys = with_maybe_file (all_keys t.root)  XKeys.read_channel [] in
+      Key.Graph.make keys ?sources ?sinks (pred t)
 
     let update_index t ks =
       lwt g = keys t () in
       let old_keys = Key.Graph.vertex g in
-      let keys = Key.Set.union old_keys ks in
-      let keys = Key.Set.to_list keys in
-      with_file (all_keys t.root) (fun fd -> XKeys.write_fd fd keys)
+      let keys = KeySet.(union (of_list old_keys) (of_list ks)) in
+      let keys = KeySet.to_list keys in
+      with_file (all_keys t.root) (fun fd -> XKeys.write_channel fd keys)
 
     let add t key pred_keys =
-      debug "add %s %s" (Key.pretty key) (Key.Set.pretty pred_keys);
+      debug "add %s %s" (Key.pretty key) (XKeys.pretty pred_keys);
       lwt () = check t in
       let file = t.key key in
-      lwt old_keys = with_maybe_file file XKeys.read_fd [] in
-      let keys = Key.Set.union pred_keys (Key.Set.of_list old_keys) in
+      lwt old_keys = with_maybe_file file XKeys.read_channel [] in
+      let keys = KeySet.(union (of_list pred_keys) (of_list old_keys)) in
       if Sys.file_exists file then Sys.remove file;
       lwt () =
-        if Key.Set.is_empty keys then Lwt.return ()
+        if KeySet.is_empty keys then Lwt.return ()
         else with_file file (fun fd ->
-            XKeys.write_fd fd (Key.Set.to_list keys)
+            XKeys.write_channel fd (KeySet.to_list keys)
           ) in
-      let keys = Key.Set.union (Key.Set.singleton key) pred_keys in
+      let keys = key :: pred_keys in
       update_index t keys
 
   end
 
   module Value_store = struct
 
-    let debug fmt = IrminMisc.debug "DISK-VALUE" fmt
+    let debug fmt = IrminLog.debug "DISK-VALUE" fmt
 
     include T
 
@@ -210,7 +207,7 @@ module Make (C: CORE) = struct
         Lwt.return key
       else
         lwt () = with_file file (fun fd ->
-            XValue.write_fd fd value
+            XValue.write_channel fd value
           ) in
         Lwt.return key
 
@@ -219,7 +216,7 @@ module Make (C: CORE) = struct
       lwt () = check t in
       let file = t.value key in
       if Sys.file_exists file then
-        lwt value = with_file file XValue.read_fd in
+        lwt value = with_file file XValue.read_channel in
         Lwt.return (Some value)
       else
         Lwt.return None
@@ -228,7 +225,7 @@ module Make (C: CORE) = struct
 
   module Tag_store = struct
 
-    let debug fmt = IrminMisc.debug "DISK-TAG" fmt
+    let debug fmt = IrminLog.debug "DISK-TAG" fmt
 
     include T
 
@@ -242,12 +239,12 @@ module Make (C: CORE) = struct
       Lwt.return ()
 
     let update t tag keys =
-      debug "update %s %s" (Tag.pretty tag) (Key.Set.pretty keys);
+      debug "update %s %s" (Tag.pretty tag) (KeySet.pretty keys);
       lwt () = check t in
       lwt () = remove t tag in
       with_file (t.tag tag) (fun fd ->
           debug "add %s" (Tag.to_string tag);
-          XKeys.write_fd fd (Key.Set.to_list keys)
+          XKeys.write_channel fd (KeySet.to_list keys)
         )
 
     let read t tag =
@@ -255,17 +252,24 @@ module Make (C: CORE) = struct
       lwt () = check t in
       let file = t.tag tag in
       if Sys.file_exists file then
-        lwt keys = with_file file XKeys.read_fd in
-        Lwt.return (Key.Set.of_list keys)
+        lwt keys = with_file file XKeys.read_channel in
+        Lwt.return keys
       else
-        Lwt.return Key.Set.empty
+        Lwt.return []
 
     let all t =
       debug "all";
       lwt () = check t in
       lwt tags = basenames Tag.of_string (tags_dir t.root) in
-      Lwt.return (Tag.Set.of_list tags)
+      Lwt.return tags
 
   end
 
 end
+
+let create dir =
+  let module M = struct
+    include Make(IrminStore.Simple)(IrminChannel.Lwt_unix)
+    let create () = create dir
+  end in
+  (module M)

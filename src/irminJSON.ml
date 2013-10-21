@@ -120,3 +120,8 @@ let json_to_dst ~minify dst (json:t) =
 
 let to_buffer buf (json:t) =
   json_to_dst ~minify:false (`Buffer buf) json
+
+let pretty t =
+  let buf = Buffer.create 1024 in
+  to_buffer buf t;
+  Buffer.contents buf

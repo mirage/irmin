@@ -14,59 +14,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminTypes
-
-module Set (B: BASE) = struct
-
-  module Set = Set.Make(B)
-
-  include Set
-
-  let debug fmt = IrminMisc.debug "SET" fmt
-
-  module L = IrminIO.List(B)
-
-  let of_list l =
-    List.fold_left (fun acc elt -> Set.add elt acc) Set.empty l
-
-  let to_list s =
-    Set.elements s
-
-  let hash = Hashtbl.hash
-
-  let compare t1 t2 =
-    L.compare (to_list t1) (to_list t2)
-
-  let equal t1 t2 =
-    compare t1 t2 = 0
-
-  let pretty s =
-    if Set.is_empty s then "{}"
-    else
-      "{ "^ String.concat ", " (List.map B.pretty (to_list s)) ^ " }"
-
-  let to_json t =
-    L.to_json (to_list t)
-
-  let of_json j =
-    of_list (L.of_json j)
-
-  let sizeof t =
-    debug "sizeof";
-    L.sizeof (to_list t)
-
-  let get buf =
-    let l = L.get buf in
-    of_list l
-
-  let set buf t =
-    L.set buf (to_list t)
-
+module type S = sig
+  module Vertex: IrminBase.S
+  include Graph.Sig.I with type V.t = Vertex.t
+  include Graph.Oper.S with type g := t
+  module Topological: sig
+    val fold: (vertex -> 'a -> 'a) -> t -> 'a -> 'a
+  end
+  val vertex: t -> vertex list
+  val edges: t -> (vertex * vertex) list
+  val make: vertex list
+    -> ?sources:vertex list
+    -> ?sinks:vertex list
+    -> (vertex -> vertex list Lwt.t)
+    -> t Lwt.t
+  val output: t ->
+    ?labels:(vertex * string) list ->
+    ?overlay:(vertex * vertex) list ->
+    string -> unit
+  val min: t -> vertex list
+  val max: t -> vertex list
+  include IrminBase.S with type t := t
 end
 
-module Graph (B: BASESET) = struct
+module Make (B: IrminBase.S) = struct
 
-  let debug fmt = IrminMisc.debug "GRAPH" fmt
+  let debug fmt = IrminLog.debug "GRAPH" fmt
 
   module Vertex = B
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
@@ -76,7 +49,7 @@ module Graph (B: BASESET) = struct
   include GO
 
   let vertex g =
-    G.fold_vertex (fun k set -> Vertex.Set.add k set) g Vertex.Set.empty
+    G.fold_vertex (fun k set -> k :: set) g []
 
   let edges g =
     G.fold_edges (fun k1 k2 list -> (k1,k2) :: list) g []
@@ -85,15 +58,15 @@ module Graph (B: BASESET) = struct
     let keys = match sinks with
       | None      -> keys
       | Some keys -> keys in
-    let g = G.create ~size:(B.Set.cardinal keys) () in
+    let g = G.create ~size:(List.length keys) () in
     let marks = Hashtbl.create 1024 in
     let mark key = Hashtbl.add marks key true in
     let has_mark key = Hashtbl.mem marks key in
     let () = match sources with
       | None      -> ()
       | Some keys ->
-        Vertex.Set.iter mark keys;
-        Vertex.Set.iter (G.add_vertex g) keys in
+        List.iter mark keys;
+        List.iter (G.add_vertex g) keys in
     let rec add key =
       if has_mark key then Lwt.return ()
       else (
@@ -101,23 +74,23 @@ module Graph (B: BASESET) = struct
         debug "ADD %s" (Vertex.pretty key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
         lwt keys = pred key in
-        List.iter (fun k -> G.add_edge g k key) (Vertex.Set.to_list keys);
-        Lwt_list.iter_s add (Vertex.Set.to_list keys)
+        List.iter (fun k -> G.add_edge g k key) keys;
+        Lwt_list.iter_s add keys
       ) in
-    lwt () = Lwt_list.iter_s add (Vertex.Set.to_list keys) in
+    lwt () = Lwt_list.iter_s add keys in
     Lwt.return g
 
   let min g =
     G.fold_vertex (fun v acc ->
-        if G.in_degree g v = 0 then Vertex.Set.add v acc
+        if G.in_degree g v = 0 then v :: acc
         else acc
-      ) g Vertex.Set.empty
+      ) g []
 
   let max g =
     G.fold_vertex (fun v acc ->
-        if G.out_degree g v = 0 then Vertex.Set.add v acc
+        if G.out_degree g v = 0 then v :: acc
         else acc
-      ) g Vertex.Set.empty
+      ) g []
 
   let vertex_attributes = ref (fun _ -> [])
   let edge_attributes = ref (fun _ -> [])
@@ -136,8 +109,8 @@ module Graph (B: BASESET) = struct
         | Some n -> [`Label n]
     end)
 
-  let dump g ?(labels=[]) ?(overlay=[]) name =
-    if IrminMisc.debug_enabled () then
+  let output g ?(labels=[]) ?(overlay=[]) name =
+    if IrminLog.debug_enabled () then
       let g = G.copy g in
       List.iter (fun (v1,v2) -> G.add_edge g v1 v2) overlay;
       let eattrs e =
@@ -155,43 +128,67 @@ module Graph (B: BASESET) = struct
       Printf.eprintf "\n\n%!"
 
   let mk vertex edges =
-    let g = G.create ~size:(Vertex.Set.cardinal vertex) () in
-    Vertex.Set.iter (G.add_vertex g) vertex;
+    let g = G.create ~size:(List.length vertex) () in
+    List.iter (G.add_vertex g) vertex;
     List.iter (fun (v1, v2) -> G.add_edge g v1 v2) edges;
     g
 
-  module VVL = IrminIO.List(IrminIO.Pair(Vertex)(Vertex))
+  module XVertex = struct
+    include IrminBase.List(Vertex)
+    let name = "vertex"
+  end
+  module XEdges  = struct
+    include IrminBase.List(IrminBase.Pair(Vertex)(Vertex))
+    let name = "edges"
+  end
+  module XGraph = struct
+    include IrminBase.Pair(XVertex)(XEdges)
+    let name = "graph"
+  end
+
+  let name = XGraph.name
+
+  let decompose t =
+    let vertex = vertex t in
+    let edges = edges t in
+    vertex, edges
 
   let sizeof t =
-    let vertex = vertex t in
-    let edges = edges t in
-    Vertex.Set.sizeof vertex + VVL.sizeof edges
+    let g = decompose t in
+    XGraph.sizeof g
 
   let set buf t =
-    let vertex = vertex t in
-    let edges = edges t in
-    Vertex.Set.set buf vertex;
-    VVL.set buf edges
+    let g = decompose t in
+    XGraph.set buf g
 
   let get buf =
-    let vertex = Vertex.Set.get buf in
-    let edges = VVL.get buf in
+    let vertex, edges = XGraph.get buf in
     mk vertex edges
 
   let pretty t =
     let vertex = Topological.fold (fun v acc -> v::acc) t [] in
     Printf.sprintf "%s" (String.concat "-" (List.map B.pretty vertex))
 
-  let of_json _ =
-    failwith "TODO"
+  let dump t =
+    let g = decompose t in
+    XGraph.dump g
 
-  let to_json _ =
-    failwith "TODO"
+  let of_json j =
+    let vertex, edges = XGraph.of_json j in
+    mk vertex edges
+
+  let to_json t =
+    let g = decompose t in
+    XGraph.to_json g
 
   let hash = Hashtbl.hash
 
-  let equal = (=)
+  let compare t1 t2 =
+    let g1 = decompose t1 in
+    let g2 = decompose t2 in
+    XGraph.compare g1 g2
 
-  let compare = compare
+  let equal t1 t2 =
+    compare t1 t2 = 0
 
 end

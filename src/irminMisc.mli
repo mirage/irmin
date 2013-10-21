@@ -24,18 +24,3 @@ val hex_decode: string -> string
 
 (** Compute the sha1 of a binary string *)
 val sha1: string -> string
-
-(** Debug *)
-val debug: string -> ('a, out_channel, unit) format -> 'a
-
-(** Info *)
-val info: string ->  ('a, out_channel, unit) format -> 'a
-
-(** Error *)
-val error: string -> ('a, unit, string, unit) format4 -> 'a
-
-(** Is debug enabled ? *)
-val debug_enabled: unit -> bool
-
-(** Set the debug mode (default is the value of [IRMIN_DEBUG] env variable. *)
-val set_debug_mode: bool -> unit

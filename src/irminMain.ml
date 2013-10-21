@@ -15,18 +15,15 @@
  *)
 
 open Cmdliner
-open IrminLwt
+open IrminStore.Simple
 
 let global_option_section = "COMMON OPTIONS"
 
 let pr_str = Format.pp_print_string
 
 let value_conv =
-  let parse str = `Ok (Value.of_string str) in
-  let print ppf v =
-    match Value.to_string v with
-    | None   -> pr_str ppf (Value.pretty v)
-    | Some b -> pr_str ppf b in
+  let parse str = `Ok (Value.create str) in
+  let print ppf v = pr_str ppf (Value.dump v) in
   parse, print
 
 let tag_conv =
@@ -36,13 +33,13 @@ let tag_conv =
 
 let source_conv =
   let parse str =
-    if str = ":" then `Ok InMemory
-    else if Sys.file_exists str && not (Sys.is_directory str) then `Ok (Unix str)
-    else `Ok (Dir str) in
-  let print ppf = function
-    | Dir str
-    | Unix str -> pr_str ppf str
-    | InMemory -> pr_str ppf ":" in
+    if str = ":" then `Ok (IrminMemory.create ())
+    else if Sys.file_exists str && not (Sys.is_directory str) then
+      `Ok (IrminRemote.client str)
+    else
+      `Ok (IrminFS.create str) in
+  let print ppf (module S: IrminStore.S) =
+    pr_str ppf S.name in
   parse, print
 
 let value =
@@ -54,7 +51,7 @@ let queue ?(source=["s";"source"]) () =
   let source =
     let doc =
       Arg.info ~docv:"SOURCE" ~doc:"Queue source." source in
-    Arg.(value & opt source_conv (Dir ".irmin") & doc) in
+    Arg.(value & opt source_conv (IrminFS.create ".irmin") & doc) in
   let in_memory =
     let doc = Arg.info ~doc:"In-memory source. Equivalent to `source :`"
         ["m";"in-memory"] in
@@ -68,14 +65,14 @@ let queue ?(source=["s";"source"]) () =
       Arg.info ~docv:"BACK" ~doc:"Tags of back elements." ["b";"back"] in
     Arg.(value & opt tag_conv IrminQueue.default_back & doc) in
   let create front back source in_memory =
-    let source = if in_memory then InMemory else source in
+    let source = if in_memory then IrminMemory.create () else source in
     IrminQueue.create ~front ~back source in
   Term.(pure create $ front $ back $ source $ in_memory)
 
 let run t =
   Lwt_unix.run begin
     try_lwt t
-    with IrminDisk.Error _ -> exit 2
+    with IrminFS.Error _ -> exit 2
   end
 
 (* INIT *)
@@ -161,7 +158,7 @@ let peek =
     let elt = run begin
         IrminQueue.peek t
       end in
-    Printf.printf "%s\n" (IrminLwt.Value.pretty elt) in
+    Printf.printf "%s\n" (Value.pretty elt) in
   Term.(pure peek $ queue ()),
   Term.info "peek" ~doc ~man
 
@@ -176,11 +173,7 @@ let list =
   let list t =
     run begin
       lwt values = IrminQueue.to_list t in
-      let blobs = List.map (fun v ->
-          match Value.to_string v with
-          | None   -> assert false
-          | Some b -> b
-        ) values in
+      let blobs = List.map (fun v -> Value.dump v) values in
       List.iter (Printf.printf "%s\n") blobs;
       Lwt.return ()
     end in

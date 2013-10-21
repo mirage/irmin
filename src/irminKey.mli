@@ -16,9 +16,34 @@
 
 (** Implementation of keys *)
 
-open IrminTypes
+module type S = sig
 
-type sha1 = private SHA1 of string
+  (** Signature for keys. *)
 
+  include IrminBase.S
+
+  val of_bytes: string -> t
+  (** Compute a key from a sequence of bytes. *)
+
+  val of_bar: IrminBuffer.t -> t
+  (** Compute a key from a bigbuffer. *)
+
+  val to_hex: t -> string
+  (** Convert a key to an hexa representation. *)
+
+  val of_hex: string -> t
+  (** Convert an hexa representation to a key. *)
+
+  val concat: t list -> t
+  (** Compute a key from a list of keys. *)
+
+  val length: t -> int
+  (** Compute the key length. *)
+
+  module Graph: IrminGraph.S with type Vertex.t = t
+  (** Graph of keys *)
+
+end
+
+module SHA1: S with type t = private string
 (** SHA1 keys *)
-module SHA1: KEY with type t = sha1

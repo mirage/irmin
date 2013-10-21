@@ -14,39 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception Conflict
-
 module type S = sig
-  include IrminBase.S
-  val merge: old:t -> t -> t
-end
-
-
-module String  = struct
-
-  let debug fmt = IrminLog.debug "VALUE" fmt
-
-  module S = IrminBase.PrivateString
-
-  include S
-
-  let name = "value"
-
-  type key = K.t
-
-  let dump = to_string
-
-  let create = of_string
-
-  let key v =
-    K.of_string (to_string v)
-
-  (* Simple scheme where we keep only the most recently changed
-     string *)
-  let merge ~old t1 t2 =
-    if S.compare t1 t2 = 0 then t1
-    else if S.compare old t1 = 0 then t2
-    else if S.compare old t2 = 0 then t1
-    else raise Conflict
-
+  type t
+  type node
+  type label
+  type contents
+  val add: t -> ?contents:contents -> (label * node) list -> node
+  val contents: t -> node -> key * contents option Lwt.t
+  val pred: t -> node -> (key * node Lwt.t) list
+  val read: t -> key -> node Lwt.t
+  val write: t -> key -> node -> unit Lwt.t
+  module Graph: IrminGraph with type Vertex.t = node
+  val graph: t -> ?min:key list -> ?max:key list -> unit -> Graph.t Lwt.t
 end

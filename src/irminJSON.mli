@@ -29,6 +29,7 @@ type t =
 
 val of_buffer: Buffer.t -> t
 val to_buffer: Buffer.t -> t -> unit
+val pretty: t -> string
 
 (** {2 of JSON} *)
 

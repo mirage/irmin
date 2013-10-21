@@ -16,9 +16,43 @@
 
 (** Tags *)
 
-open IrminTypes
+(** Main signature *)
+module type S = sig
 
-(** Basic types *)
-type tag = T of string
+  include IrminBase.S
 
-include TAG with type t = tag
+  (** Convert a tag to a suitable name *)
+  val to_string: t -> string
+
+  (** Convert a name to a tag *)
+  val of_string: string -> t
+
+end
+
+module Simple: S with type t = private string
+
+module type SYNC = sig
+
+  type t
+  (** Type for remote Irminsule connections. *)
+
+  type tag
+  (** Type for tags. *)
+
+  type path
+  (** Type for paths. *)
+
+  type revision
+  (** Type for revision. *)
+
+  type tree
+  (** Type for trees. *)
+
+  val watch: t -> (tag * path) -> (revision -> path -> tree -> unit Lwt.t) -> unit Lwt.t
+  (** Watch for changes for a given set of tags and path of
+      labels. Call a callback on ([revision] * [path'] * [tree]),
+      where [revision] is the new revision pointed by [tag] where the
+      subtree [tree] pointing by [path'] has been updated. Note:
+      [path] is necessary a sprefix of [path']. *)
+
+end

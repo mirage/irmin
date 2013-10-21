@@ -1,4 +1,5 @@
 (*
+ * Copyright (c) 2013 Louis Gesbert     <louis.gesbert@ocamlpro.com>
  * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -14,39 +15,37 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception Conflict
+(** Tree-like structures of values. *)
 
 module type S = sig
-  include IrminBase.S
-  val merge: old:t -> t -> t
-end
 
+  type revision
+  (** Type of revisions. *)
 
-module String  = struct
+  type value
+  (** Type of valuse. *)
 
-  let debug fmt = IrminLog.debug "VALUE" fmt
+  include IrminBase.STORE with type value := revision
 
-  module S = IrminBase.PrivateString
+  val create: ?value:value -> revision list -> revision
+  (** Create a new revision. *)
 
-  include S
+  val write: t -> revision -> key -> unit Lwt.t
+      (** *)
 
-  let name = "value"
-
-  type key = K.t
-
-  let dump = to_string
-
-  let create = of_string
-
-  let key v =
-    K.of_string (to_string v)
-
-  (* Simple scheme where we keep only the most recently changed
-     string *)
-  let merge ~old t1 t2 =
-    if S.compare t1 t2 = 0 then t1
-    else if S.compare old t1 = 0 then t2
-    else if S.compare old t2 = 0 then t1
-    else raise Conflict
+  val read: t -> key -> revision option Lwt.t
 
 end
+
+
+(** Create an implementation for trees using [K] as keys and [S] as
+    store.. *)
+module Make
+    (S: IrminBase.STORE with type value = IrminBuffer.S)
+    (V: IrminValue.Store):
+  S with type key = S.key
+
+module Simple: S with type key = IrminKey.SHA1.t
+(** Simple tree implementation where keys are SHA1 of values. *)
+
+(** {2 Store} *)

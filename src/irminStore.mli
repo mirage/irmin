@@ -14,13 +14,34 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Various containers. *)
+(** {2 Irminsule stores} *)
 
-open IrminTypes
+module type S = sig
 
-(** Overwrite stdlib's [Set.Make] *)
-module Set (B: BASE): SET with type elt = B.t
+  (** Base types for stores. *)
 
-(** Create a graph *)
-module Graph (B: BASESET): GRAPH with type Vertex.t = B.t
-                                  and type Vertex.Set.t = B.Set.t
+  type t
+  (** Type of stores. *)
+
+  type key
+  (** Type of keys. *)
+
+  type value
+  (** Type of values. *)
+
+  val write: t -> key -> value -> unit Lwt.t
+  (** Write the contents of a buffer to the store. *)
+
+  val read: t -> key -> value option Lwt.t
+  (** Read a value from the store. *)
+
+  val list: t -> key list Lwt.t
+  (** List of the keys. *)
+
+end
+
+module type RAW = S with type value := IrminBuffer.t
+(** Raw store. *)
+
+module Make (R: RAW) (B: IrminBase.S): S with type value = B.t
+(** Lift a raw store to a more structured one *)

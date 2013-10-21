@@ -139,12 +139,11 @@ module type CLIENT = sig
   module Sync: SYNC with type t = t
 end
 
-module Client (C: CORE) = struct
+module Make_client (C: CORE) = struct
 
-  open C
   open IrminIO
 
-  module XKey = Channel(Key)
+  module XKey = Channel(C.Key)
   module XKeys = Channel(Key.Set)
   module XKeyKeys = Channel(Pair(Key)(XKeys))
   module XKeyPair = Channel(Pair(Key)(Key))
@@ -180,7 +179,7 @@ module Client (C: CORE) = struct
 
   module Types = struct
 
-    type t = unit -> Lwt_channel.t Lwt.t
+    type t = unit -> C.Channel.t Lwt.t
 
     module C = C
 
@@ -194,7 +193,7 @@ module Client (C: CORE) = struct
 
   include Types
 
-  let read_unit = Lwt_channel.read_unit
+  let read_unit = C.Channel.read_unit
 
   module Key_store = struct
 
@@ -307,7 +306,6 @@ module Server (S: STORE) = struct
   module State = S
 
   module C = S.C
-  open C
 
   type t = Lwt_channel.t
 

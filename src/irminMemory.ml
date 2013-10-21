@@ -14,9 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminTypes
-
-module Key_store (C: CORE) = struct
+module Make_key_store (C: CORE) = struct
 
   module C = C
   open C
@@ -52,7 +50,7 @@ module Key_store (C: CORE) = struct
 
 end
 
-module Value_store (C: CORE) = struct
+module Make_value_store (C: CORE) = struct
 
   module C = C
   open C
@@ -74,7 +72,7 @@ module Value_store (C: CORE) = struct
 
 end
 
-module Tag_store (C: CORE) = struct
+module Make_tag_store (C: CORE) = struct
 
   module C = C
   open C
@@ -112,9 +110,10 @@ end
 
 module Make (C: CORE) = struct
   module C = C
-  module Key_store = Key_store(C)
-  module Value_store = Value_store(C)
-  module Tag_store = Tag_store(C)
+  module Key_store = Make_key_store(C)
+  module Value_store = Make_value_store(C)
+  module Tag_store = Make_tag_store(C)
+  let name = "<in-memory>"
   type t = {
     k: Key_store.t;
     v: Value_store.t;
@@ -129,3 +128,7 @@ module Make (C: CORE) = struct
     t = Tag_store.create ();
   }
 end
+
+let create () =
+  let module M = Make(IrminStore.Core) in
+  (module M)

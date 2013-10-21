@@ -14,39 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception Conflict
+let debug_mode =
+  let debug =
+    try match Sys.getenv "IRMIN_DEBUG" with "" | "0" -> false | _ -> true
+    with Not_found -> false in
+  ref debug
 
-module type S = sig
-  include IrminBase.S
-  val merge: old:t -> t -> t
-end
+let set_debug_mode b =
+  debug_mode := b
 
+let debug_enabled () =
+  !debug_mode
 
-module String  = struct
+let debug section fmt =
+  if !debug_mode then
+    Printf.fprintf stderr ("\027[36m%15s\027[m "^^fmt^^"\n%!") section
+  else
+    Printf.ifprintf stderr fmt
 
-  let debug fmt = IrminLog.debug "VALUE" fmt
+let info section fmt =
+  if !debug_mode then
+    Printf.fprintf stderr ("\027[33m%15s\027[m "^^fmt^^"\n%!") section
+  else
+    Printf.ifprintf stderr fmt
 
-  module S = IrminBase.PrivateString
-
-  include S
-
-  let name = "value"
-
-  type key = K.t
-
-  let dump = to_string
-
-  let create = of_string
-
-  let key v =
-    K.of_string (to_string v)
-
-  (* Simple scheme where we keep only the most recently changed
-     string *)
-  let merge ~old t1 t2 =
-    if S.compare t1 t2 = 0 then t1
-    else if S.compare old t1 = 0 then t2
-    else if S.compare old t2 = 0 then t1
-    else raise Conflict
-
-end
+let error section fmt =
+  Printf.kprintf (fun str ->
+      Printf.eprintf "\027[31m%15s\027[m Error: %s\n%!" section str
+    ) fmt

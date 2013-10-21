@@ -14,69 +14,65 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type sha1 = SHA1 of string
+
+module type S = sig
+  include IrminBase.S
+  val of_bytes: string -> t
+  val of_ba: IrminBuffer.t -> t
+  val to_hex: t -> string
+  val of_hex: string -> t
+  val concat: t list -> t
+  val length: t -> int
+  module Graph: IrminGraph.S with type Vertex.t = t
+end
 
 module SHA1 = struct
 
-  let debug fmt = IrminMisc.debug "SHA1" fmt
+  let debug fmt = IrminLog.debug "SHA1" fmt
 
-  let key_length = 20
+  module Key = struct
 
-  module T = struct
+    include IrminBase.PrivateString
 
-    type t = sha1
+    let name = "key"
 
-    let compare (SHA1 k1) (SHA1 k2) = String.compare k1 k2
-
-    let hash (SHA1 k) = Hashtbl.hash k
-
-    let equal (SHA1 k1) (SHA1 k2) = String.compare k1 k2 = 0
-
-    let pretty (SHA1 k) =
-      Printf.sprintf "%s" (IrminMisc.hex_encode k)
-
-    let to_json (SHA1 k) =
-      IrminJSON.of_string k
-
-    let of_json j =
-      SHA1 (IrminJSON.to_string j)
+    let key_length = 20
 
     let sizeof _ =
       debug "sizeof";
       key_length
 
     let get buf =
-      let str = IrminIO.get_string buf key_length in
-      SHA1 str
+      debug "get";
+      let str = IrminBuffer.get_string buf key_length in
+      debug " ... get %s" str;
+      of_string str
 
-    let set buf (SHA1 str) =
-      IrminIO.set_string buf str
+    let set buf t =
+      debug "set %s" (pretty t);
+      let str = to_string t in
+      IrminBuffer.set_string buf str
 
   end
 
-  module Set = IrminContainer.Set(T)
+  module Graph = IrminGraph.Make(Key)
 
-  module Graph = IrminContainer.Graph(struct
-      include T
-      module Set = Set
-    end)
-
-  include T
+  include Key
 
   let of_string str =
-    SHA1 (IrminMisc.sha1 str)
+    Key.of_string (IrminMisc.sha1 str)
 
-  let to_hex (SHA1 str) =
-    IrminMisc.hex_encode str
+  let to_hex key =
+    IrminMisc.hex_encode (Key.to_string key)
 
   let of_hex hex =
-    SHA1 (IrminMisc.hex_decode hex)
+    Key.of_string (IrminMisc.hex_decode hex)
 
   let concat l =
-    let l = List.fold_left (fun acc (SHA1 s) -> s :: acc) [] l in
+    let l = List.fold_left (fun acc s -> Key.to_string s :: acc) [] l in
     let s = String.concat "" (List.sort String.compare l) in
     of_string s
 
-  let length (SHA1 _) = key_length
+  let length _ = key_length
 
 end

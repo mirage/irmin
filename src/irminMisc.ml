@@ -50,32 +50,3 @@ let sha1 str =
   let hash = Cryptokit.Hash.sha1 () in
   hash#add_string str;
   hash#result
-
-let debug_mode =
-  let debug =
-    try match Sys.getenv "IRMIN_DEBUG" with "" | "0" -> false | _ -> true
-    with Not_found -> false in
-  ref debug
-
-let set_debug_mode b =
-  debug_mode := b
-
-let debug_enabled () =
-  !debug_mode
-
-let debug section fmt =
-  if !debug_mode then
-    Printf.fprintf stderr ("\027[36m%15s\027[m "^^fmt^^"\n%!") section
-  else
-    Printf.ifprintf stderr fmt
-
-let info section fmt =
-  if !debug_mode then
-    Printf.fprintf stderr ("\027[33m%15s\027[m "^^fmt^^"\n%!") section
-  else
-    Printf.ifprintf stderr fmt
-
-let error section fmt =
-  Printf.kprintf (fun str ->
-      Printf.eprintf "\027[31m%15s\027[m Error: %s\n%!" section str
-    ) fmt
