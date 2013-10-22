@@ -15,94 +15,116 @@
  *)
 
 module type STORE = sig
+  type t
   type tree
-  type revision
-  module Graph: IrminGraph.S with type Vertex.t = revision
-  include IrminStore.S with type value := tree
-  val create: t -> ?tree:key -> key list -> revision
-  val tree: t -> (key * tree Lwt.t) option
-  val parents: t -> (key * tree Lwt.t) list
-  val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
+  module Graph: IrminGraph.S with type Vertex.t = t
+  include IrminStore.S with type value := t
+  val create: ?tree:key -> key list -> t
+  val tree: t -> tree Lwt.t option
+  val parents: t -> t Lwt.t list
+  val cut: ?roots:key list -> key list -> Graph.t Lwt.t
 end
 
 module Make
     (S: IrminStore.RAW)
     (K: IrminKey.S)
-    (T: IrminTree.STORE) =
+    (T: IrminTree.STORE with type key = K.t) =
 struct
 
-  type t = {
-    t: T.t;
-    r: S.t;
-  }
+  open Lwt
 
-  type key = K.t
+  module Revision = struct
 
-  type revision = {
-    tree   : key option;
-    parents: key list;
-  }
+    type t = {
+      tree   : K.t option;
+      parents: K.t list;
+    }
 
-  let key t =
-    let keys = match t.tree with
-      | None   -> t.parents
-      | Some k -> k :: t.parents in
-    K.concat keys
+    module XTree = struct
+      include IrminBase.Option(K)
+      let name = "tree"
+    end
+    module XParents = struct
+      include IrminBase.List(K)
+      let name = "parents"
+    end
+    module XRevision = struct
+      include IrminBase.Pair(XTree)(XParents)
+      let name = "revision"
+    end
 
-  let parents t = t.parents
+    let name = XRevision.name
 
-  let tree t = t.tree
+    let set buf t =
+      XRevision.set buf (t.tree, t.parents)
+
+    let get buf =
+      let tree, parents = XRevision.get buf in
+      { tree; parents }
+
+    let sizeof t =
+      XRevision.sizeof (t.tree, t.parents)
+
+    let to_json t =
+      XRevision.to_json (t.tree, t.parents)
+
+    let of_json j =
+      let tree, parents = XRevision.of_json j in
+      { tree; parents }
+
+    let dump t =
+      XRevision.dump (t.tree, t.parents)
+
+    let pretty t =
+      XRevision.pretty (t.tree, t.parents)
+
+    let hash t =
+      XRevision.hash (t.tree, t.parents)
+
+    let compare t1 t2 =
+      XRevision.compare (t1.tree, t1.parents) (t2.tree, t2.parents)
+
+    let equal t1 t2 =
+      compare t1 t2 = 0
+
+  end
+
+  module Store = IrminStore.Make(S)(K)(Revision)
+
+  module Graph = IrminGraph.Make(Revision)
+
+  include Revision
+
+  include (Store: module type of Store with type value := t)
+
+  type tree = T.t
+
+  let tree t =
+    match t.tree with
+    | None   -> None
+    | Some k -> Some (T.read_exn k)
 
   let create ?tree parents =
     { tree; parents }
 
-  module XTree = struct
-    include IrminBase.Option(K)
-    let name = "tree"
-  end
-  module XParents = struct
-    include IrminBase.List(K)
-    let name = "parents"
-  end
-  module XRevision = struct
-    include IrminBase.Pair(XTree)(XParents)
-    let name = "revision"
-  end
+  let parents t =
+    List.map (fun k ->
+        S.read_exn (K.dump k) >>= fun b ->
+        return (Revision.get b)
+      ) t.parents
 
-  let name = XRevision.name
-
-  let set buf t =
-    XRevision.set buf (t.tree, t.parents)
-
-  let get buf =
-    let tree, parents = XRevision.get buf in
-    { tree; parents }
-
-  let sizeof t =
-    XRevision.sizeof (t.tree, t.parents)
-
-  let to_json t =
-    XRevision.to_json (t.tree, t.parents)
-
-  let of_json j =
-    let tree, parents = XRevision.of_json j in
-    { tree; parents }
-
-  let dump t =
-    XRevision.dump (t.tree, t.parents)
-
-  let pretty t =
-    XRevision.pretty (t.tree, t.parents)
-
-  let hash t =
-    XRevision.hash (t.tree, t.parents)
-
-  let compare t1 t2 =
-    XRevision.compare (t1.tree, t1.parents) (t2.tree, t2.parents)
-
-  let equal t1 t2 =
-    compare t1 t2 = 0
+  let cut ?roots keys =
+    Lwt_list.map_p read_exn keys >>= fun keys ->
+    let pred t =
+      Lwt_list.map_p
+        (fun r -> r)
+        (parents t) in
+    let (keys: t list) = keys in
+    let aux roots =
+      let (roots: t list option) = roots in
+      Graph.closure ?roots pred keys in
+    match roots with
+    | None    -> aux None
+    | Some ks -> Lwt_list.map_p read_exn ks >>= fun ts -> aux (Some ts)
 
 end
-
-module Simple = Make(IrminKey.SHA1)

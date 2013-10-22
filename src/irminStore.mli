@@ -32,6 +32,13 @@ module type S = sig
   val read: key -> value option Lwt.t
   (** Read a value from the store. *)
 
+  val read_exn: key -> value Lwt.t
+  (** Read a value from the store. Raise [Not_found k] if [k] does not
+      have an associated value. *)
+
+  val mem: key -> bool Lwt.t
+  (** Check if a key exists. *)
+
 end
 
 module type RAW = S

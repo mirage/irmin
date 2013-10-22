@@ -21,43 +21,43 @@ module type STORE = sig
 
   (** Tree stores. *)
 
-  type tree
+  type t
   (** Type of tree nodes. *)
 
-  include IrminStore.S with type value := tree
+  include IrminStore.S with type value := t
 
   type value
   (** Type of values. *)
 
-  val empty: tree
+  val empty: t
   (** The empty tree. *)
 
-  val create: ?value:key -> (string * key) list -> tree
+  val create: ?value:key -> (string * key) list -> t
   (** Create a new node. *)
 
-  val value: tree -> value Lwt.t option
+  val value: t -> value Lwt.t option
   (** Return the contents. *)
 
-  val children: tree -> (string * tree Lwt.t) list
+  val children: t -> (string * t Lwt.t) list
   (** Return the child nodes. *)
 
-  val sub: tree -> string list -> tree option Lwt.t
+  val sub: t -> string list -> t option Lwt.t
   (** Find a subtree. *)
 
-  val add: tree -> string list -> value -> tree Lwt.t
+  val add: t -> string list -> value -> t Lwt.t
   (** Add a value by recusively saving subtrees and subvalues into the
       corresponding stores. *)
 
-  val find: tree -> string list -> value Lwt.t
+  val find: t -> string list -> value Lwt.t
   (** Find a value. *)
 
-  val remove: tree -> string list -> tree Lwt.t
+  val remove: t -> string list -> t Lwt.t
   (** Remove a value. *)
 
-  val mem: tree -> string list -> bool Lwt.t
+  val mem: t -> string list -> bool Lwt.t
   (** Is a path valid. *)
 
-  val iter: (string list -> value -> unit Lwt.t) -> tree -> unit Lwt.t
+  val iter: (string list -> value -> unit Lwt.t) -> t -> unit Lwt.t
   (** Iter on all tree nodes containing a value, top-down. *)
 
 end

@@ -37,14 +37,14 @@ module type S = sig
   (** Get all the relations. *)
   val edges: t -> (vertex * vertex) list
 
-  (** [make keys ~sources ~sinks pred ()] creates a graph contening at
-      most the given keys, with the given [sources] and
-      [sinks]. [pred] is used to compute the vertex relations of the
-      resulting graph. *)
-  val make: vertex list
-    -> ?sources:vertex list
-    -> ?sinks:vertex list
-    -> (vertex -> vertex list Lwt.t)
+  (** [closure ?roots keys pred] creates the clansitive closure of
+      [keys] using the precedence relation [pred]. If [roots] is set,
+      only consider the closure containing min elements in [roots];
+      otherwise, build the complete closure. *)
+  val closure:
+    (vertex -> vertex list Lwt.t)
+    -> ?roots:vertex list
+    -> vertex list
     -> t Lwt.t
 
   (** [output g tags name] dumps the graph contents [g], which the

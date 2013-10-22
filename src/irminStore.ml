@@ -19,6 +19,8 @@ module type S = sig
   type value
   val write: value -> key Lwt.t
   val read: key -> value option Lwt.t
+  val read_exn: key -> value Lwt.t
+  val mem: key -> bool Lwt.t
 end
 
 module type RAW = S
@@ -39,6 +41,11 @@ module Make (S: RAW) (K: IrminKey.S) (V: IrminBase.S) = struct
     | None   -> Lwt.return None
     | Some b -> Lwt.return (Some (V.get b))
 
+  let read_exn k =
+    read k >>= function
+    | None   -> fail (K.Not_found k)
+    | Some v -> return v
+
   let key v =
     K.create (V.dump v)
 
@@ -47,5 +54,8 @@ module Make (S: RAW) (K: IrminKey.S) (V: IrminBase.S) = struct
     V.set buf v;
     S.write buf >>= fun k ->
     return (K.create k)
+
+  let mem k =
+    S.mem (K.dump k)
 
 end

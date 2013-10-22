@@ -23,10 +23,9 @@ module type S = sig
   end
   val vertex: t -> vertex list
   val edges: t -> (vertex * vertex) list
-  val make: vertex list
-    -> ?sources:vertex list
-    -> ?sinks:vertex list
-    -> (vertex -> vertex list Lwt.t)
+  val closure: (vertex -> vertex list Lwt.t)
+    -> ?roots:vertex list
+    -> vertex list
     -> t Lwt.t
   val output: t ->
     ?labels:(vertex * string) list ->
@@ -54,15 +53,12 @@ module Make (B: IrminBase.S) = struct
   let edges g =
     G.fold_edges (fun k1 k2 list -> (k1,k2) :: list) g []
 
-  let make keys ?sources ?sinks pred =
-    let keys = match sinks with
-      | None      -> keys
-      | Some keys -> keys in
-    let g = G.create ~size:(List.length keys) () in
+  let closure pred ?roots keys =
+    let g = G.create ~size:1024 () in
     let marks = Hashtbl.create 1024 in
     let mark key = Hashtbl.add marks key true in
     let has_mark key = Hashtbl.mem marks key in
-    let () = match sources with
+    let () = match roots with
       | None      -> ()
       | Some keys ->
         List.iter mark keys;

@@ -16,19 +16,19 @@
  *)
 
 module type STORE = sig
-  type tree
-  include IrminStore.S with type value := tree
+  type t
+  include IrminStore.S with type value := t
   type value
-  val empty: tree
-  val create: ?value:key -> (string * key) list -> tree
-  val value: tree ->  value Lwt.t option
-  val children: tree -> (string * tree Lwt.t) list
-  val sub: tree -> string list -> tree option Lwt.t
-  val add: tree -> string list -> value -> tree Lwt.t
-  val find: tree -> string list -> value Lwt.t
-  val remove: tree -> string list -> tree Lwt.t
-  val mem: tree -> string list -> bool Lwt.t
-  val iter: (string list -> value -> unit Lwt.t) -> tree -> unit Lwt.t
+  val empty: t
+  val create: ?value:key -> (string * key) list -> t
+  val value: t ->  value Lwt.t option
+  val children: t -> (string * t Lwt.t) list
+  val sub: t -> string list -> t option Lwt.t
+  val add: t -> string list -> value -> t Lwt.t
+  val find: t -> string list -> value Lwt.t
+  val remove: t -> string list -> t Lwt.t
+  val mem: t -> string list -> bool Lwt.t
+  val iter: (string list -> value -> unit Lwt.t) -> t -> unit Lwt.t
 end
 
 module Make
@@ -39,35 +39,12 @@ struct
 
   open Lwt
 
-  type value = V.value
-
-  type tree = {
-    value   : K.t option;
-    children: (string * K.t) list;
-  }
-
-  let empty = {
-    value = None;
-    children = [];
-  }
-
-  let create ?value children =
-    let read k =
-      S.read (K.dump k) >>= function
-      | None   -> fail Not_found
-      | Some v -> return v in
-    { value; children }
-
-  let value t =
-    match t.value with
-    | None   -> None
-    | Some k -> Some (
-        V.read k >>= function
-        | None   -> fail (K.Not_found k)
-        | Some v -> return v
-      )
-
   module Tree = struct
+
+    type t = {
+      value   : K.t option;
+      children: (string * K.t) list;
+    }
 
     module XValue = struct
       include IrminBase.Option(K)
@@ -83,8 +60,6 @@ struct
       include IrminBase.Pair(XValue)(XChildren)
       let name = "tree"
     end
-
-    type t = tree
 
     let name = XTree.name
 
@@ -132,17 +107,33 @@ struct
 
   module Store = IrminStore.Make(S)(K)(Tree)
 
-  include (Store: module type of Store with type value := tree)
+  include Tree
+
+  include (Store: module type of Store with type value := Tree.t)
+
+  type value = V.value
+
+  let empty = {
+    value = None;
+    children = [];
+  }
+
+  let create ?value children =
+    { value; children }
+
+  let value t =
+    match t.value with
+    | None   -> None
+    | Some k -> Some (V.read_exn k)
 
   let children t =
     List.map (fun (l, k) ->
         l,
-        S.read (K.dump k) >>= function
-        | None   -> fail (K.Not_found k)
-        | Some b -> return (Tree.get b)
+        S.read_exn (K.dump k) >>= fun b ->
+        return (Tree.get b)
       ) t.children
 
-  let child t label: tree Lwt.t option =
+  let child t label =
     try Some (List.assoc label (children t))
     with Not_found -> None
 
@@ -205,7 +196,7 @@ struct
     in
     aux [] children
 
-  let map_subtree (t:tree) (path:string list) (f:tree -> tree) =
+  let map_subtree t path f =
     let rec aux t = function
       | []      -> return (f t)
       | h :: tl ->
@@ -223,7 +214,5 @@ struct
   let add tree path value =
     V.write value >>= fun k ->
     map_subtree tree path (fun t -> { t with value = Some k })
-
-  include Tree
 
 end
