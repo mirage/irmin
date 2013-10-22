@@ -16,28 +16,60 @@
 
 (** Tags *)
 
-(** Main signature *)
 module type S = sig
+
+  (** Signature for tags. Tags are supposed to be easily convertible
+      to and from string. *)
 
   include IrminBase.S
 
-  (** Convert a tag to a suitable name *)
   val to_string: t -> string
+  (** Convert a tag to a suitable name *)
 
-  (** Convert a name to a tag *)
   val of_string: string -> t
+  (** Convert a name to a tag *)
 
 end
 
 module Simple: S with type t = private string
+(** Simple tags. *)
 
-module type SYNC = sig
+(** {2 Store} *)
+
+module type STORE = sig
+
+  (** The *tag store* is a key/value store, where keys are names
+      created by users (and/or global names created by convention) and
+      values are keys from the low-level data-store. The tag data-store
+      is neither immutable nor consistent, so it is very different from
+      the low-level one.
+
+      A typical Irminsule application should have a very low number of
+      keys, are this store is not supposed to be really efficient.  *)
 
   type t
-  (** Type for remote Irminsule connections. *)
+  (** Database handler *)
 
   type tag
-  (** Type for tags. *)
+  (** Type of tags. *)
+
+  type key
+  (** Type of keys. *)
+
+  val update: t -> tag -> key list -> unit Lwt.t
+  (** Update a tag. If the tag does not exist before, just create a
+      new tag. *)
+
+  val remove: t -> tag -> unit Lwt.t
+  (** Remove a tag. *)
+
+  val read: t -> tag -> key list Lwt.t
+  (** Read a tag. *)
+
+  val all: t -> tag list Lwt.t
+  (** List all the available tags. *)
+
+  (** {2 Event notifications} *)
 
   type path
   (** Type for paths. *)
@@ -48,7 +80,7 @@ module type SYNC = sig
   type tree
   (** Type for trees. *)
 
-  val watch: t -> (tag * path) -> (revision -> path -> tree -> unit Lwt.t) -> unit Lwt.t
+  val watch: t -> tag * path -> (revision -> path -> tree -> unit Lwt.t) -> unit Lwt.t
   (** Watch for changes for a given set of tags and path of
       labels. Call a callback on ([revision] * [path'] * [tree]),
       where [revision] is the new revision pointed by [tag] where the

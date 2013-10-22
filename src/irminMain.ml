@@ -15,7 +15,7 @@
  *)
 
 open Cmdliner
-open IrminStore.Simple
+open Irmin.Simple
 
 let global_option_section = "COMMON OPTIONS"
 
@@ -33,12 +33,12 @@ let tag_conv =
 
 let source_conv =
   let parse str =
-    if str = ":" then `Ok (IrminMemory.create ())
+    if str = ":" then `Ok (Irmin.memory ())
     else if Sys.file_exists str && not (Sys.is_directory str) then
-      `Ok (IrminRemote.client str)
+      `Ok (Irmin.client str)
     else
-      `Ok (IrminFS.create str) in
-  let print ppf (module S: IrminStore.S) =
+      `Ok (Irmin.fs str) in
+  let print ppf (module S: Irmin.STORE) =
     pr_str ppf S.name in
   parse, print
 
@@ -51,7 +51,7 @@ let queue ?(source=["s";"source"]) () =
   let source =
     let doc =
       Arg.info ~docv:"SOURCE" ~doc:"Queue source." source in
-    Arg.(value & opt source_conv (IrminFS.create ".irmin") & doc) in
+    Arg.(value & opt source_conv (Irmin.fs ".irmin") & doc) in
   let in_memory =
     let doc = Arg.info ~doc:"In-memory source. Equivalent to `source :`"
         ["m";"in-memory"] in
@@ -65,7 +65,7 @@ let queue ?(source=["s";"source"]) () =
       Arg.info ~docv:"BACK" ~doc:"Tags of back elements." ["b";"back"] in
     Arg.(value & opt tag_conv IrminQueue.default_back & doc) in
   let create front back source in_memory =
-    let source = if in_memory then IrminMemory.create () else source in
+    let source = if in_memory then Irmin.memory () else source in
     IrminQueue.create ~front ~back source in
   Term.(pure create $ front $ back $ source $ in_memory)
 

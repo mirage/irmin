@@ -22,8 +22,8 @@ module type S = sig
   (** Type of keys *)
   module Vertex: IrminBase.S
 
-  (** Mutable directed graph *)
-  include Graph.Sig.I with type V.t = Vertex.t
+  (** Immutable directed graph *)
+  include Graph.Sig.P with type V.t = Vertex.t
   include Graph.Oper.S with type g := t
 
   (** Topoogical traversal *)

@@ -17,43 +17,27 @@
 (** Remote client/server *)
 
 (** Signature for clients *)
-module type CLIENT = sig
+module type STORE = sig
 
   type channel
 
-  (** Clients communicate with servers using file descriptors. *)
-  type t = unit -> channel Lwt.t
-
-  (** Clients transparentely access the server store. *)
-  include IrminStore.S with type t := t
-                        and type Key_store.t = t
-                        and type Value_store.t = t
-                        and type Tag_store.t = t
-
-  (** And they also got synchronization operations. *)
-  module Sync: IrminSync.S with type t := t
+  include Irmin.STORE with type t = unit -> channel
 
 end
-
-(** Client implementation (eg. needs a server on the other side of the
-    channel) *)
-module Make_client (C: IrminStore.CORE): CLIENT with module Core = C
-
-val client: string -> (module IrminStore.S)
 
 (** Signature for servers *)
 module type SERVER = sig
 
   (** Servers communicate with clients using file descriptors. *)
-  type t
+  type channel
 
   (** How the server manage its state. *)
-  module State: IrminStore.S
+  module State: Irmin.STORE
 
   (** Run the server thread *)
-  val run: State.t -> ?timeout:float -> t -> unit Lwt.t
+  val run: State.t -> ?timeout:float -> channel -> unit Lwt.t
 
 end
 
 (** Implementation of servers. *)
-module Server (S: IrminStore.S): SERVER with module State = S
+module Server (S: Irmin.STORE): SERVER with module State = S

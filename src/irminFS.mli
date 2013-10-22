@@ -16,27 +16,13 @@
 
 (** Disk persistence *)
 
-(** Disk-related errors. *)
 exception Error of string
+(** Disk-related errors. *)
 
-(** Main signature *)
-module type S = sig
+include IrminStore.RAW
 
-  (** A disk store is a global store. *)
-  include IrminStore.S
+val create: string -> t Lwt.t
+(** Initialize a disk. *)
 
-  (** Initialize a disk. *)
-  val init: string -> unit Lwt.t
-
-  (** Dump the disk state to stdout. *)
-  val dump: t -> unit Lwt.t
-
-end
-
-(** Functor to create an on-disk Irminsule instance.*)
-module Make (C: IrminStore.CORE) (FD: IrminChannel.S):
-  S with type t = FD.t
-     and module Core = C
-
-(** Create a filesystem store, using a given directory name. *)
-val create: string -> (module IrminStore.S)
+(** Dump the disk state to stdout. *)
+val dump: t -> unit Lwt.t

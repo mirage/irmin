@@ -27,27 +27,12 @@ let warning fmt =
       Printf.eprintf "%s\n%!" str
     ) fmt
 
-module type S = sig
-  type t
-  include IrminStore.S with type t := t
-                        and type Key_store.t = t
-                        and type Value_store.t = t
-                        and type Tag_store.t = t
-  val create: string -> t
-  val init: string -> unit Lwt.t
-  val dump: t -> unit Lwt.t
-end
+let debug fmt = IrminLog.debug "DISK" fmt
 
-module Make (C: IrminStore.CORE) (FD: IrminChannel.S) = struct
-
-  let debug fmt = IrminLog.debug "DISK" fmt
-
-  open C
-
-  module XKey = IrminChannel.Make(Key)(FD)
-  module XKeys = IrminChannel.Make(IrminBase.List(Key))(FD)
-  module XValue = IrminChannel.Make(Value)(FD)
-  module KeySet = IrminSet.Make(Key)
+module XKey = IrminChannel.Make(String)(FD)
+module XKeys = IrminChannel.Make(IrminBase.List(Key))(FD)
+module XValue = IrminChannel.Make(Value)(FD)
+module KeySet = IrminSet.Make(Key)
 
   let (/) = Filename.concat
 

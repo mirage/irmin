@@ -15,16 +15,33 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module type STORE = sig
+  type tree
+  include IrminStore.S
+  val create: t -> ?value:key -> (string * key) list -> tree
+  val value: tree ->  (key * value Lwt.t) option
+  val children: tree -> (string * key * tree Lwt.t) list
+  val subtree: tree -> string list -> tree option Lwt.t
+  val add: tree -> string list -> value -> tree Lwt.t
+  val find: tree -> string list -> value option Lwt.t
+  val remove: tree -> string list -> tree Lwt.t
+  val mem: tree -> string list -> bool Lwt.t
+  val iter: (string list -> value -> unit Lwt.t) -> tree -> unit Lwt.t
+  val iter_all: (string list -> value option -> unit Lwt.t) -> tree -> unit Lwt.t
+end
+
 module Make
-    (S: IrminBase.STORE with type value = IrminBuffer.t)
+    (S: IrminBase.RAW)
+    (K: IrminKey.S)
     (V: IrminValue.Store) =
 struct
 
-  type t = K.t
+  type t = {
+    v: V.t;
+    t: S.t;
+  }
 
   type key = K.key
-
-  type label = string
 
   type node = {
     value   : key option;

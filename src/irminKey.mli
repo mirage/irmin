@@ -25,7 +25,7 @@ module type S = sig
   val of_bytes: string -> t
   (** Compute a key from a sequence of bytes. *)
 
-  val of_bar: IrminBuffer.t -> t
+  val of_ba: IrminBuffer.t -> t
   (** Compute a key from a bigbuffer. *)
 
   val to_hex: t -> string

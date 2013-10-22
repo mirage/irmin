@@ -16,13 +16,13 @@
 
 exception Conflict
 
-module type S = sig
+module type BASE = sig
   include IrminBase.S
   val merge: old:t -> t -> t
 end
 
 
-module String  = struct
+module Simple  = struct
 
   let debug fmt = IrminLog.debug "VALUE" fmt
 

@@ -16,7 +16,7 @@
 
 (** Distributed queues *)
 
-open IrminStore.Simple
+open Irmin.Simple
 
 (** - [front] tags values which are the queue heads. This tag is
     updated on each [Queue.take] by value consummers.
@@ -46,7 +46,7 @@ open IrminStore.Simple
 type t
 
 (** Create a queue of abstract object. *)
-val create: ?front:Tag.t -> ?back:Tag.t -> (module IrminStore.S) -> t
+val create: ?front:Tag.t -> ?back:Tag.t -> (module Irmin.STORE) -> t
 
 (** Default front tag. *)
 val default_front: Tag.t

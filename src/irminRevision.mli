@@ -16,63 +16,42 @@
 
 (** Manage the database history. *)
 
-module type S = sig
+module type STORE = sig
 
   (** The database history is a partial-order of revisions. *)
 
-  include IrminValue.S
-  (** Revisions are values. *)
-
-  type key
-  (** Type of keys.*)
-
   type tree
   (** Type of trees. *)
-
-  val create: ?tree:key -> key list -> t
-  (** Create a new revision. *)
-
-  val tree: t -> key option
-  (** Get the revision tree. *)
-
-  val parents: t -> key list
-  (** Get the immmediate precessors. *)
-
-end
-
-module Make (K: IrminKey.S): S with type key = K.t
-(** Create an implementation of revisions using [K] as keys.. *)
-
-module Simple: S with type key = IrminKey.SHA1.t
-(** Simple implementation where keys are the SHA1 of values. *)
-
-(** {2 Store} *)
-
-module type STORE = sig
-
-  (** The *key store* is graph of keys where you can only add new
-      vertex. *)
-
-  type t
-  (** Database handler. *)
-
-  type key
-  (** Type of keys. *)
 
   type revision
   (** Type of revisions. *)
 
-  type tree
-  (** Type of trees. *)
+  module Graph: IrminGraph.S with type Vertex.t = revision
+  (** Graph of revisions. *)
 
-  val create: t -> ?tree:tree -> revision list -> revision
+  include IrminStore.S with type value := tree
+  (** Revisions are values. *)
+
+  val create: t -> ?tree:key -> key list -> revision
   (** Create a new revision. *)
 
-  val key: revision -> key
-  (** Compute a deterministic key from a revision. *)
+  val tree: t -> (key * tree Lwt.t) option
+  (** Get the revision tree. *)
 
-  val write: t -> revision -> key -> unit Lwt.t
+  val parents: t -> (key * tree Lwt.t) list
+  (** Get the immmediate precessors. *)
 
-  val read: t -> key -> revision option Lwt.t
+  val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
+  (** [cut t max] returns a consistent cut of the partial order, where
+      [max] are the max elements of the cut. If [roots] is set, these are
+      the only minimal elements taken into account. *)
 
 end
+
+module Make
+    (Store: IrminStore.RAW)
+    (K: IrminKey.S)
+    (T: IrminTree.STORE with type key = K.t):
+  STORE with type key = K.t
+         and type tree = T.tree
+(** Create a revision store. *)

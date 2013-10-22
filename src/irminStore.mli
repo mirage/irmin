@@ -40,8 +40,12 @@ module type S = sig
 
 end
 
-module type RAW = S with type value := IrminBuffer.t
-(** Raw store. *)
+(** Raw stores. *)
+module type RAW = S
+  with type key := string
+   and type value := IrminBuffer.t
 
-module Make (R: RAW) (B: IrminBase.S): S with type value = B.t
-(** Lift a raw store to a more structured one *)
+(** Build a typed store. *)
+module Make (R: RAW) (K: IrminKey.S) (V: IrminBase.S):
+  S with type key = K.t
+     and type value = V.t

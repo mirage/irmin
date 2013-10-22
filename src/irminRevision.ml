@@ -14,18 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
-  include IrminValue.S
-  val create: ?tree:key -> key list -> t
-  val tree: t -> key option
-  val parents: t -> key list
+module type STORE = sig
+  type tree
+  type revision
+  module Graph: IrminGraph.S with type Vertex.t = revision
+  include IrminStore.S with type value := tree
+  val create: t -> ?tree:key -> key list -> revision
+  val tree: t -> (key * tree Lwt.t) option.t
+  val parents: t -> (key * tree Lwt.t) list
+  val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
 end
 
-module Make (K: IrminKey.S) = struct
+module Make
+    (S: IrminStore.RAW)
+    (K: IrminKey.S)
+    (T: IrminTree.STORE) =
+struct
+
+  type t = {
+    t: T.t;
+    r: S.t;
+  }
 
   type key = K.t
 
-  type t = {
+  type revision = {
     tree   : key option;
     parents: key list;
   }

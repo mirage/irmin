@@ -25,7 +25,7 @@ end
 
 module type RAW = S with type value := IrminBuffer.t
 
-module Make (R: RAW) (B: IrminBase.S) = struct
+module Make (R: RAW) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 

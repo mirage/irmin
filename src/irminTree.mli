@@ -17,35 +17,50 @@
 
 (** Tree-like structures of values. *)
 
-module type S = sig
+module type STORE = sig
 
-  type revision
-  (** Type of revisions. *)
+  (** Tree stores. *)
 
-  type value
-  (** Type of valuse. *)
+  type tree
+  (** Type of tree nodes. *)
 
-  include IrminBase.STORE with type value := revision
+  include IrminStore.S
 
-  val create: ?value:value -> revision list -> revision
-  (** Create a new revision. *)
+  val create: t -> ?value:key -> (string * key) list -> tree
+  (** Create a new node. *)
 
-  val write: t -> revision -> key -> unit Lwt.t
-      (** *)
+  val value: tree ->  (key * value Lwt.t) option
+  (** Return the contents. *)
 
-  val read: t -> key -> revision option Lwt.t
+  val children: tree -> (string * key * tree Lwt.t) list
+  (** Return the child nodes. *)
+
+  val subtree: tree -> string list -> tree option Lwt.t
+  (** Find a subtree. *)
+
+  val add: tree -> string list -> value -> tree Lwt.t
+  (** Add a value. *)
+
+  val find: tree -> string list -> value option Lwt.t
+  (** Find a value. *)
+
+  val remove: tree -> string list -> tree Lwt.t
+  (** Remove a value. *)
+
+  val mem: tree -> string list -> bool Lwt.t
+  (** Is a path valid. *)
+
+  val iter: (string list -> value -> unit Lwt.t) -> tree -> unit Lwt.t
+  (** Iter on all tree nodes containing a value. *)
+
+  val iter_all: (string list -> value option -> unit Lwt.t) -> tree -> unit Lwt.t
+  (** Iter on all tree nodes. *)
 
 end
 
-
-(** Create an implementation for trees using [K] as keys and [S] as
-    store.. *)
 module Make
-    (S: IrminBase.STORE with type value = IrminBuffer.S)
-    (V: IrminValue.Store):
-  S with type key = S.key
-
-module Simple: S with type key = IrminKey.SHA1.t
-(** Simple tree implementation where keys are SHA1 of values. *)
-
-(** {2 Store} *)
+    (S: IrminStore.RAW)
+    (K: IrminKey.S)
+    (V: IrminValue.STORE with type key = K.t):
+  STORE with type key = K.t
+         and type value = V.value

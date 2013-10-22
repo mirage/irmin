@@ -18,26 +18,6 @@ module type S = sig
 
   (** The *node store* is a graph of keys. *)
 
-  type t
-  (** Type of stores. *)
-
-  type node
-  (** Type of nodes. *)
-
-  type label
-  (** Type of edge labels. *)
-
-  type contents
-  (** Type of contents. *)
-
-  val add: t -> ?contents:contents -> (label * node) list -> node
-  (** Create a new node. *)
-
-  val contents: t -> node -> key * contents option Lwt.t
-  (** Return the contents. *)
-
-  val pred: t -> node -> (key * node Lwt.t) list
-  (** Return the immediate predecessors *)
 
   val read: t -> key -> node Lwt.t
   (** Read a node. *)
@@ -45,7 +25,7 @@ module type S = sig
   val write: t -> key -> node -> unit Lwt.t
   (** Write a node. *)
 
-  module Graph: IrminGraph with type Vertex.t = node
+  module Graph: IrminGraph.S with type Vertex.t = node
   (** Graph of nodes. *)
 
   val graph: t -> ?min:key list -> ?max:key list -> unit -> Graph.t Lwt.t

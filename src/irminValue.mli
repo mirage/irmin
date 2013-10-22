@@ -16,6 +16,8 @@
 
 (** Values. *)
 
+(** {2 Base Values} *)
+
 exception Conflict
 (** Exception raised during merge conflicts. *)
 
@@ -31,13 +33,11 @@ module type S = sig
 
 end
 
-(** Build a value store. *)
+module Simple: sig
 
-module String: sig
-
-  (** String values, where only the last modified value is kept on
-      merge. If the value has been modified concurrently, the [merge]
-      function raises [Conflict]. *)
+  (** String base values, where only the last modified value is kept
+      on merge. If the value has been modified concurrently, the
+      [merge] function raises [Conflict]. *)
 
   include S
 
@@ -45,3 +45,20 @@ module String: sig
   (** Create a value from a string. *)
 
 end
+
+(** {2 Store} *)
+
+module type STORE = sig
+
+  (** Signature of value stores. *)
+
+  include IrminStore.S
+
+  include S with type t := value
+
+end
+
+module Make (S: IrminStore.S) (K: IrminKey.S) (V: S):
+  STORE with type key = K.t
+         and type value = V.t
+(** Create a value store. *)
