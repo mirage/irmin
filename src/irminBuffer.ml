@@ -26,6 +26,9 @@ let of_ba ba =
   let buffer = Cstruct.of_bigarray ba in
  { buffer }
 
+let length t =
+  Cstruct.len t.buffer
+
 let debug fmt = IrminLog.debug "buf" fmt
 
 external unsafe_blit_bigstring_to_string :

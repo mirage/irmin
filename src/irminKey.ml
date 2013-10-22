@@ -17,61 +17,65 @@
 
 module type S = sig
   include IrminBase.S
+  exception Invalid of t
+  exception Not_found of t  val create: string -> t
   val of_bytes: string -> t
-  val of_ba: IrminBuffer.t -> t
+  val of_buffer: IrminBuffer.t -> t
   val to_hex: t -> string
   val of_hex: string -> t
   val concat: t list -> t
   val length: t -> int
-  module Graph: IrminGraph.S with type Vertex.t = t
 end
 
 module SHA1 = struct
 
   let debug fmt = IrminLog.debug "SHA1" fmt
 
-  module Key = struct
+  include IrminBase.String
 
-    include IrminBase.PrivateString
+  exception Invalid of t
 
-    let name = "key"
+  exception Not_found of t
 
-    let key_length = 20
+  let name = "key"
 
-    let sizeof _ =
-      debug "sizeof";
-      key_length
+  let key_length = 20
 
-    let get buf =
-      debug "get";
-      let str = IrminBuffer.get_string buf key_length in
-      debug " ... get %s" str;
-      of_string str
+  let create str =
+    if String.length str = key_length then str
+    else raise (Invalid str)
 
-    let set buf t =
-      debug "set %s" (pretty t);
-      let str = to_string t in
-      IrminBuffer.set_string buf str
+  let sizeof _ =
+    debug "sizeof";
+    key_length
 
-  end
+  let get buf =
+    debug "get";
+    let str = IrminBuffer.get_string buf key_length in
+    debug " ... get %s" str;
+    str
 
-  module Graph = IrminGraph.Make(Key)
+  let set buf t =
+    debug "set %s" (pretty t);
+    IrminBuffer.set_string buf t
 
-  include Key
+  let of_bytes str =
+    IrminMisc.sha1 str
 
-  let of_string str =
-    Key.of_string (IrminMisc.sha1 str)
+  let of_buffer buf =
+    let len = IrminBuffer.length buf in
+    let str = IrminBuffer.get_string buf len in
+    of_bytes str
 
-  let to_hex key =
-    IrminMisc.hex_encode (Key.to_string key)
+  let to_hex t =
+    IrminMisc.hex_encode t
 
   let of_hex hex =
-    Key.of_string (IrminMisc.hex_decode hex)
+    IrminMisc.hex_decode hex
 
   let concat l =
-    let l = List.fold_left (fun acc s -> Key.to_string s :: acc) [] l in
-    let s = String.concat "" (List.sort String.compare l) in
-    of_string s
+    let l = List.fold_left (fun acc s -> s :: acc) [] l in
+    String.concat "" (List.sort String.compare l)
 
   let length _ = key_length
 

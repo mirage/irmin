@@ -28,21 +28,21 @@ module type S = sig
   include IrminBase.S
   (** Base types. *)
 
-  val merge: old: t -> t -> t
+  val merge: old:t -> t -> t -> t
   (** Merge function. *)
 
 end
 
 module Simple: sig
 
-  (** String base values, where only the last modified value is kept
-      on merge. If the value has been modified concurrently, the
-      [merge] function raises [Conflict]. *)
+  (** String values, where only the last modified value is kept on
+      merge. If the value has been modified concurrently, the [merge]
+      function raises [Conflict]. *)
 
-  include S
+  include S with type t = private string
 
   val create: string -> t
-  (** Create a value from a string. *)
+  (** Create a string value. *)
 
 end
 
@@ -58,7 +58,7 @@ module type STORE = sig
 
 end
 
-module Make (S: IrminStore.S) (K: IrminKey.S) (V: S):
+module Make (S: IrminStore.RAW) (K: IrminKey.S) (V: S):
   STORE with type key = K.t
          and type value = V.t
 (** Create a value store. *)

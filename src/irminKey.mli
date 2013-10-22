@@ -22,10 +22,20 @@ module type S = sig
 
   include IrminBase.S
 
+  exception Invalid of t
+  (** Exception raised when a key is not valid. *)
+
+  exception Not_found of t
+  (** Exception raised when no value is associated to a key. *)
+
+  val create: string -> t
+  (** Cast a raw string into a key. Check that the string length is
+      correct. *)
+
   val of_bytes: string -> t
   (** Compute a key from a sequence of bytes. *)
 
-  val of_ba: IrminBuffer.t -> t
+  val of_buffer: IrminBuffer.t -> t
   (** Compute a key from a bigbuffer. *)
 
   val to_hex: t -> string
@@ -39,9 +49,6 @@ module type S = sig
 
   val length: t -> int
   (** Compute the key length. *)
-
-  module Graph: IrminGraph.S with type Vertex.t = t
-  (** Graph of keys *)
 
 end
 

@@ -14,30 +14,38 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module STORE: sig
-  type t
+module type S = sig
   type key
   type value
-  val write: t -> key -> value -> unit Lwt.t
-  val read: t -> key -> value option Lwt.t
-  val list: t -> key list Lwt.t
+  val write: value -> key Lwt.t
+  val read: key -> value option Lwt.t
 end
 
-module type RAW = S with type value := IrminBuffer.t
+module type RAW = S
+  with type key := string
+   and type value := IrminBuffer.t
 
-module Make (R: RAW) (K: IrminKey.S) (V: IrminBase.S) = struct
+module Make (S: RAW) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 
-  let read t k =
-    Store.read t k >>= function
-    | None   -> None
-    | Some b -> Some (Value.get b)
+  type key = K.t
 
-  let write t k v =
-    let ba = IrminBuffer.create_ba (Value.sizeof v) in
-    Value.set ba v >>= fun () ->
-    Store.write t k ba >>= fun () ->
-    Value.get ba
+  type value = V.t
+
+  let read k =
+    let key = K.dump k in
+    S.read key >>= function
+    | None   -> Lwt.return None
+    | Some b -> Lwt.return (Some (V.get b))
+
+  let key v =
+    K.create (V.dump v)
+
+  let write v =
+    let buf = IrminBuffer.create (V.sizeof v) in
+    V.set buf v;
+    S.write buf >>= fun k ->
+    return (K.create k)
 
 end

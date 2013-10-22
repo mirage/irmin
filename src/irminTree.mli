@@ -24,24 +24,31 @@ module type STORE = sig
   type tree
   (** Type of tree nodes. *)
 
-  include IrminStore.S
+  include IrminStore.S with type value := tree
 
-  val create: t -> ?value:key -> (string * key) list -> tree
+  type value
+  (** Type of values. *)
+
+  val empty: tree
+  (** The empty tree. *)
+
+  val create: ?value:key -> (string * key) list -> tree
   (** Create a new node. *)
 
-  val value: tree ->  (key * value Lwt.t) option
+  val value: tree -> value Lwt.t option
   (** Return the contents. *)
 
-  val children: tree -> (string * key * tree Lwt.t) list
+  val children: tree -> (string * tree Lwt.t) list
   (** Return the child nodes. *)
 
-  val subtree: tree -> string list -> tree option Lwt.t
+  val sub: tree -> string list -> tree option Lwt.t
   (** Find a subtree. *)
 
   val add: tree -> string list -> value -> tree Lwt.t
-  (** Add a value. *)
+  (** Add a value by recusively saving subtrees and subvalues into the
+      corresponding stores. *)
 
-  val find: tree -> string list -> value option Lwt.t
+  val find: tree -> string list -> value Lwt.t
   (** Find a value. *)
 
   val remove: tree -> string list -> tree Lwt.t
@@ -51,10 +58,7 @@ module type STORE = sig
   (** Is a path valid. *)
 
   val iter: (string list -> value -> unit Lwt.t) -> tree -> unit Lwt.t
-  (** Iter on all tree nodes containing a value. *)
-
-  val iter_all: (string list -> value option -> unit Lwt.t) -> tree -> unit Lwt.t
-  (** Iter on all tree nodes. *)
+  (** Iter on all tree nodes containing a value, top-down. *)
 
 end
 
@@ -64,3 +68,4 @@ module Make
     (V: IrminValue.STORE with type key = K.t):
   STORE with type key = K.t
          and type value = V.value
+(** Create a tree store implementation. *)

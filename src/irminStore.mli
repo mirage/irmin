@@ -20,32 +20,26 @@ module type S = sig
 
   (** Base types for stores. *)
 
-  type t
-  (** Type of stores. *)
-
   type key
   (** Type of keys. *)
 
   type value
   (** Type of values. *)
 
-  val write: t -> key -> value -> unit Lwt.t
-  (** Write the contents of a buffer to the store. *)
+  val write: value -> key Lwt.t
+  (** Write the contents of a value to the store. *)
 
-  val read: t -> key -> value option Lwt.t
+  val read: key -> value option Lwt.t
   (** Read a value from the store. *)
-
-  val list: t -> key list Lwt.t
-  (** List of the keys. *)
 
 end
 
-(** Raw stores. *)
 module type RAW = S
   with type key := string
    and type value := IrminBuffer.t
+(** Raw stores. *)
 
-(** Build a typed store. *)
-module Make (R: RAW) (K: IrminKey.S) (V: IrminBase.S):
+module Make (S: RAW) (K: IrminKey.S) (V: IrminBase.S):
   S with type key = K.t
      and type value = V.t
+(** Build a typed store. *)

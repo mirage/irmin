@@ -19,10 +19,13 @@
 exception Error of string
 (** Disk-related errors. *)
 
-include IrminStore.RAW
+module type S = sig
 
-val create: string -> t Lwt.t
+  include IrminStore.RAW
+
+  val dump: unit -> unit
+
+end
+
+val create: string -> (module S)
 (** Initialize a disk. *)
-
-(** Dump the disk state to stdout. *)
-val dump: t -> unit Lwt.t

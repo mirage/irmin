@@ -32,6 +32,9 @@ type t = {
 (** Create a new buffer. *)
 val create: int -> t
 
+(** Get the buffer length. *)
+val length: t -> int
+
 (** Create a new buffer. *)
 val of_ba: ba -> t
 

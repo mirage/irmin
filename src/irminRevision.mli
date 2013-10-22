@@ -32,19 +32,20 @@ module type STORE = sig
   include IrminStore.S with type value := tree
   (** Revisions are values. *)
 
-  val create: t -> ?tree:key -> key list -> revision
+  val create: ?tree:key -> key list -> revision
   (** Create a new revision. *)
 
-  val tree: t -> (key * tree Lwt.t) option
+  val tree: tree -> (key * tree Lwt.t) option
   (** Get the revision tree. *)
 
-  val parents: t -> (key * tree Lwt.t) list
+  val parents: tree -> (key * tree Lwt.t) list
   (** Get the immmediate precessors. *)
 
-  val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
-  (** [cut t max] returns a consistent cut of the partial order, where
-      [max] are the max elements of the cut. If [roots] is set, these are
-      the only minimal elements taken into account. *)
+  val cut: ?roots:key list -> key list -> Graph.t Lwt.t
+  (** [cut t max] returns a consistent cut of the global partial
+      order, where [max] are the max elements of the cut. If [roots]
+      is set, these are the only minimal elements taken into
+      account. *)
 
 end
 

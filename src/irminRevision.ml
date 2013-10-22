@@ -20,7 +20,7 @@ module type STORE = sig
   module Graph: IrminGraph.S with type Vertex.t = revision
   include IrminStore.S with type value := tree
   val create: t -> ?tree:key -> key list -> revision
-  val tree: t -> (key * tree Lwt.t) option.t
+  val tree: t -> (key * tree Lwt.t) option
   val parents: t -> (key * tree Lwt.t) list
   val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
 end
