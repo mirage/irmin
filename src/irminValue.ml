@@ -41,16 +41,16 @@ module Simple  = struct
 end
 
 module type STORE = sig
-  include IrminStore.S
-  include S with type t := value
+  include S
+  include IrminStore.S with type value := t
 end
 
-module Make (S: IrminStore.RAW) (K: IrminKey.S) (V: S) = struct
+module Make (S: IrminStore.RAW) (K: IrminKey.S with type t = S.key) (V: S) = struct
 
-  include IrminStore.Make(S)(K)(V)
+  module Store = IrminStore.Make(S)(K)(V)
 
-  include (V: S with type t := value)
+  include V
 
-  let merge = V.merge
+  include (Store: module type of Store with type value := t)
 
 end

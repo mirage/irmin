@@ -23,11 +23,9 @@ module type S = sig
   val mem: key -> bool Lwt.t
 end
 
-module type RAW = S
-  with type key := string
-   and type value := IrminBuffer.t
+module type RAW = S with type value := IrminBuffer.t
 
-module Make (S: RAW) (K: IrminKey.S) (V: IrminBase.S) = struct
+module Make (S: RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
 
   open Lwt
 
@@ -35,15 +33,14 @@ module Make (S: RAW) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   type value = V.t
 
-  let read k =
-    let key = K.dump k in
+  let read key =
     S.read key >>= function
     | None   -> Lwt.return None
     | Some b -> Lwt.return (Some (V.get b))
 
   let read_exn k =
     read k >>= function
-    | None   -> fail (K.Not_found k)
+    | None   -> fail (K.Unknown k)
     | Some v -> return v
 
   let key v =
@@ -52,10 +49,9 @@ module Make (S: RAW) (K: IrminKey.S) (V: IrminBase.S) = struct
   let write v =
     let buf = IrminBuffer.create (V.sizeof v) in
     V.set buf v;
-    S.write buf >>= fun k ->
-    return (K.create k)
+    S.write buf
 
   let mem k =
-    S.mem (K.dump k)
+    S.mem k
 
 end

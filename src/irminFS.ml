@@ -29,55 +29,26 @@ let warning fmt =
 
 let debug fmt = IrminLog.debug "DISK" fmt
 
-module XKey = IrminChannel.Make(String)(FD)
-module XKeys = IrminChannel.Make(IrminBase.List(Key))(FD)
-module XValue = IrminChannel.Make(Value)(FD)
-module KeySet = IrminSet.Make(Key)
+module Make (FD: IrminChannel.S) (D: sig val dir: string end) = struct
 
   let (/) = Filename.concat
 
-  let keys_dir dir = dir / "keys"
+  let objects = D.dir / "object"
 
-  let key_file dir k = keys_dir dir / Key.to_hex k
+  let file k =
+    let key = IrminMisc.hex_encode k in
+    let len = String.length keys in
+    let pre = String.sub key 0 2 in
+    let suf = String.sub key 2 (len - 2) in
+    objects / pre // suf
 
-  let all_keys dir = keys_dir dir / "index"
-
-  let values_dir dir = dir / "values"
-
-  let value_file dir k = values_dir dir / Key.to_hex k
-
-  let tags_dir dir = dir / "tags"
-
-  let tag_file dir t = tags_dir dir / Tag.to_string t
-
-  type file = string
-
-  module T = struct
-
-    type t = {
-      root : string;
-      key  : Key.t -> file;
-      value: Key.t -> file;
-      tag  : Tag.t -> file;
-    }
-
-    let key_store t = t
-    let value_store t = t
-    let tag_store t = t
-
-    module C = C
-
-  end
-
-  include T
-
-  let check t =
-    if not (Sys.file_exists t.root) then
-      error "Not an Irminsule repository: %s/" t.root
-    else if not (Sys.is_directory t.root) then
-      error "%s is not a directory!" t.root
+  let check () =
+    if not (FD.file_exists D.dir) then
+      error "Not an Irminsule repository: %s/" D.dir
+    else if not (FD.is_directory D.dir) then
+      error "%s is not a directory!" D.dir
     else
-      Lwt.return ()
+      return_unit
 
   let with_file file fn =
     debug "with_file %s" file;
@@ -85,170 +56,168 @@ module KeySet = IrminSet.Make(Key)
     try
       lwt r = fn t in
       lwt () = FD.close t in
-      Lwt.return r
+      return r
     with e ->
       lwt () = FD.close t in
       raise_lwt e
 
   let with_maybe_file file fn default =
-    if Sys.file_exists file then
+    if FD.file_exists file then
       with_file file fn
     else (
       debug "with_maybe_file: %s does not exist, skipping" file;
-      Lwt.return default
+      return default
     )
 
   let init dir =
-    if Sys.file_exists dir then
+    if FD.file_exists dir then
       warning "Reinitialized existing Irminsule repository in %s/" dir;
     let mkdir dir =
-      if not (Sys.file_exists dir) then Unix.mkdir dir 0o755 in
+      if not (FD.file_exists dir) then FD.mkdir dir in
     mkdir dir;
     mkdir (keys_dir dir);
     mkdir (values_dir dir);
     mkdir (tags_dir dir);
-    Lwt.return ()
+    return_unit
 
-  let create dir = {
-    root  = dir;
-    key   = key_file dir;
-    value = value_file dir;
-    tag   = tag_file dir;
-  }
+let create dir = {
+  root  = dir;
+  key   = key_file dir;
+  value = value_file dir;
+  tag   = tag_file dir;
+}
 
-  let basenames fn dir =
-    let files = Lwt_unix.files_of_directory dir in
-    lwt files = Lwt_stream.to_list files in
-    let files = List.filter (fun f -> f <> "." && f <> "..") files in
-    Lwt_list.map_s (fun f ->
-        let b = Filename.basename f in
-        Lwt.return (fn b)
-      ) files
+let basenames fn dir =
+  let files = Lwt_unix.files_of_directory dir in
+  lwt files = Lwt_stream.to_list files in
+  let files = List.filter (fun f -> f <> "." && f <> "..") files in
+  Lwt_list.map_s (fun f ->
+      let b = Filename.basename f in
+      return (fn b)
+    ) files
 
-  let dump t =
-    lwt keys = basenames Key.of_hex (values_dir t.root) in
-    lwt values = Lwt_list.map_s (fun key ->
-        lwt value = with_file (t.value key) XValue.read_channel in
-        Lwt.return (key, value)
-      ) keys in
-    List.iter (fun (key, value) ->
-        Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
-      ) values;
-    Lwt.return ()
+let dump t =
+  lwt keys = basenames Key.of_hex (values_dir t.root) in
+  lwt values = Lwt_list.map_s (fun key ->
+      lwt value = with_file (t.value key) XValue.read_channel in
+      return (key, value)
+    ) keys in
+  List.iter (fun (key, value) ->
+      Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
+    ) values;
+  return_unit
 
-  module Key_store = struct
+module Key_store = struct
 
-    let debug fmt = IrminLog.debug "DISK-KEY" fmt
+  let debug fmt = IrminLog.debug "DISK-KEY" fmt
 
-    include T
+  include T
 
-    let pred t key =
-      debug "pred %s" (Key.pretty key);
-      lwt () = check t in
-      with_maybe_file (t.key key) XKeys.read_channel []
+  let pred t key =
+    debug "pred %s" (Key.pretty key);
+    lwt () = check t in
+    with_maybe_file (t.key key) XKeys.read_channel []
 
-    let keys t ?sources ?sinks () =
-      debug "keys";
-      lwt () = check t in
-      lwt keys = with_maybe_file (all_keys t.root)  XKeys.read_channel [] in
-      Key.Graph.make keys ?sources ?sinks (pred t)
+  let keys t ?sources ?sinks () =
+    debug "keys";
+    lwt () = check t in
+    lwt keys = with_maybe_file (all_keys t.root)  XKeys.read_channel [] in
+    Key.Graph.make keys ?sources ?sinks (pred t)
 
-    let update_index t ks =
-      lwt g = keys t () in
-      let old_keys = Key.Graph.vertex g in
-      let keys = KeySet.(union (of_list old_keys) (of_list ks)) in
-      let keys = KeySet.to_list keys in
-      with_file (all_keys t.root) (fun fd -> XKeys.write_channel fd keys)
+  let update_index t ks =
+    lwt g = keys t () in
+    let old_keys = Key.Graph.vertex g in
+    let keys = KeySet.(union (of_list old_keys) (of_list ks)) in
+    let keys = KeySet.to_list keys in
+    with_file (all_keys t.root) (fun fd -> XKeys.write_channel fd keys)
 
-    let add t key pred_keys =
-      debug "add %s %s" (Key.pretty key) (XKeys.pretty pred_keys);
-      lwt () = check t in
-      let file = t.key key in
-      lwt old_keys = with_maybe_file file XKeys.read_channel [] in
-      let keys = KeySet.(union (of_list pred_keys) (of_list old_keys)) in
-      if Sys.file_exists file then Sys.remove file;
-      lwt () =
-        if KeySet.is_empty keys then Lwt.return ()
-        else with_file file (fun fd ->
-            XKeys.write_channel fd (KeySet.to_list keys)
-          ) in
-      let keys = key :: pred_keys in
-      update_index t keys
-
-  end
-
-  module Value_store = struct
-
-    let debug fmt = IrminLog.debug "DISK-VALUE" fmt
-
-    include T
-
-    let write t value =
-      debug "write %s" (Value.pretty value);
-      lwt () = check t in
-      let key = Value.key value in
-      let file = t.value key in
-      if Sys.file_exists file then
-        Lwt.return key
-      else
-        lwt () = with_file file (fun fd ->
-            XValue.write_channel fd value
-          ) in
-        Lwt.return key
-
-    let read t key =
-      debug "read %s" (Key.pretty key);
-      lwt () = check t in
-      let file = t.value key in
-      if Sys.file_exists file then
-        lwt value = with_file file XValue.read_channel in
-        Lwt.return (Some value)
-      else
-        Lwt.return None
-
-  end
-
-  module Tag_store = struct
-
-    let debug fmt = IrminLog.debug "DISK-TAG" fmt
-
-    include T
-
-    let remove t tag =
-      lwt () = check t in
-      let file = t.tag tag in
-      if Sys.file_exists file then (
-        debug "remove %s" (Tag.to_string tag);
-        Unix.unlink file;
-      );
-      Lwt.return ()
-
-    let update t tag keys =
-      debug "update %s %s" (Tag.pretty tag) (KeySet.pretty keys);
-      lwt () = check t in
-      lwt () = remove t tag in
-      with_file (t.tag tag) (fun fd ->
-          debug "add %s" (Tag.to_string tag);
+  let add t key pred_keys =
+    debug "add %s %s" (Key.pretty key) (XKeys.pretty pred_keys);
+    lwt () = check t in
+    let file = t.key key in
+    lwt old_keys = with_maybe_file file XKeys.read_channel [] in
+    let keys = KeySet.(union (of_list pred_keys) (of_list old_keys)) in
+    if Sys.file_exists file then Sys.remove file;
+    lwt () =
+      if KeySet.is_empty keys then return_unit
+      else with_file file (fun fd ->
           XKeys.write_channel fd (KeySet.to_list keys)
-        )
+        ) in
+    let keys = key :: pred_keys in
+    update_index t keys
 
-    let read t tag =
-      debug "read %s" (Tag.pretty tag);
-      lwt () = check t in
-      let file = t.tag tag in
-      if Sys.file_exists file then
-        lwt keys = with_file file XKeys.read_channel in
-        Lwt.return keys
-      else
-        Lwt.return []
+end
 
-    let all t =
-      debug "all";
-      lwt () = check t in
-      lwt tags = basenames Tag.of_string (tags_dir t.root) in
-      Lwt.return tags
+module Value_store = struct
 
-  end
+  let debug fmt = IrminLog.debug "DISK-VALUE" fmt
+
+  include T
+
+  let write t value =
+    debug "write %s" (Value.pretty value);
+    lwt () = check t in
+    let key = Value.key value in
+    let file = t.value key in
+    if Sys.file_exists file then
+      return_unit key
+    else
+      lwt () = with_file file (fun fd ->
+          XValue.write_channel fd value
+        ) in
+      return_unit key
+
+  let read t key =
+    debug "read %s" (Key.pretty key);
+    lwt () = check t in
+    let file = t.value key in
+    if Sys.file_exists file then
+      lwt value = with_file file XValue.read_channel in
+      return (Some value)
+    else
+      return_none
+
+end
+
+module Tag_store = struct
+
+  let debug fmt = IrminLog.debug "DISK-TAG" fmt
+
+  include T
+
+  let remove t tag =
+    lwt () = check t in
+    let file = t.tag tag in
+    if Sys.file_exists file then (
+      debug "remove %s" (Tag.to_string tag);
+      Unix.unlink file;
+    );
+    return_unit
+
+  let update t tag keys =
+    debug "update %s %s" (Tag.pretty tag) (KeySet.pretty keys);
+    lwt () = check t in
+    lwt () = remove t tag in
+    with_file (t.tag tag) (fun fd ->
+        debug "add %s" (Tag.to_string tag);
+        XKeys.write_channel fd (KeySet.to_list keys)
+      )
+
+  let read t tag =
+    debug "read %s" (Tag.pretty tag);
+    lwt () = check t in
+    let file = t.tag tag in
+    if Sys.file_exists file then
+      lwt keys = with_file file XKeys.read_channel in
+      return keys
+    else
+      return []
+
+  let all t =
+    debug "all";
+    lwt () = check t in
+    lwt tags = basenames Tag.of_string (tags_dir t.root) in
+    return tags
 
 end
 

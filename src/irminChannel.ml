@@ -27,9 +27,14 @@ module type S = sig
   val write_unit: t -> unit Lwt.t
   val close: t -> unit Lwt.t
   val of_file: string -> t Lwt.t
+  val file_exits: string -> bool Lwt.t
+  val is_directory: string -> bool Lw.t
+  val mkdir: string -> unit Lwt.t
 end
 
 module Make (E: IrminBase.S) (C: S) = struct
+
+  open Lwt
 
   let debug fmt = IrminLog.debug "IO-FD" fmt
 
@@ -45,7 +50,7 @@ module Make (E: IrminBase.S) (C: S) = struct
     debug "... read_ba [OK]";
     let buf = IrminBuffer.of_ba ba in
     IrminBuffer.dump buf;
-    Lwt.return (E.get buf)
+    return (E.get buf)
 
   let write_channel fd t =
     let len = E.sizeof t in
@@ -57,11 +62,13 @@ module Make (E: IrminBase.S) (C: S) = struct
     lwt () = C.write_ba fd (IrminBuffer.to_ba buf) in
     debug "... write_ba [OK]";
     IrminBuffer.dump buf;
-    Lwt.return ()
+    return ()
 
 end
 
 module Lwt_unix = struct
+
+  open Lwt
 
   type t = {
     fd  : Lwt_unix.file_descr;
@@ -84,9 +91,9 @@ module Lwt_unix = struct
       debug " ... read_string n:%d" n;
       if n = 0 then raise_lwt End_of_file
       else if n < len then rread fd str (ofs + n) (len - n)
-      else Lwt.return () in
+      else return () in
     lwt () = rread t.fd str 0 len in
-    Lwt.return str
+    return str
 
   let write_string t str =
     debug "write_string %s %S" t.name str;
@@ -94,7 +101,7 @@ module Lwt_unix = struct
       lwt n = Lwt_unix.write fd str ofs len in
       if n = 0 then raise_lwt End_of_file
       else if n < len then rwrite fd str (ofs + n) (len - n)
-      else Lwt.return () in
+      else return () in
     rwrite t.fd str 0 (String.length str)
 
   let read_ba t len =
@@ -105,10 +112,10 @@ module Lwt_unix = struct
       lwt n = Lwt_bytes.read fd buf ofs len in
       if n = 0 then raise_lwt End_of_file
       else if n < len then rread fd buf (ofs + n) (len - n)
-      else Lwt.return () in
+      else return () in
     lwt () = rread t.fd buf 0 len in
     IrminBuffer.dump_ba buf;
-    Lwt.return buf
+    return buf
 
   let write_ba t ba =
     debug "write_ba %s" t.name;
@@ -118,7 +125,7 @@ module Lwt_unix = struct
       lwt n = Lwt_bytes.write fd buf ofs len in
       if n = 0 then raise_lwt End_of_file
       else if n < len then rwrite fd buf (ofs + n) (len - n)
-      else Lwt.return () in
+      else return () in
     rwrite t.fd ba 0 (Bigarray.Array1.dim ba)
 
   let read_length t =
@@ -126,7 +133,7 @@ module Lwt_unix = struct
     lwt str = read_string t 4 in
     let len = EndianString.BigEndian.get_int32 str 0 in
     debug " ... read_length: %ld" len;
-    Lwt.return (Int32.to_int len)
+    return (Int32.to_int len)
 
   let write_length t len =
     debug "write_length %s %dl" t.name len;
@@ -134,7 +141,7 @@ module Lwt_unix = struct
     EndianString.BigEndian.set_int32 str 0 (Int32.of_int len);
     lwt () = write_string t str in
     debug " ... write_length";
-    Lwt.return ()
+    return ()
 
   let write_unit t =
     write_string t "U"
@@ -142,13 +149,22 @@ module Lwt_unix = struct
   let read_unit t =
     lwt str = read_string t 1 in
     assert (str = "U");
-    Lwt.return ()
+    return ()
 
   let create fd name = { fd; name }
 
+  let file_exists file =
+    return (Sys.file_exists file)
+
+  let is_directory file =
+    return (Sys.is_directory file)
+
+  let mkdir file =
+    return (Unix.mkdir file 0o755)
+
   let of_file file =
     lwt fd = Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) in
-    Lwt.return (create fd file)
+    return (create fd file)
 
   let unix_socket_server ~limit file =
     debug "unix-socker-server %s" file;
@@ -161,6 +177,6 @@ module Lwt_unix = struct
     debug "unix-socket-client %s" file;
     let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in
     lwt () = Lwt_unix.connect fd (Lwt_unix.ADDR_UNIX file) in
-    Lwt.return (create fd file)
+    return (create fd file)
 
 end

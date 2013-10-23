@@ -13,3 +13,47 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+
+module type S = sig
+  module Key: IrminKey.S
+  module Value: IrminValue.S
+  module Tag: IrminTag.S
+end
+
+module type STORE = sig
+  module Base: S
+  module Value: IrminValue.STORE
+  module Tree: IrminTree.STORE
+  module Revision: IrminRevision.STORE
+  module Tag: IrminTag.STORE
+  val name: string
+end
+
+module Simple = struct
+  module Key = IrminKey.SHA1
+  module Value = IrminValue.Simple
+  module Tag = IrminTag.Simple
+end
+
+module Make
+    (Value: IrminStore.RAW)
+    (Tree: IrminStore.RAW)
+    (Revision: IrminStore.RAW)
+    (Tag: IrmintStore.TAG)
+    (Base: S) = struct
+  module Base = Base
+  module Value = IrminValue.Make(Value)(Base.Key)(Base.Value)
+  module Tree = IrminTree.Make(Tree)(Base.Key)(Base.Value)
+  module Revision = IrminRevision.Make(Revision)(Base.Key)(Tree)
+  module Tag = IrminTag.Make(Tag)(Base.Tag)(Base.Key)
+end
+
+
+let client addr =
+  failwith "TODO"
+
+let memory () =
+  IrminMemory.create ()
+
+let fs dir =
+  failith "TODO"

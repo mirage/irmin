@@ -24,3 +24,24 @@ module Simple = struct
   include IrminBase.PrivateString
   let name = "tag"
 end
+
+
+module type STORE = sig
+  type t
+  type key
+  type tree
+  type revision
+  exception Unknown of t
+  val update: t -> key -> unit Lwt.t
+  val remove: t -> unit Lwt.t
+  val read: t -> key option Lwt.t
+  val read_exn: t -> key Lwt.t
+  val list: unit -> t list Lwt.t
+  module Watch: sig
+    type watch = int
+    type path = string list
+    val add: t -> path -> (revision -> path -> tree option -> unit Lwt.t) -> watch Lwt.t
+    val remove: t -> path -> watch -> unit Lwt.t
+    val list: unit -> (t * path * watch) list Lwt.t
+  end
+end

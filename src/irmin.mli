@@ -16,8 +16,11 @@
 
 (** API entry point *)
 
-(** {2 Base type} *)
+(** {2 Base types} *)
+
 module type S = sig
+
+  (** Signature for base types. *)
 
   module Key: IrminKey.S
   (** Type of keys. *)
@@ -30,35 +33,9 @@ module type S = sig
 
 end
 
-module type STORE = sig
-
-  (** Main signature for Irminsule applications. *)
-
-  module Base: S
-  (** Base elements. *)
-
-  (** {2 Main signature for Irminsule stores} *)
-
-  module Value_store: IrminValue.STORE
-  (** Persist raw values. *)
-
-  module Tree_store: IrminTree.STORE
-  (** Persisit trees. *)
-
-  module Revision_store: IrminRevision.STORE
-  (** Persist revisions. *)
-
-  module Tag_store: IrminTag.STORE
-  (** Persists tags. *)
-
-  val name: string
-  (** Store name. *)
-
-end
-
 module Simple: sig
 
-  (** Simple implementation. *)
+  (** Simple implementation of base types. *)
 
   module Key: module type of IrminKey.SHA1
   (** SHA1 keys. *)
@@ -70,6 +47,46 @@ module Simple: sig
   (** String tags. *)
 
 end
+
+(** {2 Stores} *)
+
+module type STORE = sig
+
+  (** Main signature for Irminsule applications. *)
+
+  module Base: S
+  (** Base elements. *)
+
+  (** {2 Main signature for Irminsule stores} *)
+
+  module Value: IrminValue.STORE
+    with type key = Base.Key.t
+     and type t = Base.Value.t
+  (** Persist raw values. *)
+
+  module Tree: IrminTree.STORE
+    with type key = Base.Key.t
+     and type t = Value.t
+  (** Persisit trees. *)
+
+  module Revision: IrminRevision.STORE
+    with type key = Base.Key.t
+     and type t = Tree.t
+  (** Persist revisions. *)
+
+  module Tag_store: IrminTag.STORE
+    with type key = Base.Key.t
+     and type tree = Tree.t
+     and type revision = Revision.t
+     and type t = Base.Tag.t
+  (** Persists tags. *)
+
+  val name: string
+  (** Store name. *)
+
+end
+
+module Make (B: S): STORE with module Base = B
 
 val client: string -> (module STORE)
 val memory: unit -> (module STORE)

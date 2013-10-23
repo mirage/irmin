@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
 open IrminLwt
 
 let debug fmt = IrminMisc.debug "QUEUE" fmt
@@ -53,7 +54,7 @@ let read_key t key =
   lwt value = Value_store.read (value_store t) key in
   match value with
   | None   -> empty "No value!"
-  | Some v -> Lwt.return v
+  | Some v -> return v
 
 let read_contents t key =
   lwt value = read_key t key in
@@ -67,7 +68,7 @@ let dump t name =
       lwt keys = Tag_store.read (tag_store t) tag in
       let labels =
         Key.Set.fold (fun key tags -> (key, Tag.to_string tag) :: tags) keys tags in
-      Lwt.return labels
+      return labels
     ) [] (Tag.Set.to_list tags) in
   lwt g = Key_store.keys (key_store t) () in
   let keys = Key.Set.to_list (Key.Graph.vertex g) in
@@ -76,24 +77,24 @@ let dump t name =
       let labels =
         if Value.is_blob value then (key, "blob:"^Value.pretty value) :: labels
         else labels in
-      Lwt.return labels
+      return labels
     ) labels keys in
   lwt overlay = Lwt_list.fold_left_s (fun overlay key ->
       lwt value = read_key t key in
       let overlay = match Value.contents value with
         | None  -> overlay
         | Some k -> ((k, key) :: overlay) in
-      Lwt.return overlay
+      return overlay
     ) [] keys in
   Key.Graph.dump g ~labels ~overlay name;
-  Lwt.return ()
+  return_unit
 
 let init t =
   match t.source with
   | Dir f     -> Disk.init f
-  | InMemory  -> Lwt.return ()
+  | InMemory  -> return_unit
   | Unix f    ->
-    if Sys.file_exists f then Lwt.return ()
+    if Sys.file_exists f then return_unit
     else error "%s does not exist." f
 
 let create ?(front = default_front) ?(back = default_back) source =
@@ -110,7 +111,7 @@ let backs t =
 let is_empty t =
   lwt fronts = fronts t in
   lwt backs  = backs t in
-  Lwt.return (Key.Set.is_empty fronts || Key.Set.is_empty backs)
+  return (Key.Set.is_empty fronts || Key.Set.is_empty backs)
 
 let add t value =
   lwt () = dump t "before-add" in
@@ -123,27 +124,27 @@ let add t value =
   lwt () = Key_store.add (key_store t) revision_key backs in
   let new_back = Key.Set.singleton revision_key in
   lwt () =
-    if not (Key.Set.is_empty fronts) then Lwt.return ()
+    if not (Key.Set.is_empty fronts) then return_unit
     else Tag_store.update (tag_store t) t.front new_back in
   lwt () = Tag_store.update (tag_store t) t.back new_back in
   lwt () = dump t "after-add" in
-  Lwt.return ()
+  return_unit
 
 let keys t =
   lwt fronts = fronts t in
   lwt backs = backs t in
   if Key.Set.is_empty fronts then
-    Lwt.return []
+    return_nil
   else
     lwt g = Key_store.keys (key_store t) ~sources:fronts ~sinks:backs () in
     let keys = Key.Graph.Topological.fold (fun key acc -> key :: acc) g [] in
     lwt keys = Lwt_list.fold_left_s (fun acc key ->
         lwt value = read_key t key in
         match Value.contents value with
-        | None   -> Lwt.return acc
-        | Some k -> Lwt.return (k :: acc)
+        | None   -> return acc
+        | Some k -> return (k :: acc)
       ) [] keys in
-    Lwt.return (List.rev keys)
+    return (List.rev keys)
 
 let to_list t =
   lwt keys = keys t in
@@ -151,8 +152,8 @@ let to_list t =
   Lwt_list.fold_left_s (fun acc key ->
       lwt value = Value_store.read (value_store t) key in
       match value with
-      | None   -> Lwt.return acc
-      | Some v -> Lwt.return (v :: acc)
+      | None   -> return acc
+      | Some v -> return (v :: acc)
     ) [] keys
 
 let peek t =
@@ -169,7 +170,7 @@ let take t =
   lwt backs  = Tag_store.read (tag_store t) t.back in
   lwt g = Key_store.keys (key_store t) ~sources:fronts ~sinks:backs () in
   lwt key =
-    try Lwt.return (Key.Set.choose fronts)
+    try return (Key.Set.choose fronts)
     with Not_found -> empty "FRONT" in
   let fronts = Key.Set.remove key fronts in
   let move_front new_fronts =
@@ -186,7 +187,7 @@ let take t =
     lwt new_fronts = Lwt_list.filter_s (fun key ->
         lwt preds = Key_store.pred (key_store t) key in
         let todo = Key.Set.inter preds fronts in
-        Lwt.return (Key.Set.is_empty todo)
+        return (Key.Set.is_empty todo)
       ) keys in
     move_front (Key.Set.of_list new_fronts)
 
@@ -222,11 +223,11 @@ let pull t ~origin =
       | Some v ->
         lwt local_k = Value_store.write (value_store t) v in
         assert (k = local_k);
-        Lwt.return ()
+        return_nil
     ) keys in
   (* Fix empty local queues *)
   lwt () =
-    if not (Key.Set.is_empty local_fronts) then Lwt.return ()
+    if not (Key.Set.is_empty local_fronts) then return_nil
     else Tag_store.update (tag_store t) t.front (Key.Graph.min g) in
   dump t "local"
 

@@ -64,8 +64,8 @@ end
 
 module Make
     (S: IrminStore.RAW)
-    (K: IrminKey.S)
-    (V: IrminValue.STORE with type key = K.t):
+    (K: IrminKey.S with type t = S.key)
+    (V: IrminValue.STORE with type key = S.key):
   STORE with type key = K.t
-         and type value = V.value
+         and type value = V.t
 (** Create a tree store implementation. *)

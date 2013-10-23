@@ -25,6 +25,8 @@ module type STORE = sig
 
 end
 
+module Client: STORE with type channel = IrminChannel.Lwt_unix.t
+
 (** Signature for servers *)
 module type SERVER = sig
 

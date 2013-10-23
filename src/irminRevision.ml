@@ -27,8 +27,8 @@ end
 
 module Make
     (S: IrminStore.RAW)
-    (K: IrminKey.S)
-    (T: IrminTree.STORE with type key = K.t) =
+    (K: IrminKey.S with type t = S.key)
+    (T: IrminTree.STORE with type key = S.key) =
 struct
 
   open Lwt
@@ -109,7 +109,7 @@ struct
 
   let parents t =
     List.map (fun k ->
-        S.read_exn (K.dump k) >>= fun b ->
+        S.read_exn k >>= fun b ->
         return (Revision.get b)
       ) t.parents
 

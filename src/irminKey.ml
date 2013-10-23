@@ -18,7 +18,8 @@
 module type S = sig
   include IrminBase.S
   exception Invalid of t
-  exception Not_found of t  val create: string -> t
+  exception Unknown of t
+  val create: string -> t
   val of_bytes: string -> t
   val of_buffer: IrminBuffer.t -> t
   val to_hex: t -> string
@@ -35,7 +36,7 @@ module SHA1 = struct
 
   exception Invalid of t
 
-  exception Not_found of t
+  exception Unknown of t
 
   let name = "key"
 

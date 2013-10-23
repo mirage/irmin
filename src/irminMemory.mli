@@ -16,7 +16,19 @@
 
 (** In-memory store *)
 
-include IrminStore.RAW
+module Store (K: IrminKey.S): sig
 
-(** Create a fresh store *)
-val create: unit -> t
+  (** Create a fresh store *)
+  val create: unit -> (module IrminStore.RAW with type key = K.t)
+
+end
+
+module Tag
+    (T: IrminTag.S)
+    (K: IrminKey.S)
+    (R: IrminRevision.STORE with type key = K.t): sig
+
+  (** Create a fresh tag store. *)
+  val create: unit -> (module IrminTag.STORE with type t = T.t and type key = K.t)
+
+end

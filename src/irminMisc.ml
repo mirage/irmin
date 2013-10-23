@@ -50,3 +50,17 @@ let sha1 str =
   let hash = Cryptokit.Hash.sha1 () in
   hash#add_string str;
   hash#result
+
+let pretty_list f = function
+  | [] -> "{}"
+  | l  ->
+    let buf = Buffer.create 1024 in
+    let len = ref (List.length l - 2) in
+    Buffer.add_string buf "{ ";
+    List.iter (fun e ->
+        Buffer.add_string buf (f e);
+        if !len > 0 then Buffer.add_string buf ", ";
+        decr len
+      ) l;
+    Buffer.add_string buf " }";
+    Buffer.contents buf

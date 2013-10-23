@@ -14,121 +14,144 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make_key_store (C: CORE) = struct
-
-  module C = C
-  open C
-
-  type t = Key.Graph.t
-
-  let create () =
-    Key.Graph.create ~size:1024 ()
-
-  let add_key g k =
-    Key.Graph.add_vertex g k
-
-  let add_relation g k1 k2 =
-    Key.Graph.add_edge g k1 k2
-
-  let add g key preds =
-    add_key g key;
-    Key.Set.iter (add_key g) preds;
-    Key.Set.iter (fun pred -> add_relation g pred key) preds;
-    Lwt.return ()
-
-  let keys g ?sources ?sinks () =
-    let keys = Key.Graph.vertex g in
-    let pred k =
-      let preds = Key.Graph.pred g k in
-      Lwt.return (Key.Set.of_list preds) in
-    Key.Graph.make keys ?sources ?sinks pred
-
-  (* XXX: G.pred is in O(max(|V|,|E|)) *)
-  let pred g k =
-    try Lwt.return (Key.Set.of_list (Key.Graph.pred g k))
-    with Not_found -> Lwt.return Key.Set.empty
-
-end
-
-module Make_value_store (C: CORE) = struct
-
-  module C = C
-  open C
-
-  type t = (Key.t, Value.t) Hashtbl.t
-
-  let create () =
-    Hashtbl.create 1024
-
-  let write t value =
-    let key = Value.key value in
-    Hashtbl.add t key value;
-    Lwt.return key
-
-  let read t key =
-    Printf.printf "Reading %s\n%!" (Key.pretty key);
-    try Lwt.return (Some (Hashtbl.find t key))
-    with Not_found -> Lwt.return None
-
-end
-
-module Make_tag_store (C: CORE) = struct
-
-  module C = C
-  open C
-
-  type t = (Tag.t, Key.Set.t) Hashtbl.t
-
-  let create () =
-    Hashtbl.create 1024
-
-  let update t tag keys =
-    Printf.printf "Update %s to %s\n%!" (Tag.pretty tag) (Key.Set.pretty keys);
-    if Key.Set.is_empty keys then Hashtbl.remove t tag
-    else Hashtbl.replace t tag keys;
-    Lwt.return ()
-
-  let remove t tag =
-    Hashtbl.remove t tag;
-    Lwt.return ()
-
-  let read t tag =
-    Printf.printf "Reading %s\n%!" (Tag.pretty tag);
-    try Lwt.return (Hashtbl.find t tag)
-    with Not_found -> Lwt.return Key.Set.empty
-
-  let all t =
-    let elts = Hashtbl.fold (fun t _ acc -> t :: acc) t [] in
-    Lwt.return (Tag.Set.of_list elts)
-
-end
-
-module type S = sig
-  include STORE
-  val create: unit -> t
-end
-
-module Make (C: CORE) = struct
-  module C = C
-  module Key_store = Make_key_store(C)
-  module Value_store = Make_value_store(C)
-  module Tag_store = Make_tag_store(C)
-  let name = "<in-memory>"
-  type t = {
-    k: Key_store.t;
-    v: Value_store.t;
-    t: Tag_store.t;
-  }
-  let key_store t = t.k
-  let value_store t = t.v
-  let tag_store t = t.t
-  let create () = {
-    k = Key_store.create ();
-    v = Value_store.create ();
-    t = Tag_store.create ();
-  }
-end
-
 let create () =
-  let module M = Make(IrminStore.Core) in
-  (module M)
+  Hashtbl.create 1024
+
+module Store (K: IrminKey.S) = struct
+
+  open Lwt
+
+  let create () =
+
+    let table = create () in
+
+    let module S = struct
+
+      type key = K.t
+
+      let write value =
+        let key = K.of_buffer value in
+        Hashtbl.add table key value;
+        return key
+
+      let read key =
+        Printf.printf "Reading %s\n%!" (K.pretty key);
+        return (
+          try Some (Hashtbl.find table key)
+          with Not_found -> None
+        )
+
+      let read_exn key =
+        Printf.printf "Reading %s\n%!" (K.pretty key);
+        try return (Hashtbl.find table key)
+        with Not_found -> fail (K.Unknown key)
+
+      let mem key =
+        return (Hashtbl.mem table key)
+
+    end
+    in
+    (module S: IrminStore.RAW with type key = K.t)
+
+end
+
+module Tag
+    (T: IrminTag.S)
+    (K: IrminKey.S)
+    (R: IrminRevision.STORE with type key = K.t)
+= struct
+
+  let create () =
+
+    let table = create () in
+    let watches = create () in
+
+    let module S = struct
+
+      open Lwt
+
+      type t = T.t
+
+      type key = K.t
+
+      type path = string list
+
+      type tree = R.tree
+
+      type revision = R.t
+
+      exception Unknown of t
+
+      let notify watches tag =
+        failwith "TODO"
+
+      let update tag key =
+        Printf.printf "Update %s to %s\n%!" (T.pretty tag) (K.pretty key);
+        Hashtbl.replace table tag key;
+        (* XXX: notify watches tag; *)
+        return_unit
+
+      let remove tag =
+        Hashtbl.remove table tag;
+        Hashtbl.remove watches tag;
+        return_unit
+
+      let read tag =
+        Printf.printf "Reading %s\n%!" (T.pretty tag);
+        return (
+          try Some (Hashtbl.find table tag)
+          with Not_found -> None
+        )
+
+      let read_exn tag =
+        Printf.printf "Reading %s\n%!" (T.pretty tag);
+        try return (Hashtbl.find table tag)
+        with Not_found -> fail (Unknown tag)
+
+      let list () =
+        let elts = Hashtbl.fold (fun t _ acc -> t :: acc) table [] in
+        return elts
+
+      module Watch = struct
+
+        type watch = int
+
+        type path = string list
+
+        let c = ref 0
+
+        let add tag path fn =
+          let w = !c in
+          incr c;
+          let ws =
+            try Hashtbl.find watches tag
+            with Not_found -> [] in
+          Hashtbl.add watches tag ((w, path, fn) :: ws);
+          return w
+
+        let remove tag path watch =
+          try
+            let ws = Hashtbl.find watches tag in
+            let ws = List.filter (fun (w,p,_) -> w<>watch && p<>path) ws in
+            return (match ws with
+                | [] -> Hashtbl.remove watches tag
+                | _  -> Hashtbl.replace watches tag ws
+              )
+          with Not_found ->
+            return_unit
+
+        let list () =
+          let l = Hashtbl.fold
+              (fun tag ws acc ->
+                 List.fold_left (fun acc (watch, path, _) ->
+                     (tag, path, watch) :: acc
+                   ) acc ws
+              ) watches [] in
+          return l
+
+      end
+    end
+    in
+    (module S: IrminTag.STORE with type t = T.t and type key = K.t)
+
+end

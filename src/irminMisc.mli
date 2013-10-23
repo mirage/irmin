@@ -16,11 +16,14 @@
 
 (** Miscellaneous functions *)
 
-(** Encode a binary string to hexa *)
 val hex_encode: string -> string
+(** Encode a binary string to hexa *)
 
-(** Decode an hexa string to binary *)
 val hex_decode: string -> string
+(** Decode an hexa string to binary *)
 
-(** Compute the sha1 of a binary string *)
 val sha1: string -> string
+(** Compute the sha1 of a binary string *)
+
+val pretty_list: ('a -> string) -> 'a list -> string
+(** Pretty-print a list. *)

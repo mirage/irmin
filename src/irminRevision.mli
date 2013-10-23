@@ -50,9 +50,9 @@ module type STORE = sig
 end
 
 module Make
-    (Store: IrminStore.RAW)
-    (K: IrminKey.S)
-    (T: IrminTree.STORE with type key = K.t):
+    (S: IrminStore.RAW)
+    (K: IrminKey.S with type t = S.key)
+    (T: IrminTree.STORE with type key = S.key):
   STORE with type key = K.t
          and type tree = T.t
 (** Create a revision store. *)

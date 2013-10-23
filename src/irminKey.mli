@@ -25,7 +25,7 @@ module type S = sig
   exception Invalid of t
   (** Exception raised when a key is not valid. *)
 
-  exception Not_found of t
+  exception Unknown of t
   (** Exception raised when no value is associated to a key. *)
 
   val create: string -> t

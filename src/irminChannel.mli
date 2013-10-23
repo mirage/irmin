@@ -55,10 +55,19 @@ module type S = sig
   val close: t -> unit Lwt.t
   (** Close a channel. *)
 
-  (** {2 XXX: Not very abstract ... } *)
+  (** {2 File system abstraction (XXX: move it)} *)
 
   val of_file: string -> t Lwt.t
   (** Open a file. *)
+
+  val file_exits: string -> bool Lwt.t
+  (** Does a file exists. *)
+
+  val is_directory: string -> bool Lw.t
+  (** Is the file a directory. *)
+
+  val mkdir: string -> unit Lwt.t
+  (** Create a directory. *)
 
 end
 

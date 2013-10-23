@@ -208,13 +208,13 @@ module Make_client (C: CORE) = struct
       lwt fd = t () in
       lwt () = XActionKeysOKeysO.write_fd fd (Key_list, (sources, sinks)) in
       lwt g = XGraph.read_fd fd in
-      Lwt.return g
+      return g
 
     let pred t key =
       lwt fd = t () in
       lwt () = XActionKey.write_fd fd (Key_pred, key) in
       lwt keys = XKeys.read_fd fd in
-      Lwt.return keys
+      return keys
 
   end
 
@@ -284,7 +284,7 @@ module Make_client (C: CORE) = struct
           lwt event = XEvent.read_fd fd in
           callback event
         with End_of_file ->
-          Lwt.return () in
+          return_unit in
       read ()
 
   end
@@ -459,15 +459,15 @@ module Server (S: STORE) = struct
             let timeout =
               lwt () = Lwt_unix.sleep t in
               Printf.printf "Timeout!\n%!";
-              Lwt.return () in
+              return () in
             [ process client; timeout ] in
         lwt () =
           try_lwt Lwt.pick events
-          with _ -> Lwt.return () in
+          with _ -> return () in
         try_lwt
           Lwt_unix.close (fst client)
         with _ ->
-          Lwt.return ()
+          return_unit
       done
     with e ->
       Printf.printf "Closing connection ...\n%!";

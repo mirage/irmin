@@ -46,8 +46,8 @@ module List (E: S) = struct
     | _::_  , []     -> 1
     | []    , _::_   -> -1
 
-  let pretty t =
-    String.concat "\n" (OCamlList.rev (OCamlList.rev_map E.pretty t))
+  let pretty ts =
+    IrminMisc.pretty_list E.pretty ts
 
   let dump t =
     String.concat "" (OCamlList.rev_map E.dump t)

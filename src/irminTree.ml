@@ -33,8 +33,8 @@ end
 
 module Make
     (S: IrminStore.RAW)
-    (K: IrminKey.S)
-    (V: IrminValue.STORE with type key = K.t) =
+    (K: IrminKey.S with type t = S.key)
+    (V: IrminValue.STORE with type key = S.key) =
 struct
 
   open Lwt
@@ -111,7 +111,7 @@ struct
 
   include (Store: module type of Store with type value := Tree.t)
 
-  type value = V.value
+  type value = V.t
 
   let empty = {
     value = None;
@@ -129,7 +129,7 @@ struct
   let children t =
     List.map (fun (l, k) ->
         l,
-        S.read_exn (K.dump k) >>= fun b ->
+        S.read_exn k >>= fun b ->
         return (Tree.get b)
       ) t.children
 
