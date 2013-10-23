@@ -53,24 +53,10 @@ module type STORE = sig
   type key
   (** Type of keys. *)
 
-  val set: t -> key -> unit Lwt.t
-  (** Update a tag. If the tag does not exist before, just create a
-      new tag. *)
-
-  val remove: t -> unit Lwt.t
-  (** Remove a tag. *)
-
-  val read: t -> key option Lwt.t
-  (** Read a tag. Return [None] if the tag is not defined. *)
-
-  val read_exn: t -> key Lwt.t
-  (** Read a tag. Raise [Not_found t] if the tag is not defined. *)
-
-  val list: unit -> t list Lwt.t
-  (** List all the available tags. *)
+  include IrminStore.M with type key := t and type value := key
 
 end
 
-module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.key)
-  : STORE with type key = S.key
-           and type t = T.t
+module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.value)
+  : STORE with type t = T.t
+           and type key = K.t

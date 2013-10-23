@@ -18,6 +18,16 @@ module Key = IrminKey.SHA1
 module Value = IrminValue.Simple
 module Tag = IrminTag.Simple
 
+module type S = sig
+  type t
+  type path
+  include IrminStore.M with type key := path
+  val snapshot: unit -> t Lwt.t
+  val revert: t -> unit Lwt.t
+  val watch: path -> (path * t option) Lwt_stream.t
+end
+
+
 module type STORE = sig
   module Value: IrminValue.STORE
     with type key = Key.t
@@ -31,18 +41,64 @@ module type STORE = sig
   module Tag: IrminTag.STORE
     with type t = Tag.t
      and type key = Key.t
+(*  include S with type t = Revision.t
+             and type path = Tree.path
+             and type value = Value.t *)
+  val master: unit -> (module S)
+  val create: Tag.t -> (module S)
 end
 
 module Make
     (SValue: IrminStore.IRAW with type key = Key.t)
     (STree: IrminStore.IRAW with type key = Key.t)
     (SRevision: IrminStore.IRAW with type key = Key.t)
-    (STag: IrminStore.MRAW with type key = Key.t) =
+    (STag: IrminStore.MRAW with type value = Key.t) =
 struct
+
+  open Lwt
 
   module Value = IrminValue.Make(SValue)(Key)(Value)
   module Tree = IrminTree.Make(STree)(Key)(Value)
   module Revision = IrminRevision.Make(SRevision)(Key)(Tree)
   module Tag = IrminTag.Make(STag)(Tag)(Key)
+
+  type t = Revision.t
+  type path = Tree.path
+  type value = Value.t
+
+  module S (T: sig val tag: Tag.t end) = struct
+
+    let init () =
+    Value.init () >>= fun () ->
+    Tree.init () >>= fun () ->
+    Revision.init () >>= fun () ->
+    Tag.init ()
+
+  let set t path value =
+    match Revision.tree t with
+    | None      -> failwith "TODO"
+    | Some tree ->
+      tree >>= fun tree ->
+      Tree.add tree path value >>= fun tree ->
+      Revision.with_tree t (Some tree)
+
+  let remove _ = failwith "TODO"
+
+  let read _ = failwith "TODO"
+
+  let read_exn _ = failwith "TODO"
+
+  let mem _ = failwith "TODO"
+
+  let list _ = failwith "TODO"
+
+  let snapshot _ = failwith "TODO"
+
+  let revert _ = failwith "TODO"
+  end
+
+  let master _ = failwith "TODO"
+
+  let create _ = failwith "TODO"
 
 end

@@ -19,6 +19,7 @@ module type STORE = sig
   type t
   include IrminStore.I with type value := t
   type value
+  type path = string list
   val empty: t
   val create: ?value:key -> (string * key) list -> t
   val value: t ->  value Lwt.t option
@@ -40,6 +41,8 @@ struct
   open Lwt
 
   module Tree = struct
+
+    type path = string list
 
     type t = {
       value   : K.t option;

@@ -6,7 +6,7 @@ TARGET   = irmin
 
 PACKAGES = -pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,lwt,ocplib-endian,cstruct
 FLAGS    = -use-ocamlfind -cflags "-bin-annot" -no-links
-INCLUDES = -Is src,src/lib,src/lwt
+INCLUDES = -Is src/core
 BUILD    = ocamlbuild $(INCLUDES) $(FLAGS) $(PACKAGES) $(SYNTAXES)
 
 .PHONY: all test

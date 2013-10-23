@@ -38,6 +38,9 @@ module type STORE = sig
   val tree: t -> tree Lwt.t option
   (** Get the revision tree. *)
 
+  val with_tree: t -> tree option -> t Lwt.t
+  (** Change the revision's tree. *)
+
   val parents: t -> t Lwt.t list
   (** Get the immmediate precessors. *)
 

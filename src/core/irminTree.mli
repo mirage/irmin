@@ -29,6 +29,9 @@ module type STORE = sig
   type value
   (** Type of values. *)
 
+  type path = string list
+  (** Type of labeled path to go from one node to node. *)
+
   val empty: t
   (** The empty tree. *)
 
@@ -41,23 +44,23 @@ module type STORE = sig
   val children: t -> (string * t Lwt.t) list
   (** Return the child nodes. *)
 
-  val sub: t -> string list -> t option Lwt.t
+  val sub: t -> path -> t option Lwt.t
   (** Find a subtree. *)
 
-  val add: t -> string list -> value -> t Lwt.t
+  val add: t -> path -> value -> t Lwt.t
   (** Add a value by recusively saving subtrees and subvalues into the
       corresponding stores. *)
 
-  val find: t -> string list -> value Lwt.t
+  val find: t -> path -> value Lwt.t
   (** Find a value. *)
 
-  val remove: t -> string list -> t Lwt.t
+  val remove: t -> path -> t Lwt.t
   (** Remove a value. *)
 
-  val mem: t -> string list -> bool Lwt.t
+  val mem: t -> path -> bool Lwt.t
   (** Is a path valid. *)
 
-  val iter: (string list -> value -> unit Lwt.t) -> t -> unit Lwt.t
+  val iter: (path -> value -> unit Lwt.t) -> t -> unit Lwt.t
   (** Iter on all tree nodes containing a value, top-down. *)
 
 end

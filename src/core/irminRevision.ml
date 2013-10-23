@@ -21,6 +21,7 @@ module type STORE = sig
   include IrminStore.I with type value := t
   val create: ?tree:key -> key list -> t
   val tree: t -> tree Lwt.t option
+  val with_tree: t -> tree option -> t Lwt.t
   val parents: t -> t Lwt.t list
   val cut: ?roots:key list -> key list -> Graph.t Lwt.t
 end
@@ -103,6 +104,12 @@ struct
     match t.tree with
     | None   -> None
     | Some k -> Some (T.read_exn k)
+
+  let with_tree t = function
+    | None      -> return { t with tree = None }
+    | Some tree ->
+      T.write tree >>= fun key ->
+      return { t with tree = Some key }
 
   let create ?tree parents =
     { tree; parents }

@@ -61,52 +61,52 @@ module MakeI (S: IRAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = st
 end
 
 module type M = sig
-  type tag
   type key
+  type value
   val init: unit -> unit Lwt.t
-  val set: tag -> key -> unit Lwt.t
-  val remove: tag -> unit Lwt.t
-  val read: tag -> key option Lwt.t
-  val read_exn: tag -> key Lwt.t
-  val mem: tag -> bool Lwt.t
-  val list: unit -> tag list Lwt.t
+  val set: key -> value -> unit Lwt.t
+  val remove: key -> unit Lwt.t
+  val read: key -> value option Lwt.t
+  val read_exn: key -> value Lwt.t
+  val mem: key -> bool Lwt.t
+  val list: unit -> key list Lwt.t
 end
 
-module type MRAW = M with type tag = string
+module type MRAW = M with type key = string
 
 module MakeM
     (S: MRAW)
-    (T: IrminBase.STRINGABLE)
-    (K: IrminKey.S with type t = S.key) =
+    (K: IrminBase.STRINGABLE)
+    (V: IrminBase.S with type t = S.value) =
 struct
 
   open Lwt
 
-  type tag = T.t
-
   type key = K.t
+
+  type value = V.t
 
   let init () =
     S.init ()
 
-  let set (tag:tag) key =
-    S.set (T.to_string tag) key
+  let set key value =
+    S.set (K.to_string key) value
 
-  let remove tag =
-    S.remove (T.to_string tag)
+  let remove key =
+    S.remove (K.to_string key)
 
-  let read tag =
-    S.read (T.to_string tag)
+  let read key =
+    S.read (K.to_string key)
 
-  let read_exn tag =
-    S.read_exn (T.to_string tag)
+  let read_exn key =
+    S.read_exn (K.to_string key)
 
-  let mem tag =
-    S.mem (T.to_string tag)
+  let mem key =
+    S.mem (K.to_string key)
 
   let list () =
     S.list () >>= fun ss ->
-    let ts = List.map T.of_string ss in
-    return ts
+    let ks = List.map K.of_string ss in
+    return ks
 
 end

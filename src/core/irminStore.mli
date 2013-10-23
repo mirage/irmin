@@ -60,43 +60,43 @@ module type M = sig
 
   (** Signature for mutable store. *)
 
-  type tag
+  type key
   (** Type of tags. *)
 
-  type key
-  (** Type of keys. *)
+  type value
+  (** Type of values. *)
 
   val init: unit -> unit Lwt.t
   (** Init the store. *)
 
-  val set: tag -> key -> unit Lwt.t
-  (** Replace the contents of [tag] by [key] if [tag] is already
-      defined or create it otherwise. *)
+  val set: key -> value -> unit Lwt.t
+  (** Replace the contents of [key] by [value] if [key] is already
+      defined and create it otherwise. *)
 
-  val remove: tag -> unit Lwt.t
-  (** Remove the given tag. *)
+  val remove: key -> unit Lwt.t
+  (** Remove the given key. *)
 
-  val read: tag -> key option Lwt.t
-  (** Read a key. Return [None] if the the tag is not defined. *)
+  val read: key -> value option Lwt.t
+  (** Read a key. Return [None] if the the key is not defined. *)
 
-  val read_exn: tag -> key Lwt.t
-  (** Read a key, raise [Unknown k] if the tag is not defined. *)
+  val read_exn: key -> value Lwt.t
+  (** Read a key, raise [Unknown k] if the key is not defined. *)
 
-  val mem: tag -> bool Lwt.t
-  (** Check if a tag exist. *)
+  val mem: key -> bool Lwt.t
+  (** Check if a key exist. *)
 
-  val list: unit -> tag list Lwt.t
-  (** Return all the tags. *)
+  val list: unit -> key list Lwt.t
+  (** Return all the keys. *)
 
 end
 
-module type MRAW = M with type tag = string
+module type MRAW = M with type key = string
 (** Raw mutable stores. *)
 
 module MakeM
     (S: MRAW)
-    (T: IrminBase.STRINGABLE)
-    (K: IrminKey.S with type t = S.key)
-  : M with type tag = T.t
-       and type key = K.t
+    (K: IrminBase.STRINGABLE)
+    (V: IrminBase.S with type t = S.value)
+  : M with type key = K.t
+       and type value = V.t
 (** Build a mutable store. *)

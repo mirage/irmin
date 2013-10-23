@@ -29,6 +29,31 @@ module Tag: module type of IrminTag.Simple
 
 (** {2 Stores} *)
 
+module type S = sig
+
+  (** At high-level,Irminsule exposes the same interface as a
+      low-level mutable store, but you gain the commit, rollback and
+      notification mechanisms. *)
+
+  type t
+  (** Type of states. *)
+
+  type path
+  (** Type of paths. *)
+
+  include IrminStore.M with type key := path
+
+  val snapshot: unit -> t Lwt.t
+  (** Commit the current store state. *)
+
+  val revert: t -> unit Lwt.t
+  (** Revert to a previous state. *)
+
+  val watch: path -> (path * t option) Lwt_stream.t
+  (** Event stream attached for a given path. *)
+
+end
+
 module type STORE = sig
 
   (** {2 Main signature for Irminsule stores} *)
@@ -53,11 +78,20 @@ module type STORE = sig
      and type key = Key.t
   (** Persists tags. *)
 
+  (** {2 Mutable store interface} *)
+
+  val master: unit -> (module S)
+  (** Return the master store. *)
+
+  val create: Tag.t -> (module S)
+  (** Get the mutable store associated to the given tag. If the tag
+      does not exist, create a fresh store. *)
+
 end
 
 module Make
     (SValue: IrminStore.IRAW with type key = Key.t)
     (STree: IrminStore.IRAW with type key = Key.t)
     (SRevision: IrminStore.IRAW with type key = Key.t)
-    (STag: IrminStore.MRAW with type key = Key.t)
+    (STag: IrminStore.MRAW with type value = Key.t)
   : STORE

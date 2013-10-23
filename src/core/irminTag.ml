@@ -28,19 +28,17 @@ end
 module type STORE = sig
   type t
   type key
-  val set: t -> key -> unit Lwt.t
-  val remove: t -> unit Lwt.t
-  val read: t -> key option Lwt.t
-  val read_exn: t -> key Lwt.t
-  val list: unit -> t list Lwt.t
+  include IrminStore.M with type key := t and type value := key
 end
 
-module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.key) = struct
+module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.value) = struct
 
   type t = T.t
 
+  type key = K.t
+
   module S = IrminStore.MakeM(S)(T)(K)
 
-  include (S: module type of S with type tag := t)
+  include (S: module type of S with type key := t)
 
 end
