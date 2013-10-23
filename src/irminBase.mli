@@ -58,6 +58,20 @@ module type S = sig
 
 end
 
+module type STRINGABLE = sig
+
+  (** Signature for stringable objects. *)
+
+  type t
+
+  val to_string: t -> string
+  (** Convert an element to a string. *)
+
+  val of_string: string -> t
+  (** Convert a string to an element. *)
+
+end
+
 (** {2 String Elements} *)
 
 module PrivateString: sig

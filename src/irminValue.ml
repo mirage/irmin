@@ -42,12 +42,12 @@ end
 
 module type STORE = sig
   include S
-  include IrminStore.S with type value := t
+  include IrminStore.I with type value := t
 end
 
-module Make (S: IrminStore.RAW) (K: IrminKey.S with type t = S.key) (V: S) = struct
+module Make (S: IrminStore.IRAW) (K: IrminKey.S with type t = S.key) (V: S) = struct
 
-  module Store = IrminStore.Make(S)(K)(V)
+  module Store = IrminStore.MakeI(S)(K)(V)
 
   include V
 

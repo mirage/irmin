@@ -29,7 +29,7 @@ let warning fmt =
 
 let debug fmt = IrminLog.debug "DISK" fmt
 
-module Make (FD: IrminChannel.S) (D: sig val dir: string end) = struct
+module Store (D: sig val dir: string end) = struct
 
   let (/) = Filename.concat
 
@@ -52,13 +52,14 @@ module Make (FD: IrminChannel.S) (D: sig val dir: string end) = struct
 
   let with_file file fn =
     debug "with_file %s" file;
-    lwt t = FD.of_file file in
+    Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
+    let t = FD.create fd file in
     try
-      lwt r = fn t in
-      lwt () = FD.close t in
+      fn t >>= fun r ->
+      FD.close t >>= fun () ->
       return r
     with e ->
-      lwt () = FD.close t in
+      FD.close t >>= fun () ->
       raise_lwt e
 
   let with_maybe_file file fn default =
@@ -80,99 +81,56 @@ module Make (FD: IrminChannel.S) (D: sig val dir: string end) = struct
     mkdir (tags_dir dir);
     return_unit
 
-let create dir = {
-  root  = dir;
-  key   = key_file dir;
-  value = value_file dir;
-  tag   = tag_file dir;
-}
+  let create dir = {
+    root  = dir;
+    key   = key_file dir;
+    value = value_file dir;
+    tag   = tag_file dir;
+  }
 
-let basenames fn dir =
-  let files = Lwt_unix.files_of_directory dir in
-  lwt files = Lwt_stream.to_list files in
-  let files = List.filter (fun f -> f <> "." && f <> "..") files in
-  Lwt_list.map_s (fun f ->
-      let b = Filename.basename f in
-      return (fn b)
-    ) files
+  let basenames fn dir =
+    let files = Lwt_unix.files_of_directory dir in
+    Lwt_stream.to_list files >>= fun files ->
+    let files = List.filter (fun f -> f <> "." && f <> "..") files in
+    Lwt_list.map_s (fun f ->
+        let b = Filename.basename f in
+        return (fn b)
+      ) files
 
-let dump t =
-  lwt keys = basenames Key.of_hex (values_dir t.root) in
-  lwt values = Lwt_list.map_s (fun key ->
-      lwt value = with_file (t.value key) XValue.read_channel in
-      return (key, value)
-    ) keys in
-  List.iter (fun (key, value) ->
-      Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
-    ) values;
-  return_unit
-
-module Key_store = struct
-
-  let debug fmt = IrminLog.debug "DISK-KEY" fmt
-
-  include T
-
-  let pred t key =
-    debug "pred %s" (Key.pretty key);
-    lwt () = check t in
-    with_maybe_file (t.key key) XKeys.read_channel []
-
-  let keys t ?sources ?sinks () =
-    debug "keys";
-    lwt () = check t in
-    lwt keys = with_maybe_file (all_keys t.root)  XKeys.read_channel [] in
-    Key.Graph.make keys ?sources ?sinks (pred t)
-
-  let update_index t ks =
-    lwt g = keys t () in
-    let old_keys = Key.Graph.vertex g in
-    let keys = KeySet.(union (of_list old_keys) (of_list ks)) in
-    let keys = KeySet.to_list keys in
-    with_file (all_keys t.root) (fun fd -> XKeys.write_channel fd keys)
-
-  let add t key pred_keys =
-    debug "add %s %s" (Key.pretty key) (XKeys.pretty pred_keys);
-    lwt () = check t in
-    let file = t.key key in
-    lwt old_keys = with_maybe_file file XKeys.read_channel [] in
-    let keys = KeySet.(union (of_list pred_keys) (of_list old_keys)) in
-    if Sys.file_exists file then Sys.remove file;
-    lwt () =
-      if KeySet.is_empty keys then return_unit
-      else with_file file (fun fd ->
-          XKeys.write_channel fd (KeySet.to_list keys)
-        ) in
-    let keys = key :: pred_keys in
-    update_index t keys
-
-end
-
-module Value_store = struct
-
-  let debug fmt = IrminLog.debug "DISK-VALUE" fmt
-
-  include T
+  let dump t =
+    basenames Key.of_hex (values_dir t.root)
+    >>= fun keys ->
+    Lwt_list.map_s (fun key ->
+        with_file (t.value key) XValue.read_channel
+        >>= fun value ->
+        return (key, value)
+      ) keys
+    >>= fun values ->
+    List.iter (fun (key, value) ->
+        Printf.printf "%s %s\n" (Key.pretty key) (Value.pretty value)
+      ) values;
+    return_unit
 
   let write t value =
     debug "write %s" (Value.pretty value);
-    lwt () = check t in
+    check t >>= fun () ->
     let key = Value.key value in
     let file = t.value key in
     if Sys.file_exists file then
-      return_unit key
+      return key
     else
-      lwt () = with_file file (fun fd ->
+      with_file file (fun fd ->
           XValue.write_channel fd value
-        ) in
-      return_unit key
+        ) >>= fun () ->
+      return key
 
   let read t key =
     debug "read %s" (Key.pretty key);
-    lwt () = check t in
+    check t >>= fun () ->
     let file = t.value key in
     if Sys.file_exists file then
-      lwt value = with_file file XValue.read_channel in
+      with_file file XValue.read_channel
+      >>= fun value ->
       return (Some value)
     else
       return_none
@@ -186,7 +144,7 @@ module Tag_store = struct
   include T
 
   let remove t tag =
-    lwt () = check t in
+    check t >>= fun () ->
     let file = t.tag tag in
     if Sys.file_exists file then (
       debug "remove %s" (Tag.to_string tag);
@@ -196,8 +154,8 @@ module Tag_store = struct
 
   let update t tag keys =
     debug "update %s %s" (Tag.pretty tag) (KeySet.pretty keys);
-    lwt () = check t in
-    lwt () = remove t tag in
+    check t >>= fun () ->
+    remove t tag >>= fun () ->
     with_file (t.tag tag) (fun fd ->
         debug "add %s" (Tag.to_string tag);
         XKeys.write_channel fd (KeySet.to_list keys)
@@ -205,25 +163,16 @@ module Tag_store = struct
 
   let read t tag =
     debug "read %s" (Tag.pretty tag);
-    lwt () = check t in
+    check t >>= fun () ->
     let file = t.tag tag in
     if Sys.file_exists file then
-      lwt keys = with_file file XKeys.read_channel in
-      return keys
+      with_file file XKeys.read_channel
     else
       return []
 
   let all t =
     debug "all";
-    lwt () = check t in
-    lwt tags = basenames Tag.of_string (tags_dir t.root) in
-    return tags
+    check t >>= fun () ->
+    basenames Tag.of_string (tags_dir t.root)
 
 end
-
-let create dir =
-  let module M = struct
-    include Make(IrminStore.Simple)(IrminChannel.Lwt_unix)
-    let create () = create dir
-  end in
-  (module M)

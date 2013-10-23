@@ -38,6 +38,8 @@ end
 
 module Make (B: IrminBase.S) = struct
 
+  open Lwt
+
   let debug fmt = IrminLog.debug "GRAPH" fmt
 
   module Vertex = B
@@ -69,11 +71,11 @@ module Make (B: IrminBase.S) = struct
         mark key;
         debug "ADD %s" (Vertex.pretty key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
-        lwt keys = pred key in
+        pred key >>= fun keys ->
         List.iter (fun k -> G.add_edge g k key) keys;
-        Lwt_list.iter_s add keys
+        Lwt_list.iter_p add keys
       ) in
-    lwt () = Lwt_list.iter_s add keys in
+    Lwt_list.iter_p add keys >>= fun () ->
     Lwt.return g
 
   let min g =

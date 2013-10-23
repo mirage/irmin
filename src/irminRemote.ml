@@ -14,25 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminTypes
-
-type action =
-  (* Key store *)
-  | Key_add
-  | Key_list
-  | Key_pred
-  (* Value store *)
-  | Value_write
-  | Value_read
-  (* Tag store *)
-  | Tag_update
-  | Tag_remove
-  | Tag_read
-  | Tag_list
-  (* Sync *)
-  | Sync_pull_keys
-  | Sync_pull_tags
-  | Sync_watch
 
 module Action = struct
 
@@ -197,10 +178,12 @@ module Make_client (C: CORE) = struct
 
   module Key_store = struct
 
+    open Lwt
+
     include Types
 
     let add t key preds =
-      lwt fd = t () in
+      t () >>= fun fd ->
       lwt () = XActionKeyKeys.write_fd fd (Key_add, (key, preds)) in
       read_unit fd
 

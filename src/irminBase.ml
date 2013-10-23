@@ -29,6 +29,12 @@ module type S = sig
   val set: IrminBuffer.t -> t -> unit
 end
 
+module type STRINGABLE = sig
+  type t
+  val to_string: t -> string
+  val of_string: string -> t
+end
+
 module OCamlList = List
 module OCamlString = String
 

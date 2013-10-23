@@ -53,17 +53,7 @@ module type STORE = sig
   type key
   (** Type of keys. *)
 
-  type tree
-  (** Type for trees. *)
-
-  type revision
-  (** Type for revision. *)
-
-  exception Unknown of t
-  (** Exception raised when an operation tries to get a non-existing
-      tag. *)
-
-  val update: t -> key -> unit Lwt.t
+  val set: t -> key -> unit Lwt.t
   (** Update a tag. If the tag does not exist before, just create a
       new tag. *)
 
@@ -79,29 +69,8 @@ module type STORE = sig
   val list: unit -> t list Lwt.t
   (** List all the available tags. *)
 
-  module Watch: sig
-
-    (** {2 Event notifications} *)
-
-    type watch = int
-    (** Type of watches identifiers. *)
-
-    type path = string list
-    (** Type for paths. *)
-
-    val add: t -> path -> (revision -> path -> tree option -> unit Lwt.t) -> watch Lwt.t
-    (** Add a watch for changes for a given set of tags and path of
-        labels. Call a callback on ([revision] * [path'] * [tree]),
-        where [revision] is the new revision pointed by [tag] where
-        the subtree [tree] pointing by [path'] has been updated. Note:
-        [path] is necessary a sprefix of [path']. *)
-
-    val remove: t -> path -> watch -> unit Lwt.t
-    (** Remove a watch. *)
-
-    val list: unit -> (t * path * watch) list Lwt.t
-    (** List of the available watches. *)
-
-  end
-
 end
+
+module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.key)
+  : STORE with type key = S.key
+           and type t = T.t

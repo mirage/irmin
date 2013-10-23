@@ -18,7 +18,7 @@ module type STORE = sig
   type t
   type tree
   module Graph: IrminGraph.S with type Vertex.t = t
-  include IrminStore.S with type value := t
+  include IrminStore.I with type value := t
   val create: ?tree:key -> key list -> t
   val tree: t -> tree Lwt.t option
   val parents: t -> t Lwt.t list
@@ -26,7 +26,7 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.RAW)
+    (S: IrminStore.IRAW)
     (K: IrminKey.S with type t = S.key)
     (T: IrminTree.STORE with type key = S.key) =
 struct
@@ -89,7 +89,7 @@ struct
 
   end
 
-  module Store = IrminStore.Make(S)(K)(Revision)
+  module Store = IrminStore.MakeI(S)(K)(Revision)
 
   module Graph = IrminGraph.Make(Revision)
 

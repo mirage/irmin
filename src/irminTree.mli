@@ -24,7 +24,7 @@ module type STORE = sig
   type t
   (** Type of tree nodes. *)
 
-  include IrminStore.S with type value := t
+  include IrminStore.I with type value := t
 
   type value
   (** Type of values. *)
@@ -63,7 +63,7 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.RAW)
+    (S: IrminStore.IRAW)
     (K: IrminKey.S with type t = S.key)
     (V: IrminValue.STORE with type key = S.key):
   STORE with type key = K.t

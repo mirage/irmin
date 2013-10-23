@@ -1,12 +1,10 @@
 VERSION  = 0.1
 PREFIX  ?= /usr/local
-MAIN     = irminMain
+MAIN     = irmin
 TESTS    = test
 TARGET   = irmin
 
 PACKAGES = -pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,lwt,ocplib-endian,cstruct
-SYNTAXES = -tags "syntax(camlp4o)" -pkgs lwt.syntax,cohttp.lwt,cstruct.syntax \
-	   -cflags -ppopt,-lwt-debug
 FLAGS    = -use-ocamlfind -cflags "-bin-annot" -no-links
 INCLUDES = -Is src,src/lib,src/lwt
 BUILD    = ocamlbuild $(INCLUDES) $(FLAGS) $(PACKAGES) $(SYNTAXES)

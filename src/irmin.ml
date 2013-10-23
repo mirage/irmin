@@ -14,46 +14,35 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
-  module Key: IrminKey.S
-  module Value: IrminValue.S
-  module Tag: IrminTag.S
-end
+module Key = IrminKey.SHA1
+module Value = IrminValue.Simple
+module Tag = IrminTag.Simple
 
 module type STORE = sig
-  module Base: S
   module Value: IrminValue.STORE
+    with type key = Key.t
+     and type t = Value.t
   module Tree: IrminTree.STORE
+    with type key = Key.t
+     and type value = Value.t
   module Revision: IrminRevision.STORE
+    with type key = Key.t
+     and type tree = Tree.t
   module Tag: IrminTag.STORE
-  val name: string
-end
-
-module Simple = struct
-  module Key = IrminKey.SHA1
-  module Value = IrminValue.Simple
-  module Tag = IrminTag.Simple
+    with type t = Tag.t
+     and type key = Key.t
 end
 
 module Make
-    (Value: IrminStore.RAW)
-    (Tree: IrminStore.RAW)
-    (Revision: IrminStore.RAW)
-    (Tag: IrmintStore.TAG)
-    (Base: S) = struct
-  module Base = Base
-  module Value = IrminValue.Make(Value)(Base.Key)(Base.Value)
-  module Tree = IrminTree.Make(Tree)(Base.Key)(Base.Value)
-  module Revision = IrminRevision.Make(Revision)(Base.Key)(Tree)
-  module Tag = IrminTag.Make(Tag)(Base.Tag)(Base.Key)
+    (SValue: IrminStore.IRAW with type key = Key.t)
+    (STree: IrminStore.IRAW with type key = Key.t)
+    (SRevision: IrminStore.IRAW with type key = Key.t)
+    (STag: IrminStore.MRAW with type key = Key.t) =
+struct
+
+  module Value = IrminValue.Make(SValue)(Key)(Value)
+  module Tree = IrminTree.Make(STree)(Key)(Value)
+  module Revision = IrminRevision.Make(SRevision)(Key)(Tree)
+  module Tag = IrminTag.Make(STag)(Tag)(Key)
+
 end
-
-
-let client addr =
-  failwith "TODO"
-
-let memory () =
-  IrminMemory.create ()
-
-let fs dir =
-  failith "TODO"

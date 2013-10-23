@@ -23,14 +23,14 @@ module type STORE = sig
   type t
   (** Type of revisions. *)
 
-  type tree
-  (** Type of trees. *)
-
   module Graph: IrminGraph.S with type Vertex.t = t
   (** Graph of revisions. *)
 
-  include IrminStore.S with type value := t
+  include IrminStore.I with type value := t
   (** Store of revisions. *)
+
+  type tree
+  (** Type of trees. *)
 
   val create: ?tree:key -> key list -> t
   (** Create a new revision. *)
@@ -50,9 +50,9 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.RAW)
+    (S: IrminStore.IRAW)
     (K: IrminKey.S with type t = S.key)
     (T: IrminTree.STORE with type key = S.key):
-  STORE with type key = K.t
+  STORE with type key = T.key
          and type tree = T.t
 (** Create a revision store. *)

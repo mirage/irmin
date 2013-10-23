@@ -54,11 +54,11 @@ module type STORE = sig
 
   include S
 
-  include IrminStore.S with type value := t
+  include IrminStore.I with type value := t
 
 end
 
-module Make (S: IrminStore.RAW) (K: IrminKey.S with type t = S.key) (V: S):
+module Make (S: IrminStore.IRAW) (K: IrminKey.S with type t = S.key) (V: S):
   STORE with type key = K.t
          and type t = V.t
 (** Create a value store. *)

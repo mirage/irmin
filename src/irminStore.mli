@@ -14,17 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** {2 Irminsule stores} *)
+(** Stores. *)
 
-module type S = sig
+(** {2 Immutable stores} *)
 
-  (** Base types for stores. *)
+module type I = sig
+
+  (** Base types for immutable stores. *)
 
   type key
   (** Type of keys. *)
 
   type value
   (** Type of values. *)
+
+  val init: unit -> unit Lwt.t
+  (** Init the store. *)
 
   val write: value -> key Lwt.t
   (** Write the contents of a value to the store. *)
@@ -33,7 +38,7 @@ module type S = sig
   (** Read a value from the store. *)
 
   val read_exn: key -> value Lwt.t
-  (** Read a value from the store. Raise [Not_found k] if [k] does not
+  (** Read a value from the store. Raise [Unknown k] if [k] does not
       have an associated value. *)
 
   val mem: key -> bool Lwt.t
@@ -41,10 +46,57 @@ module type S = sig
 
 end
 
-module type RAW = S with type value := IrminBuffer.t
-(** Raw stores. *)
+module type IRAW = I with type value := IrminBuffer.t
+(** Raw immutable stores. *)
 
-module Make (S: RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
-  S with type key = K.t
+module MakeI (S: IRAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
+  I with type key = K.t
      and type value = V.t
 (** Build a typed store. *)
+
+(** {2 Mutable store} *)
+
+module type M = sig
+
+  (** Signature for mutable store. *)
+
+  type tag
+  (** Type of tags. *)
+
+  type key
+  (** Type of keys. *)
+
+  val init: unit -> unit Lwt.t
+  (** Init the store. *)
+
+  val set: tag -> key -> unit Lwt.t
+  (** Replace the contents of [tag] by [key] if [tag] is already
+      defined or create it otherwise. *)
+
+  val remove: tag -> unit Lwt.t
+  (** Remove the given tag. *)
+
+  val read: tag -> key option Lwt.t
+  (** Read a key. Return [None] if the the tag is not defined. *)
+
+  val read_exn: tag -> key Lwt.t
+  (** Read a key, raise [Unknown k] if the tag is not defined. *)
+
+  val mem: tag -> bool Lwt.t
+  (** Check if a tag exist. *)
+
+  val list: unit -> tag list Lwt.t
+  (** Return all the tags. *)
+
+end
+
+module type MRAW = M with type tag = string
+(** Raw mutable stores. *)
+
+module MakeM
+    (S: MRAW)
+    (T: IrminBase.STRINGABLE)
+    (K: IrminKey.S with type t = S.key)
+  : M with type tag = T.t
+       and type key = K.t
+(** Build a mutable store. *)

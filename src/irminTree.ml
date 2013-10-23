@@ -17,7 +17,7 @@
 
 module type STORE = sig
   type t
-  include IrminStore.S with type value := t
+  include IrminStore.I with type value := t
   type value
   val empty: t
   val create: ?value:key -> (string * key) list -> t
@@ -32,7 +32,7 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.RAW)
+    (S: IrminStore.IRAW)
     (K: IrminKey.S with type t = S.key)
     (V: IrminValue.STORE with type key = S.key) =
 struct
@@ -105,7 +105,7 @@ struct
       XTree.dump (t.value, t.children)
   end
 
-  module Store = IrminStore.Make(S)(K)(Tree)
+  module Store = IrminStore.MakeI(S)(K)(Tree)
 
   include Tree
 

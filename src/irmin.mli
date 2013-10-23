@@ -18,76 +18,46 @@
 
 (** {2 Base types} *)
 
-module type S = sig
+module Key: module type of IrminKey.SHA1
+(** SHA1 keys. *)
 
-  (** Signature for base types. *)
+module Value: module type of IrminValue.Simple
+(** String values. *)
 
-  module Key: IrminKey.S
-  (** Type of keys. *)
-
-  module Value: IrminValue.S
-  (** Type of values. *)
-
-  module Tag: IrminTag.S
-  (** Type of tags. *)
-
-end
-
-module Simple: sig
-
-  (** Simple implementation of base types. *)
-
-  module Key: module type of IrminKey.SHA1
-  (** SHA1 keys. *)
-
-  module Value: module type of IrminValue.Simple
-  (** String values. *)
-
-  module Tag: module type of IrminTag.Simple
-  (** String tags. *)
-
-end
+module Tag: module type of IrminTag.Simple
+(** String tags. *)
 
 (** {2 Stores} *)
 
 module type STORE = sig
 
-  (** Main signature for Irminsule applications. *)
-
-  module Base: S
-  (** Base elements. *)
-
   (** {2 Main signature for Irminsule stores} *)
 
   module Value: IrminValue.STORE
-    with type key = Base.Key.t
-     and type t = Base.Value.t
+    with type key = Key.t
+     and type t = Value.t
   (** Persist raw values. *)
 
   module Tree: IrminTree.STORE
-    with type key = Base.Key.t
-     and type t = Value.t
+    with type key = Key.t
+     and type value = Value.t
   (** Persisit trees. *)
 
   module Revision: IrminRevision.STORE
-    with type key = Base.Key.t
-     and type t = Tree.t
+    with type key = Key.t
+     and type tree = Tree.t
   (** Persist revisions. *)
 
-  module Tag_store: IrminTag.STORE
-    with type key = Base.Key.t
-     and type tree = Tree.t
-     and type revision = Revision.t
-     and type t = Base.Tag.t
+  module Tag: IrminTag.STORE
+    with type t = Tag.t
+     and type key = Key.t
   (** Persists tags. *)
-
-  val name: string
-  (** Store name. *)
 
 end
 
-module Make (B: S): STORE with module Base = B
-
-val client: string -> (module STORE)
-val memory: unit -> (module STORE)
-val fs: string -> (module STORE)
+module Make
+    (SValue: IrminStore.IRAW with type key = Key.t)
+    (STree: IrminStore.IRAW with type key = Key.t)
+    (SRevision: IrminStore.IRAW with type key = Key.t)
+    (STag: IrminStore.MRAW with type key = Key.t)
+  : STORE

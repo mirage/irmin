@@ -19,7 +19,7 @@
 module Store (K: IrminKey.S): sig
 
   (** Create a fresh store *)
-  val create: unit -> (module IrminStore.RAW with type key = K.t)
+  val create: unit -> (module IrminStore.IRAW with type key = K.t)
 
 end
 

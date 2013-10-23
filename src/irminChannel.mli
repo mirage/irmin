@@ -21,7 +21,13 @@ module type S = sig
   (** Signature for IO channels. *)
 
   type t
-  (** Type of IO channels. *)
+  (** Type of named channels. *)
+
+  type channel
+  (** Type of concrete channels. *)
+
+  val create: channel -> string -> t
+  (** Create a named channel. *)
 
   val name: t -> string
   (** Channel name. *)
@@ -54,20 +60,6 @@ module type S = sig
 
   val close: t -> unit Lwt.t
   (** Close a channel. *)
-
-  (** {2 File system abstraction (XXX: move it)} *)
-
-  val of_file: string -> t Lwt.t
-  (** Open a file. *)
-
-  val file_exits: string -> bool Lwt.t
-  (** Does a file exists. *)
-
-  val is_directory: string -> bool Lw.t
-  (** Is the file a directory. *)
-
-  val mkdir: string -> unit Lwt.t
-  (** Create a directory. *)
 
 end
 

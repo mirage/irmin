@@ -153,19 +153,6 @@ module Lwt_unix = struct
 
   let create fd name = { fd; name }
 
-  let file_exists file =
-    return (Sys.file_exists file)
-
-  let is_directory file =
-    return (Sys.is_directory file)
-
-  let mkdir file =
-    return (Unix.mkdir file 0o755)
-
-  let of_file file =
-    lwt fd = Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) in
-    return (create fd file)
-
   let unix_socket_server ~limit file =
     debug "unix-socker-server %s" file;
     let fd = Lwt_unix.(socket PF_UNIX SOCK_STREAM 0) in

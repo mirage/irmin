@@ -29,6 +29,9 @@ module Store (K: IrminKey.S) = struct
 
       type key = K.t
 
+      let init () =
+        return_unit
+
       let write value =
         let key = K.of_buffer value in
         Hashtbl.add table key value;
@@ -51,7 +54,7 @@ module Store (K: IrminKey.S) = struct
 
     end
     in
-    (module S: IrminStore.RAW with type key = K.t)
+    (module S: IrminStore.IRAW with type key = K.t)
 
 end
 
@@ -111,47 +114,5 @@ module Tag
       let list () =
         let elts = Hashtbl.fold (fun t _ acc -> t :: acc) table [] in
         return elts
-
-      module Watch = struct
-
-        type watch = int
-
-        type path = string list
-
-        let c = ref 0
-
-        let add tag path fn =
-          let w = !c in
-          incr c;
-          let ws =
-            try Hashtbl.find watches tag
-            with Not_found -> [] in
-          Hashtbl.add watches tag ((w, path, fn) :: ws);
-          return w
-
-        let remove tag path watch =
-          try
-            let ws = Hashtbl.find watches tag in
-            let ws = List.filter (fun (w,p,_) -> w<>watch && p<>path) ws in
-            return (match ws with
-                | [] -> Hashtbl.remove watches tag
-                | _  -> Hashtbl.replace watches tag ws
-              )
-          with Not_found ->
-            return_unit
-
-        let list () =
-          let l = Hashtbl.fold
-              (fun tag ws acc ->
-                 List.fold_left (fun acc (watch, path, _) ->
-                     (tag, path, watch) :: acc
-                   ) acc ws
-              ) watches [] in
-          return l
-
-      end
-    end
-    in
-    (module S: IrminTag.STORE with type t = T.t and type key = K.t)
 
 end

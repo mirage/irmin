@@ -14,24 +14,28 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
+module type I = sig
   type key
   type value
+  val init: unit -> unit Lwt.t
   val write: value -> key Lwt.t
   val read: key -> value option Lwt.t
   val read_exn: key -> value Lwt.t
   val mem: key -> bool Lwt.t
 end
 
-module type RAW = S with type value := IrminBuffer.t
+module type IRAW = I with type value := IrminBuffer.t
 
-module Make (S: RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
+module MakeI (S: IRAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
 
   open Lwt
 
   type key = K.t
 
   type value = V.t
+
+  let init () =
+    S.init ()
 
   let read key =
     S.read key >>= function
@@ -53,5 +57,56 @@ module Make (S: RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = stru
 
   let mem k =
     S.mem k
+
+end
+
+module type M = sig
+  type tag
+  type key
+  val init: unit -> unit Lwt.t
+  val set: tag -> key -> unit Lwt.t
+  val remove: tag -> unit Lwt.t
+  val read: tag -> key option Lwt.t
+  val read_exn: tag -> key Lwt.t
+  val mem: tag -> bool Lwt.t
+  val list: unit -> tag list Lwt.t
+end
+
+module type MRAW = M with type tag = string
+
+module MakeM
+    (S: MRAW)
+    (T: IrminBase.STRINGABLE)
+    (K: IrminKey.S with type t = S.key) =
+struct
+
+  open Lwt
+
+  type tag = T.t
+
+  type key = K.t
+
+  let init () =
+    S.init ()
+
+  let set (tag:tag) key =
+    S.set (T.to_string tag) key
+
+  let remove tag =
+    S.remove (T.to_string tag)
+
+  let read tag =
+    S.read (T.to_string tag)
+
+  let read_exn tag =
+    S.read_exn (T.to_string tag)
+
+  let mem tag =
+    S.mem (T.to_string tag)
+
+  let list () =
+    S.list () >>= fun ss ->
+    let ts = List.map T.of_string ss in
+    return ts
 
 end
