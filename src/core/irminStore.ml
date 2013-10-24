@@ -69,7 +69,7 @@ module type M = sig
   val read: key -> value option Lwt.t
   val read_exn: key -> value Lwt.t
   val mem: key -> bool Lwt.t
-  val list: unit -> key list Lwt.t
+  val list: key -> key list Lwt.t
 end
 
 module type MRAW = M with type key = string
@@ -104,8 +104,8 @@ struct
   let mem key =
     S.mem (K.to_string key)
 
-  let list () =
-    S.list () >>= fun ss ->
+  let list key =
+    S.list (K.to_string key) >>= fun ss ->
     let ks = List.map K.of_string ss in
     return ks
 

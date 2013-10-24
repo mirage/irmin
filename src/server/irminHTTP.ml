@@ -82,10 +82,10 @@ let process t ?body path =
   | "action" :: "mem" :: path ->
     Store.mem path >>= respond_bool
 
-  | ["action"; "list"] ->
-    Store.list () >>= fun paths ->
+  | "action" :: "list" :: path ->
+    Store.list path >>= fun paths ->
     let paths = List.map (String.concat "/") paths in
-    respond (String.concat "\n" paths)
+    respond_strings paths
 
   | ["action"; "snapshot"] ->
     Store.snapshot () >>= respond_key

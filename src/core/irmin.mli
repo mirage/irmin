@@ -29,6 +29,11 @@ module type S = sig
 
   include IrminStore.M
 
+  val list: key -> key list Lwt.t
+  (** The store is supposed to be hierarchical. This function lists
+      the children keys of a given key. Useful to walk in the tree
+      structure of the database. *)
+
   val snapshot: unit -> t Lwt.t
   (** Commit the current store state. *)
 

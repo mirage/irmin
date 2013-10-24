@@ -85,8 +85,9 @@ module type M = sig
   val mem: key -> bool Lwt.t
   (** Check if a key exist. *)
 
-  val list: unit -> key list Lwt.t
-  (** Return all the keys. *)
+  val list: key -> key list Lwt.t
+  (** Return all the keys that you can access, knowing a password
+      key. *)
 
 end
 
