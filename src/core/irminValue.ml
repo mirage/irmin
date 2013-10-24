@@ -18,6 +18,7 @@ exception Conflict
 
 module type S = sig
   include IrminBase.S
+  val of_bytes: string -> t
   val merge: old:t -> t -> t -> t
 end
 
@@ -31,6 +32,8 @@ module Simple  = struct
   let name = "value"
 
   let create s = s
+
+  let of_bytes s = s
 
   let merge ~old t1 t2 =
     if compare t1 t2 = 0 then t1

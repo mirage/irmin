@@ -28,6 +28,9 @@ module type S = sig
   include IrminBase.S
   (** Base types. *)
 
+  val of_bytes: string -> t
+  (** Convert a raw sequence of bytes into a value. *)
+
   val merge: old:t -> t -> t -> t
   (** Merge function. *)
 

@@ -16,6 +16,6 @@
 
 (** HTTP server *)
 
-val server: (module Irmin.SIMPLE) -> int -> unit Lwt.t
+val server: (module Irmin.STORE) -> int -> unit Lwt.t
 (** [server db port] start a server serving the contents of [db] on
     port [port]. *)

@@ -38,12 +38,12 @@ let respond_strings strs =
   respond_json json
 
 let process t ?body path =
-  let module S = (val t: Irmin.SIMPLE) in
+  let module S = (val t: Irmin.STORE) in
   let open S in
   let respond_key key = respond_json (Key.to_json key) in
   let respond_value value = respond_json (Value.to_json value) in
-  let respond_tree tree = respond_json (Store.Tree.to_json tree) in
-  let respond_revision rev = respond_json (Store.Revision.to_json rev) in
+  let respond_tree tree = respond_json (Tree.to_json tree) in
+  let respond_revision rev = respond_json (Revision.to_json rev) in
   match path with
   | [] -> respond_strings [
       "action";
@@ -70,44 +70,44 @@ let process t ?body path =
     begin match List.rev path with
       | [] | [_]      -> failwith "Wrong number of arguments"
       | value :: path ->
-        Store.set (List.rev path) (Value.create value) >>= respond_unit
+        set (List.rev path) (Value.of_bytes value) >>= respond_unit
     end
 
   | "action" :: "remove" :: path ->
-    Store.remove path >>= respond_unit
+    remove path >>= respond_unit
 
   | "action" :: "read" :: path ->
-    Store.read_exn path >>= respond_value
+    read_exn path >>= respond_value
 
   | "action" :: "mem" :: path ->
-    Store.mem path >>= respond_bool
+    mem path >>= respond_bool
 
   | "action" :: "list" :: path ->
-    Store.list path >>= fun paths ->
+    list path >>= fun paths ->
     let paths = List.map (String.concat "/") paths in
     respond_strings paths
 
   | ["action"; "snapshot"] ->
-    Store.snapshot () >>= respond_key
+    snapshot () >>= respond_key
 
   | ["action"; "watch"] -> failwith "TODO"
 
   (* VALUES *)
 
   | ["value"; key] ->
-    Store.Value.read_exn (Key.of_hex key) >>= respond_value
+    Value.read_exn (Key.of_hex key) >>= respond_value
 
   (* TREE *)
   | ["tree"; key] ->
-    Store.Tree.read_exn (Key.of_hex key) >>= respond_tree
+    Tree.read_exn (Key.of_hex key) >>= respond_tree
 
   (* REVISIONS *)
   | ["revision"; key] ->
-    Store.Revision.read_exn (Key.of_hex key) >>= respond_revision
+    Revision.read_exn (Key.of_hex key) >>= respond_revision
 
   (* TAGS *)
   | ["tag"; tag] ->
-    Store.Tag.read_exn (Tag.of_string tag) >>= respond_key
+    Tag.read_exn (Tag.of_string tag) >>= respond_key
 
   | _ -> failwith "Invalid URI"
 

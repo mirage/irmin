@@ -58,6 +58,10 @@ module type STORE = sig
   type tag
   (** Type of tags. *)
 
+  module Key: IrminKey.S
+    with type t = key
+  (** Type of keys. *)
+
   module Value: IrminValue.STORE
     with type key = key
      and type t = value
@@ -105,31 +109,11 @@ module Make
            and type value = Value.t
            and type tag = Tag.t
 
-module type SIMPLE = sig
-
-  (** Simple instantiations for key, value and tag types. Use only the
-      master branch. *)
-
-  module Key: module type of IrminKey.SHA1
-  (** SHA1 keys. *)
-
-  module Value: module type of IrminValue.Simple
-  (** String values. *)
-
-  module Tag: module type of IrminTag.Simple
-  (** String tags. *)
-
-  module Store: STORE
-    with type key = Key.t
-     and type value = Value.t
-     and type tag = Tag.t
-  (** Signature for simple stores. *)
-
-end
-
 module Simple
     (I: IrminStore.IRAW with type key = IrminKey.SHA1.t)
     (M: IrminStore.MRAW with type value = IrminKey.SHA1.t)
-  : SIMPLE
+  : STORE with type key = IrminKey.SHA1.t
+           and type value = IrminValue.Simple.t
+           and type tag = IrminTag.Simple.t
 (** Create a simple store. Use only one mutable store for value,
     tree and revisions and a mutable store for the tags. *)

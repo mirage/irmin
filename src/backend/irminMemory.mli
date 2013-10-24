@@ -23,12 +23,12 @@ module Store (K: IrminKey.S): sig
 
 end
 
-module Tag
-    (T: IrminTag.S)
-    (K: IrminKey.S)
-    (R: IrminRevision.STORE with type key = K.t): sig
+module Tag (T: IrminTag.S) (K: IrminKey.S): sig
 
   (** Create a fresh tag store. *)
   val create: unit -> (module IrminTag.STORE with type t = T.t and type key = K.t)
 
 end
+
+module Simple: Irmin.STORE
+(** Simple implementation of an in-memory store. *)

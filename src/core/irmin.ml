@@ -26,6 +26,8 @@ module type STORE = sig
   type key
   type value
   type tag
+  module Key: IrminKey.S
+    with type t = key
   module Value: IrminValue.STORE
     with type key = key
      and type t = value
@@ -57,6 +59,7 @@ struct
 
   open Lwt
 
+  module Key = Key
   module Value = IrminValue.Make(SValue)(Key)(Value)
   module Tree = IrminTree.Make(STree)(Key)(Value)
   module Revision = IrminRevision.Make(SRevision)(Key)(Tree)
@@ -123,28 +126,11 @@ struct
 
 end
 
-module type SIMPLE = sig
-  module Key: module type of IrminKey.SHA1
-  module Value: module type of IrminValue.Simple
-  module Tag: module type of IrminTag.Simple
-  module Store: STORE
-    with type key = Key.t
-     and type value = Value.t
-     and type tag = Tag.t
-end
-
 module Simple
     (I: IrminStore.IRAW with type key = IrminKey.SHA1.t)
     (M: IrminStore.MRAW with type value = IrminKey.SHA1.t) =
 struct
 
-  module Key = IrminKey.SHA1
-  module Value = IrminValue.Simple
-  module Tag = IrminTag.Simple
-  module type STORE = STORE
-    with type key = Key.t
-     and type value = Value.t
-     and type tag = Tag.t
-  module Store = Make(Key)(Value)(Tag)(I)(I)(I)(M)
+  include Make(IrminKey.SHA1)(IrminValue.Simple)(IrminTag.Simple)(I)(I)(I)(M)
 
 end

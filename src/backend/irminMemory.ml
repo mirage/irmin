@@ -58,37 +58,28 @@ module Store (K: IrminKey.S) = struct
 
 end
 
-module Tag
-    (T: IrminTag.S)
-    (K: IrminKey.S)
-    (R: IrminRevision.STORE with type key = K.t)
-= struct
+module Tag (T: IrminTag.S) (K: IrminKey.S) = struct
 
   let create () =
 
     let table = create () in
+
     let watches = create () in
 
     let module S = struct
 
       open Lwt
 
-      type t = T.t
+      include T
 
       type key = K.t
 
-      type path = string list
-
-      type tree = R.tree
-
-      type revision = R.t
-
       exception Unknown of t
 
-      let notify watches tag =
-        failwith "TODO"
+      let init () =
+        return ()
 
-      let update tag key =
+      let set tag key =
         Printf.printf "Update %s to %s\n%!" (T.pretty tag) (K.pretty key);
         Hashtbl.replace table tag key;
         (* XXX: notify watches tag; *)
@@ -111,8 +102,16 @@ module Tag
         try return (Hashtbl.find table tag)
         with Not_found -> fail (Unknown tag)
 
-      let list () =
+      let mem tag =
+        return (Hashtbl.mem table tag)
+
+      let list _ =
         let elts = Hashtbl.fold (fun t _ acc -> t :: acc) table [] in
         return elts
 
+    end in
+    (module S: IrminTag.STORE with type t = T.t and type key = K.t)
+
 end
+
+module Simple = Irmin.Simple(Store(IrminKey.SHA1))(Tag(IrminTag.Simple)(IrminKey.SHA1))
