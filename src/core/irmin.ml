@@ -14,10 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Key = IrminKey.SHA1
-module Value = IrminValue.Simple
-module Tag = IrminTag.Simple
-
 module type S = sig
   type t
   type path
@@ -27,28 +23,32 @@ module type S = sig
   val watch: path -> (path * t option) Lwt_stream.t
 end
 
-
 module type STORE = sig
+  type key
+  type value
+  type tag
   module Value: IrminValue.STORE
-    with type key = Key.t
-     and type t = Value.t
+    with type key = key
+     and type t = value
   module Tree: IrminTree.STORE
-    with type key = Key.t
-     and type value = Value.t
+    with type key = key
+     and type value = value
   module Revision: IrminRevision.STORE
-    with type key = Key.t
+    with type key = key
      and type tree = Tree.t
   module Tag: IrminTag.STORE
-    with type t = Tag.t
-     and type key = Key.t
-(*  include S with type t = Revision.t
-             and type path = Tree.path
-             and type value = Value.t *)
+    with type t = tag
+     and type key = key
+  module type S = S with type t = Revision.t
+                     and type path = Tree.path
   val master: unit -> (module S)
   val create: Tag.t -> (module S)
 end
 
 module Make
+    (Key: IrminKey.S)
+    (Value: IrminValue.S)
+    (Tag: IrminTag.S)
     (SValue: IrminStore.IRAW with type key = Key.t)
     (STree: IrminStore.IRAW with type key = Key.t)
     (SRevision: IrminStore.IRAW with type key = Key.t)
@@ -62,43 +62,63 @@ struct
   module Revision = IrminRevision.Make(SRevision)(Key)(Tree)
   module Tag = IrminTag.Make(STag)(Tag)(Key)
 
-  type t = Revision.t
-  type path = Tree.path
+  type key = Key.t
   type value = Value.t
+  type tree = Tree.t
+  type revision = Revision.t
+  type path = Tree.path
+  type tag = Tag.t
+  module type S = S with type t = Revision.t
+                     and type path = Tree.path
 
   module S (T: sig val tag: Tag.t end) = struct
 
+    type t = revision
+
     let init () =
-    Value.init () >>= fun () ->
-    Tree.init () >>= fun () ->
-    Revision.init () >>= fun () ->
-    Tag.init ()
+      Value.init () >>= fun () ->
+      Tree.init () >>= fun () ->
+      Revision.init () >>= fun () ->
+      Tag.init ()
 
-  let set t path value =
-    match Revision.tree t with
-    | None      -> failwith "TODO"
-    | Some tree ->
-      tree >>= fun tree ->
-      Tree.add tree path value >>= fun tree ->
-      Revision.with_tree t (Some tree)
+    let set t path value =
+      match Revision.tree t with
+      | None      -> failwith "TODO"
+      | Some tree ->
+        tree >>= fun tree ->
+        Tree.add tree path value >>= fun tree ->
+        Revision.with_tree t (Some tree)
 
-  let remove _ = failwith "TODO"
+    let remove _ = failwith "TODO"
 
-  let read _ = failwith "TODO"
+    let read _ = failwith "TODO"
 
-  let read_exn _ = failwith "TODO"
+    let read_exn _ = failwith "TODO"
 
-  let mem _ = failwith "TODO"
+    let mem _ = failwith "TODO"
 
-  let list _ = failwith "TODO"
+    let list _ = failwith "TODO"
 
-  let snapshot _ = failwith "TODO"
+    let snapshot _ = failwith "TODO"
 
-  let revert _ = failwith "TODO"
+    let revert _ = failwith "TODO"
+
   end
 
   let master _ = failwith "TODO"
 
   let create _ = failwith "TODO"
+
+end
+
+module Simple = struct
+
+  module Key = IrminKey.SHA1
+  module Value = IrminValue.Simple
+  module Tag = IrminTag.Simple
+  module Make
+      (I: IrminStore.IRAW with type key = Key.t)
+      (M: IrminStore.MRAW with type value = Key.t)
+    = Make(Key)(Value)(Tag)(I)(I)(I)(M)
 
 end
