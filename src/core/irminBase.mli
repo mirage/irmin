@@ -89,7 +89,7 @@ module PrivateString: sig
 
 end
 
-module String: S with type t = string
+module String: (module type of PrivateString with type t = string)
 (** Lift IO operations to strings *)
 
 (** {2 Lifts} *)

@@ -97,6 +97,11 @@ let of_buffer buf: t =
   | `JSON j  -> j
   | `Error _ -> failwith "JSON.of_buffer"
 
+let input str: t =
+  match json_of_src (`String str) with
+  | `JSON j  -> j
+  | `Error _ -> failwith "JSON.of_buffer"
+
 let json_to_dst ~minify dst (json:t) =
   let enc e l = ignore (Jsonm.encode e (`Lexeme l)) in
   let rec value v k e = match v with
@@ -121,7 +126,7 @@ let json_to_dst ~minify dst (json:t) =
 let to_buffer buf (json:t) =
   json_to_dst ~minify:false (`Buffer buf) json
 
-let pretty t =
+let output t =
   let buf = Buffer.create 1024 in
   to_buffer buf t;
   Buffer.contents buf

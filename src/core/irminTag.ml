@@ -16,29 +16,32 @@
 
 module type S = sig
   include IrminBase.S
+  val head: t
   val to_string: t -> string
   val of_string: string -> t
 end
 
 module Simple = struct
-  include IrminBase.PrivateString
+  include IrminBase.String
   let name = "tag"
+  let head = "HEAD"
 end
 
 module type STORE = sig
-  type t
+  include S
   type key
   include IrminStore.M with type key := t and type value := key
 end
 
 module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.value) = struct
 
-  type t = T.t
+  include T
 
   type key = K.t
 
-  module S = IrminStore.MakeM(S)(T)(K)
+  module Store = IrminStore.MakeM(S)(T)(K)
 
-  include (S: module type of S with type key := t)
+  include (Store: module type of Store with type key := T.t
+                                        and type value := K.t)
 
 end

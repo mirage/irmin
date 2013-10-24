@@ -16,30 +16,40 @@
 
 (** Manage the database history. *)
 
+type ('a, 'b) revision = {
+  tree   : 'a option;
+  parents: 'b list;
+}
+(** Type of revisions. *)
+
 module type STORE = sig
 
   (** The database history is a partial-order of revisions. *)
 
-  type t
+  type key
+  (** Type of keys. *)
+
+  type t = (key, key) revision
   (** Type of revisions. *)
+
+  include IrminBase.S with type t := t
+  (** Revisions are base types. *)
 
   module Graph: IrminGraph.S with type Vertex.t = t
   (** Graph of revisions. *)
 
-  include IrminStore.I with type value := t
-  (** Store of revisions. *)
+  include IrminStore.I with type key := key
+                        and type value := t
+  (** Revision stores are immutable. *)
 
   type tree
   (** Type of trees. *)
 
-  val create: ?tree:key -> key list -> t
+  val create: ?tree:tree -> t list -> key Lwt.t
   (** Create a new revision. *)
 
   val tree: t -> tree Lwt.t option
   (** Get the revision tree. *)
-
-  val with_tree: t -> tree option -> t Lwt.t
-  (** Change the revision's tree. *)
 
   val parents: t -> t Lwt.t list
   (** Get the immmediate precessors. *)

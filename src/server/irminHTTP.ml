@@ -1,0 +1,125 @@
+(*
+ * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
+
+open Lwt
+open Cohttp
+open Cohttp_lwt_unix
+module Body = Cohttp_lwt_body
+
+let respond body =
+  Server.respond_string ~status:`OK ~body ()
+
+let respond_json json =
+  let body = IrminJSON.output json in
+  Server.respond_string ~status:`OK ~body ()
+
+let respond_unit () =
+  respond "OK"
+
+let respond_bool = function
+  | true -> respond_json (`String "true")
+  | fale -> respond_json (`String "false")
+
+let respond_strings strs =
+  let json = `A (List.map (fun s -> `String s) strs) in
+  respond_json json
+
+let process t ?body path =
+  let module S = (val t: Irmin.SIMPLE) in
+  let open S in
+  let respond_key key = respond_json (Key.to_json key) in
+  let respond_value value = respond_json (Value.to_json value) in
+  let respond_tree tree = respond_json (Store.Tree.to_json tree) in
+  let respond_revision rev = respond_json (Store.Revision.to_json rev) in
+  match path with
+  | [] -> respond_strings [
+      "action";
+      "value";
+      "tree";
+      "revision";
+      "tag";
+    ]
+
+  | ["action"] -> respond_strings [
+      "set";
+      "remove";
+      "read";
+      "mem";
+      "list";
+      "snapshot";
+      "revert";
+      "watch";
+    ]
+
+  (* ACTIONS *)
+
+  | "action" :: "set" :: path ->
+    begin match List.rev path with
+      | [] | [_]      -> failwith "Wrong number of arguments"
+      | value :: path ->
+        Store.set (List.rev path) (Value.create value) >>= respond_unit
+    end
+
+  | "action" :: "remove" :: path ->
+    Store.remove path >>= respond_unit
+
+  | "action" :: "read" :: path ->
+    Store.read_exn path >>= respond_value
+
+  | "action" :: "mem" :: path ->
+    Store.mem path >>= respond_bool
+
+  | ["action"; "list"] ->
+    Store.list () >>= fun paths ->
+    let paths = List.map (String.concat "/") paths in
+    respond (String.concat "\n" paths)
+
+  | ["action"; "snapshot"] ->
+    Store.snapshot () >>= respond_key
+
+  | ["action"; "watch"] -> failwith "TODO"
+
+  (* VALUES *)
+
+  | ["value"; key] ->
+    Store.Value.read_exn (Key.of_hex key) >>= respond_value
+
+  (* TREE *)
+  | ["tree"; key] ->
+    Store.Tree.read_exn (Key.of_hex key) >>= respond_tree
+
+  (* REVISIONS *)
+  | ["revision"; key] ->
+    Store.Revision.read_exn (Key.of_hex key) >>= respond_revision
+
+  (* TAGS *)
+  | ["tag"; tag] ->
+    Store.Tag.read_exn (Tag.of_string tag) >>= respond_key
+
+  | _ -> failwith "Invalid URI"
+
+let server t port =
+  Printf.printf "Irminsule server listening on port %d ...\n%!" port;
+  let callback conn_id ?body req =
+    let path = Uri.path (Request.uri req) in
+    Printf.printf "Request received: PATH=%s\n%!" path;
+    let path = Re_str.split_delim (Re_str.regexp_string "/") path in
+    let path = List.filter ((<>) "") path in
+    process t ?body path in
+  let conn_closed conn_id () =
+    Printf.eprintf "Connection %s closed!\n%!" (Server.string_of_conn_id conn_id) in
+  let config = { Server.callback; conn_closed } in
+  Server.create ~address:"127.0.0.1" ~port config

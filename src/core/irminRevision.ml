@@ -14,14 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type ('a, 'b) revision = {
+  tree   : 'a option;
+  parents: 'b list;
+}
+
 module type STORE = sig
-  type t
+  type key
+  type t = (key, key) revision
+  include IrminBase.S with type t := t
   type tree
   module Graph: IrminGraph.S with type Vertex.t = t
-  include IrminStore.I with type value := t
-  val create: ?tree:key -> key list -> t
+  include IrminStore.I with type key := key
+                        and type value := t
+  val create: ?tree:tree -> t list -> key Lwt.t
   val tree: t -> tree Lwt.t option
-  val with_tree: t -> tree option -> t Lwt.t
   val parents: t -> t Lwt.t list
   val cut: ?roots:key list -> key list -> Graph.t Lwt.t
 end
@@ -36,10 +43,7 @@ struct
 
   module Revision = struct
 
-    type t = {
-      tree   : K.t option;
-      parents: K.t list;
-    }
+    type t = (K.t, K.t) revision
 
     module XTree = struct
       include IrminBase.Option(K)
@@ -105,14 +109,15 @@ struct
     | None   -> None
     | Some k -> Some (T.read_exn k)
 
-  let with_tree t = function
-    | None      -> return { t with tree = None }
-    | Some tree ->
-      T.write tree >>= fun key ->
-      return { t with tree = Some key }
-
   let create ?tree parents =
-    { tree; parents }
+    begin match tree with
+      | None   -> return_none
+      | Some t -> T.write t >>= fun t -> return (Some t)
+    end
+    >>= fun tree ->
+    Lwt_list.map_p write parents
+    >>= fun parents ->
+    write { tree; parents }
 
   let parents t =
     List.map (fun k ->

@@ -16,11 +16,10 @@
 
 module type S = sig
   type t
-  type path
-  include IrminStore.M with type key := path
+  include IrminStore.M
   val snapshot: unit -> t Lwt.t
   val revert: t -> unit Lwt.t
-  val watch: path -> (path * t option) Lwt_stream.t
+  val watch: key -> (key * t option) Lwt_stream.t
 end
 
 module type STORE = sig
@@ -39,9 +38,10 @@ module type STORE = sig
   module Tag: IrminTag.STORE
     with type t = tag
      and type key = key
-  module type S = S with type t = Revision.t
-                     and type path = Tree.path
-  val master: unit -> (module S)
+  module type S = S with type t := key
+                     and type key := Tree.path
+                     and type value := value
+  include S
   val create: Tag.t -> (module S)
 end
 
@@ -68,10 +68,11 @@ struct
   type revision = Revision.t
   type path = Tree.path
   type tag = Tag.t
-  module type S = S with type t = Revision.t
-                     and type path = Tree.path
+  module type S = S with type t := key
+                     and type key := Tree.path
+                     and type value := value
 
-  module S (T: sig val tag: Tag.t end) = struct
+  module Make (T: sig val tag: Tag.t end) = struct
 
     type t = revision
 
@@ -81,13 +82,20 @@ struct
       Revision.init () >>= fun () ->
       Tag.init ()
 
-    let set t path value =
-      match Revision.tree t with
-      | None      -> failwith "TODO"
-      | Some tree ->
-        tree >>= fun tree ->
-        Tree.add tree path value >>= fun tree ->
-        Revision.with_tree t (Some tree)
+    let revision () =
+      Tag.read_exn T.tag >>= Revision.read_exn
+
+    let tree rev =
+      match Revision.tree rev with
+      | None   -> return Tree.empty
+      | Some t -> t
+
+    let set path value =
+      revision () >>= fun revision ->
+      tree revision >>= fun tree ->
+      Tree.add tree path value >>= fun tree ->
+      Revision.create ~tree [revision] >>= fun key ->
+      Tag.set T.tag key
 
     let remove _ = failwith "TODO"
 
@@ -103,22 +111,40 @@ struct
 
     let revert _ = failwith "TODO"
 
+    let watch _ = failwith "TODO"
+
   end
 
-  let master _ = failwith "TODO"
+  let create tag =
+    let module S = Make (struct let tag = tag end) in
+    (module S: S)
 
-  let create _ = failwith "TODO"
+  include Make (struct let tag = Tag.head end)
 
 end
 
-module Simple = struct
+module type SIMPLE = sig
+  module Key: module type of IrminKey.SHA1
+  module Value: module type of IrminValue.Simple
+  module Tag: module type of IrminTag.Simple
+  module Store: STORE
+    with type key = Key.t
+     and type value = Value.t
+     and type tag = Tag.t
+end
+
+module Simple
+    (I: IrminStore.IRAW with type key = IrminKey.SHA1.t)
+    (M: IrminStore.MRAW with type value = IrminKey.SHA1.t) =
+struct
 
   module Key = IrminKey.SHA1
   module Value = IrminValue.Simple
   module Tag = IrminTag.Simple
-  module Make
-      (I: IrminStore.IRAW with type key = Key.t)
-      (M: IrminStore.MRAW with type value = Key.t)
-    = Make(Key)(Value)(Tag)(I)(I)(I)(M)
+  module type STORE = STORE
+    with type key = Key.t
+     and type value = Value.t
+     and type tag = Tag.t
+  module Store = Make(Key)(Value)(Tag)(I)(I)(I)(M)
 
 end

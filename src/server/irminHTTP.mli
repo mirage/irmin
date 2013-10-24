@@ -14,38 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** JSON utilities *)
+(** HTTP server *)
 
-(** Abstract type *)
-type t =
-  [ `Null
-  | `Bool of bool
-  | `Float of float
-  | `String of string
-  | `A of t list
-  | `O of (string * t) list ]
-
-(** {2 Serializer} *)
-
-val of_buffer: Buffer.t -> t
-val to_buffer: Buffer.t -> t -> unit
-val input: string -> t
-val output: t -> string
-
-(** {2 of JSON} *)
-
-val of_string: string -> t
-val of_strings: string list -> t
-val of_int: int -> t
-val of_list: ('a -> t) -> 'a list -> t
-val of_option: ('a -> t) -> 'a option -> t
-val of_pair: ('a -> t) -> ('b -> t) -> ('a * 'b) -> t
-
-(** {2 to JSON} *)
-
-val to_string: t -> string
-val to_strings: t -> string list
-val to_int: t -> int
-val to_list: (t -> 'a) -> t -> 'a list
-val to_option:(t -> 'a) -> t -> 'a option
-val to_pair:(t -> 'a) -> (t -> 'b) -> t -> ('a * 'b)
+val server: (module Irmin.SIMPLE) -> int -> unit Lwt.t
+(** [server db port] start a server serving the contents of [db] on
+    port [port]. *)

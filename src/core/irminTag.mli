@@ -23,6 +23,9 @@ module type S = sig
 
   include IrminBase.S
 
+  val head: t
+  (** The head tag. *)
+
   val to_string: t -> string
   (** Convert a tag to a suitable name *)
 
@@ -47,7 +50,7 @@ module type STORE = sig
       A typical Irminsule application should have a very low number of
       keys, are this store is not supposed to be really efficient.  *)
 
-  type t
+  include S
   (** Type of tags. *)
 
   type key

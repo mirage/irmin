@@ -15,13 +15,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type ('a, 'b) tree = {
+  value   : 'a option;
+  children: (string * 'b) list;
+}
+
 module type STORE = sig
-  type t
-  include IrminStore.I with type value := t
+  type key
+  type t = (key, key) tree
+  include IrminBase.S with type t := t
+  include IrminStore.I with type key := key
+                        and type value := t
   type value
   type path = string list
   val empty: t
-  val create: ?value:key -> (string * key) list -> t
+  val create: ?value:value -> (string * t) list -> key Lwt.t
   val value: t ->  value Lwt.t option
   val children: t -> (string * t Lwt.t) list
   val sub: t -> string list -> t option Lwt.t
@@ -44,10 +52,7 @@ struct
 
     type path = string list
 
-    type t = {
-      value   : K.t option;
-      children: (string * K.t) list;
-    }
+    type t = (K.t, K.t) tree
 
     module XValue = struct
       include IrminBase.Option(K)
@@ -122,7 +127,18 @@ struct
   }
 
   let create ?value children =
-    { value; children }
+    begin match value with
+      | None   -> return_none
+      | Some v -> V.write v >>= fun k -> return (Some k)
+    end
+    >>= fun value ->
+    Lwt_list.map_p (fun (l, t) ->
+        write t >>= fun k ->
+        return (l, k)
+      ) children
+    >>= fun children ->
+    let t = { value; children } in
+    write t
 
   let value t =
     match t.value with

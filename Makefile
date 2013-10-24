@@ -1,12 +1,13 @@
 VERSION  = 0.1
 PREFIX  ?= /usr/local
-MAIN     = irmin
+MAIN     = irminHTTP
 TESTS    = test
 TARGET   = irmin
 
-PACKAGES = -pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,lwt,ocplib-endian,cstruct
+PACKAGES = -pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,lwt,ocplib-endian,cstruct \
+	   -pkgs cohttp.lwt
 FLAGS    = -use-ocamlfind -cflags "-bin-annot" -no-links
-INCLUDES = -Is src/core
+INCLUDES = -Is src/core,src/backend,src/server
 BUILD    = ocamlbuild $(INCLUDES) $(FLAGS) $(PACKAGES) $(SYNTAXES)
 
 .PHONY: all test

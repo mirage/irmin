@@ -17,14 +17,28 @@
 
 (** Tree-like structures of values. *)
 
+type ('a, 'b) tree = {
+  value   : 'a option;
+  children: (string * 'b) list;
+}
+(** Type of concrete trees .*)
+
 module type STORE = sig
 
   (** Tree stores. *)
 
-  type t
+  type key
+  (** Type of keys. *)
+
+  type t = (key, key) tree
   (** Type of tree nodes. *)
 
-  include IrminStore.I with type value := t
+  include IrminBase.S with type t := t
+  (** Tree are base types. *)
+
+  include IrminStore.I with type key := key
+                        and type value := t
+  (** Tree stores are immutable. *)
 
   type value
   (** Type of values. *)
@@ -35,7 +49,7 @@ module type STORE = sig
   val empty: t
   (** The empty tree. *)
 
-  val create: ?value:key -> (string * key) list -> t
+  val create: ?value:value -> (string * t) list -> key Lwt.t
   (** Create a new node. *)
 
   val value: t -> value Lwt.t option

@@ -27,10 +27,7 @@ module type S = sig
   type t
   (** Type of states. *)
 
-  type path
-  (** Type of paths. *)
-
-  include IrminStore.M with type key := path
+  include IrminStore.M
 
   val snapshot: unit -> t Lwt.t
   (** Commit the current store state. *)
@@ -38,7 +35,7 @@ module type S = sig
   val revert: t -> unit Lwt.t
   (** Revert to a previous state. *)
 
-  val watch: path -> (path * t option) Lwt_stream.t
+  val watch: key -> (key * t option) Lwt_stream.t
   (** Event stream attached for a given path. *)
 
 end
@@ -78,11 +75,12 @@ module type STORE = sig
 
   (** {2 Mutable store interface} *)
 
-  module type S = S with type t = Revision.t
-                     and type path = Tree.path
+  module type S = S with type t := key
+                     and type key := Tree.path
+                     and type value := value
 
-  val master: unit -> (module S)
-  (** Return the master store. *)
+  include S
+  (** The main store, associated to the HEAD tag. *)
 
   val create: Tag.t -> (module S)
   (** Get the mutable store associated to the given tag. If the tag
@@ -102,9 +100,10 @@ module Make
            and type value = Value.t
            and type tag = Tag.t
 
-module Simple: sig
+module type SIMPLE = sig
 
-  (** Simple instancations for key, value and tag types. *)
+  (** Simple instantiations for key, value and tag types. Use only the
+      master branch. *)
 
   module Key: module type of IrminKey.SHA1
   (** SHA1 keys. *)
@@ -115,13 +114,17 @@ module Simple: sig
   module Tag: module type of IrminTag.Simple
   (** String tags. *)
 
-  (** Create a simple store. Use only one mutable store for value,
-      tree and revisions and a mutable store for the tags. *)
-  module Make
-      (I: IrminStore.IRAW with type key = Key.t)
-      (M: IrminStore.MRAW with type value = Key.t)
-    : STORE with type key = Key.t
-             and type value = Value.t
-             and type tag = Tag.t
+  module Store: STORE
+    with type key = Key.t
+     and type value = Value.t
+     and type tag = Tag.t
+  (** Signature for simple stores. *)
 
 end
+
+module Simple
+    (I: IrminStore.IRAW with type key = IrminKey.SHA1.t)
+    (M: IrminStore.MRAW with type value = IrminKey.SHA1.t)
+  : SIMPLE
+(** Create a simple store. Use only one mutable store for value,
+    tree and revisions and a mutable store for the tags. *)
