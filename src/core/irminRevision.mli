@@ -16,7 +16,7 @@
 
 (** Manage the database history. *)
 
-type ('a, 'b) revision = {
+type ('a, 'b) t = {
   tree   : 'a option;
   parents: 'b list;
 }
@@ -29,17 +29,17 @@ module type STORE = sig
   type key
   (** Type of keys. *)
 
-  type t = (key, key) revision
+  type revision = (key, key) t
   (** Type of revisions. *)
 
-  include IrminBase.S with type t := t
+  include IrminBase.S with type t := revision
   (** Revisions are base types. *)
 
-  module Graph: IrminGraph.S with type Vertex.t = t
+  module Graph: IrminGraph.S with type Vertex.t = revision
   (** Graph of revisions. *)
 
-  include IrminStore.I with type key := key
-                        and type value := t
+  include IrminStore.A with type key := key
+                        and type value := revision
   (** Revision stores are immutable. *)
 
   type tree
@@ -63,7 +63,7 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.IRAW)
+    (S: IrminStore.ARAW)
     (K: IrminKey.S with type t = S.key)
     (T: IrminTree.STORE with type key = S.key):
   STORE with type key = T.key

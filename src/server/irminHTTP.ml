@@ -37,7 +37,7 @@ let respond_strings strs =
   let json = `A (List.map (fun s -> `String s) strs) in
   respond_json json
 
-let process t ?body path =
+let process s t ?body path =
   let module S = (val t: Irmin.STORE) in
   let open S in
   let respond_key key = respond_json (Key.to_json key) in
@@ -111,14 +111,14 @@ let process t ?body path =
 
   | _ -> failwith "Invalid URI"
 
-let server t port =
+let server s t port =
   Printf.printf "Irminsule server listening on port %d ...\n%!" port;
   let callback conn_id ?body req =
     let path = Uri.path (Request.uri req) in
     Printf.printf "Request received: PATH=%s\n%!" path;
     let path = Re_str.split_delim (Re_str.regexp_string "/") path in
     let path = List.filter ((<>) "") path in
-    process t ?body path in
+    process s t ?body path in
   let conn_closed conn_id () =
     Printf.eprintf "Connection %s closed!\n%!" (Server.string_of_conn_id conn_id) in
   let config = { Server.callback; conn_closed } in

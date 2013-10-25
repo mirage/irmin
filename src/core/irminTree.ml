@@ -15,44 +15,47 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type ('a, 'b) tree = {
+type ('a, 'b) node = {
   value   : 'a option;
   children: (string * 'b) list;
 }
 
 module type STORE = sig
   type key
-  type t = (key, key) tree
-  include IrminBase.S with type t := t
-  include IrminStore.I with type key := key
-                        and type value := t
   type value
+  type tree = (key, key) node
   type path = string list
-  val empty: t
-  val create: ?value:value -> (string * t) list -> key Lwt.t
-  val value: t ->  value Lwt.t option
-  val children: t -> (string * t Lwt.t) list
-  val sub: t -> string list -> t option Lwt.t
-  val add: t -> string list -> value -> t Lwt.t
-  val find: t -> string list -> value Lwt.t
-  val remove: t -> string list -> t Lwt.t
-  val mem: t -> string list -> bool Lwt.t
-  val iter: (string list -> value -> unit Lwt.t) -> t -> unit Lwt.t
+  include IrminBase.S with type t := tree
+  include IrminStore.A with type key := key
+                        and type value := tree
+  val empty: tree
+  val create: t -> ?value:value -> (string * tree) list -> key Lwt.t
+  val value: t -> tree -> value Lwt.t option
+  val children: t -> tree -> (string * tree Lwt.t) list
+  val sub: t -> tree -> path -> tree option Lwt.t
+  val add: t -> tree -> path -> value -> tree Lwt.t
+  val find: t -> tree -> path -> value Lwt.t
+  val remove: t -> tree -> path -> unit Lwt.t
+  val mem: t -> tree -> path -> bool Lwt.t
 end
 
 module Make
-    (S: IrminStore.IRAW)
+    (S: IrminStore.ARAW)
     (K: IrminKey.S with type t = S.key)
     (V: IrminValue.STORE with type key = S.key) =
 struct
 
-  open Lwt
+  type key = K.t
+
+  type value = V.value
+
+  type tree = (K.t, K.t) node
+
+  type path = string list
 
   module Tree = struct
 
-    type path = string list
-
-    type t = (K.t, K.t) tree
+    type t = tree
 
     module XValue = struct
       include IrminBase.Option(K)
@@ -113,125 +116,125 @@ struct
       XTree.dump (t.value, t.children)
   end
 
+  open Lwt
+
   module Store = IrminStore.MakeI(S)(K)(Tree)
 
-  include Tree
+  include (Tree: IrminBase.S with type t := tree)
 
-  include (Store: module type of Store with type value := Tree.t)
+  type t = {
+    v: V.t;
+    t : Store.t;
+  }
 
-  type value = V.t
+  let write t tree =
+    Store.write t.t tree
+
+  let read t key =
+    Store.read t.t key
+
+  let read_exn t key =
+    Store.read_exn t.t key
+
+  let mem t key =
+    Store.mem t.t key
 
   let empty = {
     value = None;
     children = [];
   }
 
-  let create ?value children =
+  let create t ?value children =
     begin match value with
       | None   -> return_none
-      | Some v -> V.write v >>= fun k -> return (Some k)
+      | Some v -> V.write t.v v >>= fun k -> return (Some k)
     end
     >>= fun value ->
-    Lwt_list.map_p (fun (l, t) ->
-        write t >>= fun k ->
+    Lwt_list.map_p (fun (l, tree) ->
+        write t tree >>= fun k ->
         return (l, k)
       ) children
     >>= fun children ->
-    let t = { value; children } in
-    write t
+    let tree = { value; children } in
+    write t tree
 
-  let value t =
-    match t.value with
+  let value t tree =
+    match tree.value with
     | None   -> None
-    | Some k -> Some (V.read_exn k)
+    | Some k -> Some (V.read_exn t.v k)
 
-  let children t =
+  let children t tree =
     List.map (fun (l, k) ->
-        l,
-        S.read_exn k >>= fun b ->
-        return (Tree.get b)
-      ) t.children
+        l, read_exn t k
+      ) tree.children
 
-  let child t label =
-    try Some (List.assoc label (children t))
+  let child t tree label =
+    try Some (List.assoc label (children t tree))
     with Not_found -> None
 
-  let sub t path =
-    let rec aux t = function
-    | []    -> return (Some t)
+  let sub t tree path =
+    let rec aux tree = function
+    | []    -> return (Some tree)
     | h::tl ->
-      match child t h with
-      | None   -> return None
-      | Some t -> t >>= fun t -> aux t tl in
-    aux t path
+      match child t tree h with
+      | None      -> return None
+      | Some tree -> tree >>= fun tree -> aux tree tl in
+    aux tree path
 
-  let find t path =
-    sub t path >>= function
-    | None   -> fail Not_found
-    | Some t ->
-      match value t with
+  let find t tree path =
+    sub t tree path >>= function
+    | None      -> fail Not_found
+    | Some tree ->
+      match value t tree with
       | None   -> fail Not_found
       | Some v -> v
 
-  let mem t path =
-    sub t path >>= function
-    | None   -> return false
-    | Some t ->
-      match value t with
+  let mem t tree path =
+    sub t tree path >>= function
+    | None      -> return false
+    | Some tree ->
+      match value t tree with
       | None   -> return false
       | Some _ -> return true
 
-  let iter (f:string list -> value -> unit Lwt.t) t =
-    let rec aux path t =
-      let apply = match value t with
-        | None   -> return ()
-        | Some v -> bind v (f (List.rev path)) in
-      apply >>= fun () ->
-      Lwt_list.iter_s
-        (fun (l, t) -> t >>= aux (l::path))
-        (children t) in
-    aux [] t
-
-  let map_children children f label =
+  let map_children t children f label =
     let rec aux acc = function
       | [] ->
-        f empty >>= fun t ->
-        if t = empty then return (List.rev acc)
+        f empty >>= fun tree ->
+        if tree = empty then return (List.rev acc)
         else
-          write t >>= fun k ->
+          write t tree >>= fun k ->
           return (List.rev_append acc [label, k])
       | (l, k) as child :: children ->
         if l = label then
-          read k >>= function
-          | None   -> fail (K.Invalid k)
-          | Some t ->
-            f t >>= fun t ->
-            if t = empty then return (List.rev_append acc children)
+          read t k >>= function
+          | None      -> fail (K.Invalid k)
+          | Some tree ->
+            f tree >>= fun tree ->
+            if tree = empty then return (List.rev_append acc children)
             else
-              write t >>= fun k ->
+              write t tree >>= fun k ->
               return (List.rev_append acc ((l, k) :: children))
         else
           aux (child::acc) children
     in
     aux [] children
 
-  let map_subtree t path f =
-    let rec aux t = function
-      | []      -> return (f t)
+  let map_subtree t tree path f =
+    let rec aux tree = function
+      | []      -> return (f tree)
       | h :: tl ->
-        map_children
-          t.children
-          (fun t -> aux t tl)
-          h
+        map_children t tree.children (fun t -> aux tree tl) h
         >>= fun children ->
-        return { t with children } in
-    aux t path
+        return { tree with children } in
+    aux tree path
 
-  let remove tree path =
-    map_subtree tree path (fun t -> { t with value = None })
+  let remove t tree path =
+    map_subtree t tree path (fun tree -> { tree with value = None })
+    >>= fun _ -> return_unit
 
-  let add tree path value =
-    V.write value >>= fun k ->
-    map_subtree tree path (fun t -> { t with value = Some k })
+  let add t tree path value =
+    V.write t.v value >>= fun k ->
+    map_subtree t tree path (fun tree -> { tree with value = Some k })
 
 end

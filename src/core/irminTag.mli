@@ -50,16 +50,20 @@ module type STORE = sig
       A typical Irminsule application should have a very low number of
       keys, are this store is not supposed to be really efficient.  *)
 
-  include S
-  (** Type of tags. *)
-
   type key
   (** Type of keys. *)
 
-  include IrminStore.M with type key := t and type value := key
+  type tag
+  (** Type of tags. *)
+
+  include IrminStore.M with type key := tag and type value := key
+  (** The store tag is mutable. *)
+
+  include S with type t := tag
+  (** Type of tags. *)
 
 end
 
 module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.value)
-  : STORE with type t = T.t
+  : STORE with type tag = T.t
            and type key = K.t

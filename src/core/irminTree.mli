@@ -17,7 +17,7 @@
 
 (** Tree-like structures of values. *)
 
-type ('a, 'b) tree = {
+type ('a, 'b) node = {
   value   : 'a option;
   children: (string * 'b) list;
 }
@@ -30,59 +30,56 @@ module type STORE = sig
   type key
   (** Type of keys. *)
 
-  type t = (key, key) tree
-  (** Type of tree nodes. *)
-
-  include IrminBase.S with type t := t
-  (** Tree are base types. *)
-
-  include IrminStore.I with type key := key
-                        and type value := t
-  (** Tree stores are immutable. *)
-
   type value
   (** Type of values. *)
+
+  type tree = (key, key) node
+  (** Type of tree nodes. *)
 
   type path = string list
   (** Type of labeled path to go from one node to node. *)
 
-  val empty: t
+  include IrminBase.S with type t := tree
+  (** Tree are base types. *)
+
+  include IrminStore.A with type key := key
+                        and type value := tree
+  (** Tree stores are append-onlye. *)
+
+  val empty: tree
   (** The empty tree. *)
 
-  val create: ?value:value -> (string * t) list -> key Lwt.t
+  val create: t -> ?value:value -> (string * tree) list -> key Lwt.t
   (** Create a new node. *)
 
-  val value: t -> value Lwt.t option
+  val value: t -> tree -> value Lwt.t option
   (** Return the contents. *)
 
-  val children: t -> (string * t Lwt.t) list
+  val children: t -> tree -> (string * tree Lwt.t) list
   (** Return the child nodes. *)
 
-  val sub: t -> path -> t option Lwt.t
+  val sub: t -> tree -> path -> tree option Lwt.t
   (** Find a subtree. *)
 
-  val add: t -> path -> value -> t Lwt.t
+  val add: t -> tree -> path -> value -> tree Lwt.t
   (** Add a value by recusively saving subtrees and subvalues into the
       corresponding stores. *)
 
-  val find: t -> path -> value Lwt.t
+  val find: t -> tree -> path -> value Lwt.t
   (** Find a value. *)
 
-  val remove: t -> path -> t Lwt.t
+  val remove: t -> tree -> path -> unit Lwt.t
   (** Remove a value. *)
 
-  val mem: t -> path -> bool Lwt.t
+  val mem: t -> tree -> path -> bool Lwt.t
   (** Is a path valid. *)
-
-  val iter: (path -> value -> unit Lwt.t) -> t -> unit Lwt.t
-  (** Iter on all tree nodes containing a value, top-down. *)
 
 end
 
 module Make
-    (S: IrminStore.IRAW)
+    (S: IrminStore.ARAW)
     (K: IrminKey.S with type t = S.key)
     (V: IrminValue.STORE with type key = S.key):
   STORE with type key = K.t
-         and type value = V.t
+         and type value = V.value
 (** Create a tree store implementation. *)

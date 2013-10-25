@@ -14,62 +14,58 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type I = sig
+module type A = sig
+  type t
   type key
   type value
-  val init: unit -> unit Lwt.t
-  val write: value -> key Lwt.t
-  val read: key -> value option Lwt.t
-  val read_exn: key -> value Lwt.t
-  val mem: key -> bool Lwt.t
+  val write: t -> value -> key Lwt.t
+  val read: t -> key -> value option Lwt.t
+  val read_exn: t -> key -> value Lwt.t
+  val mem: t -> key -> bool Lwt.t
 end
 
-module type IRAW = I with type value := IrminBuffer.t
+module type ARAW = A with type value := IrminBuffer.t
 
-module MakeI (S: IRAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
+module MakeI (S: ARAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
 
   open Lwt
+
+  type t = S.t
 
   type key = K.t
 
   type value = V.t
 
-  let init () =
-    S.init ()
-
-  let read key =
-    S.read key >>= function
+  let read t key =
+    S.read t key >>= function
     | None   -> Lwt.return None
     | Some b -> Lwt.return (Some (V.get b))
 
-  let read_exn k =
-    read k >>= function
+  let read_exn t k =
+    read t k >>= function
     | None   -> fail (K.Unknown k)
     | Some v -> return v
 
-  let key v =
-    K.create (V.dump v)
-
-  let write v =
+  let write t v =
     let buf = IrminBuffer.create (V.sizeof v) in
     V.set buf v;
-    S.write buf
+    S.write t buf
 
-  let mem k =
-    S.mem k
+  let mem t k =
+    S.mem t k
 
 end
 
 module type M = sig
+  type t
   type key
   type value
-  val init: unit -> unit Lwt.t
-  val set: key -> value -> unit Lwt.t
-  val remove: key -> unit Lwt.t
-  val read: key -> value option Lwt.t
-  val read_exn: key -> value Lwt.t
-  val mem: key -> bool Lwt.t
-  val list: key -> key list Lwt.t
+  val set: t -> key -> value -> unit Lwt.t
+  val remove: t -> key -> unit Lwt.t
+  val read: t -> key -> value option Lwt.t
+  val read_exn: t -> key -> value Lwt.t
+  val mem: t -> key -> bool Lwt.t
+  val list: t -> key -> key list Lwt.t
 end
 
 module type MRAW = M with type key = string
@@ -82,31 +78,38 @@ struct
 
   open Lwt
 
+  type t = S.t
+
   type key = K.t
 
   type value = V.t
 
-  let init () =
-    S.init ()
+  let set t key value =
+    S.set t (K.to_string key) value
 
-  let set key value =
-    S.set (K.to_string key) value
+  let remove t key =
+    S.remove t (K.to_string key)
 
-  let remove key =
-    S.remove (K.to_string key)
+  let read t key =
+    S.read t (K.to_string key)
 
-  let read key =
-    S.read (K.to_string key)
+  let read_exn t key =
+    S.read_exn t (K.to_string key)
 
-  let read_exn key =
-    S.read_exn (K.to_string key)
+  let mem t key =
+    S.mem t (K.to_string key)
 
-  let mem key =
-    S.mem (K.to_string key)
-
-  let list key =
-    S.list (K.to_string key) >>= fun ss ->
+  let list t key =
+    S.list t (K.to_string key) >>= fun ss ->
     let ks = List.map K.of_string ss in
     return ks
 
+end
+
+module type S = sig
+  include M
+  type revision
+  val snapshot: t -> revision Lwt.t
+  val revert: t -> revision -> unit Lwt.t
+  val watch: t -> key -> (key * revision option) Lwt_stream.t
 end

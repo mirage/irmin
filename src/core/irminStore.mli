@@ -16,11 +16,14 @@
 
 (** Stores. *)
 
-(** {2 Immutable stores} *)
+(** {2 Append-only Stores} *)
 
-module type I = sig
+module type A = sig
 
-  (** Base types for immutable stores. *)
+  (** Base types for append-only stores. *)
+
+  type t
+  (** Type a store. *)
 
   type key
   (** Type of keys. *)
@@ -28,29 +31,27 @@ module type I = sig
   type value
   (** Type of values. *)
 
-  val init: unit -> unit Lwt.t
-  (** Init the store. *)
-
-  val write: value -> key Lwt.t
+  val write: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. *)
 
-  val read: key -> value option Lwt.t
+  val read: t -> key -> value option Lwt.t
   (** Read a value from the store. *)
 
-  val read_exn: key -> value Lwt.t
+  val read_exn: t -> key -> value Lwt.t
   (** Read a value from the store. Raise [Unknown k] if [k] does not
       have an associated value. *)
 
-  val mem: key -> bool Lwt.t
+  val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
 end
 
-module type IRAW = I with type value := IrminBuffer.t
+module type ARAW = A with type value := IrminBuffer.t
 (** Raw immutable stores. *)
 
-module MakeI (S: IRAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
-  I with type key = K.t
+module MakeI (S: ARAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
+  A with type t = S.t
+     and type key = K.t
      and type value = V.t
 (** Build a typed store. *)
 
@@ -60,32 +61,32 @@ module type M = sig
 
   (** Signature for mutable store. *)
 
+  type t
+  (** Type of stores. *)
+
   type key
   (** Type of tags. *)
 
   type value
   (** Type of values. *)
 
-  val init: unit -> unit Lwt.t
-  (** Init the store. *)
-
-  val set: key -> value -> unit Lwt.t
+  val set: t -> key -> value -> unit Lwt.t
   (** Replace the contents of [key] by [value] if [key] is already
       defined and create it otherwise. *)
 
-  val remove: key -> unit Lwt.t
+  val remove: t -> key -> unit Lwt.t
   (** Remove the given key. *)
 
-  val read: key -> value option Lwt.t
+  val read: t -> key -> value option Lwt.t
   (** Read a key. Return [None] if the the key is not defined. *)
 
-  val read_exn: key -> value Lwt.t
+  val read_exn: t -> key -> value Lwt.t
   (** Read a key, raise [Unknown k] if the key is not defined. *)
 
-  val mem: key -> bool Lwt.t
+  val mem: t -> key -> bool Lwt.t
   (** Check if a key exist. *)
 
-  val list: key -> key list Lwt.t
+  val list: t -> key -> key list Lwt.t
   (** Return all the keys that you can access, knowing a password
       key. *)
 
@@ -98,6 +99,32 @@ module MakeM
     (S: MRAW)
     (K: IrminBase.STRINGABLE)
     (V: IrminBase.S with type t = S.value)
-  : M with type key = K.t
+  : M with type t = S.t
+       and type key = K.t
        and type value = V.t
 (** Build a mutable store. *)
+
+(** {2 Irminsule Stores} *)
+
+module type S = sig
+
+  (** At high-level,Irminsule exposes the same interface as a
+      low-level mutable store, but you gain the commit, rollback and
+      notification mechanisms. *)
+
+  include M
+
+  type revision
+  (** Type of revisions. *)
+
+  val snapshot: t -> revision Lwt.t
+  (** Get a snapshot of the current store state. *)
+
+  val revert: t -> revision -> unit Lwt.t
+  (** Revert the store to a previous state. *)
+
+  val watch: t -> key -> (key * revision option) Lwt_stream.t
+  (** Subscribe to the stream of modification events attached to a
+      given key. *)
+
+end

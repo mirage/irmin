@@ -17,7 +17,7 @@
 let create () =
   Hashtbl.create 1024
 
-module Store (K: IrminKey.S) = struct
+module I (K: IrminKey.S) = struct
 
   open Lwt
 
@@ -58,7 +58,7 @@ module Store (K: IrminKey.S) = struct
 
 end
 
-module Tag (T: IrminTag.S) (K: IrminKey.S) = struct
+module Tag (K: IrminKey.S) = struct
 
   let create () =
 
@@ -114,4 +114,9 @@ module Tag (T: IrminTag.S) (K: IrminKey.S) = struct
 
 end
 
-module Simple = Irmin.Simple(Store(IrminKey.SHA1))(Tag(IrminTag.Simple)(IrminKey.SHA1))
+module SimpleA = A(IrminKey.SHA1)
+module SimpleM = M(IrminKey.SHA1)
+
+module Simple = Irmin.Make
+    (IrminKey.SHA1)(IrmValue.Simple)(IrminTag.Simple)
+    (SimpleA)(SimpleA)(SimpleA)(SimpleM)

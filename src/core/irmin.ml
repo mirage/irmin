@@ -14,14 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
-  type t
-  include IrminStore.M
-  val snapshot: unit -> t Lwt.t
-  val revert: t -> unit Lwt.t
-  val watch: key -> (key * t option) Lwt_stream.t
-end
-
 module type STORE = sig
   type key
   type value
@@ -40,11 +32,9 @@ module type STORE = sig
   module Tag: IrminTag.STORE
     with type t = tag
      and type key = key
-  module type S = S with type t := key
+  include S with type t := key
                      and type key := Tree.path
                      and type value := value
-  include S
-  val create: Tag.t -> (module S)
 end
 
 module Make

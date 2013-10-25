@@ -25,7 +25,7 @@ module type STORE = sig
   include IrminBase.S with type t := t
   type tree
   module Graph: IrminGraph.S with type Vertex.t = t
-  include IrminStore.I with type key := key
+  include IrminStore.A with type key := key
                         and type value := t
   val create: ?tree:tree -> t list -> key Lwt.t
   val tree: t -> tree Lwt.t option
