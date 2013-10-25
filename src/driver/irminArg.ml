@@ -87,12 +87,12 @@ let init =
       Arg.info ~docv:"PORT" ~doc:"Start an Irminsule server on the specified port."
         ["d";"daemon"] in
     Arg.(value & opt (some int) (Some 8080) & doc) in
-  let init (type t) (module S: Irmin.S) daemon =
+  let init (module S: Irmin.S) daemon =
     run begin
       S.create () >>= fun t ->
       match daemon with
       | None      -> return_unit
-      | Some port -> IrminHTTP.server (module S: Irmin.S with type t = S.t) t port
+      | Some port -> IrminHTTP.server (module S) t port
     end
   in
   Term.(pure init $ store $ daemon),
