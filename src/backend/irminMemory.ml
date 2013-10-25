@@ -14,103 +14,86 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let create () =
-  Hashtbl.create 1024
-
-module I (K: IrminKey.S) = struct
+module A (K: IrminKey.S) = struct
 
   open Lwt
 
+  type key = K.t
+
+  type value = IrminBuffer.t
+
+  type t = (key, value) Hashtbl.t
+
   let create () =
+    return (Hashtbl.create 4096)
 
-    let table = create () in
+  let add t value =
+    let key = K.of_buffer value in
+    Hashtbl.add t key value;
+    return key
 
-    let module S = struct
+  let read t key =
+    Printf.printf "Reading %s\n%!" (K.pretty key);
+    return (
+      try Some (Hashtbl.find t key)
+      with Not_found -> None
+    )
 
-      type key = K.t
+  let read_exn t key =
+    Printf.printf "Reading %s\n%!" (K.pretty key);
+    try return (Hashtbl.find t key)
+    with Not_found -> fail (K.Unknown key)
 
-      let init () =
-        return_unit
+  let mem t key =
+    return (Hashtbl.mem t key)
 
-      let write value =
-        let key = K.of_buffer value in
-        Hashtbl.add table key value;
-        return key
-
-      let read key =
-        Printf.printf "Reading %s\n%!" (K.pretty key);
-        return (
-          try Some (Hashtbl.find table key)
-          with Not_found -> None
-        )
-
-      let read_exn key =
-        Printf.printf "Reading %s\n%!" (K.pretty key);
-        try return (Hashtbl.find table key)
-        with Not_found -> fail (K.Unknown key)
-
-      let mem key =
-        return (Hashtbl.mem table key)
-
-    end
-    in
-    (module S: IrminStore.IRAW with type key = K.t)
+  let list t k =
+    return [k]
 
 end
 
-module Tag (K: IrminKey.S) = struct
+module M (K: IrminKey.S) = struct
+
+  open Lwt
+
+  type key = string
+
+  type value = K.t
+
+  type t = (key, value) Hashtbl.t
+
+  exception Unknown of string
 
   let create () =
+    return (Hashtbl.create 64)
 
-    let table = create () in
+  let update t tag key =
+    Printf.printf "Update %s to %s\n%!" tag (K.pretty key);
+    Hashtbl.replace t tag key;
+    return_unit
 
-    let watches = create () in
+  let remove t tag =
+    Hashtbl.remove t tag;
+    return_unit
 
-    let module S = struct
+  let read t tag =
+    Printf.printf "Reading %s\n%!" tag;
+    return (
+      try Some (Hashtbl.find t tag)
+      with Not_found -> None
+    )
 
-      open Lwt
+  let read_exn t tag =
+    Printf.printf "Reading %s\n%!" tag;
+    try return (Hashtbl.find t tag)
+    with Not_found -> fail (Unknown tag)
 
-      include T
+  let mem t tag =
+    return (Hashtbl.mem t tag)
 
-      type key = K.t
-
-      exception Unknown of t
-
-      let init () =
-        return ()
-
-      let set tag key =
-        Printf.printf "Update %s to %s\n%!" (T.pretty tag) (K.pretty key);
-        Hashtbl.replace table tag key;
-        (* XXX: notify watches tag; *)
-        return_unit
-
-      let remove tag =
-        Hashtbl.remove table tag;
-        Hashtbl.remove watches tag;
-        return_unit
-
-      let read tag =
-        Printf.printf "Reading %s\n%!" (T.pretty tag);
-        return (
-          try Some (Hashtbl.find table tag)
-          with Not_found -> None
-        )
-
-      let read_exn tag =
-        Printf.printf "Reading %s\n%!" (T.pretty tag);
-        try return (Hashtbl.find table tag)
-        with Not_found -> fail (Unknown tag)
-
-      let mem tag =
-        return (Hashtbl.mem table tag)
-
-      let list _ =
-        let elts = Hashtbl.fold (fun t _ acc -> t :: acc) table [] in
-        return elts
-
-    end in
-    (module S: IrminTag.STORE with type t = T.t and type key = K.t)
+  let list t _ =
+    let elts = Hashtbl.fold (fun t _ acc -> t :: acc) t [] in
+    return elts
 
 end
 
@@ -118,5 +101,5 @@ module SimpleA = A(IrminKey.SHA1)
 module SimpleM = M(IrminKey.SHA1)
 
 module Simple = Irmin.Make
-    (IrminKey.SHA1)(IrmValue.Simple)(IrminTag.Simple)
+    (IrminKey.SHA1)(IrminValue.Simple)(IrminTag.Simple)
     (SimpleA)(SimpleA)(SimpleA)(SimpleM)
