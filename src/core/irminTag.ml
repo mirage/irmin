@@ -28,20 +28,22 @@ module Simple = struct
 end
 
 module type STORE = sig
-  include S
+  type tag
   type key
-  include IrminStore.M with type key := t and type value := key
+  include IrminStore.M with type key := tag and type value := key
+  include S with type t := tag
 end
 
-module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.value) = struct
-
-  include T
+module Make (S: IrminStore.M_RAW) (T: S) (K: IrminKey.S with type t = S.value) = struct
 
   type key = K.t
 
+  type tag = T.t
+
   module Store = IrminStore.MakeM(S)(T)(K)
 
-  include (Store: module type of Store with type key := T.t
-                                        and type value := K.t)
+  include (Store: IrminStore.M with type key := tag and type value := key)
+
+  include (T: S with type t := tag)
 
 end

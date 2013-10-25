@@ -23,6 +23,12 @@ type ('a, 'b) node = {
 }
 (** Type of concrete trees .*)
 
+type ('a, 'b) store = {
+  v: 'a;
+  t: 'b;
+}
+(** Type of concrete stores. *)
+
 module type STORE = sig
 
   (** Tree stores. *)
@@ -49,7 +55,7 @@ module type STORE = sig
   val empty: tree
   (** The empty tree. *)
 
-  val create: t -> ?value:value -> (string * tree) list -> key Lwt.t
+  val tree: t -> ?value:value -> (string * tree) list -> key Lwt.t
   (** Create a new node. *)
 
   val value: t -> tree -> value Lwt.t option
@@ -61,7 +67,7 @@ module type STORE = sig
   val sub: t -> tree -> path -> tree option Lwt.t
   (** Find a subtree. *)
 
-  val add: t -> tree -> path -> value -> tree Lwt.t
+  val update: t -> tree -> path -> value -> tree Lwt.t
   (** Add a value by recusively saving subtrees and subvalues into the
       corresponding stores. *)
 
@@ -77,9 +83,10 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.ARAW)
+    (S: IrminStore.A_RAW)
     (K: IrminKey.S with type t = S.key)
     (V: IrminValue.STORE with type key = S.key):
-  STORE with type key = K.t
+  STORE with type t = (V.t, S.t) store
+         and type key = K.t
          and type value = V.value
 (** Create a tree store implementation. *)

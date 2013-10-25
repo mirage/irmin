@@ -48,7 +48,7 @@ module type STORE = sig
   include S with type t := value
 end
 
-module Make (S: IrminStore.ARAW) (K: IrminKey.S with type t = S.key) (V: S) = struct
+module Make (S: IrminStore.A_RAW) (K: IrminKey.S with type t = S.key) (V: S) = struct
 
   include IrminStore.MakeI(S)(K)(V)
 

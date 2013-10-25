@@ -14,36 +14,47 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type ('a, 'b) revision = {
+type ('a, 'b) node = {
   tree   : 'a option;
   parents: 'b list;
 }
 
+type ('a, 'b) store = {
+  t: 'a;
+  r: 'b;
+}
+
 module type STORE = sig
   type key
-  type t = (key, key) revision
-  include IrminBase.S with type t := t
   type tree
-  module Graph: IrminGraph.S with type Vertex.t = t
+  type revision = (key, key) node
+  include IrminBase.S with type t := revision
+  module Graph: IrminGraph.S with type Vertex.t = revision
   include IrminStore.A with type key := key
-                        and type value := t
-  val create: ?tree:tree -> t list -> key Lwt.t
-  val tree: t -> tree Lwt.t option
-  val parents: t -> t Lwt.t list
-  val cut: ?roots:key list -> key list -> Graph.t Lwt.t
+                        and type value := revision
+  val revision: t -> ?tree:tree -> revision list -> key Lwt.t
+  val tree: t -> revision -> tree Lwt.t option
+  val parents: t -> revision -> revision Lwt.t list
+  val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
 end
 
 module Make
-    (S: IrminStore.IRAW)
+    (S: IrminStore.A_RAW)
     (K: IrminKey.S with type t = S.key)
     (T: IrminTree.STORE with type key = S.key) =
 struct
 
   open Lwt
 
+  type key = K.t
+
+  type tree = T.tree
+
+  type revision = (K.t, K.t) node
+
   module Revision = struct
 
-    type t = (K.t, K.t) revision
+    type t = revision
 
     module XTree = struct
       include IrminBase.Option(K)
@@ -98,45 +109,61 @@ struct
 
   module Graph = IrminGraph.Make(Revision)
 
-  include Revision
+  include (Revision: IrminBase.S with type t := revision)
 
-  include (Store: module type of Store with type value := t)
+  type t = (T.t, Store.t) store
 
-  type tree = T.t
+  let create () =
+    T.create () >>= fun t ->
+    Store.create () >>= fun r ->
+    return { t; r }
 
-  let tree t =
-    match t.tree with
+  let add t r =
+    Store.add t.r r
+
+  let read t r =
+    Store.read t.r r
+
+  let read_exn t r =
+    Store.read_exn t.r r
+
+  let mem t r =
+    Store.mem t.r r
+
+  let tree t r =
+    match r.tree with
     | None   -> None
-    | Some k -> Some (T.read_exn k)
+    | Some k -> Some (T.read_exn t.t k)
 
-  let create ?tree parents =
+  let revision t ?tree parents =
     begin match tree with
-      | None   -> return_none
-      | Some t -> T.write t >>= fun t -> return (Some t)
+      | None      -> return_none
+      | Some tree -> T.add t.t tree >>= fun k -> return (Some k)
     end
     >>= fun tree ->
-    Lwt_list.map_p write parents
+    Lwt_list.map_p (Store.add t.r) parents
     >>= fun parents ->
-    write { tree; parents }
+    Store.add t.r { tree; parents }
 
-  let parents t =
-    List.map (fun k ->
-        S.read_exn k >>= fun b ->
-        return (Revision.get b)
-      ) t.parents
+  let parents t r =
+    List.map (read_exn t) r.parents
 
-  let cut ?roots keys =
-    Lwt_list.map_p read_exn keys >>= fun keys ->
-    let pred t =
+  let cut t ?roots keys =
+    Lwt_list.map_p (read_exn t) keys >>= fun keys ->
+    let pred r =
       Lwt_list.map_p
         (fun r -> r)
-        (parents t) in
-    let (keys: t list) = keys in
-    let aux roots =
-      let (roots: t list option) = roots in
-      Graph.closure ?roots pred keys in
-    match roots with
-    | None    -> aux None
-    | Some ks -> Lwt_list.map_p read_exn ks >>= fun ts -> aux (Some ts)
+        (parents t r) in
+    begin match roots with
+      | None    -> return_none
+      | Some ks -> Lwt_list.map_p (read_exn t) ks >>= fun ts -> return (Some ts)
+    end
+    >>= fun roots ->
+    Graph.closure ?roots pred keys
+
+  let list t key =
+    cut t [key] >>= fun g ->
+    (* XXX: ugly *)
+    Lwt_list.map_p (Store.add t.r) (Graph.vertex g)
 
 end

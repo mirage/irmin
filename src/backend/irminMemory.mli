@@ -16,10 +16,10 @@
 
 (** In-memory store *)
 
-module A (K: IrminKey.S): IrminStore.ARAW with type key = K.t
+module A (K: IrminKey.S): IrminStore.A_RAW with type key = K.t
 (** Create a fresh store *)
 
-module M (K: IrminKey.S): IrminStore.MRAW with type value = K.t
+module M (K: IrminKey.S): IrminStore.M_RAW with type value = K.t
   (** Create a fresh tag store. *)
 
 module Simple: Irmin.S

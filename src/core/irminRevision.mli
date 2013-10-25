@@ -16,11 +16,17 @@
 
 (** Manage the database history. *)
 
-type ('a, 'b) t = {
+type ('a, 'b) node = {
   tree   : 'a option;
   parents: 'b list;
 }
-(** Type of revisions. *)
+(** Type of concrete revisions. *)
+
+type ('a, 'b) store = {
+  t: 'a;
+  r: 'b;
+}
+(** Type of concrete stores. *)
 
 module type STORE = sig
 
@@ -29,7 +35,10 @@ module type STORE = sig
   type key
   (** Type of keys. *)
 
-  type revision = (key, key) t
+  type tree
+  (** Type of trees. *)
+
+  type revision = (key, key) node
   (** Type of revisions. *)
 
   include IrminBase.S with type t := revision
@@ -42,19 +51,16 @@ module type STORE = sig
                         and type value := revision
   (** Revision stores are immutable. *)
 
-  type tree
-  (** Type of trees. *)
-
-  val create: ?tree:tree -> t list -> key Lwt.t
+  val revision: t -> ?tree:tree -> revision list -> key Lwt.t
   (** Create a new revision. *)
 
-  val tree: t -> tree Lwt.t option
+  val tree: t -> revision -> tree Lwt.t option
   (** Get the revision tree. *)
 
-  val parents: t -> t Lwt.t list
+  val parents: t -> revision -> revision Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val cut: ?roots:key list -> key list -> Graph.t Lwt.t
+  val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
   (** [cut t max] returns a consistent cut of the global partial
       order, where [max] are the max elements of the cut. If [roots]
       is set, these are the only minimal elements taken into
@@ -63,9 +69,10 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.ARAW)
+    (S: IrminStore.A_RAW)
     (K: IrminKey.S with type t = S.key)
-    (T: IrminTree.STORE with type key = S.key):
-  STORE with type key = T.key
-         and type tree = T.t
+    (T: IrminTree.STORE with type key = S.key)
+  : STORE with type t = (T.t, S.t) store
+           and type key = T.key
+           and type tree = T.tree
 (** Create a revision store. *)

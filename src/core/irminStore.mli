@@ -16,11 +16,11 @@
 
 (** Stores. *)
 
-(** {2 Append-only Stores} *)
+(** Common signature for all stores. *)
 
-module type A = sig
+module type X = sig
 
-  (** Base types for append-only stores. *)
+  (** Base types for stores. *)
 
   type t
   (** Type a store. *)
@@ -31,8 +31,8 @@ module type A = sig
   type value
   (** Type of values. *)
 
-  val write: t -> value -> key Lwt.t
-  (** Write the contents of a value to the store. *)
+  val create: unit -> t Lwt.t
+  (** Create a new store. *)
 
   val read: t -> key -> value option Lwt.t
   (** Read a value from the store. *)
@@ -44,16 +44,35 @@ module type A = sig
   val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
+  val list: t -> key -> key list Lwt.t
+  (** Return all the keys that are allowed to access, knowing a
+      key (which might be seen as a password). *)
+
 end
 
-module type ARAW = A with type value := IrminBuffer.t
+(** {2 Append-only Stores} *)
+
+module type A = sig
+
+  (** Base types for append-only stores. *)
+
+  include X
+
+  val add: t -> value -> key Lwt.t
+  (** Write the contents of a value to the store. That's the
+      responsibility of the append-only store to generate a consistent
+      key. *)
+
+end
+
+module type A_RAW = A with type value := IrminBuffer.t
 (** Raw immutable stores. *)
 
-module MakeI (S: ARAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
+module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
   A with type t = S.t
      and type key = K.t
      and type value = V.t
-(** Build a typed store. *)
+(** Build a typed append-only store from a raw one. *)
 
 (** {2 Mutable store} *)
 
@@ -61,42 +80,22 @@ module type M = sig
 
   (** Signature for mutable store. *)
 
-  type t
-  (** Type of stores. *)
+  include X
 
-  type key
-  (** Type of tags. *)
-
-  type value
-  (** Type of values. *)
-
-  val set: t -> key -> value -> unit Lwt.t
+  val update: t -> key -> value -> unit Lwt.t
   (** Replace the contents of [key] by [value] if [key] is already
       defined and create it otherwise. *)
 
   val remove: t -> key -> unit Lwt.t
   (** Remove the given key. *)
 
-  val read: t -> key -> value option Lwt.t
-  (** Read a key. Return [None] if the the key is not defined. *)
-
-  val read_exn: t -> key -> value Lwt.t
-  (** Read a key, raise [Unknown k] if the key is not defined. *)
-
-  val mem: t -> key -> bool Lwt.t
-  (** Check if a key exist. *)
-
-  val list: t -> key -> key list Lwt.t
-  (** Return all the keys that you can access, knowing a password
-      key. *)
-
 end
 
-module type MRAW = M with type key = string
+module type M_RAW = M with type key = string
 (** Raw mutable stores. *)
 
 module MakeM
-    (S: MRAW)
+    (S: M_RAW)
     (K: IrminBase.STRINGABLE)
     (V: IrminBase.S with type t = S.value)
   : M with type t = S.t

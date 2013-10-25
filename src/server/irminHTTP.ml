@@ -37,8 +37,8 @@ let respond_strings strs =
   let json = `A (List.map (fun s -> `String s) strs) in
   respond_json json
 
-let process s t ?body path =
-  let module S = (val t: Irmin.STORE) in
+let process (type t) (s: (module Irmin.S with type t = t)) (t:t) ?body path =
+  let module S = (val s)in
   let open S in
   let respond_key key = respond_json (Key.to_json key) in
   let respond_value value = respond_json (Value.to_json value) in
@@ -70,44 +70,44 @@ let process s t ?body path =
     begin match List.rev path with
       | [] | [_]      -> failwith "Wrong number of arguments"
       | value :: path ->
-        set (List.rev path) (Value.of_bytes value) >>= respond_unit
+        update t (List.rev path) (Value.of_bytes value) >>= respond_unit
     end
 
   | "action" :: "remove" :: path ->
-    remove path >>= respond_unit
+    remove t path >>= respond_unit
 
   | "action" :: "read" :: path ->
-    read_exn path >>= respond_value
+    read_exn t path >>= respond_value
 
   | "action" :: "mem" :: path ->
-    mem path >>= respond_bool
+    mem t path >>= respond_bool
 
   | "action" :: "list" :: path ->
-    list path >>= fun paths ->
+    list t path >>= fun paths ->
     let paths = List.map (String.concat "/") paths in
     respond_strings paths
 
   | ["action"; "snapshot"] ->
-    snapshot () >>= respond_key
+    snapshot t >>= respond_key
 
   | ["action"; "watch"] -> failwith "TODO"
 
   (* VALUES *)
 
   | ["value"; key] ->
-    Value.read_exn (Key.of_hex key) >>= respond_value
+    Value.read_exn t.value (Key.of_hex key) >>= respond_value
 
   (* TREE *)
   | ["tree"; key] ->
-    Tree.read_exn (Key.of_hex key) >>= respond_tree
+    Tree.read_exn t.tree (Key.of_hex key) >>= respond_tree
 
   (* REVISIONS *)
   | ["revision"; key] ->
-    Revision.read_exn (Key.of_hex key) >>= respond_revision
+    Revision.read_exn t.revision (Key.of_hex key) >>= respond_revision
 
   (* TAGS *)
   | ["tag"; tag] ->
-    Tag.read_exn (Tag.of_string tag) >>= respond_key
+    Tag.read_exn t.tag (Tag.of_string tag) >>= respond_key
 
   | _ -> failwith "Invalid URI"
 

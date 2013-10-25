@@ -14,19 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type A = sig
+module type X = sig
   type t
   type key
   type value
-  val write: t -> value -> key Lwt.t
+  val create: unit -> t Lwt.t
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
+  val list: t -> key -> key list Lwt.t
 end
 
-module type ARAW = A with type value := IrminBuffer.t
+module type A = sig
+  include X
+  val add: t -> value -> key Lwt.t
+end
 
-module MakeI (S: ARAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
+module type A_RAW = A with type value := IrminBuffer.t
+
+module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
 
   open Lwt
 
@@ -35,6 +41,9 @@ module MakeI (S: ARAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = st
   type key = K.t
 
   type value = V.t
+
+  let create () =
+    S.create ()
 
   let read t key =
     S.read t key >>= function
@@ -46,32 +55,29 @@ module MakeI (S: ARAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = st
     | None   -> fail (K.Unknown k)
     | Some v -> return v
 
-  let write t v =
+  let add t v =
     let buf = IrminBuffer.create (V.sizeof v) in
     V.set buf v;
-    S.write t buf
+    S.add t buf
 
   let mem t k =
     S.mem t k
 
+  let list t k =
+    S.list t k
+
 end
 
 module type M = sig
-  type t
-  type key
-  type value
-  val set: t -> key -> value -> unit Lwt.t
+  include X
+  val update: t -> key -> value -> unit Lwt.t
   val remove: t -> key -> unit Lwt.t
-  val read: t -> key -> value option Lwt.t
-  val read_exn: t -> key -> value Lwt.t
-  val mem: t -> key -> bool Lwt.t
-  val list: t -> key -> key list Lwt.t
 end
 
-module type MRAW = M with type key = string
+module type M_RAW = M with type key = string
 
 module MakeM
-    (S: MRAW)
+    (S: M_RAW)
     (K: IrminBase.STRINGABLE)
     (V: IrminBase.S with type t = S.value) =
 struct
@@ -84,8 +90,11 @@ struct
 
   type value = V.t
 
-  let set t key value =
-    S.set t (K.to_string key) value
+  let create () =
+    S.create ()
+
+  let update t key value =
+    S.update t (K.to_string key) value
 
   let remove t key =
     S.remove t (K.to_string key)

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type STORE = sig
+module type S = sig
   type key
   type value
   type tag
@@ -22,29 +22,36 @@ module type STORE = sig
     with type t = key
   module Value: IrminValue.STORE
     with type key = key
-     and type t = value
+     and type value = value
   module Tree: IrminTree.STORE
     with type key = key
      and type value = value
   module Revision: IrminRevision.STORE
     with type key = key
-     and type tree = Tree.t
+     and type tree = Tree.tree
   module Tag: IrminTag.STORE
-    with type t = tag
+    with type tag = tag
      and type key = key
-  include S with type t := key
-                     and type key := Tree.path
-                     and type value := value
+  type t = {
+    value   : Value.t;
+    tree    : Tree.t;
+    revision: Revision.t;
+    tag     : Tag.t;
+  }
+  include IrminStore.S with type t := t
+                        and type key := Tree.path
+                        and type value := value
+                        and type revision := key
 end
 
 module Make
     (Key: IrminKey.S)
     (Value: IrminValue.S)
     (Tag: IrminTag.S)
-    (SValue: IrminStore.IRAW with type key = Key.t)
-    (STree: IrminStore.IRAW with type key = Key.t)
-    (SRevision: IrminStore.IRAW with type key = Key.t)
-    (STag: IrminStore.MRAW with type value = Key.t) =
+    (SValue: IrminStore.A_RAW with type key = Key.t)
+    (STree: IrminStore.A_RAW with type key = Key.t)
+    (SRevision: IrminStore.A_RAW with type key = Key.t)
+    (STag: IrminStore.M_RAW with type value = Key.t) =
 struct
 
   open Lwt
@@ -56,71 +63,65 @@ struct
   module Tag = IrminTag.Make(STag)(Tag)(Key)
 
   type key = Key.t
-  type value = Value.t
-  type tree = Tree.t
-  type revision = Revision.t
+  type value = Value.value
+  type tree = Tree.tree
+  type revision = Revision.revision
   type path = Tree.path
-  type tag = Tag.t
-  module type S = S with type t := key
-                     and type key := Tree.path
-                     and type value := value
+  type tag = Tag.tag
 
-  module Make (T: sig val tag: Tag.t end) = struct
+  type t = {
+    value: Value.t;
+    tree: Tree.t;
+    revision: Revision.t;
+    tag: Tag.t;
+  }
 
-    type t = revision
+  let create () =
+    Revision.create () >>= fun revision ->
+    Tag.create () >>= fun tag ->
+    let tree = revision.IrminRevision.t in
+    let value = revision.IrminRevision.t.IrminTree.v in
+    return { value; tree; revision; tag }
 
-    let init () =
-      Value.init () >>= fun () ->
-      Tree.init () >>= fun () ->
-      Revision.init () >>= fun () ->
-      Tag.init ()
+  let revision t =
+    Tag.read_exn t.tag Tag.head >>=
+    Revision.read_exn t.revision
 
-    let revision () =
-      Tag.read_exn T.tag >>= Revision.read_exn
+  let tree t rev =
+    match Revision.tree t.revision rev with
+    | None      -> return Tree.empty
+    | Some tree -> tree
 
-    let tree rev =
-      match Revision.tree rev with
-      | None   -> return Tree.empty
-      | Some t -> t
+  let update t path value =
+    revision t >>= fun revision ->
+    tree t revision >>= fun tree ->
+    Tree.update t.tree tree path value >>= fun tree ->
+    Revision.revision t.revision ~tree [revision] >>= fun key ->
+    Tag.update t.tag Tag.head key
 
-    let set path value =
-      revision () >>= fun revision ->
-      tree revision >>= fun tree ->
-      Tree.add tree path value >>= fun tree ->
-      Revision.create ~tree [revision] >>= fun key ->
-      Tag.set T.tag key
+  let remove _ = failwith "TODO"
 
-    let remove _ = failwith "TODO"
+  let read _ = failwith "TODO"
 
-    let read _ = failwith "TODO"
+  let read_exn _ = failwith "TODO"
 
-    let read_exn _ = failwith "TODO"
+  let mem _ = failwith "TODO"
 
-    let mem _ = failwith "TODO"
+  let list _ = failwith "TODO"
 
-    let list _ = failwith "TODO"
+  let snapshot _ = failwith "TODO"
 
-    let snapshot _ = failwith "TODO"
+  let revert _ = failwith "TODO"
 
-    let revert _ = failwith "TODO"
-
-    let watch _ = failwith "TODO"
-
-  end
-
-  let create tag =
-    let module S = Make (struct let tag = tag end) in
-    (module S: S)
-
-  include Make (struct let tag = Tag.head end)
+  let watch _ = failwith "TODO"
 
 end
 
 module Simple
-    (I: IrminStore.IRAW with type key = IrminKey.SHA1.t)
-    (M: IrminStore.MRAW with type value = IrminKey.SHA1.t) =
+    (A: IrminStore.A_RAW with type key = IrminKey.SHA1.t)
+    (M: IrminStore.M_RAW with type value = IrminKey.SHA1.t) =
 struct
 
-  include Make(IrminKey.SHA1)(IrminValue.Simple)(IrminTag.Simple)(I)(I)(I)(M)
+  include Make(IrminKey.SHA1)(IrminValue.Simple)(IrminTag.Simple)(A)(A)(A)(M)
 
 end

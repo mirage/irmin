@@ -20,6 +20,11 @@ type ('a, 'b) node = {
   children: (string * 'b) list;
 }
 
+type ('a, 'b) store = {
+  v: 'a;
+  t: 'b;
+}
+
 module type STORE = sig
   type key
   type value
@@ -29,21 +34,23 @@ module type STORE = sig
   include IrminStore.A with type key := key
                         and type value := tree
   val empty: tree
-  val create: t -> ?value:value -> (string * tree) list -> key Lwt.t
+  val tree: t -> ?value:value -> (string * tree) list -> key Lwt.t
   val value: t -> tree -> value Lwt.t option
   val children: t -> tree -> (string * tree Lwt.t) list
   val sub: t -> tree -> path -> tree option Lwt.t
-  val add: t -> tree -> path -> value -> tree Lwt.t
+  val update: t -> tree -> path -> value -> tree Lwt.t
   val find: t -> tree -> path -> value Lwt.t
   val remove: t -> tree -> path -> unit Lwt.t
   val mem: t -> tree -> path -> bool Lwt.t
 end
 
 module Make
-    (S: IrminStore.ARAW)
+    (S: IrminStore.A_RAW)
     (K: IrminKey.S with type t = S.key)
     (V: IrminValue.STORE with type key = S.key) =
 struct
+
+  open Lwt
 
   type key = K.t
 
@@ -116,19 +123,19 @@ struct
       XTree.dump (t.value, t.children)
   end
 
-  open Lwt
-
   module Store = IrminStore.MakeI(S)(K)(Tree)
 
   include (Tree: IrminBase.S with type t := tree)
 
-  type t = {
-    v: V.t;
-    t : Store.t;
-  }
+  type t = (V.t, Store.t) store
 
-  let write t tree =
-    Store.write t.t tree
+  let create t =
+    V.create () >>= fun v ->
+    Store.create () >>= fun t ->
+    return { v; t }
+
+  let add t tree =
+    Store.add t.t tree
 
   let read t key =
     Store.read t.t key
@@ -139,24 +146,27 @@ struct
   let mem t key =
     Store.mem t.t key
 
+  let list t key =
+    Store.list t.t key
+
   let empty = {
     value = None;
     children = [];
   }
 
-  let create t ?value children =
+  let tree t ?value children =
     begin match value with
       | None   -> return_none
-      | Some v -> V.write t.v v >>= fun k -> return (Some k)
+      | Some v -> V.add t.v v >>= fun k -> return (Some k)
     end
     >>= fun value ->
     Lwt_list.map_p (fun (l, tree) ->
-        write t tree >>= fun k ->
+        add t tree >>= fun k ->
         return (l, k)
       ) children
     >>= fun children ->
     let tree = { value; children } in
-    write t tree
+    add t tree
 
   let value t tree =
     match tree.value with
@@ -164,9 +174,7 @@ struct
     | Some k -> Some (V.read_exn t.v k)
 
   let children t tree =
-    List.map (fun (l, k) ->
-        l, read_exn t k
-      ) tree.children
+    List.map (fun (l, k) -> l, read_exn t k) tree.children
 
   let child t tree label =
     try Some (List.assoc label (children t tree))
@@ -203,7 +211,7 @@ struct
         f empty >>= fun tree ->
         if tree = empty then return (List.rev acc)
         else
-          write t tree >>= fun k ->
+          add t tree >>= fun k ->
           return (List.rev_append acc [label, k])
       | (l, k) as child :: children ->
         if l = label then
@@ -213,7 +221,7 @@ struct
             f tree >>= fun tree ->
             if tree = empty then return (List.rev_append acc children)
             else
-              write t tree >>= fun k ->
+              add t tree >>= fun k ->
               return (List.rev_append acc ((l, k) :: children))
         else
           aux (child::acc) children
@@ -233,8 +241,8 @@ struct
     map_subtree t tree path (fun tree -> { tree with value = None })
     >>= fun _ -> return_unit
 
-  let add t tree path value =
-    V.write t.v value >>= fun k ->
+  let update t tree path value =
+    V.add t.v value >>= fun k ->
     map_subtree t tree path (fun tree -> { tree with value = Some k })
 
 end

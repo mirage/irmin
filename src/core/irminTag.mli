@@ -64,6 +64,6 @@ module type STORE = sig
 
 end
 
-module Make (S: IrminStore.MRAW) (T: S) (K: IrminKey.S with type t = S.value)
+module Make (S: IrminStore.M_RAW) (T: S) (K: IrminKey.S with type t = S.value)
   : STORE with type tag = T.t
            and type key = K.t

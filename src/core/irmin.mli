@@ -45,7 +45,7 @@ module type S = sig
 
   module Revision: IrminRevision.STORE
     with type key = key
-     and type tree = Tree.t
+     and type tree = Tree.tree
   (** Persistent revisions. *)
 
   module Tag: IrminTag.STORE
@@ -53,16 +53,20 @@ module type S = sig
      and type key = key
   (** Persistent tags. *)
 
+  type t = {
+    value   : Value.t;
+    tree    : Tree.t;
+    revision: Revision.t;
+    tag     : Tag.t;
+  }
+  (** Database state. *)
+
   (** {2 Mutable store interface} *)
 
-  include IrminStore.S with type key := Tree.path
+  include IrminStore.S with type t := t
+                        and type key := Tree.path
                         and type value := value
-
-  val init: unit -> t Lwt.t
-  (** Initialize a fresh store. *)
-
-  val create: unit -> t Lwt.t
-  (** Get the store associated to the HEAD tag. *)
+                        and type revision := key
 
 end
 
@@ -70,17 +74,18 @@ module Make
   (Key: IrminKey.S)
   (Value: IrminValue.S)
   (Tag: IrminTag.S)
-  (SValue: IrminStore.ARAW with type key = Key.t)
-  (STree: IrminStore.ARAW with type key = Key.t)
-  (SRevision: IrminStore.ARAW with type key = Key.t)
-  (STag: IrminStore.MRAW with type value = Key.t)
+  (SValue: IrminStore.A_RAW with type key = Key.t)
+  (STree: IrminStore.A_RAW with type key = Key.t)
+  (SRevision: IrminStore.A_RAW with type key = Key.t)
+  (STag: IrminStore.M_RAW with type value = Key.t)
   : S with type key = Key.t
        and type value = Value.t
        and type tag = Tag.t
 
+
 module Simple
-    (I: IrminStore.ARAW with type key = IrminKey.SHA1.t)
-    (M: IrminStore.MRAW with type value = IrminKey.SHA1.t)
+    (A: IrminStore.A_RAW with type key = IrminKey.SHA1.t)
+    (M: IrminStore.M_RAW with type value = IrminKey.SHA1.t)
   : S with type key = IrminKey.SHA1.t
        and type value = IrminValue.Simple.t
        and type tag = IrminTag.Simple.t
