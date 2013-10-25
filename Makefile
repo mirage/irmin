@@ -20,7 +20,7 @@ src/irminVersion.ml:
 	echo "let current = \"$(VERSION)\"" > src/core/irminVersion.ml
 
 $(TARGET): _build/src/$(MAIN).native
-	ln -s -f _build/src/$(MAIN).native $(TARGET)
+	ln -s -f _build/src/driver/$(MAIN).native $(TARGET)
 
 _build/src/$(MAIN).native: src/irminVersion.ml
 	$(BUILD) $(MAIN).native
