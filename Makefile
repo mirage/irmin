@@ -23,7 +23,7 @@ $(TARGET): _build/src/$(MAIN).native
 	ln -s -f _build/src/driver/$(MAIN).native $(TARGET)
 
 _build/src/$(MAIN).native: src/irminVersion.ml
-	$(BUILD) $(MAIN).byte
+	$(BUILD) $(MAIN).native
 
 test:
 	$(BUILD) -pkg ounit tests/$(TESTS).native
