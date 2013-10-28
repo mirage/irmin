@@ -39,8 +39,9 @@ module type STORE = sig
   val children: t -> tree -> (string * tree Lwt.t) list
   val sub: t -> tree -> path -> tree option Lwt.t
   val update: t -> tree -> path -> value -> tree Lwt.t
-  val find: t -> tree -> path -> value Lwt.t
-  val remove: t -> tree -> path -> unit Lwt.t
+  val find: t -> tree -> path -> value option Lwt.t
+  val find_exn: t -> tree -> path -> value Lwt.t
+  val remove: t -> tree -> path -> tree Lwt.t
   val mem: t -> tree -> path -> bool Lwt.t
 end
 
@@ -189,13 +190,21 @@ struct
       | Some tree -> tree >>= fun tree -> aux tree tl in
     aux tree path
 
-  let find t tree path =
+  let find_exn t tree path =
     sub t tree path >>= function
     | None      -> fail Not_found
     | Some tree ->
       match value t tree with
       | None   -> fail Not_found
       | Some v -> v
+
+  let find t tree path =
+    sub t tree path >>= function
+    | None      -> return_none
+    | Some tree ->
+      match value t tree with
+      | None   -> return_none
+      | Some v -> v >>= fun v -> return (Some v)
 
   let mem t tree path =
     sub t tree path >>= function
@@ -239,7 +248,6 @@ struct
 
   let remove t tree path =
     map_subtree t tree path (fun tree -> { tree with value = None })
-    >>= fun _ -> return_unit
 
   let update t tree path value =
     V.add t.v value >>= fun k ->

@@ -71,10 +71,13 @@ module type STORE = sig
   (** Add a value by recusively saving subtrees and subvalues into the
       corresponding stores. *)
 
-  val find: t -> tree -> path -> value Lwt.t
+  val find: t -> tree -> path -> value option Lwt.t
   (** Find a value. *)
 
-  val remove: t -> tree -> path -> unit Lwt.t
+  val find_exn: t -> tree -> path -> value Lwt.t
+  (** Find a value. Raise [Not_found] is [path] is not defined. *)
+
+  val remove: t -> tree -> path -> tree Lwt.t
   (** Remove a value. *)
 
   val mem: t -> tree -> path -> bool Lwt.t

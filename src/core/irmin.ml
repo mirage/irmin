@@ -108,22 +108,39 @@ struct
     | None   -> []
     | Some r -> [r]
 
-  let update t path value =
+  let update_tree t path fn =
     revision t >>= fun revision ->
     tree t revision >>= fun tree ->
-    Tree.update t.tree tree path value >>= fun tree ->
+    fn tree >>= fun tree ->
     Revision.revision t.revision ~tree (parents_of_revision revision) >>= fun key ->
     Tag.update t.tag t.branch key
 
-  let remove _ = failwith "TODO"
+  let update t path value =
+    update_tree t path (fun tree ->
+        Tree.update t.tree tree path value
+      )
 
-  let read _ = failwith "TODO"
+  let remove t path =
+    update_tree t path (fun tree ->
+        Tree.remove t.tree tree path
+      )
 
-  let read_exn _ = failwith "TODO"
+  let read_tree fn t path =
+    revision t >>= fun revision ->
+    tree t revision >>= fun tree ->
+    fn t.tree tree path
 
-  let mem _ = failwith "TODO"
+  let read =
+    read_tree Tree.find
 
-  let list _ = failwith "TODO"
+  let read_exn =
+    read_tree Tree.find_exn
+
+  let mem =
+    read_tree Tree.mem
+
+  let list _ =
+    failwith "TODO"
 
   let snapshot _ = failwith "TODO"
 
