@@ -16,16 +16,15 @@
 
 (** Disk persistence *)
 
-exception Error of string
-(** Disk-related errors. *)
+module Make (R: sig val root: string end): sig
 
-module type S = sig
+  module A (K: IrminKey.S): IrminStore.A_RAW with type key = K.t
+  (** Create a fresh store *)
 
-  include IrminStore.RAW
-
-  val dump: unit -> unit
+  module M (K: IrminKey.S): IrminStore.M_RAW with type value = K.t
+  (** Create a fresh tag store. *)
 
 end
 
-val create: string -> (module S)
-(** Initialize a disk. *)
+val simple: string -> (module Irmin.S)
+(** Simple store stored on the filesystem. *)

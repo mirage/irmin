@@ -23,8 +23,8 @@ module type S = sig
 
   include IrminBase.S
 
-  val head: t
-  (** The head tag. *)
+  val master: t
+  (** The master branch. *)
 
   val to_string: t -> string
   (** Convert a tag to a suitable name *)

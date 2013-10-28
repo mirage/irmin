@@ -54,7 +54,7 @@ let process (type t) (s: (module Irmin.S with type t = t)) (t:t) ?body path =
     ]
 
   | ["action"] -> respond_strings [
-      "set";
+      "update";
       "remove";
       "read";
       "mem";
@@ -66,7 +66,7 @@ let process (type t) (s: (module Irmin.S with type t = t)) (t:t) ?body path =
 
   (* ACTIONS *)
 
-  | "action" :: "set" :: path ->
+  | "action" :: "update" :: path ->
     begin match List.rev path with
       | [] | [_]      -> failwith "Wrong number of arguments"
       | value :: path ->

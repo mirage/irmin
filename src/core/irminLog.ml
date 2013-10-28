@@ -42,3 +42,8 @@ let error section fmt =
   Printf.kprintf (fun str ->
       Printf.eprintf "\027[31m%15s\027[m Error: %s\n%!" section str
     ) fmt
+
+let msg fmt =
+  Printf.kprintf (fun str ->
+      Printf.printf "%s\n%!" str
+    ) fmt

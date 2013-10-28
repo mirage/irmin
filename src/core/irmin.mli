@@ -58,6 +58,7 @@ module type S = sig
     tree    : Tree.t;
     revision: Revision.t;
     tag     : Tag.t;
+    branch  : Tag.tag;
   }
   (** Database state. *)
 
@@ -68,6 +69,9 @@ module type S = sig
                         and type value := value
                         and type revision := key
 
+  val tag: Tag.tag -> t Lwt.t
+  (** Create a store associated to a given tag (by default, [create]
+      uses [Tag.head]. *)
 end
 
 module Make

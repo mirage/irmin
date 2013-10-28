@@ -25,6 +25,9 @@ val info: string ->  ('a, out_channel, unit) format -> 'a
 (** Error *)
 val error: string -> ('a, unit, string, unit) format4 -> 'a
 
+(** Message *)
+val msg: ('a, unit, string, unit) format4 -> 'a
+
 (** Is debug enabled ? *)
 val debug_enabled: unit -> bool
 

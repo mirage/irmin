@@ -25,7 +25,7 @@ module type S = sig
   val to_hex: t -> string
   val of_hex: string -> t
   val concat: t list -> t
-  val length: t -> int
+  val length: int
 end
 
 module SHA1 = struct
@@ -40,19 +40,19 @@ module SHA1 = struct
 
   let name = "key"
 
-  let key_length = 20
+  let length = 20
 
   let create str =
-    if String.length str = key_length then str
+    if String.length str = length then str
     else raise (Invalid str)
 
   let sizeof _ =
     debug "sizeof";
-    key_length
+    length
 
   let get buf =
     debug "get";
-    let str = IrminBuffer.get_string buf key_length in
+    let str = IrminBuffer.get_string buf length in
     debug " ... get %s" str;
     str
 
@@ -77,7 +77,5 @@ module SHA1 = struct
   let concat l =
     let l = List.fold_left (fun acc s -> s :: acc) [] l in
     String.concat "" (List.sort String.compare l)
-
-  let length _ = key_length
 
 end

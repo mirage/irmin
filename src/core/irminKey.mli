@@ -47,8 +47,8 @@ module type S = sig
   val concat: t list -> t
   (** Compute a key from a list of keys. *)
 
-  val length: t -> int
-  (** Compute the key length. *)
+  val length: int
+  (** Fixed key length. *)
 
 end
 

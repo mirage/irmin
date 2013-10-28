@@ -46,10 +46,17 @@ module type S = sig
   (** [write_ba chan ba] writes the bigarray [ba] on the channel
       [chan]. *)
 
-  val read_length: t -> int Lwt.t
+  val read_buffer: t -> IrminBuffer.t Lwt.t
+  (** [read_buffer chan] reads the buffer encoded on the channel. *)
+
+  val write_buffer: t -> IrminBuffer.t -> unit Lwt.t
+  (** [write_buffer chan buf] writes the buffer [buf] to the channel
+      [chan]. *)
+
+  val read_contents_length: t -> int Lwt.t
   (** Read the contents length. *)
 
-  val write_length: t -> int -> unit Lwt.t
+  val write_contents_length: t -> int -> unit Lwt.t
   (** Read the contents length. *)
 
   val read_unit: t -> unit Lwt.t
@@ -63,17 +70,8 @@ module type S = sig
 
 end
 
-module Make (B: IrminBase.S) (C: S): IrminBase.SC
-  with type t = B.t
-   and type channel = C.t
-(** Extend a base implementation with serializability functions. *)
+include S
 
-module Lwt_unix: sig
-
-  include S
-
-  (** Create a channel from a file-descriptor and a name (useful for
-      debug purposes only(. *)
-  val create: Lwt_unix.file_descr -> string -> t
-
-end
+(** Create a channel from a file-descriptor and a name (useful for
+    debug purposes only(. *)
+val create: Lwt_unix.file_descr -> string -> t

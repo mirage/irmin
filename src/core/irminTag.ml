@@ -16,7 +16,7 @@
 
 module type S = sig
   include IrminBase.S
-  val head: t
+  val master: t
   val to_string: t -> string
   val of_string: string -> t
 end
@@ -24,7 +24,7 @@ end
 module Simple = struct
   include IrminBase.String
   let name = "tag"
-  let head = "HEAD"
+  let master = "master"
 end
 
 module type STORE = sig

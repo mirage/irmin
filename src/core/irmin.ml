@@ -37,11 +37,14 @@ module type S = sig
     tree    : Tree.t;
     revision: Revision.t;
     tag     : Tag.t;
+    branch  : Tag.tag;
   }
   include IrminStore.S with type t := t
                         and type key := Tree.path
                         and type value := value
                         and type revision := key
+
+  val tag: Tag.tag -> t Lwt.t
 end
 
 module Make
@@ -74,6 +77,7 @@ struct
     tree: Tree.t;
     revision: Revision.t;
     tag: Tag.t;
+    branch: Tag.tag;
   }
 
   let create () =
@@ -81,23 +85,35 @@ struct
     Tag.create () >>= fun tag ->
     let tree = revision.IrminRevision.t in
     let value = revision.IrminRevision.t.IrminTree.v in
-    return { value; tree; revision; tag }
+    let branch = Tag.master in
+    return { value; tree; revision; tag; branch }
+
+  let tag branch =
+    create () >>= fun t ->
+    return { t with branch }
 
   let revision t =
-    Tag.read_exn t.tag Tag.head >>=
-    Revision.read_exn t.revision
+    Tag.read t.tag t.branch >>= function
+    | None   -> return_none
+    | Some k -> Revision.read_exn t.revision k >>= function r -> return (Some r)
 
-  let tree t rev =
-    match Revision.tree t.revision rev with
-    | None      -> return Tree.empty
-    | Some tree -> tree
+  let tree t = function
+    | None     -> return Tree.empty
+    | Some rev ->
+      match Revision.tree t.revision rev with
+      | None      -> return Tree.empty
+      | Some tree -> tree
+
+  let parents_of_revision = function
+    | None   -> []
+    | Some r -> [r]
 
   let update t path value =
     revision t >>= fun revision ->
     tree t revision >>= fun tree ->
     Tree.update t.tree tree path value >>= fun tree ->
-    Revision.revision t.revision ~tree [revision] >>= fun key ->
-    Tag.update t.tag Tag.head key
+    Revision.revision t.revision ~tree (parents_of_revision revision) >>= fun key ->
+    Tag.update t.tag t.branch key
 
   let remove _ = failwith "TODO"
 

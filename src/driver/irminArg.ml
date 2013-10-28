@@ -62,8 +62,12 @@ let store =
     Arg.(value & opt (some source_conv) None & doc) in
   let create in_memory source = match in_memory, source with
     | true, _
-    | _   , Some `In_memory -> (module IrminMemory.Simple: Irmin.S)
-    | _   , Some `FS dir    -> failwith "TODO"
+    | _   , Some `In_memory ->
+      IrminLog.msg "source: in-memory.";
+      (module IrminMemory.Simple: Irmin.S)
+    | _   , Some `FS dir    ->
+      IrminLog.msg "source: %s." dir;
+      IrminFS.simple dir
     | _ -> failwith "No store source specified" in
   Term.(pure create $ in_memory $ source)
 

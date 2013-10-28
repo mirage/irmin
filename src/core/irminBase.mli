@@ -102,22 +102,3 @@ module Option (E: S): S with type t = E.t option
 
 module Pair (K: S) (V: S): S with type t = K.t * V.t
 (** Lift IO operations to pairs. *)
-
-(** {2 IO on channels. *)
-
-module type SC = sig
-
-  (** Extend [S] with channel operations *)
-
-  include S
-
-  type channel
-  (** Type of channels. *)
-
-  val read_channel: channel -> t Lwt.t
-   (** Read on a channel *)
-
-  val write_channel: channel -> t -> unit Lwt.t
-  (** Write on a channel *)
-
-end

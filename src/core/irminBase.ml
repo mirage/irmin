@@ -274,10 +274,3 @@ module String = struct
 end
 
 module PrivateString = String
-
-module type SC = sig
-  include S
-  type channel
-  val read_channel: channel -> t Lwt.t
-  val write_channel: channel -> t -> unit Lwt.t
-end
