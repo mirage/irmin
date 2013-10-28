@@ -22,7 +22,7 @@ type ba = Cstruct.buffer
 val create_ba: int -> ba
 
 (** Dump a bigarray. *)
-val dump_ba: ba -> unit
+val dump_ba: ?msg:string -> ba -> unit
 
 (** Bound-mutable bigarrays. *)
 type t = {
@@ -53,7 +53,7 @@ val parse_error_buf: t -> ('a, unit, string, 'b) format4 -> 'a
 val parse_error: ('a, unit, string, 'b) format4 -> 'a
 
 (** Dump the buffer *)
-val dump: t -> unit
+val dump: ?msg:string -> t -> unit
 
 (** {Basic IO operations} *)
 

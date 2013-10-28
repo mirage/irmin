@@ -35,19 +35,20 @@ external unsafe_blit_bigstring_to_string :
   Cstruct.buffer -> int -> string -> int -> int -> unit
   = "caml_blit_bigstring_to_string" "noalloc"
 
-let dump_ba ba =
+let dump_ba ?msg ba =
   if IrminLog.debug_enabled () then
     let len = Bigarray.Array1.dim ba in
     let str = String.create len in
     unsafe_blit_bigstring_to_string ba 0 str 0 len;
-    Printf.eprintf "%16s\027[33m[[ %S ]]\027[m\n" "" str
+    let msg = match msg with None -> "" | Some msg -> msg ^ " " in
+    debug "%s\027[33m[[ %S ]]\027[m" msg str
 
-let dump t =
+let dump ?msg t =
   if IrminLog.debug_enabled () then
-    let debug = Cstruct.debug t.buffer in
+    let dbg = Cstruct.debug t.buffer in
     let str = Cstruct.to_string (Cstruct.shift t.buffer (-t.buffer.Cstruct.off)) in
-    Printf.eprintf "%16s\027[33m[[ %s %S ]]\027[m\n" ""
-      debug str
+    let msg = match msg with None -> "" | Some msg -> msg ^ " " in
+    debug "%s\027[33m[[ %s %S ]]\027[m" msg dbg str
 
 exception Parse_error of string
 
@@ -79,18 +80,12 @@ let create len =
   let buffer = create_aux len in
   { buffer }
 
-let dump t =
-  if IrminLog.debug_enabled () then
-    let debug = Cstruct.debug t.buffer in
-    let str = Cstruct.to_string (Cstruct.shift t.buffer (-t.buffer.Cstruct.off)) in
-    Printf.eprintf "%16s\027[33m[[ %s %S ]]\027[m\n" ""
-      debug str
-
 let set t len fn c =
-  debug "set len:%d" len;
-  dump t;
+  debug "set (%d)" len;
+  dump ~msg:"-->" t;
   fn t.buffer 0 c;
-  t.buffer <- Cstruct.shift t.buffer len
+  t.buffer <- Cstruct.shift t.buffer len;
+  dump ~msg:"<--" t
 
 let set_char t c =
   set t 1 Cstruct.set_char c
