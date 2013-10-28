@@ -56,6 +56,14 @@ module SHA1 = struct
     debug " ... get %s" str;
     str
 
+  let to_hex t =
+    IrminMisc.hex_encode t
+
+  let of_hex hex =
+    IrminMisc.hex_decode hex
+
+  let pretty = to_hex
+
   let set buf t =
     debug "set %s" (pretty t);
     IrminBuffer.set_string buf t
@@ -67,12 +75,6 @@ module SHA1 = struct
     let len = IrminBuffer.length buf in
     let str = IrminBuffer.get_string buf len in
     of_bytes str
-
-  let to_hex t =
-    IrminMisc.hex_encode t
-
-  let of_hex hex =
-    IrminMisc.hex_decode hex
 
   let concat l =
     let l = List.fold_left (fun acc s -> s :: acc) [] l in
