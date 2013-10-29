@@ -65,7 +65,7 @@ let with_file file fn =
   try
     let fd = Unix.openfile file [Unix.O_RDWR; Unix.O_NONBLOCK; Unix.O_CREAT] 0o644 in
     let ba = Lwt_bytes.map_file ~fd ~shared:false () in
-    IrminBuffer.dump_ba ba;
+    IrminBuffer.dump ~msg:"-->" (IrminBuffer.of_ba ba);
     fn t >>= fun r ->
     IrminChannel.close t >>= fun () ->
     return r
@@ -237,7 +237,9 @@ module Make (R: sig val root: string end) = struct
 
     let read_key fd =
       IrminChannel.read_string fd K.length >>= fun str ->
-      return (K.of_bytes str)
+      let key = K.create str in
+      debug "read_key: %S %s" str (K.pretty key);
+      return key
 
     let read_exn t tag =
       debug "read_exn %s" tag;
@@ -247,7 +249,7 @@ module Make (R: sig val root: string end) = struct
       | false -> fail (Unknown tag)
 
     let read t tag =
-      debug "read_exn %s" tag;
+      debug "read %s" tag;
       let file = head t tag in
       mem t tag >>= function
       | true  -> with_file file (fun fd -> read_key fd >>= fun k -> return (Some k))

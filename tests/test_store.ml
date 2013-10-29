@@ -22,6 +22,9 @@ module Make (S: Irmin.S) = struct
 
   open S
 
+  let cmp_list eq comp l1 l2 =
+    cmp_list eq (List.sort comp l1) (List.sort comp l2)
+
   let assert_key_equal msg =
     line msg;
     OUnit.assert_equal ~msg ~cmp:Key.equal ~printer:Key.pretty
@@ -34,7 +37,7 @@ module Make (S: Irmin.S) = struct
   let assert_keys_equal msg =
     line msg;
     OUnit.assert_equal
-      ~msg ~cmp:(cmp_list Key.equal) ~printer:(printer_list Key.pretty)
+      ~msg ~cmp:(cmp_list Key.equal Key.compare) ~printer:(printer_list Key.pretty)
 
   let assert_value_equal msg =
     line msg;
@@ -48,7 +51,7 @@ module Make (S: Irmin.S) = struct
   let assert_values_equal msg =
     line msg;
     OUnit.assert_equal ~msg
-      ~cmp:(cmp_list Value.equal) ~printer:(printer_list Value.pretty)
+      ~cmp:(cmp_list Value.equal Value.compare) ~printer:(printer_list Value.pretty)
 
   let assert_tag_opt_equal msg =
     OUnit.assert_equal ~msg
@@ -56,7 +59,7 @@ module Make (S: Irmin.S) = struct
 
   let assert_tags_equal msg =
     OUnit.assert_equal ~msg
-      ~cmp:(cmp_list Tag.equal) ~printer:(printer_list Tag.pretty)
+      ~cmp:(cmp_list Tag.equal Tag.compare) ~printer:(printer_list Tag.pretty)
 
   let v1 = Value.of_bytes "foo"
   let v2 = Value.of_bytes ""
@@ -92,10 +95,10 @@ module Make (S: Irmin.S) = struct
       create ()              >>= fun t   ->
       init t                 >>= fun ()  ->
       Tag.update t.tag t1 k1 >>= fun ()  ->
-      Tag.update t.tag t2 k2 >>= fun ()  ->
       Tag.read   t.tag t1    >>= fun k1' ->
-      Tag.read   t.tag t2    >>= fun k2' ->
       assert_key_opt_equal "t1" (Some k1) k1';
+      Tag.update t.tag t2 k2 >>= fun ()  ->
+      Tag.read   t.tag t2    >>= fun k2' ->
       assert_key_opt_equal "t2" (Some k2) k2';
       Tag.update t.tag t1 k2 >>= fun ()   ->
       Tag.read   t.tag t1    >>= fun k2'' ->
