@@ -19,6 +19,7 @@ module type X = sig
   type key
   type value
   val create: unit -> t Lwt.t
+  val init: t -> unit Lwt.t
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
@@ -44,6 +45,9 @@ module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = s
 
   let create () =
     S.create ()
+
+  let init t =
+    S.init t
 
   let read t key =
     S.read t key >>= function
@@ -92,6 +96,9 @@ struct
 
   let create () =
     S.create ()
+
+  let init t =
+    S.init t
 
   let update t key value =
     S.update t (K.to_string key) value

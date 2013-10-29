@@ -72,6 +72,13 @@ let with_maybe_file file fn default =
     return default
   )
 
+let init dir (D root as t) =
+  let mkdir dir =
+    if not (Sys.file_exists dir) then Unix.mkdir dir 0o755 in
+  mkdir root;
+  mkdir (dir t);
+  return_unit
+
 module Make (R: sig val root: string end) = struct
 
   module A (K: IrminKey.S) = struct
@@ -103,14 +110,8 @@ module Make (R: sig val root: string end) = struct
     let create () =
       return (D R.root)
 
-    let init (D root as t) =
-      if Sys.file_exists root then
-        warning "Reinitialized existing Irminsule repository in %s/" root;
-      let mkdir dir =
-        if not (Sys.file_exists dir) then Unix.mkdir dir 0o755 in
-      mkdir root;
-      mkdir (objects t);
-      return_unit
+    let init =
+      init objects
 
     let mem t key =
       check t >>= fun () ->
@@ -182,14 +183,17 @@ module Make (R: sig val root: string end) = struct
 
     type t = root
 
-    let create () =
-      return (D R.root)
-
     let heads (D root) =
       root / "heads"
 
     let head t tag =
       heads t / tag
+
+    let create () =
+      return (D R.root)
+
+    let init =
+      init heads
 
     let remove t tag =
       check t >>= fun () ->

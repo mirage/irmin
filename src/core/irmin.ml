@@ -88,6 +88,10 @@ struct
     let branch = Tag.master in
     return { value; tree; revision; tag; branch }
 
+  let init t =
+    Revision.init t.revision >>= fun () ->
+    Tag.init t.tag
+
   let tag branch =
     create () >>= fun t ->
     return { t with branch }

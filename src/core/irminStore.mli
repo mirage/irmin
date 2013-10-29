@@ -32,7 +32,10 @@ module type X = sig
   (** Type of values. *)
 
   val create: unit -> t Lwt.t
-  (** Create a new store. *)
+  (** Create a store handle. *)
+
+  val init: t -> unit Lwt.t
+  (** Initialize a new store. *)
 
   val read: t -> key -> value option Lwt.t
   (** Read a value from the store. *)

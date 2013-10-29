@@ -118,6 +118,10 @@ struct
     Store.create () >>= fun r ->
     return { t; r }
 
+  let init t =
+    T.init t.t >>= fun () ->
+    Store.init t.r
+
   let add t r =
     Store.add t.r r
 

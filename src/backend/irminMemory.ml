@@ -27,6 +27,9 @@ module A (K: IrminKey.S) = struct
   let create () =
     return (Hashtbl.create 4096)
 
+  let init t =
+    return_unit
+
   let add t value =
     let key = K.of_buffer value in
     Hashtbl.add t key value;
@@ -66,6 +69,9 @@ module M (K: IrminKey.S) = struct
 
   let create () =
     return (Hashtbl.create 64)
+
+  let init t =
+    return_unit
 
   let update t tag key =
     Printf.printf "Update %s to %s\n%!" tag (K.pretty key);

@@ -130,10 +130,14 @@ struct
 
   type t = (V.t, Store.t) store
 
-  let create t =
+  let create () =
     V.create () >>= fun v ->
     Store.create () >>= fun t ->
     return { v; t }
+
+  let init t =
+    V.init t.v >>= fun () ->
+    Store.init t.t
 
   let add t tree =
     Store.add t.t tree
