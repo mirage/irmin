@@ -79,7 +79,9 @@ module List (E: S) = struct
 
   let get buf =
     debug "get";
+    IrminBuffer.dump ~msg:"-->" buf;
     let keys = Int32.to_int (IrminBuffer.get_uint32 buf) in
+    debug "get %d" keys;
     let rec aux acc i =
       if i <= 0 then OCamlList.rev acc
       else

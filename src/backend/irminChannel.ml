@@ -50,15 +50,16 @@ let channel t = t.fd
 let close t = Lwt_unix.close t.fd
 
 let read_string t len =
-  debug "read_string %s len:%d" t.name len;
+  debug "read_string %s (%d)" t.name len;
   let str = String.create len in
   let rec rread fd str ofs len =
     Lwt_unix.read fd str ofs len >>= fun n ->
-    debug " ... read_string n:%d" n;
+    debug "|-- read_string (+%d)" n;
     if n = 0 then fail End_of_file
     else if n < len then rread fd str (ofs + n) (len - n)
     else return () in
   rread t.fd str 0 len >>= fun () ->
+  debug "<-- read_string %s" str;
   return str
 
 let write_string t str =
@@ -71,7 +72,7 @@ let write_string t str =
   rwrite t.fd str 0 (String.length str)
 
 let read_ba t len =
-  debug "read_ba %s len:%d" t.name len;
+  debug "read_ba %s (%d)" t.name len;
   let buf = IrminBuffer.create_ba len in
   let rec rread fd buf ofs len =
     debug "rread ofs=%d len=%d" ofs len;
@@ -80,7 +81,7 @@ let read_ba t len =
     else if n < len then rread fd buf (ofs + n) (len - n)
     else return () in
   rread t.fd buf 0 len >>= fun () ->
-  IrminBuffer.dump_ba buf;
+  IrminBuffer.dump_ba ~msg:"<--" buf;
   return buf
 
 let write_ba t ba =

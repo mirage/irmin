@@ -269,7 +269,7 @@ let redirect_test_output labels test_fun =
     test_fun ()
 
 let run test =
-  IrminMisc.set_debug_mode true;
+  IrminLog.set_debug_mode true;
   let start_time = Sys.time () in
   let test = map_test redirect_test_output test in
   let results = OUnit.perform_test print_event test in

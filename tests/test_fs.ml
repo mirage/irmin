@@ -14,30 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let cmp_opt fn x y =
-  match x, y with
-  | Some x, Some y -> fn x y
-  | None  , None   -> true
-  | Some _, None
-  | None  , Some _ -> false
+open Lwt
 
-let printer_opt fn = function
-  | None   -> "<none>"
-  | Some v -> fn v
+let test_db = "test-db"
 
-let rec cmp_list fn x y =
-  match x, y with
-  | xh::xt, yh::yt -> fn xh yh && cmp_list fn xt yt
-  | []    , []     -> true
-  | _              -> false
+let clean () =
+  if Sys.file_exists test_db then begin
+    let cmd = Printf.sprintf "rm -rf %s" test_db in
+    let _ = Sys.command cmd in ()
+  end;
+  return_unit
 
-let printer_list fn = function
-  | [] -> "[]"
-  | l  -> Printf.sprintf "[ %s ]" (String.concat ", " (List.map fn l))
-
-let line msg =
-  let line () =
-    if IrminLog.debug_enabled () then Alcotest.line stderr ~color:`Yellow '-' in
-  line ();
-  IrminLog.info "ASSERT" "%s" msg;
-  line ()
+let suite =
+  let (module Simple) = IrminFS.simple test_db in
+  let module S = Test_store.Make(Simple) in
+  S.suite "FS" clean
