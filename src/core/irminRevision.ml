@@ -105,7 +105,7 @@ struct
 
   end
 
-  module Store = IrminStore.MakeI(S)(K)(Revision)
+  module Store = IrminStore.MakeA(S)(K)(Revision)
 
   module Graph = IrminGraph.Make(Revision)
 

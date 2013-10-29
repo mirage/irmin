@@ -19,6 +19,7 @@ module type S = sig
   type channel
   val create: channel -> string -> t
   val name: t -> string
+  val channel: t -> channel
   val read_string: t -> int -> string Lwt.t
   val write_string: t -> string -> unit Lwt.t
   val read_ba: t -> int -> Cstruct.buffer Lwt.t
@@ -41,7 +42,7 @@ type t = {
   name: string;
 }
 
-let debug fmt = IrminLog.debug "IO-LWT" fmt
+let debug fmt = IrminLog.debug "CHANNEL" fmt
 
 let name t = t.name
 
@@ -51,38 +52,47 @@ let close t = Lwt_unix.close t.fd
 
 let read_string t len =
   debug "read_string %s (%d)" t.name len;
-  let str = String.create len in
-  let rec rread fd str ofs len =
-    Lwt_unix.read fd str ofs len >>= fun n ->
-    debug "|-- read_string (+%d)" n;
-    if n = 0 then fail End_of_file
-    else if n < len then rread fd str (ofs + n) (len - n)
-    else return () in
-  rread t.fd str 0 len >>= fun () ->
-  debug "<-- read_string %s" str;
-  return str
+  if len = 0 then return ""
+  else begin
+    let str = String.create len in
+    let rec rread fd str ofs len =
+      Lwt_unix.read fd str ofs len >>= fun n ->
+      debug "|-- read_string (+%d)" n;
+      if n = 0 then fail End_of_file
+      else if n < len then rread fd str (ofs + n) (len - n)
+      else return () in
+    rread t.fd str 0 len >>= fun () ->
+    debug "<-- read_string %S" str;
+    return str
+  end
 
 let write_string t str =
   debug "write_string %s %S" t.name str;
-  let rec rwrite fd str ofs len =
-    Lwt_unix.write fd str ofs len >>= fun n ->
-    if n = 0 then fail End_of_file
-    else if n < len then rwrite fd str (ofs + n) (len - n)
-    else return () in
-  rwrite t.fd str 0 (String.length str)
+  if str = "" then return_unit
+  else begin
+    let rec rwrite fd str ofs len =
+      Lwt_unix.write fd str ofs len >>= fun n ->
+      if n = 0 then fail End_of_file
+      else if n < len then rwrite fd str (ofs + n) (len - n)
+      else return () in
+    rwrite t.fd str 0 (String.length str)
+  end
 
 let read_ba t len =
   debug "read_ba %s (%d)" t.name len;
-  let buf = IrminBuffer.create_ba len in
-  let rec rread fd buf ofs len =
-    debug "rread ofs=%d len=%d" ofs len;
-    Lwt_bytes.read fd buf ofs len >>= fun n ->
-    if n = 0 then fail End_of_file
-    else if n < len then rread fd buf (ofs + n) (len - n)
-    else return () in
-  rread t.fd buf 0 len >>= fun () ->
-  IrminBuffer.dump_ba ~msg:"<--" buf;
-  return buf
+  if len = 0 then return (IrminBuffer.create_ba 0)
+  else begin
+    let buf = IrminBuffer.create_ba len in
+    let rec rread fd buf ofs len =
+      debug "rread ofs=%d len=%d" ofs len;
+      Lwt_bytes.read fd buf ofs len >>= fun n ->
+      if n = 0 then fail End_of_file
+      else if n < len then rread fd buf (ofs + n) (len - n)
+      else return () in
+    rread t.fd buf 0 len >>= fun () ->
+    IrminBuffer.dump_ba ~msg:"<--" buf;
+    return buf
+  end
 
 let write_ba t ba =
   debug "write_ba %s" t.name;
@@ -95,30 +105,36 @@ let write_ba t ba =
     else return () in
   rwrite t.fd ba 0 (Bigarray.Array1.dim ba)
 
+(* XXX: int32! *)
 let read_contents_length t =
-  debug "read_length %S" t.name;
+  debug "read_contents_length %s" t.name;
   read_string t 4 >>= fun str ->
   let len = EndianString.BigEndian.get_int32 str 0 in
-  debug " ... read_length: %ld" len;
+  debug "<-- read_contents_length = %ld" len;
   return (Int32.to_int len)
 
+(* XXX: int32! *)
 let write_contents_length t len =
-  debug "write_length %s %dl" t.name len;
+  debug "write_contents_length %s %dl" t.name len;
   let str = String.create 4 in
   EndianString.BigEndian.set_int32 str 0 (Int32.of_int len);
   write_string t str >>= fun () ->
-  debug " ... write_length";
+  debug "<-- write_contents_length";
   return ()
 
 let read_buffer t =
+  debug "read_buffer %s" t.name;
   read_contents_length t >>= fun len ->
   read_ba t len >>= fun ba ->
   return (IrminBuffer.of_ba ba)
 
 let write_buffer t buf =
-  let len = IrminBuffer.length buf in
+  debug "write_buffer %s" t.name;
+  IrminBuffer.dump ~msg:"<--" buf;
+  let ba = IrminBuffer.to_ba buf in
+  let len = IrminBuffer.ba_length ba in
   write_contents_length t len >>= fun () ->
-  write_ba t (IrminBuffer.to_ba buf)
+  write_ba t ba
 
 let write_unit t =
   write_string t "\000"

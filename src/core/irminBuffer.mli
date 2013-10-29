@@ -24,6 +24,9 @@ val create_ba: int -> ba
 (** Dump a bigarray. *)
 val dump_ba: ?msg:string -> ba -> unit
 
+(** Length of a bigarray. *)
+val ba_length: ba -> int
+
 (** Bound-mutable bigarrays. *)
 type t = {
   mutable buffer: Cstruct.t;

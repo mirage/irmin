@@ -52,11 +52,20 @@ let check (D root) =
   else
     return_unit
 
+let safe_mkdir dir =
+  if not (Sys.file_exists dir) then
+    try Unix.mkdir dir 0o755
+    with Unix.Unix_error(Unix.EEXIST,_,_) -> ()
+
 let with_file file fn =
   debug "with_file %s" file;
+  safe_mkdir (Filename.dirname file);
   Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
   let t = IrminChannel.create fd file in
   try
+    let fd = Unix.openfile file [Unix.O_RDWR; Unix.O_NONBLOCK; Unix.O_CREAT] 0o644 in
+    let ba = Lwt_bytes.map_file ~fd ~shared:false () in
+    IrminBuffer.dump_ba ba;
     fn t >>= fun r ->
     IrminChannel.close t >>= fun () ->
     return r
@@ -135,6 +144,7 @@ module Make (R: sig val root: string end) = struct
                    (file_of_key t key)
                    (fun fd ->
                       read_full_ba fd >>= fun ba ->
+                      IrminBuffer.dump_ba ~msg:"-->" ba;
                       return (Some ba))
       | false -> return_none
 

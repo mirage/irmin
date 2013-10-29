@@ -50,7 +50,7 @@ end
 
 module Make (S: IrminStore.A_RAW) (K: IrminKey.S with type t = S.key) (V: S) = struct
 
-  include IrminStore.MakeI(S)(K)(V)
+  include IrminStore.MakeA(S)(K)(V)
 
   include (V: S with type t := value)
 

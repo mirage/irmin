@@ -33,9 +33,12 @@ end
 
 module type A_RAW = A with type value := IrminBuffer.ba
 
-module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
+module MakeA (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
 
   open Lwt
+
+  let debug fmt =
+    IrminLog.debug "A" fmt
 
   type t = S.t
 
@@ -62,9 +65,12 @@ module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = s
     | Some v -> return v
 
   let add t v =
+    debug "add %s" (V.pretty v);
     let buf = IrminBuffer.create (V.sizeof v) in
     V.set buf v;
-    S.add t (IrminBuffer.to_ba buf)
+    S.add t (IrminBuffer.to_ba buf) >>= fun key ->
+    debug "<-- add: key=%s" (K.pretty key);
+    return key
 
   let mem t k =
     S.mem t k

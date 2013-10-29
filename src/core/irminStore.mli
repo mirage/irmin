@@ -71,7 +71,7 @@ end
 module type A_RAW = A with type value := IrminBuffer.ba
 (** Raw immutable stores associate keys to raw big arrays. *)
 
-module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
+module MakeA (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
   A with type t = S.t
      and type key = K.t
      and type value = V.t

@@ -32,6 +32,9 @@ module type S = sig
   val name: t -> string
   (** Channel name. *)
 
+  val channel: t -> channel
+  (** Return the channel. *)
+
   val read_string: t -> int -> string Lwt.t
   (** Read a string on a channel. *)
 
@@ -54,10 +57,10 @@ module type S = sig
       [chan]. *)
 
   val read_contents_length: t -> int Lwt.t
-  (** Read the contents length. *)
+  (** Read the contents length. XXX: 32 bits only! *)
 
   val write_contents_length: t -> int -> unit Lwt.t
-  (** Read the contents length. *)
+  (** Read the contents length. XXX: 32 bits only! *)
 
   val read_unit: t -> unit Lwt.t
   (** Read an unit value on a channel. *)
@@ -70,7 +73,7 @@ module type S = sig
 
 end
 
-include S
+include S with type channel = Lwt_unix.file_descr
 
 (** Create a channel from a file-descriptor and a name (useful for
     debug purposes only(. *)

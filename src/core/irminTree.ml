@@ -124,7 +124,7 @@ struct
       XTree.dump (t.value, t.children)
   end
 
-  module Store = IrminStore.MakeI(S)(K)(Tree)
+  module Store = IrminStore.MakeA(S)(K)(Tree)
 
   include (Tree: IrminBase.S with type t := tree)
 

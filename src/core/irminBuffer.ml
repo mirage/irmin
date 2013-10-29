@@ -29,6 +29,9 @@ let of_ba ba =
 let length t =
   Cstruct.len t.buffer
 
+let ba_length ba =
+  Bigarray.Array1.dim ba
+
 let debug fmt = IrminLog.debug "buf" fmt
 
 external unsafe_blit_bigstring_to_string :
@@ -37,7 +40,7 @@ external unsafe_blit_bigstring_to_string :
 
 let dump_ba ?msg ba =
   if IrminLog.debug_enabled () then
-    let len = Bigarray.Array1.dim ba in
+    let len = ba_length ba in
     let str = String.create len in
     unsafe_blit_bigstring_to_string ba 0 str 0 len;
     let msg = match msg with None -> "" | Some msg -> msg ^ " " in

@@ -67,24 +67,28 @@ module Make (S: Irmin.S) = struct
 
   let test_values cleanup () =
     let test =
-      create ()             >>= fun t   ->
-      init t                >>= fun ()  ->
-      Value.add t.value v1  >>= fun k1  ->
-      Value.add t.value v1  >>= fun k1' ->
-      Value.add t.value v2  >>= fun k2  ->
-      Value.add t.value v2  >>= fun k2' ->
-      Value.read t.value k1 >>= fun v1' ->
-      Value.read t.value k2 >>= fun v2' ->
+      cleanup ()            >>= fun t    ->
+      create ()             >>= fun t    ->
+      init t                >>= fun ()   ->
+      Value.add t.value v1  >>= fun k1'  ->
+      Value.add t.value v1  >>= fun k1'' ->
       assert_key_equal "k1" k1 k1';
+      assert_key_equal "k1" k1 k1'';
+      Value.add t.value v2  >>= fun k2'  ->
+      Value.add t.value v2  >>= fun k2'' ->
       assert_key_equal "k2" k2 k2';
+      assert_key_equal "k2" k2 k2'';
+      Value.read t.value k1 >>= fun v1'  ->
       assert_value_opt_equal "v1" (Some v1) v1';
+      Value.read t.value k2 >>= fun v2'  ->
       assert_value_opt_equal "v2" (Some v2) v2';
-      cleanup ()
+      return_unit
     in
     Lwt_unix.run test
 
   let test_tags cleanup () =
     let test =
+      cleanup ()             >>= fun ()  ->
       create ()              >>= fun t   ->
       init t                 >>= fun ()  ->
       Tag.update t.tag t1 k1 >>= fun ()  ->
@@ -103,7 +107,7 @@ module Make (S: Irmin.S) = struct
       assert_key_opt_equal "empty" None empty;
       Tag.list   t.tag t1    >>= fun t2' ->
       assert_tags_equal "all-after-remove" [t2] t2';
-      cleanup ()
+      return_unit
     in
     Lwt_unix.run test
 
