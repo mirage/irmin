@@ -69,11 +69,12 @@ module SHA1 = struct
     IrminBuffer.set_string buf t
 
   let of_bytes str =
+    debug "of_bytes: %S" str;
     IrminMisc.sha1 str
 
   let of_buffer buf =
-    let len = IrminBuffer.length buf in
-    let str = IrminBuffer.get_string buf len in
+    let len = IrminBuffer.get_uint32 buf in
+    let str = IrminBuffer.get_string buf (Int32.to_int len) in
     of_bytes str
 
   let concat l =
