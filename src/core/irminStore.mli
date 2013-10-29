@@ -68,8 +68,8 @@ module type A = sig
 
 end
 
-module type A_RAW = A with type value := IrminBuffer.t
-(** Raw immutable stores. *)
+module type A_RAW = A with type value := IrminBuffer.ba
+(** Raw immutable stores associate keys to raw big arrays. *)
 
 module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
   A with type t = S.t
@@ -95,7 +95,7 @@ module type M = sig
 end
 
 module type M_RAW = M with type key = string
-(** Raw mutable stores. *)
+(** Raw mutable stores associate strings to keys. *)
 
 module MakeM
     (S: M_RAW)

@@ -20,7 +20,7 @@ module A (K: IrminKey.S) = struct
 
   type key = K.t
 
-  type value = IrminBuffer.t
+  type value = IrminBuffer.ba
 
   type t = (key, value) Hashtbl.t
 
@@ -31,7 +31,7 @@ module A (K: IrminKey.S) = struct
     return_unit
 
   let add t value =
-    let key = K.of_buffer value in
+    let key = K.of_buffer (IrminBuffer.of_ba value) in
     Hashtbl.add t key value;
     return key
 

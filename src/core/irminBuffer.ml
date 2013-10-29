@@ -129,8 +129,10 @@ let get_uint64 t =
   get t 8 Cstruct.BE.get_uint64
 
 let get_string t len =
-  let str = String.create len in
-  get t len (fun _ _ ->
-      Cstruct.blit_to_string t.buffer 0 str 0 len;
-    );
-  str
+  if len = 0 then ""
+  else
+    let str = String.create len in
+    get t len (fun _ _ ->
+        Cstruct.blit_to_string t.buffer 0 str 0 len;
+      );
+    str

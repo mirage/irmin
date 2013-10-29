@@ -31,7 +31,7 @@ module type A = sig
   val add: t -> value -> key Lwt.t
 end
 
-module type A_RAW = A with type value := IrminBuffer.t
+module type A_RAW = A with type value := IrminBuffer.ba
 
 module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
 
@@ -51,8 +51,10 @@ module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = s
 
   let read t key =
     S.read t key >>= function
-    | None   -> Lwt.return None
-    | Some b -> Lwt.return (Some (V.get b))
+    | None    -> Lwt.return None
+    | Some ba ->
+      let buf = IrminBuffer.of_ba ba in
+      Lwt.return (Some (V.get buf))
 
   let read_exn t k =
     read t k >>= function
@@ -62,7 +64,7 @@ module MakeI (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = s
   let add t v =
     let buf = IrminBuffer.create (V.sizeof v) in
     V.set buf v;
-    S.add t buf
+    S.add t (IrminBuffer.to_ba buf)
 
   let mem t k =
     S.mem t k

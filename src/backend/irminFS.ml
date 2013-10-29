@@ -118,10 +118,14 @@ module Make (R: sig val root: string end) = struct
       let file = file_of_key t key in
       return (Sys.file_exists file)
 
+    let read_full_ba fd =
+      IrminChannel.read_buffer fd >>= fun buf ->
+      return (IrminBuffer.to_ba buf)
+
     let read_exn t key =
       debug "read_exn %s" (K.pretty key);
       mem t key >>= function
-      | true  -> with_file (file_of_key t key) IrminChannel.read_buffer
+      | true  -> with_file (file_of_key t key) read_full_ba
       | false -> fail (Unknown key)
 
     let read t key =
@@ -129,12 +133,14 @@ module Make (R: sig val root: string end) = struct
       mem t key >>= function
       | true  -> with_file
                    (file_of_key t key)
-                   (fun fd -> IrminChannel.read_buffer fd >>= fun buf ->
-                     return (Some buf))
+                   (fun fd ->
+                      read_full_ba fd >>= fun ba ->
+                      return (Some ba))
       | false -> return_none
 
     let add t value =
-      debug "add"; IrminBuffer.dump value;
+      debug "add"; IrminBuffer.dump_ba value;
+      let value = IrminBuffer.of_ba value in
       check t >>= fun () ->
       let key = K.of_buffer value in
       let file = file_of_key t key in
@@ -157,6 +163,7 @@ module Make (R: sig val root: string end) = struct
               let file = file_of_key t key in
               with_file file IrminChannel.read_buffer
               >>= fun value ->
+              let value = IrminBuffer.to_ba value in
               return (key, value)
             ) keys
           >>= fun keys ->
@@ -165,7 +172,7 @@ module Make (R: sig val root: string end) = struct
       >>= fun values ->
       List.iter (fun (key, value) ->
           Printf.eprintf "%s\n" (K.pretty key);
-          IrminBuffer.dump value
+          IrminBuffer.dump_ba value
         ) values;
       return_unit
 

@@ -262,9 +262,11 @@ module String = struct
 
   let get buf =
     debug "get";
+    IrminBuffer.dump ~msg:"-->" buf;
     let len = IrminBuffer.get_uint32 buf in
+    debug "|-- get (%ld)" len;
     let t = IrminBuffer.get_string buf (Int32.to_int len) in
-    debug " ... get %s" t;
+    debug "<-- get %s" t;
     t
 
   let set buf t =
