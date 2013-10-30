@@ -23,6 +23,10 @@ let respond body =
   Server.respond_string ~status:`OK ~body ()
 
 let respond_json json =
+  let json = match json with
+    | `A _
+    | `O _ -> json
+    | _    -> `A [json] in
   let body = IrminJSON.output json in
   Server.respond_string ~status:`OK ~body ()
 
@@ -30,8 +34,8 @@ let respond_unit () =
   respond "OK"
 
 let respond_bool = function
-  | true -> respond_json (`String "true")
-  | fale -> respond_json (`String "false")
+  | true -> respond_json (`A [`String "true"])
+  | fale -> respond_json (`A [`String "false"])
 
 let respond_strings strs =
   let json = `A (List.map (fun s -> `String s) strs) in
