@@ -30,7 +30,7 @@ test:
 	./_build/tests/$(TESTS).native
 
 clean:
-	rm -rf $(TARGET) _build test-db test-output
+	rm -rf $(TARGET) _build test-db test-output src/irminVersion.ml
 
 install:
-	cp $(TARGET) $(PREFIX)/bin src/irminVersion.ml
+	cp $(TARGET) $(PREFIX)/bin
