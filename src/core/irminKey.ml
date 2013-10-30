@@ -21,7 +21,7 @@ module type S = sig
   exception Unknown of t
   val create: string -> t
   val of_bytes: string -> t
-  val of_buffer: IrminBuffer.t -> t
+  val of_ba: IrminBuffer.ba -> t
   val to_hex: t -> string
   val of_hex: string -> t
   val concat: t list -> t
@@ -50,12 +50,6 @@ module SHA1 = struct
     debug "sizeof";
     length
 
-  let get buf =
-    debug "get";
-    let str = IrminBuffer.get_string buf length in
-    debug " ... get %s" str;
-    str
-
   let to_hex t =
     IrminMisc.hex_encode t
 
@@ -63,6 +57,12 @@ module SHA1 = struct
     IrminMisc.hex_decode hex
 
   let pretty = to_hex
+
+  let get buf =
+    debug "get";
+    let str = IrminBuffer.get_string buf length in
+    debug "--> get %s" (pretty str);
+    str
 
   let set buf t =
     debug "set %s" (pretty t);
@@ -72,9 +72,10 @@ module SHA1 = struct
     debug "of_bytes: %S" str;
     IrminMisc.sha1 str
 
-  let of_buffer buf =
-    let len = IrminBuffer.get_uint32 buf in
-    let str = IrminBuffer.get_string buf (Int32.to_int len) in
+  let of_ba ba =
+    let buf = IrminBuffer.of_ba ba in
+    let len = IrminBuffer.length buf in
+    let str = IrminBuffer.get_string buf len in
     of_bytes str
 
   let concat l =

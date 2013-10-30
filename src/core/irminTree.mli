@@ -67,6 +67,9 @@ module type STORE = sig
   val sub: t -> tree -> path -> tree option Lwt.t
   (** Find a subtree. *)
 
+  val sub_exn: t -> tree -> path -> tree Lwt.t
+  (** Find a subtree. Raise [Not_found] if it does not exist. *)
+
   val update: t -> tree -> path -> value -> tree Lwt.t
   (** Add a value by recusively saving subtrees and subvalues into the
       corresponding stores. *)

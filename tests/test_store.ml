@@ -18,6 +18,9 @@ open OUnit
 open Test_common
 open Lwt
 
+let debug fmt =
+  IrminLog.debug "TEST" fmt
+
 module Make (S: Irmin.S) = struct
 
   open S
@@ -25,46 +28,37 @@ module Make (S: Irmin.S) = struct
   let cmp_list eq comp l1 l2 =
     cmp_list eq (List.sort comp l1) (List.sort comp l2)
 
-  let assert_key_equal msg =
-    line msg;
-    OUnit.assert_equal ~msg ~cmp:Key.equal ~printer:Key.pretty
+  let mk equal compare pretty =
+    let aux cmp printer msg =
+      line msg;
+      OUnit.assert_equal ~msg ~cmp ~printer in
+    aux equal pretty,
+    aux (cmp_opt equal) (printer_opt pretty),
+    aux (cmp_list equal compare) (printer_list pretty)
 
-  let assert_key_opt_equal msg =
-    line msg;
-    OUnit.assert_equal
-      ~msg ~cmp:(cmp_opt Key.equal) ~printer:(printer_opt Key.pretty)
 
-  let assert_keys_equal msg =
-    line msg;
-    OUnit.assert_equal
-      ~msg ~cmp:(cmp_list Key.equal Key.compare) ~printer:(printer_list Key.pretty)
+  let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
+    mk Key.equal Key.compare Key.pretty
 
-  let assert_value_equal msg =
-    line msg;
-    OUnit.assert_equal ~msg ~cmp:Value.equal ~printer:Value.pretty
+  let assert_value_equal, assert_value_opt_equal, assert_values_equal =
+    mk Value.equal Value.compare Value.pretty
 
-  let assert_value_opt_equal msg =
-    line msg;
-    OUnit.assert_equal ~msg
-      ~cmp:(cmp_opt Value.equal) ~printer:(printer_opt Value.pretty)
+  let assert_tag_equal, assert_tag_opt_equal, assert_tags_equal =
+    mk Tag.equal Tag.compare Tag.pretty
 
-  let assert_values_equal msg =
-    line msg;
-    OUnit.assert_equal ~msg
-      ~cmp:(cmp_list Value.equal Value.compare) ~printer:(printer_list Value.pretty)
+  let assert_tree_equal, assert_tree_opt_equal, assert_trees_equal =
+    mk Tree.equal Tree.compare Tree.pretty
 
-  let assert_tag_opt_equal msg =
-    OUnit.assert_equal ~msg
-      ~cmp:(cmp_opt Tag.equal) ~printer:(printer_opt Tag.pretty)
-
-  let assert_tags_equal msg =
-    OUnit.assert_equal ~msg
-      ~cmp:(cmp_list Tag.equal Tag.compare) ~printer:(printer_list Tag.pretty)
+  (* XXX: move that into the library ? *)
+  let key value =
+    let buf = IrminBuffer.create (Value.sizeof value) in
+    Value.set buf value;
+    Key.of_ba (IrminBuffer.to_ba buf)
 
   let v1 = Value.of_bytes "foo"
   let v2 = Value.of_bytes ""
-  let k1 = Key.of_bytes (Value.dump v1)
-  let k2 = Key.of_bytes (Value.dump v2)
+  let k1 = key v1
+  let k2 = key v2
   let t1 = Tag.of_string "foo"
   let t2 = Tag.of_string "bar"
 
@@ -85,6 +79,58 @@ module Make (S: Irmin.S) = struct
       assert_value_opt_equal "v1" (Some v1) v1';
       Value.read t.value k2 >>= fun v2'  ->
       assert_value_opt_equal "v2" (Some v2) v2';
+      return_unit
+    in
+    Lwt_unix.run test
+
+  let test_trees cleanup () =
+    let test =
+      cleanup () >>= fun () ->
+      create ()  >>= fun t  ->
+      init t     >>= fun () ->
+      (* Create a node containing t1(v1) *)
+      Tree.tree t.tree ~value:v1 [] >>= fun k1  ->
+      Tree.tree t.tree ~value:v1 [] >>= fun k1' ->
+      assert_key_equal "k1.1" k1 k1';
+      Tree.read_exn t.tree k1       >>= fun t1  ->
+      Tree.add t.tree t1            >>= fun k1''->
+      assert_key_equal "k1.2" k1 k1'';
+
+      (* Create the tree  t2 -b-> t1(v1) *)
+      Tree.tree t.tree ["b", t1]    >>= fun k2  ->
+      Tree.tree t.tree ["b", t1]    >>= fun k2' ->
+      assert_key_equal "k2.1" k2 k2';
+      Tree.read_exn t.tree k2       >>= fun t2  ->
+      Tree.add t.tree t2            >>= fun k2''->
+      assert_key_equal "k2.2" k2 k2'';
+      Tree.sub_exn t.tree t2 ["b"]  >>= fun t1' ->
+      assert_tree_equal "t1.1" t1 t1';
+      Tree.add t.tree t1'           >>= fun k1''->
+      assert_key_equal "k1.3" k1 k1'';
+
+      (* Create the tree t3 -a-> t2 -b-> t1(v1) *)
+      Tree.tree t.tree ["a", t2]    >>= fun k3  ->
+      Tree.tree t.tree ["a", t2]    >>= fun k3' ->
+      assert_key_equal "k3.1" k3 k3';
+      Tree.read_exn t.tree k3       >>= fun t3  ->
+      Tree.add t.tree t3            >>= fun k3''->
+      assert_key_equal "k3.2" k3 k3'';
+      Tree.sub_exn t.tree t3 ["a"]  >>= fun t2' ->
+      assert_tree_equal "t2.1" t2 t2';
+      Tree.add t.tree t2'           >>= fun k2''->
+      assert_key_equal "k2.3" k2 k2'';
+      Tree.sub_exn t.tree t2' ["b"]     >>= fun t1' ->
+      assert_tree_equal "t1.2" t1 t1';
+      Tree.sub t.tree t3 ["a";"b"]  >>= fun t1' ->
+      assert_tree_opt_equal "t1.3" (Some t1) t1';
+
+      Tree.find t.tree t1 []        >>= fun v11 ->
+      assert_value_opt_equal "v1.1" (Some v1) v11;
+      Tree.find t.tree t2 ["b"]     >>= fun v12 ->
+      assert_value_opt_equal "v1.2" (Some v1) v12;
+      Tree.find t.tree t3 ["a";"b"] >>= fun v13 ->
+      assert_value_opt_equal "v1" (Some v1) v13;
+
       return_unit
     in
     Lwt_unix.run test
@@ -117,8 +163,9 @@ module Make (S: Irmin.S) = struct
   let suite name cleanup =
     name,
     [
-      "Basic operations for values", test_values cleanup;
-      "Basic operations for tags"  , test_tags   cleanup;
+      "Basic operations on values", test_values cleanup;
+      "Basic operations on trees" , test_trees  cleanup;
+      "Basic operations on tags"  , test_tags   cleanup;
     ]
 
 end

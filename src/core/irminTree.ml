@@ -25,6 +25,9 @@ type ('a, 'b) store = {
   t: 'b;
 }
 
+let debug fmt =
+  IrminLog.debug "TREE" fmt
+
 module type STORE = sig
   type key
   type value
@@ -38,6 +41,7 @@ module type STORE = sig
   val value: t -> tree -> value Lwt.t option
   val children: t -> tree -> (string * tree Lwt.t) list
   val sub: t -> tree -> path -> tree option Lwt.t
+  val sub_exn: t -> tree -> path -> tree Lwt.t
   val update: t -> tree -> path -> value -> tree Lwt.t
   val find: t -> tree -> path -> value option Lwt.t
   val find_exn: t -> tree -> path -> value Lwt.t
@@ -185,14 +189,23 @@ struct
     try Some (List.assoc label (children t tree))
     with Not_found -> None
 
-  let sub t tree path =
-    let rec aux tree = function
-    | []    -> return (Some tree)
+  let sub_exn t tree path =
+    let rec aux tree path =
+      debug "sub tree:%s path:%s" (pretty tree) (String.concat "-" path);
+      match path with
+    | []    -> return tree
     | h::tl ->
       match child t tree h with
-      | None      -> return None
+      | None      -> fail Not_found
       | Some tree -> tree >>= fun tree -> aux tree tl in
     aux tree path
+
+  let sub t tree path =
+    catch
+      (fun () ->
+         sub_exn t tree path >>= fun tree ->
+         return (Some tree))
+      (function Not_found -> return_none | e -> fail e)
 
   let find_exn t tree path =
     sub t tree path >>= function

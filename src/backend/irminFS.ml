@@ -150,13 +150,13 @@ module Make (R: sig val root: string end) = struct
 
     let add t value =
       debug "add"; IrminBuffer.dump_ba value;
-      let value = IrminBuffer.of_ba value in
       check t >>= fun () ->
-      let key = K.of_buffer value in
+      let key = K.of_ba value in
       let file = file_of_key t key in
       begin if Sys.file_exists file then
           return_unit
         else
+          let value = IrminBuffer.of_ba value in
           with_file file (fun fd -> IrminChannel.write_buffer fd value)
       end >>= fun () ->
       return key

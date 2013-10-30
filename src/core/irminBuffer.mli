@@ -25,7 +25,7 @@ val create_ba: int -> ba
 val dump_ba: ?msg:string -> ba -> unit
 
 (** Length of a bigarray. *)
-val ba_length: ba -> int
+val length_ba: ba -> int
 
 (** Bound-mutable bigarrays. *)
 type t = {

@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let debug fmt =
+  IrminLog.debug "MEMORY" fmt
+
 module A (K: IrminKey.S) = struct
 
   open Lwt
@@ -31,7 +34,8 @@ module A (K: IrminKey.S) = struct
     return_unit
 
   let add t value =
-    let key = K.of_buffer (IrminBuffer.of_ba value) in
+    let key = K.of_ba value in
+    debug "key = %s" (K.pretty key);
     Hashtbl.add t key value;
     return key
 

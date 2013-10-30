@@ -20,7 +20,8 @@ type t = {
   mutable buffer: Cstruct.t;
 }
 
-let to_ba t = t.buffer.Cstruct.buffer
+let to_ba t =
+  t.buffer.Cstruct.buffer
 
 let of_ba ba =
   let buffer = Cstruct.of_bigarray ba in
@@ -29,7 +30,7 @@ let of_ba ba =
 let length t =
   Cstruct.len t.buffer
 
-let ba_length ba =
+let length_ba ba =
   Bigarray.Array1.dim ba
 
 let debug fmt = IrminLog.debug "buf" fmt
@@ -40,7 +41,7 @@ external unsafe_blit_bigstring_to_string :
 
 let dump_ba ?msg ba =
   if IrminLog.debug_enabled () then
-    let len = ba_length ba in
+    let len = length_ba ba in
     let str = String.create len in
     unsafe_blit_bigstring_to_string ba 0 str 0 len;
     let msg = match msg with None -> "" | Some msg -> msg ^ " " in

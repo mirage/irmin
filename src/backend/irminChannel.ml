@@ -132,7 +132,7 @@ let write_buffer t buf =
   debug "write_buffer %s" t.name;
   IrminBuffer.dump ~msg:"<--" buf;
   let ba = IrminBuffer.to_ba buf in
-  let len = IrminBuffer.ba_length ba in
+  let len = IrminBuffer.length_ba ba in
   write_contents_length t len >>= fun () ->
   write_ba t ba
 
