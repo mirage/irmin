@@ -1,0 +1,5 @@
+0.1 (Oct 2013)
+* Use an HTTP server as a front-end
+* Initial support for in-memory and filesystem backends
+* Simple signature for backends
+* Binary protocol for storing values and metadata and for future network exchange
