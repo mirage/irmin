@@ -49,6 +49,9 @@ module Make (S: Irmin.S) = struct
   let assert_tree_equal, assert_tree_opt_equal, assert_trees_equal =
     mk Tree.equal Tree.compare Tree.pretty
 
+  let assert_revision_equal, assert_revision_opt_equal, assert_revisions_equal =
+    mk Revision.equal Revision.compare Revision.pretty
+
   (* XXX: move that into the library ? *)
   let key value =
     let buf = IrminBuffer.create (Value.sizeof value) in
@@ -135,6 +138,42 @@ module Make (S: Irmin.S) = struct
     in
     Lwt_unix.run test
 
+  let test_revisions cleanup () =
+    let test =
+      cleanup () >>= fun ()  ->
+      create ()  >>= fun t   ->
+      init t     >>= fun ()  ->
+
+      (* t3 -a-> t2 -b-> t1(v1) *)
+      Tree.tree t.tree ~value:v1 [] >>= fun k1  ->
+      Tree.read_exn t.tree k1       >>= fun t1  ->
+      Tree.tree t.tree ["a", t1]    >>= fun k2  ->
+      Tree.read_exn t.tree k2       >>= fun t2  ->
+      Tree.tree t.tree ["b", t2]    >>= fun k3  ->
+      Tree.read_exn t.tree k3       >>= fun t3  ->
+
+      (* r1 : t2 *)
+      Revision.revision t.revision ~tree:t2 [] >>= fun kr1 ->
+      Revision.revision t.revision ~tree:t2 [] >>= fun kr1'->
+      assert_key_equal "kr1" kr1 kr1';
+      Revision.read_exn t.revision kr1         >>= fun r1  ->
+
+      (* r1 -> r2 : t3 *)
+      Revision.revision t.revision ~tree:t3 [r1] >>= fun kr2  ->
+      Revision.revision t.revision ~tree:t3 [r1] >>= fun kr2' ->
+      assert_key_equal "kr2" kr2 kr2';
+      Revision.read_exn t.revision kr1           >>= fun r2   ->
+
+      Revision.cut t.revision [kr1] >>= fun g1 ->
+      assert_revisions_equal "g1" (Revision.Graph.vertex g1) [r1];
+
+      Revision.cut t.revision [kr2] >>= fun g2 ->
+      assert_revisions_equal "g2" (Revision.Graph.vertex g2) [r1; r2];
+
+     return_unit
+    in
+    Lwt_unix.run test
+
   let test_tags cleanup () =
     let test =
       cleanup ()             >>= fun ()  ->
@@ -163,9 +202,10 @@ module Make (S: Irmin.S) = struct
   let suite name cleanup =
     name,
     [
-      "Basic operations on values", test_values cleanup;
-      "Basic operations on trees" , test_trees  cleanup;
-      "Basic operations on tags"  , test_tags   cleanup;
+      "Basic operations on values"   , test_values    cleanup;
+      "Basic operations on trees"    , test_trees     cleanup;
+      "Basic operations on revisions", test_revisions cleanup;
+      "Basic operations on tags"     , test_tags      cleanup;
     ]
 
 end
