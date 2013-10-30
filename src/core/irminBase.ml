@@ -48,7 +48,11 @@ module List (E: S) = struct
 
   let rec compare l1 l2 = match l1, l2 with
     | []    , []     -> 0
-    | h1::t1, h2::t2 -> if E.compare h1 h2 = 0 then 0 else compare t1 t2
+    | h1::t1, h2::t2 ->
+      begin match E.compare h1 h2 with
+        | 0 -> compare t1 t2
+        | i -> i
+      end
     | _::_  , []     -> 1
     | []    , _::_   -> -1
 
