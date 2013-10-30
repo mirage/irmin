@@ -35,7 +35,6 @@ module A (K: IrminKey.S) = struct
 
   let add t value =
     let key = K.of_ba value in
-    debug "key = %s" (K.pretty key);
     Hashtbl.add t key value;
     return key
 

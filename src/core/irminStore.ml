@@ -69,7 +69,7 @@ module MakeA (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = s
     let buf = IrminBuffer.create (V.sizeof v) in
     V.set buf v;
     S.add t (IrminBuffer.to_ba buf) >>= fun key ->
-    debug "<-- add: key=%s" (K.pretty key);
+    debug "<-- add: %s -> key=%s" (V.pretty v) (K.pretty key);
     return key
 
   let mem t k =
