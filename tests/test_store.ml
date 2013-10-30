@@ -162,13 +162,13 @@ module Make (S: Irmin.S) = struct
       Revision.revision t.revision ~tree:t3 [r1] >>= fun kr2  ->
       Revision.revision t.revision ~tree:t3 [r1] >>= fun kr2' ->
       assert_key_equal "kr2" kr2 kr2';
-      Revision.read_exn t.revision kr1           >>= fun r2   ->
+      Revision.read_exn t.revision kr2           >>= fun r2   ->
 
       Revision.cut t.revision [kr1] >>= fun g1 ->
-      assert_revisions_equal "g1" (Revision.Graph.vertex g1) [r1];
+      assert_revisions_equal "g1" [r1] (Revision.Graph.vertex g1);
 
       Revision.cut t.revision [kr2] >>= fun g2 ->
-      assert_revisions_equal "g2" (Revision.Graph.vertex g2) [r1; r2];
+      assert_revisions_equal "g2" [r1; r2] (Revision.Graph.vertex g2);
 
      return_unit
     in
