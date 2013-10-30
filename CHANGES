@@ -1,3 +1,6 @@
+0.2
+* Fix the HTTP server responses
+
 0.1 (Oct 2013)
 * Use an HTTP server as a front-end
 * Initial support for in-memory and filesystem backends
