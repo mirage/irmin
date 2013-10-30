@@ -199,6 +199,25 @@ module Make (S: Irmin.S) = struct
     in
     Lwt_unix.run test
 
+  let test_stores cleanup () =
+    let test =
+      cleanup ()            >>= fun ()  ->
+      create ()             >>= fun t   ->
+      init t                >>= fun ()  ->
+      update t ["a";"b"] v1 >>= fun ()  ->
+      read_exn t ["a";"b"]  >>= fun v1' ->
+      assert_value_equal "v1.1" v1 v1';
+      snapshot t            >>= fun r1  ->
+      remove t ["a";"b"]    >>= fun ()  ->
+      read t ["a";"b"]      >>= fun v1''->
+      assert_value_opt_equal "v1.2" None v1'';
+      revert t r1           >>= fun ()  ->
+      read t ["a";"b"]      >>= fun v1''->
+      assert_value_opt_equal "v1.3" (Some v1) v1'';
+      return_unit
+    in
+    Lwt_unix.run test
+
   let suite name cleanup =
     name,
     [
@@ -206,6 +225,7 @@ module Make (S: Irmin.S) = struct
       "Basic operations on trees"    , test_trees     cleanup;
       "Basic operations on revisions", test_revisions cleanup;
       "Basic operations on tags"     , test_tags      cleanup;
+      "High-level store operations"  , test_stores    cleanup;
     ]
 
 end
