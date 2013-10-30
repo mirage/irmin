@@ -143,12 +143,14 @@ struct
   let mem =
     read_tree Tree.mem
 
+  let snapshot t =
+    Tag.read_exn t.tag t.branch
+
+  let revert t r =
+    Tag.update t.tag t.branch r
+
   let list _ =
     failwith "TODO"
-
-  let snapshot _ = failwith "TODO"
-
-  let revert _ = failwith "TODO"
 
   let watch _ = failwith "TODO"
 
