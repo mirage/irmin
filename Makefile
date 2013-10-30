@@ -1,4 +1,4 @@
-VERSION  = 0.1
+VERSION  = 0.2
 PREFIX  ?= /usr/local
 MAIN     = irminArg
 TESTS    = test
