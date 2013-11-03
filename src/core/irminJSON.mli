@@ -34,6 +34,9 @@ val output: t -> string
 
 (** {2 of JSON} *)
 
+val of_unit: unit -> t
+val of_bool: bool -> t
+val to_bool: t -> bool
 val of_string: string -> t
 val of_strings: string list -> t
 val of_int: int -> t
@@ -43,6 +46,7 @@ val of_pair: ('a -> t) -> ('b -> t) -> ('a * 'b) -> t
 
 (** {2 to JSON} *)
 
+val to_unit: t -> unit
 val to_string: t -> string
 val to_strings: t -> string list
 val to_int: t -> int

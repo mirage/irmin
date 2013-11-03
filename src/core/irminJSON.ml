@@ -25,6 +25,20 @@ type t =
 
 exception Escape of ((int * int) * (int * int)) * Jsonm.error
 
+(* unit *)
+let of_unit () = `Null
+
+let to_unit = function
+  | `Null  -> ()
+  | _      -> failwith "JSON.to_unit"
+
+(* bool *)
+let of_bool b = `Bool b
+
+let to_bool (json:t) = match json with
+  | `Bool b -> b
+  | _       -> failwith "JSON.to_bool"
+
 (* string *)
 let of_string s = `String s
 
