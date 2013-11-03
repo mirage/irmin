@@ -23,97 +23,184 @@ let respond body =
   Server.respond_string ~status:`OK ~body ()
 
 let respond_json json =
-  let json = match json with
-    | `A _
-    | `O _ -> json
-    | _    -> `A [json] in
+  let json = `O [ "result", json ] in
   let body = IrminJSON.output json in
   Server.respond_string ~status:`OK ~body ()
 
-let respond_unit () =
-  respond "OK"
+module Action (S: Irmin.S) = struct
 
-let respond_bool = function
-  | true -> respond_json (`A [`String "true"])
-  | fale -> respond_json (`A [`String "false"])
+  open S
 
-let respond_strings strs =
-  let json = `A (List.map (fun s -> `String s) strs) in
-  respond_json json
+  type 'a conv = {
+    input : IrminJSON.t -> 'a;
+    output: 'a -> IrminJSON.t;
+  }
 
-let process (type t) (s: (module Irmin.S with type t = t)) (t:t) ?body path =
-  let module S = (val s)in
+  let some fn = {
+    input  = IrminJSON.to_option fn.input;
+    output = IrminJSON.of_option fn.output
+  }
+
+  let list fn = {
+    input  = IrminJSON.to_list fn.input;
+    output = IrminJSON.of_list fn.output;
+  }
+
+  let bool = {
+    input  = IrminJSON.to_bool;
+    output = IrminJSON.of_bool;
+  }
+
+  let key = {
+    input  = Key.of_json;
+    output = Key.to_json;
+  }
+
+  let value = {
+    input  = Value.of_json;
+    output = Value.to_json;
+  }
+
+  let tree = {
+    input  = Tree.of_json;
+    output = Tree.to_json;
+  }
+
+  let revision = {
+    input  = Revision.of_json;
+    output = Revision.to_json;
+  }
+
+  let tag = {
+    input  = Tag.of_json;
+    output = Tag.to_json;
+  }
+
+  let path = {
+    input  = IrminJSON.to_list IrminJSON.to_string;
+    output = IrminJSON.of_list IrminJSON.of_string;
+  }
+
+  let unit = {
+    input  = IrminJSON.to_unit;
+    output = IrminJSON.of_unit;
+  }
+
+  let error msg =
+    failwith ("error: " ^ msg)
+
+  type t =
+    | Leaf of (S.t -> IrminJSON.t list -> IrminJSON.t Lwt.t)
+    | Node of (string * t) list
+
+  let to_json t =
+    let rec aux path acc = function
+      | Leaf _ -> `String (String.concat "/" (List.rev path)) :: acc
+      | Node c -> List.fold_left (fun acc (s,t) -> aux (s::path) acc t) acc c in
+    `A (List.rev (aux [] [] t))
+
+  let child c t: t =
+    let error () =
+      failwith ("Unknown action: " ^ c) in
+    match t with
+    | Leaf _ -> error ()
+    | Node l ->
+      try List.assoc c l
+      with Not_found -> error ()
+
+  let va t = t.value
+  let tr t = t.tree
+  let re t = t.revision
+  let ta t = t.tag
+  let t x = x
+
+  let mk1 fn db i1 o =
+    Leaf (fun t -> function
+        | [x] ->
+          let x = i1.input x in
+          fn (db t) x >>= fun r ->
+          return (o.output r)
+        | []  -> error "Not enough arguments"
+        | _   -> error "Too many arguments"
+      )
+
+  let mk2 fn db i1 i2 o =
+    Leaf (fun t -> function
+        | [x; y] ->
+          let x = i1.input x in
+          let y = i2.input y in
+          fn (db t) x y >>= fun r ->
+          return (o.output r)
+        | [] | [_] -> error "Not enough arguments"
+        | _        -> error "Too many arguments"
+      )
+
+  let value_store = Node [
+      "read"  , mk1 Value.read va key   (some value);
+      "mem"   , mk1 Value.mem  va key   bool;
+      "list"  , mk1 Value.list va key   (list key);
+      "add"   , mk1 Value.add  va value key;
+  ]
+
+  let tree_store = Node [
+    "read"  , mk1 Tree.read tr key  (some tree);
+    "mem"   , mk1 Tree.mem  tr key  bool;
+    "list"  , mk1 Tree.list tr key  (list key);
+    "add"   , mk1 Tree.add  tr tree key;
+  ]
+
+  let revision_store = Node [
+    "read"  , mk1 Revision.read re key  (some revision);
+    "mem"   , mk1 Revision.mem  re key  bool;
+    "list"  , mk1 Revision.list re key  (list key);
+    "add"   , mk1 Revision.add  re revision key;
+  ]
+
+  let tag_store = Node [
+    "read"  , mk1 Tag.read   ta tag (some key);
+    "mem"   , mk1 Tag.mem    ta tag bool;
+    "list"  , mk1 Tag.list   ta tag (list tag);
+    "update", mk2 Tag.update ta tag key unit;
+    "remove", mk1 Tag.remove ta tag unit;
+  ]
+
+  let store = Node [
+    "read"    , mk1 S.read    t path (some value);
+    "mem"     , mk1 S.mem     t path bool;
+    "list"    , mk1 S.list    t path (list path);
+    "update"  , mk2 S.update  t path value unit;
+    "remove"  , mk1 S.remove  t path unit;
+    "value"   , value_store;
+    "tree"    , tree_store;
+    "revision", revision_store;
+    "tag"     , tag_store;
+  ]
+
+end
+
+let process (type t) (module S: Irmin.S with type t = t) (t:t) ?body path =
   let open S in
-  let respond_key key = respond_json (Key.to_json key) in
-  let respond_value value = respond_json (Value.to_json value) in
-  let respond_tree tree = respond_json (Tree.to_json tree) in
-  let respond_revision rev = respond_json (Revision.to_json rev) in
-  match path with
-  | [] -> respond_strings [
-      "action";
-      "value";
-      "tree";
-      "revision";
-      "tag";
-    ]
-
-  | ["action"] -> respond_strings [
-      "update";
-      "remove";
-      "read";
-      "mem";
-      "list";
-      "snapshot";
-      "revert";
-      "watch";
-    ]
-
-  (* ACTIONS *)
-
-  | "action" :: "update" :: path ->
-    begin match List.rev path with
-      | [] | [_]      -> failwith "Wrong number of arguments"
-      | value :: path ->
-        update t (List.rev path) (Value.of_bytes value) >>= respond_unit
-    end
-
-  | "action" :: "remove" :: path ->
-    remove t path >>= respond_unit
-
-  | "action" :: "read" :: path ->
-    read_exn t path >>= respond_value
-
-  | "action" :: "mem" :: path ->
-    mem t path >>= respond_bool
-
-  | "action" :: "list" :: path ->
-    list t path >>= fun paths ->
-    let paths = List.map (String.concat "/") paths in
-    respond_strings paths
-
-  | ["action"; "snapshot"] ->
-    snapshot t >>= respond_key
-
-  | ["action"; "watch"] -> failwith "TODO"
-
-  (* VALUES *)
-
-  | ["value"; key] ->
-    Value.read_exn t.value (Key.of_hex key) >>= respond_value
-
-  (* TREE *)
-  | ["tree"; key] ->
-    Tree.read_exn t.tree (Key.of_hex key) >>= respond_tree
-
-  (* REVISIONS *)
-  | ["revision"; key] ->
-    Revision.read_exn t.revision (Key.of_hex key) >>= respond_revision
-
-  (* TAGS *)
-  | ["tag"; tag] ->
-    Tag.read_exn t.tag (Tag.of_string tag) >>= respond_key
-
-  | _ -> failwith "Invalid URI"
+  let module Action = Action(S) in
+  begin match body with
+    | None   -> return_nil
+    | Some b ->
+      Body.string_of_body (Some b) >>= fun b ->
+      match IrminJSON.input b with
+      | `A l -> return l
+      | _    -> failwith "Wrong parameters"
+  end >>= fun params ->
+  let rec aux actions path =
+    match path with
+    | []      -> respond_json (Action.to_json actions)
+    | h::path ->
+      match Action.child h actions with
+      | Action.Leaf fn ->
+        let params = match path with
+          | [] -> params
+          | _  -> (IrminJSON.of_strings path) :: params in
+        fn t params >>= respond_json
+      | actions -> aux actions path in
+  aux Action.store path
 
 let server s t port =
   Printf.printf "Irminsule server listening on port %d ...\n%!" port;
