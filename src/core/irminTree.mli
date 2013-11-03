@@ -83,7 +83,7 @@ module type STORE = sig
   val remove: t -> tree -> path -> tree Lwt.t
   (** Remove a value. *)
 
-  val mem: t -> tree -> path -> bool Lwt.t
+  val valid: t -> tree -> path -> bool Lwt.t
   (** Is a path valid. *)
 
 end

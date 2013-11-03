@@ -46,7 +46,7 @@ module type STORE = sig
   val find: t -> tree -> path -> value option Lwt.t
   val find_exn: t -> tree -> path -> value Lwt.t
   val remove: t -> tree -> path -> tree Lwt.t
-  val mem: t -> tree -> path -> bool Lwt.t
+  val valid: t -> tree -> path -> bool Lwt.t
 end
 
 module Make
@@ -223,7 +223,7 @@ struct
       | None   -> return_none
       | Some v -> v >>= fun v -> return (Some v)
 
-  let mem t tree path =
+  let valid t tree path =
     sub t tree path >>= function
     | None      -> return false
     | Some tree ->

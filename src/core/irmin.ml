@@ -141,7 +141,7 @@ struct
     read_tree Tree.find_exn
 
   let mem =
-    read_tree Tree.mem
+    read_tree Tree.valid
 
   let snapshot t =
     Tag.read_exn t.tag t.branch
