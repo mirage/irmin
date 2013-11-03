@@ -41,3 +41,42 @@ let line msg =
   line ();
   IrminLog.info "ASSERT" "%s" msg;
   line ()
+
+module Make (S: Irmin.S) = struct
+
+  open S
+
+  let cmp_list eq comp l1 l2 =
+    cmp_list eq (List.sort comp l1) (List.sort comp l2)
+
+  let mk equal compare pretty =
+    let aux cmp printer msg =
+      line msg;
+      OUnit.assert_equal ~msg ~cmp ~printer in
+    aux equal pretty,
+    aux (cmp_opt equal) (printer_opt pretty),
+    aux (cmp_list equal compare) (printer_list pretty)
+
+
+  let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
+    mk Key.equal Key.compare Key.pretty
+
+  let assert_value_equal, assert_value_opt_equal, assert_values_equal =
+    mk Value.equal Value.compare Value.pretty
+
+  let assert_tag_equal, assert_tag_opt_equal, assert_tags_equal =
+    mk Tag.equal Tag.compare Tag.pretty
+
+  let assert_tree_equal, assert_tree_opt_equal, assert_trees_equal =
+    mk Tree.equal Tree.compare Tree.pretty
+
+  let assert_revision_equal, assert_revision_opt_equal, assert_revisions_equal =
+    mk Revision.equal Revision.compare Revision.pretty
+
+  (* XXX: move that into the library ? *)
+  let key value =
+    let buf = IrminBuffer.create (Value.sizeof value) in
+    Value.set buf value;
+    Key.of_ba (IrminBuffer.to_ba buf)
+
+end
