@@ -59,7 +59,7 @@ let pretty_ba ba =
     let len = length_ba ba in
     let str = String.create len in
     unsafe_blit_bigstring_to_string ba 0 str 0 len;
-    str
+    Printf.sprintf "%S" str
   else
     ""
 

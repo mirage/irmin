@@ -156,7 +156,7 @@ module Make (R: ROOT) = struct
 
   end
 
-  module A (K: IrminKey.BINARY): IrminStore.A_BINARY = struct
+  module A (K: IrminKey.BINARY) = struct
 
     module S = struct
 
@@ -193,7 +193,7 @@ module Make (R: ROOT) = struct
 
   end
 
-  module M (K: IrminKey.S): IrminStore.M_BINARY = struct
+  module M (K: IrminKey.S) = struct
 
     module S = struct
 
@@ -224,6 +224,10 @@ module Make (R: ROOT) = struct
           let buf = IrminBuffer.of_ba value in
           IrminChannel.write_buffer fd buf
         )
+
+    let list (D root as t) _ =
+      check t >>= fun () ->
+      basenames (fun x -> x) (root / S.subdir)
 
   end
 
