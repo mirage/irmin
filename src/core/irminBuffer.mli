@@ -24,6 +24,9 @@ val create_ba: int -> ba
 (** Dump a bigarray. *)
 val dump_ba: ?msg:string -> ba -> unit
 
+(** Pretty print a big array. *)
+val pretty_ba: ba -> string
+
 (** Length of a bigarray. *)
 val length_ba: ba -> int
 

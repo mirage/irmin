@@ -18,7 +18,7 @@
 
 module type S = sig
 
-  (** Signature for keys. *)
+  (** Signatue for keys. *)
 
   include IrminBase.S
 
@@ -28,9 +28,18 @@ module type S = sig
   exception Unknown of t
   (** Exception raised when no value is associated to a key. *)
 
-  val create: string -> t
-  (** Cast a raw string into a key. Check that the string length is
-      correct. *)
+  val of_string: string -> t
+  (** Create a key from a string. Perform various sanity checks while
+      abstracting the string, but this is not supposed to process the
+      string in any way. *)
+
+end
+
+module type BINARY = sig
+
+  (** Signature for binary fixed-size keys. *)
+
+  include S
 
   val of_bytes: string -> t
   (** Compute a key from a sequence of bytes. *)
@@ -44,13 +53,7 @@ module type S = sig
   val of_hex: string -> t
   (** Convert an hexa representation to a key. *)
 
-  val concat: t list -> t
-  (** Compute a key from a list of keys. *)
-
-  val length: int
-  (** Fixed key length. *)
-
 end
 
-module SHA1: S with type t = private string
+module SHA1: BINARY with type t = private string
 (** SHA1 keys *)

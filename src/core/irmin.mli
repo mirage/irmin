@@ -29,9 +29,9 @@ module type S = sig
   type tag
   (** Type of tags. *)
 
-  module Key: IrminKey.S
+  module Key: IrminKey.BINARY
     with type t = key
-  (** Type of keys. *)
+  (** Type of binary keys. *)
 
   module Value: IrminValue.STORE
     with type key = key
@@ -75,23 +75,38 @@ module type S = sig
 end
 
 module Make
-  (Key: IrminKey.S)
-  (Value: IrminValue.S)
-  (Tag: IrminTag.S)
-  (SValue: IrminStore.A_RAW with type key = Key.t)
-  (STree: IrminStore.A_RAW with type key = Key.t)
-  (SRevision: IrminStore.A_RAW with type key = Key.t)
-  (STag: IrminStore.M_RAW with type value = Key.t)
-  : S with type key = Key.t
-       and type value = Value.t
-       and type tag = Tag.t
+    (K: IrminKey.BINARY)
+    (V: IrminValue.S)
+    (T: IrminTag.S)
+    (Value: IrminStore.A with type key = K.t
+                          and type value = V.t)
+    (Tree: IrminStore.A with type key = K.t
+                         and type value = (K.t, K.t) IrminTree.node)
+    (Revision: IrminStore.A with type key = K.t
+                             and type value = (K.t, K.t) IrminRevision.node)
+    (Tag: IrminStore.M with type key = T.t
+                        and type value = K.t):
+  S with type key = K.t
+     and type value = V.t
+     and type tag = T.t
+(** Build an Irminsule store. *)
 
+module Binary
+    (K: IrminKey.BINARY)
+    (V: IrminValue.S)
+    (T: IrminTag.S)
+    (Value: IrminStore.A_BINARY)
+    (Tree: IrminStore.A_BINARY)
+    (Revision: IrminStore.A_BINARY)
+    (Tag: IrminStore.M_BINARY):
+  S with type key = K.t
+     and type value = V.t
+     and type tag = T.t
+(** Make a binary Irminsule store. *)
 
-module Simple
-    (A: IrminStore.A_RAW with type key = IrminKey.SHA1.t)
-    (M: IrminStore.M_RAW with type value = IrminKey.SHA1.t)
-  : S with type key = IrminKey.SHA1.t
-       and type value = IrminValue.Simple.t
-       and type tag = IrminTag.Simple.t
-(** Create a simple store. Use only one mutable store for value,
-    tree and revisions and a mutable store for the tags. *)
+module Simple (A: IrminStore.A_BINARY) (M: IrminStore.M_BINARY):
+  S with type key = IrminKey.SHA1.t
+     and type value = IrminValue.Simple.t
+     and type tag = IrminTag.Simple.t
+(** Create a simple binary store. Use only one mutable store for
+    value, tree and revisions and a mutable store for the tags. *)

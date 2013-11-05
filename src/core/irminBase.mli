@@ -38,8 +38,8 @@ module type S = sig
   val pretty: t -> string
   (** Pretty-printing *)
 
-  val dump: t -> string
-  (** Dump the contents. *)
+  val to_string: t -> string
+  (** Convert the contents to a string. *)
 
   val of_json: IrminJSON.t -> t
   (** Convert from JSON *)

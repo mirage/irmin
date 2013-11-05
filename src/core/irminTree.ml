@@ -20,11 +20,6 @@ type ('a, 'b) node = {
   children: (string * 'b) list;
 }
 
-type ('a, 'b) store = {
-  v: 'a;
-  t: 'b;
-}
-
 let debug fmt =
   IrminLog.debug "TREE" fmt
 
@@ -49,10 +44,66 @@ module type STORE = sig
   val valid: t -> tree -> path -> bool Lwt.t
 end
 
+module Tree (A: IrminBase.S) (B: IrminBase.S) = struct
+
+  type t = (A.t, B.t) node
+
+  module XValue = struct
+    include IrminBase.Option(A)
+    let name = "value"
+  end
+
+  module XChildren = struct
+    include IrminBase.List(IrminBase.Pair(IrminBase.String)(B))
+    let name = "children"
+  end
+
+  module XTree = struct
+    include IrminBase.Pair(XValue)(XChildren)
+    let name = "tree"
+  end
+
+  let name = XTree.name
+
+  let compare t1 t2 =
+    XTree.compare (t1.value, t1.children) (t2.value, t2.children)
+
+  let equal t1 t2 =
+    compare t1 t2 = 0
+
+  let hash t =
+    XTree.hash (t.value, t.children)
+
+  let pretty t =
+    XTree.pretty (t.value, t.children)
+
+  let to_json t =
+    XTree.to_json (t.value, t.children)
+
+  let of_json j =
+    let value, children = XTree.of_json j in
+    { value; children }
+
+  let sizeof t =
+    XTree.sizeof (t.value, t.children)
+
+  let set buf t =
+    XTree.set buf (t.value, t.children)
+
+  let get buf =
+    let value, children = XTree.get buf in
+    { value; children }
+
+  let to_string t =
+    XTree.to_string (t.value, t.children)
+
+end
+
 module Make
-    (S: IrminStore.A_RAW)
-    (K: IrminKey.S with type t = S.key)
-    (V: IrminValue.STORE with type key = S.key) =
+    (K: IrminKey.S)
+    (V: IrminValue.STORE with type key = K.t)
+    (S: IrminStore.A with type key = K.t
+                      and type value = (K.t, K.t) node) =
 struct
 
   open Lwt
@@ -65,98 +116,34 @@ struct
 
   type path = string list
 
-  module Tree = struct
-
-    type t = tree
-
-    module XValue = struct
-      include IrminBase.Option(K)
-      let name = "value"
-    end
-
-    module XChildren = struct
-      include IrminBase.List(IrminBase.Pair(IrminBase.String)(K))
-      let name = "children"
-    end
-
-    module XTree = struct
-      include IrminBase.Pair(XValue)(XChildren)
-      let name = "tree"
-    end
-
-    let name = XTree.name
-
-    let compare t1 t2 =
-      XTree.compare (t1.value, t1.children) (t2.value, t2.children)
-
-    let equal t1 t2 =
-      compare t1 t2 = 0
-
-    let hash t =
-      XTree.hash (t.value, t.children)
-
-    let pretty t =
-      XTree.pretty (t.value, t.children)
-
-    let to_json t =
-      XTree.to_json (t.value, t.children)
-
-    let of_json j =
-      let value, children = XTree.of_json j in
-      { value; children }
-
-    let sizeof t =
-      XTree.sizeof (t.value, t.children)
-
-    let key t =
-      let init = match t.value with
-        | None   -> []
-        | Some v -> [v] in
-      let keys = List.fold_left (fun acc (l,k) ->
-          K.create l :: k :: acc
-        ) init t.children in
-      K.concat keys
-
-    let set buf t =
-      XTree.set buf (t.value, t.children)
-
-    let get buf =
-      let value, children = XTree.get buf in
-      { value; children }
-
-    let dump t =
-      XTree.dump (t.value, t.children)
-  end
-
-  module Store = IrminStore.MakeA(S)(K)(Tree)
-
-  include (Tree: IrminBase.S with type t := tree)
-
-  type t = (V.t, Store.t) store
+  type t = {
+    v: V.t;
+    t: S.t;
+  }
 
   let create () =
     V.create () >>= fun v ->
-    Store.create () >>= fun t ->
+    S.create () >>= fun t ->
     return { v; t }
 
   let init t =
     V.init t.v >>= fun () ->
-    Store.init t.t
+    S.init t.t
 
   let add t tree =
-    Store.add t.t tree
+    S.add t.t tree
 
   let read t key =
-    Store.read t.t key
+    S.read t.t key
 
   let read_exn t key =
-    Store.read_exn t.t key
+    S.read_exn t.t key
 
   let mem t key =
-    Store.mem t.t key
+    S.mem t.t key
 
   let list t key =
-    Store.list t.t key
+    S.list t.t key
 
   let empty = {
     value = None;
@@ -191,7 +178,6 @@ struct
 
   let sub_exn t tree path =
     let rec aux tree path =
-      debug "sub tree:%s path:%s" (pretty tree) (String.concat "-" path);
       match path with
     | []    -> return tree
     | h::tl ->
@@ -269,5 +255,7 @@ struct
   let update t tree path value =
     V.add t.v value >>= fun k ->
     map_subtree t tree path (fun tree -> { tree with value = Some k })
+
+  include (Tree(K)(K): IrminBase.S with type t := tree)
 
 end

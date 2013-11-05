@@ -19,10 +19,58 @@ type ('a, 'b) node = {
   parents: 'b list;
 }
 
-type ('a, 'b) store = {
-  t: 'a;
-  r: 'b;
-}
+module Revision (A: IrminBase.S) (B: IrminBase.S) = struct
+
+  type t = (A.t, B.t) node
+
+  module XTree = struct
+    include IrminBase.Option(A)
+    let name = "tree"
+  end
+  module XParents = struct
+    include IrminBase.List(B)
+    let name = "parents"
+  end
+  module XRevision = struct
+    include IrminBase.Pair(XTree)(XParents)
+    let name = "revision"
+  end
+
+  let name = XRevision.name
+
+  let set buf t =
+    XRevision.set buf (t.tree, t.parents)
+
+  let get buf =
+    let tree, parents = XRevision.get buf in
+    { tree; parents }
+
+  let sizeof t =
+    XRevision.sizeof (t.tree, t.parents)
+
+  let to_json t =
+    XRevision.to_json (t.tree, t.parents)
+
+  let of_json j =
+    let tree, parents = XRevision.of_json j in
+    { tree; parents }
+
+  let to_string t =
+    XRevision.to_string (t.tree, t.parents)
+
+  let pretty t =
+    XRevision.pretty (t.tree, t.parents)
+
+  let hash t =
+    XRevision.hash (t.tree, t.parents)
+
+  let compare t1 t2 =
+    XRevision.compare (t1.tree, t1.parents) (t2.tree, t2.parents)
+
+  let equal t1 t2 =
+    compare t1 t2 = 0
+
+end
 
 module type STORE = sig
   type key
@@ -39,9 +87,10 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.A_RAW)
-    (K: IrminKey.S with type t = S.key)
-    (T: IrminTree.STORE with type key = S.key) =
+    (K: IrminKey.S)
+    (T: IrminTree.STORE with type key = K.t)
+    (S: IrminStore.A with type key = K.t
+                      and type value = (T.key, K.t) node) =
 struct
 
   open Lwt
@@ -52,87 +101,31 @@ struct
 
   type revision = (K.t, K.t) node
 
-  module Revision = struct
-
-    type t = revision
-
-    module XTree = struct
-      include IrminBase.Option(K)
-      let name = "tree"
-    end
-    module XParents = struct
-      include IrminBase.List(K)
-      let name = "parents"
-    end
-    module XRevision = struct
-      include IrminBase.Pair(XTree)(XParents)
-      let name = "revision"
-    end
-
-    let name = XRevision.name
-
-    let set buf t =
-      XRevision.set buf (t.tree, t.parents)
-
-    let get buf =
-      let tree, parents = XRevision.get buf in
-      { tree; parents }
-
-    let sizeof t =
-      XRevision.sizeof (t.tree, t.parents)
-
-    let to_json t =
-      XRevision.to_json (t.tree, t.parents)
-
-    let of_json j =
-      let tree, parents = XRevision.of_json j in
-      { tree; parents }
-
-    let dump t =
-      XRevision.dump (t.tree, t.parents)
-
-    let pretty t =
-      XRevision.pretty (t.tree, t.parents)
-
-    let hash t =
-      XRevision.hash (t.tree, t.parents)
-
-    let compare t1 t2 =
-      XRevision.compare (t1.tree, t1.parents) (t2.tree, t2.parents)
-
-    let equal t1 t2 =
-      compare t1 t2 = 0
-
-  end
-
-  module Store = IrminStore.MakeA(S)(K)(Revision)
-
-  module Graph = IrminGraph.Make(Revision)
-
-  include (Revision: IrminBase.S with type t := revision)
-
-  type t = (T.t, Store.t) store
+  type t = {
+    t: T.t;
+    r: S.t
+  }
 
   let create () =
     T.create () >>= fun t ->
-    Store.create () >>= fun r ->
+    S.create () >>= fun r ->
     return { t; r }
 
   let init t =
     T.init t.t >>= fun () ->
-    Store.init t.r
+    S.init t.r
 
   let add t r =
-    Store.add t.r r
+    S.add t.r r
 
   let read t r =
-    Store.read t.r r
+    S.read t.r r
 
   let read_exn t r =
-    Store.read_exn t.r r
+    S.read_exn t.r r
 
   let mem t r =
-    Store.mem t.r r
+    S.mem t.r r
 
   let tree t r =
     match r.tree with
@@ -145,12 +138,18 @@ struct
       | Some tree -> T.add t.t tree >>= fun k -> return (Some k)
     end
     >>= fun tree ->
-    Lwt_list.map_p (Store.add t.r) parents
+    Lwt_list.map_p (S.add t.r) parents
     >>= fun parents ->
-    Store.add t.r { tree; parents }
+    S.add t.r { tree; parents }
 
   let parents t r =
     List.map (read_exn t) r.parents
+
+  module Revision = Revision(K)(K)
+
+  include (Revision: IrminBase.S with type t := revision)
+
+  module Graph = IrminGraph.Make(Revision)
 
   let cut t ?roots keys =
     Lwt_list.map_p (read_exn t) keys >>= fun keys ->
@@ -168,6 +167,6 @@ struct
   let list t key =
     cut t [key] >>= fun g ->
     (* XXX: ugly *)
-    Lwt_list.map_p (Store.add t.r) (Graph.vertex g)
+    Lwt_list.map_p (S.add t.r) (Graph.vertex g)
 
 end

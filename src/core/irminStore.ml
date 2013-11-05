@@ -26,16 +26,22 @@ module type X = sig
   val list: t -> key -> key list Lwt.t
 end
 
+module type X_BINARY = X with type key := string
+                          and type value := IrminBuffer.ba
+
 module type A = sig
   include X
   val add: t -> value -> key Lwt.t
 end
 
-module type A_RAW = A with type value := IrminBuffer.ba
+module type A_BINARY = A with type key := string
+                          and type value := IrminBuffer.ba
 
-module MakeA (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = struct
+module A (K: IrminKey.S) (V: IrminBase.S) (S: A_BINARY) = struct
 
   open Lwt
+
+  exception Unknown of K.t
 
   let debug fmt =
     IrminLog.debug "A" fmt
@@ -53,30 +59,32 @@ module MakeA (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S) = s
     S.init t
 
   let read t key =
-    S.read t key >>= function
-    | None    -> Lwt.return None
+    S.read t (K.to_string key) >>= function
+    | None    -> return_none
     | Some ba ->
       let buf = IrminBuffer.of_ba ba in
-      Lwt.return (Some (V.get buf))
+      return (Some (V.get buf))
 
-  let read_exn t k =
-    read t k >>= function
-    | None   -> fail (K.Unknown k)
-    | Some v -> return v
+  let read_exn t key =
+    S.read_exn t (K.to_string key) >>= fun ba ->
+    let buf = IrminBuffer.of_ba ba in
+    return (V.get buf)
 
-  let add t v =
-    debug "add %s" (V.pretty v);
-    let buf = IrminBuffer.create (V.sizeof v) in
-    V.set buf v;
+  let add t value =
+    debug "add %s" (V.pretty value);
+    let buf = IrminBuffer.create (V.sizeof value) in
+    V.set buf value;
     S.add t (IrminBuffer.to_ba buf) >>= fun key ->
-    debug "<-- add: %s -> key=%s" (V.pretty v) (K.pretty key);
+    let key = K.of_string key in
+    debug "<-- add: %s -> key=%s" (V.pretty value) (K.pretty key);
     return key
 
-  let mem t k =
-    S.mem t k
+  let mem t key =
+    S.mem t (K.to_string key)
 
-  let list t k =
-    S.list t k
+  let list t key =
+    S.list t (K.to_string key) >>= fun ks ->
+    return (List.map K.of_string ks)
 
 end
 
@@ -86,12 +94,13 @@ module type M = sig
   val remove: t -> key -> unit Lwt.t
 end
 
-module type M_RAW = M with type key = string
+module type M_BINARY = M with type key := string
+                          and type value := IrminBuffer.ba
 
-module MakeM
-    (S: M_RAW)
-    (K: IrminBase.STRINGABLE)
-    (V: IrminBase.S with type t = S.value) =
+module M
+    (K: IrminKey.S)
+    (V: IrminBase.S)
+    (S: M_BINARY) =
 struct
 
   open Lwt
@@ -109,16 +118,25 @@ struct
     S.init t
 
   let update t key value =
-    S.update t (K.to_string key) value
+    let buf = IrminBuffer.create (V.sizeof value) in
+    V.set buf value;
+    let ba = IrminBuffer.to_ba buf in
+    S.update t (K.to_string key) ba
 
   let remove t key =
     S.remove t (K.to_string key)
 
   let read t key =
-    S.read t (K.to_string key)
+    S.read t (K.to_string key) >>= function
+    | None    -> return_none
+    | Some ba ->
+      let buf = IrminBuffer.of_ba ba in
+      return (Some (V.get buf))
 
   let read_exn t key =
-    S.read_exn t (K.to_string key)
+    S.read_exn t (K.to_string key) >>= fun ba ->
+    let buf = IrminBuffer.of_ba ba in
+    return (V.get buf)
 
   let mem t key =
     S.mem t (K.to_string key)

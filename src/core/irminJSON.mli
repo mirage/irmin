@@ -42,6 +42,7 @@ val of_strings: string list -> t
 val of_int: int -> t
 val of_list: ('a -> t) -> 'a list -> t
 val of_option: ('a -> t) -> 'a option -> t
+val of_dict: (string * t) list -> t
 val of_pair: ('a -> t) -> ('b -> t) -> ('a * 'b) -> t
 
 (** {2 to JSON} *)
@@ -51,5 +52,6 @@ val to_string: t -> string
 val to_strings: t -> string list
 val to_int: t -> int
 val to_list: (t -> 'a) -> t -> 'a list
-val to_option:(t -> 'a) -> t -> 'a option
+val to_option: (t -> 'a) -> t -> 'a option
+val to_dict: t -> (string * t) list
 val to_pair:(t -> 'a) -> (t -> 'b) -> t -> ('a * 'b)

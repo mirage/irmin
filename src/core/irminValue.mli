@@ -61,7 +61,10 @@ module type STORE = sig
 
 end
 
-module Make (S: IrminStore.A_RAW) (K: IrminKey.S with type t = S.key) (V: S):
+module Make
+    (K: IrminBase.S)
+    (V: S)
+    (S: IrminStore.A with type key = K.t and type value = V.t) :
   STORE with type key = K.t
          and type value = V.t
 (** Create a value store. *)

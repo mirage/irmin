@@ -22,7 +22,6 @@ module type S = sig
   val merge: old:t -> t -> t -> t
 end
 
-
 module Simple  = struct
 
   let debug fmt = IrminLog.debug "VALUE" fmt
@@ -48,9 +47,13 @@ module type STORE = sig
   include S with type t := value
 end
 
-module Make (S: IrminStore.A_RAW) (K: IrminKey.S with type t = S.key) (V: S) = struct
+module Make
+    (K: IrminBase.S)
+    (V: S)
+    (S: IrminStore.A with type key = K.t and type value = V.t) =
+struct
 
-  include IrminStore.MakeA(S)(K)(V)
+  include S
 
   include (V: S with type t := value)
 

@@ -22,11 +22,9 @@ type ('a, 'b) node = {
 }
 (** Type of concrete revisions. *)
 
-type ('a, 'b) store = {
-  t: 'a;
-  r: 'b;
-}
-(** Type of concrete stores. *)
+module Revision (A: IrminBase.S) (B: IrminBase.S):
+  IrminBase.S with type t = (A.t, B.t) node
+(** Base functions for revisions. *)
 
 module type STORE = sig
 
@@ -69,10 +67,10 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.A_RAW)
-    (K: IrminKey.S with type t = S.key)
-    (T: IrminTree.STORE with type key = S.key)
-  : STORE with type t = (T.t, S.t) store
-           and type key = T.key
-           and type tree = T.tree
+    (K: IrminKey.S)
+    (T: IrminTree.STORE with type key = K.t)
+    (S: IrminStore.A with type key = K.t
+                      and type value = (T.key, K.t) node):
+  STORE with type key = K.t
+         and type tree = T.tree
 (** Create a revision store. *)

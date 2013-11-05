@@ -38,7 +38,7 @@ let source_conv : source Arg.converter =
 
 let value_conv (type v) (module S: Irmin.S with type value = v) =
   let parse str = `Ok (S.Value.of_bytes str) in
-  let print ppf v = pr_str ppf (S.Value.dump v) in
+  let print ppf v = pr_str ppf (S.Value.to_string v) in
   parse, print
 
 let tag_conv (type t) (module S: Irmin.S with type tag = t) =

@@ -167,9 +167,9 @@ module Make (B: IrminBase.S) = struct
     let vertex = Topological.fold (fun v acc -> v::acc) t [] in
     Printf.sprintf "%s" (String.concat "-" (List.map B.pretty vertex))
 
-  let dump t =
+  let to_string t =
     let g = decompose t in
-    XGraph.dump g
+    XGraph.to_string g
 
   let of_json j =
     let vertex, edges = XGraph.of_json j in
@@ -188,5 +188,7 @@ module Make (B: IrminBase.S) = struct
 
   let equal t1 t2 =
     compare t1 t2 = 0
+
+  let length = None
 
 end

@@ -23,11 +23,9 @@ type ('a, 'b) node = {
 }
 (** Type of concrete trees .*)
 
-type ('a, 'b) store = {
-  v: 'a;
-  t: 'b;
-}
-(** Type of concrete stores. *)
+module Tree (A: IrminBase.S) (B: IrminBase.S):
+  IrminBase.S with type t = (A.t, B.t) node
+(** Base functions for trees. *)
 
 module type STORE = sig
 
@@ -89,10 +87,10 @@ module type STORE = sig
 end
 
 module Make
-    (S: IrminStore.A_RAW)
-    (K: IrminKey.S with type t = S.key)
-    (V: IrminValue.STORE with type key = S.key):
-  STORE with type t = (V.t, S.t) store
-         and type key = K.t
+    (K: IrminKey.S)
+    (V: IrminValue.STORE with type key = K.t)
+    (S: IrminStore.A with type key = K.t
+                      and type value = (K.t, K.t) node):
+  STORE with type key = K.t
          and type value = V.value
-(** Create a tree store implementation. *)
+(** Create a tree store from an append-only database. *)

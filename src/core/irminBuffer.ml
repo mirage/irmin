@@ -54,6 +54,15 @@ let dump ?msg t =
     let msg = match msg with None -> "" | Some msg -> msg ^ " " in
     debug "%s\027[33m[[ %s %S ]]\027[m" msg dbg str
 
+let pretty_ba ba =
+  if IrminLog.debug_enabled () then
+    let len = length_ba ba in
+    let str = String.create len in
+    unsafe_blit_bigstring_to_string ba 0 str 0 len;
+    str
+  else
+    ""
+
 exception Parse_error of string
 
 let parse_error_buf buf fmt =

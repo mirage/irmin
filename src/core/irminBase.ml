@@ -21,7 +21,7 @@ module type S = sig
   val equal: t -> t -> bool
   val hash: t -> int
   val pretty: t -> string
-  val dump: t -> string
+  val to_string: t -> string
   val of_json: IrminJSON.t -> t
   val to_json: t -> IrminJSON.t
   val sizeof: t -> int
@@ -59,8 +59,8 @@ module List (E: S) = struct
   let pretty ts =
     IrminMisc.pretty_list E.pretty ts
 
-  let dump t =
-    String.concat "" (OCamlList.rev_map E.dump t)
+  let to_string t =
+    String.concat "" (OCamlList.rev_map E.to_string t)
 
   let equal l1 l2 =
     compare l1 l2 = 0
@@ -100,7 +100,6 @@ module List (E: S) = struct
     let () = IrminBuffer.set_uint32 buf len in
     List.iter (E.set buf) t
 
-
 end
 
 module Option (E: S) = struct
@@ -123,9 +122,9 @@ module Option (E: S) = struct
     | None   -> "<none>"
     | Some e -> E.pretty e
 
-  let dump = function
+  let to_string = function
     | None   -> ""
-    | Some e -> E.dump e
+    | Some e -> E.to_string e
 
   let equal o1 o2 =
     compare o1 o2 = 0
@@ -181,8 +180,8 @@ module Pair (K: S) (V: S) = struct
   let pretty (key, value) =
     Printf.sprintf "%s:%s" (K.pretty key) (V.pretty value)
 
-  let dump (key, value) =
-    K.dump key ^ V.dump value
+  let to_string (key, value) =
+    K.to_string key ^ V.to_string value
 
   let equal t1 t2 =
     compare t1 t2 = 0

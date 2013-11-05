@@ -16,13 +16,22 @@
 
 (** Disk persistence *)
 
-module Make (R: sig val root: string end): sig
+module type ROOT = sig
 
-  module A (K: IrminKey.S): IrminStore.A_RAW with type key = K.t
-  (** Create a fresh store *)
+  val root: string
+  (** The filestystem root. *)
 
-  module M (K: IrminKey.S): IrminStore.M_RAW with type value = K.t
-  (** Create a fresh tag store. *)
+end
+
+module Make (R: ROOT): sig
+
+  (** Build a filesystem store. *)
+
+  module A (K: IrminKey.BINARY): IrminStore.A_BINARY
+  (** Create an append-only store with disk persistence. *)
+
+  module M (K: IrminKey.S): IrminStore.M_BINARY
+  (** Create a mutable store with disk persistence. *)
 
 end
 

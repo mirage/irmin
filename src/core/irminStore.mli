@@ -53,6 +53,10 @@ module type X = sig
 
 end
 
+module type X_BINARY = X with type key := string
+                          and type value := IrminBuffer.ba
+(** Raw basic store which associate strings to big arrays. *)
+
 (** {2 Append-only Stores} *)
 
 module type A = sig
@@ -68,14 +72,15 @@ module type A = sig
 
 end
 
-module type A_RAW = A with type value := IrminBuffer.ba
-(** Raw immutable stores associate keys to raw big arrays. *)
+module type A_BINARY = A with type key := string
+                          and type value := IrminBuffer.ba
+(** Raw immutable stores which associate strings to big arrays. *)
 
-module MakeA (S: A_RAW) (K: IrminKey.S with type t = S.key) (V: IrminBase.S):
+module A (K: IrminKey.S) (V: IrminBase.S) (S: A_BINARY):
   A with type t = S.t
      and type key = K.t
      and type value = V.t
-(** Build a typed append-only store from a raw one. *)
+(** Build a typed append-only store from a binary store. *)
 
 (** {2 Mutable store} *)
 
@@ -94,17 +99,15 @@ module type M = sig
 
 end
 
-module type M_RAW = M with type key = string
-(** Raw mutable stores associate strings to keys. *)
+module type M_BINARY = M with type key := string
+                          and type value := IrminBuffer.ba
+(** Raw mutable stores which associate strings to big arrays. *)
 
-module MakeM
-    (S: M_RAW)
-    (K: IrminBase.STRINGABLE)
-    (V: IrminBase.S with type t = S.value)
-  : M with type t = S.t
-       and type key = K.t
-       and type value = V.t
-(** Build a mutable store. *)
+module M (K: IrminKey.S) (V: IrminBase.S) (S: M_BINARY):
+  M with type t = S.t
+     and type key = K.t
+     and type value = V.t
+(** Build a typed mutable store from a binary store. *)
 
 (** {2 Irminsule Stores} *)
 

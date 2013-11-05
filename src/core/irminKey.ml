@@ -14,18 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-
 module type S = sig
   include IrminBase.S
   exception Invalid of t
   exception Unknown of t
-  val create: string -> t
+  val of_string: string -> t
+end
+
+module type BINARY = sig
+  include S
   val of_bytes: string -> t
   val of_ba: IrminBuffer.ba -> t
   val to_hex: t -> string
   val of_hex: string -> t
-  val concat: t list -> t
-  val length: int
 end
 
 module SHA1 = struct
@@ -40,15 +41,17 @@ module SHA1 = struct
 
   let name = "key"
 
-  let length = 20
+  let len = 20
+
+  let length = Some len
 
   let create str =
-    if String.length str = length then str
+    if String.length str = len then str
     else raise (Invalid str)
 
   let sizeof _ =
     debug "sizeof";
-    length
+    len
 
   let to_hex t =
     IrminMisc.hex_encode t
@@ -60,7 +63,7 @@ module SHA1 = struct
 
   let get buf =
     debug "get";
-    let str = IrminBuffer.get_string buf length in
+    let str = IrminBuffer.get_string buf len in
     debug "--> get %s" (pretty str);
     str
 
@@ -77,9 +80,5 @@ module SHA1 = struct
     let len = IrminBuffer.length buf in
     let str = IrminBuffer.get_string buf len in
     of_bytes str
-
-  let concat l =
-    let l = List.fold_left (fun acc s -> s :: acc) [] l in
-    String.concat "" (List.sort String.compare l)
 
 end

@@ -21,16 +21,10 @@ module type S = sig
   (** Signature for tags. Tags are supposed to be easily convertible
       to and from string. *)
 
-  include IrminBase.S
+  include IrminKey.S
 
   val master: t
   (** The master branch. *)
-
-  val to_string: t -> string
-  (** Convert a tag to a suitable name *)
-
-  val of_string: string -> t
-  (** Convert a name to a tag *)
 
 end
 
@@ -64,6 +58,9 @@ module type STORE = sig
 
 end
 
-module Make (S: IrminStore.M_RAW) (T: S) (K: IrminKey.S with type t = S.value)
-  : STORE with type tag = T.t
-           and type key = K.t
+module Make
+    (T: S)
+    (K: IrminBase.S)
+    (S: IrminStore.M with type key = T.t and type value = K.t) :
+  STORE with type tag = T.t
+         and type key = K.t

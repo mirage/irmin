@@ -75,6 +75,13 @@ let to_option fn (json:t) = match json with
   | `Null  -> None
   |  _     -> Some (fn json)
 
+(* dict *)
+let of_dict d : t = `O d
+
+let to_dict = function
+  | `O d -> d
+  | _     -> failwith "JSON.to_dict"
+
 (* pairs *)
 let of_pair fk fv (k, v) =
   `A [fk k; fv v]
