@@ -35,9 +35,6 @@ module X (K: IrminKey.S) = struct
   let create () =
     return (Hashtbl.create 4096)
 
-  let init t =
-    return_unit
-
   let read t key =
     debug "read %s" (pretty_key key);
     return (

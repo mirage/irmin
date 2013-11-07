@@ -14,26 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Disk persistence *)
+(** Disk persistence. *)
 
-module type ROOT = sig
+module type S = sig
 
-  val root: string
-  (** The filestystem root. *)
-
-end
-
-module Make (R: ROOT): sig
-
-  (** Build a filesystem store. *)
-
-  module A (K: IrminKey.BINARY): IrminStore.A_BINARY
-  (** Create an append-only store with disk persistence. *)
-
-  module M (K: IrminKey.S): IrminStore.M_BINARY
-  (** Create a mutable store with disk persistence. *)
+  val path: string
+  (** The path to the filestystem root. *)
 
 end
+
+module A (S: S) (K: IrminKey.BINARY): IrminStore.A_BINARY
+(** Create an append-only store with disk persistence at a given
+    path. *)
+
+module M (S: S) (K: IrminKey.S): IrminStore.M_BINARY
+(** Create a mutable store with disk persistence at the given path. *)
 
 val simple: string -> (module Irmin.S)
 (** Simple store stored on the filesystem. *)

@@ -19,7 +19,6 @@ module type X = sig
   type key
   type value
   val create: unit -> t Lwt.t
-  val init: t -> unit Lwt.t
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
@@ -37,7 +36,11 @@ end
 module type A_BINARY = A with type key := string
                           and type value := IrminBuffer.ba
 
-module A (K: IrminKey.S) (V: IrminBase.S) (S: A_BINARY) = struct
+module type A_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  A with type key = K.t
+     and type value = V.t
+
+module A  (S: A_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 
@@ -54,9 +57,6 @@ module A (K: IrminKey.S) (V: IrminBase.S) (S: A_BINARY) = struct
 
   let create () =
     S.create ()
-
-  let init t =
-    S.init t
 
   let read t key =
     S.read t (K.to_string key) >>= function
@@ -97,11 +97,11 @@ end
 module type M_BINARY = M with type key := string
                           and type value := IrminBuffer.ba
 
-module M
-    (K: IrminKey.S)
-    (V: IrminBase.S)
-    (S: M_BINARY) =
-struct
+module type M_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  M with type key = K.t
+     and type value = V.t
+
+module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 
@@ -113,9 +113,6 @@ struct
 
   let create () =
     S.create ()
-
-  let init t =
-    S.init t
 
   let update t key value =
     let buf = IrminBuffer.create (V.sizeof value) in

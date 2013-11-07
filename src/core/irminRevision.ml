@@ -111,10 +111,6 @@ struct
     S.create () >>= fun r ->
     return { t; r }
 
-  let init t =
-    T.init t.t >>= fun () ->
-    S.init t.r
-
   let add t r =
     S.add t.r r
 

@@ -17,10 +17,10 @@
 (** In-memory store *)
 
 module A (K: IrminKey.BINARY): IrminStore.A_BINARY
-(** Create a fresh store *)
+(** Create a fresh append-only store. *)
 
 module M (K: IrminKey.S): IrminStore.M_BINARY
-(** Create a fresh tag store. *)
+(** Create a fresh mutable store. *)
 
 module Simple: Irmin.S
 (** Simple memory store. *)

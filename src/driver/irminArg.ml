@@ -21,21 +21,6 @@ let global_option_section = "COMMON OPTIONS"
 
 let pr_str = Format.pp_print_string
 
-type source =
-  [ `In_memory
-  | `FS of string ]
-
-let source_conv : source Arg.converter =
-  let parse = function
-    | ":" -> `Ok `In_memory
-    | dir -> `Ok (`FS dir) in
-  let print ppf s =
-    let name = match s with
-      | `In_memory -> ":"
-      | `FS dir    -> dir in
-    pr_str ppf name in
-  parse, print
-
 let value_conv (type v) (module S: Irmin.S with type value = v) =
   let parse str = `Ok (S.Value.of_bytes str) in
   let print ppf v = pr_str ppf (S.Value.to_string v) in
@@ -54,22 +39,34 @@ let value s =
 let store =
   let in_memory =
     let doc =
-      Arg.info ~doc:"In-memory source. Equivalent to `--source :`" ["m";"in-memory"] in
+      Arg.info ~doc:"In-memory persistence. Equivalent to `--source :`"
+        ["m";"in-memory"] in
+    Arg.(value & flag & doc) in
+  let fs =
+    let doc =
+      Arg.info ~doc:"File-system persistence." ["f";"file-system"] in
+    Arg.(value & flag & doc) in
+  let rest =
+    let doc =
+      Arg.info ~doc:"RESTful interface." ["r";"rest"] in
     Arg.(value & flag & doc) in
   let source =
     let doc =
       Arg.info ~docv:"SOURCE" ~doc:"Store source." ["s";"source"] in
-    Arg.(value & opt (some source_conv) None & doc) in
-  let create in_memory source = match in_memory, source with
-    | true, _
-    | _   , Some `In_memory ->
-      IrminLog.msg "source: in-memory.";
+    Arg.(value & opt (some string) None & doc) in
+  let create in_memory fs rest source = match in_memory, fs, rest, source with
+    | true , false, false, None
+    | false, false, false, Some ":" ->
+      IrminLog.msg "source: in-memory";
       (module IrminMemory.Simple: Irmin.S)
-    | _   , Some `FS dir    ->
-      IrminLog.msg "source: %s." dir;
+    | false, true , false, Some dir ->
+      IrminLog.msg "FS: %s" dir;
       IrminFS.simple dir
-    | _ -> failwith "No store source specified" in
-  Term.(pure create $ in_memory $ source)
+    | false, false, true , Some uri ->
+      IrminLog.msg "REST: %s" uri;
+      IrminREST.simple (Uri.of_string uri)
+    | _ -> failwith "Invalid store source" in
+  Term.(pure create $ in_memory $ fs $ rest $ source)
 
 let run t =
   Lwt_unix.run (

@@ -45,12 +45,14 @@ let basenames fn dir =
 type root = D of string
 
 let check (D root) =
-  if not (Sys.file_exists root) then
-    error "Not an Irminsule repository: %s/" root
-  else if not (Sys.is_directory root) then
+  if Sys.file_exists root && not (Sys.is_directory root) then
     error "%s is not a directory!" root
-  else
+  else begin
+    let mkdir dir =
+      if not (Sys.file_exists dir) then Unix.mkdir dir 0o755 in
+    mkdir root;
     return_unit
+  end
 
 let safe_mkdir dir =
   if not (Sys.file_exists dir) then
@@ -81,166 +83,154 @@ let with_maybe_file file fn default =
     return default
   )
 
-let init (D root) subdir =
-  let mkdir dir =
-    if not (Sys.file_exists dir) then Unix.mkdir dir 0o755 in
-  mkdir root;
-  mkdir (root / subdir);
-  return_unit
-
-module type ROOT = sig
-  val root: string
+module type S = sig
+  val path: string
 end
 
-module Make (R: ROOT) = struct
+module type O = sig
+  include S
+  val subdir: string
+  val file_of_key: root -> string -> string
+end
 
-  module type S = sig
-    val subdir: string
-    val file_of_key: root -> string -> string
-  end
+module X (O: O) (K: IrminKey.S) = struct
 
-  module X (S: S) (K: IrminKey.S) = struct
+  type t = root
 
-    type t = root
+  let pretty_key k =
+    K.pretty (K.of_string k)
 
-    let pretty_key k =
-      K.pretty (K.of_string k)
+  let pretty_value ba =
+    IrminBuffer.pretty_ba ba
 
-    let pretty_value ba =
-      IrminBuffer.pretty_ba ba
+  let unknown k =
+    fail (K.Unknown (K.of_string k))
 
-    let unknown k =
-      fail (K.Unknown (K.of_string k))
+  let keys_of_dir dir: K.t list Lwt.t =
+    let pre = Filename.basename dir in
+    basenames (fun suf ->
+        K.of_string (pre ^ suf)
+      ) dir
 
-    let keys_of_dir dir: K.t list Lwt.t =
-      let pre = Filename.basename dir in
-      basenames (fun suf ->
-          K.of_string (pre ^ suf)
-        ) dir
+  let create () =
+    return (D (O.path / O.subdir))
 
-    let create () =
-      return (D R.root)
+  let mem t key =
+    check t >>= fun () ->
+    let file = O.file_of_key t key in
+    return (Sys.file_exists file)
 
-    let init t =
-      init t S.subdir
+  let read_full_ba fd =
+    IrminChannel.read_buffer fd >>= fun buf ->
+    return (IrminBuffer.to_ba buf)
 
-    let mem t key =
-      check t >>= fun () ->
-      let file = S.file_of_key t key in
-      return (Sys.file_exists file)
+  let read_exn t key =
+    debug "read_exn %s" (pretty_key key);
+    mem t key >>= function
+    | true  -> with_file (O.file_of_key t key) read_full_ba
+    | false -> unknown key
 
-    let read_full_ba fd =
-      IrminChannel.read_buffer fd >>= fun buf ->
-      return (IrminBuffer.to_ba buf)
+  let read t key =
+    debug "read %s" (pretty_key key);
+    mem t key >>= function
+    | true  -> with_file
+                 (O.file_of_key t key)
+                 (fun fd ->
+                    read_full_ba fd >>= fun ba ->
+                    IrminBuffer.dump_ba ~msg:"-->" ba;
+                    debug "--> read %s" (pretty_value ba);
+                    return (Some ba))
+    | false -> return_none
 
-    let read_exn t key =
-      debug "read_exn %s" (pretty_key key);
-      mem t key >>= function
-      | true  -> with_file (S.file_of_key t key) read_full_ba
-      | false -> unknown key
-
-    let read t key =
-      debug "read %s" (pretty_key key);
-      mem t key >>= function
-      | true  -> with_file
-                   (S.file_of_key t key)
-                   (fun fd ->
-                      read_full_ba fd >>= fun ba ->
-                      IrminBuffer.dump_ba ~msg:"-->" ba;
-                      debug "--> read %s" (pretty_value ba);
-                      return (Some ba))
-      | false -> return_none
-
-    let list t k =
-      return [k]
-
-  end
-
-  module A (K: IrminKey.BINARY) = struct
-
-    module S = struct
-
-      let subdir = "objects"
-
-      let objects (D root) =
-        root / subdir
-
-      let file_of_key t k =
-        let key = K.to_hex (K.of_string k) in
-        let len = String.length key in
-        let pre = String.sub key 0 2 in
-        let suf = String.sub key 2 (len - 2) in
-        objects t / pre / suf
-
-    end
-
-    include X(S)(K)
-
-    let add t value =
-      debug "add %s" (pretty_value value);
-      check t >>= fun () ->
-      let key = K.to_string (K.of_ba value) in
-      let file = S.file_of_key t key in
-      begin if Sys.file_exists file then
-          return_unit
-        else
-          let value = IrminBuffer.of_ba value in
-          with_file file (fun fd ->
-              IrminChannel.write_buffer fd value
-            )
-      end >>= fun () ->
-      return key
-
-  end
-
-  module M (K: IrminKey.S) = struct
-
-    module S = struct
-
-      let subdir = "heads"
-
-      let heads (D root) =
-        root / subdir
-
-      let file_of_key t key =
-        heads t / key
-
-    end
-
-    include X(S)(K)
-
-    let remove t key =
-      debug "remove %s" (pretty_key key);
-      let file = S.file_of_key t key in
-      if Sys.file_exists file then
-        Unix.unlink file;
-      return_unit
-
-    let update t key value =
-      debug "update %s %s" (pretty_key key) (pretty_value value);
-      check t >>= fun () ->
-      remove t key >>= fun () ->
-      with_file (S.file_of_key t key) (fun fd ->
-          let buf = IrminBuffer.of_ba value in
-          IrminChannel.write_buffer fd buf
-        )
-
-    let list (D root as t) _ =
-      check t >>= fun () ->
-      basenames (fun x -> x) (root / S.subdir)
-
-  end
+  let list t k =
+    return [k]
 
 end
 
-let simple root =
-  let module S = Make(struct
-      include IrminKey.SHA1
-      let root = root
-    end) in
+module A (S: S) (K: IrminKey.BINARY) = struct
+
+  module O = struct
+
+    let path = S.path
+
+    let subdir = "objects"
+
+    let objects (D root) =
+      root / subdir
+
+    let file_of_key t k =
+      let key = K.to_hex (K.of_string k) in
+      let len = String.length key in
+      let pre = String.sub key 0 2 in
+      let suf = String.sub key 2 (len - 2) in
+      objects t / pre / suf
+
+  end
+
+  include X(O)(K)
+
+  let add t value =
+    debug "add %s" (pretty_value value);
+    check t >>= fun () ->
+    let key = K.to_string (K.of_ba value) in
+    let file = O.file_of_key t key in
+    begin if Sys.file_exists file then
+        return_unit
+      else
+        let value = IrminBuffer.of_ba value in
+        with_file file (fun fd ->
+            IrminChannel.write_buffer fd value
+          )
+    end >>= fun () ->
+    return key
+
+end
+
+module M (S: S) (K: IrminKey.S) = struct
+
+  module O = struct
+
+    let path = S.path
+
+    let subdir = "heads"
+
+    let heads (D root) =
+      root / subdir
+
+    let file_of_key t key =
+      heads t / key
+
+  end
+
+  include X(O)(K)
+
+  let remove t key =
+    debug "remove %s" (pretty_key key);
+    let file = O.file_of_key t key in
+    if Sys.file_exists file then
+      Unix.unlink file;
+    return_unit
+
+  let update t key value =
+    debug "update %s %s" (pretty_key key) (pretty_value value);
+    check t >>= fun () ->
+    remove t key >>= fun () ->
+    with_file (O.file_of_key t key) (fun fd ->
+        let buf = IrminBuffer.of_ba value in
+        IrminChannel.write_buffer fd buf
+      )
+
+  let list (D root as t) _ =
+    check t >>= fun () ->
+    basenames (fun x -> x) root
+
+end
+
+let simple path =
+  let module S = struct let path = path end in
   let module K = IrminKey.SHA1 in
-  let module A = S.A(K) in
-  let module M = S.M(K) in
+  let module A = A(S)(K) in
+  let module M = M(S)(K) in
   let module Simple = Irmin.Binary
       (K)(IrminValue.Simple)(IrminTag.Simple)
       (A)(A)(A)(M) in

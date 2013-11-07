@@ -52,20 +52,16 @@ module Make
   (K: IrminKey.BINARY)
   (V: IrminValue.S)
   (T: IrminTag.S)
-  (Value: IrminStore.A with type key = K.t
-                        and type value = V.t)
-  (Tree: IrminStore.A with type key = K.t
-                       and type value = (K.t, K.t) IrminTree.node)
-  (Revision: IrminStore.A with type key = K.t
-                           and type value = (K.t, K.t) IrminRevision.node)
-  (Tag: IrminStore.M with type key = T.t
-                      and type value = K.t) =
+  (Value   : IrminStore.A_MAKER)
+  (Tree    : IrminStore.A_MAKER)
+  (Revision: IrminStore.A_MAKER)
+  (Tag     : IrminStore.M_MAKER) =
 struct
 
   open Lwt
 
   module Key = K
-  module Value = IrminValue.Make(K)(V)(Value)
+  module Value = IrminValue.Make(Value)(K)(V)
   module Tree = IrminTree.Make(K)(Value)(Tree)
   module Revision = IrminRevision.Make(K)(Tree)(Revision)
   module Tag = IrminTag.Make(T)(K)(Tag)
@@ -92,10 +88,6 @@ struct
     Tag.create () >>= fun tag ->
     let branch = Tag.master in
     return { value; tree; revision; tag; branch }
-
-  let init t =
-    Revision.init t.revision >>= fun () ->
-    Tag.init t.tag
 
   let tag branch =
     create () >>= fun t ->
@@ -171,10 +163,10 @@ module Binary
     (Tag: IrminStore.M_BINARY) =
 struct
 
-  module XValue = IrminStore.A(K)(V)(Value)
-  module XTree = IrminStore.A(K)(IrminTree.Tree(K)(K))(Tree)
-  module XRevision = IrminStore.A(K)(IrminRevision.Revision(K)(K))(Revision)
-  module XTag = IrminStore.M(T)(K)(Tag)
+  module XValue = IrminStore.A(Value)(K)(V)
+  module XTree = IrminStore.A(Tree)(K)(IrminTree.Tree(K)(K))
+  module XRevision = IrminStore.A(Revision)(K)(IrminRevision.Revision(K)(K))
+  module XTag = IrminStore.M(Tag)(T)(K)
 
   include Make (K)(V)(T)(XValue)(XTree)(XRevision)(XTag)
 

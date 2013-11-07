@@ -14,73 +14,65 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Conv (S: Irmin.S) = struct
 
-  open S
+type 'a t = {
+  input : IrminJSON.t -> 'a;
+  output: 'a -> IrminJSON.t;
+}
 
-  type 'a conv = {
-    input : IrminJSON.t -> 'a;
-    output: 'a -> IrminJSON.t;
-  }
+let some fn = {
+  input  = IrminJSON.to_option fn.input;
+  output = IrminJSON.of_option fn.output
+}
 
-  let some fn = {
-    input  = IrminJSON.to_option fn.input;
-    output = IrminJSON.of_option fn.output
-  }
+let list fn = {
+  input  = IrminJSON.to_list fn.input;
+  output = IrminJSON.of_list fn.output;
+}
 
-  let list fn = {
-    input  = IrminJSON.to_list fn.input;
-    output = IrminJSON.of_list fn.output;
-  }
+let bool = {
+  input  = IrminJSON.to_bool;
+  output = IrminJSON.of_bool;
+}
 
-  let bool = {
-    input  = IrminJSON.to_bool;
-    output = IrminJSON.of_bool;
-  }
+let path = {
+  input  = IrminJSON.to_list IrminJSON.to_string;
+  output = IrminJSON.of_list IrminJSON.of_string;
+}
 
-  let key = {
-    input  = Key.of_json;
-    output = Key.to_json;
-  }
-
-  let value = {
-    input  = Value.of_json;
-    output = Value.to_json;
-  }
-
-  let tree = {
-    input  = Tree.of_json;
-    output = Tree.to_json;
-  }
-
-  let revision = {
-    input  = Revision.of_json;
-    output = Revision.to_json;
-  }
-
-  let tag = {
-    input  = Tag.of_json;
-    output = Tag.to_json;
-  }
-
-  let path = {
-    input  = IrminJSON.to_list IrminJSON.to_string;
-    output = IrminJSON.of_list IrminJSON.of_string;
-  }
-
-  let unit = {
-    input  = IrminJSON.to_unit;
-    output = IrminJSON.of_unit;
-  }
-
-end
+let unit = {
+  input  = IrminJSON.to_unit;
+  output = IrminJSON.of_unit;
+}
 
 module Server (S: Irmin.S) = struct
 
   open Lwt
-  module C = Conv(S)
-  open S
-  open C
+
+  let key = {
+    input  = S.Key.of_json;
+    output = S.Key.to_json;
+  }
+
+  let value = {
+    input  = S.Value.of_json;
+    output = S.Value.to_json;
+  }
+
+  let tree = {
+    input  = S.Tree.of_json;
+    output = S.Tree.to_json;
+  }
+
+  let revision = {
+    input  = S.Revision.of_json;
+    output = S.Revision.to_json;
+  }
+
+  let tag = {
+    input  = S.Tag.of_json;
+    output = S.Tag.to_json;
+  }
 
   let respond body =
     Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body ()
@@ -112,10 +104,10 @@ module Server (S: Irmin.S) = struct
       try List.assoc c l
       with Not_found -> error ()
 
-  let va t = t.value
-  let tr t = t.tree
-  let re t = t.revision
-  let ta t = t.tag
+  let va t = t.S.value
+  let tr t = t.S.tree
+  let re t = t.S.revision
+  let ta t = t.S.tag
   let t x = x
 
   let mk1 fn db i1 o =
@@ -140,32 +132,32 @@ module Server (S: Irmin.S) = struct
       )
 
   let value_store = Node [
-      "read"  , mk1 Value.read va key   (some value);
-      "mem"   , mk1 Value.mem  va key   bool;
-      "list"  , mk1 Value.list va key   (list key);
-      "add"   , mk1 Value.add  va value key;
+      "read"  , mk1 S.Value.read va key   (some value);
+      "mem"   , mk1 S.Value.mem  va key   bool;
+      "list"  , mk1 S.Value.list va key   (list key);
+      "add"   , mk1 S.Value.add  va value key;
   ]
 
   let tree_store = Node [
-    "read"  , mk1 Tree.read tr key  (some tree);
-    "mem"   , mk1 Tree.mem  tr key  bool;
-    "list"  , mk1 Tree.list tr key  (list key);
-    "add"   , mk1 Tree.add  tr tree key;
+    "read"  , mk1 S.Tree.read tr key  (some tree);
+    "mem"   , mk1 S.Tree.mem  tr key  bool;
+    "list"  , mk1 S.Tree.list tr key  (list key);
+    "add"   , mk1 S.Tree.add  tr tree key;
   ]
 
   let revision_store = Node [
-    "read"  , mk1 Revision.read re key  (some revision);
-    "mem"   , mk1 Revision.mem  re key  bool;
-    "list"  , mk1 Revision.list re key  (list key);
-    "add"   , mk1 Revision.add  re revision key;
+    "read"  , mk1 S.Revision.read re key  (some revision);
+    "mem"   , mk1 S.Revision.mem  re key  bool;
+    "list"  , mk1 S.Revision.list re key  (list key);
+    "add"   , mk1 S.Revision.add  re revision key;
   ]
 
   let tag_store = Node [
-    "read"  , mk1 Tag.read   ta tag (some key);
-    "mem"   , mk1 Tag.mem    ta tag bool;
-    "list"  , mk1 Tag.list   ta tag (list tag);
-    "update", mk2 Tag.update ta tag key unit;
-    "remove", mk1 Tag.remove ta tag unit;
+    "read"  , mk1 S.Tag.read   ta tag (some key);
+    "mem"   , mk1 S.Tag.mem    ta tag bool;
+    "list"  , mk1 S.Tag.list   ta tag (list tag);
+    "update", mk2 S.Tag.update ta tag key unit;
+    "remove", mk1 S.Tag.remove ta tag unit;
   ]
 
   let store = Node [
@@ -219,75 +211,3 @@ let server (type t) (module S: Irmin.S with type t = t) (t:t) port =
       (Cohttp_lwt_unix.Server.string_of_conn_id conn_id) in
   let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
   Cohttp_lwt_unix.Server.create ~address:"127.0.0.1" ~port config
-
-
-module Client (A: sig val address: Uri.t end) = struct
-
-  open Lwt
-
-  module Client (S: Irmin.S) = struct
-
-    module C = Conv(S)
-    open C
-
-    type t = Uri.t
-
-    exception Error of string
-
-    let uri t path =
-      Uri.with_path t (String.concat "/" path)
-
-    let response fn = function
-      | None       -> fail (Error "response")
-      | Some (_,b) ->
-        Cohttp_lwt_body.string_of_body b >>= function b ->
-          let j = IrminJSON.input b in
-          let j = IrminJSON.to_dict j in
-          let error =
-            try Some (List.assoc "error" j)
-            with Not_found -> None in
-          let result =
-            try Some (List.assoc "result" j)
-            with Not_found -> None in
-          match error, result with
-          | None  , None   -> fail (Error "response")
-          | Some e, None   -> fail (Error (IrminJSON.output e))
-          | None  , Some r -> fn r
-          | Some _, Some _ -> fail (Error "response")
-
-
-    let get t path fn =
-      Cohttp_lwt_unix.Client.get (uri t path) >>= response fn
-
-    let post t path body fn =
-      Cohttp_lwt_unix.Client.post ~body (uri t path) >>= response fn
-
-    type key = S.key
-
-    type value = S.value
-
-    type tag = S.tag
-
-    module Key = S.Key
-
-    module Value = struct
-    end
-
-    module Tree = struct
-    end
-
-    module Revision = struct
-    end
-
-    module Tag = struct
-    end
-
-    let create () =
-      A.address
-
-    let init t =
-      post t ["init"]
-
-  end
-
-end

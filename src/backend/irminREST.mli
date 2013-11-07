@@ -14,49 +14,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception Conflict
+(** JSON REST interface. *)
 
 module type S = sig
-  include IrminBase.S
-  val of_bytes: string -> t
-  val merge: old:t -> t -> t -> t
-end
 
-module Simple  = struct
+  val uri: Uri.t
+  (** The server URI. *)
 
-  let debug fmt = IrminLog.debug "VALUE" fmt
-
-  include IrminBase.String
-
-  let name = "value"
-
-  let create s = s
-
-  let of_bytes s = s
-
-  let merge ~old t1 t2 =
-    if compare t1 t2 = 0 then t1
-    else if compare old t1 = 0 then t2
-    else if compare old t2 = 0 then t1
-    else raise Conflict
+  val path: string
+  (** The subpath to look at *)
 
 end
 
-module type STORE = sig
-  include IrminStore.A
-  include S with type t := value
-end
+module A (S: S) (K: IrminKey.BINARY) (V: IrminBase.S): IrminStore.A
+(** Create a fresh append-only store. *)
 
-module type MAKER = functor (K: IrminKey.S) -> functor (V: S) ->
-  STORE with type key = K.t
-         and type value = V.t
-(** Value store creator. *)
+module M (S: S) (K: IrminKey.S) (V: IrminBase.S): IrminStore.M
+(** Create a fresh mutable store. *)
 
-module Make (S: IrminStore.A_MAKER) (K: IrminKey.S) (V: S) =
-struct
-
-  include S(K)(V)
-
-  include (V: S with type t := value)
-
-end
+val simple: Uri.t -> (module Irmin.S)
+(** Simple store using a JSON REST interface. *)

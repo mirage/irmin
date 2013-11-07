@@ -61,10 +61,10 @@ module type STORE = sig
 
 end
 
-module Make
-    (K: IrminBase.S)
-    (V: S)
-    (S: IrminStore.A with type key = K.t and type value = V.t) :
+module type MAKER = functor (K: IrminKey.S) -> functor (V: S) ->
   STORE with type key = K.t
          and type value = V.t
+(** Value store creator. *)
+
+module Make (S: IrminStore.A_MAKER): MAKER
 (** Create a value store. *)

@@ -126,10 +126,6 @@ struct
     S.create () >>= fun t ->
     return { v; t }
 
-  let init t =
-    V.init t.v >>= fun () ->
-    S.init t.t
-
   let add t tree =
     S.add t.t tree
 
