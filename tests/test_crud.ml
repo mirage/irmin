@@ -23,22 +23,24 @@ let debug fmt =
   IrminLog.debug "TEST-CRUD" fmt
 
 let suite server =
+  let server_pid = ref 0 in
   {
     name = Printf.sprintf "CLIENT(%s)" server.name;
 
     init = begin fun () ->
-      let server =
+      let server () =
         server.init ()   >>= fun () ->
         let (module Server) = server.store in
         Server.create () >>= fun t  ->
         IrminHTTP.start_server (module Server) t uri in
       match Lwt_unix.fork () with
-      | 0 -> server
-      | _ -> Lwt_unix.sleep 2.
+      | 0   -> server ()
+      | pid -> server_pid := pid; Lwt_unix.sleep 1.
     end;
 
     clean = begin fun () ->
       IrminHTTP.stop_server uri >>= fun () ->
+      Unix.kill !server_pid 9;
       server.clean ();
   end;
 

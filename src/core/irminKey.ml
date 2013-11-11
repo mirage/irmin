@@ -60,6 +60,12 @@ module SHA1 = struct
   let of_hex hex =
     IrminMisc.hex_decode hex
 
+  let to_json t =
+    IrminJSON.of_string (to_hex t)
+
+  let of_json j =
+    of_hex (IrminJSON.to_string j)
+
   let pretty = to_hex
 
   let of_pretty = of_hex

@@ -27,7 +27,7 @@ module Simple = struct
   let master = "master"
   let create = of_string
   let of_pretty = of_string
-  let pretty = to_string
+  let pretty x = x
 end
 
 module type STORE = sig

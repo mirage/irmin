@@ -49,6 +49,8 @@ let unit = {
   output = IrminJSON.of_unit;
 }
 
+exception Invalid
+
 module Server (S: Irmin.S) = struct
 
   let key = {
@@ -77,12 +79,13 @@ module Server (S: Irmin.S) = struct
   }
 
   let respond body =
+    debug "%S" body;
     Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body ()
 
   let respond_json json =
     let json = `O [ "result", json ] in
     let body = IrminJSON.output json in
-    Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body ()
+    respond body
 
   let error msg =
     failwith ("error: " ^ msg)
@@ -174,15 +177,25 @@ module Server (S: Irmin.S) = struct
     "tag"     , tag_store;
   ]
 
-
-  let process t ?body path =
-    begin match body with
-      | None   -> return_nil
-      | Some b ->
-        Cohttp_lwt_body.string_of_body (Some b) >>= fun b ->
-        match IrminJSON.input b with
-        | `A l -> return l
-        | _    -> failwith "Wrong parameters"
+  let process t ?body req path =
+    begin match Cohttp.Request.meth req, body with
+      | `DELETE ,_
+      | `GET , _      -> return_nil
+      | `POST, Some b ->
+        Cohttp_lwt_body.get_length body >>= fun (len, body) ->
+        if len = 0 then
+          return_nil
+        else begin
+          Cohttp_lwt_body.string_of_body body >>= fun b ->
+          debug "process: length=%d body=%S" len b;
+          try match IrminJSON.input b with
+            | `A l -> return l
+            | _    -> failwith "Wrong parameters"
+          with e ->
+            debug "process: wrong body %s" (Printexc.to_string e);
+            fail Invalid
+        end
+      | _ -> fail Invalid
     end >>= fun params ->
     let rec aux actions path =
       match path with
@@ -192,7 +205,7 @@ module Server (S: Irmin.S) = struct
         | Leaf fn ->
           let params = match path with
             | [] -> params
-            | _  -> (IrminJSON.of_strings path) :: params in
+            | _  -> List.map IrminJSON.of_string path @ params in
           fn t params >>= respond_json
         | actions -> aux actions path in
     aux store path
@@ -202,31 +215,29 @@ end
 let servers = Hashtbl.create 8
 
 let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
-  let address = Uri.host_with_default ~default:"127.0.0.1" uri in
   let port = match Uri.port uri with
     | None   -> 8080
     | Some p -> p in
   let module Server = Server(S) in
-  Printf.printf "Irminsule server listening on port %d ...\n%!" port;
+  debug "start-server [port %d]" port;
   let callback conn_id ?body req =
     let path = Uri.path (Cohttp.Request.uri req) in
-    Printf.printf "Request received: PATH=%s\n%!" path;
+    debug "Request received: PATH=%s" path;
     let path = Re_str.split_delim (Re_str.regexp_string "/") path in
     let path = List.filter ((<>) "") path in
-    Server.process t ?body path in
+    Server.process t ?body req path in
   let conn_closed conn_id () =
-    Printf.eprintf "Connection %s closed!\n%!"
+    debug "Connection %s closed!"
       (Cohttp_lwt_unix.Server.string_of_conn_id conn_id) in
   let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
-  Cohttp_lwt_unix.Server.create ~address ~port config
+  Cohttp_lwt_unix.Server.create ~address:"0.0.0.0" ~port config
 
 let stop_server uri =
-  debug "stop-server %s" (Uri.to_string uri);
-  let address = Uri.host_with_default ~default:"127.0.0.1" uri in
   let port = match Uri.port uri with
     | None   -> 8080
     | Some p -> p in
-  Cohttp_lwt_unix_net.build_sockaddr address (string_of_int port) >>=
+  debug "stop-server [port %d]" port;
+  Cohttp_lwt_unix_net.build_sockaddr "0.0.0.0" port >>=
   fun sockaddr ->
   let sock =
     Lwt_unix.socket

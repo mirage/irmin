@@ -45,14 +45,14 @@ module Make (S: Irmin.S) = struct
   let t2 = Tag.of_string "bar"
 
   let run x test =
-    try Lwt_unix.run test
+    try Lwt_unix.run (test >>= x.clean)
     with e ->
       Lwt_unix.run (x.clean ());
       raise e
 
   let test_values x () =
     let test =
-      x.init ()               >>= fun t    ->
+      x.init ()             >>= fun t    ->
       create ()             >>= fun t    ->
       Value.add t.value v1  >>= fun k1'  ->
       Value.add t.value v1  >>= fun k1'' ->
@@ -66,13 +66,13 @@ module Make (S: Irmin.S) = struct
       assert_value_opt_equal "v1" (Some v1) v1';
       Value.read t.value k2 >>= fun v2'  ->
       assert_value_opt_equal "v2" (Some v2) v2';
-      x.clean ()
+      return_unit
     in
     run x test
 
   let test_trees x () =
     let test =
-      x.init ()   >>= fun () ->
+      x.init () >>= fun () ->
       create () >>= fun t  ->
 
       (* Create a node containing t1(v1) *)
@@ -118,13 +118,13 @@ module Make (S: Irmin.S) = struct
       Tree.find t.tree t3 ["a";"b"] >>= fun v13 ->
       assert_value_opt_equal "v1" (Some v1) v13;
 
-      x.clean ()
+      return_unit
     in
     run x test
 
   let test_revisions x () =
     let test =
-      x.init ()   >>= fun ()  ->
+      x.init () >>= fun ()  ->
       create () >>= fun t   ->
 
       (* t3 -a-> t2 -b-> t1(v1) *)
@@ -153,13 +153,13 @@ module Make (S: Irmin.S) = struct
       Revision.cut t.revision [kr2] >>= fun g2 ->
       assert_revisions_equal "g2" [r1; r2] (Revision.Graph.vertex g2);
 
-     x.clean ()
+     return_unit
     in
     run x test
 
   let test_tags x () =
     let test =
-      x.init ()                >>= fun ()  ->
+      x.init ()              >>= fun ()  ->
       create ()              >>= fun t   ->
       Tag.update t.tag t1 k1 >>= fun ()  ->
       Tag.read   t.tag t1    >>= fun k1' ->
@@ -177,13 +177,13 @@ module Make (S: Irmin.S) = struct
       assert_key_opt_equal "empty" None empty;
       Tag.list   t.tag t1    >>= fun t2' ->
       assert_tags_equal "all-after-remove" [t2] t2';
-      x.clean ()
+      return_unit
     in
     run x test
 
   let test_stores x () =
     let test =
-      x.init ()               >>= fun ()  ->
+      x.init ()             >>= fun ()  ->
       create ()             >>= fun t   ->
       update t ["a";"b"] v1 >>= fun ()  ->
       read_exn t ["a";"b"]  >>= fun v1' ->
@@ -195,7 +195,7 @@ module Make (S: Irmin.S) = struct
       revert t r1           >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
       assert_value_opt_equal "v1.3" (Some v1) v1'';
-      x.clean ()
+      return_unit
     in
     run x test
 

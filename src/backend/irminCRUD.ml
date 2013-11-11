@@ -17,17 +17,19 @@
 open Lwt
 
 let debug fmt =
-  IrminLog.debug "RPC" fmt
+  IrminLog.debug "CRUD" fmt
 
 exception Error of string
 
-let uri t path =
-  Uri.with_path t (String.concat "/" path)
+let uri t path = match Uri.path t :: path with
+  | []   -> t
+  | path -> Uri.with_path t (String.concat "/" path)
 
 let response fn = function
   | None       -> fail (Error "response")
   | Some (_,b) ->
     Cohttp_lwt_body.string_of_body b >>= function b ->
+      debug "response: body=%s" b;
       let j = IrminJSON.input b in
       let j = IrminJSON.to_dict j in
       let error =
@@ -44,9 +46,15 @@ let response fn = function
 
 
 let get t path fn =
+  debug "get %s" (Uri.to_string (uri t path));
   Cohttp_lwt_unix.Client.get (uri t path) >>= response fn
 
+let delete t path fn =
+  debug "delete %s" (Uri.to_string (uri t path));
+  Cohttp_lwt_unix.Client.delete (uri t path) >>= response fn
+
 let post t path body fn =
+  debug "post %s" (Uri.to_string (uri t path));
   let body =
     match Cohttp_lwt_body.body_of_string (IrminJSON.output body) with
     | Some c -> c
@@ -58,6 +66,9 @@ module type S = sig
 end
 
 module X (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
+
+  let debug fmt =
+    IrminLog.debug ("CRUD" ^ Uri.path S.uri) fmt
 
   type t = Uri.t
 
@@ -99,7 +110,7 @@ module A (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
   include X(S)(K)(V)
 
   let add t value =
-    debug "add %s" (V.pretty value);
+    debug "add %s"(V.pretty value);
     post t ["add"] (IrminJSON.of_list V.to_json [value]) K.of_json
 
 end
@@ -108,11 +119,13 @@ module M (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   include X(S)(K)(V)
 
-  let update _ =
-    failwith "TODO"
+  let update t key value =
+    debug "update %s %s" (K.pretty key) (V.pretty value);
+    post t ["update"; K.pretty key] (IrminJSON.of_list V.to_json [value]) IrminJSON.to_unit
 
-  let remove _ =
-    failwith "TODO"
+  let remove t key =
+    debug "remove %s" (K.pretty key);
+    delete t ["remove"; K.pretty key] IrminJSON.to_unit
 
 end
 
