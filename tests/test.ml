@@ -15,7 +15,9 @@
  *)
 
 let () =
-  Alcotest.run "irminsule" [
+  Test_store.run "irminsule" [
     Test_memory.suite;
     Test_fs.suite;
+    Test_crud.suite Test_memory.suite;
+    Test_crud.suite Test_fs.suite;
   ]

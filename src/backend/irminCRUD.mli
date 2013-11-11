@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** JSON REST interface. *)
+(** JSON CRUD interface. *)
 
 module type S = sig
 
@@ -30,4 +30,4 @@ module M (S: S) (K: IrminKey.S) (V: IrminBase.S): IrminStore.M
 (** Create a fresh mutable store. *)
 
 val simple: Uri.t -> (module Irmin.S)
-(** Simple store using a JSON REST interface. *)
+(** Simple store using a JSON CRUD interface. *)

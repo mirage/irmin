@@ -15,8 +15,11 @@
  *)
 
 open Lwt
+open Test_store
 
-include Test_store.Make(IrminMemory.Simple)
-
-let suite =
-  suite "MEMORY" (fun () -> return_unit)
+let suite = {
+  name  = "MEMORY";
+  init  = unit;
+  clean = unit;
+  store = (module IrminMemory.Simple);
+}

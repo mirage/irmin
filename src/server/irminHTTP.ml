@@ -14,6 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
+
+let debug fmt =
+  IrminLog.debug "HTTP" fmt
 
 type 'a t = {
   input : IrminJSON.t -> 'a;
@@ -46,8 +50,6 @@ let unit = {
 }
 
 module Server (S: Irmin.S) = struct
-
-  open Lwt
 
   let key = {
     input  = S.Key.of_json;
@@ -197,7 +199,13 @@ module Server (S: Irmin.S) = struct
 
 end
 
-let server (type t) (module S: Irmin.S with type t = t) (t:t) port =
+let servers = Hashtbl.create 8
+
+let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
+  let address = Uri.host_with_default ~default:"127.0.0.1" uri in
+  let port = match Uri.port uri with
+    | None   -> 8080
+    | Some p -> p in
   let module Server = Server(S) in
   Printf.printf "Irminsule server listening on port %d ...\n%!" port;
   let callback conn_id ?body req =
@@ -210,4 +218,18 @@ let server (type t) (module S: Irmin.S with type t = t) (t:t) port =
     Printf.eprintf "Connection %s closed!\n%!"
       (Cohttp_lwt_unix.Server.string_of_conn_id conn_id) in
   let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
-  Cohttp_lwt_unix.Server.create ~address:"127.0.0.1" ~port config
+  Cohttp_lwt_unix.Server.create ~address ~port config
+
+let stop_server uri =
+  debug "stop-server %s" (Uri.to_string uri);
+  let address = Uri.host_with_default ~default:"127.0.0.1" uri in
+  let port = match Uri.port uri with
+    | None   -> 8080
+    | Some p -> p in
+  Cohttp_lwt_unix_net.build_sockaddr address (string_of_int port) >>=
+  fun sockaddr ->
+  let sock =
+    Lwt_unix.socket
+      (Unix.domain_of_sockaddr sockaddr)
+      Unix.SOCK_STREAM 0 in
+  Lwt_unix.close sock

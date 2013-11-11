@@ -17,20 +17,30 @@
 open Lwt
 open Test_store
 
-let test_db = "test-db"
+let uri = Uri.of_string "http://127.0.0.1:8080"
 
-let init () =
-  if Sys.file_exists test_db then begin
-    let cmd = Printf.sprintf "rm -rf %s" test_db in
-    let _ = Sys.command cmd in ()
-  end;
-  return_unit
+let debug fmt =
+  IrminLog.debug "TEST-CRUD" fmt
 
-let suite =
-  let (module Simple) = IrminFS.simple test_db in
+let suite server =
   {
-    name = "FS";
-    init;
-    clean = unit;
-    store = (module Simple);
-  }
+    name = Printf.sprintf "CLIENT(%s)" server.name;
+
+    init = begin fun () ->
+      let server =
+        server.init ()   >>= fun () ->
+        let (module Server) = server.store in
+        Server.create () >>= fun t  ->
+        IrminHTTP.start_server (module Server) t uri in
+      match Lwt_unix.fork () with
+      | 0 -> server
+      | _ -> Lwt_unix.sleep 2.
+    end;
+
+    clean = begin fun () ->
+      IrminHTTP.stop_server uri >>= fun () ->
+      server.clean ();
+  end;
+
+  store = IrminCRUD.simple uri;
+}

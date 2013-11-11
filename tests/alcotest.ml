@@ -95,7 +95,7 @@ let left_column () =
 let right_column () =
   terminal_columns
   - left_column ()
-  + 16
+  + 15
 
 let printf fmt = Printf.fprintf mystdout fmt
 

@@ -148,7 +148,7 @@ struct
     Tag.update t.tag t.branch r
 
   let list _ =
-    failwith "TODO"
+    failwith "list: TODO"
 
   let watch _ = failwith "TODO"
 

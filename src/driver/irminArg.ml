@@ -21,6 +21,11 @@ let global_option_section = "COMMON OPTIONS"
 
 let pr_str = Format.pp_print_string
 
+let uri_conv =
+  let parse str = `Ok (Uri.of_string str) in
+  let print ppf v = pr_str ppf (Uri.to_string v) in
+  parse, print
+
 let value_conv (type v) (module S: Irmin.S with type value = v) =
   let parse str = `Ok (S.Value.of_bytes str) in
   let print ppf v = pr_str ppf (S.Value.to_string v) in
@@ -46,15 +51,15 @@ let store =
     let doc =
       Arg.info ~doc:"File-system persistence." ["f";"file-system"] in
     Arg.(value & flag & doc) in
-  let rest =
+  let crud =
     let doc =
-      Arg.info ~doc:"RESTful interface." ["r";"rest"] in
+      Arg.info ~doc:"CRUD interface." ["r";"rest"] in
     Arg.(value & flag & doc) in
   let source =
     let doc =
       Arg.info ~docv:"SOURCE" ~doc:"Store source." ["s";"source"] in
     Arg.(value & opt (some string) None & doc) in
-  let create in_memory fs rest source = match in_memory, fs, rest, source with
+  let create in_memory fs crud source = match in_memory, fs, crud, source with
     | true , false, false, None
     | false, false, false, Some ":" ->
       IrminLog.msg "source: in-memory";
@@ -64,9 +69,9 @@ let store =
       IrminFS.simple dir
     | false, false, true , Some uri ->
       IrminLog.msg "REST: %s" uri;
-      IrminREST.simple (Uri.of_string uri)
+      IrminCRUD.simple (Uri.of_string uri)
     | _ -> failwith "Invalid store source" in
-  Term.(pure create $ in_memory $ fs $ rest $ source)
+  Term.(pure create $ in_memory $ fs $ crud $ source)
 
 let run t =
   Lwt_unix.run (
@@ -87,13 +92,13 @@ let init =
     let doc =
       Arg.info ~docv:"PORT" ~doc:"Start an Irminsule server on the specified port."
         ["d";"daemon"] in
-    Arg.(value & opt (some int) (Some 8080) & doc) in
+    Arg.(value & opt (some uri_conv) (Some (Uri.of_string "http://127.0.0.1:8080")) & doc) in
   let init (module S: Irmin.S) daemon =
     run begin
       S.create () >>= fun t ->
       match daemon with
-      | None      -> return_unit
-      | Some port -> IrminHTTP.server (module S) t port
+      | None     -> return_unit
+      | Some uri -> IrminHTTP.start_server (module S) t uri
     end
   in
   Term.(pure init $ store $ daemon),

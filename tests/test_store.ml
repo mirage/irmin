@@ -21,6 +21,16 @@ open Lwt
 let debug fmt =
   IrminLog.debug "TEST-STORE" fmt
 
+type t = {
+  name : string;
+  init : unit -> unit Lwt.t;
+  clean: unit -> unit Lwt.t;
+  store: (module Irmin.S);
+}
+
+let unit () =
+  return_unit
+
 module Make (S: Irmin.S) = struct
 
   module Common = Make(S)
@@ -34,9 +44,15 @@ module Make (S: Irmin.S) = struct
   let t1 = Tag.of_string "foo"
   let t2 = Tag.of_string "bar"
 
-  let test_values cleanup () =
+  let run x test =
+    try Lwt_unix.run test
+    with e ->
+      Lwt_unix.run (x.clean ());
+      raise e
+
+  let test_values x () =
     let test =
-      cleanup ()            >>= fun t    ->
+      x.init ()               >>= fun t    ->
       create ()             >>= fun t    ->
       Value.add t.value v1  >>= fun k1'  ->
       Value.add t.value v1  >>= fun k1'' ->
@@ -50,14 +66,15 @@ module Make (S: Irmin.S) = struct
       assert_value_opt_equal "v1" (Some v1) v1';
       Value.read t.value k2 >>= fun v2'  ->
       assert_value_opt_equal "v2" (Some v2) v2';
-      return_unit
+      x.clean ()
     in
-    Lwt_unix.run test
+    run x test
 
-  let test_trees cleanup () =
+  let test_trees x () =
     let test =
-      cleanup () >>= fun () ->
-      create ()  >>= fun t  ->
+      x.init ()   >>= fun () ->
+      create () >>= fun t  ->
+
       (* Create a node containing t1(v1) *)
       Tree.tree t.tree ~value:v1 [] >>= fun k1  ->
       Tree.tree t.tree ~value:v1 [] >>= fun k1' ->
@@ -101,14 +118,14 @@ module Make (S: Irmin.S) = struct
       Tree.find t.tree t3 ["a";"b"] >>= fun v13 ->
       assert_value_opt_equal "v1" (Some v1) v13;
 
-      return_unit
+      x.clean ()
     in
-    Lwt_unix.run test
+    run x test
 
-  let test_revisions cleanup () =
+  let test_revisions x () =
     let test =
-      cleanup () >>= fun ()  ->
-      create ()  >>= fun t   ->
+      x.init ()   >>= fun ()  ->
+      create () >>= fun t   ->
 
       (* t3 -a-> t2 -b-> t1(v1) *)
       Tree.tree t.tree ~value:v1 [] >>= fun k1  ->
@@ -136,13 +153,13 @@ module Make (S: Irmin.S) = struct
       Revision.cut t.revision [kr2] >>= fun g2 ->
       assert_revisions_equal "g2" [r1; r2] (Revision.Graph.vertex g2);
 
-     return_unit
+     x.clean ()
     in
-    Lwt_unix.run test
+    run x test
 
-  let test_tags cleanup () =
+  let test_tags x () =
     let test =
-      cleanup ()             >>= fun ()  ->
+      x.init ()                >>= fun ()  ->
       create ()              >>= fun t   ->
       Tag.update t.tag t1 k1 >>= fun ()  ->
       Tag.read   t.tag t1    >>= fun k1' ->
@@ -160,13 +177,13 @@ module Make (S: Irmin.S) = struct
       assert_key_opt_equal "empty" None empty;
       Tag.list   t.tag t1    >>= fun t2' ->
       assert_tags_equal "all-after-remove" [t2] t2';
-      return_unit
+      x.clean ()
     in
-    Lwt_unix.run test
+    run x test
 
-  let test_stores cleanup () =
+  let test_stores x () =
     let test =
-      cleanup ()            >>= fun ()  ->
+      x.init ()               >>= fun ()  ->
       create ()             >>= fun t   ->
       update t ["a";"b"] v1 >>= fun ()  ->
       read_exn t ["a";"b"]  >>= fun v1' ->
@@ -178,18 +195,24 @@ module Make (S: Irmin.S) = struct
       revert t r1           >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
       assert_value_opt_equal "v1.3" (Some v1) v1'';
-      return_unit
+      x.clean ()
     in
-    Lwt_unix.run test
-
-  let suite name cleanup =
-    name,
-    [
-      "Basic operations on values"   , test_values    cleanup;
-      "Basic operations on trees"    , test_trees     cleanup;
-      "Basic operations on revisions", test_revisions cleanup;
-      "Basic operations on tags"     , test_tags      cleanup;
-      "High-level store operations"  , test_stores    cleanup;
-    ]
+    run x test
 
 end
+
+let suite x =
+  let (module S) = x.store in
+  let module T = Make(S) in
+  x.name,
+  [
+    "Basic operations on values"   , T.test_values    x;
+    "Basic operations on trees"    , T.test_trees     x;
+    "Basic operations on revisions", T.test_revisions x;
+    "Basic operations on tags"     , T.test_tags      x;
+    "High-level store operations"  , T.test_stores    x;
+  ]
+
+let run name tl =
+  let tl = List.map suite tl in
+  Alcotest.run name tl

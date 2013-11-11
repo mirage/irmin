@@ -47,6 +47,10 @@ let get t path fn =
   Cohttp_lwt_unix.Client.get (uri t path) >>= response fn
 
 let post t path body fn =
+  let body =
+    match Cohttp_lwt_body.body_of_string (IrminJSON.output body) with
+    | Some c -> c
+    | None   -> assert false in
   Cohttp_lwt_unix.Client.post ~body (uri t path) >>= response fn
 
 module type S = sig
@@ -90,12 +94,13 @@ module X (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
 
 end
 
-module A (S: S) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
+module A (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   include X(S)(K)(V)
 
-  let add _ =
-    failwith "TODO"
+  let add t value =
+    debug "add %s" (V.pretty value);
+    post t ["add"] (IrminJSON.of_list V.to_json [value]) K.of_json
 
 end
 
