@@ -86,11 +86,12 @@ module type STORE = sig
 
 end
 
-module Make
-    (K: IrminKey.S)
-    (V: IrminValue.STORE with type key = K.t)
-    (S: IrminStore.A with type key = K.t
-                      and type value = (K.t, K.t) node):
-  STORE with type key = K.t
-         and type value = V.value
+module type MAKER =
+  functor (K: IrminKey.BINARY) ->
+  functor (V: IrminValue.STORE with type key = K.t) ->
+    STORE with type key = K.t
+           and type value = V.value
+(** Tree store maker. *)
+
+module Make (A: IrminStore.A_MAKER): MAKER
 (** Create a tree store from an append-only database. *)

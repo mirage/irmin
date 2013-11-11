@@ -38,7 +38,6 @@ module Make (S: Irmin.S) = struct
     let test =
       cleanup ()            >>= fun t    ->
       create ()             >>= fun t    ->
-      init t                >>= fun ()   ->
       Value.add t.value v1  >>= fun k1'  ->
       Value.add t.value v1  >>= fun k1'' ->
       assert_key_equal "k1" k1 k1';
@@ -59,7 +58,6 @@ module Make (S: Irmin.S) = struct
     let test =
       cleanup () >>= fun () ->
       create ()  >>= fun t  ->
-      init t     >>= fun () ->
       (* Create a node containing t1(v1) *)
       Tree.tree t.tree ~value:v1 [] >>= fun k1  ->
       Tree.tree t.tree ~value:v1 [] >>= fun k1' ->
@@ -111,7 +109,6 @@ module Make (S: Irmin.S) = struct
     let test =
       cleanup () >>= fun ()  ->
       create ()  >>= fun t   ->
-      init t     >>= fun ()  ->
 
       (* t3 -a-> t2 -b-> t1(v1) *)
       Tree.tree t.tree ~value:v1 [] >>= fun k1  ->
@@ -147,7 +144,6 @@ module Make (S: Irmin.S) = struct
     let test =
       cleanup ()             >>= fun ()  ->
       create ()              >>= fun t   ->
-      init t                 >>= fun ()  ->
       Tag.update t.tag t1 k1 >>= fun ()  ->
       Tag.read   t.tag t1    >>= fun k1' ->
       assert_key_opt_equal "t1" (Some k1) k1';
@@ -172,7 +168,6 @@ module Make (S: Irmin.S) = struct
     let test =
       cleanup ()            >>= fun ()  ->
       create ()             >>= fun t   ->
-      init t                >>= fun ()  ->
       update t ["a";"b"] v1 >>= fun ()  ->
       read_exn t ["a";"b"]  >>= fun v1' ->
       assert_value_equal "v1.1" v1 v1';

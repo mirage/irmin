@@ -53,7 +53,7 @@ module type S = sig
   val uri: Uri.t
 end
 
-module X (S: S) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
+module X (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   type t = Uri.t
 
@@ -73,20 +73,20 @@ module X (S: S) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
   let read t key =
     debug "read %s" (K.pretty key);
     catch
-      (fun () -> get t ["read"; K.to_hex key] (some V.of_json))
+      (fun () -> get t ["read"; K.pretty key] (some V.of_json))
       (fun _  -> return_none)
 
   let read_exn t key =
     debug "read_exn %s" (K.pretty key);
-    get t ["read"; K.to_hex key] V.of_json
+    get t ["read"; K.pretty key] V.of_json
 
   let mem t key =
     debug "mem %s" (K.pretty key);
-    get t ["mem"; K.to_hex key] IrminJSON.to_bool
+    get t ["mem"; K.pretty key] IrminJSON.to_bool
 
   let list t key =
     debug "list %s" (K.pretty key);
-    get t ["list"; K.to_hex key] (IrminJSON.to_list K.of_json)
+    get t ["list"; K.pretty key] (IrminJSON.to_list K.of_json)
 
 end
 
@@ -99,7 +99,7 @@ module A (S: S) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
 
 end
 
-module M (S: S) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
+module M (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   include X(S)(K)(V)
 
@@ -111,25 +111,25 @@ module M (S: S) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
 
 end
 
-let simple uri =
-  let module SV = struct
-    let uri = uri ["value"]
-  end in
-  let module STr = struct
-    let uri = uri ["tree"]
-  end in
-  let module SR = struct
-    let uri = uri ["revision"]
-  end in
-  let module STa = struct
-    let uri = uri ["tag"]
-  end in
+let simple u =
+  let module Value = A(struct
+      let uri = uri u ["value"]
+    end) in
+  let module Tree = A(struct
+      let uri = uri u ["tree"]
+    end) in
+  let module Revision = A(struct
+      let uri = uri u ["revision"]
+    end )in
+  let module Tag = M(struct
+      let uri = uri u ["tag"]
+    end) in
   let module K = IrminKey.SHA1 in
   let module V = IrminValue.Simple in
   let module Simple = Irmin.Make
-      (K)(IrminValue.Simple)(IrminTag.Simple)
-      (A(SV))
-      (A(STr))
-      (A(SR))
-      (M(STa)) in
+      (IrminKey.SHA1)(IrminValue.Simple)(IrminTag.Simple)
+      (Value)
+      (Tree)
+      (Revision)
+      (Tag) in
   (module Simple: Irmin.S)

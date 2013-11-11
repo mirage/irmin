@@ -33,7 +33,7 @@ module type STORE = sig
   type key
   (** Type of keys. *)
 
-  type tree
+  type tree = (key, key) IrminTree.node
   (** Type of trees. *)
 
   type revision = (key, key) node
@@ -66,11 +66,11 @@ module type STORE = sig
 
 end
 
-module Make
-    (K: IrminKey.S)
-    (T: IrminTree.STORE with type key = K.t)
-    (S: IrminStore.A with type key = K.t
-                      and type value = (T.key, K.t) node):
-  STORE with type key = K.t
-         and type tree = T.tree
+module type MAKER =
+  functor (K: IrminKey.BINARY) ->
+  functor (T: IrminTree.STORE with type key = K.t) ->
+    STORE with type key = K.t
+(** Tree store maker. *)
+
+module Make (A: IrminStore.A_MAKER): MAKER
 (** Create a revision store. *)

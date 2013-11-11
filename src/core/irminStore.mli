@@ -73,7 +73,7 @@ module type A_BINARY = A with type key := string
                           and type value := IrminBuffer.ba
 (** Raw immutable stores which associate strings to big arrays. *)
 
-module type A_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+module type A_MAKER = functor (K: IrminKey.BINARY) -> functor (V: IrminBase.S) ->
   A with type key = K.t
      and type value = V.t
 (** Append-only store makers. *)

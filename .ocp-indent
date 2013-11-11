@@ -1,1 +1,1 @@
-syntax = cstruct lwt
+syntax = lwt

@@ -26,6 +26,7 @@ module Simple = struct
   let name = "tag"
   let master = "master"
   let create = of_string
+  let of_pretty = of_string
 end
 
 module type STORE = sig
@@ -35,15 +36,17 @@ module type STORE = sig
   include S with type t := tag
 end
 
-module Make
-    (T: S)
-    (K: IrminBase.S)
-    (S: IrminStore.M with type key = T.t and type value = K.t) =
-struct
+module type MAKER = functor (T: S) -> functor (K: IrminBase.S) ->
+  STORE with type tag = T.t
+         and type key = K.t
+
+module Make (S: IrminStore.M_MAKER) (T: S) (K: IrminBase.S) = struct
 
   type key = K.t
 
   type tag = T.t
+
+  module S = S(T)(K)
 
   include (S: IrminStore.M with type key := tag and type value := key)
 

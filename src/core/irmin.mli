@@ -78,14 +78,10 @@ module Make
     (K: IrminKey.BINARY)
     (V: IrminValue.S)
     (T: IrminTag.S)
-    (Value: IrminStore.A with type key = K.t
-                          and type value = V.t)
-    (Tree: IrminStore.A with type key = K.t
-                         and type value = (K.t, K.t) IrminTree.node)
-    (Revision: IrminStore.A with type key = K.t
-                             and type value = (K.t, K.t) IrminRevision.node)
-    (Tag: IrminStore.M with type key = T.t
-                        and type value = K.t):
+    (Value   : IrminStore.A_MAKER)
+    (Tree    : IrminStore.A_MAKER)
+    (Revision: IrminStore.A_MAKER)
+    (Tag     : IrminStore.M_MAKER):
   S with type key = K.t
      and type value = V.t
      and type tag = T.t
@@ -95,10 +91,10 @@ module Binary
     (K: IrminKey.BINARY)
     (V: IrminValue.S)
     (T: IrminTag.S)
-    (Value: IrminStore.A_BINARY)
-    (Tree: IrminStore.A_BINARY)
+    (Value   : IrminStore.A_BINARY)
+    (Tree    : IrminStore.A_BINARY)
     (Revision: IrminStore.A_BINARY)
-    (Tag: IrminStore.M_BINARY):
+    (Tag     : IrminStore.M_BINARY):
   S with type key = K.t
      and type value = V.t
      and type tag = T.t

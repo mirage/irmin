@@ -33,6 +33,9 @@ module type S = sig
       abstracting the string, but this is not supposed to process the
       string in any way. *)
 
+  val of_pretty: string -> t
+  (** Inverse of [pretty]. *)
+
 end
 
 module type BINARY = sig

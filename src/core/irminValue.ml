@@ -47,12 +47,12 @@ module type STORE = sig
   include S with type t := value
 end
 
-module type MAKER = functor (K: IrminKey.S) -> functor (V: S) ->
+module type MAKER = functor (K: IrminKey.BINARY) -> functor (V: S) ->
   STORE with type key = K.t
          and type value = V.t
 (** Value store creator. *)
 
-module Make (S: IrminStore.A_MAKER) (K: IrminKey.S) (V: S) =
+module Make (S: IrminStore.A_MAKER) (K: IrminKey.BINARY) (V: S) =
 struct
 
   include S(K)(V)

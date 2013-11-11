@@ -58,9 +58,12 @@ module type STORE = sig
 
 end
 
-module Make
-    (T: S)
-    (K: IrminBase.S)
-    (S: IrminStore.M with type key = T.t and type value = K.t) :
-  STORE with type tag = T.t
-         and type key = K.t
+module type MAKER =
+  functor (T: S) ->
+  functor (K: IrminBase.S) ->
+    STORE with type tag = T.t
+           and type key = K.t
+(** Tag store maker. *)
+
+module Make (M: IrminStore.M_MAKER): MAKER
+(** Create a tag store. *)

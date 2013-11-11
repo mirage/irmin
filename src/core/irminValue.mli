@@ -61,7 +61,7 @@ module type STORE = sig
 
 end
 
-module type MAKER = functor (K: IrminKey.S) -> functor (V: S) ->
+module type MAKER = functor (K: IrminKey.BINARY) -> functor (V: S) ->
   STORE with type key = K.t
          and type value = V.t
 (** Value store creator. *)

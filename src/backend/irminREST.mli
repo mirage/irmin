@@ -21,9 +21,6 @@ module type S = sig
   val uri: Uri.t
   (** The server URI. *)
 
-  val path: string
-  (** The subpath to look at *)
-
 end
 
 module A (S: S) (K: IrminKey.BINARY) (V: IrminBase.S): IrminStore.A

@@ -74,7 +74,7 @@ end
 
 module type STORE = sig
   type key
-  type tree
+  type tree = (key, key) IrminTree.node
   type revision = (key, key) node
   include IrminBase.S with type t := revision
   module Graph: IrminGraph.S with type Vertex.t = revision
@@ -86,11 +86,16 @@ module type STORE = sig
   val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
 end
 
+module type MAKER =
+  functor (K: IrminKey.BINARY) ->
+  functor (T: IrminTree.STORE with type key = K.t) ->
+    STORE with type key = K.t
+(** Tree store maker. *)
+
 module Make
-    (K: IrminKey.S)
-    (T: IrminTree.STORE with type key = K.t)
-    (S: IrminStore.A with type key = K.t
-                      and type value = (T.key, K.t) node) =
+    (S: IrminStore.A_MAKER)
+    (K: IrminKey.BINARY)
+    (T: IrminTree.STORE with type key = K.t) =
 struct
 
   open Lwt
@@ -100,6 +105,10 @@ struct
   type tree = T.tree
 
   type revision = (K.t, K.t) node
+
+  module Revision = Revision(K)(K)
+
+  module S = S(K)(Revision)
 
   type t = {
     t: T.t;
@@ -140,8 +149,6 @@ struct
 
   let parents t r =
     List.map (read_exn t) r.parents
-
-  module Revision = Revision(K)(K)
 
   include (Revision: IrminBase.S with type t := revision)
 

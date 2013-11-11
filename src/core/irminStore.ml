@@ -36,11 +36,11 @@ end
 module type A_BINARY = A with type key := string
                           and type value := IrminBuffer.ba
 
-module type A_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+module type A_MAKER = functor (K: IrminKey.BINARY) -> functor (V: IrminBase.S) ->
   A with type key = K.t
      and type value = V.t
 
-module A  (S: A_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+module A  (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
 
   open Lwt
 

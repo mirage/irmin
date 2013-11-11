@@ -19,6 +19,7 @@ module type S = sig
   exception Invalid of t
   exception Unknown of t
   val of_string: string -> t
+  val of_pretty: string -> t
 end
 
 module type BINARY = sig
@@ -60,6 +61,8 @@ module SHA1 = struct
     IrminMisc.hex_decode hex
 
   let pretty = to_hex
+
+  let of_pretty = of_hex
 
   let get buf =
     debug "get";

@@ -44,24 +44,31 @@ let basenames fn dir =
 
 type root = D of string
 
+let mkdir dir =
+  let safe_mkdir dir =
+    if not (Sys.file_exists dir) then
+      try Unix.mkdir dir 0o755
+      with Unix.Unix_error(Unix.EEXIST,_,_) -> () in
+  let rec aux dir =
+    if not (Sys.file_exists dir) then begin
+      aux (Filename.dirname dir);
+      safe_mkdir dir;
+    end in
+  aux dir
+
 let check (D root) =
   if Sys.file_exists root && not (Sys.is_directory root) then
     error "%s is not a directory!" root
   else begin
     let mkdir dir =
-      if not (Sys.file_exists dir) then Unix.mkdir dir 0o755 in
+      if not (Sys.file_exists dir) then mkdir dir in
     mkdir root;
     return_unit
   end
 
-let safe_mkdir dir =
-  if not (Sys.file_exists dir) then
-    try Unix.mkdir dir 0o755
-    with Unix.Unix_error(Unix.EEXIST,_,_) -> ()
-
 let with_file file fn =
   debug "with_file %s" file;
-  safe_mkdir (Filename.dirname file);
+  mkdir (Filename.dirname file);
   Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
   let t = IrminChannel.create fd file in
   try
@@ -89,8 +96,7 @@ end
 
 module type O = sig
   include S
-  val subdir: string
-  val file_of_key: root -> string -> string
+  val file_of_key: string -> string
 end
 
 module X (O: O) (K: IrminKey.S) = struct
@@ -113,11 +119,11 @@ module X (O: O) (K: IrminKey.S) = struct
       ) dir
 
   let create () =
-    return (D (O.path / O.subdir))
+    return (D O.path)
 
   let mem t key =
     check t >>= fun () ->
-    let file = O.file_of_key t key in
+    let file = O.file_of_key key in
     return (Sys.file_exists file)
 
   let read_full_ba fd =
@@ -127,14 +133,14 @@ module X (O: O) (K: IrminKey.S) = struct
   let read_exn t key =
     debug "read_exn %s" (pretty_key key);
     mem t key >>= function
-    | true  -> with_file (O.file_of_key t key) read_full_ba
+    | true  -> with_file (O.file_of_key key) read_full_ba
     | false -> unknown key
 
   let read t key =
     debug "read %s" (pretty_key key);
     mem t key >>= function
     | true  -> with_file
-                 (O.file_of_key t key)
+                 (O.file_of_key key)
                  (fun fd ->
                     read_full_ba fd >>= fun ba ->
                     IrminBuffer.dump_ba ~msg:"-->" ba;
@@ -151,19 +157,14 @@ module A (S: S) (K: IrminKey.BINARY) = struct
 
   module O = struct
 
-    let path = S.path
+    let path = S.path / "objects"
 
-    let subdir = "objects"
-
-    let objects (D root) =
-      root / subdir
-
-    let file_of_key t k =
+    let file_of_key k =
       let key = K.to_hex (K.of_string k) in
       let len = String.length key in
       let pre = String.sub key 0 2 in
       let suf = String.sub key 2 (len - 2) in
-      objects t / pre / suf
+      path / pre / suf
 
   end
 
@@ -173,7 +174,7 @@ module A (S: S) (K: IrminKey.BINARY) = struct
     debug "add %s" (pretty_value value);
     check t >>= fun () ->
     let key = K.to_string (K.of_ba value) in
-    let file = O.file_of_key t key in
+    let file = O.file_of_key key in
     begin if Sys.file_exists file then
         return_unit
       else
@@ -190,15 +191,10 @@ module M (S: S) (K: IrminKey.S) = struct
 
   module O = struct
 
-    let path = S.path
+    let path = S.path / "heads"
 
-    let subdir = "heads"
-
-    let heads (D root) =
-      root / subdir
-
-    let file_of_key t key =
-      heads t / key
+    let file_of_key key =
+      path / key
 
   end
 
@@ -206,7 +202,7 @@ module M (S: S) (K: IrminKey.S) = struct
 
   let remove t key =
     debug "remove %s" (pretty_key key);
-    let file = O.file_of_key t key in
+    let file = O.file_of_key key in
     if Sys.file_exists file then
       Unix.unlink file;
     return_unit
@@ -215,7 +211,7 @@ module M (S: S) (K: IrminKey.S) = struct
     debug "update %s %s" (pretty_key key) (pretty_value value);
     check t >>= fun () ->
     remove t key >>= fun () ->
-    with_file (O.file_of_key t key) (fun fd ->
+    with_file (O.file_of_key key) (fun fd ->
         let buf = IrminBuffer.of_ba value in
         IrminChannel.write_buffer fd buf
       )

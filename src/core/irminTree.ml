@@ -99,14 +99,23 @@ module Tree (A: IrminBase.S) (B: IrminBase.S) = struct
 
 end
 
+module type MAKER =
+  functor (K: IrminKey.BINARY) ->
+  functor (V: IrminValue.STORE with type key = K.t) ->
+    STORE with type key = K.t
+           and type value = V.value
+
 module Make
-    (K: IrminKey.S)
-    (V: IrminValue.STORE with type key = K.t)
-    (S: IrminStore.A with type key = K.t
-                      and type value = (K.t, K.t) node) =
+    (S: IrminStore.A_MAKER)
+    (K: IrminKey.BINARY)
+    (V: IrminValue.STORE with type key = K.t) =
 struct
 
   open Lwt
+
+  module T = Tree(K)(K)
+
+  module S = S(K)(T)
 
   type key = K.t
 
