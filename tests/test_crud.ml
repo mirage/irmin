@@ -33,8 +33,11 @@ let suite server =
         let (module Server) = server.store in
         Server.create () >>= fun t  ->
         IrminHTTP.start_server (module Server) t uri in
+      Lwt_io.flush_all () >>= fun () ->
       match Lwt_unix.fork () with
-      | 0   -> server ()
+      | 0   ->
+        Lwt_unix.set_default_async_method Lwt_unix.Async_none;
+        server ()
       | pid -> server_pid := pid; Lwt_unix.sleep 1.
     end;
 
