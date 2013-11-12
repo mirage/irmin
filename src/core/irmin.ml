@@ -157,8 +157,20 @@ struct
       let paths = List.map (fun (c,_) -> path @ [c]) child in
       return paths
 
+  type contents = {
+    values   : (key * value) list;
+    trees    : (key * tree) list;
+    revisions: (key * revision) list;
+  }
 
-  let watch _ = failwith "TODO"
+  let export _ =
+    failwith "export: TODO"
+
+  let import _ =
+    failwith "import: TODO"
+
+  let watch _ =
+    failwith "watch: TODO"
 
 end
 

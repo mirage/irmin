@@ -148,6 +148,9 @@ end
 module type S = sig
   include M
   type revision
+  type contents
+  val export: t -> contents
+  val import: t -> contents -> t
   val snapshot: t -> revision Lwt.t
   val revert: t -> revision -> unit Lwt.t
   val watch: t -> key -> (key * revision option) Lwt_stream.t

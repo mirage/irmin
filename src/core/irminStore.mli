@@ -123,6 +123,17 @@ module type S = sig
   type revision
   (** Type of revisions. *)
 
+  type contents
+  (** Type of raw contents. *)
+
+  val export: t -> contents
+  (** Return the raw contents of the store. XXX: this needs some
+      filters to be efficient/practical! *)
+
+  val import: t -> contents -> t
+  (** Import some raw contents. This is not supposed to change the
+      tags. *)
+
   val snapshot: t -> revision Lwt.t
   (** Get a snapshot of the current store state. *)
 
