@@ -147,8 +147,16 @@ struct
   let revert t r =
     Tag.update t.tag t.branch r
 
-  let list _ =
-    failwith "list: TODO"
+  let list t path =
+    revision t >>= fun revision ->
+    tree t revision >>= fun tree ->
+    Tree.sub t.tree tree path >>= function
+    | None      -> return_nil
+    | Some tree ->
+      let child = Tree.children t.tree tree in
+      let paths = List.map (fun (c,_) -> path @ [c]) child in
+      return paths
+
 
   let watch _ = failwith "TODO"
 

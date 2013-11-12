@@ -45,14 +45,13 @@ module Make (S: Irmin.S) = struct
   let t2 = Tag.of_string "bar"
 
   let run x test =
-    try Lwt_unix.run (test >>= x.clean)
+    try Lwt_unix.run (x.init () >>= test >>= x.clean)
     with e ->
       Lwt_unix.run (x.clean ());
       raise e
 
   let test_values x () =
-    let test =
-      x.init ()             >>= fun t    ->
+    let test () =
       create ()             >>= fun t    ->
       Value.add t.value v1  >>= fun k1'  ->
       Value.add t.value v1  >>= fun k1'' ->
@@ -71,8 +70,7 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_trees x () =
-    let test =
-      x.init () >>= fun () ->
+    let test () =
       create () >>= fun t  ->
 
       (* Create a node containing t1(v1) *)
@@ -123,8 +121,7 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_revisions x () =
-    let test =
-      x.init () >>= fun ()  ->
+    let test () =
       create () >>= fun t   ->
 
       (* t3 -a-> t2 -b-> t1(v1) *)
@@ -158,8 +155,7 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_tags x () =
-    let test =
-      x.init ()              >>= fun ()  ->
+    let test () =
       create ()              >>= fun t   ->
       Tag.update t.tag t1 k1 >>= fun ()  ->
       Tag.read   t.tag t1    >>= fun k1' ->
@@ -182,8 +178,7 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_stores x () =
-    let test =
-      x.init ()             >>= fun ()  ->
+    let test () =
       create ()             >>= fun t   ->
       update t ["a";"b"] v1 >>= fun ()  ->
       read_exn t ["a";"b"]  >>= fun v1' ->
@@ -195,6 +190,8 @@ module Make (S: Irmin.S) = struct
       revert t r1           >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
       assert_value_opt_equal "v1.3" (Some v1) v1'';
+      list t ["a"]          >>= fun ks  ->
+      assert_paths_equal "path" [["a";"b"]] ks;
       return_unit
     in
     run x test
