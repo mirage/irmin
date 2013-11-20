@@ -145,10 +145,10 @@ module Make (S: Irmin.S) = struct
       Revision.read_exn t.revision kr2           >>= fun r2   ->
 
       Revision.cut t.revision [kr1] >>= fun g1 ->
-      assert_revisions_equal "g1" [r1] (Revision.Graph.vertex g1);
+      assert_keys_equal "g1" [kr1] (Revision.Graph.vertex g1);
 
       Revision.cut t.revision [kr2] >>= fun g2 ->
-      assert_revisions_equal "g2" [r1; r2] (Revision.Graph.vertex g2);
+      assert_keys_equal "g2" [kr1; kr2] (Revision.Graph.vertex g2);
 
      return_unit
     in

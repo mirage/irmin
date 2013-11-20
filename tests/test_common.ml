@@ -76,6 +76,9 @@ module Make (S: Irmin.S) = struct
   let assert_path_equal, assert_path_opt_equal, assert_paths_equal =
     mk (=) compare (String.concat "/")
 
+  let assert_bool_equal, assert_bool_opt_equal, assert_bools_equal =
+    mk (=) compare string_of_bool
+
   (* XXX: move that into the library ? *)
   let key value =
     let buf = IrminBuffer.create (Value.sizeof value) in

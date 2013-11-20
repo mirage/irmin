@@ -42,8 +42,8 @@ module type STORE = sig
   include IrminBase.S with type t := revision
   (** Revisions are base types. *)
 
-  module Graph: IrminGraph.S with type Vertex.t = revision
-  (** Graph of revisions. *)
+  module Graph: IrminGraph.S with type Vertex.t = key
+  (** Graph of keys. *)
 
   include IrminStore.A with type key := key
                         and type value := revision
