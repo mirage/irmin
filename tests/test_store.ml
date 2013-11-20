@@ -181,6 +181,10 @@ module Make (S: Irmin.S) = struct
     let test () =
       create ()             >>= fun t   ->
       update t ["a";"b"] v1 >>= fun ()  ->
+      mem t ["a";"b"]       >>= fun b1  ->
+      assert_bool_equal "mem+" true b1;
+      mem t ["a"]           >>= fun b2  ->
+      assert_bool_equal "mem-" false b2;
       read_exn t ["a";"b"]  >>= fun v1' ->
       assert_value_equal "v1.1" v1 v1';
       snapshot t            >>= fun r1  ->
