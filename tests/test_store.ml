@@ -188,6 +188,19 @@ module Make (S: Irmin.S) = struct
       read_exn t ["a";"b"]  >>= fun v1' ->
       assert_value_equal "v1.1" v1 v1';
       snapshot t            >>= fun r1  ->
+
+      update t ["a";"c"] v2 >>= fun ()  ->
+      mem t ["a";"b"]       >>= fun b1  ->
+      assert_bool_equal "mem+" true b1;
+      mem t ["a"]           >>= fun b2  ->
+      assert_bool_equal "mem-" false b2;
+      read_exn t ["a";"b"]  >>= fun v1' ->
+      assert_value_equal "v1.1" v1 v1';
+      mem t ["a";"c"]       >>= fun b1  ->
+      assert_bool_equal "mem+" true b1;
+      read_exn t ["a";"c"]  >>= fun v2' ->
+      assert_value_equal "v1.1" v2 v2';
+
       remove t ["a";"b"]    >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
       assert_value_opt_equal "v1.2" None v1'';
