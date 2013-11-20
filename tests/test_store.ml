@@ -202,16 +202,16 @@ module Make (S: Irmin.S) = struct
 
 end
 
-let suite x =
+let suite (speed, x) =
   let (module S) = x.store in
   let module T = Make(S) in
   x.name,
   [
-    "Basic operations on values"   , T.test_values    x;
-    "Basic operations on trees"    , T.test_trees     x;
-    "Basic operations on revisions", T.test_revisions x;
-    "Basic operations on tags"     , T.test_tags      x;
-    "High-level store operations"  , T.test_stores    x;
+    "Basic operations on values"      , speed, T.test_values    x;
+    "Basic operations on trees"       , speed, T.test_trees     x;
+    "Basic operations on revisions"   , speed, T.test_revisions x;
+    "Basic operations on tags"        , speed, T.test_tags      x;
+    "High-level store operations"     , speed, T.test_stores    x;
   ]
 
 let run name tl =

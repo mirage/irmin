@@ -16,8 +16,8 @@
 
 let () =
   Test_store.run "irminsule" [
-    Test_memory.suite;
-    Test_fs.suite;
-    Test_crud.suite Test_memory.suite;
-    Test_crud.suite Test_fs.suite;
+    `Quick, Test_memory.suite;
+    `Quick, Test_fs.suite;
+    `Slow , Test_crud.suite Test_memory.suite;
+    `Slow , Test_crud.suite Test_fs.suite;
   ]

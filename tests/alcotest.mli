@@ -16,18 +16,21 @@
 
 (** A light and colored test framework. *)
 
-(** A test case is a documenation string as well as an anyonymous
-    function *)
-type test_case = string * (unit -> unit)
+type speed_level = [`Quick | `Slow]
+(** Speed level for a test. *)
 
-(** A test has a name and contains a list of test cases *)
+type test_case = string * speed_level * (unit -> unit)
+(** A test case is a documenation string, a speed level as well as an
+    anyonymous function *)
+
 type test = string * test_case list
+(** A test has a name and contains a list of test cases *)
 
+val run: string -> test list -> unit
 (** Run a test suite. The first argument is the name of the tested
     lib. *)
-val run: string -> test list -> unit
 
 (** {2 Display} *)
 
-(** Draw a line on the given channel *)
 val line: out_channel -> ?color:[`Blue|`Yellow] -> char -> unit
+(** Draw a line on the given channel *)

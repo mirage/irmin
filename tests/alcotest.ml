@@ -14,15 +14,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(* Types *)
+type speed_level = [`Quick | `Slow]
+
+type test_case = string * speed_level * (unit -> unit)
+
+type test = string * test_case list
+
 (* global state *)
 
 let errors = ref []
 let docs = Hashtbl.create 16
+let speeds = Hashtbl.create 16
 let tests = ref []
 let global_name = ref (Filename.basename Sys.argv.(0))
 let max_label = ref 0
 let max_doc = ref 0
 let verbose = ref false
+let speed_level = ref `Slow
+
+let compare_speed_level s1 s2 =
+  match s1, s2 with
+  | `Quick, `Quick
+  | `Slow , `Slow  -> 0
+  | `Quick, _      -> 1
+  | _     , `Quick -> -1
+
 
 (* Printers *)
 
@@ -43,7 +60,6 @@ let with_process_in cmd f =
     ignore (Unix.close_process_in ic) ; r
   with exn ->
     ignore (Unix.close_process_in ic) ; raise exn
-
 
 let dup oc =
   Unix.out_channel_of_descr (Unix.dup (Unix.descr_of_out_channel oc))
@@ -145,6 +161,11 @@ let doc_of_path path =
   try Hashtbl.find docs path
   with Not_found -> ""
 
+let speed_of_path path =
+  let path = List.rev (List.tl (List.rev path)) in
+  try Hashtbl.find speeds path
+  with Not_found -> `Slow
+
 let short_string_of_path path =
   let path = List.rev (List.tl (List.rev path)) in
   OUnit.string_of_path path
@@ -212,25 +233,30 @@ let map_test fn test =
 let same_label x y =
   (String.lowercase x) = (String.lowercase y)
 
+let skip_fun () =
+  OUnit.skip_if true "Not selected"
+
 let skip =
-  OUnit.TestCase (fun () -> OUnit.skip_if true "Not selected")
+  OUnit.TestCase skip_fun
 
 let skip_label l =
   OUnit.TestLabel (l, skip)
 
 let filter_test ~subst labels test =
-  let rec aux prefix suffix test =
+  let rec aux path suffix test =
     match suffix, test with
     | []       , _
-    | _        , OUnit.TestCase _ -> Some test
+    | _        , OUnit.TestCase _       -> Some test
     | h::suffix, OUnit.TestLabel (l ,t) ->
-      if same_label h l then match aux (h :: prefix) suffix t with
+      if same_label h l then
+        match aux (OUnit.Label h :: path) suffix t with
         | None  -> if subst then Some (OUnit.TestLabel (l, skip)) else None
         | Some t ->Some (OUnit.TestLabel (l, t))
       else None
     | h::suffix, OUnit.TestList tl ->
       let tl, _ = List.fold_left (fun (tl, i) t ->
-          if same_label (string_of_int i) h then match aux (h :: prefix) suffix t with
+          if same_label (string_of_int i) h then
+            match aux (OUnit.ListItem i :: path) suffix t with
             | None   -> (if subst then skip :: tl else tl), i+1
             | Some t -> (t :: tl), i+1
           else          (if subst then skip :: tl else tl), i+1
@@ -268,10 +294,15 @@ let redirect_test_output labels test_fun =
     redirect stderr output_file;
     test_fun ()
 
+let select_speed labels test_fun =
+  if compare_speed_level (speed_of_path labels) !speed_level >= 0 then test_fun
+  else skip_fun
+
 let run test =
   IrminLog.set_debug_mode true;
   let start_time = Sys.time () in
   let test = map_test redirect_test_output test in
+  let test = map_test select_speed test in
   let results = OUnit.perform_test print_event test in
   let total_time = Sys.time () -. start_time in
   let runs = List.length (List.filter has_run results) in
@@ -296,26 +327,29 @@ let list_tests () =
       printf "%s    %s\n" (string_of_path path) doc
     ) list
 
-let register name ts =
-  let ts = List.mapi (fun i (doc, t) ->
+let register name (ts:test_case list) =
+  let ts = List.mapi (fun i (doc, speed, t) ->
       max_label := max !max_label (String.length name);
       max_doc := max !max_doc (String.length doc);
-      let path = [ OUnit.ListItem i;OUnit.Label name ] in
+      let path = [ OUnit.ListItem i; OUnit.Label name ] in
       let doc =
         if doc.[String.length doc - 1] = '.' then doc
         else doc ^ "." in
       Hashtbl.add docs path doc;
+      Hashtbl.add speeds path speed;
       OUnit.TestCase t
     ) ts in
   tests := !tests @ [ OUnit.TestLabel (name, OUnit.TestList ts) ]
 
-let run_registred_tests dir verb =
+let run_registred_tests dir verb quick =
   verbose := verb;
   log_dir := dir;
+  speed_level := (if quick then `Quick else `Slow);
   run (OUnit.TestList !tests)
 
-let run_subtest dir verb labels =
+let run_subtest dir verb quick labels =
   verbose := verb || true;
+  speed_level := (if quick then `Quick else `Slow);
   log_dir := dir;
   let is_empty = filter_tests ~subst:false labels !tests = [] in
   if is_empty then (
@@ -334,9 +368,13 @@ let verbose =
   let doc = "Display the output for test errors." in
   Arg.(value & flag & info ["v";"verbose"] ~docv:"" ~doc)
 
+let quicktests =
+  let doc = "Run only the quick tests." in
+  Arg.(value & flag & info ["q"; "quick-tests"] ~docv:"" ~doc)
+
 let default_cmd =
   let doc = "Run all the tests." in
-  Term.(pure run_registred_tests $ test_dir $ verbose),
+  Term.(pure run_registred_tests $ test_dir $ verbose $ quicktests),
   Term.info !global_name ~version:"0.1.0" ~doc
 
 let test_cmd =
@@ -344,7 +382,7 @@ let test_cmd =
   let test =
     let doc = "The list of labels identifying a subsets of the tests to run" in
     Arg.(value & pos_all string [] & info [] ~doc ~docv:"LABEL") in
-  Term.(pure run_subtest $ test_dir $ verbose $ test),
+  Term.(pure run_subtest $ test_dir $ verbose $ quicktests $ test),
   Term.info "test" ~doc
 
 let list_cmd =
@@ -352,11 +390,7 @@ let list_cmd =
   Term.(pure list_tests $ pure ()),
   Term.info "list" ~doc
 
-type test_case = string * (unit -> unit)
-
-type test = string * test_case list
-
-let run name tl =
+let run name (tl:test list) =
   global_name := name;
   List.iter (fun (name, tests) -> register name tests) tl;
   match Term.eval_choice default_cmd [list_cmd; test_cmd] with

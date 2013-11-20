@@ -27,7 +27,7 @@ _build/src/$(MAIN).native: src/irminVersion.ml
 
 test:
 	$(BUILD) -pkg ounit tests/$(TESTS).native
-	./_build/tests/$(TESTS).native
+	./_build/tests/$(TESTS).native --quick-tests
 
 clean:
 	rm -rf $(TARGET) _build test-db test-output src/irminVersion.ml
