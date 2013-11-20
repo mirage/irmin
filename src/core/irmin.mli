@@ -72,6 +72,7 @@ module type S = sig
   val tag: Tag.tag -> t Lwt.t
   (** Create a store associated to a given tag (by default, [create]
       uses [Tag.head]. *)
+
 end
 
 module Make

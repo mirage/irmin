@@ -45,8 +45,8 @@ module type X = sig
   (** Check if a key exists. *)
 
   val list: t -> key -> key list Lwt.t
-  (** Return all the keys that are allowed to access, knowing a
-      key (which might be seen as a password). *)
+  (** Return all the keys that are allowed to access, knowing a key
+      (which might be seen as a password). *)
 
 end
 
@@ -123,17 +123,6 @@ module type S = sig
   type revision
   (** Type of revisions. *)
 
-  type contents
-  (** Type of raw contents. *)
-
-  val export: t -> contents
-  (** Return the raw contents of the store. XXX: this needs some
-      filters to be efficient/practical! *)
-
-  val import: t -> contents -> t
-  (** Import some raw contents. This is not supposed to change the
-      tags. *)
-
   val snapshot: t -> revision Lwt.t
   (** Get a snapshot of the current store state. *)
 
@@ -143,5 +132,24 @@ module type S = sig
   val watch: t -> key -> (key * revision option) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
       given key. *)
+
+  module Raw: sig
+
+    (** Raw contents. *)
+
+      type key
+      (** type of raw keys. *)
+
+      type value
+      (** Type of raw values. *)
+
+      val export: t -> revision -> (key * value) list Lwt.t
+      (** Return the raw contents of the store. *)
+
+      val import: t -> (key * value) list -> unit Lwt.t
+      (** Import some raw contents. This is not supposed to change the
+          tags. *)
+
+  end
 
 end

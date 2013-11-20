@@ -37,14 +37,13 @@ module type S = sig
   (** Get all the relations. *)
   val edges: t -> (vertex * vertex) list
 
-  (** [closure ?roots keys pred] creates the clansitive closure of
-      [keys] using the precedence relation [pred]. If [roots] is set,
-      only consider the closure containing min elements in [roots];
-      otherwise, build the complete closure. *)
+  (** [closure min max pred] creates the clansitive closure of [max]
+      using the precedence relation [pred]. The closure will not
+      contain any keys before the the one specified in [min]. *)
   val closure:
     (vertex -> vertex list Lwt.t)
-    -> ?roots:vertex list
-    -> vertex list
+    -> min:vertex list
+    -> max:vertex list
     -> t Lwt.t
 
   (** [output g tags name] dumps the graph contents [g], which the

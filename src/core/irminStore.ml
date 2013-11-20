@@ -84,7 +84,8 @@ module A  (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
 
   let list t key =
     S.list t (K.to_string key) >>= fun ks ->
-    return (List.map K.of_string ks)
+    let ks = List.map K.of_string ks in
+    return ks
 
 end
 
@@ -139,8 +140,8 @@ module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
     S.mem t (K.to_string key)
 
   let list t key =
-    S.list t (K.to_string key) >>= fun ss ->
-    let ks = List.map K.of_string ss in
+    S.list t (K.to_string key) >>= fun ks ->
+    let ks = List.map K.of_string ks in
     return ks
 
 end
@@ -148,10 +149,13 @@ end
 module type S = sig
   include M
   type revision
-  type contents
-  val export: t -> contents
-  val import: t -> contents -> t
   val snapshot: t -> revision Lwt.t
   val revert: t -> revision -> unit Lwt.t
   val watch: t -> key -> (key * revision option) Lwt_stream.t
+  module Raw: sig
+    type key
+    type value
+    val export: t -> revision -> (key * value) list Lwt.t
+    val import: t -> (key * value) list -> unit Lwt.t
+  end
 end

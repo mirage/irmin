@@ -147,14 +147,14 @@ struct
   let revert t r =
     Tag.update t.tag t.branch r
 
+  (* Return the subpaths. *)
   let list t path =
     revision t >>= fun revision ->
     tree t revision >>= fun tree ->
     Tree.sub t.tree tree path >>= function
     | None      -> return_nil
     | Some tree ->
-      let child = Tree.children t.tree tree in
-      let paths = List.map (fun (c,_) -> path @ [c]) child in
+      let paths = List.map (fun (c,_) -> path @ [c]) tree.IrminTree.children in
       return paths
 
   type contents = {
@@ -163,14 +163,25 @@ struct
     revisions: (key * revision) list;
   }
 
-  let export _ =
-    failwith "export: TODO"
-
-  let import _ =
-    failwith "import: TODO"
-
   let watch _ =
     failwith "watch: TODO"
+
+  module Raw = struct
+
+    type key = K.t
+
+    type value =
+      | Value of value
+      | Tree of tree
+      | Revision of revision
+
+    let export _ =
+      failwith "export: TODO"
+
+    let import _ =
+      failwith "import: TODO"
+
+  end
 
 end
 

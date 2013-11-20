@@ -144,11 +144,11 @@ module Make (S: Irmin.S) = struct
       assert_key_equal "kr2" kr2 kr2';
       Revision.read_exn t.revision kr2           >>= fun r2   ->
 
-      Revision.cut t.revision [kr1] >>= fun g1 ->
-      assert_keys_equal "g1" [kr1] (Revision.Graph.vertex g1);
+      Revision.list t.revision kr1 >>= fun kr1s ->
+      assert_keys_equal "g1" [kr1] kr1s;
 
-      Revision.cut t.revision [kr2] >>= fun g2 ->
-      assert_keys_equal "g2" [kr1; kr2] (Revision.Graph.vertex g2);
+      Revision.list t.revision kr2 >>= fun kr2s ->
+      assert_keys_equal "g2" [kr1; kr2] kr2s;
 
      return_unit
     in
@@ -200,6 +200,38 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_sync x () =
+    let test () =
+      create ()              >>= fun t1 ->
+      update t1 ["a";"b"] v1 >>= fun () ->
+      snapshot t1            >>= fun r1 ->
+      update t1 ["a";"c"] v2 >>= fun () ->
+      snapshot t1            >>= fun r2 ->
+      update t1 ["a";"d"] v1 >>= fun () ->
+      snapshot t1            >>= fun r3 ->
+      Raw.export t1 r3       >>= fun xx ->
+      create ()              >>= fun t2 ->
+
+      Raw.import t2 xx       >>= fun () ->
+
+      mem t2 ["a";"b"]       >>= fun b1 ->
+      assert_bool_equal "mem-ab" true b1;
+
+      mem t2 ["a";"c"]       >>= fun b2 ->
+      assert_bool_equal "mem-ac" true b2;
+
+      mem t2 ["a";"d"]       >>= fun b3  ->
+      assert_bool_equal "mem-ad" true b3;
+      read_exn t2 ["a";"d"]  >>= fun v1' ->
+      assert_value_equal "v1" v1' v1;
+
+      revert t2 r2           >>= fun () ->
+      mem t2 ["a";"d"]       >>= fun b4 ->
+      assert_bool_equal "mem-ab" false b4;
+
+      return_unit in
+    run x test
+
 end
 
 let suite (speed, x) =
@@ -212,6 +244,7 @@ let suite (speed, x) =
     "Basic operations on revisions"   , speed, T.test_revisions x;
     "Basic operations on tags"        , speed, T.test_tags      x;
     "High-level store operations"     , speed, T.test_stores    x;
+    "High-level store synchronisation", speed, T.test_sync      x;
   ]
 
 let run name tl =

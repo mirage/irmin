@@ -77,13 +77,11 @@ module type STORE = sig
   type tree = (key, key) IrminTree.node
   type revision = (key, key) node
   include IrminBase.S with type t := revision
-  module Graph: IrminGraph.S with type Vertex.t = key
   include IrminStore.A with type key := key
                         and type value := revision
   val revision: t -> ?tree:tree -> revision list -> key Lwt.t
   val tree: t -> revision -> tree Lwt.t option
   val parents: t -> revision -> revision Lwt.t list
-  val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
 end
 
 module type MAKER =
@@ -154,36 +152,10 @@ struct
 
   module Graph = IrminGraph.Make(K)
 
-  module Set = Set.Make(K)
-
-  let set_of_list l =
-    let r = ref Set.empty in
-    List.iter (fun elt ->
-        r := Set.add elt !r
-      ) l;
-    !r
-
-  let cut t ?roots keys =
+  let list t key =
     let pred k =
       read_exn t k >>= fun r -> return r.parents in
-    begin match roots with
-      | None    -> return_none
-      | Some ks -> Lwt_list.map_p (read_exn t) ks
-        >>= fun revisions ->
-        Lwt_list.fold_left_s (fun set r ->
-            match r.tree with
-            | None   -> return set
-            | Some k ->
-              T.list t.t k >>= fun ks ->
-              return (Set.union (set_of_list ks) set)
-          ) (set_of_list ks) revisions
-        >>= fun keys -> return (Some (Set.elements keys))
-    end
-    >>= fun roots ->
-    Graph.closure ?roots pred keys
-
-  let list t key =
-    cut t [key] >>= fun g ->
+    Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
     return (Graph.vertex g)
 
 end

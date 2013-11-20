@@ -24,8 +24,8 @@ module type S = sig
   val vertex: t -> vertex list
   val edges: t -> (vertex * vertex) list
   val closure: (vertex -> vertex list Lwt.t)
-    -> ?roots:vertex list
-    -> vertex list
+    -> min:vertex list
+    -> max:vertex list
     -> t Lwt.t
   val output: t ->
     ?labels:(vertex * string) list ->
@@ -55,16 +55,13 @@ module Make (B: IrminBase.S) = struct
   let edges g =
     G.fold_edges (fun k1 k2 list -> (k1,k2) :: list) g []
 
-  let closure pred ?roots keys =
+  let closure pred ~min ~max =
     let g = G.create ~size:1024 () in
     let marks = Hashtbl.create 1024 in
     let mark key = Hashtbl.add marks key true in
     let has_mark key = Hashtbl.mem marks key in
-    let () = match roots with
-      | None      -> ()
-      | Some keys ->
-        List.iter mark keys;
-        List.iter (G.add_vertex g) keys in
+    List.iter mark min;
+    List.iter (G.add_vertex g) min;
     let rec add key =
       if has_mark key then Lwt.return ()
       else (
@@ -75,7 +72,7 @@ module Make (B: IrminBase.S) = struct
         List.iter (fun k -> G.add_edge g k key) keys;
         Lwt_list.iter_p add keys
       ) in
-    Lwt_list.iter_p add keys >>= fun () ->
+    Lwt_list.iter_p add max >>= fun () ->
     Lwt.return g
 
   let min g =

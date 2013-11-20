@@ -42,9 +42,6 @@ module type STORE = sig
   include IrminBase.S with type t := revision
   (** Revisions are base types. *)
 
-  module Graph: IrminGraph.S with type Vertex.t = key
-  (** Graph of keys. *)
-
   include IrminStore.A with type key := key
                         and type value := revision
   (** Revision stores are immutable. *)
@@ -57,12 +54,6 @@ module type STORE = sig
 
   val parents: t -> revision -> revision Lwt.t list
   (** Get the immmediate precessors. *)
-
-  val cut: t -> ?roots:key list -> key list -> Graph.t Lwt.t
-  (** [cut t max] returns a consistent cut of the global partial
-      order, where [max] are the max elements of the cut. If [roots]
-      is set, these are the only minimal elements taken into
-      account. *)
 
 end
 
