@@ -188,18 +188,19 @@ struct
       edges := (v1, l, v2) :: !edges in
     let label k =
       `Label (K.pretty k) in
-    let label_of_value v =
-      let s = V.pretty v in
-      let s =
-        if s.[0] = '"' && s.[String.length s - 1] = '"' then
-          String.sub s 1 (String.length s - 2)
-        else s in
-      `Label s in
+    let label_of_value k v =
+      let k = K.pretty k in
+      let v =
+        let v = V.pretty v in
+        if v.[0] = '"' && v.[String.length v - 1] = '"' then
+          String.sub v 1 (String.length v - 2)
+        else v in
+      `Label (Printf.sprintf "%s | %s" k v) in
     List.iter (fun (k, v) ->
-        add_vertex k [label k; label_of_value v]
+        add_vertex k [`Shape `Record; label_of_value k v]
       ) values;
     List.iter (fun (k, t) ->
-        add_vertex k [`Shape `Box; label k];
+        add_vertex k [`Shape `Box; `Style `Dotted; label k];
         List.iter (fun (l,c) ->
             add_edge k [`Style `Solid; `Label l] c
           ) t.IrminTree.children;
@@ -208,9 +209,9 @@ struct
         | Some v -> add_edge k [`Style `Dotted] v
       ) trees;
     List.iter (fun (k, r) ->
-        add_vertex k [`Style `Dashed; label k];
+        add_vertex k [`Shape `Box; `Style `Bold; label k];
         List.iter (fun p ->
-            add_edge k [`Style `Solid] p
+            add_edge k [`Style `Bold] p
           ) r.IrminRevision.parents;
         match r.IrminRevision.tree with
         | None      -> ()
