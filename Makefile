@@ -35,6 +35,7 @@ fulltest:
 
 clean:
 	rm -rf $(TARGET) _build test-db test-output src/irminVersion.ml
+	rm -f *.dot *.png
 
 install:
 	cp $(TARGET) $(PREFIX)/bin
