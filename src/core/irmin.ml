@@ -342,6 +342,11 @@ struct
 
 end
 
+module type SIMPLE = S
+  with type key = IrminKey.SHA1.t
+   and type value = IrminValue.Simple.t
+   and type tag = IrminTag.Simple.t
+
 module Simple (A: IrminStore.A_BINARY) (M: IrminStore.M_BINARY) = struct
 
   include Binary(IrminKey.SHA1)(IrminValue.Simple)(IrminTag.Simple)(A)(A)(A)(M)

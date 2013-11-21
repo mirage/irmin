@@ -104,9 +104,12 @@ module Binary
      and type tag = T.t
 (** Make a binary Irminsule store. *)
 
-module Simple (A: IrminStore.A_BINARY) (M: IrminStore.M_BINARY):
-  S with type key = IrminKey.SHA1.t
-     and type value = IrminValue.Simple.t
-     and type tag = IrminTag.Simple.t
+module type SIMPLE = S
+  with type key = IrminKey.SHA1.t
+   and type value = IrminValue.Simple.t
+   and type tag = IrminTag.Simple.t
+(** Signature for simple stores. *)
+
+module Simple (A: IrminStore.A_BINARY) (M: IrminStore.M_BINARY): SIMPLE
 (** Create a simple binary store. Use only one mutable store for
     value, tree and revisions and a mutable store for the tags. *)
