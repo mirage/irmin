@@ -145,12 +145,11 @@ module type S = sig
       type value
       (** Type of raw values. *)
 
-      val export: t -> revision -> (key * value) list Lwt.t
+      val export: t -> (key * value) list Lwt.t
       (** Return the raw contents of the store. *)
 
       val import: t -> (key * value) list -> unit Lwt.t
-      (** Import some raw contents. This is not supposed to change the
-          tags. *)
+      (** Import some raw contents. This does not change the tags. *)
 
   end
 

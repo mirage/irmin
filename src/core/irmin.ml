@@ -72,7 +72,7 @@ struct
 
   type key = Key.t
   type value = Value.value
-  type tree = Tree.value
+  type tree = Tree.tree
   type revision = Revision.revision
   type path = string list
   type tag = T.t
@@ -238,16 +238,88 @@ struct
 
     type key = K.t
 
+    module Set = Set.Make(K)
+
+    let set_of_list l =
+      let r = ref Set.empty in
+      List.iter (fun elt ->
+          r := Set.add elt !r
+        ) l;
+      !r
+
     type value =
-      | Value of value
+      | Value of Value.value
       | Tree of tree
       | Revision of revision
 
-    let export _ =
-      failwith "export: TODO"
+    let export t =
+      debug "export";
+      dump t "export" >>= fun () ->
+      let contents = Hashtbl.create 1024 in
+      let add k v =
+        debug "export add %s %s"
+          (match v with
+           | Value _    -> "value"
+           | Tree _     -> "tree"
+           | Revision _ -> "revision")
+          (Key.pretty k);
+        Hashtbl.add contents k v in
+      Tag.read t.tag t.branch >>= function
+      | None          -> return_nil
+      | Some revision ->
+        Revision.list t.revision revision >>= fun revisions ->
+        debug "export REVISIONS=%s" (IrminMisc.pretty_list Key.pretty revisions);
+        Lwt_list.fold_left_s (fun set key ->
+            Revision.read_exn t.revision key >>= fun revision ->
+            add key (Revision revision);
+            match revision.IrminRevision.tree with
+            | None      -> return set
+            | Some tree ->
+              Tree.list t.tree tree >>= fun trees ->
+              return (Set.union set (set_of_list trees))
+          ) Set.empty revisions
+        >>= fun trees ->
+        let trees = Set.elements trees in
+        debug "export TREES=%s" (IrminMisc.pretty_list Key.pretty trees);
+        Lwt_list.fold_left_s (fun set key ->
+            Tree.read_exn t.tree key >>= fun tree ->
+            add key (Tree tree);
+            match tree.IrminTree.value with
+            | None       -> return set
+            | Some value ->
+              Value.list t.value value >>= fun values ->
+              return (Set.union set (set_of_list values))
+          ) Set.empty trees
+        >>= fun values ->
+        let values = Set.elements values in
+        debug "export VALUES=%s" (IrminMisc.pretty_list Key.pretty values);
+        Lwt_list.iter_p (fun key ->
+            Value.read_exn t.value key >>= fun value ->
+            add key (Value value);
+            return_unit
+          ) values
+        >>= fun () ->
+        let list = Hashtbl.fold (fun k v acc -> (k, v) :: acc) contents [] in
+        return list
 
-    let import _ =
-      failwith "import: TODO"
+    exception Errors of (key * key * string) list
+
+    let import t list =
+      debug "import %s" (IrminMisc.pretty_list Key.pretty (List.map fst list));
+      let errors = ref [] in
+      let check msg k1 k2 =
+        if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
+        return_unit
+      in
+      Lwt_list.iter_p (fun (k,v) ->
+          match v with
+          | Value value -> Value.add t.value value   >>= check "value" k
+          | Tree tree   -> Tree.add t.tree tree      >>= check "tree" k
+          | Revision r  -> Revision.add t.revision r >>= check "revision" k
+        ) list
+      >>= fun () ->
+      if !errors = [] then return_unit
+      else fail (Errors !errors)
 
   end
 
