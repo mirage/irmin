@@ -162,7 +162,6 @@ struct
   let list t key =
     debug "list %s" (K.pretty key);
     read_exn t key >>= fun _ ->
-    debug "list OK";
     let pred k =
       read_exn t k >>= fun r -> return (List.map snd r.children) in
     Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
@@ -177,6 +176,7 @@ struct
   }
 
   let tree t ?value children =
+    debug "tree";
     begin match value with
       | None   -> return_none
       | Some v -> V.add t.v v >>= fun k -> return (Some k)
@@ -278,15 +278,8 @@ struct
   let remove t tree path =
     map_subtree t tree path (fun tree -> { tree with value = None })
 
-  let dump_values t =
-    V.contents t.v >>= fun l ->
-    debug "VALUES: %s" (IrminMisc.pretty_list K.pretty (List.map fst l));
-    return_unit
-
   let update t tree path value =
-    dump_values t   >>= fun () ->
     V.add t.v value >>= fun k  ->
-    dump_values t   >>= fun () ->
     map_subtree t tree path (fun tree -> { tree with value = Some k })
 
   include (Tree(K)(K): IrminBase.S with type t := tree)
