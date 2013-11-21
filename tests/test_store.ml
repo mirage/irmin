@@ -234,6 +234,7 @@ module Make (S: Irmin.S) = struct
       snapshot t1            >>= fun r2 ->
       update t1 ["a";"d"] v1 >>= fun () ->
       snapshot t1            >>= fun r3 ->
+      dump t1 "full"         >>= fun () ->
       Raw.export t1 [r3]     >>= fun partial ->
       Raw.export t1 []       >>= fun full    ->
 
@@ -244,6 +245,7 @@ module Make (S: Irmin.S) = struct
 
       Raw.import t2 partial  >>= fun () ->
       revert t2 r3           >>= fun () ->
+      dump t2 "partial"      >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
