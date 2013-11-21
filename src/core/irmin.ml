@@ -180,9 +180,6 @@ struct
     Value.contents t.value       >>= fun values    ->
     Tree.contents  t.tree        >>= fun trees     ->
     Revision.contents t.revision >>= fun revisions ->
-    debug "XXX: value %d" (List.length values);
-    debug "XXX: trees %d" (List.length trees);
-    debug "XXX: revs  %d" (List.length revisions);
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
@@ -224,7 +221,6 @@ struct
     let oc = open_out file in
     Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
     close_out oc;
-    debug "XXX: vertex:%d edges:%d" (List.length !vertex) (List.length !edges);
     let _ = Sys.command (Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name) in
     return_unit
 
