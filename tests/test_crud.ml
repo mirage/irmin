@@ -29,7 +29,7 @@ let suite server =
 
     init = begin fun () ->
       let server () =
-        server.init ()   >>= fun () ->
+        server.init ()    >>= fun () ->
         let (module Server) = server.store in
         Server.create () >>= fun t  ->
         IrminHTTP.start_server (module Server) t uri in

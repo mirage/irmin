@@ -24,3 +24,6 @@ module M (K: IrminKey.S): IrminStore.M_BINARY
 
 module Simple: Irmin.S
 (** Simple memory store. *)
+
+val reset: unit -> unit
+(** Reset the memory store. *)

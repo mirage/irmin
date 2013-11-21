@@ -19,6 +19,11 @@ open Lwt
 let debug fmt =
   IrminLog.debug "MEMORY" fmt
 
+let store = Hashtbl.create 8128
+
+let reset () =
+  Hashtbl.clear store
+
 module X (K: IrminKey.S) = struct
 
   type t = (string, IrminBuffer.ba) Hashtbl.t
@@ -33,7 +38,7 @@ module X (K: IrminKey.S) = struct
     fail (K.Unknown (K.of_string k))
 
   let create () =
-    return (Hashtbl.create 4096)
+    return store
 
   let read t key =
     debug "read %s" (pretty_key key);

@@ -233,10 +233,14 @@ module Make (S: Irmin.S) = struct
       snapshot t1            >>= fun r2 ->
       update t1 ["a";"d"] v1 >>= fun () ->
       snapshot t1            >>= fun r3 ->
-      Raw.export t1 r3       >>= fun xx ->
+      Raw.export t1          >>= fun xx ->
+
+      (* Restart a fresh store and import everything in there. *)
+      x.init ()              >>= fun () ->
       create ()              >>= fun t2 ->
 
       Raw.import t2 xx       >>= fun () ->
+      revert t2 r3           >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
