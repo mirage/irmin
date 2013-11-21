@@ -16,8 +16,8 @@
 
 module type S = sig
   include IrminBase.S
-  exception Invalid of t
-  exception Unknown of t
+  exception Invalid of string
+  exception Unknown of string
   val of_string: string -> t
   val of_pretty: string -> t
 end

@@ -110,7 +110,7 @@ module X (O: O) (K: IrminKey.S) = struct
     IrminBuffer.pretty_ba ba
 
   let unknown k =
-    fail (K.Unknown (K.of_string k))
+    fail (K.Unknown (K.pretty (K.of_string k)))
 
   let keys_of_dir dir: K.t list Lwt.t =
     let pre = Filename.basename dir in

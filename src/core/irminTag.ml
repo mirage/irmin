@@ -21,8 +21,8 @@ end
 
 module Simple = struct
   include IrminBase.String
-  exception Invalid of t
-  exception Unknown of t
+  exception Invalid of string
+  exception Unknown of string
   let name = "tag"
   let master = "master"
   let create = of_string

@@ -254,7 +254,7 @@ struct
       | (l, k) as child :: children ->
         if l = label then
           read t k >>= function
-          | None      -> fail (K.Invalid k)
+          | None      -> fail (K.Invalid (K.pretty k))
           | Some tree ->
             f tree >>= fun tree ->
             if tree = empty then return (List.rev_append acc children)

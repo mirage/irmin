@@ -22,10 +22,10 @@ module type S = sig
 
   include IrminBase.S
 
-  exception Invalid of t
+  exception Invalid of string
   (** Exception raised when a key is not valid. *)
 
-  exception Unknown of t
+  exception Unknown of string
   (** Exception raised when no value is associated to a key. *)
 
   val of_string: string -> t

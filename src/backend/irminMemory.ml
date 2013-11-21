@@ -35,7 +35,7 @@ module X (K: IrminKey.S) = struct
     IrminBuffer.pretty_ba ba
 
   let unknown k =
-    fail (K.Unknown (K.of_string k))
+    fail (K.Unknown (K.pretty (K.of_string k)))
 
   let create () =
     return store

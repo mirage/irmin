@@ -58,8 +58,6 @@ module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 
-  exception Unknown of K.t
-
   let debug fmt =
     IrminLog.debug "A" fmt
 
@@ -83,7 +81,7 @@ module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
     S.read_exn t (K.to_string key) >>= fun ba ->
     let buf = IrminBuffer.of_ba ba in
     match V.get buf with
-    | None   -> fail (Unknown key)
+    | None   -> fail (K.Unknown (K.pretty key))
     | Some v -> return v
 
   let mem t key =

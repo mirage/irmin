@@ -80,7 +80,7 @@ module X (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
     Some (fn x)
 
   let unknown k =
-    fail (K.Unknown (K.of_string k))
+    fail (K.Unknown (K.pretty (K.of_string k)))
 
   let create () =
     return S.uri
