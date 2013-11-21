@@ -139,17 +139,17 @@ module type S = sig
 
     (** Raw contents. *)
 
-      type key
-      (** type of raw keys. *)
+    type key
+    (** Raw key. *)
 
-      type value
-      (** Type of raw values. *)
+    type value
+    (** Raw values. *)
 
-      val export: t -> (key * value) list Lwt.t
-      (** Return the raw contents of the store. *)
+    val export: t -> (key * value) list Lwt.t
+    (** Return the raw contents of the store. *)
 
-      val import: t -> (key * value) list -> unit Lwt.t
-      (** Import some raw contents. This does not change the tags. *)
+    val import: t -> (key * value) list -> unit Lwt.t
+    (** Import some raw contents. This does not change the tags. *)
 
   end
 

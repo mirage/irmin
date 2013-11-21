@@ -233,7 +233,12 @@ struct
     let debug fmt =
       IrminLog.debug "RAW" fmt
 
-    type key = K.t
+    type key = Key.t
+
+    type value =
+      | Value of Value.value
+      | Tree of tree
+      | Revision of revision
 
     module Set = Set.Make(K)
 
@@ -244,22 +249,11 @@ struct
         ) l;
       !r
 
-    type value =
-      | Value of Value.value
-      | Tree of tree
-      | Revision of revision
-
     let export t =
       debug "export";
       dump t "export" >>= fun () ->
       let contents = Hashtbl.create 1024 in
       let add k v =
-        debug "export add %s %s"
-          (match v with
-           | Value _    -> "value"
-           | Tree _     -> "tree"
-           | Revision _ -> "revision")
-          (Key.pretty k);
         Hashtbl.add contents k v in
       Tag.read t.tag t.branch >>= function
       | None          -> return_nil
