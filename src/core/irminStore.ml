@@ -41,7 +41,20 @@ module type A_MAKER = functor (K: IrminKey.BINARY) -> functor (V: IrminBase.S) -
   A with type key = K.t
      and type value = V.t
 
-module A  (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
+module type M = sig
+  include X
+  val update: t -> key -> value -> unit Lwt.t
+  val remove: t -> key -> unit Lwt.t
+end
+
+module type M_BINARY = M with type key := string
+                          and type value := IrminBuffer.ba
+
+module type M_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  M with type key = K.t
+     and type value = V.t
+
+module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 
@@ -90,31 +103,28 @@ module A  (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
         | Some v -> return ((K.of_string s, v) :: acc)
       ) [] l
 
-module type M = sig
-  include X
-  val update: t -> key -> value -> unit Lwt.t
-  val remove: t -> key -> unit Lwt.t
 end
 
-module type M_BINARY = M with type key := string
-                          and type value := IrminBuffer.ba
-
-module type M_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
-  M with type key = K.t
-     and type value = V.t
-
-module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+module A (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
 
   open Lwt
 
-  type t = S.t
+  include X(S)(K)(V)
 
-  type key = K.t
+  let add t value =
+    debug "add %s" (V.pretty value);
+    let buf = IrminBuffer.create (V.sizeof value) in
+    V.set buf value;
+    S.add t (IrminBuffer.to_ba buf) >>= fun key ->
+    let key = K.of_string key in
+    debug "<-- add: %s -> key=%s" (V.pretty value) (K.pretty key);
+    return key
 
-  type value = V.t
+end
 
-  let create () =
-    S.create ()
+module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+
+  include X(S)(K)(V)
 
   let update t key value =
     let buf = IrminBuffer.create (V.sizeof value) in
@@ -124,26 +134,6 @@ module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   let remove t key =
     S.remove t (K.to_string key)
-
-  let read t key =
-    S.read t (K.to_string key) >>= function
-    | None    -> return_none
-    | Some ba ->
-      let buf = IrminBuffer.of_ba ba in
-      return (Some (V.get buf))
-
-  let read_exn t key =
-    S.read_exn t (K.to_string key) >>= fun ba ->
-    let buf = IrminBuffer.of_ba ba in
-    return (V.get buf)
-
-  let mem t key =
-    S.mem t (K.to_string key)
-
-  let list t key =
-    S.list t (K.to_string key) >>= fun ks ->
-    let ks = List.map K.of_string ks in
-    return ks
 
 end
 
