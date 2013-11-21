@@ -26,52 +26,70 @@ let uri_conv =
   let print ppf v = pr_str ppf (Uri.to_string v) in
   parse, print
 
-let value_conv (type v) (module S: Irmin.S with type value = v) =
-  let parse str = `Ok (S.Value.of_bytes str) in
-  let print ppf v = pr_str ppf (S.Value.to_string v) in
+let value_conv =
+  let parse str = `Ok (IrminValue.Simple.of_bytes str) in
+  let print ppf v = pr_str ppf (IrminValue.Simple.to_string v) in
   parse, print
 
-let tag_conv (type t) (module S: Irmin.S with type tag = t) =
-  let parse str = `Ok (S.Tag.of_string str) in
-  let print ppf tag = pr_str ppf (S.Tag.to_string tag) in
+let tag_conv =
+  let parse str = `Ok (IrminTag.Simple.of_string str) in
+  let print ppf tag = pr_str ppf (IrminTag.Simple.to_string tag) in
   parse, print
 
-let value s =
+let path_conv =
+  let parse str = `Ok (IrminTree.path_of_string str) in
+  let print ppf path = pr_str ppf (IrminTree.string_of_path path) in
+  parse, print
+
+let value =
   let doc =
     Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
-  Arg.(required & pos 0 (some & value_conv s) None & doc)
+  Arg.(required & pos ~rev:true 0 (some & value_conv) None & doc)
+
+let path =
+  let doc =
+    Arg.info ~docv:"PATH" ~doc:"Path." [] in
+  Arg.(required & pos 0 (some path_conv) None & doc)
+
+let default_dir = ".irmin"
 
 let store =
   let in_memory =
     let doc =
-      Arg.info ~doc:"In-memory persistence. Equivalent to `--source :`"
+      Arg.info ~doc:"In-memory persistence."
         ["m";"in-memory"] in
     Arg.(value & flag & doc) in
   let fs =
     let doc =
-      Arg.info ~doc:"File-system persistence." ["f";"file-system"] in
+      Arg.info ~doc:"File-system persistence." ["f";"file"] in
     Arg.(value & flag & doc) in
   let crud =
     let doc =
-      Arg.info ~doc:"CRUD interface." ["r";"rest"] in
-    Arg.(value & flag & doc) in
-  let source =
-    let doc =
-      Arg.info ~docv:"SOURCE" ~doc:"Store source." ["s";"source"] in
+      Arg.info ~doc:"CRUD interface."  ["r";"rest"] in
     Arg.(value & opt (some string) None & doc) in
-  let create in_memory fs crud source = match in_memory, fs, crud, source with
-    | true , false, false, None
-    | false, false, false, Some ":" ->
+  let create in_memory fs crud = match in_memory, fs, crud with
+    | true , false, None    ->
       IrminLog.msg "source: in-memory";
-      (module IrminMemory.Simple: Irmin.S)
-    | false, true , false, Some dir ->
-      IrminLog.msg "FS: %s" dir;
-      IrminFS.simple dir
-    | false, false, true , Some uri ->
-      IrminLog.msg "REST: %s" uri;
+      (module IrminMemory.Simple: Irmin.SIMPLE)
+    | false, true , None    ->
+      IrminLog.msg "source: %s/%s/" (Sys.getcwd ()) default_dir;
+      IrminFS.simple default_dir
+    | false, false, Some uri ->
+      IrminLog.msg "source: %s" uri;
       IrminCRUD.simple (Uri.of_string uri)
-    | _ -> failwith "Invalid store source" in
-  Term.(pure create $ in_memory $ fs $ crud $ source)
+    | false, false, None     ->
+      if Sys.file_exists default_dir then (
+        IrminLog.msg "No store input selected but %s exists, using it." default_dir;
+        IrminFS.simple default_dir
+      ) else (
+        IrminLog.error "No store input selected, use [-m], [-f] or [-r URI].";
+        exit 1
+      )
+    | _ -> failwith
+             (Printf.sprintf "Invalid store source [%b %b %s]"
+                in_memory fs (match crud with None -> "false" | Some s -> s))
+  in
+  Term.(pure create $ in_memory $ fs $ crud)
 
 let run t =
   Lwt_unix.run (
@@ -93,16 +111,129 @@ let init =
       Arg.info ~docv:"PORT" ~doc:"Start an Irminsule server on the specified port."
         ["d";"daemon"] in
     Arg.(value & opt (some uri_conv) (Some (Uri.of_string "http://127.0.0.1:8080")) & doc) in
-  let init (module S: Irmin.S) daemon =
+  let init (module S: Irmin.SIMPLE) daemon =
     run begin
       S.create () >>= fun t ->
       match daemon with
       | None     -> return_unit
-      | Some uri -> IrminHTTP.start_server (module S) t uri
+      | Some uri ->
+        IrminLog.msg "daemon: %s" (Uri.to_string uri);
+        IrminHTTP.start_server (module S) t uri
     end
   in
   Term.(pure init $ store $ daemon),
   Term.info "init" ~doc ~man
+
+let read_doc = "Read a file."
+let read =
+  let doc = read_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P read_doc;
+  ] in
+  let read (module S: Irmin.SIMPLE) path =
+    run begin
+      S.create ()   >>= fun t ->
+      S.read t path >>= function
+      | None   -> IrminLog.msg "<none>"; exit 1
+      | Some v -> IrminLog.msg "%s" (S.Value.pretty v); return_unit
+    end
+  in
+  Term.(pure read $ store $ path),
+  Term.info "read" ~doc ~man
+
+let ls_doc = "List subdirectories."
+let ls =
+  let doc = ls_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P ls_doc;
+  ] in
+  let ls (module S: Irmin.SIMPLE) path =
+    run begin
+      S.create ()   >>= fun t ->
+      S.list t path >>= fun paths ->
+      List.iter (fun p -> IrminLog.msg "%s" (IrminTree.string_of_path p)) paths;
+      return_unit
+    end
+  in
+  Term.(pure ls $ store $ path),
+  Term.info "ls" ~doc ~man
+
+let tree_doc = "List the store contents."
+let tree =
+  let doc = tree_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P tree_doc;
+  ] in
+  let tree (module S: Irmin.SIMPLE) =
+    run begin
+      S.create () >>= fun t ->
+      S.contents t >>= fun all ->
+      let km = List.fold_left (fun km (k,_) ->
+          let len = List.fold_left (fun len s -> String.length s + len) 0 k in
+          max len km
+        ) 0 all in
+      List.iter (fun (k,v) ->
+          IrminLog.msg "%-*s %s" km (String.concat "/" k) (S.Value.pretty v)) all;
+      return_unit
+    end
+  in
+  Term.(pure tree $ store),
+  Term.info "tree" ~doc ~man
+
+let write_doc = "Write/modify a file."
+let write =
+  let doc = write_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P write_doc;
+  ] in
+  let write (module S: Irmin.SIMPLE) path value =
+    run begin
+      S.create () >>= fun t ->
+      S.update t path value
+    end
+  in
+  Term.(pure write $ store $ path $ value),
+  Term.info "write" ~doc ~man
+
+let rm_doc = "Remove a file."
+let rm =
+  let doc = rm_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P rm_doc;
+  ] in
+  let rm (module S: Irmin.SIMPLE) path =
+    run begin
+      S.create () >>= fun t ->
+      S.remove t path
+    end
+  in
+  Term.(pure rm $ store $ path),
+  Term.info "rm" ~doc ~man
+
+let dump_doc = "Dump the contents of the store as a Graphviz file."
+let dump =
+  let doc = dump_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P dump_doc;
+  ] in
+  let basename =
+    let doc =
+      Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
+    Arg.(required & pos 0 (some & string) None & doc) in
+  let dump (module S: Irmin.SIMPLE) basename =
+    run begin
+      S.create () >>= fun t ->
+      S.dump t basename
+    end
+  in
+  Term.(pure dump $ store $ basename),
+  Term.info "dump" ~doc ~man
 
 (* HELP *)
 let help =
@@ -144,9 +275,15 @@ let default =
       \n\
       The most commonly used irminsule commands are:\n\
       \    init    %s\n\
+      \    read    %s\n\
+      \    write   %s\n\
+      \    rm      %s\n\
+      \    ls      %s\n\
+      \    tree    %s\n\
+      \    dump    %s\n\
       \n\
       See `irmin help <command>` for more information on a specific command.\n%!"
-      init_doc in
+      init_doc read_doc write_doc rm_doc ls_doc tree_doc dump_doc in
   Term.(pure usage $ (pure ())),
   Term.info "irmin"
     ~version:IrminVersion.current
@@ -156,6 +293,12 @@ let default =
 
 let commands = [
   init;
+  read;
+  write;
+  rm;
+  ls;
+  tree;
+  dump;
 ]
 
 let () =
