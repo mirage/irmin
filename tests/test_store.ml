@@ -191,24 +191,29 @@ module Make (S: Irmin.S) = struct
   let test_stores x () =
     let test () =
       create ()             >>= fun t   ->
+      dump t "zero" >>= fun () ->
       update t ["a";"b"] v1 >>= fun ()  ->
+      dump t "zero" >>= fun () ->
+
       mem t ["a";"b"]       >>= fun b1  ->
-      assert_bool_equal "mem+" true b1;
+      assert_bool_equal "mem1" true b1;
       mem t ["a"]           >>= fun b2  ->
-      assert_bool_equal "mem-" false b2;
+      assert_bool_equal "mem2" false b2;
       read_exn t ["a";"b"]  >>= fun v1' ->
       assert_value_equal "v1.1" v1 v1';
       snapshot t            >>= fun r1  ->
 
+      dump t "before" >>= fun () ->
       update t ["a";"c"] v2 >>= fun ()  ->
+      dump t "after" >>= fun () ->
       mem t ["a";"b"]       >>= fun b1  ->
-      assert_bool_equal "mem+" true b1;
+      assert_bool_equal "mem3" true b1;
       mem t ["a"]           >>= fun b2  ->
-      assert_bool_equal "mem-" false b2;
+      assert_bool_equal "mem4" false b2;
       read_exn t ["a";"b"]  >>= fun v1' ->
       assert_value_equal "v1.1" v1 v1';
       mem t ["a";"c"]       >>= fun b1  ->
-      assert_bool_equal "mem+" true b1;
+      assert_bool_equal "mem5" true b1;
       read_exn t ["a";"c"]  >>= fun v2' ->
       assert_value_equal "v1.1" v2 v2';
 
