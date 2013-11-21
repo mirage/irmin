@@ -97,6 +97,7 @@ end
 module type O = sig
   include S
   val file_of_key: string -> string
+  val keys_of_dir: string -> string list Lwt.t
 end
 
 module X (O: O) (K: IrminKey.S) = struct
@@ -111,12 +112,6 @@ module X (O: O) (K: IrminKey.S) = struct
 
   let unknown k =
     fail (K.Unknown (K.pretty (K.of_string k)))
-
-  let keys_of_dir dir: K.t list Lwt.t =
-    let pre = Filename.basename dir in
-    basenames (fun suf ->
-        K.of_string (pre ^ suf)
-      ) dir
 
   let create () =
     return (D O.path)
@@ -154,7 +149,7 @@ module X (O: O) (K: IrminKey.S) = struct
   let contents (D root as t) =
     debug "contents %s" root;
     check t >>= fun () ->
-    basenames (fun x -> x) root >>= fun l ->
+    O.keys_of_dir root >>= fun l ->
     Lwt_list.fold_left_s (fun acc x ->
         read t x >>= function
         | None   -> return acc
@@ -175,6 +170,18 @@ module A (S: S) (K: IrminKey.BINARY) = struct
       let pre = String.sub key 0 2 in
       let suf = String.sub key 2 (len - 2) in
       path / pre / suf
+
+    let keys_of_dir root =
+      let aux pre =
+        basenames (fun suf ->
+            K.to_string (K.of_hex (pre ^ suf))
+          ) (root / pre) in
+      basenames (fun x -> x) root >>= fun pres ->
+      debug "XXX pres=%s" (String.concat ", " pres);
+      Lwt_list.fold_left_s (fun acc pre ->
+          aux pre >>= fun keys ->
+          return (keys @ acc)
+        ) [] pres
 
   end
 
@@ -206,6 +213,9 @@ module M (S: S) (K: IrminKey.S) = struct
     let file_of_key key =
       path / key
 
+    let keys_of_dir dir =
+      basenames (fun x -> x) dir
+
   end
 
   include X(O)(K)
@@ -230,7 +240,7 @@ module M (S: S) (K: IrminKey.S) = struct
      and M.list *)
   let list (D root as t) _ =
     check t >>= fun () ->
-    basenames (fun x -> x) root
+    O.keys_of_dir root
 
 end
 
