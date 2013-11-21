@@ -43,6 +43,24 @@ module Simple  = struct
     else if compare old t2 = 0 then t1
     else raise Conflict
 
+  (* |-----|---------| *)
+  (* | 'S' | PAYLOAD | *)
+  (* |-----|---------| *)
+
+  let sizeof t =
+    1 + sizeof t
+
+  let header = "V"
+
+  let set buf t =
+    IrminBuffer.set_string buf header;
+    set buf t
+
+  let get buf =
+    let h = IrminBuffer.get_string buf 1 in
+    if header = h then get buf
+    else None
+
 end
 
 module type STORE = sig

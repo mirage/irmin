@@ -50,8 +50,9 @@ module type S = sig
   val sizeof: t -> int
   (** Size of serialized value (to pre-allocate bufIO). *)
 
-  val get: IrminBuffer.t -> t
-  (** Unmarshal from a buffer. *)
+  val get: IrminBuffer.t -> t option
+  (** Unmarshal from a buffer. Return [None] if it is not a valid
+      marshaled value. *)
 
   val set: IrminBuffer.t -> t -> unit
   (** Marshal to a buffer. *)

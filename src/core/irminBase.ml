@@ -25,7 +25,7 @@ module type S = sig
   val of_json: IrminJSON.t -> t
   val to_json: t -> IrminJSON.t
   val sizeof: t -> int
-  val get: IrminBuffer.t -> t
+  val get: IrminBuffer.t -> t option
   val set: IrminBuffer.t -> t -> unit
 end
 
@@ -87,11 +87,12 @@ module List (E: S) = struct
     let keys = Int32.to_int (IrminBuffer.get_uint32 buf) in
     debug "get %d" keys;
     let rec aux acc i =
-      if i <= 0 then OCamlList.rev acc
+      if i <= 0 then Some (OCamlList.rev acc)
       else
-        let t = E.get buf in
-        aux (t :: acc) (i-1) in
-    if keys = 0 then []
+        match E.get buf with
+        | None   -> None
+        | Some t -> aux (t :: acc) (i-1) in
+    if keys = 0 then Some []
     else aux [] keys
 
   let set buf t =
@@ -149,11 +150,11 @@ module Option (E: S) = struct
 
   let get buf =
     debug "get";
-    let l = L.get buf in
-    match l with
-    | []  -> None
-    | [e] -> Some e
-    | _   -> IrminBuffer.parse_error_buf buf "Option.get"
+    match L.get buf with
+    | None     -> None
+    | Some []  -> Some None
+    | Some [e] -> Some (Some e)
+    | _        -> None
 
   let set buf t =
     debug "set %s" (pretty t);
@@ -214,9 +215,9 @@ module Pair (K: S) (V: S) = struct
 
   let get buf =
     debug "get";
-    let tag = K.get buf in
-    let key = V.get buf in
-    (tag, key)
+    match K.get buf, V.get buf with
+    | Some k, Some v -> Some (k, v)
+    | _              -> None
 
   let set buf (key, value as t) =
     debug "set %s" (pretty t);
@@ -266,11 +267,14 @@ module String = struct
   let get buf =
     debug "get";
     IrminBuffer.dump ~msg:"-->" buf;
-    let len = IrminBuffer.get_uint32 buf in
-    debug "|-- get (%ld)" len;
-    let t = IrminBuffer.get_string buf (Int32.to_int len) in
-    debug "<-- get %s" t;
-    t
+    try
+      let len = IrminBuffer.get_uint32 buf in
+      debug "|-- get (%ld)" len;
+      let t = IrminBuffer.get_string buf (Int32.to_int len) in
+      debug "<-- get %s" t;
+      Some t
+    with _ ->
+      None
 
   let set buf t =
     debug "set %s" (pretty t);

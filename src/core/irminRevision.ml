@@ -41,16 +41,6 @@ module Revision (A: IrminBase.S) (B: IrminBase.S) = struct
 
   let name = XRevision.name
 
-  let set buf t =
-    XRevision.set buf (t.tree, t.parents)
-
-  let get buf =
-    let tree, parents = XRevision.get buf in
-    { tree; parents }
-
-  let sizeof t =
-    XRevision.sizeof (t.tree, t.parents)
-
   let to_json t =
     XRevision.to_json (t.tree, t.parents)
 
@@ -72,6 +62,26 @@ module Revision (A: IrminBase.S) (B: IrminBase.S) = struct
 
   let equal t1 t2 =
     compare t1 t2 = 0
+
+  (* |-----|---------| *)
+  (* | 'T' | PAYLOAD | *)
+  (* |-----|---------| *)
+
+  let header = "R"
+
+  let sizeof t =
+    1 + XRevision.sizeof (t.tree, t.parents)
+
+  let set buf t =
+    IrminBuffer.set_string buf header;
+    XRevision.set buf (t.tree, t.parents)
+
+  let get buf =
+    let h = IrminBuffer.get_string buf 1 in
+    if header <> h then None
+    else match XRevision.get buf with
+      | None                 -> None
+      | Some (tree, parents) -> Some { tree; parents }
 
 end
 

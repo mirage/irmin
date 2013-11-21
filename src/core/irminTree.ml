@@ -84,15 +84,25 @@ module Tree (A: IrminBase.S) (B: IrminBase.S) = struct
     let value, children = XTree.of_json j in
     { value; children }
 
+  (* |-----|---------| *)
+  (* | 'T' | PAYLOAD | *)
+  (* |-----|---------| *)
+
+  let header = "T"
+
   let sizeof t =
-    XTree.sizeof (t.value, t.children)
+    1 + XTree.sizeof (t.value, t.children)
 
   let set buf t =
+    IrminBuffer.set_string buf header;
     XTree.set buf (t.value, t.children)
 
   let get buf =
-    let value, children = XTree.get buf in
-    { value; children }
+    let h = IrminBuffer.get_string buf 1 in
+    if header <> h then None
+    else match XTree.get buf with
+      | None                   -> None
+      | Some (value, children) -> Some { value; children }
 
   let to_string t =
     XTree.to_string (t.value, t.children)

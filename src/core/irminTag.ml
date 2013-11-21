@@ -28,6 +28,25 @@ module Simple = struct
   let create = of_string
   let of_pretty = of_string
   let pretty x = x
+
+  (* |-----|---------| *)
+  (* | 't' | PAYLOAD | *)
+  (* |-----|---------| *)
+
+  let header = "t"
+
+  let sizeof t =
+    1 + sizeof t
+
+  let set buf t =
+    IrminBuffer.set_string buf header;
+    set buf t
+
+  let get buf =
+    let h = IrminBuffer.get_string buf 1 in
+    if header <> h then None
+    else get buf
+
 end
 
 module type STORE = sig

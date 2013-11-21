@@ -64,21 +64,14 @@ module A  (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
     | None    -> return_none
     | Some ba ->
       let buf = IrminBuffer.of_ba ba in
-      return (Some (V.get buf))
+      return (V.get buf)
 
   let read_exn t key =
     S.read_exn t (K.to_string key) >>= fun ba ->
     let buf = IrminBuffer.of_ba ba in
-    return (V.get buf)
-
-  let add t value =
-    debug "add %s" (V.pretty value);
-    let buf = IrminBuffer.create (V.sizeof value) in
-    V.set buf value;
-    S.add t (IrminBuffer.to_ba buf) >>= fun key ->
-    let key = K.of_string key in
-    debug "<-- add: %s -> key=%s" (V.pretty value) (K.pretty key);
-    return key
+    match V.get buf with
+    | None   -> fail (Unknown key)
+    | Some v -> return v
 
   let mem t key =
     S.mem t (K.to_string key)

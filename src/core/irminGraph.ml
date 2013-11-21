@@ -156,8 +156,9 @@ module Make (B: IrminBase.S) = struct
     XGraph.set buf g
 
   let get buf =
-    let vertex, edges = XGraph.get buf in
-    mk vertex edges
+    match XGraph.get buf with
+    | None                 -> None
+    | Some (vertex, edges) -> Some (mk vertex edges)
 
   let pretty t =
     let vertex = Topological.fold (fun v acc -> v::acc) t [] in

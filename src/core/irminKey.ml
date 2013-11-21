@@ -72,9 +72,12 @@ module SHA1 = struct
 
   let get buf =
     debug "get";
-    let str = IrminBuffer.get_string buf len in
-    debug "--> get %s" (pretty str);
-    str
+    try
+      let str = IrminBuffer.get_string buf len in
+      debug "--> get %s" (pretty str);
+      Some str
+    with _ ->
+      None
 
   let set buf t =
     debug "set %s" (pretty t);
