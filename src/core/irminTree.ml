@@ -270,7 +270,7 @@ struct
     let rec aux tree = function
       | []      -> return (f tree)
       | h :: tl ->
-        map_children t tree.children (fun t -> aux tree tl) h
+        map_children t tree.children (fun tree -> aux tree tl) h
         >>= fun children ->
         return { tree with children } in
     aux tree path
