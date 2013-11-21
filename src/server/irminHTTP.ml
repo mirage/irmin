@@ -104,7 +104,7 @@ module Server (S: Irmin.S) = struct
 
   let to_json t =
     let rec aux path acc = function
-      | Leaf _ -> `String (String.concat "/" (List.rev path)) :: acc
+      | Leaf _ -> `String (IrminTree.string_of_path (List.rev path)) :: acc
       | Node c -> List.fold_left (fun acc (s,t) -> aux (s::path) acc t) acc c in
     `A (List.rev (aux [] [] t))
 
@@ -244,7 +244,7 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
   let callback conn_id ?body req =
     let path = Uri.path (Cohttp.Request.uri req) in
     debug "Request received: PATH=%s" path;
-    let path = Re_str.split_delim (Re_str.regexp_string "/") path in
+    let path = IrminMisc.split path '/' in
     let path = List.filter ((<>) "") path in
     Server.process t ?body req path in
   let conn_closed conn_id () =
