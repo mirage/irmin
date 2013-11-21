@@ -268,8 +268,15 @@ struct
   let remove t tree path =
     map_subtree t tree path (fun tree -> { tree with value = None })
 
+  let dump_values t =
+    V.contents t.v >>= fun l ->
+    debug "VALUES: %s" (IrminMisc.pretty_list K.pretty (List.map fst l));
+    return_unit
+
   let update t tree path value =
-    V.add t.v value >>= fun k ->
+    dump_values t   >>= fun () ->
+    V.add t.v value >>= fun k  ->
+    dump_values t   >>= fun () ->
     map_subtree t tree path (fun tree -> { tree with value = Some k })
 
   include (Tree(K)(K): IrminBase.S with type t := tree)

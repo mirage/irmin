@@ -16,49 +16,53 @@
 
 (** Graphs. *)
 
-(** Main signature. *)
 module type S = sig
 
-  (** Type of keys *)
+(** Main signature. *)
+
   module Vertex: IrminBase.S
+  (** Type of keys *)
 
-  (** Directed graph *)
   include Graph.Sig.I with type V.t = Vertex.t
-  include Graph.Oper.S with type g := t
+  (** Directed graph *)
 
-  (** Topoogical traversal *)
+  include Graph.Oper.S with type g := t
+  (** Basic operations. *)
+
   module Topological: sig
     val fold: (vertex -> 'a -> 'a) -> t -> 'a -> 'a
   end
+  (** Topoogical traversal *)
 
-  (** Get all the vertices. *)
   val vertex: t -> vertex list
+  (** Get all the vertices. *)
 
-  (** Get all the relations. *)
   val edges: t -> (vertex * vertex) list
+  (** Get all the relations. *)
 
-  (** [closure min max pred] creates the clansitive closure of [max]
-      using the precedence relation [pred]. The closure will not
-      contain any keys before the the one specified in [min]. *)
   val closure:
     (vertex -> vertex list Lwt.t)
     -> min:vertex list
     -> max:vertex list
     -> t Lwt.t
+  (** [closure min max pred] creates the clansitive closure of [max]
+      using the precedence relation [pred]. The closure will not
+      contain any keys before the the one specified in [min]. *)
 
-  (** [output g tags name] dumps the graph contents [g], which the
-      vertices labelled by [tags]. [name] is the graph global
-      label.  *)
-  val output: t ->
-    ?labels:(vertex * string) list ->
-    ?overlay:(vertex * vertex) list ->
+  val output:
+    Format.formatter ->
+    (vertex * Graph.Graphviz.DotAttributes.vertex list) list ->
+    (vertex * Graph.Graphviz.DotAttributes.edge list * vertex) list ->
     string -> unit
+  (** [output ppf vertex edges name] create aand dumps the graph
+      contents on [ppf]. The graph is defined by its [vertex] and
+      [edges]. [name] is the name of the output graph.*)
 
-  (** Compute the minimum vertex. *)
   val min: t -> vertex list
+  (** Compute the minimum vertex. *)
 
-  (** Compute the maximun vertex. *)
   val max: t -> vertex list
+  (** Compute the maximun vertex. *)
 
   (** Implements the base operations. *)
   include IrminBase.S with type t := t

@@ -27,9 +27,10 @@ module type S = sig
     -> min:vertex list
     -> max:vertex list
     -> t Lwt.t
-  val output: t ->
-    ?labels:(vertex * string) list ->
-    ?overlay:(vertex * vertex) list ->
+  val output:
+    Format.formatter ->
+    (vertex * Graph.Graphviz.DotAttributes.vertex list) list ->
+    (vertex * Graph.Graphviz.DotAttributes.edge list * vertex) list ->
     string -> unit
   val min: t -> vertex list
   val max: t -> vertex list
@@ -94,7 +95,8 @@ module Make (B: IrminBase.S) = struct
       include G
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
-      let vertex_name k = Vertex.pretty k
+      let vertex_name k =
+        Printf.sprintf "%S" (Vertex.pretty k)
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None
@@ -104,23 +106,20 @@ module Make (B: IrminBase.S) = struct
         | Some n -> [`Label n]
     end)
 
-  let output g ?(labels=[]) ?(overlay=[]) name =
-    if IrminLog.debug_enabled () then
-      let g = G.copy g in
-      List.iter (fun (v1,v2) -> G.add_edge g v1 v2) overlay;
-      let eattrs e =
-        if List.mem e overlay then [`Label "overlay"] else [] in
-      let vattrs k =
-        let tags = List.fold_left
-            (fun accu (ki,ti) -> if k=ki then ti::accu else accu)
-            [] labels in
-        List.map (fun t -> `Label t) tags in
-      vertex_attributes := vattrs;
-      edge_attributes := eattrs;
-      graph_name := Some name;
-      Printf.eprintf "%!";
-      Dot.output_graph stderr g;
-      Printf.eprintf "\n\n%!"
+  let output ppf vertex edges name =
+    let g = G.create ~size:(List.length vertex) () in
+    List.iter (fun (v,_) -> G.add_vertex g v) vertex;
+    List.iter (fun (v1,_,v2) -> G.add_edge g v1 v2) edges;
+    let eattrs (v1, v2) =
+      try let (_,l,_) = List.find (fun (x,_,y) -> x=v1 && y=v2) edges in l
+      with Not_found -> [] in
+    let vattrs v =
+      try List.assoc v vertex
+      with Not_found -> [] in
+    vertex_attributes := vattrs;
+    edge_attributes := eattrs;
+    graph_name := Some name;
+    Dot.fprint_graph ppf g
 
   let mk vertex edges =
     let g = G.create ~size:(List.length vertex) () in

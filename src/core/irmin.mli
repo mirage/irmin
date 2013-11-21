@@ -73,6 +73,9 @@ module type S = sig
   (** Create a store associated to a given tag (by default, [create]
       uses [Tag.head]. *)
 
+  val dump: t -> string -> unit Lwt.t
+  (** Dump the contents of the store. *)
+
 end
 
 module Make

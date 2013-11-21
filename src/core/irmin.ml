@@ -48,8 +48,8 @@ module type S = sig
                         and type revision := key
 
   val tag: Tag.tag -> t Lwt.t
+  val dump: t -> string -> unit Lwt.t
 end
-
 
 module Make
   (K: IrminKey.BINARY)
@@ -173,11 +173,68 @@ struct
         | Some v -> aux ((path, v) :: seen) todo in
     list t [] >>= aux []
 
+  module Graph = IrminGraph.Make(K)
+
+  let dump t name =
+    debug "DUMP %s" name;
+    Value.contents t.value       >>= fun values    ->
+    Tree.contents  t.tree        >>= fun trees     ->
+    Revision.contents t.revision >>= fun revisions ->
+    debug "XXX: value %d" (List.length values);
+    debug "XXX: trees %d" (List.length trees);
+    debug "XXX: revs  %d" (List.length revisions);
+    let vertex = ref [] in
+    let add_vertex v l =
+      vertex := (v, l) :: !vertex in
+    let edges = ref [] in
+    let add_edge v1 l v2 =
+      edges := (v1, l, v2) :: !edges in
+    let label k =
+      `Label (K.pretty k) in
+    let label_of_value v =
+      let s = V.pretty v in
+      let s =
+        if s.[0] = '"' && s.[String.length s - 1] = '"' then
+          String.sub s 1 (String.length s - 2)
+        else s in
+      `Label s in
+    List.iter (fun (k, v) ->
+        add_vertex k [label k; label_of_value v]
+      ) values;
+    List.iter (fun (k, t) ->
+        add_vertex k [`Shape `Box; label k];
+        List.iter (fun (l,c) ->
+            add_edge k [`Style `Solid; `Label l] c
+          ) t.IrminTree.children;
+        match t.IrminTree.value with
+        | None   -> ()
+        | Some v -> add_edge k [`Style `Dotted] v
+      ) trees;
+    List.iter (fun (k, r) ->
+        add_vertex k [`Style `Dashed; label k];
+        List.iter (fun p ->
+            add_edge k [`Style `Solid] p
+          ) r.IrminRevision.parents;
+        match r.IrminRevision.tree with
+        | None      -> ()
+        | Some tree -> add_edge k [`Style `Dashed] tree
+      ) revisions;
+    (* XXX: this is not Xen-friendly *)
+    let file = name ^ ".dot" in
+    let oc = open_out file in
+    Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
+    close_out oc;
+    debug "XXX: vertex:%d edges:%d" (List.length !vertex) (List.length !edges);
+    let _ = Sys.command (Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name) in
+    return_unit
 
   let watch _ =
     failwith "watch: TODO"
 
   module Raw = struct
+
+    let debug fmt =
+      IrminLog.debug "RAW" fmt
 
     type key = K.t
 
