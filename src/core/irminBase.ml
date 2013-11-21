@@ -107,8 +107,6 @@ module Option (E: S) = struct
 
   let debug fmt = IrminLog.debug "IO-OPTION" fmt
 
-  module L = List(E)
-
   let name = E.name
 
   type t = E.t option
@@ -144,24 +142,29 @@ module Option (E: S) = struct
 
   let sizeof t =
     debug "sizeof";
-    match t with
-    | None   -> 4
-    | Some e -> 4 + E.sizeof e
+    1 + match t with
+      | None   -> 0
+      | Some e -> E.sizeof e
+
+  let none = 0
+  let some = 1
 
   let get buf =
     debug "get";
-    match L.get buf with
-    | None     -> None
-    | Some []  -> Some None
-    | Some [e] -> Some (Some e)
-    | _        -> None
+    let h = IrminBuffer.get_uint8 buf in
+    if h = none then Some None
+    else match E.get buf with
+      | None   -> None
+      | Some v -> Some (Some v)
 
   let set buf t =
     debug "set %s" (pretty t);
-    let l = match t with
-      | None   -> []
-      | Some e -> [e] in
-    L.set buf l
+    match t with
+    | None   ->
+      IrminBuffer.set_uint8 buf none
+    | Some e ->
+      IrminBuffer.set_uint8 buf some;
+      E.set buf e
 
 end
 
