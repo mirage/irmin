@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let debug fmt =
+  IrminLog.debug "VALUE" fmt
+
 exception Conflict
 
 module type S = sig

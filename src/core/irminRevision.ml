@@ -19,6 +19,9 @@ type ('a, 'b) node = {
   parents: 'b list;
 }
 
+let debug fmt =
+  IrminLog.debug "REVISION" fmt
+
 module Revision (A: IrminBase.S) (B: IrminBase.S) = struct
 
   type t = (A.t, B.t) node
@@ -153,6 +156,7 @@ struct
   module Graph = IrminGraph.Make(K)
 
   let list t key =
+    debug "list %s" (K.pretty key);
     let pred k =
       read_exn t k >>= fun r -> return r.parents in
     Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
