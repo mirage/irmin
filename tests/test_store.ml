@@ -239,6 +239,7 @@ module Make (S: Irmin.S) = struct
       Raw.export t1          >>= fun xx ->
 
       (* Restart a fresh store and import everything in there. *)
+      x.clean ()             >>= fun () ->
       x.init ()              >>= fun () ->
       create ()              >>= fun t2 ->
 
