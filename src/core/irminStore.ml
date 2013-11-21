@@ -144,7 +144,7 @@ module type S = sig
   module Raw: sig
     type key
     type value
-    val export: t -> (key * value) list Lwt.t
+    val export: t -> revision list -> (key * value) list Lwt.t
     val import: t -> (key * value) list -> unit Lwt.t
   end
 end

@@ -249,8 +249,8 @@ struct
         ) l;
       !r
 
-    let export t =
-      debug "export";
+    let export t roots =
+      debug "export roots=%s" (IrminMisc.pretty_list K.pretty roots);
       dump t "export" >>= fun () ->
       let contents = Hashtbl.create 1024 in
       let add k v =
@@ -258,8 +258,16 @@ struct
       Tag.read t.tag t.branch >>= function
       | None          -> return_nil
       | Some revision ->
-        Revision.list t.revision revision >>= fun revisions ->
-        debug "export REVISIONS=%s" (IrminMisc.pretty_list Key.pretty revisions);
+        begin
+          if roots = [] then Revision.list t.revision revision
+          else
+            let pred k =
+              Revision.read_exn t.revision k >>= fun r ->
+              return r.IrminRevision.parents in
+            Graph.closure pred ~min:roots ~max:[revision] >>= fun g ->
+            return (Graph.vertex g)
+        end
+        >>= fun revisions ->
         Lwt_list.fold_left_s (fun set key ->
             Revision.read_exn t.revision key >>= fun revision ->
             add key (Revision revision);

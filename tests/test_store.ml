@@ -201,9 +201,7 @@ module Make (S: Irmin.S) = struct
       assert_value_equal "v1.1" v1 v1';
       snapshot t            >>= fun r1  ->
 
-      dump t "before" >>= fun () ->
       update t ["a";"c"] v2 >>= fun ()  ->
-      dump t "after" >>= fun () ->
       mem t ["a";"b"]       >>= fun b1  ->
       assert_bool_equal "mem3" true b1;
       mem t ["a"]           >>= fun b2  ->
@@ -236,14 +234,15 @@ module Make (S: Irmin.S) = struct
       snapshot t1            >>= fun r2 ->
       update t1 ["a";"d"] v1 >>= fun () ->
       snapshot t1            >>= fun r3 ->
-      Raw.export t1          >>= fun xx ->
+      Raw.export t1 [r3]     >>= fun partial ->
+      Raw.export t1 []       >>= fun full    ->
 
       (* Restart a fresh store and import everything in there. *)
       x.clean ()             >>= fun () ->
       x.init ()              >>= fun () ->
       create ()              >>= fun t2 ->
 
-      Raw.import t2 xx       >>= fun () ->
+      Raw.import t2 partial  >>= fun () ->
       revert t2 r3           >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
@@ -257,11 +256,18 @@ module Make (S: Irmin.S) = struct
       read_exn t2 ["a";"d"]  >>= fun v1' ->
       assert_value_equal "v1" v1' v1;
 
-      revert t2 r2           >>= fun () ->
-      mem t2 ["a";"d"]       >>= fun b4 ->
-      assert_bool_equal "mem-ab" false b4;
-
-      return_unit in
+      catch
+        (fun () ->
+           revert t2 r2 >>= fun () ->
+           OUnit.assert_bool "revert" false;
+           return_unit)
+        (fun e ->
+           Raw.import t2 full >>= fun () ->
+           revert t2 r2       >>= fun () ->
+           mem t2 ["a";"d"]       >>= fun b4 ->
+           assert_bool_equal "mem-ab" false b4;
+           return_unit
+        ) in
     run x test
 
 end
