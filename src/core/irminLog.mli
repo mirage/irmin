@@ -23,7 +23,7 @@ val debug: string -> ('a, out_channel, unit) format -> 'a
 val info: string ->  ('a, out_channel, unit) format -> 'a
 
 (** Error *)
-val error: string -> ('a, unit, string, unit) format4 -> 'a
+val error: ('a, unit, string, unit) format4 -> 'a
 
 (** Message *)
 val msg: ('a, unit, string, unit) format4 -> 'a
