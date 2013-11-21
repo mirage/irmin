@@ -65,7 +65,7 @@ module type S = sig
   (** {2 Mutable store interface} *)
 
   include IrminStore.S with type t := t
-                        and type key := Tree.path
+                        and type key := IrminTree.path
                         and type value := value
                         and type revision := key
 

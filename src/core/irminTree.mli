@@ -23,6 +23,15 @@ type ('a, 'b) node = {
 }
 (** Type of concrete trees .*)
 
+type path = string list
+(** Type of labeled path to go from one node to node. *)
+
+val string_of_path: path -> string
+(** Convert a path to string. *)
+
+val path_of_string: string -> path
+(** Convert a string to a path. *)
+
 module Tree (A: IrminBase.S) (B: IrminBase.S):
   IrminBase.S with type t = (A.t, B.t) node
 (** Base functions for trees. *)
@@ -39,9 +48,6 @@ module type STORE = sig
 
   type tree = (key, key) node
   (** Type of tree nodes. *)
-
-  type path = string list
-  (** Type of labeled path to go from one node to node. *)
 
   include IrminBase.S with type t := tree
   (** Tree are base types. *)

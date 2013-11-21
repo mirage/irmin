@@ -43,7 +43,7 @@ module type S = sig
     branch  : Tag.tag;
   }
   include IrminStore.S with type t := t
-                        and type key := Tree.path
+                        and type key := IrminTree.path
                         and type value := value
                         and type revision := key
 

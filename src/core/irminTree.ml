@@ -23,11 +23,18 @@ type ('a, 'b) node = {
 let debug fmt =
   IrminLog.debug "TREE" fmt
 
+type path = string list
+
+let string_of_path =
+  String.concat "/"
+
+let path_of_string path =
+  IrminMisc.split path '/'
+
 module type STORE = sig
   type key
   type value
   type tree = (key, key) node
-  type path = string list
   include IrminBase.S with type t := tree
   include IrminStore.A with type key := key
                         and type value := tree

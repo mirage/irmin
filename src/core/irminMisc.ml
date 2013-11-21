@@ -64,3 +64,6 @@ let pretty_list f = function
       ) l;
     Buffer.add_string buf " }";
     Buffer.contents buf
+
+let split s c =
+  Re_str.split_delim (Re_str.regexp_string (String.make 1 c)) s

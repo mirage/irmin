@@ -27,3 +27,6 @@ val sha1: string -> string
 
 val pretty_list: ('a -> string) -> 'a list -> string
 (** Pretty-print a list. *)
+
+val split: string -> char -> string list
+(** Split a string into pieces. *)
