@@ -276,7 +276,7 @@ let filter_test ~subst labels test =
     if tl = [] then None else Some (OUnit.TestList tl)
 
 let filter_tests ~subst labels tests =
-  List.fold_left (fun acc test ->
+  let tests = List.fold_left (fun acc test ->
       match test with
       | OUnit.TestCase _
       | OUnit.TestList _ -> assert false
@@ -284,7 +284,8 @@ let filter_tests ~subst labels tests =
         match filter_test ~subst labels test with
         | None   -> if subst then skip_label l :: acc else acc
         | Some r -> r :: acc
-    ) [] tests
+    ) [] tests in
+  List.rev tests
 
 let redirect_test_output labels test_fun =
   fun () ->
