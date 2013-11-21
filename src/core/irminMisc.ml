@@ -55,7 +55,7 @@ let pretty_list f = function
   | [] -> "{}"
   | l  ->
     let buf = Buffer.create 1024 in
-    let len = ref (List.length l - 2) in
+    let len = ref (List.length l - 1) in
     Buffer.add_string buf "{ ";
     List.iter (fun e ->
         Buffer.add_string buf (f e);
