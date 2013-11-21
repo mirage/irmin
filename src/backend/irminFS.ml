@@ -221,6 +221,8 @@ module M (S: S) (K: IrminKey.S) = struct
         IrminChannel.write_buffer fd buf
       )
 
+  (* XXX: not very natural to not have the same semantics for A.list
+     and M.list *)
   let list (D root as t) _ =
     check t >>= fun () ->
     basenames (fun x -> x) root
