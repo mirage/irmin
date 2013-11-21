@@ -111,7 +111,15 @@ module Make (B: IrminBase.S) = struct
     List.iter (fun (v,_) -> G.add_vertex g v) vertex;
     List.iter (fun (v1,_,v2) -> G.add_edge g v1 v2) edges;
     let eattrs (v1, v2) =
-      try let (_,l,_) = List.find (fun (x,_,y) -> x=v1 && y=v2) edges in l
+      try
+        let l = List.find_all (fun (x,_,y) -> x=v1 && y=v2) edges in
+        let l = List.fold_left (fun acc (_,l,_) -> l @ acc) [] l in
+        let labels, others = List.partition (function `Label _ -> true | _ -> false) l in
+        match labels with
+        | []|[_] -> labels @ others
+        | l      -> `Label (String.concat ","
+                              (List.map (function `Label l -> l | _ -> assert false) l))
+                    :: others
       with Not_found -> [] in
     let vattrs v =
       try List.assoc v vertex
