@@ -44,15 +44,9 @@ module SHA1 = struct
 
   let len = 20
 
-  let length = Some len
-
   let create str =
     if String.length str = len then str
     else raise (Invalid str)
-
-  let sizeof _ =
-    debug "sizeof";
-    len
 
   let to_hex t =
     IrminMisc.hex_encode t
@@ -70,17 +64,30 @@ module SHA1 = struct
 
   let of_pretty = of_hex
 
+  (* |-----|-------------| *)
+  (* | 'K' | PAYLOAD(20) | *)
+  (* |-----|-------------| *)
+
+  let header = "K"
+
+  let sizeof _ =
+    1 + len
+
   let get buf =
     debug "get";
-    try
-      let str = IrminBuffer.get_string buf len in
-      debug "--> get %s" (pretty str);
-      Some str
-    with _ ->
-      None
+    let h = IrminBuffer.get_string buf 1 in
+    if header <> h then None
+    else
+      try
+        let str = IrminBuffer.get_string buf len in
+        debug "--> get %s" (pretty str);
+        Some str
+      with _ ->
+        None
 
   let set buf t =
     debug "set %s" (pretty t);
+    IrminBuffer.set_string buf header;
     IrminBuffer.set_string buf t
 
   let of_bytes str =
