@@ -34,6 +34,11 @@ let list fn = {
   output = IrminJSON.of_list fn.output;
 }
 
+let pair a b = {
+  input  = IrminJSON.to_pair a.input b.input;
+  output = IrminJSON.of_pair a.output b.output;
+}
+
 let bool = {
   input  = IrminJSON.to_bool;
   output = IrminJSON.of_bool;
@@ -78,6 +83,9 @@ module Server (S: Irmin.S) = struct
     output = S.Tag.to_json;
   }
 
+  let contents key value =
+    list (pair key value)
+
   let respond body =
     debug "%S" body;
     Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body ()
@@ -115,6 +123,14 @@ module Server (S: Irmin.S) = struct
   let ta t = t.S.tag
   let t x = x
 
+  let mk0 fn db o =
+    Leaf (fun t -> function
+        | [] ->
+          fn (db t) >>= fun r ->
+          return (o.output r)
+        | _ -> error "Too many arguments"
+      )
+
   let mk1 fn db i1 o =
     Leaf (fun t -> function
         | [x] ->
@@ -137,40 +153,45 @@ module Server (S: Irmin.S) = struct
       )
 
   let value_store = Node [
-      "read"  , mk1 S.Value.read va key   (some value);
-      "mem"   , mk1 S.Value.mem  va key   bool;
-      "list"  , mk1 S.Value.list va key   (list key);
-      "add"   , mk1 S.Value.add  va value key;
+      "read"    , mk1 S.Value.read     va key   (some value);
+      "mem"     , mk1 S.Value.mem      va key   bool;
+      "list"    , mk1 S.Value.list     va key   (list key);
+      "add"     , mk1 S.Value.add      va value key;
+      "contents", mk0 S.Value.contents va (contents key value);
   ]
 
   let tree_store = Node [
-    "read"  , mk1 S.Tree.read tr key  (some tree);
-    "mem"   , mk1 S.Tree.mem  tr key  bool;
-    "list"  , mk1 S.Tree.list tr key  (list key);
-    "add"   , mk1 S.Tree.add  tr tree key;
+    "read"    , mk1 S.Tree.read     tr key  (some tree);
+    "mem"     , mk1 S.Tree.mem      tr key  bool;
+    "list"    , mk1 S.Tree.list     tr key  (list key);
+    "add"     , mk1 S.Tree.add      tr tree key;
+    "contents", mk0 S.Tree.contents tr (contents key tree);
   ]
 
   let revision_store = Node [
-    "read"  , mk1 S.Revision.read re key  (some revision);
-    "mem"   , mk1 S.Revision.mem  re key  bool;
-    "list"  , mk1 S.Revision.list re key  (list key);
-    "add"   , mk1 S.Revision.add  re revision key;
+    "read"    , mk1 S.Revision.read     re key  (some revision);
+    "mem"     , mk1 S.Revision.mem      re key  bool;
+    "list"    , mk1 S.Revision.list     re key  (list key);
+    "add"     , mk1 S.Revision.add      re revision key;
+    "contents", mk0 S.Revision.contents re (contents key revision);
   ]
 
   let tag_store = Node [
-    "read"  , mk1 S.Tag.read   ta tag (some key);
-    "mem"   , mk1 S.Tag.mem    ta tag bool;
-    "list"  , mk1 S.Tag.list   ta tag (list tag);
-    "update", mk2 S.Tag.update ta tag key unit;
-    "remove", mk1 S.Tag.remove ta tag unit;
+    "read"    , mk1 S.Tag.read     ta tag (some key);
+    "mem"     , mk1 S.Tag.mem      ta tag bool;
+    "list"    , mk1 S.Tag.list     ta tag (list tag);
+    "update"  , mk2 S.Tag.update   ta tag key unit;
+    "remove"  , mk1 S.Tag.remove   ta tag unit;
+    "contents", mk0 S.Tag.contents ta (contents tag key);
   ]
 
   let store = Node [
-    "read"    , mk1 S.read    t path (some value);
-    "mem"     , mk1 S.mem     t path bool;
-    "list"    , mk1 S.list    t path (list path);
-    "update"  , mk2 S.update  t path value unit;
-    "remove"  , mk1 S.remove  t path unit;
+    "read"    , mk1 S.read     t path (some value);
+    "mem"     , mk1 S.mem      t path bool;
+    "list"    , mk1 S.list     t path (list path);
+    "update"  , mk2 S.update   t path value unit;
+    "remove"  , mk1 S.remove   t path unit;
+    "contents", mk0 S.contents t (contents path value);
     "value"   , value_store;
     "tree"    , tree_store;
     "revision", revision_store;
