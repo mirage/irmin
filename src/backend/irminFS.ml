@@ -252,4 +252,4 @@ let simple path =
   let module Simple = Irmin.Binary
       (K)(IrminValue.Simple)(IrminTag.Simple)
       (A)(A)(A)(M) in
-  (module Simple: Irmin.S)
+  (module Simple: Irmin.SIMPLE)

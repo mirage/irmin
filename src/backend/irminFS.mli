@@ -30,5 +30,5 @@ module A (S: S) (K: IrminKey.BINARY): IrminStore.A_BINARY
 module M (S: S) (K: IrminKey.S): IrminStore.M_BINARY
 (** Create a mutable store with disk persistence at the given path. *)
 
-val simple: string -> (module Irmin.S)
+val simple: string -> (module Irmin.SIMPLE)
 (** Simple store stored on the filesystem. *)

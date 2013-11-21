@@ -154,4 +154,4 @@ let simple u =
       (Tree)
       (Revision)
       (Tag) in
-  (module Simple: Irmin.S)
+  (module Simple: Irmin.SIMPLE)

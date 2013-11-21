@@ -22,7 +22,7 @@ module A (K: IrminKey.BINARY): IrminStore.A_BINARY
 module M (K: IrminKey.S): IrminStore.M_BINARY
 (** Create a fresh mutable store. *)
 
-module Simple: Irmin.S
+module Simple: Irmin.SIMPLE
 (** Simple memory store. *)
 
 val reset: unit -> unit

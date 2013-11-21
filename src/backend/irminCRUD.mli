@@ -29,5 +29,5 @@ module A (S: S) (K: IrminKey.BINARY) (V: IrminBase.S): IrminStore.A
 module M (S: S) (K: IrminKey.S) (V: IrminBase.S): IrminStore.M
 (** Create a fresh mutable store. *)
 
-val simple: Uri.t -> (module Irmin.S)
+val simple: Uri.t -> (module Irmin.SIMPLE)
 (** Simple store using a JSON CRUD interface. *)
