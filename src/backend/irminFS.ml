@@ -152,9 +152,14 @@ module X (O: O) (K: IrminKey.S) = struct
     return [k]
 
   let contents (D root as t) =
+    debug "contents %s" root;
     check t >>= fun () ->
     basenames (fun x -> x) root >>= fun l ->
-    Lwt_list.map_p (fun x -> read_exn t x >>= fun v -> return (x, v)) l
+    Lwt_list.fold_left_s (fun acc x ->
+        read t x >>= function
+        | None   -> return acc
+        | Some v -> return ((x, v) :: acc)
+      ) [] l
 
 end
 
