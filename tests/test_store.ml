@@ -54,12 +54,12 @@ module Make (S: Irmin.S) = struct
     let test () =
       create ()             >>= fun t    ->
       Value.add t.value v1  >>= fun k1'  ->
-      Value.add t.value v1  >>= fun k1'' ->
       assert_key_equal "k1" k1 k1';
+      Value.add t.value v1  >>= fun k1'' ->
       assert_key_equal "k1" k1 k1'';
       Value.add t.value v2  >>= fun k2'  ->
-      Value.add t.value v2  >>= fun k2'' ->
       assert_key_equal "k2" k2 k2';
+      Value.add t.value v2  >>= fun k2'' ->
       assert_key_equal "k2" k2 k2'';
       Value.read t.value k1 >>= fun v1'  ->
       assert_value_opt_equal "v1" (Some v1) v1';
@@ -115,6 +115,17 @@ module Make (S: Irmin.S) = struct
       assert_value_opt_equal "v1.2" (Some v1) v12;
       Tree.find t.tree t3 ["a";"b"] >>= fun v13 ->
       assert_value_opt_equal "v1" (Some v1) v13;
+
+      (* Create the tree t6 -a-> t5 -b-> t1(v1)
+                                   \-c-> t4(v2) *)
+      Tree.tree t.tree ~value:v2 []         >>= fun k4  ->
+      Tree.read_exn t.tree k4               >>= fun t4  ->
+      Tree.tree t.tree [("b",t1); ("c",t4)] >>= fun k5  ->
+      Tree.read_exn t.tree k5               >>= fun t5  ->
+      Tree.tree t.tree ["a",t5]             >>= fun k6  ->
+      Tree.read_exn t.tree k6               >>= fun t6  ->
+      Tree.update t.tree t3 ["a";"c"] v2    >>= fun t6' ->
+      assert_tree_equal "tree" t6 t6';
 
       return_unit
     in
