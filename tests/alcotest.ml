@@ -113,7 +113,8 @@ let right_column () =
   - left_column ()
   + 15
 
-let printf fmt = Printf.fprintf mystdout fmt
+let printf fmt =
+  Printf.fprintf mystdout fmt
 
 let right s =
   printf "%s\n%!" (indent_right s (right_column ()))
@@ -288,7 +289,8 @@ let filter_tests ~subst labels tests =
   List.rev tests
 
 let redirect_test_output labels test_fun =
-  fun () ->
+  if !verbose then test_fun
+  else fun () ->
     let output_file = output_file labels in
     if not (Sys.file_exists !log_dir) then Unix.mkdir !log_dir 0o755;
     redirect stdout output_file;
@@ -349,7 +351,7 @@ let run_registred_tests dir verb quick =
   run (OUnit.TestList !tests)
 
 let run_subtest dir verb quick labels =
-  verbose := verb || true;
+  verbose := verb;
   speed_level := (if quick then `Quick else `Slow);
   log_dir := dir;
   let is_empty = filter_tests ~subst:false labels !tests = [] in
@@ -366,8 +368,8 @@ let test_dir =
   Arg.(value & opt string "./_tests/"  & info ["-o"] ~docv:"DIR" ~doc)
 
 let verbose =
-  let doc = "Display the output for test errors." in
-  Arg.(value & flag & info ["v";"verbose"] ~docv:"" ~doc)
+  let doc = "Display the test outputs." in
+  Arg.(value & flag & info ["v"; "verbose"] ~docv:"" ~doc)
 
 let quicktests =
   let doc = "Run only the quick tests." in
