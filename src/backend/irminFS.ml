@@ -151,6 +151,11 @@ module X (O: O) (K: IrminKey.S) = struct
   let list t k =
     return [k]
 
+  let contents (D root as t) =
+    check t >>= fun () ->
+    basenames (fun x -> x) root >>= fun l ->
+    Lwt_list.map_p (fun x -> read_exn t x >>= fun v -> return (x, v)) l
+
 end
 
 module A (S: S) (K: IrminKey.BINARY) = struct

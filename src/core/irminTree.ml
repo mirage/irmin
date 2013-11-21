@@ -147,31 +147,19 @@ struct
   let mem t key =
     S.mem t.t key
 
-  module Set = Set.Make(K)
+  module Graph = IrminGraph.Make(K)
 
-  let set_of_list l =
-    let r = ref Set.empty in
-    List.iter (fun elt ->
-        r := Set.add elt !r
-      ) l;
-    !r
-
-  (* Return all the children keys. Do not return value keys. *)
   let list t key =
-    let rec aux seen todo =
-      if Set.cardinal todo = 0 then
-        return (Set.elements seen)
-      else begin
-        let tree = Set.choose todo in
-        let todo = Set.remove tree todo in
-        read t tree >>= function
-        | None      -> aux seen todo
-        | Some tree ->
-          let keys = List.map snd tree.children in
-          let seen = Set.union (set_of_list keys) seen in
-          aux seen todo
-      end in
-    aux Set.empty (Set.singleton key)
+    debug "list %s" (K.pretty key);
+    read_exn t key >>= fun _ ->
+    debug "list OK";
+    let pred k =
+      read_exn t k >>= fun r -> return (List.map snd r.children) in
+    Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
+    return (Graph.vertex g)
+
+  let contents t =
+    S.contents t.t
 
   let empty = {
     value = None;

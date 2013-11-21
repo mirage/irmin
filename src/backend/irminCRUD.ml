@@ -103,6 +103,10 @@ module X (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
     debug "list %s" (K.pretty key);
     get t ["list"; K.pretty key] (IrminJSON.to_list K.of_json)
 
+  let contents t =
+    debug "contents";
+    get t ["contents"] (IrminJSON.to_list (IrminJSON.to_pair K.of_json V.of_json))
+
 end
 
 module A (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct

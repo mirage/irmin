@@ -23,6 +23,7 @@ module type X = sig
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
   val list: t -> key -> key list Lwt.t
+  val contents: t -> (key * value) list Lwt.t
 end
 
 module type X_BINARY = X with type key := string
@@ -87,7 +88,14 @@ module A  (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
     let ks = List.map K.of_string ks in
     return ks
 
-end
+  let contents t =
+    S.contents t >>= fun l ->
+    Lwt_list.fold_left_s (fun acc (s, ba) ->
+        let buf = IrminBuffer.of_ba ba in
+        match V.get buf with
+        | None   -> return acc
+        | Some v -> return ((K.of_string s, v) :: acc)
+      ) [] l
 
 module type M = sig
   include X

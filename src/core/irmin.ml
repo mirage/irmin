@@ -157,11 +157,19 @@ struct
       let paths = List.map (fun (c,_) -> path @ [c]) tree.IrminTree.children in
       return paths
 
-  type contents = {
-    values   : (key * value) list;
-    trees    : (key * tree) list;
-    revisions: (key * revision) list;
-  }
+  let contents t =
+    revision t >>= fun revision ->
+    tree t revision >>= fun tree ->
+    let rec aux seen = function
+      | []       -> return (List.sort compare seen)
+      | path::tl ->
+        list t path >>= fun childs ->
+        let todo = childs @ tl in
+        Tree.find t.tree tree path >>= function
+        | None   -> aux seen todo
+        | Some v -> aux ((path, v) :: seen) todo in
+    list t [] >>= aux []
+
 
   let watch _ =
     failwith "watch: TODO"

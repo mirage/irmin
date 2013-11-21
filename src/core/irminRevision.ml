@@ -158,4 +158,7 @@ struct
     Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
     return (Graph.vertex g)
 
+  let contents t =
+    S.contents t.r
+
 end

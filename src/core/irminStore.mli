@@ -48,6 +48,8 @@ module type X = sig
   (** Return all the keys that are allowed to access, knowing a key
       (which might be seen as a password). *)
 
+  val contents: t -> (key * value) list Lwt.t
+
 end
 
 module type X_BINARY = X with type key := string

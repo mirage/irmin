@@ -59,6 +59,9 @@ module X (K: IrminKey.S) = struct
   let list t k =
     return [k]
 
+  let contents t =
+    return (Hashtbl.fold (fun k v l -> (k, v) :: l) t [])
+
 end
 
 module A (K: IrminKey.BINARY) = struct
