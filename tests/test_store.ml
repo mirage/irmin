@@ -191,9 +191,7 @@ module Make (S: Irmin.S) = struct
   let test_stores x () =
     let test () =
       create ()             >>= fun t   ->
-      dump t "zero" >>= fun () ->
       update t ["a";"b"] v1 >>= fun ()  ->
-      dump t "zero" >>= fun () ->
 
       mem t ["a";"b"]       >>= fun b1  ->
       assert_bool_equal "mem1" true b1;
