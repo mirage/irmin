@@ -34,17 +34,25 @@ module SHA1 = struct
 
   let debug fmt = IrminLog.debug "SHA1" fmt
 
-  include IrminBase.String
+  type t = string
 
-  exception Invalid of t
+  exception Invalid of string
 
-  exception Unknown of t
+  exception Unknown of string
+
+  let to_string x = x
+
+  let compare = String.compare
+
+  let hash = Hashtbl.hash
+
+  let equal t1 t2 = String.compare t1 t2 = 0
 
   let name = "key"
 
   let len = 20
 
-  let create str =
+  let of_string str =
     if String.length str = len then str
     else raise (Invalid str)
 
