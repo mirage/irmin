@@ -37,8 +37,8 @@ let tag_conv =
   parse, print
 
 let path_conv =
-  let parse str = `Ok (IrminTree.path_of_string str) in
-  let print ppf path = pr_str ppf (IrminTree.string_of_path path) in
+  let parse str = `Ok (IrminTree.Path.of_pretty str) in
+  let print ppf path = pr_str ppf (IrminTree.Path.pretty path) in
   parse, print
 
 let value =
@@ -160,7 +160,7 @@ let ls =
     run begin
       S.create ()   >>= fun t ->
       S.list t path >>= fun paths ->
-      List.iter (fun p -> IrminLog.msg "%s" (IrminTree.string_of_path p)) paths;
+      List.iter (fun p -> IrminLog.msg "%s" (IrminTree.Path.pretty p)) paths;
       return_unit
     end
   in

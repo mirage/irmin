@@ -109,7 +109,7 @@ module Server (S: Irmin.S) = struct
 
   let to_json t =
     let rec aux path acc = function
-      | Leaf _ -> `String (IrminTree.string_of_path (List.rev path)) :: acc
+      | Leaf _ -> `String (IrminTree.Path.pretty (List.rev path)) :: acc
       | Node c -> List.fold_left (fun acc (s,t) -> aux (s::path) acc t) acc c in
     `A (List.rev (aux [] [] t))
 

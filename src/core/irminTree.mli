@@ -23,14 +23,8 @@ type ('a, 'b) node = {
 }
 (** Type of concrete trees .*)
 
-type path = string list
-(** Type of labeled path to go from one node to node. *)
-
-val string_of_path: path -> string
-(** Convert a path to string. *)
-
-val path_of_string: string -> path
-(** Convert a string to a path. *)
+module Path: IrminKey.S with type t = string list
+(** Type of paths, to address nodes from the tree root. *)
 
 module Tree (A: IrminBase.S) (B: IrminBase.S):
   IrminBase.S with type t = (A.t, B.t) node
@@ -68,26 +62,26 @@ module type STORE = sig
   val children: t -> tree -> (string * tree Lwt.t) list
   (** Return the child nodes. *)
 
-  val sub: t -> tree -> path -> tree option Lwt.t
+  val sub: t -> tree -> Path.t -> tree option Lwt.t
   (** Find a subtree. *)
 
-  val sub_exn: t -> tree -> path -> tree Lwt.t
+  val sub_exn: t -> tree -> Path.t -> tree Lwt.t
   (** Find a subtree. Raise [Not_found] if it does not exist. *)
 
-  val update: t -> tree -> path -> value -> tree Lwt.t
+  val update: t -> tree -> Path.t -> value -> tree Lwt.t
   (** Add a value by recusively saving subtrees and subvalues into the
       corresponding stores. *)
 
-  val find: t -> tree -> path -> value option Lwt.t
+  val find: t -> tree -> Path.t -> value option Lwt.t
   (** Find a value. *)
 
-  val find_exn: t -> tree -> path -> value Lwt.t
+  val find_exn: t -> tree -> Path.t -> value Lwt.t
   (** Find a value. Raise [Not_found] is [path] is not defined. *)
 
-  val remove: t -> tree -> path -> tree Lwt.t
+  val remove: t -> tree -> Path.t -> tree Lwt.t
   (** Remove a value. *)
 
-  val valid: t -> tree -> path -> bool Lwt.t
+  val valid: t -> tree -> Path.t -> bool Lwt.t
   (** Is a path valid. *)
 
 end

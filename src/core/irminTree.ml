@@ -23,14 +23,28 @@ type ('a, 'b) node = {
 let debug fmt =
   IrminLog.debug "TREE" fmt
 
-type path = string list
+module Path = struct
 
-let string_of_path =
-  String.concat "/"
+  include IrminBase.List(IrminBase.String)
 
-let path_of_string path =
-  let strings = IrminMisc.split path '/' in
-  List.filter ((<>) "") strings
+  exception Unknown of string
+
+  exception Invalid of string
+
+  let name = "path"
+
+  let to_string =
+    String.concat "/"
+
+  let of_string path =
+    let strings = IrminMisc.split path '/' in
+    List.filter ((<>) "") strings
+
+  let pretty = to_string
+
+  let of_pretty = of_string
+
+end
 
 module type STORE = sig
   type key
@@ -43,13 +57,13 @@ module type STORE = sig
   val tree: t -> ?value:value -> (string * tree) list -> key Lwt.t
   val value: t -> tree -> value Lwt.t option
   val children: t -> tree -> (string * tree Lwt.t) list
-  val sub: t -> tree -> path -> tree option Lwt.t
-  val sub_exn: t -> tree -> path -> tree Lwt.t
-  val update: t -> tree -> path -> value -> tree Lwt.t
-  val find: t -> tree -> path -> value option Lwt.t
-  val find_exn: t -> tree -> path -> value Lwt.t
-  val remove: t -> tree -> path -> tree Lwt.t
-  val valid: t -> tree -> path -> bool Lwt.t
+  val sub: t -> tree -> Path.t -> tree option Lwt.t
+  val sub_exn: t -> tree -> Path.t -> tree Lwt.t
+  val update: t -> tree -> Path.t -> value -> tree Lwt.t
+  val find: t -> tree -> Path.t -> value option Lwt.t
+  val find_exn: t -> tree -> Path.t -> value Lwt.t
+  val remove: t -> tree -> Path.t -> tree Lwt.t
+  val valid: t -> tree -> Path.t -> bool Lwt.t
 end
 
 module Tree (A: IrminBase.S) (B: IrminBase.S) = struct
