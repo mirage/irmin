@@ -6,6 +6,7 @@
 * Implement a relatively efficent Import/Export scheme
 * For more safety, the marshalled values are now typed in the binary protocol
 * Add functions to dump the contents of the store as a Graphviz graph
+* Polish the CLI which now looks usable enough
 
 0.1 (2013-10-30)
 * Use an HTTP server as a front-end
