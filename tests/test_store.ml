@@ -234,18 +234,18 @@ module Make (S: Irmin.S) = struct
       snapshot t1            >>= fun r2 ->
       update t1 ["a";"d"] v1 >>= fun () ->
       snapshot t1            >>= fun r3 ->
-      dump t1 "full"         >>= fun () ->
-      Raw.export t1 [r3]     >>= fun partial ->
-      Raw.export t1 []       >>= fun full    ->
+      output t1 "full"       >>= fun () ->
+      export t1 [r3]         >>= fun partial ->
+      export t1 []           >>= fun full    ->
 
       (* Restart a fresh store and import everything in there. *)
       x.clean ()             >>= fun () ->
       x.init ()              >>= fun () ->
       create ()              >>= fun t2 ->
 
-      Raw.import t2 partial  >>= fun () ->
+      import t2 partial      >>= fun () ->
       revert t2 r3           >>= fun () ->
-      dump t2 "partial"      >>= fun () ->
+      output t2 "partial"    >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
@@ -260,13 +260,13 @@ module Make (S: Irmin.S) = struct
 
       catch
         (fun () ->
-           revert t2 r2 >>= fun () ->
+           revert t2 r2      >>= fun () ->
            OUnit.assert_bool "revert" false;
            return_unit)
         (fun e ->
-           Raw.import t2 full >>= fun () ->
-           revert t2 r2       >>= fun () ->
-           mem t2 ["a";"d"]       >>= fun b4 ->
+           import t2 full    >>= fun () ->
+           revert t2 r2      >>= fun () ->
+           mem t2 ["a";"d"]  >>= fun b4 ->
            assert_bool_equal "mem-ab" false b4;
            return_unit
         ) in

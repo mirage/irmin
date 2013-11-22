@@ -47,5 +47,7 @@ let suite server =
       server.clean ();
   end;
 
-  store = IrminCRUD.simple uri;
+  store =
+    let module S = (val IrminCRUD.simple uri) in
+    (module S: Irmin.S);
 }
