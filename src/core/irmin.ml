@@ -355,8 +355,8 @@ struct
     !r
 
   (* XXX: can be improved quite a lot *)
-  let export t root =
-    debug "export root=%s" (match root with None -> "<none>" | Some r -> K.pretty r);
+  let export t roots =
+    debug "export root=%s" (IrminMisc.pretty_list K.pretty roots);
     output t "export" >>= fun () ->
     let contents = Hashtbl.create 1024 in
     let add k v =
@@ -364,13 +364,13 @@ struct
     Tag.read t.tag t.branch >>= function
     | None          -> return_nil
     | Some revision ->
-      begin match root with
-        | None      -> Revision.list t.revision revision
-        | Some root ->
+      begin
+        if roots = [] then Revision.list t.revision revision
+        else
           let pred k =
             Revision.read_exn t.revision k >>= fun r ->
             return r.IrminRevision.parents in
-          Graph.closure pred ~min:[root] ~max:[revision] >>= fun g ->
+          Graph.closure pred ~min:roots ~max:[revision] >>= fun g ->
           return (Graph.vertex g)
       end
       >>= fun revisions ->

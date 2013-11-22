@@ -153,6 +153,13 @@ module Server (S: Irmin.S) = struct
         return (o.output r)
       )
 
+  let mks fn db i1 o =
+    Leaf (fun t l ->
+        let x = List.map i1.input l in
+        fn (db t) x >>= fun r ->
+        return (o.output r)
+      )
+
   let mkl2 fn db i1 i2 o =
     Leaf (fun t l ->
         match List.rev l with
@@ -225,7 +232,7 @@ module Server (S: Irmin.S) = struct
     "update"  , mkl2 S.update  t path value unit;
     "remove"  , mkl  S.remove   t path unit;
     "contents", mk0  S.contents t (contents path value);
-    "export"  , mko  S.export   t key dump;
+    "export"  , mks  S.export   t key dump;
     "import"  , mk1  S.import   t dump unit;
     "value"   , value_store;
     "tree"    , tree_store;

@@ -142,6 +142,6 @@ module type S = sig
   val revert: t -> revision -> unit Lwt.t
   val watch: t -> key -> (key * revision option) Lwt_stream.t
   type dump
-  val export: t -> revision option -> dump Lwt.t
+  val export: t -> revision list -> dump Lwt.t
   val import: t -> dump -> unit Lwt.t
 end

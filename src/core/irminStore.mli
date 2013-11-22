@@ -138,7 +138,7 @@ module type S = sig
   type dump
   (** Raw dump. *)
 
-  val export: t -> revision option -> dump Lwt.t
+  val export: t -> revision list -> dump Lwt.t
   (** Return all the new contents in the store *from* which has been
       added after the revisions. If the revision is [None], then
       export everything. *)
