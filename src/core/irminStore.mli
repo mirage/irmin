@@ -147,3 +147,23 @@ module type S = sig
   (** Import some raw contents. This does not change the tags. *)
 
 end
+
+module type S_BINARY = S with type key := string
+                          and type value := IrminBuffer.ba
+                          and type revision := string
+                          and type dump := IrminBuffer.ba
+(** Irminsule store which associate strings to big arrays. *)
+
+module type S_MAKER =
+  functor (K: IrminKey.S) ->
+  functor (V: IrminBase.S) ->
+  functor (R: IrminKey.BINARY) ->
+  functor (D: IrminBase.S) ->
+    S with type key = K.t
+       and type value = V.t
+       and type revision = R.t
+       and type dump = D.t
+(** Irminsule store makers. *)
+
+module S (S: S_BINARY): S_MAKER
+(** Build a an Irminsule store from a binary store. *)

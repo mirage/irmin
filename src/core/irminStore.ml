@@ -124,7 +124,11 @@ module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   include X(S)(K)(V)
 
+  let debug fmt =
+    IrminLog.debug "M" fmt
+
   let update t key value =
+    debug "update";
     let buf = IrminBuffer.create (V.sizeof value) in
     V.set buf value;
     let ba = IrminBuffer.to_ba buf in
@@ -144,4 +148,55 @@ module type S = sig
   type dump
   val export: t -> revision list -> dump Lwt.t
   val import: t -> dump -> unit Lwt.t
+end
+
+
+module type S_BINARY = S with type key := string
+                          and type value := IrminBuffer.ba
+                          and type revision := string
+                          and type dump := IrminBuffer.ba
+
+module type S_MAKER =
+  functor (K: IrminKey.S) ->
+  functor (V: IrminBase.S) ->
+  functor (R: IrminKey.BINARY) ->
+  functor (D: IrminBase.S) ->
+    S with type key = K.t
+       and type value = V.t
+       and type revision = R.t
+       and type dump = D.t
+
+module S (S: S_BINARY) (K: IrminKey.S) (V: IrminBase.S) (R: IrminKey.BINARY) (D: IrminBase.S) =
+struct
+
+  open Lwt
+
+  include M(S)(K)(V)
+
+  type revision = R.t
+
+  let snapshot t =
+    S.snapshot t >>= fun r ->
+    return (R.of_string r)
+
+  let revert t rev =
+    S.revert t (R.to_string rev)
+
+  let watch _ =
+    failwith "TODO"
+
+  type dump = D.t
+
+  let export t revs =
+    S.export t (List.map R.to_string revs) >>= fun ba ->
+    let buf = IrminBuffer.of_ba ba in
+    match D.get buf with
+    | None   -> fail (R.Invalid (IrminMisc.pretty_list R.pretty revs))
+    | Some d -> return d
+
+  let import t dump =
+    let buf = IrminBuffer.create (D.sizeof dump) in
+    D.set buf dump;
+    S.import t (IrminBuffer.to_ba buf)
+
 end
