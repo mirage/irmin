@@ -16,6 +16,16 @@
 
 (** API entry point *)
 
+type ('a, 'b) store_dump =
+  ('a * ('a, 'b) value_dump) list
+(** Type for database dumps. *)
+
+and ('a, 'b) value_dump =
+  | Value of 'b
+  | Tree of ('a, 'a) IrminTree.node
+  | Revision of ('a, 'a) IrminRevision.node
+(** Type of value dumps. *)
+
 module type S = sig
 
   (** {2 Main signature for Irminsule stores} *)
@@ -68,13 +78,17 @@ module type S = sig
                         and type key := IrminTree.path
                         and type value := value
                         and type revision := key
+                        and type dump = (key, value) store_dump
 
   val tag: Tag.tag -> t Lwt.t
   (** Create a store associated to a given tag (by default, [create]
       uses [Tag.head]. *)
 
-  val dump: t -> string -> unit Lwt.t
-  (** Dump the contents of the store. *)
+  val output: t -> string -> unit Lwt.t
+  (** Create a Graphviz graph representing the store state. *)
+
+  module Dump: IrminBase.S with type t = dump
+  (** Basic functions for [dump] values. *)
 
 end
 

@@ -149,3 +149,12 @@ let get_string t len =
         Cstruct.blit_to_string t.buffer 0 str 0 len;
       );
     str
+
+let pick_string t len =
+  if len = 0 then Some ""
+  else if len > length t then None
+  else (
+    let str = String.create len in
+    Cstruct.blit_to_string t.buffer 0 str 0 len;
+    Some str
+  )

@@ -53,6 +53,10 @@ let path =
 
 let default_dir = ".irmin"
 
+(* XXX: ugly hack *)
+let init_hook =
+  ref (fun () -> ())
+
 let store =
   let in_memory =
     let doc =
@@ -73,6 +77,8 @@ let store =
       (module IrminMemory.Simple: Irmin.SIMPLE)
     | false, true , None    ->
       IrminLog.msg "source: %s/%s/" (Sys.getcwd ()) default_dir;
+      init_hook :=
+        (fun () -> if not (Sys.file_exists default_dir) then Unix.mkdir default_dir 0o755);
       IrminFS.simple default_dir
     | false, false, Some uri ->
       IrminLog.msg "source: %s" uri;
@@ -114,6 +120,7 @@ let init =
   let init (module S: Irmin.SIMPLE) daemon =
     run begin
       S.create () >>= fun t ->
+      !init_hook ();
       match daemon with
       | None     -> return_unit
       | Some uri ->
@@ -229,7 +236,7 @@ let dump =
   let dump (module S: Irmin.SIMPLE) basename =
     run begin
       S.create () >>= fun t ->
-      S.dump t basename
+      S.output t basename
     end
   in
   Term.(pure dump $ store $ basename),

@@ -83,6 +83,11 @@ module Server (S: Irmin.S) = struct
     output = S.Tag.to_json;
   }
 
+  let dump = {
+    input  = S.Dump.of_json;
+    output = S.Dump.to_json;
+  }
+
   let contents key value =
     list (pair key value)
 
@@ -141,6 +146,34 @@ module Server (S: Irmin.S) = struct
         | _   -> error "Too many arguments"
       )
 
+  let mkl fn db i1 o =
+    Leaf (fun t l ->
+        let x = i1.input (`A l) in
+        fn (db t) x >>= fun r ->
+        return (o.output r)
+      )
+
+  let mkl2 fn db i1 i2 o =
+    Leaf (fun t l ->
+        match List.rev l with
+        | []     -> error "Not enough arguments"
+        | x2::x1 ->
+          let x2 = i2.input x2 in
+          let x1 = i1.input (`A (List.rev x1)) in
+          fn (db t) x1 x2 >>= fun r ->
+          return (o.output r)
+      )
+
+  let mko fn db i1 o =
+    Leaf (fun t l ->
+        let x = match l with
+          | []  -> None
+          | [x] -> Some (i1.input x)
+          | _   -> error "Too many arguments" in
+        fn (db t) x >>= fun r ->
+        return (o.output r)
+      )
+
   let mk2 fn db i1 i2 o =
     Leaf (fun t -> function
         | [x; y] ->
@@ -186,12 +219,14 @@ module Server (S: Irmin.S) = struct
   ]
 
   let store = Node [
-    "read"    , mk1 S.read     t path (some value);
-    "mem"     , mk1 S.mem      t path bool;
-    "list"    , mk1 S.list     t path (list path);
-    "update"  , mk2 S.update   t path value unit;
-    "remove"  , mk1 S.remove   t path unit;
-    "contents", mk0 S.contents t (contents path value);
+    "read"    , mkl  S.read     t path (some value);
+    "mem"     , mkl  S.mem      t path bool;
+    "list"    , mkl  S.list     t path (list path);
+    "update"  , mkl2 S.update  t path value unit;
+    "remove"  , mkl  S.remove   t path unit;
+    "contents", mk0  S.contents t (contents path value);
+    "export"  , mko  S.export   t key dump;
+    "import"  , mk1  S.import   t dump unit;
     "value"   , value_store;
     "tree"    , tree_store;
     "revision", revision_store;

@@ -135,24 +135,15 @@ module type S = sig
   (** Subscribe to the stream of modification events attached to a
       given key. *)
 
-  module Raw: sig
+  type dump
+  (** Raw dump. *)
 
-    (** Raw contents. *)
+  val export: t -> revision option -> dump Lwt.t
+  (** Return all the new contents in the store *from* which has been
+      added after the revisions. If the revision is [None], then
+      export everything. *)
 
-    type key
-    (** Raw key. *)
-
-    type value
-    (** Raw values. *)
-
-    val export: t -> revision list -> (key * value) list Lwt.t
-    (** Return all the new contents in the store *from* which has been
-        added after the revisions. If the revision list is empty, then
-        export everything. *)
-
-    val import: t -> (key * value) list -> unit Lwt.t
-    (** Import some raw contents. This does not change the tags. *)
-
-  end
+  val import: t -> dump -> unit Lwt.t
+  (** Import some raw contents. This does not change the tags. *)
 
 end

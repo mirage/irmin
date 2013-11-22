@@ -29,7 +29,8 @@ let string_of_path =
   String.concat "/"
 
 let path_of_string path =
-  IrminMisc.split path '/'
+  let strings = IrminMisc.split path '/' in
+  List.filter ((<>) "") strings
 
 module type STORE = sig
   type key

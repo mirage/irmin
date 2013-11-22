@@ -17,6 +17,118 @@
 let debug fmt =
   IrminLog.debug "IRMIN" fmt
 
+type ('a, 'b) store_dump =
+  ('a * ('a, 'b) value_dump) list
+
+and ('a, 'b) value_dump =
+  | Value of 'b
+  | Tree of ('a, 'a) IrminTree.node
+  | Revision of ('a, 'a) IrminRevision.node
+
+module VDump (A: IrminBase.S) (B: IrminBase.S) = struct
+
+  let debug fmt =
+    IrminLog.debug "VDUMP" fmt
+
+  type t = (A.t, B.t) value_dump
+
+  module Key = A
+
+  module Value = B
+
+  module Tree = IrminTree.Tree(A)(A)
+
+  module Revision = IrminRevision.Revision(A)(A)
+
+  let name = "value"
+
+  let compare t1 t2 =
+    match t1, t2 with
+    | Value v1   , Value v2    -> Value.compare v1 v2
+    | Value _    , _           -> 1
+    | _          , Value _     -> -1
+    | Tree t1    , Tree t2     -> Tree.compare t1 t2
+    | Tree _     , _           -> 1
+    | _          , Tree _      -> -1
+    | Revision r1, Revision r2 -> Revision.compare r1 r2
+
+  let equal t1 t2 =
+    compare t1 t2 = 0
+
+  let hash = Hashtbl.hash
+
+  let pretty = function
+    | Value v    -> Value.pretty v
+    | Tree t     -> Tree.pretty t
+    | Revision r -> Revision.pretty r
+
+  let to_string = function
+    | Value v    -> Value.to_string v
+    | Tree t     -> Tree.to_string t
+    | Revision r -> Revision.to_string r
+
+  let of_json = function
+    | `O json ->
+      let value    = List.mem_assoc "value"    json in
+      let tree     = List.mem_assoc "tree"     json in
+      let revision = List.mem_assoc "revision" json in
+      begin match value, tree, revision with
+        | true , false, false -> Value    (Value.of_json (List.assoc "value" json))
+        | false, true , false -> Tree     (Tree.of_json (List.assoc "tree"  json))
+        | false, false, false -> Revision (Revision.of_json (List.assoc "revision" json))
+        | _ -> IrminBuffer.parse_error "Irmin.VDump.of_json: invalid value (1)"
+      end
+    | _ -> IrminBuffer.parse_error "Irmin.VDump.of_json: invalid value (2)"
+
+  let to_json = function
+    | Value v    -> `O [ "value"   , Value.to_json v   ]
+    | Tree t     -> `O [ "tree"    , Tree.to_json t    ]
+    | Revision r -> `O [ "revision", Revision.to_json r]
+
+  (* |----------|---------| *)
+  (* | MAGIC(8) | PAYLOAD | *)
+  (* |----------|---------| *)
+
+  let header = "IRMIN00"
+
+  let sizeof t =
+    8 + match t with
+      | Value v    -> Value.sizeof v
+      | Tree t     -> Tree.sizeof t
+      | Revision r -> Revision.sizeof r
+
+  let get buf =
+    debug "get";
+    let h = IrminBuffer.get_string buf 8 in
+    if h = header then
+      (* XXX: very fragile *)
+      match IrminBuffer.pick_string buf 1 with
+      | Some "V" -> (match Value.get buf    with None -> None | Some v -> Some (Value v))
+      | Some "T" -> (match Tree.get buf     with None -> None | Some t -> Some (Tree t))
+      | Some "R" -> (match Revision.get buf with None -> None | Some r -> Some (Revision r))
+      | _        -> None
+    else
+      None
+
+  let set buf t =
+    debug "set";
+    IrminBuffer.set_string buf header;
+    match t with
+    | Value v    -> Value.set buf v
+    | Tree t     -> Tree.set buf t
+    | Revision r -> Revision.set buf r
+
+
+end
+
+module SDump (A: IrminBase.S) (B: IrminBase.S) = struct
+
+  module VDump = VDump(A)(B)
+
+  include IrminBase.List(IrminBase.Pair(A)(VDump))
+
+end
+
 module type S = sig
   type key
   type value
@@ -46,19 +158,21 @@ module type S = sig
                         and type key := IrminTree.path
                         and type value := value
                         and type revision := key
+                        and type dump = (key, value) store_dump
 
   val tag: Tag.tag -> t Lwt.t
-  val dump: t -> string -> unit Lwt.t
+  val output: t -> string -> unit Lwt.t
+  module Dump: IrminBase.S with type t = dump
 end
 
 module Make
-  (K: IrminKey.BINARY)
-  (V: IrminValue.S)
-  (T: IrminTag.S)
-  (Value   : IrminStore.A_MAKER)
-  (Tree    : IrminStore.A_MAKER)
-  (Revision: IrminStore.A_MAKER)
-  (Tag     : IrminStore.M_MAKER)  =
+    (K: IrminKey.BINARY)
+    (V: IrminValue.S)
+    (T: IrminTag.S)
+    (Value   : IrminStore.A_MAKER)
+    (Tree    : IrminStore.A_MAKER)
+    (Revision: IrminStore.A_MAKER)
+    (Tag     : IrminStore.M_MAKER)  =
 struct
 
   open Lwt
@@ -175,7 +289,7 @@ struct
 
   module Graph = IrminGraph.Make(K)
 
-  let dump t name =
+  let output t name =
     debug "DUMP %s" name;
     Value.contents t.value       >>= fun values    ->
     Tree.contents  t.tree        >>= fun trees     ->
@@ -228,99 +342,93 @@ struct
   let watch _ =
     failwith "watch: TODO"
 
-  module Raw = struct
+  let debug fmt =
+    IrminLog.debug "RAW" fmt
 
-    let debug fmt =
-      IrminLog.debug "RAW" fmt
+  module Set = Set.Make(K)
 
-    type key = Key.t
+  let set_of_list l =
+    let r = ref Set.empty in
+    List.iter (fun elt ->
+        r := Set.add elt !r
+      ) l;
+    !r
 
-    type value =
-      | Value of Value.value
-      | Tree of tree
-      | Revision of revision
-
-    module Set = Set.Make(K)
-
-    let set_of_list l =
-      let r = ref Set.empty in
-      List.iter (fun elt ->
-          r := Set.add elt !r
-        ) l;
-      !r
-
-    let export t roots =
-      debug "export roots=%s" (IrminMisc.pretty_list K.pretty roots);
-      dump t "export" >>= fun () ->
-      let contents = Hashtbl.create 1024 in
-      let add k v =
-        Hashtbl.add contents k v in
-      Tag.read t.tag t.branch >>= function
-      | None          -> return_nil
-      | Some revision ->
-        begin
-          if roots = [] then Revision.list t.revision revision
-          else
-            let pred k =
-              Revision.read_exn t.revision k >>= fun r ->
-              return r.IrminRevision.parents in
-            Graph.closure pred ~min:roots ~max:[revision] >>= fun g ->
-            return (Graph.vertex g)
-        end
-        >>= fun revisions ->
-        Lwt_list.fold_left_s (fun set key ->
-            Revision.read_exn t.revision key >>= fun revision ->
-            add key (Revision revision);
-            match revision.IrminRevision.tree with
-            | None      -> return set
-            | Some tree ->
-              Tree.list t.tree tree >>= fun trees ->
-              return (Set.union set (set_of_list trees))
-          ) Set.empty revisions
-        >>= fun trees ->
-        let trees = Set.elements trees in
-        debug "export TREES=%s" (IrminMisc.pretty_list Key.pretty trees);
-        Lwt_list.fold_left_s (fun set key ->
-            Tree.read_exn t.tree key >>= fun tree ->
-            add key (Tree tree);
-            match tree.IrminTree.value with
-            | None       -> return set
-            | Some value ->
-              Value.list t.value value >>= fun values ->
-              return (Set.union set (set_of_list values))
-          ) Set.empty trees
-        >>= fun values ->
-        let values = Set.elements values in
-        debug "export VALUES=%s" (IrminMisc.pretty_list Key.pretty values);
-        Lwt_list.iter_p (fun key ->
-            Value.read_exn t.value key >>= fun value ->
-            add key (Value value);
-            return_unit
-          ) values
-        >>= fun () ->
-        let list = Hashtbl.fold (fun k v acc -> (k, v) :: acc) contents [] in
-        return list
-
-    exception Errors of (key * key * string) list
-
-    let import t list =
-      debug "import %s" (IrminMisc.pretty_list Key.pretty (List.map fst list));
-      let errors = ref [] in
-      let check msg k1 k2 =
-        if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
-        return_unit
-      in
-      Lwt_list.iter_p (fun (k,v) ->
-          match v with
-          | Value value -> Value.add t.value value   >>= check "value" k
-          | Tree tree   -> Tree.add t.tree tree      >>= check "tree" k
-          | Revision r  -> Revision.add t.revision r >>= check "revision" k
-        ) list
+  (* XXX: can be improved quite a lot *)
+  let export t root =
+    debug "export root=%s" (match root with None -> "<none>" | Some r -> K.pretty r);
+    output t "export" >>= fun () ->
+    let contents = Hashtbl.create 1024 in
+    let add k v =
+      Hashtbl.add contents k v in
+    Tag.read t.tag t.branch >>= function
+    | None          -> return_nil
+    | Some revision ->
+      begin match root with
+        | None      -> Revision.list t.revision revision
+        | Some root ->
+          let pred k =
+            Revision.read_exn t.revision k >>= fun r ->
+            return r.IrminRevision.parents in
+          Graph.closure pred ~min:[root] ~max:[revision] >>= fun g ->
+          return (Graph.vertex g)
+      end
+      >>= fun revisions ->
+      Lwt_list.fold_left_s (fun set key ->
+          Revision.read_exn t.revision key >>= fun revision ->
+          add key (Revision revision);
+          match revision.IrminRevision.tree with
+          | None      -> return set
+          | Some tree ->
+            Tree.list t.tree tree >>= fun trees ->
+            return (Set.union set (set_of_list trees))
+        ) Set.empty revisions
+      >>= fun trees ->
+      let trees = Set.elements trees in
+      debug "export TREES=%s" (IrminMisc.pretty_list Key.pretty trees);
+      Lwt_list.fold_left_s (fun set key ->
+          Tree.read_exn t.tree key >>= fun tree ->
+          add key (Tree tree);
+          match tree.IrminTree.value with
+          | None       -> return set
+          | Some value ->
+            Value.list t.value value >>= fun values ->
+            return (Set.union set (set_of_list values))
+        ) Set.empty trees
+      >>= fun values ->
+      let values = Set.elements values in
+      debug "export VALUES=%s" (IrminMisc.pretty_list Key.pretty values);
+      Lwt_list.iter_p (fun key ->
+          Value.read_exn t.value key >>= fun value ->
+          add key (Value value);
+          return_unit
+        ) values
       >>= fun () ->
-      if !errors = [] then return_unit
-      else fail (Errors !errors)
+      let list = Hashtbl.fold (fun k v acc -> (k, v) :: acc) contents [] in
+      return list
 
-  end
+  exception Errors of (key * key * string) list
+
+  let import t list =
+    debug "import %s" (IrminMisc.pretty_list Key.pretty (List.map fst list));
+    let errors = ref [] in
+    let check msg k1 k2 =
+      if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
+      return_unit
+    in
+    Lwt_list.iter_p (fun (k,v) ->
+        match v with
+        | Value value -> Value.add t.value value   >>= check "value" k
+        | Tree tree   -> Tree.add t.tree tree      >>= check "tree" k
+        | Revision r  -> Revision.add t.revision r >>= check "revision" k
+      ) list
+    >>= fun () ->
+    if !errors = [] then return_unit
+    else fail (Errors !errors)
+
+  type dump = (key, value) store_dump
+
+  module Dump = SDump(K)(V)
 
 end
 

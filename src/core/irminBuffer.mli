@@ -86,6 +86,11 @@ val get_uint64: t -> int64
 (** [get_string buf len] is the string of size [len] stored in [buf]. *)
 val get_string: t -> int -> string
 
+val pick_string: t -> int -> string option
+(** [pick_string buf len] looks for the string of size [len] in the
+    buffer, without consuming it. Return [None] if the buffer is
+    bigger than [len]. *)
+
 (** [set_char buf off c] write the character [c] in [buf] at offset
     [off]. *)
 val set_char: t -> char -> unit
