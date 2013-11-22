@@ -3,7 +3,7 @@
 * More high-level tests
 * Add unit-tests for the client CRUD interfaces (over memory and/or filesystem)
 * Fix issues with the Tree API
-* Implement a relatively efficent Import/Export scheme
+* Implement a relatively efficent Import/Export scheme (#3)
 * For more safety, the marshalled values are now typed in the binary protocol
 * Add functions to dump the contents of the store as a Graphviz graph
 * Polish the CLI which now looks usable enough
