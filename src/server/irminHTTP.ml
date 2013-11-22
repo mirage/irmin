@@ -122,10 +122,10 @@ module Server (S: Irmin.S) = struct
       try List.assoc c l
       with Not_found -> error ()
 
-  let va t = t.S.value
-  let tr t = t.S.tree
-  let re t = t.S.revision
-  let ta t = t.S.tag
+  let va = S.value_store
+  let tr = S.tree_store
+  let re = S.revision_store
+  let ta = S.tag_store
   let t x = x
 
   let mk0 fn db o =

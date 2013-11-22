@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
+
 let debug fmt =
   IrminLog.debug "IRMIN" fmt
 
@@ -25,107 +27,104 @@ and ('a, 'b) value_dump =
   | Tree of ('a, 'a) IrminTree.node
   | Revision of ('a, 'a) IrminRevision.node
 
-module VDump (A: IrminBase.S) (B: IrminBase.S) = struct
+module Dump (A: IrminBase.S) (B: IrminBase.S) = struct
 
-  let debug fmt =
-    IrminLog.debug "VDUMP" fmt
+  module Value = struct
 
-  type t = (A.t, B.t) value_dump
+    let debug fmt =
+      IrminLog.debug "VDUMP" fmt
 
-  module Key = A
+    type t = (A.t, B.t) value_dump
 
-  module Value = B
+    module Key = A
 
-  module Tree = IrminTree.Tree(A)(A)
+    module Value = B
 
-  module Revision = IrminRevision.Revision(A)(A)
+    module Tree = IrminTree.Tree(A)(A)
 
-  let name = "value"
+    module Revision = IrminRevision.Revision(A)(A)
 
-  let compare t1 t2 =
-    match t1, t2 with
-    | Value v1   , Value v2    -> Value.compare v1 v2
-    | Value _    , _           -> 1
-    | _          , Value _     -> -1
-    | Tree t1    , Tree t2     -> Tree.compare t1 t2
-    | Tree _     , _           -> 1
-    | _          , Tree _      -> -1
-    | Revision r1, Revision r2 -> Revision.compare r1 r2
+    let name = "value"
 
-  let equal t1 t2 =
-    compare t1 t2 = 0
+    let compare t1 t2 =
+      match t1, t2 with
+      | Value v1   , Value v2    -> Value.compare v1 v2
+      | Value _    , _           -> 1
+      | _          , Value _     -> -1
+      | Tree t1    , Tree t2     -> Tree.compare t1 t2
+      | Tree _     , _           -> 1
+      | _          , Tree _      -> -1
+      | Revision r1, Revision r2 -> Revision.compare r1 r2
 
-  let hash = Hashtbl.hash
+    let equal t1 t2 =
+      compare t1 t2 = 0
 
-  let pretty = function
-    | Value v    -> Value.pretty v
-    | Tree t     -> Tree.pretty t
-    | Revision r -> Revision.pretty r
+    let hash = Hashtbl.hash
 
-  let to_string = function
-    | Value v    -> Value.to_string v
-    | Tree t     -> Tree.to_string t
-    | Revision r -> Revision.to_string r
+    let pretty = function
+      | Value v    -> Value.pretty v
+      | Tree t     -> Tree.pretty t
+      | Revision r -> Revision.pretty r
 
-  let of_json = function
-    | `O json ->
-      let value    = List.mem_assoc "value"    json in
-      let tree     = List.mem_assoc "tree"     json in
-      let revision = List.mem_assoc "revision" json in
-      begin match value, tree, revision with
-        | true , false, false -> Value    (Value.of_json (List.assoc "value" json))
-        | false, true , false -> Tree     (Tree.of_json (List.assoc "tree"  json))
-        | false, false, false -> Revision (Revision.of_json (List.assoc "revision" json))
-        | _ -> IrminBuffer.parse_error "Irmin.VDump.of_json: invalid value (1)"
-      end
-    | _ -> IrminBuffer.parse_error "Irmin.VDump.of_json: invalid value (2)"
+    let to_string = function
+      | Value v    -> Value.to_string v
+      | Tree t     -> Tree.to_string t
+      | Revision r -> Revision.to_string r
 
-  let to_json = function
-    | Value v    -> `O [ "value"   , Value.to_json v   ]
-    | Tree t     -> `O [ "tree"    , Tree.to_json t    ]
-    | Revision r -> `O [ "revision", Revision.to_json r]
+    let of_json = function
+      | `O json ->
+        let value    = List.mem_assoc "value"    json in
+        let tree     = List.mem_assoc "tree"     json in
+        let revision = List.mem_assoc "revision" json in
+        begin match value, tree, revision with
+          | true , false, false -> Value    (Value.of_json (List.assoc "value" json))
+          | false, true , false -> Tree     (Tree.of_json (List.assoc "tree"  json))
+          | false, false, false -> Revision (Revision.of_json (List.assoc "revision" json))
+          | _ -> IrminBuffer.parse_error "Irmin.VDump.of_json: invalid value (1)"
+        end
+      | _ -> IrminBuffer.parse_error "Irmin.VDump.of_json: invalid value (2)"
 
-  (* |----------|---------| *)
-  (* | MAGIC(8) | PAYLOAD | *)
-  (* |----------|---------| *)
+    let to_json = function
+      | Value v    -> `O [ "value"   , Value.to_json v   ]
+      | Tree t     -> `O [ "tree"    , Tree.to_json t    ]
+      | Revision r -> `O [ "revision", Revision.to_json r]
 
-  let header = "IRMIN00"
+    (* |----------|---------| *)
+    (* | MAGIC(8) | PAYLOAD | *)
+    (* |----------|---------| *)
 
-  let sizeof t =
-    8 + match t with
-      | Value v    -> Value.sizeof v
-      | Tree t     -> Tree.sizeof t
-      | Revision r -> Revision.sizeof r
+    let header = "IRMIN00"
 
-  let get buf =
-    debug "get";
-    let h = IrminBuffer.get_string buf 8 in
-    if h = header then
-      (* XXX: very fragile *)
-      match IrminBuffer.pick_string buf 1 with
-      | Some "V" -> (match Value.get buf    with None -> None | Some v -> Some (Value v))
-      | Some "T" -> (match Tree.get buf     with None -> None | Some t -> Some (Tree t))
-      | Some "R" -> (match Revision.get buf with None -> None | Some r -> Some (Revision r))
-      | _        -> None
-    else
-      None
+    let sizeof t =
+      8 + match t with
+        | Value v    -> Value.sizeof v
+        | Tree t     -> Tree.sizeof t
+        | Revision r -> Revision.sizeof r
 
-  let set buf t =
-    debug "set";
-    IrminBuffer.set_string buf header;
-    match t with
-    | Value v    -> Value.set buf v
-    | Tree t     -> Tree.set buf t
-    | Revision r -> Revision.set buf r
+    let get buf =
+      debug "get";
+      let h = IrminBuffer.get_string buf 8 in
+      if h = header then
+        (* XXX: very fragile *)
+        match IrminBuffer.pick_string buf 1 with
+        | Some "V" -> (match Value.get buf    with None -> None | Some v -> Some (Value v))
+        | Some "T" -> (match Tree.get buf     with None -> None | Some t -> Some (Tree t))
+        | Some "R" -> (match Revision.get buf with None -> None | Some r -> Some (Revision r))
+        | _        -> None
+      else
+        None
 
+    let set buf t =
+      debug "set";
+      IrminBuffer.set_string buf header;
+      match t with
+      | Value v    -> Value.set buf v
+      | Tree t     -> Tree.set buf t
+      | Revision r -> Revision.set buf r
 
-end
+  end
 
-module SDump (A: IrminBase.S) (B: IrminBase.S) = struct
-
-  module VDump = VDump(A)(B)
-
-  include IrminBase.List(IrminBase.Pair(A)(VDump))
+  include IrminBase.List(IrminBase.Pair(A)(Value))
 
   let name = "store"
 
@@ -149,56 +148,33 @@ module type S = sig
   module Tag: IrminTag.STORE
     with type tag = tag
      and type key = key
+  include IrminStore.S with type key := IrminTree.Path.t
+                        and type value := value
+                        and type revision := key
+                        and type dump = (key, value) store_dump
+
+  val value_store: t -> Value.t
+  val tree_store: t -> Tree.t
+  val revision_store: t -> Revision.t
+  val tag_store: t -> Tag.t
+
+  val output: t -> string -> unit Lwt.t
+  module Dump: IrminBase.S with type t = dump
+end
+
+module State
+    (Value   : IrminValue.STORE)
+    (Tree    : IrminTree.STORE)
+    (Revision: IrminRevision.STORE)
+    (Tag     : IrminTag.STORE) =
+struct
+
   type t = {
     value   : Value.t;
     tree    : Tree.t;
     revision: Revision.t;
     tag     : Tag.t;
     branch  : Tag.tag;
-  }
-  include IrminStore.S with type t := t
-                        and type key := IrminTree.Path.t
-                        and type value := value
-                        and type revision := key
-                        and type dump = (key, value) store_dump
-
-  val tag: Tag.tag -> t Lwt.t
-  val output: t -> string -> unit Lwt.t
-  module Dump: IrminBase.S with type t = dump
-end
-
-module Make
-    (K: IrminKey.BINARY)
-    (V: IrminValue.S)
-    (T: IrminTag.S)
-    (Value   : IrminStore.A_MAKER)
-    (Tree    : IrminStore.A_MAKER)
-    (Revision: IrminStore.A_MAKER)
-    (Tag     : IrminStore.M_MAKER)  =
-struct
-
-  open Lwt
-
-  module Key = K
-
-  module Value = IrminValue.Make(Value)(K)(V)
-  module Tree = IrminTree.Make(Tree)(K)(Value)
-  module Revision = IrminRevision.Make(Revision)(K)(Tree)
-  module Tag = IrminTag.Make(Tag)(T)(K)
-
-  type key = Key.t
-  type value = Value.value
-  type tree = Tree.tree
-  type revision = Revision.revision
-  type path = string list
-  type tag = T.t
-
-  type t = {
-    value: Value.t;
-    tree: Tree.t;
-    revision: Revision.t;
-    tag: Tag.t;
-    branch: Tag.tag;
   }
 
   let create () =
@@ -209,9 +185,128 @@ struct
     let branch = Tag.master in
     return { value; tree; revision; tag; branch }
 
-  let tag branch =
-    create () >>= fun t ->
-    return { t with branch }
+  let value_store t = t.value
+
+  let tree_store t = t.tree
+
+  let revision_store t = t.revision
+
+  let tag_store t = t.tag
+
+end
+
+module type MAKER =
+  functor (K: IrminKey.BINARY) ->
+  functor (V: IrminValue.S)    ->
+  functor (T: IrminTag.S)      ->
+  functor (Value   : IrminStore.A_MAKER) ->
+  functor (Tree    : IrminStore.A_MAKER) ->
+  functor (Revision: IrminStore.A_MAKER) ->
+  functor (Tag     : IrminStore.M_MAKER) ->
+    S with type key = K.t
+       and type value = V.t
+       and type tag = T.t
+
+module Proxy
+    (Store   : IrminStore.S_MAKER)
+    (K: IrminKey.BINARY)
+    (V: IrminValue.S)
+    (T: IrminTag.S)
+    (Value   : IrminStore.A_MAKER)
+    (Tree    : IrminStore.A_MAKER)
+    (Revision: IrminStore.A_MAKER)
+    (Tag     : IrminStore.M_MAKER) =
+struct
+
+  module Key = K
+  module Value = IrminValue.Make(Value)(K)(V)
+  module Tree = IrminTree.Make(Tree)(K)(Value)
+  module Revision = IrminRevision.Make(Revision)(K)(Tree)
+  module Tag = IrminTag.Make(Tag)(T)(K)
+  module Dump = Dump(K)(V)
+
+  type key = K.t
+  type value = V.t
+  type tag = T.t
+  type revision = key
+  type dump = (key, value) store_dump
+
+  module Store = Store(IrminTree.Path)(V)(K)(Dump)
+  module State = State(Value)(Tree)(Revision)(Tag)
+
+  (* XXX: The following is tedious code. Is there a better way ? *)
+
+  type t = (Store.t * State.t)
+
+  let create () =
+    Store.create () >>= fun store ->
+    State.create () >>= fun state ->
+    return (store, state)
+
+  let value_store (_, t) = State.value_store t
+
+  let tree_store (_, t) = State.tree_store t
+
+  let revision_store (_, t) = State.revision_store t
+
+  let tag_store (_, t) = State.tag_store t
+
+  let read (t, _) = Store.read t
+
+  let read_exn (t, _) = Store.read_exn t
+
+  let mem (t, _) = Store.mem t
+
+  let list (t, _) = Store.list t
+
+  let contents (t, _) = Store.contents t
+
+  let update (t, _) = Store.update t
+
+  let remove (t, _) = Store.remove t
+
+  let snapshot (t, _) = Store.snapshot t
+
+  let revert (t, _) = Store.revert t
+
+  let watch (t, _) = Store.watch t
+
+  let export (t, _) = Store.export t
+
+  let import (t, _) = Store.import t
+
+  let output _ _ =
+    return_unit
+
+end
+
+module Make
+    (K: IrminKey.BINARY)
+    (V: IrminValue.S)
+    (T: IrminTag.S)
+    (Value   : IrminStore.A_MAKER)
+    (Tree    : IrminStore.A_MAKER)
+    (Revision: IrminStore.A_MAKER)
+    (Tag     : IrminStore.M_MAKER) =
+struct
+
+  module Key = K
+  module Value = IrminValue.Make(Value)(K)(V)
+  module Tree = IrminTree.Make(Tree)(K)(Value)
+  module Revision = IrminRevision.Make(Revision)(K)(Tree)
+  module Tag = IrminTag.Make(Tag)(T)(K)
+  module Dump = Dump(K)(V)
+  module State = State(Value)(Tree)(Revision)(Tag)
+
+  type key = Key.t
+  type value = Value.value
+  type tree = Tree.tree
+  type revision = Revision.revision
+  type path = string list
+  type tag = T.t
+  type dump = Dump.t
+
+  include State
 
   let revision t =
     Tag.read t.tag t.branch >>= function
@@ -427,10 +522,6 @@ struct
     >>= fun () ->
     if !errors = [] then return_unit
     else fail (Errors !errors)
-
-  type dump = (key, value) store_dump
-
-  module Dump = SDump(K)(V)
 
 end
 

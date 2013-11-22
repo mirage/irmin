@@ -26,6 +26,8 @@ and ('a, 'b) value_dump =
   | Revision of ('a, 'a) IrminRevision.node
 (** Type of value dumps. *)
 
+module Dump (A: IrminBase.S) (B: IrminBase.S): IrminBase.S with type t = (A.t, B.t) store_dump
+
 module type S = sig
 
   (** {2 Main signature for Irminsule stores} *)
@@ -63,47 +65,53 @@ module type S = sig
      and type key = key
   (** Persistent tags. *)
 
-  type t = {
-    value   : Value.t;
-    tree    : Tree.t;
-    revision: Revision.t;
-    tag     : Tag.t;
-    branch  : Tag.tag;
-  }
-  (** Database state. *)
+  (** {2 Irminsule store interface} *)
 
-  (** {2 Mutable store interface} *)
-
-  include IrminStore.S with type t := t
-                        and type key := IrminTree.Path.t
+  include IrminStore.S with type key := IrminTree.Path.t
                         and type value := value
                         and type revision := key
                         and type dump = (key, value) store_dump
 
-  val tag: Tag.tag -> t Lwt.t
-  (** Create a store associated to a given tag (by default, [create]
-      uses [Tag.head]. *)
+  val value_store: t -> Value.t
+  (** Return an handler to the value store. *)
+
+  val tree_store: t -> Tree.t
+  (** Return an handler to the tree store. *)
+
+  val revision_store: t -> Revision.t
+  (** Return an handler to the revision store. *)
+
+  val tag_store: t -> Tag.t
+  (** Return an handler to the tag store. *)
 
   val output: t -> string -> unit Lwt.t
-  (** Create a Graphviz graph representing the store state. *)
+  (** Create a Graphviz graph representing the store state. Could be
+      no-op if the backend does not support that operation (for instance,
+      for remote connections). *)
 
   module Dump: IrminBase.S with type t = dump
   (** Basic functions for [dump] values. *)
 
 end
 
-module Make
-    (K: IrminKey.BINARY)
-    (V: IrminValue.S)
-    (T: IrminTag.S)
-    (Value   : IrminStore.A_MAKER)
-    (Tree    : IrminStore.A_MAKER)
-    (Revision: IrminStore.A_MAKER)
-    (Tag     : IrminStore.M_MAKER):
-  S with type key = K.t
-     and type value = V.t
-     and type tag = T.t
+module type MAKER =
+  functor (K: IrminKey.BINARY) ->
+  functor (V: IrminValue.S)    ->
+  functor (T: IrminTag.S)      ->
+  functor (Value   : IrminStore.A_MAKER) ->
+  functor (Tree    : IrminStore.A_MAKER) ->
+  functor (Revision: IrminStore.A_MAKER) ->
+  functor (Tag     : IrminStore.M_MAKER) ->
+    S with type key = K.t
+       and type value = V.t
+       and type tag = T.t
+(** Signature for complete Irminsule store builders. *)
+
+module Make: MAKER
 (** Build an Irminsule store. *)
+
+module Proxy (Store: IrminStore.S_MAKER): MAKER
+(** Build an Irminsule proxy. *)
 
 module Binary
     (K: IrminKey.BINARY)
