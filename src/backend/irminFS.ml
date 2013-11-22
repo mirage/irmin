@@ -247,8 +247,9 @@ end
 let simple path =
   let module S = struct let path = path end in
   let module K = IrminKey.SHA1 in
+  let module T = IrminTag.Simple in
   let module A = A(S)(K) in
-  let module M = M(S)(K) in
+  let module M = M(S)(T) in
   let module Simple = Irmin.Binary
       (K)(IrminValue.Simple)(IrminTag.Simple)
       (A)(A)(A)(M) in

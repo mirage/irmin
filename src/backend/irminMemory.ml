@@ -98,8 +98,9 @@ end
 module Simple = struct
 
   module K = IrminKey.SHA1
+  module T = IrminTag.Simple
   module A = A(K)
-  module M = M(K)
+  module M = M(T)
 
   include Irmin.Binary
       (K)(IrminValue.Simple)(IrminTag.Simple)
