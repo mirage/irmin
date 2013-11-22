@@ -127,6 +127,8 @@ module SDump (A: IrminBase.S) (B: IrminBase.S) = struct
 
   include IrminBase.List(IrminBase.Pair(A)(VDump))
 
+  let name = "store"
+
 end
 
 module type S = sig
