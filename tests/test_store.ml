@@ -52,18 +52,19 @@ module Make (S: Irmin.S) = struct
 
   let test_values x () =
     let test () =
-      create ()             >>= fun t    ->
-      Value.add t.value v1  >>= fun k1'  ->
+      create ()                     >>= fun t    ->
+      let v = value_store t in
+      Value.add v v1                >>= fun k1'  ->
       assert_key_equal "k1" k1 k1';
-      Value.add t.value v1  >>= fun k1'' ->
+      Value.add v v1                >>= fun k1'' ->
       assert_key_equal "k1" k1 k1'';
-      Value.add t.value v2  >>= fun k2'  ->
+      Value.add v v2                >>= fun k2'  ->
       assert_key_equal "k2" k2 k2';
-      Value.add t.value v2  >>= fun k2'' ->
+      Value.add v v2                >>= fun k2'' ->
       assert_key_equal "k2" k2 k2'';
-      Value.read t.value k1 >>= fun v1'  ->
+      Value.read v k1               >>= fun v1'  ->
       assert_value_opt_equal "v1" (Some v1) v1';
-      Value.read t.value k2 >>= fun v2'  ->
+      Value.read v k2               >>= fun v2'  ->
       assert_value_opt_equal "v2" (Some v2) v2';
       return_unit
     in
@@ -72,59 +73,60 @@ module Make (S: Irmin.S) = struct
   let test_trees x () =
     let test () =
       create () >>= fun t  ->
+      let tree = tree_store t in
 
       (* Create a node containing t1(v1) *)
-      Tree.tree t.tree ~value:v1 [] >>= fun k1  ->
-      Tree.tree t.tree ~value:v1 [] >>= fun k1' ->
+      Tree.tree tree ~value:v1 [] >>= fun k1  ->
+      Tree.tree tree ~value:v1 [] >>= fun k1' ->
       assert_key_equal "k1.1" k1 k1';
-      Tree.read_exn t.tree k1       >>= fun t1  ->
-      Tree.add t.tree t1            >>= fun k1''->
+      Tree.read_exn tree k1       >>= fun t1  ->
+      Tree.add tree t1            >>= fun k1''->
       assert_key_equal "k1.2" k1 k1'';
 
       (* Create the tree  t2 -b-> t1(v1) *)
-      Tree.tree t.tree ["b", t1]    >>= fun k2  ->
-      Tree.tree t.tree ["b", t1]    >>= fun k2' ->
+      Tree.tree tree ["b", t1]     >>= fun k2  ->
+      Tree.tree tree ["b", t1]     >>= fun k2' ->
       assert_key_equal "k2.1" k2 k2';
-      Tree.read_exn t.tree k2       >>= fun t2  ->
-      Tree.add t.tree t2            >>= fun k2''->
+      Tree.read_exn tree k2        >>= fun t2  ->
+      Tree.add tree t2             >>= fun k2''->
       assert_key_equal "k2.2" k2 k2'';
-      Tree.sub_exn t.tree t2 ["b"]  >>= fun t1' ->
+      Tree.sub_exn tree t2 ["b"]  >>= fun t1' ->
       assert_tree_equal "t1.1" t1 t1';
-      Tree.add t.tree t1'           >>= fun k1''->
+      Tree.add tree t1'           >>= fun k1''->
       assert_key_equal "k1.3" k1 k1'';
 
       (* Create the tree t3 -a-> t2 -b-> t1(v1) *)
-      Tree.tree t.tree ["a", t2]    >>= fun k3  ->
-      Tree.tree t.tree ["a", t2]    >>= fun k3' ->
+      Tree.tree tree ["a", t2]         >>= fun k3  ->
+      Tree.tree tree ["a", t2]         >>= fun k3' ->
       assert_key_equal "k3.1" k3 k3';
-      Tree.read_exn t.tree k3       >>= fun t3  ->
-      Tree.add t.tree t3            >>= fun k3''->
+      Tree.read_exn tree k3            >>= fun t3  ->
+      Tree.add tree t3                 >>= fun k3''->
       assert_key_equal "k3.2" k3 k3'';
-      Tree.sub_exn t.tree t3 ["a"]  >>= fun t2' ->
+      Tree.sub_exn tree t3 ["a"]       >>= fun t2' ->
       assert_tree_equal "t2.1" t2 t2';
-      Tree.add t.tree t2'           >>= fun k2''->
+      Tree.add tree t2'                >>= fun k2''->
       assert_key_equal "k2.3" k2 k2'';
-      Tree.sub_exn t.tree t2' ["b"]     >>= fun t1' ->
+      Tree.sub_exn tree t2' ["b"]      >>= fun t1' ->
       assert_tree_equal "t1.2" t1 t1';
-      Tree.sub t.tree t3 ["a";"b"]  >>= fun t1' ->
+      Tree.sub tree t3 ["a";"b"]       >>= fun t1' ->
       assert_tree_opt_equal "t1.3" (Some t1) t1';
 
-      Tree.find t.tree t1 []        >>= fun v11 ->
+      Tree.find tree t1 []            >>= fun v11 ->
       assert_value_opt_equal "v1.1" (Some v1) v11;
-      Tree.find t.tree t2 ["b"]     >>= fun v12 ->
+      Tree.find tree t2 ["b"]         >>= fun v12 ->
       assert_value_opt_equal "v1.2" (Some v1) v12;
-      Tree.find t.tree t3 ["a";"b"] >>= fun v13 ->
+      Tree.find tree t3 ["a";"b"]     >>= fun v13 ->
       assert_value_opt_equal "v1" (Some v1) v13;
 
       (* Create the tree t6 -a-> t5 -b-> t1(v1)
                                    \-c-> t4(v2) *)
-      Tree.tree t.tree ~value:v2 []         >>= fun k4  ->
-      Tree.read_exn t.tree k4               >>= fun t4  ->
-      Tree.tree t.tree [("b",t1); ("c",t4)] >>= fun k5  ->
-      Tree.read_exn t.tree k5               >>= fun t5  ->
-      Tree.tree t.tree ["a",t5]             >>= fun k6  ->
-      Tree.read_exn t.tree k6               >>= fun t6  ->
-      Tree.update t.tree t3 ["a";"c"] v2    >>= fun t6' ->
+      Tree.tree tree ~value:v2 []         >>= fun k4  ->
+      Tree.read_exn tree k4               >>= fun t4  ->
+      Tree.tree tree [("b",t1); ("c",t4)] >>= fun k5  ->
+      Tree.read_exn tree k5               >>= fun t5  ->
+      Tree.tree tree ["a",t5]             >>= fun k6  ->
+      Tree.read_exn tree k6               >>= fun t6  ->
+      Tree.update tree t3 ["a";"c"] v2    >>= fun t6' ->
       assert_tree_equal "tree" t6 t6';
 
       return_unit
@@ -134,31 +136,33 @@ module Make (S: Irmin.S) = struct
   let test_revisions x () =
     let test () =
       create () >>= fun t   ->
+      let tree = tree_store t in
+      let revision = revision_store t in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
-      Tree.tree t.tree ~value:v1 [] >>= fun k1  ->
-      Tree.read_exn t.tree k1       >>= fun t1  ->
-      Tree.tree t.tree ["a", t1]    >>= fun k2  ->
-      Tree.read_exn t.tree k2       >>= fun t2  ->
-      Tree.tree t.tree ["b", t2]    >>= fun k3  ->
-      Tree.read_exn t.tree k3       >>= fun t3  ->
+      Tree.tree tree ~value:v1 [] >>= fun k1  ->
+      Tree.read_exn tree k1       >>= fun t1  ->
+      Tree.tree tree ["a", t1]    >>= fun k2  ->
+      Tree.read_exn tree k2       >>= fun t2  ->
+      Tree.tree tree ["b", t2]    >>= fun k3  ->
+      Tree.read_exn tree k3       >>= fun t3  ->
 
       (* r1 : t2 *)
-      Revision.revision t.revision ~tree:t2 [] >>= fun kr1 ->
-      Revision.revision t.revision ~tree:t2 [] >>= fun kr1'->
+      Revision.revision revision ~tree:t2 [] >>= fun kr1 ->
+      Revision.revision revision ~tree:t2 [] >>= fun kr1'->
       assert_key_equal "kr1" kr1 kr1';
-      Revision.read_exn t.revision kr1         >>= fun r1  ->
+      Revision.read_exn revision kr1         >>= fun r1  ->
 
       (* r1 -> r2 : t3 *)
-      Revision.revision t.revision ~tree:t3 [r1] >>= fun kr2  ->
-      Revision.revision t.revision ~tree:t3 [r1] >>= fun kr2' ->
+      Revision.revision revision ~tree:t3 [r1] >>= fun kr2  ->
+      Revision.revision revision ~tree:t3 [r1] >>= fun kr2' ->
       assert_key_equal "kr2" kr2 kr2';
-      Revision.read_exn t.revision kr2           >>= fun r2   ->
+      Revision.read_exn revision kr2           >>= fun r2   ->
 
-      Revision.list t.revision kr1 >>= fun kr1s ->
+      Revision.list revision kr1 >>= fun kr1s ->
       assert_keys_equal "g1" [kr1] kr1s;
 
-      Revision.list t.revision kr2 >>= fun kr2s ->
+      Revision.list revision kr2 >>= fun kr2s ->
       assert_keys_equal "g2" [kr1; kr2] kr2s;
 
      return_unit
@@ -168,21 +172,22 @@ module Make (S: Irmin.S) = struct
   let test_tags x () =
     let test () =
       create ()              >>= fun t   ->
-      Tag.update t.tag t1 k1 >>= fun ()  ->
-      Tag.read   t.tag t1    >>= fun k1' ->
+      let tag = tag_store t in
+      Tag.update tag t1 k1 >>= fun ()  ->
+      Tag.read   tag t1    >>= fun k1' ->
       assert_key_opt_equal "t1" (Some k1) k1';
-      Tag.update t.tag t2 k2 >>= fun ()  ->
-      Tag.read   t.tag t2    >>= fun k2' ->
+      Tag.update tag t2 k2 >>= fun ()  ->
+      Tag.read   tag t2    >>= fun k2' ->
       assert_key_opt_equal "t2" (Some k2) k2';
-      Tag.update t.tag t1 k2 >>= fun ()   ->
-      Tag.read   t.tag t1    >>= fun k2'' ->
+      Tag.update tag t1 k2 >>= fun ()   ->
+      Tag.read   tag t1    >>= fun k2'' ->
       assert_key_opt_equal "t1-after-update" (Some k2) k2'';
-      Tag.list   t.tag t1    >>= fun ts ->
+      Tag.list   tag t1    >>= fun ts ->
       assert_tags_equal "list" [t1; t2] ts;
-      Tag.remove t.tag t1    >>= fun () ->
-      Tag.read   t.tag t1    >>= fun empty ->
+      Tag.remove tag t1    >>= fun () ->
+      Tag.read   tag t1    >>= fun empty ->
       assert_key_opt_equal "empty" None empty;
-      Tag.list   t.tag t1    >>= fun t2' ->
+      Tag.list   tag t1    >>= fun t2' ->
       assert_tags_equal "all-after-remove" [t2] t2';
       return_unit
     in
