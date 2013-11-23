@@ -153,7 +153,8 @@ let read =
     `S "DESCRIPTION";
     `P read_doc;
   ] in
-  let read (module S: Irmin.SIMPLE) path =
+  let read path =
+    let (module S) = local_store default_dir in
     run begin
       S.create ()   >>= fun t ->
       S.read t path >>= function
@@ -161,7 +162,7 @@ let read =
       | Some v -> IrminLog.msg "%s" (S.Value.pretty v); return_unit
     end
   in
-  Term.(pure read $ store $ path),
+  Term.(pure read $ path),
   Term.info "read" ~doc ~man
 
 let ls_doc = "List subdirectories."
@@ -171,7 +172,8 @@ let ls =
     `S "DESCRIPTION";
     `P ls_doc;
   ] in
-  let ls (module S: Irmin.SIMPLE) path =
+  let ls path =
+    let (module S) = local_store default_dir in
     run begin
       S.create ()   >>= fun t ->
       S.list t path >>= fun paths ->
@@ -179,7 +181,7 @@ let ls =
       return_unit
     end
   in
-  Term.(pure ls $ store $ path),
+  Term.(pure ls $ path),
   Term.info "ls" ~doc ~man
 
 let tree_doc = "List the store contents."
@@ -189,7 +191,8 @@ let tree =
     `S "DESCRIPTION";
     `P tree_doc;
   ] in
-  let tree (module S: Irmin.SIMPLE) =
+  let tree () =
+    let (module S) = local_store default_dir in
     run begin
       S.create () >>= fun t ->
       S.contents t >>= fun all ->
@@ -206,7 +209,7 @@ let tree =
       return_unit
     end
   in
-  Term.(pure tree $ store),
+  Term.(pure tree $ pure ()),
   Term.info "tree" ~doc ~man
 
 let write_doc = "Write/modify a node."
@@ -216,13 +219,14 @@ let write =
     `S "DESCRIPTION";
     `P write_doc;
   ] in
-  let write (module S: Irmin.SIMPLE) path value =
+  let write path value =
+    let (module S) = local_store default_dir in
     run begin
       S.create () >>= fun t ->
       S.update t path value
     end
   in
-  Term.(pure write $ store $ path $ value),
+  Term.(pure write $ path $ value),
   Term.info "write" ~doc ~man
 
 let rm_doc = "Remove a node."
@@ -232,13 +236,14 @@ let rm =
     `S "DESCRIPTION";
     `P rm_doc;
   ] in
-  let rm (module S: Irmin.SIMPLE) path =
+  let rm path =
+    let (module S) = local_store default_dir in
     run begin
       S.create () >>= fun t ->
       S.remove t path
     end
   in
-  Term.(pure rm $ store $ path),
+  Term.(pure rm $ path),
   Term.info "rm" ~doc ~man
 
 let todo () =
