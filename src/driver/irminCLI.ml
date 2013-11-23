@@ -246,9 +246,6 @@ let rm =
   Term.(pure rm $ path),
   Term.info "rm" ~doc ~man
 
-let todo () =
-  failwith "TODO"
-
 let clone_doc = "Clone a remote irminsule store."
 let clone =
   let doc = clone_doc in
@@ -256,8 +253,26 @@ let clone =
     `S "DESCRIPTION";
     `P clone_doc;
   ] in
-  Term.(pure todo $ pure ()),
+  let clone (module R: Irmin.SIMPLE) =
+    let (module L) = local_store default_dir in
+    !init_hook ();
+    run begin
+      L.create ()         >>= fun local  ->
+      R.create ()         >>= fun remote ->
+      R.snapshot remote   >>= fun tag    ->
+      R.export remote []  >>= fun dump   ->
+      IrminLog.msg "Cloning %d bytes" (R.Dump.sizeof dump);
+      L.import local dump >>= fun ()     ->
+      L.revert local tag
+    end
+  in
+  Term.(pure clone $ store),
   Term.info "clone" ~doc ~man
+
+
+let todo () =
+  failwith "TODO"
+
 
 let pull_doc = "Pull the contents of a remote irminsule store."
 let pull =
