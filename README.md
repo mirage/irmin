@@ -2,11 +2,11 @@
 
 Irminsule is a distributed database with built-in snapshot, branch and
 revert mechanisms. It is designed to use a large variety of backends,
-although it is optimized for append-only ones.
+although it is optimized for append-only store.
 
-Irminsule is written in pure OCaml, and can thus be compiled to a
-variety of backends (including Javascript, and Mirage
-microkernels).
+Irminsule is written in pure OCaml, and can thus be compiled to Javascript
+(to run in the browsers) and Mirage microkernels (to run directly on top of
+Xen).
 
 ### Compile
 
@@ -38,6 +38,6 @@ make fulltest
 
 See `irmin --help`
 
-### Issue
+## Issues
 
-To report an issue please use the [bugtracker on Github](https://github.com/samoht/issues).
+To report any issues please use the [bugtracker on Github](https://github.com/samoht/issues).
