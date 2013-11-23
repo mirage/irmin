@@ -25,7 +25,7 @@ let debug fmt =
 let suite server =
   let server_pid = ref 0 in
   {
-    name = Printf.sprintf "CLIENT(%s)" server.name;
+    name = Printf.sprintf "CRUD.%s" server.name;
 
     init = begin fun () ->
       let server () =
