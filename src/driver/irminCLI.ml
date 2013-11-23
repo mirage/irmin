@@ -321,16 +321,51 @@ let todo = {
 
 (* PULL *)
 let pull = {
-  todo with
-  doc  = "Pull the contents of a remote irminsule store.";
   name = "pull";
+  doc  = "Pull the contents of a remote irminsule store.";
+  man  = [];
+  term =
+    let pull (module R: Irmin.SIMPLE) =
+      let (module L) = local_store default_dir in
+      run begin
+        L.create ()         >>= fun local  ->
+        R.create ()         >>= fun remote ->
+        L.snapshot local    >>= fun l      ->
+        R.snapshot remote   >>= fun r      ->
+        R.export remote [l] >>= fun dump   ->
+        IrminLog.msg "Cloning %d bytes" (R.Dump.sizeof dump);
+        L.import local dump >>= fun ()     ->
+        (* XXX: deal with merge conflicts properly. *)
+        if R.Dump.is_empty dump  then return_unit
+        else L.revert local r
+      end
+    in
+    Term.(mk pull $ store);
 }
 
-(* SNAPSHOT *)
+
+(* PUSH *)
 let push = {
-  todo with
-  doc  = "Pull the contents of the local store to a remote irminsule store.";
   name = "push";
+  doc  = "Pull the contents of the local store to a remote irminsule store.";
+  man  = [];
+  term =
+    let push (module R: Irmin.SIMPLE) =
+      let (module L) = local_store default_dir in
+      run begin
+        L.create ()          >>= fun local  ->
+        R.create ()          >>= fun remote ->
+        L.snapshot local     >>= fun l      ->
+        R.snapshot remote    >>= fun r      ->
+        L.export local [r]   >>= fun dump   ->
+        IrminLog.msg "Pushing %d bytes" (R.Dump.sizeof dump);
+        R.import remote dump >>= fun ()     ->
+        (* XXX: deal with merge conflicts properly. *)
+        if L.Dump.is_empty dump  then return_unit
+        else L.revert local r
+      end
+    in
+    Term.(mk push $ store);
 }
 
 (* SNAPSHOT *)

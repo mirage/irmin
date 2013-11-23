@@ -128,6 +128,10 @@ module Dump (A: IrminBase.S) (B: IrminBase.S) = struct
 
   let name = "store"
 
+  let is_empty = function
+    | []  -> true
+    | _   -> false
+
 end
 
 module type S = sig
@@ -159,7 +163,10 @@ module type S = sig
   val tag_store: t -> Tag.t
 
   val output: t -> string -> unit Lwt.t
-  module Dump: IrminBase.S with type t = dump
+  module Dump: sig
+    include IrminBase.S with type t = dump
+    val is_empty: t -> bool
+  end
 end
 
 module State

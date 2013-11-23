@@ -89,8 +89,17 @@ module type S = sig
       no-op if the backend does not support that operation (for instance,
       for remote connections). *)
 
-  module Dump: IrminBase.S with type t = dump
-  (** Basic functions for [dump] values. *)
+  module Dump: sig
+
+    (** Dumped store. *)
+
+    include IrminBase.S with type t = dump
+    (** Basic functions for [dump] values. *)
+
+    val is_empty: t -> bool
+    (** Is the dump empty ? *)
+
+  end
 
 end
 
