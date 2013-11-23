@@ -1,4 +1,4 @@
-0.2 (trunk)
+0.2 (2013-11-23)
 * Fix the HTTP server responses
 * More high-level tests
 * Add unit-tests for the client CRUD interfaces (over memory and/or filesystem)
@@ -7,6 +7,9 @@
 * For more safety, the marshalled values are now typed in the binary protocol
 * Add functions to dump the contents of the store as a Graphviz graph
 * Polish the CLI which now looks usable enough
+* Optimize the CRUD backend by executing high-level API functions on the server
+* Improve and make the CLI easier to use
+* Implement clone/pull/push/snapshot/revert in the CLI
 
 0.1 (2013-10-30)
 * Use an HTTP server as a front-end
