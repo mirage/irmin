@@ -131,7 +131,7 @@ let init =
   Term.(pure init $ store $ daemon),
   Term.info "init" ~doc ~man
 
-let read_doc = "Read a file."
+let read_doc = "Read the contents of a node."
 let read =
   let doc = read_doc in
   let man = [
@@ -178,19 +178,23 @@ let tree =
     run begin
       S.create () >>= fun t ->
       S.contents t >>= fun all ->
-      let km = List.fold_left (fun km (k,_) ->
-          let len = List.fold_left (fun len s -> String.length s + len) 0 k in
-          max len km
-        ) 0 all in
+      let all = List.map (fun (k,v) -> IrminTree.Path.to_string k, S.Value.pretty v) all in
+      let max_lenght l =
+        List.fold_left (fun len s -> max len (String.length s)) 0 l in
+      let k_max = max_lenght (List.map fst all) in
+      let v_max = max_lenght (List.map snd all) in
+      let pad = 80 + k_max + v_max in
       List.iter (fun (k,v) ->
-          IrminLog.msg "%-*s %s" km (String.concat "/" k) (S.Value.pretty v)) all;
+          let dots = String.make (pad - String.length k - String.length v) '.' in
+          IrminLog.msg "%s%s%s" k dots v
+        ) all;
       return_unit
     end
   in
   Term.(pure tree $ store),
   Term.info "tree" ~doc ~man
 
-let write_doc = "Write/modify a file."
+let write_doc = "Write/modify a node."
 let write =
   let doc = write_doc in
   let man = [
@@ -206,7 +210,7 @@ let write =
   Term.(pure write $ store $ path $ value),
   Term.info "write" ~doc ~man
 
-let rm_doc = "Remove a file."
+let rm_doc = "Remove a node."
 let rm =
   let doc = rm_doc in
   let man = [
@@ -349,19 +353,19 @@ let default =
       \             <command> [<args>]\n\
       \n\
       The most commonly used irminsule commands are:\n\
-      \    init     %s\n\
-      \    read     %s\n\
-      \    write    %s\n\
-      \    rm       %s\n\
-      \    ls       %s\n\
-      \    tree     %s\n\
-      \    clone    %s\n\
-      \    pull     %s\n\
-      \    push     %s\n\
-      \    snaphsot %s\n\
-      \    revert   %s\n\
-      \    watch    %s\n\
-      \    dump     %s\n\
+      \    init        %s\n\
+      \    read        %s\n\
+      \    write       %s\n\
+      \    rm          %s\n\
+      \    ls          %s\n\
+      \    tree        %s\n\
+      \    clone       %s\n\
+      \    pull        %s\n\
+      \    push        %s\n\
+      \    snaphsot    %s\n\
+      \    revert      %s\n\
+      \    watch       %s\n\
+      \    dump        %s\n\
       \n\
       See `irmin help <command>` for more information on a specific command.\n%!"
       init_doc read_doc write_doc rm_doc ls_doc tree_doc
