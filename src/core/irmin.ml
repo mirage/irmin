@@ -333,10 +333,13 @@ struct
 
   let update_tree t path fn =
     revision t >>= fun revision ->
-    tree t revision >>= fun tree ->
-    fn tree >>= fun tree ->
-    Revision.revision t.revision ~tree (parents_of_revision revision) >>= fun key ->
-    Tag.update t.tag t.branch key
+    tree t revision >>= fun old_tree ->
+    fn old_tree >>= fun tree ->
+    if old_tree = tree then return_unit
+    else (
+      Revision.revision t.revision ~tree (parents_of_revision revision) >>= fun key ->
+      Tag.update t.tag t.branch key
+    )
 
   let update t path value =
     update_tree t path (fun tree ->
