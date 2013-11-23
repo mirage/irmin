@@ -263,14 +263,22 @@ let write = {
   doc  = "Write/modify a node.";
   man  = [];
   term =
-    let write path value =
+    let args =
+      let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
+      Arg.(value & pos_all string [] & doc) in
+    let write args =
       let (module S) = local_store default_dir in
+      let path, value = match args with
+        | []            -> failwith "Not enough arguments"
+        | [path; value] -> IrminTree.Path.of_string path, S.Value.of_bytes value
+        | [value]       -> [], S.Value.of_bytes value
+        | _             -> failwith "Too many arguments" in
       run begin
         S.create () >>= fun t ->
         S.update t path value
       end
     in
-    Term.(mk write $ path $ value);
+    Term.(mk write $ args);
 }
 
 (* RM *)
