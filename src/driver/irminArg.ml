@@ -222,6 +222,69 @@ let rm =
   Term.(pure rm $ store $ path),
   Term.info "rm" ~doc ~man
 
+let todo () =
+  failwith "TODO"
+
+let clone_doc = "Clone a remote irminsule store."
+let clone =
+  let doc = clone_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P clone_doc;
+  ] in
+  Term.(pure todo $ pure ()),
+  Term.info "clone" ~doc ~man
+
+let pull_doc = "Pull the contents of a remote irminsule store."
+let pull =
+  let doc = pull_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P pull_doc;
+  ] in
+  Term.(pure todo $ pure ()),
+  Term.info "pull" ~doc ~man
+
+let push_doc = "Pull the contents of the local store to a remote irminsule store."
+let push =
+  let doc = push_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P push_doc;
+  ] in
+  Term.(pure todo $ pure ()),
+  Term.info "push" ~doc ~man
+
+let snapshot_doc = "Snapshot the contents of the store."
+let snapshot =
+  let doc = snapshot_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P snapshot_doc;
+  ] in
+  Term.(pure todo $ pure ()),
+  Term.info "snapshot" ~doc ~man
+
+let revert_doc = "Revert the contents of the store to a previous state."
+let revert =
+  let doc = revert_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P revert_doc;
+  ] in
+  Term.(pure todo $ pure ()),
+  Term.info "revert" ~doc ~man
+
+let watch_doc = "Watch the contents of a store and be notified on updates."
+let watch =
+  let doc = watch_doc in
+  let man = [
+    `S "DESCRIPTION";
+    `P watch_doc;
+  ] in
+  Term.(pure todo $ pure ()),
+  Term.info "watch" ~doc ~man
+
 let dump_doc = "Dump the contents of the store as a Graphviz file."
 let dump =
   let doc = dump_doc in
@@ -281,16 +344,24 @@ let default =
       \             <command> [<args>]\n\
       \n\
       The most commonly used irminsule commands are:\n\
-      \    init    %s\n\
-      \    read    %s\n\
-      \    write   %s\n\
-      \    rm      %s\n\
-      \    ls      %s\n\
-      \    tree    %s\n\
-      \    dump    %s\n\
+      \    init     %s\n\
+      \    read     %s\n\
+      \    write    %s\n\
+      \    rm       %s\n\
+      \    ls       %s\n\
+      \    tree     %s\n\
+      \    clone    %s\n\
+      \    pull     %s\n\
+      \    push     %s\n\
+      \    snaphsot %s\n\
+      \    revert   %s\n\
+      \    watch    %s\n\
+      \    dump     %s\n\
       \n\
       See `irmin help <command>` for more information on a specific command.\n%!"
-      init_doc read_doc write_doc rm_doc ls_doc tree_doc dump_doc in
+      init_doc read_doc write_doc rm_doc ls_doc tree_doc
+      clone_doc pull_doc push_doc snapshot_doc revert_doc
+      watch_doc dump_doc in
   Term.(pure usage $ (pure ())),
   Term.info "irmin"
     ~version:IrminVersion.current
@@ -305,6 +376,12 @@ let commands = [
   rm;
   ls;
   tree;
+  clone;
+  pull;
+  push;
+  snapshot;
+  revert;
+  watch;
   dump;
 ]
 
