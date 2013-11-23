@@ -49,7 +49,7 @@ let value =
 let path =
   let doc =
     Arg.info ~docv:"PATH" ~doc:"Path." [] in
-  Arg.(required & pos 0 (some path_conv) None & doc)
+  Arg.(value & pos 0 path_conv [] & doc)
 
 let default_dir = ".irmin"
 
