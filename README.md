@@ -16,6 +16,28 @@ opam install jsonm uri ocamlgraph cohttp cmdliner obuild lwt \
 make
 ```
 
+### Install
+
+```
+make install
+```
+
+### Running the tests
+
+To run only the quick tests:
+```
+make test
+```
+
+To run the full test suite:
+```
+make fulltest
+```
+
 ### Usage
 
-TODO
+See `irmin --help`
+
+### Issue
+
+To report an issue please use the [bugtracker on Github](https://github.com/samoht/issues).
