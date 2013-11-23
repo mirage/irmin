@@ -389,7 +389,12 @@ struct
         Tree.find t.tree tree path >>= function
         | None   -> aux seen todo
         | Some v -> aux ((path, v) :: seen) todo in
-    list t [] >>= aux []
+    begin Tree.find t.tree tree [] >>= function
+      | None   -> return_nil
+      | Some v -> return [ ([], v) ]
+    end
+    >>= fun init ->
+    list t [] >>= aux init
 
   module Graph = IrminGraph.Make(K)
 
