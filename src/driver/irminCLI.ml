@@ -17,7 +17,53 @@
 open Lwt
 open Cmdliner
 
+(* Global options *)
+type global = {
+  verbose: bool;
+}
+
+let app_global g =
+  IrminLog.set_debug_mode g.verbose
+
+(* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
+let help_sections = [
+  `S global_option_section;
+  `P "These options are common to all commands.";
+
+  `S "AUTHORS";
+  `P "Thomas Gazagnaire   <thomas@gazagnaire.org>";
+
+  `S "BUGS";
+  `P "Check bug reports at https://github.com/samoht/irminsule/issues.";
+]
+
+let global =
+  let verbose =
+    let doc =
+      Arg.info ~docs:global_option_section ~doc:"Be more verbose." ["v";"verbose"] in
+    Arg.(value & flag & doc) in
+  Term.(pure (fun verbose -> { verbose }) $ verbose)
+
+let term_info title ~doc ~man =
+  let man = man @ help_sections in
+  Term.info ~sdocs:global_option_section ~doc ~man title
+
+type command = {
+  name: string;
+  doc : string;
+  man : Manpage.block list;
+  term: unit Term.t;
+}
+
+let command c =
+  let man = [
+    `S "DESCRIPTION";
+    `P c.doc;
+  ] @ c.man in
+  c.term, term_info c.name ~doc:c.doc ~man
+
+(* Converters *)
 
 let pr_str = Format.pp_print_string
 
@@ -119,78 +165,77 @@ let run t =
       (function e -> Printf.eprintf "%s\n%!" (Printexc.to_string e); exit 1)
   )
 
+let mk (fn:'a): 'a Term.t =
+  Term.(pure (fun global -> app_global global; fn) $ global)
+
 (* INIT *)
-let init_doc = "Initialize a store."
-let init =
-  let doc = init_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P init_doc;
-  ] in
-  let daemon =
-    let doc =
-      Arg.info ~docv:"PORT" ~doc:"Start an Irminsule server on the specified port."
-        ["d";"daemon"] in
-    Arg.(value & opt (some uri_conv) (Some (Uri.of_string "http://127.0.0.1:8080")) & doc) in
-  let init (module S: Irmin.SIMPLE) daemon =
-    run begin
-      S.create () >>= fun t ->
-      !init_hook ();
-      match daemon with
-      | None     -> return_unit
-      | Some uri ->
-        IrminLog.msg "daemon: %s" (Uri.to_string uri);
-        IrminHTTP.start_server (module S) t uri
-    end
-  in
-  Term.(pure init $ store $ daemon),
-  Term.info "init" ~doc ~man
+let init = {
+  name = "init";
+  doc  = "Initialize a store.";
+  man  = [];
+  term =
+    let daemon =
+      let doc =
+        Arg.info ~docv:"PORT" ~doc:"Start an Irminsule server on the specified port."
+          ["d";"daemon"] in
+      Arg.(value & opt (some uri_conv) (Some (Uri.of_string "http://127.0.0.1:8080")) & doc) in
+    let init (module S: Irmin.SIMPLE) daemon =
+      run begin
+        S.create () >>= fun t ->
+        !init_hook ();
+        match daemon with
+        | None     -> return_unit
+        | Some uri ->
+          IrminLog.msg "daemon: %s" (Uri.to_string uri);
+          IrminHTTP.start_server (module S) t uri
+      end
+    in
+    Term.(mk init $ store $ daemon)
+}
 
-let read_doc = "Read the contents of a node."
-let read =
-  let doc = read_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P read_doc;
-  ] in
-  let read path =
-    let (module S) = local_store default_dir in
-    run begin
-      S.create ()   >>= fun t ->
-      S.read t path >>= function
-      | None   -> IrminLog.msg "<none>"; exit 1
-      | Some v -> IrminLog.msg "%s" (S.Value.pretty v); return_unit
-    end
-  in
-  Term.(pure read $ path),
-  Term.info "read" ~doc ~man
 
-let ls_doc = "List subdirectories."
-let ls =
-  let doc = ls_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P ls_doc;
-  ] in
-  let ls path =
-    let (module S) = local_store default_dir in
-    run begin
-      S.create ()   >>= fun t ->
-      S.list t path >>= fun paths ->
-      List.iter (fun p -> IrminLog.msg "%s" (IrminTree.Path.pretty p)) paths;
-      return_unit
-    end
-  in
-  Term.(pure ls $ path),
-  Term.info "ls" ~doc ~man
+(* READ *)
+let read = {
+  name = "read";
+  doc  = "Read the contents of a node.";
+  man  = [];
+  term =
+    let read path =
+      let (module S) = local_store default_dir in
+      run begin
+        S.create ()   >>= fun t ->
+        S.read t path >>= function
+        | None   -> IrminLog.msg "<none>"; exit 1
+        | Some v -> IrminLog.msg "%s" (S.Value.pretty v); return_unit
+      end
+    in
+    Term.(mk read $ path);
+}
 
-let tree_doc = "List the store contents."
-let tree =
-  let doc = tree_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P tree_doc;
-  ] in
+(* LS *)
+let ls = {
+  name = "ls";
+  doc  = "List subdirectories.";
+  man  = [];
+  term =
+    let ls path =
+      let (module S) = local_store default_dir in
+      run begin
+        S.create ()   >>= fun t ->
+        S.list t path >>= fun paths ->
+        List.iter (fun p -> IrminLog.msg "%s" (IrminTree.Path.pretty p)) paths;
+        return_unit
+      end
+    in
+    Term.(mk ls $ path);
+}
+
+(* TREE *)
+let tree = {
+  name = "tree";
+  doc  = "List the store contents.";
+  man  = [];
+  term =
   let tree () =
     let (module S) = local_store default_dir in
     run begin
@@ -209,164 +254,148 @@ let tree =
       return_unit
     end
   in
-  Term.(pure tree $ pure ()),
-  Term.info "tree" ~doc ~man
+  Term.(mk tree $ pure ());
+}
 
-let write_doc = "Write/modify a node."
-let write =
-  let doc = write_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P write_doc;
-  ] in
-  let write path value =
-    let (module S) = local_store default_dir in
-    run begin
-      S.create () >>= fun t ->
-      S.update t path value
-    end
-  in
-  Term.(pure write $ path $ value),
-  Term.info "write" ~doc ~man
+(* WRITE *)
+let write = {
+  name = "write";
+  doc  = "Write/modify a node.";
+  man  = [];
+  term =
+    let write path value =
+      let (module S) = local_store default_dir in
+      run begin
+        S.create () >>= fun t ->
+        S.update t path value
+      end
+    in
+    Term.(mk write $ path $ value);
+}
 
-let rm_doc = "Remove a node."
-let rm =
-  let doc = rm_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P rm_doc;
-  ] in
-  let rm path =
-    let (module S) = local_store default_dir in
-    run begin
-      S.create () >>= fun t ->
-      S.remove t path
-    end
-  in
-  Term.(pure rm $ path),
-  Term.info "rm" ~doc ~man
-
-let clone_doc = "Clone a remote irminsule store."
-let clone =
-  let doc = clone_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P clone_doc;
-  ] in
-  let clone (module R: Irmin.SIMPLE) =
-    let (module L) = local_store default_dir in
-    !init_hook ();
-    run begin
-      L.create ()         >>= fun local  ->
-      R.create ()         >>= fun remote ->
-      R.snapshot remote   >>= fun tag    ->
-      R.export remote []  >>= fun dump   ->
-      IrminLog.msg "Cloning %d bytes" (R.Dump.sizeof dump);
-      L.import local dump >>= fun ()     ->
-      L.revert local tag
-    end
-  in
-  Term.(pure clone $ store),
-  Term.info "clone" ~doc ~man
+(* RM *)
+let rm = {
+  name = "rm";
+  doc  = "Remove a node.";
+  man  = [];
+  term =
+    let rm path =
+      let (module S) = local_store default_dir in
+      run begin
+        S.create () >>= fun t ->
+        S.remove t path
+      end
+    in
+    Term.(mk rm $ path);
+}
 
 
-let todo () =
-  failwith "TODO"
+(* CLONE *)
+let clone = {
+  name = "clone";
+  doc  = "Clone a remote irminsule store.";
+  man  = [];
+  term =
+    let clone (module R: Irmin.SIMPLE) =
+      let (module L) = local_store default_dir in
+      !init_hook ();
+      run begin
+        L.create ()         >>= fun local  ->
+        R.create ()         >>= fun remote ->
+        R.snapshot remote   >>= fun tag    ->
+        R.export remote []  >>= fun dump   ->
+        IrminLog.msg "Cloning %d bytes" (R.Dump.sizeof dump);
+        L.import local dump >>= fun ()     ->
+        L.revert local tag
+      end
+    in
+    Term.(mk clone $ store);
+}
 
+let todo = {
+  name = "TODO";
+  doc  = "TODO";
+  man  = [];
+  term = Term.(pure (fun _ -> failwith "TODO") $ pure ());
+}
 
-let pull_doc = "Pull the contents of a remote irminsule store."
-let pull =
-  let doc = pull_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P pull_doc;
-  ] in
-  Term.(pure todo $ pure ()),
-  Term.info "pull" ~doc ~man
+(* PULL *)
+let pull = {
+  todo with
+  doc  = "Pull the contents of a remote irminsule store.";
+  name = "pull";
+}
 
-let push_doc = "Pull the contents of the local store to a remote irminsule store."
-let push =
-  let doc = push_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P push_doc;
-  ] in
-  Term.(pure todo $ pure ()),
-  Term.info "push" ~doc ~man
+(* SNAPSHOT *)
+let push = {
+  todo with
+  doc  = "Pull the contents of the local store to a remote irminsule store.";
+  name = "push";
+}
 
-let snapshot_doc = "Snapshot the contents of the store."
-let snapshot =
-  let doc = snapshot_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P snapshot_doc;
-  ] in
-  Term.(pure todo $ pure ()),
-  Term.info "snapshot" ~doc ~man
+(* SNAPSHOT *)
+let snapshot = {
+  todo with
+  name = "snaspshot";
+  doc  = "Snapshot the contents of the store."
+}
 
-let revert_doc = "Revert the contents of the store to a previous state."
-let revert =
-  let doc = revert_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P revert_doc;
-  ] in
-  Term.(pure todo $ pure ()),
-  Term.info "revert" ~doc ~man
+(* REVERT *)
+let revert = {
+  todo with
+  name = "revert";
+  doc = "Revert the contents of the store to a previous state.";
+}
 
-let watch_doc = "Watch the contents of a store and be notified on updates."
-let watch =
-  let doc = watch_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P watch_doc;
-  ] in
-  Term.(pure todo $ pure ()),
-  Term.info "watch" ~doc ~man
+(* WATCH *)
+let watch = {
+  todo with
+  name = "watch";
+  doc  = "Watch the contents of a store and be notified on updates.";
+}
 
-let dump_doc = "Dump the contents of the store as a Graphviz file."
-let dump =
-  let doc = dump_doc in
-  let man = [
-    `S "DESCRIPTION";
-    `P dump_doc;
-  ] in
-  let basename =
-    let doc =
-      Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
-    Arg.(required & pos 0 (some & string) None & doc) in
-  let dump (module S: Irmin.SIMPLE) basename =
-    run begin
-      S.create () >>= fun t ->
-      S.output t basename
-    end
-  in
-  Term.(pure dump $ store $ basename),
-  Term.info "dump" ~doc ~man
+(* DUMP *)
+let dump = {
+  name = "dump";
+  doc  = "Dump the contents of the store as a Graphviz file.";
+  man  = [];
+  term =
+    let basename =
+      let doc =
+        Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
+      Arg.(required & pos 0 (some & string) None & doc) in
+    let dump (module S: Irmin.SIMPLE) basename =
+      run begin
+        S.create () >>= fun t ->
+        S.output t basename
+      end
+    in
+    Term.(mk dump $ store $ basename);
+}
 
 (* HELP *)
-let help =
-  let doc = "Display help about Irminsule and Irminsule commands." in
-  let man = [
-    `S "DESCRIPTION";
-    `P "Prints help about Irminsule commands.";
+let help = {
+  name = "help";
+  doc  = "Display help about Irminsule and Irminsule commands.";
+  man = [
     `P "Use `$(mname) help topics' to get the full list of help topics.";
-  ] in
-  let topic =
-    let doc = Arg.info [] ~docv:"TOPIC" ~doc:"The topic to get help on." in
-    Arg.(value & pos 0 (some string) None & doc )
-  in
-  let help man_format cmds topic = match topic with
-    | None       -> `Help (`Pager, None)
-    | Some topic ->
-      let topics = "topics" :: cmds in
-      let conv, _ = Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
-      match conv topic with
-      | `Error e                -> `Error (false, e)
-      | `Ok t when t = "topics" -> List.iter print_endline cmds; `Ok ()
-      | `Ok t                   -> `Help (man_format, Some t) in
-  Term.(ret (pure help $Term.man_format $Term.choice_names $topic)),
-  Term.info "help" ~doc ~man
+  ];
+  term =
+    let topic =
+      let doc = Arg.info [] ~docv:"TOPIC" ~doc:"The topic to get help on." in
+      Arg.(value & pos 0 (some string) None & doc )
+    in
+    let help man_format cmds topic = match topic with
+      | None       -> `Help (`Pager, None)
+      | Some topic ->
+        let topics = "topics" :: cmds in
+        let conv, _ = Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
+        match conv topic with
+        | `Error e                -> `Error (false, e)
+        | `Ok t when t = "topics" -> List.iter print_endline cmds; `Ok ()
+        | `Ok t                   -> `Help (man_format, Some t) in
+    Term.(ret (mk help $Term.man_format $Term.choice_names $topic))
+}
 
 let default =
   let doc = "Irminsule, the database that never forgets." in
@@ -381,7 +410,8 @@ let default =
     `P "Use either $(b,$(mname) <command> --help) or $(b,$(mname) help <command>) \
         for more information on a specific command.";
   ] in
-  let usage _ =
+  let usage global =
+    app_global global;
     Printf.printf
       "usage: irmin [--version]\n\
       \             [--help]\n\
@@ -403,17 +433,17 @@ let default =
       \    dump        %s\n\
       \n\
       See `irmin help <command>` for more information on a specific command.\n%!"
-      init_doc read_doc write_doc rm_doc ls_doc tree_doc
-      clone_doc pull_doc push_doc snapshot_doc revert_doc
-      watch_doc dump_doc in
-  Term.(pure usage $ (pure ())),
+      init.doc read.doc write.doc rm.doc ls.doc tree.doc
+      clone.doc pull.doc push.doc snapshot.doc revert.doc
+      watch.doc dump.doc in
+  Term.(pure usage $ global),
   Term.info "irmin"
     ~version:IrminVersion.current
     ~sdocs:global_option_section
     ~doc
     ~man
 
-let commands = [
+let commands = List.map command [
   init;
   read;
   write;
