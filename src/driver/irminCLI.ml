@@ -57,6 +57,15 @@ let default_dir = ".irmin"
 let init_hook =
   ref (fun () -> ())
 
+let local_store dir =
+  IrminLog.msg "source: dir=%s" dir;
+  init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
+  IrminFS.simple dir
+
+let remote_store uri =
+  IrminLog.msg "source: uri=%s" (Uri.to_string uri);
+  IrminCRUD.simple uri
+
 let store =
   let in_memory =
     let doc =
@@ -69,33 +78,39 @@ let store =
     Arg.(value & flag & doc) in
   let crud =
     let doc =
-      Arg.info ~doc:"CRUD interface."  ["r";"rest"] in
-    Arg.(value & opt (some string) None & doc) in
-  let create in_memory fs crud = match in_memory, fs, crud with
-    | true , false, None    ->
+      Arg.info ~doc:"CRUD interface."  ["c";"crud"] in
+    Arg.(value & flag & doc) in
+  let uri =
+    let doc = Arg.info ~doc:"Irminsule store location." [] in
+    Arg.(value & pos 0 (some string) None & doc) in
+  let create in_memory fs crud uri = match in_memory, fs, crud with
+    | true , false, false ->
+      if uri <> None then IrminLog.error "Non-empty URI, skipping it";
       IrminLog.msg "source: in-memory";
       (module IrminMemory.Simple: Irmin.SIMPLE)
-    | false, true , None    ->
-      IrminLog.msg "source: %s/%s/" (Sys.getcwd ()) default_dir;
-      init_hook :=
-        (fun () -> if not (Sys.file_exists default_dir) then Unix.mkdir default_dir 0o755);
-      IrminFS.simple default_dir
-    | false, false, Some uri ->
-      IrminLog.msg "source: %s" uri;
-      IrminCRUD.simple (Uri.of_string uri)
-    | false, false, None     ->
-      if Sys.file_exists default_dir then (
-        IrminLog.msg "No store input selected but %s exists, using it." default_dir;
-        IrminFS.simple default_dir
-      ) else (
-        IrminLog.error "No store input selected, use [-m], [-f] or [-r URI].";
-        exit 1
-      )
+    | false, false, true ->
+      let uri = match uri with
+        | None   -> Uri.of_string "http://127.0.0.1:8080"
+        | Some u -> Uri.of_string u in
+      remote_store uri
+    | false, true , false ->
+      let dir = match uri with
+        | None   -> Filename.concat (Sys.getcwd ()) default_dir
+        | Some d -> Filename.concat d default_dir in
+      local_store dir
+    | false, false, false ->
+      (* try to guess the correct type *)
+      begin match uri with
+        | None   -> local_store default_dir
+        | Some s ->
+          if Sys.file_exists s then local_store s
+          else remote_store (Uri.of_string s)
+      end
     | _ -> failwith
-             (Printf.sprintf "Invalid store source [%b %b %s]"
-                in_memory fs (match crud with None -> "false" | Some s -> s))
+             (Printf.sprintf "Invalid store source [%b %b %b %s]"
+                in_memory fs crud (match uri with None -> "<none>" | Some s -> s))
   in
-  Term.(pure create $ in_memory $ fs $ crud)
+  Term.(pure create $ in_memory $ fs $ crud $ uri)
 
 let run t =
   Lwt_unix.run (
