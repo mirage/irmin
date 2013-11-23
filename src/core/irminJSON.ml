@@ -87,7 +87,7 @@ let json_to_dst ~minify dst (json:t) =
   | _ -> invalid_arg "invalid json text"
 
 let to_buffer buf (json:t) =
-  json_to_dst ~minify:false (`Buffer buf) json
+  json_to_dst ~minify:true (`Buffer buf) json
 
 let output t =
   let buf = Buffer.create 1024 in
