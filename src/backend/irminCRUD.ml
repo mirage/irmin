@@ -56,7 +56,8 @@ let delete t path fn =
 let post t path body fn =
   debug "post %s" (Uri.to_string (uri t path));
   let body =
-    match Cohttp_lwt_body.body_of_string (IrminJSON.output body) with
+    let params = `O [ "params", body ] in
+    match Cohttp_lwt_body.body_of_string (IrminJSON.output params) with
     | Some c -> c
     | None   -> assert false in
   Cohttp_lwt_unix.Client.post ~body (uri t path) >>= response fn
@@ -115,7 +116,7 @@ module A (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   let add t value =
     debug "add %s"(V.pretty value);
-    post t ["add"] (IrminJSON.of_list V.to_json [value]) K.of_json
+    post t ["add"] (V.to_json value) K.of_json
 
 end
 
@@ -125,7 +126,7 @@ module M (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   let update t key value =
     debug "update %s %s" (K.pretty key) (V.pretty value);
-    post t ["update"; K.pretty key] (IrminJSON.of_list V.to_json [value]) IrminJSON.to_unit
+    post t ["update"; K.pretty key] (V.to_json value) IrminJSON.to_unit
 
   let remove t key =
     debug "remove %s" (K.pretty key);

@@ -100,11 +100,13 @@ module Server (S: Irmin.S) = struct
     let body = IrminJSON.output json in
     respond body
 
-  let error msg =
-    failwith ("error: " ^ msg)
+  let error fmt =
+    Printf.kprintf (fun msg ->
+        failwith ("error: " ^ msg)
+      ) fmt
 
   type t =
-    | Leaf of (S.t -> IrminJSON.t list -> IrminJSON.t Lwt.t)
+    | Leaf of (S.t -> string list -> IrminJSON.t option -> IrminJSON.t Lwt.t)
     | Node of (string * t) list
 
   let to_json t =
@@ -128,136 +130,159 @@ module Server (S: Irmin.S) = struct
   let ta = S.tag_store
   let t x = x
 
-  let mk0 fn db o =
-    Leaf (fun t -> function
-        | [] ->
-          fn (db t) >>= fun r ->
-          return (o.output r)
-        | _ -> error "Too many arguments"
+  let mk0p name = function
+    | [] -> ()
+    | p  -> error "%s: non-empty path (%s)" name (IrminTree.Path.to_string p)
+
+  let mk0b name = function
+    | None   -> ()
+    | Some _ -> error "%s: non-empty body" name
+
+  let mk1p name i path =
+    match path with
+    | [x] -> i.input (`String x)
+    | []  -> error "%s: empty path" name
+    | l   -> error "%s: %s is an invalid path" name (IrminTree.Path.to_string l)
+
+  let mk1b name i = function
+    | None   -> error "%s: empty body" name
+    | Some b  -> i.input b
+
+  let mklp name i1 path =
+    i1.input (IrminJSON.of_strings path)
+
+  (* no arguments *)
+  let mk0p0b name fn db o =
+    name,
+    Leaf (fun t path params ->
+        mk0p name path;
+        mk0b name params;
+        fn (db t) >>= fun r ->
+        return (o.output r)
       )
 
-  let mk1 fn db i1 o =
-    Leaf (fun t -> function
-        | [x] ->
-          let x = i1.input x in
-          fn (db t) x >>= fun r ->
-          return (o.output r)
-        | []  -> error "Not enough arguments"
-        | _   -> error "Too many arguments"
-      )
-
-  let mkl fn db i1 o =
-    Leaf (fun t l ->
-        let x = i1.input (`A l) in
+  (* 1 argument in the path *)
+  let mk1p0b name fn db i1 o =
+    name,
+    Leaf (fun t path params ->
+        let x = mk1p name i1 path in
+        mk0b name params;
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
 
-  let mks fn db i1 o =
-    Leaf (fun t l ->
-        let x = List.map i1.input l in
+  (* list of arguments in the path *)
+  let mklp0b name fn db i1 o =
+    name,
+    Leaf (fun t path params ->
+        let x = mklp name i1 path in
+        mk0b name params;
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
 
-  let mkl2 fn db i1 i2 o =
-    Leaf (fun t l ->
-        match List.rev l with
-        | []     -> error "Not enough arguments"
-        | x2::x1 ->
-          let x2 = i2.input x2 in
-          let x1 = i1.input (`A (List.rev x1)) in
-          fn (db t) x1 x2 >>= fun r ->
-          return (o.output r)
-      )
-
-  let mko fn db i1 o =
-    Leaf (fun t l ->
-        let x = match l with
-          | []  -> None
-          | [x] -> Some (i1.input x)
-          | _   -> error "Too many arguments" in
+  (* 1 argument in the body *)
+  let mk0p1b name fn db i1 o =
+    name,
+    Leaf (fun t path params ->
+        mk0p name path;
+        let x = mk1b name i1 params in
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
 
-  let mk2 fn db i1 i2 o =
-    Leaf (fun t -> function
-        | [x; y] ->
-          let x = i1.input x in
-          let y = i2.input y in
-          fn (db t) x y >>= fun r ->
-          return (o.output r)
-        | [] | [_] -> error "Not enough arguments"
-        | _        -> error "Too many arguments"
+  (* 1 argument in the path, 1 argument in the body *)
+  let mk1p1b name fn db i1 i2 o =
+    name,
+    Leaf (fun t path params ->
+        let x1 = mk1p name i1 path in
+        let x2 = mk1b name i2 params in
+        fn (db t) x1 x2 >>= fun r ->
+        return (o.output r)
       )
+
+  (* list of arguments in the path, 1 argument in the body *)
+  let mklp1b name fn db i1 i2 o =
+    name,
+    Leaf (fun t path params ->
+        let x1 = mklp name i1 path in
+        let x2 = mk1b name i2 params in
+        fn (db t) x1 x2 >>= fun r ->
+        return (o.output r)
+      )
+
 
   let value_store = Node [
-      "read"    , mk1 S.Value.read     va key   (some value);
-      "mem"     , mk1 S.Value.mem      va key   bool;
-      "list"    , mk1 S.Value.list     va key   (list key);
-      "add"     , mk1 S.Value.add      va value key;
-      "contents", mk0 S.Value.contents va (contents key value);
+      mk1p0b "read"     S.Value.read     va key   (some value);
+      mk1p0b "mem"      S.Value.mem      va key   bool;
+      mk1p0b "list"     S.Value.list     va key   (list key);
+      mk0p1b "add"      S.Value.add      va value key;
+      mk0p0b "contents" S.Value.contents va (contents key value);
   ]
 
   let tree_store = Node [
-    "read"    , mk1 S.Tree.read     tr key  (some tree);
-    "mem"     , mk1 S.Tree.mem      tr key  bool;
-    "list"    , mk1 S.Tree.list     tr key  (list key);
-    "add"     , mk1 S.Tree.add      tr tree key;
-    "contents", mk0 S.Tree.contents tr (contents key tree);
+      mk1p0b "read"     S.Tree.read     tr key  (some tree);
+      mk1p0b "mem"      S.Tree.mem      tr key  bool;
+      mk1p0b "list"     S.Tree.list     tr key  (list key);
+      mk0p1b "add"      S.Tree.add      tr tree key;
+      mk0p0b "contents" S.Tree.contents tr (contents key tree);
   ]
 
   let revision_store = Node [
-    "read"    , mk1 S.Revision.read     re key  (some revision);
-    "mem"     , mk1 S.Revision.mem      re key  bool;
-    "list"    , mk1 S.Revision.list     re key  (list key);
-    "add"     , mk1 S.Revision.add      re revision key;
-    "contents", mk0 S.Revision.contents re (contents key revision);
+      mk1p0b "read"     S.Revision.read     re key  (some revision);
+      mk1p0b "mem"      S.Revision.mem      re key  bool;
+      mk1p0b "list"     S.Revision.list     re key  (list key);
+      mk0p1b "add"      S.Revision.add      re revision key;
+      mk0p0b "contents" S.Revision.contents re (contents key revision);
   ]
 
   let tag_store = Node [
-    "read"    , mk1 S.Tag.read     ta tag (some key);
-    "mem"     , mk1 S.Tag.mem      ta tag bool;
-    "list"    , mk1 S.Tag.list     ta tag (list tag);
-    "update"  , mk2 S.Tag.update   ta tag key unit;
-    "remove"  , mk1 S.Tag.remove   ta tag unit;
-    "contents", mk0 S.Tag.contents ta (contents tag key);
+      mk1p0b "read"     S.Tag.read     ta tag (some key);
+      mk1p0b "mem"      S.Tag.mem      ta tag bool;
+      mk1p0b "list"     S.Tag.list     ta tag (list tag);
+      mk1p1b "update"   S.Tag.update   ta tag key unit;
+      mk1p0b "remove"   S.Tag.remove   ta tag unit;
+      mk0p0b "contents" S.Tag.contents ta (contents tag key);
   ]
 
   let store = Node [
-    "read"    , mkl  S.read     t path (some value);
-    "mem"     , mkl  S.mem      t path bool;
-    "list"    , mkl  S.list     t path (list path);
-    "update"  , mkl2 S.update  t path value unit;
-    "remove"  , mkl  S.remove   t path unit;
-    "contents", mk0  S.contents t (contents path value);
-    "snapshot", mk0  S.snapshot t key;
-    "revert"  , mk1  S.revert   t key unit;
-    "export"  , mks  S.export   t key dump;
-    "import"  , mk1  S.import   t dump unit;
-    "value"   , value_store;
-    "tree"    , tree_store;
-    "revision", revision_store;
-    "tag"     , tag_store;
+      mklp0b "read"     S.read     t path (some value);
+      mklp0b "mem"      S.mem      t path bool;
+      mklp0b "list"     S.list     t path (list path);
+      mklp1b "update"   S.update   t path value unit;
+      mklp0b "remove"   S.remove   t path unit;
+      mk0p0b "contents" S.contents t (contents path value);
+      mk0p0b "snapshot" S.snapshot t key;
+      mk1p0b "revert"   S.revert   t key unit;
+      mklp0b "export"   S.export   t (list key) dump;
+      mk0p1b "import"   S.import   t dump unit;
+      "value"   , value_store;
+      "tree"    , tree_store;
+      "revision", revision_store;
+      "tag"     , tag_store;
   ]
 
   let process t ?body req path =
     begin match Cohttp.Request.meth req, body with
       | `DELETE ,_
-      | `GET , _      -> return_nil
+      | `GET , _      -> return_none
       | `POST, Some b ->
         Cohttp_lwt_body.get_length body >>= fun (len, body) ->
         if len = 0 then
-          return_nil
+          return_none
         else begin
           Cohttp_lwt_body.string_of_body body >>= fun b ->
           debug "process: length=%d body=%S" len b;
           try match IrminJSON.input b with
-            | `A l -> return l
-            | _    -> failwith "Wrong parameters"
-          with e ->
-            debug "process: wrong body %s" (Printexc.to_string e);
+            | `O l ->
+              if List.mem_assoc "params" l then
+                return (Some (List.assoc "params" l))
+              else
+                failwith "process: wrong request"
+            | _    ->
+              failwith "Wrong parameters"
+          with _ ->
+            debug "process: not a valid JSON body %S" b;
             fail Invalid
         end
       | _ -> fail Invalid
@@ -267,11 +292,7 @@ module Server (S: Irmin.S) = struct
       | []      -> respond_json (to_json actions)
       | h::path ->
         match child h actions with
-        | Leaf fn ->
-          let params = match path with
-            | [] -> params
-            | _  -> List.map IrminJSON.of_string path @ params in
-          fn t params >>= respond_json
+        | Leaf fn -> fn t path params >>= respond_json
         | actions -> aux actions path in
     aux store path
 
