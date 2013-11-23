@@ -87,15 +87,20 @@ let path_conv =
   let print ppf path = pr_str ppf (IrminTree.Path.pretty path) in
   parse, print
 
-let value =
-  let doc =
-    Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
-  Arg.(required & pos ~rev:true 0 (some & value_conv) None & doc)
+let key_conv =
+  let parse str =
+    try `Ok (IrminKey.SHA1.of_hex str)
+    with e -> `Error "Invalid key" in
+  let print ppf key = pr_str ppf (IrminKey.SHA1.to_hex key) in
+  parse, print
 
 let path =
-  let doc =
-    Arg.info ~docv:"PATH" ~doc:"Path." [] in
+  let doc = Arg.info ~docv:"PATH" ~doc:"Path." [] in
   Arg.(value & pos 0 path_conv [] & doc)
+
+let key =
+  let doc = Arg.info ~docv:"KEY" ~doc:"SHA1 key." [] in
+  Arg.(required & pos 0 (some key_conv) None & doc)
 
 let default_dir = ".irmin"
 
@@ -320,13 +325,6 @@ let clone = {
     Term.(mk clone $ store);
 }
 
-let todo = {
-  name = "TODO";
-  doc  = "TODO";
-  man  = [];
-  term = Term.(pure (fun _ -> failwith "TODO") $ pure ());
-}
-
 (* PULL *)
 let pull = {
   name = "pull";
@@ -378,16 +376,43 @@ let push = {
 
 (* SNAPSHOT *)
 let snapshot = {
-  todo with
-  name = "snaspshot";
-  doc  = "Snapshot the contents of the store."
+  name = "snapshot";
+  doc  = "Snapshot the contents of the store.";
+  man  = [];
+  term =
+    let snapshot () =
+      let (module S) = local_store default_dir in
+      run begin
+        S.create ()  >>= fun t ->
+        S.snapshot t >>= fun k ->
+        IrminLog.msg "%s" (S.Key.pretty k);
+        return_unit
+      end
+    in
+    Term.(mk snapshot $ pure ())
 }
 
 (* REVERT *)
 let revert = {
-  todo with
   name = "revert";
-  doc = "Revert the contents of the store to a previous state.";
+  doc  = "Revert the contents of the store to a previous state.";
+  man  = [];
+  term =
+    let revert key =
+      let (module S) = local_store default_dir in
+      run begin
+        S.create () >>= fun t ->
+        S.revert t key
+      end
+    in
+    Term.(mk revert $ key)
+}
+
+let todo = {
+  name = "TODO";
+  doc  = "TODO";
+  man  = [];
+  term = Term.(pure (fun _ -> failwith "TODO") $ pure ());
 }
 
 (* WATCH *)
@@ -407,13 +432,14 @@ let dump = {
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
       Arg.(required & pos 0 (some & string) None & doc) in
-    let dump (module S: Irmin.SIMPLE) basename =
+    let dump basename =
+      let (module S) = local_store default_dir in
       run begin
         S.create () >>= fun t ->
         S.output t basename
       end
     in
-    Term.(mk dump $ store $ basename);
+    Term.(mk dump $ basename);
 }
 
 (* HELP *)
