@@ -1,6 +1,6 @@
 VERSION  = 0.2
 PREFIX  ?= /usr/local
-MAIN     = irminArg
+MAIN     = irminMain
 TESTS    = test
 TARGET   = irmin
 

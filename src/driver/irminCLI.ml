@@ -310,8 +310,8 @@ let help =
   let doc = "Display help about Irminsule and Irminsule commands." in
   let man = [
     `S "DESCRIPTION";
-     `P "Prints help about Irminsule commands.";
-     `P "Use `$(mname) help topics' to get the full list of help topics.";
+    `P "Prints help about Irminsule commands.";
+    `P "Use `$(mname) help topics' to get the full list of help topics.";
   ] in
   let topic =
     let doc = Arg.info [] ~docv:"TOPIC" ~doc:"The topic to get help on." in
@@ -333,7 +333,12 @@ let default =
   let doc = "Irminsule, the database that never forgets." in
   let man = [
     `S "DESCRIPTION";
-    `P "TODO";
+    `P "Irminsule is a distributed database with built-in snapshot, branch \
+        and revert mechanisms. It is designed to use a large variety of backends, \
+        although it is optimized for append-only ones.";
+    `P "Irminsule is written in pure OCaml, and can thus be compiled to a variety of \
+        backends including Javascript -- to run inside Browsers, and Mirage microkernels \
+        -- to run directly on top of Xen.";
     `P "Use either $(b,$(mname) <command> --help) or $(b,$(mname) help <command>) \
         for more information on a specific command.";
   ] in
@@ -384,8 +389,3 @@ let commands = [
   watch;
   dump;
 ]
-
-let () =
-  match Term.eval_choice default commands with
-  | `Error _ -> exit 1
-  | _ -> ()
