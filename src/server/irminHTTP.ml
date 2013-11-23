@@ -232,6 +232,8 @@ module Server (S: Irmin.S) = struct
     "update"  , mkl2 S.update  t path value unit;
     "remove"  , mkl  S.remove   t path unit;
     "contents", mk0  S.contents t (contents path value);
+    "snapshot", mk0  S.snapshot t key;
+    "revert"  , mk1  S.revert   t key unit;
     "export"  , mks  S.export   t key dump;
     "import"  , mk1  S.import   t dump unit;
     "value"   , value_store;
