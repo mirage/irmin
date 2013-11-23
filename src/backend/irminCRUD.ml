@@ -61,14 +61,14 @@ let post t path body fn =
     | None   -> assert false in
   Cohttp_lwt_unix.Client.post ~body (uri t path) >>= response fn
 
-module type S = sig
+module type U = sig
   val uri: Uri.t
 end
 
-module X (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
+module X (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   let debug fmt =
-    IrminLog.debug ("CRUD" ^ Uri.path S.uri) fmt
+    IrminLog.debug ("CRUD" ^ Uri.path U.uri) fmt
 
   type t = Uri.t
 
@@ -83,7 +83,7 @@ module X (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
     fail (K.Unknown (K.pretty (K.of_string k)))
 
   let create () =
-    return S.uri
+    return U.uri
 
   let read t key =
     debug "read %s" (K.pretty key);
@@ -109,9 +109,9 @@ module X (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
 
 end
 
-module A (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
+module A (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
 
-  include X(S)(K)(V)
+  include X(U)(K)(V)
 
   let add t value =
     debug "add %s"(V.pretty value);
@@ -119,9 +119,9 @@ module A (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
 
 end
 
-module M (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
+module M (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
 
-  include X(S)(K)(V)
+  include X(U)(K)(V)
 
   let update t key value =
     debug "update %s %s" (K.pretty key) (V.pretty value);
@@ -130,6 +130,35 @@ module M (S: S) (K: IrminKey.S) (V: IrminBase.S) = struct
   let remove t key =
     debug "remove %s" (K.pretty key);
     delete t ["remove"; K.pretty key] IrminJSON.to_unit
+
+end
+
+module S (U: U) (K: IrminKey.S) (V: IrminBase.S) (R: IrminKey.BINARY) (D: IrminBase.S) = struct
+
+  include M(U)(K)(V)
+
+  type revision = R.t
+
+  type dump = D.t
+
+  let snapshot t =
+    debug "snapshot";
+    get t ["snapshot"] R.of_json
+
+  let revert t rev =
+    debug "revert";
+    get t ["revert"; R.pretty rev] IrminJSON.to_unit
+
+  let watch _ =
+    failwith "TODO"
+
+  let export t revs =
+    debug "export %s" (IrminMisc.pretty_list R.pretty revs);
+    get t ("export" :: List.map R.to_hex revs) D.of_json
+
+  let import t dump =
+    debug "dump";
+    post t ["import"] (D.to_json dump) IrminJSON.to_unit
 
 end
 
@@ -146,9 +175,13 @@ let simple u =
   let module Tag = M(struct
       let uri = uri u ["tag"]
     end) in
+  let module Store = S(struct
+      let uri = u
+    end) in
   let module K = IrminKey.SHA1 in
   let module V = IrminValue.Simple in
-  let module Simple = Irmin.Make
+  let module Simple = Irmin.Proxy
+      (Store)
       (IrminKey.SHA1)(IrminValue.Simple)(IrminTag.Simple)
       (Value)
       (Tree)

@@ -16,18 +16,21 @@
 
 (** JSON CRUD interface. *)
 
-module type S = sig
+module type U = sig
 
   val uri: Uri.t
   (** The server URI. *)
 
 end
 
-module A (S: S) (K: IrminKey.BINARY) (V: IrminBase.S): IrminStore.A
-(** Create a fresh append-only store. *)
+module A (U: U): IrminStore.A_MAKER
+(** Build an append-only store using the given url. *)
 
-module M (S: S) (K: IrminKey.S) (V: IrminBase.S): IrminStore.M
-(** Create a fresh mutable store. *)
+module M (U: U): IrminStore.M_MAKER
+(** Build an a mutable store using the given url. *)
+
+module S (U: U): IrminStore.S_MAKER
+(** Build an irminsule store using the given uri. *)
 
 val simple: Uri.t -> (module Irmin.SIMPLE)
-(** Simple store using a JSON CRUD interface. *)
+(** Simple store using a JSON CRUD interface on the given uri. *)
