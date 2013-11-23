@@ -33,11 +33,11 @@
 
 <p>Irminsule is a distributed database with built-in snapshot, branch and
 revert mechanisms. It is designed to use a large variety of backends,
-although it is optimized for append-only ones.</p>
+although it is optimized for append-only store.</p>
 
-<p>Irminsule is written in pure OCaml, and can thus be compiled to a
-variety of backends (including Javascript, and Mirage
-microkernels).</p>
+<p>Irminsule is written in pure OCaml, and can thus be compiled to Javascript
+-- to run in the browsers, and into a Mirage microkernels -- to run directly
+on top of Xen.</p>
 
 <h3>
 <a name="compile" class="anchor" href="#compile"><span class="octicon octicon-link"></span></a>Compile</h3>
@@ -48,9 +48,33 @@ make
 </code></pre>
 
 <h3>
+<a name="install" class="anchor" href="#install"><span class="octicon octicon-link"></span></a>Install</h3>
+
+<pre><code>make install
+</code></pre>
+
+<h3>
+<a name="running-the-tests" class="anchor" href="#running-the-tests"><span class="octicon octicon-link"></span></a>Running the tests</h3>
+
+<p>To run only the quick tests:</p>
+
+<pre><code>make test
+</code></pre>
+
+<p>To run the full test suite:</p>
+
+<pre><code>make fulltest
+</code></pre>
+
+<h3>
 <a name="usage" class="anchor" href="#usage"><span class="octicon octicon-link"></span></a>Usage</h3>
 
-<p>TODO</p>
+<p>See <code>irmin --help</code></p>
+
+<h2>
+<a name="issues" class="anchor" href="#issues"><span class="octicon octicon-link"></span></a>Issues</h2>
+
+<p>To report any issues please use the <a href="https://github.com/samoht/issues">bugtracker on Github</a>.</p>
         </section>
 
         <aside id="sidebar">
