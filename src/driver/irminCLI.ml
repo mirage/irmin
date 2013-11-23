@@ -246,10 +246,10 @@ let tree = {
         List.fold_left (fun len s -> max len (String.length s)) 0 l in
       let k_max = max_lenght (List.map fst all) in
       let v_max = max_lenght (List.map snd all) in
-      let pad = 80 + k_max + v_max in
+      let pad = 79 + k_max + v_max in
       List.iter (fun (k,v) ->
           let dots = String.make (pad - String.length k - String.length v) '.' in
-          IrminLog.msg "%s%s%s" k dots v
+          IrminLog.msg "/%s%s%s" k dots v
         ) all;
       return_unit
     end
