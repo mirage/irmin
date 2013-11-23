@@ -29,10 +29,10 @@ and ('a, 'b) value_dump =
 
 module Dump (A: IrminBase.S) (B: IrminBase.S) = struct
 
-  module Value = struct
+  let debug fmt =
+    IrminLog.debug "DUMP" fmt
 
-    let debug fmt =
-      IrminLog.debug "VDUMP" fmt
+  module Value = struct
 
     type t = (A.t, B.t) value_dump
 
@@ -79,10 +79,10 @@ module Dump (A: IrminBase.S) (B: IrminBase.S) = struct
         begin match value, tree, revision with
           | true , false, false -> Value    (Value.of_json (List.assoc "value" json))
           | false, true , false -> Tree     (Tree.of_json (List.assoc "tree"  json))
-          | false, false, false -> Revision (Revision.of_json (List.assoc "revision" json))
-          | _ -> IrminBuffer.parse_error "Irmin.VDump.of_json: invalid value (1)"
+          | false, false, true  -> Revision (Revision.of_json (List.assoc "revision" json))
+          | _ -> IrminBuffer.parse_error "Irmin.Dump.Value.of_json: invalid value (1)"
         end
-      | _ -> IrminBuffer.parse_error "Irmin.VDump.of_json: invalid value (2)"
+      | _ -> IrminBuffer.parse_error "Irmin.VDump.Value.of_json: invalid value (2)"
 
     let to_json = function
       | Value v    -> `O [ "value"   , Value.to_json v   ]
