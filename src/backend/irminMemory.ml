@@ -89,10 +89,6 @@ module M (K: IrminKey.S): IrminStore.M_BINARY = struct
     Hashtbl.remove t key;
     return_unit
 
-  let list t _ =
-    let l = Hashtbl.fold (fun k _ acc -> k :: acc) t [] in
-    return l
-
 end
 
 module Simple = struct

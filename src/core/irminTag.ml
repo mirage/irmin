@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
+
 module type S = sig
   include IrminKey.S
   val master: t
@@ -71,5 +73,9 @@ module Make (S: IrminStore.M_MAKER) (T: S) (K: IrminBase.S) = struct
   include (S: IrminStore.M with type key := tag and type value := key)
 
   include (T: S with type t := tag)
+
+  let list t _ =
+    contents t >>= fun l ->
+    return (List.map fst l)
 
 end
