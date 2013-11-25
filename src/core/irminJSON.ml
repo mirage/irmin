@@ -31,20 +31,25 @@ exception Escape of ((int * int) * (int * int)) * Jsonm.error
 let json_of_src ?encoding src =
   let dec d = match Jsonm.decode d with
     | `Lexeme l -> l
-    | `Error e -> raise (Escape (Jsonm.decoded_range d, e))
-    | `End | `Await -> assert false
+    | `Error e  -> raise (Escape (Jsonm.decoded_range d, e))
+    | `End
+    | `Await    -> assert false
   in
   let rec value v k d = match v with
-    | `Os -> obj [] k d  | `As -> arr [] k d
-    | `Null | `Bool _ | `String _ | `Float _ as v -> k v d
+    | `Os -> obj [] k d
+    | `As -> arr [] k d
+    | `Null
+    | `Bool _
+    | `String _
+    | `Float _ as v -> k v d
     | _ -> assert false
   and arr vs k d = match dec d with
     | `Ae -> k (`A (List.rev vs)) d
-    | v -> value v (fun v -> arr (v :: vs) k) d
+    | v   -> value v (fun v -> arr (v :: vs) k) d
   and obj ms k d = match dec d with
-    | `Oe -> k (`O (List.rev ms)) d
+    | `Oe     -> k (`O (List.rev ms)) d
     | `Name n -> value (dec d) (fun v -> obj ((n, v) :: ms) k) d
-    | _ -> assert false
+    | _       -> assert false
   in
   let d = Jsonm.decoder ?encoding src in
   try `JSON (value (dec d) (fun v _ -> v) d) with
