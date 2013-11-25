@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
+
 let debug fmt =
   IrminLog.debug "JSON" fmt
 
@@ -54,6 +56,53 @@ let json_of_src ?encoding src =
   let d = Jsonm.decoder ?encoding src in
   try `JSON (value (dec d) (fun v _ -> v) d) with
   | Escape (r, e) -> `Error (r, e)
+
+let of_stream (stream: string Lwt_stream.t): t Lwt_stream.t =
+  let rec dec d = match Jsonm.decode d with
+    | `Lexeme l -> return l
+    | `Error e  -> fail (Escape (Jsonm.decoded_range d, e))
+    | `Await    ->
+      begin
+        Lwt_stream.get stream >>= function
+        | None    -> failwith "???"
+        | Some str ->
+          Jsonm.Manual.src d str 0 (String.length str);
+          dec d
+      end;
+    | `End      -> assert false
+  in
+  let rec value v k d = match v with
+    | `Os -> obj [] k d
+    | `As -> arr [] k d
+    | `Null
+    | `Bool _
+    | `String _
+    | `Float _ as v -> k v d
+    | _ -> assert false
+  and arr vs k d =
+    dec d >>= function
+    | `Ae -> k (`A (List.rev vs)) d
+    | v   -> value v (fun v -> arr (v :: vs) k) d
+  and obj ms k d =
+    dec d >>= function
+    | `Oe     -> k (`O (List.rev ms)) d
+    | `Name n ->
+      dec d >>= fun l ->
+      value l (fun v -> obj ((n, v) :: ms) k) d
+    | _       -> assert false
+  in
+  let d = Jsonm.decoder `Manual in
+  let get () =
+    try
+      dec d
+      >>= fun l ->
+      value l (fun v _ -> return v) d
+      >>= fun json ->
+      return (Some json)
+    with
+    | Escape _ -> return_none
+  in
+  Lwt_stream.from get
 
 let of_buffer buf: t =
   let str = Buffer.contents buf in

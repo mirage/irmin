@@ -27,6 +27,7 @@ type t =
 
 (** {2 Serializer} *)
 
+val of_stream: string Lwt_stream.t -> t Lwt_stream.t
 val of_buffer: Buffer.t -> t
 val to_buffer: Buffer.t -> t -> unit
 val input: string -> t
