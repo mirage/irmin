@@ -131,8 +131,8 @@ module Server (S: Irmin.S) = struct
       failwith ("Unknown action: " ^ c) in
     match t with
     | Fixed _
-    | Stream _-> error ()
-    | Node l ->
+    | Stream _ -> error ()
+    | Node l   ->
       try List.assoc c l
       with Not_found -> error ()
 
@@ -231,8 +231,6 @@ module Server (S: Irmin.S) = struct
         let stream = fn (db t) x1 in
         Lwt_stream.map (fun r -> o.output r) stream
       )
-
-  let watches = ref []
 
   let value_store = Node [
       mk1p0bf "read"     S.Value.read     va key   (some value);
