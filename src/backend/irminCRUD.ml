@@ -28,30 +28,35 @@ let uri t path = match Uri.path t :: path with
 type ('a, 'b) response =
   (IrminJSON.t -> 'a) -> (Cohttp_lwt_unix.Response.t * Cohttp_lwt_body.t) option -> 'b
 
-let map_string_response: ('a, 'a Lwt.t) response = function fn -> function
-  | None       -> fail (Error "response")
+let result_of_json json =
+  let json = IrminJSON.to_dict json in
+  let error =
+    try Some (List.assoc "error" json)
+    with Not_found -> None in
+  let result =
+    try Some (List.assoc "result" json)
+    with Not_found -> None in
+  match error, result with
+  | None  , None   -> raise (Error "result_of_json")
+  | Some e, None   -> raise (Error (IrminJSON.output e))
+  | None  , Some r -> r
+  | Some _, Some _ -> raise (Error "result_of_json")
+
+let map_string_response fn = function
+  | None       -> fail (Error "map_string_response")
   | Some (_,b) ->
     Cohttp_lwt_body.string_of_body b >>= function b ->
       debug "response: body=%s" b;
       let j = IrminJSON.input b in
-      let j = IrminJSON.to_dict j in
-      let error =
-        try Some (List.assoc "error" j)
-        with Not_found -> None in
-      let result =
-        try Some (List.assoc "result" j)
-        with Not_found -> None in
-      match error, result with
-      | None  , None   -> fail (Error "response")
-      | Some e, None   -> fail (Error (IrminJSON.output e))
-      | None  , Some r -> return (fn r)
-      | Some _, Some _ -> fail (Error "response")
+      try return (fn (result_of_json j))
+      with Error e -> fail (Error e)
 
-let map_stream_response: ('a, 'a Lwt_stream.t) response = function fn -> function
-  | None       -> failwith "response"
+let map_stream_response fn = function
+  | None       -> raise (Error "map_stream_response")
   | Some (_,b) ->
     let stream = Cohttp_lwt_body.stream_of_body b in
     let stream = IrminJSON.of_stream stream in
+    let stream = Lwt_stream.map result_of_json stream in
     Lwt_stream.map fn stream
 
 let map_get t path fn =
