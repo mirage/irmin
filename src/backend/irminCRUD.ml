@@ -25,7 +25,10 @@ let uri t path = match Uri.path t :: path with
   | []   -> t
   | path -> Uri.with_path t (String.concat "/" path)
 
-let response fn = function
+type ('a, 'b) response =
+  (IrminJSON.t -> 'a) -> (Cohttp_lwt_unix.Response.t * Cohttp_lwt_body.t) option -> 'b
+
+let map_string_response: ('a, 'a Lwt.t) response = function fn -> function
   | None       -> fail (Error "response")
   | Some (_,b) ->
     Cohttp_lwt_body.string_of_body b >>= function b ->
@@ -44,14 +47,38 @@ let response fn = function
       | None  , Some r -> return (fn r)
       | Some _, Some _ -> fail (Error "response")
 
+let map_stream_response: ('a, 'a Lwt_stream.t) response = function fn -> function
+  | None       -> failwith "response"
+  | Some (_,b) ->
+    let stream = Cohttp_lwt_body.stream_of_body b in
+    let stream = IrminJSON.of_stream stream in
+    Lwt_stream.map fn stream
+
+let map_get t path fn =
+  debug "get %s" (Uri.to_string (uri t path));
+  Cohttp_lwt_unix.Client.get (uri t path) >>=
+  fn
 
 let get t path fn =
-  debug "get %s" (Uri.to_string (uri t path));
-  Cohttp_lwt_unix.Client.get (uri t path) >>= response fn
+  map_get t path (map_string_response fn)
+
+let get_stream t path fn  =
+  let (stream: 'a Lwt_stream.t option ref) = ref None in
+  let rec get () =
+    match !stream with
+    | Some s -> Lwt_stream.get s
+    | None   ->
+      map_get t path (fun b ->
+          let s = map_stream_response fn b in
+          stream := Some s;
+          return_unit) >>= fun () ->
+       get () in
+  Lwt_stream.from get
 
 let delete t path fn =
   debug "delete %s" (Uri.to_string (uri t path));
-  Cohttp_lwt_unix.Client.delete (uri t path) >>= response fn
+  Cohttp_lwt_unix.Client.delete (uri t path) >>=
+  map_string_response fn
 
 let post t path body fn =
   debug "post %s" (Uri.to_string (uri t path));
@@ -60,7 +87,8 @@ let post t path body fn =
     match Cohttp_lwt_body.body_of_string (IrminJSON.output params) with
     | Some c -> c
     | None   -> assert false in
-  Cohttp_lwt_unix.Client.post ~body (uri t path) >>= response fn
+  Cohttp_lwt_unix.Client.post ~body (uri t path) >>=
+  map_string_response fn
 
 module type U = sig
   val uri: Uri.t
@@ -150,8 +178,9 @@ module S (U: U) (K: IrminKey.S) (V: IrminBase.S) (R: IrminKey.BINARY) (D: IrminB
     debug "revert";
     get t ["revert"; R.pretty rev] IrminJSON.to_unit
 
-  let watch _ =
-    failwith "TODO"
+  let watch t path =
+    debug "watch";
+    get_stream t ["watch"; K.pretty path] (IrminJSON.to_pair K.of_json R.of_json)
 
   let export t revs =
     debug "export %s" (IrminMisc.pretty_list R.pretty revs);
