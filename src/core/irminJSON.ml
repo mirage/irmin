@@ -86,18 +86,17 @@ let of_stream (stream: string Lwt_stream.t): t Lwt_stream.t =
   and obj ms k d =
     dec d >>= function
     | `Oe     -> k (`O (List.rev ms)) d
-    | `Name n ->
-      dec d >>= fun l ->
-      value l (fun v -> obj ((n, v) :: ms) k) d
+    | `Name n -> dec d >>= fun l -> value l (fun v -> obj ((n, v) :: ms) k) d
     | _       -> assert false
   in
-  let d = Jsonm.decoder `Manual in
   let get () =
+    let d = Jsonm.decoder `Manual in
     try
-      dec d
-      >>= fun l ->
-      value l (fun v _ -> return v) d
-      >>= fun json ->
+      dec d >>= fun l ->
+      value l (fun v _ ->
+          Jsonm.Manual.src d "" 0 0;
+          return v
+        ) d >>= fun json ->
       return (Some json)
     with
     | Escape _ -> return_none
