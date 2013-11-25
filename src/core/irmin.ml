@@ -341,10 +341,30 @@ struct
       Tag.update t.tag t.branch key
     )
 
+  type watch = path * (path -> key -> unit)
+
+  let watches: watch list ref = ref []
+
+  let fire path (p, _) =
+    if p = path then true
+    else
+      let rec aux = function
+        | _   , []   -> true
+        | []  , _    -> false
+        | a::b, x::y -> a=x && aux (b, y) in
+      aux (path, p)
+
   let update t path value =
     update_tree t path (fun tree ->
         Tree.update t.tree tree path value
-      )
+      ) >>= fun () ->
+    let ws = List.filter (fire path) !watches in
+    if ws = [] then return_unit
+    else (
+      Tag.read_exn t.tag t.branch >>= fun rev ->
+      List.iter (fun (_, f) -> f path rev) ws;
+      return_unit
+    )
 
   let remove t path =
     update_tree t path (fun tree ->
@@ -451,8 +471,12 @@ struct
     let _ = Sys.command (Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name) in
     return_unit
 
-  let watch _ =
-    failwith "watch: TODO"
+  let watch t path =
+    let stream, push, _ = Lwt_stream.create_with_reference () in
+    let callback path rev =
+      push (Some (path, rev)) in
+    watches := (path, callback) :: !watches;
+    stream
 
   let debug fmt =
     IrminLog.debug "RAW" fmt

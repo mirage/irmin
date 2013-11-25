@@ -182,8 +182,11 @@ struct
   let revert t rev =
     S.revert t (R.to_string rev)
 
-  let watch _ =
-    failwith "TODO"
+  let watch t path =
+    let stream = S.watch t (K.to_string path) in
+    Lwt_stream.map (fun (k, r) ->
+        (K.of_string k, R.of_string r)
+      ) stream
 
   type dump = D.t
 
