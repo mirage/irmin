@@ -131,7 +131,7 @@ module type S = sig
   val revert: t -> revision -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
-  val watch: t -> key -> (key * revision option) Lwt_stream.t
+  val watch: t -> key -> (key * revision) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
       given key. *)
 
