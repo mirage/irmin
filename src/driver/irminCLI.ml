@@ -385,19 +385,27 @@ let revert = {
     in
     Term.(mk revert $ store $ key)
 }
-
-let todo = {
-  name = "TODO";
-  doc  = "TODO";
-  man  = [];
-  term = Term.(pure (fun _ -> failwith "TODO") $ pure ());
-}
-
 (* WATCH *)
 let watch = {
-  todo with
   name = "watch";
   doc  = "Watch the contents of a store and be notified on updates.";
+  man  = [];
+  term =
+    let path =
+      let doc =
+        Arg.info ~docv:"PATH" ~doc:"The path to watch." [] in
+      Arg.(value & pos 0 path_conv [] & doc) in
+    let watch (module S: Irmin.SIMPLE) path =
+      run begin
+        S.create () >>= fun t ->
+        let stream = S.watch t path in
+        Lwt_stream.iter_s (fun (path, rev) ->
+            IrminLog.msg "%s %s" (IrminTree.Path.pretty path) (S.Key.pretty rev);
+            return_unit
+          ) stream
+      end
+    in
+    Term.(mk watch $ store $ path)
 }
 
 (* DUMP *)
