@@ -362,7 +362,10 @@ struct
     if ws = [] then return_unit
     else (
       Tag.read_exn t.tag t.branch >>= fun rev ->
-      List.iter (fun (_, f) -> f path rev) ws;
+      List.iter (fun (_, f) ->
+          IrminLog.msg "fire %s" (IrminTree.Path.to_string path);
+          f path rev
+        ) ws;
       return_unit
     )
 
