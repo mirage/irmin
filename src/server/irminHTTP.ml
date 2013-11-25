@@ -100,26 +100,38 @@ module Server (S: Irmin.S) = struct
     let body = IrminJSON.output json in
     respond body
 
+  let respond_stream stream =
+    let stream = Lwt_stream.map (fun j ->
+        IrminJSON.output (`O ["result", j])
+      ) stream in
+    let body = Cohttp_lwt_body.body_of_stream stream in
+    Cohttp_lwt_unix.Server.respond ~status:`OK ~body ()
+
   let error fmt =
     Printf.kprintf (fun msg ->
         failwith ("error: " ^ msg)
       ) fmt
 
+  type 'a leaf = S.t -> string list -> IrminJSON.t option -> 'a
+
   type t =
-    | Leaf of (S.t -> string list -> IrminJSON.t option -> IrminJSON.t Lwt.t)
-    | Node of (string * t) list
+    | Fixed  of IrminJSON.t Lwt.t leaf
+    | Stream of IrminJSON.t Lwt_stream.t leaf
+    | Node   of (string * t) list
 
   let to_json t =
     let rec aux path acc = function
-      | Leaf _ -> `String (IrminTree.Path.pretty (List.rev path)) :: acc
-      | Node c -> List.fold_left (fun acc (s,t) -> aux (s::path) acc t) acc c in
+      | Fixed   _
+      | Stream _ -> `String (IrminTree.Path.pretty (List.rev path)) :: acc
+      | Node c   -> List.fold_left (fun acc (s,t) -> aux (s::path) acc t) acc c in
     `A (List.rev (aux [] [] t))
 
   let child c t: t =
     let error () =
       failwith ("Unknown action: " ^ c) in
     match t with
-    | Leaf _ -> error ()
+    | Fixed _
+    | Stream _-> error ()
     | Node l ->
       try List.assoc c l
       with Not_found -> error ()
@@ -151,30 +163,30 @@ module Server (S: Irmin.S) = struct
   let mklp name i1 path =
     i1.input (IrminJSON.of_strings path)
 
-  (* no arguments *)
-  let mk0p0b name fn db o =
+  (* no arguments, fixed answer *)
+  let mk0p0bf name fn db o =
     name,
-    Leaf (fun t path params ->
+    Fixed (fun t path params ->
         mk0p name path;
         mk0b name params;
         fn (db t) >>= fun r ->
         return (o.output r)
       )
 
-  (* 1 argument in the path *)
-  let mk1p0b name fn db i1 o =
+  (* 1 argument in the path, fixed answer *)
+  let mk1p0bf name fn db i1 o =
     name,
-    Leaf (fun t path params ->
+    Fixed (fun t path params ->
         let x = mk1p name i1 path in
         mk0b name params;
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
 
-  (* list of arguments in the path *)
-  let mklp0b name fn db i1 o =
+  (* list of arguments in the path, fixed answer *)
+  let mklp0bf name fn db i1 o =
     name,
-    Leaf (fun t path params ->
+    Fixed (fun t path params ->
         let x = mklp name i1 path in
         mk0b name params;
         fn (db t) x >>= fun r ->
@@ -182,80 +194,91 @@ module Server (S: Irmin.S) = struct
       )
 
   (* 1 argument in the body *)
-  let mk0p1b name fn db i1 o =
+  let mk0p1bf name fn db i1 o =
     name,
-    Leaf (fun t path params ->
+    Fixed (fun t path params ->
         mk0p name path;
         let x = mk1b name i1 params in
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
 
-  (* 1 argument in the path, 1 argument in the body *)
-  let mk1p1b name fn db i1 i2 o =
+  (* 1 argument in the path, 1 argument in the body, fixed answer *)
+  let mk1p1bf name fn db i1 i2 o =
     name,
-    Leaf (fun t path params ->
+    Fixed (fun t path params ->
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
         fn (db t) x1 x2 >>= fun r ->
         return (o.output r)
       )
 
-  (* list of arguments in the path, 1 argument in the body *)
-  let mklp1b name fn db i1 i2 o =
+  (* list of arguments in the path, 1 argument in the body, fixed answer *)
+  let mklp1bf name fn db i1 i2 o =
     name,
-    Leaf (fun t path params ->
+    Fixed (fun t path params ->
         let x1 = mklp name i1 path in
         let x2 = mk1b name i2 params in
         fn (db t) x1 x2 >>= fun r ->
         return (o.output r)
       )
 
+  (* list of arguments in the path, no body, streamed response *)
+  let mklp0bs name fn db i1 o =
+    name,
+    Stream (fun t path params ->
+        let x1 = mklp name i1 path in
+        let stream = fn (db t) x1 in
+        Lwt_stream.map (fun r -> o.output r) stream
+      )
+
+  let watches = ref []
 
   let value_store = Node [
-      mk1p0b "read"     S.Value.read     va key   (some value);
-      mk1p0b "mem"      S.Value.mem      va key   bool;
-      mk1p0b "list"     S.Value.list     va key   (list key);
-      mk0p1b "add"      S.Value.add      va value key;
-      mk0p0b "contents" S.Value.contents va (contents key value);
+      mk1p0bf "read"     S.Value.read     va key   (some value);
+      mk1p0bf "mem"      S.Value.mem      va key   bool;
+      mk1p0bf "list"     S.Value.list     va key   (list key);
+      mk0p1bf "add"      S.Value.add      va value key;
+      mk0p0bf "contents" S.Value.contents va (contents key value);
   ]
 
   let tree_store = Node [
-      mk1p0b "read"     S.Tree.read     tr key  (some tree);
-      mk1p0b "mem"      S.Tree.mem      tr key  bool;
-      mk1p0b "list"     S.Tree.list     tr key  (list key);
-      mk0p1b "add"      S.Tree.add      tr tree key;
-      mk0p0b "contents" S.Tree.contents tr (contents key tree);
+      mk1p0bf "read"     S.Tree.read     tr key  (some tree);
+      mk1p0bf "mem"      S.Tree.mem      tr key  bool;
+      mk1p0bf "list"     S.Tree.list     tr key  (list key);
+      mk0p1bf "add"      S.Tree.add      tr tree key;
+      mk0p0bf "contents" S.Tree.contents tr (contents key tree);
   ]
 
   let revision_store = Node [
-      mk1p0b "read"     S.Revision.read     re key  (some revision);
-      mk1p0b "mem"      S.Revision.mem      re key  bool;
-      mk1p0b "list"     S.Revision.list     re key  (list key);
-      mk0p1b "add"      S.Revision.add      re revision key;
-      mk0p0b "contents" S.Revision.contents re (contents key revision);
+      mk1p0bf "read"     S.Revision.read     re key  (some revision);
+      mk1p0bf "mem"      S.Revision.mem      re key  bool;
+      mk1p0bf "list"     S.Revision.list     re key  (list key);
+      mk0p1bf "add"      S.Revision.add      re revision key;
+      mk0p0bf "contents" S.Revision.contents re (contents key revision);
   ]
 
   let tag_store = Node [
-      mk1p0b "read"     S.Tag.read     ta tag (some key);
-      mk1p0b "mem"      S.Tag.mem      ta tag bool;
-      mk1p0b "list"     S.Tag.list     ta tag (list tag);
-      mk1p1b "update"   S.Tag.update   ta tag key unit;
-      mk1p0b "remove"   S.Tag.remove   ta tag unit;
-      mk0p0b "contents" S.Tag.contents ta (contents tag key);
+      mk1p0bf "read"     S.Tag.read     ta tag (some key);
+      mk1p0bf "mem"      S.Tag.mem      ta tag bool;
+      mk1p0bf "list"     S.Tag.list     ta tag (list tag);
+      mk1p1bf "update"   S.Tag.update   ta tag key unit;
+      mk1p0bf "remove"   S.Tag.remove   ta tag unit;
+      mk0p0bf "contents" S.Tag.contents ta (contents tag key);
   ]
 
   let store = Node [
-      mklp0b "read"     S.read     t path (some value);
-      mklp0b "mem"      S.mem      t path bool;
-      mklp0b "list"     S.list     t path (list path);
-      mklp1b "update"   S.update   t path value unit;
-      mklp0b "remove"   S.remove   t path unit;
-      mk0p0b "contents" S.contents t (contents path value);
-      mk0p0b "snapshot" S.snapshot t key;
-      mk1p0b "revert"   S.revert   t key unit;
-      mklp0b "export"   S.export   t (list key) dump;
-      mk0p1b "import"   S.import   t dump unit;
+      mklp0bf "read"     S.read     t path (some value);
+      mklp0bf "mem"      S.mem      t path bool;
+      mklp0bf "list"     S.list     t path (list path);
+      mklp1bf "update"   S.update   t path value unit;
+      mklp0bf "remove"   S.remove   t path unit;
+      mk0p0bf "contents" S.contents t (contents path value);
+      mk0p0bf "snapshot" S.snapshot t key;
+      mk1p0bf "revert"   S.revert   t key unit;
+      mklp0bf "export"   S.export   t (list key) dump;
+      mk0p1bf "import"   S.import   t dump unit;
+      mklp0bs "watch"    S.watch    t path (pair path key);
       "value"   , value_store;
       "tree"    , tree_store;
       "revision", revision_store;
@@ -292,8 +315,9 @@ module Server (S: Irmin.S) = struct
       | []      -> respond_json (to_json actions)
       | h::path ->
         match child h actions with
-        | Leaf fn -> fn t path params >>= respond_json
-        | actions -> aux actions path in
+        | Fixed fn  -> fn t path params >>= respond_json
+        | Stream fn -> respond_stream (fn t path params)
+        | actions   -> aux actions path in
     aux store path
 
 end
