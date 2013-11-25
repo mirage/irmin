@@ -64,7 +64,7 @@ let of_stream (stream: string Lwt_stream.t): t Lwt_stream.t =
     | `Await    ->
       begin
         Lwt_stream.get stream >>= function
-        | None    -> failwith "???"
+        | None    -> fail (Escape (Jsonm.decoded_range d, (`Expected `Value)))
         | Some str ->
           Jsonm.Manual.src d str 0 (String.length str);
           dec d
@@ -104,21 +104,6 @@ let of_stream (stream: string Lwt_stream.t): t Lwt_stream.t =
   in
   Lwt_stream.from get
 
-let of_buffer buf: t =
-  let str = Buffer.contents buf in
-  match json_of_src (`String str) with
-  | `JSON j  -> j
-  | `Error _ -> failwith "JSON.of_buffer"
-
-let input str: t =
-  debug "input %S" str;
-  match json_of_src (`String str) with
-  | `JSON j  -> j
-  | `Error (_,e) ->
-    Jsonm.pp_error Format.str_formatter e;
-    debug "ERROR: %s" (Format.flush_str_formatter ());
-    failwith "JSON.input"
-
 let json_to_dst ~minify dst (json:t) =
   let enc e l = ignore (Jsonm.encode e (`Lexeme l)) in
   let rec value v k e = match v with
@@ -148,26 +133,50 @@ let output t =
   to_buffer buf t;
   Buffer.contents buf
 
+let parse_error fmt =
+  Printf.kprintf (fun msg ->
+      IrminBuffer.parse_error "parse error: %s" msg;
+    ) fmt
+
+let string_of_error error =
+  Jsonm.pp_error Format.str_formatter error;
+  Format.flush_str_formatter ()
+
+let of_buffer buf: t =
+  let str = Buffer.contents buf in
+  match json_of_src (`String str) with
+  | `JSON j      -> j
+  | `Error (_,e) -> parse_error "JSON.of_buffer %s" (string_of_error e)
+
+let input str: t =
+  debug "input %S" str;
+  match json_of_src (`String str) with
+  | `JSON j  -> j
+  | `Error (_,e) ->
+    Jsonm.pp_error Format.str_formatter e;
+    debug "ERROR: %s" (Format.flush_str_formatter ());
+    parse_error "JSON.input %s" (string_of_error e)
+
 (* unit *)
 let of_unit () = `Null
 
 let to_unit = function
   | `Null  -> ()
-  | _      -> failwith "JSON.to_unit"
+  | j      -> parse_error "JSON.to_unit %s" (output j)
 
 (* bool *)
 let of_bool b = `Bool b
 
-let to_bool (json:t) = match json with
+let to_bool = function
   | `Bool b -> b
-  | _       -> failwith "JSON.to_bool"
+  | j       -> parse_error "JSON.to_bool %s" (output j)
 
 (* string *)
 let of_string s = `String s
 
-let to_string (json:t) = match json with
+let to_string = function
   | `String s -> s
-  | j         -> failwith ("JSON.to_string: " ^ output j)
+  | j         -> parse_error "JSON.to_string: %s" (output j)
 
 (* int *)
 let of_int i = `String (string_of_int i)
@@ -179,10 +188,10 @@ let of_list fn = function
   | [] -> `Null
   | l  -> `A (List.map fn l)
 
-let to_list fn (json:t) = match json with
+let to_list fn = function
   | `Null -> []
   | `A ks -> List.map fn ks
-  | _     -> failwith "JSON.to_list"
+  | j     -> parse_error "JSON.to_list: %s" (output j)
 
 (* string lists *)
 let of_strings = of_list of_string
@@ -203,12 +212,12 @@ let of_dict d : t = `O d
 
 let to_dict = function
   | `O d -> d
-  | _     -> failwith "JSON.to_dict"
+  | j    -> parse_error "JSON.to_dict: %s" (output j)
 
 (* pairs *)
 let of_pair fk fv (k, v) =
   `A [fk k; fv v]
 
-let to_pair fk fv (json:t) = match json with
+let to_pair fk fv = function
   | `A [k; v] -> (fk k, fv v)
-  | _         -> failwith "JSON.to_pair"
+  | j         -> parse_error "JSON.to_pair: %s" (output j)
