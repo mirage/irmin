@@ -108,6 +108,10 @@ let default_dir = ".irmin"
 let init_hook =
   ref (fun () -> ())
 
+let in_memory_store () =
+  IrminLog.msg "source: in-memory";
+  (module IrminMemory.Simple: Irmin.SIMPLE)
+
 let local_store dir =
   IrminLog.msg "source: dir=%s" dir;
   init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
@@ -123,45 +127,26 @@ let store =
       Arg.info ~doc:"In-memory persistence."
         ["m";"in-memory"] in
     Arg.(value & flag & doc) in
-  let fs =
+  let local =
     let doc =
-      Arg.info ~doc:"File-system persistence." ["f";"file"] in
-    Arg.(value & flag & doc) in
-  let crud =
+      Arg.info ~doc:"Local store." ["l";"local"] in
+    Arg.(value & opt (some string) None & doc) in
+  let remote =
     let doc =
-      Arg.info ~doc:"CRUD interface."  ["c";"crud"] in
-    Arg.(value & flag & doc) in
-  let uri =
-    let doc = Arg.info ~doc:"Irminsule store location." [] in
-    Arg.(value & pos 0 (some string) None & doc) in
-  let create in_memory fs crud uri = match in_memory, fs, crud with
-    | true , false, false ->
-      if uri <> None then IrminLog.error "Non-empty URI, skipping it";
-      IrminLog.msg "source: in-memory";
-      (module IrminMemory.Simple: Irmin.SIMPLE)
-    | false, false, true ->
-      let uri = match uri with
-        | None   -> Uri.of_string "http://127.0.0.1:8080"
-        | Some u -> Uri.of_string u in
-      remote_store uri
-    | false, true , false ->
-      let dir = match uri with
-        | None   -> Filename.concat (Sys.getcwd ()) default_dir
-        | Some d -> Filename.concat d default_dir in
-      local_store dir
-    | false, false, false ->
-      (* try to guess the correct type *)
-      begin match uri with
-        | None   -> local_store default_dir
-        | Some s ->
-          if Sys.file_exists s then local_store s
-          else remote_store (Uri.of_string s)
-      end
-    | _ -> failwith
-             (Printf.sprintf "Invalid store source [%b %b %b %s]"
-                in_memory fs crud (match uri with None -> "<none>" | Some s -> s))
+      Arg.info ~doc:"Remote store." ["r";"remote"] in
+    Arg.(value & opt (some uri_conv) None & doc) in
+  let create in_memory local remote =
+    match in_memory, local, remote with
+    | true , None   , None   -> in_memory_store ()
+    | false, None   , Some u -> remote_store u
+    | false, Some d , None   -> local_store (Filename.concat d default_dir)
+    | false, None   , None   -> local_store default_dir
+    | _ ->
+      let local = match local with None -> "<none>" | Some d -> d in
+      let remote = match remote with None -> "<none>" | Some u -> Uri.to_string u in
+      failwith (Printf.sprintf "Invalid store source [%b %s %s]" in_memory local remote)
   in
-  Term.(pure create $ in_memory $ fs $ crud $ uri)
+  Term.(pure create $ in_memory $ local $ remote)
 
 let run t =
   Lwt_unix.run (
@@ -205,8 +190,7 @@ let read = {
   doc  = "Read the contents of a node.";
   man  = [];
   term =
-    let read path =
-      let (module S) = local_store default_dir in
+    let read (module S: Irmin.SIMPLE) path =
       run begin
         S.create ()   >>= fun t ->
         S.read t path >>= function
@@ -214,7 +198,7 @@ let read = {
         | Some v -> IrminLog.msg "%s" (S.Value.pretty v); return_unit
       end
     in
-    Term.(mk read $ path);
+    Term.(mk read $ store $ path);
 }
 
 (* LS *)
@@ -223,8 +207,7 @@ let ls = {
   doc  = "List subdirectories.";
   man  = [];
   term =
-    let ls path =
-      let (module S) = local_store default_dir in
+    let ls (module S: Irmin.SIMPLE) path =
       run begin
         S.create ()   >>= fun t ->
         S.list t path >>= fun paths ->
@@ -232,7 +215,7 @@ let ls = {
         return_unit
       end
     in
-    Term.(mk ls $ path);
+    Term.(mk ls $ store $ path);
 }
 
 (* TREE *)
@@ -241,8 +224,7 @@ let tree = {
   doc  = "List the store contents.";
   man  = [];
   term =
-  let tree () =
-    let (module S) = local_store default_dir in
+  let tree (module S: Irmin.SIMPLE) =
     run begin
       S.create () >>= fun t ->
       S.contents t >>= fun all ->
@@ -259,7 +241,7 @@ let tree = {
       return_unit
     end
   in
-  Term.(mk tree $ pure ());
+  Term.(mk tree $ store);
 }
 
 (* WRITE *)
@@ -271,8 +253,7 @@ let write = {
     let args =
       let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
       Arg.(value & pos_all string [] & doc) in
-    let write args =
-      let (module S) = local_store default_dir in
+    let write (module S: Irmin.SIMPLE) args =
       let path, value = match args with
         | []            -> failwith "Not enough arguments"
         | [path; value] -> IrminTree.Path.of_string path, S.Value.of_bytes value
@@ -283,7 +264,7 @@ let write = {
         S.update t path value
       end
     in
-    Term.(mk write $ args);
+    Term.(mk write $ store $ args);
 }
 
 (* RM *)
@@ -292,14 +273,13 @@ let rm = {
   doc  = "Remove a node.";
   man  = [];
   term =
-    let rm path =
-      let (module S) = local_store default_dir in
+    let rm (module S: Irmin.SIMPLE) path =
       run begin
         S.create () >>= fun t ->
         S.remove t path
       end
     in
-    Term.(mk rm $ path);
+    Term.(mk rm $ store $ path);
 }
 
 
@@ -380,8 +360,7 @@ let snapshot = {
   doc  = "Snapshot the contents of the store.";
   man  = [];
   term =
-    let snapshot () =
-      let (module S) = local_store default_dir in
+    let snapshot (module S: Irmin.SIMPLE) =
       run begin
         S.create ()  >>= fun t ->
         S.snapshot t >>= fun k ->
@@ -389,7 +368,7 @@ let snapshot = {
         return_unit
       end
     in
-    Term.(mk snapshot $ pure ())
+    Term.(mk snapshot $ store)
 }
 
 (* REVERT *)
@@ -398,14 +377,13 @@ let revert = {
   doc  = "Revert the contents of the store to a previous state.";
   man  = [];
   term =
-    let revert key =
-      let (module S) = local_store default_dir in
+    let revert (module S: Irmin.SIMPLE) key =
       run begin
         S.create () >>= fun t ->
         S.revert t key
       end
     in
-    Term.(mk revert $ key)
+    Term.(mk revert $ store $ key)
 }
 
 let todo = {
