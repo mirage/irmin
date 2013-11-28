@@ -91,21 +91,28 @@ module Server (S: Irmin.S) = struct
   let contents key value =
     list (pair key value)
 
-  let respond body =
+  let respond ?headers body =
     debug "%S" body;
-    Cohttp_lwt_unix.Server.respond_string ~status:`OK ~body ()
+    Cohttp_lwt_unix.Server.respond_string ?headers ~status:`OK ~body ()
+
+  let json_headers = Cohttp.Header.of_list [
+      "Content-type", "application/json"
+    ]
 
   let respond_json json =
     let json = `O [ "result", json ] in
     let body = IrminJSON.output json in
-    respond body
+    respond ~headers:json_headers body
 
-  let respond_stream stream =
-    let stream = Lwt_stream.map (fun j ->
-        IrminJSON.output (`O ["result", j])
-      ) stream in
+  let respond_json_stream stream =
+    let (++) = Lwt_stream.append in
+    let stream =
+      (Lwt_stream.of_list ["["])
+      ++ (Lwt_stream.map (fun j -> IrminJSON.output (`O ["result", j]) ^ ",") stream)
+      ++ (Lwt_stream.of_list [" {\"result\":[]}]"])
+    in
     let body = Cohttp_lwt_body.body_of_stream stream in
-    Cohttp_lwt_unix.Server.respond ~status:`OK ~body ()
+    Cohttp_lwt_unix.Server.respond ~headers:json_headers ~status:`OK ~body ()
 
   let error fmt =
     Printf.kprintf (fun msg ->
@@ -314,7 +321,7 @@ module Server (S: Irmin.S) = struct
       | h::path ->
         match child h actions with
         | Fixed fn  -> fn t path params >>= respond_json
-        | Stream fn -> respond_stream (fn t path params)
+        | Stream fn -> respond_json_stream (fn t path params)
         | actions   -> aux actions path in
     aux store path
 
