@@ -1,41 +1,41 @@
-VERSION  = 0.3
-PREFIX  ?= /usr/local
-MAIN     = irminMain
-TESTS    = test
-TARGET   = irmin
+VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
+SETUP   = ocaml setup.ml
+VFILE   = lib/core/irminVersion.ml
+TESTS  ?= --enable-tests
+PREFIX ?= /usr/local
 
-PACKAGES = -pkgs cryptokit,jsonm,uri,ocamlgraph,cmdliner,lwt,ocplib-endian,cstruct \
-	   -pkgs cohttp.lwt
-FLAGS    = -use-ocamlfind -cflags "-bin-annot" -no-links
-INCLUDES = -Is src/core,src/backend,src/server,src/driver
-BUILD    = ocamlbuild $(INCLUDES) $(FLAGS) $(PACKAGES) $(SYNTAXES)
+build: setup.data $(VFILE)
+	$(SETUP) -build $(BUILDFLAGS)
 
-.PHONY: all test
-.PHONY: _build/src/irminMain.native
+doc: setup.data build
+	$(SETUP) -doc $(DOCFLAGS)
 
-all: $(TARGET)
-	@
+test: setup.data build
+	$(SETUP) -test $(TESTFLAGS)
 
-src/irminVersion.ml:
-	echo "let current = \"$(VERSION)\"" > src/core/irminVersion.ml
+all:
+	$(SETUP) -all $(ALLFLAGS)
 
-$(TARGET): _build/src/$(MAIN).native
-	ln -s -f _build/src/driver/$(MAIN).native $(TARGET)
+install: setup.data
+	$(SETUP) -install $(INSTALLFLAGS)
 
-_build/src/$(MAIN).native: src/irminVersion.ml
-	$(BUILD) $(MAIN).native
+uninstall: setup.data
+	$(SETUP) -uninstall $(UNINSTALLFLAGS)
 
-test:
-	$(BUILD) -pkg ounit tests/$(TESTS).native
-	./_build/tests/$(TESTS).native --quick-tests
-
-fulltest:
-	$(BUILD) -pkg ounit tests/$(TESTS).native
-	./_build/tests/$(TESTS).native
+reinstall: setup.data
+	$(SETUP) -reinstall $(REINSTALLFLAGS)
 
 clean:
-	rm -rf $(TARGET) _build test-db test-output src/irminVersion.ml
-	rm -f *.dot *.png
+	$(SETUP) -clean $(CLEANFLAGS)
+	rm -f
 
-install:
-	cp $(TARGET) $(PREFIX)/bin
+distclean:
+	$(SETUP) -distclean $(DISTCLEANFLAGS)
+
+setup.data:
+	$(SETUP) -configure $(CONFIGUREFLAGS) $(TESTS) --prefix $(PREFIX)
+
+.PHONY: build doc test all install uninstall reinstall clean distclean configure
+
+$(VFILE): _oasis
+	echo "let current = \"$(VERSION)\"" > $@
