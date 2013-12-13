@@ -41,11 +41,11 @@ module type S = sig
   val to_string: t -> string
   (** Convert the contents to a string. *)
 
-  val of_json: IrminJSON.t -> t
+  val of_json: Ezjsonm.t -> t
   (** Convert from JSON *)
 
-  val to_json: t -> IrminJSON.t
-  (** Convert to IrminJSON *)
+  val to_json: t -> Ezjsonm.t
+  (** Convert to JSON *)
 
   val sizeof: t -> int
   (** Size of serialized value (to pre-allocate bufIO). *)

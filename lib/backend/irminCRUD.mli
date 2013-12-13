@@ -16,21 +16,31 @@
 
 (** JSON CRUD interface. *)
 
-module type U = sig
+module type S = sig
 
-  val uri: Uri.t
-  (** The server URI. *)
+  (** Signature for CRUD interfaces. *)
+
+  module type U = sig
+
+    val uri: Uri.t
+    (** The server URI. *)
+
+  end
+
+  module A (U: U): IrminStore.A_MAKER
+  (** Build an append-only store using the given url. *)
+
+  module M (U: U): IrminStore.M_MAKER
+  (** Build an a mutable store using the given url. *)
+
+  module S (U: U): IrminStore.S_MAKER
+  (** Build an irminsule store using the given uri. *)
+
+  val simple: Uri.t -> (module Irmin.SIMPLE)
+  (** Simple store using a JSON CRUD interface on the given uri. *)
 
 end
 
-module A (U: U): IrminStore.A_MAKER
-(** Build an append-only store using the given url. *)
-
-module M (U: U): IrminStore.M_MAKER
-(** Build an a mutable store using the given url. *)
-
-module S (U: U): IrminStore.S_MAKER
-(** Build an irminsule store using the given uri. *)
-
-val simple: Uri.t -> (module Irmin.SIMPLE)
-(** Simple store using a JSON CRUD interface on the given uri. *)
+module Make (C: Cohttp_lwt.Client): S
+(** Build a CRUD client using the given cohttp client
+    implementation. *)

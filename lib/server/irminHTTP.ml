@@ -20,38 +20,38 @@ let debug fmt =
   IrminLog.debug "HTTP" fmt
 
 type 'a t = {
-  input : IrminJSON.t -> 'a;
-  output: 'a -> IrminJSON.t;
+  input : Ezjsonm.t -> 'a;
+  output: 'a -> Ezjsonm.t;
 }
 
 let some fn = {
-  input  = IrminJSON.to_option fn.input;
-  output = IrminJSON.of_option fn.output
+  input  = Ezjsonm.get_option fn.input;
+  output = Ezjsonm.option fn.output
 }
 
 let list fn = {
-  input  = IrminJSON.to_list fn.input;
-  output = IrminJSON.of_list fn.output;
+  input  = Ezjsonm.get_list fn.input;
+  output = Ezjsonm.list fn.output;
 }
 
 let pair a b = {
-  input  = IrminJSON.to_pair a.input b.input;
-  output = IrminJSON.of_pair a.output b.output;
+  input  = Ezjsonm.get_pair a.input b.input;
+  output = Ezjsonm.pair a.output b.output;
 }
 
 let bool = {
-  input  = IrminJSON.to_bool;
-  output = IrminJSON.of_bool;
+  input  = Ezjsonm.get_bool;
+  output = Ezjsonm.bool;
 }
 
 let path = {
-  input  = IrminJSON.to_list IrminJSON.to_string;
-  output = IrminJSON.of_list IrminJSON.of_string;
+  input  = Ezjsonm.get_list Ezjsonm.get_string;
+  output = Ezjsonm.list Ezjsonm.string;
 }
 
 let unit = {
-  input  = IrminJSON.to_unit;
-  output = IrminJSON.of_unit;
+  input  = Ezjsonm.get_unit;
+  output = (fun () -> Ezjsonm.unit);
 }
 
 exception Invalid
@@ -101,14 +101,14 @@ module Server (S: Irmin.S) = struct
 
   let respond_json json =
     let json = `O [ "result", json ] in
-    let body = IrminJSON.output json in
+    let body = Ezjsonm.to_string json in
     respond ~headers:json_headers body
 
   let respond_json_stream stream =
     let (++) = Lwt_stream.append in
     let stream =
       (Lwt_stream.of_list ["["])
-      ++ (Lwt_stream.map (fun j -> IrminJSON.output (`O ["result", j]) ^ ",") stream)
+      ++ (Lwt_stream.map (fun j -> Ezjsonm.to_string (`O ["result", j]) ^ ",") stream)
       ++ (Lwt_stream.of_list [" {\"result\":[]}]"])
     in
     let body = Cohttp_lwt_body.body_of_stream stream in
@@ -119,11 +119,11 @@ module Server (S: Irmin.S) = struct
         failwith ("error: " ^ msg)
       ) fmt
 
-  type 'a leaf = S.t -> string list -> IrminJSON.t option -> 'a
+  type 'a leaf = S.t -> string list -> Ezjsonm.t option -> 'a
 
   type t =
-    | Fixed  of IrminJSON.t Lwt.t leaf
-    | Stream of IrminJSON.t Lwt_stream.t leaf
+    | Fixed  of Ezjsonm.t Lwt.t leaf
+    | Stream of Ezjsonm.t Lwt_stream.t leaf
     | Node   of (string * t) list
 
   let to_json t =
@@ -168,7 +168,7 @@ module Server (S: Irmin.S) = struct
     | Some b  -> i.input b
 
   let mklp name i1 path =
-    i1.input (IrminJSON.of_strings path)
+    i1.input (Ezjsonm.strings path)
 
   (* no arguments, fixed answer *)
   let mk0p0bf name fn db o =
@@ -301,7 +301,7 @@ module Server (S: Irmin.S) = struct
         else begin
           Cohttp_lwt_body.string_of_body body >>= fun b ->
           debug "process: length=%d body=%S" len b;
-          try match IrminJSON.input b with
+          try match Ezjsonm.from_string b with
             | `O l ->
               if List.mem_assoc "params" l then
                 return (Some (List.assoc "params" l))
@@ -342,8 +342,7 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
     let path = List.filter ((<>) "") path in
     Server.process t ?body req path in
   let conn_closed conn_id () =
-    debug "Connection %s closed!"
-      (Cohttp_lwt_unix.Server.string_of_conn_id conn_id) in
+    debug "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
   let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
   Cohttp_lwt_unix.Server.create ~address:"0.0.0.0" ~port config
 
@@ -352,7 +351,7 @@ let stop_server uri =
     | None   -> 8080
     | Some p -> p in
   debug "stop-server [port %d]" port;
-  Cohttp_lwt_unix_net.build_sockaddr "0.0.0.0" port >>=
+  Cohttp_lwt_unix_net.build_sockaddr "0.0.0.0" (string_of_int port) >>=
   fun sockaddr ->
   let sock =
     Lwt_unix.socket

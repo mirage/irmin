@@ -48,7 +48,8 @@ let name t = t.name
 
 let channel t = t.fd
 
-let close t = Lwt_unix.close t.fd
+let close t =
+  Lwt_unix.close t.fd
 
 let read_string t len =
   debug "read_string %s (%d)" t.name len;

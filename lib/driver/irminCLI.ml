@@ -118,8 +118,9 @@ let local_store dir =
   IrminFS.simple dir
 
 let remote_store uri =
+  let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
   IrminLog.msg "source: uri=%s" (Uri.to_string uri);
-  IrminCRUD.simple uri
+  CRUD.simple uri
 
 let store =
   let in_memory =

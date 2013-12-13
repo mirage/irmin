@@ -63,10 +63,10 @@ module SHA1 = struct
     IrminMisc.hex_decode hex
 
   let to_json t =
-    IrminJSON.of_string (to_hex t)
+    Ezjsonm.string (to_hex t)
 
   let of_json j =
-    of_hex (IrminJSON.to_string j)
+    of_hex (Ezjsonm.get_string j)
 
   let pretty = to_hex
 

@@ -22,8 +22,8 @@ module type S = sig
   val hash: t -> int
   val pretty: t -> string
   val to_string: t -> string
-  val of_json: IrminJSON.t -> t
-  val to_json: t -> IrminJSON.t
+  val of_json: Ezjsonm.t -> t
+  val to_json: t -> Ezjsonm.t
   val sizeof: t -> int
   val get: IrminBuffer.t -> t option
   val set: IrminBuffer.t -> t -> unit
@@ -259,10 +259,10 @@ module String = struct
     Hashtbl.hash t
 
   let to_json t =
-    IrminJSON.of_string t
+    Ezjsonm.string t
 
   let of_json j =
-    IrminJSON.to_string j
+    Ezjsonm.get_string j
 
   let sizeof s =
     4 + String.length s
