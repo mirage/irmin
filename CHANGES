@@ -1,4 +1,4 @@
-trunk
+0.3
 * Fix a fd leak in the filesystem bakend
 * Functorize the CRUD interface over the HTTP client implementation
 * Use oasis to build the project
