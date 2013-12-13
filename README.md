@@ -11,7 +11,7 @@ on top of Xen.
 ### Compile
 
 ```
-opam install jsonm uri ocamlgraph cohttp cmdliner obuild lwt \
+opam install jsonm uri ocamlgraph cohttp cmdliner lwt \
      ocplib-endian ssl cryptokit
 make
 ```
