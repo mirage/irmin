@@ -1,4 +1,4 @@
-src/version.ml
+lib/core/irminVersion.ml
 _build/
 irminsule
 *~
