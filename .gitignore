@@ -5,3 +5,10 @@ irminsule
 test-db/
 #*
 .#*
+setup.data
+setup.log
+.irmin/
+_tests/
+*.native
+*.dot
+*.png
