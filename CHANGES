@@ -1,3 +1,9 @@
+trunk
+* Fix a fd leak in the filesystem bakend
+* Functorize the CRUD interface over the HTTP client implementation
+* Use oasis to build the project
+* Use the now released separately `ezjsonm` and `alcotest` libraries
+
 0.2 (2013-11-23)
 * Fix the HTTP server responses
 * More high-level tests
