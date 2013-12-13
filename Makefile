@@ -27,7 +27,7 @@ reinstall: setup.data
 
 clean:
 	$(SETUP) -clean $(CLEANFLAGS)
-	rm -f
+	rm -f $(VFILE)
 
 distclean:
 	$(SETUP) -distclean $(DISTCLEANFLAGS)
