@@ -1,0 +1,44 @@
+# OASIS_START
+# DO NOT EDIT (digest: afbb3554c7b11695d512bfad4f6fd9bc)
+version = "0.4.0"
+description = "A Distributed Version Control Database"
+requires = "ezjsonm ocamlgraph lwt ocplib-endian cryptokit cstruct re.str"
+archive(byte) = "irminsule.cma"
+archive(byte, plugin) = "irminsule.cma"
+archive(native) = "irminsule.cmxa"
+archive(native, plugin) = "irminsule.cmxs"
+exists_if = "irminsule.cma"
+package "server" (
+ version = "0.4.0"
+ description = "A Distributed Version Control Database"
+ requires =
+ "cohttp.lwt unix lwt.unix lwt.ssl irminsule.backend.fs irminsule.backend irminsule"
+ archive(byte) = "server.cma"
+ archive(byte, plugin) = "server.cma"
+ archive(native) = "server.cmxa"
+ archive(native, plugin) = "server.cmxs"
+ exists_if = "server.cma"
+)
+
+package "backend" (
+ version = "0.4.0"
+ description = "A Distributed Version Control Database"
+ requires = "irminsule uri cohttp.lwt ezjsonm.lwt"
+ archive(byte) = "backend.cma"
+ archive(byte, plugin) = "backend.cma"
+ archive(native) = "backend.cmxa"
+ archive(native, plugin) = "backend.cmxs"
+ exists_if = "backend.cma"
+ package "fs" (
+  version = "0.4.0"
+  description = "A Distributed Version Control Database"
+  requires = "uri irminsule.backend irminsule"
+  archive(byte) = "fs.cma"
+  archive(byte, plugin) = "fs.cma"
+  archive(native) = "fs.cmxa"
+  archive(native, plugin) = "fs.cmxs"
+  exists_if = "fs.cma"
+ )
+)
+# OASIS_STOP
+
