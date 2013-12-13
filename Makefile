@@ -28,6 +28,7 @@ reinstall: setup.data
 clean:
 	$(SETUP) -clean $(CLEANFLAGS)
 	rm -f $(VFILE)
+	rm -rf ./test-db
 
 distclean:
 	$(SETUP) -distclean $(DISTCLEANFLAGS)
