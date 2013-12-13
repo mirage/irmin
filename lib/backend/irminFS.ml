@@ -72,9 +72,6 @@ let with_file file fn =
   Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
   let t = IrminChannel.create fd file in
   try
-    let fd = Unix.openfile file [Unix.O_RDWR; Unix.O_NONBLOCK; Unix.O_CREAT] 0o644 in
-    let ba = Lwt_bytes.map_file ~fd ~shared:false () in
-    IrminBuffer.dump ~msg:"-->" (IrminBuffer.of_ba ba);
     fn t >>= fun r ->
     IrminChannel.close t >>= fun () ->
     return r
