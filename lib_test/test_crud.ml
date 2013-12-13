@@ -48,6 +48,7 @@ let suite server =
   end;
 
   store =
-    let module S = (val IrminCRUD.simple uri) in
+    let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
+    let module S = (val CRUD.simple uri) in
     (module S: Irmin.S);
 }
