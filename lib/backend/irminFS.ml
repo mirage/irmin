@@ -16,7 +16,7 @@
 
 open Lwt
 
-let debug fmt = IrminLog.debug "FS" fmt
+module L = Log.Make(struct let section = "FS" end)
 
 exception Error of string
 
@@ -67,7 +67,7 @@ let check (D root) =
   end
 
 let with_file file fn =
-  debug "with_file %s" file;
+  L.debugf "with_file %s" file;
   mkdir (Filename.dirname file);
   Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
   let t = IrminChannel.create fd file in
@@ -83,7 +83,7 @@ let with_maybe_file file fn default =
   if Sys.file_exists file then
     with_file file fn
   else (
-    debug "with_maybe_file: %s does not exist, skipping" file;
+    L.debugf "with_maybe_file: %s does not exist, skipping" file;
     return default
   )
 
@@ -105,7 +105,9 @@ module X (O: O) (K: IrminKey.S) = struct
     K.pretty (K.of_string k)
 
   let pretty_value ba =
-    IrminBuffer.pretty_ba ba
+    let b = Buffer.create 1024 in
+    Cstruct.hexdump_to_buffer b (Cstruct.of_bigarray ba);
+    Printf.sprintf "%S" (Buffer.contents b)
 
   let unknown k =
     fail (K.Unknown (K.pretty (K.of_string k)))
@@ -120,23 +122,22 @@ module X (O: O) (K: IrminKey.S) = struct
 
   let read_full_ba fd =
     IrminChannel.read_buffer fd >>= fun buf ->
-    return (IrminBuffer.to_ba buf)
+    return (Mstruct.to_bigarray buf)
 
   let read_exn t key =
-    debug "read_exn %s" (pretty_key key);
+    L.debugf "read_exn %s" (pretty_key key);
     mem t key >>= function
     | true  -> with_file (O.file_of_key key) read_full_ba
     | false -> unknown key
 
   let read t key =
-    debug "read %s" (pretty_key key);
+    L.debugf "read %s" (pretty_key key);
     mem t key >>= function
     | true  -> with_file
                  (O.file_of_key key)
                  (fun fd ->
                     read_full_ba fd >>= fun ba ->
-                    IrminBuffer.dump_ba ~msg:"-->" ba;
-                    debug "--> read %s" (pretty_value ba);
+                    L.debugf "--> read %s" (pretty_value ba);
                     return (Some ba))
     | false -> return_none
 
@@ -144,7 +145,7 @@ module X (O: O) (K: IrminKey.S) = struct
     return [k]
 
   let contents (D root as t) =
-    debug "contents %s" root;
+    L.debugf "contents %s" root;
     check t >>= fun () ->
     O.keys_of_dir root >>= fun l ->
     Lwt_list.fold_left_s (fun acc x ->
@@ -174,7 +175,6 @@ module A (S: S) (K: IrminKey.BINARY) = struct
             K.to_string (K.of_hex (pre ^ suf))
           ) (root / pre) in
       basenames (fun x -> x) root >>= fun pres ->
-      debug "XXX pres=%s" (String.concat ", " pres);
       Lwt_list.fold_left_s (fun acc pre ->
           aux pre >>= fun keys ->
           return (keys @ acc)
@@ -185,14 +185,14 @@ module A (S: S) (K: IrminKey.BINARY) = struct
   include X(O)(K)
 
   let add t value =
-    debug "add %s" (pretty_value value);
+    L.debugf "add %s" (pretty_value value);
     check t >>= fun () ->
-    let key = K.to_string (K.of_ba value) in
+    let key = K.to_string (K.of_bigarray value) in
     let file = O.file_of_key key in
     begin if Sys.file_exists file then
         return_unit
       else
-        let value = IrminBuffer.of_ba value in
+        let value = Mstruct.of_bigarray value in
         with_file file (fun fd ->
             IrminChannel.write_buffer fd value
           )
@@ -218,18 +218,18 @@ module M (S: S) (K: IrminKey.S) = struct
   include X(O)(K)
 
   let remove t key =
-    debug "remove %s" (pretty_key key);
+    L.debugf "remove %s" (pretty_key key);
     let file = O.file_of_key key in
     if Sys.file_exists file then
       Unix.unlink file;
     return_unit
 
   let update t key value =
-    debug "update %s %s" (pretty_key key) (pretty_value value);
+    L.debugf "update %s %s" (pretty_key key) (pretty_value value);
     check t >>= fun () ->
     remove t key >>= fun () ->
     with_file (O.file_of_key key) (fun fd ->
-        let buf = IrminBuffer.of_ba value in
+        let buf = Mstruct.of_bigarray value in
         IrminChannel.write_buffer fd buf
       )
 

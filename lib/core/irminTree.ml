@@ -20,8 +20,7 @@ type ('a, 'b) node = {
   children: (string * 'b) list;
 }
 
-let debug fmt =
-  IrminLog.debug "TREE" fmt
+module L = Log.Make(struct let section = "TREE" end)
 
 module Path = struct
 
@@ -116,11 +115,11 @@ module Tree (A: IrminBase.S) (B: IrminBase.S) = struct
     1 + XTree.sizeof (t.value, t.children)
 
   let set buf t =
-    IrminBuffer.set_string buf header;
+    Mstruct.set_string buf header;
     XTree.set buf (t.value, t.children)
 
   let get buf =
-    let h = IrminBuffer.get_string buf 1 in
+    let h = Mstruct.get_string buf 1 in
     if header <> h then None
     else match XTree.get buf with
       | None                   -> None
@@ -182,7 +181,7 @@ struct
   module Graph = IrminGraph.Make(K)
 
   let list t key =
-    debug "list %s" (K.pretty key);
+    L.debugf "list %s" (K.pretty key);
     read_exn t key >>= fun _ ->
     let pred k =
       read_exn t k >>= fun r -> return (List.map snd r.children) in
@@ -198,7 +197,7 @@ struct
   }
 
   let tree t ?value children =
-    debug "tree";
+    L.debug (lazy "tree");
     begin match value with
       | None   -> return_none
       | Some v -> V.add t.v v >>= fun k -> return (Some k)

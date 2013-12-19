@@ -41,11 +41,11 @@ module Simple = struct
     1 + sizeof t
 
   let set buf t =
-    IrminBuffer.set_string buf header;
+    Mstruct.set_string buf header;
     set buf t
 
   let get buf =
-    let h = IrminBuffer.get_string buf 1 in
+    let h = Mstruct.get_string buf 1 in
     if header <> h then None
     else get buf
 

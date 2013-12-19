@@ -15,8 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let debug fmt =
-  IrminLog.debug "VALUE" fmt
+module L = Log.Make(struct let section = "VALUE" end)
 
 exception Conflict
 
@@ -27,8 +26,6 @@ module type S = sig
 end
 
 module Simple  = struct
-
-  let debug fmt = IrminLog.debug "VALUE" fmt
 
   include IrminBase.String
 
@@ -54,11 +51,11 @@ module Simple  = struct
   let header = "V"
 
   let set buf t =
-    IrminBuffer.set_string buf header;
+    Mstruct.set_string buf header;
     set buf t
 
   let get buf =
-    let h = IrminBuffer.get_string buf 1 in
+    let h = Mstruct.get_string buf 1 in
     if header = h then get buf
     else None
 

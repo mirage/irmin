@@ -19,9 +19,6 @@ open Test_store
 
 let uri = Uri.of_string "http://127.0.0.1:8080"
 
-let debug fmt =
-  IrminLog.debug "TEST-CRUD" fmt
-
 let suite server =
   let server_pid = ref 0 in
   {

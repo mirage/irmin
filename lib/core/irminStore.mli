@@ -53,7 +53,7 @@ module type X = sig
 end
 
 module type X_BINARY = X with type key := string
-                          and type value := IrminBuffer.ba
+                          and type value := Cstruct.buffer
 (** Raw basic store which associate strings to big arrays. *)
 
 (** {2 Append-only Stores} *)
@@ -72,7 +72,7 @@ module type A = sig
 end
 
 module type A_BINARY = A with type key := string
-                          and type value := IrminBuffer.ba
+                          and type value := Cstruct.buffer
 (** Raw immutable stores which associate strings to big arrays. *)
 
 module type A_MAKER = functor (K: IrminKey.BINARY) -> functor (V: IrminBase.S) ->
@@ -101,7 +101,7 @@ module type M = sig
 end
 
 module type M_BINARY = M with type key := string
-                          and type value := IrminBuffer.ba
+                          and type value := Cstruct.buffer
 (** Raw mutable stores which associate strings to big arrays. *)
 
 module type M_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
@@ -149,9 +149,9 @@ module type S = sig
 end
 
 module type S_BINARY = S with type key := string
-                          and type value := IrminBuffer.ba
+                          and type value := Cstruct.buffer
                           and type revision := string
-                          and type dump := IrminBuffer.ba
+                          and type dump := Cstruct.buffer
 (** Irminsule store which associate strings to big arrays. *)
 
 module type S_MAKER =

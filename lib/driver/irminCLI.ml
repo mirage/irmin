@@ -23,7 +23,9 @@ type global = {
 }
 
 let app_global g =
-  IrminLog.set_debug_mode g.verbose
+  Log.color_on ();
+  if g.verbose then
+    Log.set_log_level Log.DEBUG
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
@@ -109,17 +111,17 @@ let init_hook =
   ref (fun () -> ())
 
 let in_memory_store () =
-  IrminLog.msg "source: in-memory";
+  Log.info (lazy "source: in-memory");
   (module IrminMemory.Simple: Irmin.SIMPLE)
 
 let local_store dir =
-  IrminLog.msg "source: dir=%s" dir;
+  Log.infof "source: dir=%s" dir;
   init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
   IrminFS.simple dir
 
 let remote_store uri =
   let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
-  IrminLog.msg "source: uri=%s" (Uri.to_string uri);
+  Log.infof "source: uri=%s" (Uri.to_string uri);
   CRUD.simple uri
 
 let store =
@@ -177,13 +179,15 @@ let init = {
         match daemon with
         | None     -> return_unit
         | Some uri ->
-          IrminLog.msg "daemon: %s" (Uri.to_string uri);
+          Log.infof "daemon: %s" (Uri.to_string uri);
           IrminHTTP.start_server (module S) t uri
       end
     in
     Term.(mk init $ store $ daemon)
 }
 
+let print fmt =
+  Printf.ksprintf print_endline fmt
 
 (* READ *)
 let read = {
@@ -195,8 +199,8 @@ let read = {
       run begin
         S.create ()   >>= fun t ->
         S.read t path >>= function
-        | None   -> IrminLog.msg "<none>"; exit 1
-        | Some v -> IrminLog.msg "%s" (S.Value.pretty v); return_unit
+        | None   -> print "<none>\n"; exit 1
+        | Some v -> print "%s" (S.Value.pretty v); return_unit
       end
     in
     Term.(mk read $ store $ path);
@@ -212,7 +216,7 @@ let ls = {
       run begin
         S.create ()   >>= fun t ->
         S.list t path >>= fun paths ->
-        List.iter (fun p -> IrminLog.msg "%s" (IrminTree.Path.pretty p)) paths;
+        List.iter (fun p -> print "%s" (IrminTree.Path.pretty p)) paths;
         return_unit
       end
     in
@@ -237,7 +241,7 @@ let tree = {
       let pad = 79 + k_max + v_max in
       List.iter (fun (k,v) ->
           let dots = String.make (pad - String.length k - String.length v) '.' in
-          IrminLog.msg "/%s%s%s" k dots v
+          print "/%s%s%s" k dots v
         ) all;
       return_unit
     end
@@ -298,7 +302,7 @@ let clone = {
         R.create ()         >>= fun remote ->
         R.snapshot remote   >>= fun tag    ->
         R.export remote []  >>= fun dump   ->
-        IrminLog.msg "Cloning %d bytes" (R.Dump.sizeof dump);
+        print "Cloning %d bytes" (R.Dump.sizeof dump);
         L.import local dump >>= fun ()     ->
         L.revert local tag
       end
@@ -320,7 +324,7 @@ let pull = {
         L.snapshot local    >>= fun l      ->
         R.snapshot remote   >>= fun r      ->
         R.export remote [l] >>= fun dump   ->
-        IrminLog.msg "Cloning %d bytes" (R.Dump.sizeof dump);
+        print "Pulling %d bytes" (R.Dump.sizeof dump);
         L.import local dump >>= fun ()     ->
         (* XXX: deal with merge conflicts properly. *)
         if R.Dump.is_empty dump  then return_unit
@@ -345,7 +349,7 @@ let push = {
         L.snapshot local     >>= fun l      ->
         R.snapshot remote    >>= fun r      ->
         L.export local [r]   >>= fun dump   ->
-        IrminLog.msg "Pushing %d bytes" (R.Dump.sizeof dump);
+        print "Pushing %d bytes" (R.Dump.sizeof dump);
         R.import remote dump >>= fun ()     ->
         (* XXX: deal with merge conflicts properly. *)
         if L.Dump.is_empty dump  then return_unit
@@ -365,7 +369,7 @@ let snapshot = {
       run begin
         S.create ()  >>= fun t ->
         S.snapshot t >>= fun k ->
-        IrminLog.msg "%s" (S.Key.pretty k);
+        print "%s" (S.Key.pretty k);
         return_unit
       end
     in
@@ -401,7 +405,7 @@ let watch = {
         S.create () >>= fun t ->
         let stream = S.watch t path in
         Lwt_stream.iter_s (fun (path, rev) ->
-            IrminLog.msg "%s %s" (IrminTree.Path.pretty path) (S.Key.pretty rev);
+            print "%s %s" (IrminTree.Path.pretty path) (S.Key.pretty rev);
             return_unit
           ) stream
       end

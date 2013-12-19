@@ -1,4 +1,4 @@
-OASISFormat: 0.3
+OASISFormat: 0.4
 Name:        irminsule
 Version:     0.3.0
 Synopsis:    A Distributed Version Control Database
@@ -22,11 +22,11 @@ Flag test
 Library irminsule
   Path: lib/core
   Findlibname: irminsule
-  Modules: Irmin, IrminBase, IrminBuffer, IrminGraph, IrminKey,
-           IrminLog, IrminMisc, IrminRevision, IrminStore,
+  Modules: Irmin, IrminBase, IrminGraph, IrminKey,
+           IrminMisc, IrminRevision, IrminStore,
            IrminTag, IrminTree, IrminValue, IrminVersion
   BuildDepends:	ezjsonm, ocamlgraph, lwt, ocplib-endian, cryptokit,
-                cstruct, re.str
+                cstruct, re.str, dolog, mstruct
 
 Library backend
   Path: lib/backend
@@ -55,7 +55,7 @@ Library server
 
 Document irminsule
   Title:                Irminsule docs
-  Type:                 ocamlbuild (0.3)
+  Type:                 ocamlbuild (0.4)
   BuildTools+:          ocamldoc
   Install:		true
   XOCamlbuildPath:      lib/core
@@ -63,7 +63,7 @@ Document irminsule
 
 Document backend
   Title:                Irminsule backends docs
-  Type:                 ocamlbuild (0.3)
+  Type:                 ocamlbuild (0.4)
   BuildTools+:          ocamldoc
   Install:		true
   XOCamlbuildPath:      lib/backend
@@ -89,4 +89,4 @@ Executable test_irmin
 Test test_irmin
   Run$:               flag(tests)
   Command:            $test_irmin -q
-  WorkingDirectory:   lib_test
+  WorkingDirectory:   .

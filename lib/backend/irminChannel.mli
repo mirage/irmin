@@ -41,18 +41,18 @@ module type S = sig
   val write_string: t -> string -> unit Lwt.t
   (** Write a string on a channel. *)
 
-  val read_ba: t -> int -> Cstruct.buffer Lwt.t
-  (** [read_ba chan len] reads a bigarray of size [len] from the
+  val read_bigarray: t -> int -> Cstruct.buffer Lwt.t
+  (** [read_bigarray chan len] reads a bigarray of size [len] from the
       channel [chan]. *)
 
-  val write_ba: t -> Cstruct.buffer -> unit Lwt.t
+  val write_bigarray: t -> Cstruct.buffer -> unit Lwt.t
   (** [write_ba chan ba] writes the bigarray [ba] on the channel
       [chan]. *)
 
-  val read_buffer: t -> IrminBuffer.t Lwt.t
+  val read_buffer: t -> Mstruct.t Lwt.t
   (** [read_buffer chan] reads the buffer encoded on the channel. *)
 
-  val write_buffer: t -> IrminBuffer.t -> unit Lwt.t
+  val write_buffer: t -> Mstruct.t -> unit Lwt.t
   (** [write_buffer chan buf] writes the buffer [buf] to the channel
       [chan]. *)
 

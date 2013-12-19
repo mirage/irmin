@@ -16,8 +16,7 @@
 
 open Lwt
 
-let debug fmt =
-  IrminLog.debug "MEMORY" fmt
+module L = Log.Make(struct let section = "MEMORY" end)
 
 let store = Hashtbl.create 8128
 
@@ -26,13 +25,15 @@ let reset () =
 
 module X (K: IrminKey.S) = struct
 
-  type t = (string, IrminBuffer.ba) Hashtbl.t
+  type t = (string, Cstruct.buffer) Hashtbl.t
 
   let pretty_key k =
     K.pretty (K.of_string k)
 
   let pretty_value ba =
-    IrminBuffer.pretty_ba ba
+    let b = Buffer.create 1024 in
+    Cstruct.hexdump_to_buffer b (Cstruct.of_bigarray ba);
+    Printf.sprintf "%S" (Buffer.contents b)
 
   let unknown k =
     fail (K.Unknown (K.pretty (K.of_string k)))
@@ -41,19 +42,19 @@ module X (K: IrminKey.S) = struct
     return store
 
   let read t key =
-    debug "read %s" (pretty_key key);
+    L.debugf "read %s" (pretty_key key);
     return (
       try Some (Hashtbl.find t key)
       with Not_found -> None
     )
 
   let read_exn t key =
-    debug "read_exn %s" (pretty_key key);
+    L.debugf "read_exn %s" (pretty_key key);
     try return (Hashtbl.find t key)
     with Not_found -> unknown key
 
   let mem t key =
-    debug "mem %s" (pretty_key key);
+    L.debugf "mem %s" (pretty_key key);
     return (Hashtbl.mem t key)
 
   let list t k =
@@ -69,7 +70,7 @@ module A (K: IrminKey.BINARY) = struct
   include X(K)
 
   let add t value =
-    let key = K.to_string (K.of_ba value) in
+    let key = K.to_string (K.of_bigarray value) in
     Hashtbl.add t key value;
     return key
 
@@ -80,12 +81,12 @@ module M (K: IrminKey.S): IrminStore.M_BINARY = struct
   include X(K)
 
   let update t key value =
-    debug "update %s %s" (pretty_key key) (pretty_value value);
+    L.debugf "update %s %s" (pretty_key key) (pretty_value value);
     Hashtbl.replace t key value;
     return_unit
 
   let remove t key =
-    debug "remove %s" (pretty_key key);
+    L.debugf "remove %s" (pretty_key key);
     Hashtbl.remove t key;
     return_unit
 

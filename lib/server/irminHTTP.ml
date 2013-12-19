@@ -16,8 +16,7 @@
 
 open Lwt
 
-let debug fmt =
-  IrminLog.debug "HTTP" fmt
+module L = Log.Make(struct let section = "HTTP" end)
 
 type 'a t = {
   input : Ezjsonm.t -> 'a;
@@ -92,7 +91,7 @@ module Server (S: Irmin.S) = struct
     list (pair key value)
 
   let respond ?headers body =
-    debug "%S" body;
+    L.debugf "%S" body;
     Cohttp_lwt_unix.Server.respond_string ?headers ~status:`OK ~body ()
 
   let json_headers = Cohttp.Header.of_list [
@@ -300,7 +299,7 @@ module Server (S: Irmin.S) = struct
           return_none
         else begin
           Cohttp_lwt_body.string_of_body body >>= fun b ->
-          debug "process: length=%d body=%S" len b;
+          L.debugf "process: length=%d body=%S" len b;
           try match Ezjsonm.from_string b with
             | `O l ->
               if List.mem_assoc "params" l then
@@ -310,7 +309,7 @@ module Server (S: Irmin.S) = struct
             | _    ->
               failwith "Wrong parameters"
           with _ ->
-            debug "process: not a valid JSON body %S" b;
+            L.debugf "process: not a valid JSON body %S" b;
             fail Invalid
         end
       | _ -> fail Invalid
@@ -334,15 +333,15 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
     | None   -> 8080
     | Some p -> p in
   let module Server = Server(S) in
-  debug "start-server [port %d]" port;
+  L.debugf "start-server [port %d]" port;
   let callback conn_id ?body req =
     let path = Uri.path (Cohttp.Request.uri req) in
-    debug "Request received: PATH=%s" path;
+    L.debugf "Request received: PATH=%s" path;
     let path = IrminMisc.split path '/' in
     let path = List.filter ((<>) "") path in
     Server.process t ?body req path in
   let conn_closed conn_id () =
-    debug "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
+    L.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
   let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
   Cohttp_lwt_unix.Server.create ~address:"0.0.0.0" ~port config
 
@@ -350,7 +349,7 @@ let stop_server uri =
   let port = match Uri.port uri with
     | None   -> 8080
     | Some p -> p in
-  debug "stop-server [port %d]" port;
+  L.debugf "stop-server [port %d]" port;
   Cohttp_lwt_unix_net.build_sockaddr "0.0.0.0" (string_of_int port) >>=
   fun sockaddr ->
   let sock =

@@ -47,7 +47,7 @@ module type BINARY = sig
   val of_bytes: string -> t
   (** Compute a key from a sequence of bytes. *)
 
-  val of_ba: IrminBuffer.ba -> t
+  val of_bigarray: Cstruct.buffer -> t
   (** Compute a key from a big array. *)
 
   val to_hex: t -> string

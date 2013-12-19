@@ -1,15 +1,16 @@
 # OASIS_START
-# DO NOT EDIT (digest: af19fda32d9d94570cb9b07c023aa002)
-version = "0.3.0"
+# DO NOT EDIT (digest: 31fdab06f8b4f483b65fcbbfeeec9cbb)
+version = "0.4.0"
 description = "A Distributed Version Control Database"
-requires = "ezjsonm ocamlgraph lwt ocplib-endian cryptokit cstruct re.str"
+requires =
+"ezjsonm ocamlgraph lwt ocplib-endian cryptokit cstruct re.str dolog mstruct"
 archive(byte) = "irminsule.cma"
 archive(byte, plugin) = "irminsule.cma"
 archive(native) = "irminsule.cmxa"
 archive(native, plugin) = "irminsule.cmxs"
 exists_if = "irminsule.cma"
 package "server" (
- version = "0.3.0"
+ version = "0.4.0"
  description = "A Distributed Version Control Database"
  requires =
  "cohttp.lwt unix lwt.unix lwt.ssl irminsule.backend.fs irminsule.backend irminsule"
@@ -21,7 +22,7 @@ package "server" (
 )
 
 package "backend" (
- version = "0.3.0"
+ version = "0.4.0"
  description = "A Distributed Version Control Database"
  requires = "irminsule uri cohttp.lwt ezjsonm.lwt"
  archive(byte) = "backend.cma"
@@ -30,7 +31,7 @@ package "backend" (
  archive(native, plugin) = "backend.cmxs"
  exists_if = "backend.cma"
  package "fs" (
-  version = "0.3.0"
+  version = "0.4.0"
   description = "A Distributed Version Control Database"
   requires = "uri irminsule.backend irminsule"
   archive(byte) = "fs.cma"

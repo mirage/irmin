@@ -18,9 +18,6 @@ open OUnit
 open Test_common
 open Lwt
 
-let debug fmt =
-  IrminLog.debug "TEST-STORE" fmt
-
 type t = {
   name : string;
   init : unit -> unit Lwt.t;
@@ -37,13 +34,6 @@ module Make (S: Irmin.S) = struct
   open Common
   open S
 
-  let v1 = Value.of_bytes "foo"
-  let v2 = Value.of_bytes ""
-  let k1 = key v1
-  let k2 = key v2
-  let t1 = Tag.of_string "foo"
-  let t2 = Tag.of_string "bar"
-
   let run x test =
     try Lwt_unix.run (x.init () >>= test >>= x.clean)
     with e ->
@@ -51,6 +41,10 @@ module Make (S: Irmin.S) = struct
       raise e
 
   let test_values x () =
+    let v1 = Value.of_bytes "foo" in
+    let k1 = key v1 in
+    let v2 = Value.of_bytes "" in
+    let k2 = key v2 in
     let test () =
       create ()                     >>= fun t    ->
       let v = value_store t in
@@ -71,6 +65,8 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_trees x () =
+    let v1 = Value.of_bytes "foo" in
+    let v2 = Value.of_bytes "" in
     let test () =
       create () >>= fun t  ->
       let tree = tree_store t in
@@ -134,6 +130,7 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_revisions x () =
+    let v1 = Value.of_bytes "foo" in
     let test () =
       create () >>= fun t   ->
       let tree = tree_store t in
@@ -170,6 +167,12 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_tags x () =
+    let t1 = Tag.of_string "foo" in
+    let t2 = Tag.of_string "bar" in
+    let v1 = Value.of_bytes "foo" in
+    let k1 = key v1 in
+    let v2 = Value.of_bytes "" in
+    let k2 = key v2 in
     let test () =
       create ()              >>= fun t   ->
       let tag = tag_store t in
@@ -194,6 +197,8 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_stores x () =
+    let v1 = Value.of_bytes "foo" in
+    let v2 = Value.of_bytes "" in
     let test () =
       create ()             >>= fun t   ->
       update t ["a";"b"] v1 >>= fun ()  ->
@@ -231,6 +236,8 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_sync x () =
+    let v1 = Value.of_bytes "foo" in
+    let v2 = Value.of_bytes "" in
     let test () =
       create ()              >>= fun t1 ->
       update t1 ["a";"b"] v1 >>= fun () ->

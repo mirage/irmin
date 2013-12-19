@@ -19,8 +19,7 @@ type ('a, 'b) node = {
   parents: 'b list;
 }
 
-let debug fmt =
-  IrminLog.debug "REVISION" fmt
+module L = Log.Make(struct let section = "REVISION" end)
 
 module Revision (A: IrminBase.S) (B: IrminBase.S) = struct
 
@@ -73,11 +72,11 @@ module Revision (A: IrminBase.S) (B: IrminBase.S) = struct
     1 + XRevision.sizeof (t.tree, t.parents)
 
   let set buf t =
-    IrminBuffer.set_string buf header;
+    Mstruct.set_string buf header;
     XRevision.set buf (t.tree, t.parents)
 
   let get buf =
-    let h = IrminBuffer.get_string buf 1 in
+    let h = Mstruct.get_string buf 1 in
     if header <> h then None
     else match XRevision.get buf with
       | None                 -> None
@@ -166,7 +165,7 @@ struct
   module Graph = IrminGraph.Make(K)
 
   let list t key =
-    debug "list %s" (K.pretty key);
+    L.debugf "list %s" (K.pretty key);
     let pred k =
       read_exn t k >>= fun r -> return r.parents in
     Graph.closure pred ~min:[] ~max:[key] >>= fun g ->

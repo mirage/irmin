@@ -25,8 +25,8 @@ module type S = sig
   val of_json: Ezjsonm.t -> t
   val to_json: t -> Ezjsonm.t
   val sizeof: t -> int
-  val get: IrminBuffer.t -> t option
-  val set: IrminBuffer.t -> t -> unit
+  val get: Mstruct.t -> t option
+  val set: Mstruct.t -> t -> unit
 end
 
 module type STRINGABLE = sig
@@ -40,7 +40,7 @@ module OCamlString = String
 
 module List (E: S) = struct
 
-  let debug fmt = IrminLog.debug "IO-LIST" fmt
+  module L = Log.Make(struct let section = "IO-LIST" end)
 
   type t = E.t list
 
@@ -72,20 +72,20 @@ module List (E: S) = struct
 
   let of_json = function
     | `A l -> OCamlList.rev (List.rev_map E.of_json l)
-    | _    -> IrminBuffer.parse_error "List.of_json"
+    | _    -> Mstruct.parse_error "List.of_json"
 
   let sizeof l =
-    debug "sizeof";
+    L.debug (lazy "sizeof");
     4 +
     List.fold_left (fun acc e ->
         acc + E.sizeof e
       ) 0 l
 
   let get buf =
-    debug "get";
-    IrminBuffer.dump ~msg:"-->" buf;
-    let keys = Int32.to_int (IrminBuffer.get_uint32 buf) in
-    debug "get %d" keys;
+    L.debug (lazy "get");
+    Mstruct.dump ~msg:"-->" ~level:Log.DEBUG buf;
+    let keys = Int32.to_int (Mstruct.get_uint32 buf) in
+    L.debugf "get %d" keys;
     let rec aux acc i =
       if i <= 0 then Some (OCamlList.rev acc)
       else
@@ -96,16 +96,16 @@ module List (E: S) = struct
     else aux [] keys
 
   let set buf t =
-    debug "set %s" (pretty t);
+    L.debugf "set %s" (pretty t);
     let len = Int32.of_int (List.length t) in
-    let () = IrminBuffer.set_uint32 buf len in
+    Mstruct.set_uint32 buf len;
     List.iter (E.set buf) t
 
 end
 
 module Option (E: S) = struct
 
-  let debug fmt = IrminLog.debug "IO-OPTION" fmt
+  module L = Log.Make(struct let section = "IO-OPTION" end)
 
   let name = E.name
 
@@ -141,7 +141,7 @@ module Option (E: S) = struct
     | j     -> Some (E.of_json j)
 
   let sizeof t =
-    debug "sizeof";
+    L.debug (lazy "sizeof");
     1 + match t with
       | None   -> 0
       | Some e -> E.sizeof e
@@ -150,27 +150,27 @@ module Option (E: S) = struct
   let some = 1
 
   let get buf =
-    debug "get";
-    let h = IrminBuffer.get_uint8 buf in
+    L.debug (lazy "get");
+    let h = Mstruct.get_uint8 buf in
     if h = none then Some None
     else match E.get buf with
       | None   -> None
       | Some v -> Some (Some v)
 
   let set buf t =
-    debug "set %s" (pretty t);
+    L.debugf "set %s" (pretty t);
     match t with
     | None   ->
-      IrminBuffer.set_uint8 buf none
+      Mstruct.set_uint8 buf none
     | Some e ->
-      IrminBuffer.set_uint8 buf some;
+      Mstruct.set_uint8 buf some;
       E.set buf e
 
 end
 
 module Pair (K: S) (V: S) = struct
 
-  let debug fmt = IrminLog.debug "IO-PAIR" fmt
+  module L = Log.Make(struct let section = "IO-PAIR" end)
 
   type t = K.t * V.t
 
@@ -201,30 +201,30 @@ module Pair (K: S) (V: S) = struct
     | `O l ->
       let key =
         try OCamlList.assoc K.name l
-        with Not_found -> IrminBuffer.parse_error "Pair.of_json: missing %s" K.name
+        with Not_found -> Mstruct.parse_error "Pair.of_json: missing %s" K.name
       in
       let value =
         try OCamlList.assoc V.name l
-        with Not_found -> IrminBuffer.parse_error "Pair.of_json: missing %s" V.name
+        with Not_found -> Mstruct.parse_error "Pair.of_json: missing %s" V.name
       in
       (K.of_json key, V.of_json value)
-    | _ -> IrminBuffer.parse_error "Pair.of_json: not an object"
+    | _ -> Mstruct.parse_error "Pair.of_json: not an object"
 
   let sizeof (key, value) =
     let k = K.sizeof key in
     let v = V.sizeof value in
-    debug "sizeof k:%d v:%d" k v;
+    L.debugf "sizeof k:%d v:%d" k v;
     k+v
 
   let get buf =
-    debug "get";
+    L.debugf "get";
     match K.get buf, V.get buf with
     | Some k, Some v -> Some (k, v)
     | _              -> None
 
   let set buf (key, value as t) =
-    debug "set %s" (pretty t);
-    IrminBuffer.dump buf;
+    L.debugf "set %s" (pretty t);
+    Mstruct.dump buf;
     K.set buf key;
     V.set buf value
 
@@ -232,8 +232,7 @@ end
 
 module String = struct
 
-  let debug fmt =
-    IrminLog.debug "IO-string" fmt
+  module L = Log.Make(struct let section = "IO-string" end)
 
   type t = string
 
@@ -268,22 +267,22 @@ module String = struct
     4 + String.length s
 
   let get buf =
-    debug "get";
-    IrminBuffer.dump ~msg:"-->" buf;
+    L.debug (lazy "get");
+    Mstruct.dump ~msg:"-->" ~level:Log.DEBUG buf;
     try
-      let len = IrminBuffer.get_uint32 buf in
-      debug "|-- get (%ld)" len;
-      let t = IrminBuffer.get_string buf (Int32.to_int len) in
-      debug "<-- get %s" t;
+      let len = Mstruct.get_uint32 buf in
+      L.debugf "|-- get (%ld)" len;
+      let t = Mstruct.get_string buf (Int32.to_int len) in
+      L.debugf "<-- get %s" t;
       Some t
     with _ ->
       None
 
   let set buf t =
-    debug "set %s" (pretty t);
+    L.debugf "set %s" (pretty t);
     let len = String.length t in
-    IrminBuffer.set_uint32 buf (Int32.of_int len);
-    IrminBuffer.set_string buf t
+    Mstruct.set_uint32 buf (Int32.of_int len);
+    Mstruct.set_string buf t
 
 end
 

@@ -27,7 +27,7 @@ module type X = sig
 end
 
 module type X_BINARY = X with type key := string
-                          and type value := IrminBuffer.ba
+                          and type value := Cstruct.buffer
 
 module type A = sig
   include X
@@ -35,7 +35,7 @@ module type A = sig
 end
 
 module type A_BINARY = A with type key := string
-                          and type value := IrminBuffer.ba
+                          and type value := Cstruct.buffer
 
 module type A_MAKER = functor (K: IrminKey.BINARY) -> functor (V: IrminBase.S) ->
   A with type key = K.t
@@ -48,7 +48,7 @@ module type M = sig
 end
 
 module type M_BINARY = M with type key := string
-                          and type value := IrminBuffer.ba
+                          and type value := Cstruct.buffer
 
 module type M_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
   M with type key = K.t
@@ -58,8 +58,7 @@ module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 
-  let debug fmt =
-    IrminLog.debug "A" fmt
+  module L = Log.Make(struct let section = "A" end)
 
   type t = S.t
 
@@ -74,12 +73,12 @@ module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
     S.read t (K.to_string key) >>= function
     | None    -> return_none
     | Some ba ->
-      let buf = IrminBuffer.of_ba ba in
+      let buf = Mstruct.of_bigarray ba in
       return (V.get buf)
 
   let read_exn t key =
     S.read_exn t (K.to_string key) >>= fun ba ->
-    let buf = IrminBuffer.of_ba ba in
+    let buf = Mstruct.of_bigarray ba in
     match V.get buf with
     | None   -> fail (K.Unknown (K.pretty key))
     | Some v -> return v
@@ -95,7 +94,7 @@ module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
   let contents t =
     S.contents t >>= fun l ->
     Lwt_list.fold_left_s (fun acc (s, ba) ->
-        let buf = IrminBuffer.of_ba ba in
+        let buf = Mstruct.of_bigarray ba in
         match V.get buf with
         | None   -> return acc
         | Some v -> return ((K.of_string s, v) :: acc)
@@ -109,13 +108,15 @@ module A (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
 
   include X(S)(K)(V)
 
+  module LA = Log.Make(struct let section = "A" end)
+
   let add t value =
-    debug "add %s" (V.pretty value);
-    let buf = IrminBuffer.create (V.sizeof value) in
+    LA.debugf "add %s" (V.pretty value);
+    let buf = Mstruct.create (V.sizeof value) in
     V.set buf value;
-    S.add t (IrminBuffer.to_ba buf) >>= fun key ->
+    S.add t (Mstruct.to_bigarray buf) >>= fun key ->
     let key = K.of_string key in
-    debug "<-- add: %s -> key=%s" (V.pretty value) (K.pretty key);
+    LA.debugf "<-- add: %s -> key=%s" (V.pretty value) (K.pretty key);
     return key
 
 end
@@ -124,14 +125,13 @@ module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   include X(S)(K)(V)
 
-  let debug fmt =
-    IrminLog.debug "M" fmt
+  module LM = Log.Make(struct let section = "M" end)
 
   let update t key value =
-    debug "update";
-    let buf = IrminBuffer.create (V.sizeof value) in
+    LM.debug (lazy "update");
+    let buf = Mstruct.create (V.sizeof value) in
     V.set buf value;
-    let ba = IrminBuffer.to_ba buf in
+    let ba = Mstruct.to_bigarray buf in
     S.update t (K.to_string key) ba
 
   let remove t key =
@@ -152,9 +152,9 @@ end
 
 
 module type S_BINARY = S with type key := string
-                          and type value := IrminBuffer.ba
+                          and type value := Cstruct.buffer
                           and type revision := string
-                          and type dump := IrminBuffer.ba
+                          and type dump := Cstruct.buffer
 
 module type S_MAKER =
   functor (K: IrminKey.S) ->
@@ -192,14 +192,14 @@ struct
 
   let export t revs =
     S.export t (List.map R.to_string revs) >>= fun ba ->
-    let buf = IrminBuffer.of_ba ba in
+    let buf = Mstruct.of_bigarray ba in
     match D.get buf with
     | None   -> fail (R.Invalid (IrminMisc.pretty_list R.pretty revs))
     | Some d -> return d
 
   let import t dump =
-    let buf = IrminBuffer.create (D.sizeof dump) in
+    let buf = Mstruct.create (D.sizeof dump) in
     D.set buf dump;
-    S.import t (IrminBuffer.to_ba buf)
+    S.import t (Mstruct.to_bigarray buf)
 
 end

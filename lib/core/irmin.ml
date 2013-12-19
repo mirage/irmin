@@ -16,8 +16,7 @@
 
 open Lwt
 
-let debug fmt =
-  IrminLog.debug "IRMIN" fmt
+module L = Log.Make(struct let section = "IRMIN" end)
 
 type ('a, 'b) store_dump =
   ('a * ('a, 'b) value_dump) list
@@ -29,8 +28,7 @@ and ('a, 'b) value_dump =
 
 module Dump (A: IrminBase.S) (B: IrminBase.S) = struct
 
-  let debug fmt =
-    IrminLog.debug "DUMP" fmt
+  module L = Log.Make(struct let section = "DUMP" end)
 
   module Value = struct
 
@@ -80,9 +78,9 @@ module Dump (A: IrminBase.S) (B: IrminBase.S) = struct
           | true , false, false -> Value    (Value.of_json (List.assoc "value" json))
           | false, true , false -> Tree     (Tree.of_json (List.assoc "tree"  json))
           | false, false, true  -> Revision (Revision.of_json (List.assoc "revision" json))
-          | _ -> IrminBuffer.parse_error "Irmin.Dump.Value.of_json: invalid value (1)"
+          | _ -> Mstruct.parse_error "Irmin.Dump.Value.of_json: invalid value (1)"
         end
-      | _ -> IrminBuffer.parse_error "Irmin.VDump.Value.of_json: invalid value (2)"
+      | _ -> Mstruct.parse_error "Irmin.VDump.Value.of_json: invalid value (2)"
 
     let to_json = function
       | Value v    -> `O [ "value"   , Value.to_json v   ]
@@ -102,11 +100,11 @@ module Dump (A: IrminBase.S) (B: IrminBase.S) = struct
         | Revision r -> Revision.sizeof r
 
     let get buf =
-      debug "get";
-      let h = IrminBuffer.get_string buf 8 in
+      L.debug (lazy "get");
+      let h = Mstruct.get_string buf 8 in
       if h = header then
         (* XXX: very fragile *)
-        match IrminBuffer.pick_string buf 1 with
+        match Mstruct.pick_string buf 1 with
         | Some "V" -> (match Value.get buf    with None -> None | Some v -> Some (Value v))
         | Some "T" -> (match Tree.get buf     with None -> None | Some t -> Some (Tree t))
         | Some "R" -> (match Revision.get buf with None -> None | Some r -> Some (Revision r))
@@ -115,8 +113,8 @@ module Dump (A: IrminBase.S) (B: IrminBase.S) = struct
         None
 
     let set buf t =
-      debug "set";
-      IrminBuffer.set_string buf header;
+      L.debug (lazy "set");
+      Mstruct.set_string buf header;
       match t with
       | Value v    -> Value.set buf v
       | Tree t     -> Tree.set buf t
@@ -363,7 +361,7 @@ struct
     else (
       Tag.read_exn t.tag t.branch >>= fun rev ->
       List.iter (fun (_, f) ->
-          IrminLog.msg "fire %s" (IrminTree.Path.to_string path);
+          L.infof "fire %s" (IrminTree.Path.to_string path);
           f path rev
         ) ws;
       return_unit
@@ -425,7 +423,7 @@ struct
   module Graph = IrminGraph.Make(K)
 
   let output t name =
-    debug "DUMP %s" name;
+    L.debugf "DUMP %s" name;
     Value.contents t.value       >>= fun values    ->
     Tree.contents  t.tree        >>= fun trees     ->
     Revision.contents t.revision >>= fun revisions ->
@@ -481,8 +479,7 @@ struct
     watches := (path, callback) :: !watches;
     stream
 
-  let debug fmt =
-    IrminLog.debug "RAW" fmt
+  module L = Log.Make(struct let section ="RAW" end)
 
   module Set = Set.Make(K)
 
@@ -495,7 +492,7 @@ struct
 
   (* XXX: can be improved quite a lot *)
   let export t roots =
-    debug "export root=%s" (IrminMisc.pretty_list K.pretty roots);
+    L.debugf "export root=%s" (IrminMisc.pretty_list K.pretty roots);
     output t "export" >>= fun () ->
     let contents = Hashtbl.create 1024 in
     let add k v =
@@ -524,7 +521,7 @@ struct
         ) Set.empty revisions
       >>= fun trees ->
       let trees = Set.elements trees in
-      debug "export TREES=%s" (IrminMisc.pretty_list Key.pretty trees);
+      L.debugf "export TREES=%s" (IrminMisc.pretty_list Key.pretty trees);
       Lwt_list.fold_left_s (fun set key ->
           Tree.read_exn t.tree key >>= fun tree ->
           add key (Tree tree);
@@ -536,7 +533,7 @@ struct
         ) Set.empty trees
       >>= fun values ->
       let values = Set.elements values in
-      debug "export VALUES=%s" (IrminMisc.pretty_list Key.pretty values);
+      L.debugf "export VALUES=%s" (IrminMisc.pretty_list Key.pretty values);
       Lwt_list.iter_p (fun key ->
           Value.read_exn t.value key >>= fun value ->
           add key (Value value);
@@ -549,7 +546,7 @@ struct
   exception Errors of (key * key * string) list
 
   let import t list =
-    debug "import %s" (IrminMisc.pretty_list Key.pretty (List.map fst list));
+    L.debugf "import %s" (IrminMisc.pretty_list Key.pretty (List.map fst list));
     let errors = ref [] in
     let check msg k1 k2 =
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;

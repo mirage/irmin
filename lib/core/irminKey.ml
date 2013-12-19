@@ -25,14 +25,14 @@ end
 module type BINARY = sig
   include S
   val of_bytes: string -> t
-  val of_ba: IrminBuffer.ba -> t
+  val of_bigarray: Cstruct.buffer -> t
   val to_hex: t -> string
   val of_hex: string -> t
 end
 
 module SHA1 = struct
 
-  let debug fmt = IrminLog.debug "SHA1" fmt
+  module L = Log.Make(struct let section = "SHA1" end)
 
   type t = string
 
@@ -82,30 +82,30 @@ module SHA1 = struct
     1 + len
 
   let get buf =
-    debug "get";
-    let h = IrminBuffer.get_string buf 1 in
+    L.debug (lazy "get");
+    let h = Mstruct.get_string buf 1 in
     if header <> h then None
     else
       try
-        let str = IrminBuffer.get_string buf len in
-        debug "--> get %s" (pretty str);
+        let str = Mstruct.get_string buf len in
+        L.debugf "--> get %s" (pretty str);
         Some str
       with _ ->
         None
 
   let set buf t =
-    debug "set %s" (pretty t);
-    IrminBuffer.set_string buf header;
-    IrminBuffer.set_string buf t
+    L.debugf "set %s" (pretty t);
+    Mstruct.set_string buf header;
+    Mstruct.set_string buf t
 
   let of_bytes str =
-    debug "of_bytes: %S" str;
+    L.debugf "of_bytes: %S" str;
     IrminMisc.sha1 str
 
-  let of_ba ba =
-    let buf = IrminBuffer.of_ba ba in
-    let len = IrminBuffer.length buf in
-    let str = IrminBuffer.get_string buf len in
+  let of_bigarray ba =
+    let buf = Mstruct.of_bigarray ba in
+    let len = Mstruct.length buf in
+    let str = Mstruct.get_string buf len in
     of_bytes str
 
 end

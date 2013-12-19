@@ -14,6 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let () =
+  Log.set_log_level Log.DEBUG;
+  Log.color_on ();
+  Log.set_output stderr
+
 let cmp_opt fn x y =
   match x, y with
   | Some x, Some y -> fn x y
@@ -36,10 +41,9 @@ let printer_list fn = function
   | l  -> Printf.sprintf "[ %s ]" (String.concat ", " (List.map fn l))
 
 let line msg =
-  let line () =
-    if IrminLog.debug_enabled () then Alcotest.line stderr ~color:`Yellow '-' in
+  let line () = Alcotest.line stderr ~color:`Yellow '-' in
   line ();
-  IrminLog.info "ASSERT" "%s" msg;
+  Log.infof "ASSERT %s" msg;
   line ()
 
 module Make (S: Irmin.S) = struct
@@ -81,8 +85,8 @@ module Make (S: Irmin.S) = struct
 
   (* XXX: move that into the library ? *)
   let key value =
-    let buf = IrminBuffer.create (Value.sizeof value) in
+    let buf = Mstruct.create (Value.sizeof value) in
     Value.set buf value;
-    Key.of_ba (IrminBuffer.to_ba buf)
+    Key.of_bigarray (Mstruct.to_bigarray buf)
 
 end

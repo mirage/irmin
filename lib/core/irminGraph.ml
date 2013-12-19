@@ -41,7 +41,7 @@ module Make (B: IrminBase.S) = struct
 
   open Lwt
 
-  let debug fmt = IrminLog.debug "GRAPH" fmt
+  module L = Log.Make(struct let section = "GRAPH" end)
 
   module Vertex = B
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
@@ -67,7 +67,7 @@ module Make (B: IrminBase.S) = struct
       if has_mark key then Lwt.return ()
       else (
         mark key;
-        debug "ADD %s" (Vertex.pretty key);
+        L.debugf "ADD %s" (Vertex.pretty key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
         pred key >>= fun keys ->
         List.iter (fun k -> G.add_edge g k key) keys;
