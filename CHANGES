@@ -1,6 +1,10 @@
 0.4:
-* Major refactoring: Value -> Blob, Revision -> Commit and Tag -> Reference
-* Major refactoring: Use Core_kernel instead of custom Identiable.S
+* Major refactoring: `Value` is now `Blob`, `Revision` is now `Commit`
+   and `Tag` becomes `Reference` (rational: consistency with Git names)
+* Use `core_kernel` instead of building a custom `Identiable.S`
+* Use `dolog` instead of a custom log library
+* Use `mstruct` (mutable buffers on top of `cstruct`) which is now
+  released independently
 
 0.3: (2013-12-13)
 * Fix a fd leak in the filesystem bakend
