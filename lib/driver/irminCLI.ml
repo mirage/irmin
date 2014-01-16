@@ -468,9 +468,6 @@ let default =
     `P "Irminsule is a distributed database with built-in snapshot, branch \
         and revert mechanisms. It is designed to use a large variety of backends, \
         although it is optimized for append-only ones.";
-    `P "Irminsule is written in pure OCaml, and can thus be compiled to a variety of \
-        backends including Javascript -- to run inside Browsers, and Mirage microkernels \
-        -- to run directly on top of Xen.";
     `P "Use either $(b,$(mname) <command> --help) or $(b,$(mname) help <command>) \
         for more information on a specific command.";
   ] in

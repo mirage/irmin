@@ -4,8 +4,8 @@ Irminsule is a distributed database with built-in snapshot, branch and
 revert mechanisms. It is designed to use a large variety of backends,
 although it is optimized for append-only store.
 
-Irminsule is written in pure OCaml, and can thus be compiled to Javascript
--- to run in the browsers, and into a Mirage microkernels -- to run directly
+Irminsule is written in pure OCaml. It can thus be compiled to Javascript
+-- and run in the browsers; or into a Mirage microkernel -- and run directly
 on top of Xen.
 
 ### Build & Install
