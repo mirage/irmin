@@ -8,35 +8,61 @@ Irminsule is written in pure OCaml, and can thus be compiled to Javascript
 -- to run in the browsers, and into a Mirage microkernels -- to run directly
 on top of Xen.
 
-### Compile
+### Build & Install
 
 ```
-opam install jsonm uri ocamlgraph cohttp cmdliner lwt \
-     ocplib-endian ssl cryptokit
+opam install ezjsonm ocamlgraph lwt cryptokit \
+             re dolog mstruct core_kernel \
+             uri cohttp ssl \
+             core_kernel cmldiner
 make
-```
-
-### Install
-
-```
 make install
-```
-
-### Running the tests
-
-To run only the quick tests:
-```
-make test
-```
-
-To run the full test suite:
-```
-make fulltest
 ```
 
 ### Usage
 
-See `irmin --help`
+```
+COMMANDS
+       clone
+           Clone a remote irminsule store.
+
+       dump
+           Dump the contents of the store as a Graphviz file.
+
+       init
+           Initialize a store.
+
+       ls  List subdirectories.
+
+       pull
+           Pull the contents of a remote irminsule store.
+
+       push
+           Pull the contents of the local store to a remote irminsule store.
+
+       read
+           Read the contents of a node.
+
+       revert
+           Revert the contents of the store to a previous state.
+
+       rm  Remove a node.
+
+       snapshot
+           Snapshot the contents of the store.
+
+       tree
+           List the store contents.
+
+       watch
+           Watch the contents of a store and be notified on updates.
+
+       write
+           Write/modify a node.
+```
+
+See `irmin --help` for further reading. Use either `irmin <command> --help`
+ or `irmin help <command>` for more information on a specific command.
 
 ## Issues
 
