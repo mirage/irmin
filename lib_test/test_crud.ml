@@ -37,14 +37,14 @@ let suite server =
         server ()
       | pid ->
         server_pid := pid;
-        Lwt_unix.sleep 1.
+        Lwt_unix.sleep 0.5
     end;
 
     clean = begin fun () ->
       IrminHTTP.stop_server uri >>= fun () ->
       Unix.kill !server_pid 9;
       server.clean () >>= fun () ->
-      return_unit
+      Lwt_unix.sleep 0.5
     end;
 
     store =
