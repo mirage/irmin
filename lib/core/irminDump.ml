@@ -14,30 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
+type ('key, 'blob) t = ('key * ('key, 'blob) IrminValue.t) list
 
-exception Invalid of string
-(** Exception raised when a key is not valid. *)
-
-exception Unknown of string
-(** Exception raised when no value is associated to a key. *)
 
 module type S = sig
-
-  (** Signature for deterministic keys. *)
-
-  include IrminBase.S
-
-  val of_pretty: string -> t
-  (** Inverse of [pretty]. *)
-
-  val of_bytes: string -> t
-  (** Compute a (deterministic) key from a sequence of bytes. *)
-
-  val of_bigarray: Cstruct.buffer -> t
-  (** Compute a (deterministic) key from a bigarray. *)
-
+  type key
+  type blob
+  include IrminBase.S with type t = (key, blob) t
 end
 
-module SHA1: S with type t = private string
-(** SHA1 keys *)
+module S (K: IrminBase.S) (B: IrminBase.S) = struct
+  type key = K.t
+  type blob = B.t
+  module V = IrminValue.S(K)(B)
+  include IrminBase.List(IrminBase.Pair(K)(V))
+  let name = "dump"
+end

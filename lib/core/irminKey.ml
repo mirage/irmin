@@ -14,46 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
+exception Invalid of string
+exception Unknown of string
+
 module type S = sig
   include IrminBase.S
-  exception Invalid of string
-  exception Unknown of string
-  val of_string: string -> t
   val of_pretty: string -> t
-end
-
-module type BINARY = sig
-  include S
   val of_bytes: string -> t
   val of_bigarray: Cstruct.buffer -> t
-  val to_hex: t -> string
-  val of_hex: string -> t
 end
 
 module SHA1 = struct
 
   module L = Log.Make(struct let section = "SHA1" end)
 
-  type t = string
+  include String
 
-  exception Invalid of string
-
-  exception Unknown of string
-
-  let to_string x = x
-
-  let compare = String.compare
-
-  let hash = Hashtbl.hash
-
-  let equal t1 t2 = String.compare t1 t2 = 0
-
+  let module_name = "Key.SHA1"
   let name = "key"
 
   let len = 20
 
   let of_string str =
-    if String.length str = len then str
+    if Int.(String.length str = len) then str
     else raise (Invalid str)
 
   let to_hex t =
@@ -103,9 +88,6 @@ module SHA1 = struct
     IrminMisc.sha1 str
 
   let of_bigarray ba =
-    let buf = Mstruct.of_bigarray ba in
-    let len = Mstruct.length buf in
-    let str = Mstruct.get_string buf len in
-    of_bytes str
+    of_bytes (IrminMisc.string_of_bigarray ba)
 
 end

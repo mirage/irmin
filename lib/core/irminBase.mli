@@ -14,32 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
 (** Base types *)
 
 module type S = sig
 
-  (** Base types of elements. *)
+  (** Base elements. *)
 
   type t
-  (** Abstract type *)
+  (** Abstract base values. *)
+
+  include Identifiable.S with type t := t
 
   val name: string
-  (** Component name. *)
-
-  val compare: t -> t -> int
-  (** Compare two elements. *)
-
-  val equal: t -> t -> bool
-  (** Are two elements equal ? *)
-
-  val hash: t -> int
-  (** Compute the hash of an element. *)
+  (** Name of the element kind. *)
 
   val pretty: t -> string
   (** Pretty-printing *)
-
-  val to_string: t -> string
-  (** Convert the contents to a string. *)
 
   val of_json: Ezjsonm.t -> t
   (** Convert from JSON *)
@@ -59,41 +51,10 @@ module type S = sig
 
 end
 
-module type STRINGABLE = sig
-
-  (** Signature for stringable objects. *)
-
-  type t
-
-  val to_string: t -> string
-  (** Convert an element to a string. *)
-
-  val of_string: string -> t
-  (** Convert a string to an element. *)
-
-end
-
-(** {2 String Elements} *)
-
-module PrivateString: sig
-
-  (** Lift IO operations to private strings *)
-
-  include S with type t = private string
-  (** Base types. *)
-
-  val to_string: t -> string
-  (** Convert to string. *)
-
-  val of_string: string -> t
-  (** Convert from string. *)
-
-end
-
-module String: (module type of PrivateString with type t = string)
-(** Lift IO operations to strings *)
-
 (** {2 Lifts} *)
+
+module String: S with type t = string
+(** Abstract strings. *)
 
 module List (E: S): S with type t = E.t list
 (** Lift IO operation to lists. *)

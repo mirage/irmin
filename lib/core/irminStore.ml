@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type X = sig
+module type RO = sig
   type t
   type key
   type value
@@ -26,35 +26,14 @@ module type X = sig
   val contents: t -> (key * value) list Lwt.t
 end
 
-module type X_BINARY = X with type key := string
-                          and type value := Cstruct.buffer
+module type RO_BINARY = RO with type key = string
+                            and type value = Cstruct.buffer
 
-module type A = sig
-  include X
-  val add: t -> value -> key Lwt.t
-end
+module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  RO with type key = K.t
+      and type value = V.t
 
-module type A_BINARY = A with type key := string
-                          and type value := Cstruct.buffer
-
-module type A_MAKER = functor (K: IrminKey.BINARY) -> functor (V: IrminBase.S) ->
-  A with type key = K.t
-     and type value = V.t
-
-module type M = sig
-  include X
-  val update: t -> key -> value -> unit Lwt.t
-  val remove: t -> key -> unit Lwt.t
-end
-
-module type M_BINARY = M with type key := string
-                          and type value := Cstruct.buffer
-
-module type M_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
-  M with type key = K.t
-     and type value = V.t
-
-module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 
@@ -80,7 +59,7 @@ module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
     S.read_exn t (K.to_string key) >>= fun ba ->
     let buf = Mstruct.of_bigarray ba in
     match V.get buf with
-    | None   -> fail (K.Unknown (K.pretty key))
+    | None   -> fail (IrminKey.Unknown (K.pretty key))
     | Some v -> return v
 
   let mem t key =
@@ -102,11 +81,23 @@ module X  (S: X_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
 end
 
-module A (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
+module type AO = sig
+  include RO
+  val add: t -> value -> key Lwt.t
+end
+
+module type AO_BINARY = AO with type key = string
+                            and type value = Cstruct.buffer
+
+module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  AO with type key = K.t
+      and type value = V.t
+
+module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   open Lwt
 
-  include X(S)(K)(V)
+  include RO_MAKER(S)(K)(V)
 
   module LA = Log.Make(struct let section = "A" end)
 
@@ -121,9 +112,22 @@ module A (S: A_BINARY) (K: IrminKey.BINARY) (V: IrminBase.S) = struct
 
 end
 
-module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+module type RW = sig
+  include RO
+  val update: t -> key -> value -> unit Lwt.t
+  val remove: t -> key -> unit Lwt.t
+end
 
-  include X(S)(K)(V)
+module type RW_BINARY = RW with type key = string
+                            and type value = Cstruct.buffer
+
+module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  RW with type key = K.t
+      and type value = V.t
+
+module RW_MAKER (S: RW_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+
+  include RO_MAKER(S)(K)(V)
 
   module LM = Log.Make(struct let section = "M" end)
 
@@ -140,66 +144,22 @@ module M (S: M_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 end
 
 module type S = sig
-  include M
-  type revision
-  val snapshot: t -> revision Lwt.t
-  val revert: t -> revision -> unit Lwt.t
-  val watch: t -> key -> (key * revision) Lwt_stream.t
+  include RW
+  type snapshot
+  val snapshot: t -> snapshot Lwt.t
+  val revert: t -> snapshot -> unit Lwt.t
+  val watch: t -> key -> (key * snapshot) Lwt_stream.t
   type dump
-  val export: t -> revision list -> dump Lwt.t
+  val export: t -> snapshot list -> dump Lwt.t
   val import: t -> dump -> unit Lwt.t
 end
-
-
-module type S_BINARY = S with type key := string
-                          and type value := Cstruct.buffer
-                          and type revision := string
-                          and type dump := Cstruct.buffer
 
 module type S_MAKER =
   functor (K: IrminKey.S) ->
   functor (V: IrminBase.S) ->
-  functor (R: IrminKey.BINARY) ->
+  functor (S: IrminBase.S) ->
   functor (D: IrminBase.S) ->
     S with type key = K.t
        and type value = V.t
-       and type revision = R.t
+       and type snapshot = S.t
        and type dump = D.t
-
-module S (S: S_BINARY) (K: IrminKey.S) (V: IrminBase.S) (R: IrminKey.BINARY) (D: IrminBase.S) =
-struct
-
-  open Lwt
-
-  include M(S)(K)(V)
-
-  type revision = R.t
-
-  let snapshot t =
-    S.snapshot t >>= fun r ->
-    return (R.of_string r)
-
-  let revert t rev =
-    S.revert t (R.to_string rev)
-
-  let watch t path =
-    let stream = S.watch t (K.to_string path) in
-    Lwt_stream.map (fun (k, r) ->
-        (K.of_string k, R.of_string r)
-      ) stream
-
-  type dump = D.t
-
-  let export t revs =
-    S.export t (List.map R.to_string revs) >>= fun ba ->
-    let buf = Mstruct.of_bigarray ba in
-    match D.get buf with
-    | None   -> fail (R.Invalid (IrminMisc.pretty_list R.pretty revs))
-    | Some d -> return d
-
-  let import t dump =
-    let buf = Mstruct.create (D.sizeof dump) in
-    D.set buf dump;
-    S.import t (Mstruct.to_bigarray buf)
-
-end

@@ -14,30 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
+(** Tree path handling. *)
 
-exception Invalid of string
-(** Exception raised when a key is not valid. *)
-
-exception Unknown of string
-(** Exception raised when no value is associated to a key. *)
-
-module type S = sig
-
-  (** Signature for deterministic keys. *)
-
-  include IrminBase.S
-
-  val of_pretty: string -> t
-  (** Inverse of [pretty]. *)
-
-  val of_bytes: string -> t
-  (** Compute a (deterministic) key from a sequence of bytes. *)
-
-  val of_bigarray: Cstruct.buffer -> t
-  (** Compute a (deterministic) key from a bigarray. *)
-
-end
-
-module SHA1: S with type t = private string
-(** SHA1 keys *)
+include IrminKey.S with type t = string list
+(** Type of paths, to address nodes from the tree root. *)

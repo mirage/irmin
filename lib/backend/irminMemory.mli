@@ -16,10 +16,13 @@
 
 (** In-memory store *)
 
-module A (K: IrminKey.BINARY): IrminStore.A_BINARY
+module RO (K: IrminKey.S): IrminStore.RO_BINARY
 (** Create a fresh append-only store. *)
 
-module M (K: IrminKey.S): IrminStore.M_BINARY
+module AO (K: IrminKey.S): IrminStore.AO_BINARY
+(** Create a fresh append-only store. *)
+
+module RW (K: IrminKey.S): IrminStore.RW_BINARY
 (** Create a fresh mutable store. *)
 
 module Simple: Irmin.SIMPLE

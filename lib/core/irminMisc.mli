@@ -28,5 +28,6 @@ val sha1: string -> string
 val pretty_list: ('a -> string) -> 'a list -> string
 (** Pretty-print a list. *)
 
-val split: string -> char -> string list
-(** Split a string into pieces. *)
+val string_of_bigarray: Cstruct.buffer -> string
+(** Convert a bigarray to a string (this copies the string using
+    memcpopy). *)

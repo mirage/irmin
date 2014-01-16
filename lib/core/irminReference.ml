@@ -22,20 +22,20 @@ module type S = sig
 end
 
 module Simple = struct
+
   include IrminBase.String
-  exception Invalid of string
-  exception Unknown of string
-  let name = "tag"
+  let module_name = "Tag"
   let master = "master"
-  let create = of_string
-  let of_pretty = of_string
-  let pretty x = x
+  let of_pretty x = x
+  let of_bytes x = x
+  let of_bigarray x =
+    of_bytes (IrminMisc.string_of_bigarray x)
 
   (* |-----|---------| *)
-  (* | 't' | PAYLOAD | *)
+  (* | 'R' | PAYLOAD | *)
   (* |-----|---------| *)
 
-  let header = "t"
+  let header = "R"
 
   let sizeof t =
     1 + sizeof t
@@ -52,27 +52,23 @@ module Simple = struct
 end
 
 module type STORE = sig
-  type tag
-  type key
-  include IrminStore.M with type key := tag and type value := key
-  include S with type t := tag
+  include IrminStore.RW
+  module Key: S with type t = key
+  module Value: IrminKey.S with type t = value
 end
 
-module type MAKER = functor (T: S) -> functor (K: IrminBase.S) ->
-  STORE with type tag = T.t
-         and type key = K.t
 
-module Make (S: IrminStore.M_MAKER) (T: S) (K: IrminBase.S) = struct
+module Make
+    (K: S)
+    (V: IrminKey.S)
+    (S: IrminStore.RW with type key = K.t and type value = V.t)
+= struct
 
-  type key = K.t
+  module Key = K
 
-  type tag = T.t
+  module Value = V
 
-  module S = S(T)(K)
-
-  include (S: IrminStore.M with type key := tag and type value := key)
-
-  include (T: S with type t := tag)
+  include S
 
   let list t _ =
     contents t >>= fun l ->

@@ -99,7 +99,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     val uri: Uri.t
   end
 
-  module X (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
+  module RO (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
 
     module L = Log.Make(struct let section = "CRUD" ^ Uri.path U.uri end)
 
@@ -113,7 +113,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
       Some (fn x)
 
     let unknown k =
-      fail (K.Unknown (K.pretty (K.of_string k)))
+      fail (IrminKey.Unknown (K.pretty (K.of_string k)))
 
     let create () =
       return U.uri
@@ -143,9 +143,9 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module A (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
+  module AO (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
 
-    include X(U)(K)(V)
+    include RO(U)(K)(V)
 
     let add t value =
       L.debugf "add %s"(V.pretty value);
@@ -153,9 +153,9 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module M (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
+  module RW (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
 
-    include X(U)(K)(V)
+    include RO(U)(K)(V)
 
     let update t key value =
       L.debugf "update %s %s" (K.pretty key) (V.pretty value);
@@ -167,11 +167,11 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module S (U: U) (K: IrminKey.S) (V: IrminBase.S) (R: IrminKey.BINARY) (D: IrminBase.S) = struct
+  module S (U: U) (K: IrminKey.S) (V: IrminBase.S) (R: IrminBase.S) (D: IrminBase.S) = struct
 
-    include M(U)(K)(V)
+    include RW(U)(K)(V)
 
-    type revision = R.t
+    type snapshot = R.t
 
     type dump = D.t
 
@@ -189,7 +189,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
     let export t revs =
       L.debugf "export %s" (IrminMisc.pretty_list R.pretty revs);
-      get t ("export" :: List.map R.to_hex revs) D.of_json
+      get t ("export" :: List.map R.pretty revs) D.of_json
 
     let import t dump =
       L.debugf "dump";
@@ -198,30 +198,29 @@ module Make (Client: Cohttp_lwt.Client) = struct
   end
 
   let simple u =
-    let module Value = A(struct
-        let uri = uri u ["value"]
-      end) in
-    let module Tree = A(struct
+    let module K = IrminKey.SHA1 in
+    let module T = IrminTree.SHA1 in
+    let module C = IrminCommit.SHA1 in
+    let module B = IrminBlob.Simple in
+    let module R = IrminReference.Simple in
+    let module Blob = AO(struct
+        let uri = uri u ["blob"]
+      end)(K)(B) in
+    let module Tree = AO(struct
         let uri = uri u ["tree"]
-      end) in
-    let module Revision = A(struct
-        let uri = uri u ["revision"]
-      end )in
-    let module Tag = M(struct
-        let uri = uri u ["tag"]
-      end) in
+      end)(K)(T) in
+    let module Commit = AO(struct
+        let uri = uri u ["commit"]
+      end)(K)(C) in
+    let module Reference = RW(struct
+        let uri = uri u ["ref"]
+      end)(R)(K) in
     let module Store = S(struct
         let uri = u
       end) in
-    let module K = IrminKey.SHA1 in
-    let module V = IrminValue.Simple in
-    let module Simple = Irmin.Proxy
-        (Store)
-        (IrminKey.SHA1)(IrminValue.Simple)(IrminTag.Simple)
-        (Value)
-        (Tree)
-        (Revision)
-        (Tag) in
+    let module Internal = IrminValue.Mux(K)(B)(Blob)(Tree)(Commit) in
+    let module Reference = IrminReference.Make(R)(K)(Reference) in
+    let module Simple = Irmin.Make(K)(B)(R)(Internal)(Reference) in
     (module Simple: Irmin.SIMPLE)
 
 end
@@ -230,8 +229,9 @@ module type S = sig
   module type U = sig
     val uri: Uri.t
   end
-  module A (U: U): IrminStore.A_MAKER
-  module M (U: U): IrminStore.M_MAKER
+  module RO (U: U): IrminStore.RO_MAKER
+  module AO (U: U): IrminStore.AO_MAKER
+  module RW (U: U): IrminStore.RW_MAKER
   module S (U: U): IrminStore.S_MAKER
   val simple: Uri.t -> (module Irmin.SIMPLE)
 end

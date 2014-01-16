@@ -16,131 +16,73 @@
 
 (** API entry point *)
 
-type ('a, 'b) store_dump =
-  ('a * ('a, 'b) value_dump) list
-(** Type for database dumps. *)
-
-and ('a, 'b) value_dump =
-  | Value of 'b
-  | Tree of ('a, 'a) IrminTree.node
-  | Revision of ('a, 'a) IrminRevision.node
-(** Type of value dumps. *)
-
-module Dump (A: IrminBase.S) (B: IrminBase.S): IrminBase.S with type t = (A.t, B.t) store_dump
-
 module type S = sig
 
   (** {2 Main signature for Irminsule stores} *)
 
-  type key
-  (** Type of keys. *)
-
   type value
-  (** Type of values. *)
+  (** Value for abstract blobs. It's usually a raw string, but it can
+      also be a structured value. One should be able to merge two
+      diverging blobs. *)
 
-  type tag
-  (** Type of tags. *)
-
-  module Key: IrminKey.BINARY
-    with type t = key
-  (** Type of binary keys. *)
-
-  module Value: IrminValue.STORE
-    with type key = key
-     and type value = value
-  (** Persistent values. *)
-
-  module Tree: IrminTree.STORE
-    with type key = key
-     and type value = value
-  (** Persisitent trees. *)
-
-  module Revision: IrminRevision.STORE
-    with type key = key
-     and type tree = Tree.tree
-  (** Persistent revisions. *)
-
-  module Tag: IrminTag.STORE
-    with type tag = tag
-     and type key = key
-  (** Persistent tags. *)
+  module Internal: IrminValue.STORE with type blob = value
+  (** Append-only persistent store for internal values. *)
 
   (** {2 Irminsule store interface} *)
 
-  include IrminStore.S with type key := IrminTree.Path.t
-                        and type value := value
-                        and type revision := key
-                        and type dump = (key, value) store_dump
-
-  val value_store: t -> Value.t
-  (** Return an handler to the value store. *)
-
-  val tree_store: t -> Tree.t
-  (** Return an handler to the tree store. *)
-
-  val revision_store: t -> Revision.t
-  (** Return an handler to the revision store. *)
-
-  val tag_store: t -> Tag.t
-  (** Return an handler to the tag store. *)
+  include IrminStore.S with type key      = string list
+                        and type value   := value
+                        and type snapshot = Internal.key
+                        and type dump     = (Internal.key, value) IrminDump.t
 
   val output: t -> string -> unit Lwt.t
   (** Create a Graphviz graph representing the store state. Could be
       no-op if the backend does not support that operation (for instance,
       for remote connections). *)
 
-  module Dump: sig
+  module Reference: IrminReference.STORE with type value = Internal.key
+  (** Read/write store for references. *)
 
-    (** Dumped store. *)
+  val internal: t -> Internal.t
+  (** Return an handler to the internal store. *)
 
-    include IrminBase.S with type t = dump
-    (** Basic functions for [dump] values. *)
+  val reference: t -> Reference.t
+  (** Return an handler to the reference store. *)
 
-    val is_empty: t -> bool
-    (** Is the dump empty ? *)
+  val branch: t -> Reference.key
+  (** Return the current branch reference. *)
 
-  end
+  module Key: IrminBase.S with type t = key
+  (** Base functions over keys. *)
+
+  module Value: IrminBlob.S with type t = value
+  (** Base functions over values. *)
+
+  module Snapshot: IrminKey.S with type t = snapshot
+  (** Base functions over snapshots. *)
+
+  module Dump: IrminDump.S with type key = Internal.key and type blob = value
+  (** Base functions over dumps. *)
 
 end
 
-module type MAKER =
-  functor (K: IrminKey.BINARY) ->
-  functor (V: IrminValue.S)    ->
-  functor (T: IrminTag.S)      ->
-  functor (Value   : IrminStore.A_MAKER) ->
-  functor (Tree    : IrminStore.A_MAKER) ->
-  functor (Revision: IrminStore.A_MAKER) ->
-  functor (Tag     : IrminStore.M_MAKER) ->
-    S with type key = K.t
-       and type value = V.t
-       and type tag = T.t
-(** Signature for complete Irminsule store builders. *)
-
-module Make: MAKER
-(** Build an Irminsule store. *)
-
-module Proxy (Store: IrminStore.S_MAKER): MAKER
-(** Build an Irminsule proxy. *)
-
-module Binary
-    (K: IrminKey.BINARY)
-    (V: IrminValue.S)
-    (T: IrminTag.S)
-    (Value   : IrminStore.A_BINARY)
-    (Tree    : IrminStore.A_BINARY)
-    (Revision: IrminStore.A_BINARY)
-    (Tag     : IrminStore.M_BINARY):
-  S with type key = K.t
-     and type value = V.t
-     and type tag = T.t
-(** Make a binary Irminsule store. *)
+module Make
+    (K : IrminKey.S)
+    (B : IrminBlob.S)
+    (R : IrminReference.S)
+    (Internal : IrminValue.STORE with type key = K.t and type blob = B.t)
+    (Reference: IrminReference.STORE with type key = R.t and type value = K.t)
+  : S with type value = B.t
+       and module Internal = Internal
+       and module Reference = Reference
+(** Build a complete iminsule store. *)
 
 module type SIMPLE = S
-  with type key = IrminKey.SHA1.t
-   and type value = IrminValue.Simple.t
-   and type tag = IrminTag.Simple.t
+  with type Internal.key = IrminKey.SHA1.t
+   and type value = IrminBlob.Simple.t
+   and type Reference.key = IrminReference.Simple.t
 (** Signature for simple stores. *)
 
-module Simple (A: IrminStore.A_BINARY) (M: IrminStore.M_BINARY): SIMPLE
-(** Create a simple binary store. Use only one mutable store for
-    value, tree and revisions and a mutable store for the tags. *)
+module Simple (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): SIMPLE
+(** Create a simple store. Use only one append-only store for value,
+    tree and revisions and a mutable store for the tags. *)

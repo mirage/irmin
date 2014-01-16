@@ -23,9 +23,13 @@ let store = Hashtbl.create 8128
 let reset () =
   Hashtbl.clear store
 
-module X (K: IrminKey.S) = struct
+module RO (K: IrminKey.S) = struct
 
-  type t = (string, Cstruct.buffer) Hashtbl.t
+  type key = string
+
+  type value = Cstruct.buffer
+
+  type t = (key, value) Hashtbl.t
 
   let pretty_key k =
     K.pretty (K.of_string k)
@@ -36,7 +40,7 @@ module X (K: IrminKey.S) = struct
     Printf.sprintf "%S" (Buffer.contents b)
 
   let unknown k =
-    fail (K.Unknown (K.pretty (K.of_string k)))
+    fail (IrminKey.Unknown (K.pretty (K.of_string k)))
 
   let create () =
     return store
@@ -65,9 +69,9 @@ module X (K: IrminKey.S) = struct
 
 end
 
-module A (K: IrminKey.BINARY) = struct
+module AO (K: IrminKey.S) = struct
 
-  include X(K)
+  include RO(K)
 
   let add t value =
     let key = K.to_string (K.of_bigarray value) in
@@ -76,9 +80,9 @@ module A (K: IrminKey.BINARY) = struct
 
 end
 
-module M (K: IrminKey.S): IrminStore.M_BINARY = struct
+module RW (K: IrminKey.S) = struct
 
-  include X(K)
+  include RO(K)
 
   let update t key value =
     L.debugf "update %s %s" (pretty_key key) (pretty_value value);
@@ -93,14 +97,7 @@ module M (K: IrminKey.S): IrminStore.M_BINARY = struct
 end
 
 module Simple = struct
-
   module K = IrminKey.SHA1
-  module T = IrminTag.Simple
-  module A = A(K)
-  module M = M(T)
-
-  include Irmin.Binary
-      (K)(IrminValue.Simple)(IrminTag.Simple)
-      (A)(A)(A)(M)
-
+  module R = IrminReference.Simple
+  include Irmin.Simple(AO(K))(RW(R))
 end

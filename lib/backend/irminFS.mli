@@ -21,13 +21,37 @@ module type S = sig
   val path: string
   (** The path to the filestystem root. *)
 
+  val file_of_key: string -> string
+  (** Return the filename for a given key. *)
+
+  val keys_of_dir: string -> string list Lwt.t
+  (** Return all the filename corresponding to keys in a given
+      directory. *)
+
 end
 
-module A (S: S) (K: IrminKey.BINARY): IrminStore.A_BINARY
+module type S0 = sig
+
+  val path: string
+  (** The path to the filesystem root. *)
+
+end
+
+module OBJECTS(S: S0) (K: IrminKey.S): S
+(** Store objects under {i S.path / "objects" / hh / tttttt...} *)
+
+module REFS(S: S0): S
+(** Store objects under [S.path / "refs"]. *)
+
+module RO (S: S) (K: IrminKey.S): IrminStore.RO_BINARY
 (** Create an append-only store with disk persistence at a given
     path. *)
 
-module M (S: S) (K: IrminKey.S): IrminStore.M_BINARY
+module AO (S: S) (K: IrminKey.S): IrminStore.AO_BINARY
+(** Create an append-only store with disk persistence at a given
+    path. *)
+
+module RW (S: S) (K: IrminKey.S): IrminStore.RW_BINARY
 (** Create a mutable store with disk persistence at the given path. *)
 
 val simple: string -> (module Irmin.SIMPLE)

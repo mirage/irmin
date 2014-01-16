@@ -74,35 +74,37 @@ let uri_conv =
   let print ppf v = pr_str ppf (Uri.to_string v) in
   parse, print
 
-let value_conv =
-  let parse str = `Ok (IrminValue.Simple.of_bytes str) in
-  let print ppf v = pr_str ppf (IrminValue.Simple.to_string v) in
+(*
+let blob_conv (type t) (module B: IrminBlob.S with type t = t) =
+  let parse str = `Ok (B.of_bytes str) in
+  let print ppf v = pr_str ppf (B.to_string v) in
   parse, print
 
-let tag_conv =
-  let parse str = `Ok (IrminTag.Simple.of_string str) in
-  let print ppf tag = pr_str ppf (IrminTag.Simple.to_string tag) in
+let ref_conv (type t) (module R: IrminReference.S with type t = t) =
+  let parse str = `Ok (R.of_pretty str) in
+  let print ppf tag = pr_str ppf (R.pretty tag) in
   parse, print
+*)
+
+let key =
+  let module K = IrminKey.SHA1 in
+  let key_conv =
+    let parse str =
+      try `Ok (K.of_pretty str)
+      with e -> `Error "Invalid key" in
+    let print ppf key = pr_str ppf (K.pretty key) in
+    parse, print in
+  let doc = Arg.info ~docv:"KEY" ~doc:"SHA1 key." [] in
+  Arg.(required & pos 0 (some key_conv) None & doc)
 
 let path_conv =
-  let parse str = `Ok (IrminTree.Path.of_pretty str) in
-  let print ppf path = pr_str ppf (IrminTree.Path.pretty path) in
-  parse, print
-
-let key_conv =
-  let parse str =
-    try `Ok (IrminKey.SHA1.of_hex str)
-    with e -> `Error "Invalid key" in
-  let print ppf key = pr_str ppf (IrminKey.SHA1.to_hex key) in
+  let parse str = `Ok (IrminPath.of_pretty str) in
+  let print ppf path = pr_str ppf (IrminPath.pretty path) in
   parse, print
 
 let path =
   let doc = Arg.info ~docv:"PATH" ~doc:"Path." [] in
   Arg.(value & pos 0 path_conv [] & doc)
-
-let key =
-  let doc = Arg.info ~docv:"KEY" ~doc:"SHA1 key." [] in
-  Arg.(required & pos 0 (some key_conv) None & doc)
 
 let default_dir = ".irmin"
 
@@ -216,7 +218,7 @@ let ls = {
       run begin
         S.create ()   >>= fun t ->
         S.list t path >>= fun paths ->
-        List.iter (fun p -> print "%s" (IrminTree.Path.pretty p)) paths;
+        List.iter (fun p -> print "%s" (IrminPath.pretty p)) paths;
         return_unit
       end
     in
@@ -233,7 +235,7 @@ let tree = {
     run begin
       S.create () >>= fun t ->
       S.contents t >>= fun all ->
-      let all = List.map (fun (k,v) -> IrminTree.Path.to_string k, S.Value.pretty v) all in
+      let all = List.map (fun (k,v) -> IrminPath.to_string k, S.Value.pretty v) all in
       let max_lenght l =
         List.fold_left (fun len s -> max len (String.length s)) 0 l in
       let k_max = max_lenght (List.map fst all) in
@@ -261,7 +263,7 @@ let write = {
     let write (module S: Irmin.SIMPLE) args =
       let path, value = match args with
         | []            -> failwith "Not enough arguments"
-        | [path; value] -> IrminTree.Path.of_string path, S.Value.of_bytes value
+        | [path; value] -> IrminPath.of_string path, S.Value.of_bytes value
         | [value]       -> [], S.Value.of_bytes value
         | _             -> failwith "Too many arguments" in
       run begin
@@ -327,8 +329,9 @@ let pull = {
         print "Pulling %d bytes" (R.Dump.sizeof dump);
         L.import local dump >>= fun ()     ->
         (* XXX: deal with merge conflicts properly. *)
-        if R.Dump.is_empty dump  then return_unit
-        else L.revert local r
+        match dump with
+        | [] -> return_unit
+        | _  -> L.revert local r
       end
     in
     Term.(mk pull $ store);
@@ -352,8 +355,9 @@ let push = {
         print "Pushing %d bytes" (R.Dump.sizeof dump);
         R.import remote dump >>= fun ()     ->
         (* XXX: deal with merge conflicts properly. *)
-        if L.Dump.is_empty dump  then return_unit
-        else L.revert local r
+        match dump with
+        | [] -> return_unit
+        | _  -> L.revert local r
       end
     in
     Term.(mk push $ store);
@@ -369,7 +373,7 @@ let snapshot = {
       run begin
         S.create ()  >>= fun t ->
         S.snapshot t >>= fun k ->
-        print "%s" (S.Key.pretty k);
+        print "%s" (S.Snapshot.pretty k);
         return_unit
       end
     in
@@ -405,7 +409,7 @@ let watch = {
         S.create () >>= fun t ->
         let stream = S.watch t path in
         Lwt_stream.iter_s (fun (path, rev) ->
-            print "%s %s" (IrminTree.Path.pretty path) (S.Key.pretty rev);
+            print "%s %s" (IrminPath.pretty path) (S.Snapshot.pretty rev);
             return_unit
           ) stream
       end

@@ -16,11 +16,11 @@
 
 (** Stores. *)
 
-(** Common signature for all stores. *)
+(** {2 Read-only store} *)
 
-module type X = sig
+module type RO = sig
 
-  (** Base types for stores. *)
+  (** Base types for read-only stores. *)
 
   type t
   (** Type a store. *)
@@ -49,20 +49,29 @@ module type X = sig
       (which might be seen as a password). *)
 
   val contents: t -> (key * value) list Lwt.t
+  (** Return the store contents. *)
 
 end
 
-module type X_BINARY = X with type key := string
-                          and type value := Cstruct.buffer
-(** Raw basic store which associate strings to big arrays. *)
+module type RO_BINARY = RO with type key = string
+                            and type value = Cstruct.buffer
+(** Read-only store which associate strings to big arrays. *)
+
+module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  RO with type key = K.t
+      and type value = V.t
+(** Read-only store makers. *)
+
+module RO_MAKER (B: RO_BINARY): RO_MAKER
+(** Build typed read-only from a binary one. *)
 
 (** {2 Append-only Stores} *)
 
-module type A = sig
+module type AO = sig
 
   (** Base types for append-only stores. *)
 
-  include X
+  include RO
 
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. That's the
@@ -71,25 +80,25 @@ module type A = sig
 
 end
 
-module type A_BINARY = A with type key := string
-                          and type value := Cstruct.buffer
-(** Raw immutable stores which associate strings to big arrays. *)
+module type AO_BINARY = AO with type key = string
+                            and type value = Cstruct.buffer
+(** Append-only store which associate strings to big arrays. *)
 
-module type A_MAKER = functor (K: IrminKey.BINARY) -> functor (V: IrminBase.S) ->
-  A with type key = K.t
-     and type value = V.t
+module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  AO with type key = K.t
+      and type value = V.t
 (** Append-only store makers. *)
 
-module A (S: A_BINARY): A_MAKER
-(** Build a typed append-only store from a binary store. *)
+module AO_MAKER (B: AO_BINARY): AO_MAKER
+(** Build a typed append-only store from a binary one. *)
 
 (** {2 Mutable store} *)
 
-module type M = sig
+module type RW = sig
 
-  (** Signature for mutable store. *)
+  (** Signature for mutable (ie. read/write) stores. *)
 
-  include X
+  include RO
 
   val update: t -> key -> value -> unit Lwt.t
   (** Replace the contents of [key] by [value] if [key] is already
@@ -100,45 +109,45 @@ module type M = sig
 
 end
 
-module type M_BINARY = M with type key := string
-                          and type value := Cstruct.buffer
-(** Raw mutable stores which associate strings to big arrays. *)
+module type RW_BINARY = RW with type key = string
+                            and type value = Cstruct.buffer
+(** read-write store which associate strings to big arrays. *)
 
-module type M_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
-  M with type key = K.t
-     and type value = V.t
+module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+  RW with type key = K.t
+      and type value = V.t
 (** Mutable store makers. *)
 
-module M (S: M_BINARY): M_MAKER
-(** Build a typed mutable store from a binary store. *)
+module RW_MAKER (B: RW_BINARY): RW_MAKER
+(** Build a typed read-write store from a binary one. *)
 
 (** {2 Irminsule Stores} *)
 
 module type S = sig
 
-  (** At high-level,Irminsule exposes the same interface as a
+  (** On an high-level view, Irminsule exposes the same interface as a
       low-level mutable store, but you gain the commit, rollback and
       notification mechanisms. *)
 
-  include M
+  include RW
 
-  type revision
-  (** Type of revisions. *)
+  type snapshot
+  (** Abstract snapshot values. *)
 
-  val snapshot: t -> revision Lwt.t
+  val snapshot: t -> snapshot Lwt.t
   (** Get a snapshot of the current store state. *)
 
-  val revert: t -> revision -> unit Lwt.t
+  val revert: t -> snapshot -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
-  val watch: t -> key -> (key * revision) Lwt_stream.t
+  val watch: t -> key -> (key * snapshot) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
       given key. *)
 
   type dump
   (** Raw dump. *)
 
-  val export: t -> revision list -> dump Lwt.t
+  val export: t -> snapshot list -> dump Lwt.t
   (** Return all the new contents in the store *from* which has been
       added after the revisions. If the revision is [None], then
       export everything. *)
@@ -148,22 +157,13 @@ module type S = sig
 
 end
 
-module type S_BINARY = S with type key := string
-                          and type value := Cstruct.buffer
-                          and type revision := string
-                          and type dump := Cstruct.buffer
-(** Irminsule store which associate strings to big arrays. *)
-
 module type S_MAKER =
   functor (K: IrminKey.S) ->
   functor (V: IrminBase.S) ->
-  functor (R: IrminKey.BINARY) ->
+  functor (S: IrminBase.S) ->
   functor (D: IrminBase.S) ->
     S with type key = K.t
        and type value = V.t
-       and type revision = R.t
+       and type snapshot = S.t
        and type dump = D.t
 (** Irminsule store makers. *)
-
-module S (S: S_BINARY): S_MAKER
-(** Build a an Irminsule store from a binary store. *)

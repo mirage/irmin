@@ -63,30 +63,36 @@ module Make (S: Irmin.S) = struct
 
 
   let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
-    mk Key.equal Key.compare Key.pretty
+    mk Internal.Key.equal Internal.Key.compare Internal.Key.pretty
 
-  let assert_value_equal, assert_value_opt_equal, assert_values_equal =
-    mk Value.equal Value.compare Value.pretty
+  module Blob = Internal.Blob
+  module B = Blob.Value
+  let assert_blob_equal, assert_blob_opt_equal, assert_blobs_equal =
+    mk B.equal B.compare B.pretty
 
-  let assert_tag_equal, assert_tag_opt_equal, assert_tags_equal =
-    mk Tag.equal Tag.compare Tag.pretty
+  module R = Reference.Key
+  let assert_reference_equal, assert_reference_opt_equal, assert_references_equal =
+    mk R.equal R.compare R.pretty
 
+  module Tree = Internal.Tree
+  module T = Tree.Value
   let assert_tree_equal, assert_tree_opt_equal, assert_trees_equal =
-    mk Tree.equal Tree.compare Tree.pretty
+    mk T.equal T.compare T.pretty
 
-  let assert_revision_equal, assert_revision_opt_equal, assert_revisions_equal =
-    mk Revision.equal Revision.compare Revision.pretty
+  module Commit = Internal.Commit
+  module C = Commit.Value
+  let assert_commit_equal, assert_commit_opt_equal, assert_commits_equal =
+    mk C.equal C.compare C.pretty
 
+  module P = IrminPath
   let assert_path_equal, assert_path_opt_equal, assert_paths_equal =
-    mk (=) compare (String.concat "/")
+    mk P.equal P.compare P.pretty
 
   let assert_bool_equal, assert_bool_opt_equal, assert_bools_equal =
     mk (=) compare string_of_bool
 
-  (* XXX: move that into the library ? *)
-  let key value =
-    let buf = Mstruct.create (Value.sizeof value) in
-    Value.set buf value;
-    Key.of_bigarray (Mstruct.to_bigarray buf)
+  let blob t = Internal.blob (internal t)
+  let tree t = Internal.tree (internal t)
+  let commit t = Internal.commit (internal t)
 
 end

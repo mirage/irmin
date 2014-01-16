@@ -40,36 +40,39 @@ module Make (S: Irmin.S) = struct
       Lwt_unix.run (x.clean ());
       raise e
 
-  let test_values x () =
-    let v1 = Value.of_bytes "foo" in
-    let k1 = key v1 in
-    let v2 = Value.of_bytes "" in
-    let k2 = key v2 in
+  let v1 = B.of_bytes "foo"
+  let v2 = B.of_bytes ""
+
+  let kv1 = B.key v1
+  let kv2 = B.key v2
+
+  let r1 = R.of_bytes "foo"
+  let r2 = R.of_bytes "bar"
+
+  let test_blobs x () =
     let test () =
-      create ()                     >>= fun t    ->
-      let v = value_store t in
-      Value.add v v1                >>= fun k1'  ->
-      assert_key_equal "k1" k1 k1';
-      Value.add v v1                >>= fun k1'' ->
-      assert_key_equal "k1" k1 k1'';
-      Value.add v v2                >>= fun k2'  ->
-      assert_key_equal "k2" k2 k2';
-      Value.add v v2                >>= fun k2'' ->
-      assert_key_equal "k2" k2 k2'';
-      Value.read v k1               >>= fun v1'  ->
-      assert_value_opt_equal "v1" (Some v1) v1';
-      Value.read v k2               >>= fun v2'  ->
-      assert_value_opt_equal "v2" (Some v2) v2';
+      create ()                    >>= fun t    ->
+      let v = blob t in
+      Blob.add v v1                >>= fun k1'  ->
+      assert_key_equal "kv1" kv1 k1';
+      Blob.add v v1                >>= fun k1'' ->
+      assert_key_equal "kv1" kv1 k1'';
+      Blob.add v v2                >>= fun k2'  ->
+      assert_key_equal "kv2" kv2 k2';
+      Blob.add v v2                >>= fun k2'' ->
+      assert_key_equal "kv2" kv2 k2'';
+      Blob.read v kv1              >>= fun v1'  ->
+      assert_blob_opt_equal "v1" (Some v1) v1';
+      Blob.read v kv2              >>= fun v2'  ->
+      assert_blob_opt_equal "v2" (Some v2) v2';
       return_unit
     in
     run x test
 
   let test_trees x () =
-    let v1 = Value.of_bytes "foo" in
-    let v2 = Value.of_bytes "" in
     let test () =
       create () >>= fun t  ->
-      let tree = tree_store t in
+      let tree = tree t in
 
       (* Create a node containing t1(v1) *)
       Tree.tree tree ~value:v1 [] >>= fun k1  ->
@@ -108,11 +111,11 @@ module Make (S: Irmin.S) = struct
       assert_tree_opt_equal "t1.3" (Some t1) t1';
 
       Tree.find tree t1 []            >>= fun v11 ->
-      assert_value_opt_equal "v1.1" (Some v1) v11;
+      assert_blob_opt_equal "v1.1" (Some v1) v11;
       Tree.find tree t2 ["b"]         >>= fun v12 ->
-      assert_value_opt_equal "v1.2" (Some v1) v12;
+      assert_blob_opt_equal "v1.2" (Some v1) v12;
       Tree.find tree t3 ["a";"b"]     >>= fun v13 ->
-      assert_value_opt_equal "v1" (Some v1) v13;
+      assert_blob_opt_equal "v1" (Some v1) v13;
 
       (* Create the tree t6 -a-> t5 -b-> t1(v1)
                                    \-c-> t4(v2) *)
@@ -129,12 +132,11 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-  let test_revisions x () =
-    let v1 = Value.of_bytes "foo" in
+  let test_commits x () =
     let test () =
       create () >>= fun t   ->
-      let tree = tree_store t in
-      let revision = revision_store t in
+      let tree = tree t in
+      let commit = commit t in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
       Tree.tree tree ~value:v1 [] >>= fun k1  ->
@@ -145,60 +147,52 @@ module Make (S: Irmin.S) = struct
       Tree.read_exn tree k3       >>= fun t3  ->
 
       (* r1 : t2 *)
-      Revision.revision revision ~tree:t2 [] >>= fun kr1 ->
-      Revision.revision revision ~tree:t2 [] >>= fun kr1'->
+      Commit.commit commit ~tree:t2 ~parents:[] >>= fun kr1 ->
+      Commit.commit commit ~tree:t2 ~parents:[] >>= fun kr1'->
       assert_key_equal "kr1" kr1 kr1';
-      Revision.read_exn revision kr1         >>= fun r1  ->
+      Commit.read_exn commit kr1 >>= fun r1  ->
 
       (* r1 -> r2 : t3 *)
-      Revision.revision revision ~tree:t3 [r1] >>= fun kr2  ->
-      Revision.revision revision ~tree:t3 [r1] >>= fun kr2' ->
+      Commit.commit commit ~tree:t3 ~parents:[r1] >>= fun kr2  ->
+      Commit.commit commit ~tree:t3 ~parents:[r1] >>= fun kr2' ->
       assert_key_equal "kr2" kr2 kr2';
-      Revision.read_exn revision kr2           >>= fun r2   ->
+      Commit.read_exn commit kr2 >>= fun r2   ->
 
-      Revision.list revision kr1 >>= fun kr1s ->
+      Commit.list commit kr1 >>= fun kr1s ->
       assert_keys_equal "g1" [kr1] kr1s;
 
-      Revision.list revision kr2 >>= fun kr2s ->
+      Commit.list commit kr2 >>= fun kr2s ->
       assert_keys_equal "g2" [kr1; kr2] kr2s;
 
      return_unit
     in
     run x test
 
-  let test_tags x () =
-    let t1 = Tag.of_string "foo" in
-    let t2 = Tag.of_string "bar" in
-    let v1 = Value.of_bytes "foo" in
-    let k1 = key v1 in
-    let v2 = Value.of_bytes "" in
-    let k2 = key v2 in
+  let test_references x () =
     let test () =
       create ()              >>= fun t   ->
-      let tag = tag_store t in
-      Tag.update tag t1 k1 >>= fun ()  ->
-      Tag.read   tag t1    >>= fun k1' ->
-      assert_key_opt_equal "t1" (Some k1) k1';
-      Tag.update tag t2 k2 >>= fun ()  ->
-      Tag.read   tag t2    >>= fun k2' ->
-      assert_key_opt_equal "t2" (Some k2) k2';
-      Tag.update tag t1 k2 >>= fun ()   ->
-      Tag.read   tag t1    >>= fun k2'' ->
-      assert_key_opt_equal "t1-after-update" (Some k2) k2'';
-      Tag.list   tag t1    >>= fun ts ->
-      assert_tags_equal "list" [t1; t2] ts;
-      Tag.remove tag t1    >>= fun () ->
-      Tag.read   tag t1    >>= fun empty ->
+      let reference = reference t in
+      Reference.update reference r1 kv1 >>= fun ()  ->
+      Reference.read   reference r1     >>= fun k1' ->
+      assert_key_opt_equal "r1" (Some kv1) k1';
+      Reference.update reference r2 kv2 >>= fun ()  ->
+      Reference.read   reference r2     >>= fun k2' ->
+      assert_key_opt_equal "r2" (Some kv2) k2';
+      Reference.update reference r1 kv2 >>= fun ()   ->
+      Reference.read   reference r1     >>= fun k2'' ->
+      assert_key_opt_equal "r1-after-update" (Some kv2) k2'';
+      Reference.list   reference r1     >>= fun ts ->
+      assert_references_equal "list" [r1; r2] ts;
+      Reference.remove reference r1     >>= fun () ->
+      Reference.read   reference r1     >>= fun empty ->
       assert_key_opt_equal "empty" None empty;
-      Tag.list   tag t1    >>= fun t2' ->
-      assert_tags_equal "all-after-remove" [t2] t2';
+      Reference.list   reference r1     >>= fun r2' ->
+      assert_references_equal "all-after-remove" [r2] r2';
       return_unit
     in
     run x test
 
   let test_stores x () =
-    let v1 = Value.of_bytes "foo" in
-    let v2 = Value.of_bytes "" in
     let test () =
       create ()             >>= fun t   ->
       update t ["a";"b"] v1 >>= fun ()  ->
@@ -208,7 +202,7 @@ module Make (S: Irmin.S) = struct
       mem t ["a"]           >>= fun b2  ->
       assert_bool_equal "mem2" false b2;
       read_exn t ["a";"b"]  >>= fun v1' ->
-      assert_value_equal "v1.1" v1 v1';
+      assert_blob_equal "v1.1" v1 v1';
       snapshot t            >>= fun r1  ->
 
       update t ["a";"c"] v2 >>= fun ()  ->
@@ -217,18 +211,18 @@ module Make (S: Irmin.S) = struct
       mem t ["a"]           >>= fun b2  ->
       assert_bool_equal "mem4" false b2;
       read_exn t ["a";"b"]  >>= fun v1' ->
-      assert_value_equal "v1.1" v1 v1';
+      assert_blob_equal "v1.1" v1 v1';
       mem t ["a";"c"]       >>= fun b1  ->
       assert_bool_equal "mem5" true b1;
       read_exn t ["a";"c"]  >>= fun v2' ->
-      assert_value_equal "v1.1" v2 v2';
+      assert_blob_equal "v1.1" v2 v2';
 
       remove t ["a";"b"]    >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
-      assert_value_opt_equal "v1.2" None v1'';
+      assert_blob_opt_equal "v1.2" None v1'';
       revert t r1           >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
-      assert_value_opt_equal "v1.3" (Some v1) v1'';
+      assert_blob_opt_equal "v1.3" (Some v1) v1'';
       list t ["a"]          >>= fun ks  ->
       assert_paths_equal "path" [["a";"b"]] ks;
       return_unit
@@ -236,8 +230,6 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_sync x () =
-    let v1 = Value.of_bytes "foo" in
-    let v2 = Value.of_bytes "" in
     let test () =
       create ()              >>= fun t1 ->
       update t1 ["a";"b"] v1 >>= fun () ->
@@ -268,7 +260,7 @@ module Make (S: Irmin.S) = struct
       mem t2 ["a";"d"]       >>= fun b3  ->
       assert_bool_equal "mem-ad" true b3;
       read_exn t2 ["a";"d"]  >>= fun v1' ->
-      assert_value_equal "v1" v1' v1;
+      assert_blob_equal "v1" v1' v1;
 
       catch
         (fun () ->
@@ -291,12 +283,12 @@ let suite (speed, x) =
   let module T = Make(S) in
   x.name,
   [
-    "Basic operations on values"      , speed, T.test_values    x;
-    "Basic operations on trees"       , speed, T.test_trees     x;
-    "Basic operations on revisions"   , speed, T.test_revisions x;
-    "Basic operations on tags"        , speed, T.test_tags      x;
-    "High-level store operations"     , speed, T.test_stores    x;
-    "High-level store synchronisation", speed, T.test_sync      x;
+    "Basic operations on blobs"       , speed, T.test_blobs     x;
+    "Basic operations on trees"       , speed, T.test_trees      x;
+    "Basic operations on commits"     , speed, T.test_commits    x;
+    "Basic operations on references"  , speed, T.test_references x;
+    "High-level store operations"     , speed, T.test_stores     x;
+    "High-level store synchronisation", speed, T.test_sync       x;
   ]
 
 let run name tl =

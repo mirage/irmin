@@ -89,15 +89,56 @@ let with_maybe_file file fn default =
 
 module type S = sig
   val path: string
-end
-
-module type O = sig
-  include S
   val file_of_key: string -> string
   val keys_of_dir: string -> string list Lwt.t
 end
 
-module X (O: O) (K: IrminKey.S) = struct
+module type S0 = sig
+  val path: string
+end
+
+module OBJECTS (S: S0) (K: IrminKey.S) = struct
+
+    let path = S.path / "objects"
+
+    let file_of_key k =
+      let key = K.pretty (K.of_string k) in
+      let len = String.length key in
+      let pre = String.sub key 0 2 in
+      let suf = String.sub key 2 (len - 2) in
+      path / pre / suf
+
+    let keys_of_dir root =
+      let aux pre =
+        basenames (fun suf ->
+            K.to_string (K.of_pretty (pre ^ suf))
+          ) (root / pre) in
+      basenames (fun x -> x) root >>= fun pres ->
+      Lwt_list.fold_left_s (fun acc pre ->
+          aux pre >>= fun keys ->
+          return (keys @ acc)
+        ) [] pres
+
+  end
+
+module REFS (S: S0) = struct
+
+  let path = S.path / "refs"
+
+  let file_of_key key =
+    path / key
+
+  let keys_of_dir dir =
+    basenames (fun x -> x) dir
+
+end
+
+
+module RO (S: S) (K: IrminKey.S) = struct
+
+  type key = string
+
+  type value = Cstruct.buffer
 
   type t = root
 
@@ -110,14 +151,14 @@ module X (O: O) (K: IrminKey.S) = struct
     Printf.sprintf "%S" (Buffer.contents b)
 
   let unknown k =
-    fail (K.Unknown (K.pretty (K.of_string k)))
+    fail (IrminKey.Unknown (K.pretty (K.of_string k)))
 
   let create () =
-    return (D O.path)
+    return (D S.path)
 
   let mem t key =
     check t >>= fun () ->
-    let file = O.file_of_key key in
+    let file = S.file_of_key key in
     return (Sys.file_exists file)
 
   let read_full_ba fd =
@@ -127,14 +168,14 @@ module X (O: O) (K: IrminKey.S) = struct
   let read_exn t key =
     L.debugf "read_exn %s" (pretty_key key);
     mem t key >>= function
-    | true  -> with_file (O.file_of_key key) read_full_ba
+    | true  -> with_file (S.file_of_key key) read_full_ba
     | false -> unknown key
 
   let read t key =
     L.debugf "read %s" (pretty_key key);
     mem t key >>= function
     | true  -> with_file
-                 (O.file_of_key key)
+                 (S.file_of_key key)
                  (fun fd ->
                     read_full_ba fd >>= fun ba ->
                     L.debugf "--> read %s" (pretty_value ba);
@@ -147,7 +188,7 @@ module X (O: O) (K: IrminKey.S) = struct
   let contents (D root as t) =
     L.debugf "contents %s" root;
     check t >>= fun () ->
-    O.keys_of_dir root >>= fun l ->
+    S.keys_of_dir root >>= fun l ->
     Lwt_list.fold_left_s (fun acc x ->
         read t x >>= function
         | None   -> return acc
@@ -156,39 +197,15 @@ module X (O: O) (K: IrminKey.S) = struct
 
 end
 
-module A (S: S) (K: IrminKey.BINARY) = struct
+module AO (S: S) (K: IrminKey.S) = struct
 
-  module O = struct
-
-    let path = S.path / "objects"
-
-    let file_of_key k =
-      let key = K.to_hex (K.of_string k) in
-      let len = String.length key in
-      let pre = String.sub key 0 2 in
-      let suf = String.sub key 2 (len - 2) in
-      path / pre / suf
-
-    let keys_of_dir root =
-      let aux pre =
-        basenames (fun suf ->
-            K.to_string (K.of_hex (pre ^ suf))
-          ) (root / pre) in
-      basenames (fun x -> x) root >>= fun pres ->
-      Lwt_list.fold_left_s (fun acc pre ->
-          aux pre >>= fun keys ->
-          return (keys @ acc)
-        ) [] pres
-
-  end
-
-  include X(O)(K)
+  include RO(S)(K)
 
   let add t value =
     L.debugf "add %s" (pretty_value value);
     check t >>= fun () ->
     let key = K.to_string (K.of_bigarray value) in
-    let file = O.file_of_key key in
+    let file = S.file_of_key key in
     begin if Sys.file_exists file then
         return_unit
       else
@@ -201,25 +218,13 @@ module A (S: S) (K: IrminKey.BINARY) = struct
 
 end
 
-module M (S: S) (K: IrminKey.S) = struct
+module RW (S: S) (K: IrminKey.S) = struct
 
-  module O = struct
-
-    let path = S.path / "heads"
-
-    let file_of_key key =
-      path / key
-
-    let keys_of_dir dir =
-      basenames (fun x -> x) dir
-
-  end
-
-  include X(O)(K)
+  include RO(S)(K)
 
   let remove t key =
     L.debugf "remove %s" (pretty_key key);
-    let file = O.file_of_key key in
+    let file = S.file_of_key key in
     if Sys.file_exists file then
       Unix.unlink file;
     return_unit
@@ -228,7 +233,7 @@ module M (S: S) (K: IrminKey.S) = struct
     L.debugf "update %s %s" (pretty_key key) (pretty_value value);
     check t >>= fun () ->
     remove t key >>= fun () ->
-    with_file (O.file_of_key key) (fun fd ->
+    with_file (S.file_of_key key) (fun fd ->
         let buf = Mstruct.of_bigarray value in
         IrminChannel.write_buffer fd buf
       )
@@ -238,10 +243,8 @@ end
 let simple path =
   let module S = struct let path = path end in
   let module K = IrminKey.SHA1 in
-  let module T = IrminTag.Simple in
-  let module A = A(S)(K) in
-  let module M = M(S)(T) in
-  let module Simple = Irmin.Binary
-      (K)(IrminValue.Simple)(IrminTag.Simple)
-      (A)(A)(A)(M) in
+  let module R = IrminReference.Simple in
+  let module Obj = OBJECTS(S)(K) in
+  let module Ref = REFS(S) in
+  let module Simple = Irmin.Simple (AO(Obj)(K))(RW(Ref)(R)) in
   (module Simple: Irmin.SIMPLE)

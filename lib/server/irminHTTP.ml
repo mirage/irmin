@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
 open Lwt
 
 module L = Log.Make(struct let section = "HTTP" end)
@@ -57,34 +58,45 @@ exception Invalid
 
 module Server (S: Irmin.S) = struct
 
+  module K = S.Internal.Key
   let key = {
-    input  = S.Key.of_json;
-    output = S.Key.to_json;
+    input  = K.of_json;
+    output = K.to_json;
   }
 
-  let value = {
-    input  = S.Value.of_json;
-    output = S.Value.to_json;
+  module Blob = S.Internal.Blob
+  module B = Blob.Value
+  let blob = {
+    input  = B.of_json;
+    output = B.to_json;
   }
 
+  module Tree = S.Internal.Tree
+  module T = Tree.Value
   let tree = {
-    input  = S.Tree.of_json;
-    output = S.Tree.to_json;
+    input  = T.of_json;
+    output = T.to_json;
   }
 
-  let revision = {
-    input  = S.Revision.of_json;
-    output = S.Revision.to_json;
+  module Commit = S.Internal.Commit
+  module C = Commit.Value
+  let commit = {
+    input  = C.of_json;
+    output = C.to_json;
   }
 
-  let tag = {
-    input  = S.Tag.of_json;
-    output = S.Tag.to_json;
+  module Reference = S.Reference
+  module R = Reference.Key
+  let reference = {
+    input  = R.of_json;
+    output = R.to_json;
   }
+
+  module D = IrminDump.S(K)(B)
 
   let dump = {
-    input  = S.Dump.of_json;
-    output = S.Dump.to_json;
+    input  = D.of_json;
+    output = D.to_json;
   }
 
   let contents key value =
@@ -114,7 +126,7 @@ module Server (S: Irmin.S) = struct
     Cohttp_lwt_unix.Server.respond ~headers:json_headers ~status:`OK ~body ()
 
   let error fmt =
-    Printf.kprintf (fun msg ->
+    Printf.ksprintf (fun msg ->
         failwith ("error: " ^ msg)
       ) fmt
 
@@ -128,8 +140,8 @@ module Server (S: Irmin.S) = struct
   let to_json t =
     let rec aux path acc = function
       | Fixed   _
-      | Stream _ -> `String (IrminTree.Path.pretty (List.rev path)) :: acc
-      | Node c   -> List.fold_left (fun acc (s,t) -> aux (s::path) acc t) acc c in
+      | Stream _ -> `String (IrminPath.pretty (List.rev path)) :: acc
+      | Node c   -> List.fold_left ~f:(fun acc (s,t) -> aux (s::path) acc t) ~init:acc c in
     `A (List.rev (aux [] [] t))
 
   let child c t: t =
@@ -139,18 +151,18 @@ module Server (S: Irmin.S) = struct
     | Fixed _
     | Stream _ -> error ()
     | Node l   ->
-      try List.assoc c l
+      try List.Assoc.find_exn l c
       with Not_found -> error ()
 
-  let va = S.value_store
-  let tr = S.tree_store
-  let re = S.revision_store
-  let ta = S.tag_store
+  let bl t = S.Internal.blob (S.internal t)
+  let tr t = S.Internal.tree (S.internal t)
+  let co t = S.Internal.commit (S.internal t)
+  let re t = S.reference t
   let t x = x
 
   let mk0p name = function
     | [] -> ()
-    | p  -> error "%s: non-empty path (%s)" name (IrminTree.Path.to_string p)
+    | p  -> error "%s: non-empty path (%s)" name (IrminPath.to_string p)
 
   let mk0b name = function
     | None   -> ()
@@ -160,7 +172,7 @@ module Server (S: Irmin.S) = struct
     match path with
     | [x] -> i.input (`String x)
     | []  -> error "%s: empty path" name
-    | l   -> error "%s: %s is an invalid path" name (IrminTree.Path.to_string l)
+    | l   -> error "%s: %s is an invalid path" name (IrminPath.to_string l)
 
   let mk1b name i = function
     | None   -> error "%s: empty body" name
@@ -238,55 +250,55 @@ module Server (S: Irmin.S) = struct
         Lwt_stream.map (fun r -> o.output r) stream
       )
 
-  let value_store = Node [
-      mk1p0bf "read"     S.Value.read     va key   (some value);
-      mk1p0bf "mem"      S.Value.mem      va key   bool;
-      mk1p0bf "list"     S.Value.list     va key   (list key);
-      mk0p1bf "add"      S.Value.add      va value key;
-      mk0p0bf "contents" S.Value.contents va (contents key value);
+  let blob_store = Node [
+      mk1p0bf "read"     Blob.read     bl key   (some blob);
+      mk1p0bf "mem"      Blob.mem      bl key   bool;
+      mk1p0bf "list"     Blob.list     bl key   (list key);
+      mk0p1bf "add"      Blob.add      bl blob  key;
+      mk0p0bf "contents" Blob.contents bl (contents key blob);
   ]
 
   let tree_store = Node [
-      mk1p0bf "read"     S.Tree.read     tr key  (some tree);
-      mk1p0bf "mem"      S.Tree.mem      tr key  bool;
-      mk1p0bf "list"     S.Tree.list     tr key  (list key);
-      mk0p1bf "add"      S.Tree.add      tr tree key;
-      mk0p0bf "contents" S.Tree.contents tr (contents key tree);
+      mk1p0bf "read"     Tree.read     tr key  (some tree);
+      mk1p0bf "mem"      Tree.mem      tr key  bool;
+      mk1p0bf "list"     Tree.list     tr key  (list key);
+      mk0p1bf "add"      Tree.add      tr tree key;
+      mk0p0bf "contents" Tree.contents tr (contents key tree);
   ]
 
-  let revision_store = Node [
-      mk1p0bf "read"     S.Revision.read     re key  (some revision);
-      mk1p0bf "mem"      S.Revision.mem      re key  bool;
-      mk1p0bf "list"     S.Revision.list     re key  (list key);
-      mk0p1bf "add"      S.Revision.add      re revision key;
-      mk0p0bf "contents" S.Revision.contents re (contents key revision);
+  let commit_store = Node [
+      mk1p0bf "read"     Commit.read     co key   (some commit);
+      mk1p0bf "mem"      Commit.mem      co key   bool;
+      mk1p0bf "list"     Commit.list     co key   (list key);
+      mk0p1bf "add"      Commit.add      co commit key;
+      mk0p0bf "contents" Commit.contents co (contents key commit);
   ]
 
-  let tag_store = Node [
-      mk1p0bf "read"     S.Tag.read     ta tag (some key);
-      mk1p0bf "mem"      S.Tag.mem      ta tag bool;
-      mk1p0bf "list"     S.Tag.list     ta tag (list tag);
-      mk1p1bf "update"   S.Tag.update   ta tag key unit;
-      mk1p0bf "remove"   S.Tag.remove   ta tag unit;
-      mk0p0bf "contents" S.Tag.contents ta (contents tag key);
+  let reference_store = Node [
+      mk1p0bf "read"     Reference.read     re reference (some key);
+      mk1p0bf "mem"      Reference.mem      re reference bool;
+      mk1p0bf "list"     Reference.list     re reference (list reference);
+      mk1p1bf "update"   Reference.update   re reference key unit;
+      mk1p0bf "remove"   Reference.remove   re reference unit;
+      mk0p0bf "contents" Reference.contents re (contents reference key);
   ]
 
   let store = Node [
-      mklp0bf "read"     S.read     t path (some value);
+      mklp0bf "read"     S.read     t path (some blob);
       mklp0bf "mem"      S.mem      t path bool;
       mklp0bf "list"     S.list     t path (list path);
-      mklp1bf "update"   S.update   t path value unit;
+      mklp1bf "update"   S.update   t path blob unit;
       mklp0bf "remove"   S.remove   t path unit;
-      mk0p0bf "contents" S.contents t (contents path value);
+      mk0p0bf "contents" S.contents t (contents path blob);
       mk0p0bf "snapshot" S.snapshot t key;
       mk1p0bf "revert"   S.revert   t key unit;
       mklp0bf "export"   S.export   t (list key) dump;
       mk0p1bf "import"   S.import   t dump unit;
       mklp0bs "watch"    S.watch    t path (pair path key);
-      "value"   , value_store;
-      "tree"    , tree_store;
-      "revision", revision_store;
-      "tag"     , tag_store;
+      "value" , blob_store;
+      "tree"  , tree_store;
+      "commit", commit_store;
+      "ref"   , reference_store;
   ]
 
   let process t ?body req path =
@@ -302,8 +314,8 @@ module Server (S: Irmin.S) = struct
           L.debugf "process: length=%d body=%S" len b;
           try match Ezjsonm.from_string b with
             | `O l ->
-              if List.mem_assoc "params" l then
-                return (Some (List.assoc "params" l))
+              if List.Assoc.mem l "params" then
+                return (List.Assoc.find l "params")
               else
                 failwith "process: wrong request"
             | _    ->
@@ -326,8 +338,6 @@ module Server (S: Irmin.S) = struct
 
 end
 
-let servers = Hashtbl.create 8
-
 let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
   let port = match Uri.port uri with
     | None   -> 8080
@@ -337,8 +347,8 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
   let callback conn_id ?body req =
     let path = Uri.path (Cohttp.Request.uri req) in
     L.debugf "Request received: PATH=%s" path;
-    let path = IrminMisc.split path '/' in
-    let path = List.filter ((<>) "") path in
+    let path = String.split path ~on:'/' in
+    let path = List.filter ~f:((<>) "") path in
     Server.process t ?body req path in
   let conn_closed conn_id () =
     L.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in

@@ -65,5 +65,5 @@ let pretty_list f = function
     Buffer.add_string buf " }";
     Buffer.contents buf
 
-let split s c =
-  Re_str.split_delim (Re_str.regexp_string (String.make 1 c)) s
+let string_of_bigarray ba =
+  Mstruct.to_string (Mstruct.of_bigarray ba)

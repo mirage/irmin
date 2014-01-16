@@ -64,8 +64,17 @@ module type S = sig
   val max: t -> vertex list
   (** Compute the maximun vertex. *)
 
-  (** Implements the base operations. *)
-  include IrminBase.S with type t := t
+  type dump = vertex list * (vertex * vertex) list
+  (** Expose the graph internals. *)
+
+  val export: t -> dump
+  (** Expose the graph as a pair of vertices and edges. *)
+
+  val import: dump -> t
+  (** Import a graph. *)
+
+  module Dump: IrminBase.S with type t = dump
+  (** The base functions over graph internals. *)
 
 end
 

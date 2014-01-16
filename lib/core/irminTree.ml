@@ -15,95 +15,85 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type ('a, 'b) node = {
-  value   : 'a option;
-  children: (string * 'b) list;
-}
+open Core_kernel.Std
 
 module L = Log.Make(struct let section = "TREE" end)
 
-module Path = struct
+type 'key t = {
+  blob    : 'key option;
+  children: (string * 'key) list;
+} with bin_io, compare, sexp
 
-  include IrminBase.List(IrminBase.String)
 
-  exception Unknown of string
+let empty = {
+  blob = None;
+  children = [];
+}
 
-  exception Invalid of string
 
-  let name = "path"
-
-  let to_string =
-    String.concat "/"
-
-  let of_string path =
-    let strings = IrminMisc.split path '/' in
-    List.filter ((<>) "") strings
-
-  let pretty = to_string
-
-  let of_pretty = of_string
-
+module type S = sig
+  type key
+  include IrminBase.S with type t = key t
 end
 
 module type STORE = sig
   type key
-  type value
-  type tree = (key, key) node
-  include IrminBase.S with type t := tree
-  include IrminStore.A with type key := key
-                        and type value := tree
-  val empty: tree
-  val tree: t -> ?value:value -> (string * tree) list -> key Lwt.t
-  val value: t -> tree -> value Lwt.t option
-  val children: t -> tree -> (string * tree Lwt.t) list
-  val sub: t -> tree -> Path.t -> tree option Lwt.t
-  val sub_exn: t -> tree -> Path.t -> tree Lwt.t
-  val update: t -> tree -> Path.t -> value -> tree Lwt.t
-  val find: t -> tree -> Path.t -> value option Lwt.t
-  val find_exn: t -> tree -> Path.t -> value Lwt.t
-  val remove: t -> tree -> Path.t -> tree Lwt.t
-  val valid: t -> tree -> Path.t -> bool Lwt.t
+  type blob
+  type value = key t
+  include IrminStore.AO with type key := key
+                         and type value := value
+  val tree: t -> ?value:blob -> (string * value) list -> key Lwt.t
+  val blob: t -> value -> blob Lwt.t option
+  val children: t -> value -> (string * value Lwt.t) list
+  val sub: t -> value -> IrminPath.t -> value option Lwt.t
+  val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
+  val update: t -> value -> IrminPath.t -> blob -> value Lwt.t
+  val find: t -> value -> IrminPath.t -> blob option Lwt.t
+  val find_exn: t -> value -> IrminPath.t -> blob Lwt.t
+  val remove: t -> value -> IrminPath.t -> value Lwt.t
+  val valid: t -> value -> IrminPath.t -> bool Lwt.t
+  module Key: IrminKey.S with type t = key
+  module Value: S with type key = key
 end
 
-module Tree (A: IrminBase.S) (B: IrminBase.S) = struct
+module S (K: IrminBase.S) = struct
 
-  type t = (A.t, B.t) node
+  type key = K.t
+  module M = struct
+    type nonrec t = K.t t
+    with bin_io, compare, sexp
+    let hash (t : t) = Hashtbl.hash t
+    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+    let module_name = "Tree"
+    let name = "tree"
+  end
+  include M
+  include Identifiable.Make (M)
 
   module XValue = struct
-    include IrminBase.Option(A)
-    let name = "value"
+    include IrminBase.Option(K)
+    let module_name = "Value"
   end
 
   module XChildren = struct
-    include IrminBase.List(IrminBase.Pair(IrminBase.String)(B))
-    let name = "children"
+    include IrminBase.List(IrminBase.Pair(IrminBase.String)(K))
+    let module_name = "Children"
   end
 
   module XTree = struct
     include IrminBase.Pair(XValue)(XChildren)
-    let name = "tree"
+    let module_name = "Tree"
   end
 
-  let name = XTree.name
-
-  let compare t1 t2 =
-    XTree.compare (t1.value, t1.children) (t2.value, t2.children)
-
-  let equal t1 t2 =
-    compare t1 t2 = 0
-
-  let hash t =
-    XTree.hash (t.value, t.children)
-
   let pretty t =
-    XTree.pretty (t.value, t.children)
+    XTree.pretty (t.blob, t.children)
 
   let to_json t =
-    XTree.to_json (t.value, t.children)
+    XTree.to_json (t.blob, t.children)
 
   let of_json j =
-    let value, children = XTree.of_json j in
-    { value; children }
+    let blob, children = XTree.of_json j in
+    { blob; children }
 
   (* |-----|---------| *)
   (* | 'T' | PAYLOAD | *)
@@ -112,71 +102,60 @@ module Tree (A: IrminBase.S) (B: IrminBase.S) = struct
   let header = "T"
 
   let sizeof t =
-    1 + XTree.sizeof (t.value, t.children)
+    1 + XTree.sizeof (t.blob, t.children)
 
   let set buf t =
     Mstruct.set_string buf header;
-    XTree.set buf (t.value, t.children)
+    XTree.set buf (t.blob, t.children)
 
   let get buf =
     let h = Mstruct.get_string buf 1 in
-    if header <> h then None
+    if String.(header <> h) then None
     else match XTree.get buf with
-      | None                   -> None
-      | Some (value, children) -> Some { value; children }
+      | None                  -> None
+      | Some (blob, children) -> Some { blob; children }
 
-  let to_string t =
-    XTree.to_string (t.value, t.children)
 
 end
 
-module type MAKER =
-  functor (K: IrminKey.BINARY) ->
-  functor (V: IrminValue.STORE with type key = K.t) ->
-    STORE with type key = K.t
-           and type value = V.value
+module SHA1 = S(IrminKey.SHA1)
 
 module Make
-    (S: IrminStore.A_MAKER)
-    (K: IrminKey.BINARY)
-    (V: IrminValue.STORE with type key = K.t) =
-struct
-
-  open Lwt
-
-  module T = Tree(K)(K)
-
-  module S = S(K)(T)
+    (K: IrminKey.S)
+    (B: IrminBlob.S with type key = K.t)
+    (Blob: IrminStore.AO with type key = K.t and type value = B.t)
+    (Tree: IrminStore.AO with type key = K.t and type value = K.t t)
+= struct
 
   type key = K.t
 
-  type value = V.value
+  type blob = B.t
 
-  type tree = (K.t, K.t) node
+  type value = K.t t
 
-  type path = string list
+  type t = Blob.t * Tree.t
 
-  type t = {
-    v: V.t;
-    t: S.t;
-  }
+  module Key = K
+  module Value = S(K)
+
+  open Lwt
 
   let create () =
-    V.create () >>= fun v ->
-    S.create () >>= fun t ->
-    return { v; t }
+    Blob.create () >>= fun b ->
+    Tree.create () >>= fun t ->
+    return (b, t)
 
-  let add t tree =
-    S.add t.t tree
+  let add (_, t) tree =
+    Tree.add t tree
 
-  let read t key =
-    S.read t.t key
+  let read (_, t) key =
+    Tree.read t key
 
-  let read_exn t key =
-    S.read_exn t.t key
+  let read_exn (_, t) key =
+    Tree.read_exn t key
 
-  let mem t key =
-    S.mem t.t key
+  let mem (_, t) key =
+    Tree.mem t key
 
   module Graph = IrminGraph.Make(K)
 
@@ -184,44 +163,38 @@ struct
     L.debugf "list %s" (K.pretty key);
     read_exn t key >>= fun _ ->
     let pred k =
-      read_exn t k >>= fun r -> return (List.map snd r.children) in
+      read_exn t k >>= fun r -> return (List.map ~f:snd r.children) in
     Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
     return (Graph.vertex g)
 
-  let contents t =
-    S.contents t.t
+  let contents (_, t) =
+    Tree.contents t
 
-  let empty = {
-    value = None;
-    children = [];
-  }
-
-  let tree t ?value children =
+  let tree (b, _ as t) ?value children =
     L.debug (lazy "tree");
     begin match value with
       | None   -> return_none
-      | Some v -> V.add t.v v >>= fun k -> return (Some k)
+      | Some v -> Blob.add b v >>= fun k -> return (Some k)
     end
-    >>= fun value ->
+    >>= fun blob ->
     Lwt_list.map_p (fun (l, tree) ->
         add t tree >>= fun k ->
         return (l, k)
       ) children
     >>= fun children ->
-    let tree = { value; children } in
+    let tree = { blob; children } in
     add t tree
 
-  let value t tree =
-    match tree.value with
+  let blob (b, _) tree =
+    match tree.blob with
     | None   -> None
-    | Some k -> Some (V.read_exn t.v k)
+    | Some k -> Some (Blob.read_exn b k)
 
   let children t tree =
-    List.map (fun (l, k) -> l, read_exn t k) tree.children
+    List.map ~f:(fun (l, k) -> l, read_exn t k) tree.children
 
   let child t tree label =
-    try Some (List.assoc label (children t tree))
-    with Not_found -> None
+    List.Assoc.find (children t tree) label
 
   let sub_exn t tree path =
     let rec aux tree path =
@@ -244,23 +217,23 @@ struct
     sub t tree path >>= function
     | None      -> fail Not_found
     | Some tree ->
-      match value t tree with
+      match blob t tree with
       | None   -> fail Not_found
-      | Some v -> v
+      | Some b -> b
 
   let find t tree path =
     sub t tree path >>= function
     | None      -> return_none
     | Some tree ->
-      match value t tree with
+      match blob t tree with
       | None   -> return_none
-      | Some v -> v >>= fun v -> return (Some v)
+      | Some b -> b >>= fun b -> return (Some b)
 
   let valid t tree path =
     sub t tree path >>= function
     | None      -> return false
     | Some tree ->
-      match value t tree with
+      match blob t tree with
       | None   -> return false
       | Some _ -> return true
 
@@ -275,7 +248,7 @@ struct
       | (l, k) as child :: children ->
         if l = label then
           read t k >>= function
-          | None      -> fail (K.Invalid (K.pretty k))
+          | None      -> fail (IrminKey.Invalid (K.pretty k))
           | Some tree ->
             f tree >>= fun tree ->
             if tree = empty then return (List.rev_append acc children)
@@ -297,12 +270,10 @@ struct
     aux tree path
 
   let remove t tree path =
-    map_subtree t tree path (fun tree -> { tree with value = None })
+    map_subtree t tree path (fun tree -> { tree with blob = None })
 
-  let update t tree path value =
-    V.add t.v value >>= fun k  ->
-    map_subtree t tree path (fun tree -> { tree with value = Some k })
-
-  include (Tree(K)(K): IrminBase.S with type t := tree)
+  let update (b, _ as t) tree path value =
+    Blob.add b value >>= fun k  ->
+    map_subtree t tree path (fun tree -> { tree with blob = Some k })
 
 end

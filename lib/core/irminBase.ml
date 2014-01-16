@@ -14,14 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
 module type S = sig
   type t
+  include Identifiable.S with type t := t
   val name: string
-  val compare: t -> t -> int
-  val equal: t -> t -> bool
-  val hash: t -> int
   val pretty: t -> string
-  val to_string: t -> string
   val of_json: Ezjsonm.t -> t
   val to_json: t -> Ezjsonm.t
   val sizeof: t -> int
@@ -29,77 +28,57 @@ module type S = sig
   val set: Mstruct.t -> t -> unit
 end
 
-module type STRINGABLE = sig
-  type t
-  val to_string: t -> string
-  val of_string: string -> t
-end
-
-module OCamlList = List
-module OCamlString = String
-
 module List (E: S) = struct
 
   module L = Log.Make(struct let section = "IO-LIST" end)
 
-  type t = E.t list
-
-  let name = E.name ^ "s"
-
-  let rec compare l1 l2 = match l1, l2 with
-    | []    , []     -> 0
-    | h1::t1, h2::t2 ->
-      begin match E.compare h1 h2 with
-        | 0 -> compare t1 t2
-        | i -> i
-      end
-    | _::_  , []     -> 1
-    | []    , _::_   -> -1
+  module M = struct
+    type t = E.t list
+    with bin_io, compare, sexp
+    let hash (t : t) = Hashtbl.hash t
+    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+    let module_name = "List"
+    let name = E.name ^ "s"
+  end
+  include M
+  include Identifiable.Make (M)
 
   let pretty ts =
     IrminMisc.pretty_list E.pretty ts
 
-  let to_string t =
-    String.concat "" (OCamlList.rev_map E.to_string t)
-
-  let equal l1 l2 =
-    compare l1 l2 = 0
-
-  let hash = Hashtbl.hash
-
   let to_json t =
-    `A (OCamlList.rev (OCamlList.rev_map E.to_json t))
+    `A (List.rev (List.rev_map ~f:E.to_json t))
 
   let of_json = function
-    | `A l -> OCamlList.rev (List.rev_map E.of_json l)
+    | `A l -> List.rev (List.rev_map ~f:E.of_json l)
     | _    -> Mstruct.parse_error "List.of_json"
 
   let sizeof l =
     L.debug (lazy "sizeof");
     4 +
-    List.fold_left (fun acc e ->
+    List.fold_left ~f:(fun acc e ->
         acc + E.sizeof e
-      ) 0 l
+      ) ~init:0 l
 
   let get buf =
     L.debug (lazy "get");
     Mstruct.dump ~msg:"-->" ~level:Log.DEBUG buf;
-    let keys = Int32.to_int (Mstruct.get_uint32 buf) in
+    let keys = Int32.to_int_exn (Mstruct.get_be_uint32 buf) in
     L.debugf "get %d" keys;
     let rec aux acc i =
-      if i <= 0 then Some (OCamlList.rev acc)
+      if Int.(i <= 0) then Some (List.rev acc)
       else
         match E.get buf with
         | None   -> None
         | Some t -> aux (t :: acc) (i-1) in
-    if keys = 0 then Some []
+    if Int.(keys = 0) then Some []
     else aux [] keys
 
   let set buf t =
     L.debugf "set %s" (pretty t);
-    let len = Int32.of_int (List.length t) in
-    Mstruct.set_uint32 buf len;
-    List.iter (E.set buf) t
+    let len = Int32.of_int_exn (List.length t) in
+    Mstruct.set_be_uint32 buf len;
+    List.iter ~f:(E.set buf) t
 
 end
 
@@ -107,30 +86,20 @@ module Option (E: S) = struct
 
   module L = Log.Make(struct let section = "IO-OPTION" end)
 
-  let name = E.name
-
-  type t = E.t option
-
-  let compare o1 o2 = match o1, o2 with
-    | None   , None    -> 0
-    | Some _ , None    -> 1
-    | None   , Some _  -> -1
-    | Some e1, Some e2 -> E.compare e1 e2
+  module M = struct
+    type t = E.t option
+    with bin_io, compare, sexp
+    let hash (t : t) = Hashtbl.hash t
+    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+    let module_name = "Option"
+    let name = E.name
+  end
+  include M
+  include Identifiable.Make (M)
 
   let pretty = function
     | None   -> "<none>"
     | Some e -> E.pretty e
-
-  let to_string = function
-    | None   -> ""
-    | Some e -> E.to_string e
-
-  let equal o1 o2 =
-    compare o1 o2 = 0
-
-  let hash = function
-    | None   -> 0
-    | Some e -> E.hash e
 
   let to_json = function
     | None   -> `Null
@@ -152,7 +121,7 @@ module Option (E: S) = struct
   let get buf =
     L.debug (lazy "get");
     let h = Mstruct.get_uint8 buf in
-    if h = none then Some None
+    if Int.(h = none) then Some None
     else match E.get buf with
       | None   -> None
       | Some v -> Some (Some v)
@@ -170,28 +139,23 @@ end
 
 module Pair (K: S) (V: S) = struct
 
+  module List = Core_kernel.Core_list
+
   module L = Log.Make(struct let section = "IO-PAIR" end)
 
-  type t = K.t * V.t
-
-  let name = K.name ^ "-" ^ V.name
-
-  let compare (k1,v1) (k2,v2) =
-    match K.compare k1 k2 with
-    | 0 -> V.compare v1 v2
-    | i -> i
+  module M = struct
+    type t = K.t * V.t
+    with bin_io, compare, sexp
+    let hash (t : t) = Hashtbl.hash t
+    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+    let module_name = "Pair"
+    let name = K.name ^ "-" ^ V.name
+  end
+  include M
+  include Identifiable.Make (M)
 
   let pretty (key, value) =
     Printf.sprintf "%s:%s" (K.pretty key) (V.pretty value)
-
-  let to_string (key, value) =
-    K.to_string key ^ V.to_string value
-
-  let equal t1 t2 =
-    compare t1 t2 = 0
-
-  let hash (key, value) =
-    Hashtbl.hash (K.hash key, V.hash value)
 
   let to_json (key, value) =
     `O [ (K.name, K.to_json key);
@@ -200,11 +164,11 @@ module Pair (K: S) (V: S) = struct
   let of_json = function
     | `O l ->
       let key =
-        try OCamlList.assoc K.name l
+        try List.Assoc.find_exn l K.name
         with Not_found -> Mstruct.parse_error "Pair.of_json: missing %s" K.name
       in
       let value =
-        try OCamlList.assoc V.name l
+        try List.Assoc.find_exn l V.name
         with Not_found -> Mstruct.parse_error "Pair.of_json: missing %s" V.name
       in
       (K.of_json key, V.of_json value)
@@ -234,28 +198,12 @@ module String = struct
 
   module L = Log.Make(struct let section = "IO-string" end)
 
-  type t = string
+  include String
 
   let name = "string"
 
-  let to_string t = t
-
-  let of_string t = t
-
-  let compare t1 t2 =
-    String.compare t1 t2
-
   let pretty t =
     Printf.sprintf "%S" t
-
-  let dump t =
-    t
-
-  let equal t1 t2 =
-    compare t1 t2 = 0
-
-  let hash t =
-    Hashtbl.hash t
 
   let to_json t =
     Ezjsonm.string t
@@ -270,9 +218,9 @@ module String = struct
     L.debug (lazy "get");
     Mstruct.dump ~msg:"-->" ~level:Log.DEBUG buf;
     try
-      let len = Mstruct.get_uint32 buf in
+      let len = Mstruct.get_be_uint32 buf in
       L.debugf "|-- get (%ld)" len;
-      let t = Mstruct.get_string buf (Int32.to_int len) in
+      let t = Mstruct.get_string buf (Int32.to_int_exn len) in
       L.debugf "<-- get %s" t;
       Some t
     with _ ->
@@ -281,9 +229,7 @@ module String = struct
   let set buf t =
     L.debugf "set %s" (pretty t);
     let len = String.length t in
-    Mstruct.set_uint32 buf (Int32.of_int len);
+    Mstruct.set_be_uint32 buf (Int32.of_int_exn len);
     Mstruct.set_string buf t
 
 end
-
-module PrivateString = String

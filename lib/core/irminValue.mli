@@ -14,57 +14,93 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Values. *)
+(** Structured values: blob, tree or commits. *)
 
-(** {2 Base Values} *)
-
-exception Conflict
-(** Exception raised during merge conflicts. *)
+type ('key, 'blob) t =
+  | Blob of 'blob
+  | Tree of 'key IrminTree.t
+  | Commit of 'key IrminCommit.t
+with bin_io, compare, sexp
+(** The different kinds of values which can be stored in the
+    database. *)
 
 module type S = sig
 
-  (** Signature for values. *)
+  (** Signature for structured values. *)
 
-  include IrminBase.S
-  (** Base types. *)
+  type key
+  (** Keys. *)
 
-  val of_bytes: string -> t
-  (** Convert a raw sequence of bytes into a value. *)
+  type blob
+  (** Blobs. *)
 
-  val merge: old:t -> t -> t -> t
-  (** Merge function. *)
-
-end
-
-module Simple: sig
-
-  (** String values, where only the last modified value is kept on
-      merge. If the value has been modified concurrently, the [merge]
-      function raises [Conflict]. *)
-
-  include S with type t = private string
-
-  val create: string -> t
-  (** Create a string value. *)
+  include IrminBase.S with type t = (key, blob) t
+  (** Base functions over structured values. *)
 
 end
 
-(** {2 Store} *)
+module S (K: IrminBase.S) (B: IrminBase.S): S with type key = K.t and type blob = B.t
+
+module Simple: S with type key = IrminKey.SHA1.t and type blob = IrminBlob.Simple.t
+(** Simple blobs, with SHA1 keys. *)
 
 module type STORE = sig
 
-  (** Signature of value stores. *)
+  (** Value are stored in an append-only database. *)
 
-    include IrminStore.A
+  type key
+  (** Key objects. *)
 
-    include S with type t := value
+  type blob
+  (** Blob values. *)
+
+  include IrminStore.AO with type key := key
+                         and type value = (key, blob) t
+
+  module Blob: IrminBlob.STORE
+    with type key = key
+     and type value = blob
+
+  module Tree: IrminTree.STORE
+    with type key = key
+     and type blob = blob
+
+  module Commit: IrminCommit.STORE
+    with type key = key
+
+  val blob: t -> Blob.t
+  (** The handler for the blob database. *)
+
+  val tree: t -> Tree.t
+  (** The handler for the tree database. *)
+
+  val commit: t -> Commit.t
+  (** The handler for the commit database. *)
+
+  module Key: IrminKey.S with type t = key
+  (** Base functions over keys. *)
+
+  module Value: S with type key = key and type blob = blob
+  (** Base functions over values. *)
 
 end
 
-module type MAKER = functor (K: IrminKey.BINARY) -> functor (V: S) ->
-  STORE with type key = K.t
-         and type value = V.t
-(** Value store creator. *)
+module Make
+  (K: IrminKey.S)
+  (B: IrminBlob.S with type key = K.t)
+  (S: IrminStore.AO with type key = K.t and type value = (K.t, B.t) t)
+  : STORE with type t = S.t
+           and type key = K.t
+           and type blob = B.t
+(** Create a store for structured values. *)
 
-module Make (S: IrminStore.A_MAKER): MAKER
-(** Create a value store. *)
+module Mux
+  (K: IrminKey.S)
+  (B: IrminBlob.S with type key = K.t)
+  (Blob: IrminStore.AO with type key = K.t and type value = B.t)
+  (Tree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
+  (Commit: IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
+  : STORE with type key = K.t
+           and type blob = B.t
+(** Combine multiple stores to create a global store for structured
+    values. *)

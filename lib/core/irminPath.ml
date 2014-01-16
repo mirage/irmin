@@ -14,30 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
+open Core_kernel.Std
 
-exception Invalid of string
-(** Exception raised when a key is not valid. *)
+include IrminBase.List(IrminBase.String)
 
-exception Unknown of string
-(** Exception raised when no value is associated to a key. *)
+let module_name = "Path"
 
-module type S = sig
+let pretty = to_string
 
-  (** Signature for deterministic keys. *)
+let of_pretty = of_string
 
-  include IrminBase.S
+let of_bytes str =
+  List.filter
+    ~f:(fun s -> not (String.is_empty s))
+    (String.split str ~on:'/')
 
-  val of_pretty: string -> t
-  (** Inverse of [pretty]. *)
-
-  val of_bytes: string -> t
-  (** Compute a (deterministic) key from a sequence of bytes. *)
-
-  val of_bigarray: Cstruct.buffer -> t
-  (** Compute a (deterministic) key from a bigarray. *)
-
-end
-
-module SHA1: S with type t = private string
-(** SHA1 keys *)
+let of_bigarray ba =
+  of_bytes (IrminMisc.string_of_bigarray ba)

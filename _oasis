@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        irminsule
-Version:     0.3.0
+Version:     0.4.0
 Synopsis:    A Distributed Version Control Database
 Authors:     Thomas Gazagnaire
 License:     ISC
@@ -9,6 +9,10 @@ BuildTools:  ocamlbuild
 
 Flag xen
   Description: build the Xen library
+  Default: false
+
+Flag git
+  Description: build the Git backend
   Default: false
 
 Flag unix
@@ -23,10 +27,12 @@ Library irminsule
   Path: lib/core
   Findlibname: irminsule
   Modules: Irmin, IrminBase, IrminGraph, IrminKey,
-           IrminMisc, IrminRevision, IrminStore,
-           IrminTag, IrminTree, IrminValue, IrminVersion
+           IrminMisc, IrminCommit, IrminStore, IrminValue,
+           IrminReference, IrminBlob, IrminTree, IrminVersion,
+           IrminDump, IrminPath
   BuildDepends:	ezjsonm, ocamlgraph, lwt, ocplib-endian, cryptokit,
-                cstruct, re.str, dolog, mstruct
+                cstruct, re.str, dolog, mstruct,
+                core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
 
 Library backend
   Path: lib/backend
@@ -44,18 +50,30 @@ Library fs
   BuildDepends: uri, irminsule.backend, irminsule
   Modules: IrminChannel, IrminFS
 
+#  Library git
+#  Build$: flag(git)
+#  Install$: flag(git)
+#  Path: lib/backend
+#  Findlibname: git
+#  FindlibParent: backend
+#  BuildDepends: irminsule.backend, irminsule, git.unix
+#  Modules: IrminGit
+
+
 Library server
   Build$: flag(unix)
   Install$: flag(unix)
   Path: lib/server
   Findlibname: server
   FindlibParent: irminsule
-  BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl, irminsule.backend.fs, irminsule.backend, irminsule
+  BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl,
+                irminsule.backend.fs, irminsule.backend, irminsule,
+                irminsule.backend.git
   Modules: IrminHTTP
 
 Document irminsule
   Title:                Irminsule docs
-  Type:                 ocamlbuild (0.4)
+  Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
   Install:		true
   XOCamlbuildPath:      lib/core
@@ -63,7 +81,7 @@ Document irminsule
 
 Document backend
   Title:                Irminsule backends docs
-  Type:                 ocamlbuild (0.4)
+  Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
   Install:		true
   XOCamlbuildPath:      lib/backend

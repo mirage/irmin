@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
 module type S = sig
   module Vertex: IrminBase.S
   include Graph.Sig.I with type V.t = Vertex.t
@@ -34,7 +36,10 @@ module type S = sig
     string -> unit
   val min: t -> vertex list
   val max: t -> vertex list
-  include IrminBase.S with type t := t
+  type dump = vertex list * (vertex * vertex) list
+  val export: t -> dump
+  val import: dump -> t
+  module Dump: IrminBase.S with type t = dump
 end
 
 module Make (B: IrminBase.S) = struct
@@ -49,6 +54,7 @@ module Make (B: IrminBase.S) = struct
   module Topological = Graph.Topological.Make(G)
   include G
   include GO
+  type dump = V.t list * (V.t * V.t) list
 
   let vertex g =
     G.fold_vertex (fun k set -> k :: set) g []
@@ -58,11 +64,11 @@ module Make (B: IrminBase.S) = struct
 
   let closure pred ~min ~max =
     let g = G.create ~size:1024 () in
-    let marks = Hashtbl.create 1024 in
-    let mark key = Hashtbl.add marks key true in
+    let marks = Vertex.Table.create () in
+    let mark key = Hashtbl.add_exn marks key true in
     let has_mark key = Hashtbl.mem marks key in
-    List.iter mark min;
-    List.iter (G.add_vertex g) min;
+    List.iter ~f:mark min;
+    List.iter ~f:(G.add_vertex g) min;
     let rec add key =
       if has_mark key then Lwt.return ()
       else (
@@ -70,7 +76,7 @@ module Make (B: IrminBase.S) = struct
         L.debugf "ADD %s" (Vertex.pretty key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
         pred key >>= fun keys ->
-        List.iter (fun k -> G.add_edge g k key) keys;
+        List.iter ~f:(fun k -> G.add_edge g k key) keys;
         Lwt_list.iter_p add keys
       ) in
     Lwt_list.iter_p add max >>= fun () ->
@@ -106,35 +112,6 @@ module Make (B: IrminBase.S) = struct
         | Some n -> [`Label n]
     end)
 
-  let output ppf vertex edges name =
-    let g = G.create ~size:(List.length vertex) () in
-    List.iter (fun (v,_) -> G.add_vertex g v) vertex;
-    List.iter (fun (v1,_,v2) -> G.add_edge g v1 v2) edges;
-    let eattrs (v1, v2) =
-      try
-        let l = List.find_all (fun (x,_,y) -> x=v1 && y=v2) edges in
-        let l = List.fold_left (fun acc (_,l,_) -> l @ acc) [] l in
-        let labels, others = List.partition (function `Label _ -> true | _ -> false) l in
-        match labels with
-        | []|[_] -> labels @ others
-        | l      -> `Label (String.concat ","
-                              (List.map (function `Label l -> l | _ -> assert false) l))
-                    :: others
-      with Not_found -> [] in
-    let vattrs v =
-      try List.assoc v vertex
-      with Not_found -> [] in
-    vertex_attributes := vattrs;
-    edge_attributes := eattrs;
-    graph_name := Some name;
-    Dot.fprint_graph ppf g
-
-  let mk vertex edges =
-    let g = G.create ~size:(List.length vertex) () in
-    List.iter (G.add_vertex g) vertex;
-    List.iter (fun (v1, v2) -> G.add_edge g v1 v2) edges;
-    g
-
   module XVertex = struct
     include IrminBase.List(Vertex)
     let name = "vertex"
@@ -143,57 +120,41 @@ module Make (B: IrminBase.S) = struct
     include IrminBase.List(IrminBase.Pair(Vertex)(Vertex))
     let name = "edges"
   end
-  module XGraph = struct
+  module Dump = struct
     include IrminBase.Pair(XVertex)(XEdges)
     let name = "graph"
   end
 
-  let name = XGraph.name
+  let export t =
+    vertex t, edges t
 
-  let decompose t =
-    let vertex = vertex t in
-    let edges = edges t in
-    vertex, edges
+  let import (vs, es) =
+    let g = G.create ~size:(List.length vs) () in
+    List.iter ~f:(G.add_vertex g) vs;
+    List.iter ~f:(fun (v1, v2) -> G.add_edge g v1 v2) es;
+    g
 
-  let sizeof t =
-    let g = decompose t in
-    XGraph.sizeof g
-
-  let set buf t =
-    let g = decompose t in
-    XGraph.set buf g
-
-  let get buf =
-    match XGraph.get buf with
-    | None                 -> None
-    | Some (vertex, edges) -> Some (mk vertex edges)
-
-  let pretty t =
-    let vertex = Topological.fold (fun v acc -> v::acc) t [] in
-    Printf.sprintf "%s" (String.concat "-" (List.map B.pretty vertex))
-
-  let to_string t =
-    let g = decompose t in
-    XGraph.to_string g
-
-  let of_json j =
-    let vertex, edges = XGraph.of_json j in
-    mk vertex edges
-
-  let to_json t =
-    let g = decompose t in
-    XGraph.to_json g
-
-  let hash = Hashtbl.hash
-
-  let compare t1 t2 =
-    let g1 = decompose t1 in
-    let g2 = decompose t2 in
-    XGraph.compare g1 g2
-
-  let equal t1 t2 =
-    compare t1 t2 = 0
-
-  let length = None
+  let output ppf vertex edges name =
+    let g = G.create ~size:(List.length vertex) () in
+    List.iter ~f:(fun (v,_) -> G.add_vertex g v) vertex;
+    List.iter ~f:(fun (v1,_,v2) -> G.add_edge g v1 v2) edges;
+    let eattrs (v1, v2) =
+      try
+        let l = List.filter ~f:(fun (x,_,y) -> x=v1 && y=v2) edges in
+        let l = List.fold_left ~f:(fun acc (_,l,_) -> l @ acc) ~init:[] l in
+        let labels, others =
+          List.partition_map ~f:(function `Label l -> `Fst l | x -> `Snd x) l in
+        match labels with
+        | []  -> others
+        | [l] -> `Label l :: others
+        | _   -> `Label (String.concat ~sep:"," labels) :: others
+      with Not_found -> [] in
+    let vattrs v =
+      try List.Assoc.find_exn vertex v
+      with Not_found -> [] in
+    vertex_attributes := vattrs;
+    edge_attributes := eattrs;
+    graph_name := Some name;
+    Dot.fprint_graph ppf g
 
 end

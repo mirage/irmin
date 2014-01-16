@@ -27,10 +27,13 @@ module type S = sig
 
   end
 
-  module A (U: U): IrminStore.A_MAKER
+  module RO (U: U): IrminStore.RO_MAKER
+  (** Build a read-only store using the given url. *)
+
+  module AO (U: U): IrminStore.AO_MAKER
   (** Build an append-only store using the given url. *)
 
-  module M (U: U): IrminStore.M_MAKER
+  module RW (U: U): IrminStore.RW_MAKER
   (** Build an a mutable store using the given url. *)
 
   module S (U: U): IrminStore.S_MAKER

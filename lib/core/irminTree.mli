@@ -17,18 +17,31 @@
 
 (** Tree-like structures of values. *)
 
-type ('a, 'b) node = {
-  value   : 'a option;
-  children: (string * 'b) list;
-}
-(** Type of concrete trees .*)
+type 'key t = {
+  blob    : 'key option;
+  children: (string * 'key) list;
+} with bin_io, compare, sexp
+(** Type of trees .*)
 
-module Path: IrminKey.S with type t = string list
-(** Type of paths, to address nodes from the tree root. *)
+val empty: 'key t
+(** The empty tree. *)
 
-module Tree (A: IrminBase.S) (B: IrminBase.S):
-  IrminBase.S with type t = (A.t, B.t) node
+module type S = sig
+
+  (** Signature for trees. *)
+
+  type key
+  (** Keys. *)
+
+  include IrminBase.S with type t = key t
+
+end
+
+module S (K: IrminBase.S): S with type key = K.t
 (** Base functions for trees. *)
+
+module SHA1: IrminBase.S with type t = IrminKey.SHA1.t t
+(** Simple tree implementation, where keys are SHA1s. *)
 
 module type STORE = sig
 
@@ -37,61 +50,61 @@ module type STORE = sig
   type key
   (** Type of keys. *)
 
-  type value
+  type blob
+  (** Type of blobs. *)
+
+  type value = key t
   (** Type of values. *)
 
-  type tree = (key, key) node
-  (** Type of tree nodes. *)
+  include IrminStore.AO with type key := key
+                         and type value := value
+  (** Tree stores are append-only. *)
 
-  include IrminBase.S with type t := tree
-  (** Tree are base types. *)
-
-  include IrminStore.A with type key := key
-                        and type value := tree
-  (** Tree stores are append-onlye. *)
-
-  val empty: tree
-  (** The empty tree. *)
-
-  val tree: t -> ?value:value -> (string * tree) list -> key Lwt.t
+  val tree: t -> ?value:blob -> (string * value) list -> key Lwt.t
   (** Create a new node. *)
 
-  val value: t -> tree -> value Lwt.t option
+  val blob: t -> value -> blob Lwt.t option
   (** Return the contents. *)
 
-  val children: t -> tree -> (string * tree Lwt.t) list
+  val children: t -> value -> (string * value Lwt.t) list
   (** Return the child nodes. *)
 
-  val sub: t -> tree -> Path.t -> tree option Lwt.t
-  (** Find a subtree. *)
+  val sub: t -> value -> IrminPath.t -> value option Lwt.t
+  (** Find a subvalue. *)
 
-  val sub_exn: t -> tree -> Path.t -> tree Lwt.t
-  (** Find a subtree. Raise [Not_found] if it does not exist. *)
+  val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
+  (** Find a subvalue. Raise [Not_found] if it does not exist. *)
 
-  val update: t -> tree -> Path.t -> value -> tree Lwt.t
-  (** Add a value by recusively saving subtrees and subvalues into the
+  val update: t -> value -> IrminPath.t -> blob -> value Lwt.t
+  (** Add a value by recusively saving subvalues and subvalues into the
       corresponding stores. *)
 
-  val find: t -> tree -> Path.t -> value option Lwt.t
+  val find: t -> value -> IrminPath.t -> blob option Lwt.t
   (** Find a value. *)
 
-  val find_exn: t -> tree -> Path.t -> value Lwt.t
+  val find_exn: t -> value -> IrminPath.t -> blob Lwt.t
   (** Find a value. Raise [Not_found] is [path] is not defined. *)
 
-  val remove: t -> tree -> Path.t -> tree Lwt.t
+  val remove: t -> value -> IrminPath.t -> value Lwt.t
   (** Remove a value. *)
 
-  val valid: t -> tree -> Path.t -> bool Lwt.t
+  val valid: t -> value -> IrminPath.t -> bool Lwt.t
   (** Is a path valid. *)
+
+  module Key: IrminKey.S with type t = key
+  (** Base functions for keys. *)
+
+  module Value: S with type key = key
+  (** Base functions for values. *)
 
 end
 
-module type MAKER =
-  functor (K: IrminKey.BINARY) ->
-  functor (V: IrminValue.STORE with type key = K.t) ->
-    STORE with type key = K.t
-           and type value = V.value
-(** Tree store maker. *)
-
-module Make (A: IrminStore.A_MAKER): MAKER
+module Make
+    (K: IrminKey.S)
+    (B: IrminBlob.S with type key = K.t)
+    (Blob: IrminStore.AO with type key = K.t and type value = B.t)
+    (Tree: IrminStore.AO with type key = K.t and type value = K.t t)
+  : STORE with type t = Blob.t * Tree.t
+           and type key = K.t
+           and type blob = B.t
 (** Create a tree store from an append-only database. *)
