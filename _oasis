@@ -30,8 +30,8 @@ Library irminsule
            IrminMisc, IrminCommit, IrminStore, IrminValue,
            IrminReference, IrminBlob, IrminTree, IrminVersion,
            IrminDump, IrminPath
-  BuildDepends:	ezjsonm, ocamlgraph, lwt, ocplib-endian, cryptokit,
-                cstruct, re.str, dolog, mstruct,
+  BuildDepends: ezjsonm, ocamlgraph, lwt, cryptokit,
+                re.str, dolog, mstruct,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
 
 Library backend
@@ -75,7 +75,7 @@ Document irminsule
   Title:                Irminsule docs
   Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
-  Install:		true
+  Install:              true
   XOCamlbuildPath:      lib/core
   XOCamlbuildLibraries: irminsule
 
@@ -83,7 +83,7 @@ Document backend
   Title:                Irminsule backends docs
   Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
-  Install:		true
+  Install:              true
   XOCamlbuildPath:      lib/backend
   XOCamlbuildLibraries: irminsule.backend, irminsule.backend.fs
 
