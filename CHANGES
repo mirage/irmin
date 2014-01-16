@@ -1,10 +1,14 @@
-0.3
+0.4:
+* Major refactoring: Value -> Blob, Revision -> Commit and Tag -> Reference
+* Major refactoring: Use Core_kernel instead of custom Identiable.S
+
+0.3: (2013-12-13)
 * Fix a fd leak in the filesystem bakend
 * Functorize the CRUD interface over the HTTP client implementation
 * Use oasis to build the project
 * Use the now released separately `ezjsonm` and `alcotest` libraries
 
-0.2 (2013-11-23)
+0.2: (2013-11-23)
 * Fix the HTTP server responses
 * More high-level tests
 * Add unit-tests for the client CRUD interfaces (over memory and/or filesystem)
@@ -17,7 +21,7 @@
 * Improve and make the CLI easier to use
 * Implement clone/pull/push/snapshot/revert in the CLI
 
-0.1 (2013-10-30)
+0.1: (2013-10-30)
 * Use an HTTP server as a front-end
 * Initial support for in-memory and filesystem backends
 * Simple signature for backends
