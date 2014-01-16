@@ -15,6 +15,7 @@
  *)
 
 open Lwt
+open Core_kernel.Std
 
 module type S = sig
   include IrminKey.S
@@ -34,25 +35,7 @@ module Simple = struct
   let of_bytes x = x
 
   let of_bigarray x =
-    of_bytes (IrminMisc.string_of_bigarray x)
-
-  (* |-----|---------| *)
-  (* | 'R' | PAYLOAD | *)
-  (* |-----|---------| *)
-
-  let header = "R"
-
-  let sizeof t =
-    1 + sizeof t
-
-  let set buf t =
-    Mstruct.set_string buf header;
-    set buf t
-
-  let get buf =
-    let h = Mstruct.get_string buf 1 in
-    if header <> h then None
-    else get buf
+    Bigstring.to_string x
 
 end
 
@@ -77,6 +60,6 @@ module Make
 
   let list t _ =
     contents t >>= fun l ->
-    return (List.map fst l)
+    return (List.map ~f:fst l)
 
 end

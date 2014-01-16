@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
 (** Miscellaneous functions *)
 
 val hex_encode: string -> string
@@ -28,6 +30,8 @@ val sha1: string -> string
 val pretty_list: ('a -> string) -> 'a list -> string
 (** Pretty-print a list. *)
 
-val string_of_bigarray: Cstruct.buffer -> string
-(** Convert a bigarray to a string (this copies the string using
-    memcpopy). *)
+val read: 'a Bin_prot.Type_class.t -> Bigstring.t -> 'a option
+(** Try to read a buffer. *)
+
+val write: 'a Bin_prot.Type_class.t -> 'a -> Bigstring.t
+(** Write in a fresh buffer. *)

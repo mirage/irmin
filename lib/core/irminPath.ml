@@ -30,4 +30,4 @@ let of_bytes str =
     (String.split str ~on:'/')
 
 let of_bigarray ba =
-  of_bytes (IrminMisc.string_of_bigarray ba)
+  of_bytes (Bigstring.to_string ba)

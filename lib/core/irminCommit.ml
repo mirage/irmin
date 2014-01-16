@@ -67,42 +67,18 @@ module S (K: IrminKey.S) = struct
   let pretty t =
     XCommit.pretty (t.tree, t.parents)
 
-  (* |-----|---------| *)
-  (* | 'T' | PAYLOAD | *)
-  (* |-----|---------| *)
-
-  let header = "C"
-
-  let sizeof t =
-    1 + XCommit.sizeof (t.tree, t.parents)
-
-  let set buf t =
-    Mstruct.set_string buf header;
-    XCommit.set buf (t.tree, t.parents)
-
-  let get buf =
-    let h = Mstruct.get_string buf 1 in
-    if String.(header <> h) then None
-    else match XCommit.get buf with
-      | None                 -> None
-      | Some (tree, parents) -> Some { tree; parents }
-
   let merge ~old:_ _ _ =
     failwith "Commit.merge: TODO"
 
   let of_bytes str =
-    get (Mstruct.of_string str)
+    IrminMisc.read bin_t (Bigstring.of_string str)
 
   let of_bytes_exn str =
-    match of_bytes str with
-    | None   -> raise (IrminBlob.Invalid str)
-    | Some b -> b
+    let buf = Bigstring.of_string str in
+    bin_read_t ~pos_ref:(ref 0) buf
 
   let key t =
-    let n = sizeof t in
-    let buf = Mstruct.create n in
-    set buf t;
-    K.of_bigarray (Mstruct.to_bigarray buf)
+    K.of_bigarray (IrminMisc.write bin_t t)
 
 end
 

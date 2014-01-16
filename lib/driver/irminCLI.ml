@@ -304,7 +304,7 @@ let clone = {
         R.create ()         >>= fun remote ->
         R.snapshot remote   >>= fun tag    ->
         R.export remote []  >>= fun dump   ->
-        print "Cloning %d bytes" (R.Dump.sizeof dump);
+        print "Cloning %d bytes" (R.Dump.bin_size_t dump);
         L.import local dump >>= fun ()     ->
         L.revert local tag
       end
@@ -326,7 +326,7 @@ let pull = {
         L.snapshot local    >>= fun l      ->
         R.snapshot remote   >>= fun r      ->
         R.export remote [l] >>= fun dump   ->
-        print "Pulling %d bytes" (R.Dump.sizeof dump);
+        print "Pulling %d bytes" (R.Dump.bin_size_t dump);
         L.import local dump >>= fun ()     ->
         (* XXX: deal with merge conflicts properly. *)
         match dump with
@@ -352,7 +352,7 @@ let push = {
         L.snapshot local     >>= fun l      ->
         R.snapshot remote    >>= fun r      ->
         L.export local [r]   >>= fun dump   ->
-        print "Pushing %d bytes" (R.Dump.sizeof dump);
+        print "Pushing %d bytes" (R.Dump.bin_size_t dump);
         R.import remote dump >>= fun ()     ->
         (* XXX: deal with merge conflicts properly. *)
         match dump with

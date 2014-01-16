@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
 (* From OCaml's stdlib. See [Digest.to_hex] *)
 let hex_encode s =
   let n = String.length s in
@@ -33,16 +35,16 @@ let hex_decode h =
   );
   let digit c =
     match c with
-    | '0'..'9' -> Char.code c - Char.code '0'
-    | 'A'..'F' -> Char.code c - Char.code 'A' + 10
-    | 'a'..'f' -> Char.code c - Char.code 'a' + 10
+    | '0'..'9' -> Char.to_int c - Char.to_int '0'
+    | 'A'..'F' -> Char.to_int c - Char.to_int 'A' + 10
+    | 'a'..'f' -> Char.to_int c - Char.to_int 'a' + 10
     | c ->
       let msg = Printf.sprintf "hex_decode: %S is invalid" (String.make 1 c) in
       raise (Invalid_argument msg) in
   let byte i = digit h.[i] lsl 4 + digit h.[i+1] in
   let result = String.create (n / 2) in
   for i = 0 to n/2 - 1 do
-    result.[i] <- Char.chr (byte (2 * i));
+    result.[i] <- Char.of_int_exn (byte (2 * i));
   done;
   result
 
@@ -57,7 +59,7 @@ let pretty_list f = function
     let buf = Buffer.create 1024 in
     let len = ref (List.length l - 1) in
     Buffer.add_string buf "{ ";
-    List.iter (fun e ->
+    List.iter ~f:(fun e ->
         Buffer.add_string buf (f e);
         if !len > 0 then Buffer.add_string buf ", ";
         decr len
@@ -65,5 +67,15 @@ let pretty_list f = function
     Buffer.add_string buf " }";
     Buffer.contents buf
 
-let string_of_bigarray ba =
-  Mstruct.to_string (Mstruct.of_bigarray ba)
+open Bin_prot.Type_class
+
+let read bin buf =
+  try Some (bin.reader.read ~pos_ref:(ref 0) buf)
+  with Bin_prot.Common.Read_error _ -> None
+
+let write bin t =
+  let n = bin.writer.size t in
+  let buf = Bigstring.create n in
+  let k = bin.writer.write buf ~pos:0 t in
+  assert (n=k);
+  buf

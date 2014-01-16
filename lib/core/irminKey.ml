@@ -88,6 +88,6 @@ module SHA1 = struct
 
   let of_bigarray ba =
     (* XXX: avoid copies *)
-    of_bytes (IrminMisc.string_of_bigarray ba)
+    of_bytes (Bigstring.to_string ba)
 
 end

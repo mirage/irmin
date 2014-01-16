@@ -51,14 +51,10 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
   let read t key =
     S.read t (K.to_string key) >>= function
     | None    -> return_none
-    | Some ba ->
-      let buf = Mstruct.of_bigarray ba in
-      return (V.get buf)
+    | Some ba -> return (IrminMisc.read V.bin_t ba)
 
   let read_exn t key =
-    S.read_exn t (K.to_string key) >>= fun ba ->
-    let buf = Mstruct.of_bigarray ba in
-    match V.get buf with
+    read t key >>= function
     | None   -> fail (IrminKey.Unknown (K.pretty key))
     | Some v -> return v
 
@@ -73,8 +69,7 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
   let contents t =
     S.contents t >>= fun l ->
     Lwt_list.fold_left_s (fun acc (s, ba) ->
-        let buf = Mstruct.of_bigarray ba in
-        match V.get buf with
+        match IrminMisc.read V.bin_t ba with
         | None   -> return acc
         | Some v -> return ((K.of_string s, v) :: acc)
       ) [] l
@@ -103,9 +98,7 @@ module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   let add t value =
     LA.debugf "add %s" (V.pretty value);
-    let buf = Mstruct.create (V.sizeof value) in
-    V.set buf value;
-    S.add t (Mstruct.to_bigarray buf) >>= fun key ->
+    S.add t (IrminMisc.write V.bin_t value) >>= fun key ->
     let key = K.of_string key in
     LA.debugf "<-- add: %s -> key=%s" (V.pretty value) (K.pretty key);
     return key
@@ -133,10 +126,7 @@ module RW_MAKER (S: RW_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   let update t key value =
     LM.debug (lazy "update");
-    let buf = Mstruct.create (V.sizeof value) in
-    V.set buf value;
-    let ba = Mstruct.to_bigarray buf in
-    S.update t (K.to_string key) ba
+    S.update t (K.to_string key) (IrminMisc.write V.bin_t value)
 
   let remove t key =
     S.remove t (K.to_string key)

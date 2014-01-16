@@ -23,9 +23,6 @@ module type S = sig
   val pretty: t -> string
   val of_json: Ezjsonm.t -> t
   val to_json: t -> Ezjsonm.t
-  val sizeof: t -> int
-  val get: Mstruct.t -> t option
-  val set: Mstruct.t -> t -> unit
 end
 
 module List (E: S) = struct
@@ -52,33 +49,6 @@ module List (E: S) = struct
   let of_json = function
     | `A l -> List.rev (List.rev_map ~f:E.of_json l)
     | _    -> Mstruct.parse_error "List.of_json"
-
-  let sizeof l =
-    L.debug (lazy "sizeof");
-    4 +
-    List.fold_left ~f:(fun acc e ->
-        acc + E.sizeof e
-      ) ~init:0 l
-
-  let get buf =
-    L.debug (lazy "get");
-    Mstruct.dump ~msg:"-->" ~level:Log.DEBUG buf;
-    let keys = Int32.to_int_exn (Mstruct.get_be_uint32 buf) in
-    L.debugf "get %d" keys;
-    let rec aux acc i =
-      if Int.(i <= 0) then Some (List.rev acc)
-      else
-        match E.get buf with
-        | None   -> None
-        | Some t -> aux (t :: acc) (i-1) in
-    if Int.(keys = 0) then Some []
-    else aux [] keys
-
-  let set buf t =
-    L.debugf "set %s" (pretty t);
-    let len = Int32.of_int_exn (List.length t) in
-    Mstruct.set_be_uint32 buf len;
-    List.iter ~f:(E.set buf) t
 
 end
 
@@ -108,32 +78,6 @@ module Option (E: S) = struct
   let of_json = function
     | `Null -> None
     | j     -> Some (E.of_json j)
-
-  let sizeof t =
-    L.debug (lazy "sizeof");
-    1 + match t with
-      | None   -> 0
-      | Some e -> E.sizeof e
-
-  let none = 0
-  let some = 1
-
-  let get buf =
-    L.debug (lazy "get");
-    let h = Mstruct.get_uint8 buf in
-    if Int.(h = none) then Some None
-    else match E.get buf with
-      | None   -> None
-      | Some v -> Some (Some v)
-
-  let set buf t =
-    L.debugf "set %s" (pretty t);
-    match t with
-    | None   ->
-      Mstruct.set_uint8 buf none
-    | Some e ->
-      Mstruct.set_uint8 buf some;
-      E.set buf e
 
 end
 
@@ -174,24 +118,6 @@ module Pair (K: S) (V: S) = struct
       (K.of_json key, V.of_json value)
     | _ -> Mstruct.parse_error "Pair.of_json: not an object"
 
-  let sizeof (key, value) =
-    let k = K.sizeof key in
-    let v = V.sizeof value in
-    L.debugf "sizeof k:%d v:%d" k v;
-    k+v
-
-  let get buf =
-    L.debugf "get";
-    match K.get buf, V.get buf with
-    | Some k, Some v -> Some (k, v)
-    | _              -> None
-
-  let set buf (key, value as t) =
-    L.debugf "set %s" (pretty t);
-    Mstruct.dump buf;
-    K.set buf key;
-    V.set buf value
-
 end
 
 module String = struct
@@ -209,26 +135,5 @@ module String = struct
 
   let of_json j =
     Ezjsonm.get_string j
-
-  let sizeof s =
-    4 + String.length s
-
-  let get buf =
-    L.debug (lazy "get");
-    Mstruct.dump ~msg:"-->" ~level:Log.DEBUG buf;
-    try
-      let len = Mstruct.get_be_uint32 buf in
-      L.debugf "|-- get (%ld)" len;
-      let t = Mstruct.get_string buf (Int32.to_int_exn len) in
-      L.debugf "<-- get %s" t;
-      Some t
-    with _ ->
-      None
-
-  let set buf t =
-    L.debugf "set %s" (pretty t);
-    let len = String.length t in
-    Mstruct.set_be_uint32 buf (Int32.of_int_exn len);
-    Mstruct.set_string buf t
 
 end

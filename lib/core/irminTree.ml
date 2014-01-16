@@ -96,31 +96,11 @@ module S (K: IrminKey.S) = struct
     let blob, children = XTree.of_json j in
     { blob; children }
 
-  (* |-----|---------| *)
-  (* | 'T' | PAYLOAD | *)
-  (* |-----|---------| *)
-
-  let header = "T"
-
-  let sizeof t =
-    1 + XTree.sizeof (t.blob, t.children)
-
-  let set buf t =
-    Mstruct.set_string buf header;
-    XTree.set buf (t.blob, t.children)
-
-  let get buf =
-    let h = Mstruct.get_string buf 1 in
-    if String.(header <> h) then None
-    else match XTree.get buf with
-      | None                  -> None
-      | Some (blob, children) -> Some { blob; children }
-
   let merge ~old:_ _ _ =
     failwith "Tree.merge: TODO"
 
   let of_bytes str =
-    get (Mstruct.of_string str)
+    IrminMisc.read bin_t (Bigstring.of_string str)
 
   let of_bytes_exn str =
     match of_bytes str with
@@ -128,10 +108,7 @@ module S (K: IrminKey.S) = struct
     | Some t -> t
 
   let key t =
-    let n = sizeof t in
-    let buf = Mstruct.create n in
-    set buf t;
-    K.of_bigarray (Mstruct.to_bigarray buf)
+    K.of_bigarray (IrminMisc.write bin_t t)
 
 end
 

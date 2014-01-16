@@ -41,7 +41,7 @@ module Simple  = struct
   let pretty t =
     Printf.sprintf "%S" t
 
-  let module_name = "Blob"
+  let name = "blob"
 
   let of_bytes s = Some s
 
@@ -57,24 +57,6 @@ module Simple  = struct
         match compare old t2 with
         | 0 -> t1
         | _ -> raise Conflict
-
-  (* |-----|---------| *)
-  (* | 'S' | PAYLOAD | *)
-  (* |-----|---------| *)
-
-  let sizeof t =
-    1 + sizeof t
-
-  let header = "B"
-
-  let set buf t =
-    Mstruct.set_string buf header;
-    set buf t
-
-  let get buf =
-    let h = Mstruct.get_string buf 1 in
-    if header = h then get buf
-    else None
 
 end
 

@@ -39,16 +39,6 @@ module type S = sig
   val to_json: t -> Ezjsonm.t
   (** Convert to JSON *)
 
-  val sizeof: t -> int
-  (** Size of serialized value (to pre-allocate bufIO). *)
-
-  val get: Mstruct.t -> t option
-  (** Unmarshal from a buffer. Return [None] if it is not a valid
-      marshaled value. *)
-
-  val set: Mstruct.t -> t -> unit
-  (** Marshal to a buffer. *)
-
 end
 
 (** {2 Lifts} *)
