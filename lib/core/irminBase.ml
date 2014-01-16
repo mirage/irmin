@@ -202,8 +202,7 @@ module String = struct
 
   let name = "string"
 
-  let pretty t =
-    Printf.sprintf "%S" t
+  let pretty t = t
 
   let to_json t =
     Ezjsonm.string t

@@ -21,31 +21,34 @@ let uri = Uri.of_string "http://127.0.0.1:8080"
 
 let suite server =
   let server_pid = ref 0 in
-  {
-    name = Printf.sprintf "CRUD.%s" server.name;
+  { name = Printf.sprintf "CRUD.%s" server.name;
 
     init = begin fun () ->
+      let (module Server) = server.store in
       let server () =
-        server.init ()    >>= fun () ->
-        let (module Server) = server.store in
+        server.init ()   >>= fun () ->
         Server.create () >>= fun t  ->
-        IrminHTTP.start_server (module Server) t uri in
+        IrminHTTP.start_server (module Server) t uri
+      in
       Lwt_io.flush_all () >>= fun () ->
       match Lwt_unix.fork () with
       | 0   ->
         Lwt_unix.set_default_async_method Lwt_unix.Async_none;
         server ()
-      | pid -> server_pid := pid; Lwt_unix.sleep 1.
+      | pid ->
+        server_pid := pid;
+        Lwt_unix.sleep 1.
     end;
 
     clean = begin fun () ->
       IrminHTTP.stop_server uri >>= fun () ->
       Unix.kill !server_pid 9;
-      server.clean ();
-  end;
+      server.clean () >>= fun () ->
+      return_unit
+    end;
 
-  store =
-    let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
-    let module S = (val CRUD.simple uri) in
-    (module S: Irmin.S);
-}
+    store =
+      let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
+      let module S = (val CRUD.simple uri) in
+      (module S: Irmin.S);
+  }

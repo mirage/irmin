@@ -38,6 +38,9 @@ module Simple  = struct
 
   include IrminBase.String
 
+  let pretty t =
+    Printf.sprintf "%S" t
+
   let module_name = "Blob"
 
   let of_bytes s = Some s

@@ -24,10 +24,15 @@ end
 module Simple = struct
 
   include IrminBase.String
-  let module_name = "Tag"
+
+  let name = "reference"
+
   let master = "master"
+
   let of_pretty x = x
+
   let of_bytes x = x
+
   let of_bigarray x =
     of_bytes (IrminMisc.string_of_bigarray x)
 

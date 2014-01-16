@@ -92,8 +92,7 @@ module Server (S: Irmin.S) = struct
     output = R.to_json;
   }
 
-  module D = IrminDump.S(K)(B)
-
+  module D = S.Dump
   let dump = {
     input  = D.of_json;
     output = D.to_json;
@@ -295,7 +294,7 @@ module Server (S: Irmin.S) = struct
       mklp0bf "export"   S.export   t (list key) dump;
       mk0p1bf "import"   S.import   t dump unit;
       mklp0bs "watch"    S.watch    t path (pair path key);
-      "value" , blob_store;
+      "blob"  , blob_store;
       "tree"  , tree_store;
       "commit", commit_store;
       "ref"   , reference_store;
@@ -366,4 +365,6 @@ let stop_server uri =
     Lwt_unix.socket
       (Unix.domain_of_sockaddr sockaddr)
       Unix.SOCK_STREAM 0 in
-  Lwt_unix.close sock
+  Lwt_unix.close sock >>= fun () ->
+  L.debugf "Connection to %s closed." (Uri.to_string uri);
+  return_unit
