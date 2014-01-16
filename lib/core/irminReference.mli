@@ -27,7 +27,7 @@ module type S = sig
 
 end
 
-module Simple: S with type t = string
+module Simple: S
 (** Simple references are strings. *)
 
 (** {2 Store} *)

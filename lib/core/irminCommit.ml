@@ -25,10 +25,10 @@ module L = Log.Make(struct let section = "COMMIT" end)
 
 module type S = sig
   type key
-  include IrminBase.S with type t = key t
+  include IrminBlob.S with type key := key and type t = key t
 end
 
-module S (K: IrminBase.S) = struct
+module S (K: IrminKey.S) = struct
 
   type key = K.t
 
@@ -86,6 +86,23 @@ module S (K: IrminBase.S) = struct
     else match XCommit.get buf with
       | None                 -> None
       | Some (tree, parents) -> Some { tree; parents }
+
+  let merge ~old:_ _ _ =
+    failwith "Commit.merge: TODO"
+
+  let of_bytes str =
+    get (Mstruct.of_string str)
+
+  let of_bytes_exn str =
+    match of_bytes str with
+    | None   -> raise (IrminBlob.Invalid str)
+    | Some b -> b
+
+  let key t =
+    let n = sizeof t in
+    let buf = Mstruct.create n in
+    set buf t;
+    K.of_bigarray (Mstruct.to_bigarray buf)
 
 end
 

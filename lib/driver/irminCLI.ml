@@ -263,8 +263,8 @@ let write = {
     let write (module S: Irmin.SIMPLE) args =
       let path, value = match args with
         | []            -> failwith "Not enough arguments"
-        | [path; value] -> IrminPath.of_string path, S.Value.of_bytes value
-        | [value]       -> [], S.Value.of_bytes value
+        | [path; value] -> IrminPath.of_string path, S.Value.of_bytes_exn value
+        | [value]       -> [], S.Value.of_bytes_exn value
         | _             -> failwith "Too many arguments" in
       run begin
         S.create () >>= fun t ->

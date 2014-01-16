@@ -34,12 +34,12 @@ module type S = sig
   type blob
   (** Blobs. *)
 
-  include IrminBase.S with type t = (key, blob) t
+  include IrminBlob.S with type key := key and type t = (key, blob) t
   (** Base functions over structured values. *)
 
 end
 
-module S (K: IrminBase.S) (B: IrminBase.S): S with type key = K.t and type blob = B.t
+module S (K: IrminKey.S) (B: IrminBlob.S): S with type key = K.t and type blob = B.t
 
 module Simple: S with type key = IrminKey.SHA1.t and type blob = IrminBlob.Simple.t
 (** Simple blobs, with SHA1 keys. *)

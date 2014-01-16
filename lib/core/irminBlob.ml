@@ -18,12 +18,14 @@
 module L = Log.Make(struct let section = "VALUE" end)
 
 exception Conflict
+exception Invalid of string
 
 module type S = sig
   include IrminBase.S
   type key
   val key: t -> key
-  val of_bytes: string -> t
+  val of_bytes: string -> t option
+  val of_bytes_exn: string -> t
   val merge: old:t -> t -> t -> t
 end
 
@@ -38,7 +40,9 @@ module Simple  = struct
 
   let module_name = "Blob"
 
-  let of_bytes s = s
+  let of_bytes s = Some s
+
+  let of_bytes_exn s = s
 
   let merge ~old t1 t2 =
     match compare t1 t2 with

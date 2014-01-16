@@ -33,7 +33,7 @@ let empty = {
 
 module type S = sig
   type key
-  include IrminBase.S with type t = key t
+  include IrminBlob.S with type key := key and type t = key t
 end
 
 module type STORE = sig
@@ -56,9 +56,10 @@ module type STORE = sig
   module Value: S with type key = key
 end
 
-module S (K: IrminBase.S) = struct
+module S (K: IrminKey.S) = struct
 
   type key = K.t
+
   module M = struct
     type nonrec t = K.t t
     with bin_io, compare, sexp
@@ -115,6 +116,22 @@ module S (K: IrminBase.S) = struct
       | None                  -> None
       | Some (blob, children) -> Some { blob; children }
 
+  let merge ~old:_ _ _ =
+    failwith "Tree.merge: TODO"
+
+  let of_bytes str =
+    get (Mstruct.of_string str)
+
+  let of_bytes_exn str =
+    match of_bytes str with
+    | None   -> raise (IrminBlob.Invalid str)
+    | Some t -> t
+
+  let key t =
+    let n = sizeof t in
+    let buf = Mstruct.create n in
+    set buf t;
+    K.of_bigarray (Mstruct.to_bigarray buf)
 
 end
 

@@ -23,7 +23,7 @@ module type S = sig
   include IrminBase.S with type t = (key, blob) t
 end
 
-module S (K: IrminBase.S) (B: IrminBase.S) = struct
+module S (K: IrminKey.S) (B: IrminBlob.S) = struct
   type key = K.t
   type blob = B.t
   module V = IrminValue.S(K)(B)

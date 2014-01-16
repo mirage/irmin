@@ -32,7 +32,6 @@ module SHA1 = struct
 
   include String
 
-  let module_name = "Key.SHA1"
   let name = "key"
 
   let len = 20
@@ -88,6 +87,7 @@ module SHA1 = struct
     IrminMisc.sha1 str
 
   let of_bigarray ba =
+    (* XXX: avoid copies *)
     of_bytes (IrminMisc.string_of_bigarray ba)
 
 end

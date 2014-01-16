@@ -25,15 +25,15 @@ with bin_io, compare, sexp
 module type S = sig
   type key
   type blob
-  include IrminBase.S with type t = (key, blob) t
+  include IrminBlob.S with type key := key and type t = (key, blob) t
 end
 
-module S (K: IrminBase.S) (B: IrminBase.S) = struct
+module S (K: IrminKey.S) (B: IrminBlob.S) = struct
 
   type key = K.t
   type blob = B.t
 
-  module L = Log.Make(struct let section = "DUMP" end)
+  module L = Log.Make(struct let section = "VALUE" end)
 
   module M = struct
     type nonrec t = (K.t, B.t) t
@@ -83,21 +83,23 @@ module S (K: IrminBase.S) (B: IrminBase.S) = struct
   let header = "IRMIN00"
 
   let sizeof t =
-    8 + match t with
+    String.length header +
+    match t with
     | Blob v   -> Blob.sizeof v
     | Tree t   -> Tree.sizeof t
     | Commit r -> Commit.sizeof r
 
   let get buf =
-    L.debug (lazy "get");
-    let h = Mstruct.get_string buf 8 in
+    L.debugf "get";
+    let h = Mstruct.get_string buf (String.length header) in
     if String.(h = header) then
       (* XXX: very fragile *)
       match Mstruct.pick_string buf 1 with
       | Some "B" -> (match Blob.get buf   with None -> None | Some v -> Some (Blob v))
       | Some "T" -> (match Tree.get buf   with None -> None | Some t -> Some (Tree t))
       | Some "C" -> (match Commit.get buf with None -> None | Some r -> Some (Commit r))
-      | _        -> None
+      | Some x   -> L.debugf "pick: %s" x; None
+      | None     -> L.debugf "pick: None"; None
     else
       None
 
@@ -108,6 +110,23 @@ module S (K: IrminBase.S) (B: IrminBase.S) = struct
     | Blob v   -> Blob.set buf v
     | Tree t   -> Tree.set buf t
     | Commit r -> Commit.set buf r
+
+  let merge ~old:_ _ _ =
+    failwith "Value.merge: TODO"
+
+  let of_bytes str =
+    get (Mstruct.of_string str)
+
+  let of_bytes_exn str =
+    match of_bytes str with
+    | None   -> raise (IrminBlob.Invalid str)
+    | Some b -> b
+
+  let key t =
+    let n = sizeof t in
+    let buf = Mstruct.create n in
+    set buf t;
+    K.of_bigarray (Mstruct.to_bigarray buf)
 
 end
 

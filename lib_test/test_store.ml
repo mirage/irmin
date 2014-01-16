@@ -40,17 +40,27 @@ module Make (S: Irmin.S) = struct
       Lwt_unix.run (x.clean ());
       raise e
 
-  let v1 = B.of_bytes "foo"
-  let v2 = B.of_bytes ""
+  type e = {
+    v1: B.t;
+    v2: B.t;
+    kv1: K.t;
+    kv2: K.t;
+    r1: R.t;
+    r2: R.t;
+  }
 
-  let kv1 = B.key v1
-  let kv2 = B.key v2
-
-  let r1 = R.of_bytes "foo"
-  let r2 = R.of_bytes "bar"
+  let mk () =
+    let v1 = B.of_bytes_exn "foo" in
+    let v2 = B.of_bytes_exn "" in
+    let kv1 = V.key (IrminValue.Blob v1) in
+    let kv2 = V.key (IrminValue.Blob v2) in
+    let r1 = R.of_bytes "foo" in
+    let r2 = R.of_bytes "bar" in
+    { v1; v2; kv1; kv2; r1; r2 }
 
   let test_blobs x () =
     let test () =
+      let { v1; v2; kv1; kv2 } = mk () in
       create ()                    >>= fun t    ->
       let v = blob t in
       Blob.add v v1                >>= fun k1'  ->
@@ -71,6 +81,7 @@ module Make (S: Irmin.S) = struct
 
   let test_trees x () =
     let test () =
+      let { v1; v2 } = mk () in
       create () >>= fun t  ->
       let tree = tree t in
 
@@ -134,6 +145,7 @@ module Make (S: Irmin.S) = struct
 
   let test_commits x () =
     let test () =
+      let { v1 } = mk () in
       create () >>= fun t   ->
       let tree = tree t in
       let commit = commit t in
@@ -169,6 +181,7 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_references x () =
+    let { kv1; kv2; r1; r2 } = mk () in
     let test () =
       create ()              >>= fun t   ->
       let reference = reference t in
@@ -193,6 +206,7 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_stores x () =
+    let { v1; v2 } = mk () in
     let test () =
       create ()             >>= fun t   ->
       update t ["a";"b"] v1 >>= fun ()  ->
@@ -230,6 +244,7 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_sync x () =
+    let { v1; v2 } = mk () in
     let test () =
       create ()              >>= fun t1 ->
       update t1 ["a";"b"] v1 >>= fun () ->
@@ -272,8 +287,8 @@ module Make (S: Irmin.S) = struct
            revert t2 r2      >>= fun () ->
            mem t2 ["a";"d"]  >>= fun b4 ->
            assert_bool_equal "mem-ab" false b4;
-           return_unit
-        ) in
+           return_unit)
+    in
     run x test
 
 end

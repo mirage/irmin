@@ -61,9 +61,9 @@ module Make (S: Irmin.S) = struct
     aux (cmp_opt equal) (printer_opt pretty),
     aux (cmp_list equal compare) (printer_list pretty)
 
-
+  module K = Internal.Key
   let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
-    mk Internal.Key.equal Internal.Key.compare Internal.Key.pretty
+    mk K.equal K.compare K.pretty
 
   module Blob = Internal.Blob
   module B = Blob.Value
@@ -87,6 +87,8 @@ module Make (S: Irmin.S) = struct
   module P = IrminPath
   let assert_path_equal, assert_path_opt_equal, assert_paths_equal =
     mk P.equal P.compare P.pretty
+
+  module V = Internal.Value
 
   let assert_bool_equal, assert_bool_opt_equal, assert_bools_equal =
     mk (=) compare string_of_bool

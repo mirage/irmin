@@ -79,13 +79,6 @@ let write_string t str =
     rwrite t.fd str 0 (String.length str)
   end
 
-let dump buf =
-  if Log.get_log_level () = Log.DEBUG then (
-    let b = Buffer.create 1024 in
-    Cstruct.hexdump_to_buffer b (Cstruct.of_bigarray buf);
-    L.debugf "<-- %S" (Buffer.contents b)
-  )
-
 let read_bigarray t len =
   L.debugf "read_ba %s (%d)" t.name len;
   if len = 0 then return (Cstruct.create 0).Cstruct.buffer
@@ -98,13 +91,11 @@ let read_bigarray t len =
       else if n < len then rread fd buf (ofs + n) (len - n)
       else return () in
     rread t.fd buf 0 len >>= fun () ->
-    dump buf;
     return buf
   end
 
 let write_bigarray t ba =
   L.debugf "write_ba %s" t.name;
-  dump ba;
   let rec rwrite fd buf ofs len =
     L.debugf " ... write_buf %d" len;
     Lwt_bytes.write fd buf ofs len >>= fun n ->
@@ -138,7 +129,6 @@ let read_buffer t =
 
 let write_buffer t buf =
   L.debugf "write_buffer %s" t.name;
-  Mstruct.dump ~msg:"<--" ~level:Log.DEBUG buf;
   let ba = Mstruct.to_bigarray buf in
   let len = Bigarray.Array1.dim ba in
   write_contents_length t len >>= fun () ->

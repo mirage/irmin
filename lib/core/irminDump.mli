@@ -34,6 +34,6 @@ module type S = sig
 
 end
 
-module S (K: IrminBase.S) (B: IrminBase.S):
+module S (K: IrminKey.S) (B: IrminBlob.S):
   S with type key = K.t and type blob = B.t
 (** Base functions over dump values. *)

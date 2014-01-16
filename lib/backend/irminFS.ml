@@ -178,7 +178,6 @@ module RO (S: S) (K: IrminKey.S) = struct
                  (S.file_of_key key)
                  (fun fd ->
                     read_full_ba fd >>= fun ba ->
-                    L.debugf "--> read %s" (pretty_value ba);
                     return (Some ba))
     | false -> return_none
 

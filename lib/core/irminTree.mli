@@ -33,14 +33,14 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include IrminBase.S with type t = key t
+  include IrminBlob.S with type key := key and type t = key t
 
 end
 
-module S (K: IrminBase.S): S with type key = K.t
+module S (K: IrminKey.S): S with type key = K.t
 (** Base functions for trees. *)
 
-module SHA1: IrminBase.S with type t = IrminKey.SHA1.t t
+module SHA1: S with type key = IrminKey.SHA1.t
 (** Simple tree implementation, where keys are SHA1s. *)
 
 module type STORE = sig

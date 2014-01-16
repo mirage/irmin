@@ -29,12 +29,12 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include IrminBase.S with type t = key t
+  include IrminBlob.S with type key := key and type t = key t
   (** Base functions over commit objects. *)
 
 end
 
-module S (K: IrminBase.S): S with type key = K.t
+module S (K: IrminKey.S): S with type key = K.t
 
 module SHA1: S with type key = IrminKey.SHA1.t
 (** Simple implementation where keys are SHA1s. *)

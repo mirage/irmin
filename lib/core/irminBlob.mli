@@ -21,6 +21,9 @@
 exception Conflict
 (** Exception raised during merge conflicts. *)
 
+exception Invalid of string
+(** Invalid parsing. *)
+
 module type S = sig
 
   (** Signature for values. *)
@@ -34,8 +37,13 @@ module type S = sig
   val key: t -> key
   (** Compute the blob key. *)
 
-  val of_bytes: string -> t
-  (** Convert a raw sequence of bytes into a value. *)
+  val of_bytes: string -> t option
+  (** Convert a raw sequence of bytes into a value. Return [None] if
+      the sequence cannot be decoded. *)
+
+  val of_bytes_exn: string -> t
+  (** Same as [of_bytes] but raise [Invalid] if the sequence of bytes
+      does not correspond to a valid blob. *)
 
   val merge: old:t -> t -> t -> t
   (** Merge function. *)
@@ -43,7 +51,6 @@ module type S = sig
 end
 
 module Simple: S with type key = IrminKey.SHA1.t
-                  and type t = string
 (** String values with SHA1 hashes, where only the last modified value
     is kept on merge. If the value has been modified concurrently, the
     [merge] function raises [Conflict]. *)
