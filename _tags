@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9038f19f56b9c1c7c2388d77b051915a)
+# DO NOT EDIT (digest: dce24033a43cbe4eb6c75053df38b5c8)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -33,6 +33,7 @@
 <lib/backend/*.ml{,i}>: use_backend
 <lib/backend/*.ml{,i}>: use_irminsule
 <lib/backend/*.ml{,i}>: pkg_cohttp.lwt
+<lib/backend/*.ml{,i}>: pkg_lwt.unix
 <lib/backend/*.ml{,i}>: pkg_uri
 <lib/backend/*.ml{,i}>: pkg_ezjsonm.lwt
 <lib/backend/*.ml{,i}>: pkg_ezjsonm

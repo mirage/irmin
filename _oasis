@@ -47,8 +47,8 @@ Library fs
   Path: lib/backend
   Findlibname: fs
   FindlibParent: backend
-  BuildDepends: uri, irminsule.backend, irminsule
-  Modules: IrminChannel, IrminFS
+  BuildDepends: lwt.unix, uri, irminsule.backend, irminsule
+  Modules: IrminFS
 
 #  Library git
 #  Build$: flag(git)

@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
 open Lwt
 
 module L = Log.Make(struct let section = "FS" end)
@@ -21,13 +22,13 @@ module L = Log.Make(struct let section = "FS" end)
 exception Error of string
 
 let error fmt =
-  Printf.kprintf (fun str ->
+  Printf.ksprintf (fun str ->
       Printf.eprintf "fatal: %s\n%!" str;
       fail (Error str)
     ) fmt
 
 let warning fmt =
-  Printf.kprintf (fun str ->
+  Printf.ksprintf (fun str ->
       Printf.eprintf "%s\n%!" str
     ) fmt
 
@@ -36,7 +37,7 @@ let (/) = Filename.concat
 let basenames fn dir =
   let files = Lwt_unix.files_of_directory dir in
   Lwt_stream.to_list files >>= fun files ->
-  let files = List.filter (fun f -> f <> "." && f <> "..") files in
+  let files = List.filter ~f:(fun f -> f <> "." && f <> "..") files in
   Lwt_list.map_s (fun f ->
       let b = Filename.basename f in
       return (fn b)
@@ -66,26 +67,45 @@ let check (D root) =
     return_unit
   end
 
-let with_file file fn =
-  L.debugf "with_file %s" file;
-  mkdir (Filename.dirname file);
-  Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
-  let t = IrminChannel.create fd file in
+let with_file_in file fn =
+  L.debugf "with_file_in %s" file;
+  let fd = Unix.(openfile file [O_RDONLY; O_NONBLOCK] 0o644) in
   try
-    fn t >>= fun r ->
-    IrminChannel.close t >>= fun () ->
+    let r = fn fd in
+    Unix.close fd;
     return r
   with e ->
-    IrminChannel.close t >>= fun () ->
+    Unix.close fd;
     fail e
 
-let with_maybe_file file fn default =
+let with_file_out file fn =
+  L.debugf "with_file_out %s" file;
+  mkdir (Filename.dirname file);
+  Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
+  try
+    fn fd >>= fun r ->
+    Lwt_unix.close fd >>= fun () ->
+    return r
+  with e ->
+    Lwt_unix.close fd >>= fun () ->
+    fail e
+
+let with_maybe_file_in file fn default =
   if Sys.file_exists file then
-    with_file file fn
+    with_file_in file fn
   else (
     L.debugf "with_maybe_file: %s does not exist, skipping" file;
     return default
   )
+
+let write_bigstring fd ba =
+  let rec rwrite fd buf ofs len =
+    L.debugf " ... write_buf %d" len;
+    Lwt_bytes.write fd buf ofs len >>= fun n ->
+    if n = 0 then fail End_of_file
+    else if n < len then rwrite fd buf (ofs + n) (len - n)
+    else return () in
+  rwrite fd ba 0 (Bigarray.Array1.dim ba)
 
 module type S = sig
   val path: string
@@ -161,24 +181,21 @@ module RO (S: S) (K: IrminKey.S) = struct
     let file = S.file_of_key key in
     return (Sys.file_exists file)
 
-  let read_full_ba fd =
-    IrminChannel.read_buffer fd >>= fun buf ->
-    return (Mstruct.to_bigarray buf)
+  let read_bigstring fd =
+    Lwt_bytes.map_file ~fd ~shared:false ()
 
   let read_exn t key =
     L.debugf "read_exn %s" (pretty_key key);
     mem t key >>= function
-    | true  -> with_file (S.file_of_key key) read_full_ba
+    | true  -> with_file_in (S.file_of_key key) read_bigstring
     | false -> unknown key
 
   let read t key =
     L.debugf "read %s" (pretty_key key);
     mem t key >>= function
-    | true  -> with_file
-                 (S.file_of_key key)
-                 (fun fd ->
-                    read_full_ba fd >>= fun ba ->
-                    return (Some ba))
+    | true  ->
+      with_file_in (S.file_of_key key) read_bigstring >>= fun ba ->
+      return (Some ba)
     | false -> return_none
 
   let list t k =
@@ -208,9 +225,8 @@ module AO (S: S) (K: IrminKey.S) = struct
     begin if Sys.file_exists file then
         return_unit
       else
-        let value = Mstruct.of_bigarray value in
-        with_file file (fun fd ->
-            IrminChannel.write_buffer fd value
+        with_file_out file (fun fd ->
+            write_bigstring fd value
           )
     end >>= fun () ->
     return key
@@ -232,9 +248,8 @@ module RW (S: S) (K: IrminKey.S) = struct
     L.debugf "update %s %s" (pretty_key key) (pretty_value value);
     check t >>= fun () ->
     remove t key >>= fun () ->
-    with_file (S.file_of_key key) (fun fd ->
-        let buf = Mstruct.of_bigarray value in
-        IrminChannel.write_buffer fd buf
+    with_file_out (S.file_of_key key) (fun fd ->
+        write_bigstring fd value
       )
 
 end

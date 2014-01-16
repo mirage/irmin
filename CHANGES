@@ -1,4 +1,5 @@
 0.4:
+* Use `Lwt_bytes` and `Lwt_unix` instead of the custom-made `IrminChannel`
 * Use `bin_prot` instead of a custom binary protocol
 * Major refactoring: `Value` is now `Blob`, `Revision` is now `Commit`
    and `Tag` becomes `Reference` (rational: consistency with Git names)

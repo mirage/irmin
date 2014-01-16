@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6b7516cfd58cb5913cf6d6ed2373c484)
+# DO NOT EDIT (digest: 1a5bde5810776c2f9607b79b2cab9049)
 version = "0.4.0"
 description = "A Distributed Version Control Database"
 requires =
@@ -33,7 +33,7 @@ package "backend" (
  package "fs" (
   version = "0.4.0"
   description = "A Distributed Version Control Database"
-  requires = "uri irminsule.backend irminsule"
+  requires = "lwt.unix uri irminsule.backend irminsule"
   archive(byte) = "fs.cma"
   archive(byte, plugin) = "fs.cma"
   archive(native) = "fs.cmxa"
