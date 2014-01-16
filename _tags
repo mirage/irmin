@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9af4c12356398e7eb7526794998e2919)
+# DO NOT EDIT (digest: 9038f19f56b9c1c7c2388d77b051915a)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -18,9 +18,7 @@
 <lib/core/*.ml{,i}>: pkg_ezjsonm
 <lib/core/*.ml{,i}>: pkg_ocamlgraph
 <lib/core/*.ml{,i}>: pkg_lwt
-<lib/core/*.ml{,i}>: pkg_ocplib-endian
 <lib/core/*.ml{,i}>: pkg_cryptokit
-<lib/core/*.ml{,i}>: pkg_cstruct
 <lib/core/*.ml{,i}>: pkg_re.str
 <lib/core/*.ml{,i}>: pkg_dolog
 <lib/core/*.ml{,i}>: pkg_mstruct
@@ -40,9 +38,7 @@
 <lib/backend/*.ml{,i}>: pkg_ezjsonm
 <lib/backend/*.ml{,i}>: pkg_ocamlgraph
 <lib/backend/*.ml{,i}>: pkg_lwt
-<lib/backend/*.ml{,i}>: pkg_ocplib-endian
 <lib/backend/*.ml{,i}>: pkg_cryptokit
-<lib/backend/*.ml{,i}>: pkg_cstruct
 <lib/backend/*.ml{,i}>: pkg_re.str
 <lib/backend/*.ml{,i}>: pkg_dolog
 <lib/backend/*.ml{,i}>: pkg_mstruct
@@ -65,9 +61,7 @@
 <lib/server/*.ml{,i}>: pkg_ezjsonm
 <lib/server/*.ml{,i}>: pkg_ocamlgraph
 <lib/server/*.ml{,i}>: pkg_lwt
-<lib/server/*.ml{,i}>: pkg_ocplib-endian
 <lib/server/*.ml{,i}>: pkg_cryptokit
-<lib/server/*.ml{,i}>: pkg_cstruct
 <lib/server/*.ml{,i}>: pkg_re.str
 <lib/server/*.ml{,i}>: pkg_dolog
 <lib/server/*.ml{,i}>: pkg_mstruct
@@ -91,9 +85,7 @@
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm
 <lib/driver/irminMain.{native,byte}>: pkg_ocamlgraph
 <lib/driver/irminMain.{native,byte}>: pkg_lwt
-<lib/driver/irminMain.{native,byte}>: pkg_ocplib-endian
 <lib/driver/irminMain.{native,byte}>: pkg_cryptokit
-<lib/driver/irminMain.{native,byte}>: pkg_cstruct
 <lib/driver/irminMain.{native,byte}>: pkg_re.str
 <lib/driver/irminMain.{native,byte}>: pkg_dolog
 <lib/driver/irminMain.{native,byte}>: pkg_mstruct
@@ -116,9 +108,7 @@
 <lib/driver/*.ml{,i}>: pkg_ezjsonm
 <lib/driver/*.ml{,i}>: pkg_ocamlgraph
 <lib/driver/*.ml{,i}>: pkg_lwt
-<lib/driver/*.ml{,i}>: pkg_ocplib-endian
 <lib/driver/*.ml{,i}>: pkg_cryptokit
-<lib/driver/*.ml{,i}>: pkg_cstruct
 <lib/driver/*.ml{,i}>: pkg_re.str
 <lib/driver/*.ml{,i}>: pkg_dolog
 <lib/driver/*.ml{,i}>: pkg_mstruct
@@ -142,9 +132,7 @@
 <lib_test/test.{native,byte}>: pkg_ezjsonm
 <lib_test/test.{native,byte}>: pkg_ocamlgraph
 <lib_test/test.{native,byte}>: pkg_lwt
-<lib_test/test.{native,byte}>: pkg_ocplib-endian
 <lib_test/test.{native,byte}>: pkg_cryptokit
-<lib_test/test.{native,byte}>: pkg_cstruct
 <lib_test/test.{native,byte}>: pkg_re.str
 <lib_test/test.{native,byte}>: pkg_dolog
 <lib_test/test.{native,byte}>: pkg_mstruct
@@ -167,9 +155,7 @@
 <lib_test/*.ml{,i}>: pkg_ezjsonm
 <lib_test/*.ml{,i}>: pkg_ocamlgraph
 <lib_test/*.ml{,i}>: pkg_lwt
-<lib_test/*.ml{,i}>: pkg_ocplib-endian
 <lib_test/*.ml{,i}>: pkg_cryptokit
-<lib_test/*.ml{,i}>: pkg_cstruct
 <lib_test/*.ml{,i}>: pkg_re.str
 <lib_test/*.ml{,i}>: pkg_dolog
 <lib_test/*.ml{,i}>: pkg_mstruct
