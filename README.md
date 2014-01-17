@@ -14,7 +14,7 @@ on top of Xen.
 opam install ezjsonm ocamlgraph lwt cryptokit \
              re dolog mstruct core_kernel \
              uri cohttp ssl \
-             core_kernel cmldiner
+             core_kernel cmdliner
 make
 make install
 ```
