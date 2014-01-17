@@ -8,6 +8,8 @@ Irminsule is written in pure OCaml. It can thus be compiled to Javascript
 -- and run in the browsers; or into a Mirage microkernel -- and run directly
 on top of Xen.
 
+[![Build Status](https://travis-ci.org/samoht/irminsule.png?branch=master)](https://travis-ci.org/samoht/irminsule)
+
 ### Build & Install
 
 ```
