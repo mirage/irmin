@@ -13,8 +13,8 @@ on top of Xen.
 ```
 opam install ezjsonm ocamlgraph lwt cryptokit \
              re dolog mstruct core_kernel \
-             uri cohttp ssl \
-             core_kernel cmldiner
+             uri cohttp ssl core_kernel \
+             cmdliner alcotest
 make
 make install
 ```
