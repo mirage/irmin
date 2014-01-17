@@ -1,10 +1,8 @@
 # OPAM packages needed to build tests.
-OPAM_PACKAGES=" ezjsonm ocamlgraph lwt cryptokit \
-                re dolog mstruct core_kernel \
-                uri cohttp ssl \
-                core_kernel cmldiner"
+OPAM_PACKAGES="ezjsonm ocamlgraph lwt cryptokit re dolog mstruct core_kernel uri \
+               cohttp ssl core_kernel cmldiner"
 
-ppa=avsm/ocaml41+opam11 ;;
+ppa=avsm/ocaml41+opam11
 echo "yes" | sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
 sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
