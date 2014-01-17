@@ -16,7 +16,7 @@ Flag git
   Default: false
 
 Flag unix
-  Description: build the Xen library
+  Description: build the Unix library
   Default: true
 
 Flag test
