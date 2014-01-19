@@ -23,6 +23,9 @@ type 'key t = {
 } with bin_io, compare, sexp
 (** Type of trees .*)
 
+val of_json: (Ezjsonm.t -> 'a) -> Ezjsonm.t -> 'a t
+val to_json: ('a -> Ezjsonm.t) -> 'a t -> Ezjsonm.t
+
 val empty: 'key t
 (** The empty tree. *)
 
@@ -33,7 +36,7 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include IrminBlob.S with type key := key and type t = key t
+  include IrminBlob.S with type t = key t
 
 end
 
@@ -101,7 +104,7 @@ end
 
 module Make
     (K: IrminKey.S)
-    (B: IrminBlob.S with type key = K.t)
+    (B: IrminBlob.S)
     (Blob: IrminStore.AO with type key = K.t and type value = B.t)
     (Tree: IrminStore.AO with type key = K.t and type value = K.t t)
   : STORE with type t = Blob.t * Tree.t

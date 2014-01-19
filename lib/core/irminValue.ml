@@ -22,10 +22,22 @@ type ('key, 'blob) t =
   | Commit of 'key IrminCommit.t
 with bin_io, compare, sexp
 
+let to_json json_of_key json_of_blob = function
+  | Blob b   -> `O [ "blob"  , json_of_blob b ]
+  | Tree t   -> `O [ "tree"  , IrminTree.to_json json_of_key t ]
+  | Commit c -> `O [ "commit", IrminCommit.to_json json_of_key c]
+
+let of_json key_of_json blob_of_json json =
+  match Ezjsonm.get_dict json with
+  | [ "blob"  , b ] -> Blob (blob_of_json b)
+  | [ "tree"  , t ] -> Tree (IrminTree.of_json key_of_json t)
+  | [ "commit", c ] -> Commit (IrminCommit.of_json key_of_json c)
+  | _ -> failwith ("error: Value.of_json " ^ Ezjsonm.to_string json)
+
 module type S = sig
   type key
   type blob
-  include IrminBlob.S with type key := key and type t = (key, blob) t
+  include IrminBlob.S with type t = (key, blob) t
 end
 
 module S (K: IrminKey.S) (B: IrminBlob.S) = struct
@@ -54,27 +66,11 @@ module S (K: IrminKey.S) (B: IrminBlob.S) = struct
 
   module Commit = IrminCommit.S(K)
 
-  let pretty = function
-    | Blob b   -> Blob.pretty b
-    | Tree t   -> Tree.pretty t
-    | Commit r -> Commit.pretty r
+  let of_json =
+    of_json K.of_json B.of_json
 
-  let of_json = function
-    | `O json ->
-      let mem = List.Assoc.mem json in
-      let find = List.Assoc.find_exn json in
-      begin match mem "blob", mem "tree", mem "commit" with
-        | true , false, false -> Blob   (Blob.of_json (find "blob"))
-        | false, true , false -> Tree   (Tree.of_json (find "tree"))
-        | false, false, true  -> Commit (Commit.of_json (find "commit"))
-        | _ -> Mstruct.parse_error "Irmin.Dump.Value.of_json: invalid value (1)"
-      end
-    | _ -> Mstruct.parse_error "Irmin.VDump.Value.of_json: invalid value (2)"
-
-  let to_json = function
-    | Blob v   -> `O [ "blob"  , Blob.to_json v  ]
-    | Tree t   -> `O [ "tree"  , Tree.to_json t  ]
-    | Commit r -> `O [ "commit", Commit.to_json r]
+  let to_json =
+    to_json K.to_json B.to_json
 
   let merge ~old:_ _ _ =
     failwith "Value.merge: TODO"
@@ -168,7 +164,7 @@ end
 
 module Make
   (K: IrminKey.S)
-  (B: IrminBlob.S with type key = K.t)
+  (B: IrminBlob.S)
   (Store: IrminStore.AO with type key = K.t and type value = (K.t, B.t) t)
 = struct
 
@@ -218,7 +214,7 @@ end
 
 module Mux
   (K: IrminKey.S)
-  (B: IrminBlob.S with type key = K.t)
+  (B: IrminBlob.S)
   (Blob: IrminStore.AO with type key = K.t and type value = B.t)
   (Tree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
   (Commit: IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)

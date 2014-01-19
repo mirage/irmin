@@ -15,6 +15,13 @@
  *)
 
 open Lwt
+open Core_kernel.Std
+
+module type Jsonable = sig
+  include Identifiable.S
+  val to_json: t -> Ezjsonm.t
+  val of_json: Ezjsonm.t -> t
+end
 
 module Make (Client: Cohttp_lwt.Client) = struct
 
@@ -24,7 +31,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   let uri t path = match Uri.path t :: path with
     | []   -> t
-    | path -> Uri.with_path t (String.concat "/" path)
+    | path -> Uri.with_path t (IrminPath.pretty path)
 
   type ('a, 'b) response =
     (Ezjsonm.t -> 'a) -> (Cohttp.Response.t * Cohttp_lwt_body.t) option -> 'b
@@ -99,7 +106,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     val uri: Uri.t
   end
 
-  module RO (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
+  module RO (U: U) (K: IrminKey.S) (V: Jsonable) = struct
 
     module L = Log.Make(struct let section = "CRUD" ^ Uri.path U.uri end)
 
@@ -143,22 +150,22 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module AO (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
+  module AO (U: U) (K: IrminKey.S) (V: Jsonable) = struct
 
     include RO(U)(K)(V)
 
     let add t value =
-      L.debugf "add %s"(V.pretty value);
+      L.debugf "add %s"(V.to_string value);
       post t ["add"] (V.to_json value) K.of_json
 
   end
 
-  module RW (U: U) (K: IrminKey.S) (V: IrminBase.S) = struct
+  module RW (U: U) (K: IrminKey.S) (V: Jsonable) = struct
 
     include RO(U)(K)(V)
 
     let update t key value =
-      L.debugf "update %s %s" (K.pretty key) (V.pretty value);
+      L.debugf "update %s %s" (K.pretty key) (V.to_string value);
       post t ["update"; K.pretty key] (V.to_json value) Ezjsonm.get_unit
 
     let remove t key =
@@ -167,7 +174,12 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module S (U: U) (K: IrminKey.S) (V: IrminBase.S) (R: IrminBase.S) (D: IrminBase.S) = struct
+  module S (U: U)
+      (K: IrminKey.S)
+      (V: Jsonable)
+      (R: IrminKey.S)
+      (D: Jsonable)
+  = struct
 
     include RW(U)(K)(V)
 
@@ -189,7 +201,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
     let export t revs =
       L.debugf "export %s" (IrminMisc.pretty_list R.pretty revs);
-      get t ("export" :: List.map R.pretty revs) D.of_json
+      get t ("export" :: List.map ~f:R.pretty revs) D.of_json
 
     let import t dump =
       L.debugf "dump";
@@ -229,9 +241,20 @@ module type S = sig
   module type U = sig
     val uri: Uri.t
   end
-  module RO (U: U): IrminStore.RO_MAKER
-  module AO (U: U): IrminStore.AO_MAKER
-  module RW (U: U): IrminStore.RW_MAKER
-  module S (U: U): IrminStore.S_MAKER
+  module RO (U: U) (K: IrminKey.S) (V: Jsonable):
+    IrminStore.RO with type key = K.t and type value = V.t
+  module AO (U: U) (K: IrminKey.S) (V: Jsonable):
+    IrminStore.AO with type key = K.t and type value = V.t
+  module RW (U: U) (K: IrminKey.S) (V: Jsonable):
+    IrminStore.RW with type key = K.t and type value = V.t
+  module S (U: U)
+      (K: IrminKey.S)
+      (V: Jsonable)
+      (S: IrminKey.S)
+      (D: Jsonable)
+    : IrminStore.S with type key = K.t
+                    and type value = V.t
+                    and type snapshot = S.t
+                    and type dump = D.t
   val simple: Uri.t -> (module Irmin.SIMPLE)
 end

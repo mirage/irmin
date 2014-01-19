@@ -17,8 +17,7 @@
 open Core_kernel.Std
 
 module type S = sig
-  module Vertex: IrminBase.S
-  include Graph.Sig.I with type V.t = Vertex.t
+  include Graph.Sig.I
   include Graph.Oper.S with type g := t
   module Topological: sig
     val fold: (vertex -> 'a -> 'a) -> t -> 'a -> 'a
@@ -39,17 +38,16 @@ module type S = sig
   type dump = vertex list * (vertex * vertex) list
   val export: t -> dump
   val import: dump -> t
-  module Dump: IrminBase.S with type t = dump
+  module Dump: Identifiable.S with type t = dump
 end
 
-module Make (B: IrminBase.S) = struct
+module Make (K: IrminKey.S) = struct
 
   open Lwt
 
   module L = Log.Make(struct let section = "GRAPH" end)
 
-  module Vertex = B
-  module G = Graph.Imperative.Digraph.ConcreteBidirectional(Vertex)
+  module G = Graph.Imperative.Digraph.ConcreteBidirectional(K)
   module GO = Graph.Oper.I(G)
   module Topological = Graph.Topological.Make(G)
   include G
@@ -64,7 +62,7 @@ module Make (B: IrminBase.S) = struct
 
   let closure pred ~min ~max =
     let g = G.create ~size:1024 () in
-    let marks = Vertex.Table.create () in
+    let marks = K.Table.create () in
     let mark key = Hashtbl.add_exn marks key true in
     let has_mark key = Hashtbl.mem marks key in
     List.iter ~f:mark min;
@@ -73,7 +71,7 @@ module Make (B: IrminBase.S) = struct
       if has_mark key then Lwt.return ()
       else (
         mark key;
-        L.debugf "ADD %s" (Vertex.pretty key);
+        L.debugf "ADD %s" (K.pretty key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
         pred key >>= fun keys ->
         List.iter ~f:(fun k -> G.add_edge g k key) keys;
@@ -102,7 +100,7 @@ module Make (B: IrminBase.S) = struct
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
       let vertex_name k =
-        Printf.sprintf "%S" (Vertex.pretty k)
+        Printf.sprintf "%S" (K.pretty k)
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None
@@ -112,17 +110,16 @@ module Make (B: IrminBase.S) = struct
         | Some n -> [`Label n]
     end)
 
-  module XVertex = struct
-    include IrminBase.List(Vertex)
-    let name = "vertex"
-  end
-  module XEdges  = struct
-    include IrminBase.List(IrminBase.Pair(Vertex)(Vertex))
-    let name = "edges"
-  end
   module Dump = struct
-    include IrminBase.Pair(XVertex)(XEdges)
-    let name = "graph"
+    module M = struct
+      type nonrec t = K.t list * (K.t * K.t) list
+      with bin_io, compare, sexp
+      let hash (t : t) = Hashtbl.hash t
+      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+      let module_name = "Graph"
+    end
+    include M
+    include Identifiable.Make (M)
   end
 
   let export t =

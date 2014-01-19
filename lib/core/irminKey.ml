@@ -20,7 +20,10 @@ exception Invalid of string
 exception Unknown of string
 
 module type S = sig
-  include IrminBase.S
+  include Identifiable.S
+  val to_json: t -> Ezjsonm.t
+  val of_json: Ezjsonm.t -> t
+  val pretty: t -> string
   val of_pretty: string -> t
   val of_bytes: string -> t
   val of_bigarray: Cstruct.buffer -> t
@@ -31,8 +34,6 @@ module SHA1 = struct
   module L = Log.Make(struct let section = "SHA1" end)
 
   include String
-
-  let name = "key"
 
   let len = 20
 

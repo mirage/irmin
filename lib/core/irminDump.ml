@@ -14,19 +14,47 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type ('key, 'blob) t = ('key * ('key, 'blob) IrminValue.t) list
+open Core_kernel.Std
 
+type ('key, 'blob) t = ('key * ('key, 'blob) IrminValue.t) list
+with bin_io, compare, sexp
+
+let of_json key_of_json blob_of_json =
+  Ezjsonm.(
+    get_list
+      (get_pair
+         key_of_json
+         (IrminValue.of_json key_of_json blob_of_json))
+  )
+
+let to_json json_of_key json_of_blob =
+  Ezjsonm.(
+    list
+      (pair
+         json_of_key
+         (IrminValue.to_json json_of_key json_of_blob))
+  )
 
 module type S = sig
   type key
   type blob
-  include IrminBase.S with type t = (key, blob) t
+  include Identifiable.S with type t = (key, blob) t
+  val of_json: Ezjsonm.t -> t
+  val to_json: t -> Ezjsonm.t
 end
 
 module S (K: IrminKey.S) (B: IrminBlob.S) = struct
   type key = K.t
   type blob = B.t
-  module V = IrminValue.S(K)(B)
-  include IrminBase.List(IrminBase.Pair(K)(V))
-  let name = "dump"
+  module M = struct
+    type nonrec t = (K.t, B.t) t
+    with bin_io, compare, sexp
+    let hash (t : t) = Hashtbl.hash t
+    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+    let module_name = "Commit"
+  end
+  include M
+  include Identifiable.Make (M)
+  let of_json = of_json K.of_json B.of_json
+  let to_json = to_json K.to_json B.to_json
 end

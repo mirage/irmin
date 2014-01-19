@@ -16,7 +16,7 @@
 
 (** Values. *)
 
-(** {2 Base Values} *)
+open Core_kernel.Std
 
 exception Conflict
 (** Exception raised during merge conflicts. *)
@@ -28,14 +28,14 @@ module type S = sig
 
   (** Signature for values. *)
 
-  include IrminBase.S
+  include Identifiable.S
   (** Base types. *)
 
-  type key
-  (** Abstract type for keys. *)
+  val to_json: t -> Ezjsonm.t
+  (** Convert a blob to JSON. *)
 
-  val key: t -> key
-  (** Compute the blob key. *)
+  val of_json: Ezjsonm.t -> t
+  (** Read a blob which has been JSON encoded. *)
 
   val of_bytes: string -> t option
   (** Convert a raw sequence of bytes into a value. Return [None] if
@@ -50,7 +50,7 @@ module type S = sig
 
 end
 
-module Simple: S with type key = IrminKey.SHA1.t
+module Simple: S
 (** String values with SHA1 hashes, where only the last modified value
     is kept on merge. If the value has been modified concurrently, the
     [merge] function raises [Conflict]. *)
@@ -63,7 +63,7 @@ module type STORE = sig
   module Key: IrminKey.S with type t = key
   (** Base functions for keys. *)
 
-  module Value: S with type key = key and type t = value
+  module Value: S with type t = value
   (** Base functions for values. *)
 
 end
@@ -71,7 +71,7 @@ end
 
 module Make
     (K: IrminKey.S)
-    (B: S with type key = K.t)
+    (B: S)
     (Blob: IrminStore.AO with type key = K.t and type value = B.t)
   : STORE with type t = Blob.t
            and type key = K.t

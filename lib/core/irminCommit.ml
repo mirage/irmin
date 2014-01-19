@@ -16,16 +16,32 @@
 
 open Core_kernel.Std
 
-type 'a t = {
-  tree   : 'a option;
-  parents: 'a list;
+type 'key t = {
+  tree   : 'key option;
+  parents: 'key list;
 } with bin_io, compare, sexp
+
+let to_json json_of_key t =
+  `O (
+    ("parents", Ezjsonm.list json_of_key t.parents)
+    :: match t.tree with
+    | None   -> []
+    | Some t -> [ ("tree", json_of_key t) ]
+  )
+
+let of_json key_of_json json =
+  let parents =
+    Ezjsonm.get_list key_of_json (Ezjsonm.find json ["parents"]) in
+  let tree =
+    try Some (key_of_json (Ezjsonm.find json ["tree"]))
+    with Not_found -> None in
+  { tree; parents }
 
 module L = Log.Make(struct let section = "COMMIT" end)
 
 module type S = sig
   type key
-  include IrminBlob.S with type key := key and type t = key t
+  include IrminBlob.S with type t = key t
 end
 
 module S (K: IrminKey.S) = struct
@@ -42,30 +58,11 @@ module S (K: IrminKey.S) = struct
   include M
   include Identifiable.Make (M)
 
-  module XTree = struct
-    include IrminBase.Option(K)
-    let name = "tree"
-  end
-  module XParents = struct
-    include IrminBase.List(K)
-    let name = "parents"
-  end
-  module XCommit = struct
-    include IrminBase.Pair(XTree)(XParents)
-    let name = "commit"
-  end
+  let to_json =
+    to_json K.to_json
 
-  let name = "commit"
-
-  let to_json t =
-    XCommit.to_json (t.tree, t.parents)
-
-  let of_json j =
-    let tree, parents = XCommit.of_json j in
-    { tree; parents }
-
-  let pretty t =
-    XCommit.pretty (t.tree, t.parents)
+  let of_json =
+    of_json K.of_json
 
   let merge ~old:_ _ _ =
     failwith "Commit.merge: TODO"

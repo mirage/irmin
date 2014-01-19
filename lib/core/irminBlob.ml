@@ -15,15 +15,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
 module L = Log.Make(struct let section = "VALUE" end)
 
 exception Conflict
 exception Invalid of string
 
 module type S = sig
-  include IrminBase.S
-  type key
-  val key: t -> key
+  include Identifiable.S
+  val to_json: t -> Ezjsonm.t
+  val of_json: Ezjsonm.t -> t
   val of_bytes: string -> t option
   val of_bytes_exn: string -> t
   val merge: old:t -> t -> t -> t
@@ -31,17 +33,11 @@ end
 
 module Simple  = struct
 
-  type key = IrminKey.SHA1.t
+  include String
 
-  let key b =
-    IrminKey.SHA1.of_bytes b
+  let to_json = Ezjsonm.string
 
-  include IrminBase.String
-
-  let pretty t =
-    Printf.sprintf "%S" t
-
-  let name = "blob"
+  let of_json = Ezjsonm.get_string
 
   let of_bytes s = Some s
 
@@ -63,12 +59,12 @@ end
 module type STORE = sig
   include IrminStore.AO
   module Key: IrminKey.S with type t = key
-  module Value: S with type key = key and type t = value
+  module Value: S with type t = value
 end
 
 module Make
     (K: IrminKey.S)
-    (B: S with type key = K.t)
+    (B: S)
     (Blob: IrminStore.AO with type key = K.t and type value = B.t)
 = struct
   include Blob

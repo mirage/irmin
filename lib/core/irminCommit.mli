@@ -22,6 +22,9 @@ type 'key t = {
 } with bin_io, compare, sexp
 (** Type of concrete revisions. *)
 
+val of_json: (Ezjsonm.t -> 'a) -> Ezjsonm.t -> 'a t
+val to_json: ('a -> Ezjsonm.t) -> 'a t -> Ezjsonm.t
+
 module type S = sig
 
   (** Signature for commit objects. *)
@@ -29,7 +32,7 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include IrminBlob.S with type key := key and type t = key t
+  include IrminBlob.S with type t = key t
   (** Base functions over commit objects. *)
 
 end

@@ -19,7 +19,7 @@ open Test_store
 
 let suite = {
   name  = "MEMORY";
-  init  = (fun () -> return (IrminMemory.reset ()));
+  init  = unit;
   clean = unit;
   store = (module IrminMemory.Simple);
 }

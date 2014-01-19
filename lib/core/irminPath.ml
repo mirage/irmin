@@ -16,18 +16,34 @@
 
 open Core_kernel.Std
 
-include IrminBase.List(IrminBase.String)
+module M = struct
+  type nonrec t = string list
+  with bin_io, compare, sexp
+  let hash (t : t) = Hashtbl.hash t
+  include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+  let module_name = "Path"
+end
+include M
+include Identifiable.Make (M)
 
-let module_name = "Path"
+let pretty t =
+  String.concat ~sep:"/" t
 
-let pretty = to_string
-
-let of_pretty = of_string
-
-let of_bytes str =
+let of_pretty str =
   List.filter
     ~f:(fun s -> not (String.is_empty s))
     (String.split str ~on:'/')
 
+let of_string = of_pretty
+
+let to_string = pretty
+
+let to_json = Ezjsonm.list Ezjsonm.string
+
+let of_json = Ezjsonm.get_list Ezjsonm.get_string
+
+let of_bytes str =
+  failwith "Path.of_bytes: ???"
+
 let of_bigarray ba =
-  of_bytes (Bigstring.to_string ba)
+  failwith "Path.of_bigarray: ???"

@@ -24,11 +24,15 @@ end
 
 module Simple = struct
 
-  include IrminBase.String
-
-  let name = "reference"
+  include String
 
   let master = "master"
+
+  let to_json = Ezjsonm.string
+
+  let of_json = Ezjsonm.get_string
+
+  let pretty x = x
 
   let of_pretty x = x
 
