@@ -43,25 +43,29 @@ module Make (S: Irmin.S) = struct
   type e = {
     v1: B.t;
     v2: B.t;
-    kv1: K.t;
-    kv2: K.t;
+    kv1: K.t Lwt.t Lazy.t;
+    kv2: K.t Lwt.t Lazy.t;
     r1: R.t;
     r2: R.t;
   }
 
-  let mk () =
+  let mk t =
     let v1 = B.of_bytes_exn "foo" in
     let v2 = B.of_bytes_exn "" in
-    let kv1 = V.key (IrminValue.Blob v1) in
-    let kv2 = V.key (IrminValue.Blob v2) in
+    let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v1)) in
+    let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v2)) in
     let r1 = R.of_bytes "foo" in
     let r2 = R.of_bytes "bar" in
-    { v1; v2; kv1; kv2; r1; r2 }
+    return { v1; v2; kv1; kv2; r1; r2 }
 
   let test_blobs x () =
     let test () =
-      let { v1; v2; kv1; kv2 } = mk () in
-      create ()                    >>= fun t    ->
+      create () >>= fun t                    ->
+      mk t >>= function { v1; v2; kv1; kv2 } ->
+
+      Lazy.force kv1 >>= fun kv1 ->
+      Lazy.force kv2 >>= fun kv2 ->
+
       let v = blob t in
       Blob.add v v1                >>= fun k1'  ->
       assert_key_equal "kv1" kv1 k1';
@@ -81,8 +85,8 @@ module Make (S: Irmin.S) = struct
 
   let test_trees x () =
     let test () =
-      let { v1; v2 } = mk () in
-      create () >>= fun t  ->
+      create () >>= fun t          ->
+      mk t >>= function { v1; v2 } ->
       let tree = tree t in
 
       (* Create a node containing t1(v1) *)
@@ -145,8 +149,9 @@ module Make (S: Irmin.S) = struct
 
   let test_commits x () =
     let test () =
-      let { v1 } = mk () in
-      create () >>= fun t   ->
+      create () >>= fun t      ->
+      mk t >>= function { v1 } ->
+
       let tree = tree t in
       let commit = commit t in
 
@@ -181,9 +186,13 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_references x () =
-    let { kv1; kv2; r1; r2 } = mk () in
     let test () =
-      create ()              >>= fun t   ->
+      create () >>= fun t                    ->
+      mk t >>= function { kv1; kv2; r1; r2 } ->
+
+      Lazy.force kv1 >>= fun kv1 ->
+      Lazy.force kv2 >>= fun kv2 ->
+
       let reference = reference t in
       Reference.update reference r1 kv1 >>= fun ()  ->
       Reference.read   reference r1     >>= fun k1' ->
@@ -206,9 +215,10 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_stores x () =
-    let { v1; v2 } = mk () in
     let test () =
-      create ()             >>= fun t   ->
+      create () >>= fun t          ->
+      mk t >>= function { v1; v2 } ->
+
       update t ["a";"b"] v1 >>= fun ()  ->
 
       mem t ["a";"b"]       >>= fun b1  ->
@@ -244,9 +254,10 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_sync x () =
-    let { v1; v2 } = mk () in
     let test () =
-      create ()              >>= fun t1 ->
+      create () >>= fun t1          ->
+      mk t1 >>= function { v1; v2 } ->
+
       update t1 ["a";"b"] v1 >>= fun () ->
       snapshot t1            >>= fun r1 ->
       update t1 ["a";"c"] v2 >>= fun () ->

@@ -24,6 +24,9 @@ with bin_io, compare, sexp
 (** The different kinds of values which can be stored in the
     database. *)
 
+val of_json: (Ezjsonm.t -> 'a) -> (Ezjsonm.t -> 'b) -> Ezjsonm.t -> ('a, 'b) t
+val to_json: ('a -> Ezjsonm.t) -> ('b -> Ezjsonm.t) -> ('a, 'b) t -> Ezjsonm.t
+
 module type S = sig
 
   (** Signature for structured values. *)
@@ -34,7 +37,7 @@ module type S = sig
   type blob
   (** Blobs. *)
 
-  include IrminBlob.S with type key := key and type t = (key, blob) t
+  include IrminBlob.S with type t = (key, blob) t
   (** Base functions over structured values. *)
 
 end
@@ -87,7 +90,7 @@ end
 
 module Make
   (K: IrminKey.S)
-  (B: IrminBlob.S with type key = K.t)
+  (B: IrminBlob.S)
   (S: IrminStore.AO with type key = K.t and type value = (K.t, B.t) t)
   : STORE with type t = S.t
            and type key = K.t
@@ -96,7 +99,7 @@ module Make
 
 module Mux
   (K: IrminKey.S)
-  (B: IrminBlob.S with type key = K.t)
+  (B: IrminBlob.S)
   (Blob: IrminStore.AO with type key = K.t and type value = B.t)
   (Tree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
   (Commit: IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)

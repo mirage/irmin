@@ -16,14 +16,13 @@
 
 (** Graphs. *)
 
+open Core_kernel.Std
+
 module type S = sig
 
 (** Main signature. *)
 
-  module Vertex: IrminBase.S
-  (** Type of keys *)
-
-  include Graph.Sig.I with type V.t = Vertex.t
+  include Graph.Sig.I
   (** Directed graph *)
 
   include Graph.Oper.S with type g := t
@@ -73,10 +72,10 @@ module type S = sig
   val import: dump -> t
   (** Import a graph. *)
 
-  module Dump: IrminBase.S with type t = dump
+  module Dump: Identifiable.S with type t = dump
   (** The base functions over graph internals. *)
 
 end
 
 (** Build a graph. *)
-module Make(B: IrminBase.S): S with type Vertex.t = B.t
+module Make(K: IrminKey.S): S with type V.t = K.t

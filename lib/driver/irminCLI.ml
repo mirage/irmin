@@ -134,11 +134,11 @@ let store =
     Arg.(value & flag & doc) in
   let local =
     let doc =
-      Arg.info ~doc:"Local store." ["l";"local"] in
+      Arg.info ~docv:"PATH" ~doc:"Local store." ["l";"local"] in
     Arg.(value & opt (some string) None & doc) in
   let remote =
     let doc =
-      Arg.info ~doc:"Remote store." ["r";"remote"] in
+      Arg.info ~docv:"URI" ~doc:"Remote store." ["r";"remote"] in
     Arg.(value & opt (some uri_conv) None & doc) in
   let create in_memory local remote =
     match in_memory, local, remote with
@@ -170,22 +170,26 @@ let init = {
   man  = [];
   term =
     let daemon =
+      let doc = Arg.info ~doc:"Start an Irminsule server." ["d";"daemon"] in
+      Arg.(value & flag & doc) in
+    let port =
       let doc =
-        Arg.info ~docv:"PORT" ~doc:"Start an Irminsule server on the specified port."
-          ["d";"daemon"] in
-      Arg.(value & opt (some uri_conv) (Some (Uri.of_string "http://127.0.0.1:8080")) & doc) in
-    let init (module S: Irmin.SIMPLE) daemon =
+        Arg.info ~docv:"PORT" ["a";"address"]
+          ~doc:"Start the Irminsule server on the given port (to use with --daemon)." in
+      Arg.(value & opt int 8080 & doc) in
+    let init (module S: Irmin.SIMPLE) daemon port =
       run begin
         S.create () >>= fun t ->
         !init_hook ();
-        match daemon with
-        | None     -> return_unit
-        | Some uri ->
+        match daemon, port with
+        | false, _   -> return_unit
+        | true , port ->
+          let uri = Uri.of_string ("http://127.0.0.1:" ^ string_of_int port) in
           Log.infof "daemon: %s" (Uri.to_string uri);
           IrminHTTP.start_server (module S) t uri
       end
     in
-    Term.(mk init $ store $ daemon)
+    Term.(mk init $ store $ daemon $ port)
 }
 
 let print fmt =
@@ -202,7 +206,7 @@ let read = {
         S.create ()   >>= fun t ->
         S.read t path >>= function
         | None   -> print "<none>\n"; exit 1
-        | Some v -> print "%s" (S.Value.pretty v); return_unit
+        | Some v -> print "%s" (S.Value.to_string v); return_unit
       end
     in
     Term.(mk read $ store $ path);
@@ -235,7 +239,7 @@ let tree = {
     run begin
       S.create () >>= fun t ->
       S.contents t >>= fun all ->
-      let all = List.map (fun (k,v) -> IrminPath.to_string k, S.Value.pretty v) all in
+      let all = List.map (fun (k,v) -> IrminPath.to_string k, S.Value.to_string v) all in
       let max_lenght l =
         List.fold_left (fun len s -> max len (String.length s)) 0 l in
       let k_max = max_lenght (List.map fst all) in

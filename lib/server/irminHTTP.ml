@@ -140,7 +140,9 @@ module Server (S: Irmin.S) = struct
     let rec aux path acc = function
       | Fixed   _
       | Stream _ -> `String (IrminPath.pretty (List.rev path)) :: acc
-      | Node c   -> List.fold_left ~f:(fun acc (s,t) -> aux (s::path) acc t) ~init:acc c in
+      | Node c   -> List.fold_left c
+                      ~f:(fun acc (s,t) -> aux (s::path) acc t)
+                      ~init:acc in
     `A (List.rev (aux [] [] t))
 
   let child c t: t =
@@ -342,7 +344,7 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
     | None   -> 8080
     | Some p -> p in
   let module Server = Server(S) in
-  L.debugf "start-server [port %d]" port;
+  printf "start-server [port %d]\n" port;
   let callback conn_id ?body req =
     let path = Uri.path (Cohttp.Request.uri req) in
     L.debugf "Request received: PATH=%s" path;

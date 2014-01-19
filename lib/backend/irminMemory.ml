@@ -18,11 +18,6 @@ open Lwt
 
 module L = Log.Make(struct let section = "MEMORY" end)
 
-let store = Hashtbl.create 8128
-
-let reset () =
-  Hashtbl.clear store
-
 module RO (K: IrminKey.S) = struct
 
   type key = string
@@ -43,7 +38,7 @@ module RO (K: IrminKey.S) = struct
     fail (IrminKey.Unknown (K.pretty (K.of_string k)))
 
   let create () =
-    return store
+    return (Hashtbl.create 8128) (*store*)
 
   let read t key =
     L.debugf "read %s" (pretty_key key);

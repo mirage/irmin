@@ -16,6 +16,14 @@
 
 (** JSON CRUD interface. *)
 
+open Core_kernel.Std
+
+module type Jsonable = sig
+  include Identifiable.S
+  val to_json: t -> Ezjsonm.t
+  val of_json: Ezjsonm.t -> t
+end
+
 module type S = sig
 
   (** Signature for CRUD interfaces. *)
@@ -27,16 +35,27 @@ module type S = sig
 
   end
 
-  module RO (U: U): IrminStore.RO_MAKER
+  module RO (U: U) (K: IrminKey.S) (V: Jsonable):
+    IrminStore.RO with type key = K.t and type value = V.t
   (** Build a read-only store using the given url. *)
 
-  module AO (U: U): IrminStore.AO_MAKER
+  module AO (U: U) (K: IrminKey.S) (V: Jsonable):
+    IrminStore.AO with type key = K.t and type value = V.t
   (** Build an append-only store using the given url. *)
 
-  module RW (U: U): IrminStore.RW_MAKER
+  module RW (U: U) (K: IrminKey.S) (V: Jsonable):
+    IrminStore.RW with type key = K.t and type value = V.t
   (** Build an a mutable store using the given url. *)
 
-  module S (U: U): IrminStore.S_MAKER
+  module S (U: U)
+      (K: IrminKey.S)
+      (V: Jsonable)
+      (S: IrminKey.S)
+      (D: Jsonable)
+    : IrminStore.S with type key = K.t
+                    and type value = V.t
+                    and type snapshot = S.t
+                    and type dump = D.t
   (** Build an irminsule store using the given uri. *)
 
   val simple: Uri.t -> (module Irmin.SIMPLE)

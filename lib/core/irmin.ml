@@ -31,7 +31,7 @@ module type S = sig
   val internal: t -> Internal.t
   val reference: t -> Reference.t
   val branch: t -> Reference.key
-  module Key: IrminBase.S with type t = key
+  module Key: IrminKey.S with type t = key
   module Value: IrminBlob.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
   module Dump: IrminDump.S with type key = Internal.key and type blob = value
@@ -192,7 +192,7 @@ module Make
   module Graph = IrminGraph.Make(K)
 
   let output t name =
-    L.debugf "OUTPUT %s" name;
+    L.debugf "output %s" name;
     Blob.contents (bl t.vals)   >>= fun blobs   ->
     Tree.contents (tr t.vals)   >>= fun trees   ->
     Commit.contents (co t.vals) >>= fun commits ->
@@ -206,11 +206,7 @@ module Make
       `Label (K.pretty k) in
     let label_of_blob k v =
       let k = K.pretty k in
-      let v =
-        let v = B.pretty v in
-        if v.[0] = '"' && v.[String.length v - 1] = '"' then
-          String.sub v 1 (String.length v - 2)
-        else v in
+      let v = B.to_string v in
       `Label (Printf.sprintf "%s | %s" k v) in
     List.iter ~f:(fun (k, b) ->
         add_vertex k [`Shape `Record; label_of_blob k b]

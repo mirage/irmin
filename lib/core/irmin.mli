@@ -52,7 +52,7 @@ module type S = sig
   val branch: t -> Reference.key
   (** Return the current branch reference. *)
 
-  module Key: IrminBase.S with type t = key
+  module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 
   module Value: IrminBlob.S with type t = value

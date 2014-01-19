@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
 module type RO = sig
   type t
   type key
@@ -29,11 +31,11 @@ end
 module type RO_BINARY = RO with type key = string
                             and type value = Cstruct.buffer
 
-module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
   RO with type key = K.t
       and type value = V.t
 
-module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
   open Lwt
 
@@ -63,7 +65,7 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
 
   let list t key =
     S.list t (K.to_string key) >>= fun ks ->
-    let ks = List.map K.of_string ks in
+    let ks = List.map ~f:K.of_string ks in
     return ks
 
   let contents t =
@@ -84,11 +86,11 @@ end
 module type AO_BINARY = AO with type key = string
                             and type value = Cstruct.buffer
 
-module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
   AO with type key = K.t
       and type value = V.t
 
-module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
   open Lwt
 
@@ -97,10 +99,10 @@ module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
   module LA = Log.Make(struct let section = "A" end)
 
   let add t value =
-    LA.debugf "add %s" (V.pretty value);
+    LA.debugf "add %s" (V.to_string value);
     S.add t (IrminMisc.write V.bin_t value) >>= fun key ->
     let key = K.of_string key in
-    LA.debugf "<-- add: %s -> key=%s" (V.pretty value) (K.pretty key);
+    LA.debugf "<-- add: %s -> key=%s" (V.to_string value) (K.pretty key);
     return key
 
 end
@@ -114,11 +116,11 @@ end
 module type RW_BINARY = RW with type key = string
                             and type value = Cstruct.buffer
 
-module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
   RW with type key = K.t
       and type value = V.t
 
-module RW_MAKER (S: RW_BINARY) (K: IrminKey.S) (V: IrminBase.S) = struct
+module RW_MAKER (S: RW_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
   include RO_MAKER(S)(K)(V)
 
@@ -146,9 +148,9 @@ end
 
 module type S_MAKER =
   functor (K: IrminKey.S) ->
-  functor (V: IrminBase.S) ->
-  functor (S: IrminBase.S) ->
-  functor (D: IrminBase.S) ->
+  functor (V: Identifiable.S) ->
+  functor (S: Identifiable.S) ->
+  functor (D: Identifiable.S) ->
     S with type key = K.t
        and type value = V.t
        and type snapshot = S.t

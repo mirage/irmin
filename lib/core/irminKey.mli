@@ -16,6 +16,8 @@
 
 (** Implementation of keys *)
 
+open Core_kernel.Std
+
 exception Invalid of string
 (** Exception raised when a key is not valid. *)
 
@@ -26,7 +28,16 @@ module type S = sig
 
   (** Signature for deterministic keys. *)
 
-  include IrminBase.S
+  include Identifiable.S
+
+  val to_json: t -> Ezjsonm.t
+  (** Convert a key to JSON. *)
+
+  val of_json: Ezjsonm.t -> t
+  (** Read a key which has been JSON encoded. *)
+
+  val pretty: t -> string
+  (** Pretty-print the key. *)
 
   val of_pretty: string -> t
   (** Inverse of [pretty]. *)
@@ -39,5 +50,5 @@ module type S = sig
 
 end
 
-module SHA1: S with type t = private string
+module SHA1: S
 (** SHA1 keys *)

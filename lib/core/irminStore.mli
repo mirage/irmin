@@ -16,6 +16,8 @@
 
 (** Stores. *)
 
+open Core_kernel.Std
+
 (** {2 Read-only store} *)
 
 module type RO = sig
@@ -57,7 +59,7 @@ module type RO_BINARY = RO with type key = string
                             and type value = Cstruct.buffer
 (** Read-only store which associate strings to big arrays. *)
 
-module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
   RO with type key = K.t
       and type value = V.t
 (** Read-only store makers. *)
@@ -84,7 +86,7 @@ module type AO_BINARY = AO with type key = string
                             and type value = Cstruct.buffer
 (** Append-only store which associate strings to big arrays. *)
 
-module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
   AO with type key = K.t
       and type value = V.t
 (** Append-only store makers. *)
@@ -113,7 +115,7 @@ module type RW_BINARY = RW with type key = string
                             and type value = Cstruct.buffer
 (** read-write store which associate strings to big arrays. *)
 
-module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: IrminBase.S) ->
+module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
   RW with type key = K.t
       and type value = V.t
 (** Mutable store makers. *)
@@ -159,9 +161,9 @@ end
 
 module type S_MAKER =
   functor (K: IrminKey.S) ->
-  functor (V: IrminBase.S) ->
-  functor (S: IrminBase.S) ->
-  functor (D: IrminBase.S) ->
+  functor (V: Identifiable.S) ->
+  functor (S: Identifiable.S) ->
+  functor (D: Identifiable.S) ->
     S with type key = K.t
        and type value = V.t
        and type snapshot = S.t

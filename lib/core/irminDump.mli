@@ -16,8 +16,13 @@
 
 (** Store dumps. *)
 
+open Core_kernel.Std
+
 type ('key, 'blob) t = ('key * ('key, 'blob) IrminValue.t) list
 (** Dump values. *)
+
+val of_json: (Ezjsonm.t -> 'a) -> (Ezjsonm.t -> 'b) -> Ezjsonm.t -> ('a, 'b) t
+val to_json: ('a -> Ezjsonm.t) -> ('b -> Ezjsonm.t) -> ('a, 'b) t -> Ezjsonm.t
 
 module type S = sig
 
@@ -29,8 +34,11 @@ module type S = sig
   type blob
   (** Blobs. *)
 
-  include IrminBase.S with type t = (key, blob) t
+  include Identifiable.S with type t = (key, blob) t
   (** Base functions over dump values. *)
+
+  val of_json: Ezjsonm.t -> t
+  val to_json: t -> Ezjsonm.t
 
 end
 

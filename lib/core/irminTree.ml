@@ -24,16 +24,33 @@ type 'key t = {
   children: (string * 'key) list;
 } with bin_io, compare, sexp
 
+let to_json json_of_key t =
+  `O (
+    ("children", Ezjsonm.list (Ezjsonm.pair Ezjsonm.string json_of_key) t.children)
+    :: match t.blob with
+    | None   -> []
+    | Some t -> [ ("blob", json_of_key t) ]
+  )
+
+let of_json key_of_json json =
+  let children =
+    Ezjsonm.get_list
+      (Ezjsonm.get_pair Ezjsonm.get_string key_of_json)
+      (Ezjsonm.find json ["children"]) in
+  let blob =
+    try Some (key_of_json (Ezjsonm.find json ["blob"]))
+    with Not_found -> None in
+  { children; blob }
+
 
 let empty = {
   blob = None;
   children = [];
 }
 
-
 module type S = sig
   type key
-  include IrminBlob.S with type key := key and type t = key t
+  include IrminBlob.S with type t = key t
 end
 
 module type STORE = sig
@@ -66,35 +83,13 @@ module S (K: IrminKey.S) = struct
     let hash (t : t) = Hashtbl.hash t
     include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
     let module_name = "Tree"
-    let name = "tree"
   end
   include M
   include Identifiable.Make (M)
 
-  module XValue = struct
-    include IrminBase.Option(K)
-    let module_name = "Value"
-  end
+  let of_json = of_json K.of_json
 
-  module XChildren = struct
-    include IrminBase.List(IrminBase.Pair(IrminBase.String)(K))
-    let module_name = "Children"
-  end
-
-  module XTree = struct
-    include IrminBase.Pair(XValue)(XChildren)
-    let module_name = "Tree"
-  end
-
-  let pretty t =
-    XTree.pretty (t.blob, t.children)
-
-  let to_json t =
-    XTree.to_json (t.blob, t.children)
-
-  let of_json j =
-    let blob, children = XTree.of_json j in
-    { blob; children }
+  let to_json = to_json K.to_json
 
   let merge ~old:_ _ _ =
     failwith "Tree.merge: TODO"
@@ -116,7 +111,7 @@ module SHA1 = S(IrminKey.SHA1)
 
 module Make
     (K: IrminKey.S)
-    (B: IrminBlob.S with type key = K.t)
+    (B: IrminBlob.S)
     (Blob: IrminStore.AO with type key = K.t and type value = B.t)
     (Tree: IrminStore.AO with type key = K.t and type value = K.t t)
 = struct

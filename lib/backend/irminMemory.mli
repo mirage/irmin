@@ -27,6 +27,3 @@ module RW (K: IrminKey.S): IrminStore.RW_BINARY
 
 module Simple: Irmin.SIMPLE
 (** Simple memory store. *)
-
-val reset: unit -> unit
-(** Reset the memory store. *)
