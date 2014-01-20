@@ -36,6 +36,9 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
       val of_git: GitTypes.sha1 -> GitTypes.value -> t option
     end
 
+    (* caching the state to avoid state duplication when it is hold in memory *)
+    let cache = ref None
+
     module AO (V: V) = struct
 
       type t = G.t
@@ -45,7 +48,12 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
       type value = V.t
 
       let create () =
-        G.create ()
+        match !cache with
+        | Some t -> t
+        | None   ->
+          let t = G.create () in
+          cache := Some t;
+          t
 
       let mem t key =
         Log.debugf "Tree.mem %s" (K.pretty key);
@@ -182,8 +190,11 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
             let git_of_tree_key k = GitTypes.SHA1.to_tree (git_of_key k) in
             let tree = git_of_tree_key tree in
             let parents = List.map ~f:git_of_commit_key parents in
-            let date = Float.to_string (Unix.time ()) in
-            let author = GitTypes.User.({ name = "irminsule"; email = ""; date }) in
+            let author =
+              GitTypes.User.({ name = "irminsule";
+                               email = "irminsule@openmirage.org";
+                               date  = Float.to_string (Unix.time ());
+                             }) in
             let message = "Created by Irminsule" in
             let commit = {
               GitTypes.Commit.tree; parents;
@@ -253,4 +264,4 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
 
 end
 
-module Simple = Make(GitLocal)(IrminKey.SHA1)(IrminBlob.Simple)(IrminReference.Simple)
+module Simple(G: GitTypes.S) = Make(G)(IrminKey.SHA1)(IrminBlob.Simple)(IrminReference.Simple)

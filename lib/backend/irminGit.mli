@@ -22,6 +22,6 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
            and type Reference.key = R.t
 (** Use the given Git store as an Irminsule store. *)
 
-module Simple: Irmin.SIMPLE
+module Simple (G: GitTypes.S): Irmin.SIMPLE
 (** A simple irminsule store (with key = SHA1s and values = string)
-    stored in a Local git store. *)
+    stored in the given git store. *)
