@@ -90,16 +90,16 @@ let key =
   let module K = IrminKey.SHA1 in
   let key_conv =
     let parse str =
-      try `Ok (K.of_pretty str)
+      try `Ok (K.of_string str)
       with e -> `Error "Invalid key" in
-    let print ppf key = pr_str ppf (K.pretty key) in
+    let print ppf key = pr_str ppf (K.to_string key) in
     parse, print in
   let doc = Arg.info ~docv:"KEY" ~doc:"SHA1 key." [] in
   Arg.(required & pos 0 (some key_conv) None & doc)
 
 let path_conv =
-  let parse str = `Ok (IrminPath.of_pretty str) in
-  let print ppf path = pr_str ppf (IrminPath.pretty path) in
+  let parse str = `Ok (IrminPath.of_string str) in
+  let print ppf path = pr_str ppf (IrminPath.to_string path) in
   parse, print
 
 let path =
@@ -222,7 +222,7 @@ let ls = {
       run begin
         S.create ()   >>= fun t ->
         S.list t path >>= fun paths ->
-        List.iter (fun p -> print "%s" (IrminPath.pretty p)) paths;
+        List.iter (fun p -> print "%s" (IrminPath.to_string p)) paths;
         return_unit
       end
     in
@@ -377,7 +377,7 @@ let snapshot = {
       run begin
         S.create ()  >>= fun t ->
         S.snapshot t >>= fun k ->
-        print "%s" (S.Snapshot.pretty k);
+        print "%s" (S.Snapshot.to_string k);
         return_unit
       end
     in
@@ -413,7 +413,7 @@ let watch = {
         S.create () >>= fun t ->
         let stream = S.watch t path in
         Lwt_stream.iter_s (fun (path, rev) ->
-            print "%s %s" (IrminPath.pretty path) (S.Snapshot.pretty rev);
+            print "%s %s" (IrminPath.to_string path) (S.Snapshot.to_string rev);
             return_unit
           ) stream
       end

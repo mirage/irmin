@@ -31,7 +31,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   let uri t path = match Uri.path t :: path with
     | []   -> t
-    | path -> Uri.with_path t (IrminPath.pretty path)
+    | path -> Uri.with_path t (IrminPath.to_raw path)
 
   type ('a, 'b) response =
     (Ezjsonm.t -> 'a) -> (Cohttp.Response.t * Cohttp_lwt_body.t) option -> 'b
@@ -119,30 +119,27 @@ module Make (Client: Cohttp_lwt.Client) = struct
     let some fn x =
       Some (fn x)
 
-    let unknown k =
-      fail (IrminKey.Unknown (K.pretty (K.of_string k)))
-
     let create () =
       return U.uri
 
     let read t key =
-      L.debugf "read %s" (K.pretty key);
+      L.debugf "read %s" (K.to_string key);
       catch
-        (fun () -> get t ["read"; K.pretty key] (some V.of_json))
+        (fun () -> get t ["read"; K.to_string key] (some V.of_json))
         (fun _  -> return_none)
 
     let read_exn t key =
-      L.debugf "read_exn %s" (K.pretty key);
-      get t ["read"; K.pretty key] V.of_json
+      L.debugf "read_exn %s" (K.to_string key);
+      get t ["read"; K.to_string key] V.of_json
 
     let mem t key =
-      L.debugf "mem %s" (K.pretty key);
-      get t ["mem"; K.pretty key] Ezjsonm.get_bool
+      L.debugf "mem %s" (K.to_string key);
+      get t ["mem"; K.to_string key] Ezjsonm.get_bool
 
 
     let list t key =
-      L.debugf "list %s" (K.pretty key);
-      get t ["list"; K.pretty key] (Ezjsonm.get_list K.of_json)
+      L.debugf "list %s" (K.to_string key);
+      get t ["list"; K.to_string key] (Ezjsonm.get_list K.of_json)
 
     let contents t =
       L.debugf "contents";
@@ -165,12 +162,12 @@ module Make (Client: Cohttp_lwt.Client) = struct
     include RO(U)(K)(V)
 
     let update t key value =
-      L.debugf "update %s %s" (K.pretty key) (V.to_string value);
-      post t ["update"; K.pretty key] (V.to_json value) Ezjsonm.get_unit
+      L.debugf "update %s %s" (K.to_string key) (V.to_string value);
+      post t ["update"; K.to_string key] (V.to_json value) Ezjsonm.get_unit
 
     let remove t key =
-      L.debugf "remove %s" (K.pretty key);
-      delete t ["remove"; K.pretty key] Ezjsonm.get_unit
+      L.debugf "remove %s" (K.to_string key);
+      delete t ["remove"; K.to_string key] Ezjsonm.get_unit
 
   end
 
@@ -193,15 +190,15 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
     let revert t rev =
       L.debugf "revert";
-      get t ["revert"; R.pretty rev] Ezjsonm.get_unit
+      get t ["revert"; R.to_string rev] Ezjsonm.get_unit
 
     let watch t path =
       L.debugf "watch";
-      get_stream t ["watch"; K.pretty path] (Ezjsonm.get_pair K.of_json R.of_json)
+      get_stream t ["watch"; K.to_string path] (Ezjsonm.get_pair K.of_json R.of_json)
 
     let export t revs =
-      L.debugf "export %s" (IrminMisc.pretty_list R.pretty revs);
-      get t ("export" :: List.map ~f:R.pretty revs) D.of_json
+      L.debugf "export %s" (IrminMisc.pretty_list R.to_string revs);
+      get t ("export" :: List.map ~f:R.to_string revs) D.of_json
 
     let import t dump =
       L.debugf "dump";

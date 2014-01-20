@@ -203,9 +203,9 @@ module Make
     let add_edge v1 l v2 =
       edges := (v1, l, v2) :: !edges in
     let label k =
-      `Label (K.pretty k) in
+      `Label (K.to_string k) in
     let label_of_blob k v =
-      let k = K.pretty k in
+      let k = K.to_string k in
       let v = B.to_string v in
       `Label (Printf.sprintf "%s | %s" k v) in
     List.iter ~f:(fun (k, b) ->
@@ -243,15 +243,15 @@ module Make
     watches := (path, callback) :: !watches;
     stream
 
-  module L = Log.Make(struct let section ="RAW" end)
+  module L = Log.Make(struct let section ="DUMP" end)
 
   (* XXX: can be improved quite a lot *)
   let export t roots =
-    L.debugf "export root=%s" (IrminMisc.pretty_list K.pretty roots);
+    L.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
     output t "export" >>= fun () ->
     let contents = Internal.Key.Table.create () in
     let add k v =
-      Hashtbl.add_exn contents k v in
+      Hashtbl.add_multi contents k v in
     Reference.read t.refs t.branch >>= function
     | None        -> return_nil
     | Some commit ->
@@ -276,7 +276,7 @@ module Make
         ) K.Set.empty commits
       >>= fun trees ->
       let trees = Set.elements trees in
-      L.debugf "export TREES=%s" (IrminMisc.pretty_list K.pretty trees);
+      L.debugf "export TREES=%s" (IrminMisc.pretty_list K.to_string trees);
       Lwt_list.fold_left_s (fun set key ->
           Tree.read_exn (tr t.vals) key >>= fun tree ->
           add key (IrminValue.Tree tree);
@@ -288,20 +288,22 @@ module Make
         ) K.Set.empty trees
       >>= fun blobs ->
       let blobs = Set.elements blobs in
-      L.debugf "export BLOBS=%s" (IrminMisc.pretty_list K.pretty blobs);
+      L.debugf "export BLOBS=%s" (IrminMisc.pretty_list K.to_string blobs);
       Lwt_list.iter_p (fun key ->
           Blob.read_exn (bl t.vals) key >>= fun blob ->
           add key (IrminValue.Blob blob);
           return_unit
         ) blobs
       >>= fun () ->
-      let list = Hashtbl.fold ~f:(fun ~key:k ~data:v acc -> (k, v) :: acc) ~init:[] contents in
+      let list = Hashtbl.fold ~f:(fun ~key:k ~data init ->
+          List.fold_left ~f:(fun acc v -> (k, v) :: acc) ~init data
+        ) ~init:[] contents in
       return list
 
   exception Errors of (Internal.key * Internal.key * string) list
 
   let import t list =
-    L.debugf "import %s" (IrminMisc.pretty_list K.pretty (List.map ~f:fst list));
+    L.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst list));
     let errors = ref [] in
     let check msg k1 k2 =
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
@@ -315,8 +317,16 @@ module Make
       ) list
     >>= fun () ->
     if !errors = [] then return_unit
-    else fail (Errors !errors)
-
+    else (
+      let aux (expected, got, n) =
+        Printf.sprintf
+          "[expected %s (%s), got %s]"
+          (K.to_string expected) n
+          (K.to_string got) in
+      Log.debugf "The following keys are invalid: %s"
+        (IrminMisc.pretty_list aux !errors);
+      fail (Errors !errors)
+    )
 end
 
 module type SIMPLE = S

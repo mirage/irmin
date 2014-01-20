@@ -63,7 +63,7 @@ module Make (S: Irmin.S) = struct
 
   module K = Internal.Key
   let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
-    mk K.equal K.compare K.pretty
+    mk K.equal K.compare K.to_string
 
   module Blob = Internal.Blob
   module B = Blob.Value
@@ -72,7 +72,7 @@ module Make (S: Irmin.S) = struct
 
   module R = Reference.Key
   let assert_reference_equal, assert_reference_opt_equal, assert_references_equal =
-    mk R.equal R.compare R.pretty
+    mk R.equal R.compare R.to_string
 
   module Tree = Internal.Tree
   module T = Tree.Value
@@ -86,7 +86,7 @@ module Make (S: Irmin.S) = struct
 
   module P = IrminPath
   let assert_path_equal, assert_path_opt_equal, assert_paths_equal =
-    mk P.equal P.compare P.pretty
+    mk P.equal P.compare P.to_string
 
   module V = Internal.Value
 

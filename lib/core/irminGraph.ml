@@ -71,7 +71,7 @@ module Make (K: IrminKey.S) = struct
       if has_mark key then Lwt.return ()
       else (
         mark key;
-        L.debugf "ADD %s" (K.pretty key);
+        L.debugf "ADD %s" (K.to_string key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
         pred key >>= fun keys ->
         List.iter ~f:(fun k -> G.add_edge g k key) keys;
@@ -100,7 +100,7 @@ module Make (K: IrminKey.S) = struct
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
       let vertex_name k =
-        Printf.sprintf "%S" (K.pretty k)
+        Printf.sprintf "%S" (K.to_string k)
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None

@@ -17,6 +17,8 @@
 open Lwt
 open Core_kernel.Std
 
+module Log = Log.Make(struct let section = "REF" end)
+
 module type S = sig
   include IrminKey.S
   val master: t
@@ -30,11 +32,13 @@ module Simple = struct
 
   let to_json = Ezjsonm.string
 
-  let of_json = Ezjsonm.get_string
+  let of_json x =
+    Log.debugf "Reference.of_json %s" (Ezjsonm.to_string x);
+    Ezjsonm.get_string x
 
-  let pretty x = x
+  let of_raw x = x
 
-  let of_pretty x = x
+  let to_raw x = x
 
   let of_bytes x = x
 

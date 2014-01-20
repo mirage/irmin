@@ -27,15 +27,10 @@ module RO (K: IrminKey.S) = struct
   type t = (key, value) Hashtbl.t
 
   let pretty_key k =
-    K.pretty (K.of_string k)
-
-  let pretty_value ba =
-    let b = Buffer.create 1024 in
-    Cstruct.hexdump_to_buffer b (Cstruct.of_bigarray ba);
-    Printf.sprintf "%S" (Buffer.contents b)
+    K.to_string (K.of_raw k)
 
   let unknown k =
-    fail (IrminKey.Unknown (K.pretty (K.of_string k)))
+    fail (IrminKey.Unknown (pretty_key k))
 
   let create () =
     return (Hashtbl.create 8128) (*store*)
@@ -69,7 +64,7 @@ module AO (K: IrminKey.S) = struct
   include RO(K)
 
   let add t value =
-    let key = K.to_string (K.of_bigarray value) in
+    let key = K.to_raw (K.of_bigarray value) in
     Hashtbl.add t key value;
     return key
 
@@ -80,7 +75,7 @@ module RW (K: IrminKey.S) = struct
   include RO(K)
 
   let update t key value =
-    L.debugf "update %s %s" (pretty_key key) (pretty_value value);
+    L.debugf "update %s" (pretty_key key);
     Hashtbl.replace t key value;
     return_unit
 

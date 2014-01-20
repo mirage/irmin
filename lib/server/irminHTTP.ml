@@ -139,7 +139,7 @@ module Server (S: Irmin.S) = struct
   let to_json t =
     let rec aux path acc = function
       | Fixed   _
-      | Stream _ -> `String (IrminPath.pretty (List.rev path)) :: acc
+      | Stream _ -> `String (IrminPath.to_string (List.rev path)) :: acc
       | Node c   -> List.fold_left c
                       ~f:(fun acc (s,t) -> aux (s::path) acc t)
                       ~init:acc in
@@ -276,11 +276,11 @@ module Server (S: Irmin.S) = struct
   ]
 
   let reference_store = Node [
-      mk1p0bf "read"     Reference.read     re reference (some key);
-      mk1p0bf "mem"      Reference.mem      re reference bool;
-      mk1p0bf "list"     Reference.list     re reference (list reference);
-      mk1p1bf "update"   Reference.update   re reference key unit;
-      mk1p0bf "remove"   Reference.remove   re reference unit;
+      mklp0bf "read"     Reference.read     re reference (some key);
+      mklp0bf "mem"      Reference.mem      re reference bool;
+      mklp0bf "list"     Reference.list     re reference (list reference);
+      mklp1bf "update"   Reference.update   re reference key unit;
+      mklp0bf "remove"   Reference.remove   re reference unit;
       mk0p0bf "contents" Reference.contents re (contents reference key);
   ]
 

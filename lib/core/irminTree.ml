@@ -149,7 +149,7 @@ module Make
   module Graph = IrminGraph.Make(K)
 
   let list t key =
-    L.debugf "list %s" (K.pretty key);
+    L.debugf "list %s" (K.to_string key);
     read_exn t key >>= fun _ ->
     let pred k =
       read_exn t k >>= fun r -> return (List.map ~f:snd r.children) in
@@ -237,7 +237,7 @@ module Make
       | (l, k) as child :: children ->
         if l = label then
           read t k >>= function
-          | None      -> fail (IrminKey.Invalid (K.pretty k))
+          | None      -> fail (IrminKey.Invalid (K.to_string k))
           | Some tree ->
             f tree >>= fun tree ->
             if tree = empty then return (List.rev_append acc children)

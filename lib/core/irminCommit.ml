@@ -19,12 +19,14 @@ open Core_kernel.Std
 type 'key t = {
   tree   : 'key option;
   parents: 'key list;
+  origin : string;
 } with bin_io, compare, sexp
 
 let to_json json_of_key t =
   `O (
-    ("parents", Ezjsonm.list json_of_key t.parents)
-    :: match t.tree with
+    ("parents", Ezjsonm.list json_of_key t.parents) ::
+    ("origin" , Ezjsonm.string t.origin) ::
+    match t.tree with
     | None   -> []
     | Some t -> [ ("tree", json_of_key t) ]
   )
@@ -32,10 +34,12 @@ let to_json json_of_key t =
 let of_json key_of_json json =
   let parents =
     Ezjsonm.get_list key_of_json (Ezjsonm.find json ["parents"]) in
+  let origin =
+    Ezjsonm.get_string (Ezjsonm.find json ["origin"]) in
   let tree =
     try Some (key_of_json (Ezjsonm.find json ["tree"]))
     with Not_found -> None in
-  { tree; parents }
+  { tree; parents; origin }
 
 module L = Log.Make(struct let section = "COMMIT" end)
 
@@ -140,7 +144,8 @@ module Make
     >>= fun tree ->
     Lwt_list.map_p (Commit.add c) parents
     >>= fun parents ->
-    Commit.add c { tree; parents }
+    let origin = Int64.to_string (Float.to_int64 (Unix.time ())) in
+    Commit.add c { tree; parents; origin }
 
   let parents t c =
     List.map ~f:(read_exn t) c.parents
@@ -148,7 +153,7 @@ module Make
   module Graph = IrminGraph.Make(K)
 
   let list t key =
-    L.debugf "list %s" (K.pretty key);
+    L.debugf "list %s" (K.to_string key);
     let pred k =
       read_exn t k >>= fun r -> return r.parents in
     Graph.closure pred ~min:[] ~max:[key] >>= fun g ->

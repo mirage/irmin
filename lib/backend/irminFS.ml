@@ -157,7 +157,7 @@ module OBJECTS (S: S0) (K: IrminKey.S) = struct
     let path = S.path / "objects"
 
     let file_of_key k =
-      let key = K.pretty (K.of_string k) in
+      let key = K.to_string (K.of_raw k) in
       let len = String.length key in
       let pre = String.sub key 0 2 in
       let suf = String.sub key 2 (len - 2) in
@@ -167,7 +167,7 @@ module OBJECTS (S: S0) (K: IrminKey.S) = struct
       let files = rec_files root in
       List.map ~f:(fun path ->
           let path = IrminPath.of_string path in
-          K.to_string (K.of_pretty (String.concat ~sep:"" path))
+          K.to_raw (K.of_string (String.concat ~sep:"" path))
         ) files
 
   end
@@ -196,15 +196,10 @@ module RO (S: S) (K: IrminKey.S) = struct
   type t = root
 
   let pretty_key k =
-    K.pretty (K.of_string k)
-
-  let pretty_value ba =
-    let b = Buffer.create 1024 in
-    Cstruct.hexdump_to_buffer b (Cstruct.of_bigarray ba);
-    Printf.sprintf "%S" (Buffer.contents b)
+    K.to_string (K.of_raw k)
 
   let unknown k =
-    fail (IrminKey.Unknown (K.pretty (K.of_string k)))
+    fail (IrminKey.Unknown (pretty_key k))
 
   let create () =
     return (D S.path)
@@ -252,9 +247,9 @@ module AO (S: S) (K: IrminKey.S) = struct
   include RO(S)(K)
 
   let add t value =
-    L.debugf "add %s" (pretty_value value);
+    L.debugf "add";
     check t >>= fun () ->
-    let key = K.to_string (K.of_bigarray value) in
+    let key = K.to_raw (K.of_bigarray value) in
     let file = S.file_of_key key in
     begin if Sys.file_exists file then
         return_unit
@@ -279,7 +274,7 @@ module RW (S: S) (K: IrminKey.S) = struct
     return_unit
 
   let update t key value =
-    L.debugf "update %s %s" (pretty_key key) (pretty_value value);
+    L.debugf "update %s" (pretty_key key);
     check t >>= fun () ->
     remove t key >>= fun () ->
     with_file_out (S.file_of_key key) (fun fd ->

@@ -18,7 +18,7 @@ open Lwt
 open Test_store
 
 let suite = {
-  name  = "MEMORY";
+  name  = "MEM";
   init  = unit;
   clean = unit;
   store = (module IrminMemory.Simple);

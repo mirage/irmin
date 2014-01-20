@@ -36,7 +36,7 @@ let suite = function
       store = (module IrminGit.Simple(GitLocal));
     }
   | `Memory -> {
-      name  = "GIT-mem";
+      name  = "GIT.MEM";
       init  = unit;
       clean = unit;
       store = (module IrminGit.Simple(GitMemory));
