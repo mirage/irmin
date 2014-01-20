@@ -167,9 +167,10 @@ module Make
   let list t path =
     read_head_tree t >>= fun tree ->
     Tree.sub (tr t.vals) tree path >>= function
-    | None      -> return_nil
-    | Some tree ->
-      let paths = List.map ~f:(fun (c,_) -> path @ [c]) tree.IrminTree.children in
+    | None
+    | Some (IrminTree.Leaf _) -> return_nil
+    | Some (IrminTree.Node c) ->
+      let paths = List.map ~f:(fun (c,_) -> path @ [c]) c in
       return paths
 
   let contents t =
@@ -213,12 +214,12 @@ module Make
       ) blobs;
     List.iter ~f:(fun (k, t) ->
         add_vertex k [`Shape `Box; `Style `Dotted; label k];
-        List.iter ~f:(fun (l,c) ->
-            add_edge k [`Style `Solid; `Label l] c
-          ) t.IrminTree.children;
-        match t.IrminTree.blob with
-        | None   -> ()
-        | Some v -> add_edge k [`Style `Dotted] v
+        match t with
+        | IrminTree.Leaf v  -> add_edge k [`Style `Dotted] v
+        | IrminTree.Node ts ->
+          List.iter ~f:(fun (l,c) ->
+              add_edge k [`Style `Solid; `Label l] c
+            ) ts
       ) trees;
     List.iter ~f:(fun (k, r) ->
         add_vertex k [`Shape `Box; `Style `Bold; label k];
@@ -280,9 +281,9 @@ module Make
       Lwt_list.fold_left_s (fun set key ->
           Tree.read_exn (tr t.vals) key >>= fun tree ->
           add key (IrminValue.Tree tree);
-          match tree.IrminTree.blob with
-          | None      -> return set
-          | Some blob ->
+          match tree with
+          | IrminTree.Node _    -> return set
+          | IrminTree.Leaf blob ->
             Blob.list (bl t.vals) blob >>= fun blobs ->
             return (Set.union set (K.Set.of_list blobs))
         ) K.Set.empty trees

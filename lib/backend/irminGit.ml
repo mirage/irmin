@@ -32,7 +32,7 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
     module type V = sig
       type t
       val type_eq: GitTypes.object_type -> bool
-      val to_git: t -> [`Value of GitTypes.value | `Key of GitTypes.sha1]
+      val to_git: G.t -> t -> [`Value of GitTypes.value Lwt.t | `Key of GitTypes.sha1]
       val of_git: GitTypes.sha1 -> GitTypes.value -> t option
     end
 
@@ -90,9 +90,10 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           ) [] keys
 
       let add t v =
-        match V.to_git v with
+        match V.to_git t v with
         | `Key k   -> return (key_of_git k)
         | `Value v ->
+          v >>= fun v ->
           G.write t v >>= fun k ->
           return (key_of_git k)
 
@@ -113,9 +114,10 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           | GitTypes.Value.Tag _  -> None (* XXX: deal with tag objects *)
           | _                     -> None
 
-        let to_git b =
+        let to_git _ b =
           Log.debugf "Blob.to_git %s" (B.to_string b);
-          `Value (GitTypes.Value.Blob (GitTypes.Blob.of_string (B.to_string b)))
+          let value = GitTypes.Value.Blob (GitTypes.Blob.of_string (B.to_string b)) in
+          `Value (return value)
 
       end)
 
@@ -135,28 +137,32 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           | GitTypes.Value.Blob _ ->
             (* Create a dummy leaf node to hold blobs. *)
             let key = key_of_git k in
-            Some { IrminTree.blob = Some key; children = [] }
+            Some (IrminTree.Leaf key)
           | GitTypes.Value.Tree t ->
             let entries = GitTypes.Tree.entries t in
             let children = List.map ~f:(fun e -> GitTypes.Tree.(e.name, key_of_git e.node)) entries in
-            let blob = None in
-            Some { IrminTree.blob; children }
+            Some (IrminTree.Node children)
           | _ -> None
 
-        let to_git t =
-          Log.debugf "Tree.to_git %s" (X.to_string t);
-          match t with
-          | { IrminTree.blob = Some key; children = [] } ->
+        let to_git t tree =
+          Log.debugf "Tree.to_git %s" (X.to_string tree);
+          match tree with
+          | IrminTree.Leaf key ->
             (* This is a dummy leaf node. Do nothing. *)
-            Log.debugf "Skiping %s" (X.to_string t);
+            Log.debugf "Skiping %s" (X.to_string tree);
             `Key (git_of_key key)
-          | { IrminTree.blob = None; children } ->
-            let entries = List.map ~f:(fun (name, key) ->
-                { GitTypes.Tree.perm = `dir; name; node = git_of_key key }
-              ) children in
-            let tree = GitTypes.Tree.create entries in
-            `Value (GitTypes.Value.Tree tree)
-          | _ -> failwith "Tree.t_git: not supported"
+          | IrminTree.Node children ->
+            `Value (
+              Lwt_list.map_p (fun (name, key) ->
+                  let node = git_of_key key in
+                  G.type_of t node >>= function
+                  | Some `Blob -> return { GitTypes.Tree.perm = `normal; name; node }
+                  | Some `Tree -> return { GitTypes.Tree.perm = `dir; name; node }
+                  | _          -> fail (Failure "Tree.to_git")
+                ) children >>= fun entries ->
+              let tree = GitTypes.Tree.create entries in
+              return (GitTypes.Value.Tree tree)
+            )
 
       end)
 
@@ -182,7 +188,7 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
             Some { IrminCommit.tree; parents; origin }
           | _ -> None
 
-        let to_git c =
+        let to_git _ c =
           Log.debugf "Commit.to_git %s" (X.to_string c);
           let { IrminCommit.tree; parents; origin } = c in
           match tree with
@@ -202,7 +208,8 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
               GitTypes.Commit.tree; parents;
               author; committer = author;
               message } in
-            `Value (GitTypes.Value.Commit commit)
+            let value = GitTypes.Value.Commit commit in
+            `Value (return value)
 
       end)
 
