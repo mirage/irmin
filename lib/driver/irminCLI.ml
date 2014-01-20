@@ -19,13 +19,14 @@ open Cmdliner
 
 (* Global options *)
 type global = {
-  verbose: bool;
+  level: Log.log_level option;
 }
 
 let app_global g =
   Log.color_on ();
-  if g.verbose then
-    Log.set_log_level Log.DEBUG
+  match g.level with
+  | None   -> ()
+  | Some d -> Log.set_log_level d
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
@@ -41,11 +42,20 @@ let help_sections = [
 ]
 
 let global =
+  let debug =
+    let doc =
+      Arg.info ~docs:global_option_section ~doc:"Be very verbose." ["debug"] in
+    Arg.(value & flag & doc) in
   let verbose =
     let doc =
-      Arg.info ~docs:global_option_section ~doc:"Be more verbose." ["v";"verbose"] in
+      Arg.info ~docs:global_option_section ~doc:"Be verbose." ["v";"verbose"] in
     Arg.(value & flag & doc) in
-  Term.(pure (fun verbose -> { verbose }) $ verbose)
+  let level debug verbose =
+    match debug, verbose with
+    | true, _    -> { level = Some Log.DEBUG }
+    | _   , true -> { level = Some Log.INFO }
+    | _          -> { level = None } in
+  Term.(pure level $ debug $ verbose)
 
 let term_info title ~doc ~man =
   let man = man @ help_sections in
