@@ -25,26 +25,8 @@ module type S = sig
 end
 
 module Simple = struct
-
-  include String
-
-  let master = "master"
-
-  let to_json = Ezjsonm.string
-
-  let of_json x =
-    Log.debugf "Reference.of_json %s" (Ezjsonm.to_string x);
-    Ezjsonm.get_string x
-
-  let of_raw x = x
-
-  let to_raw x = x
-
-  let of_bytes x = x
-
-  let of_bigarray x =
-    Bigstring.to_string x
-
+  include IrminPath
+  let master = ["refs/master"]
 end
 
 module type STORE = sig

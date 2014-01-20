@@ -38,8 +38,7 @@ let to_json = Ezjsonm.list Ezjsonm.string
 
 let of_json = Ezjsonm.get_list Ezjsonm.get_string
 
-let of_bytes str =
-  failwith "Path.of_bytes: ???"
+let of_bytes = of_raw
 
-let of_bigarray ba =
-  failwith "Path.of_bigarray: ???"
+let of_bigarray x =
+  of_raw (Bigstring.to_string x)
