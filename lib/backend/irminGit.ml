@@ -156,7 +156,7 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
               ) children in
             let tree = GitTypes.Tree.create entries in
             `Value (GitTypes.Value.Tree tree)
-          | _ -> failwith "not supported"
+          | _ -> failwith "Tree.t_git: not supported"
 
       end)
 
@@ -186,7 +186,7 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           Log.debugf "Commit.to_git %s" (X.to_string c);
           let { IrminCommit.tree; parents; origin } = c in
           match tree with
-          | None      -> failwith "not supported"
+          | None      -> failwith "Commit.to_git: not supported"
           | Some tree ->
             let git_of_commit_key k = GitTypes.SHA1.to_commit (git_of_key k) in
             let git_of_tree_key k = GitTypes.SHA1.to_tree (git_of_key k) in
