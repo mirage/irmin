@@ -251,7 +251,7 @@ let read = {
       run begin
         S.create ()   >>= fun t ->
         S.read t path >>= function
-        | None   -> print "<none>\n"; exit 1
+        | None   -> print "<none>"; exit 1
         | Some v -> print "%s" (S.Value.to_string v); return_unit
       end
     in
@@ -285,7 +285,7 @@ let tree = {
     run begin
       S.create () >>= fun t ->
       S.contents t >>= fun all ->
-      let all = List.map (fun (k,v) -> IrminPath.to_string k, S.Value.to_string v) all in
+      let all = List.map (fun (k,v) -> IrminPath.to_string k, Printf.sprintf "%S" (S.Value.to_string v)) all in
       let max_lenght l =
         List.fold_left (fun len s -> max len (String.length s)) 0 l in
       let k_max = max_lenght (List.map fst all) in
