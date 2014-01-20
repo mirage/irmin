@@ -103,4 +103,4 @@ Executable test_irmin
 Test test_irmin
   Run$:               flag(tests) && flag(unix)
   Command:            $test_irmin -q
-  WorkingDirectory:   .
+  WorkingDirectory:   lib_test

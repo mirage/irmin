@@ -16,10 +16,12 @@
 
 (** Serialize the irminsule objects to a local Git store. *)
 
-module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S): sig
+module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.S) :
+  Irmin.S with type Internal.key = K.t
+           and type value = B.t
+           and type Reference.key = R.t
+(** Use the given Git store as an Irminsule store. *)
 
-  module RO: IrminStore.RO with type key = K.t
-                            and type value = (K.t, B.t) IrminValue.t
-  (** Build an append-only store using a local Git store. *)
-
-end
+module Simple: Irmin.SIMPLE
+(** A simple irminsule store (with key = SHA1s and values = string)
+    stored in a Local git store. *)
