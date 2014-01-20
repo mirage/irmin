@@ -140,6 +140,19 @@ let git_store () =
   Log.infof "git";
   (module IrminGit.Simple(GitLocal): Irmin.SIMPLE)
 
+let readvar n =
+  try Sys.getenv "IRMIN" = n
+  with Not_found -> false
+
+let readvar_p prefix fn =
+  let open Core_kernel.Std in
+  try
+    let var = Sys.getenv "IRMIN" in
+    match String.chop_prefix ~prefix var with
+    | None       -> None
+    | Some s     -> Some (fn s)
+  with Not_found -> None
+
 let store =
   let in_memory =
     let doc =
@@ -159,16 +172,30 @@ let store =
       Arg.info ~doc:"Local Git store." ["g";"git"] in
     Arg.(value & flag & doc) in
   let create git in_memory local remote =
-    match git, in_memory, local, remote with
+    let git       = ref git in
+    let in_memory = ref in_memory in
+    let local     = ref local in
+    let remote    = ref remote in
+    if !git || !in_memory || !local <> None || !remote <> None  then
+      ()
+    else (
+      git       := readvar "g";
+      in_memory := readvar "m";
+      local     := readvar_p "l:" (fun x -> x);
+      remote    := readvar_p "r:" (fun x -> Uri.of_string x);
+    );
+    match !git, !in_memory, !local, !remote with
     | true , false, None   , None   -> git_store ()
     | false, true , None   , None   -> in_memory_store ()
     | false, false, None   , Some u -> remote_store u
     | false, false, Some d , None   -> local_store (Filename.concat d default_dir)
     | false, false, None   , None   -> local_store default_dir
     | _ ->
-      let local = match local with None -> "<none>" | Some d -> d in
-      let remote = match remote with None -> "<none>" | Some u -> Uri.to_string u in
-      failwith (Printf.sprintf "Invalid store source [%b %s %s]" in_memory local remote)
+      let local = match !local with None -> "<none>" | Some d -> d in
+      let remote = match !remote with None -> "<none>" | Some u -> Uri.to_string u in
+      failwith (Printf.sprintf
+                  "Invalid store source [git=%b in-memory=%b %s %s]"
+                  !git !in_memory local remote)
   in
   Term.(pure create $ git $ in_memory $ local $ remote)
 
