@@ -26,7 +26,7 @@ end
 
 module Simple = struct
   include IrminPath
-  let master = ["refs/master"]
+  let master = ["refs/heads/master"]
 end
 
 module type STORE = sig
