@@ -54,8 +54,8 @@ module Make (S: Irmin.S) = struct
     let v2 = B.of_bytes_exn "" in
     let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v1)) in
     let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v2)) in
-    let r1 = R.of_bytes "foo" in
-    let r2 = R.of_bytes "bar" in
+    let r1 = R.of_bytes "refs/foo" in
+    let r2 = R.of_bytes "refs/bar" in
     return { v1; v2; kv1; kv2; r1; r2 }
 
   let test_blobs x () =

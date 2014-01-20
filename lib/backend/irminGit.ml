@@ -17,7 +17,7 @@
 open Lwt
 open Core_kernel.Std
 
-module L = Log.Make(struct let section = "GIT" end)
+module Log = Log.Make(struct let section = "GIT" end)
 
 module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.S) = struct
 
@@ -48,6 +48,7 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
         G.create ()
 
       let mem t key =
+        Log.debugf "Tree.mem %s" (K.pretty key);
         let key = git_of_key key in
         G.mem t key >>= function
         | false    -> return false
@@ -57,6 +58,7 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           | Some t -> return (V.type_eq t)
 
       let read t key =
+        Log.debugf "Tree.read %s" (K.pretty key);
         let key = git_of_key key in
         G.read t key >>= function
         | None   -> return_none
@@ -96,19 +98,16 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           | `Blob | `Tag -> true
           | _ -> false
 
-        let mk_blob v =
-          let buf = Git.output v in
-          B.of_string (Mstruct.to_string buf)
-
         let of_git k b =
+          Log.debugf "Blob.of_git: %s" (Git.pretty b);
           match b with
-          | GitTypes.Value.Blob _
-          | GitTypes.Value.Tag _  -> Some (mk_blob b)
+          | GitTypes.Value.Blob b -> Some (B.of_string (GitTypes.Blob.to_string b))
+          | GitTypes.Value.Tag _  -> None (* XXX: deal with tag objects *)
           | _                     -> None
 
         let to_git b =
-          let buf = Mstruct.of_string (B.to_string b) in
-          `Value (Git.input buf)
+          Log.debugf "Blob.to_git %s" (B.to_string b);
+          `Value (GitTypes.Value.Blob (GitTypes.Blob.of_string (B.to_string b)))
 
       end)
 
@@ -116,11 +115,15 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
 
         type t = K.t IrminTree.t
 
+        module X = IrminTree.S(K)
+
         let type_eq = function
           | `Blob | `Tree -> true
           | _ -> false
 
-        let of_git k = function
+        let of_git k v =
+          Log.debugf "Tree.of_git %s" (Git.pretty v);
+          match v with
           | GitTypes.Value.Blob _ ->
             (* Create a dummy leaf node to hold blobs. *)
             let key = key_of_git k in
@@ -132,7 +135,9 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
             Some { IrminTree.blob; children }
           | _ -> None
 
-        let to_git = function
+        let to_git t =
+          Log.debugf "Tree.to_git %s" (X.to_string t);
+          match t with
           | { IrminTree.blob = Some key; children = [] } ->
             (* This is a dummy leaf node. Do nothing. *)
             `Key (git_of_key key)
@@ -150,11 +155,15 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
 
         type t = K.t IrminCommit.t
 
+        module X = IrminCommit.S(K)
+
         let type_eq = function
           | `Commit -> true
           | _ -> false
 
-        let of_git k = function
+        let of_git k v =
+          Log.debugf "Commit.of_git %s" (Git.pretty v);
+          match v with
           | GitTypes.Value.Commit { GitTypes.Commit.tree; parents } ->
             let commit_key_of_git k = key_of_git (GitTypes.SHA1.of_commit k) in
             let tree_key_of_git k = key_of_git (GitTypes.SHA1.of_tree k) in
@@ -163,15 +172,17 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
             Some { IrminCommit.tree; parents }
           | _ -> None
 
-        let to_git { IrminCommit.tree; parents } =
+        let to_git c =
+          Log.debugf "Commit.to_git %s" (X.to_string c);
+          let { IrminCommit.tree; parents } = c in
           match tree with
           | None      -> failwith "not supported"
           | Some tree ->
-            let git_of_commit_key k = GitTypes.SHA1.to_commit (git_of_key tree) in
-            let git_of_tree_key k = GitTypes.SHA1.to_tree (git_of_key tree) in
+            let git_of_commit_key k = GitTypes.SHA1.to_commit (git_of_key k) in
+            let git_of_tree_key k = GitTypes.SHA1.to_tree (git_of_key k) in
             let tree = git_of_tree_key tree in
             let parents = List.map ~f:git_of_commit_key parents in
-            let date = Float.to_string (Unix.gettimeofday ()) in
+            let date = Float.to_string (Unix.time ()) in
             let author = GitTypes.User.({ name = "irminsule"; email = ""; date }) in
             let message = "Created by Irminsule" in
             let commit = {

@@ -24,7 +24,7 @@ module type S = sig
   val file_of_key: string -> string
   (** Return the filename for a given key. *)
 
-  val keys_of_dir: string -> string list Lwt.t
+  val keys_of_dir: string -> string list
   (** Return all the filename corresponding to keys in a given
       directory. *)
 
