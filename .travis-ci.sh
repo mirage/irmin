@@ -12,5 +12,6 @@ opam init
 opam install ${OPAM_PACKAGES}
 
 eval `opam config env`
+ocaml setup.ml -configure --enable-tests
 make
 make test

@@ -13,14 +13,10 @@ Flag xen
 
 Flag git
   Description: build the Git backend
-  Default: false
+  Default: true
 
 Flag unix
   Description: build the Unix library
-  Default: true
-
-Flag test
-  Description: Build and run the tests
   Default: true
 
 Library irminsule
@@ -61,8 +57,8 @@ Library git
 
 
 Library server
-  Build$: flag(unix)
-  Install$: flag(unix)
+  Build$: flag(unix) && flag(git)
+  Install$: flag(unix) && flag(git)
   Path: lib/server
   Findlibname: server
   FindlibParent: irminsule
@@ -105,6 +101,6 @@ Executable test_irmin
   BuildDepends:       irminsule, irminsule.backend, irminsule.backend.fs, alcotest, irminsule.server
 
 Test test_irmin
-  Run$:               flag(tests)
+  Run$:               flag(tests) && flag(unix)
   Command:            $test_irmin -q
   WorkingDirectory:   .
