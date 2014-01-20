@@ -477,14 +477,13 @@ let dump = {
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
       Arg.(required & pos 0 (some & string) None & doc) in
-    let dump basename =
-      let (module S) = local_store default_dir in
+    let dump (module S: Irmin.SIMPLE) basename =
       run begin
         S.create () >>= fun t ->
         S.output t basename
       end
     in
-    Term.(mk dump $ basename);
+    Term.(mk dump $ store $ basename);
 }
 
 (* HELP *)
