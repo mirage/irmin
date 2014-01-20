@@ -53,6 +53,12 @@ module SHA1 = struct
   let of_json j =
     of_hex (Ezjsonm.get_string j)
 
+  let sexp_of_t t =
+    Sexplib.Sexp.Atom (to_hex t)
+
+  let t_of_sexp s =
+    of_hex (Sexplib.Conv.string_of_sexp s)
+
   let pretty = to_hex
 
   let of_pretty = of_hex
