@@ -126,6 +126,10 @@ let remote_store uri =
   Log.infof "source: uri=%s" (Uri.to_string uri);
   CRUD.simple uri
 
+let git_store () =
+  Log.infof "git";
+  (module IrminGit.Simple(GitLocal): Irmin.SIMPLE)
+
 let store =
   let in_memory =
     let doc =
@@ -140,18 +144,23 @@ let store =
     let doc =
       Arg.info ~docv:"URI" ~doc:"Remote store." ["r";"remote"] in
     Arg.(value & opt (some uri_conv) None & doc) in
-  let create in_memory local remote =
-    match in_memory, local, remote with
-    | true , None   , None   -> in_memory_store ()
-    | false, None   , Some u -> remote_store u
-    | false, Some d , None   -> local_store (Filename.concat d default_dir)
-    | false, None   , None   -> local_store default_dir
+  let git =
+    let doc =
+      Arg.info ~doc:"Local Git store." ["g";"git"] in
+    Arg.(value & flag & doc) in
+  let create git in_memory local remote =
+    match git, in_memory, local, remote with
+    | true , false, None   , None   -> git_store ()
+    | false, true , None   , None   -> in_memory_store ()
+    | false, false, None   , Some u -> remote_store u
+    | false, false, Some d , None   -> local_store (Filename.concat d default_dir)
+    | false, false, None   , None   -> local_store default_dir
     | _ ->
       let local = match local with None -> "<none>" | Some d -> d in
       let remote = match remote with None -> "<none>" | Some u -> Uri.to_string u in
       failwith (Printf.sprintf "Invalid store source [%b %s %s]" in_memory local remote)
   in
-  Term.(pure create $ in_memory $ local $ remote)
+  Term.(pure create $ git $ in_memory $ local $ remote)
 
 let run t =
   Lwt_unix.run (
