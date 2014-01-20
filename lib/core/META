@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ae43b8da34481529b7178e11ef2f5d1f)
+# DO NOT EDIT (digest: f40f059832c124bb56580f3e48811a36)
 version = "0.4.0"
 description = "A Distributed Version Control Database"
 requires =
@@ -13,7 +13,7 @@ package "server" (
  version = "0.4.0"
  description = "A Distributed Version Control Database"
  requires =
- "cohttp.lwt unix lwt.unix lwt.ssl irminsule.backend.fs irminsule.backend irminsule"
+ "cohttp.lwt unix lwt.unix lwt.ssl irminsule.backend.fs irminsule.backend irminsule irminsule.backend.git"
  archive(byte) = "server.cma"
  archive(byte, plugin) = "server.cma"
  archive(native) = "server.cmxa"
@@ -30,6 +30,17 @@ package "backend" (
  archive(native) = "backend.cmxa"
  archive(native, plugin) = "backend.cmxs"
  exists_if = "backend.cma"
+ package "git" (
+  version = "0.4.0"
+  description = "A Distributed Version Control Database"
+  requires = "irminsule.backend irminsule git.unix"
+  archive(byte) = "git.cma"
+  archive(byte, plugin) = "git.cma"
+  archive(native) = "git.cmxa"
+  archive(native, plugin) = "git.cmxs"
+  exists_if = "git.cma"
+ )
+ 
  package "fs" (
   version = "0.4.0"
   description = "A Distributed Version Control Database"

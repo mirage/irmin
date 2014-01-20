@@ -50,14 +50,14 @@ Library fs
   BuildDepends: lwt.unix, uri, irminsule.backend, irminsule
   Modules: IrminFS
 
-#Library git
-#  Build$: flag(git)
-#  Install$: flag(git)
-#  Path: lib/backend
-#  Findlibname: git
-#  FindlibParent: backend
-#  BuildDepends: irminsule.backend, irminsule, git.unix
-#  Modules: IrminGit
+Library git
+ Build$: flag(git)
+ Install$: flag(git)
+ Path: lib/backend
+ Findlibname: git
+ FindlibParent: backend
+ BuildDepends: irminsule.backend, irminsule, git.unix
+ Modules: IrminGit
 
 
 Library server
@@ -67,8 +67,8 @@ Library server
   Findlibname: server
   FindlibParent: irminsule
   BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl,
-                irminsule.backend.fs, irminsule.backend, irminsule
-#                irminsule.backend.git
+                irminsule.backend.fs, irminsule.backend, irminsule,
+                irminsule.backend.git
   Modules: IrminHTTP
 
 Document irminsule
