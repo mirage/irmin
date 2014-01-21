@@ -17,7 +17,8 @@
 open Core_kernel.Std
 open Lwt
 
-module L = Log.Make(struct let section = "IRMIN" end)
+module LogMake = Log.Make
+module Log = LogMake(struct let section = "IRMIN" end)
 
 module type S = sig
   type value
@@ -115,6 +116,11 @@ module Make
 
   let watches: watch list ref = ref []
 
+  let dump_watches () =
+    List.iter ~f:(fun (path, _) ->
+        Log.debugf "watch: %s" (IrminPath.to_string path)
+      ) !watches
+
   let fire path (p, _) =
     if p = path then true
     else
@@ -124,16 +130,33 @@ module Make
         | a::b, x::y -> a=x && aux (b, y) in
       aux (path, p)
 
+  let read_tree fn t path =
+    read_head_tree t >>= fun tree ->
+    fn (tr t.vals) tree path
+
+  let read =
+    read_tree Tree.find
+
   let update t path blob =
+    dump_watches ();
+    read t path >>= fun old_v ->
     update_tree t path (fun tree ->
         Tree.update (tr t.vals) tree path blob
       ) >>= fun () ->
-    let ws = List.filter ~f:(fire path) !watches in
+    read t path >>= fun new_v ->
+    let ws =
+      if old_v = new_v then (
+        let p = function
+          | None   -> "<none>"
+          | Some v -> B.to_string v in
+        Log.infof "old=%s new=%s" (p old_v) (p new_v);
+        []
+      ) else List.filter ~f:(fire path) !watches in
     if ws = [] then return_unit
     else (
       Reference.read_exn t.refs t.branch >>= fun rev ->
       List.iter ~f:(fun (_, f) ->
-          L.infof "fire %s" (IrminPath.to_string path);
+          Log.infof "fire %s" (IrminPath.to_string path);
           f path rev
         ) ws;
       return_unit
@@ -143,13 +166,6 @@ module Make
     update_tree t path (fun tree ->
         Tree.remove (tr t.vals) tree path
       )
-
-  let read_tree fn t path =
-    read_head_tree t >>= fun tree ->
-    fn (tr t.vals) tree path
-
-  let read =
-    read_tree Tree.find
 
   let read_exn =
     read_tree Tree.find_exn
@@ -193,7 +209,7 @@ module Make
   module Graph = IrminGraph.Make(K)
 
   let output t name =
-    L.debugf "output %s" name;
+    Log.debugf "output %s" name;
     Blob.contents (bl t.vals)   >>= fun blobs   ->
     Tree.contents (tr t.vals)   >>= fun trees   ->
     Commit.contents (co t.vals) >>= fun commits ->
@@ -238,17 +254,18 @@ module Make
     return_unit
 
   let watch t path =
+    Log.infof "Adding a watch on %s" (IrminPath.to_string path);
     let stream, push, _ = Lwt_stream.create_with_reference () in
     let callback path rev =
       push (Some (path, rev)) in
     watches := (path, callback) :: !watches;
     stream
 
-  module L = Log.Make(struct let section ="DUMP" end)
+  module Log = LogMake(struct let section ="DUMP" end)
 
   (* XXX: can be improved quite a lot *)
   let export t roots =
-    L.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
+    Log.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
     output t "export" >>= fun () ->
     let contents = Internal.Key.Table.create () in
     let add k v =
@@ -277,7 +294,7 @@ module Make
         ) K.Set.empty commits
       >>= fun trees ->
       let trees = Set.elements trees in
-      L.debugf "export TREES=%s" (IrminMisc.pretty_list K.to_string trees);
+      Log.debugf "export TREES=%s" (IrminMisc.pretty_list K.to_string trees);
       Lwt_list.fold_left_s (fun set key ->
           Tree.read_exn (tr t.vals) key >>= fun tree ->
           add key (IrminValue.Tree tree);
@@ -289,7 +306,7 @@ module Make
         ) K.Set.empty trees
       >>= fun blobs ->
       let blobs = Set.elements blobs in
-      L.debugf "export BLOBS=%s" (IrminMisc.pretty_list K.to_string blobs);
+      Log.debugf "export BLOBS=%s" (IrminMisc.pretty_list K.to_string blobs);
       Lwt_list.iter_p (fun key ->
           Blob.read_exn (bl t.vals) key >>= fun blob ->
           add key (IrminValue.Blob blob);
@@ -304,7 +321,7 @@ module Make
   exception Errors of (Internal.key * Internal.key * string) list
 
   let import t list =
-    L.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst list));
+    Log.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst list));
     let errors = ref [] in
     let check msg k1 k2 =
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;

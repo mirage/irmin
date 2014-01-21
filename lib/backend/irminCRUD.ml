@@ -93,10 +93,12 @@ module Make (Client: Cohttp_lwt.Client) = struct
     map_string_response fn
 
   let post t path body fn =
-    L.debugf "post %s" (Uri.to_string (uri t path));
     let body =
       let params = `O [ "params", body ] in
-      match Cohttp_lwt_body.body_of_string (Ezjsonm.to_string params) with
+      Ezjsonm.to_string params in
+    L.debugf "post %s %s" (Uri.to_string (uri t path)) body;
+    let body =
+      match Cohttp_lwt_body.body_of_string body with
       | Some c -> c
       | None   -> assert false in
     Cohttp_lwt_unix.Client.post ~body (uri t path) >>=
