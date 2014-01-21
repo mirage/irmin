@@ -19,12 +19,14 @@ open Core_kernel.Std
 type 'key t = {
   tree   : 'key option;
   parents: 'key list;
+  date   : float;
   origin : string;
 } with bin_io, compare, sexp
 
 let to_json json_of_key t =
   `O (
     ("parents", Ezjsonm.list json_of_key t.parents) ::
+    ("date"   , Ezjsonm.string (Float.to_string t.date)) ::
     ("origin" , Ezjsonm.string t.origin) ::
     match t.tree with
     | None   -> []
@@ -36,10 +38,12 @@ let of_json key_of_json json =
     Ezjsonm.get_list key_of_json (Ezjsonm.find json ["parents"]) in
   let origin =
     Ezjsonm.get_string (Ezjsonm.find json ["origin"]) in
+  let date =
+    Float.of_string (Ezjsonm.get_string (Ezjsonm.find json ["date"])) in
   let tree =
     try Some (key_of_json (Ezjsonm.find json ["tree"]))
     with Not_found -> None in
-  { tree; parents; origin }
+  { tree; parents; date; origin }
 
 module L = Log.Make(struct let section = "COMMIT" end)
 
@@ -144,8 +148,9 @@ module Make
     >>= fun tree ->
     Lwt_list.map_p (Commit.add c) parents
     >>= fun parents ->
-    let origin = Int64.to_string (Float.to_int64 (Unix.time ())) in
-    Commit.add c { tree; parents; origin }
+    let date = Unix.time () in
+    let origin = Printf.sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
+    Commit.add c { tree; parents; date; origin }
 
   let parents t c =
     List.map ~f:(read_exn t) c.parents
