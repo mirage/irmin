@@ -34,14 +34,49 @@ let warning fmt =
 
 let (/) = Filename.concat
 
-let basenames fn dir =
-  let files = Lwt_unix.files_of_directory dir in
-  Lwt_stream.to_list files >>= fun files ->
-  let files = List.filter ~f:(fun f -> f <> "." && f <> "..") files in
-  Lwt_list.map_s (fun f ->
-      let b = Filename.basename f in
-      return (fn b)
-    ) files
+let in_dir dir fn =
+  let reset_cwd =
+    let cwd =
+      try Some (Sys.getcwd ())
+      with _ -> None in
+    fun () ->
+      match cwd with
+      | None     -> ()
+      | Some cwd -> try Unix.chdir cwd with _ -> () in
+  Unix.chdir dir;
+  try
+    let r = fn () in
+    reset_cwd ();
+    r
+  with e ->
+    reset_cwd ();
+    raise e
+
+let list kind dir =
+  if Sys.file_exists dir then
+    in_dir dir (fun () ->
+      let d = Sys.readdir (Sys.getcwd ()) in
+      let d = Array.to_list d in
+      let l = List.filter ~f:kind d in
+      List.sort ~cmp:compare (List.rev_map ~f:(Filename.concat dir) l)
+    )
+  else
+    []
+
+let directories_with_links =
+  list (fun f -> try Sys.is_directory f with _ -> false)
+
+let files_with_links =
+  list (fun f -> try not (Sys.is_directory f) with _ -> true)
+
+let rec_files root =
+  let rec aux accu dir =
+    let d = directories_with_links dir in
+    let f = files_with_links dir in
+    List.fold_left ~f:aux ~init:(f @ accu) d in
+  let files = aux [] root in
+  let prefix = root / "" in
+  List.map ~f:(String.chop_prefix_exn ~prefix) files
 
 type root = D of string
 
@@ -110,7 +145,7 @@ let write_bigstring fd ba =
 module type S = sig
   val path: string
   val file_of_key: string -> string
-  val keys_of_dir: string -> string list Lwt.t
+  val keys_of_dir: string -> string list
 end
 
 module type S0 = sig
@@ -122,22 +157,18 @@ module OBJECTS (S: S0) (K: IrminKey.S) = struct
     let path = S.path / "objects"
 
     let file_of_key k =
-      let key = K.pretty (K.of_string k) in
+      let key = K.to_string (K.of_raw k) in
       let len = String.length key in
       let pre = String.sub key 0 2 in
       let suf = String.sub key 2 (len - 2) in
       path / pre / suf
 
     let keys_of_dir root =
-      let aux pre =
-        basenames (fun suf ->
-            K.to_string (K.of_pretty (pre ^ suf))
-          ) (root / pre) in
-      basenames (fun x -> x) root >>= fun pres ->
-      Lwt_list.fold_left_s (fun acc pre ->
-          aux pre >>= fun keys ->
-          return (keys @ acc)
-        ) [] pres
+      let files = rec_files root in
+      List.map ~f:(fun path ->
+          let path = IrminPath.of_string path in
+          K.to_raw (K.of_string (String.concat ~sep:"" path))
+        ) files
 
   end
 
@@ -148,8 +179,10 @@ module REFS (S: S0) = struct
   let file_of_key key =
     path / key
 
-  let keys_of_dir dir =
-    basenames (fun x -> x) dir
+  let keys_of_dir root =
+    Log.debugf "keys_of_dir %s" root;
+    let files = rec_files root in
+    List.map ~f:(fun x -> x) files
 
 end
 
@@ -163,15 +196,10 @@ module RO (S: S) (K: IrminKey.S) = struct
   type t = root
 
   let pretty_key k =
-    K.pretty (K.of_string k)
-
-  let pretty_value ba =
-    let b = Buffer.create 1024 in
-    Cstruct.hexdump_to_buffer b (Cstruct.of_bigarray ba);
-    Printf.sprintf "%S" (Buffer.contents b)
+    K.to_string (K.of_raw k)
 
   let unknown k =
-    fail (IrminKey.Unknown (K.pretty (K.of_string k)))
+    fail (IrminKey.Unknown (pretty_key k))
 
   let create () =
     return (D S.path)
@@ -179,6 +207,7 @@ module RO (S: S) (K: IrminKey.S) = struct
   let mem t key =
     check t >>= fun () ->
     let file = S.file_of_key key in
+    Log.debugf "file=%s" file;
     return (Sys.file_exists file)
 
   let read_bigstring fd =
@@ -204,7 +233,7 @@ module RO (S: S) (K: IrminKey.S) = struct
   let contents (D root as t) =
     L.debugf "contents %s" root;
     check t >>= fun () ->
-    S.keys_of_dir root >>= fun l ->
+    let l = S.keys_of_dir root in
     Lwt_list.fold_left_s (fun acc x ->
         read t x >>= function
         | None   -> return acc
@@ -218,9 +247,9 @@ module AO (S: S) (K: IrminKey.S) = struct
   include RO(S)(K)
 
   let add t value =
-    L.debugf "add %s" (pretty_value value);
+    L.debugf "add";
     check t >>= fun () ->
-    let key = K.to_string (K.of_bigarray value) in
+    let key = K.to_raw (K.of_bigarray value) in
     let file = S.file_of_key key in
     begin if Sys.file_exists file then
         return_unit
@@ -245,7 +274,7 @@ module RW (S: S) (K: IrminKey.S) = struct
     return_unit
 
   let update t key value =
-    L.debugf "update %s %s" (pretty_key key) (pretty_value value);
+    L.debugf "update %s" (pretty_key key);
     check t >>= fun () ->
     remove t key >>= fun () ->
     with_file_out (S.file_of_key key) (fun fd ->

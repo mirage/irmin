@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ecd3a9548df98d58823116029d6fb9a1)
+# DO NOT EDIT (digest: 334bb0531847593dcf928c835c6ffd6a)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -30,10 +30,13 @@
 "lib/backend/backend.cmxs": use_backend
 # Library fs
 "lib/backend/fs.cmxs": use_fs
+<lib/backend/*.ml{,i}>: pkg_lwt.unix
+# Library git
+"lib/backend/git.cmxs": use_git
 <lib/backend/*.ml{,i}>: use_backend
 <lib/backend/*.ml{,i}>: use_irminsule
 <lib/backend/*.ml{,i}>: pkg_cohttp.lwt
-<lib/backend/*.ml{,i}>: pkg_lwt.unix
+<lib/backend/*.ml{,i}>: pkg_git.unix
 <lib/backend/*.ml{,i}>: pkg_uri
 <lib/backend/*.ml{,i}>: pkg_ezjsonm.lwt
 <lib/backend/*.ml{,i}>: pkg_ezjsonm
@@ -49,6 +52,7 @@
 <lib/backend/*.ml{,i}>: pkg_sexplib.syntax
 # Library server
 "lib/server/server.cmxs": use_server
+<lib/server/*.ml{,i}>: use_git
 <lib/server/*.ml{,i}>: use_fs
 <lib/server/*.ml{,i}>: use_backend
 <lib/server/*.ml{,i}>: use_irminsule
@@ -56,6 +60,7 @@
 <lib/server/*.ml{,i}>: pkg_unix
 <lib/server/*.ml{,i}>: pkg_lwt.unix
 <lib/server/*.ml{,i}>: pkg_lwt.ssl
+<lib/server/*.ml{,i}>: pkg_git.unix
 <lib/server/*.ml{,i}>: pkg_uri
 <lib/server/*.ml{,i}>: pkg_ezjsonm.lwt
 <lib/server/*.ml{,i}>: pkg_ezjsonm
@@ -71,6 +76,7 @@
 <lib/server/*.ml{,i}>: pkg_sexplib.syntax
 # Executable irmin
 <lib/driver/irminMain.{native,byte}>: use_server
+<lib/driver/irminMain.{native,byte}>: use_git
 <lib/driver/irminMain.{native,byte}>: use_fs
 <lib/driver/irminMain.{native,byte}>: use_backend
 <lib/driver/irminMain.{native,byte}>: use_irminsule
@@ -79,6 +85,7 @@
 <lib/driver/irminMain.{native,byte}>: pkg_unix
 <lib/driver/irminMain.{native,byte}>: pkg_lwt.unix
 <lib/driver/irminMain.{native,byte}>: pkg_lwt.ssl
+<lib/driver/irminMain.{native,byte}>: pkg_git.unix
 <lib/driver/irminMain.{native,byte}>: pkg_uri
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm.lwt
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm
@@ -93,6 +100,7 @@
 <lib/driver/irminMain.{native,byte}>: pkg_comparelib.syntax
 <lib/driver/irminMain.{native,byte}>: pkg_sexplib.syntax
 <lib/driver/*.ml{,i}>: use_server
+<lib/driver/*.ml{,i}>: use_git
 <lib/driver/*.ml{,i}>: use_fs
 <lib/driver/*.ml{,i}>: use_backend
 <lib/driver/*.ml{,i}>: use_irminsule
@@ -101,6 +109,7 @@
 <lib/driver/*.ml{,i}>: pkg_unix
 <lib/driver/*.ml{,i}>: pkg_lwt.unix
 <lib/driver/*.ml{,i}>: pkg_lwt.ssl
+<lib/driver/*.ml{,i}>: pkg_git.unix
 <lib/driver/*.ml{,i}>: pkg_uri
 <lib/driver/*.ml{,i}>: pkg_ezjsonm.lwt
 <lib/driver/*.ml{,i}>: pkg_ezjsonm
@@ -116,6 +125,7 @@
 <lib/driver/*.ml{,i}>: pkg_sexplib.syntax
 # Executable test_irmin
 <lib_test/test.{native,byte}>: use_server
+<lib_test/test.{native,byte}>: use_git
 <lib_test/test.{native,byte}>: use_fs
 <lib_test/test.{native,byte}>: use_backend
 <lib_test/test.{native,byte}>: use_irminsule
@@ -124,6 +134,7 @@
 <lib_test/test.{native,byte}>: pkg_unix
 <lib_test/test.{native,byte}>: pkg_lwt.unix
 <lib_test/test.{native,byte}>: pkg_lwt.ssl
+<lib_test/test.{native,byte}>: pkg_git.unix
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: pkg_ezjsonm.lwt
 <lib_test/test.{native,byte}>: pkg_ezjsonm
@@ -138,6 +149,7 @@
 <lib_test/test.{native,byte}>: pkg_comparelib.syntax
 <lib_test/test.{native,byte}>: pkg_sexplib.syntax
 <lib_test/*.ml{,i}>: use_server
+<lib_test/*.ml{,i}>: use_git
 <lib_test/*.ml{,i}>: use_fs
 <lib_test/*.ml{,i}>: use_backend
 <lib_test/*.ml{,i}>: use_irminsule
@@ -146,6 +158,7 @@
 <lib_test/*.ml{,i}>: pkg_unix
 <lib_test/*.ml{,i}>: pkg_lwt.unix
 <lib_test/*.ml{,i}>: pkg_lwt.ssl
+<lib_test/*.ml{,i}>: pkg_git.unix
 <lib_test/*.ml{,i}>: pkg_uri
 <lib_test/*.ml{,i}>: pkg_ezjsonm.lwt
 <lib_test/*.ml{,i}>: pkg_ezjsonm

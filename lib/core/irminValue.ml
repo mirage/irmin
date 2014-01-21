@@ -53,7 +53,6 @@ module S (K: IrminKey.S) (B: IrminBlob.S) = struct
     let hash (t : t) = Hashtbl.hash t
     include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
     let module_name = "Value"
-    let name = "value"
   end
   include M
   include Identifiable.Make (M)

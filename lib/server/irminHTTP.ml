@@ -54,6 +54,18 @@ let unit = {
   output = (fun () -> Ezjsonm.unit);
 }
 
+let json_headers = Cohttp.Header.of_list [
+    "Content-type", "application/json"
+  ]
+
+let respond_error e =
+  let json = `O [ "error", Ezjsonm.string (Exn.to_string e) ] in
+  let body = Ezjsonm.to_string json in
+  Cohttp_lwt_unix.Server.respond_string
+    ~headers:json_headers
+    ~status:`Internal_server_error
+    ~body ()
+
 exception Invalid
 
 module Server (S: Irmin.S) = struct
@@ -105,10 +117,6 @@ module Server (S: Irmin.S) = struct
     L.debugf "%S" body;
     Cohttp_lwt_unix.Server.respond_string ?headers ~status:`OK ~body ()
 
-  let json_headers = Cohttp.Header.of_list [
-      "Content-type", "application/json"
-    ]
-
   let respond_json json =
     let json = `O [ "result", json ] in
     let body = Ezjsonm.to_string json in
@@ -139,7 +147,7 @@ module Server (S: Irmin.S) = struct
   let to_json t =
     let rec aux path acc = function
       | Fixed   _
-      | Stream _ -> `String (IrminPath.pretty (List.rev path)) :: acc
+      | Stream _ -> `String (IrminPath.to_string (List.rev path)) :: acc
       | Node c   -> List.fold_left c
                       ~f:(fun acc (s,t) -> aux (s::path) acc t)
                       ~init:acc in
@@ -276,11 +284,11 @@ module Server (S: Irmin.S) = struct
   ]
 
   let reference_store = Node [
-      mk1p0bf "read"     Reference.read     re reference (some key);
-      mk1p0bf "mem"      Reference.mem      re reference bool;
-      mk1p0bf "list"     Reference.list     re reference (list reference);
-      mk1p1bf "update"   Reference.update   re reference key unit;
-      mk1p0bf "remove"   Reference.remove   re reference unit;
+      mklp0bf "read"     Reference.read     re reference (some key);
+      mklp0bf "mem"      Reference.mem      re reference bool;
+      mklp0bf "list"     Reference.list     re reference (list reference);
+      mklp1bf "update"   Reference.update   re reference key unit;
+      mklp0bf "remove"   Reference.remove   re reference unit;
       mk0p0bf "contents" Reference.contents re (contents reference key);
   ]
 
@@ -347,10 +355,12 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
   printf "Server started on port %d.\n%!" port;
   let callback conn_id ?body req =
     let path = Uri.path (Cohttp.Request.uri req) in
-    L.debugf "Request received: PATH=%s" path;
+    L.infof "Request received: PATH=%s" path;
     let path = String.split path ~on:'/' in
     let path = List.filter ~f:((<>) "") path in
-    Server.process t ?body req path in
+    catch
+      (fun () -> Server.process t ?body req path)
+      (fun e  -> respond_error e) in
   let conn_closed conn_id () =
     L.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
   let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
@@ -360,7 +370,7 @@ let stop_server uri =
   let port = match Uri.port uri with
     | None   -> 8080
     | Some p -> p in
-  L.debugf "stop-server [port %d]" port;
+  L.infof "stop-server [port %d]" port;
   Cohttp_lwt_unix_net.build_sockaddr "0.0.0.0" (string_of_int port) >>=
   fun sockaddr ->
   let sock =

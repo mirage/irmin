@@ -39,7 +39,7 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
   open Lwt
 
-  module L = Log.Make(struct let section = "A" end)
+  module L = Log.Make(struct let section = "RO" end)
 
   type t = S.t
 
@@ -51,21 +51,21 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
     S.create ()
 
   let read t key =
-    S.read t (K.to_string key) >>= function
+    S.read t (K.to_raw key) >>= function
     | None    -> return_none
     | Some ba -> return (IrminMisc.read V.bin_t ba)
 
   let read_exn t key =
     read t key >>= function
-    | None   -> fail (IrminKey.Unknown (K.pretty key))
+    | None   -> fail (IrminKey.Unknown (K.to_string key))
     | Some v -> return v
 
   let mem t key =
-    S.mem t (K.to_string key)
+    S.mem t (K.to_raw key)
 
   let list t key =
-    S.list t (K.to_string key) >>= fun ks ->
-    let ks = List.map ~f:K.of_string ks in
+    S.list t (K.to_raw key) >>= fun ks ->
+    let ks = List.map ~f:K.of_raw ks in
     return ks
 
   let contents t =
@@ -73,7 +73,7 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
     Lwt_list.fold_left_s (fun acc (s, ba) ->
         match IrminMisc.read V.bin_t ba with
         | None   -> return acc
-        | Some v -> return ((K.of_string s, v) :: acc)
+        | Some v -> return ((K.of_raw s, v) :: acc)
       ) [] l
 
 end
@@ -96,13 +96,13 @@ module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
   include RO_MAKER(S)(K)(V)
 
-  module LA = Log.Make(struct let section = "A" end)
+  module LA = Log.Make(struct let section = "AO" end)
 
   let add t value =
     LA.debugf "add %s" (V.to_string value);
     S.add t (IrminMisc.write V.bin_t value) >>= fun key ->
-    let key = K.of_string key in
-    LA.debugf "<-- add: %s -> key=%s" (V.to_string value) (K.pretty key);
+    let key = K.of_raw key in
+    LA.debugf "<-- add: %s -> key=%s" (V.to_string value) (K.to_string key);
     return key
 
 end
@@ -124,7 +124,7 @@ module RW_MAKER (S: RW_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
   include RO_MAKER(S)(K)(V)
 
-  module LM = Log.Make(struct let section = "M" end)
+  module LM = Log.Make(struct let section = "RW" end)
 
   let update t key value =
     LM.debug (lazy "update");

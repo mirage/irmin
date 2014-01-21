@@ -20,30 +20,25 @@ module M = struct
   type nonrec t = string list
   with bin_io, compare, sexp
   let hash (t : t) = Hashtbl.hash t
-  include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+  let to_string t =
+    String.concat ~sep:"/" t
+  let of_string str =
+    List.filter
+      ~f:(fun s -> not (String.is_empty s))
+      (String.split str ~on:'/')
   let module_name = "Path"
 end
 include M
 include Identifiable.Make (M)
 
-let pretty t =
-  String.concat ~sep:"/" t
-
-let of_pretty str =
-  List.filter
-    ~f:(fun s -> not (String.is_empty s))
-    (String.split str ~on:'/')
-
-let of_string = of_pretty
-
-let to_string = pretty
+let of_raw = of_string
+let to_raw = to_string
 
 let to_json = Ezjsonm.list Ezjsonm.string
 
 let of_json = Ezjsonm.get_list Ezjsonm.get_string
 
-let of_bytes str =
-  failwith "Path.of_bytes: ???"
+let of_bytes = of_raw
 
-let of_bigarray ba =
-  failwith "Path.of_bigarray: ???"
+let of_bigarray x =
+  of_raw (Bigstring.to_string x)

@@ -19,6 +19,7 @@
 type 'key t = {
   tree   : 'key option;
   parents: 'key list;
+  origin : string;
 } with bin_io, compare, sexp
 (** Type of concrete revisions. *)
 

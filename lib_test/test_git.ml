@@ -14,13 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let () =
-  Test_store.run "irminsule" [
-    `Quick, Test_memory.suite;
-    `Quick, Test_fs.suite;
-    `Quick, Test_git.suite `Local;
-    `Quick, Test_git.suite `Memory;
-    `Slow , Test_crud.suite Test_memory.suite;
-    `Slow , Test_crud.suite Test_fs.suite;
-    `Slow , Test_crud.suite (Test_git.suite `Local);
-  ]
+open Lwt
+open Test_store
+
+let test_db = ".git"
+
+let init () =
+  if Filename.basename (Sys.getcwd ()) <> "lib_test" then
+    failwith "The Git test should be run in the lib_test/ directory."
+  else if Sys.file_exists test_db then begin
+    let cmd = Printf.sprintf "rm -rf %s" test_db in
+    let _ = Sys.command cmd in ()
+  end;
+  return_unit
+
+let suite = function
+  | `Local -> {
+      name  = "GIT";
+      init  = init;
+      clean = unit;
+      store = (module IrminGit.Simple(GitLocal));
+    }
+  | `Memory -> {
+      name  = "GIT.MEM";
+      init  = unit;
+      clean = unit;
+      store = (module IrminGit.Simple(GitMemory));
+    }

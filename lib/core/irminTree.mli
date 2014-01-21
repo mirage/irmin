@@ -17,10 +17,10 @@
 
 (** Tree-like structures of values. *)
 
-type 'key t = {
-  blob    : 'key option;
-  children: (string * 'key) list;
-} with bin_io, compare, sexp
+type 'key t =
+  | Leaf of 'key
+  | Node of (string * 'key) list
+with bin_io, compare, sexp
 (** Type of trees .*)
 
 val of_json: (Ezjsonm.t -> 'a) -> Ezjsonm.t -> 'a t
@@ -63,7 +63,10 @@ module type STORE = sig
                          and type value := value
   (** Tree stores are append-only. *)
 
-  val tree: t -> ?value:blob -> (string * value) list -> key Lwt.t
+  val leaf: t -> blob -> key Lwt.t
+  (** Create a new leaf. *)
+
+  val node: t -> (string * value) list -> key Lwt.t
   (** Create a new node. *)
 
   val blob: t -> value -> blob Lwt.t option

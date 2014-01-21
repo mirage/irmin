@@ -13,14 +13,10 @@ Flag xen
 
 Flag git
   Description: build the Git backend
-  Default: false
+  Default: true
 
 Flag unix
   Description: build the Unix library
-  Default: true
-
-Flag test
-  Description: Build and run the tests
   Default: true
 
 Library irminsule
@@ -50,25 +46,25 @@ Library fs
   BuildDepends: lwt.unix, uri, irminsule.backend, irminsule
   Modules: IrminFS
 
-#Library git
-#  Build$: flag(git)
-#  Install$: flag(git)
-#  Path: lib/backend
-#  Findlibname: git
-#  FindlibParent: backend
-#  BuildDepends: irminsule.backend, irminsule, git.unix
-#  Modules: IrminGit
+Library git
+ Build$: flag(git)
+ Install$: flag(git)
+ Path: lib/backend
+ Findlibname: git
+ FindlibParent: backend
+ BuildDepends: irminsule.backend, irminsule, git.unix
+ Modules: IrminGit
 
 
 Library server
-  Build$: flag(unix)
-  Install$: flag(unix)
+  Build$: flag(unix) && flag(git)
+  Install$: flag(unix) && flag(git)
   Path: lib/server
   Findlibname: server
   FindlibParent: irminsule
   BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl,
-                irminsule.backend.fs, irminsule.backend, irminsule
-#                irminsule.backend.git
+                irminsule.backend.fs, irminsule.backend, irminsule,
+                irminsule.backend.git
   Modules: IrminHTTP
 
 Document irminsule
@@ -105,6 +101,6 @@ Executable test_irmin
   BuildDepends:       irminsule, irminsule.backend, irminsule.backend.fs, alcotest, irminsule.server
 
 Test test_irmin
-  Run$:               flag(tests)
+  Run$:               flag(tests) && flag(unix)
   Command:            $test_irmin -q
-  WorkingDirectory:   .
+  WorkingDirectory:   lib_test

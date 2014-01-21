@@ -19,13 +19,14 @@ open Cmdliner
 
 (* Global options *)
 type global = {
-  verbose: bool;
+  level: Log.log_level option;
 }
 
 let app_global g =
   Log.color_on ();
-  if g.verbose then
-    Log.set_log_level Log.DEBUG
+  match g.level with
+  | None   -> ()
+  | Some d -> Log.set_log_level d
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
@@ -41,11 +42,20 @@ let help_sections = [
 ]
 
 let global =
+  let debug =
+    let doc =
+      Arg.info ~docs:global_option_section ~doc:"Be very verbose." ["debug"] in
+    Arg.(value & flag & doc) in
   let verbose =
     let doc =
-      Arg.info ~docs:global_option_section ~doc:"Be more verbose." ["v";"verbose"] in
+      Arg.info ~docs:global_option_section ~doc:"Be verbose." ["v";"verbose"] in
     Arg.(value & flag & doc) in
-  Term.(pure (fun verbose -> { verbose }) $ verbose)
+  let level debug verbose =
+    match debug, verbose with
+    | true, _    -> { level = Some Log.DEBUG }
+    | _   , true -> { level = Some Log.INFO }
+    | _          -> { level = None } in
+  Term.(pure level $ debug $ verbose)
 
 let term_info title ~doc ~man =
   let man = man @ help_sections in
@@ -90,16 +100,16 @@ let key =
   let module K = IrminKey.SHA1 in
   let key_conv =
     let parse str =
-      try `Ok (K.of_pretty str)
+      try `Ok (K.of_string str)
       with e -> `Error "Invalid key" in
-    let print ppf key = pr_str ppf (K.pretty key) in
+    let print ppf key = pr_str ppf (K.to_string key) in
     parse, print in
   let doc = Arg.info ~docv:"KEY" ~doc:"SHA1 key." [] in
   Arg.(required & pos 0 (some key_conv) None & doc)
 
 let path_conv =
-  let parse str = `Ok (IrminPath.of_pretty str) in
-  let print ppf path = pr_str ppf (IrminPath.pretty path) in
+  let parse str = `Ok (IrminPath.of_string str) in
+  let print ppf path = pr_str ppf (IrminPath.to_string path) in
   parse, print
 
 let path =
@@ -126,6 +136,23 @@ let remote_store uri =
   Log.infof "source: uri=%s" (Uri.to_string uri);
   CRUD.simple uri
 
+let git_store () =
+  Log.infof "git";
+  (module IrminGit.Simple(GitLocal): Irmin.SIMPLE)
+
+let readvar n =
+  try Sys.getenv "IRMIN" = n
+  with Not_found -> false
+
+let readvar_p prefix fn =
+  let open Core_kernel.Std in
+  try
+    let var = Sys.getenv "IRMIN" in
+    match String.chop_prefix ~prefix var with
+    | None       -> None
+    | Some s     -> Some (fn s)
+  with Not_found -> None
+
 let store =
   let in_memory =
     let doc =
@@ -140,18 +167,37 @@ let store =
     let doc =
       Arg.info ~docv:"URI" ~doc:"Remote store." ["r";"remote"] in
     Arg.(value & opt (some uri_conv) None & doc) in
-  let create in_memory local remote =
-    match in_memory, local, remote with
-    | true , None   , None   -> in_memory_store ()
-    | false, None   , Some u -> remote_store u
-    | false, Some d , None   -> local_store (Filename.concat d default_dir)
-    | false, None   , None   -> local_store default_dir
+  let git =
+    let doc =
+      Arg.info ~doc:"Local Git store." ["g";"git"] in
+    Arg.(value & flag & doc) in
+  let create git in_memory local remote =
+    let git       = ref git in
+    let in_memory = ref in_memory in
+    let local     = ref local in
+    let remote    = ref remote in
+    if !git || !in_memory || !local <> None || !remote <> None  then
+      ()
+    else (
+      git       := readvar "g";
+      in_memory := readvar "m";
+      local     := readvar_p "l:" (fun x -> x);
+      remote    := readvar_p "r:" (fun x -> Uri.of_string x);
+    );
+    match !git, !in_memory, !local, !remote with
+    | true , false, None   , None   -> git_store ()
+    | false, true , None   , None   -> in_memory_store ()
+    | false, false, None   , Some u -> remote_store u
+    | false, false, Some d , None   -> local_store (Filename.concat d default_dir)
+    | false, false, None   , None   -> local_store default_dir
     | _ ->
-      let local = match local with None -> "<none>" | Some d -> d in
-      let remote = match remote with None -> "<none>" | Some u -> Uri.to_string u in
-      failwith (Printf.sprintf "Invalid store source [%b %s %s]" in_memory local remote)
+      let local = match !local with None -> "<none>" | Some d -> d in
+      let remote = match !remote with None -> "<none>" | Some u -> Uri.to_string u in
+      failwith (Printf.sprintf
+                  "Invalid store source [git=%b in-memory=%b %s %s]"
+                  !git !in_memory local remote)
   in
-  Term.(pure create $ in_memory $ local $ remote)
+  Term.(pure create $ git $ in_memory $ local $ remote)
 
 let run t =
   Lwt_unix.run (
@@ -205,7 +251,7 @@ let read = {
       run begin
         S.create ()   >>= fun t ->
         S.read t path >>= function
-        | None   -> print "<none>\n"; exit 1
+        | None   -> print "<none>"; exit 1
         | Some v -> print "%s" (S.Value.to_string v); return_unit
       end
     in
@@ -222,7 +268,7 @@ let ls = {
       run begin
         S.create ()   >>= fun t ->
         S.list t path >>= fun paths ->
-        List.iter (fun p -> print "%s" (IrminPath.pretty p)) paths;
+        List.iter (fun p -> print "%s" (IrminPath.to_string p)) paths;
         return_unit
       end
     in
@@ -239,7 +285,7 @@ let tree = {
     run begin
       S.create () >>= fun t ->
       S.contents t >>= fun all ->
-      let all = List.map (fun (k,v) -> IrminPath.to_string k, S.Value.to_string v) all in
+      let all = List.map (fun (k,v) -> IrminPath.to_string k, Printf.sprintf "%S" (S.Value.to_string v)) all in
       let max_lenght l =
         List.fold_left (fun len s -> max len (String.length s)) 0 l in
       let k_max = max_lenght (List.map fst all) in
@@ -377,7 +423,7 @@ let snapshot = {
       run begin
         S.create ()  >>= fun t ->
         S.snapshot t >>= fun k ->
-        print "%s" (S.Snapshot.pretty k);
+        print "%s" (S.Snapshot.to_string k);
         return_unit
       end
     in
@@ -413,7 +459,7 @@ let watch = {
         S.create () >>= fun t ->
         let stream = S.watch t path in
         Lwt_stream.iter_s (fun (path, rev) ->
-            print "%s %s" (IrminPath.pretty path) (S.Snapshot.pretty rev);
+            print "%s %s" (IrminPath.to_string path) (S.Snapshot.to_string rev);
             return_unit
           ) stream
       end
@@ -431,14 +477,13 @@ let dump = {
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
       Arg.(required & pos 0 (some & string) None & doc) in
-    let dump basename =
-      let (module S) = local_store default_dir in
+    let dump (module S: Irmin.SIMPLE) basename =
       run begin
         S.create () >>= fun t ->
         S.output t basename
       end
     in
-    Term.(mk dump $ basename);
+    Term.(mk dump $ store $ basename);
 }
 
 (* HELP *)

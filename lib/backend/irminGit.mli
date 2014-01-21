@@ -14,13 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let () =
-  Test_store.run "irminsule" [
-    `Quick, Test_memory.suite;
-    `Quick, Test_fs.suite;
-    `Quick, Test_git.suite `Local;
-    `Quick, Test_git.suite `Memory;
-    `Slow , Test_crud.suite Test_memory.suite;
-    `Slow , Test_crud.suite Test_fs.suite;
-    `Slow , Test_crud.suite (Test_git.suite `Local);
-  ]
+(** Serialize the irminsule objects to a local Git store. *)
+
+module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.S) :
+  Irmin.S with type Internal.key = K.t
+           and type value = B.t
+           and type Reference.key = R.t
+(** Use the given Git store as an Irminsule store. *)
+
+module Simple (G: GitTypes.S): Irmin.SIMPLE
+(** A simple irminsule store (with key = SHA1s and values = string)
+    stored in the given git store. *)

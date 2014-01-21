@@ -17,30 +17,16 @@
 open Lwt
 open Core_kernel.Std
 
+module Log = Log.Make(struct let section = "REF" end)
+
 module type S = sig
   include IrminKey.S
   val master: t
 end
 
 module Simple = struct
-
-  include String
-
-  let master = "master"
-
-  let to_json = Ezjsonm.string
-
-  let of_json = Ezjsonm.get_string
-
-  let pretty x = x
-
-  let of_pretty x = x
-
-  let of_bytes x = x
-
-  let of_bigarray x =
-    Bigstring.to_string x
-
+  include IrminPath
+  let master = ["refs/heads/master"]
 end
 
 module type STORE = sig

@@ -19,34 +19,30 @@ open Core_kernel.Std
 
 module L = Log.Make(struct let section = "TREE" end)
 
-type 'key t = {
-  blob    : 'key option;
-  children: (string * 'key) list;
-} with bin_io, compare, sexp
+type 'key t =
+  | Leaf of 'key
+  | Node of (string * 'key) list
+with bin_io, compare, sexp
 
-let to_json json_of_key t =
-  `O (
-    ("children", Ezjsonm.list (Ezjsonm.pair Ezjsonm.string json_of_key) t.children)
-    :: match t.blob with
-    | None   -> []
-    | Some t -> [ ("blob", json_of_key t) ]
-  )
+let to_json json_of_key = function
+  | Leaf k        -> `O ["leaf", json_of_key k]
+  | Node children ->
+    `O ["children",
+        Ezjsonm.list (Ezjsonm.pair Ezjsonm.string json_of_key) children ]
 
 let of_json key_of_json json =
-  let children =
-    Ezjsonm.get_list
-      (Ezjsonm.get_pair Ezjsonm.get_string key_of_json)
-      (Ezjsonm.find json ["children"]) in
-  let blob =
-    try Some (key_of_json (Ezjsonm.find json ["blob"]))
-    with Not_found -> None in
-  { children; blob }
+  if Ezjsonm.mem json ["leaf"] then
+    let leaf = Ezjsonm.find json ["leaf"] in
+    Leaf (key_of_json leaf)
+  else
+    let children = Ezjsonm.find json ["children"] in
+    let children =
+      Ezjsonm.get_list
+        (Ezjsonm.get_pair Ezjsonm.get_string key_of_json)
+        children in
+    Node children
 
-
-let empty = {
-  blob = None;
-  children = [];
-}
+let empty = Node []
 
 module type S = sig
   type key
@@ -59,7 +55,8 @@ module type STORE = sig
   type value = key t
   include IrminStore.AO with type key := key
                          and type value := value
-  val tree: t -> ?value:blob -> (string * value) list -> key Lwt.t
+  val leaf: t -> blob -> key Lwt.t
+  val node: t -> (string * value) list -> key Lwt.t
   val blob: t -> value -> blob Lwt.t option
   val children: t -> value -> (string * value Lwt.t) list
   val sub: t -> value -> IrminPath.t -> value option Lwt.t
@@ -149,38 +146,40 @@ module Make
   module Graph = IrminGraph.Make(K)
 
   let list t key =
-    L.debugf "list %s" (K.pretty key);
+    L.debugf "list %s" (K.to_string key);
     read_exn t key >>= fun _ ->
     let pred k =
-      read_exn t k >>= fun r -> return (List.map ~f:snd r.children) in
+      read_exn t k >>= function
+      | Leaf b  -> return_nil
+      | Node ts -> return (List.map ~f:snd ts) in
     Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
     return (Graph.vertex g)
 
   let contents (_, t) =
     Tree.contents t
 
-  let tree (b, _ as t) ?value children =
-    L.debug (lazy "tree");
-    begin match value with
-      | None   -> return_none
-      | Some v -> Blob.add b v >>= fun k -> return (Some k)
-    end
-    >>= fun blob ->
+  let leaf (b, _ as t) blob =
+    Blob.add b blob >>= fun k ->
+    add t (Leaf k)
+
+  let node t children =
     Lwt_list.map_p (fun (l, tree) ->
         add t tree >>= fun k ->
         return (l, k)
       ) children
     >>= fun children ->
-    let tree = { blob; children } in
-    add t tree
+    add t (Node children)
 
-  let blob (b, _) tree =
-    match tree.blob with
-    | None   -> None
-    | Some k -> Some (Blob.read_exn b k)
+  let blob (b, _) = function
+    | Node _ -> None
+    | Leaf k -> Some (Blob.read_exn b k)
+
+  let children_raw = function
+    | Leaf _  -> []
+    | Node ts -> ts
 
   let children t tree =
-    List.map ~f:(fun (l, k) -> l, read_exn t k) tree.children
+    List.map ~f:(fun (l, k) -> l, read_exn t k) (children_raw tree)
 
   let child t tree label =
     List.Assoc.find (children t tree) label
@@ -237,7 +236,7 @@ module Make
       | (l, k) as child :: children ->
         if l = label then
           read t k >>= function
-          | None      -> fail (IrminKey.Invalid (K.pretty k))
+          | None      -> fail (IrminKey.Invalid (K.to_string k))
           | Some tree ->
             f tree >>= fun tree ->
             if tree = empty then return (List.rev_append acc children)
@@ -253,16 +252,16 @@ module Make
     let rec aux tree = function
       | []      -> return (f tree)
       | h :: tl ->
-        map_children t tree.children (fun tree -> aux tree tl) h
+        map_children t (children_raw tree) (fun tree -> aux tree tl) h
         >>= fun children ->
-        return { tree with children } in
+        return (Node children) in
     aux tree path
 
   let remove t tree path =
-    map_subtree t tree path (fun tree -> { tree with blob = None })
+    map_subtree t tree path (fun tree -> empty)
 
   let update (b, _ as t) tree path value =
     Blob.add b value >>= fun k  ->
-    map_subtree t tree path (fun tree -> { tree with blob = Some k })
+    map_subtree t tree path (fun tree -> Leaf k)
 
 end

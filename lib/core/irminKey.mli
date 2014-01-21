@@ -30,17 +30,18 @@ module type S = sig
 
   include Identifiable.S
 
+  val of_raw: string -> t
+  (** Cast a raw string into a key. Check that the format of the raw
+      string is valid. Raise [Invalid 'key'] if that's not the case. *)
+
+  val to_raw: t -> string
+  (** Return the raw key. *)
+
   val to_json: t -> Ezjsonm.t
   (** Convert a key to JSON. *)
 
   val of_json: Ezjsonm.t -> t
   (** Read a key which has been JSON encoded. *)
-
-  val pretty: t -> string
-  (** Pretty-print the key. *)
-
-  val of_pretty: string -> t
-  (** Inverse of [pretty]. *)
 
   val of_bytes: string -> t
   (** Compute a (deterministic) key from a sequence of bytes. *)

@@ -54,8 +54,8 @@ module Make (S: Irmin.S) = struct
     let v2 = B.of_bytes_exn "" in
     let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v1)) in
     let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v2)) in
-    let r1 = R.of_bytes "foo" in
-    let r2 = R.of_bytes "bar" in
+    let r1 = R.of_bytes "refs/foo" in
+    let r2 = R.of_bytes "refs/bar" in
     return { v1; v2; kv1; kv2; r1; r2 }
 
   let test_blobs x () =
@@ -90,16 +90,16 @@ module Make (S: Irmin.S) = struct
       let tree = tree t in
 
       (* Create a node containing t1(v1) *)
-      Tree.tree tree ~value:v1 [] >>= fun k1  ->
-      Tree.tree tree ~value:v1 [] >>= fun k1' ->
+      Tree.leaf tree v1           >>= fun k1  ->
+      Tree.leaf tree v1           >>= fun k1' ->
       assert_key_equal "k1.1" k1 k1';
       Tree.read_exn tree k1       >>= fun t1  ->
       Tree.add tree t1            >>= fun k1''->
       assert_key_equal "k1.2" k1 k1'';
 
       (* Create the tree  t2 -b-> t1(v1) *)
-      Tree.tree tree ["b", t1]     >>= fun k2  ->
-      Tree.tree tree ["b", t1]     >>= fun k2' ->
+      Tree.node tree ["b", t1]     >>= fun k2  ->
+      Tree.node tree ["b", t1]     >>= fun k2' ->
       assert_key_equal "k2.1" k2 k2';
       Tree.read_exn tree k2        >>= fun t2  ->
       Tree.add tree t2             >>= fun k2''->
@@ -110,8 +110,8 @@ module Make (S: Irmin.S) = struct
       assert_key_equal "k1.3" k1 k1'';
 
       (* Create the tree t3 -a-> t2 -b-> t1(v1) *)
-      Tree.tree tree ["a", t2]         >>= fun k3  ->
-      Tree.tree tree ["a", t2]         >>= fun k3' ->
+      Tree.node tree ["a", t2]         >>= fun k3  ->
+      Tree.node tree ["a", t2]         >>= fun k3' ->
       assert_key_equal "k3.1" k3 k3';
       Tree.read_exn tree k3            >>= fun t3  ->
       Tree.add tree t3                 >>= fun k3''->
@@ -134,11 +134,11 @@ module Make (S: Irmin.S) = struct
 
       (* Create the tree t6 -a-> t5 -b-> t1(v1)
                                    \-c-> t4(v2) *)
-      Tree.tree tree ~value:v2 []         >>= fun k4  ->
+      Tree.leaf tree v2                   >>= fun k4  ->
       Tree.read_exn tree k4               >>= fun t4  ->
-      Tree.tree tree [("b",t1); ("c",t4)] >>= fun k5  ->
+      Tree.node tree [("b",t1); ("c",t4)] >>= fun k5  ->
       Tree.read_exn tree k5               >>= fun t5  ->
-      Tree.tree tree ["a",t5]             >>= fun k6  ->
+      Tree.node tree ["a",t5]             >>= fun k6  ->
       Tree.read_exn tree k6               >>= fun t6  ->
       Tree.update tree t3 ["a";"c"] v2    >>= fun t6' ->
       assert_tree_equal "tree" t6 t6';
@@ -156,11 +156,11 @@ module Make (S: Irmin.S) = struct
       let commit = commit t in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
-      Tree.tree tree ~value:v1 [] >>= fun k1  ->
+      Tree.leaf tree v1           >>= fun k1  ->
       Tree.read_exn tree k1       >>= fun t1  ->
-      Tree.tree tree ["a", t1]    >>= fun k2  ->
+      Tree.node tree ["a", t1]    >>= fun k2  ->
       Tree.read_exn tree k2       >>= fun t2  ->
-      Tree.tree tree ["b", t2]    >>= fun k3  ->
+      Tree.node tree ["b", t2]    >>= fun k3  ->
       Tree.read_exn tree k3       >>= fun t3  ->
 
       (* r1 : t2 *)

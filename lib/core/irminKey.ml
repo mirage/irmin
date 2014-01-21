@@ -21,10 +21,11 @@ exception Unknown of string
 
 module type S = sig
   include Identifiable.S
+
+  val of_raw: string -> t
+  val to_raw: t -> string
   val to_json: t -> Ezjsonm.t
   val of_json: Ezjsonm.t -> t
-  val pretty: t -> string
-  val of_pretty: string -> t
   val of_bytes: string -> t
   val of_bigarray: Cstruct.buffer -> t
 end
@@ -33,29 +34,40 @@ module SHA1 = struct
 
   module L = Log.Make(struct let section = "SHA1" end)
 
-  include String
-
-  let len = 20
-
-  let of_string str =
-    if Int.(String.length str = len) then str
-    else raise (Invalid str)
-
   let to_hex t =
     IrminMisc.hex_encode t
 
   let of_hex hex =
     IrminMisc.hex_decode hex
 
+  module M = struct
+    type t = string
+    with bin_io, compare, sexp
+    let hash (t : t) = Hashtbl.hash t
+    let sexp_of_t t =
+      Sexplib.Sexp.Atom (to_hex t)
+    let t_of_sexp s =
+      of_hex (Sexplib.Conv.string_of_sexp s)
+    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+    let module_name = "Key"
+  end
+  include M
+  include Identifiable.Make (M)
+
+  let len = 20
+
+  let of_raw str =
+    if Int.(String.length str = len) then str
+    else raise (Invalid str)
+
+  let to_raw str =
+    str
+
   let to_json t =
     Ezjsonm.string (to_hex t)
 
   let of_json j =
     of_hex (Ezjsonm.get_string j)
-
-  let pretty = to_hex
-
-  let of_pretty = of_hex
 
   (* |-----|-------------| *)
   (* | 'K' | PAYLOAD(20) | *)
@@ -73,13 +85,13 @@ module SHA1 = struct
     else
       try
         let str = Mstruct.get_string buf len in
-        L.debugf "--> get %s" (pretty str);
+        L.debugf "--> get %s" (to_string str);
         Some str
       with _ ->
         None
 
   let set buf t =
-    L.debugf "set %s" (pretty t);
+    L.debugf "set %s" (to_string t);
     Mstruct.set_string buf header;
     Mstruct.set_string buf t
 
@@ -88,6 +100,7 @@ module SHA1 = struct
     IrminMisc.sha1 str
 
   let of_bigarray ba =
+    L.debugf "of_bigarray";
     (* XXX: avoid copies *)
     of_bytes (Bigstring.to_string ba)
 

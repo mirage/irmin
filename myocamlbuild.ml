@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 7e16f2bdde060a349f837973e19a66d9) *)
+(* DO NOT EDIT (digest: a54c5a79689886de162426ace2d7caea) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -560,6 +560,7 @@ let package_default =
           ("irminsule", ["lib/core"], []);
           ("backend", ["lib/backend"], []);
           ("fs", ["lib/backend"], []);
+          ("git", ["lib/backend"], []);
           ("server", ["lib/server"], [])
        ];
      lib_c = [];
@@ -576,6 +577,6 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 580 "myocamlbuild.ml"
+# 581 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

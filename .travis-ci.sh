@@ -1,6 +1,6 @@
 # OPAM packages needed to build tests.
 OPAM_PACKAGES="ezjsonm ocamlgraph lwt cryptokit re dolog mstruct core_kernel uri \
-               cohttp ssl core_kernel cmdliner alcotest"
+               cohttp ssl core_kernel cmdliner alcotest git"
 
 ppa=avsm/ocaml41+opam11
 echo "yes" | sudo add-apt-repository ppa:$ppa
@@ -12,5 +12,6 @@ opam init
 opam install ${OPAM_PACKAGES}
 
 eval `opam config env`
+ocaml setup.ml -configure --enable-tests
 make
 make test
