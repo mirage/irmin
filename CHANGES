@@ -1,4 +1,7 @@
 0.4:
+* The command-line tool now looks in the environment for the variable
+  `IRMIN` to configure its default backend
+* Add a Git backend
 * Add Travis CI scripts to the repo
 * Use `Lwt_bytes` and `Lwt_unix` instead of the custom-made `IrminChannel`
 * Use `bin_prot` instead of a custom binary protocol
