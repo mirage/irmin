@@ -327,13 +327,22 @@ module Make
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
       return_unit
     in
+    (* Import blob first *)
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminValue.Blob x   -> Blob.add (bl t.vals) x   >>= check "value" k
-        | IrminValue.Tree x   -> Tree.add (tr t.vals) x   >>= check "tree" k
+        | IrminValue.Blob x -> Blob.add (bl t.vals) x   >>= check "value" k
+        | _ -> return_unit
+      ) list >>= fun () ->
+    Lwt_list.iter_p (fun (k,v) ->
+        match v with
+        | IrminValue.Tree x -> Tree.add (tr t.vals) x   >>= check "tree" k
+        | _ -> return_unit
+      ) list >>= fun () ->
+    Lwt_list.iter_p (fun (k,v) ->
+        match v with
         | IrminValue.Commit x -> Commit.add (co t.vals) x >>= check "commit" k
-      ) list
-    >>= fun () ->
+        | _ -> return_unit
+      ) list >>= fun () ->
     if !errors = [] then return_unit
     else (
       let aux (expected, got, n) =
