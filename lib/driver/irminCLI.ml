@@ -86,18 +86,6 @@ let uri_conv =
   let print ppf v = pr_str ppf (Uri.to_string v) in
   parse, print
 
-(*
-let blob_conv (type t) (module B: IrminBlob.S with type t = t) =
-  let parse str = `Ok (B.of_bytes str) in
-  let print ppf v = pr_str ppf (B.to_string v) in
-  parse, print
-
-let ref_conv (type t) (module R: IrminReference.S with type t = t) =
-  let parse str = `Ok (R.of_pretty str) in
-  let print ppf tag = pr_str ppf (R.pretty tag) in
-  parse, print
-*)
-
 let key =
   let module K = IrminKey.SHA1 in
   let key_conv =
@@ -117,6 +105,11 @@ let path_conv =
 let path =
   let doc = Arg.info ~docv:"PATH" ~doc:"Path." [] in
   Arg.(value & pos 0 path_conv [] & doc)
+
+let repository =
+  let doc = Arg.info ~docv:"REPOSITORY"
+      ~doc:"The (possibly remote) repository to clone from." [] in
+  Arg.(required & pos 0 (some string) None & doc)
 
 let default_dir = ".irmin"
 
@@ -138,16 +131,22 @@ let remote_store uri =
   Log.infof "source: uri=%s" (Uri.to_string uri);
   CRUD.simple uri
 
-let git_store () =
-  Log.infof "git";
-  (module IrminGit.Simple(GitLocal): Irmin.SIMPLE)
+let git_store = function
+  | `Memory ->
+    Log.infof "git (in memory)";
+    (module IrminGit.Simple(GitMemory): Irmin.SIMPLE)
+  | `Local ->
+    Log.infof "git";
+    (module IrminGit.Simple(GitLocal): Irmin.SIMPLE)
 
 let store_of_string str =
   let open Core_kernel.Std in
   if String.length str > 0 then
     match str.[0] with
     | 'm' -> Some (in_memory_store ())
-    | 'g' -> Some (git_store ())
+    | 'g' ->
+      if str = "gm" then Some (git_store `Memory)
+      else Some (git_store `Local)
     | 'l' ->
       let dir = match String.chop_prefix ~prefix:"l:"str with
         | None   -> default_dir
@@ -159,10 +158,15 @@ let store_of_string str =
         | Some u -> u in
       Some (uri |> Uri.of_string |> remote_store)
     | _   ->
-      Printf.eprintf "%s is not a store specification\n%!" str;
-      None
+      Printf.eprintf "%s is not a valid store specification\n%!" str;
+      failwith "store_of_string"
   else
     None
+
+let store_of_string_exn str =
+  match store_of_string str with
+  | None   -> failwith "store_of_string"
+  | Some s -> s
 
 let store_of_env_var () =
   try store_of_string (Sys.getenv "IRMIN")
@@ -189,7 +193,7 @@ let store =
   let create git in_memory local remote =
     if git || in_memory || local <> None || remote <> None  then
       match git, in_memory, local, remote with
-      | true , false, None   , None   -> git_store ()
+      | true , _    , None   , None   -> git_store (if in_memory then `Memory else `Local)
       | false, true , None   , None   -> in_memory_store ()
       | false, false, None   , Some u -> remote_store u
       | false, false, Some d , None   -> local_store (Filename.concat d default_dir)
@@ -201,7 +205,7 @@ let store =
                     "Invalid store source [git=%b in-memory=%b %s %s]"
                     git in_memory local remote)
     else match store_of_env_var () with
-      | None   -> git_store ()
+      | None   -> local_store default_dir
       | Some s -> s
   in
   Term.(pure create $ git $ in_memory $ local $ remote)
@@ -346,22 +350,15 @@ let rm = {
     Term.(mk rm $ store $ path);
 }
 
-
 (* CLONE *)
 let clone = {
   name = "clone";
-  doc  = "Clone a remote irminsule store.";
+  doc  = "Clone a repository into a new store.";
   man  = [];
   term =
-    let repository =
-      let doc = Arg.info ~docv:"REPOSITORY"
-          ~doc:"The (possibly remote) repository to clone from." [] in
-      Arg.(required & pos 0 (some string) None & doc) in
     let clone (module L: Irmin.SIMPLE) repository =
-      let (module R) = match store_of_string repository with
-        | None   -> failwith "clone"
-        | Some s -> s in
       !init_hook ();
+      let (module R) = store_of_string_exn repository in
       run begin
         L.create ()         >>= fun local  ->
         R.create ()         >>= fun remote ->
@@ -375,55 +372,74 @@ let clone = {
     Term.(mk clone $ store $ repository);
 }
 
+let fetch_repo (module L: Irmin.SIMPLE) (module R: Irmin.SIMPLE) name =
+  L.create ()         >>= fun local  ->
+  R.create ()         >>= fun remote ->
+  L.snapshot local    >>= fun l      ->
+  R.snapshot remote   >>= fun r      ->
+  R.export remote [l] >>= fun dump   ->
+  print "Fetching %d bytes" (R.Dump.bin_size_t dump);
+  L.import local dump >>= fun ()     ->
+  begin match name with
+    | None      -> return_unit
+    | Some name -> L.Reference.(update (L.reference local) name) r
+  end >>= fun () ->
+  return r
+
+(* FETCH *)
+let fetch = {
+  name = "fetch";
+  doc  = "Download objects and refs from another repository.";
+  man  = [];
+  term =
+    let fetch (module L: Irmin.SIMPLE) repository =
+      let remote = store_of_string_exn repository in
+      let name = Some (L.Reference.Key.of_string "FETCH_HEAD") in
+      run begin
+        fetch_repo (module L) remote name >>= fun _ ->
+        return_unit
+      end
+    in
+    Term.(mk fetch $ store $ repository);
+}
+
 (* PULL *)
 let pull = {
   name = "pull";
-  doc  = "Pull the contents of a remote irminsule store.";
+  doc  = "Fetch and merge with another repository.";
   man  = [];
   term =
-    let pull (module R: Irmin.SIMPLE) =
-      let (module L) = local_store default_dir in
+    let pull (module L: Irmin.SIMPLE) repository =
+      let remote = store_of_string_exn repository in
       run begin
-        L.create ()         >>= fun local  ->
-        R.create ()         >>= fun remote ->
-        L.snapshot local    >>= fun l      ->
-        R.snapshot remote   >>= fun r      ->
-        R.export remote [l] >>= fun dump   ->
-        print "Pulling %d bytes" (R.Dump.bin_size_t dump);
-        L.import local dump >>= fun ()     ->
-        (* XXX: deal with merge conflicts properly. *)
-        match dump with
-        | [] -> return_unit
-        | _  -> L.revert local r
+        fetch_repo (module L) remote None >>= fun r ->
+        L.create () >>= fun t ->
+        (* XXX: implement merge
+           L.Reference.(read_exn (L.reference l) Key.master) >>= fun l ->
+           match S.merge t r l with
+          | None   -> failwith "Conflict!"
+          | Some m -> *)
+        L.Reference.(update (L.reference t) Key.master r)
       end
     in
-    Term.(mk pull $ store);
+    Term.(mk pull $ store $ repository);
 }
-
 
 (* PUSH *)
 let push = {
   name = "push";
-  doc  = "Pull the contents of the local store to a remote irminsule store.";
+  doc  = "Update remote references along with associated objects.";
   man  = [];
   term =
-    let push (module R: Irmin.SIMPLE) =
-      let (module L) = local_store default_dir in
+    let push local repository =
+      let (module R) = local_store default_dir in
+      let name = Some R.Reference.Key.master in
       run begin
-        L.create ()          >>= fun local  ->
-        R.create ()          >>= fun remote ->
-        L.snapshot local     >>= fun l      ->
-        R.snapshot remote    >>= fun r      ->
-        L.export local [r]   >>= fun dump   ->
-        print "Pushing %d bytes" (R.Dump.bin_size_t dump);
-        R.import remote dump >>= fun ()     ->
-        (* XXX: deal with merge conflicts properly. *)
-        match dump with
-        | [] -> return_unit
-        | _  -> L.revert local r
+        fetch_repo (module R) local name >>= fun _ ->
+        return_unit
       end
     in
-    Term.(mk push $ store);
+    Term.(mk push $ store $ repository);
 }
 
 (* SNAPSHOT *)
@@ -548,6 +564,7 @@ let default =
       \    ls          %s\n\
       \    tree        %s\n\
       \    clone       %s\n\
+      \    fetch       %s\n\
       \    pull        %s\n\
       \    push        %s\n\
       \    snaphsot    %s\n\
@@ -557,8 +574,8 @@ let default =
       \n\
       See `irmin help <command>` for more information on a specific command.\n%!"
       init.doc read.doc write.doc rm.doc ls.doc tree.doc
-      clone.doc pull.doc push.doc snapshot.doc revert.doc
-      watch.doc dump.doc in
+      clone.doc fetch.doc pull.doc push.doc snapshot.doc
+      revert.doc watch.doc dump.doc in
   Term.(pure usage $ global),
   Term.info "irmin"
     ~version:IrminVersion.current
