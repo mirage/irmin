@@ -353,8 +353,14 @@ let clone = {
   doc  = "Clone a remote irminsule store.";
   man  = [];
   term =
-    let clone (module R: Irmin.SIMPLE) =
-      let (module L) = local_store default_dir in
+    let repository =
+      let doc = Arg.info ~docv:"REPOSITORY"
+          ~doc:"The (possibly remote) repository to clone from." [] in
+      Arg.(required & pos 0 (some string) None & doc) in
+    let clone (module L: Irmin.SIMPLE) repository =
+      let (module R) = match store_of_string repository with
+        | None   -> failwith "clone"
+        | Some s -> s in
       !init_hook ();
       run begin
         L.create ()         >>= fun local  ->
@@ -366,7 +372,7 @@ let clone = {
         L.revert local tag
       end
     in
-    Term.(mk clone $ store);
+    Term.(mk clone $ store $ repository);
 }
 
 (* PULL *)
