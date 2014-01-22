@@ -29,6 +29,8 @@ Library irminsule
   BuildDepends: ezjsonm, ocamlgraph, lwt, cryptokit,
                 re.str, dolog, mstruct,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
+  ByteOpt: -bin-annot
+  NativeOpt: -bin-annot
 
 Library backend
   Path: lib/backend
@@ -36,6 +38,8 @@ Library backend
   FindlibParent: irminsule
   BuildDepends: irminsule, uri, cohttp.lwt, ezjsonm.lwt
   Modules: IrminCRUD, IrminMemory
+  ByteOpt: -bin-annot
+  NativeOpt: -bin-annot
 
 Library fs
   Build$: flag(unix)
@@ -45,16 +49,19 @@ Library fs
   FindlibParent: backend
   BuildDepends: lwt.unix, uri, irminsule.backend, irminsule
   Modules: IrminFS
+  ByteOpt: -bin-annot
+  NativeOpt: -bin-annot
 
 Library git
- Build$: flag(git)
- Install$: flag(git)
- Path: lib/backend
- Findlibname: git
- FindlibParent: backend
- BuildDepends: irminsule.backend, irminsule, git.unix
- Modules: IrminGit
-
+  Build$: flag(git)
+  Install$: flag(git)
+  Path: lib/backend
+  Findlibname: git
+  FindlibParent: backend
+  BuildDepends: irminsule.backend, irminsule, git.unix
+  Modules: IrminGit
+  ByteOpt: -bin-annot
+  NativeOpt: -bin-annot
 
 Library server
   Build$: flag(unix) && flag(git)
@@ -66,6 +73,8 @@ Library server
                 irminsule.backend.fs, irminsule.backend, irminsule,
                 irminsule.backend.git
   Modules: IrminHTTP
+  ByteOpt: -bin-annot
+  NativeOpt: -bin-annot
 
 Document irminsule
   Title:                Irminsule docs

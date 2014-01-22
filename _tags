@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 334bb0531847593dcf928c835c6ffd6a)
+# DO NOT EDIT (digest: cc2a6be9d68a5db3081571c51857b9c7)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -15,6 +15,10 @@
 "_darcs": not_hygienic
 # Library irminsule
 "lib/core/irminsule.cmxs": use_irminsule
+<lib/core/irminsule.{cma,cmxa}>: oasis_library_irminsule_byte
+<lib/core/*.ml{,i}>: oasis_library_irminsule_byte
+<lib/core/irminsule.{cma,cmxa}>: oasis_library_irminsule_native
+<lib/core/*.ml{,i}>: oasis_library_irminsule_native
 <lib/core/*.ml{,i}>: pkg_ezjsonm
 <lib/core/*.ml{,i}>: pkg_ocamlgraph
 <lib/core/*.ml{,i}>: pkg_lwt
@@ -28,11 +32,23 @@
 <lib/core/*.ml{,i}>: pkg_sexplib.syntax
 # Library backend
 "lib/backend/backend.cmxs": use_backend
+<lib/backend/backend.{cma,cmxa}>: oasis_library_backend_byte
+<lib/backend/*.ml{,i}>: oasis_library_backend_byte
+<lib/backend/backend.{cma,cmxa}>: oasis_library_backend_native
+<lib/backend/*.ml{,i}>: oasis_library_backend_native
 # Library fs
 "lib/backend/fs.cmxs": use_fs
+<lib/backend/fs.{cma,cmxa}>: oasis_library_fs_byte
+<lib/backend/*.ml{,i}>: oasis_library_fs_byte
+<lib/backend/fs.{cma,cmxa}>: oasis_library_fs_native
+<lib/backend/*.ml{,i}>: oasis_library_fs_native
 <lib/backend/*.ml{,i}>: pkg_lwt.unix
 # Library git
 "lib/backend/git.cmxs": use_git
+<lib/backend/git.{cma,cmxa}>: oasis_library_git_byte
+<lib/backend/*.ml{,i}>: oasis_library_git_byte
+<lib/backend/git.{cma,cmxa}>: oasis_library_git_native
+<lib/backend/*.ml{,i}>: oasis_library_git_native
 <lib/backend/*.ml{,i}>: use_backend
 <lib/backend/*.ml{,i}>: use_irminsule
 <lib/backend/*.ml{,i}>: pkg_cohttp.lwt
@@ -52,6 +68,10 @@
 <lib/backend/*.ml{,i}>: pkg_sexplib.syntax
 # Library server
 "lib/server/server.cmxs": use_server
+<lib/server/server.{cma,cmxa}>: oasis_library_server_byte
+<lib/server/*.ml{,i}>: oasis_library_server_byte
+<lib/server/server.{cma,cmxa}>: oasis_library_server_native
+<lib/server/*.ml{,i}>: oasis_library_server_native
 <lib/server/*.ml{,i}>: use_git
 <lib/server/*.ml{,i}>: use_fs
 <lib/server/*.ml{,i}>: use_backend
