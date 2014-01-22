@@ -15,6 +15,4 @@
  *)
 
 let () =
-  match Cmdliner.Term.eval_choice IrminCLI.default IrminCLI.commands with
-  | `Error _ -> exit 1
-  | _ -> ()
+  IrminCLI.(run ~default commands)

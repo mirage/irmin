@@ -61,14 +61,16 @@ let term_info title ~doc ~man =
   let man = man @ help_sections in
   Term.info ~sdocs:global_option_section ~doc ~man title
 
-type command = {
+type command = unit Term.t * Term.info
+
+type sub = {
   name: string;
   doc : string;
   man : Manpage.block list;
   term: unit Term.t;
 }
 
-let command c =
+let create_command c =
   let man = [
     `S "DESCRIPTION";
     `P c.doc;
@@ -140,17 +142,30 @@ let git_store () =
   Log.infof "git";
   (module IrminGit.Simple(GitLocal): Irmin.SIMPLE)
 
-let readvar n =
-  try Sys.getenv "IRMIN" = n
-  with Not_found -> false
-
-let readvar_p prefix fn =
+let store_of_string str =
   let open Core_kernel.Std in
-  try
-    let var = Sys.getenv "IRMIN" in
-    match String.chop_prefix ~prefix var with
-    | None       -> None
-    | Some s     -> Some (fn s)
+  if String.length str > 0 then
+    match str.[0] with
+    | 'm' -> Some (in_memory_store ())
+    | 'g' -> Some (git_store ())
+    | 'l' ->
+      let dir = match String.chop_prefix ~prefix:"l:"str with
+        | None   -> Sys.getcwd ()
+        | Some d -> d in
+      Some (local_store dir)
+    | 'r' ->
+      let uri = match String.chop_prefix ~prefix:"r:" str with
+        | None   -> "http://127.0.0.1:8080"
+        | Some u -> u in
+      Some (uri |> Uri.of_string |> remote_store)
+    | _   ->
+      Printf.eprintf "%s is not a store specification\n%!" str;
+      None
+  else
+    None
+
+let store_of_env_var () =
+  try store_of_string (Sys.getenv "IRMIN")
   with Not_found -> None
 
 let store =
@@ -172,30 +187,22 @@ let store =
       Arg.info ~doc:"Local Git store." ["g";"git"] in
     Arg.(value & flag & doc) in
   let create git in_memory local remote =
-    let git       = ref git in
-    let in_memory = ref in_memory in
-    let local     = ref local in
-    let remote    = ref remote in
-    if !git || !in_memory || !local <> None || !remote <> None  then
-      ()
-    else (
-      git       := readvar "g";
-      in_memory := readvar "m";
-      local     := readvar_p "l:" (fun x -> x);
-      remote    := readvar_p "r:" (fun x -> Uri.of_string x);
-    );
-    match !git, !in_memory, !local, !remote with
-    | true , false, None   , None   -> git_store ()
-    | false, true , None   , None   -> in_memory_store ()
-    | false, false, None   , Some u -> remote_store u
-    | false, false, Some d , None   -> local_store (Filename.concat d default_dir)
-    | false, false, None   , None   -> local_store default_dir
-    | _ ->
-      let local = match !local with None -> "<none>" | Some d -> d in
-      let remote = match !remote with None -> "<none>" | Some u -> Uri.to_string u in
-      failwith (Printf.sprintf
-                  "Invalid store source [git=%b in-memory=%b %s %s]"
-                  !git !in_memory local remote)
+    if git || in_memory || local <> None || remote <> None  then
+      match git, in_memory, local, remote with
+      | true , false, None   , None   -> git_store ()
+      | false, true , None   , None   -> in_memory_store ()
+      | false, false, None   , Some u -> remote_store u
+      | false, false, Some d , None   -> local_store (Filename.concat d default_dir)
+      | false, false, None   , None   -> local_store default_dir
+      | _ ->
+        let local = match local with None -> "<none>" | Some d -> d in
+        let remote = match remote with None -> "<none>" | Some u -> Uri.to_string u in
+        failwith (Printf.sprintf
+                    "Invalid store source [git=%b in-memory=%b %s %s]"
+                    git in_memory local remote)
+    else match store_of_env_var () with
+      | None   -> git_store ()
+      | Some s -> s
   in
   Term.(pure create $ git $ in_memory $ local $ remote)
 
@@ -553,7 +560,7 @@ let default =
     ~doc
     ~man
 
-let commands = List.map command [
+let commands = List.map create_command [
   init;
   read;
   write;
@@ -568,3 +575,8 @@ let commands = List.map command [
   watch;
   dump;
 ]
+
+let run ~default:x y =
+  match Cmdliner.Term.eval_choice x y with
+  | `Error _ -> exit 1
+  | _        -> ()

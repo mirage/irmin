@@ -16,8 +16,27 @@
 
 (** CLI commands. *)
 
-val default: unit Cmdliner.Term.t * Cmdliner.Term.info
-(** Default command: show the main man page *)
+type command = unit Cmdliner.Term.t * Cmdliner.Term.info
+(** [Cmdliner] commands. *)
 
-val commands: (unit Cmdliner.Term.t * Cmdliner.Term.info) list
+val default: command
+(** The default command: show a summary of the commands. *)
+
+val commands: command list
 (** List of available sub-commands. *)
+
+val run: default:command -> command list -> unit
+(** Create a command-line tool with the given subcommands. *)
+
+(** {2 Command-builder helper} *)
+
+type sub = {
+  name: string;
+  doc : string;
+  man : Cmdliner.Manpage.block list;
+  term: unit Cmdliner.Term.t;
+}
+(** Subcommand. *)
+
+val create_command: sub -> command
+(** Build a subcommand. *)
