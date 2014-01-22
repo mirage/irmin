@@ -150,8 +150,8 @@ let store_of_string str =
     | 'g' -> Some (git_store ())
     | 'l' ->
       let dir = match String.chop_prefix ~prefix:"l:"str with
-        | None   -> Sys.getcwd ()
-        | Some d -> d in
+        | None   -> default_dir
+        | Some d -> Filename.concat d default_dir in
       Some (local_store dir)
     | 'r' ->
       let uri = match String.chop_prefix ~prefix:"r:" str with
