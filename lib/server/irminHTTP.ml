@@ -348,6 +348,7 @@ module Server (S: Irmin.S) = struct
 end
 
 let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
+  let address = Uri.host_with_default ~default:"localhost" uri in
   let port = match Uri.port uri with
     | None   -> 8080
     | Some p -> p in
@@ -364,14 +365,15 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
   let conn_closed conn_id () =
     L.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
   let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
-  Cohttp_lwt_unix.Server.create ~address:"0.0.0.0" ~port config
+  Cohttp_lwt_unix.Server.create ~address ~port config
 
 let stop_server uri =
+  let address = Uri.host_with_default ~default:"localhost" uri in
   let port = match Uri.port uri with
     | None   -> 8080
     | Some p -> p in
   L.infof "stop-server [port %d]" port;
-  Cohttp_lwt_unix_net.build_sockaddr "0.0.0.0" (string_of_int port) >>=
+  Cohttp_lwt_unix_net.build_sockaddr address (string_of_int port) >>=
   fun sockaddr ->
   let sock =
     Lwt_unix.socket
