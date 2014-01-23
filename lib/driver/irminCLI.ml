@@ -372,19 +372,21 @@ let clone = {
     Term.(mk clone $ store $ repository);
 }
 
-let fetch_repo (module L: Irmin.SIMPLE) (module R: Irmin.SIMPLE) name =
+let op_repo op (module L: Irmin.SIMPLE) (module R: Irmin.SIMPLE) name =
   L.create ()         >>= fun local  ->
   R.create ()         >>= fun remote ->
   L.snapshot local    >>= fun l      ->
   R.snapshot remote   >>= fun r      ->
   R.export remote [l] >>= fun dump   ->
-  print "Fetching %d bytes" (R.Dump.bin_size_t dump);
+  print "%sing %d bytes" op (R.Dump.bin_size_t dump);
   L.import local dump >>= fun ()     ->
   begin match name with
     | None      -> return_unit
     | Some name -> L.Reference.(update (L.reference local) name) r
   end >>= fun () ->
   return r
+
+let fetch_repo = op_repo "Fetch"
 
 (* FETCH *)
 let fetch = {
@@ -425,6 +427,8 @@ let pull = {
     Term.(mk pull $ store $ repository);
 }
 
+let push_repo = op_repo "Push"
+
 (* PUSH *)
 let push = {
   name = "push";
@@ -432,10 +436,10 @@ let push = {
   man  = [];
   term =
     let push local repository =
-      let (module R) = local_store default_dir in
+      let (module R) = store_of_string_exn repository in
       let name = Some R.Reference.Key.master in
       run begin
-        fetch_repo (module R) local name >>= fun _ ->
+        push_repo (module R) local name >>= fun _ ->
         return_unit
       end
     in
