@@ -154,7 +154,7 @@ let store_of_string str =
       Some (local_store dir)
     | 'r' ->
       let uri = match String.chop_prefix ~prefix:"r:" str with
-        | None   -> "http://127.0.0.1:8080"
+        | None   -> "http://localhost:8080"
         | Some u -> u in
       Some (uri |> Uri.of_string |> remote_store)
     | _   ->
@@ -229,24 +229,23 @@ let init = {
     let daemon =
       let doc = Arg.info ~doc:"Start an Irminsule server." ["d";"daemon"] in
       Arg.(value & flag & doc) in
-    let port =
+    let uri =
       let doc =
-        Arg.info ~docv:"PORT" ["a";"address"]
-          ~doc:"Start the Irminsule server on the given port (to use with --daemon)." in
-      Arg.(value & opt int 8080 & doc) in
-    let init (module S: Irmin.SIMPLE) daemon port =
+        Arg.info ~docv:"URI" ["a";"address"]
+          ~doc:"Start the Irminsule server on the given socket address (to use with --daemon)." in
+      Arg.(value & opt string "http://localhost:8080" & doc) in
+    let init (module S: Irmin.SIMPLE) daemon uri =
       run begin
         S.create () >>= fun t ->
         !init_hook ();
-        match daemon, port with
-        | false, _   -> return_unit
-        | true , port ->
-          let uri = Uri.of_string ("http://127.0.0.1:" ^ string_of_int port) in
+        if daemon then
+          let uri = Uri.of_string uri in
           Log.infof "daemon: %s" (Uri.to_string uri);
           IrminHTTP.start_server (module S) t uri
+        else return_unit
       end
     in
-    Term.(mk init $ store $ daemon $ port)
+    Term.(mk init $ store $ daemon $ uri)
 }
 
 let print fmt =
