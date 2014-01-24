@@ -86,17 +86,6 @@ let uri_conv =
   let print ppf v = pr_str ppf (Uri.to_string v) in
   parse, print
 
-let key =
-  let module K = IrminKey.SHA1 in
-  let key_conv =
-    let parse str =
-      try `Ok (K.of_string str)
-      with e -> `Error "Invalid key" in
-    let print ppf key = pr_str ppf (K.to_string key) in
-    parse, print in
-  let doc = Arg.info ~docv:"KEY" ~doc:"SHA1 key." [] in
-  Arg.(required & pos 0 (some key_conv) None & doc)
-
 let path_conv =
   let parse str = `Ok (IrminPath.of_string str) in
   let print ppf path = pr_str ppf (IrminPath.to_string path) in
@@ -119,25 +108,27 @@ let init_hook =
 
 let in_memory_store () =
   Log.info (lazy "source: in-memory");
-  (module IrminMemory.Simple: Irmin.SIMPLE)
+  (module IrminMemory.Simple: Irmin.S)
 
 let local_store dir =
   Log.infof "source: dir=%s" dir;
   init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
-  IrminFS.simple dir
+  let (module S) = IrminFS.simple dir in
+  (module S: Irmin.S)
 
 let remote_store uri =
   let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
   Log.infof "source: uri=%s" (Uri.to_string uri);
-  CRUD.simple uri
+  let (module S) = CRUD.simple uri in
+  (module S: Irmin.S)
 
 let git_store = function
   | `Memory ->
     Log.infof "git (in memory)";
-    (module IrminGit.Simple(GitMemory): Irmin.SIMPLE)
+    (module IrminGit.Simple(GitMemory): Irmin.S)
   | `Local ->
     Log.infof "git";
-    (module IrminGit.Simple(GitLocal): Irmin.SIMPLE)
+    (module IrminGit.Simple(GitLocal): Irmin.S)
 
 let store_of_string str =
   let open Core_kernel.Std in
@@ -234,7 +225,7 @@ let init = {
         Arg.info ~docv:"URI" ["a";"address"]
           ~doc:"Start the Irminsule server on the given socket address (to use with --daemon)." in
       Arg.(value & opt string "http://localhost:8080" & doc) in
-    let init (module S: Irmin.SIMPLE) daemon uri =
+    let init (module S: Irmin.S) daemon uri =
       run begin
         S.create () >>= fun t ->
         !init_hook ();
@@ -257,7 +248,7 @@ let read = {
   doc  = "Read the contents of a node.";
   man  = [];
   term =
-    let read (module S: Irmin.SIMPLE) path =
+    let read (module S: Irmin.S) path =
       run begin
         S.create ()   >>= fun t ->
         S.read t path >>= function
@@ -274,7 +265,7 @@ let ls = {
   doc  = "List subdirectories.";
   man  = [];
   term =
-    let ls (module S: Irmin.SIMPLE) path =
+    let ls (module S: Irmin.S) path =
       run begin
         S.create ()   >>= fun t ->
         S.list t path >>= fun paths ->
@@ -291,7 +282,7 @@ let tree = {
   doc  = "List the store contents.";
   man  = [];
   term =
-  let tree (module S: Irmin.SIMPLE) =
+  let tree (module S: Irmin.S) =
     run begin
       S.create () >>= fun t ->
       S.contents t >>= fun all ->
@@ -320,7 +311,7 @@ let write = {
     let args =
       let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
       Arg.(value & pos_all string [] & doc) in
-    let write (module S: Irmin.SIMPLE) args =
+    let write (module S: Irmin.S) args =
       let path, value = match args with
         | []            -> failwith "Not enough arguments"
         | [path; value] -> IrminPath.of_string path, S.Value.of_bytes_exn value
@@ -340,7 +331,7 @@ let rm = {
   doc  = "Remove a node.";
   man  = [];
   term =
-    let rm (module S: Irmin.SIMPLE) path =
+    let rm (module S: Irmin.S) path =
       run begin
         S.create () >>= fun t ->
         S.remove t path
@@ -355,7 +346,7 @@ let clone = {
   doc  = "Clone a repository into a new store.";
   man  = [];
   term =
-    let clone (module L: Irmin.SIMPLE) repository =
+    let clone (module L: Irmin.S) repository =
       !init_hook ();
       let (module R) = store_of_string_exn repository in
       run begin
@@ -364,26 +355,39 @@ let clone = {
         R.snapshot remote   >>= fun tag    ->
         R.export remote []  >>= fun dump   ->
         print "Cloning %d bytes" (R.Dump.bin_size_t dump);
+        let dump = List.map (fun (k,v) ->
+            L.Internal.Key.of_string (R.Internal.Key.to_string k),
+            L.Internal.Value.of_string (R.Internal.Value.to_string v)
+          ) dump in
         L.import local dump >>= fun ()     ->
+        let tag = L.Internal.Key.of_string (R.Internal.Key.to_string tag) in
         L.revert local tag
       end
     in
     Term.(mk clone $ store $ repository);
 }
 
-let op_repo op (module L: Irmin.SIMPLE) (module R: Irmin.SIMPLE) name =
+let op_repo op (module L: Irmin.S) (module R: Irmin.S) name =
   L.create ()         >>= fun local  ->
   R.create ()         >>= fun remote ->
   L.snapshot local    >>= fun l      ->
+  let l = R.Internal.Key.of_string (L.Internal.Key.to_string l) in
   R.snapshot remote   >>= fun r      ->
+  let r = L.Internal.Key.of_string (R.Internal.Key.to_string l) in
   R.export remote [l] >>= fun dump   ->
   print "%sing %d bytes" op (R.Dump.bin_size_t dump);
+  let dump = List.map (fun (k,v) ->
+      L.Internal.Key.of_string (R.Internal.Key.to_string k),
+      L.Internal.Value.of_string (R.Internal.Value.to_string v)
+    ) dump in
   L.import local dump >>= fun ()     ->
   begin match name with
     | None      -> return_unit
-    | Some name -> L.Reference.(update (L.reference local) name) r
+    | Some name ->
+      let name = L.Reference.Key.of_string name in
+      L.Reference.(update (L.reference local) name) r
   end >>= fun () ->
-  return r
+  return (L.Internal.Key.to_string r)
 
 let fetch_repo = op_repo "Fetch"
 
@@ -393,11 +397,10 @@ let fetch = {
   doc  = "Download objects and refs from another repository.";
   man  = [];
   term =
-    let fetch (module L: Irmin.SIMPLE) repository =
+    let fetch (module L: Irmin.S) repository =
       let remote = store_of_string_exn repository in
-      let name = Some (L.Reference.Key.of_string "FETCH_HEAD") in
       run begin
-        fetch_repo (module L) remote name >>= fun _ ->
+        fetch_repo (module L) remote (Some "FETCH_HEAD") >>= fun _ ->
         return_unit
       end
     in
@@ -410,10 +413,11 @@ let pull = {
   doc  = "Fetch and merge with another repository.";
   man  = [];
   term =
-    let pull (module L: Irmin.SIMPLE) repository =
+    let pull (module L: Irmin.S) repository =
       let remote = store_of_string_exn repository in
       run begin
         fetch_repo (module L) remote None >>= fun r ->
+        let r = L.Internal.Key.of_string r in
         L.create () >>= fun t ->
         (* XXX: implement merge
            L.Reference.(read_exn (L.reference l) Key.master) >>= fun l ->
@@ -436,7 +440,7 @@ let push = {
   term =
     let push local repository =
       let (module R) = store_of_string_exn repository in
-      let name = Some R.Reference.Key.master in
+      let name = Some (R.Reference.Key.to_string R.Reference.Key.master) in
       run begin
         push_repo (module R) local name >>= fun _ ->
         return_unit
@@ -451,7 +455,7 @@ let snapshot = {
   doc  = "Snapshot the contents of the store.";
   man  = [];
   term =
-    let snapshot (module S: Irmin.SIMPLE) =
+    let snapshot (module S: Irmin.S) =
       run begin
         S.create ()  >>= fun t ->
         S.snapshot t >>= fun k ->
@@ -468,13 +472,17 @@ let revert = {
   doc  = "Revert the contents of the store to a previous state.";
   man  = [];
   term =
-    let revert (module S: Irmin.SIMPLE) key =
+    let revision =
+      let doc = Arg.info ~docv:"REVISION" ~doc:"The revision to revert to." [] in
+      Arg.(required & pos 0 (some string) None & doc) in
+    let revert (module S: Irmin.S) revision =
+      let revision = S.Internal.Key.of_string revision in
       run begin
         S.create () >>= fun t ->
-        S.revert t key
+        S.revert t revision
       end
     in
-    Term.(mk revert $ store $ key)
+    Term.(mk revert $ store $ revision)
 }
 (* WATCH *)
 let watch = {
@@ -486,7 +494,7 @@ let watch = {
       let doc =
         Arg.info ~docv:"PATH" ~doc:"The path to watch." [] in
       Arg.(value & pos 0 path_conv [] & doc) in
-    let watch (module S: Irmin.SIMPLE) path =
+    let watch (module S: Irmin.S) path =
       run begin
         S.create () >>= fun t ->
         let stream = S.watch t path in
@@ -509,7 +517,7 @@ let dump = {
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
       Arg.(required & pos 0 (some & string) None & doc) in
-    let dump (module S: Irmin.SIMPLE) basename =
+    let dump (module S: Irmin.S) basename =
       run begin
         S.create () >>= fun t ->
         S.output t basename
