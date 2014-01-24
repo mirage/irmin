@@ -28,6 +28,8 @@ type t = {
 let unit () =
   return_unit
 
+let long_random_string = Cryptokit.(Random.string (Random.device_rng "/dev/urandom") 1024)
+
 module Make (S: Irmin.S) = struct
 
   module Common = Make(S)
@@ -50,7 +52,7 @@ module Make (S: Irmin.S) = struct
   }
 
   let mk t =
-    let v1 = B.of_bytes_exn (Marshal.to_string "foo" []) in
+    let v1 = B.of_bytes_exn long_random_string in
     let v2 = B.of_bytes_exn "" in
     let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v1)) in
     let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v2)) in
@@ -249,6 +251,7 @@ module Make (S: Irmin.S) = struct
       assert_blob_opt_equal "v1.3" (Some v1) v1'';
       list t ["a"]          >>= fun ks  ->
       assert_paths_equal "path" [["a";"b"]] ks;
+      update t [long_random_string] v1 >>= fun () ->
       return_unit
     in
     run x test
