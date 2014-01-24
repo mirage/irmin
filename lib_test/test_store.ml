@@ -50,7 +50,7 @@ module Make (S: Irmin.S) = struct
   }
 
   let mk t =
-    let v1 = B.of_bytes_exn "foo" in
+    let v1 = B.of_bytes_exn (Marshal.to_string "foo" []) in
     let v2 = B.of_bytes_exn "" in
     let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v1)) in
     let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v2)) in
