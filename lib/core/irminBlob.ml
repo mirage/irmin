@@ -35,9 +35,26 @@ module Simple  = struct
 
   include String
 
-  let to_json = Ezjsonm.string
+  let is_valid_utf8 str =
+    try
+      Uutf.String.fold_utf_8 (fun _ _ -> function
+          | `Malformed _ -> raise (Failure "utf8")
+          | _ -> ()
+        ) () str;
+      true
+    with Failure "utf8" -> false
 
-  let of_json = Ezjsonm.get_string
+  let to_json str =
+    if is_valid_utf8 str then Ezjsonm.string str
+    else
+      let str = IrminMisc.hex_encode str in
+      `O [ "hex", Ezjsonm.string str ]
+
+  let of_json = function
+    | `String str -> str
+    | `O [ "hex", `String str ] -> IrminMisc.hex_decode str
+    | j -> failwith (Printf.sprintf "%s is not a valid JSON blob"
+                       (Ezjsonm.to_string j))
 
   let of_bytes s = Some s
 
