@@ -87,7 +87,9 @@ module S (K: IrminKey.S) (B: IrminBlob.S) = struct
 
 end
 
-module Simple = S(IrminKey.SHA1)(IrminBlob.Simple)
+module String = S(IrminKey.SHA1)(IrminBlob.String)
+
+module JSON = S(IrminKey.SHA1)(IrminBlob.JSON)
 
 module type STORE = sig
   type key

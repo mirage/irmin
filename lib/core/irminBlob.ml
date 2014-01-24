@@ -31,7 +31,7 @@ module type S = sig
   val merge: old:t -> t -> t -> t
 end
 
-module Simple  = struct
+module String  = struct
 
   include String
 
@@ -70,6 +70,47 @@ module Simple  = struct
         match compare old t2 with
         | 0 -> t1
         | _ -> raise Conflict
+
+end
+
+module JSON = struct
+
+  module M = struct
+    type t =
+      [ `Null
+      | `Bool of bool
+      | `Float of float
+      | `String of string
+      | `A of t list
+      | `O of (string * t) list ]
+    with bin_io, compare, sexp
+    let hash (t : t) = Hashtbl.hash t
+    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+    let module_name = "Tree"
+  end
+  include M
+  include Identifiable.Make (M)
+
+  let to_json x = x
+
+  let of_json x = x
+
+  let of_bytes s =
+    try Some (Ezjsonm.from_string s)
+    with Ezjsonm.Parse_error _ -> None
+
+  let of_bytes_exn s =
+    Ezjsonm.from_string s
+
+  (* XXX: replace by a clever merge function *)
+  let merge ~old t1 t2 =
+    let str =
+      String.merge ~old:(Ezjsonm.to_string old)
+        (Ezjsonm.to_string t1)
+        (Ezjsonm.to_string t2) in
+    match of_bytes str with
+    | Some j -> j
+    | None   -> raise Conflict
 
 end
 

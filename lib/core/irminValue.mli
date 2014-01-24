@@ -44,8 +44,12 @@ end
 
 module S (K: IrminKey.S) (B: IrminBlob.S): S with type key = K.t and type blob = B.t
 
-module Simple: S with type key = IrminKey.SHA1.t and type blob = IrminBlob.Simple.t
-(** Simple blobs, with SHA1 keys. *)
+
+module String: S with type key = IrminKey.SHA1.t and type blob = IrminBlob.String.t
+(** String blobs, with SHA1 keys. *)
+
+module JSON: S with type key = IrminKey.SHA1.t and type blob = IrminBlob.JSON.t
+(** JSON blobs, with SHA1 keys. *)
 
 module type STORE = sig
 

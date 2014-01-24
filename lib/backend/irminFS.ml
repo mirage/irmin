@@ -283,11 +283,12 @@ module RW (S: S) (K: IrminKey.S) = struct
 
 end
 
-let simple path =
+let create kind path =
   let module S = struct let path = path end in
   let module K = IrminKey.SHA1 in
-  let module R = IrminReference.Simple in
+  let module R = IrminReference.String in
   let module Obj = OBJECTS(S)(K) in
   let module Ref = REFS(S) in
-  let module Simple = Irmin.Simple (AO(Obj)(K))(RW(Ref)(R)) in
-  (module Simple: Irmin.SIMPLE)
+  match kind with
+  | `String -> (module Irmin.String (AO(Obj)(K))(RW(Ref)(R)): Irmin.S)
+  | `JSON   -> (module Irmin.JSON (AO(Obj)(K))(RW(Ref)(R))  : Irmin.S)

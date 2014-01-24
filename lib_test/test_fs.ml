@@ -26,11 +26,10 @@ let init () =
   end;
   return_unit
 
-let suite =
-  let (module Simple) = IrminFS.simple test_db in
+let suite k =
   {
-    name = "FS";
+    name = "FS" ^ string_of_kind k;
     init;
     clean = unit;
-    store = (module Simple);
+    store = IrminFS.create k test_db;
   }

@@ -58,8 +58,8 @@ module type S = sig
                     and type dump = D.t
   (** Build an irminsule store using the given uri. *)
 
-  val simple: Uri.t -> (module Irmin.SIMPLE)
-  (** Simple store using a JSON CRUD interface on the given uri. *)
+  val create: [`JSON|`String] -> Uri.t -> (module Irmin.S)
+  (** Create a store using a JSON CRUD interface on the given uri. *)
 
 end
 

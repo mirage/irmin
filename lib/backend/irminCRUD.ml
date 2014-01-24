@@ -208,12 +208,11 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  let simple u =
+  let sha1 (type blob) (module B: IrminBlob.S with type t = blob) u =
     let module K = IrminKey.SHA1 in
     let module T = IrminTree.SHA1 in
     let module C = IrminCommit.SHA1 in
-    let module B = IrminBlob.Simple in
-    let module R = IrminReference.Simple in
+    let module R = IrminReference.String in
     let module Blob = AO(struct
         let uri = uri u ["blob"]
       end)(K)(B) in
@@ -231,8 +230,12 @@ module Make (Client: Cohttp_lwt.Client) = struct
       end) in
     let module Internal = IrminValue.Mux(K)(B)(Blob)(Tree)(Commit) in
     let module Reference = IrminReference.Make(R)(K)(Reference) in
-    let module Simple = Irmin.Make(K)(B)(R)(Internal)(Reference) in
-    (module Simple: Irmin.SIMPLE)
+    let module S = Irmin.Make(K)(B)(R)(Internal)(Reference) in
+    (module S: Irmin.S)
+
+  let create k uri = match k with
+    | `String -> sha1 (module IrminBlob.String) uri
+    | `JSON   -> sha1 (module IrminBlob.JSON) uri
 
 end
 
@@ -255,5 +258,5 @@ module type S = sig
                     and type value = V.t
                     and type snapshot = S.t
                     and type dump = D.t
-  val simple: Uri.t -> (module Irmin.SIMPLE)
+  val create: [`JSON|`String] -> Uri.t -> (module Irmin.S)
 end

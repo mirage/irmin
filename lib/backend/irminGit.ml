@@ -276,4 +276,15 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
 
 end
 
-module Simple(G: GitTypes.S) = Make(G)(IrminKey.SHA1)(IrminBlob.Simple)(IrminReference.Simple)
+module String(G: GitTypes.S) = Make(G)(IrminKey.SHA1)(IrminBlob.String)(IrminReference.String)
+
+module JSON(G: GitTypes.S) = Make(G)(IrminKey.SHA1)(IrminBlob.JSON)(IrminReference.String)
+
+let create k g =
+  let (module G) = match g with
+    | `Local  -> (module GitLocal : GitTypes.S)
+    | `Memory -> (module GitMemory: GitTypes.S)
+  in
+  match k with
+  | `String -> (module String(G): Irmin.S)
+  | `JSON   -> (module JSON(G)  : Irmin.S)

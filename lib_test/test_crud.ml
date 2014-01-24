@@ -19,7 +19,7 @@ open Test_store
 
 let uri = Uri.of_string "http://127.0.0.1:8080"
 
-let suite server =
+let suite k server =
   let server_pid = ref 0 in
   { name = Printf.sprintf "CRUD.%s" server.name;
 
@@ -49,6 +49,5 @@ let suite server =
 
     store =
       let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
-      let module S = (val CRUD.simple uri) in
-      (module S: Irmin.S);
+      CRUD.create k uri
   }

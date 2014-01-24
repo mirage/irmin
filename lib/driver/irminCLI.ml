@@ -106,52 +106,51 @@ let default_dir = ".irmin"
 let init_hook =
   ref (fun () -> ())
 
-let in_memory_store () =
+let in_memory_store k =
   Log.info (lazy "source: in-memory");
-  (module IrminMemory.Simple: Irmin.S)
+  IrminMemory.create k
 
-let local_store dir =
+let local_store k dir =
   Log.infof "source: dir=%s" dir;
   init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
-  let (module S) = IrminFS.simple dir in
-  (module S: Irmin.S)
+  IrminFS.create k dir
 
-let remote_store uri =
+let remote_store k uri =
   let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
   Log.infof "source: uri=%s" (Uri.to_string uri);
-  let (module S) = CRUD.simple uri in
-  (module S: Irmin.S)
+  CRUD.create k uri
 
-let git_store = function
-  | `Memory ->
-    Log.infof "git (in memory)";
-    (module IrminGit.Simple(GitMemory): Irmin.S)
-  | `Local ->
-    Log.infof "git";
-    (module IrminGit.Simple(GitLocal): Irmin.S)
+let git_store k g =
+  Log.infof "git";
+  IrminGit.create k g
 
 let store_of_string str =
   let open Core_kernel.Std in
-  if String.length str > 0 then
-    match str.[0] with
-    | 'm' -> Some (in_memory_store ())
-    | 'g' ->
-      if str = "gm" then Some (git_store `Memory)
-      else Some (git_store `Local)
-    | 'l' ->
-      let dir = match String.chop_prefix ~prefix:"l:"str with
-        | None   -> default_dir
-        | Some d -> Filename.concat d default_dir in
-      Some (local_store dir)
-    | 'r' ->
-      let uri = match String.chop_prefix ~prefix:"r:" str with
-        | None   -> "http://localhost:8080"
-        | Some u -> u in
-      Some (uri |> Uri.of_string |> remote_store)
-    | _   ->
-      Printf.eprintf "%s is not a valid store specification\n%!" str;
-      failwith "store_of_string"
-  else
+  let prefix, suffix =
+    match String.split ~on:':' str with
+    | []   -> str, None
+    | [h]  -> h  , None
+    | h::t -> h  , Some (String.concat ~sep:":" t) in
+  let json = if String.mem prefix 'j' then `JSON else `String in
+  let mem = String.mem prefix 'm' in
+  let git = String.mem prefix 'g' in
+  let local = String.mem prefix 'l' in
+  let remote = String.mem prefix 'r' in
+  match mem, git, local, remote with
+  | true , false, false, false -> Some (in_memory_store json)
+  | _    , true , false, false -> Some (git_store json (if mem then `Memory else `Local))
+  | false, false, true , false ->
+    let dir = match suffix with
+      | None   -> default_dir
+      | Some d -> Filename.concat d default_dir in
+    Some (local_store json dir)
+  | false, false, false, true  ->
+    let uri = match suffix with
+      | None   -> "http://localhost:8080"
+      | Some u -> u in
+    Some (uri |> Uri.of_string |> remote_store json)
+  | _   ->
+    Printf.eprintf "%s is not a valid store specification\n%!" str;
     None
 
 let store_of_string_exn str =
@@ -164,10 +163,12 @@ let store_of_env_var () =
   with Not_found -> None
 
 let store =
+  let json =
+    let doc = Arg.info ~doc:"Use JSON values." ["j";"json"] in
+    Arg.(value & flag & doc) in
   let in_memory =
     let doc =
-      Arg.info ~doc:"In-memory persistence."
-        ["m";"in-memory"] in
+      Arg.info ~doc:"In-memory persistence." ["m";"in-memory"] in
     Arg.(value & flag & doc) in
   let local =
     let doc =
@@ -181,14 +182,15 @@ let store =
     let doc =
       Arg.info ~doc:"Local Git store." ["g";"git"] in
     Arg.(value & flag & doc) in
-  let create git in_memory local remote =
+  let create json git in_memory local remote =
+    let json = if json then `JSON else `String in
     if git || in_memory || local <> None || remote <> None  then
       match git, in_memory, local, remote with
-      | true , _    , None   , None   -> git_store (if in_memory then `Memory else `Local)
-      | false, true , None   , None   -> in_memory_store ()
-      | false, false, None   , Some u -> remote_store u
-      | false, false, Some d , None   -> local_store (Filename.concat d default_dir)
-      | false, false, None   , None   -> local_store default_dir
+      | true , _    , None   , None   -> git_store json (if in_memory then `Memory else `Local)
+      | false, true , None   , None   -> in_memory_store json
+      | false, false, None   , Some u -> remote_store json u
+      | false, false, Some d , None   -> local_store json (Filename.concat d default_dir)
+      | false, false, None   , None   -> local_store json default_dir
       | _ ->
         let local = match local with None -> "<none>" | Some d -> d in
         let remote = match remote with None -> "<none>" | Some u -> Uri.to_string u in
@@ -196,10 +198,10 @@ let store =
                     "Invalid store source [git=%b in-memory=%b %s %s]"
                     git in_memory local remote)
     else match store_of_env_var () with
-      | None   -> local_store default_dir
+      | None   -> local_store json default_dir
       | Some s -> s
   in
-  Term.(pure create $ git $ in_memory $ local $ remote)
+  Term.(pure create $ json $ git $ in_memory $ local $ remote)
 
 let run t =
   Lwt_unix.run (

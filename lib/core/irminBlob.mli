@@ -50,11 +50,17 @@ module type S = sig
 
 end
 
-module Simple: S
-(** String values with SHA1 hashes, where only the last modified value
-    is kept on merge. If the value has been modified concurrently, the
-    [merge] function raises [Conflict]. *)
+module String: S
+(** String values where only the last modified value is kept on
+    merge. If the value has been modified concurrently, the [merge]
+    function raises [Conflict]. *)
 
+module JSON: S
+(** JSON values where only the last modified value is kept on
+    merge. If the value has been modified concurrently, the [merge]
+    function raises [Conflict]. *)
+
+(** JSON values. *)
 module type STORE = sig
 
   include IrminStore.AO

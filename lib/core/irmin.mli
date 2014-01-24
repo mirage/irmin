@@ -77,12 +77,20 @@ module Make
        and module Reference = Reference
 (** Build a complete iminsule store. *)
 
-module type SIMPLE = S
+module type SHA1 = S
   with type Internal.key = IrminKey.SHA1.t
-   and type value = IrminBlob.Simple.t
-   and type Reference.key = IrminReference.Simple.t
-(** Signature for simple stores. *)
+   and type Reference.key = IrminReference.String.t
+(** Signature for stores with SHA1 keys. *)
 
-module Simple (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): SIMPLE
-(** Create a simple store. Use only one append-only store for value,
-    tree and revisions and a mutable store for the tags. *)
+module type STRING = SHA1 with type value = IrminBlob.String.t
+(** Signature for stores with SHA1 keys and string values. *)
+
+module String (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): STRING
+(** Create a simple string store. Use only one append-only store for values,
+    trees and revisions and a mutable store for the tags. *)
+
+module type JSON = SHA1 with type value = IrminBlob.JSON.t
+(** Signature for SHA1 stores with JSON values. *)
+
+module JSON (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): JSON
+(** Create a SJON store. *)

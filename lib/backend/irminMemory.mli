@@ -16,14 +16,5 @@
 
 (** In-memory store *)
 
-module RO (K: IrminKey.S): IrminStore.RO_BINARY
-(** Create a fresh append-only store. *)
-
-module AO (K: IrminKey.S): IrminStore.AO_BINARY
-(** Create a fresh append-only store. *)
-
-module RW (K: IrminKey.S): IrminStore.RW_BINARY
-(** Create a fresh mutable store. *)
-
-module Simple: Irmin.SIMPLE
-(** Simple memory store. *)
+val create: [`JSON|`String] -> (module Irmin.S)
+(** Create a store with the given type of values. *)

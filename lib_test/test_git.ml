@@ -28,16 +28,14 @@ let init () =
   end;
   return_unit
 
-let suite = function
-  | `Local -> {
-      name  = "GIT";
-      init  = init;
-      clean = unit;
-      store = (module IrminGit.Simple(GitLocal));
-    }
-  | `Memory -> {
-      name  = "GIT.MEM";
-      init  = unit;
-      clean = unit;
-      store = (module IrminGit.Simple(GitMemory));
-    }
+let string_of_g = function
+  | `Local  -> ""
+  | `Memory -> ".MEM"
+
+let suite k g =
+  {
+    name  = "GIT" ^ string_of_g g ^ string_of_kind k;
+    init  = init;
+    clean = unit;
+    store = IrminGit.create k g;
+  }

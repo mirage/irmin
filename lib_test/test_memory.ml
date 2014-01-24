@@ -17,9 +17,9 @@
 open Lwt
 open Test_store
 
-let suite = {
-  name  = "MEM";
+let suite k = {
+  name  = "MEM" ^ string_of_kind k;
   init  = unit;
   clean = unit;
-  store = (module IrminMemory.Simple);
+  store = IrminMemory.create k;
 }

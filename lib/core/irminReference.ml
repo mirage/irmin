@@ -24,7 +24,7 @@ module type S = sig
   val master: t
 end
 
-module Simple = struct
+module String = struct
   include IrminPath
   let master = ["refs/heads/master"]
 end

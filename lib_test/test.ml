@@ -15,12 +15,13 @@
  *)
 
 let () =
-  Test_store.run "irminsule" [
-    `Quick, Test_memory.suite;
-    `Quick, Test_fs.suite;
-    `Quick, Test_git.suite `Local;
-    `Quick, Test_git.suite `Memory;
-    `Slow , Test_crud.suite Test_memory.suite;
-    `Slow , Test_crud.suite Test_fs.suite;
-    `Slow , Test_crud.suite (Test_git.suite `Local);
-  ]
+  let suite k = [
+    `Quick, Test_memory.suite k;
+    `Quick, Test_fs.suite k;
+    `Quick, Test_git.suite k `Local;
+    `Quick, Test_git.suite k `Memory;
+    `Slow , Test_crud.suite k (Test_memory.suite k);
+    `Slow , Test_crud.suite k (Test_fs.suite k);
+    `Slow , Test_crud.suite k (Test_git.suite k `Local);
+  ] in
+  Test_store.run "irminsule" (suite `String @ suite `JSON)

@@ -86,8 +86,18 @@ module RW (K: IrminKey.S) = struct
 
 end
 
-module Simple = struct
+module String = struct
   module K = IrminKey.SHA1
-  module R = IrminReference.Simple
-  include Irmin.Simple(AO(K))(RW(R))
+  module R = IrminReference.String
+  include Irmin.String(AO(K))(RW(R))
 end
+
+module JSON = struct
+  module K = IrminKey.SHA1
+  module R = IrminReference.String
+  include Irmin.JSON(AO(K))(RW(R))
+end
+
+let create = function
+  | `String -> (module String: Irmin.S)
+  | `JSON   -> (module JSON: Irmin.S)

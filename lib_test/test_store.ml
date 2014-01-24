@@ -323,3 +323,7 @@ let suite (speed, x) =
 let run name tl =
   let tl = List.map suite tl in
   Alcotest.run name tl
+
+let string_of_kind = function
+  | `JSON   -> ".JSON"
+  | `String -> ""
