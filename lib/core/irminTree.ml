@@ -28,7 +28,7 @@ let to_json json_of_key = function
   | Leaf k        -> `O ["leaf", json_of_key k]
   | Node children ->
     `O ["children",
-        Ezjsonm.list (Ezjsonm.pair Ezjsonm.string json_of_key) children ]
+        Ezjsonm.list (Ezjsonm.pair IrminMisc.json_encode json_of_key) children ]
 
 let of_json key_of_json json =
   if Ezjsonm.mem json ["leaf"] then
@@ -38,7 +38,7 @@ let of_json key_of_json json =
     let children = Ezjsonm.find json ["children"] in
     let children =
       Ezjsonm.get_list
-        (Ezjsonm.get_pair Ezjsonm.get_string key_of_json)
+        (Ezjsonm.get_pair IrminMisc.json_decode_exn key_of_json)
         children in
     Node children
 

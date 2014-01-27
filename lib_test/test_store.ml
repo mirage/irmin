@@ -55,7 +55,9 @@ module Make (S: Irmin.S) = struct
   let mk k t =
     let v1 = match k with
       | `String -> B.of_bytes_exn long_random_string
-      | `JSON   -> B.of_bytes_exn (Ezjsonm.to_string (`O [ "foo", `String "bar" ])) in
+      | `JSON   -> B.of_bytes_exn (
+          Ezjsonm.to_string (`O [ "foo", IrminMisc.json_encode long_random_string ])
+        ) in
     let v2 = match k with
       | `String -> B.of_bytes_exn ""
       | `JSON   -> B.of_bytes_exn (Ezjsonm.to_string (`A[])) in

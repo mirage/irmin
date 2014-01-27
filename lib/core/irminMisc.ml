@@ -57,6 +57,25 @@ let is_valid_utf8 str =
     true
   with Failure "utf8" -> false
 
+  let json_encode str =
+    if is_valid_utf8 str
+    then Ezjsonm.string str
+    else `O [ "hex", Ezjsonm.string (hex_encode str) ]
+
+let json_decode = function
+  | `String str               -> Some str
+  | `O [ "hex", `String str ] -> Some (hex_decode str)
+  | j                         -> None
+
+let json_decode_exn j =
+  match json_decode j with
+  | Some s -> s
+  | None   ->
+    failwith (
+      Printf.sprintf "%s is not a valid UT8-encoded JSON string"
+        (Ezjsonm.to_string j)
+    )
+
 let sha1 str =
   let hash = Cryptokit.Hash.sha1 () in
   hash#add_string str;
