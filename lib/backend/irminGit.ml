@@ -148,13 +148,13 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
             for i = 0 to n - 1 do
               if needs_escape path.[i] then (
                 let c = Char.of_int_exn (Char.to_int path.[i] + 1) in
-                if i > 0 then Buffer.add_substring b path !last (i - 1 - !last);
+                if i - 1 - !last > 1 then Buffer.add_substring b path !last (i - 1 - !last);
                 Buffer.add_char b escape;
                 Buffer.add_char b c;
                 last := i + 1;
               )
             done;
-            if !last < n then
+            if n - 1 - !last > 1 then
               Buffer.add_substring b path !last (n - 1 - !last);
             Buffer.contents b
           )
