@@ -30,12 +30,6 @@ module RO (K: IrminKey.S) = struct
   let pretty_key k =
     K.to_string (K.of_raw k)
 
-  let pretty_table t =
-    L.debugf "pretty_table";
-    Hashtbl.iter ~f:(fun ~key ~data ->
-        L.debugf "key: %s" (pretty_key key)
-      ) t
-
   let unknown k =
     fail (IrminKey.Unknown (pretty_key k))
 
@@ -44,7 +38,6 @@ module RO (K: IrminKey.S) = struct
 
   let read t key =
     L.debugf "read %s" (pretty_key key);
-    pretty_table t;
     return (Hashtbl.find t key)
 
   let read_exn t key =
