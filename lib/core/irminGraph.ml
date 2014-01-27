@@ -41,11 +41,37 @@ module type S = sig
   module Dump: Identifiable.S with type t = dump
 end
 
+type 'a vertex =
+  [ `Blob of 'a
+  | `Tree of 'a
+  | `Commit of 'a ]
+with bin_io, compare, sexp
+
+let of_blobs = List.map ~f:(fun k -> `Blob k)
+let of_trees = List.map ~f:(fun k -> `Tree k)
+let of_commits = List.map ~f:(fun k -> `Commit k)
+
+let to_blobs = List.filter_map ~f:(function `Blob k -> Some k | _ -> None)
+let to_trees = List.filter_map ~f:(function `Tree k -> Some k | _ -> None)
+let to_commits = List.filter_map ~f:(function `Commit k -> Some k | _ -> None)
+
 module Make (K: IrminKey.S) = struct
 
   open Lwt
 
   module L = Log.Make(struct let section = "GRAPH" end)
+
+  module K = struct
+    module M = struct
+      type t = K.t vertex
+      with bin_io, compare, sexp
+      let hash (t : t) = Hashtbl.hash t
+      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+      let module_name = "Tree"
+    end
+    include M
+    include Identifiable.Make (M)
+  end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(K)
   module GO = Graph.Oper.I(G)

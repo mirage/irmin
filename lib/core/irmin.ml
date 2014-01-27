@@ -223,28 +223,36 @@ module Make
       `Label (K.to_string k) in
     let label_of_blob k v =
       let k = K.to_string k in
-      let v = B.to_string v in
+      let v =
+        let s = B.to_string v in
+        let s =
+          if String.length s <= 10 then s
+          else String.sub s 0 10 in
+        let s =
+          if IrminMisc.is_valid_utf8 s then s
+          else IrminMisc.hex_encode s in
+        s in
       `Label (Printf.sprintf "%s | %s" k v) in
     List.iter ~f:(fun (k, b) ->
-        add_vertex k [`Shape `Record; label_of_blob k b]
+        add_vertex (`Blob k) [`Shape `Record; label_of_blob k b]
       ) blobs;
     List.iter ~f:(fun (k, t) ->
-        add_vertex k [`Shape `Box; `Style `Dotted; label k];
+        add_vertex (`Tree k) [`Shape `Box; `Style `Dotted; label k];
         match t with
-        | IrminTree.Leaf v  -> add_edge k [`Style `Dotted] v
+        | IrminTree.Leaf v  -> add_edge (`Tree k) [`Style `Dotted] (`Blob v)
         | IrminTree.Node ts ->
           List.iter ~f:(fun (l,c) ->
-              add_edge k [`Style `Solid; `Label l] c
+              add_edge (`Tree k) [`Style `Solid; `Label l] (`Tree c)
             ) ts
       ) trees;
     List.iter ~f:(fun (k, r) ->
-        add_vertex k [`Shape `Box; `Style `Bold; label k];
+        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label k];
         List.iter ~f:(fun p ->
-            add_edge k [`Style `Bold] p
+            add_edge (`Commit k) [`Style `Bold] (`Commit p)
           ) r.IrminCommit.parents;
         match r.IrminCommit.tree with
         | None      -> ()
-        | Some tree -> add_edge k [`Style `Dashed] tree
+        | Some tree -> add_edge (`Commit k) [`Style `Dashed] (`Tree tree)
       ) commits;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
@@ -268,21 +276,26 @@ module Make
     Log.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
     output t "export" >>= fun () ->
     let contents = Internal.Key.Table.create () in
-    let add k v =
-      Hashtbl.add_multi contents k v in
+    let add k v = Hashtbl.add_multi contents k v in
     Reference.read t.refs t.branch >>= function
     | None        -> return_nil
     | Some commit ->
       begin
         if roots = [] then Commit.list (co t.vals) commit
         else
-          let pred k =
-            Commit.read_exn (co t.vals) k >>= fun r ->
-            return r.IrminCommit.parents in
-          Graph.closure pred ~min:roots ~max:[commit] >>= fun g ->
-          return (Graph.vertex g)
+          let pred = function
+            | `Commit k ->
+              Commit.read_exn (co t.vals) k >>= fun r ->
+              return (IrminGraph.of_commits r.IrminCommit.parents)
+            | _ -> return_nil in
+          let min = IrminGraph.of_commits roots in
+          let max = IrminGraph.of_commits [commit] in
+          Graph.closure pred ~min ~max >>= fun g ->
+          let commits = IrminGraph.to_commits (Graph.vertex g) in
+          return commits
       end
       >>= fun commits ->
+      Log.debugf "export COMMITS=%s" (IrminMisc.pretty_list K.to_string commits);
       Lwt_list.fold_left_s (fun set key ->
           Commit.read_exn (co t.vals) key >>= fun commit ->
           add key (IrminValue.Commit commit);

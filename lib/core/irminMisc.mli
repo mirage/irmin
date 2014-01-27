@@ -18,6 +18,19 @@ open Core_kernel.Std
 
 (** Miscellaneous functions *)
 
+val is_valid_utf8: string -> bool
+(** Check whether a string is valid UTF8 encoded. *)
+
+val json_encode: string -> Ezjsonm.t
+(** Convert a (possibly non-valid UTF8) string to a JSON object.*)
+
+val json_decode: Ezjsonm.t -> string option
+(** Convert a JSON object to a (possibly non-valid UTF8)
+    string. Return [None] if the JSON object is not a valid string. *)
+
+val json_decode_exn: Ezjsonm.t -> string
+(** Convert a JSON object to a (possibly non-valid UTF8) string. *)
+
 val hex_encode: string -> string
 (** Encode a binary string to hexa *)
 

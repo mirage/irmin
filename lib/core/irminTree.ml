@@ -28,7 +28,7 @@ let to_json json_of_key = function
   | Leaf k        -> `O ["leaf", json_of_key k]
   | Node children ->
     `O ["children",
-        Ezjsonm.list (Ezjsonm.pair Ezjsonm.string json_of_key) children ]
+        Ezjsonm.list (Ezjsonm.pair IrminMisc.json_encode json_of_key) children ]
 
 let of_json key_of_json json =
   if Ezjsonm.mem json ["leaf"] then
@@ -38,7 +38,7 @@ let of_json key_of_json json =
     let children = Ezjsonm.find json ["children"] in
     let children =
       Ezjsonm.get_list
-        (Ezjsonm.get_pair Ezjsonm.get_string key_of_json)
+        (Ezjsonm.get_pair IrminMisc.json_decode_exn key_of_json)
         children in
     Node children
 
@@ -148,12 +148,16 @@ module Make
   let list t key =
     L.debugf "list %s" (K.to_string key);
     read_exn t key >>= fun _ ->
-    let pred k =
-      read_exn t k >>= function
-      | Leaf b  -> return_nil
-      | Node ts -> return (List.map ~f:snd ts) in
-    Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
-    return (Graph.vertex g)
+    let pred = function
+      | `Tree k ->
+        begin
+          read_exn t k >>= function
+          | Leaf b  -> return_nil
+          | Node ts -> return (IrminGraph.of_trees (List.map ~f:snd ts))
+        end
+      | _ -> return_nil in
+    Graph.closure pred ~min:[] ~max:[`Tree key] >>= fun g ->
+    return (IrminGraph.to_trees (Graph.vertex g))
 
   let contents (_, t) =
     Tree.contents t

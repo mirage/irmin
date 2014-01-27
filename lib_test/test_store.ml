@@ -20,6 +20,7 @@ open Lwt
 
 type t = {
   name : string;
+  kind : [`JSON | `String];
   init : unit -> unit Lwt.t;
   clean: unit -> unit Lwt.t;
   store: (module Irmin.S);
@@ -51,9 +52,15 @@ module Make (S: Irmin.S) = struct
     r2: R.t;
   }
 
-  let mk t =
-    let v1 = B.of_bytes_exn long_random_string in
-    let v2 = B.of_bytes_exn "" in
+  let mk k t =
+    let v1 = match k with
+      | `String -> B.of_bytes_exn long_random_string
+      | `JSON   -> B.of_bytes_exn (
+          Ezjsonm.to_string (`O [ "foo", IrminMisc.json_encode long_random_string ])
+        ) in
+    let v2 = match k with
+      | `String -> B.of_bytes_exn ""
+      | `JSON   -> B.of_bytes_exn (Ezjsonm.to_string (`A[])) in
     let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v1)) in
     let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v2)) in
     let r1 = R.of_bytes "refs/foo" in
@@ -63,7 +70,7 @@ module Make (S: Irmin.S) = struct
   let test_blobs x () =
     let test () =
       create () >>= fun t                    ->
-      mk t >>= function { v1; v2; kv1; kv2 } ->
+      mk x.kind t >>= function { v1; v2; kv1; kv2 } ->
 
       Lazy.force kv1 >>= fun kv1 ->
       Lazy.force kv2 >>= fun kv2 ->
@@ -88,7 +95,7 @@ module Make (S: Irmin.S) = struct
   let test_trees x () =
     let test () =
       create () >>= fun t          ->
-      mk t >>= function { v1; v2 } ->
+      mk x.kind t >>= function { v1; v2 } ->
       let tree = tree t in
 
       (* Create a node containing t1(v1) *)
@@ -152,7 +159,7 @@ module Make (S: Irmin.S) = struct
   let test_commits x () =
     let test () =
       create () >>= fun t      ->
-      mk t >>= function { v1 } ->
+      mk x.kind t >>= function { v1 } ->
 
       let tree = tree t in
       let commit = commit t in
@@ -190,7 +197,7 @@ module Make (S: Irmin.S) = struct
   let test_references x () =
     let test () =
       create () >>= fun t                    ->
-      mk t >>= function { kv1; kv2; r1; r2 } ->
+      mk x.kind t >>= function { kv1; kv2; r1; r2 } ->
 
       Lazy.force kv1 >>= fun kv1 ->
       Lazy.force kv2 >>= fun kv2 ->
@@ -219,7 +226,7 @@ module Make (S: Irmin.S) = struct
   let test_stores x () =
     let test () =
       create () >>= fun t          ->
-      mk t >>= function { v1; v2 } ->
+      mk x.kind t >>= function { v1; v2 } ->
 
       update t ["a";"b"] v1 >>= fun ()  ->
 
@@ -259,7 +266,7 @@ module Make (S: Irmin.S) = struct
   let test_sync x () =
     let test () =
       create () >>= fun t1          ->
-      mk t1 >>= function { v1; v2 } ->
+      mk x.kind t1 >>= function { v1; v2 } ->
 
       update t1 ["a";"b"] v1 >>= fun () ->
       snapshot t1            >>= fun r1 ->

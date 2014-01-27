@@ -154,7 +154,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     include RO(U)(K)(V)
 
     let add t value =
-      L.debugf "add %s"(V.to_string value);
+      L.debugf "add %S"(V.to_string value);
       post t ["add"] (V.to_json value) K.of_json
 
   end
@@ -164,7 +164,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     include RO(U)(K)(V)
 
     let update t key value =
-      L.debugf "update %s %s" (K.to_string key) (V.to_string value);
+      L.debugf "update %s %S" (K.to_string key) (V.to_string value);
       post t ["update"; K.to_string key] (V.to_json value) Ezjsonm.get_unit
 
     let remove t key =

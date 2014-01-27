@@ -35,26 +35,9 @@ module String  = struct
 
   include String
 
-  let is_valid_utf8 str =
-    try
-      Uutf.String.fold_utf_8 (fun _ _ -> function
-          | `Malformed _ -> raise (Failure "utf8")
-          | _ -> ()
-        ) () str;
-      true
-    with Failure "utf8" -> false
+  let of_json = IrminMisc.json_decode_exn
 
-  let to_json str =
-    if is_valid_utf8 str then Ezjsonm.string str
-    else
-      let str = IrminMisc.hex_encode str in
-      `O [ "hex", Ezjsonm.string str ]
-
-  let of_json = function
-    | `String str -> str
-    | `O [ "hex", `String str ] -> IrminMisc.hex_decode str
-    | j -> failwith (Printf.sprintf "%s is not a valid JSON blob"
-                       (Ezjsonm.to_string j))
+  let to_json = IrminMisc.json_encode
 
   let of_bytes s = Some s
 
@@ -91,9 +74,30 @@ module JSON = struct
   include M
   include Identifiable.Make (M)
 
-  let to_json x = x
+  let rec encode t: Ezjsonm.t =
+    match t with
+    | `Null
+    | `Bool _
+    | `Float _  -> t
+    | `String s -> IrminMisc.json_encode s
+    | `A l      -> `A (List.rev_map ~f:encode l)
+    | `O l      -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
 
-  let of_json x = x
+  let to_json = encode
+
+  let rec decode t: Ezjsonm.t =
+    match t with
+    | `Null
+    | `Bool _
+    | `Float _
+    | `String _ -> t
+    | `A l      -> `A (List.rev_map ~f:decode l)
+    | `O l      ->
+      match IrminMisc.json_decode t with
+      | Some s -> `String s
+      | None   -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
+
+  let of_json = decode
 
   let of_bytes s =
     try Some (Ezjsonm.from_string s)

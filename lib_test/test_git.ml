@@ -35,6 +35,7 @@ let string_of_g = function
 let suite k g =
   {
     name  = "GIT" ^ string_of_g g ^ string_of_kind k;
+    kind  = k;
     init  = init;
     clean = unit;
     store = IrminGit.create k g;

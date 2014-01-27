@@ -159,10 +159,14 @@ module Make
 
   let list t key =
     L.debugf "list %s" (K.to_string key);
-    let pred k =
-      read_exn t k >>= fun r -> return r.parents in
-    Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
-    return (Graph.vertex g)
+    let pred = function
+      | `Commit k ->
+        read_exn t k >>= fun r ->
+        return (List.map ~f:(fun k -> `Commit k) r.parents)
+      | _ -> return_nil in
+    Graph.closure pred ~min:[] ~max:[`Commit key] >>= fun g ->
+    let commits = IrminGraph.to_commits (Graph.vertex g) in
+    return commits
 
   let contents (_, t) =
     Commit.contents t
