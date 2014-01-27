@@ -203,13 +203,10 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
                   let name = encode name in
                   let node = git_of_key key in
                   G.type_of t node >>= function
-                  | Some `Blob ->
-                    Log.debugf "blob %S" name;
-                    return { GitTypes.Tree.perm = `normal; name; node }
-                  | Some `Tree ->
-                    Log.debugf "tree %S" name;
-                    return { GitTypes.Tree.perm = `dir; name; node }
-                  | _          -> failwith "XXX"
+                  | Some `Blob -> return { GitTypes.Tree.perm = `normal; name; node }
+                  | None (* this can happen on import when the leaf nodes are not yet loaded *)
+                  | Some `Tree -> return { GitTypes.Tree.perm = `dir; name; node }
+                  | _          -> failwith "Tree.to_git"
                 ) children >>= fun entries ->
               let tree = GitTypes.Tree.create entries in
               return (GitTypes.Value.Tree tree)
