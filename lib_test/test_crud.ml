@@ -19,6 +19,26 @@ open Test_store
 
 let uri = Uri.of_string "http://127.0.0.1:8080"
 
+let file = Filename.temp_file "irmin" ".signal"
+
+let signal () =
+  Printf.printf "YYY %s\n%!" file;
+  let oc = open_out file in
+  output_string oc "Server started";
+  flush oc;
+  close_out oc;
+  Printf.printf "YYY %s\n%!" file;
+  return_unit
+
+let rec wait_for_the_server_to_start () =
+  if Sys.file_exists file then (
+    Unix.unlink file;
+    return_unit
+  ) else
+    Lwt_unix.sleep 0.1 >>= fun () ->
+    Printf.printf "XXXX %s\n%!" file;
+    wait_for_the_server_to_start ()
+
 let suite k server =
   let server_pid = ref 0 in
   { name = Printf.sprintf "CRUD.%s" server.name;
@@ -28,8 +48,12 @@ let suite k server =
       let server () =
         server.init ()   >>= fun () ->
         Server.create () >>= fun t  ->
+        signal ()        >>= fun () ->
         IrminHTTP.start_server (module Server) t uri
       in
+      let () =
+        try Unix.unlink file
+        with _ -> () in
       Lwt_io.flush_all () >>= fun () ->
       match Lwt_unix.fork () with
       | 0   ->
@@ -37,7 +61,7 @@ let suite k server =
         server ()
       | pid ->
         server_pid := pid;
-        Lwt_unix.sleep 0.5
+        wait_for_the_server_to_start ()
     end;
 
     kind = k;
@@ -45,8 +69,10 @@ let suite k server =
     clean = begin fun () ->
       IrminHTTP.stop_server uri >>= fun () ->
       Unix.kill !server_pid 9;
-      server.clean () >>= fun () ->
-      Lwt_unix.sleep 0.5
+      let () =
+        try ignore (Unix.waitpid [Unix.WUNTRACED] !server_pid)
+        with _ -> () in
+      server.clean ()
     end;
 
     store =
