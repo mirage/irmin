@@ -1,4 +1,16 @@
-0.4:
+0.5.0:
+* Support for different blob formats on the command-line
+* Support for JSON blobs
+* More flexible `irmin fetch` command: we can now choose the backend to
+  import the data in
+* Fix import of Git objects when the blobs were not imported first
+* Support non-UTF8 strings as path name and blob contents (for all
+  backends, including the JSON one)
+* Speed-up the `slow` tests execution time
+* Improve the output graph when objects of different kinds might have
+  the same SHA1
+
+0.4: (2014-01-21)
 * The command-line tool now looks in the environment for the variable
   `IRMIN` to configure its default backend
 * Add a Git backend
