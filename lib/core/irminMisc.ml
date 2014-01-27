@@ -48,6 +48,15 @@ let hex_decode h =
   done;
   result
 
+let is_valid_utf8 str =
+  try
+    Uutf.String.fold_utf_8 (fun _ _ -> function
+        | `Malformed _ -> raise (Failure "utf8")
+        | _ -> ()
+      ) () str;
+    true
+  with Failure "utf8" -> false
+
 let sha1 str =
   let hash = Cryptokit.Hash.sha1 () in
   hash#add_string str;

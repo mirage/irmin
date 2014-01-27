@@ -35,17 +35,9 @@ module String  = struct
 
   include String
 
-  let is_valid_utf8 str =
-    try
-      Uutf.String.fold_utf_8 (fun _ _ -> function
-          | `Malformed _ -> raise (Failure "utf8")
-          | _ -> ()
-        ) () str;
-      true
-    with Failure "utf8" -> false
-
   let to_json str =
-    if is_valid_utf8 str then Ezjsonm.string str
+    if IrminMisc.is_valid_utf8 str
+    then Ezjsonm.string str
     else
       let str = IrminMisc.hex_encode str in
       `O [ "hex", Ezjsonm.string str ]

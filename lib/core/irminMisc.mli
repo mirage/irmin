@@ -18,6 +18,9 @@ open Core_kernel.Std
 
 (** Miscellaneous functions *)
 
+val is_valid_utf8: string -> bool
+(** Check whether a string is valid UTF8 encoded. *)
+
 val hex_encode: string -> string
 (** Encode a binary string to hexa *)
 

@@ -148,12 +148,16 @@ module Make
   let list t key =
     L.debugf "list %s" (K.to_string key);
     read_exn t key >>= fun _ ->
-    let pred k =
-      read_exn t k >>= function
-      | Leaf b  -> return_nil
-      | Node ts -> return (List.map ~f:snd ts) in
-    Graph.closure pred ~min:[] ~max:[key] >>= fun g ->
-    return (Graph.vertex g)
+    let pred = function
+      | `Tree k ->
+        begin
+          read_exn t k >>= function
+          | Leaf b  -> return_nil
+          | Node ts -> return (IrminGraph.of_trees (List.map ~f:snd ts))
+        end
+      | _ -> return_nil in
+    Graph.closure pred ~min:[] ~max:[`Tree key] >>= fun g ->
+    return (IrminGraph.to_trees (Graph.vertex g))
 
   let contents (_, t) =
     Tree.contents t
