@@ -108,14 +108,14 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           | _ -> false
 
         let of_git k b =
-          Log.debugf "Blob.of_git: %s" (Git.pretty b);
+          Log.debugf "Blob.of_git: %S" (Git.pretty b);
           match b with
           | GitTypes.Value.Blob b -> Some (B.of_string (GitTypes.Blob.to_string b))
           | GitTypes.Value.Tag _  -> None (* XXX: deal with tag objects *)
           | _                     -> None
 
         let to_git _ b =
-          Log.debugf "Blob.to_git %s" (B.to_string b);
+          Log.debugf "Blob.to_git %S" (B.to_string b);
           let value = GitTypes.Value.Blob (GitTypes.Blob.of_string (B.to_string b)) in
           `Value (return value)
 
@@ -131,6 +131,51 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           | `Blob | `Tree -> true
           | _ -> false
 
+        let escape = Char.of_int_exn 42
+
+        let escaped_chars =
+          escape :: List.map ~f:Char.of_int_exn [ 0x00; 0x2f ]
+
+        let needs_escape = List.mem escaped_chars
+
+        let encode path =
+          if not (String.exists ~f:needs_escape path) then
+            path
+          else (
+            let n = String.length path in
+            let b = Buffer.create n in
+            let last = ref 0 in
+            for i = 0 to n - 1 do
+              if needs_escape path.[i] then (
+                let c = Char.of_int_exn (Char.to_int path.[i] + 1) in
+                if i > 0 then Buffer.add_substring b path !last (i - 1 - !last);
+                Buffer.add_char b escape;
+                Buffer.add_char b c;
+                last := i + 1;
+              )
+            done;
+            if !last < n then
+              Buffer.add_substring b path !last (n - 1 - !last);
+            Buffer.contents b
+          )
+
+        let decode path =
+          if not (String.mem path escape) then path
+          else
+            let l = String.split ~on:escape path in
+            let l =
+              List.map ~f:(fun s ->
+                if String.length s > 0 then
+                  match Char.of_int (Char.to_int s.[0] - 1) with
+                  | None   -> s
+                  | Some c ->
+                    if needs_escape c then (s.[0] <- c; s)
+                    else s
+                else
+                  s
+              ) l in
+            String.concat ~sep:"" l
+
         let of_git k v =
           Log.debugf "Tree.of_git %s" (Git.pretty v);
           match v with
@@ -140,7 +185,8 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
             Some (IrminTree.Leaf key)
           | GitTypes.Value.Tree t ->
             let entries = GitTypes.Tree.entries t in
-            let children = List.map ~f:(fun e -> GitTypes.Tree.(e.name, key_of_git e.node)) entries in
+            let children =
+              List.map ~f:(fun e -> GitTypes.Tree.(decode e.name, key_of_git e.node)) entries in
             Some (IrminTree.Node children)
           | _ -> None
 
@@ -154,10 +200,16 @@ module Make (G: GitTypes.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.
           | IrminTree.Node children ->
             `Value (
               Lwt_list.map_p (fun (name, key) ->
+                  let name = encode name in
                   let node = git_of_key key in
                   G.type_of t node >>= function
-                  | Some `Blob -> return { GitTypes.Tree.perm = `normal; name; node }
-                  | _          -> return { GitTypes.Tree.perm = `dir; name; node }
+                  | Some `Blob ->
+                    Log.debugf "blob %S" name;
+                    return { GitTypes.Tree.perm = `normal; name; node }
+                  | Some `Tree ->
+                    Log.debugf "tree %S" name;
+                    return { GitTypes.Tree.perm = `dir; name; node }
+                  | _          -> failwith "XXX"
                 ) children >>= fun entries ->
               let tree = GitTypes.Tree.create entries in
               return (GitTypes.Value.Tree tree)
