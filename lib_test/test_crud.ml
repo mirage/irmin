@@ -40,6 +40,8 @@ let suite k server =
         Lwt_unix.sleep 0.5
     end;
 
+    kind = k;
+
     clean = begin fun () ->
       IrminHTTP.stop_server uri >>= fun () ->
       Unix.kill !server_pid 9;

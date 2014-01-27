@@ -29,6 +29,7 @@ let init () =
 let suite k =
   {
     name = "FS" ^ string_of_kind k;
+    kind = k;
     init;
     clean = unit;
     store = IrminFS.create k test_db;

@@ -19,6 +19,7 @@ open Test_store
 
 let suite k = {
   name  = "MEM" ^ string_of_kind k;
+  kind  = k;
   init  = unit;
   clean = unit;
   store = IrminMemory.create k;
