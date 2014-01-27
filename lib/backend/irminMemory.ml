@@ -15,6 +15,7 @@
  *)
 
 open Lwt
+open Core_kernel.Std
 
 module L = Log.Make(struct let section = "MEMORY" end)
 
@@ -29,23 +30,28 @@ module RO (K: IrminKey.S) = struct
   let pretty_key k =
     K.to_string (K.of_raw k)
 
+  let pretty_table t =
+    L.debugf "pretty_table";
+    Hashtbl.iter ~f:(fun ~key ~data ->
+        L.debugf "key: %s" (pretty_key key)
+      ) t
+
   let unknown k =
     fail (IrminKey.Unknown (pretty_key k))
 
   let create () =
-    return (Hashtbl.create 8128) (*store*)
+    return (String.Table.create ()) (*store*)
 
   let read t key =
     L.debugf "read %s" (pretty_key key);
-    return (
-      try Some (Hashtbl.find t key)
-      with Not_found -> None
-    )
+    pretty_table t;
+    return (Hashtbl.find t key)
 
   let read_exn t key =
     L.debugf "read_exn %s" (pretty_key key);
-    try return (Hashtbl.find t key)
-    with Not_found -> unknown key
+    match Hashtbl.find t key with
+    | Some d -> return d
+    | None   -> unknown key
 
   let mem t key =
     L.debugf "mem %s" (pretty_key key);
@@ -55,7 +61,7 @@ module RO (K: IrminKey.S) = struct
     return [k]
 
   let contents t =
-    return (Hashtbl.fold (fun k v l -> (k, v) :: l) t [])
+    return (Hashtbl.to_alist t)
 
 end
 

@@ -44,7 +44,6 @@ end
 
 module S (K: IrminKey.S) (B: IrminBlob.S): S with type key = K.t and type blob = B.t
 
-
 module String: S with type key = IrminKey.SHA1.t and type blob = IrminBlob.String.t
 (** String blobs, with SHA1 keys. *)
 
@@ -96,8 +95,7 @@ module Make
   (K: IrminKey.S)
   (B: IrminBlob.S)
   (S: IrminStore.AO with type key = K.t and type value = (K.t, B.t) t)
-  : STORE with type t = S.t
-           and type key = K.t
+  : STORE with type key = K.t
            and type blob = B.t
 (** Create a store for structured values. *)
 

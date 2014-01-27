@@ -111,6 +111,83 @@ module type STORE = sig
   module Value: S with type key = key and type blob = blob
 end
 
+module Mux
+  (K: IrminKey.S)
+  (B: IrminBlob.S)
+  (XBlob: IrminStore.AO with type key = K.t and type value = B.t)
+  (XTree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
+  (XCommit: IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
+= struct
+
+  type blob = B.t
+  type key = K.t
+  type value = (K.t, B.t) t
+  module Key = K
+  module Blob = IrminBlob.Make(K)(B)(XBlob)
+  module Tree = IrminTree.Make(K)(B)(XBlob)(XTree)
+  module Commit = IrminCommit.Make(K)(B)(XTree)(XCommit)
+  module Value = S(K)(B)
+
+  type t = {
+    blob     : Blob.t;
+    tree     : Tree.t;
+    commit   : Commit.t;
+  }
+
+  let blob t = t.blob
+  let tree t = t.tree
+  let commit t = t.commit
+
+  open Lwt
+
+  let create () =
+    Blob.create () >>= fun blob ->
+    Commit.create () >>= fun (tree, _ as commit) ->
+    return { blob; tree = (blob, tree) ; commit }
+
+  (* XXX: ugly *)
+  let read t key =
+    Blob.read t.blob key >>= function
+    | Some b -> return (Some (Blob b))
+    | None   ->
+      Tree.read t.tree key >>= function
+      | Some t -> return (Some (Tree t))
+      | None   ->
+        Commit.read t.commit key >>= function
+        | Some c -> return (Some (Commit c))
+        | None   -> return_none
+
+  let read_exn t key =
+    read t key >>= function
+    | Some v -> return v
+    | None   -> fail Not_found
+
+  let mem t key =
+    read t key >>= function
+    | None   -> return false
+    | Some _ -> return true
+
+  let add t = function
+    | Blob b   -> Blob.add t.blob b
+    | Tree tr  -> Tree.add t.tree tr
+    | Commit c -> Commit.add t.commit c
+
+  let list t key =
+    Commit.list t.commit key
+
+  let contents t =
+    Blob.contents t.blob     >>= fun blobs ->
+    Tree.contents t.tree     >>= fun trees ->
+    Commit.contents t.commit >>= fun commits ->
+    let all =
+      List.map blobs ~f:(fun (k, b) -> k, Blob b)
+      @ List.map trees ~f:(fun (k, t) -> k, Tree t)
+      @ List.map commits ~f:(fun (k, c) -> k, Commit c) in
+    return all
+
+end
+
+
 module type CASTABLE = sig
   type t
   type cast
@@ -162,19 +239,11 @@ module Cast (S: IrminStore.AO) (C: CASTABLE with type t = S.value) = struct
 
 end
 
-
 module Make
   (K: IrminKey.S)
   (B: IrminBlob.S)
   (Store: IrminStore.AO with type key = K.t and type value = (K.t, B.t) t)
 = struct
-
-  type blob = B.t
-
-  module Key = K
-  module Value = S(K)(B)
-
-  include Store
 
   module BS = Cast(Store)(struct
       type t = Store.value
@@ -203,89 +272,10 @@ module Make
       let inj c = Commit c
     end)
 
-  module Blob = IrminBlob.Make(K)(B)(BS)
-  module Tree = IrminTree.Make(K)(B)(BS)(TS)
-  module Commit = IrminCommit.Make(K)(B)(TS)(CS)
+  module XBlob = IrminBlob.Make(K)(B)(BS)
+  module XTree = IrminTree.Make(K)(B)(BS)(TS)
+  module XCommit = IrminCommit.Make(K)(B)(TS)(CS)
 
-  let blob t = t
-  let tree t = (t, t)
-  let commit t = (t, t)
-
-end
-
-module Mux
-  (K: IrminKey.S)
-  (B: IrminBlob.S)
-  (Blob: IrminStore.AO with type key = K.t and type value = B.t)
-  (Tree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
-  (Commit: IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
-= struct
-
-  type blob = B.t
-  type key = K.t
-  type value = (K.t, B.t) t
-  module Key = K
-  module Blob = IrminBlob.Make(K)(B)(Blob)
-  module Tree = IrminTree.Make(K)(B)(Blob)(Tree)
-  module Commit = IrminCommit.Make(K)(B)(Tree)(Commit)
-  module Value = S(K)(B)
-
-  type t = {
-    blob     : Blob.t;
-    tree     : Tree.t;
-    commit   : Commit.t;
-  }
-
-  let blob t = t.blob
-  let tree t = t.tree
-  let commit t = t.commit
-
-  open Lwt
-
-  let create () =
-    Blob.create () >>= fun blob ->
-    Tree.create () >>= fun tree ->
-    Commit.create () >>= fun commit ->
-    return { blob; tree; commit }
-
-  (* XXX: ugly *)
-  let read t key =
-    Blob.read t.blob key >>= function
-    | Some b -> return (Some (Blob b))
-    | None   ->
-      Tree.read t.tree key >>= function
-      | Some t -> return (Some (Tree t))
-      | None   ->
-        Commit.read t.commit key >>= function
-        | Some c -> return (Some (Commit c))
-        | None   -> return_none
-
-  let read_exn t key =
-    read t key >>= function
-    | Some v -> return v
-    | None   -> fail Not_found
-
-  let mem t key =
-    read t key >>= function
-    | None   -> return false
-    | Some _ -> return true
-
-  let add t = function
-    | Blob b   -> Blob.add t.blob b
-    | Tree tr  -> Tree.add t.tree tr
-    | Commit c -> Commit.add t.commit c
-
-  let list t key =
-    Commit.list t.commit key
-
-  let contents t =
-    Blob.contents t.blob     >>= fun blobs ->
-    Tree.contents t.tree     >>= fun trees ->
-    Commit.contents t.commit >>= fun commits ->
-    let all =
-      List.map blobs ~f:(fun (k, b) -> k, Blob b)
-      @ List.map trees ~f:(fun (k, t) -> k, Tree t)
-      @ List.map commits ~f:(fun (k, c) -> k, Commit c) in
-    return all
+  include Mux(K)(B)(XBlob)(XTree)(XCommit)
 
 end
