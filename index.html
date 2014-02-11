@@ -3,31 +3,34 @@
   <head>
     <meta charset='utf-8'>
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
+    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
     <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
     <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
     <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
-
     <!--[if lt IE 9]>
     <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
-
     <title>Irminsule by samoht</title>
   </head>
 
   <body>
-    <header>
+    <div id="container">
       <div class="inner">
-        <h1>Irminsule</h1>
-        <h2>Irminsule is a distributed database that follows the same design principles as Git</h2>
-        <a href="https://github.com/samoht/irminsule" class="button"><small>View project on</small>GitHub</a>
-      </div>
-    </header>
 
-    <div id="content-wrapper">
-      <div class="inner clearfix">
-        <section id="main-content">
+        <header>
+          <h1>Irminsule</h1>
+          <h2>Irminsule is a distributed database that follows the same design principles as Git</h2>
+        </header>
+
+        <section id="downloads" class="clearfix">
+          <a href="https://github.com/samoht/irminsule/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
+          <a href="https://github.com/samoht/irminsule/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>
+          <a href="https://github.com/samoht/irminsule" id="view-on-github" class="button"><span>View on GitHub</span></a>
+        </section>
+
+        <hr>
+
+        <section id="main_content">
           <h2>
 <a name="irminsule" class="anchor" href="#irminsule"><span class="octicon octicon-link"></span></a>Irminsule</h2>
 
@@ -40,60 +43,192 @@ although it is optimized for append-only store.</p>
 on top of Xen.</p>
 
 <h3>
-<a name="compile" class="anchor" href="#compile"><span class="octicon octicon-link"></span></a>Compile</h3>
+<a name="installing" class="anchor" href="#installing"><span class="octicon octicon-link"></span></a>Installing</h3>
 
-<pre><code>opam install jsonm uri ocamlgraph cohttp cmdliner obuild lwt \
-     ocplib-endian ssl cryptokit
-make
+<pre><code>opam install irminsule
 </code></pre>
+
+<p>This is a brief tutorial to start playing with Irminsule and its
+command-line tool.</p>
 
 <h3>
-<a name="install" class="anchor" href="#install"><span class="octicon octicon-link"></span></a>Install</h3>
+<a name="using-the-in-memory-backend" class="anchor" href="#using-the-in-memory-backend"><span class="octicon octicon-link"></span></a>Using the In-Memory Backend</h3>
 
-<pre><code>make install
+<p>Let's start by creating a new Irminsule instance, which stores its data
+in memory.  To do this, we can use the <code>irmin</code> command-line tool,
+which is an easy-way to access the Irminsule libraries and APIs.</p>
+
+<pre lang="shell"><code>$ mkdir /tmp/irmin-mem &amp;&amp; cd /tmp/irmin-mem
+$ irmin init -d -m -v # Start a server (-d) in-memory (-m) and display some events (-v)
+2014-01-21 17:24:26.525        INFO : source: in-memory
+2014-01-21 17:24:26.526        INFO : daemon: http://127.0.0.1:8080
+Server started on port 8080.
 </code></pre>
+
+<p>You can now open a new terminal, tell irminsule to use by defaut a remote store located
+on <code>http://127.0.0.1:8080</code> and start writing few things in the database.</p>
+
+<pre lang="shell"><code>$ export IRMIN=r:http://127.0.0.1:8080
+$ irmin write a/b foo
+$ irmin write a/c bar
+</code></pre>
+
+<p>You can then inspect the database contents:</p>
+
+<pre lang="shell"><code>$ irmin tree
+/a/b..............................................................................."foo"
+/a/c..............................................................................."bar"
+$ irmin read a/b
+foo
+</code></pre>
+
+<p>This state looks good, so we want to keep track of it if later something bad happens
+to the database.</p>
+
+<pre lang="shell"><code>$ STATE=`irmin snapshot`
+$ irmin write a/b notfoo
+# [...]
+$ irmin revert $STATE
+$ irmin tree
+/a/b..............................................................................."foo"
+/a/c..............................................................................."bar"
+</code></pre>
+
+<p>Under the hood there are three different kind of objects that are
+stored in the database.  First the raw objects (or blobs) are the one
+that are directly provided by the user (or the application). That's
+<code>foo</code> and <code>bar</code> here. There are tree objects, which are similar to filesystem
+inodes, which are used by Irminsule to keep track of
+directories. Finally, there are commit objects, which are used to keep
+track of the state history (and are useful to snapshot and rollback).</p>
+
+<p>You can see the relation between this objects by dumping the database state in a <code>.dot</code> file.</p>
+
+<pre lang="shell"><code>$ irmin dump thestate
+$ cat thestate.dot
+# [..] A graphivz graph
+$ open thestate.png`
+</code></pre>
+
+<p>TODO: insert a diagram and explain how to read it</p>
+
+<p>You can also access the daemon state by opening your browser to <code>http://127.0.0.1:8080</code>
+directly which is a classical JSON CRUD interface.
+It will list the possible operations. For instance, you can read the store
+contents directy:</p>
+
+<pre lang="shell"><code>$ curl http://127.0.0.1:8080/read/a/b
+{"result":"foo"}
+</code></pre>
+
+<p>Now you can switch back to the first terminal (where you started the
+Irminsule daemon). You will see a lot of activity has been going on in
+there as it was busy dealing with the requests you just made. If
+you kill the daemon and restart it again, you will notice that all the
+state is lost. This is expected, as you run the daemon using <code>-m</code>
+(i.e. backing the database store in memory). If you want to persist
+it using a custom binary format (which is optimized for reading and
+writing, not much for space usage) you can simply remove <code>-m</code> when
+you start the daemon: every
+write operation will be directly flushed to disk and you will be able
+to restart the server seamlessly.</p>
 
 <h3>
-<a name="running-the-tests" class="anchor" href="#running-the-tests"><span class="octicon octicon-link"></span></a>Running the tests</h3>
+<a name="the-git-backend" class="anchor" href="#the-git-backend"><span class="octicon octicon-link"></span></a>The Git Backend</h3>
 
-<p>To run only the quick tests:</p>
+<p>Now the really cool think about Irminsule is that it speaks Git
+fluently. This means that you can replace <code>-m</code> by <code>-g</code> and do
+exactly the same thing as in the previous section. But, then, you will
+be able to use the usual <code>git</code> command-line tool to inspect, modify and
+add new elements to the store.</p>
 
-<pre><code>make test
+<p>For instance, let's start a new Irminsule instance.</p>
+
+<pre lang="shell"><code>$ mkdir /tmp/irmin-git &amp;&amp; cd /tmp/irmin-git
+$ git init
+Initialized empty Git repository in /tmp/irmin-git/.git/
+$ irmin init -g -d -v
 </code></pre>
 
-<p>To run the full test suite:</p>
+<p>You can the add some data in a new terminal:</p>
 
-<pre><code>make fulltest
+<pre lang="shell"><code>$ export IRMIN=r:http://127.0.0.1:8080
+$ irmin write a/b foo
+$ irmin write a/c bar
 </code></pre>
 
-<h3>
-<a name="usage" class="anchor" href="#usage"><span class="octicon octicon-link"></span></a>Usage</h3>
+<p>It's now really easy to inspect the history using the usual Git worklow:</p>
 
-<p>See <code>irmin --help</code></p>
+<pre lang="shell"><code>$ cd /tmp/irmin-git
+$ git log
+commit 87866c90c99fbbd0b029a95ef4354a6cb47656c1
+Author: Irminsule (piana.mac.cl.cam.ac.uk[37101])
+&lt;irminsule@openmirage.org&gt;
+Date:   Tue Jan 21 17:59:57 2014 +0000
 
-<h2>
-<a name="issues" class="anchor" href="#issues"><span class="octicon octicon-link"></span></a>Issues</h2>
+    Autogenerated by Irminsule
 
-<p>To report any issues please use the <a href="https://github.com/samoht/issues">bugtracker on Github</a>.</p>
+commit 5954683338c43d73c5589ce1c2dc09c2a4fac1ec
+Author: Irminsule (piana.mac.cl.cam.ac.uk[37100])
+&lt;irminsule@openmirage.org&gt;
+Date:   Tue Jan 21 17:59:55 2014 +0000
+
+    Autogenerated by Irminsule
+
+$ git show 5954
+commit 5954683338c43d73c5589ce1c2dc09c2a4fac1ec
+Author: Irminsule (piana.mac.cl.cam.ac.uk[37100])
+&lt;irminsule@openmirage.org&gt;
+Date:   Tue Jan 21 17:59:55 2014 +0000
+
+    Autogenerated by Irminsule
+
+diff --git a/a/b b/a/b
+new file mode 100644
+index 0000000..1910281
+--- /dev/null
++++ b/a/b
+@@ -0,0 +1 @@
++foo
+\ No newline at end of file
+</code></pre>
+
+<p>That translation is bidirectional. That means that any change you make
+in the directory will be reflected in the Irminsule world.</p>
+
+<pre lang="shell"><code>$ git reset HEAD --hard # Extract the files from the bare Git repo
+$ tree
+.
+âââ [thomas    136]  a
+    âââ [thomas      3]  b
+    âââ [thomas      3]  c
+
+1 directory, 2 files
+$ echo "Hello world" &gt;&gt; a/b
+$ git commit -a -m "Test"
+[master ed406fe] Test
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+$ irmin tree
+/a/b..............................................................................."fooHello world\n"
+/a/c............................................................................................"bar"
+$ git rev-parse HEAD
+ed406fe7854317f511b746439f6f25adb89d3dd8
+$ irmin snapshot
+ed406fe7854317f511b746439f6f25adb89d3dd8
+</code></pre>
+
+<p>This enables an application to pull/push the state of its database.</p>
+
+<p>TODO: more next</p>
         </section>
 
-        <aside id="sidebar">
-          <a href="https://github.com/samoht/irminsule/zipball/master" class="button">
-            <small>Download</small>
-            .zip file
-          </a>
-          <a href="https://github.com/samoht/irminsule/tarball/master" class="button">
-            <small>Download</small>
-            .tar.gz file
-          </a>
+        <footer>
+          Irminsule is maintained by <a href="https://github.com/samoht">samoht</a><br>
+          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.
+        </footer>
 
-          <p class="repo-owner"><a href="https://github.com/samoht/irminsule"></a> is maintained by <a href="https://github.com/samoht">samoht</a>.</p>
-
-          <p>This page was generated by <a href="pages.github.com">GitHub Pages</a> using the Architect theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.</p>
-        </aside>
+        
       </div>
     </div>
-
-  
   </body>
 </html>
