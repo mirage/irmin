@@ -90,7 +90,7 @@ Document backend
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib/backend
-  XOCamlbuildLibraries: irminsule.backend, irminsule.backend.fs
+  XOCamlbuildLibraries: irminsule.backend, irminsule.backend.fs, irminsule.backend.git
 
 Executable irmin
   Path:               lib/driver
