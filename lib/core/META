@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4ec6b6d4c676ff62881ffdf4c5822d8a)
+# DO NOT EDIT (digest: f21d12aed8291acbf6b6fc2f4ef03972)
 version = "0.5.0"
 description = "A Distributed Version Control Database"
 requires =
@@ -33,7 +33,7 @@ package "backend" (
  package "git" (
   version = "0.5.0"
   description = "A Distributed Version Control Database"
-  requires = "irminsule.backend irminsule git.unix"
+  requires = "irminsule.backend irminsule git.fs git.memory"
   archive(byte) = "git.cma"
   archive(byte, plugin) = "git.cma"
   archive(native) = "git.cmxa"

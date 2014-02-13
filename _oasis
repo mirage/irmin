@@ -58,7 +58,7 @@ Library git
   Path: lib/backend
   Findlibname: git
   FindlibParent: backend
-  BuildDepends: irminsule.backend, irminsule, git.unix
+  BuildDepends: irminsule.backend, irminsule, git.fs, git.memory
   Modules: IrminGit
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot

@@ -131,17 +131,27 @@ module Make
     Tree.create () >>= fun t ->
     return (b, t)
 
-  let add (_, t) tree =
-    Tree.add t tree
+  let add (_, t) = function
+    | Leaf k -> return k
+    | tree   -> Tree.add t tree
 
-  let read (_, t) key =
-    Tree.read t key
+  let read (b, t) key =
+    Tree.read t key >>= function
+    | Some _ as x -> return x
+    | None        ->
+      Blob.mem b key >>= function
+      | true  -> return (Some (Leaf key))
+      | false -> return_none
 
-  let read_exn (_, t) key =
-    Tree.read_exn t key
+  let read_exn t key =
+    read t key >>= function
+    | None   -> fail Not_found
+    | Some v -> return v
 
-  let mem (_, t) key =
-    Tree.mem t key
+  let mem (b, t) key =
+    Tree.mem t key >>= function
+    | false -> Blob.mem b key
+    | true  -> return true
 
   module Graph = IrminGraph.Make(K)
 

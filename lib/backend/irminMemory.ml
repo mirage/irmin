@@ -64,8 +64,8 @@ module AO (K: IrminKey.S) = struct
 
   let add t value =
     let key = K.to_raw (K.of_bigarray value) in
-    Hashtbl.add t key value;
-    return key
+    match Hashtbl.add t key value with
+    | `Ok | `Duplicate -> return key
 
 end
 
