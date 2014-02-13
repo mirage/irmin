@@ -22,12 +22,10 @@ let uri = Uri.of_string "http://127.0.0.1:8080"
 let file = Filename.temp_file "irmin" ".signal"
 
 let signal () =
-  Printf.printf "YYY %s\n%!" file;
   let oc = open_out file in
   output_string oc "Server started";
   flush oc;
   close_out oc;
-  Printf.printf "YYY %s\n%!" file;
   return_unit
 
 let rec wait_for_the_server_to_start () =
@@ -36,7 +34,6 @@ let rec wait_for_the_server_to_start () =
     return_unit
   ) else
     Lwt_unix.sleep 0.1 >>= fun () ->
-    Printf.printf "XXXX %s\n%!" file;
     wait_for_the_server_to_start ()
 
 let suite k server =
@@ -67,7 +64,6 @@ let suite k server =
     kind = k;
 
     clean = begin fun () ->
-      IrminHTTP.stop_server uri >>= fun () ->
       Unix.kill !server_pid 9;
       let () =
         try ignore (Unix.waitpid [Unix.WUNTRACED] !server_pid)

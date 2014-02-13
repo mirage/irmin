@@ -19,6 +19,3 @@
 val start_server: (module Irmin.S with type t = 'a) -> 'a -> Uri.t -> unit Lwt.t
 (** [start_server s uri] start a server serving the contents of [db]
     (of kind [s]) at the address [uri]. *)
-
-val stop_server: Uri.t -> unit Lwt.t
-(** [stop_server uri] stops the server running at the given [uri]. *)
