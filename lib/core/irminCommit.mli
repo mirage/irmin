@@ -58,7 +58,8 @@ module type STORE = sig
                          and type value := value
   (** Revision stores are append-only. *)
 
-  val commit: t -> ?tree:key IrminTree.t -> parents:value list -> key Lwt.t
+  val commit: t -> date:float -> origin:string ->
+    ?tree:key IrminTree.t -> parents:value list -> key Lwt.t
   (** Create a new commit. *)
 
   val tree: t -> value -> key IrminTree.t Lwt.t option

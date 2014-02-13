@@ -38,6 +38,21 @@ module type S = sig
   module Dump: IrminDump.S with type key = Internal.key and type blob = value
 end
 
+
+let date_hook =
+  let c = ref 0. in
+  ref (fun () -> c := Float.add !c 1.; !c)
+
+let set_date_hook f =
+  date_hook := f
+
+let origin_hook =
+  let r = string_of_int (Random.int 1024) in
+  ref (fun () -> r)
+
+let set_origin_hook f =
+  origin_hook := f
+
 module Make
     (K : IrminKey.S)
     (B : IrminBlob.S)
@@ -110,7 +125,9 @@ module Make
     if old_tree = tree then return_unit
     else (
       let parents = parents_of_commit commit in
-      Commit.commit (co t.vals) ~tree ~parents >>= fun key ->
+      let date = !date_hook () in
+      let origin = !origin_hook () in
+      Commit.commit (co t.vals) ~date ~origin ~tree ~parents >>= fun key ->
       Reference.update t.refs t.branch key
     )
 

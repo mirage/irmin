@@ -17,6 +17,12 @@
 open Lwt
 open Cmdliner
 
+let () =
+  let origin =
+    Printf.sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
+  Irmin.set_date_hook Unix.time;
+  Irmin.set_origin_hook (fun () -> origin)
+
 (* Global options *)
 type global = {
   level: Log.log_level option;

@@ -173,14 +173,14 @@ module Make (S: Irmin.S) = struct
       Tree.read_exn tree k3       >>= fun t3  ->
 
       (* r1 : t2 *)
-      Commit.commit commit ~tree:t2 ~parents:[] >>= fun kr1 ->
-      Commit.commit commit ~tree:t2 ~parents:[] >>= fun kr1'->
+      Commit.commit commit ~date:0. ~origin:"test" ~tree:t2 ~parents:[] >>= fun kr1 ->
+      Commit.commit commit ~date:0. ~origin:"test" ~tree:t2 ~parents:[] >>= fun kr1'->
       assert_key_equal "kr1" kr1 kr1';
       Commit.read_exn commit kr1 >>= fun r1  ->
 
       (* r1 -> r2 : t3 *)
-      Commit.commit commit ~tree:t3 ~parents:[r1] >>= fun kr2  ->
-      Commit.commit commit ~tree:t3 ~parents:[r1] >>= fun kr2' ->
+      Commit.commit commit ~date:0. ~origin:"test" ~tree:t3 ~parents:[r1] >>= fun kr2  ->
+      Commit.commit commit ~date:0. ~origin:"test" ~tree:t3 ~parents:[r1] >>= fun kr2' ->
       assert_key_equal "kr2" kr2 kr2';
       Commit.read_exn commit kr2 >>= fun r2   ->
 

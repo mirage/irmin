@@ -94,7 +94,8 @@ module type STORE = sig
   type value = key t
   include IrminStore.AO with type key := key
                          and type value := value
-  val commit: t -> ?tree:key IrminTree.t -> parents:value list -> key Lwt.t
+  val commit: t -> date:float -> origin:string -> ?tree:key IrminTree.t ->
+    parents:value list -> key Lwt.t
   val tree: t -> value -> key IrminTree.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
   module Key: IrminKey.S with type t = key
@@ -140,7 +141,7 @@ module Make
     | None   -> None
     | Some k -> Some (Tree.read_exn t k)
 
-  let commit (t, c) ?tree ~parents =
+  let commit (t, c) ~date ~origin ?tree ~parents =
     begin match tree with
       | None      -> return_none
       | Some tree -> Tree.add t tree >>= fun k -> return (Some k)
@@ -148,8 +149,6 @@ module Make
     >>= fun tree ->
     Lwt_list.map_p (Commit.add c) parents
     >>= fun parents ->
-    let date = Unix.time () in
-    let origin = Printf.sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
     Commit.add c { tree; parents; date; origin }
 
   let parents t c =

@@ -94,3 +94,9 @@ module type JSON = SHA1 with type value = IrminBlob.JSON.t
 
 module JSON (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): JSON
 (** Create a SJON store. *)
+
+val set_date_hook: (unit -> float) -> unit
+(** How to compute the commit dates. By default, increment a counter. *)
+
+val set_origin_hook: (unit -> string) -> unit
+(** How to compute the commit origins. By default, return a random number. *)
