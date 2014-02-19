@@ -16,5 +16,8 @@
 
 (** Serialize the irminsule objects to a local Git store. *)
 
-val create: [`JSON|`String] -> [`Local|`Memory] -> (module Irmin.S)
-(** Create a Git store. *)
+val create: ?root:string -> [`JSON|`String] -> [`Local|`Memory]
+  -> (module Irmin.S)
+(** Create a Git store. [root] is the location of the Git root,
+    default is $(pwd).  [poll] is the polling time for checking
+    reference changes. Default is 0.5s. *)

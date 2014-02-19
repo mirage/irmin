@@ -145,7 +145,7 @@ let write_bigstring fd ba =
 module type S = sig
   val path: string
   val file_of_key: string -> string
-  val keys_of_dir: string -> string list
+  val key_of_file: string -> string
 end
 
 module type S0 = sig
@@ -163,12 +163,11 @@ module OBJECTS (S: S0) (K: IrminKey.S) = struct
       let suf = String.sub key 2 (len - 2) in
       path / pre / suf
 
-    let keys_of_dir root =
-      let files = rec_files root in
-      List.map ~f:(fun path ->
-          let path = IrminPath.of_string path in
-          K.to_raw (K.of_string (String.concat ~sep:"" path))
-        ) files
+    let key_of_file path =
+      Log.debugf "key_of_file %s" path;
+      let path = IrminPath.of_string path in
+      let path = String.concat ~sep:"" path in
+      K.to_raw (K.of_string path)
 
   end
 
@@ -179,10 +178,9 @@ module REFS (S: S0) = struct
   let file_of_key key =
     path / key
 
-  let keys_of_dir root =
-    Log.debugf "keys_of_dir %s" root;
-    let files = rec_files root in
-    List.map ~f:(fun x -> x) files
+  let key_of_file file =
+    Log.debugf "key_of_file %s" file;
+    file
 
 end
 
@@ -193,7 +191,12 @@ module RO (S: S) (K: IrminKey.S) = struct
 
   type value = Cstruct.buffer
 
-  type t = root
+  module W = IrminWatch.Make(K)(Bigstring)
+
+  type t = {
+    t: root;
+    w: W.t;
+  }
 
   let pretty_key k =
     K.to_string (K.of_raw k)
@@ -202,9 +205,11 @@ module RO (S: S) (K: IrminKey.S) = struct
     fail (IrminKey.Unknown (pretty_key k))
 
   let create () =
-    return (D S.path)
+    let t = D S.path in
+    let w = W.create () in
+    return { t; w }
 
-  let mem t key =
+  let mem { t } key =
     check t >>= fun () ->
     let file = S.file_of_key key in
     Log.debugf "file=%s" file;
@@ -227,13 +232,17 @@ module RO (S: S) (K: IrminKey.S) = struct
       return (Some ba)
     | false -> return_none
 
-  let list t k =
+  let list { t } k =
     return [k]
 
-  let contents (D root as t) =
+  let keys_of_dir root =
+    let files = rec_files root in
+    List.map ~f:S.key_of_file files
+
+  let contents ({ t = D root } as t) =
     L.debugf "contents %s" root;
-    check t >>= fun () ->
-    let l = S.keys_of_dir root in
+    check t.t >>= fun () ->
+    let l = keys_of_dir root in
     Lwt_list.fold_left_s (fun acc x ->
         read t x >>= function
         | None   -> return acc
@@ -246,7 +255,7 @@ module AO (S: S) (K: IrminKey.S) = struct
 
   include RO(S)(K)
 
-  let add t value =
+  let add { t } value =
     L.debugf "add";
     check t >>= fun () ->
     let key = K.to_raw (K.of_bigarray value) in
@@ -266,7 +275,19 @@ module RW (S: S) (K: IrminKey.S) = struct
 
   include RO(S)(K)
 
-  let remove t key =
+  let read_key t key =
+    read t (K.to_raw key)
+
+  let create () =
+    let key_of_file file =
+      Some (K.of_string (S.key_of_file file)) in
+    let t = D S.path in
+    let w = W.create () in
+    let t = { t; w } in
+    W.listen_dir w S.path key_of_file (read_key t);
+    return t
+
+  let remove { t } key =
     L.debugf "remove %s" (pretty_key key);
     let file = S.file_of_key key in
     if Sys.file_exists file then
@@ -275,11 +296,25 @@ module RW (S: S) (K: IrminKey.S) = struct
 
   let update t key value =
     L.debugf "update %s" (pretty_key key);
-    check t >>= fun () ->
+    check t.t >>= fun () ->
     remove t key >>= fun () ->
     with_file_out (S.file_of_key key) (fun fd ->
         write_bigstring fd value
-      )
+      ) >>= fun () ->
+    W.notify t.w (K.of_raw key) (Some value);
+    return_unit
+
+  let remote t key =
+    remove t key >>= fun () ->
+    W.notify t.w (K.of_raw key) None;
+    return_unit
+
+  let watch t key =
+    L.debugf "watch %S" (pretty_key key);
+    IrminMisc.lift_stream (
+      read t key >>= fun value ->
+      return (W.watch t.w (K.of_raw key) value)
+    )
 
 end
 
@@ -292,3 +327,33 @@ let create kind path =
   match kind with
   | `String -> (module Irmin.String (AO(Obj)(K))(RW(Ref)(R)): Irmin.S)
   | `JSON   -> (module Irmin.JSON (AO(Obj)(K))(RW(Ref)(R))  : Irmin.S)
+
+let () =
+  IrminWatch.set_listen_dir_hook (fun dir fn ->
+
+      let read_files () =
+        let new_files = rec_files dir in
+        let new_files = List.map ~f:(fun f -> let f = dir / f in f , Digest.file f) new_files in
+        String.Map.of_alist_exn new_files in
+
+      let to_string set =
+        Sexp.to_string_hum (String.Map.sexp_of_t String.sexp_of_t set) in
+
+      let rec loop files =
+        let new_files = read_files () in
+        let diff = Map.merge files new_files (fun ~key -> function
+            | `Both (s1, s2)     -> if s1 = s2 then None else Some s1
+            | `Left s | `Right s -> Some s
+          ) in
+
+        if not (Map.is_empty diff) then
+          Log.debugf "polling %s: diff:%s" dir (to_string diff);
+        Lwt_list.iter_p (fun (f, _) -> fn f) (String.Map.to_alist diff) >>= fun () ->
+        Lwt_unix.sleep 0.5 >>= fun () ->
+        loop new_files in
+
+      let t () =
+        loop (read_files ()) in
+
+      Lwt.async t
+    )
