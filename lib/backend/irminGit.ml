@@ -322,9 +322,11 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
       let r = git_of_ref r in
       let k = git_of_key k in
       G.write_head t (Git.Reference.Ref r) >>= fun () ->
-      if Config.kind = `Local && Config.bare then
-        return_unit else G.write_cache t k >>= fun () ->
-      G.write_reference t r k
+      G.write_reference t r k >>= fun () ->
+      if Config.kind = `Local && not Config.bare then
+        G.write_cache t k
+      else
+        return_unit
 
     let remove t r =
       G.remove_reference t (git_of_ref r)
