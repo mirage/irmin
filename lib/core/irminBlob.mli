@@ -50,12 +50,12 @@ module type S = sig
 
 end
 
-module String: S
+module String: S with type t = string
 (** String values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-module JSON: S
+module JSON: S with type t = Ezjsonm.t
 (** JSON values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
