@@ -328,7 +328,7 @@ let create kind path =
   | `String -> (module Irmin.String (AO(Obj)(K))(RW(Ref)(R)): Irmin.S)
   | `JSON   -> (module Irmin.JSON (AO(Obj)(K))(RW(Ref)(R))  : Irmin.S)
 
-let () =
+let install_dir_polling_listener delay =
   IrminWatch.set_listen_dir_hook (fun dir fn ->
 
       let read_files () =
@@ -349,7 +349,7 @@ let () =
         if not (Map.is_empty diff) then
           Log.debugf "polling %s: diff:%s" dir (to_string diff);
         Lwt_list.iter_p (fun (f, _) -> fn f) (String.Map.to_alist diff) >>= fun () ->
-        Lwt_unix.sleep 0.5 >>= fun () ->
+        Lwt_unix.sleep delay >>= fun () ->
         loop new_files in
 
       let t () =

@@ -21,8 +21,6 @@ module L = Log.Make(struct let section = "MEMORY" end)
 
 module RO (K: IrminKey.S) = struct
 
-  (* That's not ideal to put that here, but we want to be W.t be
-     part of the state. *)
   module W = IrminWatch.Make(K)(Bigstring)
 
   type key = string

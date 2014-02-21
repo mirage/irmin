@@ -33,7 +33,7 @@ module type S = sig
 end
 
 let listen_dir_hook =
-  ref (fun _dir -> failwith "Not implemented")
+  ref (fun _dir _fn -> ())
 
 let set_listen_dir_hook fn =
   listen_dir_hook := fn

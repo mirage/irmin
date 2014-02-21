@@ -21,7 +21,8 @@ let () =
   let origin =
     Printf.sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
   Irmin.set_date_hook Unix.time;
-  Irmin.set_origin_hook (fun () -> origin)
+  Irmin.set_origin_hook (fun () -> origin);
+  IrminFS.install_dir_polling_listener 0.5
 
 (* Global options *)
 type global = {

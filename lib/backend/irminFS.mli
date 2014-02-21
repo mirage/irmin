@@ -18,3 +18,7 @@
 
 val create: [`JSON|`String] -> string -> (module Irmin.S)
 (** On-disk store. *)
+
+val install_dir_polling_listener: float -> unit
+(** Install the directory listener using active polling. The parameter
+    is the threads sleep time. *)
