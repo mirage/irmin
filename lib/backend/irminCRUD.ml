@@ -171,6 +171,10 @@ module Make (Client: Cohttp_lwt.Client) = struct
       L.debugf "remove %s" (K.to_string key);
       delete t ["remove"; K.to_string key] Ezjsonm.get_unit
 
+    let watch t path =
+      L.debugf "watch";
+      get_stream t ["watch"; K.to_string path] V.of_json
+
   end
 
   module S (U: U)

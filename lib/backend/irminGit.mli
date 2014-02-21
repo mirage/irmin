@@ -18,7 +18,8 @@
 
 val create: ?bare:bool -> ?root:string ->
   [`JSON|`String] -> [`Local|`Memory] -> (module Irmin.S)
-(** Create a Git store. *)
+(** Create a Git store. [root] is the location of the Git root,
+    default is $(pwd). *)
 
 val local: ?bare:bool -> string -> (module Irmin.S with type value = string)
 (** Local store, located in the given directory. By default, create a

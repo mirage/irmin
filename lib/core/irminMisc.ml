@@ -107,3 +107,17 @@ let write bin t =
   let k = bin.writer.write buf ~pos:0 t in
   assert (n=k);
   buf
+
+open Lwt
+
+let lift_stream s =
+  let (stream: 'a Lwt_stream.t option ref) = ref None in
+  let rec get () =
+    match !stream with
+    | Some s -> Lwt_stream.get s
+    | None   ->
+      s >>= fun s ->
+      stream := Some s;
+      get ()
+  in
+  Lwt_stream.from get

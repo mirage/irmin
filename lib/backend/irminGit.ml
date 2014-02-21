@@ -276,14 +276,16 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
 
   module XReference = struct
 
-    type t = G.t
+    module W = IrminWatch.Make(R)(K)
+
+    type t = {
+      t: G.t;
+      w: W.t;
+    }
 
     type key = R.t
 
     type value = K.t
-
-    let create () =
-      G.create ?root:Config.root ()
 
     let ref_of_git r =
       R.of_string (Git.Reference.to_string r)
@@ -291,25 +293,39 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
     let git_of_ref r =
       Git.Reference.of_string (R.to_string r)
 
-    let mem t r =
+    let mem { t } r =
       G.mem_reference t (git_of_ref r)
 
     let key_of_git k = key_of_git (Git.SHA1.of_commit k)
 
-    let read t r =
+    let read { t } r =
       G.read_reference t (git_of_ref r) >>= function
       | None   -> return_none
       | Some k -> return (Some (key_of_git k))
 
-    let read_exn t r =
+  let create () =
+    let (/) = Filename.concat in
+    G.create ?root:Config.root () >>= fun t ->
+    let git_root = G.root t / ".git" in
+    let ref_of_file file =
+      match String.chop_prefix ~prefix:(git_root / "") file with
+      | None   -> None
+      | Some r -> Some (R.of_raw r) in
+    let w = W.create () in
+    let t = { t; w } in
+    if Config.kind = `Local then
+      W.listen_dir w (git_root / "refs") ref_of_file (read t);
+    return t
+
+    let read_exn { t } r =
       G.read_reference_exn t (git_of_ref r) >>= fun k ->
       return (key_of_git k)
 
-    let list t _ =
+    let list { t } _ =
       G.references t >>= fun refs ->
       return (List.map ~f:ref_of_git refs)
 
-    let contents t =
+    let contents { t } =
       G.references t >>= fun refs ->
       Lwt_list.map_p (fun r ->
           G.read_reference_exn t r >>= fun k ->
@@ -319,17 +335,27 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
     let git_of_key k = Git.SHA1.to_commit (git_of_key k)
 
     let update t r k =
-      let r = git_of_ref r in
-      let k = git_of_key k in
-      G.write_head t (Git.Reference.Ref r) >>= fun () ->
-      G.write_reference t r k >>= fun () ->
+      let gr = git_of_ref r in
+      let gk = git_of_key k in
+      G.write_head t.t (Git.Reference.Ref gr) >>= fun () ->
+      G.write_reference t.t gr gk >>= fun () ->
+      W.notify t.w r (Some k);
       if Config.kind = `Local && not Config.bare then
-        G.write_cache t k
+        G.write_cache t.t gk
       else
         return_unit
 
     let remove t r =
-      G.remove_reference t (git_of_ref r)
+      G.remove_reference t.t (git_of_ref r) >>= fun () ->
+      W.notify t.w r None;
+      return_unit
+
+    let watch t (r:key): value Lwt_stream.t =
+      Log.debugf "watch %s" (R.to_string r);
+      IrminMisc.lift_stream (
+        read t r >>= fun k ->
+        return (W.watch t.w r k)
+      )
 
     module Key = R
 

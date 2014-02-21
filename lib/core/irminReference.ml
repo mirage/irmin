@@ -25,8 +25,14 @@ module type S = sig
 end
 
 module String = struct
-  include IrminPath
-  let master = ["refs/heads/master"]
+  include String
+  let of_bytes = of_string
+  let of_raw = of_string
+  let to_raw = to_string
+  let of_bigarray b = Bigstring.to_string b
+  let master = "refs/heads/master"
+  let of_json j = IrminPath.to_string (IrminPath.of_json j)
+  let to_json s = IrminPath.to_json (IrminPath.of_string s)
 end
 
 module type STORE = sig

@@ -131,22 +131,6 @@ module Make
       Reference.update t.refs t.branch key
     )
 
-  let watches: watch list ref = ref []
-
-  let dump_watches () =
-    List.iter ~f:(fun (path, _) ->
-        Log.debugf "watch: %s" (IrminPath.to_string path)
-      ) !watches
-
-  let fire path (p, _) =
-    if p = path then true
-    else
-      let rec aux = function
-        | _   , []   -> true
-        | []  , _    -> false
-        | a::b, x::y -> a=x && aux (b, y) in
-      aux (path, p)
-
   let read_tree fn t path =
     read_head_tree t >>= fun tree ->
     fn (tr t.vals) tree path
@@ -155,30 +139,10 @@ module Make
     read_tree Tree.find
 
   let update t path blob =
-    dump_watches ();
     read t path >>= fun old_v ->
     update_tree t path (fun tree ->
         Tree.update (tr t.vals) tree path blob
-      ) >>= fun () ->
-    read t path >>= fun new_v ->
-    let ws =
-      if old_v = new_v then (
-        let p = function
-          | None   -> "<none>"
-          | Some v -> B.to_string v in
-        Log.infof "old=%s new=%s" (p old_v) (p new_v);
-        []
-      ) else List.filter ~f:(fire path) !watches in
-    if ws = [] then return_unit
-    else (
-      Reference.read_exn t.refs t.branch >>= fun rev ->
-      List.iter ~f:(fun (_, f) ->
-          Log.infof "fire %s" (IrminPath.to_string path);
-          f path rev
-        ) ws;
-      return_unit
-    )
-
+      )
   let remove t path =
     update_tree t path (fun tree ->
         Tree.remove (tr t.vals) tree path
@@ -280,11 +244,26 @@ module Make
 
   let watch t path =
     Log.infof "Adding a watch on %s" (IrminPath.to_string path);
-    let stream, push, _ = Lwt_stream.create_with_reference () in
-    let callback path rev =
-      push (Some (path, rev)) in
-    watches := (path, callback) :: !watches;
-    stream
+    let stream = Reference.watch t.refs t.branch in
+    IrminMisc.lift_stream (
+      read_tree Tree.sub t path >>= fun tree ->
+      let old_tree = ref tree in
+      let stream = Lwt_stream.filter_map_s (fun key ->
+          Log.debugf "watch: %s" (Snapshot.to_string key);
+          Commit.read_exn (co t.vals) key >>= fun commit ->
+          begin match Commit.tree (co t.vals) commit with
+            | None      -> return IrminTree.empty
+            | Some tree -> tree
+          end >>= fun tree ->
+          Tree.sub (tr t.vals) tree path >>= fun tree ->
+          if tree = !old_tree then return_none
+          else (
+            old_tree := tree;
+            return (Some (path, key))
+          )
+        ) stream in
+      return stream
+    )
 
   module Log = LogMake(struct let section ="DUMP" end)
 

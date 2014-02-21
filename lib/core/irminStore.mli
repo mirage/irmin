@@ -109,6 +109,9 @@ module type RW = sig
   val remove: t -> key -> unit Lwt.t
   (** Remove the given key. *)
 
+  val watch: t -> key -> value Lwt_stream.t
+  (** Watch a given key. *)
+
 end
 
 module type RW_BINARY = RW with type key = string

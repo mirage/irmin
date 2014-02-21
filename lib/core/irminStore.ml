@@ -111,6 +111,7 @@ module type RW = sig
   include RO
   val update: t -> key -> value -> unit Lwt.t
   val remove: t -> key -> unit Lwt.t
+  val watch: t -> key -> value Lwt_stream.t
 end
 
 module type RW_BINARY = RW with type key = string
@@ -132,6 +133,13 @@ module RW_MAKER (S: RW_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
   let remove t key =
     S.remove t (K.to_string key)
+
+  let watch t key =
+    Lwt_stream.map (fun v ->
+        match IrminMisc.read V.bin_t v with
+        | None   -> failwith "watch"
+        | Some v -> v
+      ) (S.watch t (K.to_string key))
 
 end
 

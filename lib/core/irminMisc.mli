@@ -48,3 +48,6 @@ val read: 'a Bin_prot.Type_class.t -> Bigstring.t -> 'a option
 
 val write: 'a Bin_prot.Type_class.t -> 'a -> Bigstring.t
 (** Write in a fresh buffer. *)
+
+val lift_stream: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
+(** Lift a stream out of the monad. *)

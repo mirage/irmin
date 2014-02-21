@@ -290,6 +290,7 @@ module Server (S: Irmin.S) = struct
       mklp1bf "update"   Reference.update   re reference key unit;
       mklp0bf "remove"   Reference.remove   re reference unit;
       mk0p0bf "contents" Reference.contents re (contents reference key);
+      mklp0bs "watch"    Reference.watch    re reference key;
   ]
 
   let store = Node [

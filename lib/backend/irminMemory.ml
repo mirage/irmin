@@ -21,11 +21,16 @@ module L = Log.Make(struct let section = "MEMORY" end)
 
 module RO (K: IrminKey.S) = struct
 
+  module W = IrminWatch.Make(K)(Bigstring)
+
   type key = string
 
   type value = Cstruct.buffer
 
-  type t = (key, value) Hashtbl.t
+  type t = {
+    t: (key, value) Hashtbl.t;
+    w: W.t;
+  }
 
   let pretty_key k =
     K.to_string (K.of_raw k)
@@ -34,26 +39,29 @@ module RO (K: IrminKey.S) = struct
     fail (IrminKey.Unknown (pretty_key k))
 
   let create () =
-    return (String.Table.create ()) (*store*)
+    return {
+      t = String.Table.create ();
+      w = W.create ();
+    }
 
-  let read t key =
+  let read { t } key =
     L.debugf "read %s" (pretty_key key);
     return (Hashtbl.find t key)
 
-  let read_exn t key =
+  let read_exn { t } key =
     L.debugf "read_exn %s" (pretty_key key);
     match Hashtbl.find t key with
     | Some d -> return d
     | None   -> unknown key
 
-  let mem t key =
+  let mem { t } key =
     L.debugf "mem %s" (pretty_key key);
     return (Hashtbl.mem t key)
 
-  let list t k =
+  let list { t } k =
     return [k]
 
-  let contents t =
+  let contents { t } =
     return (Hashtbl.to_alist t)
 
 end
@@ -62,7 +70,7 @@ module AO (K: IrminKey.S) = struct
 
   include RO(K)
 
-  let add t value =
+  let add { t } value =
     let key = K.to_raw (K.of_bigarray value) in
     match Hashtbl.add t key value with
     | `Ok | `Duplicate -> return key
@@ -75,13 +83,22 @@ module RW (K: IrminKey.S) = struct
 
   let update t key value =
     L.debugf "update %s" (pretty_key key);
-    Hashtbl.replace t key value;
+    Hashtbl.replace t.t key value;
+    W.notify t.w (K.of_raw key) (Some value);
     return_unit
 
   let remove t key =
     L.debugf "remove %s" (pretty_key key);
-    Hashtbl.remove t key;
+    Hashtbl.remove t.t key;
+    W.notify t.w (K.of_raw key) None;
     return_unit
+
+  let watch t key =
+    L.debugf "watch %S" (pretty_key key);
+    IrminMisc.lift_stream (
+      read t key >>= fun value ->
+      return (W.watch t.w (K.of_raw key) value)
+    )
 
 end
 
