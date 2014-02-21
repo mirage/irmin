@@ -305,7 +305,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
 
   let create () =
     let (/) = Filename.concat in
-    G.create () >>= fun t ->
+    G.create ?root:Config.root () >>= fun t ->
     let git_root = G.root t / ".git" in
     let ref_of_file file =
       match String.chop_prefix ~prefix:(git_root / "") file with
