@@ -5,7 +5,7 @@ revert mechanisms. It is designed to use a large variety of backends,
 although it is optimized for append-only store.
 
 Irminsule is written in pure OCaml. It can thus be compiled to Javascript
--- and run in the browsers; or into a Mirage microkernel -- and run directly
+-- and run in the browsers; or into a Mirage unikernel -- and run directly
 on top of Xen.
 
 [![Build Status](https://travis-ci.org/samoht/irminsule.png?branch=master)](https://travis-ci.org/samoht/irminsule)
