@@ -1,4 +1,6 @@
 0.5.0:
+* More consistent support for notifications. `irmin watch` works
+  now for all backends.
 * Support for different blob formats on the command-line
 * Support for JSON blobs
 * More flexible `irmin fetch` command: we can now choose the backend to
