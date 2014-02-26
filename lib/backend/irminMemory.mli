@@ -16,5 +16,8 @@
 
 (** In-memory store *)
 
+module AO (K: IrminKey.S) : IrminStore.AO_BINARY
+module RW (K: IrminKey.S) : IrminStore.RW_BINARY
+
 val create: [`JSON|`String] -> (module Irmin.S)
 (** Create a store with the given type of values. *)
