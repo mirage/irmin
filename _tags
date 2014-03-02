@@ -199,3 +199,4 @@
 <lib_test/*.ml{,i}>: pkg_comparelib.syntax
 <lib_test/*.ml{,i}>: pkg_sexplib.syntax
 # OASIS_STOP
+true: bin_annot, annot, debug
