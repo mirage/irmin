@@ -129,7 +129,7 @@ module Server (S: Irmin.S) = struct
       ++ (Lwt_stream.map (fun j -> Ezjsonm.to_string (`O ["result", j]) ^ ",") stream)
       ++ (Lwt_stream.of_list [" {\"result\":[]}]"])
     in
-    let body = Cohttp_lwt_body.body_of_stream stream in
+    let body = Cohttp_lwt_body.of_stream stream in
     Cohttp_lwt_unix.Server.respond ~headers:json_headers ~status:`OK ~body ()
 
   let error fmt =
@@ -311,16 +311,16 @@ module Server (S: Irmin.S) = struct
       "ref"   , reference_store;
   ]
 
-  let process t ?body req path =
-    begin match Cohttp.Request.meth req, body with
-      | `DELETE ,_
-      | `GET , _      -> return_none
-      | `POST, Some b ->
-        Cohttp_lwt_body.get_length body >>= fun (len, body) ->
+  let process t req body path =
+    begin match Cohttp.Request.meth req with
+      | `DELETE
+      | `GET       -> return_none
+      | `POST ->
+        Cohttp_lwt_body.length body >>= fun (len, body) ->
         if len = 0 then
           return_none
         else begin
-          Cohttp_lwt_body.string_of_body body >>= fun b ->
+          Cohttp_lwt_body.to_string body >>= fun b ->
           L.debugf "process: length=%d body=%S" len b;
           try match Ezjsonm.from_string b with
             | `O l ->
@@ -355,13 +355,13 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
     | Some p -> p in
   let module Server = Server(S) in
   printf "Server started on port %d.\n%!" port;
-  let callback conn_id ?body req =
+  let callback conn_id req body =
     let path = Uri.path (Cohttp.Request.uri req) in
     L.infof "Request received: PATH=%s" path;
     let path = String.split path ~on:'/' in
     let path = List.filter ~f:((<>) "") path in
     catch
-      (fun () -> Server.process t ?body req path)
+      (fun () -> Server.process t req body path)
       (fun e  -> respond_error e) in
   let conn_closed conn_id () =
     L.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
