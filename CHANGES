@@ -1,3 +1,6 @@
+0.5.1:
+* Port to use Cohttp 0.10.0 interface.
+
 0.5.0:
 * More consistent support for notifications. `irmin watch` works
   now for all backends.
