@@ -16,6 +16,15 @@
 
 (** Disk persistence. *)
 
+module type S = sig
+  val path: string
+  val file_of_key: string -> string
+  val key_of_file: string -> string
+end
+
+module AO (S: S) (K: IrminKey.S) : IrminStore.AO_BINARY
+module RW (S: S) (K: IrminKey.S) : IrminStore.RW_BINARY
+
 val create: [`JSON|`String] -> string -> (module Irmin.S)
 (** On-disk store. *)
 
