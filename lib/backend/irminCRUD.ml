@@ -34,7 +34,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     | path -> Uri.with_path t (IrminPath.to_raw path)
 
   type ('a, 'b) response =
-    (Ezjsonm.t -> 'a) -> (Cohttp.Response.t * Cohttp_lwt_body.t) option -> 'b
+    (Ezjsonm.t -> 'a) -> (Cohttp.Response.t * Cohttp_lwt_body.t) -> 'b
 
   let result_of_json json =
     let error =
@@ -49,22 +49,18 @@ module Make (Client: Cohttp_lwt.Client) = struct
     | None  , Some r -> r
     | Some _, Some _ -> raise (Error "result_of_json")
 
-  let map_string_response fn = function
-    | None       -> fail (Error "map_string_response")
-    | Some (_,b) ->
-      Cohttp_lwt_body.string_of_body b >>= function b ->
-        L.debugf "response: body=%s" b;
-        let j = Ezjsonm.from_string b in
-        try return (fn (result_of_json j))
-        with Error e -> fail (Error e)
+  let map_string_response fn (r,b) =
+    Cohttp_lwt_body.to_string b >>= fun b ->
+    L.debugf "response: body=%s" b;
+    let j = Ezjsonm.from_string b in
+    try return (fn (result_of_json j))
+    with Error e -> fail (Error e)
 
-  let map_stream_response fn = function
-    | None       -> raise (Error "map_stream_response")
-    | Some (_,b) ->
-      let stream = Cohttp_lwt_body.stream_of_body b in
-      let stream = Ezjsonm_lwt.from_stream stream in
-      let stream = Lwt_stream.map result_of_json stream in
-      Lwt_stream.map fn stream
+  let map_stream_response fn (r,b) =
+    let stream = Cohttp_lwt_body.to_stream b in
+    let stream = Ezjsonm_lwt.from_stream stream in
+    let stream = Lwt_stream.map result_of_json stream in
+    Lwt_stream.map fn stream
 
   let map_get t path fn =
     L.debugf "get %s" (Uri.to_string (uri t path));
@@ -97,10 +93,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
       let params = `O [ "params", body ] in
       Ezjsonm.to_string params in
     L.debugf "post %s %s" (Uri.to_string (uri t path)) body;
-    let body =
-      match Cohttp_lwt_body.body_of_string body with
-      | Some c -> c
-      | None   -> assert false in
+    let body = Cohttp_lwt_body.of_string body in
     Cohttp_lwt_unix.Client.post ~body (uri t path) >>=
     map_string_response fn
 
