@@ -92,65 +92,65 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-  let test_trees x () =
+  let test_nodes x () =
     let test () =
       create () >>= fun t          ->
       mk x.kind t >>= function { v1; v2 } ->
-      let tree = tree t in
+      let node = node t in
 
       (* Create a node containing t1(v1) *)
-      Tree.leaf tree v1           >>= fun k1  ->
-      Tree.leaf tree v1           >>= fun k1' ->
+      Node.leaf node v1           >>= fun k1  ->
+      Node.leaf node v1           >>= fun k1' ->
       assert_key_equal "k1.1" k1 k1';
-      Tree.read_exn tree k1       >>= fun t1  ->
-      Tree.add tree t1            >>= fun k1''->
+      Node.read_exn node k1       >>= fun t1  ->
+      Node.add node t1            >>= fun k1''->
       assert_key_equal "k1.2" k1 k1'';
 
-      (* Create the tree  t2 -b-> t1(v1) *)
-      Tree.node tree ["b", t1]     >>= fun k2  ->
-      Tree.node tree ["b", t1]     >>= fun k2' ->
+      (* Create the node  t2 -b-> t1(v1) *)
+      Node.node node ["b", t1]     >>= fun k2  ->
+      Node.node node ["b", t1]     >>= fun k2' ->
       assert_key_equal "k2.1" k2 k2';
-      Tree.read_exn tree k2        >>= fun t2  ->
-      Tree.add tree t2             >>= fun k2''->
+      Node.read_exn node k2        >>= fun t2  ->
+      Node.add node t2             >>= fun k2''->
       assert_key_equal "k2.2" k2 k2'';
-      Tree.sub_exn tree t2 ["b"]  >>= fun t1' ->
-      assert_tree_equal "t1.1" t1 t1';
-      Tree.add tree t1'           >>= fun k1''->
+      Node.sub_exn node t2 ["b"]  >>= fun t1' ->
+      assert_node_equal "t1.1" t1 t1';
+      Node.add node t1'           >>= fun k1''->
       assert_key_equal "k1.3" k1 k1'';
 
-      (* Create the tree t3 -a-> t2 -b-> t1(v1) *)
-      Tree.node tree ["a", t2]         >>= fun k3  ->
-      Tree.node tree ["a", t2]         >>= fun k3' ->
+      (* Create the node t3 -a-> t2 -b-> t1(v1) *)
+      Node.node node ["a", t2]         >>= fun k3  ->
+      Node.node node ["a", t2]         >>= fun k3' ->
       assert_key_equal "k3.1" k3 k3';
-      Tree.read_exn tree k3            >>= fun t3  ->
-      Tree.add tree t3                 >>= fun k3''->
+      Node.read_exn node k3            >>= fun t3  ->
+      Node.add node t3                 >>= fun k3''->
       assert_key_equal "k3.2" k3 k3'';
-      Tree.sub_exn tree t3 ["a"]       >>= fun t2' ->
-      assert_tree_equal "t2.1" t2 t2';
-      Tree.add tree t2'                >>= fun k2''->
+      Node.sub_exn node t3 ["a"]       >>= fun t2' ->
+      assert_node_equal "t2.1" t2 t2';
+      Node.add node t2'                >>= fun k2''->
       assert_key_equal "k2.3" k2 k2'';
-      Tree.sub_exn tree t2' ["b"]      >>= fun t1' ->
-      assert_tree_equal "t1.2" t1 t1';
-      Tree.sub tree t3 ["a";"b"]       >>= fun t1' ->
-      assert_tree_opt_equal "t1.3" (Some t1) t1';
+      Node.sub_exn node t2' ["b"]      >>= fun t1' ->
+      assert_node_equal "t1.2" t1 t1';
+      Node.sub node t3 ["a";"b"]       >>= fun t1' ->
+      assert_node_opt_equal "t1.3" (Some t1) t1';
 
-      Tree.find tree t1 []            >>= fun v11 ->
+      Node.find node t1 []            >>= fun v11 ->
       assert_blob_opt_equal "v1.1" (Some v1) v11;
-      Tree.find tree t2 ["b"]         >>= fun v12 ->
+      Node.find node t2 ["b"]         >>= fun v12 ->
       assert_blob_opt_equal "v1.2" (Some v1) v12;
-      Tree.find tree t3 ["a";"b"]     >>= fun v13 ->
+      Node.find node t3 ["a";"b"]     >>= fun v13 ->
       assert_blob_opt_equal "v1" (Some v1) v13;
 
-      (* Create the tree t6 -a-> t5 -b-> t1(v1)
+      (* Create the node t6 -a-> t5 -b-> t1(v1)
                                    \-c-> t4(v2) *)
-      Tree.leaf tree v2                   >>= fun k4  ->
-      Tree.read_exn tree k4               >>= fun t4  ->
-      Tree.node tree [("b",t1); ("c",t4)] >>= fun k5  ->
-      Tree.read_exn tree k5               >>= fun t5  ->
-      Tree.node tree ["a",t5]             >>= fun k6  ->
-      Tree.read_exn tree k6               >>= fun t6  ->
-      Tree.update tree t3 ["a";"c"] v2    >>= fun t6' ->
-      assert_tree_equal "tree" t6 t6';
+      Node.leaf node v2                   >>= fun k4  ->
+      Node.read_exn node k4               >>= fun t4  ->
+      Node.node node [("b",t1); ("c",t4)] >>= fun k5  ->
+      Node.read_exn node k5               >>= fun t5  ->
+      Node.node node ["a",t5]             >>= fun k6  ->
+      Node.read_exn node k6               >>= fun t6  ->
+      Node.update node t3 ["a";"c"] v2    >>= fun t6' ->
+      assert_node_equal "node" t6 t6';
 
       return_unit
     in
@@ -161,26 +161,26 @@ module Make (S: Irmin.S) = struct
       create () >>= fun t      ->
       mk x.kind t >>= function { v1 } ->
 
-      let tree = tree t in
+      let node = node t in
       let commit = commit t in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
-      Tree.leaf tree v1           >>= fun k1  ->
-      Tree.read_exn tree k1       >>= fun t1  ->
-      Tree.node tree ["a", t1]    >>= fun k2  ->
-      Tree.read_exn tree k2       >>= fun t2  ->
-      Tree.node tree ["b", t2]    >>= fun k3  ->
-      Tree.read_exn tree k3       >>= fun t3  ->
+      Node.leaf node v1           >>= fun k1  ->
+      Node.read_exn node k1       >>= fun t1  ->
+      Node.node node ["a", t1]    >>= fun k2  ->
+      Node.read_exn node k2       >>= fun t2  ->
+      Node.node node ["b", t2]    >>= fun k3  ->
+      Node.read_exn node k3       >>= fun t3  ->
 
       (* r1 : t2 *)
-      Commit.commit commit ~date:0. ~origin:"test" ~tree:t2 ~parents:[] >>= fun kr1 ->
-      Commit.commit commit ~date:0. ~origin:"test" ~tree:t2 ~parents:[] >>= fun kr1'->
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun kr1 ->
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun kr1'->
       assert_key_equal "kr1" kr1 kr1';
       Commit.read_exn commit kr1 >>= fun r1  ->
 
       (* r1 -> r2 : t3 *)
-      Commit.commit commit ~date:0. ~origin:"test" ~tree:t3 ~parents:[r1] >>= fun kr2  ->
-      Commit.commit commit ~date:0. ~origin:"test" ~tree:t3 ~parents:[r1] >>= fun kr2' ->
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t3 ~parents:[r1] >>= fun kr2  ->
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t3 ~parents:[r1] >>= fun kr2' ->
       assert_key_equal "kr2" kr2 kr2';
       Commit.read_exn commit kr2 >>= fun r2   ->
 
@@ -320,7 +320,7 @@ let suite (speed, x) =
   x.name,
   [
     "Basic operations on blobs"       , speed, T.test_blobs     x;
-    "Basic operations on trees"       , speed, T.test_trees      x;
+    "Basic operations on nodes"       , speed, T.test_nodes      x;
     "Basic operations on commits"     , speed, T.test_commits    x;
     "Basic operations on references"  , speed, T.test_references x;
     "High-level store operations"     , speed, T.test_stores     x;

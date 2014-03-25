@@ -18,19 +18,19 @@ open Core_kernel.Std
 
 type ('key, 'blob) t =
   | Blob of 'blob
-  | Tree of 'key IrminTree.t
+  | Node of 'key IrminNode.t
   | Commit of 'key IrminCommit.t
 with bin_io, compare, sexp
 
 let to_json json_of_key json_of_blob = function
   | Blob b   -> `O [ "blob"  , json_of_blob b ]
-  | Tree t   -> `O [ "tree"  , IrminTree.to_json json_of_key t ]
+  | Node t   -> `O [ "node"  , IrminNode.to_json json_of_key t ]
   | Commit c -> `O [ "commit", IrminCommit.to_json json_of_key c]
 
 let of_json key_of_json blob_of_json json =
   match Ezjsonm.get_dict json with
   | [ "blob"  , b ] -> Blob (blob_of_json b)
-  | [ "tree"  , t ] -> Tree (IrminTree.of_json key_of_json t)
+  | [ "node"  , t ] -> Node (IrminNode.of_json key_of_json t)
   | [ "commit", c ] -> Commit (IrminCommit.of_json key_of_json c)
   | _ -> failwith ("error: Value.of_json " ^ Ezjsonm.to_string json)
 
@@ -61,7 +61,7 @@ module S (K: IrminKey.S) (B: IrminBlob.S) = struct
 
   module Blob = B
 
-  module Tree = IrminTree.S(K)
+  module Node = IrminNode.S(K)
 
   module Commit = IrminCommit.S(K)
 
@@ -99,13 +99,13 @@ module type STORE = sig
   module Blob: IrminBlob.STORE
     with type key = key
      and type value = blob
-  module Tree: IrminTree.STORE
+  module Node: IrminNode.STORE
     with type key = key
      and type blob = blob
   module Commit: IrminCommit.STORE
     with type key = key
   val blob: t -> Blob.t
-  val tree: t -> Tree.t
+  val node: t -> Node.t
   val commit: t -> Commit.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key and type blob = blob
@@ -115,7 +115,7 @@ module Mux
   (K: IrminKey.S)
   (B: IrminBlob.S)
   (XBlob: IrminStore.AO with type key = K.t and type value = B.t)
-  (XTree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
+  (XNode: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
   (XCommit: IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
 = struct
 
@@ -124,34 +124,34 @@ module Mux
   type value = (K.t, B.t) t
   module Key = K
   module Blob = IrminBlob.Make(K)(B)(XBlob)
-  module Tree = IrminTree.Make(K)(B)(XBlob)(XTree)
-  module Commit = IrminCommit.Make(K)(B)(XTree)(XCommit)
+  module Node = IrminNode.Make(K)(B)(XBlob)(XNode)
+  module Commit = IrminCommit.Make(K)(B)(XNode)(XCommit)
   module Value = S(K)(B)
 
   type t = {
     blob     : Blob.t;
-    tree     : Tree.t;
+    node     : Node.t;
     commit   : Commit.t;
   }
 
   let blob t = t.blob
-  let tree t = t.tree
+  let node t = t.node
   let commit t = t.commit
 
   open Lwt
 
   let create () =
     Blob.create () >>= fun blob ->
-    Commit.create () >>= fun (tree, _ as commit) ->
-    return { blob; tree = (blob, tree) ; commit }
+    Commit.create () >>= fun (node, _ as commit) ->
+    return { blob; node = (blob, node) ; commit }
 
   (* XXX: ugly *)
   let read t key =
     Blob.read t.blob key >>= function
     | Some b -> return (Some (Blob b))
     | None   ->
-      Tree.read t.tree key >>= function
-      | Some t -> return (Some (Tree t))
+      Node.read t.node key >>= function
+      | Some t -> return (Some (Node t))
       | None   ->
         Commit.read t.commit key >>= function
         | Some c -> return (Some (Commit c))
@@ -169,7 +169,7 @@ module Mux
 
   let add t = function
     | Blob b   -> Blob.add t.blob b
-    | Tree tr  -> Tree.add t.tree tr
+    | Node tr  -> Node.add t.node tr
     | Commit c -> Commit.add t.commit c
 
   let list t key =
@@ -177,11 +177,11 @@ module Mux
 
   let contents t =
     Blob.contents t.blob     >>= fun blobs ->
-    Tree.contents t.tree     >>= fun trees ->
+    Node.contents t.node     >>= fun nodes ->
     Commit.contents t.commit >>= fun commits ->
     let all =
       List.map blobs ~f:(fun (k, b) -> k, Blob b)
-      @ List.map trees ~f:(fun (k, t) -> k, Tree t)
+      @ List.map nodes ~f:(fun (k, t) -> k, Node t)
       @ List.map commits ~f:(fun (k, c) -> k, Commit c) in
     return all
 
@@ -256,11 +256,11 @@ module Make
 
   module TS = Cast(Store)(struct
       type t = Store.value
-      type cast = K.t IrminTree.t
+      type cast = K.t IrminNode.t
       let proj = function
-        | Tree t -> Some t
+        | Node t -> Some t
         | _ -> None
-      let inj t = Tree t
+      let inj t = Node t
     end)
 
   module CS = Cast(Store)(struct
@@ -273,9 +273,9 @@ module Make
     end)
 
   module XBlob = IrminBlob.Make(K)(B)(BS)
-  module XTree = IrminTree.Make(K)(B)(BS)(TS)
+  module XNode = IrminNode.Make(K)(B)(BS)(TS)
   module XCommit = IrminCommit.Make(K)(B)(TS)(CS)
 
-  include Mux(K)(B)(XBlob)(XTree)(XCommit)
+  include Mux(K)(B)(XBlob)(XNode)(XCommit)
 
 end

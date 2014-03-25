@@ -207,14 +207,14 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   let sha1 (type blob) (module B: IrminBlob.S with type t = blob) u =
     let module K = IrminKey.SHA1 in
-    let module T = IrminTree.SHA1 in
+    let module T = IrminNode.SHA1 in
     let module C = IrminCommit.SHA1 in
     let module R = IrminReference.String in
     let module Blob = AO(struct
         let uri = uri u ["blob"]
       end)(K)(B) in
-    let module Tree = AO(struct
-        let uri = uri u ["tree"]
+    let module Node = AO(struct
+        let uri = uri u ["node"]
       end)(K)(T) in
     let module Commit = AO(struct
         let uri = uri u ["commit"]
@@ -225,7 +225,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     let module Store = S(struct
         let uri = u
       end) in
-    let module Internal = IrminValue.Mux(K)(B)(Blob)(Tree)(Commit) in
+    let module Internal = IrminValue.Mux(K)(B)(Blob)(Node)(Commit) in
     let module Reference = IrminReference.Make(R)(K)(Reference) in
     let module S = Irmin.Make(K)(B)(R)(Internal)(Reference) in
     (module S: Irmin.S)

@@ -43,16 +43,16 @@ end
 
 type 'a vertex =
   [ `Blob of 'a
-  | `Tree of 'a
+  | `Node of 'a
   | `Commit of 'a ]
 with bin_io, compare, sexp
 
 let of_blobs = List.map ~f:(fun k -> `Blob k)
-let of_trees = List.map ~f:(fun k -> `Tree k)
+let of_nodes = List.map ~f:(fun k -> `Node k)
 let of_commits = List.map ~f:(fun k -> `Commit k)
 
 let to_blobs = List.filter_map ~f:(function `Blob k -> Some k | _ -> None)
-let to_trees = List.filter_map ~f:(function `Tree k -> Some k | _ -> None)
+let to_nodes = List.filter_map ~f:(function `Node k -> Some k | _ -> None)
 let to_commits = List.filter_map ~f:(function `Commit k -> Some k | _ -> None)
 
 module Make (K: IrminKey.S) = struct
@@ -67,7 +67,7 @@ module Make (K: IrminKey.S) = struct
       with bin_io, compare, sexp
       let hash (t : t) = Hashtbl.hash t
       include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-      let module_name = "Tree"
+      let module_name = "Node"
     end
     include M
     include Identifiable.Make (M)

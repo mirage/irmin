@@ -15,23 +15,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Tree-like structures of values. *)
+(** Node-like structures of values. *)
 
 type 'key t =
   | Leaf of 'key
   | Node of (string * 'key) list
 with bin_io, compare, sexp
-(** Type of trees .*)
+(** Type of nodes .*)
 
 val of_json: (Ezjsonm.t -> 'a) -> Ezjsonm.t -> 'a t
 val to_json: ('a -> Ezjsonm.t) -> 'a t -> Ezjsonm.t
 
 val empty: 'key t
-(** The empty tree. *)
+(** The empty node. *)
 
 module type S = sig
 
-  (** Signature for trees. *)
+  (** Signature for nodes. *)
 
   type key
   (** Keys. *)
@@ -41,14 +41,14 @@ module type S = sig
 end
 
 module S (K: IrminKey.S): S with type key = K.t
-(** Base functions for trees. *)
+(** Base functions for nodes. *)
 
 module SHA1: S with type key = IrminKey.SHA1.t
-(** Simple tree implementation, where keys are SHA1s. *)
+(** Simple node implementation, where keys are SHA1s. *)
 
 module type STORE = sig
 
-  (** Tree stores. *)
+  (** Node stores. *)
 
   type key
   (** Type of keys. *)
@@ -61,7 +61,7 @@ module type STORE = sig
 
   include IrminStore.AO with type key := key
                          and type value := value
-  (** Tree stores are append-only. *)
+  (** Node stores are append-only. *)
 
   val leaf: t -> blob -> key Lwt.t
   (** Create a new leaf. *)
@@ -109,8 +109,8 @@ module Make
     (K: IrminKey.S)
     (B: IrminBlob.S)
     (Blob: IrminStore.AO with type key = K.t and type value = B.t)
-    (Tree: IrminStore.AO with type key = K.t and type value = K.t t)
-  : STORE with type t = Blob.t * Tree.t
+    (Node: IrminStore.AO with type key = K.t and type value = K.t t)
+  : STORE with type t = Blob.t * Node.t
            and type key = K.t
            and type blob = B.t
-(** Create a tree store from an append-only database. *)
+(** Create a node store from an append-only database. *)

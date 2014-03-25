@@ -14,11 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Structured values: blob, tree or commits. *)
+(** Structured values: blob, node or commits. *)
 
 type ('key, 'blob) t =
   | Blob of 'blob
-  | Tree of 'key IrminTree.t
+  | Node of 'key IrminNode.t
   | Commit of 'key IrminCommit.t
 with bin_io, compare, sexp
 (** The different kinds of values which can be stored in the
@@ -67,7 +67,7 @@ module type STORE = sig
     with type key = key
      and type value = blob
 
-  module Tree: IrminTree.STORE
+  module Node: IrminNode.STORE
     with type key = key
      and type blob = blob
 
@@ -77,8 +77,8 @@ module type STORE = sig
   val blob: t -> Blob.t
   (** The handler for the blob database. *)
 
-  val tree: t -> Tree.t
-  (** The handler for the tree database. *)
+  val node: t -> Node.t
+  (** The handler for the node database. *)
 
   val commit: t -> Commit.t
   (** The handler for the commit database. *)
@@ -103,7 +103,7 @@ module Mux
   (K: IrminKey.S)
   (B: IrminBlob.S)
   (Blob: IrminStore.AO with type key = K.t and type value = B.t)
-  (Tree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
+  (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
   (Commit: IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
   : STORE with type key = K.t
            and type blob = B.t

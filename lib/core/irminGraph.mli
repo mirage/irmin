@@ -79,15 +79,15 @@ end
 
 type 'a vertex =
   [ `Blob of 'a
-  | `Tree of 'a
+  | `Node of 'a
   | `Commit of 'a ]
 
 val of_commits: 'a list -> 'a vertex list
-val of_trees: 'a list -> 'a vertex list
+val of_nodes: 'a list -> 'a vertex list
 val of_blobs: 'a list -> 'a vertex list
 
 val to_commits: 'a vertex list -> 'a list
-val to_trees: 'a vertex list -> 'a list
+val to_nodes: 'a vertex list -> 'a list
 val to_blobs: 'a vertex list -> 'a list
 
 (** Build a graph. *)

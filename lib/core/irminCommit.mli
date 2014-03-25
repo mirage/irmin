@@ -17,7 +17,7 @@
 (** Manage the database history. *)
 
 type 'key t = {
-  tree   : 'key option;
+  node   : 'key option;
   parents: 'key list;
   date   : float;
   origin : string;
@@ -59,11 +59,11 @@ module type STORE = sig
   (** Revision stores are append-only. *)
 
   val commit: t -> date:float -> origin:string ->
-    ?tree:key IrminTree.t -> parents:value list -> key Lwt.t
+    ?node:key IrminNode.t -> parents:value list -> key Lwt.t
   (** Create a new commit. *)
 
-  val tree: t -> value -> key IrminTree.t Lwt.t option
-  (** Get the commit tree. *)
+  val node: t -> value -> key IrminNode.t Lwt.t option
+  (** Get the commit node. *)
 
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
@@ -79,8 +79,8 @@ end
 module Make
     (K: IrminKey.S)
     (B: IrminBlob.S)
-    (Tree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
+    (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
     (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
-  : STORE with type t = Tree.t * Commit.t
+  : STORE with type t = Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)

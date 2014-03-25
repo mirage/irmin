@@ -17,7 +17,7 @@
 open Core_kernel.Std
 
 type 'key t = {
-  tree   : 'key option;
+  node   : 'key option;
   parents: 'key list;
   date   : float;
   origin : string;
@@ -28,9 +28,9 @@ let to_json json_of_key t =
     ("parents", Ezjsonm.list json_of_key t.parents) ::
     ("date"   , Ezjsonm.string (Float.to_string t.date)) ::
     ("origin" , Ezjsonm.string t.origin) ::
-    match t.tree with
+    match t.node with
     | None   -> []
-    | Some t -> [ ("tree", json_of_key t) ]
+    | Some t -> [ ("node", json_of_key t) ]
   )
 
 let of_json key_of_json json =
@@ -40,10 +40,10 @@ let of_json key_of_json json =
     Ezjsonm.get_string (Ezjsonm.find json ["origin"]) in
   let date =
     Float.of_string (Ezjsonm.get_string (Ezjsonm.find json ["date"])) in
-  let tree =
-    try Some (key_of_json (Ezjsonm.find json ["tree"]))
+  let node =
+    try Some (key_of_json (Ezjsonm.find json ["node"]))
     with Not_found -> None in
-  { tree; parents; date; origin }
+  { node; parents; date; origin }
 
 module L = Log.Make(struct let section = "COMMIT" end)
 
@@ -94,9 +94,9 @@ module type STORE = sig
   type value = key t
   include IrminStore.AO with type key := key
                          and type value := value
-  val commit: t -> date:float -> origin:string -> ?tree:key IrminTree.t ->
+  val commit: t -> date:float -> origin:string -> ?node:key IrminNode.t ->
     parents:value list -> key Lwt.t
-  val tree: t -> value -> key IrminTree.t Lwt.t option
+  val node: t -> value -> key IrminNode.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
@@ -105,13 +105,13 @@ end
 module Make
     (K: IrminKey.S)
     (B: IrminBlob.S)
-    (Tree: IrminStore.AO with type key = K.t and type value = K.t IrminTree.t)
+    (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
     (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
 = struct
 
   type key = K.t
   type value = key t
-  type t = Tree.t * Commit.t
+  type t = Node.t * Commit.t
 
   module Key = K
 
@@ -120,7 +120,7 @@ module Make
   open Lwt
 
   let create () =
-    Tree.create () >>= fun t ->
+    Node.create () >>= fun t ->
     Commit.create () >>= fun c ->
     return (t, c)
 
@@ -136,20 +136,20 @@ module Make
   let mem (_, t) c =
     Commit.mem t c
 
-  let tree (t, _) c =
-    match c.tree with
+  let node (t, _) c =
+    match c.node with
     | None   -> None
-    | Some k -> Some (Tree.read_exn t k)
+    | Some k -> Some (Node.read_exn t k)
 
-  let commit (t, c) ~date ~origin ?tree ~parents =
-    begin match tree with
+  let commit (t, c) ~date ~origin ?node ~parents =
+    begin match node with
       | None      -> return_none
-      | Some tree -> Tree.add t tree >>= fun k -> return (Some k)
+      | Some node -> Node.add t node >>= fun k -> return (Some k)
     end
-    >>= fun tree ->
+    >>= fun node ->
     Lwt_list.map_p (Commit.add c) parents
     >>= fun parents ->
-    Commit.add c { tree; parents; date; origin }
+    Commit.add c { node; parents; date; origin }
 
   let parents t c =
     List.map ~f:(read_exn t) c.parents

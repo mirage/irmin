@@ -87,7 +87,7 @@ module type STRING = SHA1 with type value = IrminBlob.String.t
 
 module String (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): STRING
 (** Create a simple string store. Use only one append-only store for values,
-    trees and revisions and a mutable store for the tags. *)
+    nodes and commits and a mutable store for the tags. *)
 
 module type JSON = SHA1 with type value = IrminBlob.JSON.t
 (** Signature for SHA1 stores with JSON values. *)

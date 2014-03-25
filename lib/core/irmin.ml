@@ -66,7 +66,7 @@ module Make
   module Key = IrminPath
   module Value = B
   module Blob = Internal.Blob
-  module Tree = Internal.Tree
+  module Node = Internal.Node
   module Commit = Internal.Commit
   module Dump = IrminDump.S(K)(B)
   module Snapshot = Internal.Key
@@ -89,7 +89,7 @@ module Make
   let branch t = t.branch
 
   let co = Internal.commit
-  let tr = Internal.tree
+  let no = Internal.node
   let bl = Internal.blob
 
   let create () =
@@ -103,56 +103,56 @@ module Make
     | None   -> return_none
     | Some k -> Commit.read (co t.vals) k
 
-  let read_tree t = function
-    | None       -> return IrminTree.empty
+  let read_node t = function
+    | None       -> return IrminNode.empty
     | Some commit ->
-      match Commit.tree (co t.vals) commit with
-      | None      -> return IrminTree.empty
-      | Some tree -> tree
+      match Commit.node (co t.vals) commit with
+      | None      -> return IrminNode.empty
+      | Some node -> node
 
-  let read_head_tree t =
+  let read_head_node t =
     read_head_commit t >>=
-    read_tree t
+    read_node t
 
   let parents_of_commit = function
     | None   -> []
     | Some r -> [r]
 
-  let update_tree t path fn =
+  let update_node t path fn =
     read_head_commit t >>= fun commit ->
-    read_tree t commit >>= fun old_tree ->
-    fn old_tree >>= fun tree ->
-    if old_tree = tree then return_unit
+    read_node t commit >>= fun old_node ->
+    fn old_node >>= fun node ->
+    if old_node = node then return_unit
     else (
       let parents = parents_of_commit commit in
       let date = !date_hook () in
       let origin = !origin_hook () in
-      Commit.commit (co t.vals) ~date ~origin ~tree ~parents >>= fun key ->
+      Commit.commit (co t.vals) ~date ~origin ~node ~parents >>= fun key ->
       Reference.update t.refs t.branch key
     )
 
-  let read_tree fn t path =
-    read_head_tree t >>= fun tree ->
-    fn (tr t.vals) tree path
+  let read_node fn t path =
+    read_head_node t >>= fun node ->
+    fn (no t.vals) node path
 
   let read =
-    read_tree Tree.find
+    read_node Node.find
 
   let update t path blob =
     read t path >>= fun old_v ->
-    update_tree t path (fun tree ->
-        Tree.update (tr t.vals) tree path blob
+    update_node t path (fun node ->
+        Node.update (no t.vals) node path blob
       )
   let remove t path =
-    update_tree t path (fun tree ->
-        Tree.remove (tr t.vals) tree path
+    update_node t path (fun node ->
+        Node.remove (no t.vals) node path
       )
 
   let read_exn =
-    read_tree Tree.find_exn
+    read_node Node.find_exn
 
   let mem =
-    read_tree Tree.valid
+    read_node Node.valid
 
   let snapshot t =
     Reference.read_exn t.refs t.branch
@@ -162,25 +162,25 @@ module Make
 
   (* Return the subpaths. *)
   let list t path =
-    read_head_tree t >>= fun tree ->
-    Tree.sub (tr t.vals) tree path >>= function
+    read_head_node t >>= fun node ->
+    Node.sub (no t.vals) node path >>= function
     | None
-    | Some (IrminTree.Leaf _) -> return_nil
-    | Some (IrminTree.Node c) ->
+    | Some (IrminNode.Leaf _) -> return_nil
+    | Some (IrminNode.Node c) ->
       let paths = List.map ~f:(fun (c,_) -> path @ [c]) c in
       return paths
 
   let contents t =
-    read_head_tree t >>= fun tree ->
+    read_head_node t >>= fun node ->
     let rec aux seen = function
       | []       -> return (List.sort compare seen)
       | path::tl ->
         list t path >>= fun childs ->
         let todo = childs @ tl in
-        Tree.find (tr t.vals) tree path >>= function
+        Node.find (no t.vals) node path >>= function
         | None   -> aux seen todo
         | Some v -> aux ((path, v) :: seen) todo in
-    begin Tree.find (tr t.vals) tree [] >>= function
+    begin Node.find (no t.vals) node [] >>= function
       | None   -> return_nil
       | Some v -> return [ ([], v) ]
     end
@@ -192,7 +192,7 @@ module Make
   let output t name =
     Log.debugf "output %s" name;
     Blob.contents (bl t.vals)   >>= fun blobs   ->
-    Tree.contents (tr t.vals)   >>= fun trees   ->
+    Node.contents (no t.vals)   >>= fun nodes   ->
     Commit.contents (co t.vals) >>= fun commits ->
     let vertex = ref [] in
     let add_vertex v l =
@@ -218,22 +218,22 @@ module Make
         add_vertex (`Blob k) [`Shape `Record; label_of_blob k b]
       ) blobs;
     List.iter ~f:(fun (k, t) ->
-        add_vertex (`Tree k) [`Shape `Box; `Style `Dotted; label k];
+        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label k];
         match t with
-        | IrminTree.Leaf v  -> add_edge (`Tree k) [`Style `Dotted] (`Blob v)
-        | IrminTree.Node ts ->
+        | IrminNode.Leaf v  -> add_edge (`Node k) [`Style `Dotted] (`Blob v)
+        | IrminNode.Node ts ->
           List.iter ~f:(fun (l,c) ->
-              add_edge (`Tree k) [`Style `Solid; `Label l] (`Tree c)
+              add_edge (`Node k) [`Style `Solid; `Label l] (`Node c)
             ) ts
-      ) trees;
+      ) nodes;
     List.iter ~f:(fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label k];
         List.iter ~f:(fun p ->
             add_edge (`Commit k) [`Style `Bold] (`Commit p)
           ) r.IrminCommit.parents;
-        match r.IrminCommit.tree with
+        match r.IrminCommit.node with
         | None      -> ()
-        | Some tree -> add_edge (`Commit k) [`Style `Dashed] (`Tree tree)
+        | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
@@ -246,19 +246,19 @@ module Make
     Log.infof "Adding a watch on %s" (IrminPath.to_string path);
     let stream = Reference.watch t.refs t.branch in
     IrminMisc.lift_stream (
-      read_tree Tree.sub t path >>= fun tree ->
-      let old_tree = ref tree in
+      read_node Node.sub t path >>= fun node ->
+      let old_node = ref node in
       let stream = Lwt_stream.filter_map_s (fun key ->
           Log.debugf "watch: %s" (Snapshot.to_string key);
           Commit.read_exn (co t.vals) key >>= fun commit ->
-          begin match Commit.tree (co t.vals) commit with
-            | None      -> return IrminTree.empty
-            | Some tree -> tree
-          end >>= fun tree ->
-          Tree.sub (tr t.vals) tree path >>= fun tree ->
-          if tree = !old_tree then return_none
+          begin match Commit.node (co t.vals) commit with
+            | None      -> return IrminNode.empty
+            | Some node -> node
+          end >>= fun node ->
+          Node.sub (no t.vals) node path >>= fun node ->
+          if node = !old_node then return_none
           else (
-            old_tree := tree;
+            old_node := node;
             return (Some (path, key))
           )
         ) stream in
@@ -295,24 +295,24 @@ module Make
       Lwt_list.fold_left_s (fun set key ->
           Commit.read_exn (co t.vals) key >>= fun commit ->
           add key (IrminValue.Commit commit);
-          match commit.IrminCommit.tree with
+          match commit.IrminCommit.node with
           | None      -> return set
-          | Some tree ->
-            Tree.list (tr t.vals) tree >>= fun trees ->
-            return (Set.union set (K.Set.of_list trees))
+          | Some node ->
+            Node.list (no t.vals) node >>= fun nodes ->
+            return (Set.union set (K.Set.of_list nodes))
         ) K.Set.empty commits
-      >>= fun trees ->
-      let trees = Set.elements trees in
-      Log.debugf "export TREES=%s" (IrminMisc.pretty_list K.to_string trees);
+      >>= fun nodes ->
+      let nodes = Set.elements nodes in
+      Log.debugf "export NODES=%s" (IrminMisc.pretty_list K.to_string nodes);
       Lwt_list.fold_left_s (fun set key ->
-          Tree.read_exn (tr t.vals) key >>= fun tree ->
-          add key (IrminValue.Tree tree);
-          match tree with
-          | IrminTree.Node _    -> return set
-          | IrminTree.Leaf blob ->
+          Node.read_exn (no t.vals) key >>= fun node ->
+          add key (IrminValue.Node node);
+          match node with
+          | IrminNode.Node _    -> return set
+          | IrminNode.Leaf blob ->
             Blob.list (bl t.vals) blob >>= fun blobs ->
             return (Set.union set (K.Set.of_list blobs))
-        ) K.Set.empty trees
+        ) K.Set.empty nodes
       >>= fun blobs ->
       let blobs = Set.elements blobs in
       Log.debugf "export BLOBS=%s" (IrminMisc.pretty_list K.to_string blobs);
@@ -344,7 +344,7 @@ module Make
       ) list >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminValue.Tree x -> Tree.add (tr t.vals) x   >>= check "tree" k
+        | IrminValue.Node x -> Node.add (no t.vals) x   >>= check "node" k
         | _ -> return_unit
       ) list >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->

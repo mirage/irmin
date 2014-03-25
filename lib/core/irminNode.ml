@@ -17,7 +17,7 @@
 
 open Core_kernel.Std
 
-module L = Log.Make(struct let section = "TREE" end)
+module L = Log.Make(struct let section = "NODE" end)
 
 type 'key t =
   | Leaf of 'key
@@ -79,7 +79,7 @@ module S (K: IrminKey.S) = struct
     with bin_io, compare, sexp
     let hash (t : t) = Hashtbl.hash t
     include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-    let module_name = "Tree"
+    let module_name = "Node"
   end
   include M
   include Identifiable.Make (M)
@@ -89,7 +89,7 @@ module S (K: IrminKey.S) = struct
   let to_json = to_json K.to_json
 
   let merge ~old:_ _ _ =
-    failwith "Tree.merge: TODO"
+    failwith "Node.merge: TODO"
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)
@@ -110,7 +110,7 @@ module Make
     (K: IrminKey.S)
     (B: IrminBlob.S)
     (Blob: IrminStore.AO with type key = K.t and type value = B.t)
-    (Tree: IrminStore.AO with type key = K.t and type value = K.t t)
+    (Node: IrminStore.AO with type key = K.t and type value = K.t t)
 = struct
 
   type key = K.t
@@ -119,7 +119,7 @@ module Make
 
   type value = K.t t
 
-  type t = Blob.t * Tree.t
+  type t = Blob.t * Node.t
 
   module Key = K
   module Value = S(K)
@@ -128,15 +128,15 @@ module Make
 
   let create () =
     Blob.create () >>= fun b ->
-    Tree.create () >>= fun t ->
+    Node.create () >>= fun t ->
     return (b, t)
 
   let add (_, t) = function
     | Leaf k -> return k
-    | tree   -> Tree.add t tree
+    | node   -> Node.add t node
 
   let read (b, t) key =
-    Tree.read t key >>= function
+    Node.read t key >>= function
     | Some _ as x -> return x
     | None        ->
       Blob.mem b key >>= function
@@ -149,7 +149,7 @@ module Make
     | Some v -> return v
 
   let mem (b, t) key =
-    Tree.mem t key >>= function
+    Node.mem t key >>= function
     | false -> Blob.mem b key
     | true  -> return true
 
@@ -159,26 +159,26 @@ module Make
     L.debugf "list %s" (K.to_string key);
     read_exn t key >>= fun _ ->
     let pred = function
-      | `Tree k ->
+      | `Node k ->
         begin
           read_exn t k >>= function
           | Leaf b  -> return_nil
-          | Node ts -> return (IrminGraph.of_trees (List.map ~f:snd ts))
+          | Node ts -> return (IrminGraph.of_nodes (List.map ~f:snd ts))
         end
       | _ -> return_nil in
-    Graph.closure pred ~min:[] ~max:[`Tree key] >>= fun g ->
-    return (IrminGraph.to_trees (Graph.vertex g))
+    Graph.closure pred ~min:[] ~max:[`Node key] >>= fun g ->
+    return (IrminGraph.to_nodes (Graph.vertex g))
 
   let contents (_, t) =
-    Tree.contents t
+    Node.contents t
 
   let leaf (b, _ as t) blob =
     Blob.add b blob >>= fun k ->
     add t (Leaf k)
 
   let node t children =
-    Lwt_list.map_p (fun (l, tree) ->
-        add t tree >>= fun k ->
+    Lwt_list.map_p (fun (l, node) ->
+        add t node >>= fun k ->
         return (l, k)
       ) children
     >>= fun children ->
@@ -192,90 +192,90 @@ module Make
     | Leaf _  -> []
     | Node ts -> ts
 
-  let children t tree =
-    List.map ~f:(fun (l, k) -> l, read_exn t k) (children_raw tree)
+  let children t node =
+    List.map ~f:(fun (l, k) -> l, read_exn t k) (children_raw node)
 
-  let child t tree label =
-    List.Assoc.find (children t tree) label
+  let child t node label =
+    List.Assoc.find (children t node) label
 
-  let sub_exn t tree path =
-    let rec aux tree path =
+  let sub_exn t node path =
+    let rec aux node path =
       match path with
-    | []    -> return tree
+    | []    -> return node
     | h::tl ->
-      match child t tree h with
+      match child t node h with
       | None      -> fail Not_found
-      | Some tree -> tree >>= fun tree -> aux tree tl in
-    aux tree path
+      | Some node -> node >>= fun node -> aux node tl in
+    aux node path
 
-  let sub t tree path =
+  let sub t node path =
     catch
       (fun () ->
-         sub_exn t tree path >>= fun tree ->
-         return (Some tree))
+         sub_exn t node path >>= fun node ->
+         return (Some node))
       (function Not_found -> return_none | e -> fail e)
 
-  let find_exn t tree path =
-    sub t tree path >>= function
+  let find_exn t node path =
+    sub t node path >>= function
     | None      -> fail Not_found
-    | Some tree ->
-      match blob t tree with
+    | Some node ->
+      match blob t node with
       | None   -> fail Not_found
       | Some b -> b
 
-  let find t tree path =
-    sub t tree path >>= function
+  let find t node path =
+    sub t node path >>= function
     | None      -> return_none
-    | Some tree ->
-      match blob t tree with
+    | Some node ->
+      match blob t node with
       | None   -> return_none
       | Some b -> b >>= fun b -> return (Some b)
 
-  let valid t tree path =
-    sub t tree path >>= function
+  let valid t node path =
+    sub t node path >>= function
     | None      -> return false
-    | Some tree ->
-      match blob t tree with
+    | Some node ->
+      match blob t node with
       | None   -> return false
       | Some _ -> return true
 
   let map_children t children f label =
     let rec aux acc = function
       | [] ->
-        f empty >>= fun tree ->
-        if tree = empty then return (List.rev acc)
+        f empty >>= fun node ->
+        if node = empty then return (List.rev acc)
         else
-          add t tree >>= fun k ->
+          add t node >>= fun k ->
           return (List.rev_append acc [label, k])
       | (l, k) as child :: children ->
         if l = label then
           read t k >>= function
           | None      -> fail (IrminKey.Invalid (K.to_string k))
-          | Some tree ->
-            f tree >>= fun tree ->
-            if tree = empty then return (List.rev_append acc children)
+          | Some node ->
+            f node >>= fun node ->
+            if node = empty then return (List.rev_append acc children)
             else
-              add t tree >>= fun k ->
+              add t node >>= fun k ->
               return (List.rev_append acc ((l, k) :: children))
         else
           aux (child::acc) children
     in
     aux [] children
 
-  let map_subtree t tree path f =
-    let rec aux tree = function
-      | []      -> return (f tree)
+  let map_subnode t node path f =
+    let rec aux node = function
+      | []      -> return (f node)
       | h :: tl ->
-        map_children t (children_raw tree) (fun tree -> aux tree tl) h
+        map_children t (children_raw node) (fun node -> aux node tl) h
         >>= fun children ->
         return (Node children) in
-    aux tree path
+    aux node path
 
-  let remove t tree path =
-    map_subtree t tree path (fun tree -> empty)
+  let remove t node path =
+    map_subnode t node path (fun node -> empty)
 
-  let update (b, _ as t) tree path value =
+  let update (b, _ as t) node path value =
     Blob.add b value >>= fun k  ->
-    map_subtree t tree path (fun tree -> Leaf k)
+    map_subnode t node path (fun node -> Leaf k)
 
 end

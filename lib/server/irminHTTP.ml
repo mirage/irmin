@@ -83,9 +83,9 @@ module Server (S: Irmin.S) = struct
     output = B.to_json;
   }
 
-  module Tree = S.Internal.Tree
-  module T = Tree.Value
-  let tree = {
+  module Node = S.Internal.Node
+  module T = Node.Value
+  let node = {
     input  = T.of_json;
     output = T.to_json;
   }
@@ -164,7 +164,7 @@ module Server (S: Irmin.S) = struct
       with Not_found -> error ()
 
   let bl t = S.Internal.blob (S.internal t)
-  let tr t = S.Internal.tree (S.internal t)
+  let no t = S.Internal.node (S.internal t)
   let co t = S.Internal.commit (S.internal t)
   let re t = S.reference t
   let t x = x
@@ -267,12 +267,12 @@ module Server (S: Irmin.S) = struct
       mk0p0bf "contents" Blob.contents bl (contents key blob);
   ]
 
-  let tree_store = Node [
-      mk1p0bf "read"     Tree.read     tr key  (some tree);
-      mk1p0bf "mem"      Tree.mem      tr key  bool;
-      mk1p0bf "list"     Tree.list     tr key  (list key);
-      mk0p1bf "add"      Tree.add      tr tree key;
-      mk0p0bf "contents" Tree.contents tr (contents key tree);
+  let node_store = Node [
+      mk1p0bf "read"     Node.read     no key  (some node);
+      mk1p0bf "mem"      Node.mem      no key  bool;
+      mk1p0bf "list"     Node.list     no key  (list key);
+      mk0p1bf "add"      Node.add      no node key;
+      mk0p0bf "contents" Node.contents no (contents key node);
   ]
 
   let commit_store = Node [
@@ -306,7 +306,7 @@ module Server (S: Irmin.S) = struct
       mk0p1bf "import"   S.import   t dump unit;
       mklp0bs "watch"    S.watch    t path (pair path key);
       "blob"  , blob_store;
-      "tree"  , tree_store;
+      "node"  , node_store;
       "commit", commit_store;
       "ref"   , reference_store;
   ]
