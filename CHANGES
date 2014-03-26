@@ -1,4 +1,11 @@
-0.5.1:
+0.6.0: (trunk)
+* Rename `IrminTree` to `IrminNode` to reflect the fact that we
+  can support arbitrary immutable graphs (it's better if they are
+  DAGs but that's not mandatory)
+* Rename `IrminBlob` to `IrminContents` to reflect the fact that
+  we also support structured contents (as JSON objects)
+
+0.5.1: (2014-03-02)
 * Port to use Cohttp 0.10.0 interface.
 
 0.5.0:
