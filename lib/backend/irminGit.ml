@@ -25,7 +25,7 @@ module type Config = sig
   val bare: bool
 end
 
-module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.S) = struct
+module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminContents.S) (R: IrminReference.S) = struct
 
   let git_of_key key =
     Git.SHA1.of_string (K.to_raw key)
@@ -78,7 +78,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
       let list t k =
         return [k]
 
-      let contents t =
+      let dump t =
         G.list t >>= fun keys ->
         Lwt_list.fold_left_s (fun acc k ->
             G.read_exn t k >>= fun v ->
@@ -97,7 +97,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
 
     end
 
-    module XBlob = AO (struct
+    module XContents = AO (struct
 
         type t = B.t
 
@@ -107,14 +107,14 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
           | _ -> false
 
         let of_git k b =
-          Log.debugf "Blob.of_git: %S" (Git.Value.pretty b);
+          Log.debugf "Contents.of_git: %S" (Git.Value.pretty b);
           match b with
           | Git.Value.Blob b -> Some (B.of_string (Git.Blob.to_string b))
           | Git.Value.Tag _  -> None (* XXX: deal with tag objects *)
           | _                -> None
 
         let to_git _ b =
-          Log.debugf "Blob.to_git %S" (B.to_string b);
+          Log.debugf "Contents.to_git %S" (B.to_string b);
           let value = Git.Value.Blob (Git.Blob.of_string (B.to_string b)) in
           `Value (return value)
 
@@ -180,24 +180,24 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
           Log.debugf "Node.of_git %s" (Git.Value.pretty v);
           match v with
           | Git.Value.Blob _ ->
-            (* Create a dummy leaf node to hold blobs. *)
+            (* Create a dummy leaf node to hold contents. *)
             let key = key_of_git k in
-            Some (IrminNode.Leaf key)
+            Some { IrminNode.contents = Some key; succ = [] }
           | Git.Value.Tree t ->
-            let children =
+            let succ =
               List.map ~f:(fun e -> Git.Tree.(decode e.name, key_of_git e.node))
                 t in
-            Some (IrminNode.Node children)
+            Some { IrminNode.contents = None; succ }
           | _ -> None
 
         let to_git t node =
           Log.debugf "Node.to_git %s" (X.to_string node);
-          match node with
-          | IrminNode.Leaf key ->
+          match node.IrminNode.contents with
+          | Some key ->
             (* This is a dummy leaf node. Do nothing. *)
             Log.debugf "Skiping %s" (X.to_string node);
             `Key (git_of_key key)
-          | IrminNode.Node children ->
+          | None ->
             `Value (
               Lwt_list.map_p (fun (name, key) ->
                   let name = encode name in
@@ -213,7 +213,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
                     | Git.Object_type.Blob -> file ()
                     | Git.Object_type.Tree -> dir ()
                     | _                    -> fail (Failure "Node.to_git")
-                ) children >>= fun entries ->
+                ) node.IrminNode.succ >>= fun entries ->
               return (Git.Value.Tree entries)
             )
 
@@ -270,7 +270,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
 
       end)
 
-    include IrminValue.Mux(K)(B)(XBlob)(XNode)(XCommit)
+    include IrminValue.Mux(K)(B)(XContents)(XNode)(XCommit)
 
   end
 
@@ -325,7 +325,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
       G.references t >>= fun refs ->
       return (List.map ~f:ref_of_git refs)
 
-    let contents { t } =
+    let dump { t } =
       G.references t >>= fun refs ->
       Lwt_list.map_p (fun r ->
           G.read_reference_exn t r >>= fun k ->
@@ -368,10 +368,10 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
 end
 
 module String(C: Config)(G: Git.Store.S) =
-  Make(C)(G)(IrminKey.SHA1)(IrminBlob.String)(IrminReference.String)
+  Make(C)(G)(IrminKey.SHA1)(IrminContents.String)(IrminReference.String)
 
 module JSON(C: Config)(G: Git.Store.S) =
-  Make(C)(G)(IrminKey.SHA1)(IrminBlob.JSON)(IrminReference.String)
+  Make(C)(G)(IrminKey.SHA1)(IrminContents.JSON)(IrminReference.String)
 
 let create ?(bare=true) ?root k g =
   let (module G) = match g with

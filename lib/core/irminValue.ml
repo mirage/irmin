@@ -16,39 +16,39 @@
 
 open Core_kernel.Std
 
-type ('key, 'blob) t =
-  | Blob of 'blob
+type ('key, 'contents) t =
+  | Contents of 'contents
   | Node of 'key IrminNode.t
   | Commit of 'key IrminCommit.t
 with bin_io, compare, sexp
 
-let to_json json_of_key json_of_blob = function
-  | Blob b   -> `O [ "blob"  , json_of_blob b ]
+let to_json json_of_key json_of_contents = function
+  | Contents b   -> `O [ "contents"  , json_of_contents b ]
   | Node t   -> `O [ "node"  , IrminNode.to_json json_of_key t ]
   | Commit c -> `O [ "commit", IrminCommit.to_json json_of_key c]
 
-let of_json key_of_json blob_of_json json =
+let of_json key_of_json contents_of_json json =
   match Ezjsonm.get_dict json with
-  | [ "blob"  , b ] -> Blob (blob_of_json b)
+  | [ "contents"  , b ] -> Contents (contents_of_json b)
   | [ "node"  , t ] -> Node (IrminNode.of_json key_of_json t)
   | [ "commit", c ] -> Commit (IrminCommit.of_json key_of_json c)
   | _ -> failwith ("error: Value.of_json " ^ Ezjsonm.to_string json)
 
 module type S = sig
   type key
-  type blob
-  include IrminBlob.S with type t = (key, blob) t
+  type contents
+  include IrminContents.S with type t = (key, contents) t
 end
 
-module S (K: IrminKey.S) (B: IrminBlob.S) = struct
+module S (K: IrminKey.S) (C: IrminContents.S) = struct
 
   type key = K.t
-  type blob = B.t
+  type contents = C.t
 
   module L = Log.Make(struct let section = "VALUE" end)
 
   module M = struct
-    type nonrec t = (K.t, B.t) t
+    type nonrec t = (K.t, C.t) t
     with bin_io, compare, sexp
     let hash (t : t) = Hashtbl.hash t
     include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
@@ -59,17 +59,17 @@ module S (K: IrminKey.S) (B: IrminBlob.S) = struct
 
   module Key = K
 
-  module Blob = B
+  module Contents = C
 
   module Node = IrminNode.S(K)
 
   module Commit = IrminCommit.S(K)
 
   let of_json =
-    of_json K.of_json B.of_json
+    of_json K.of_json C.of_json
 
   let to_json =
-    to_json K.to_json B.to_json
+    to_json K.to_json C.to_json
 
   let merge ~old:_ _ _ =
     failwith "Value.merge: TODO"
@@ -79,7 +79,7 @@ module S (K: IrminKey.S) (B: IrminBlob.S) = struct
 
   let of_bytes_exn str =
     match of_bytes str with
-    | None   -> raise (IrminBlob.Invalid str)
+    | None   -> raise (IrminContents.Invalid str)
     | Some b -> b
 
   let key t =
@@ -87,68 +87,68 @@ module S (K: IrminKey.S) (B: IrminBlob.S) = struct
 
 end
 
-module String = S(IrminKey.SHA1)(IrminBlob.String)
+module String = S(IrminKey.SHA1)(IrminContents.String)
 
-module JSON = S(IrminKey.SHA1)(IrminBlob.JSON)
+module JSON = S(IrminKey.SHA1)(IrminContents.JSON)
 
 module type STORE = sig
   type key
-  type blob
+  type contents
   include IrminStore.AO with type key := key
-                         and type value = (key, blob) t
-  module Blob: IrminBlob.STORE
+                         and type value = (key, contents) t
+  module Contents: IrminContents.STORE
     with type key = key
-     and type value = blob
+     and type value = contents
   module Node: IrminNode.STORE
     with type key = key
-     and type blob = blob
+     and type contents = contents
   module Commit: IrminCommit.STORE
     with type key = key
-  val blob: t -> Blob.t
+  val contents: t -> Contents.t
   val node: t -> Node.t
   val commit: t -> Commit.t
   module Key: IrminKey.S with type t = key
-  module Value: S with type key = key and type blob = blob
+  module Value: S with type key = key and type contents = contents
 end
 
 module Mux
   (K: IrminKey.S)
-  (B: IrminBlob.S)
-  (XBlob: IrminStore.AO with type key = K.t and type value = B.t)
-  (XNode: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
-  (XCommit: IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
+  (C: IrminContents.S)
+  (XContents: IrminStore.AO with type key = K.t and type value = C.t)
+  (XNode    : IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
+  (XCommit  : IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
 = struct
 
-  type blob = B.t
+  type contents = C.t
   type key = K.t
-  type value = (K.t, B.t) t
+  type value = (K.t, C.t) t
   module Key = K
-  module Blob = IrminBlob.Make(K)(B)(XBlob)
-  module Node = IrminNode.Make(K)(B)(XBlob)(XNode)
-  module Commit = IrminCommit.Make(K)(B)(XNode)(XCommit)
-  module Value = S(K)(B)
+  module Contents = IrminContents.Make(K)(C)(XContents)
+  module Node = IrminNode.Make(K)(C)(XContents)(XNode)
+  module Commit = IrminCommit.Make(K)(XNode)(XCommit)
+  module Value = S(K)(C)
 
   type t = {
-    blob     : Blob.t;
+    contents     : Contents.t;
     node     : Node.t;
     commit   : Commit.t;
   }
 
-  let blob t = t.blob
+  let contents t = t.contents
   let node t = t.node
   let commit t = t.commit
 
   open Lwt
 
   let create () =
-    Blob.create () >>= fun blob ->
+    Contents.create () >>= fun contents ->
     Commit.create () >>= fun (node, _ as commit) ->
-    return { blob; node = (blob, node) ; commit }
+    return { contents; node = (contents, node) ; commit }
 
   (* XXX: ugly *)
   let read t key =
-    Blob.read t.blob key >>= function
-    | Some b -> return (Some (Blob b))
+    Contents.read t.contents key >>= function
+    | Some b -> return (Some (Contents b))
     | None   ->
       Node.read t.node key >>= function
       | Some t -> return (Some (Node t))
@@ -168,19 +168,19 @@ module Mux
     | Some _ -> return true
 
   let add t = function
-    | Blob b   -> Blob.add t.blob b
+    | Contents b   -> Contents.add t.contents b
     | Node tr  -> Node.add t.node tr
     | Commit c -> Commit.add t.commit c
 
   let list t key =
     Commit.list t.commit key
 
-  let contents t =
-    Blob.contents t.blob     >>= fun blobs ->
-    Node.contents t.node     >>= fun nodes ->
-    Commit.contents t.commit >>= fun commits ->
+  let dump t =
+    Contents.dump t.contents >>= fun contents ->
+    Node.dump t.node         >>= fun nodes ->
+    Commit.dump t.commit     >>= fun commits ->
     let all =
-      List.map blobs ~f:(fun (k, b) -> k, Blob b)
+      List.map contents ~f:(fun (k, b) -> k, Contents b)
       @ List.map nodes ~f:(fun (k, t) -> k, Node t)
       @ List.map commits ~f:(fun (k, c) -> k, Commit c) in
     return all
@@ -225,8 +225,8 @@ module Cast (S: IrminStore.AO) (C: CASTABLE with type t = S.value) = struct
 
   let list = S.list
 
-  let contents t =
-    S.contents t >>= fun cs ->
+  let dump t =
+    S.dump t >>= fun cs ->
     let cs = List.filter_map cs ~f:(fun (k,v) ->
         match C.proj v with
         | Some x -> Some (k, x)
@@ -241,17 +241,17 @@ end
 
 module Make
   (K: IrminKey.S)
-  (B: IrminBlob.S)
-  (Store: IrminStore.AO with type key = K.t and type value = (K.t, B.t) t)
+  (C: IrminContents.S)
+  (Store: IrminStore.AO with type key = K.t and type value = (K.t, C.t) t)
 = struct
 
   module BS = Cast(Store)(struct
       type t = Store.value
-      type cast = B.t
+      type cast = C.t
       let proj = function
-        | Blob b -> Some b
+        | Contents b -> Some b
         | _ -> None
-      let inj b = Blob b
+      let inj b = Contents b
     end)
 
   module TS = Cast(Store)(struct
@@ -272,10 +272,10 @@ module Make
       let inj c = Commit c
     end)
 
-  module XBlob = IrminBlob.Make(K)(B)(BS)
-  module XNode = IrminNode.Make(K)(B)(BS)(TS)
-  module XCommit = IrminCommit.Make(K)(B)(TS)(CS)
+  module XContents = IrminContents.Make(K)(C)(BS)
+  module XNode = IrminNode.Make(K)(C)(BS)(TS)
+  module XCommit = IrminCommit.Make(K)(TS)(CS)
 
-  include Mux(K)(B)(XBlob)(XNode)(XCommit)
+  include Mux(K)(C)(XContents)(XNode)(XCommit)
 
 end

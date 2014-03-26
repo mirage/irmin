@@ -42,16 +42,16 @@ module type S = sig
 end
 
 type 'a vertex =
-  [ `Blob of 'a
+  [ `Contents of 'a
   | `Node of 'a
   | `Commit of 'a ]
 with bin_io, compare, sexp
 
-let of_blobs = List.map ~f:(fun k -> `Blob k)
+let of_contents = List.map ~f:(fun k -> `Contents k)
 let of_nodes = List.map ~f:(fun k -> `Node k)
 let of_commits = List.map ~f:(fun k -> `Commit k)
 
-let to_blobs = List.filter_map ~f:(function `Blob k -> Some k | _ -> None)
+let to_contents = List.filter_map ~f:(function `Contents k -> Some k | _ -> None)
 let to_nodes = List.filter_map ~f:(function `Node k -> Some k | _ -> None)
 let to_commits = List.filter_map ~f:(function `Commit k -> Some k | _ -> None)
 

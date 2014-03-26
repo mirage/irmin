@@ -17,10 +17,12 @@
 
 (** Node-like structures of values. *)
 
-type 'key t =
-  | Leaf of 'key
-  | Node of (string * 'key) list
-with bin_io, compare, sexp
+open Core_kernel.Std
+
+type 'key t = {
+  contents: 'key option;
+  succ    : (string * 'key) list;
+} with bin_io, compare, sexp
 (** Type of nodes .*)
 
 val of_json: (Ezjsonm.t -> 'a) -> Ezjsonm.t -> 'a t
@@ -31,12 +33,14 @@ val empty: 'key t
 
 module type S = sig
 
-  (** Signature for nodes. *)
+  (** Node values. *)
 
   type key
-  (** Keys. *)
+  (** Foreign keys. *)
 
-  include IrminBlob.S with type t = key t
+  type nonrec t = key t
+
+  include IrminContents.S with type t := t
 
 end
 
@@ -51,10 +55,10 @@ module type STORE = sig
   (** Node stores. *)
 
   type key
-  (** Type of keys. *)
+  (** Foreign keys. *)
 
-  type blob
-  (** Type of blobs. *)
+  type contents
+  (** Node contents. *)
 
   type value = key t
   (** Type of values. *)
@@ -63,17 +67,15 @@ module type STORE = sig
                          and type value := value
   (** Node stores are append-only. *)
 
-  val leaf: t -> blob -> key Lwt.t
-  (** Create a new leaf. *)
-
-  val node: t -> (string * value) list -> key Lwt.t
+  val node: t -> ?contents:contents -> ?succ:(string * value) list ->
+    unit -> (key * value) Lwt.t
   (** Create a new node. *)
 
-  val blob: t -> value -> blob Lwt.t option
-  (** Return the contents. *)
+  val contents: t -> value -> contents Lwt.t option
+  (** Return the node contents. *)
 
-  val children: t -> value -> (string * value Lwt.t) list
-  (** Return the child nodes. *)
+  val succ: t -> value -> (string * value Lwt.t) list
+  (** Return the node successors. *)
 
   val sub: t -> value -> IrminPath.t -> value option Lwt.t
   (** Find a subvalue. *)
@@ -81,14 +83,14 @@ module type STORE = sig
   val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
   (** Find a subvalue. Raise [Not_found] if it does not exist. *)
 
-  val update: t -> value -> IrminPath.t -> blob -> value Lwt.t
+  val update: t -> value -> IrminPath.t -> contents -> value Lwt.t
   (** Add a value by recusively saving subvalues and subvalues into the
       corresponding stores. *)
 
-  val find: t -> value -> IrminPath.t -> blob option Lwt.t
+  val find: t -> value -> IrminPath.t -> contents option Lwt.t
   (** Find a value. *)
 
-  val find_exn: t -> value -> IrminPath.t -> blob Lwt.t
+  val find_exn: t -> value -> IrminPath.t -> contents Lwt.t
   (** Find a value. Raise [Not_found] is [path] is not defined. *)
 
   val remove: t -> value -> IrminPath.t -> value Lwt.t
@@ -107,10 +109,10 @@ end
 
 module Make
     (K: IrminKey.S)
-    (B: IrminBlob.S)
-    (Blob: IrminStore.AO with type key = K.t and type value = B.t)
-    (Node: IrminStore.AO with type key = K.t and type value = K.t t)
-  : STORE with type t = Blob.t * Node.t
+    (C: IrminContents.S)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
+    (Node    : IrminStore.AO with type key = K.t and type value = K.t t)
+  : STORE with type t = Contents.t * Node.t
            and type key = K.t
-           and type blob = B.t
+           and type contents = C.t
 (** Create a node store from an append-only database. *)

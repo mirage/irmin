@@ -49,7 +49,7 @@ module L = Log.Make(struct let section = "COMMIT" end)
 
 module type S = sig
   type key
-  include IrminBlob.S with type t = key t
+  include IrminContents.S with type t = key t
 end
 
 module S (K: IrminKey.S) = struct
@@ -104,7 +104,6 @@ end
 
 module Make
     (K: IrminKey.S)
-    (B: IrminBlob.S)
     (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
     (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
 = struct
@@ -167,7 +166,7 @@ module Make
     let commits = IrminGraph.to_commits (Graph.vertex g) in
     return commits
 
-  let contents (_, t) =
-    Commit.contents t
+  let dump (_, t) =
+    Commit.dump t
 
 end

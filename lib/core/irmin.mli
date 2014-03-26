@@ -25,7 +25,7 @@ module type S = sig
       also be a structured value. One should be able to merge two
       diverging blobs. *)
 
-  module Internal: IrminValue.STORE with type blob = value
+  module Internal: IrminValue.STORE with type contents = value
   (** Append-only persistent store for internal values. *)
 
   (** {2 Irminsule store interface} *)
@@ -55,22 +55,22 @@ module type S = sig
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 
-  module Value: IrminBlob.S with type t = value
+  module Value: IrminContents.S with type t = value
   (** Base functions over values. *)
 
   module Snapshot: IrminKey.S with type t = snapshot
   (** Base functions over snapshots. *)
 
-  module Dump: IrminDump.S with type key = Internal.key and type blob = value
+  module Dump: IrminDump.S with type key = Internal.key and type contents = value
   (** Base functions over dumps. *)
 
 end
 
 module Make
     (K : IrminKey.S)
-    (B : IrminBlob.S)
+    (B : IrminContents.S)
     (R : IrminReference.S)
-    (Internal : IrminValue.STORE with type key = K.t and type blob = B.t)
+    (Internal : IrminValue.STORE with type key = K.t and type contents = B.t)
     (Reference: IrminReference.STORE with type key = R.t and type value = K.t)
   : S with type value = B.t
        and module Internal = Internal
@@ -82,14 +82,14 @@ module type SHA1 = S
    and type Reference.key = IrminReference.String.t
 (** Signature for stores with SHA1 keys. *)
 
-module type STRING = SHA1 with type value = IrminBlob.String.t
+module type STRING = SHA1 with type value = IrminContents.String.t
 (** Signature for stores with SHA1 keys and string values. *)
 
 module String (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): STRING
 (** Create a simple string store. Use only one append-only store for values,
     nodes and commits and a mutable store for the tags. *)
 
-module type JSON = SHA1 with type value = IrminBlob.JSON.t
+module type JSON = SHA1 with type value = IrminContents.JSON.t
 (** Signature for SHA1 stores with JSON values. *)
 
 module JSON (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): JSON

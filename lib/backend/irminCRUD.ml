@@ -136,9 +136,9 @@ module Make (Client: Cohttp_lwt.Client) = struct
       L.debugf "list %s" (K.to_string key);
       get t ["list"; K.to_string key] (Ezjsonm.get_list K.of_json)
 
-    let contents t =
-      L.debugf "contents";
-      get t ["contents"] (Ezjsonm.get_list (Ezjsonm.get_pair K.of_json V.of_json))
+    let dump t =
+      L.debugf "dump";
+      get t ["dump"] (Ezjsonm.get_list (Ezjsonm.get_pair K.of_json V.of_json))
 
   end
 
@@ -205,17 +205,17 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  let sha1 (type blob) (module B: IrminBlob.S with type t = blob) u =
+  let sha1 (type contents) (module B: IrminContents.S with type t = contents) u =
     let module K = IrminKey.SHA1 in
-    let module T = IrminNode.SHA1 in
+    let module N = IrminNode.SHA1 in
     let module C = IrminCommit.SHA1 in
     let module R = IrminReference.String in
-    let module Blob = AO(struct
-        let uri = uri u ["blob"]
+    let module Contents = AO(struct
+        let uri = uri u ["contents"]
       end)(K)(B) in
     let module Node = AO(struct
         let uri = uri u ["node"]
-      end)(K)(T) in
+      end)(K)(N) in
     let module Commit = AO(struct
         let uri = uri u ["commit"]
       end)(K)(C) in
@@ -225,14 +225,14 @@ module Make (Client: Cohttp_lwt.Client) = struct
     let module Store = S(struct
         let uri = u
       end) in
-    let module Internal = IrminValue.Mux(K)(B)(Blob)(Node)(Commit) in
+    let module Internal = IrminValue.Mux(K)(B)(Contents)(Node)(Commit) in
     let module Reference = IrminReference.Make(R)(K)(Reference) in
     let module S = Irmin.Make(K)(B)(R)(Internal)(Reference) in
     (module S: Irmin.S)
 
   let create k uri = match k with
-    | `String -> sha1 (module IrminBlob.String) uri
-    | `JSON   -> sha1 (module IrminBlob.JSON) uri
+    | `String -> sha1 (module IrminContents.String) uri
+    | `JSON   -> sha1 (module IrminContents.JSON) uri
 
 end
 

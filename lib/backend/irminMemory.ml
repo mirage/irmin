@@ -61,7 +61,7 @@ module RO (K: IrminKey.S) = struct
   let list { t } k =
     return [k]
 
-  let contents { t } =
+  let dump { t } =
     return (Hashtbl.to_alist t)
 
 end

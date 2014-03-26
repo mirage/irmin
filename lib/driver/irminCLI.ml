@@ -294,7 +294,7 @@ let tree = {
   let tree (module S: Irmin.S) =
     run begin
       S.create () >>= fun t ->
-      S.contents t >>= fun all ->
+      S.dump t    >>= fun all ->
       let all = List.map (fun (k,v) -> IrminPath.to_string k, Printf.sprintf "%S" (S.Value.to_string v)) all in
       let max_lenght l =
         List.fold_left (fun len s -> max len (String.length s)) 0 l in

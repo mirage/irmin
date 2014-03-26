@@ -55,7 +55,7 @@ module Make
   include S
 
   let list t _ =
-    contents t >>= fun l ->
+    dump t >>= fun l ->
     return (List.map ~f:fst l)
 
 end

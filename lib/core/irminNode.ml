@@ -19,51 +19,67 @@ open Core_kernel.Std
 
 module L = Log.Make(struct let section = "NODE" end)
 
-type 'key t =
-  | Leaf of 'key
-  | Node of (string * 'key) list
-with bin_io, compare, sexp
+type 'key t = {
+  contents: 'key option;
+  succ    : (string * 'key) list;
+} with bin_io, compare, sexp
 
-let to_json json_of_key = function
-  | Leaf k        -> `O ["leaf", json_of_key k]
-  | Node children ->
-    `O ["children",
-        Ezjsonm.list (Ezjsonm.pair IrminMisc.json_encode json_of_key) children ]
+let to_json json_of_key t =
+  let contents = match t.contents with
+    | None   -> []
+    | Some k -> [ "contents", json_of_key k ] in
+  let succ = match t.succ with
+    | [] -> []
+    | s  -> [ "succ", Ezjsonm.list (Ezjsonm.pair IrminMisc.json_encode json_of_key) s ] in
+  `O (contents @ succ)
 
 let of_json key_of_json json =
-  if Ezjsonm.mem json ["leaf"] then
-    let leaf = Ezjsonm.find json ["leaf"] in
-    Leaf (key_of_json leaf)
-  else
-    let children = Ezjsonm.find json ["children"] in
-    let children =
-      Ezjsonm.get_list
-        (Ezjsonm.get_pair IrminMisc.json_decode_exn key_of_json)
-        children in
-    Node children
+  let contents =
+    try
+      let leaf = Ezjsonm.find json ["contents"] in
+      Some (key_of_json leaf)
+    with Not_found ->
+      None in
+  let succ =
+    try
+      let children = Ezjsonm.find json ["succ"] in
+      let children =
+        Ezjsonm.get_list
+          (Ezjsonm.get_pair IrminMisc.json_decode_exn key_of_json)
+          children in
+      children
+    with Not_found -> [] in
+  { contents; succ }
 
-let empty = Node []
+let empty =
+  { contents = None;
+    succ = [] }
+
+let singleton elt =
+  { contents = Some elt;
+    succ = [] }
 
 module type S = sig
   type key
-  include IrminBlob.S with type t = key t
+  type nonrec t = key t
+  include IrminContents.S with type t := t
 end
 
 module type STORE = sig
   type key
-  type blob
+  type contents
   type value = key t
   include IrminStore.AO with type key := key
                          and type value := value
-  val leaf: t -> blob -> key Lwt.t
-  val node: t -> (string * value) list -> key Lwt.t
-  val blob: t -> value -> blob Lwt.t option
-  val children: t -> value -> (string * value Lwt.t) list
+  val node: t -> ?contents:contents -> ?succ:(string * value) list ->
+    unit -> (key * value) Lwt.t
+  val contents: t -> value -> contents Lwt.t option
+  val succ: t -> value -> (string * value Lwt.t) list
   val sub: t -> value -> IrminPath.t -> value option Lwt.t
   val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
-  val update: t -> value -> IrminPath.t -> blob -> value Lwt.t
-  val find: t -> value -> IrminPath.t -> blob option Lwt.t
-  val find_exn: t -> value -> IrminPath.t -> blob Lwt.t
+  val update: t -> value -> IrminPath.t -> contents -> value Lwt.t
+  val find: t -> value -> IrminPath.t -> contents option Lwt.t
+  val find_exn: t -> value -> IrminPath.t -> contents Lwt.t
   val remove: t -> value -> IrminPath.t -> value Lwt.t
   val valid: t -> value -> IrminPath.t -> bool Lwt.t
   module Key: IrminKey.S with type t = key
@@ -96,7 +112,7 @@ module S (K: IrminKey.S) = struct
 
   let of_bytes_exn str =
     match of_bytes str with
-    | None   -> raise (IrminBlob.Invalid str)
+    | None   -> raise (IrminContents.Invalid str)
     | Some t -> t
 
   let key t =
@@ -108,18 +124,18 @@ module SHA1 = S(IrminKey.SHA1)
 
 module Make
     (K: IrminKey.S)
-    (B: IrminBlob.S)
-    (Blob: IrminStore.AO with type key = K.t and type value = B.t)
+    (C: IrminContents.S)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
     (Node: IrminStore.AO with type key = K.t and type value = K.t t)
 = struct
 
   type key = K.t
 
-  type blob = B.t
+  type contents = C.t
 
   type value = K.t t
 
-  type t = Blob.t * Node.t
+  type t = Contents.t * Node.t
 
   module Key = K
   module Value = S(K)
@@ -127,20 +143,24 @@ module Make
   open Lwt
 
   let create () =
-    Blob.create () >>= fun b ->
+    Contents.create () >>= fun c ->
     Node.create () >>= fun t ->
-    return (b, t)
+    return (c, t)
 
   let add (_, t) = function
-    | Leaf k -> return k
-    | node   -> Node.add t node
+    | { succ = []; contents = Some k } -> return k
+    | node                             -> Node.add t node
 
-  let read (b, t) key =
+  (* "leaf" nodes (ie. with no succ and some contents) are not
+     duplicated: they are isomorphic to the contents itself and so:
+     they live in the contents store and have the same key than their
+     contents. *)
+ let read (c, t) key =
     Node.read t key >>= function
     | Some _ as x -> return x
     | None        ->
-      Blob.mem b key >>= function
-      | true  -> return (Some (Leaf key))
+      Contents.mem c key >>= function
+      | true  -> return (Some (singleton key))
       | false -> return_none
 
   let read_exn t key =
@@ -148,9 +168,9 @@ module Make
     | None   -> fail Not_found
     | Some v -> return v
 
-  let mem (b, t) key =
+  let mem (c, t) key =
     Node.mem t key >>= function
-    | false -> Blob.mem b key
+    | false -> Contents.mem c key
     | true  -> return true
 
   module Graph = IrminGraph.Make(K)
@@ -160,50 +180,49 @@ module Make
     read_exn t key >>= fun _ ->
     let pred = function
       | `Node k ->
-        begin
-          read_exn t k >>= function
-          | Leaf b  -> return_nil
-          | Node ts -> return (IrminGraph.of_nodes (List.map ~f:snd ts))
-        end
-      | _ -> return_nil in
+        read_exn t k >>= fun node ->
+        return (IrminGraph.of_nodes (List.map ~f:snd node.succ))
+      | _       -> return_nil in
     Graph.closure pred ~min:[] ~max:[`Node key] >>= fun g ->
     return (IrminGraph.to_nodes (Graph.vertex g))
 
-  let contents (_, t) =
-    Node.contents t
+  let dump (_, t) =
+    Node.dump t
 
-  let leaf (b, _ as t) blob =
-    Blob.add b blob >>= fun k ->
-    add t (Leaf k)
+  let node (c, _ as t) ?contents ?(succ=[]) () =
+    begin match contents with
+      | None          -> return_none
+      | Some contents ->
+        Contents.add c contents >>= fun k ->
+        return (Some k)
+    end >>= fun contents ->
+    begin
+      Lwt_list.map_p (fun (l, node) ->
+          add t node >>= fun k ->
+          return (l, k)
+        ) succ
+    end >>= fun succ ->
+    let node = { contents; succ } in
+    add t node >>= fun key ->
+    return (key, node)
 
-  let node t children =
-    Lwt_list.map_p (fun (l, node) ->
-        add t node >>= fun k ->
-        return (l, k)
-      ) children
-    >>= fun children ->
-    add t (Node children)
+  let contents (c, _) n =
+    match n.contents with
+    | None   -> None
+    | Some k -> Some (Contents.read_exn c k)
 
-  let blob (b, _) = function
-    | Node _ -> None
-    | Leaf k -> Some (Blob.read_exn b k)
+  let succ t node =
+    List.map ~f:(fun (l, k) -> l, read_exn t k) node.succ
 
-  let children_raw = function
-    | Leaf _  -> []
-    | Node ts -> ts
-
-  let children t node =
-    List.map ~f:(fun (l, k) -> l, read_exn t k) (children_raw node)
-
-  let child t node label =
-    List.Assoc.find (children t node) label
+  let next t node label =
+    List.Assoc.find (succ t node) label
 
   let sub_exn t node path =
     let rec aux node path =
       match path with
     | []    -> return node
     | h::tl ->
-      match child t node h with
+      match next t node h with
       | None      -> fail Not_found
       | Some node -> node >>= fun node -> aux node tl in
     aux node path
@@ -219,7 +238,7 @@ module Make
     sub t node path >>= function
     | None      -> fail Not_found
     | Some node ->
-      match blob t node with
+      match contents t node with
       | None   -> fail Not_found
       | Some b -> b
 
@@ -227,7 +246,7 @@ module Make
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
-      match blob t node with
+      match contents t node with
       | None   -> return_none
       | Some b -> b >>= fun b -> return (Some b)
 
@@ -235,7 +254,7 @@ module Make
     sub t node path >>= function
     | None      -> return false
     | Some node ->
-      match blob t node with
+      match contents t node with
       | None   -> return false
       | Some _ -> return true
 
@@ -266,16 +285,15 @@ module Make
     let rec aux node = function
       | []      -> return (f node)
       | h :: tl ->
-        map_children t (children_raw node) (fun node -> aux node tl) h
-        >>= fun children ->
-        return (Node children) in
+        map_children t node.succ (fun node -> aux node tl) h >>= fun succ ->
+        return { node with succ } in
     aux node path
 
   let remove t node path =
     map_subnode t node path (fun node -> empty)
 
-  let update (b, _ as t) node path value =
-    Blob.add b value >>= fun k  ->
-    map_subnode t node path (fun node -> Leaf k)
+  let update (c, _ as t) node path value =
+    Contents.add c value >>= fun k  ->
+    map_subnode t node path (fun node -> { node with contents = Some k })
 
 end

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e7ad97fe5b05c4122c94e275875e7ecb)
+# DO NOT EDIT (digest: 1ec71fda86ca92bf7578a2587f4a56ea)
 Irmin
 IrminGraph
 IrminKey
@@ -8,7 +8,7 @@ IrminCommit
 IrminStore
 IrminValue
 IrminReference
-IrminBlob
+IrminContents
 IrminNode
 IrminVersion
 IrminDump

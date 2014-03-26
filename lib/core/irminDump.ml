@@ -16,38 +16,38 @@
 
 open Core_kernel.Std
 
-type ('key, 'blob) t = ('key * ('key, 'blob) IrminValue.t) list
+type ('key, 'contents) t = ('key * ('key, 'contents) IrminValue.t) list
 with bin_io, compare, sexp
 
-let of_json key_of_json blob_of_json =
+let of_json key_of_json contents_of_json =
   Ezjsonm.(
     get_list
       (get_pair
          key_of_json
-         (IrminValue.of_json key_of_json blob_of_json))
+         (IrminValue.of_json key_of_json contents_of_json))
   )
 
-let to_json json_of_key json_of_blob =
+let to_json json_of_key json_of_contents =
   Ezjsonm.(
     list
       (pair
          json_of_key
-         (IrminValue.to_json json_of_key json_of_blob))
+         (IrminValue.to_json json_of_key json_of_contents))
   )
 
 module type S = sig
   type key
-  type blob
-  include Identifiable.S with type t = (key, blob) t
+  type contents
+  include Identifiable.S with type t = (key, contents) t
   val of_json: Ezjsonm.t -> t
   val to_json: t -> Ezjsonm.t
 end
 
-module S (K: IrminKey.S) (B: IrminBlob.S) = struct
+module S (K: IrminKey.S) (C: IrminContents.S) = struct
   type key = K.t
-  type blob = B.t
+  type contents = C.t
   module M = struct
-    type nonrec t = (K.t, B.t) t
+    type nonrec t = (K.t, C.t) t
     with bin_io, compare, sexp
     let hash (t : t) = Hashtbl.hash t
     include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
@@ -55,6 +55,6 @@ module S (K: IrminKey.S) (B: IrminBlob.S) = struct
   end
   include M
   include Identifiable.Make (M)
-  let of_json = of_json K.of_json B.of_json
-  let to_json = to_json K.to_json B.to_json
+  let of_json = of_json K.of_json C.of_json
+  let to_json = to_json K.to_json C.to_json
 end

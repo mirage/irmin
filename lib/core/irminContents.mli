@@ -18,35 +18,36 @@
 
 open Core_kernel.Std
 
-exception Conflict
-(** Exception raised during merge conflicts. *)
-
 exception Invalid of string
 (** Invalid parsing. *)
 
+exception Conflict
+(** Exception raised during merge conflicts. *)
+
 module type S = sig
 
-  (** Signature for values. *)
+  (** Signature for store contents. *)
 
   include Identifiable.S
   (** Base types. *)
 
   val to_json: t -> Ezjsonm.t
-  (** Convert a blob to JSON. *)
+  (** Convert the contents to JSON. *)
 
   val of_json: Ezjsonm.t -> t
-  (** Read a blob which has been JSON encoded. *)
+  (** Read some JSON encoded contents. *)
 
   val of_bytes: string -> t option
-  (** Convert a raw sequence of bytes into a value. Return [None] if
-      the sequence cannot be decoded. *)
+  (** Convert a raw sequence of bytes into structured contents. Return
+      [None] if the sequence cannot be decoded. *)
 
   val of_bytes_exn: string -> t
   (** Same as [of_bytes] but raise [Invalid] if the sequence of bytes
-      does not correspond to a valid blob. *)
+      does not correspond to some valid contents. *)
 
-  val merge: old:t -> t -> t -> t
-  (** Merge function. *)
+  val merge: old:t option -> t -> t -> t
+  (** Merge function. Raise [Conflict] if the values cannot be
+      merged properly. *)
 
 end
 
@@ -64,10 +65,10 @@ module JSON: S with type t = Ezjsonm.t
 module type STORE = sig
 
   include IrminStore.AO
-  (** Blob stores are append-only. *)
+  (** Contents stores are append-only. *)
 
   module Key: IrminKey.S with type t = key
-  (** Base functions for keys. *)
+  (** Base functions for foreign keys. *)
 
   module Value: S with type t = value
   (** Base functions for values. *)
@@ -77,9 +78,9 @@ end
 
 module Make
     (K: IrminKey.S)
-    (B: S)
-    (Blob: IrminStore.AO with type key = K.t and type value = B.t)
-  : STORE with type t = Blob.t
+    (C: S)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
+  : STORE with type t = Contents.t
            and type key = K.t
-           and type value = B.t
-(** Build a blob store. *)
+           and type value = C.t
+(** Build a contents store. *)

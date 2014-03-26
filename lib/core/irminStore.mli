@@ -50,7 +50,7 @@ module type RO = sig
   (** Return all the keys that are allowed to access, knowing a key
       (which might be seen as a password). *)
 
-  val contents: t -> (key * value) list Lwt.t
+  val dump: t -> (key * value) list Lwt.t
   (** Return the store contents. *)
 
 end

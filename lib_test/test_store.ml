@@ -61,13 +61,13 @@ module Make (S: Irmin.S) = struct
     let v2 = match k with
       | `String -> B.of_bytes_exn ""
       | `JSON   -> B.of_bytes_exn (Ezjsonm.to_string (`A[])) in
-    let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v1)) in
-    let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Blob v2)) in
+    let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Contents v1)) in
+    let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Contents v2)) in
     let r1 = R.of_bytes "refs/foo" in
     let r2 = R.of_bytes "refs/bar" in
     return { v1; v2; kv1; kv2; r1; r2 }
 
-  let test_blobs x () =
+  let test_contents x () =
     let test () =
       create () >>= fun t                    ->
       mk x.kind t >>= function { v1; v2; kv1; kv2 } ->
@@ -75,19 +75,19 @@ module Make (S: Irmin.S) = struct
       Lazy.force kv1 >>= fun kv1 ->
       Lazy.force kv2 >>= fun kv2 ->
 
-      let v = blob t in
-      Blob.add v v1                >>= fun k1'  ->
+      let v = contents t in
+      Contents.add v v1                >>= fun k1'  ->
       assert_key_equal "kv1" kv1 k1';
-      Blob.add v v1                >>= fun k1'' ->
+      Contents.add v v1                >>= fun k1'' ->
       assert_key_equal "kv1" kv1 k1'';
-      Blob.add v v2                >>= fun k2'  ->
+      Contents.add v v2                >>= fun k2'  ->
       assert_key_equal "kv2" kv2 k2';
-      Blob.add v v2                >>= fun k2'' ->
+      Contents.add v v2                >>= fun k2'' ->
       assert_key_equal "kv2" kv2 k2'';
-      Blob.read v kv1              >>= fun v1'  ->
-      assert_blob_opt_equal "v1" (Some v1) v1';
-      Blob.read v kv2              >>= fun v2'  ->
-      assert_blob_opt_equal "v2" (Some v2) v2';
+      Contents.read v kv1              >>= fun v1'  ->
+      assert_contents_opt_equal "v1" (Some v1) v1';
+      Contents.read v kv2              >>= fun v2'  ->
+      assert_contents_opt_equal "v2" (Some v2) v2';
       return_unit
     in
     run x test
@@ -99,57 +99,57 @@ module Make (S: Irmin.S) = struct
       let node = node t in
 
       (* Create a node containing t1(v1) *)
-      Node.leaf node v1           >>= fun k1  ->
-      Node.leaf node v1           >>= fun k1' ->
+      Node.node node ~contents:v1 () >>= fun (k1 , _) ->
+      Node.node node ~contents:v1 () >>= fun (k1', _) ->
       assert_key_equal "k1.1" k1 k1';
       Node.read_exn node k1       >>= fun t1  ->
       Node.add node t1            >>= fun k1''->
       assert_key_equal "k1.2" k1 k1'';
 
       (* Create the node  t2 -b-> t1(v1) *)
-      Node.node node ["b", t1]     >>= fun k2  ->
-      Node.node node ["b", t1]     >>= fun k2' ->
+      Node.node node ~succ:["b", t1] () >>= fun (k2 , _) ->
+      Node.node node ~succ:["b", t1] () >>= fun (k2', _) ->
       assert_key_equal "k2.1" k2 k2';
-      Node.read_exn node k2        >>= fun t2  ->
-      Node.add node t2             >>= fun k2''->
+      Node.read_exn node k2             >>= fun t2  ->
+      Node.add node t2                  >>= fun k2''->
       assert_key_equal "k2.2" k2 k2'';
-      Node.sub_exn node t2 ["b"]  >>= fun t1' ->
+      Node.sub_exn node t2 ["b"]        >>= fun t1' ->
       assert_node_equal "t1.1" t1 t1';
-      Node.add node t1'           >>= fun k1''->
+      Node.add node t1'                 >>= fun k1''->
       assert_key_equal "k1.3" k1 k1'';
 
       (* Create the node t3 -a-> t2 -b-> t1(v1) *)
-      Node.node node ["a", t2]         >>= fun k3  ->
-      Node.node node ["a", t2]         >>= fun k3' ->
+      Node.node node ~succ:["a", t2] () >>= fun (k3 , _) ->
+      Node.node node ~succ:["a", t2] () >>= fun (k3', _) ->
       assert_key_equal "k3.1" k3 k3';
-      Node.read_exn node k3            >>= fun t3  ->
-      Node.add node t3                 >>= fun k3''->
+      Node.read_exn node k3             >>= fun t3  ->
+      Node.add node t3                  >>= fun k3''->
       assert_key_equal "k3.2" k3 k3'';
-      Node.sub_exn node t3 ["a"]       >>= fun t2' ->
+      Node.sub_exn node t3 ["a"]        >>= fun t2' ->
       assert_node_equal "t2.1" t2 t2';
-      Node.add node t2'                >>= fun k2''->
+      Node.add node t2'                 >>= fun k2''->
       assert_key_equal "k2.3" k2 k2'';
-      Node.sub_exn node t2' ["b"]      >>= fun t1' ->
+      Node.sub_exn node t2' ["b"]       >>= fun t1' ->
       assert_node_equal "t1.2" t1 t1';
-      Node.sub node t3 ["a";"b"]       >>= fun t1' ->
+      Node.sub node t3 ["a";"b"]        >>= fun t1' ->
       assert_node_opt_equal "t1.3" (Some t1) t1';
 
-      Node.find node t1 []            >>= fun v11 ->
-      assert_blob_opt_equal "v1.1" (Some v1) v11;
-      Node.find node t2 ["b"]         >>= fun v12 ->
-      assert_blob_opt_equal "v1.2" (Some v1) v12;
-      Node.find node t3 ["a";"b"]     >>= fun v13 ->
-      assert_blob_opt_equal "v1" (Some v1) v13;
+      Node.find node t1 []              >>= fun v11 ->
+      assert_contents_opt_equal "v1.1" (Some v1) v11;
+      Node.find node t2 ["b"]           >>= fun v12 ->
+      assert_contents_opt_equal "v1.2" (Some v1) v12;
+      Node.find node t3 ["a";"b"]       >>= fun v13 ->
+      assert_contents_opt_equal "v1" (Some v1) v13;
 
       (* Create the node t6 -a-> t5 -b-> t1(v1)
                                    \-c-> t4(v2) *)
-      Node.leaf node v2                   >>= fun k4  ->
-      Node.read_exn node k4               >>= fun t4  ->
-      Node.node node [("b",t1); ("c",t4)] >>= fun k5  ->
-      Node.read_exn node k5               >>= fun t5  ->
-      Node.node node ["a",t5]             >>= fun k6  ->
-      Node.read_exn node k6               >>= fun t6  ->
-      Node.update node t3 ["a";"c"] v2    >>= fun t6' ->
+      Node.node node ~contents:v2 ()               >>= fun (k4, _) ->
+      Node.read_exn node k4                        >>= fun t4  ->
+      Node.node node ~succ:[("b",t1); ("c",t4)] () >>= fun (k5, _) ->
+      Node.read_exn node k5                        >>= fun t5  ->
+      Node.node node ~succ:["a",t5] ()             >>= fun (k6, _) ->
+      Node.read_exn node k6                        >>= fun t6  ->
+      Node.update node t3 ["a";"c"] v2             >>= fun t6' ->
       assert_node_equal "node" t6 t6';
 
       return_unit
@@ -165,12 +165,12 @@ module Make (S: Irmin.S) = struct
       let commit = commit t in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
-      Node.leaf node v1           >>= fun k1  ->
-      Node.read_exn node k1       >>= fun t1  ->
-      Node.node node ["a", t1]    >>= fun k2  ->
-      Node.read_exn node k2       >>= fun t2  ->
-      Node.node node ["b", t2]    >>= fun k3  ->
-      Node.read_exn node k3       >>= fun t3  ->
+      Node.node node ~contents:v1 ()    >>= fun (k1, _) ->
+      Node.read_exn node k1             >>= fun t1 ->
+      Node.node node ~succ:["a", t1] () >>= fun (k2, _) ->
+      Node.read_exn node k2             >>= fun t2 ->
+      Node.node node ~succ:["b", t2] () >>= fun (k3, _) ->
+      Node.read_exn node k3             >>= fun t3 ->
 
       (* r1 : t2 *)
       Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun kr1 ->
@@ -235,7 +235,7 @@ module Make (S: Irmin.S) = struct
       mem t ["a"]           >>= fun b2  ->
       assert_bool_equal "mem2" false b2;
       read_exn t ["a";"b"]  >>= fun v1' ->
-      assert_blob_equal "v1.1" v1 v1';
+      assert_contents_equal "v1.1" v1 v1';
       snapshot t            >>= fun r1  ->
 
       update t ["a";"c"] v2 >>= fun ()  ->
@@ -244,18 +244,18 @@ module Make (S: Irmin.S) = struct
       mem t ["a"]           >>= fun b2  ->
       assert_bool_equal "mem4" false b2;
       read_exn t ["a";"b"]  >>= fun v1' ->
-      assert_blob_equal "v1.1" v1 v1';
+      assert_contents_equal "v1.1" v1 v1';
       mem t ["a";"c"]       >>= fun b1  ->
       assert_bool_equal "mem5" true b1;
       read_exn t ["a";"c"]  >>= fun v2' ->
-      assert_blob_equal "v1.1" v2 v2';
+      assert_contents_equal "v1.1" v2 v2';
 
       remove t ["a";"b"]    >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
-      assert_blob_opt_equal "v1.2" None v1'';
+      assert_contents_opt_equal "v1.2" None v1'';
       revert t r1           >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
-      assert_blob_opt_equal "v1.3" (Some v1) v1'';
+      assert_contents_opt_equal "v1.3" (Some v1) v1'';
       list t ["a"]          >>= fun ks  ->
       assert_paths_equal "path" [["a";"b"]] ks;
       update t [long_random_string] v1 >>= fun () ->
@@ -296,7 +296,7 @@ module Make (S: Irmin.S) = struct
       mem t2 ["a";"d"]       >>= fun b3  ->
       assert_bool_equal "mem-ad" true b3;
       read_exn t2 ["a";"d"]  >>= fun v1' ->
-      assert_blob_equal "v1" v1' v1;
+      assert_contents_equal "v1" v1' v1;
 
       catch
         (fun () ->
@@ -319,7 +319,7 @@ let suite (speed, x) =
   let module T = Make(S) in
   x.name,
   [
-    "Basic operations on blobs"       , speed, T.test_blobs     x;
+    "Basic operations on contents"    , speed, T.test_contents   x;
     "Basic operations on nodes"       , speed, T.test_nodes      x;
     "Basic operations on commits"     , speed, T.test_commits    x;
     "Basic operations on references"  , speed, T.test_references x;

@@ -34,7 +34,7 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include IrminBlob.S with type t = key t
+  include IrminContents.S with type t = key t
   (** Base functions over commit objects. *)
 
 end
@@ -78,7 +78,6 @@ end
 
 module Make
     (K: IrminKey.S)
-    (B: IrminBlob.S)
     (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
     (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
   : STORE with type t = Node.t * Commit.t

@@ -24,7 +24,7 @@ Library irminsule
   Findlibname: irminsule
   Modules: Irmin, IrminGraph, IrminKey,
            IrminMisc, IrminCommit, IrminStore, IrminValue,
-           IrminReference, IrminBlob, IrminNode, IrminVersion,
+           IrminReference, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch
   BuildDepends: ezjsonm, ocamlgraph, lwt, cryptokit,
                 re.str, dolog, mstruct,
