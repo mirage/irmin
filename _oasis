@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        irminsule
-Version:     0.5.1
+Version:     0.6.0
 Synopsis:    A Distributed Version Control Database
 Authors:     Thomas Gazagnaire
 License:     ISC

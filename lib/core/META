@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: af24008df606764e6fa8a177347619c5)
-version = "0.5.1"
+# DO NOT EDIT (digest: 67dadb0f6516898e80c37d4460d3d248)
+version = "0.6.0"
 description = "A Distributed Version Control Database"
 requires =
 "ezjsonm ocamlgraph lwt cryptokit re.str dolog mstruct core_kernel bin_prot.syntax comparelib.syntax sexplib.syntax"
@@ -10,7 +10,7 @@ archive(native) = "irminsule.cmxa"
 archive(native, plugin) = "irminsule.cmxs"
 exists_if = "irminsule.cma"
 package "server" (
- version = "0.5.1"
+ version = "0.6.0"
  description = "A Distributed Version Control Database"
  requires =
  "cohttp.lwt unix lwt.unix lwt.ssl irminsule.backend.fs irminsule.backend irminsule irminsule.backend.git"
@@ -22,7 +22,7 @@ package "server" (
 )
 
 package "backend" (
- version = "0.5.1"
+ version = "0.6.0"
  description = "A Distributed Version Control Database"
  requires = "irminsule uri cohttp.lwt ezjsonm.lwt"
  archive(byte) = "backend.cma"
@@ -31,7 +31,7 @@ package "backend" (
  archive(native, plugin) = "backend.cmxs"
  exists_if = "backend.cma"
  package "git" (
-  version = "0.5.1"
+  version = "0.6.0"
   description = "A Distributed Version Control Database"
   requires = "irminsule.backend irminsule git.fs git.memory"
   archive(byte) = "git.cma"
@@ -42,7 +42,7 @@ package "backend" (
  )
  
  package "fs" (
-  version = "0.5.1"
+  version = "0.6.0"
   description = "A Distributed Version Control Database"
   requires = "lwt.unix uri irminsule.backend irminsule"
   archive(byte) = "fs.cma"
