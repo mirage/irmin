@@ -30,6 +30,20 @@ module type S = sig
   val merge: old:t option -> t -> t -> t
 end
 
+let default_merge ~compare ~old t1 t2 =
+  match compare t1 t2 with
+  | 0 -> t1
+  | _ ->
+    match old with
+    | None     -> raise Conflict
+    | Some old ->
+      match compare old t1 with
+      | 0 -> t2
+      | _ ->
+        match compare old t2 with
+        | 0 -> t1
+        | _ -> raise Conflict
+
 module String  = struct
 
   include String
@@ -42,19 +56,8 @@ module String  = struct
 
   let of_bytes_exn s = s
 
-  let merge ~old t1 t2 =
-    match compare t1 t2 with
-    | 0 -> t1
-    | _ ->
-      match old with
-      | None     -> raise Conflict
-      | Some old ->
-        match compare old t1 with
-        | 0 -> t2
-        | _ ->
-          match compare old t2 with
-          | 0 -> t1
-          | _ -> raise Conflict
+  let merge =
+    default_merge ~compare
 
 end
 
@@ -110,11 +113,12 @@ module JSON = struct
 
   (* XXX: replace by a clever merge function *)
   let merge ~old t1 t2 =
+    let t1 = Ezjsonm.to_string t1 in
+    let t2 = Ezjsonm.to_string t2 in
     let old = match old with
       | None   -> None
       | Some o -> Some (Ezjsonm.to_string o) in
-    let str =
-      String.merge ~old (Ezjsonm.to_string t1) (Ezjsonm.to_string t2) in
+    let str = String.merge ~old t1 t2 in
     match of_bytes str with
     | Some j -> j
     | None   -> raise Conflict

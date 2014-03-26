@@ -72,8 +72,8 @@ module S (K: IrminKey.S) = struct
   let of_json =
     of_json K.of_json
 
-  let merge ~old:_ _ _ =
-    failwith "Commit.merge: TODO"
+  let merge =
+    IrminContents.default_merge ~compare
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)

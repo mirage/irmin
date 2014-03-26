@@ -24,6 +24,12 @@ exception Invalid of string
 exception Conflict
 (** Exception raised during merge conflicts. *)
 
+val default_merge: compare:('a -> 'a -> int) -> old:'a option -> 'a -> 'a -> 'a
+(** The default merge function, using the given comparator
+    function. It checks if the two values are equals, or if only one
+    of the two values has been modified. It raises [Conflict] in the
+    other cases. *)
+
 module type S = sig
 
   (** Signature for store contents. *)
