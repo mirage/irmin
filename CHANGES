@@ -4,6 +4,7 @@
   DAGs but that's not mandatory)
 * Rename `IrminBlob` to `IrminContents` to reflect the fact that
   we also support structured contents (as JSON objects)
+* Support for linking the library without linking to camlp4 as well (#23)
 
 0.5.1: (2014-03-02)
 * Port to use Cohttp 0.10.0 interface.
