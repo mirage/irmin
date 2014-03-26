@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,7 +25,7 @@ module type Config = sig
   val bare: bool
 end
 
-module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (R: IrminReference.S) = struct
+module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminContents.S) (R: IrminReference.S) = struct
 
   let git_of_key key =
     Git.SHA1.of_string (K.to_raw key)
@@ -54,7 +54,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
         G.create ?root:Config.root ()
 
       let mem t key =
-        Log.debugf "Tree.mem %s" (K.to_string key);
+        Log.debugf "Node.mem %s" (K.to_string key);
         let key = git_of_key key in
         G.mem t key >>= function
         | false    -> return false
@@ -64,7 +64,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
           | Some v -> return (V.type_eq (Git.Value.type_of v))
 
       let read t key =
-        Log.debugf "Tree.read %s" (K.to_string key);
+        Log.debugf "Node.read %s" (K.to_string key);
         let key = git_of_key key in
         G.read t key >>= function
         | None   -> return_none
@@ -78,7 +78,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
       let list t k =
         return [k]
 
-      let contents t =
+      let dump t =
         G.list t >>= fun keys ->
         Lwt_list.fold_left_s (fun acc k ->
             G.read_exn t k >>= fun v ->
@@ -97,7 +97,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
 
     end
 
-    module XBlob = AO (struct
+    module XContents = AO (struct
 
         type t = B.t
 
@@ -107,24 +107,24 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
           | _ -> false
 
         let of_git k b =
-          Log.debugf "Blob.of_git: %S" (Git.Value.pretty b);
+          Log.debugf "Contents.of_git: %S" (Git.Value.pretty b);
           match b with
           | Git.Value.Blob b -> Some (B.of_string (Git.Blob.to_string b))
           | Git.Value.Tag _  -> None (* XXX: deal with tag objects *)
           | _                -> None
 
         let to_git _ b =
-          Log.debugf "Blob.to_git %S" (B.to_string b);
+          Log.debugf "Contents.to_git %S" (B.to_string b);
           let value = Git.Value.Blob (Git.Blob.of_string (B.to_string b)) in
           `Value (return value)
 
       end)
 
-    module XTree = AO(struct
+    module XNode = AO(struct
 
-        type t = K.t IrminTree.t
+        type t = K.t IrminNode.t
 
-        module X = IrminTree.S(K)
+        module X = IrminNode.S(K)
 
         let type_eq = function
           | Git.Object_type.Blob
@@ -177,27 +177,27 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
             String.concat ~sep:"" l
 
         let of_git k v =
-          Log.debugf "Tree.of_git %s" (Git.Value.pretty v);
+          Log.debugf "Node.of_git %s" (Git.Value.pretty v);
           match v with
           | Git.Value.Blob _ ->
-            (* Create a dummy leaf node to hold blobs. *)
+            (* Create a dummy leaf node to hold contents. *)
             let key = key_of_git k in
-            Some (IrminTree.Leaf key)
+            Some { IrminNode.contents = Some key; succ = [] }
           | Git.Value.Tree t ->
-            let children =
+            let succ =
               List.map ~f:(fun e -> Git.Tree.(decode e.name, key_of_git e.node))
                 t in
-            Some (IrminTree.Node children)
+            Some { IrminNode.contents = None; succ }
           | _ -> None
 
-        let to_git t tree =
-          Log.debugf "Tree.to_git %s" (X.to_string tree);
-          match tree with
-          | IrminTree.Leaf key ->
+        let to_git t node =
+          Log.debugf "Node.to_git %s" (X.to_string node);
+          match node.IrminNode.contents with
+          | Some key ->
             (* This is a dummy leaf node. Do nothing. *)
-            Log.debugf "Skiping %s" (X.to_string tree);
+            Log.debugf "Skiping %s" (X.to_string node);
             `Key (git_of_key key)
-          | IrminTree.Node children ->
+          | None ->
             `Value (
               Lwt_list.map_p (fun (name, key) ->
                   let name = encode name in
@@ -212,8 +212,8 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
                     match Git.Value.type_of v with
                     | Git.Object_type.Blob -> file ()
                     | Git.Object_type.Tree -> dir ()
-                    | _                    -> fail (Failure "Tree.to_git")
-                ) children >>= fun entries ->
+                    | _                    -> fail (Failure "Node.to_git")
+                ) node.IrminNode.succ >>= fun entries ->
               return (Git.Value.Tree entries)
             )
 
@@ -234,25 +234,25 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
           match v with
           | Git.Value.Commit { Git.Commit.tree; parents; author } ->
             let commit_key_of_git k = key_of_git (Git.SHA1.of_commit k) in
-            let tree_key_of_git k = key_of_git (Git.SHA1.of_tree k) in
+            let node_key_of_git k = key_of_git (Git.SHA1.of_tree k) in
             let parents = List.map ~f:commit_key_of_git parents in
-            let tree = Some (tree_key_of_git tree) in
+            let node = Some (node_key_of_git tree) in
             let origin = author.Git.User.name in
             let date = match String.split ~on:' ' author.Git.User.date with
               | [date;_] -> Float.of_string date
               | _        -> 0. in
-            Some { IrminCommit.tree; parents; date; origin }
+            Some { IrminCommit.node; parents; date; origin }
           | _ -> None
 
         let to_git _ c =
           Log.debugf "Commit.to_git %s" (X.to_string c);
-          let { IrminCommit.tree; parents; date; origin } = c in
-          match tree with
+          let { IrminCommit.node; parents; date; origin } = c in
+          match node with
           | None      -> failwith "Commit.to_git: not supported"
-          | Some tree ->
+          | Some node ->
             let git_of_commit_key k = Git.SHA1.to_commit (git_of_key k) in
-            let git_of_tree_key k = Git.SHA1.to_tree (git_of_key k) in
-            let tree = git_of_tree_key tree in
+            let git_of_node_key k = Git.SHA1.to_tree (git_of_key k) in
+            let tree = git_of_node_key node in
             let parents = List.map ~f:git_of_commit_key parents in
             let date = Int64.to_string (Float.to_int64 date) ^ " +0000" in
             let author =
@@ -270,7 +270,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
 
       end)
 
-    include IrminValue.Mux(K)(B)(XBlob)(XTree)(XCommit)
+    include IrminValue.Mux(K)(B)(XContents)(XNode)(XCommit)
 
   end
 
@@ -325,7 +325,7 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
       G.references t >>= fun refs ->
       return (List.map ~f:ref_of_git refs)
 
-    let contents { t } =
+    let dump { t } =
       G.references t >>= fun refs ->
       Lwt_list.map_p (fun r ->
           G.read_reference_exn t r >>= fun k ->
@@ -368,10 +368,10 @@ module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminBlob.S) (
 end
 
 module String(C: Config)(G: Git.Store.S) =
-  Make(C)(G)(IrminKey.SHA1)(IrminBlob.String)(IrminReference.String)
+  Make(C)(G)(IrminKey.SHA1)(IrminContents.String)(IrminReference.String)
 
 module JSON(C: Config)(G: Git.Store.S) =
-  Make(C)(G)(IrminKey.SHA1)(IrminBlob.JSON)(IrminReference.String)
+  Make(C)(G)(IrminKey.SHA1)(IrminContents.JSON)(IrminReference.String)
 
 let create ?(bare=true) ?root k g =
   let (module G) = match g with

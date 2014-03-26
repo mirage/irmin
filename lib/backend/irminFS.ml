@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -239,8 +239,8 @@ module RO (S: S) (K: IrminKey.S) = struct
     let files = rec_files root in
     List.map ~f:S.key_of_file files
 
-  let contents ({ t = D root } as t) =
-    L.debugf "contents %s" root;
+  let dump ({ t = D root } as t) =
+    L.debugf "dump %s" root;
     check t.t >>= fun () ->
     let l = keys_of_dir root in
     Lwt_list.fold_left_s (fun acc x ->

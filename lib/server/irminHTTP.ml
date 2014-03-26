@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -76,16 +76,16 @@ module Server (S: Irmin.S) = struct
     output = K.to_json;
   }
 
-  module Blob = S.Internal.Blob
-  module B = Blob.Value
-  let blob = {
+  module Contents = S.Internal.Contents
+  module B = Contents.Value
+  let contents = {
     input  = B.of_json;
     output = B.to_json;
   }
 
-  module Tree = S.Internal.Tree
-  module T = Tree.Value
-  let tree = {
+  module Node = S.Internal.Node
+  module T = Node.Value
+  let node = {
     input  = T.of_json;
     output = T.to_json;
   }
@@ -110,7 +110,7 @@ module Server (S: Irmin.S) = struct
     output = D.to_json;
   }
 
-  let contents key value =
+  let mk_dump key value =
     list (pair key value)
 
   let respond ?headers body =
@@ -163,8 +163,8 @@ module Server (S: Irmin.S) = struct
       try List.Assoc.find_exn l c
       with Not_found -> error ()
 
-  let bl t = S.Internal.blob (S.internal t)
-  let tr t = S.Internal.tree (S.internal t)
+  let bl t = S.Internal.contents (S.internal t)
+  let no t = S.Internal.node (S.internal t)
   let co t = S.Internal.commit (S.internal t)
   let re t = S.reference t
   let t x = x
@@ -259,54 +259,54 @@ module Server (S: Irmin.S) = struct
         Lwt_stream.map (fun r -> o.output r) stream
       )
 
-  let blob_store = Node [
-      mk1p0bf "read"     Blob.read     bl key   (some blob);
-      mk1p0bf "mem"      Blob.mem      bl key   bool;
-      mk1p0bf "list"     Blob.list     bl key   (list key);
-      mk0p1bf "add"      Blob.add      bl blob  key;
-      mk0p0bf "contents" Blob.contents bl (contents key blob);
+  let contents_store = Node [
+      mk1p0bf "read" Contents.read bl key (some contents);
+      mk1p0bf "mem"  Contents.mem  bl key bool;
+      mk1p0bf "list" Contents.list bl key (list key);
+      mk0p1bf "add"  Contents.add  bl contents key;
+      mk0p0bf "dump" Contents.dump bl (mk_dump key contents);
   ]
 
-  let tree_store = Node [
-      mk1p0bf "read"     Tree.read     tr key  (some tree);
-      mk1p0bf "mem"      Tree.mem      tr key  bool;
-      mk1p0bf "list"     Tree.list     tr key  (list key);
-      mk0p1bf "add"      Tree.add      tr tree key;
-      mk0p0bf "contents" Tree.contents tr (contents key tree);
+  let node_store = Node [
+      mk1p0bf "read" Node.read no key (some node);
+      mk1p0bf "mem"  Node.mem  no key bool;
+      mk1p0bf "list" Node.list no key (list key);
+      mk0p1bf "add"  Node.add  no node key;
+      mk0p0bf "dump" Node.dump no (mk_dump key node);
   ]
 
   let commit_store = Node [
-      mk1p0bf "read"     Commit.read     co key   (some commit);
-      mk1p0bf "mem"      Commit.mem      co key   bool;
-      mk1p0bf "list"     Commit.list     co key   (list key);
-      mk0p1bf "add"      Commit.add      co commit key;
-      mk0p0bf "contents" Commit.contents co (contents key commit);
+      mk1p0bf "read" Commit.read co key (some commit);
+      mk1p0bf "mem"  Commit.mem  co key bool;
+      mk1p0bf "list" Commit.list co key (list key);
+      mk0p1bf "add"  Commit.add  co commit key;
+      mk0p0bf "dump" Commit.dump co (mk_dump key commit);
   ]
 
   let reference_store = Node [
-      mklp0bf "read"     Reference.read     re reference (some key);
-      mklp0bf "mem"      Reference.mem      re reference bool;
-      mklp0bf "list"     Reference.list     re reference (list reference);
-      mklp1bf "update"   Reference.update   re reference key unit;
-      mklp0bf "remove"   Reference.remove   re reference unit;
-      mk0p0bf "contents" Reference.contents re (contents reference key);
-      mklp0bs "watch"    Reference.watch    re reference key;
+      mklp0bf "read"   Reference.read   re reference (some key);
+      mklp0bf "mem"    Reference.mem    re reference bool;
+      mklp0bf "list"   Reference.list   re reference (list reference);
+      mklp1bf "update" Reference.update re reference key unit;
+      mklp0bf "remove" Reference.remove re reference unit;
+      mk0p0bf "dump"   Reference.dump   re (mk_dump reference key);
+      mklp0bs "watch"  Reference.watch  re reference key;
   ]
 
   let store = Node [
-      mklp0bf "read"     S.read     t path (some blob);
+      mklp0bf "read"     S.read     t path (some contents);
       mklp0bf "mem"      S.mem      t path bool;
       mklp0bf "list"     S.list     t path (list path);
-      mklp1bf "update"   S.update   t path blob unit;
+      mklp1bf "update"   S.update   t path contents unit;
       mklp0bf "remove"   S.remove   t path unit;
-      mk0p0bf "contents" S.contents t (contents path blob);
+      mk0p0bf "dump"     S.dump     t (mk_dump path contents);
       mk0p0bf "snapshot" S.snapshot t key;
       mk1p0bf "revert"   S.revert   t key unit;
       mklp0bf "export"   S.export   t (list key) dump;
       mk0p1bf "import"   S.import   t dump unit;
       mklp0bs "watch"    S.watch    t path (pair path key);
-      "blob"  , blob_store;
-      "tree"  , tree_store;
+      "contents"  , contents_store;
+      "node"  , node_store;
       "commit", commit_store;
       "ref"   , reference_store;
   ]

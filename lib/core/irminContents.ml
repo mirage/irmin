@@ -1,6 +1,5 @@
-
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,7 +27,7 @@ module type S = sig
   val of_json: Ezjsonm.t -> t
   val of_bytes: string -> t option
   val of_bytes_exn: string -> t
-  val merge: old:t -> t -> t -> t
+  val merge: old:t option -> t -> t -> t
 end
 
 module String  = struct
@@ -47,12 +46,15 @@ module String  = struct
     match compare t1 t2 with
     | 0 -> t1
     | _ ->
-      match compare old t1 with
-      | 0 -> t2
-      | _ ->
-        match compare old t2 with
-        | 0 -> t1
-        | _ -> raise Conflict
+      match old with
+      | None     -> raise Conflict
+      | Some old ->
+        match compare old t1 with
+        | 0 -> t2
+        | _ ->
+          match compare old t2 with
+          | 0 -> t1
+          | _ -> raise Conflict
 
 end
 
@@ -108,10 +110,11 @@ module JSON = struct
 
   (* XXX: replace by a clever merge function *)
   let merge ~old t1 t2 =
+    let old = match old with
+      | None   -> None
+      | Some o -> Some (Ezjsonm.to_string o) in
     let str =
-      String.merge ~old:(Ezjsonm.to_string old)
-        (Ezjsonm.to_string t1)
-        (Ezjsonm.to_string t2) in
+      String.merge ~old (Ezjsonm.to_string t1) (Ezjsonm.to_string t2) in
     match of_bytes str with
     | Some j -> j
     | None   -> raise Conflict
@@ -126,10 +129,10 @@ end
 
 module Make
     (K: IrminKey.S)
-    (B: S)
-    (Blob: IrminStore.AO with type key = K.t and type value = B.t)
+    (C: S)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
 = struct
-  include Blob
+  include Contents
   module Key  = K
-  module Value = B
+  module Value = C
 end

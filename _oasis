@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        irminsule
-Version:     0.5.1
+Version:     0.6.0
 Synopsis:    A Distributed Version Control Database
 Authors:     Thomas Gazagnaire
 License:     ISC
@@ -24,7 +24,7 @@ Library irminsule
   Findlibname: irminsule
   Modules: Irmin, IrminGraph, IrminKey,
            IrminMisc, IrminCommit, IrminStore, IrminValue,
-           IrminReference, IrminBlob, IrminTree, IrminVersion,
+           IrminReference, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch
   BuildDepends: ezjsonm, ocamlgraph, lwt, cryptokit,
                 re.str, dolog, mstruct,

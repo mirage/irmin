@@ -65,18 +65,18 @@ module Make (S: Irmin.S) = struct
   let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
     mk K.equal K.compare K.to_string
 
-  module Blob = Internal.Blob
-  module B = Blob.Value
-  let assert_blob_equal, assert_blob_opt_equal, assert_blobs_equal =
+  module Contents = Internal.Contents
+  module B = Contents.Value
+  let assert_contents_equal, assert_contents_opt_equal, assert_contentss_equal =
     mk B.equal B.compare B.to_string
 
   module R = Reference.Key
   let assert_reference_equal, assert_reference_opt_equal, assert_references_equal =
     mk R.equal R.compare R.to_string
 
-  module Tree = Internal.Tree
-  module T = Tree.Value
-  let assert_tree_equal, assert_tree_opt_equal, assert_trees_equal =
+  module Node = Internal.Node
+  module T = Node.Value
+  let assert_node_equal, assert_node_opt_equal, assert_nodes_equal =
     mk T.equal T.compare T.to_string
 
   module Commit = Internal.Commit
@@ -93,8 +93,8 @@ module Make (S: Irmin.S) = struct
   let assert_bool_equal, assert_bool_opt_equal, assert_bools_equal =
     mk (=) compare string_of_bool
 
-  let blob t = Internal.blob (internal t)
-  let tree t = Internal.tree (internal t)
+  let contents t = Internal.contents (internal t)
+  let node t = Internal.node (internal t)
   let commit t = Internal.commit (internal t)
 
 end

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,7 +25,7 @@ module type RO = sig
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
   val list: t -> key -> key list Lwt.t
-  val contents: t -> (key * value) list Lwt.t
+  val dump: t -> (key * value) list Lwt.t
 end
 
 module type RO_BINARY = RO with type key = string
@@ -68,8 +68,8 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
     let ks = List.map ~f:K.of_raw ks in
     return ks
 
-  let contents t =
-    S.contents t >>= fun l ->
+  let dump t =
+    S.dump t >>= fun l ->
     Lwt_list.fold_left_s (fun acc (s, ba) ->
         match IrminMisc.read V.bin_t ba with
         | None   -> return acc

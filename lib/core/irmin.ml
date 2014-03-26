@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,7 +22,7 @@ module Log = LogMake(struct let section = "IRMIN" end)
 
 module type S = sig
   type value
-  module Internal: IrminValue.STORE with type blob = value
+  module Internal: IrminValue.STORE with type contents = value
   include IrminStore.S with type key      = string list
                         and type value   := value
                         and type snapshot = Internal.key
@@ -33,9 +33,9 @@ module type S = sig
   val reference: t -> Reference.t
   val branch: t -> Reference.key
   module Key: IrminKey.S with type t = key
-  module Value: IrminBlob.S with type t = value
+  module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
-  module Dump: IrminDump.S with type key = Internal.key and type blob = value
+  module Dump: IrminDump.S with type key = Internal.key and type contents = value
 end
 
 
@@ -55,25 +55,25 @@ let set_origin_hook f =
 
 module Make
     (K : IrminKey.S)
-    (B : IrminBlob.S)
+    (C : IrminContents.S)
     (R : IrminReference.S)
-    (Internal : IrminValue.STORE with type key = K.t and type blob = B.t)
+    (Internal : IrminValue.STORE with type key = K.t and type contents = C.t)
     (Reference: IrminReference.STORE with type key = R.t and type value = K.t)
 = struct
 
   module Internal = Internal
   module Reference = Reference
   module Key = IrminPath
-  module Value = B
-  module Blob = Internal.Blob
-  module Tree = Internal.Tree
+  module Value = C
+  module Contents = Internal.Contents
+  module Node = Internal.Node
   module Commit = Internal.Commit
-  module Dump = IrminDump.S(K)(B)
+  module Dump = IrminDump.S(K)(C)
   module Snapshot = Internal.Key
 
   type snapshot = K.t
   type key = IrminPath.t
-  type value = B.t
+  type value = C.t
   type dump = Dump.t
 
   type watch = key * (key -> K.t -> unit)
@@ -89,8 +89,8 @@ module Make
   let branch t = t.branch
 
   let co = Internal.commit
-  let tr = Internal.tree
-  let bl = Internal.blob
+  let no = Internal.node
+  let bl = Internal.contents
 
   let create () =
     Internal.create () >>= fun vals ->
@@ -103,56 +103,56 @@ module Make
     | None   -> return_none
     | Some k -> Commit.read (co t.vals) k
 
-  let read_tree t = function
-    | None       -> return IrminTree.empty
+  let read_node t = function
+    | None       -> return IrminNode.empty
     | Some commit ->
-      match Commit.tree (co t.vals) commit with
-      | None      -> return IrminTree.empty
-      | Some tree -> tree
+      match Commit.node (co t.vals) commit with
+      | None      -> return IrminNode.empty
+      | Some node -> node
 
-  let read_head_tree t =
+  let read_head_node t =
     read_head_commit t >>=
-    read_tree t
+    read_node t
 
   let parents_of_commit = function
     | None   -> []
     | Some r -> [r]
 
-  let update_tree t path fn =
+  let update_node t path fn =
     read_head_commit t >>= fun commit ->
-    read_tree t commit >>= fun old_tree ->
-    fn old_tree >>= fun tree ->
-    if old_tree = tree then return_unit
+    read_node t commit >>= fun old_node ->
+    fn old_node >>= fun node ->
+    if old_node = node then return_unit
     else (
       let parents = parents_of_commit commit in
       let date = !date_hook () in
       let origin = !origin_hook () in
-      Commit.commit (co t.vals) ~date ~origin ~tree ~parents >>= fun key ->
+      Commit.commit (co t.vals) ~date ~origin ~node ~parents >>= fun key ->
       Reference.update t.refs t.branch key
     )
 
-  let read_tree fn t path =
-    read_head_tree t >>= fun tree ->
-    fn (tr t.vals) tree path
+  let read_node fn t path =
+    read_head_node t >>= fun node ->
+    fn (no t.vals) node path
 
   let read =
-    read_tree Tree.find
+    read_node Node.find
 
-  let update t path blob =
+  let update t path contents =
     read t path >>= fun old_v ->
-    update_tree t path (fun tree ->
-        Tree.update (tr t.vals) tree path blob
+    update_node t path (fun node ->
+        Node.update (no t.vals) node path contents
       )
   let remove t path =
-    update_tree t path (fun tree ->
-        Tree.remove (tr t.vals) tree path
+    update_node t path (fun node ->
+        Node.remove (no t.vals) node path
       )
 
   let read_exn =
-    read_tree Tree.find_exn
+    read_node Node.find_exn
 
   let mem =
-    read_tree Tree.valid
+    read_node Node.valid
 
   let snapshot t =
     Reference.read_exn t.refs t.branch
@@ -162,25 +162,25 @@ module Make
 
   (* Return the subpaths. *)
   let list t path =
-    read_head_tree t >>= fun tree ->
-    Tree.sub (tr t.vals) tree path >>= function
-    | None
-    | Some (IrminTree.Leaf _) -> return_nil
-    | Some (IrminTree.Node c) ->
+    read_head_node t >>= fun node ->
+    Node.sub (no t.vals) node path >>= function
+    | None      -> return_nil
+    | Some node ->
+      let c = Node.succ (no t.vals) node in
       let paths = List.map ~f:(fun (c,_) -> path @ [c]) c in
       return paths
 
-  let contents t =
-    read_head_tree t >>= fun tree ->
+  let dump t =
+    read_head_node t >>= fun node ->
     let rec aux seen = function
       | []       -> return (List.sort compare seen)
       | path::tl ->
         list t path >>= fun childs ->
         let todo = childs @ tl in
-        Tree.find (tr t.vals) tree path >>= function
+        Node.find (no t.vals) node path >>= function
         | None   -> aux seen todo
         | Some v -> aux ((path, v) :: seen) todo in
-    begin Tree.find (tr t.vals) tree [] >>= function
+    begin Node.find (no t.vals) node [] >>= function
       | None   -> return_nil
       | Some v -> return [ ([], v) ]
     end
@@ -191,9 +191,9 @@ module Make
 
   let output t name =
     Log.debugf "output %s" name;
-    Blob.contents (bl t.vals)   >>= fun blobs   ->
-    Tree.contents (tr t.vals)   >>= fun trees   ->
-    Commit.contents (co t.vals) >>= fun commits ->
+    Contents.dump (bl t.vals) >>= fun contents ->
+    Node.dump (no t.vals)     >>= fun nodes    ->
+    Commit.dump (co t.vals)   >>= fun commits  ->
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
@@ -202,10 +202,10 @@ module Make
       edges := (v1, l, v2) :: !edges in
     let label k =
       `Label (K.to_string k) in
-    let label_of_blob k v =
+    let label_of_contents k v =
       let k = K.to_string k in
       let v =
-        let s = B.to_string v in
+        let s = C.to_string v in
         let s =
           if String.length s <= 10 then s
           else String.sub s 0 10 in
@@ -215,25 +215,30 @@ module Make
         s in
       `Label (Printf.sprintf "%s | %s" k v) in
     List.iter ~f:(fun (k, b) ->
-        add_vertex (`Blob k) [`Shape `Record; label_of_blob k b]
-      ) blobs;
+        add_vertex (`Contents k) [`Shape `Record; label_of_contents k b]
+      ) contents;
     List.iter ~f:(fun (k, t) ->
-        add_vertex (`Tree k) [`Shape `Box; `Style `Dotted; label k];
-        match t with
-        | IrminTree.Leaf v  -> add_edge (`Tree k) [`Style `Dotted] (`Blob v)
-        | IrminTree.Node ts ->
-          List.iter ~f:(fun (l,c) ->
-              add_edge (`Tree k) [`Style `Solid; `Label l] (`Tree c)
-            ) ts
-      ) trees;
+        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label k];
+        begin match t.IrminNode.contents with
+          | None    -> ()
+          | Some v  -> add_edge (`Node k) [`Style `Dotted] (`Contents v)
+        end;
+        begin match t.IrminNode.succ with
+          | [] -> ()
+          | ts ->
+            List.iter ~f:(fun (l,c) ->
+                add_edge (`Node k) [`Style `Solid; `Label l] (`Node c)
+              ) ts
+        end
+      ) nodes;
     List.iter ~f:(fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label k];
         List.iter ~f:(fun p ->
             add_edge (`Commit k) [`Style `Bold] (`Commit p)
           ) r.IrminCommit.parents;
-        match r.IrminCommit.tree with
+        match r.IrminCommit.node with
         | None      -> ()
-        | Some tree -> add_edge (`Commit k) [`Style `Dashed] (`Tree tree)
+        | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
@@ -246,19 +251,19 @@ module Make
     Log.infof "Adding a watch on %s" (IrminPath.to_string path);
     let stream = Reference.watch t.refs t.branch in
     IrminMisc.lift_stream (
-      read_tree Tree.sub t path >>= fun tree ->
-      let old_tree = ref tree in
+      read_node Node.sub t path >>= fun node ->
+      let old_node = ref node in
       let stream = Lwt_stream.filter_map_s (fun key ->
           Log.debugf "watch: %s" (Snapshot.to_string key);
           Commit.read_exn (co t.vals) key >>= fun commit ->
-          begin match Commit.tree (co t.vals) commit with
-            | None      -> return IrminTree.empty
-            | Some tree -> tree
-          end >>= fun tree ->
-          Tree.sub (tr t.vals) tree path >>= fun tree ->
-          if tree = !old_tree then return_none
+          begin match Commit.node (co t.vals) commit with
+            | None      -> return IrminNode.empty
+            | Some node -> node
+          end >>= fun node ->
+          Node.sub (no t.vals) node path >>= fun node ->
+          if node = !old_node then return_none
           else (
-            old_tree := tree;
+            old_node := node;
             return (Some (path, key))
           )
         ) stream in
@@ -271,8 +276,8 @@ module Make
   let export t roots =
     Log.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
     output t "export" >>= fun () ->
-    let contents = Internal.Key.Table.create () in
-    let add k v = Hashtbl.add_multi contents k v in
+    let table = Internal.Key.Table.create () in
+    let add k v = Hashtbl.add_multi table k v in
     Reference.read t.refs t.branch >>= function
     | None        -> return_nil
     | Some commit ->
@@ -295,36 +300,36 @@ module Make
       Lwt_list.fold_left_s (fun set key ->
           Commit.read_exn (co t.vals) key >>= fun commit ->
           add key (IrminValue.Commit commit);
-          match commit.IrminCommit.tree with
+          match commit.IrminCommit.node with
           | None      -> return set
-          | Some tree ->
-            Tree.list (tr t.vals) tree >>= fun trees ->
-            return (Set.union set (K.Set.of_list trees))
+          | Some node ->
+            Node.list (no t.vals) node >>= fun nodes ->
+            return (Set.union set (K.Set.of_list nodes))
         ) K.Set.empty commits
-      >>= fun trees ->
-      let trees = Set.elements trees in
-      Log.debugf "export TREES=%s" (IrminMisc.pretty_list K.to_string trees);
+      >>= fun nodes ->
+      let nodes = Set.elements nodes in
+      Log.debugf "export NODES=%s" (IrminMisc.pretty_list K.to_string nodes);
       Lwt_list.fold_left_s (fun set key ->
-          Tree.read_exn (tr t.vals) key >>= fun tree ->
-          add key (IrminValue.Tree tree);
-          match tree with
-          | IrminTree.Node _    -> return set
-          | IrminTree.Leaf blob ->
-            Blob.list (bl t.vals) blob >>= fun blobs ->
-            return (Set.union set (K.Set.of_list blobs))
-        ) K.Set.empty trees
-      >>= fun blobs ->
-      let blobs = Set.elements blobs in
-      Log.debugf "export BLOBS=%s" (IrminMisc.pretty_list K.to_string blobs);
+          Node.read_exn (no t.vals) key >>= fun node ->
+          add key (IrminValue.Node node);
+          match node.IrminNode.contents with
+          | None          -> return set
+          | Some contents ->
+            Contents.list (bl t.vals) contents >>= fun contents ->
+            return (Set.union set (K.Set.of_list contents))
+        ) K.Set.empty nodes
+      >>= fun contents ->
+      let contents = Set.elements contents in
+      Log.debugf "export CONTENTS=%s" (IrminMisc.pretty_list K.to_string contents);
       Lwt_list.iter_p (fun key ->
-          Blob.read_exn (bl t.vals) key >>= fun blob ->
-          add key (IrminValue.Blob blob);
+          Contents.read_exn (bl t.vals) key >>= fun contents ->
+          add key (IrminValue.Contents contents);
           return_unit
-        ) blobs
+        ) contents
       >>= fun () ->
       let list = Hashtbl.fold ~f:(fun ~key:k ~data init ->
           List.fold_left ~f:(fun acc v -> (k, v) :: acc) ~init data
-        ) ~init:[] contents in
+        ) ~init:[] table in
       return list
 
   exception Errors of (Internal.key * Internal.key * string) list
@@ -336,15 +341,15 @@ module Make
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
       return_unit
     in
-    (* Import blob first *)
+    (* Import contents first *)
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminValue.Blob x -> Blob.add (bl t.vals) x   >>= check "value" k
+        | IrminValue.Contents x -> Contents.add (bl t.vals) x   >>= check "value" k
         | _ -> return_unit
       ) list >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminValue.Tree x -> Tree.add (tr t.vals) x   >>= check "tree" k
+        | IrminValue.Node x -> Node.add (no t.vals) x   >>= check "node" k
         | _ -> return_unit
       ) list >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
@@ -369,41 +374,41 @@ module type SHA1 = S
   with type Internal.key = IrminKey.SHA1.t
    and type Reference.key = IrminReference.String.t
 
-module type STRING = SHA1 with type value = IrminBlob.String.t
+module type STRING = SHA1 with type value = IrminContents.String.t
 
 module String (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY) = struct
 
   module K = IrminKey.SHA1
-  module B = IrminBlob.String
+  module C = IrminContents.String
   module R = IrminReference.String
-  module V = IrminValue.S(K)(B)
+  module V = IrminValue.S(K)(C)
 
   module AO = IrminStore.AO_MAKER(AO)
   module RW = IrminStore.RW_MAKER(RW)
 
-  module Val = IrminValue.Make(K)(B)(AO(K)(V))
+  module Val = IrminValue.Make(K)(C)(AO(K)(V))
   module Ref = IrminReference.Make(R)(K)(RW(R)(K))
 
-  include Make (K)(B)(R)(Val)(Ref)
+  include Make (K)(C)(R)(Val)(Ref)
 
 end
 
-module type JSON = SHA1 with type value = IrminBlob.JSON.t
+module type JSON = SHA1 with type value = IrminContents.JSON.t
 (** Signature for SHA1 to string stores. *)
 
 module JSON (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY) = struct
 
   module K = IrminKey.SHA1
-  module B = IrminBlob.JSON
+  module C = IrminContents.JSON
   module R = IrminReference.String
-  module V = IrminValue.S(K)(B)
+  module V = IrminValue.S(K)(C)
 
   module AO = IrminStore.AO_MAKER(AO)
   module RW = IrminStore.RW_MAKER(RW)
 
-  module Val = IrminValue.Make(K)(B)(AO(K)(V))
+  module Val = IrminValue.Make(K)(C)(AO(K)(V))
   module Ref = IrminReference.Make(R)(K)(RW(R)(K))
 
-  include Make (K)(B)(R)(Val)(Ref)
+  include Make (K)(C)(R)(Val)(Ref)
 
 end

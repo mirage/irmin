@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -61,7 +61,7 @@ module RO (K: IrminKey.S) = struct
   let list { t } k =
     return [k]
 
-  let contents { t } =
+  let dump { t } =
     return (Hashtbl.to_alist t)
 
 end

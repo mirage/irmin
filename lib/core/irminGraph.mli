@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -78,17 +78,17 @@ module type S = sig
 end
 
 type 'a vertex =
-  [ `Blob of 'a
-  | `Tree of 'a
+  [ `Contents of 'a
+  | `Node of 'a
   | `Commit of 'a ]
 
 val of_commits: 'a list -> 'a vertex list
-val of_trees: 'a list -> 'a vertex list
-val of_blobs: 'a list -> 'a vertex list
+val of_nodes: 'a list -> 'a vertex list
+val of_contents: 'a list -> 'a vertex list
 
 val to_commits: 'a vertex list -> 'a list
-val to_trees: 'a vertex list -> 'a list
-val to_blobs: 'a vertex list -> 'a list
+val to_nodes: 'a vertex list -> 'a list
+val to_contents: 'a vertex list -> 'a list
 
 (** Build a graph. *)
 module Make(K: IrminKey.S): S with type V.t = K.t vertex

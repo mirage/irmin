@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,7 +18,7 @@
 
 open Core_kernel.Std
 
-type ('key, 'blob) t = ('key * ('key, 'blob) IrminValue.t) list
+type ('key, 'contents) t = ('key * ('key, 'contents) IrminValue.t) list
 (** Dump values. *)
 
 val of_json: (Ezjsonm.t -> 'a) -> (Ezjsonm.t -> 'b) -> Ezjsonm.t -> ('a, 'b) t
@@ -31,10 +31,10 @@ module type S = sig
   type key
   (** Keys. *)
 
-  type blob
-  (** Blobs. *)
+  type contents
+  (** Contentss. *)
 
-  include Identifiable.S with type t = (key, blob) t
+  include Identifiable.S with type t = (key, contents) t
   (** Base functions over dump values. *)
 
   val of_json: Ezjsonm.t -> t
@@ -42,6 +42,6 @@ module type S = sig
 
 end
 
-module S (K: IrminKey.S) (B: IrminBlob.S):
-  S with type key = K.t and type blob = B.t
+module S (K: IrminKey.S) (C: IrminContents.S):
+  S with type key = K.t and type contents = C.t
 (** Base functions over dump values. *)
