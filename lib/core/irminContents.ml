@@ -18,7 +18,6 @@ open Core_kernel.Std
 
 module L = Log.Make(struct let section = "VALUE" end)
 
-exception Conflict
 exception Invalid of string
 
 module type S = sig
@@ -27,22 +26,8 @@ module type S = sig
   val of_json: Ezjsonm.t -> t
   val of_bytes: string -> t option
   val of_bytes_exn: string -> t
-  val merge: old:t option -> t -> t -> t
+  val merge: t IrminMerge.t
 end
-
-let default_merge ~compare ~old t1 t2 =
-  match compare t1 t2 with
-  | 0 -> t1
-  | _ ->
-    match old with
-    | None     -> raise Conflict
-    | Some old ->
-      match compare old t1 with
-      | 0 -> t2
-      | _ ->
-        match compare old t2 with
-        | 0 -> t1
-        | _ -> raise Conflict
 
 module String  = struct
 
@@ -57,7 +42,7 @@ module String  = struct
   let of_bytes_exn s = s
 
   let merge =
-    default_merge ~compare
+    IrminMerge.default equal
 
 end
 
@@ -112,16 +97,8 @@ module JSON = struct
     Ezjsonm.from_string s
 
   (* XXX: replace by a clever merge function *)
-  let merge ~old t1 t2 =
-    let t1 = Ezjsonm.to_string t1 in
-    let t2 = Ezjsonm.to_string t2 in
-    let old = match old with
-      | None   -> None
-      | Some o -> Some (Ezjsonm.to_string o) in
-    let str = String.merge ~old t1 t2 in
-    match of_bytes str with
-    | Some j -> j
-    | None   -> raise Conflict
+  let merge =
+    IrminMerge.map IrminMerge.string of_bytes_exn Ezjsonm.to_string
 
 end
 

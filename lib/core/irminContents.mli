@@ -21,15 +21,6 @@ open Core_kernel.Std
 exception Invalid of string
 (** Invalid parsing. *)
 
-exception Conflict
-(** Exception raised during merge conflicts. *)
-
-val default_merge: compare:('a -> 'a -> int) -> old:'a option -> 'a -> 'a -> 'a
-(** The default merge function, using the given comparator
-    function. It checks if the two values are equals, or if only one
-    of the two values has been modified. It raises [Conflict] in the
-    other cases. *)
-
 module type S = sig
 
   (** Signature for store contents. *)
@@ -51,9 +42,9 @@ module type S = sig
   (** Same as [of_bytes] but raise [Invalid] if the sequence of bytes
       does not correspond to some valid contents. *)
 
-  val merge: old:t option -> t -> t -> t
-  (** Merge function. Raise [Conflict] if the values cannot be
-      merged properly. *)
+  val merge: t IrminMerge.t
+  (** Merge function. Raise [Conflict] if the values cannot be merged
+      properly. *)
 
 end
 

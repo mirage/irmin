@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1ec71fda86ca92bf7578a2587f4a56ea)
+# DO NOT EDIT (digest: f2409b7f71672852562b1f21538043f7)
 Irmin
 IrminGraph
 IrminKey
@@ -14,4 +14,5 @@ IrminVersion
 IrminDump
 IrminPath
 IrminWatch
+IrminMerge
 # OASIS_STOP

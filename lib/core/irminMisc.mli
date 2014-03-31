@@ -51,3 +51,19 @@ val write: 'a Bin_prot.Type_class.t -> 'a -> Bigstring.t
 
 val lift_stream: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
 (** Lift a stream out of the monad. *)
+
+module Map: sig
+
+  (** Extensions to the [Map] module to handle non-blocking functions. *)
+
+  val merge: ('k, 'v1, 'cmp) Map.t -> ('k, 'v2, 'cmp) Map.t ->
+    f:(key:'k -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> 'v3 option Lwt.t) ->
+    ('k, 'v3, 'cmp) Map.t Lwt.t
+    (** Same as [Map.merge]. *)
+
+  val iter2: ('k, 'v1, 'cmp) Map.t -> ('k, 'v2, 'cmp) Map.t ->
+    f:(key:'k ->data:[ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> unit Lwt.t) ->
+    unit Lwt.t
+    (** Same as [Map.iter2]. *)
+
+end

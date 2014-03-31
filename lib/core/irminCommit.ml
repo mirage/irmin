@@ -73,7 +73,7 @@ module S (K: IrminKey.S) = struct
     of_json K.of_json
 
   let merge =
-    IrminContents.default_merge ~compare
+    IrminMerge.default equal
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)

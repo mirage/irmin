@@ -82,6 +82,7 @@ module type STORE = sig
   val find_exn: t -> value -> IrminPath.t -> contents Lwt.t
   val remove: t -> value -> IrminPath.t -> value Lwt.t
   val valid: t -> value -> IrminPath.t -> bool Lwt.t
+  val merge: t -> value IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
 end
@@ -105,7 +106,7 @@ module S (K: IrminKey.S) = struct
   let to_json = to_json K.to_json
 
   let merge =
-    IrminContents.default_merge ~compare
+    IrminMerge.default equal
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)
@@ -205,6 +206,22 @@ module Make
     let node = { contents; succ } in
     add t node >>= fun key ->
     return (key, node)
+
+  (* Merge the contents values together. *)
+  let merge_contents c =
+    let merge = IrminMerge.map' C.merge (Contents.add c) (Contents.read_exn c) in
+    IrminMerge.some merge
+
+  (* Merge the successsors. *)
+  let rec merge_succ t =
+    IrminMerge.map' (merge t) (add t) (read_exn t)
+    |> IrminMerge.assoc
+
+  and merge (c, _ as t) =
+    let explode t = (t.contents, t.succ) in
+    let implode (contents, succ) = { contents; succ } in
+    let merge = IrminMerge.pair (merge_contents c) (merge_succ t) in
+    IrminMerge.map merge implode explode
 
   let contents (c, _) n =
     match n.contents with
