@@ -54,7 +54,7 @@ val lift_stream: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
 
 module Map: sig
 
-  (** Extensions to the [Map] module to handle non-blocking functions. *)
+  (** Extensions to the [Map] module to handle blocking functions. *)
 
   val merge: ('k, 'v1, 'cmp) Map.t -> ('k, 'v2, 'cmp) Map.t ->
     f:(key:'k -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> 'v3 option Lwt.t) ->

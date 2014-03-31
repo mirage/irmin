@@ -267,11 +267,13 @@ module Make (S: Irmin.S) = struct
       Commit.commit commit ~date:0. ~origin:"test" ~node:t0 ~parents:[] >>= fun kr0 ->
       Commit.commit commit ~date:1. ~origin:"test" ~node:t1 ~parents:[] >>= fun kr1 ->
       Commit.commit commit ~date:2. ~origin:"test" ~node:t2 ~parents:[] >>= fun kr2 ->
-      IrminMerge.merge (Commit.merge commit) ~old:kr0 kr1 kr2           >>= fun kr3 ->
+      IrminMerge.merge
+        (Commit.merge commit ~date:3. ~origin:"test") ~old:kr0 kr1 kr2
+      >>= fun kr3 ->
       Commit.read_exn commit kr3 >>= fun r3 ->
       begin match Commit.node commit r3 with
         | None   -> assert false
-        | Some n -> n >>= fun t3' -> assert_node_equal "merge commit" t3 t3'; return_unit
+        | Some n -> n >>= fun n4' -> assert_node_equal "merge commit" n4 n4'; return_unit
       end >>= fun () ->
 
       return_unit

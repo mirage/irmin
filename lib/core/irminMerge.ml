@@ -39,6 +39,9 @@ let default eq =
   in
   { eq; merge }
 
+let custom eq merge =
+  { eq; merge }
+
 let default' eq =
   let merge ~old t1 t2 =
     Log.debugf "default'";

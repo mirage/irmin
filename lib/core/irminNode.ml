@@ -212,17 +212,18 @@ module Make
   let merge_contents c =
     IrminMerge.some (Contents.merge c)
 
-  let merge (c, _ as t) =
+  let merge_value (c, _) merge_key =
     let explode n = (n.contents, n.succ) in
     let implode (contents, succ) = { contents; succ } in
-    let merge_pair merge=
-      IrminMerge.pair (merge_contents c) (IrminMerge.assoc merge) in
-    let merge_value merge =
-      IrminMerge.map (merge_pair merge) implode explode in
-    let rec merge () =
+    let merge_pair = IrminMerge.pair (merge_contents c) (IrminMerge.assoc merge_key) in
+    IrminMerge.map merge_pair implode explode
+
+  let merge (c, _ as t) =
+    let rec merge_key () =
       Log.debugf "merge";
-      IrminMerge.map' (merge_value (IrminMerge.apply merge ())) (add t) (read_exn t) in
-    merge ()
+      let merge = merge_value t (IrminMerge.apply merge_key ()) in
+      IrminMerge.map' merge (add t) (read_exn t) in
+    merge_key ()
 
   let contents (c, _) n =
     match n.contents with

@@ -98,53 +98,56 @@ module type STORE = sig
     parents:value list -> key Lwt.t
   val node: t -> value -> key IrminNode.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
-  val merge: t -> key IrminMerge.t
+  val merge: t -> date:float -> origin:string -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
 end
 
 module Make
     (K: IrminKey.S)
+    (C: IrminContents.S)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
     (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
     (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
 = struct
 
   type key = K.t
   type value = key t
-  type t = Node.t * Commit.t
+  type t = Contents.t * Node.t * Commit.t
 
+
+  module Node = IrminNode.Make(K)(C)(Contents)(Node)
   module Key = K
-
   module Value = S(K)
 
   open Lwt
 
   let create () =
-    Node.create () >>= fun t ->
+    Node.create () >>= fun (b, n) ->
     Commit.create () >>= fun c ->
-    return (t, c)
+    return (b, n, c)
 
-  let add (_, t) c =
+  let add (_, _, t) c =
     Commit.add t c
 
-  let read (_, t) c =
+  let read (_, _, t) c =
     Commit.read t c
 
-  let read_exn (_, t) c =
+  let read_exn (_, _, t) c =
     Commit.read_exn t c
 
-  let mem (_, t) c =
+  let mem (_, _, t) c =
     Commit.mem t c
 
-  let node (t, _) c =
+  let node (b, n, _) c =
     match c.node with
     | None   -> None
-    | Some k -> Some (Node.read_exn t k)
+    | Some k -> Some (Node.read_exn (b, n) k)
 
-  let commit (t, c) ~date ~origin ?node ~parents =
+  let commit (b, n, c) ~date ~origin ?node ~parents =
     begin match node with
       | None      -> return_none
-      | Some node -> Node.add t node >>= fun k -> return (Some k)
+      | Some node -> Node.add (b, n) node >>= fun k -> return (Some k)
     end
     >>= fun node ->
     Lwt_list.map_p (Commit.add c) parents
@@ -167,10 +170,26 @@ module Make
     let commits = IrminGraph.to_commits (Graph.vertex g) in
     return commits
 
-  let dump (_, t) =
+  let dump (_, _, t) =
     Commit.dump t
 
-  let merge t =
-    failwith "TODO"
+  let merge_node n =
+    IrminMerge.some (Node.merge n)
+
+  let merge (b, n, _ as t) ~date ~origin =
+    let eq k1 k2 = return (Key.equal k1 k2) in
+    let merge ~old k1 k2 =
+      if K.equal k1 k2 then return k1
+      else begin
+        read_exn t old >>= fun vold ->
+        read_exn t k1  >>= fun v1   ->
+        read_exn t k2  >>= fun v2   ->
+        IrminMerge.merge (merge_node (b, n)) ~old:vold.node v1.node v2.node >>= fun node ->
+        let parents = [k1; k2] in
+        let commit = { node; parents; date; origin } in
+        add t commit
+      end
+    in
+    IrminMerge.custom eq merge
 
 end

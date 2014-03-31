@@ -68,7 +68,7 @@ module type STORE = sig
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val merge: t -> key IrminMerge.t
+  val merge: t -> date:float -> origin:string -> key IrminMerge.t
   (** Lift [S.merge] to the store keys. *)
 
   module Key: IrminKey.S with type t = key
@@ -81,8 +81,10 @@ end
 
 module Make
     (K: IrminKey.S)
+    (C: IrminContents.S)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
     (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
     (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
-  : STORE with type t = Node.t * Commit.t
+  : STORE with type t = Contents.t * Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)

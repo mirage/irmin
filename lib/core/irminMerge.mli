@@ -32,6 +32,9 @@ val merge: 'a t -> old:'a -> 'a -> 'a -> 'a Lwt.t
 
 (** {2 Combinators} *)
 
+val custom: ('a -> 'a -> bool Lwt.t) -> (old:'a -> 'a -> 'a -> 'a Lwt.t) -> 'a t
+(** Create a custom merge operator. *)
+
 val default: ('a -> 'a -> bool) -> 'a t
 (** Create a default merge function. This is a simple merge functions
     which support changes in one branch at the time:
@@ -43,7 +46,7 @@ val default: ('a -> 'a -> bool) -> 'a t
 *)
 
 val default': ('a -> 'a -> bool Lwt.t) -> 'a t
-(** Same as [default] but for non-blocking equality functions. *)
+(** Same as [default] but for blocking equality functions. *)
 
 val string: string t
 (** The default string merge function. Do not anything clever, just
@@ -70,5 +73,5 @@ val map: 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
     instead. *)
 
 val map': 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
-(** Same as [map] but with potentially non-blocking converting
+(** Same as [map] but with potentially blocking converting
     functions. *)
