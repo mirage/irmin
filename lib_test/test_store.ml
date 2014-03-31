@@ -223,6 +223,47 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_merges x () =
+    let test () =
+      create () >>= fun t                    ->
+      mk x.kind t >>= function { v1; v2; kv1; kv2 } ->
+
+      Lazy.force kv1 >>= fun kv1 ->
+      Lazy.force kv2 >>= fun kv2 ->
+
+      (* merge contents *)
+      let v = contents t in
+      IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv1 >>= fun kv1'  ->
+      assert_key_equal "merge kv1" kv1 kv1';
+      IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv2 >>= fun kv2'  ->
+      assert_key_equal "merge kv2" kv2 kv2';
+
+      (* merge nodes *)
+
+      let node = node t in
+      (* The empty node *)
+      Node.node node ()                 >>= fun (k0, t0) ->
+      (* Create a node containing t1(v1) *)
+      Node.node node ~contents:v1 ()    >>= fun (k1, t1) ->
+      (* Create the node  t2 -b-> t1(v1) *)
+      Node.node node ~succ:["b", t1] () >>= fun (k2, t2) ->
+      (* Create the node  t3 -c-> t1(v1) *)
+      Node.node node ~succ:["c", t1] () >>= fun (k3, t3) ->
+      (* Should create the node:
+                          t4 -b-> t1(v1)
+                             \c/  *)
+
+      IrminMerge.merge (Node.merge node) ~old:k0 k2 k3 >>= fun k4 ->
+(*      Node.read_exn node k4 >>= fun n4 ->
+      let succ = Node.succ node n4 in
+      Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
+      >>= fun succ ->
+      assert_succ_equal "k4" succ [ ("b", t1); ("c", t1) ];
+*)
+      return_unit
+    in
+    run x test
+
   let test_stores x () =
     let test () =
       create () >>= fun t          ->
@@ -323,6 +364,7 @@ let suite (speed, x) =
     "Basic operations on nodes"       , speed, T.test_nodes      x;
     "Basic operations on commits"     , speed, T.test_commits    x;
     "Basic operations on references"  , speed, T.test_references x;
+    "Basic merge operations"          , speed, T.test_merges     x;
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
   ]
