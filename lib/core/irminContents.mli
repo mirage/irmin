@@ -64,6 +64,9 @@ module type STORE = sig
   include IrminStore.AO
   (** Contents stores are append-only. *)
 
+  val merge: t -> key IrminMerge.t
+  (** Store merge function. Lift [S.merge] to keys. *)
+
   module Key: IrminKey.S with type t = key
   (** Base functions for foreign keys. *)
 

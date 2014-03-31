@@ -98,6 +98,7 @@ module type STORE = sig
     parents:value list -> key Lwt.t
   val node: t -> value -> key IrminNode.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
+  val merge: t -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
 end
@@ -168,5 +169,8 @@ module Make
 
   let dump (_, t) =
     Commit.dump t
+
+  let merge t =
+    failwith "TODO"
 
 end

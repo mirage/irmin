@@ -104,6 +104,7 @@ end
 
 module type STORE = sig
   include IrminStore.AO
+  val merge: t -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type t = value
 end
@@ -113,7 +114,12 @@ module Make
     (C: S)
     (Contents: IrminStore.AO with type key = K.t and type value = C.t)
 = struct
+
   include Contents
   module Key  = K
   module Value = C
+
+  let merge t =
+    IrminMerge.map' C.merge (add t) (read_exn t)
+
 end

@@ -60,6 +60,9 @@ val assoc: 'a t -> (string * 'a) list t
 val pair: 'a t -> 'b t -> ('a * 'b) t
 (** Lift to pairs. *)
 
+val fix: (unit -> 'a t ) -> 'a t
+(** Fix-point operator. *)
+
 val map: 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
 (** Use the merge function defined in another domain. If the functions
     given in argument are partial (ie. returning [Not_found] on some

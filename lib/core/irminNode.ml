@@ -82,7 +82,7 @@ module type STORE = sig
   val find_exn: t -> value -> IrminPath.t -> contents Lwt.t
   val remove: t -> value -> IrminPath.t -> value Lwt.t
   val valid: t -> value -> IrminPath.t -> bool Lwt.t
-  val merge: t -> value IrminMerge.t
+  val merge: t -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
 end
@@ -130,6 +130,10 @@ module Make
     (Node: IrminStore.AO with type key = K.t and type value = K.t t)
 = struct
 
+  module Key = K
+  module Value = S(K)
+  module Contents = IrminContents.Make(K)(C)(Contents)
+
   type key = K.t
 
   type contents = C.t
@@ -137,9 +141,6 @@ module Make
   type value = K.t t
 
   type t = Contents.t * Node.t
-
-  module Key = K
-  module Value = S(K)
 
   open Lwt
 
@@ -209,19 +210,19 @@ module Make
 
   (* Merge the contents values together. *)
   let merge_contents c =
-    let merge = IrminMerge.map' C.merge (Contents.add c) (Contents.read_exn c) in
-    IrminMerge.some merge
+    IrminMerge.some (Contents.merge c)
 
-  (* Merge the successsors. *)
-  let rec merge_succ t =
-    IrminMerge.map' (merge t) (add t) (read_exn t)
-    |> IrminMerge.assoc
-
-  and merge (c, _ as t) =
-    let explode t = (t.contents, t.succ) in
+  let merge (c, _ as t) =
+    let explode n = (n.contents, n.succ) in
     let implode (contents, succ) = { contents; succ } in
-    let merge = IrminMerge.pair (merge_contents c) (merge_succ t) in
-    IrminMerge.map merge implode explode
+    let merge_pair merge=
+      IrminMerge.pair (merge_contents c) (IrminMerge.assoc merge) in
+    let merge_value merge =
+      IrminMerge.map (merge_pair merge) implode explode in
+    let rec merge () =
+      Log.debugf "merge";
+      IrminMerge.map' (merge_value (IrminMerge.fix merge)) (add t) (read_exn t) in
+    merge ()
 
   let contents (c, _) n =
     match n.contents with

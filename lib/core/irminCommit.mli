@@ -68,6 +68,9 @@ module type STORE = sig
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
+  val merge: t -> key IrminMerge.t
+  (** Lift [S.merge] to the store keys. *)
+
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 

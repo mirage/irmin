@@ -99,7 +99,7 @@ module type STORE = sig
   val valid: t -> value -> IrminPath.t -> bool Lwt.t
   (** Is a path valid. *)
 
-  val merge: t -> value IrminMerge.t
+  val merge: t -> key IrminMerge.t
   (** Merge two nodes together. *)
 
   module Key: IrminKey.S with type t = key

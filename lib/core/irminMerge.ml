@@ -17,6 +17,8 @@
 open Lwt
 open Core_kernel.Std
 
+module Log = Log.Make(struct let section = "MERGE" end)
+
 exception Conflict
 
 type 'a t = {
@@ -26,6 +28,7 @@ type 'a t = {
 
 let default eq =
   let merge ~old t1 t2 =
+    Log.debugf "default";
     if eq t1 t2 then return t1
     else if eq old t1 then return t2
     else if eq old t2 then return t1
@@ -38,6 +41,7 @@ let default eq =
 
 let default' eq =
   let merge ~old t1 t2 =
+    Log.debugf "default'";
     eq t1 t2 >>= fun b1 ->
     if b1 then return t1
     else
@@ -59,6 +63,7 @@ let some t =
     | None  , Some _ -> return false
     | Some a, Some b -> t.eq a b in
   let merge ~old t1 t2 =
+    Log.debugf "some";
     Lwt.catch
       (fun () -> merge (default' eq) ~old t1 t2)
       (function
@@ -79,6 +84,7 @@ let pair a b =
     return (a3 && b3)
   in
   let merge ~old:(o1, o2) (a1, b1) (a2, b2) =
+    Log.debugf "pair";
     a.merge ~old:o1 a1 a2 >>= fun a3 ->
     b.merge ~old:o2 b1 b2 >>= fun b3 ->
     return (a3, b3)
@@ -99,6 +105,7 @@ let assoc t =
     return !equal
   in
   let merge ~old l1 l2 =
+    Log.debugf "assoc";
     Lwt.catch
       (fun () -> merge (default' eq) ~old l1 l2)
       (function
@@ -142,6 +149,7 @@ let map t a_to_b b_to_a =
     let a2 = b_to_a b2 in
     t.eq a1 a2 in
   let merge ~old b1 b2 =
+    Log.debugf "map";
     try
       let a1 = b_to_a b1 in
       let a2 = b_to_a b2 in
@@ -159,6 +167,7 @@ let map' t a_to_b b_to_a =
     b_to_a b2 >>= fun a2 ->
     t.eq a1 a2 in
   let merge ~old b1 b2 =
+    Log.debugf "map'";
     try
       b_to_a b1  >>= fun a1 ->
       b_to_a b2  >>= fun a2 ->
@@ -172,3 +181,8 @@ let map' t a_to_b b_to_a =
 
 let string =
   default String.equal
+
+let fix f =
+  let eq a b = (f ()).eq a b in
+  let merge ~old a b = (f ()).merge ~old a b in
+  { eq; merge }
