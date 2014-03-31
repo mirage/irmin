@@ -221,7 +221,7 @@ module Make
       IrminMerge.map (merge_pair merge) implode explode in
     let rec merge () =
       Log.debugf "merge";
-      IrminMerge.map' (merge_value (IrminMerge.fix merge)) (add t) (read_exn t) in
+      IrminMerge.map' (merge_value (IrminMerge.apply merge ())) (add t) (read_exn t) in
     merge ()
 
   let contents (c, _) n =

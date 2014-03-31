@@ -182,7 +182,7 @@ let map' t a_to_b b_to_a =
 let string =
   default String.equal
 
-let fix f =
-  let eq a b = (f ()).eq a b in
-  let merge ~old a b = (f ()).merge ~old a b in
+let apply f x =
+  let eq a b = (f x).eq a b in
+  let merge ~old a b = (f x).merge ~old a b in
   { eq; merge }
