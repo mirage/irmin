@@ -254,12 +254,12 @@ module Make (S: Irmin.S) = struct
                              \c/  *)
 
       IrminMerge.merge (Node.merge node) ~old:k0 k2 k3 >>= fun k4 ->
-(*      Node.read_exn node k4 >>= fun n4 ->
+      Node.read_exn node k4 >>= fun n4 ->
       let succ = Node.succ node n4 in
       Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
       >>= fun succ ->
       assert_succ_equal "k4" succ [ ("b", t1); ("c", t1) ];
-*)
+
       return_unit
     in
     run x test
