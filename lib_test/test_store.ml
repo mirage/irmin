@@ -232,6 +232,7 @@ module Make (S: Irmin.S) = struct
       Lazy.force kv2 >>= fun kv2 ->
 
       (* merge contents *)
+
       let v = contents t in
       IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv1 >>= fun kv1'  ->
       assert_key_equal "merge kv1" kv1 kv1';
@@ -259,6 +260,19 @@ module Make (S: Irmin.S) = struct
       Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
       >>= fun succ ->
       assert_succ_equal "k4" succ [ ("b", t1); ("c", t1) ];
+
+      (* merge commits *)
+
+      let commit = commit t in
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t0 ~parents:[] >>= fun kr0 ->
+      Commit.commit commit ~date:1. ~origin:"test" ~node:t1 ~parents:[] >>= fun kr1 ->
+      Commit.commit commit ~date:2. ~origin:"test" ~node:t2 ~parents:[] >>= fun kr2 ->
+      IrminMerge.merge (Commit.merge commit) ~old:kr0 kr1 kr2           >>= fun kr3 ->
+      Commit.read_exn commit kr3 >>= fun r3 ->
+      begin match Commit.node commit r3 with
+        | None   -> assert false
+        | Some n -> n >>= fun t3' -> assert_node_equal "merge commit" t3 t3'; return_unit
+      end >>= fun () ->
 
       return_unit
     in
