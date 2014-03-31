@@ -127,7 +127,7 @@ module Make
       let parents = parents_of_commit commit in
       let date = !date_hook () in
       let origin = !origin_hook () in
-      Commit.commit (co t.vals) ~date ~origin ~node ~parents >>= fun key ->
+      Commit.commit (co t.vals) ~date ~origin ~node ~parents >>= fun (key, _) ->
       Reference.update t.refs t.branch key
     )
 

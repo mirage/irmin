@@ -95,7 +95,7 @@ module type STORE = sig
   include IrminStore.AO with type key := key
                          and type value := value
   val commit: t -> date:float -> origin:string -> ?node:key IrminNode.t ->
-    parents:value list -> key Lwt.t
+    parents:value list -> (key * value) Lwt.t
   val node: t -> value -> key IrminNode.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
   val merge: t -> date:float -> origin:string -> key IrminMerge.t
@@ -152,7 +152,9 @@ module Make
     >>= fun node ->
     Lwt_list.map_p (Commit.add c) parents
     >>= fun parents ->
-    Commit.add c { node; parents; date; origin }
+    let commit = { node; parents; date; origin } in
+    Commit.add c commit >>= fun key ->
+    return (key, commit)
 
   let parents t c =
     List.map ~f:(read_exn t) c.parents

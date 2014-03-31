@@ -59,7 +59,7 @@ module type STORE = sig
   (** Revision stores are append-only. *)
 
   val commit: t -> date:float -> origin:string ->
-    ?node:key IrminNode.t -> parents:value list -> key Lwt.t
+    ?node:key IrminNode.t -> parents:value list -> (key * value) Lwt.t
   (** Create a new commit. *)
 
   val node: t -> value -> key IrminNode.t Lwt.t option
