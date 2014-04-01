@@ -23,15 +23,18 @@ module Log = LogMake(struct let section = "IRMIN" end)
 module type S = sig
   type value
   module Internal: IrminValue.STORE with type contents = value
+  module Reference: IrminReference.STORE with type value = Internal.key
   include IrminStore.S with type key      = string list
                         and type value   := value
                         and type snapshot = Internal.key
                         and type dump     = (Internal.key, value) IrminDump.t
+                        and type branch   = Reference.key
   val output: t -> string -> unit Lwt.t
-  module Reference: IrminReference.STORE with type value = Internal.key
   val internal: t -> Internal.t
   val reference: t -> Reference.t
   val branch: t -> Reference.key
+  val with_branch: t -> Reference.key -> t
+  val merge_branch: t -> branch -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
@@ -86,7 +89,6 @@ module Make
 
   let internal t = t.vals
   let reference t = t.refs
-  let branch t = t.branch
 
   let co = Internal.commit
   let no = Internal.node
@@ -159,6 +161,41 @@ module Make
 
   let revert t r =
     Reference.update t.refs t.branch r
+
+  (* XXX: is this correct ? *)
+  let find_common_ancestor t c1 c2 =
+    let rec aux (seen1, todo1) (seen2, todo2) =
+      let seen1' = K.Set.union seen1 todo1 in
+      let seen2' = K.Set.union seen1 todo2 in
+      match K.Set.to_list (K.Set.inter seen1' seen2') with
+      | []  ->
+        (* Compute the immediate parents *)
+        let parents todo =
+          let parents_of_commit seen c =
+            Commit.read_exn (co t.vals) c >>= fun v ->
+            let parents = K.Set.of_list v.IrminCommit.parents in
+            return (K.Set.diff parents seen) in
+          Lwt_list.fold_left_s parents_of_commit todo (K.Set.to_list todo)
+        in
+        parents todo1 >>= fun todo1' ->
+        parents todo1 >>= fun todo2' ->
+        aux (seen1', todo1') (seen2', todo2')
+      | [r] -> return r
+      | rs  ->
+        Log.debugf "Error: Multiple common ancestor between %s."
+          (IrminMisc.pretty_list K.to_string rs);
+        fail IrminMerge.Conflict in
+    aux
+      (K.Set.empty, K.Set.singleton c1)
+      (K.Set.empty, K.Set.singleton c2)
+
+  let merge t c1 c2 =
+    let date = !date_hook () in
+    let origin = !origin_hook () in
+    find_common_ancestor t c1 c2 >>= fun old ->
+    IrminMerge.merge
+      (Commit.merge (co t.vals) ~date ~origin)
+      ~old c1 c2
 
   (* Return the subpaths. *)
   let list t path =
@@ -279,8 +316,9 @@ module Make
     let table = Internal.Key.Table.create () in
     let add k v = Hashtbl.add_multi table k v in
     Reference.read t.refs t.branch >>= function
-    | None        -> return_nil
+    | None        -> return { IrminDump.head = None; store = [] }
     | Some commit ->
+      let head = Some commit in
       begin
         if roots = [] then Commit.list (co t.vals) commit
         else
@@ -327,15 +365,15 @@ module Make
           return_unit
         ) contents
       >>= fun () ->
-      let list = Hashtbl.fold ~f:(fun ~key:k ~data init ->
+      let store = Hashtbl.fold ~f:(fun ~key:k ~data init ->
           List.fold_left ~f:(fun acc v -> (k, v) :: acc) ~init data
         ) ~init:[] table in
-      return list
+      return { IrminDump.head; store }
 
   exception Errors of (Internal.key * Internal.key * string) list
 
-  let import t list =
-    Log.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst list));
+  let import t branch { IrminDump.head; store } =
+    Log.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst store));
     let errors = ref [] in
     let check msg k1 k2 =
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
@@ -346,18 +384,21 @@ module Make
         match v with
         | IrminValue.Contents x -> Contents.add (bl t.vals) x   >>= check "value" k
         | _ -> return_unit
-      ) list >>= fun () ->
+      ) store >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
         | IrminValue.Node x -> Node.add (no t.vals) x   >>= check "node" k
         | _ -> return_unit
-      ) list >>= fun () ->
+      ) store >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
         | IrminValue.Commit x -> Commit.add (co t.vals) x >>= check "commit" k
         | _ -> return_unit
-      ) list >>= fun () ->
-    if !errors = [] then return_unit
+      ) store >>= fun () ->
+    if !errors = [] then
+      match head with
+      | None   -> return_unit
+      | Some h -> Reference.update t.refs branch h
     else (
       let aux (expected, got, n) =
         Printf.sprintf
@@ -368,6 +409,20 @@ module Make
         (IrminMisc.pretty_list aux !errors);
       fail (Errors !errors)
     )
+
+  type branch = Reference.key
+
+  let branch t = t.branch
+
+  let with_branch t branch =
+    { t with branch }
+
+  let merge_branch t branch =
+    Reference.read_exn t.refs t.branch >>= fun c1 ->
+    Reference.read_exn t.refs branch   >>= fun c2 ->
+    merge t c1 c2                      >>= fun c3 ->
+    Reference.update t.refs t.branch c3
+
 end
 
 module type SHA1 = S

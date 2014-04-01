@@ -344,9 +344,10 @@ module Make (S: Irmin.S) = struct
       x.init ()              >>= fun () ->
       create ()              >>= fun t2 ->
 
-      import t2 partial      >>= fun () ->
-      revert t2 r3           >>= fun () ->
-      output t2 "partial"    >>= fun () ->
+      let branch = R.of_string "import" in
+      import t2 branch partial >>= fun () ->
+      revert t2 r3             >>= fun () ->
+      output t2 "partial"      >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
@@ -365,9 +366,9 @@ module Make (S: Irmin.S) = struct
            OUnit.assert_bool "revert" false;
            return_unit)
         (fun e ->
-           import t2 full    >>= fun () ->
-           revert t2 r2      >>= fun () ->
-           mem t2 ["a";"d"]  >>= fun b4 ->
+           import t2 branch full >>= fun () ->
+           revert t2 r2          >>= fun () ->
+           mem t2 ["a";"d"]      >>= fun b4 ->
            assert_bool_equal "mem-ab" false b4;
            return_unit)
     in

@@ -173,35 +173,42 @@ module Make (Client: Cohttp_lwt.Client) = struct
   module S (U: U)
       (K: IrminKey.S)
       (V: Jsonable)
-      (R: IrminKey.S)
+      (S: IrminKey.S)
+      (B: IrminKey.S)
       (D: Jsonable)
   = struct
 
     include RW(U)(K)(V)
 
-    type snapshot = R.t
+    type snapshot = S.t
 
     type dump = D.t
 
+    type branch = B.t
+
     let snapshot t =
       L.debugf "snapshot";
-      get t ["snapshot"] R.of_json
+      get t ["snapshot"] S.of_json
 
     let revert t rev =
       L.debugf "revert";
-      get t ["revert"; R.to_string rev] Ezjsonm.get_unit
+      get t ["revert"; S.to_string rev] Ezjsonm.get_unit
+
+    let merge t s1 s2 =
+      L.debugf "snapshot";
+      get t ["snapshot"; S.to_string s1; S.to_string s2] S.of_json
 
     let watch t path =
       L.debugf "watch";
-      get_stream t ["watch"; K.to_string path] (Ezjsonm.get_pair K.of_json R.of_json)
+      get_stream t ["watch"; K.to_string path] (Ezjsonm.get_pair K.of_json S.of_json)
 
     let export t revs =
-      L.debugf "export %s" (IrminMisc.pretty_list R.to_string revs);
-      get t ("export" :: List.map ~f:R.to_string revs) D.of_json
+      L.debugf "export %s" (IrminMisc.pretty_list S.to_string revs);
+      get t ("export" :: List.map ~f:S.to_string revs) D.of_json
 
-    let import t dump =
+    let import t branch dump =
       L.debugf "dump";
-      post t ["import"] (D.to_json dump) Ezjsonm.get_unit
+      post t ["import"; B.to_string branch] (D.to_json dump) Ezjsonm.get_unit
 
   end
 
@@ -250,10 +257,12 @@ module type S = sig
       (K: IrminKey.S)
       (V: Jsonable)
       (S: IrminKey.S)
+      (B: IrminKey.S)
       (D: Jsonable)
     : IrminStore.S with type key = K.t
                     and type value = V.t
                     and type snapshot = S.t
+                    and type branch = B.t
                     and type dump = D.t
   val create: [`JSON|`String] -> Uri.t -> (module Irmin.S)
 end

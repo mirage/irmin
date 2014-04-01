@@ -30,18 +30,19 @@ module type S = sig
 
   (** {2 Irminsule store interface} *)
 
+  module Reference: IrminReference.STORE with type value = Internal.key
+  (** Read/write store for references. *)
+
   include IrminStore.S with type key      = string list
                         and type value   := value
                         and type snapshot = Internal.key
                         and type dump     = (Internal.key, value) IrminDump.t
+                        and type branch   = Reference.key
 
   val output: t -> string -> unit Lwt.t
   (** Create a Graphviz graph representing the store state. Could be
       no-op if the backend does not support that operation (for instance,
       for remote connections). *)
-
-  module Reference: IrminReference.STORE with type value = Internal.key
-  (** Read/write store for references. *)
 
   val internal: t -> Internal.t
   (** Return an handler to the internal store. *)
@@ -49,8 +50,16 @@ module type S = sig
   val reference: t -> Reference.t
   (** Return an handler to the reference store. *)
 
+  (** {Branches} *)
+
   val branch: t -> Reference.key
-  (** Return the current branch reference. *)
+  (** Get the current branch. *)
+
+  val with_branch: t -> Reference.key -> t
+  (** Change the current branch. *)
+
+  val merge_branch: t -> branch -> unit Lwt.t
+  (** Merge the current branch with [branch]. *)
 
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)

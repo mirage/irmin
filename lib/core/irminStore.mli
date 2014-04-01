@@ -145,19 +145,27 @@ module type S = sig
   val revert: t -> snapshot -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
+  val merge: t -> snapshot -> snapshot -> snapshot Lwt.t
+  (** Merge with the given snapshot. *)
+
   val watch: t -> key -> (key * snapshot) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
       given key. *)
 
+  (** {Import/export} *)
+
   type dump
   (** Raw dump. *)
 
-  val export: t -> snapshot list -> dump Lwt.t
+   val export: t -> snapshot list -> dump Lwt.t
   (** Return all the new contents in the store *from* which has been
       added after the revisions. If the revision is [None], then
       export everything. *)
 
-  val import: t -> dump -> unit Lwt.t
+   type branch
+   (** Branch name. *)
+
+   val import: t -> branch -> dump -> unit Lwt.t
   (** Import some raw contents. This does not change the tags. *)
 
 end
