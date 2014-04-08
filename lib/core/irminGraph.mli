@@ -77,18 +77,23 @@ module type S = sig
 
 end
 
-type 'a vertex =
+type ('a, 'b) vertex =
   [ `Contents of 'a
   | `Node of 'a
-  | `Commit of 'a ]
+  | `Commit of 'a
+  | `Ref of 'b ]
 
-val of_commits: 'a list -> 'a vertex list
-val of_nodes: 'a list -> 'a vertex list
-val of_contents: 'a list -> 'a vertex list
+val of_refs: 'b list -> ('a, 'b) vertex list
+val to_refs: ('a, 'b) vertex list -> 'b list
 
-val to_commits: 'a vertex list -> 'a list
-val to_nodes: 'a vertex list -> 'a list
-val to_contents: 'a vertex list -> 'a list
+val of_commits: 'a list -> ('a, 'b) vertex list
+val to_commits: ('a, 'b) vertex list -> 'a list
+
+val of_nodes: 'a list -> ('a, 'b) vertex list
+val to_nodes: ('a, 'b) vertex list -> 'a list
+
+val of_contents: 'a list -> ('a, 'b) vertex list
+val to_contents: ('a, 'b) vertex list -> 'a list
 
 (** Build a graph. *)
-module Make(K: IrminKey.S): S with type V.t = K.t vertex
+module Make(K: IrminKey.S)(R: IrminReference.S): S with type V.t = (K.t, R.t) vertex

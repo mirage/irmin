@@ -175,7 +175,7 @@ module Make
     | false -> Contents.mem c key
     | true  -> return true
 
-  module Graph = IrminGraph.Make(K)
+  module Graph = IrminGraph.Make(K)(IrminReference.String)
 
   let list t key =
     L.debugf "list %s" (K.to_string key);

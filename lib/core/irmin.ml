@@ -224,23 +224,27 @@ module Make
     >>= fun init ->
     list t [] >>= aux init
 
-  module Graph = IrminGraph.Make(K)
+  module Graph = IrminGraph.Make(K)(R)
 
   let output t name =
     Log.debugf "output %s" name;
     Contents.dump (bl t.vals) >>= fun contents ->
     Node.dump (no t.vals)     >>= fun nodes    ->
     Commit.dump (co t.vals)   >>= fun commits  ->
+    Reference.dump t.refs     >>= fun refs     ->
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
     let edges = ref [] in
     let add_edge v1 l v2 =
       edges := (v1, l, v2) :: !edges in
+    let string_of_key k =
+      let s = K.to_string k in
+      if String.length s <= 8 then s else String.sub s 0 8 in
     let label k =
-      `Label (K.to_string k) in
+      `Label (string_of_key k) in
     let label_of_contents k v =
-      let k = K.to_string k in
+      let k = string_of_key k in
       let v =
         let s = C.to_string v in
         let s =
@@ -252,7 +256,9 @@ module Make
         s in
       `Label (Printf.sprintf "%s | %s" k v) in
     List.iter ~f:(fun (k, b) ->
-        add_vertex (`Contents k) [`Shape `Record; label_of_contents k b]
+        add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
+        add_vertex (`Node k)     [`Shape `Box; `Style `Dotted; label k];
+        add_edge   (`Node k)     [`Style `Dotted] (`Contents k);
       ) contents;
     List.iter ~f:(fun (k, t) ->
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label k];
@@ -277,6 +283,10 @@ module Make
         | None      -> ()
         | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
+    List.iter ~f:(fun (r,k) ->
+        add_vertex (`Ref r) [`Shape `Plaintext; `Label (R.to_string r); `Style `Filled];
+        add_edge   (`Ref r) [`Style `Bold] (`Commit k);
+      ) refs;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
         Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
