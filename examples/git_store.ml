@@ -15,12 +15,14 @@ open Lwt
 let () =
   try match Sys.getenv "DEBUG" with
     | "" -> ()
-    | _  -> Log.set_log_level Log.DEBUG
+    | _  ->
+      Log.color_on ();
+      Log.set_log_level Log.DEBUG
   with Not_found -> ()
 
 
 let store = "/tmp/irmin/test"
-module Store = (val IrminGit.local ~bare:false store)
+module Store = (val IrminGit.local ~bare:true store)
 
 let main () =
   Store.create () >>= fun t ->
@@ -29,6 +31,17 @@ let main () =
   Store.update   t ["root";"misc";"3.txt"] "Really ?" >>= fun () ->
   Store.read_exn t ["root";"misc";"2.txt"] >>= fun file ->
   Printf.printf "I've just read: %s\n%!" file;
+
+  Store.branch t "refs/heads/test" >>= fun x ->
+
+  Store.update   t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
+  Store.update   x ["root";"misc";"2.txt"] "Hahaha" >>= fun () ->
+
+  Store.merge t x >>= fun () ->
+  Store.read_exn t ["root";"misc";"2.txt"]  >>= fun file2 ->
+  Store.read_exn t ["root";"misc";"3.txt"]  >>= fun file3 ->
+  Printf.printf "I've just read: 2:%s 3:%s\n%!" file2 file3;
+
   return_unit
 
 let () =
