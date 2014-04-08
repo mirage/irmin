@@ -194,9 +194,9 @@ module Make (Client: Cohttp_lwt.Client) = struct
       L.debugf "revert";
       get t ["revert"; S.to_string rev] Ezjsonm.get_unit
 
-    let merge t s1 s2 =
-      L.debugf "snapshot";
-      get t ["snapshot"; S.to_string s1; S.to_string s2] S.of_json
+    let merge_snapshot t s1 s2 =
+      L.debugf "merge_snapshot";
+      get t ["merge_snapshot"; S.to_string s1; S.to_string s2] S.of_json
 
     let watch t path =
       L.debugf "watch";

@@ -32,9 +32,8 @@ module type S = sig
   val output: t -> string -> unit Lwt.t
   val internal: t -> Internal.t
   val reference: t -> Reference.t
-  val branch: t -> Reference.key
-  val with_branch: t -> Reference.key -> t
-  val merge_branch: t -> branch -> unit Lwt.t
+  val branch: t -> branch -> t Lwt.t
+  val merge: t -> t -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
@@ -162,11 +161,16 @@ module Make
   let revert t r =
     Reference.update t.refs t.branch r
 
+  let string_of_set s =
+    IrminMisc.pretty_list K.to_string (K.Set.to_list s)
+
   (* XXX: is this correct ? *)
   let find_common_ancestor t c1 c2 =
     let rec aux (seen1, todo1) (seen2, todo2) =
+      Log.debugf "seen1=%s todo1=%s" (string_of_set seen1) (string_of_set todo1);
+      Log.debugf "seen2=%s todo2=%s" (string_of_set seen2) (string_of_set todo2);
       let seen1' = K.Set.union seen1 todo1 in
-      let seen2' = K.Set.union seen1 todo2 in
+      let seen2' = K.Set.union seen2 todo2 in
       match K.Set.to_list (K.Set.inter seen1' seen2') with
       | []  ->
         (* Compute the immediate parents *)
@@ -178,18 +182,20 @@ module Make
           Lwt_list.fold_left_s parents_of_commit todo (K.Set.to_list todo)
         in
         parents todo1 >>= fun todo1' ->
-        parents todo1 >>= fun todo2' ->
+        parents todo2 >>= fun todo2' ->
         aux (seen1', todo1') (seen2', todo2')
-      | [r] -> return r
+      | [r] ->
+        Log.debugf "common ancestor: %s" (K.to_string r);
+        return r
       | rs  ->
-        Log.debugf "Error: Multiple common ancestor between %s."
+        Log.debugf "Error: Multiple common ancestor: %s."
           (IrminMisc.pretty_list K.to_string rs);
         fail IrminMerge.Conflict in
     aux
       (K.Set.empty, K.Set.singleton c1)
       (K.Set.empty, K.Set.singleton c2)
 
-  let merge t c1 c2 =
+  let merge_snapshot t c1 c2 =
     let date = !date_hook () in
     let origin = !origin_hook () in
     find_common_ancestor t c1 c2 >>= fun old ->
@@ -422,16 +428,21 @@ module Make
 
   type branch = Reference.key
 
-  let branch t = t.branch
+  let branch t branch =
+    begin Reference.read t.refs t.branch >>= function
+    | None   -> return_unit
+    | Some c -> Reference.update t.refs branch c
+    end >>= fun () ->
+    return { t with branch }
 
-  let with_branch t branch =
-    { t with branch }
-
-  let merge_branch t branch =
-    Reference.read_exn t.refs t.branch >>= fun c1 ->
-    Reference.read_exn t.refs branch   >>= fun c2 ->
-    merge t c1 c2                      >>= fun c3 ->
-    Reference.update t.refs t.branch c3
+  let merge t1 t2 =
+    Reference.read_exn t1.refs t1.branch  >>= fun c1  ->
+    Reference.read_exn t2.refs t2.branch  >>= fun c2  ->
+    merge_snapshot t1 c1 c2               >>= fun c3  ->
+    (* XXX maybe need to do this as well ...
+    merge_snapshot t2 c1 c2               >>= fun c3' ->
+    assert (c3 = c3'); *)
+    Reference.update t1.refs t1.branch c3
 
 end
 

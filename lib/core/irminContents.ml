@@ -42,7 +42,7 @@ module String  = struct
   let of_bytes_exn s = s
 
   let merge =
-    IrminMerge.default equal
+    IrminMerge.default ~eq:equal ~to_string
 
 end
 
@@ -98,7 +98,7 @@ module JSON = struct
 
   (* XXX: replace by a clever merge function *)
   let merge =
-    IrminMerge.map IrminMerge.string of_bytes_exn Ezjsonm.to_string
+    IrminMerge.map IrminMerge.string of_bytes_exn Ezjsonm.to_string to_string
 
 end
 
@@ -120,6 +120,6 @@ module Make
   module Value = C
 
   let merge t =
-    IrminMerge.map' C.merge (add t) (read_exn t)
+    IrminMerge.map' C.merge (add t) (read_exn t) K.to_string
 
 end

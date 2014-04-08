@@ -17,7 +17,7 @@
 
 open Core_kernel.Std
 
-module L = Log.Make(struct let section = "NODE" end)
+module Log = Log.Make(struct let section = "NODE" end)
 
 type 'key t = {
   contents: 'key option;
@@ -106,7 +106,7 @@ module S (K: IrminKey.S) = struct
   let to_json = to_json K.to_json
 
   let merge =
-    IrminMerge.default equal
+    IrminMerge.default ~eq:equal ~to_string
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)
@@ -162,7 +162,9 @@ module Make
     | Some _ as x -> return x
     | None        ->
       Contents.mem c key >>= function
-      | true  -> return (Some (singleton key))
+      | true  ->
+        Log.debugf "singleton %s" (K.to_string key);
+        return (Some (singleton key))
       | false -> return_none
 
   let read_exn t key =
@@ -178,7 +180,7 @@ module Make
   module Graph = IrminGraph.Make(K)(IrminReference.String)
 
   let list t key =
-    L.debugf "list %s" (K.to_string key);
+    Log.debugf "list %s" (K.to_string key);
     read_exn t key >>= fun _ ->
     let pred = function
       | `Node k ->
@@ -216,13 +218,13 @@ module Make
     let explode n = (n.contents, n.succ) in
     let implode (contents, succ) = { contents; succ } in
     let merge_pair = IrminMerge.pair (merge_contents c) (IrminMerge.assoc merge_key) in
-    IrminMerge.map merge_pair implode explode
+    IrminMerge.map merge_pair implode explode Value.to_string
 
   let merge (c, _ as t) =
     let rec merge_key () =
       Log.debugf "merge";
       let merge = merge_value t (IrminMerge.apply merge_key ()) in
-      IrminMerge.map' merge (add t) (read_exn t) in
+      IrminMerge.map' merge (add t) (read_exn t) K.to_string in
     merge_key ()
 
   let contents (c, _) n =

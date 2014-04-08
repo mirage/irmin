@@ -21,9 +21,9 @@ val create: ?bare:bool -> ?root:string ->
 (** Create a Git store. [root] is the location of the Git root,
     default is $(pwd). *)
 
-val local: ?bare:bool -> string -> (module Irmin.S with type value = string)
+val local: ?bare:bool -> string -> (module Irmin.STRING)
 (** Local store, located in the given directory. By default, create a
     [bare] repository. *)
 
-module Memory: Irmin.S with type value = string
+module Memory: Irmin.S
 (** Simple in-memory Git store, holding raw blobs. *)

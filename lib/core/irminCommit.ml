@@ -73,7 +73,7 @@ module S (K: IrminKey.S) = struct
     of_json K.of_json
 
   let merge =
-    IrminMerge.default equal
+    IrminMerge.default ~eq:equal ~to_string
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)
@@ -192,6 +192,6 @@ module Make
         add t commit
       end
     in
-    IrminMerge.custom eq merge
+    IrminMerge.custom ~eq ~merge ~to_string:K.to_string
 
 end

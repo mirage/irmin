@@ -52,14 +52,12 @@ module type S = sig
 
   (** {Branches} *)
 
-  val branch: t -> Reference.key
-  (** Get the current branch. *)
+  val branch: t -> branch -> t Lwt.t
+  (** Fork the store, using the giben branch name. *)
 
-  val with_branch: t -> Reference.key -> t
-  (** Change the current branch. *)
-
-  val merge_branch: t -> branch -> unit Lwt.t
-  (** Merge the current branch with [branch]. *)
+  val merge: t -> t -> unit Lwt.t
+  (** Merge the two current store branches. Both tags are updated to
+      point to the merge commit. *)
 
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
