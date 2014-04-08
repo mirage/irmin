@@ -25,7 +25,13 @@ module type Config = sig
   val bare: bool
 end
 
-module Make (Config: Config) (G: Git.Store.S) (K: IrminKey.S) (B: IrminContents.S) (R: IrminReference.S) = struct
+module Make
+    (Config: Config)
+    (G: Git.Store.S)
+    (K: IrminKey.S)
+    (B: IrminContents.S)
+    (R: IrminReference.S) =
+struct
 
   let git_of_key key =
     Git.SHA1.of_string (K.to_raw key)
@@ -402,4 +408,4 @@ let local ?(bare=true) root =
     let kind = `Local
     let bare = bare
   end in
-  (module String(C)(Git_fs): Irmin.S with type value = string)
+  (module String(C)(Git_fs): Irmin.STRING)

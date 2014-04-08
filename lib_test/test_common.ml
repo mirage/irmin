@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Core_kernel.Std
+
 let () =
   Log.set_log_level Log.DEBUG;
   Log.color_on ();
@@ -38,7 +40,8 @@ let rec cmp_list fn x y =
 
 let printer_list fn = function
   | [] -> "[]"
-  | l  -> Printf.sprintf "[ %s ]" (String.concat ", " (List.map fn l))
+  | l  -> Printf.sprintf "[ %s ]"
+            (String.concat ~sep:", " (List.map ~f:fn l))
 
 let line msg =
   let line () = Alcotest.line stderr ~color:`Yellow '-' in
@@ -87,14 +90,22 @@ module Make (S: Irmin.S) = struct
   module P = IrminPath
   let assert_path_equal, assert_path_opt_equal, assert_paths_equal =
     mk P.equal P.compare P.to_string
-
   module V = Internal.Value
 
   let assert_bool_equal, assert_bool_opt_equal, assert_bools_equal =
     mk (=) compare string_of_bool
 
+  let assert_string_equal, assert_string_opt_equal, assert_strings_equal =
+    mk String.equal String.compare (fun x -> x)
+
   let contents t = Internal.contents (internal t)
   let node t = Internal.node (internal t)
   let commit t = Internal.commit (internal t)
+
+  let assert_succ_equal msg s1 s2 =
+    let l1, k1 = List.unzip s1 in
+    let l2, k2 = List.unzip s2 in
+    assert_strings_equal msg l1 l2;
+    assert_nodes_equal msg k1 k2
 
 end

@@ -23,15 +23,17 @@ module Log = LogMake(struct let section = "IRMIN" end)
 module type S = sig
   type value
   module Internal: IrminValue.STORE with type contents = value
+  module Reference: IrminReference.STORE with type value = Internal.key
   include IrminStore.S with type key      = string list
                         and type value   := value
                         and type snapshot = Internal.key
                         and type dump     = (Internal.key, value) IrminDump.t
+                        and type branch   = Reference.key
   val output: t -> string -> unit Lwt.t
-  module Reference: IrminReference.STORE with type value = Internal.key
   val internal: t -> Internal.t
   val reference: t -> Reference.t
-  val branch: t -> Reference.key
+  val branch: t -> branch -> t Lwt.t
+  val merge: t -> t -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
@@ -86,7 +88,6 @@ module Make
 
   let internal t = t.vals
   let reference t = t.refs
-  let branch t = t.branch
 
   let co = Internal.commit
   let no = Internal.node
@@ -127,7 +128,7 @@ module Make
       let parents = parents_of_commit commit in
       let date = !date_hook () in
       let origin = !origin_hook () in
-      Commit.commit (co t.vals) ~date ~origin ~node ~parents >>= fun key ->
+      Commit.commit (co t.vals) ~date ~origin ~node ~parents >>= fun (key, _) ->
       Reference.update t.refs t.branch key
     )
 
@@ -160,6 +161,48 @@ module Make
   let revert t r =
     Reference.update t.refs t.branch r
 
+  let string_of_set s =
+    IrminMisc.pretty_list K.to_string (K.Set.to_list s)
+
+  (* XXX: is this correct ? *)
+  let find_common_ancestor t c1 c2 =
+    let rec aux (seen1, todo1) (seen2, todo2) =
+      Log.debugf "seen1=%s todo1=%s" (string_of_set seen1) (string_of_set todo1);
+      Log.debugf "seen2=%s todo2=%s" (string_of_set seen2) (string_of_set todo2);
+      let seen1' = K.Set.union seen1 todo1 in
+      let seen2' = K.Set.union seen2 todo2 in
+      match K.Set.to_list (K.Set.inter seen1' seen2') with
+      | []  ->
+        (* Compute the immediate parents *)
+        let parents todo =
+          let parents_of_commit seen c =
+            Commit.read_exn (co t.vals) c >>= fun v ->
+            let parents = K.Set.of_list v.IrminCommit.parents in
+            return (K.Set.diff parents seen) in
+          Lwt_list.fold_left_s parents_of_commit todo (K.Set.to_list todo)
+        in
+        parents todo1 >>= fun todo1' ->
+        parents todo2 >>= fun todo2' ->
+        aux (seen1', todo1') (seen2', todo2')
+      | [r] ->
+        Log.debugf "common ancestor: %s" (K.to_string r);
+        return r
+      | rs  ->
+        Log.debugf "Error: Multiple common ancestor: %s."
+          (IrminMisc.pretty_list K.to_string rs);
+        fail IrminMerge.Conflict in
+    aux
+      (K.Set.empty, K.Set.singleton c1)
+      (K.Set.empty, K.Set.singleton c2)
+
+  let merge_snapshot t c1 c2 =
+    let date = !date_hook () in
+    let origin = !origin_hook () in
+    find_common_ancestor t c1 c2 >>= fun old ->
+    IrminMerge.merge
+      (Commit.merge (co t.vals) ~date ~origin)
+      ~old c1 c2
+
   (* Return the subpaths. *)
   let list t path =
     read_head_node t >>= fun node ->
@@ -187,23 +230,27 @@ module Make
     >>= fun init ->
     list t [] >>= aux init
 
-  module Graph = IrminGraph.Make(K)
+  module Graph = IrminGraph.Make(K)(R)
 
   let output t name =
     Log.debugf "output %s" name;
     Contents.dump (bl t.vals) >>= fun contents ->
     Node.dump (no t.vals)     >>= fun nodes    ->
     Commit.dump (co t.vals)   >>= fun commits  ->
+    Reference.dump t.refs     >>= fun refs     ->
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
     let edges = ref [] in
     let add_edge v1 l v2 =
       edges := (v1, l, v2) :: !edges in
+    let string_of_key k =
+      let s = K.to_string k in
+      if String.length s <= 8 then s else String.sub s 0 8 in
     let label k =
-      `Label (K.to_string k) in
+      `Label (string_of_key k) in
     let label_of_contents k v =
-      let k = K.to_string k in
+      let k = string_of_key k in
       let v =
         let s = C.to_string v in
         let s =
@@ -215,7 +262,9 @@ module Make
         s in
       `Label (Printf.sprintf "%s | %s" k v) in
     List.iter ~f:(fun (k, b) ->
-        add_vertex (`Contents k) [`Shape `Record; label_of_contents k b]
+        add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
+        add_vertex (`Node k)     [`Shape `Box; `Style `Dotted; label k];
+        add_edge   (`Node k)     [`Style `Dotted] (`Contents k);
       ) contents;
     List.iter ~f:(fun (k, t) ->
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label k];
@@ -240,6 +289,10 @@ module Make
         | None      -> ()
         | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
+    List.iter ~f:(fun (r,k) ->
+        add_vertex (`Ref r) [`Shape `Plaintext; `Label (R.to_string r); `Style `Filled];
+        add_edge   (`Ref r) [`Style `Bold] (`Commit k);
+      ) refs;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
         Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
@@ -279,8 +332,9 @@ module Make
     let table = Internal.Key.Table.create () in
     let add k v = Hashtbl.add_multi table k v in
     Reference.read t.refs t.branch >>= function
-    | None        -> return_nil
+    | None        -> return { IrminDump.head = None; store = [] }
     | Some commit ->
+      let head = Some commit in
       begin
         if roots = [] then Commit.list (co t.vals) commit
         else
@@ -327,15 +381,15 @@ module Make
           return_unit
         ) contents
       >>= fun () ->
-      let list = Hashtbl.fold ~f:(fun ~key:k ~data init ->
+      let store = Hashtbl.fold ~f:(fun ~key:k ~data init ->
           List.fold_left ~f:(fun acc v -> (k, v) :: acc) ~init data
         ) ~init:[] table in
-      return list
+      return { IrminDump.head; store }
 
   exception Errors of (Internal.key * Internal.key * string) list
 
-  let import t list =
-    Log.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst list));
+  let import t branch { IrminDump.head; store } =
+    Log.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst store));
     let errors = ref [] in
     let check msg k1 k2 =
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
@@ -346,18 +400,21 @@ module Make
         match v with
         | IrminValue.Contents x -> Contents.add (bl t.vals) x   >>= check "value" k
         | _ -> return_unit
-      ) list >>= fun () ->
+      ) store >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
         | IrminValue.Node x -> Node.add (no t.vals) x   >>= check "node" k
         | _ -> return_unit
-      ) list >>= fun () ->
+      ) store >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
         | IrminValue.Commit x -> Commit.add (co t.vals) x >>= check "commit" k
         | _ -> return_unit
-      ) list >>= fun () ->
-    if !errors = [] then return_unit
+      ) store >>= fun () ->
+    if !errors = [] then
+      match head with
+      | None   -> return_unit
+      | Some h -> Reference.update t.refs branch h
     else (
       let aux (expected, got, n) =
         Printf.sprintf
@@ -368,6 +425,25 @@ module Make
         (IrminMisc.pretty_list aux !errors);
       fail (Errors !errors)
     )
+
+  type branch = Reference.key
+
+  let branch t branch =
+    begin Reference.read t.refs t.branch >>= function
+    | None   -> return_unit
+    | Some c -> Reference.update t.refs branch c
+    end >>= fun () ->
+    return { t with branch }
+
+  let merge t1 t2 =
+    Reference.read_exn t1.refs t1.branch  >>= fun c1  ->
+    Reference.read_exn t2.refs t2.branch  >>= fun c2  ->
+    merge_snapshot t1 c1 c2               >>= fun c3  ->
+    (* XXX maybe need to do this as well ...
+    merge_snapshot t2 c1 c2               >>= fun c3' ->
+    assert (c3 = c3'); *)
+    Reference.update t1.refs t1.branch c3
+
 end
 
 module type SHA1 = S

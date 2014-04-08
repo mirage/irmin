@@ -173,16 +173,18 @@ module Make (S: Irmin.S) = struct
       Node.read_exn node k3             >>= fun t3 ->
 
       (* r1 : t2 *)
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun kr1 ->
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun kr1'->
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun (kr1 , r1 ) ->
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun (kr1', r1') ->
       assert_key_equal "kr1" kr1 kr1';
-      Commit.read_exn commit kr1 >>= fun r1  ->
+      assert_commit_equal "r1" r1 r1';
 
       (* r1 -> r2 : t3 *)
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t3 ~parents:[r1] >>= fun kr2  ->
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t3 ~parents:[r1] >>= fun kr2' ->
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t3 ~parents:[r1]
+      >>= fun (kr2 , r2) ->
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t3 ~parents:[r1]
+      >>= fun (kr2', r2') ->
       assert_key_equal "kr2" kr2 kr2';
-      Commit.read_exn commit kr2 >>= fun r2   ->
+      assert_commit_equal "r2" r2 r2';
 
       Commit.list commit kr1 >>= fun kr1s ->
       assert_keys_equal "g1" [kr1] kr1s;
@@ -219,6 +221,65 @@ module Make (S: Irmin.S) = struct
       assert_key_opt_equal "empty" None empty;
       Reference.list   reference r1     >>= fun r2' ->
       assert_references_equal "all-after-remove" [r2] r2';
+      return_unit
+    in
+    run x test
+
+  let test_merges x () =
+    let test () =
+      create () >>= fun t                    ->
+      mk x.kind t >>= function { v1; v2; kv1; kv2 } ->
+
+      Lazy.force kv1 >>= fun kv1 ->
+      Lazy.force kv2 >>= fun kv2 ->
+
+      (* merge contents *)
+
+      let v = contents t in
+      IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv1 >>= fun kv1'  ->
+      assert_key_equal "merge kv1" kv1 kv1';
+      IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv2 >>= fun kv2'  ->
+      assert_key_equal "merge kv2" kv2 kv2';
+
+      (* merge nodes *)
+
+      let node = node t in
+      (* The empty node *)
+      Node.node node ()                 >>= fun (k0, t0) ->
+      (* Create a node containing t1(v1) *)
+      Node.node node ~contents:v1 ()    >>= fun (k1, t1) ->
+      (* Create the node  t2 -b-> t1(v1) *)
+      Node.node node ~succ:["b", t1] () >>= fun (k2, t2) ->
+      (* Create the node  t3 -c-> t1(v1) *)
+      Node.node node ~succ:["c", t1] () >>= fun (k3, t3) ->
+      (* Should create the node:
+                          t4 -b-> t1(v1)
+                             \c/  *)
+
+      IrminMerge.merge (Node.merge node) ~old:k0 k2 k3 >>= fun k4 ->
+      Node.read_exn node k4 >>= fun t4 ->
+      let succ = Node.succ node t4 in
+      Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
+      >>= fun succ ->
+      assert_succ_equal "k4" succ [ ("b", t1); ("c", t1) ];
+
+      (* merge commits *)
+
+      let commit = commit t in
+      Commit.commit commit ~date:0. ~origin:"test" ~node:t0 ~parents:[] >>= fun (kr0, r0) ->
+      Commit.commit commit ~date:1. ~origin:"test" ~node:t2 ~parents:[r0]
+      >>= fun (kr1, r1) ->
+      Commit.commit commit ~date:2. ~origin:"test" ~node:t3 ~parents:[r0]
+      >>= fun (kr2, r2) ->
+      IrminMerge.merge
+        (Commit.merge commit ~date:3. ~origin:"test") ~old:kr0 kr1 kr2
+      >>= fun kr3 ->
+      Commit.read_exn commit kr3 >>= fun r3 ->
+      Commit.commit commit ~date:3. ~origin:"test" ~node:t4 ~parents:[r1; r2]
+      >>= fun (kr3', r3') ->
+      assert_key_equal "kr3" kr3 kr3';
+      assert_commit_equal "r3" r3 r3';
+
       return_unit
     in
     run x test
@@ -283,9 +344,10 @@ module Make (S: Irmin.S) = struct
       x.init ()              >>= fun () ->
       create ()              >>= fun t2 ->
 
-      import t2 partial      >>= fun () ->
-      revert t2 r3           >>= fun () ->
-      output t2 "partial"    >>= fun () ->
+      let branch = R.of_string "import" in
+      import t2 branch partial >>= fun () ->
+      revert t2 r3             >>= fun () ->
+      output t2 "partial"      >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
@@ -304,11 +366,54 @@ module Make (S: Irmin.S) = struct
            OUnit.assert_bool "revert" false;
            return_unit)
         (fun e ->
-           import t2 full    >>= fun () ->
-           revert t2 r2      >>= fun () ->
-           mem t2 ["a";"d"]  >>= fun b4 ->
+           import t2 branch full >>= fun () ->
+           revert t2 r2          >>= fun () ->
+           mem t2 ["a";"d"]      >>= fun b4 ->
            assert_bool_equal "mem-ab" false b4;
            return_unit)
+    in
+    run x test
+
+  let test_merge_api x () =
+    let test () =
+      let mk str =
+        match x.kind with
+        | `String -> B.of_bytes_exn str
+        | `JSON   -> B.of_bytes_exn (
+            Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
+          ) in
+      let v1 = mk "X1" in
+      let v2 = mk "X2" in
+      let v3 = mk "X3" in
+
+      create ()                  >>= fun t1  ->
+      update t1 ["a";"b";"a"] v1 >>= fun () ->
+      update t1 ["a";"b";"b"] v2 >>= fun () ->
+      update t1 ["a";"b";"c"] v3 >>= fun () ->
+
+      let test = R.of_string "refs/heads/test" in
+
+      branch t1 test >>= fun t2 ->
+
+      update t1 ["a";"b";"b"] v1 >>= fun () ->
+      update t1 ["a";"b";"b"] v3 >>= fun () ->
+      update t2 ["a";"b";"c"] v1 >>= fun () ->
+
+      output t1 "before" >>= fun () ->
+
+      merge t1 t2 >>= fun () ->
+
+      output t1 "after" >>= fun () ->
+
+      read_exn t1 ["a";"b";"c"] >>= fun v1'  ->
+      read_exn t2 ["a";"b";"b"] >>= fun v2'  ->
+      read_exn t1 ["a";"b";"b"] >>= fun v3' ->
+
+      assert_contents_equal "v1" v1 v1;
+      assert_contents_equal "v2" v2 v2';
+      assert_contents_equal "v3" v3 v3';
+
+      return_unit
     in
     run x test
 
@@ -323,8 +428,10 @@ let suite (speed, x) =
     "Basic operations on nodes"       , speed, T.test_nodes      x;
     "Basic operations on commits"     , speed, T.test_commits    x;
     "Basic operations on references"  , speed, T.test_references x;
+    "Basic merge operations"          , speed, T.test_merges     x;
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
+    "High-level store merges"         , speed, T.test_merge_api  x;
   ]
 
 let run name tl =

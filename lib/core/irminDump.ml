@@ -16,24 +16,44 @@
 
 open Core_kernel.Std
 
-type ('key, 'contents) t = ('key * ('key, 'contents) IrminValue.t) list
+type ('key, 'contents) t = {
+  head : 'key option;
+  store: ('key * ('key, 'contents) IrminValue.t) list;
+}
 with bin_io, compare, sexp
 
-let of_json key_of_json contents_of_json =
-  Ezjsonm.(
-    get_list
-      (get_pair
-         key_of_json
-         (IrminValue.of_json key_of_json contents_of_json))
-  )
+let of_json key_of_json contents_of_json json =
+  let open Ezjsonm in
+  let head =
+    try Some (key_of_json (find json ["head"]))
+    with Not_found -> None in
+  let store =
+    try
+      let json = find json ["store"] in
+      let json = get_list
+          (get_pair
+             key_of_json
+             (IrminValue.of_json key_of_json contents_of_json))
+          json in
+      json
+    with Not_found ->
+      [] in
+  { head; store }
 
-let to_json json_of_key json_of_contents =
-  Ezjsonm.(
-    list
-      (pair
-         json_of_key
-         (IrminValue.to_json json_of_key json_of_contents))
-  )
+let to_json json_of_key json_of_contents t =
+  let open Ezjsonm in
+  let head = match t.head with
+    | None   -> []
+    | Some k -> [ "head", json_of_key k ] in
+  let store = match t.store with
+    | [] -> []
+    |  l -> [ "store",
+                  list (
+                    pair
+                      json_of_key
+                      (IrminValue.to_json json_of_key json_of_contents))
+                    l ] in
+   `O ( head @ store )
 
 module type S = sig
   type key

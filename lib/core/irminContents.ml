@@ -18,7 +18,6 @@ open Core_kernel.Std
 
 module L = Log.Make(struct let section = "VALUE" end)
 
-exception Conflict
 exception Invalid of string
 
 module type S = sig
@@ -27,7 +26,7 @@ module type S = sig
   val of_json: Ezjsonm.t -> t
   val of_bytes: string -> t option
   val of_bytes_exn: string -> t
-  val merge: old:t option -> t -> t -> t
+  val merge: t IrminMerge.t
 end
 
 module String  = struct
@@ -42,19 +41,8 @@ module String  = struct
 
   let of_bytes_exn s = s
 
-  let merge ~old t1 t2 =
-    match compare t1 t2 with
-    | 0 -> t1
-    | _ ->
-      match old with
-      | None     -> raise Conflict
-      | Some old ->
-        match compare old t1 with
-        | 0 -> t2
-        | _ ->
-          match compare old t2 with
-          | 0 -> t1
-          | _ -> raise Conflict
+  let merge =
+    IrminMerge.default ~eq:equal ~to_string
 
 end
 
@@ -109,20 +97,14 @@ module JSON = struct
     Ezjsonm.from_string s
 
   (* XXX: replace by a clever merge function *)
-  let merge ~old t1 t2 =
-    let old = match old with
-      | None   -> None
-      | Some o -> Some (Ezjsonm.to_string o) in
-    let str =
-      String.merge ~old (Ezjsonm.to_string t1) (Ezjsonm.to_string t2) in
-    match of_bytes str with
-    | Some j -> j
-    | None   -> raise Conflict
+  let merge =
+    IrminMerge.map IrminMerge.string of_bytes_exn Ezjsonm.to_string to_string
 
 end
 
 module type STORE = sig
   include IrminStore.AO
+  val merge: t -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type t = value
 end
@@ -132,7 +114,12 @@ module Make
     (C: S)
     (Contents: IrminStore.AO with type key = K.t and type value = C.t)
 = struct
+
   include Contents
   module Key  = K
   module Value = C
+
+  let merge t =
+    IrminMerge.map' C.merge (add t) (read_exn t) K.to_string
+
 end

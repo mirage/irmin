@@ -59,7 +59,7 @@ module type STORE = sig
   (** Revision stores are append-only. *)
 
   val commit: t -> date:float -> origin:string ->
-    ?node:key IrminNode.t -> parents:value list -> key Lwt.t
+    ?node:key IrminNode.t -> parents:value list -> (key * value) Lwt.t
   (** Create a new commit. *)
 
   val node: t -> value -> key IrminNode.t Lwt.t option
@@ -67,6 +67,9 @@ module type STORE = sig
 
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
+
+  val merge: t -> date:float -> origin:string -> key IrminMerge.t
+  (** Lift [S.merge] to the store keys. *)
 
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
@@ -78,8 +81,10 @@ end
 
 module Make
     (K: IrminKey.S)
+    (C: IrminContents.S)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
     (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
     (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
-  : STORE with type t = Node.t * Commit.t
+  : STORE with type t = Contents.t * Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)

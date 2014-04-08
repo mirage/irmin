@@ -303,7 +303,7 @@ module Server (S: Irmin.S) = struct
       mk0p0bf "snapshot" S.snapshot t key;
       mk1p0bf "revert"   S.revert   t key unit;
       mklp0bf "export"   S.export   t (list key) dump;
-      mk0p1bf "import"   S.import   t dump unit;
+      mk1p1bf "import"   S.import   t reference dump unit;
       mklp0bs "watch"    S.watch    t path (pair path key);
       "contents"  , contents_store;
       "node"  , node_store;

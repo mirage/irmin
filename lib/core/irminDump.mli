@@ -18,7 +18,10 @@
 
 open Core_kernel.Std
 
-type ('key, 'contents) t = ('key * ('key, 'contents) IrminValue.t) list
+type ('key, 'contents) t = {
+  head : 'key option;
+  store: ('key * ('key, 'contents) IrminValue.t) list;
+}
 (** Dump values. *)
 
 val of_json: (Ezjsonm.t -> 'a) -> (Ezjsonm.t -> 'b) -> Ezjsonm.t -> ('a, 'b) t

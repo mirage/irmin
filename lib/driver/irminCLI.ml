@@ -232,7 +232,8 @@ let init = {
     let uri =
       let doc =
         Arg.info ~docv:"URI" ["a";"address"]
-          ~doc:"Start the Irminsule server on the given socket address (to use with --daemon)." in
+          ~doc:"Start the Irminsule server on the given socket address \
+                (to use with --daemon)." in
       Arg.(value & opt string "http://localhost:8080" & doc) in
     let init (module S: Irmin.S) daemon uri =
       run begin
@@ -295,7 +296,10 @@ let tree = {
     run begin
       S.create () >>= fun t ->
       S.dump t    >>= fun all ->
-      let all = List.map (fun (k,v) -> IrminPath.to_string k, Printf.sprintf "%S" (S.Value.to_string v)) all in
+      let all =
+        List.map (fun (k,v) ->
+            IrminPath.to_string k, Printf.sprintf "%S" (S.Value.to_string v)
+          ) all in
       let max_lenght l =
         List.fold_left (fun len s -> max len (String.length s)) 0 l in
       let k_max = max_lenght (List.map fst all) in
@@ -349,6 +353,18 @@ let rm = {
     Term.(mk rm $ store $ path);
 }
 
+let convert_dump
+    (type a) (type b) (module L: Irmin.S with type Internal.key = a and type value = b)
+    (type c) (type d) (module R: Irmin.S with type Internal.key = c and type value = d)
+    (dump: R.dump): L.dump =
+  let key k = L.Internal.Key.of_string (R.Internal.Key.to_string k) in
+  let value v = L.Internal.Value.of_string (R.Internal.Value.to_string v) in
+  let head = match dump.IrminDump.head with
+    | None   -> None
+    | Some k -> Some (key k) in
+  let store = List.map (fun (k,v) -> key k, value v) dump.IrminDump.store in
+  { IrminDump.head; store }
+
 (* CLONE *)
 let clone = {
   name = "clone";
@@ -364,19 +380,14 @@ let clone = {
         R.snapshot remote   >>= fun tag    ->
         R.export remote []  >>= fun dump   ->
         print "Cloning %d bytes" (R.Dump.bin_size_t dump);
-        let dump = List.map (fun (k,v) ->
-            L.Internal.Key.of_string (R.Internal.Key.to_string k),
-            L.Internal.Value.of_string (R.Internal.Value.to_string v)
-          ) dump in
-        L.import local dump >>= fun ()     ->
-        let tag = L.Internal.Key.of_string (R.Internal.Key.to_string tag) in
-        L.revert local tag
+        let dump = convert_dump (module L) (module R) dump in
+        L.import local L.Reference.Key.master dump
       end
     in
     Term.(mk clone $ store $ repository);
 }
 
-let op_repo op (module L: Irmin.S) (module R: Irmin.S) name =
+let op_repo op (module L: Irmin.S) (module R: Irmin.S) branch =
   L.create ()         >>= fun local  ->
   R.create ()         >>= fun remote ->
   L.snapshot local    >>= fun l      ->
@@ -385,20 +396,13 @@ let op_repo op (module L: Irmin.S) (module R: Irmin.S) name =
   let r = L.Internal.Key.of_string (R.Internal.Key.to_string l) in
   R.export remote [l] >>= fun dump   ->
   print "%sing %d bytes" op (R.Dump.bin_size_t dump);
-  let dump = List.map (fun (k,v) ->
-      L.Internal.Key.of_string (R.Internal.Key.to_string k),
-      L.Internal.Value.of_string (R.Internal.Value.to_string v)
-    ) dump in
-  L.import local dump >>= fun ()     ->
-  begin match name with
-    | None      -> return_unit
-    | Some name ->
-      let name = L.Reference.Key.of_string name in
-      L.Reference.(update (L.reference local) name) r
-  end >>= fun () ->
+  let dump = convert_dump (module L) (module R) dump in
+  let branch = L.Reference.Key.of_string "import" in
+  L.import local branch dump >>= fun () ->
   return (L.Internal.Key.to_string r)
 
-let fetch_repo = op_repo "Fetch"
+let fetch_repo local remote branch =
+  op_repo "Fetch" local remote branch
 
 (* FETCH *)
 let fetch = {
@@ -409,7 +413,8 @@ let fetch = {
     let fetch (module L: Irmin.S) repository =
       let remote = store_of_string_exn repository in
       run begin
-        fetch_repo (module L) remote (Some "FETCH_HEAD") >>= fun _ ->
+        let branch = L.Reference.Key.of_string "FETCH_HEAD" in
+        fetch_repo (module L) remote branch >>= fun _ ->
         return_unit
       end
     in
@@ -425,7 +430,8 @@ let pull = {
     let pull (module L: Irmin.S) repository =
       let remote = store_of_string_exn repository in
       run begin
-        fetch_repo (module L) remote None >>= fun r ->
+        let branch = L.Reference.Key.of_string "FETCH_HEAD" in
+        fetch_repo (module L) remote branch >>= fun r ->
         let r = L.Internal.Key.of_string r in
         L.create () >>= fun t ->
         (* XXX: implement merge
@@ -449,7 +455,7 @@ let push = {
   term =
     let push local repository =
       let (module R) = store_of_string_exn repository in
-      let name = Some (R.Reference.Key.to_string R.Reference.Key.master) in
+      let name = R.Reference.Key.to_string R.Reference.Key.master in
       run begin
         push_repo (module R) local name >>= fun _ ->
         return_unit

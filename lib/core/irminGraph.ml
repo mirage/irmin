@@ -41,21 +41,24 @@ module type S = sig
   module Dump: Identifiable.S with type t = dump
 end
 
-type 'a vertex =
+type ('a, 'b) vertex =
   [ `Contents of 'a
   | `Node of 'a
-  | `Commit of 'a ]
+  | `Commit of 'a
+  | `Ref of 'b ]
 with bin_io, compare, sexp
 
+let of_refs     = List.map ~f:(fun k -> `Ref k)
 let of_contents = List.map ~f:(fun k -> `Contents k)
-let of_nodes = List.map ~f:(fun k -> `Node k)
-let of_commits = List.map ~f:(fun k -> `Commit k)
+let of_nodes    = List.map ~f:(fun k -> `Node k)
+let of_commits  = List.map ~f:(fun k -> `Commit k)
 
+let to_refs     = List.filter_map ~f:(function `Ref k -> Some k | _ -> None)
 let to_contents = List.filter_map ~f:(function `Contents k -> Some k | _ -> None)
-let to_nodes = List.filter_map ~f:(function `Node k -> Some k | _ -> None)
-let to_commits = List.filter_map ~f:(function `Commit k -> Some k | _ -> None)
+let to_nodes    = List.filter_map ~f:(function `Node k -> Some k | _ -> None)
+let to_commits  = List.filter_map ~f:(function `Commit k -> Some k | _ -> None)
 
-module Make (K: IrminKey.S) = struct
+module Make (K: IrminKey.S) (R: IrminReference.S) = struct
 
   open Lwt
 
@@ -63,7 +66,7 @@ module Make (K: IrminKey.S) = struct
 
   module K = struct
     module M = struct
-      type t = K.t vertex
+      type t = (K.t, R.t) vertex
       with bin_io, compare, sexp
       let hash (t : t) = Hashtbl.hash t
       include Sexpable.To_stringable (struct type nonrec t = t with sexp end)

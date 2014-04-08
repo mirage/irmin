@@ -21,9 +21,6 @@ open Core_kernel.Std
 exception Invalid of string
 (** Invalid parsing. *)
 
-exception Conflict
-(** Exception raised during merge conflicts. *)
-
 module type S = sig
 
   (** Signature for store contents. *)
@@ -45,9 +42,9 @@ module type S = sig
   (** Same as [of_bytes] but raise [Invalid] if the sequence of bytes
       does not correspond to some valid contents. *)
 
-  val merge: old:t option -> t -> t -> t
-  (** Merge function. Raise [Conflict] if the values cannot be
-      merged properly. *)
+  val merge: t IrminMerge.t
+  (** Merge function. Raise [Conflict] if the values cannot be merged
+      properly. *)
 
 end
 
@@ -66,6 +63,9 @@ module type STORE = sig
 
   include IrminStore.AO
   (** Contents stores are append-only. *)
+
+  val merge: t -> key IrminMerge.t
+  (** Store merge function. Lift [S.merge] to keys. *)
 
   module Key: IrminKey.S with type t = key
   (** Base functions for foreign keys. *)

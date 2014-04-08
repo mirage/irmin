@@ -121,3 +121,26 @@ let lift_stream s =
       get ()
   in
   Lwt_stream.from get
+
+module Map = struct
+
+  let iter2 m1 m2 ~f =
+    let m3 = ref [] in
+    Map.iter2 ~f:(fun ~key ~data ->
+        m3 := f ~key ~data :: !m3
+      ) m1 m2;
+    Lwt_list.iter_p
+      (fun b -> b >>= fun () -> return_unit) (List.rev !m3)
+
+  let merge m1 m2 ~f =
+    let l3 = ref [] in
+    let f ~key ~data =
+      f ~key data >>= function
+      | None   -> return_unit
+      | Some v -> l3 := (key, v) :: !l3; return_unit
+    in
+    iter2 m1 m2 ~f >>= fun () ->
+    let m3 = Map.of_alist_exn ~comparator:(Map.comparator m1) !l3 in
+    return m3
+
+end

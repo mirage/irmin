@@ -51,10 +51,12 @@ module type S = sig
       (K: IrminKey.S)
       (V: Jsonable)
       (S: IrminKey.S)
+      (B: IrminKey.S)
       (D: Jsonable)
     : IrminStore.S with type key = K.t
                     and type value = V.t
                     and type snapshot = S.t
+                    and type branch = B.t
                     and type dump = D.t
   (** Build an irminsule store using the given uri. *)
 

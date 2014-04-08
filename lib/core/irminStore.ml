@@ -148,10 +148,12 @@ module type S = sig
   type snapshot
   val snapshot: t -> snapshot Lwt.t
   val revert: t -> snapshot -> unit Lwt.t
+  val merge_snapshot: t -> snapshot -> snapshot -> snapshot Lwt.t
   val watch: t -> key -> (key * snapshot) Lwt_stream.t
   type dump
   val export: t -> snapshot list -> dump Lwt.t
-  val import: t -> dump -> unit Lwt.t
+  type branch
+  val import: t -> branch -> dump -> unit Lwt.t
 end
 
 module type S_MAKER =

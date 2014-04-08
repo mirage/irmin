@@ -17,7 +17,7 @@
 
 open Core_kernel.Std
 
-module L = Log.Make(struct let section = "NODE" end)
+module Log = Log.Make(struct let section = "NODE" end)
 
 type 'key t = {
   contents: 'key option;
@@ -82,6 +82,7 @@ module type STORE = sig
   val find_exn: t -> value -> IrminPath.t -> contents Lwt.t
   val remove: t -> value -> IrminPath.t -> value Lwt.t
   val valid: t -> value -> IrminPath.t -> bool Lwt.t
+  val merge: t -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
 end
@@ -104,8 +105,8 @@ module S (K: IrminKey.S) = struct
 
   let to_json = to_json K.to_json
 
-  let merge ~old:_ _ _ =
-    failwith "Node.merge: TODO"
+  let merge =
+    IrminMerge.default ~eq:equal ~to_string
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)
@@ -129,6 +130,10 @@ module Make
     (Node: IrminStore.AO with type key = K.t and type value = K.t t)
 = struct
 
+  module Key = K
+  module Value = S(K)
+  module Contents = IrminContents.Make(K)(C)(Contents)
+
   type key = K.t
 
   type contents = C.t
@@ -136,9 +141,6 @@ module Make
   type value = K.t t
 
   type t = Contents.t * Node.t
-
-  module Key = K
-  module Value = S(K)
 
   open Lwt
 
@@ -160,7 +162,9 @@ module Make
     | Some _ as x -> return x
     | None        ->
       Contents.mem c key >>= function
-      | true  -> return (Some (singleton key))
+      | true  ->
+        Log.debugf "singleton %s" (K.to_string key);
+        return (Some (singleton key))
       | false -> return_none
 
   let read_exn t key =
@@ -173,10 +177,10 @@ module Make
     | false -> Contents.mem c key
     | true  -> return true
 
-  module Graph = IrminGraph.Make(K)
+  module Graph = IrminGraph.Make(K)(IrminReference.String)
 
   let list t key =
-    L.debugf "list %s" (K.to_string key);
+    Log.debugf "list %s" (K.to_string key);
     read_exn t key >>= fun _ ->
     let pred = function
       | `Node k ->
@@ -205,6 +209,23 @@ module Make
     let node = { contents; succ } in
     add t node >>= fun key ->
     return (key, node)
+
+  (* Merge the contents values together. *)
+  let merge_contents c =
+    IrminMerge.some (Contents.merge c)
+
+  let merge_value (c, _) merge_key =
+    let explode n = (n.contents, n.succ) in
+    let implode (contents, succ) = { contents; succ } in
+    let merge_pair = IrminMerge.pair (merge_contents c) (IrminMerge.assoc merge_key) in
+    IrminMerge.map merge_pair implode explode Value.to_string
+
+  let merge (c, _ as t) =
+    let rec merge_key () =
+      Log.debugf "merge";
+      let merge = merge_value t (IrminMerge.apply merge_key ()) in
+      IrminMerge.map' merge (add t) (read_exn t) K.to_string in
+    merge_key ()
 
   let contents (c, _) n =
     match n.contents with
