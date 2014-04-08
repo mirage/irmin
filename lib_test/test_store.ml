@@ -374,6 +374,49 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_merge_api x () =
+    let test () =
+      let mk str =
+        match x.kind with
+        | `String -> B.of_bytes_exn str
+        | `JSON   -> B.of_bytes_exn (
+            Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
+          ) in
+      let v1 = mk "X1" in
+      let v2 = mk "X2" in
+      let v3 = mk "X3" in
+
+      create ()                  >>= fun t1  ->
+      update t1 ["a";"b";"a"] v1 >>= fun () ->
+      update t1 ["a";"b";"b"] v2 >>= fun () ->
+      update t1 ["a";"b";"c"] v3 >>= fun () ->
+
+      let test = R.of_string "refs/heads/test" in
+
+      branch t1 test >>= fun t2 ->
+
+      update t1 ["a";"b";"b"] v1 >>= fun () ->
+      update t1 ["a";"b";"b"] v3 >>= fun () ->
+      update t2 ["a";"b";"c"] v1 >>= fun () ->
+
+      output t1 "before" >>= fun () ->
+
+      merge t1 t2 >>= fun () ->
+
+      output t1 "after" >>= fun () ->
+
+      read_exn t1 ["a";"b";"c"] >>= fun v1'  ->
+      read_exn t2 ["a";"b";"b"] >>= fun v2'  ->
+      read_exn t1 ["a";"b";"b"] >>= fun v3' ->
+
+      assert_contents_equal "v1" v1 v1;
+      assert_contents_equal "v2" v2 v2';
+      assert_contents_equal "v3" v3 v3';
+
+      return_unit
+    in
+    run x test
+
 end
 
 let suite (speed, x) =
@@ -388,6 +431,7 @@ let suite (speed, x) =
     "Basic merge operations"          , speed, T.test_merges     x;
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
+    "High-level store merges"         , speed, T.test_merge_api  x;
   ]
 
 let run name tl =
