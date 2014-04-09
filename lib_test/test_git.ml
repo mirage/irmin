@@ -23,7 +23,7 @@ let init_memory () =
   Git_memory.create () >>= fun t ->
   Git_memory.clear t
 
-let init_local () =
+let init_disk () =
   if Filename.basename (Sys.getcwd ()) <> "lib_test" then
     failwith "The Git test should be run in the lib_test/ directory."
   else if Sys.file_exists test_db then
@@ -33,11 +33,11 @@ let init_local () =
     return_unit
 
 let init = function
-  | `Local  -> init_local
+  | `Disk   -> init_disk
   | `Memory -> init_memory
 
 let string_of_g = function
-  | `Local  -> ""
+  | `Disk   -> ""
   | `Memory -> ".MEM"
 
 let suite k g =
@@ -46,5 +46,8 @@ let suite k g =
     kind  = k;
     init  = init g;
     clean = unit;
-    store = IrminGit.create k g;
+    store =
+      let (module K), (module C), (module R) = modules k in
+      let module M = IrminGit.Make(K)(C)(R) in
+      M.(cast (create ~bare:false ~kind:g ~root:"." ()));
   }

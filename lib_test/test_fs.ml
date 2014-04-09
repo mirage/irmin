@@ -32,5 +32,8 @@ let suite k =
     kind = k;
     init;
     clean = unit;
-    store = IrminFS.create k test_db;
+    store =
+      let (module K), (module C), (module R) = modules k in
+      let module M = IrminFS.Make(K)(C)(R) in
+      M.(cast (create test_db));
   }

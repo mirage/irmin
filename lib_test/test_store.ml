@@ -18,6 +18,11 @@ open OUnit
 open Test_common
 open Lwt
 
+let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminReference.S) =
+  match x with
+  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
+  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
+
 type t = {
   name : string;
   kind : [`JSON | `String];

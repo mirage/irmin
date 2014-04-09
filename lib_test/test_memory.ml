@@ -22,5 +22,7 @@ let suite k = {
   kind  = k;
   init  = unit;
   clean = unit;
-  store = IrminMemory.create k;
+  store =
+    let (module K), (module C), (module R) = modules k in
+    (module IrminMemory.Make(K)(C)(R));
 }
