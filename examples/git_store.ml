@@ -20,14 +20,14 @@ let () =
       Log.set_log_level Log.DEBUG
   with Not_found -> ()
 
-
-let store = "/tmp/irmin/test"
-module Store = (val IrminGit.local ~bare:true store)
+let path = "/tmp/irmin/test"
+module Git = IrminGit.Make(IrminKey.SHA1)(IrminContents.String)(IrminReference.String)
+module Store = (val Git.create ~bare:true ~kind:`Disk ~root:path ())
 
 let main () =
   Store.create () >>= fun t ->
   Store.update   t ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
-  Store.update   t ["root";"misc";"2.txt"] "Hi!" >>= fun () ->
+  Store.update   t ["root";"misc";"2.txt"] "KEEPME" >>= fun () ->
   Store.update   t ["root";"misc";"3.txt"] "Really ?" >>= fun () ->
   Store.read_exn t ["root";"misc";"2.txt"] >>= fun file ->
   Printf.printf "I've just read: %s\n%!" file;
@@ -35,7 +35,8 @@ let main () =
   Store.branch t "refs/heads/test" >>= fun x ->
 
   Store.update   t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
-  Store.update   x ["root";"misc";"2.txt"] "Hahaha" >>= fun () ->
+  Store.update   t ["root";"misc";"2.txt"] "Hahaha" >>= fun () ->
+  Store.update   x ["root";"misc";"2.txt"] "Hihihi" >>= fun () ->
 
   Store.merge t x >>= fun () ->
   Store.read_exn t ["root";"misc";"2.txt"]  >>= fun file2 ->
