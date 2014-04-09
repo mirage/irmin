@@ -318,15 +318,29 @@ module RW (S: S) (K: IrminKey.S) = struct
 
 end
 
-let create kind path =
-  let module S = struct let path = path end in
-  let module K = IrminKey.SHA1 in
-  let module R = IrminReference.String in
-  let module Obj = OBJECTS(S)(K) in
-  let module Ref = REFS(S) in
-  match kind with
-  | `String -> (module Irmin.String (AO(Obj)(K))(RW(Ref)(R)): Irmin.S)
-  | `JSON   -> (module Irmin.JSON (AO(Obj)(K))(RW(Ref)(R))  : Irmin.S)
+module type Config = sig
+  val path: string
+end
+
+module Make
+    (K: IrminKey.S)
+    (C: IrminContents.S)
+    (R: IrminReference.S) =
+struct
+
+  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
+
+  let create path =
+    let module X = struct let path = path end in
+    let module Obj = OBJECTS(X)(K) in
+    let module Ref = REFS(X) in
+    let module M = Irmin.Binary(K)(C)(R)(AO(Obj)(K))(RW(Ref)(R)) in
+    (module M: S)
+
+  let cast (module S: S) =
+    (module S: Irmin.S)
+
+end
 
 let install_dir_polling_listener delay =
   IrminWatch.set_listen_dir_hook (fun dir fn ->

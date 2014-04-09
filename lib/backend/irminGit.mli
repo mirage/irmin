@@ -16,14 +16,24 @@
 
 (** Serialize the irminsule objects to a local Git store. *)
 
-val create: ?bare:bool -> ?root:string ->
-  [`JSON|`String] -> [`Local|`Memory] -> (module Irmin.S)
-(** Create a Git store. [root] is the location of the Git root,
-    default is $(pwd). *)
+module type Config = sig
+  val root: string option
+  val kind: [`Memory | `Disk]
+  val bare: bool
+end
+(** On-disk configuration. *)
 
-val local: ?bare:bool -> string -> (module Irmin.STRING)
-(** Local store, located in the given directory. By default, create a
-    [bare] repository. *)
+module Make
+    (K: IrminKey.S)
+    (C: IrminContents.S)
+    (R: IrminReference.S):
+sig
 
-module Memory: Irmin.S
-(** Simple in-memory Git store, holding raw blobs. *)
+  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
+
+  val create: ?root:string -> kind:[`Memory|`Disk] -> bare:bool -> unit -> (module S)
+  (** Create a Git-backed irminsule store. *)
+
+  val cast: (module S) -> (module Irmin.S)
+
+end

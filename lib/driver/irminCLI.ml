@@ -113,14 +113,22 @@ let default_dir = ".irmin"
 let init_hook =
   ref (fun () -> ())
 
-let in_memory_store k =
+let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminReference.S) =
+  match x with
+  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
+  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
+
+let in_memory_store k: (module Irmin.S) =
   Log.info (lazy "source: in-memory");
-  IrminMemory.create k
+  let (module K), (module C), (module R) = modules k in
+  (module IrminMemory.Make(K)(C)(R))
 
 let local_store k dir =
   Log.infof "source: dir=%s" dir;
   init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
-  IrminFS.create k dir
+  let (module K), (module C), (module R) = modules k in
+  let module M = IrminFS.Make(K)(C)(R) in
+  M.(cast (create dir))
 
 let remote_store k uri =
   let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
@@ -129,7 +137,9 @@ let remote_store k uri =
 
 let git_store k g =
   Log.infof "git";
-  IrminGit.create k g
+  let (module K), (module C), (module R) = modules k in
+  let module M = IrminGit.Make(K)(C)(R) in
+  M.(cast (create ~kind:g ~bare:false ()))
 
 let store_of_string str =
   let open Core_kernel.Std in
@@ -145,7 +155,7 @@ let store_of_string str =
   let remote = String.mem prefix 'r' in
   match mem, git, local, remote with
   | true , false, false, false -> Some (in_memory_store json)
-  | _    , true , false, false -> Some (git_store json (if mem then `Memory else `Local))
+  | _    , true , false, false -> Some (git_store json (if mem then `Memory else `Disk))
   | false, false, true , false ->
     let dir = match suffix with
       | None   -> default_dir
@@ -193,7 +203,7 @@ let store =
     let json = if json then `JSON else `String in
     if git || in_memory || local <> None || remote <> None  then
       match git, in_memory, local, remote with
-      | true , _    , None   , None   -> git_store json (if in_memory then `Memory else `Local)
+      | true , _    , None   , None   -> git_store json (if in_memory then `Memory else `Disk)
       | false, true , None   , None   -> in_memory_store json
       | false, false, None   , Some u -> remote_store json u
       | false, false, Some d , None   -> local_store json (Filename.concat d default_dir)

@@ -21,12 +21,12 @@ module Log = Log.Make(struct let section = "GIT" end)
 
 module type Config = sig
   val root: string option
-  val kind: [`Memory | `Local]
+  val kind: [`Memory | `Disk]
   val bare: bool
 end
 
-module Make
-    (Config: Config)
+module XMake
+    (X: Config)
     (G: Git.Store.S)
     (K: IrminKey.S)
     (B: IrminContents.S)
@@ -57,7 +57,7 @@ struct
       type value = V.t
 
       let create () =
-        G.create ?root:Config.root ()
+        G.create ?root:X.root ()
 
       let mem t key =
         Log.debugf "Node.mem %s" (K.to_string key);
@@ -311,7 +311,7 @@ struct
 
   let create () =
     let (/) = Filename.concat in
-    G.create ?root:Config.root () >>= fun t ->
+    G.create ?root:X.root () >>= fun t ->
     let git_root = G.root t / ".git" in
     let ref_of_file file =
       match String.chop_prefix ~prefix:(git_root / "") file with
@@ -319,7 +319,7 @@ struct
       | Some r -> Some (R.of_raw r) in
     let w = W.create () in
     let t = { t; w } in
-    if Config.kind = `Local then
+    if X.kind = `Disk then
       W.listen_dir w (git_root / "refs") ref_of_file (read t);
     return t
 
@@ -346,7 +346,7 @@ struct
       G.write_head t.t (Git.Reference.Ref gr) >>= fun () ->
       G.write_reference t.t gr gk >>= fun () ->
       W.notify t.w r (Some k);
-      if Config.kind = `Local && not Config.bare then
+      if X.kind = `Disk && not X.bare then
         G.write_cache t.t gk
       else
         return_unit
@@ -373,39 +373,28 @@ struct
 
 end
 
-module String(C: Config)(G: Git.Store.S) =
-  Make(C)(G)(IrminKey.SHA1)(IrminContents.String)(IrminReference.String)
+module Make
+    (K: IrminKey.S)
+    (C: IrminContents.S)
+    (R: IrminReference.S) =
+struct
 
-module JSON(C: Config)(G: Git.Store.S) =
-  Make(C)(G)(IrminKey.SHA1)(IrminContents.JSON)(IrminReference.String)
+  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
 
-let create ?(bare=true) ?root k g =
-  let (module G) = match g with
-    | `Local  -> (module Git_fs    : Git.Store.S)
-    | `Memory -> (module Git_memory: Git.Store.S)
-  in
-  let module C = struct
-    let root = root
-    let kind = g
-    let bare = bare
-  end in
-  match k with
-  | `String -> (module String(C)(G): Irmin.S)
-  | `JSON   -> (module JSON  (C)(G): Irmin.S)
+  let create ?root ~kind ~bare () =
+    let module X = struct
+      let root = root
+      let kind = kind
+      let bare = bare
+    end in
+    let module G = (val match kind with
+        | `Disk   -> (module Git_fs    : Git.Store.S)
+        | `Memory -> (module Git_memory: Git.Store.S))
+    in
+    let module M = XMake(X)(G)(K)(C)(R) in
+    (module M: S)
 
-module Memory = struct
-  module C = struct
-    let root = None
-    let kind = `Memory
-    let bare = false
-  end
-  include String(C)(Git_memory)
+  let cast (module M: S) =
+    (module M: Irmin.S)
+
 end
-
-let local ?(bare=true) root =
-  let module C = struct
-    let root = Some root
-    let kind = `Local
-    let bare = bare
-  end in
-  (module String(C)(Git_fs): Irmin.STRING)

@@ -25,8 +25,21 @@ end
 module AO (S: S) (K: IrminKey.S) : IrminStore.AO_BINARY
 module RW (S: S) (K: IrminKey.S) : IrminStore.RW_BINARY
 
-val create: [`JSON|`String] -> string -> (module Irmin.S)
-(** On-disk store. *)
+module Make
+    (K: IrminKey.S)
+    (C: IrminContents.S)
+    (R: IrminReference.S) :
+sig
+
+  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
+
+  val create: string -> (module S)
+  (** Create an on-disk store at the given path. *)
+
+  val cast: (module S) -> (module Irmin.S)
+
+end
+
 
 val install_dir_polling_listener: float -> unit
 (** Install the directory listener using active polling. The parameter

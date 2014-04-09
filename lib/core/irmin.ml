@@ -446,37 +446,14 @@ module Make
 
 end
 
-module type SHA1 = S
-  with type Internal.key = IrminKey.SHA1.t
-   and type Reference.key = IrminReference.String.t
+module Binary
+    (K : IrminKey.S)
+    (C : IrminContents.S)
+    (R : IrminReference.S)
+    (AO: IrminStore.AO_BINARY)
+    (RW: IrminStore.RW_BINARY) =
+struct
 
-module type STRING = SHA1 with type value = IrminContents.String.t
-
-module String (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY) = struct
-
-  module K = IrminKey.SHA1
-  module C = IrminContents.String
-  module R = IrminReference.String
-  module V = IrminValue.S(K)(C)
-
-  module AO = IrminStore.AO_MAKER(AO)
-  module RW = IrminStore.RW_MAKER(RW)
-
-  module Val = IrminValue.Make(K)(C)(AO(K)(V))
-  module Ref = IrminReference.Make(R)(K)(RW(R)(K))
-
-  include Make (K)(C)(R)(Val)(Ref)
-
-end
-
-module type JSON = SHA1 with type value = IrminContents.JSON.t
-(** Signature for SHA1 to string stores. *)
-
-module JSON (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY) = struct
-
-  module K = IrminKey.SHA1
-  module C = IrminContents.JSON
-  module R = IrminReference.String
   module V = IrminValue.S(K)(C)
 
   module AO = IrminStore.AO_MAKER(AO)

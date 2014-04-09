@@ -35,7 +35,7 @@ module type S = sig
 
   include IrminStore.S with type key      = string list
                         and type value   := value
-                        and type snapshot = Internal.key
+                       and type snapshot = Internal.key
                         and type dump     = (Internal.key, value) IrminDump.t
                         and type branch   = Reference.key
 
@@ -75,32 +75,27 @@ end
 
 module Make
     (K : IrminKey.S)
-    (B : IrminContents.S)
+    (C : IrminContents.S)
     (R : IrminReference.S)
-    (Internal : IrminValue.STORE with type key = K.t and type contents = B.t)
+    (Internal : IrminValue.STORE     with type key = K.t and type contents = C.t)
     (Reference: IrminReference.STORE with type key = R.t and type value = K.t)
-  : S with type value = B.t
+  : S with type value = C.t
        and module Internal = Internal
        and module Reference = Reference
-(** Build a complete iminsule store. *)
+(** Build a full iminsule store. *)
 
-module type SHA1 = S
-  with type Internal.key = IrminKey.SHA1.t
-   and type Reference.key = IrminReference.String.t
-(** Signature for stores with SHA1 keys. *)
-
-module type STRING = SHA1 with type value = IrminContents.String.t
-(** Signature for stores with SHA1 keys and string values. *)
-
-module String (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): STRING
-(** Create a simple string store. Use only one append-only store for values,
-    nodes and commits and a mutable store for the tags. *)
-
-module type JSON = SHA1 with type value = IrminContents.JSON.t
-(** Signature for SHA1 stores with JSON values. *)
-
-module JSON (AO: IrminStore.AO_BINARY) (RW: IrminStore.RW_BINARY): JSON
-(** Create a SJON store. *)
+module Binary
+    (K : IrminKey.S)
+    (C : IrminContents.S)
+    (R : IrminReference.S)
+    (AO: IrminStore.AO_BINARY)
+    (RW: IrminStore.RW_BINARY)
+  : S with type value = C.t
+       and type Internal.key = K.t
+       and type Reference.key = R.t
+(** Create an irminsule store from binary store makers. Use only one
+    append-only store for values, nodes and commits and a mutable
+    store for the tags. *)
 
 val set_date_hook: (unit -> float) -> unit
 (** How to compute the commit dates. By default, increment a counter. *)
