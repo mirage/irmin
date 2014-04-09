@@ -115,3 +115,11 @@ Test test_irmin
   Run$:               flag(tests) && flag(unix)
   Command:            $test_irmin -q
   WorkingDirectory:   lib_test
+
+Executable test_irmin
+  Path:               examples/
+  MainIs:             git_store.ml
+  Build$:             flag(unix)
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       irminsule, irminsule.backend, irminsule.backend.fs
