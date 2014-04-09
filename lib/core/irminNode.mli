@@ -113,8 +113,8 @@ end
 module Make
     (K: IrminKey.S)
     (C: IrminContents.S)
-    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
-    (Node    : IrminStore.AO with type key = K.t and type value = K.t t)
+    (Contents: IrminContents.STORE with type key = K.t and type value = C.t)
+    (Node    : IrminStore.AO       with type key = K.t and type value = K.t t)
   : STORE with type t = Contents.t * Node.t
            and type key = K.t
            and type contents = C.t

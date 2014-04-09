@@ -81,10 +81,8 @@ end
 
 module Make
     (K: IrminKey.S)
-    (C: IrminContents.S)
-    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
-    (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
-    (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
-  : STORE with type t = Contents.t * Node.t * Commit.t
+    (Node  : IrminNode.STORE with type key = K.t and type value = K.t IrminNode.t)
+    (Commit: IrminStore.AO   with type key = K.t and type value = K.t t)
+  : STORE with type t = Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)

@@ -126,13 +126,12 @@ module SHA1 = S(IrminKey.SHA1)
 module Make
     (K: IrminKey.S)
     (C: IrminContents.S)
-    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
-    (Node: IrminStore.AO with type key = K.t and type value = K.t t)
+    (Contents: IrminContents.STORE with type key = K.t and type value = C.t)
+    (Node    : IrminStore.AO       with type key = K.t and type value = K.t t)
 = struct
 
   module Key = K
   module Value = S(K)
-  module Contents = IrminContents.Make(K)(C)(Contents)
 
   type key = K.t
 

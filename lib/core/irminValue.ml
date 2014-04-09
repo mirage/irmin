@@ -124,8 +124,8 @@ module Mux
   type value = (K.t, C.t) t
   module Key = K
   module Contents = IrminContents.Make(K)(C)(XContents)
-  module Node = IrminNode.Make(K)(C)(XContents)(XNode)
-  module Commit = IrminCommit.Make(K)(C)(XContents)(XNode)(XCommit)
+  module Node = IrminNode.Make(K)(C)(Contents)(XNode)
+  module Commit = IrminCommit.Make(K)(Node)(XCommit)
   module Value = S(K)(C)
 
   type t = {
@@ -141,8 +141,8 @@ module Mux
   open Lwt
 
   let create () =
-    Commit.create () >>= fun (contents, node, _ as commit) ->
-    return { contents; node = (contents, node) ; commit }
+    Commit.create () >>= fun ((contents, _ as node), _ as commit) ->
+    return { contents; node; commit }
 
   (* XXX: ugly *)
   let read t key =
@@ -272,8 +272,8 @@ module Make
     end)
 
   module XContents = IrminContents.Make(K)(C)(BS)
-  module XNode = IrminNode.Make(K)(C)(BS)(TS)
-  module XCommit = IrminCommit.Make(K)(C)(BS)(TS)(CS)
+  module XNode = IrminNode.Make(K)(C)(XContents)(TS)
+  module XCommit = IrminCommit.Make(K)(XNode)(CS)
 
   include Mux(K)(C)(XContents)(XNode)(XCommit)
 

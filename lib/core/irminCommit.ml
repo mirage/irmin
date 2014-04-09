@@ -104,50 +104,46 @@ module type STORE = sig
 end
 
 module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
-    (Node: IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
-    (Commit: IrminStore.AO with type key = K.t and type value = K.t t)
+    (K     : IrminKey.S)
+    (Node  : IrminNode.STORE with type key = K.t and type value = K.t IrminNode.t)
+    (Commit: IrminStore.AO   with type key = K.t and type value = K.t t)
 = struct
 
   type key = K.t
   type value = key t
-  type t = Contents.t * Node.t * Commit.t
+  type t = Node.t * Commit.t
 
-
-  module Node = IrminNode.Make(K)(C)(Contents)(Node)
   module Key = K
   module Value = S(K)
 
   open Lwt
 
   let create () =
-    Node.create () >>= fun (b, n) ->
+    Node.create ()   >>= fun n ->
     Commit.create () >>= fun c ->
-    return (b, n, c)
+    return (n, c)
 
-  let add (_, _, t) c =
+  let add (_, t) c =
     Commit.add t c
 
-  let read (_, _, t) c =
+  let read (_, t) c =
     Commit.read t c
 
-  let read_exn (_, _, t) c =
+  let read_exn (_, t) c =
     Commit.read_exn t c
 
-  let mem (_, _, t) c =
+  let mem (_, t) c =
     Commit.mem t c
 
-  let node (b, n, _) c =
+  let node (n, _) c =
     match c.node with
     | None   -> None
-    | Some k -> Some (Node.read_exn (b, n) k)
+    | Some k -> Some (Node.read_exn n k)
 
-  let commit (b, n, c) ~date ~origin ?node ~parents =
+  let commit (n, c) ~date ~origin ?node ~parents =
     begin match node with
       | None      -> return_none
-      | Some node -> Node.add (b, n) node >>= fun k -> return (Some k)
+      | Some node -> Node.add n node >>= fun k -> return (Some k)
     end
     >>= fun node ->
     Lwt_list.map_p (Commit.add c) parents
@@ -172,13 +168,13 @@ module Make
     let commits = IrminGraph.to_commits (Graph.vertex g) in
     return commits
 
-  let dump (_, _, t) =
+  let dump (_, t) =
     Commit.dump t
 
   let merge_node n =
     IrminMerge.some (Node.merge n)
 
-  let merge (b, n, _ as t) ~date ~origin =
+  let merge (n, _ as t) ~date ~origin =
     let eq k1 k2 = return (Key.equal k1 k2) in
     let merge ~old k1 k2 =
       if K.equal k1 k2 then return k1
@@ -186,7 +182,7 @@ module Make
         read_exn t old >>= fun vold ->
         read_exn t k1  >>= fun v1   ->
         read_exn t k2  >>= fun v2   ->
-        IrminMerge.merge (merge_node (b, n)) ~old:vold.node v1.node v2.node >>= fun node ->
+        IrminMerge.merge (merge_node n) ~old:vold.node v1.node v2.node >>= fun node ->
         let parents = [k1; k2] in
         let commit = { node; parents; date; origin } in
         add t commit
