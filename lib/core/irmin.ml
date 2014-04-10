@@ -94,7 +94,7 @@ module Make
   let bl = Internal.contents
 
   let create () =
-    Internal.create () >>= fun vals ->
+    Internal.create ()  >>= fun vals ->
     Reference.create () >>= fun refs ->
     let branch = R.master in
     return { vals; refs; branch }
@@ -247,24 +247,28 @@ module Make
     let string_of_key k =
       let s = K.to_string k in
       if String.length s <= 8 then s else String.sub s 0 8 in
-    let label k =
-      `Label (string_of_key k) in
-    let label_of_contents k v =
-      let k = string_of_key k in
-      let v =
-        let s = C.to_string v in
-        let s =
-          if String.length s <= 10 then s
-          else String.sub s 0 10 in
-        let s =
+    let string_of_contents s =
+      let s =
+        if String.length s <= 10 then s
+        else String.sub s 0 10 in
+      let s =
           if IrminMisc.is_valid_utf8 s then s
           else IrminMisc.hex_encode s in
-        s in
+      s in
+    let label k =
+      `Label (string_of_key k) in
+    let label_of_path l =
+      `Label (string_of_contents l) in
+    let label_of_contents k v =
+      let k = string_of_key k in
+      let v = string_of_contents (C.to_string v) in
       `Label (Printf.sprintf "%s | %s" k v) in
+    let leafs = List.map ~f:(fun (k,_) ->
+        (k, { IrminNode.contents = Some k; succ = [] })
+      ) contents in
+    let nodes = leafs @ nodes in
     List.iter ~f:(fun (k, b) ->
         add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
-        add_vertex (`Node k)     [`Shape `Box; `Style `Dotted; label k];
-        add_edge   (`Node k)     [`Style `Dotted] (`Contents k);
       ) contents;
     List.iter ~f:(fun (k, t) ->
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label k];
@@ -276,7 +280,7 @@ module Make
           | [] -> ()
           | ts ->
             List.iter ~f:(fun (l,c) ->
-                add_edge (`Node k) [`Style `Solid; `Label l] (`Node c)
+                add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
               ) ts
         end
       ) nodes;
@@ -291,7 +295,11 @@ module Make
       ) commits;
     List.iter ~f:(fun (r,k) ->
         add_vertex (`Ref r) [`Shape `Plaintext; `Label (R.to_string r); `Style `Filled];
-        add_edge   (`Ref r) [`Style `Bold] (`Commit k);
+        let exists l = List.exists ~f:(fun (kk,_) -> kk=k) l in
+        if exists commits then
+          add_edge (`Ref r) [`Style `Bold] (`Commit k);
+        if exists nodes then
+          add_edge (`Ref r) [`Style `Bold] (`Node k);
       ) refs;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
@@ -398,12 +406,12 @@ module Make
     (* Import contents first *)
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminValue.Contents x -> Contents.add (bl t.vals) x   >>= check "value" k
+        | IrminValue.Contents x -> Contents.add (bl t.vals) x >>= check "value" k
         | _ -> return_unit
       ) store >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminValue.Node x -> Node.add (no t.vals) x   >>= check "node" k
+        | IrminValue.Node x -> Node.add (no t.vals) x >>= check "node" k
         | _ -> return_unit
       ) store >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
@@ -430,7 +438,7 @@ module Make
 
   let branch t branch =
     begin Reference.read t.refs t.branch >>= function
-    | None   -> return_unit
+    | None   -> Reference.remove t.refs branch
     | Some c -> Reference.update t.refs branch c
     end >>= fun () ->
     return { t with branch }
