@@ -257,7 +257,7 @@ module Make
       (function Not_found -> return_none | e -> fail e)
 
   let find_exn t node path =
-    Log.debugf "find_exn %s" (IrminPath.to_string path);
+    Log.debugf "find_exn %S" (IrminPath.to_string path);
     sub t node path >>= function
     | None      ->
       Log.debugf "subpath not found";
@@ -270,7 +270,7 @@ module Make
       | Some b -> b
 
   let find t node path =
-    Log.debugf "find %s" (IrminPath.to_string path);
+    Log.debugf "find %S" (IrminPath.to_string path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -279,7 +279,7 @@ module Make
       | Some b -> b >>= fun b -> return (Some b)
 
   let valid t node path =
-    Log.debugf "valid %s" (IrminPath.to_string path);
+    Log.debugf "valid %S" (IrminPath.to_string path);
     sub t node path >>= function
     | None      -> return false
     | Some node ->
