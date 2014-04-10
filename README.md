@@ -18,7 +18,7 @@ apt-get install libssl-dev
 
 ```
 
-Then, install the OCaml dependencies using [OPAM](http://opam.ocamlpro.com):
+Then, install the OCaml dependencies using [OPAM](http://opam.ocaml.org):
 ```
 opam install ezjsonm ocamlgraph lwt cryptokit \
              re dolog mstruct core_kernel \
