@@ -59,7 +59,7 @@ let json_headers = Cohttp.Header.of_list [
   ]
 
 let respond_error e =
-  let json = `O [ "error", Ezjsonm.string (Exn.to_string e) ] in
+  let json = `O [ "error", IrminMisc.json_encode (Exn.to_string e) ] in
   let body = Ezjsonm.to_string json in
   Cohttp_lwt_unix.Server.respond_string
     ~headers:json_headers
