@@ -45,7 +45,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
       with Not_found -> None in
     match error, result with
     | None  , None   -> raise (Error "result_of_json")
-    | Some e, None   -> raise (Error (Ezjsonm.get_string e))
+    | Some e, None   -> raise (Error (IrminMisc.json_decode_exn e))
     | None  , Some r -> r
     | Some _, Some _ -> raise (Error "result_of_json")
 
