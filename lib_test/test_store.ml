@@ -74,7 +74,7 @@ module Make (S: Irmin.S) = struct
 
   let test_contents x () =
     let test () =
-      create () >>= fun t                    ->
+      create ()   >>= fun t                         ->
       mk x.kind t >>= function { v1; v2; kv1; kv2 } ->
 
       Lazy.force kv1 >>= fun kv1 ->
@@ -392,6 +392,7 @@ module Make (S: Irmin.S) = struct
       let v3 = mk "X3" in
 
       create ()                  >>= fun t1  ->
+
       update t1 ["a";"b";"a"] v1 >>= fun () ->
       update t1 ["a";"b";"b"] v2 >>= fun () ->
       update t1 ["a";"b";"c"] v3 >>= fun () ->
@@ -402,12 +403,11 @@ module Make (S: Irmin.S) = struct
 
       update t1 ["a";"b";"b"] v1 >>= fun () ->
       update t1 ["a";"b";"b"] v3 >>= fun () ->
+
       update t2 ["a";"b";"c"] v1 >>= fun () ->
 
       output t1 "before" >>= fun () ->
-
-      merge t1 t2 >>= fun () ->
-
+      merge t1 ~into:t2 >>= fun () ->
       output t1 "after" >>= fun () ->
 
       read_exn t1 ["a";"b";"c"] >>= fun v1'  ->

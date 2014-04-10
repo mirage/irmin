@@ -20,7 +20,7 @@ open Test_store
 let test_db = ".git"
 
 let init_memory () =
-  Git_memory.create () >>= fun t ->
+  Git_memory.create ~root:"." () >>= fun t ->
   Git_memory.clear t
 
 let init_disk () =
@@ -49,5 +49,5 @@ let suite k g =
     store =
       let (module K), (module C), (module R) = modules k in
       let module M = IrminGit.Make(K)(C)(R) in
-      M.(cast (create ~bare:false ~kind:g ~root:"." ()));
+      M.(cast (create ~bare:true ~kind:g ~root:"." ()));
   }
