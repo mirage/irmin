@@ -262,7 +262,7 @@ module Make
     let label_of_contents k v =
       let k = string_of_key k in
       let v = string_of_contents (C.to_string v) in
-      `Label (Printf.sprintf "%s | %s" k v) in
+      `Label (Printf.sprintf "%s | %s" k (String.escaped v)) in
     let leafs = List.map ~f:(fun (k,_) ->
         (k, { IrminNode.contents = Some k; succ = [] })
       ) contents in
