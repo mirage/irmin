@@ -46,7 +46,7 @@ Irminsule comes with a command-line tool called `irmin`. See `irmin
  --help` for further reading. Use either `irmin <command> --help` or
  `irmin help <command>` for more information on a specific command.
 
-## Tuturial
+## Tutorial
 
 A tutorial is available on the [wiki](https://github.com/samoht/irminsule/wiki/Getting-Started).
 
