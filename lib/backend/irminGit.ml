@@ -77,14 +77,17 @@ struct
         | Some v -> return (V.of_git key v)
 
       let read_exn t key =
+        Log.debugf "read_exn %s" (K.to_string key);
         read t key >>= function
         | None   -> fail Not_found
         | Some v -> return v
 
       let list t k =
+        Log.debugf "Node.list %s" (K.to_string k);
         return [k]
 
       let dump t =
+        Log.debugf "Node.dump";
         G.list t >>= fun keys ->
         Lwt_list.fold_left_s (fun acc k ->
             G.read_exn t k >>= fun v ->
@@ -137,50 +140,8 @@ struct
           | Git.Object_type.Tree -> true
           | _ -> false
 
-        let escape = Char.of_int_exn 42
-
-        let escaped_chars =
-          escape :: List.map ~f:Char.of_int_exn [ 0x00; 0x2f ]
-
-        let needs_escape = List.mem escaped_chars
-
-        let encode path =
-          if not (String.exists ~f:needs_escape path) then
-            path
-          else (
-            let n = String.length path in
-            let b = Buffer.create n in
-            let last = ref 0 in
-            for i = 0 to n - 1 do
-              if needs_escape path.[i] then (
-                let c = Char.of_int_exn (Char.to_int path.[i] + 1) in
-                if i - 1 - !last > 1 then Buffer.add_substring b path !last (i - 1 - !last);
-                Buffer.add_char b escape;
-                Buffer.add_char b c;
-                last := i + 1;
-              )
-            done;
-            if n - 1 - !last > 1 then
-              Buffer.add_substring b path !last (n - 1 - !last);
-            Buffer.contents b
-          )
-
-        let decode path =
-          if not (String.mem path escape) then path
-          else
-            let l = String.split ~on:escape path in
-            let l =
-              List.map ~f:(fun s ->
-                if String.length s > 0 then
-                  match Char.of_int (Char.to_int s.[0] - 1) with
-                  | None   -> s
-                  | Some c ->
-                    if needs_escape c then (s.[0] <- c; s)
-                    else s
-                else
-                  s
-              ) l in
-            String.concat ~sep:"" l
+        (* Name of the file containing the node contents. *)
+        let contents_child = ".contents"
 
         let of_git k v =
           Log.debugf "Node.of_git %s" (Git.Value.pretty v);
@@ -190,23 +151,20 @@ struct
             let key = key_of_git k in
             Some { IrminNode.contents = Some key; succ = [] }
           | Git.Value.Tree t ->
-            let succ =
-              List.map ~f:(fun e -> Git.Tree.(decode e.name, key_of_git e.node))
-                t in
-            Some { IrminNode.contents = None; succ }
+            let t = List.map ~f:(fun e -> Git.Tree.(e.name, key_of_git e.node)) t in
+            let contents, succ = List.partition_tf ~f:(fun (n,_) -> n = contents_child) t in
+            let contents = match contents with
+              | []       -> None
+              | [(_, k)] -> Some k
+              |  _  -> assert false in
+            Some { IrminNode.contents; succ }
           | _ -> None
 
         let to_git t node =
           Log.debugf "Node.to_git %s" (X.to_string node);
-          match node.IrminNode.contents with
-          | Some key ->
-            (* This is a dummy leaf node. Do nothing. *)
-            Log.debugf "Skiping %s" (X.to_string node);
-            `Key (git_of_key key)
-          | None ->
+          let mktree entries =
             `Value (
               Lwt_list.map_p (fun (name, key) ->
-                  let name = encode name in
                   let node = git_of_key key in
                   (* XXX: handle exec files. *)
                   let file () = return { Git.Tree.perm = `Normal; name; node } in
@@ -219,10 +177,19 @@ struct
                     | Git.Object_type.Blob -> file ()
                     | Git.Object_type.Tree -> dir ()
                     | _                    -> fail (Failure "Node.to_git")
-                ) node.IrminNode.succ >>= fun entries ->
+                ) entries >>= fun entries ->
               return (Git.Value.Tree entries)
-            )
-
+            ) in
+          match node.IrminNode.succ, node.IrminNode.contents with
+          | l , None     -> mktree l
+          | [], Some key ->
+            (* This is a dummy leaf node. Do nothing. *)
+            Log.debugf "Skiping %s" (X.to_string node);
+            `Key (git_of_key key)
+          | l , Some key ->
+            (* This is an extended node (ie. with child and contents).
+               Store the node contents in a dummy `.contents` file. *)
+            mktree ((contents_child, key) :: l)
       end)
 
     module XCommit = AO(struct
@@ -324,6 +291,7 @@ struct
     return t
 
     let read_exn { t } r =
+      Log.debugf "read_exn %s" (R.to_string r);
       G.read_reference_exn t (git_of_ref r) >>= fun k ->
       return (key_of_git k)
 

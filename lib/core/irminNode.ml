@@ -168,7 +168,9 @@ module Make
 
   let read_exn t key =
     read t key >>= function
-    | None   -> fail Not_found
+    | None   ->
+      Log.debugf "Not_found: %s" (K.to_string key);
+      fail Not_found
     | Some v -> return v
 
   let mem (c, t) key =
@@ -255,14 +257,20 @@ module Make
       (function Not_found -> return_none | e -> fail e)
 
   let find_exn t node path =
+    Log.debugf "find_exn %s" (IrminPath.to_string path);
     sub t node path >>= function
-    | None      -> fail Not_found
+    | None      ->
+      Log.debugf "subpath not found";
+      fail Not_found
     | Some node ->
       match contents t node with
-      | None   -> fail Not_found
+      | None   ->
+        Log.debugf "contents not found";
+        fail Not_found
       | Some b -> b
 
   let find t node path =
+    Log.debugf "find %s" (IrminPath.to_string path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -271,6 +279,7 @@ module Make
       | Some b -> b >>= fun b -> return (Some b)
 
   let valid t node path =
+    Log.debugf "valid %s" (IrminPath.to_string path);
     sub t node path >>= function
     | None      -> return false
     | Some node ->
@@ -310,9 +319,11 @@ module Make
     aux node path
 
   let remove t node path =
+    Log.debugf "remove %s" (IrminPath.to_string path);
     map_subnode t node path (fun node -> empty)
 
   let update (c, _ as t) node path value =
+    Log.debugf "update %s" (IrminPath.to_string path);
     Contents.add c value >>= fun k  ->
     map_subnode t node path (fun node -> { node with contents = Some k })
 

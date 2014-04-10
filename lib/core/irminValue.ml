@@ -146,6 +146,7 @@ module Mux
 
   (* XXX: ugly *)
   let read t key =
+    Log.debugf "read %s" (K.to_string key);
     Contents.read t.contents key >>= function
     | Some b -> return (Some (Contents b))
     | None   ->
@@ -157,6 +158,7 @@ module Mux
         | None   -> return_none
 
   let read_exn t key =
+    Log.debugf "read_exn %s" (K.to_string key);
     read t key >>= function
     | Some v -> return v
     | None   -> fail Not_found
@@ -172,9 +174,11 @@ module Mux
     | Commit c -> Commit.add t.commit c
 
   let list t key =
+    Log.debugf "list %s" (K.to_string key);
     Commit.list t.commit key
 
   let dump t =
+    Log.debugf "dump";
     Contents.dump t.contents >>= fun contents ->
     Node.dump t.node         >>= fun nodes ->
     Commit.dump t.commit     >>= fun commits ->
@@ -249,7 +253,7 @@ module Make
       type cast = C.t
       let proj = function
         | Contents b -> Some b
-        | _ -> None
+        | _          -> None
       let inj b = Contents b
     end)
 
@@ -258,7 +262,7 @@ module Make
       type cast = K.t IrminNode.t
       let proj = function
         | Node t -> Some t
-        | _ -> None
+        | _      -> None
       let inj t = Node t
     end)
 
@@ -267,7 +271,7 @@ module Make
       type cast = K.t IrminCommit.t
       let proj = function
         | Commit c -> Some c
-        | _ -> None
+        | _        -> None
       let inj c = Commit c
     end)
 

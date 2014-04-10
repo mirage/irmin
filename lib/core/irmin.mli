@@ -55,9 +55,11 @@ module type S = sig
   val branch: t -> branch -> t Lwt.t
   (** Fork the store, using the giben branch name. *)
 
-  val merge: t -> t -> unit Lwt.t
-  (** Merge the two current store branches. Both tags are updated to
-      point to the merge commit. *)
+  val merge: t -> into:t -> unit Lwt.t
+  (** [merge t ~into] merges the branch [t.branch] into
+      [into.branch]. Both stores should have the same underlying
+      store. Update the commit pointed by [t] to the merge commit of
+      the two branches. *)
 
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)

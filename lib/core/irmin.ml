@@ -33,7 +33,7 @@ module type S = sig
   val internal: t -> Internal.t
   val reference: t -> Reference.t
   val branch: t -> branch -> t Lwt.t
-  val merge: t -> t -> unit Lwt.t
+  val merge: t -> into:t -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
@@ -443,13 +443,10 @@ module Make
     end >>= fun () ->
     return { t with branch }
 
-  let merge t1 t2 =
+  let merge t1 ~into:t2 =
     Reference.read_exn t1.refs t1.branch  >>= fun c1  ->
     Reference.read_exn t2.refs t2.branch  >>= fun c2  ->
     merge_snapshot t1 c1 c2               >>= fun c3  ->
-    (* XXX maybe need to do this as well ...
-    merge_snapshot t2 c1 c2               >>= fun c3' ->
-    assert (c3 = c3'); *)
     Reference.update t1.refs t1.branch c3
 
 end

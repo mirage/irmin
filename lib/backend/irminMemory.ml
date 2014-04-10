@@ -59,9 +59,11 @@ module RO (K: IrminKey.S) = struct
     return (Hashtbl.mem t key)
 
   let list { t } k =
+    L.debugf "list %s" (pretty_key k);
     return [k]
 
   let dump { t } =
+    L.debugf "dump";
     return (Hashtbl.to_alist t)
 
 end

@@ -74,6 +74,11 @@ module Make (K: IrminKey.S) (R: IrminReference.S) = struct
     end
     include M
     include Identifiable.Make (M)
+    let to_string = function
+      | `Contents x -> "B" ^ K.to_string x
+      | `Node     x -> "N" ^ K.to_string x
+      | `Commit   x -> "C" ^ K.to_string x
+      | `Ref      x -> "R" ^ R.to_string x
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(K)

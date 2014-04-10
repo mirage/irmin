@@ -89,6 +89,12 @@ module JSON = struct
 
   let of_json = decode
 
+  let to_string t =
+    Ezjsonm.to_string (to_json t)
+
+  let of_string s =
+    of_json (Ezjsonm.from_string s)
+
   let of_bytes s =
     try Some (Ezjsonm.from_string s)
     with Ezjsonm.Parse_error _ -> None
