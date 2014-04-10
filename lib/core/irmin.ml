@@ -305,7 +305,8 @@ module Make
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
         Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
       );
-    let _ = Sys.command (Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name) in
+    let i = Sys.command (Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name) in
+    if i <> 0 then Log.errorf "The %s.dot is corrupted" name;
     return_unit
 
   let watch t path =
