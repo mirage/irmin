@@ -12,59 +12,43 @@ on top of Xen.
 
 ### Build & Install
 
+You first need to have `libssl` on your system. For instance, on Debian/Ubuntu:
+```
+apt-get install libssl-dev
+
+```
+
+Then, install the OCaml dependencies using [OPAM](http://opam.ocamlpro.com):
 ```
 opam install ezjsonm ocamlgraph lwt cryptokit \
              re dolog mstruct core_kernel \
              uri cohttp ssl core_kernel \
-             cmdliner alcotest
+             cmdliner alcotest git
+```
+
+You can then download the source code of Irminsule, uncompress it, and run
+the usual steps:
+
+```
 make
-make install
+make install # You might need sudo rights
+```
+
+You can choose an other installation prefix using:
+
+```
+make PREFIX=/path/to/install
 ```
 
 ### Usage
 
-```
-COMMANDS
-       clone
-           Clone a remote irminsule store.
+Irminsule comes with a command-line tool called `irmin`. See `irmin
+ --help` for further reading. Use either `irmin <command> --help` or
+ `irmin help <command>` for more information on a specific command.
 
-       dump
-           Dump the contents of the store as a Graphviz file.
+## Tuturial
 
-       init
-           Initialize a store.
-
-       ls  List subdirectories.
-
-       pull
-           Pull the contents of a remote irminsule store.
-
-       push
-           Pull the contents of the local store to a remote irminsule store.
-
-       read
-           Read the contents of a node.
-
-       revert
-           Revert the contents of the store to a previous state.
-
-       rm  Remove a node.
-
-       snapshot
-           Snapshot the contents of the store.
-
-       tree
-           List the store contents.
-
-       watch
-           Watch the contents of a store and be notified on updates.
-
-       write
-           Write/modify a node.
-```
-
-See `irmin --help` for further reading. Use either `irmin <command> --help`
- or `irmin help <command>` for more information on a specific command.
+A tutorial is available on the [wiki](https://github.com/samoht/irminsule/wiki/Getting-Started).
 
 ## Issues
 
