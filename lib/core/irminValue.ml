@@ -47,15 +47,18 @@ module S (K: IrminKey.S) (C: IrminContents.S) = struct
 
   module L = Log.Make(struct let section = "VALUE" end)
 
-  module M = struct
-    type nonrec t = (K.t, C.t) t
-    with bin_io, compare, sexp
+  module S = struct
+    module M = struct
+      type nonrec t = (K.t, C.t) t
+      with bin_io, compare, sexp
     let hash (t : t) = Hashtbl.hash t
     include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
     let module_name = "Value"
+    end
+    include M
+    include Identifiable.Make (M)
   end
-  include M
-  include Identifiable.Make (M)
+  include S
 
   module Key = K
 
@@ -72,7 +75,7 @@ module S (K: IrminKey.S) (C: IrminContents.S) = struct
     to_json K.to_json C.to_json
 
   let merge =
-    IrminMerge.default ~eq:equal ~to_string
+    IrminMerge.default (module S)
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)

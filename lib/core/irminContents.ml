@@ -42,27 +42,30 @@ module String  = struct
   let of_bytes_exn s = s
 
   let merge =
-    IrminMerge.default ~eq:equal ~to_string
+    IrminMerge.default (module String)
 
 end
 
 module JSON = struct
 
-  module M = struct
-    type t =
-      [ `Null
-      | `Bool of bool
-      | `Float of float
-      | `String of string
-      | `A of t list
-      | `O of (string * t) list ]
-    with bin_io, compare, sexp
-    let hash (t : t) = Hashtbl.hash t
-    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-    let module_name = "Tree"
+  module S = struct
+    module M = struct
+      type t =
+        [ `Null
+        | `Bool of bool
+        | `Float of float
+        | `String of string
+        | `A of t list
+        | `O of (string * t) list ]
+      with bin_io, compare, sexp
+      let hash (t : t) = Hashtbl.hash t
+      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+      let module_name = "Tree"
+    end
+    include M
+    include Identifiable.Make (M)
   end
-  include M
-  include Identifiable.Make (M)
+  include S
 
   let rec encode t: Ezjsonm.t =
     match t with
@@ -104,7 +107,7 @@ module JSON = struct
 
   (* XXX: replace by a clever merge function *)
   let merge =
-    IrminMerge.map IrminMerge.string of_bytes_exn Ezjsonm.to_string to_string
+    IrminMerge.(map (module S) string of_bytes_exn Ezjsonm.to_string)
 
 end
 
@@ -126,6 +129,6 @@ module Make
   module Value = C
 
   let merge t =
-    IrminMerge.map' C.merge (add t) (read_exn t) K.to_string
+    IrminMerge.map' (module K) C.merge (add t) (read_exn t)
 
 end

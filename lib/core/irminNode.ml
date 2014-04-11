@@ -91,22 +91,25 @@ module S (K: IrminKey.S) = struct
 
   type key = K.t
 
-  module M = struct
-    type nonrec t = K.t t
-    with bin_io, compare, sexp
-    let hash (t : t) = Hashtbl.hash t
-    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-    let module_name = "Node"
+  module S = struct
+    module M = struct
+      type nonrec t = K.t t
+      with bin_io, compare, sexp
+      let hash (t : t) = Hashtbl.hash t
+      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+      let module_name = "Node"
+    end
+    include M
+    include Identifiable.Make (M)
   end
-  include M
-  include Identifiable.Make (M)
+  include S
 
   let of_json = of_json K.of_json
 
   let to_json = to_json K.to_json
 
   let merge =
-    IrminMerge.default ~eq:equal ~to_string
+    IrminMerge.default (module S)
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)
@@ -219,13 +222,13 @@ module Make
     let explode n = (n.contents, n.succ) in
     let implode (contents, succ) = { contents; succ } in
     let merge_pair = IrminMerge.pair (merge_contents c) (IrminMerge.assoc merge_key) in
-    IrminMerge.map merge_pair implode explode Value.to_string
+    IrminMerge.map (module Value) merge_pair implode explode
 
   let merge (c, _ as t) =
     let rec merge_key () =
       Log.debugf "merge";
       let merge = merge_value t (IrminMerge.apply merge_key ()) in
-      IrminMerge.map' merge (add t) (read_exn t) K.to_string in
+      IrminMerge.map' (module K) merge (add t) (read_exn t) in
     merge_key ()
 
   let contents (c, _) n =

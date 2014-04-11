@@ -19,6 +19,20 @@
 exception Conflict
 (** Exception raised during merge conflicts. *)
 
+module type S = sig
+
+  (** Mergeable contents. *)
+
+  type t
+
+  val to_string: t -> string
+  (** Pretty-print. *)
+
+  val equal: t -> t -> bool
+  (** Equality. *)
+
+end
+
 type 'a t
 (** Abstract merge functions. *)
 
@@ -32,19 +46,15 @@ val merge: 'a t -> old:'a -> 'a -> 'a -> 'a Lwt.t
 
 (** {2 Combinators} *)
 
-val custom:
-  eq:('a -> 'a -> bool Lwt.t) ->
-  merge:(old:'a -> 'a -> 'a -> 'a Lwt.t) ->
-  to_string:('a -> string) ->
-  'a t
+val create: (module S with type t = 'a) -> (old:'a -> 'a -> 'a-> 'a) -> 'a t
 (** Create a custom merge operator. *)
 
-val default:
-  eq:('a -> 'a -> bool) ->
-  to_string:('a -> string) ->
-  'a t
-(** Create a default merge function. This is a simple merge functions
-    which support changes in one branch at the time:
+val create': (module S with type t = 'a) -> (old:'a -> 'a -> 'a-> 'a Lwt.t) -> 'a t
+(** Create a custom merge operator which might block. *)
+
+val default: (module S with type t = 'a) -> 'a t
+(** Create a default merge function. This is a simple merge
+    functions which support changes in one branch at the time:
 
     - if t1=t2  then return t1
     - if t1=old then return t2
@@ -52,15 +62,15 @@ val default:
     - otherwise raise [Conflict].
 *)
 
-val default':
-  eq:('a -> 'a -> bool Lwt.t) ->
-  to_string:('a -> string) ->
-  'a t
+val default': (module S with type t = 'a) -> ('a -> 'a -> bool Lwt.t) -> 'a t
 (** Same as [default] but for blocking equality functions. *)
 
 val string: string t
 (** The default string merge function. Do not anything clever, just
     compare the strings using the [default] merge function. *)
+
+val counter: int t
+(** Mergeable counters. *)
 
 val some: 'a t -> 'a option t
 (** Lift a merge function to optional values of the same type. If all
@@ -76,12 +86,12 @@ val pair: 'a t -> 'b t -> ('a * 'b) t
 val apply: ('a -> 'b t ) -> 'a -> 'b t
 (** Apply operator. Use this operator to break recursive loops. *)
 
-val map: 'a t -> ('a -> 'b) -> ('b -> 'a) -> ('b -> string) -> 'b t
-(** Use the merge function defined in another domain. If the functions
-    given in argument are partial (ie. returning [Not_found] on some
-    entries), the exception is catched and [Conflict] is returned
-    instead. *)
+val map: (module S with type t = 'b) -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
+(** Use the merge function defined in another domain. If the
+    functions given in argument are partial (ie. returning
+    [Not_found] on some entries), the exception is catched and
+    [Conflict] is returned instead. *)
 
-val map': 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> ('b -> string) -> 'b t
+val map': (module S with type t = 'b) -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
 (** Same as [map] but with potentially blocking converting
     functions. *)

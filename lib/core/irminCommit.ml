@@ -56,15 +56,18 @@ module S (K: IrminKey.S) = struct
 
   type key = K.t
 
-  module M = struct
-    type nonrec t = K.t t
-    with bin_io, compare, sexp
-    let hash (t : t) = Hashtbl.hash t
-    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-    let module_name = "Commit"
+  module S = struct
+    module M = struct
+      type nonrec t = K.t t
+      with bin_io, compare, sexp
+      let hash (t : t) = Hashtbl.hash t
+      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
+      let module_name = "Commit"
+    end
+    include M
+    include Identifiable.Make (M)
   end
-  include M
-  include Identifiable.Make (M)
+  include S
 
   let to_json =
     to_json K.to_json
@@ -73,7 +76,7 @@ module S (K: IrminKey.S) = struct
     of_json K.of_json
 
   let merge =
-    IrminMerge.default ~eq:equal ~to_string
+    IrminMerge.default (module S)
 
   let of_bytes str =
     IrminMisc.read bin_t (Bigstring.of_string str)
@@ -175,19 +178,15 @@ module Make
     IrminMerge.some (Node.merge n)
 
   let merge (n, _ as t) ~date ~origin =
-    let eq k1 k2 = return (Key.equal k1 k2) in
     let merge ~old k1 k2 =
-      if K.equal k1 k2 then return k1
-      else begin
-        read_exn t old >>= fun vold ->
-        read_exn t k1  >>= fun v1   ->
-        read_exn t k2  >>= fun v2   ->
-        IrminMerge.merge (merge_node n) ~old:vold.node v1.node v2.node >>= fun node ->
-        let parents = [k1; k2] in
-        let commit = { node; parents; date; origin } in
-        add t commit
-      end
+      read_exn t old >>= fun vold ->
+      read_exn t k1  >>= fun v1   ->
+      read_exn t k2  >>= fun v2   ->
+      IrminMerge.merge (merge_node n) ~old:vold.node v1.node v2.node >>= fun node ->
+      let parents = [k1; k2] in
+      let commit = { node; parents; date; origin } in
+      add t commit
     in
-    IrminMerge.custom ~eq ~merge ~to_string:K.to_string
+    IrminMerge.create' (module K) merge
 
 end
