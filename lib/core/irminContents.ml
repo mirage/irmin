@@ -48,8 +48,7 @@ end
 
 module JSON = struct
 
-  module S = struct
-    module M = struct
+  module S = IrminMisc.Identifiable(struct
       type t =
         [ `Null
         | `Bool of bool
@@ -58,13 +57,7 @@ module JSON = struct
         | `A of t list
         | `O of (string * t) list ]
       with bin_io, compare, sexp
-      let hash (t : t) = Hashtbl.hash t
-      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-      let module_name = "Tree"
-    end
-    include M
-    include Identifiable.Make (M)
-  end
+    end)
   include S
 
   let rec encode t: Ezjsonm.t =

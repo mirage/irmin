@@ -66,15 +66,11 @@ end
 module S (K: IrminKey.S) (C: IrminContents.S) = struct
   type key = K.t
   type contents = C.t
-  module M = struct
-    type nonrec t = (K.t, C.t) t
-    with bin_io, compare, sexp
-    let hash (t : t) = Hashtbl.hash t
-    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-    let module_name = "Commit"
-  end
-  include M
-  include Identifiable.Make (M)
+  module S = IrminMisc.Identifiable(struct
+      type nonrec t = (K.t, C.t) t
+      with bin_io, compare, sexp
+    end)
+  include S
   let of_json = of_json K.of_json C.of_json
   let to_json = to_json K.to_json C.to_json
 end

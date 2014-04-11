@@ -144,3 +144,14 @@ module Map = struct
     return m3
 
 end
+
+module Identifiable (S: sig type t with bin_io, sexp, compare end) = struct
+  module M = struct
+    type t = S.t with bin_io, sexp, compare
+      let hash (t : t) = Hashtbl.hash t
+      include Sexpable.To_stringable (struct type t = S.t with sexp end)
+      let module_name = "Id"
+  end
+  include M
+  include Identifiable.Make (M)
+end

@@ -67,3 +67,7 @@ module Map: sig
     (** Same as [Map.iter2]. *)
 
 end
+
+module Identifiable(S: sig type t with bin_io, sexp, compare end): sig
+  include Identifiable.S with type t = S.t
+end

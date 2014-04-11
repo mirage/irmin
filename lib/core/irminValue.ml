@@ -47,17 +47,10 @@ module S (K: IrminKey.S) (C: IrminContents.S) = struct
 
   module L = Log.Make(struct let section = "VALUE" end)
 
-  module S = struct
-    module M = struct
+  module S = IrminMisc.Identifiable(struct
       type nonrec t = (K.t, C.t) t
       with bin_io, compare, sexp
-    let hash (t : t) = Hashtbl.hash t
-    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-    let module_name = "Value"
-    end
-    include M
-    include Identifiable.Make (M)
-  end
+    end)
   include S
 
   module Key = K

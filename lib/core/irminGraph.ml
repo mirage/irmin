@@ -65,15 +65,11 @@ module Make (K: IrminKey.S) (R: IrminReference.S) = struct
   module L = Log.Make(struct let section = "GRAPH" end)
 
   module K = struct
-    module M = struct
-      type t = (K.t, R.t) vertex
-      with bin_io, compare, sexp
-      let hash (t : t) = Hashtbl.hash t
-      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-      let module_name = "Node"
-    end
+    module M = IrminMisc.Identifiable(struct
+        type t = (K.t, R.t) vertex
+        with bin_io, compare, sexp
+      end)
     include M
-    include Identifiable.Make (M)
     let to_string = function
       | `Contents x -> "B" ^ K.to_string x
       | `Node     x -> "N" ^ K.to_string x
@@ -144,17 +140,10 @@ module Make (K: IrminKey.S) (R: IrminReference.S) = struct
         | Some n -> [`Label n]
     end)
 
-  module Dump = struct
-    module M = struct
+  module Dump = IrminMisc.Identifiable(struct
       type nonrec t = K.t list * (K.t * K.t) list
       with bin_io, compare, sexp
-      let hash (t : t) = Hashtbl.hash t
-      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-      let module_name = "Graph"
-    end
-    include M
-    include Identifiable.Make (M)
-  end
+    end)
 
   let export t =
     vertex t, edges t

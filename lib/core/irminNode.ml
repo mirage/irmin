@@ -91,17 +91,10 @@ module S (K: IrminKey.S) = struct
 
   type key = K.t
 
-  module S = struct
-    module M = struct
+  module S = IrminMisc.Identifiable(struct
       type nonrec t = K.t t
       with bin_io, compare, sexp
-      let hash (t : t) = Hashtbl.hash t
-      include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-      let module_name = "Node"
-    end
-    include M
-    include Identifiable.Make (M)
-  end
+    end)
   include S
 
   let of_json = of_json K.of_json
