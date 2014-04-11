@@ -1,9 +1,13 @@
-all: git_store
+TARGETS = git_store custom_merge
+
+BUILDS = $(TARGETS:%=_build/%.native)
+
+all: $(BUILDS)
 	@
 
-git_store: git_store.ml
-	ocamlfind ocamlopt -package irminsule.backend.git -linkpkg git_store.ml -o git_store
+_build/%.native: %.ml
+	ocamlbuild -use-ocamlfind -no-hygiene -tag "syntax(camlp4o)" -package irminsule.backend.git,sexplib.syntax,comparelib.syntax,bin_prot.syntax $*.native
 
 clean:
-	rm -f *.cmi *.cmx *.o *.cmo git_store
+	ocamlbuild -clean
 	rm -rf _build
