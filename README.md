@@ -15,7 +15,6 @@ on top of Xen.
 You first need to have `libssl` on your system. For instance, on Debian/Ubuntu:
 ```
 apt-get install libssl-dev
-
 ```
 
 Then, install the OCaml dependencies using [OPAM](http://opam.ocaml.org):
@@ -30,14 +29,17 @@ You can then download the source code of Irminsule, uncompress it, and run
 the usual steps:
 
 ```
-make
+make PREFIX=$(opam config var prefix)
 make install # You might need sudo rights
 ```
 
-You can choose an other installation prefix using:
+### Uninstall
+
+Due to a bug in [oasis], the uninstall target is quite unreliable. Instead, use:
 
 ```
-make PREFIX=/path/to/install
+ocamlfind remove irminsule
+rm $(which irmin)
 ```
 
 ### Usage
