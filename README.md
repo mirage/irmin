@@ -30,7 +30,7 @@ the usual steps:
 
 ```
 make PREFIX=$(opam config var prefix)
-make install # You might need sudo rights
+make install
 ```
 
 ### Uninstall
