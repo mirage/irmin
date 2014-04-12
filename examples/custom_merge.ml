@@ -72,10 +72,6 @@ module Log = struct
     let l = List.filter ~f:(fun s -> String.(s <>"")) l in
     List.map ~f:Elt.of_string l
 
-  let of_bytes str = Some (of_string str)
-
-  let of_bytes_exn str = of_string str
-
   let of_json json =
     Ezjsonm.get_list Elt.of_json json
 

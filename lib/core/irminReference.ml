@@ -17,7 +17,7 @@
 open Lwt
 open Core_kernel.Std
 
-module Log = Log.Make(struct let section = "REF" end)
+module Log = Log.Make(struct let section = "REFS" end)
 
 module type S = sig
   include IrminKey.S
@@ -26,10 +26,11 @@ end
 
 module String = struct
   include String
-  let of_bytes = of_string
-  let of_raw = of_string
-  let to_raw = to_string
-  let of_bigarray b = Bigstring.to_string b
+  let to_bytes r = r
+  let of_bytes b = Bigstring.to_string b
+  let of_bytes' r = r
+  let of_raw s = s
+  let to_raw s = s
   let master = "refs/heads/master"
   let of_json j = IrminPath.to_string (IrminPath.of_json j)
   let to_json s = IrminPath.to_json (IrminPath.of_string s)

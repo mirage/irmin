@@ -59,17 +59,17 @@ module Make (S: Irmin.S) = struct
 
   let mk k t =
     let v1 = match k with
-      | `String -> B.of_bytes_exn long_random_string
-      | `JSON   -> B.of_bytes_exn (
+      | `String -> B.of_string long_random_string
+      | `JSON   -> B.of_string (
           Ezjsonm.to_string (`O [ "foo", IrminMisc.json_encode long_random_string ])
         ) in
     let v2 = match k with
-      | `String -> B.of_bytes_exn ""
-      | `JSON   -> B.of_bytes_exn (Ezjsonm.to_string (`A[])) in
+      | `String -> B.of_string ""
+      | `JSON   -> B.of_string (Ezjsonm.to_string (`A[])) in
     let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Contents v1)) in
     let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Contents v2)) in
-    let r1 = R.of_bytes "refs/foo" in
-    let r2 = R.of_bytes "refs/bar" in
+    let r1 = R.of_string "refs/foo" in
+    let r2 = R.of_string "refs/bar" in
     return { v1; v2; kv1; kv2; r1; r2 }
 
   let test_contents x () =
@@ -383,8 +383,8 @@ module Make (S: Irmin.S) = struct
     let test () =
       let mk str =
         match x.kind with
-        | `String -> B.of_bytes_exn str
-        | `JSON   -> B.of_bytes_exn (
+        | `String -> B.of_string str
+        | `JSON   -> B.of_string (
             Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
           ) in
       let v1 = mk "X1" in

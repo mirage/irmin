@@ -15,11 +15,12 @@
  *)
 
 open Lwt
+open Core_kernel.Std
 open Cmdliner
 
 let () =
   let origin =
-    Printf.sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
+    sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
   Irmin.set_date_hook Unix.time;
   Irmin.set_origin_hook (fun () -> origin);
   IrminFS.install_dir_polling_listener 0.5
@@ -167,7 +168,7 @@ let store_of_string str =
       | Some u -> u in
     Some (uri |> Uri.of_string |> remote_store json)
   | _   ->
-    Printf.eprintf "%s is not a valid store specification\n%!" str;
+    eprintf "%s is not a valid store specification\n%!" str;
     None
 
 let store_of_string_exn str =
@@ -211,7 +212,7 @@ let store =
       | _ ->
         let local = match local with None -> "<none>" | Some d -> d in
         let remote = match remote with None -> "<none>" | Some u -> Uri.to_string u in
-        failwith (Printf.sprintf
+        failwith (sprintf
                     "Invalid store source [git=%b in-memory=%b %s %s]"
                     git in_memory local remote)
     else match store_of_env_var () with
@@ -224,7 +225,7 @@ let run t =
   Lwt_unix.run (
     catch
       (fun () -> t)
-      (function e -> Printf.eprintf "%s\n%!" (Printexc.to_string e); exit 1)
+      (function e -> eprintf "%s\n%!" (Exn.to_string e); exit 1)
   )
 
 let mk (fn:'a): 'a Term.t =
@@ -260,7 +261,7 @@ let init = {
 }
 
 let print fmt =
-  Printf.ksprintf print_endline fmt
+  ksprintf print_endline fmt
 
 (* READ *)
 let read = {
@@ -289,7 +290,7 @@ let ls = {
       run begin
         S.create ()   >>= fun t ->
         S.list t path >>= fun paths ->
-        List.iter (fun p -> print "%s" (IrminPath.to_string p)) paths;
+        List.iter ~f:(fun p -> print "%s" (IrminPath.to_string p)) paths;
         return_unit
       end
     in
@@ -307,15 +308,15 @@ let tree = {
       S.create () >>= fun t ->
       S.dump t    >>= fun all ->
       let all =
-        List.map (fun (k,v) ->
-            IrminPath.to_string k, Printf.sprintf "%S" (S.Value.to_string v)
+        List.map ~f:(fun (k,v) ->
+            IrminPath.to_string k, sprintf "%S" (S.Value.to_string v)
           ) all in
       let max_lenght l =
-        List.fold_left (fun len s -> max len (String.length s)) 0 l in
-      let k_max = max_lenght (List.map fst all) in
-      let v_max = max_lenght (List.map snd all) in
+        List.fold_left ~f:(fun len s -> max len (String.length s)) ~init:0 l in
+      let k_max = max_lenght (List.map ~f:fst all) in
+      let v_max = max_lenght (List.map ~f:snd all) in
       let pad = 79 + k_max + v_max in
-      List.iter (fun (k,v) ->
+      List.iter ~f:(fun (k,v) ->
           let dots = String.make (pad - String.length k - String.length v) '.' in
           print "/%s%s%s" k dots v
         ) all;
@@ -335,10 +336,13 @@ let write = {
       let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
       Arg.(value & pos_all string [] & doc) in
     let write (module S: Irmin.S) args =
+      let mk value =
+        try S.Value.of_string value
+        with _ -> failwith "invalid value" in
       let path, value = match args with
         | []            -> failwith "Not enough arguments"
-        | [path; value] -> IrminPath.of_string path, S.Value.of_bytes_exn value
-        | [value]       -> [], S.Value.of_bytes_exn value
+        | [path; value] -> IrminPath.of_string path, mk value
+        | [value]       -> []                      , mk value
         | _             -> failwith "Too many arguments" in
       run begin
         S.create () >>= fun t ->
@@ -372,7 +376,7 @@ let convert_dump
   let head = match dump.IrminDump.head with
     | None   -> None
     | Some k -> Some (key k) in
-  let store = List.map (fun (k,v) -> key k, value v) dump.IrminDump.store in
+  let store = List.map ~f:(fun (k,v) -> key k, value v) dump.IrminDump.store in
   { IrminDump.head; store }
 
 (* CLONE *)
@@ -567,10 +571,10 @@ let help = {
       | None       -> `Help (`Pager, None)
       | Some topic ->
         let topics = "topics" :: cmds in
-        let conv, _ = Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
+        let conv, _ = Arg.enum (List.rev_map ~f:(fun s -> (s, s)) topics) in
         match conv topic with
         | `Error e                -> `Error (false, e)
-        | `Ok t when t = "topics" -> List.iter print_endline cmds; `Ok ()
+        | `Ok t when t = "topics" -> List.iter ~f:print_endline cmds; `Ok ()
         | `Ok t                   -> `Help (man_format, Some t) in
     Term.(ret (mk help $Term.man_format $Term.choice_names $topic))
 }
@@ -587,7 +591,7 @@ let default =
   ] in
   let usage global =
     app_global global;
-    Printf.printf
+    printf
       "usage: irmin [--version]\n\
       \             [--help]\n\
       \             <command> [<args>]\n\
@@ -619,7 +623,7 @@ let default =
     ~doc
     ~man
 
-let commands = List.map create_command [
+let commands = List.map ~f:create_command [
   init;
   read;
   write;

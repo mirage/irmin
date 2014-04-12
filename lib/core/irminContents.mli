@@ -34,14 +34,6 @@ module type S = sig
   val of_json: Ezjsonm.t -> t
   (** Read some JSON encoded contents. *)
 
-  val of_bytes: string -> t option
-  (** Convert a raw sequence of bytes into structured contents. Return
-      [None] if the sequence cannot be decoded. *)
-
-  val of_bytes_exn: string -> t
-  (** Same as [of_bytes] but raise [Invalid] if the sequence of bytes
-      does not correspond to some valid contents. *)
-
   val merge: t IrminMerge.t
   (** Merge function. Raise [Conflict] if the values cannot be merged
       properly. *)

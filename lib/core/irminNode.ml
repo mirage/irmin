@@ -104,17 +104,6 @@ module S (K: IrminKey.S) = struct
   let merge =
     IrminMerge.default (module S)
 
-  let of_bytes str =
-    IrminMisc.read bin_t (Bigstring.of_string str)
-
-  let of_bytes_exn str =
-    match of_bytes str with
-    | None   -> raise (IrminContents.Invalid str)
-    | Some t -> t
-
-  let key t =
-    K.of_bigarray (IrminMisc.write bin_t t)
-
 end
 
 module SHA1 = S(IrminKey.SHA1)

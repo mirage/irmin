@@ -24,8 +24,6 @@ module type S = sig
   include Identifiable.S
   val to_json: t -> Ezjsonm.t
   val of_json: Ezjsonm.t -> t
-  val of_bytes: string -> t option
-  val of_bytes_exn: string -> t
   val merge: t IrminMerge.t
 end
 
@@ -36,10 +34,6 @@ module String  = struct
   let of_json = IrminMisc.json_decode_exn
 
   let to_json = IrminMisc.json_encode
-
-  let of_bytes s = Some s
-
-  let of_bytes_exn s = s
 
   let merge =
     IrminMerge.default (module String)
@@ -91,16 +85,9 @@ module JSON = struct
   let of_string s =
     of_json (Ezjsonm.from_string s)
 
-  let of_bytes s =
-    try Some (Ezjsonm.from_string s)
-    with Ezjsonm.Parse_error _ -> None
-
-  let of_bytes_exn s =
-    Ezjsonm.from_string s
-
   (* XXX: replace by a clever merge function *)
   let merge =
-    IrminMerge.(map (module S) string of_bytes_exn Ezjsonm.to_string)
+    IrminMerge.(map (module S) string of_string to_string)
 
 end
 

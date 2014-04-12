@@ -43,11 +43,11 @@ module type S = sig
   val of_json: Ezjsonm.t -> t
   (** Read a key which has been JSON encoded. *)
 
-  val of_bytes: string -> t
-  (** Compute a (deterministic) key from a sequence of bytes. *)
+  val of_bytes: Bigstring.t -> t
+  (** Compute a (deterministic) key from a bigstring. *)
 
-  val of_bigarray: Cstruct.buffer -> t
-  (** Compute a (deterministic) key from a bigarray. *)
+  val of_bytes': string -> t
+  (** Compute a (deterministic) key from a sequence of bytes. *)
 
 end
 

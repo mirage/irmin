@@ -258,7 +258,7 @@ module AO (S: S) (K: IrminKey.S) = struct
   let add { t } value =
     L.debugf "add";
     check t >>= fun () ->
-    let key = K.to_raw (K.of_bigarray value) in
+    let key = K.to_raw (K.of_bytes value) in
     let file = S.file_of_key key in
     begin if Sys.file_exists file then
         return_unit
