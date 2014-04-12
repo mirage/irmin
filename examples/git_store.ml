@@ -27,18 +27,19 @@ module Store = (val Git.create ~bare:true ~kind:`Disk ~root:path ())
 let main () =
   Store.create () >>= fun t ->
   Store.update   t ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
-  Store.update   t ["root";"misc";"2.txt"] "KEEPME" >>= fun () ->
-  Store.update   t ["root";"misc";"3.txt"] "Really ?" >>= fun () ->
+  Store.update   t ["root";"misc";"2.txt"] "Hi!" >>= fun () ->
+  Store.update   t ["root";"misc";"3.txt"] "How are you ?" >>= fun () ->
+
   Store.read_exn t ["root";"misc";"2.txt"] >>= fun file ->
   Printf.printf "I've just read: %s\n%!" file;
 
   Store.branch t "refs/heads/test" >>= fun x ->
 
   Store.update   t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
-  Store.update   t ["root";"misc";"2.txt"] "Hahaha" >>= fun () ->
   Store.update   x ["root";"misc";"2.txt"] "Hihihi" >>= fun () ->
 
   Store.merge t x >>= fun () ->
+
   Store.read_exn t ["root";"misc";"2.txt"]  >>= fun file2 ->
   Store.read_exn t ["root";"misc";"3.txt"]  >>= fun file3 ->
   Printf.printf "I've just read: 2:%s 3:%s\n%!" file2 file3;
