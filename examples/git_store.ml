@@ -35,8 +35,9 @@ let main () =
 
   Store.branch t "refs/heads/test" >>= fun x ->
 
+  let str = Cryptokit.(Random.string (Random.device_rng "/dev/urandom") 1024) in
   Store.update   t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
-  Store.update   x ["root";"misc";"2.txt"] "Hihihi" >>= fun () ->
+  Store.update   x ["root";"misc";"2.txt"] str >>= fun () ->
 
   Store.merge t x >>= fun () ->
 

@@ -1,4 +1,5 @@
-0.6.0: (trunk)
+0.6.0: (2014-04-12)
+* Support for user-defined contents (with custom merge operators)
 * Support for merge operations
 * Rename `IrminTree` to `IrminNode` to reflect the fact that we
   can support arbitrary immutable graphs (it's better if they are
