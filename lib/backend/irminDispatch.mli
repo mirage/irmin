@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,16 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-open Test_store
+module Make
+    (K: IrminKey.S)
+    (C: IrminContents.S)
+    (R: IrminReference.S) :
+sig
 
-let suite k =
-  let (module K), (module C), (module R) = modules k in
-  let module M = IrminMemory.Make(K)(C)(R) in
-  {
-    name  = "MEM" ^ string_of_kind k;
-    kind  = k;
-    init  = unit;
-    clean = unit;
-    store = M.(cast (create ()));
-  }
+  type value = (K.t, C.t) IrminValue.t
+
+  val create: key:(K.t -> int) -> value:(value -> (K.t -> unit) * int) ->
+    (K.t, C.t, R.t) Irmin.t array ->  (K.t, C.t, R.t) Irmin.t
+
+  val cast: (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
+
+end

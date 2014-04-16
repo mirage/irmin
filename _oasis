@@ -39,7 +39,7 @@ Library backend
   Findlibname: backend
   FindlibParent: irminsule
   BuildDepends: irminsule, uri, cohttp.lwt, ezjsonm.lwt
-  Modules: IrminCRUD, IrminMemory
+  Modules: IrminCRUD, IrminMemory, IrminDispatch
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 

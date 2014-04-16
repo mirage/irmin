@@ -104,5 +104,18 @@ module RW (K: IrminKey.S) = struct
 
 end
 
-module Make (K: IrminKey.S) (C: IrminContents.S) (R: IrminReference.S) =
-  Irmin.Binary(K)(C)(R)(AO(K))(RW(R))
+module Make (K: IrminKey.S) (C: IrminContents.S) (R: IrminReference.S) = struct
+
+  let create () =
+    let module S = Irmin.Binary(K)(C)(R)(AO(K))(RW(R)) in
+    (module S: Irmin.S with type Internal.key = K.t
+                        and type value = C.t
+                        and type Reference.key = R.t)
+
+  let cast (module M: Irmin.S with type Internal.key = K.t
+                               and type value = C.t
+                               and type Reference.key = R.t) =
+
+    (module M: Irmin.S)
+
+end

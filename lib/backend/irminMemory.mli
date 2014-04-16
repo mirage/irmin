@@ -22,5 +22,11 @@ module RW (K: IrminKey.S) : IrminStore.RW_BINARY
 module Make
     (K: IrminKey.S)
     (C: IrminContents.S)
-    (R: IrminReference.S)
-  : Irmin.S
+    (R: IrminReference.S):
+sig
+
+  val create: unit -> (K.t, C.t, R.t) Irmin.t
+
+  val cast: (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
+
+end

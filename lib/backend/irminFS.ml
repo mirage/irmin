@@ -328,17 +328,20 @@ module Make
     (R: IrminReference.S) =
 struct
 
-  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
-
   let create path =
     let module X = struct let path = path end in
     let module Obj = OBJECTS(X)(K) in
     let module Ref = REFS(X) in
     let module M = Irmin.Binary(K)(C)(R)(AO(Obj)(K))(RW(Ref)(R)) in
-    (module M: S)
+    (module M: Irmin.S with type Internal.key = K.t
+                        and type value = C.t
+                        and type Reference.key = R.t)
 
-  let cast (module S: S) =
-    (module S: Irmin.S)
+  let cast (module M: Irmin.S with type Internal.key = K.t
+                               and type value = C.t
+                               and type Reference.key = R.t) =
+
+    (module M: Irmin.S)
 
 end
 

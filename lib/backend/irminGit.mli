@@ -29,11 +29,10 @@ module Make
     (R: IrminReference.S):
 sig
 
-  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
-
-  val create: ?root:string -> kind:[`Memory|`Disk] -> bare:bool -> unit -> (module S)
+  val create: ?root:string -> kind:[`Memory|`Disk] -> bare:bool -> unit ->
+    (K.t, C.t, R.t) Irmin.t
   (** Create a Git-backed irminsule store. *)
 
-  val cast: (module S) -> (module Irmin.S)
+  val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
 
 end

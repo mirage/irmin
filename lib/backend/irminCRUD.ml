@@ -212,34 +212,41 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  let sha1 (type contents) (module B: IrminContents.S with type t = contents) u =
-    let module K = IrminKey.SHA1 in
-    let module N = IrminNode.SHA1 in
-    let module C = IrminCommit.SHA1 in
-    let module R = IrminReference.String in
-    let module Contents = AO(struct
-        let uri = uri u ["contents"]
-      end)(K)(B) in
-    let module Node = AO(struct
-        let uri = uri u ["node"]
-      end)(K)(N) in
-    let module Commit = AO(struct
-        let uri = uri u ["commit"]
-      end)(K)(C) in
-    let module Reference = RW(struct
-        let uri = uri u ["ref"]
-      end)(R)(K) in
-    let module Store = S(struct
-        let uri = u
-      end) in
-    let module Internal = IrminValue.Mux(K)(B)(Contents)(Node)(Commit) in
-    let module Reference = IrminReference.Make(R)(K)(Reference) in
-    let module S = Irmin.Make(K)(B)(R)(Internal)(Reference) in
-    (module S: Irmin.S)
+  module Make (K: IrminKey.S) (B: IrminContents.S) (R: IrminReference.S) = struct
 
-  let create k uri = match k with
-    | `String -> sha1 (module IrminContents.String) uri
-    | `JSON   -> sha1 (module IrminContents.JSON) uri
+    module N = IrminNode.S(K)
+    module C = IrminCommit.S(K)
+
+    let create u =
+      let module Contents = AO(struct
+          let uri = uri u ["contents"]
+        end)(K)(B) in
+      let module Node = AO(struct
+          let uri = uri u ["node"]
+        end)(K)(N) in
+      let module Commit = AO(struct
+          let uri = uri u ["commit"]
+        end)(K)(C) in
+      let module Reference = RW(struct
+          let uri = uri u ["ref"]
+        end)(R)(K) in
+      let module Store = S(struct
+          let uri = u
+        end) in
+      let module Internal = IrminValue.Mux(K)(B)(Contents)(Node)(Commit) in
+      let module Reference = IrminReference.Make(R)(K)(Reference) in
+      let module S = Irmin.Make(K)(B)(R)(Internal)(Reference) in
+      (module S: Irmin.S with type Internal.key = K.t
+                          and type value = B.t
+                          and type Reference.key = R.t)
+
+    let cast (module M: Irmin.S with type Internal.key = K.t
+                                 and type value = B.t
+                                 and type Reference.key = R.t) =
+
+      (module M: Irmin.S)
+
+  end
 
 end
 
@@ -253,16 +260,12 @@ module type S = sig
     IrminStore.AO with type key = K.t and type value = V.t
   module RW (U: U) (K: IrminKey.S) (V: Jsonable):
     IrminStore.RW with type key = K.t and type value = V.t
-  module S (U: U)
-      (K: IrminKey.S)
-      (V: Jsonable)
-      (S: IrminKey.S)
-      (B: IrminKey.S)
-      (D: Jsonable)
-    : IrminStore.S with type key = K.t
-                    and type value = V.t
-                    and type snapshot = S.t
-                    and type branch = B.t
-                    and type dump = D.t
-  val create: [`JSON|`String] -> Uri.t -> (module Irmin.S)
+  module Make
+    (K: IrminKey.S)
+    (C: IrminContents.S)
+    (R: IrminReference.S):
+  sig
+    val create: Uri.t ->  (K.t, C.t, R.t) Irmin.t
+    val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
+  end
 end

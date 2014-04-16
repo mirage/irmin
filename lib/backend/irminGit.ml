@@ -347,8 +347,6 @@ module Make
     (R: IrminReference.S) =
 struct
 
-  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
-
   let create ?root ~kind ~bare () =
     let module X = struct
       let root = root
@@ -360,9 +358,14 @@ struct
         | `Memory -> (module Git_memory: Git.Store.S))
     in
     let module M = XMake(X)(G)(K)(C)(R) in
-    (module M: S)
+    (module M: Irmin.S with type Internal.key = K.t
+                        and type value = C.t
+                        and type Reference.key = R.t)
 
-  let cast (module M: S) =
+  let cast (module M: Irmin.S with type Internal.key = K.t
+                               and type value = C.t
+                               and type Reference.key = R.t) =
+
     (module M: Irmin.S)
 
 end

@@ -452,6 +452,11 @@ module Make
 
 end
 
+type ('key, 'value, 'ref) t =
+  (module S with type Internal.key = 'key
+             and type value = 'value
+             and type Reference.key = 'ref)
+
 module Binary
     (K : IrminKey.S)
     (C : IrminContents.S)
