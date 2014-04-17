@@ -46,9 +46,9 @@ module type RO = sig
   val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
-  val list: t -> key -> key list Lwt.t
-  (** Return all the keys that are allowed to access, knowing a key
-      (which might be seen as a password). *)
+  val list: t -> key list -> key list Lwt.t
+  (** Return all the keys that are allowed to access, knowing a given
+      collection of keys (which might be seen as a passwords). *)
 
   val dump: t -> (key * value) list Lwt.t
   (** Return the store contents. *)

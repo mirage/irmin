@@ -57,12 +57,16 @@ let to_refs     = List.filter_map ~f:(function `Ref k -> Some k | _ -> None)
 let to_contents = List.filter_map ~f:(function `Contents k -> Some k | _ -> None)
 let to_nodes    = List.filter_map ~f:(function `Node k -> Some k | _ -> None)
 let to_commits  = List.filter_map ~f:(function `Commit k -> Some k | _ -> None)
+let to_keys     = List.filter_map ~f:(function `Commit k
+                                             | `Node k
+                                             | `Contents k -> Some k
+                                             | `Ref _      -> None)
 
 module Make (K: IrminKey.S) (R: IrminReference.S) = struct
 
   open Lwt
 
-  module L = Log.Make(struct let section = "GRAPH" end)
+  module Log = Log.Make(struct let section = "GRAPH" end)
 
   module K = struct
     module M = IrminMisc.Identifiable(struct
@@ -101,7 +105,7 @@ module Make (K: IrminKey.S) (R: IrminReference.S) = struct
       if has_mark key then Lwt.return ()
       else (
         mark key;
-        L.debugf "ADD %s" (K.to_string key);
+        Log.debugf "ADD %s" (K.to_string key);
         if not (G.mem_vertex g key) then G.add_vertex g key;
         pred key >>= fun keys ->
         List.iter ~f:(fun k -> G.add_edge g k key) keys;

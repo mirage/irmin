@@ -17,8 +17,8 @@
 open Core_kernel.Std
 open Lwt
 
-module LogMake = Log.Make
-module Log = LogMake(struct let section = "IRMIN" end)
+module XLog = Log
+module Log = XLog.Make(struct let section = "IRMIN" end)
 
 module type S = sig
   type value
@@ -204,21 +204,29 @@ module Make
       ~old c1 c2
 
   (* Return the subpaths. *)
-  let list t path =
-    read_head_node t >>= fun node ->
-    Node.sub (no t.vals) node path >>= function
-    | None      -> return_nil
-    | Some node ->
-      let c = Node.succ (no t.vals) node in
-      let paths = List.map ~f:(fun (c,_) -> path @ [c]) c in
-      return paths
+  let list t paths =
+    let one path =
+      read_head_node t >>= fun node ->
+      Node.sub (no t.vals) node path >>= function
+      | None      -> return_nil
+      | Some node ->
+        let c = Node.succ (no t.vals) node in
+        let paths = List.map ~f:(fun (c,_) -> path @ [c]) c in
+        return paths in
+    Lwt_list.fold_left_s (fun set p ->
+        one p >>= fun paths ->
+        let paths = IrminPath.Set.of_list paths in
+        return (IrminPath.Set.union set paths)
+      ) IrminPath.Set.empty paths
+    >>= fun paths ->
+    return (IrminPath.Set.to_list paths)
 
   let dump t =
     read_head_node t >>= fun node ->
     let rec aux seen = function
       | []       -> return (List.sort compare seen)
       | path::tl ->
-        list t path >>= fun childs ->
+        list t [path] >>= fun childs ->
         let todo = childs @ tl in
         Node.find (no t.vals) node path >>= function
         | None   -> aux seen todo
@@ -332,7 +340,7 @@ module Make
       return stream
     )
 
-  module Log = LogMake(struct let section ="DUMP" end)
+  module Log = XLog.Make(struct let section ="DUMP" end)
 
   (* XXX: can be improved quite a lot *)
   let export t roots =
@@ -345,51 +353,41 @@ module Make
     | Some commit ->
       let head = Some commit in
       begin
-        if roots = [] then Commit.list (co t.vals) commit
+        if roots = [] then Commit.list (co t.vals) [commit]
         else
           let pred = function
-            | `Commit k ->
-              Commit.read_exn (co t.vals) k >>= fun r ->
-              return (IrminGraph.of_commits r.IrminCommit.parents)
-            | _ -> return_nil in
+            | `Commit k -> Commit.read_exn (co t.vals) k >>= fun c -> return (IrminCommit.edges c)
+            | _         -> return_nil in
           let min = IrminGraph.of_commits roots in
           let max = IrminGraph.of_commits [commit] in
           Graph.closure pred ~min ~max >>= fun g ->
           let commits = IrminGraph.to_commits (Graph.vertex g) in
           return commits
-      end
-      >>= fun commits ->
+      end >>= fun commits ->
       Log.debugf "export COMMITS=%s" (IrminMisc.pretty_list K.to_string commits);
       Lwt_list.fold_left_s (fun set key ->
           Commit.read_exn (co t.vals) key >>= fun commit ->
           add key (IrminValue.Commit commit);
           match commit.IrminCommit.node with
-          | None      -> return set
-          | Some node ->
-            Node.list (no t.vals) node >>= fun nodes ->
-            return (Set.union set (K.Set.of_list nodes))
-        ) K.Set.empty commits
-      >>= fun nodes ->
-      let nodes = Set.elements nodes in
+          | None   -> return set
+          | Some k -> return (Set.add set k)
+        ) K.Set.empty commits >>= fun nodes ->
+      Node.list (no t.vals) (K.Set.to_list nodes) >>= fun nodes ->
       Log.debugf "export NODES=%s" (IrminMisc.pretty_list K.to_string nodes);
       Lwt_list.fold_left_s (fun set key ->
           Node.read_exn (no t.vals) key >>= fun node ->
           add key (IrminValue.Node node);
           match node.IrminNode.contents with
-          | None          -> return set
-          | Some contents ->
-            Contents.list (bl t.vals) contents >>= fun contents ->
-            return (Set.union set (K.Set.of_list contents))
-        ) K.Set.empty nodes
-      >>= fun contents ->
-      let contents = Set.elements contents in
+          | None   -> return set
+          | Some k -> return (Set.add set k)
+        ) K.Set.empty nodes >>= fun contents ->
+      Contents.list (bl t.vals) (K.Set.to_list contents) >>= fun contents ->
       Log.debugf "export CONTENTS=%s" (IrminMisc.pretty_list K.to_string contents);
-      Lwt_list.iter_p (fun key ->
-          Contents.read_exn (bl t.vals) key >>= fun contents ->
-          add key (IrminValue.Contents contents);
+      Lwt_list.iter_p (fun k ->
+          Contents.read_exn (bl t.vals) k >>= fun b ->
+          add k (IrminValue.Contents b);
           return_unit
-        ) contents
-      >>= fun () ->
+        ) contents >>= fun () ->
       let store = Hashtbl.fold ~f:(fun ~key:k ~data init ->
           List.fold_left ~f:(fun acc v -> (k, v) :: acc) ~init data
         ) ~init:[] table in

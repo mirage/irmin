@@ -83,8 +83,8 @@ struct
         | Some v -> return v
 
       let list t k =
-        Log.debugf "Node.list %s" (K.to_string k);
-        return [k]
+        Log.debugf "Node.list %s" (IrminMisc.pretty_list K.to_string k);
+        return k
 
       let dump t =
         Log.debugf "Node.dump";

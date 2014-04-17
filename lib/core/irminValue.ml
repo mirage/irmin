@@ -16,6 +16,8 @@
 
 open Core_kernel.Std
 
+module Log = Log.Make(struct let section = "VALUE" end)
+
 type ('key, 'contents) t =
   | Contents of 'contents
   | Node of 'key IrminNode.t
@@ -44,8 +46,6 @@ module S (K: IrminKey.S) (C: IrminContents.S) = struct
 
   type key = K.t
   type contents = C.t
-
-  module L = Log.Make(struct let section = "VALUE" end)
 
   module S = IrminMisc.Identifiable(struct
       type nonrec t = (K.t, C.t) t
@@ -158,9 +158,26 @@ module Mux
     | Node tr  -> Node.add t.node tr
     | Commit c -> Commit.add t.commit c
 
-  let list t key =
-    Log.debugf "list %s" (K.to_string key);
-    Commit.list t.commit key
+  module Graph = IrminGraph.Make(K)(IrminReference.String)
+
+  let list t keys =
+    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+    let rec pred = function
+      | `Commit k ->
+        begin Commit.read t.commit k >>= function
+          | None   -> pred (`Node k)
+          | Some c -> return (IrminCommit.edges c)
+        end
+      | `Node k   ->
+        begin Node.read t.node k >>= function
+          | None   -> pred (`Contents k)
+          | Some n -> return (IrminNode.edges n)
+        end
+      | _         -> return_nil  in
+    let max = IrminGraph.of_commits keys in
+    Graph.closure pred ~min:[] ~max >>= fun g ->
+    let keys = IrminGraph.to_keys (Graph.vertex g) in
+    return keys
 
   let dump t =
     Log.debugf "dump";
@@ -211,7 +228,8 @@ module Cast (S: IrminStore.AO) (C: CASTABLE with type t = S.value) = struct
     | Some _ -> return true
     | None   -> return false
 
-  let list = S.list
+  let list =
+    S.list
 
   let dump t =
     S.dump t >>= fun cs ->

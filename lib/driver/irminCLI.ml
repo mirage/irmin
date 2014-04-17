@@ -291,8 +291,8 @@ let ls = {
   term =
     let ls (module S: Irmin.S) path =
       run begin
-        S.create ()   >>= fun t ->
-        S.list t path >>= fun paths ->
+        S.create ()     >>= fun t ->
+        S.list t [path] >>= fun paths ->
         List.iter ~f:(fun p -> print "%s" (IrminPath.to_string p)) paths;
         return_unit
       end

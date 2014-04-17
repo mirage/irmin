@@ -24,6 +24,13 @@ type 'key t = {
   succ    : (string * 'key) list;
 } with bin_io, compare, sexp
 
+let edges t =
+  begin match t.contents with
+    | None   -> []
+    | Some k -> [`Contents k]
+  end
+  @ List.map ~f:(fun (_,k) -> `Node k) t.succ
+
 let to_json json_of_key t =
   let contents = match t.contents with
     | None   -> []
@@ -165,16 +172,15 @@ module Make
 
   module Graph = IrminGraph.Make(K)(IrminReference.String)
 
-  let list t key =
-    Log.debugf "list %s" (K.to_string key);
-    read_exn t key >>= fun _ ->
+  let list t keys =
+    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
     let pred = function
-      | `Node k ->
-        read_exn t k >>= fun node ->
-        return (IrminGraph.of_nodes (List.map ~f:snd node.succ))
+      | `Node k -> read_exn t k >>= fun node -> return (edges node)
       | _       -> return_nil in
-    Graph.closure pred ~min:[] ~max:[`Node key] >>= fun g ->
-    return (IrminGraph.to_nodes (Graph.vertex g))
+    let max = IrminGraph.of_nodes keys in
+    Graph.closure pred ~min:[] ~max >>= fun g ->
+    let keys = IrminGraph.to_nodes (Graph.vertex g) in
+    return keys
 
   let dump (_, t) =
     Node.dump t

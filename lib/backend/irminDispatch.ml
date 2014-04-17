@@ -15,6 +15,9 @@
  *)
 
 open Lwt
+open Core_kernel.Std
+
+module Log = Log.Make(struct let section = "DISPATCH" end)
 
 module Make
     (K: IrminKey.S)
@@ -60,24 +63,36 @@ struct
           return (Array.of_list l)
 
         let read t k =
-          let Store (t, (module S)) = t.(key k) in
+          let i = key k in
+          Log.debugf "read %s %d" (K.to_string k) i;
+          let Store (t, (module S)) = t.(i) in
           S.Internal.read t k
 
         let read_exn t k =
-          let Store (t, (module S)) = t.(key k) in
+          let i = key k in
+          Log.debugf "read_exn %s %d" (K.to_string k) i;
+          let Store (t, (module S)) = t.(i) in
           S.Internal.read_exn t k
 
         let mem t k =
-          let Store (t, (module S)) = t.(key k) in
+          let i = key k in
+          Log.debugf "mem %s %d" (K.to_string k) i;
+          let Store (t, (module S)) = t.(i) in
           S.Internal.mem t k
 
-        let list t k =
-          let Store (t, (module S)) = t.(key k) in
-          S.Internal.list t k
-
-        let list t k =
-          let Store (t, (module S)) = t.(key k) in
-          S.Internal.list t k
+        let list t keys =
+          Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+          let keys = List.map ~f:(fun k -> (key k, k)) keys in
+          let keys = Int.Map.of_alist_multi keys in
+          let keys = Map.to_alist keys in
+          Lwt_list.fold_left_s (fun set (i, keys) ->
+              let Store (t, (module S)) = t.(i) in
+              S.Internal.list t keys >>= fun keys ->
+              let keys = K.Set.of_list keys in
+              return (K.Set.union keys set)
+            ) K.Set.empty keys
+          >>= fun keys ->
+          return (K.Set.to_list keys)
 
         let dump t =
           let l = Array.to_list t in
@@ -90,6 +105,7 @@ struct
           let Store (t, (module S)) = t.(i) in
           S.Internal.add t v >>= fun k ->
           signal k;
+          Log.debugf "added %s %d" (K.to_string k) i;
           return k
 
       end

@@ -17,7 +17,7 @@
 open Core_kernel.Std
 open Lwt
 
-module L = Log.Make(struct let section = "HTTP" end)
+module Log = Log.Make(struct let section = "HTTP" end)
 
 type 'a t = {
   input : Ezjsonm.t -> 'a;
@@ -114,7 +114,7 @@ module Server (S: Irmin.S) = struct
     list (pair key value)
 
   let respond ?headers body =
-    L.debugf "%S" body;
+    Log.debugf "%S" body;
     Cohttp_lwt_unix.Server.respond_string ?headers ~status:`OK ~body ()
 
   let respond_json json =
@@ -262,7 +262,7 @@ module Server (S: Irmin.S) = struct
   let contents_store = Node [
       mk1p0bf "read" Contents.read bl key (some contents);
       mk1p0bf "mem"  Contents.mem  bl key bool;
-      mk1p0bf "list" Contents.list bl key (list key);
+      mklp0bf "list" Contents.list bl (list key) (list key);
       mk0p1bf "add"  Contents.add  bl contents key;
       mk0p0bf "dump" Contents.dump bl (mk_dump key contents);
   ]
@@ -270,7 +270,7 @@ module Server (S: Irmin.S) = struct
   let node_store = Node [
       mk1p0bf "read" Node.read no key (some node);
       mk1p0bf "mem"  Node.mem  no key bool;
-      mk1p0bf "list" Node.list no key (list key);
+      mklp0bf "list" Node.list no (list key) (list key);
       mk0p1bf "add"  Node.add  no node key;
       mk0p0bf "dump" Node.dump no (mk_dump key node);
   ]
@@ -278,7 +278,7 @@ module Server (S: Irmin.S) = struct
   let commit_store = Node [
       mk1p0bf "read" Commit.read co key (some commit);
       mk1p0bf "mem"  Commit.mem  co key bool;
-      mk1p0bf "list" Commit.list co key (list key);
+      mklp0bf "list" Commit.list co (list key) (list key);
       mk0p1bf "add"  Commit.add  co commit key;
       mk0p0bf "dump" Commit.dump co (mk_dump key commit);
   ]
@@ -286,7 +286,7 @@ module Server (S: Irmin.S) = struct
   let reference_store = Node [
       mklp0bf "read"   Reference.read   re reference (some key);
       mklp0bf "mem"    Reference.mem    re reference bool;
-      mklp0bf "list"   Reference.list   re reference (list reference);
+      mklp0bf "list"   Reference.list   re (list reference) (list reference);
       mklp1bf "update" Reference.update re reference key unit;
       mklp0bf "remove" Reference.remove re reference unit;
       mk0p0bf "dump"   Reference.dump   re (mk_dump reference key);
@@ -296,7 +296,7 @@ module Server (S: Irmin.S) = struct
   let store = Node [
       mklp0bf "read"     S.read     t path (some contents);
       mklp0bf "mem"      S.mem      t path bool;
-      mklp0bf "list"     S.list     t path (list path);
+      mk0p1bf "list"     S.list     t (list path) (list path);
       mklp1bf "update"   S.update   t path contents unit;
       mklp0bf "remove"   S.remove   t path unit;
       mk0p0bf "dump"     S.dump     t (mk_dump path contents);
@@ -321,7 +321,7 @@ module Server (S: Irmin.S) = struct
           return_none
         else begin
           Cohttp_lwt_body.to_string body >>= fun b ->
-          L.debugf "process: length=%d body=%S" len b;
+          Log.debugf "process: length=%d body=%S" len b;
           try match Ezjsonm.from_string b with
             | `O l ->
               if List.Assoc.mem l "params" then
@@ -331,7 +331,7 @@ module Server (S: Irmin.S) = struct
             | _    ->
               failwith "Wrong parameters"
           with _ ->
-            L.debugf "process: not a valid JSON body %S" b;
+            Log.debugf "process: not a valid JSON body %S" b;
             fail Invalid
         end
       | _ -> fail Invalid
@@ -357,13 +357,13 @@ let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
   printf "Server started on port %d.\n%!" port;
   let callback conn_id req body =
     let path = Uri.path (Cohttp.Request.uri req) in
-    L.infof "Request received: PATH=%s" path;
+    Log.infof "Request received: PATH=%s" path;
     let path = String.split path ~on:'/' in
     let path = List.filter ~f:((<>) "") path in
     catch
       (fun () -> Server.process t req body path)
       (fun e  -> respond_error e) in
   let conn_closed conn_id () =
-    L.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
+    Log.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
   let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
   Cohttp_lwt_unix.Server.create ~address ~port config

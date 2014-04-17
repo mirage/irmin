@@ -95,5 +95,7 @@ val to_nodes: ('a, 'b) vertex list -> 'a list
 val of_contents: 'a list -> ('a, 'b) vertex list
 val to_contents: ('a, 'b) vertex list -> 'a list
 
+val to_keys: ('a, 'b) vertex list -> 'a list
+
 (** Build a graph. *)
 module Make(K: IrminKey.S)(R: IrminReference.S): S with type V.t = (K.t, R.t) vertex

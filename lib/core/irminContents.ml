@@ -16,7 +16,7 @@
 
 open Core_kernel.Std
 
-module L = Log.Make(struct let section = "VALUE" end)
+module Log = Log.Make(struct let section = "VALUE" end)
 
 exception Invalid of string
 

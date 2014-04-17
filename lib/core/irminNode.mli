@@ -25,6 +25,9 @@ type 'key t = {
 } with bin_io, compare, sexp
 (** Type of nodes .*)
 
+val edges: 'a t -> ('a, 'b) IrminGraph.vertex list
+(** The graph edges. *)
+
 val of_json: (Ezjsonm.t -> 'a) -> Ezjsonm.t -> 'a t
 val to_json: ('a -> Ezjsonm.t) -> 'a t -> Ezjsonm.t
 

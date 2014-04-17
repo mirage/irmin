@@ -17,7 +17,7 @@
 open Lwt
 open Core_kernel.Std
 
-module L = Log.Make(struct let section = "MEMORY" end)
+module Log = Log.Make(struct let section = "MEMORY" end)
 
 module RO (K: IrminKey.S) = struct
 
@@ -45,25 +45,25 @@ module RO (K: IrminKey.S) = struct
     }
 
   let read { t } key =
-    L.debugf "read %s" (pretty_key key);
+    Log.debugf "read %s" (pretty_key key);
     return (Hashtbl.find t key)
 
   let read_exn { t } key =
-    L.debugf "read_exn %s" (pretty_key key);
+    Log.debugf "read_exn %s" (pretty_key key);
     match Hashtbl.find t key with
     | Some d -> return d
     | None   -> unknown key
 
   let mem { t } key =
-    L.debugf "mem %s" (pretty_key key);
+    Log.debugf "mem %s" (pretty_key key);
     return (Hashtbl.mem t key)
 
   let list { t } k =
-    L.debugf "list %s" (pretty_key k);
-    return [k]
+    Log.debugf "list %s" (IrminMisc.pretty_list pretty_key k);
+    return k
 
   let dump { t } =
-    L.debugf "dump";
+    Log.debugf "dump";
     return (Hashtbl.to_alist t)
 
 end
@@ -84,19 +84,19 @@ module RW (K: IrminKey.S) = struct
   include RO(K)
 
   let update t key value =
-    L.debugf "update %s" (pretty_key key);
+    Log.debugf "update %s" (pretty_key key);
     Hashtbl.replace t.t key value;
     W.notify t.w (K.of_raw key) (Some value);
     return_unit
 
   let remove t key =
-    L.debugf "remove %s" (pretty_key key);
+    Log.debugf "remove %s" (pretty_key key);
     Hashtbl.remove t.t key;
     W.notify t.w (K.of_raw key) None;
     return_unit
 
   let watch t key =
-    L.debugf "watch %S" (pretty_key key);
+    Log.debugf "watch %S" (pretty_key key);
     IrminMisc.lift_stream (
       read t key >>= fun value ->
       return (W.watch t.w (K.of_raw key) value)

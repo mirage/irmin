@@ -33,7 +33,7 @@ end
 
 module SHA1 = struct
 
-  module L = Log.Make(struct let section = "SHA1" end)
+  module Log = Log.Make(struct let section = "SHA1" end)
 
   let to_hex t =
     IrminMisc.hex_encode t
@@ -80,28 +80,28 @@ module SHA1 = struct
     1 + len
 
   let get buf =
-    L.debug (lazy "get");
+    Log.debug (lazy "get");
     let h = Mstruct.get_string buf 1 in
     if header <> h then None
     else
       try
         let str = Mstruct.get_string buf len in
-        L.debugf "--> get %s" (to_string str);
+        Log.debugf "--> get %s" (to_string str);
         Some str
       with _ ->
         None
 
   let set buf t =
-    L.debugf "set %s" (to_string t);
+    Log.debugf "set %s" (to_string t);
     Mstruct.set_string buf header;
     Mstruct.set_string buf t
 
   let of_bytes' str =
-    L.debugf "of_bytes: %S" str;
+    Log.debugf "of_bytes: %S" str;
     IrminMisc.sha1 str
 
   let of_bytes ba =
-    L.debugf "of_bigarray";
+    Log.debugf "of_bigarray";
     (* XXX: avoid copies *)
     of_bytes' (Bigstring.to_string ba)
 

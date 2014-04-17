@@ -24,7 +24,7 @@ module type RO = sig
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
-  val list: t -> key -> key list Lwt.t
+  val list: t -> key list -> key list Lwt.t
   val dump: t -> (key * value) list Lwt.t
 end
 
@@ -63,8 +63,9 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
   let mem t key =
     S.mem t (K.to_raw key)
 
-  let list t key =
-    S.list t (K.to_raw key) >>= fun ks ->
+  let list t keys =
+    let keys = List.map ~f:K.to_raw keys in
+    S.list t keys >>= fun ks ->
     let ks = List.map ~f:K.of_raw ks in
     return ks
 

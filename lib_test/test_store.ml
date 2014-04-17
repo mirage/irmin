@@ -191,10 +191,10 @@ module Make (S: Irmin.S) = struct
       assert_key_equal "kr2" kr2 kr2';
       assert_commit_equal "r2" r2 r2';
 
-      Commit.list commit kr1 >>= fun kr1s ->
+      Commit.list commit [kr1] >>= fun kr1s ->
       assert_keys_equal "g1" [kr1] kr1s;
 
-      Commit.list commit kr2 >>= fun kr2s ->
+      Commit.list commit [kr2] >>= fun kr2s ->
       assert_keys_equal "g2" [kr1; kr2] kr2s;
 
      return_unit
@@ -219,12 +219,12 @@ module Make (S: Irmin.S) = struct
       Reference.update reference r1 kv2 >>= fun ()   ->
       Reference.read   reference r1     >>= fun k2'' ->
       assert_key_opt_equal "r1-after-update" (Some kv2) k2'';
-      Reference.list   reference r1     >>= fun ts ->
+      Reference.list reference [r1]     >>= fun ts ->
       assert_references_equal "list" [r1; r2] ts;
       Reference.remove reference r1     >>= fun () ->
       Reference.read   reference r1     >>= fun empty ->
       assert_key_opt_equal "empty" None empty;
-      Reference.list   reference r1     >>= fun r2' ->
+      Reference.list reference [r1]     >>= fun r2' ->
       assert_references_equal "all-after-remove" [r2] r2';
       return_unit
     in
@@ -322,7 +322,7 @@ module Make (S: Irmin.S) = struct
       revert t r1           >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
       assert_contents_opt_equal "v1.3" (Some v1) v1'';
-      list t ["a"]          >>= fun ks  ->
+      list t [["a"]]        >>= fun ks  ->
       assert_paths_equal "path" [["a";"b"]] ks;
       update t [long_random_string] v1 >>= fun () ->
       return_unit

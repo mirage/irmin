@@ -23,9 +23,11 @@ module type Jsonable = sig
   val of_json: Ezjsonm.t -> t
 end
 
+module XLog = Log
+
 module Make (Client: Cohttp_lwt.Client) = struct
 
-  module L = Log.Make(struct let section = "CRUD" end)
+  module Log = XLog.Make(struct let section = "CRUD" end)
 
   exception Error of string
 
@@ -51,7 +53,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   let map_string_response fn (r,b) =
     Cohttp_lwt_body.to_string b >>= fun b ->
-    L.debugf "response: body=%s" b;
+    Log.debugf "response: body=%s" b;
     let j = Ezjsonm.from_string b in
     try return (fn (result_of_json j))
     with Error e -> fail (Error e)
@@ -63,7 +65,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     Lwt_stream.map fn stream
 
   let map_get t path fn =
-    L.debugf "get %s" (Uri.to_string (uri t path));
+    Log.debugf "get %s" (Uri.to_string (uri t path));
     Client.get (uri t path) >>=
     fn
 
@@ -84,7 +86,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     Lwt_stream.from get
 
   let delete t path fn =
-    L.debugf "delete %s" (Uri.to_string (uri t path));
+    Log.debugf "delete %s" (Uri.to_string (uri t path));
     Cohttp_lwt_unix.Client.delete (uri t path) >>=
     map_string_response fn
 
@@ -92,7 +94,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     let body =
       let params = `O [ "params", body ] in
       Ezjsonm.to_string params in
-    L.debugf "post %s %s" (Uri.to_string (uri t path)) body;
+    Log.debugf "post %s %s" (Uri.to_string (uri t path)) body;
     let body = Cohttp_lwt_body.of_string body in
     Cohttp_lwt_unix.Client.post ~body (uri t path) >>=
     map_string_response fn
@@ -103,7 +105,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   module RO (U: U) (K: IrminKey.S) (V: Jsonable) = struct
 
-    module L = Log.Make(struct let section = "CRUD" ^ Uri.path U.uri end)
+    module Log = XLog.Make(struct let section = "CRUD" ^ Uri.path U.uri end)
 
     type t = Uri.t
 
@@ -118,26 +120,26 @@ module Make (Client: Cohttp_lwt.Client) = struct
       return U.uri
 
     let read t key =
-      L.debugf "read %s" (K.to_string key);
+      Log.debugf "read %s" (K.to_string key);
       catch
         (fun () -> get t ["read"; K.to_string key] (some V.of_json))
         (fun _  -> return_none)
 
     let read_exn t key =
-      L.debugf "read_exn %s" (K.to_string key);
+      Log.debugf "read_exn %s" (K.to_string key);
       get t ["read"; K.to_string key] V.of_json
 
     let mem t key =
-      L.debugf "mem %s" (K.to_string key);
+      Log.debugf "mem %s" (K.to_string key);
       get t ["mem"; K.to_string key] Ezjsonm.get_bool
 
 
-    let list t key =
-      L.debugf "list %s" (K.to_string key);
-      get t ["list"; K.to_string key] (Ezjsonm.get_list K.of_json)
+    let list t keys =
+      Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+      get t ("list" :: List.map ~f:K.to_string keys) (Ezjsonm.get_list K.of_json)
 
     let dump t =
-      L.debugf "dump";
+      Log.debugf "dump";
       get t ["dump"] (Ezjsonm.get_list (Ezjsonm.get_pair K.of_json V.of_json))
 
   end
@@ -147,7 +149,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     include RO(U)(K)(V)
 
     let add t value =
-      L.debugf "add %S"(V.to_string value);
+      Log.debugf "add %S"(V.to_string value);
       post t ["add"] (V.to_json value) K.of_json
 
   end
@@ -157,15 +159,15 @@ module Make (Client: Cohttp_lwt.Client) = struct
     include RO(U)(K)(V)
 
     let update t key value =
-      L.debugf "update %s %S" (K.to_string key) (V.to_string value);
+      Log.debugf "update %s %S" (K.to_string key) (V.to_string value);
       post t ["update"; K.to_string key] (V.to_json value) Ezjsonm.get_unit
 
     let remove t key =
-      L.debugf "remove %s" (K.to_string key);
+      Log.debugf "remove %s" (K.to_string key);
       delete t ["remove"; K.to_string key] Ezjsonm.get_unit
 
     let watch t path =
-      L.debugf "watch";
+      Log.debugf "watch";
       get_stream t ["watch"; K.to_string path] V.of_json
 
   end
@@ -187,27 +189,27 @@ module Make (Client: Cohttp_lwt.Client) = struct
     type branch = B.t
 
     let snapshot t =
-      L.debugf "snapshot";
+      Log.debugf "snapshot";
       get t ["snapshot"] S.of_json
 
     let revert t rev =
-      L.debugf "revert";
+      Log.debugf "revert";
       get t ["revert"; S.to_string rev] Ezjsonm.get_unit
 
     let merge_snapshot t s1 s2 =
-      L.debugf "merge_snapshot";
+      Log.debugf "merge_snapshot";
       get t ["merge_snapshot"; S.to_string s1; S.to_string s2] S.of_json
 
     let watch t path =
-      L.debugf "watch";
+      Log.debugf "watch";
       get_stream t ["watch"; K.to_string path] (Ezjsonm.get_pair K.of_json S.of_json)
 
     let export t revs =
-      L.debugf "export %s" (IrminMisc.pretty_list S.to_string revs);
+      Log.debugf "export %s" (IrminMisc.pretty_list S.to_string revs);
       get t ("export" :: List.map ~f:S.to_string revs) D.of_json
 
     let import t branch dump =
-      L.debugf "dump";
+      Log.debugf "dump";
       post t ["import"; B.to_string branch] (D.to_json dump) Ezjsonm.get_unit
 
   end

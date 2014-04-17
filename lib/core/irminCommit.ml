@@ -23,6 +23,13 @@ type 'key t = {
   origin : string;
 } with bin_io, compare, sexp
 
+let edges t =
+  begin match t.node with
+    | None   -> []
+    | Some k -> [`Node k]
+  end
+  @ List.map ~f:(fun k -> `Commit k) t.parents
+
 let to_json json_of_key t =
   `O (
     ("parents", Ezjsonm.list json_of_key t.parents) ::
@@ -45,7 +52,7 @@ let of_json key_of_json json =
     with Not_found -> None in
   { node; parents; date; origin }
 
-module L = Log.Make(struct let section = "COMMIT" end)
+module Log = Log.Make(struct let section = "COMMIT" end)
 
 module type S = sig
   type key
@@ -143,16 +150,15 @@ module Make
 
   module Graph = IrminGraph.Make(K)(IrminReference.String)
 
-  let list t key =
-    L.debugf "list %s" (K.to_string key);
+  let list t keys =
+    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
     let pred = function
-      | `Commit k ->
-        read_exn t k >>= fun r ->
-        return (List.map ~f:(fun k -> `Commit k) r.parents)
-      | _ -> return_nil in
-    Graph.closure pred ~min:[] ~max:[`Commit key] >>= fun g ->
-    let commits = IrminGraph.to_commits (Graph.vertex g) in
-    return commits
+      | `Commit k -> read_exn t k >>= fun r -> return (edges r)
+      | _         -> return_nil in
+    let max = IrminGraph.of_commits keys in
+    Graph.closure pred ~min:[] ~max >>= fun g ->
+    let keys = IrminGraph.to_commits (Graph.vertex g) in
+    return keys
 
   let dump (_, t) =
     Commit.dump t
