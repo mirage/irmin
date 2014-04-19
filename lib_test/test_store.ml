@@ -340,8 +340,10 @@ module Make (S: Irmin.S) = struct
           | n -> aux (random_node () :: acc) (n-1) in
         aux [] n in
       let nodes = random_nodes 100 in
+      Tree.create () >>= fun tree ->
+      Lwt_list.iter_s (fun (k,v) -> Tree.update tree k v) nodes;
 
-      updates t1 nodes       >>= fun () ->
+      updates t1 ["a"] tree  >>= fun () ->
 
       update t1 ["a";"b"] v1 >>= fun () ->
       snapshot t1            >>= fun r1 ->

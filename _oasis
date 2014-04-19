@@ -25,7 +25,7 @@ Library irminsule
   Modules: Irmin, IrminGraph, IrminKey,
            IrminMisc, IrminCommit, IrminStore, IrminValue,
            IrminReference, IrminContents, IrminNode, IrminVersion,
-           IrminDump, IrminPath, IrminWatch, IrminMerge
+           IrminDump, IrminPath, IrminWatch, IrminMerge, IrminTree
   BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
                 re.str, dolog, mstruct,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax

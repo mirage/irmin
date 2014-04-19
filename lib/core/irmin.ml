@@ -34,11 +34,12 @@ module type S = sig
   val reference: t -> Reference.t
   val branch: t -> branch -> t Lwt.t
   val merge: t -> into:t -> unit Lwt.t
-  val updates: t -> (key * value) list -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
+  module Tree: IrminTree.S with type value := value
+  val updates: t -> key -> Tree.t -> unit Lwt.t
 end
 
 
@@ -120,10 +121,10 @@ module Make
     | None   -> []
     | Some r -> [r]
 
-  let update_nodes t fns =
+  let update_node t fn =
     read_head_commit t >>= fun commit ->
     read_node t commit >>= fun old_node ->
-    Lwt_list.fold_left_s (fun node fn -> fn node) old_node fns >>= fun node ->
+    fn old_node >>= fun node ->
     if IrminNode.equal K.equal old_node node then return_unit
     else (
       let parents = parents_of_commit commit in
@@ -140,20 +141,19 @@ module Make
   let read =
     read_node Node.find
 
-  let updates t contents =
-    Log.debugf "updates %d" (List.length contents);
-    let fns = List.map ~f:(fun (path, contents) ->
-        fun node -> Node.update (no t.vals) node path contents
-      ) contents in
-    update_nodes t fns
-
   let update t path contents =
-    updates t [ (path, contents) ]
+    Log.debugf "update %s" (IrminPath.to_string path);
+    update_node t (fun node ->
+        Node.update (no t.vals) node path contents
+      )
+
+  let updates _ =
+    failwith "TODO"
 
   let remove t path =
-    update_nodes t [ fun node ->
+    update_node t (fun node ->
         Node.remove (no t.vals) node path
-      ]
+      )
 
   let read_exn =
     read_node Node.find_exn
@@ -456,6 +456,8 @@ module Make
     Reference.read_exn t2.refs t2.branch  >>= fun c2  ->
     merge_snapshot t1 c1 c2               >>= fun c3  ->
     Reference.update t1.refs t1.branch c3
+
+  module Tree = IrminTree.Make(C)
 
 end
 
