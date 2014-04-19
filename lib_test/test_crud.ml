@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-open Test_store
+open Test_common
 
 let uri = Uri.of_string "http://127.0.0.1:8080"
 

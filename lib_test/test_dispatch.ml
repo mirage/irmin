@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-open Test_store
+open Test_common
 open Core_kernel.Std
 
 let suite k stores =

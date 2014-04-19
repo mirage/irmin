@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-open Test_store
+open Test_common
 
 let suite k =
   let (module K), (module C), (module R) = modules k in

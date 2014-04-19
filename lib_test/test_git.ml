@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-open Test_store
+open Test_common
 
 let test_db = ".git"
 

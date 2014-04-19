@@ -17,24 +17,10 @@
 open OUnit
 open Test_common
 open Lwt
+open Core_kernel.Std
 
-let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminReference.S) =
-  match x with
-  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
-  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
-
-type t = {
-  name : string;
-  kind : [`JSON | `String];
-  init : unit -> unit Lwt.t;
-  clean: unit -> unit Lwt.t;
-  store: (module Irmin.S);
-}
-
-let unit () =
-  return_unit
-
-let long_random_string = Cryptokit.(Random.string (Random.device_rng "/dev/urandom") 1024)
+let urandom = Cryptokit.Random.device_rng "/dev/urandom"
+let long_random_string = Cryptokit.Random.string urandom 1024
 
 module Make (S: Irmin.S) = struct
 
@@ -436,13 +422,9 @@ let suite (speed, x) =
     "Basic merge operations"          , speed, T.test_merges     x;
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
-    "High-level store merges"         , speed, T.test_merge_api  x;
+    "High-level store merges"         , `Slow, T.test_merge_api  x;
   ]
 
 let run name tl =
-  let tl = List.map suite tl in
+  let tl = List.map ~f:suite tl in
   Alcotest.run name tl
-
-let string_of_kind = function
-  | `JSON   -> ".JSON"
-  | `String -> ""
