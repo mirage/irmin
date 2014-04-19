@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 235afa9f414ef9320b86b211805b24e4)
+# DO NOT EDIT (digest: 26439ca1e51d0ea891d04f1cd96c6939)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -22,7 +22,6 @@
 <lib/core/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/core/*.ml{,i}>: pkg_comparelib.syntax
 <lib/core/*.ml{,i}>: pkg_core_kernel
-<lib/core/*.ml{,i}>: pkg_cryptokit
 <lib/core/*.ml{,i}>: pkg_dolog
 <lib/core/*.ml{,i}>: pkg_ezjsonm
 <lib/core/*.ml{,i}>: pkg_lwt
@@ -30,6 +29,7 @@
 <lib/core/*.ml{,i}>: pkg_ocamlgraph
 <lib/core/*.ml{,i}>: pkg_re.str
 <lib/core/*.ml{,i}>: pkg_sexplib.syntax
+<lib/core/*.ml{,i}>: pkg_sha
 # Library backend
 "lib/backend/backend.cmxs": use_backend
 <lib/backend/backend.{cma,cmxa}>: oasis_library_backend_byte
@@ -53,7 +53,6 @@
 <lib/backend/*.ml{,i}>: pkg_cohttp.lwt
 <lib/backend/*.ml{,i}>: pkg_comparelib.syntax
 <lib/backend/*.ml{,i}>: pkg_core_kernel
-<lib/backend/*.ml{,i}>: pkg_cryptokit
 <lib/backend/*.ml{,i}>: pkg_dolog
 <lib/backend/*.ml{,i}>: pkg_ezjsonm
 <lib/backend/*.ml{,i}>: pkg_ezjsonm.lwt
@@ -64,6 +63,7 @@
 <lib/backend/*.ml{,i}>: pkg_ocamlgraph
 <lib/backend/*.ml{,i}>: pkg_re.str
 <lib/backend/*.ml{,i}>: pkg_sexplib.syntax
+<lib/backend/*.ml{,i}>: pkg_sha
 <lib/backend/*.ml{,i}>: pkg_uri
 <lib/backend/*.ml{,i}>: use_backend
 <lib/backend/*.ml{,i}>: use_irminsule
@@ -77,7 +77,6 @@
 <lib/server/*.ml{,i}>: pkg_cohttp.lwt
 <lib/server/*.ml{,i}>: pkg_comparelib.syntax
 <lib/server/*.ml{,i}>: pkg_core_kernel
-<lib/server/*.ml{,i}>: pkg_cryptokit
 <lib/server/*.ml{,i}>: pkg_dolog
 <lib/server/*.ml{,i}>: pkg_ezjsonm
 <lib/server/*.ml{,i}>: pkg_ezjsonm.lwt
@@ -90,6 +89,7 @@
 <lib/server/*.ml{,i}>: pkg_ocamlgraph
 <lib/server/*.ml{,i}>: pkg_re.str
 <lib/server/*.ml{,i}>: pkg_sexplib.syntax
+<lib/server/*.ml{,i}>: pkg_sha
 <lib/server/*.ml{,i}>: pkg_unix
 <lib/server/*.ml{,i}>: pkg_uri
 <lib/server/*.ml{,i}>: use_backend
@@ -102,7 +102,6 @@
 <lib/driver/irminMain.{native,byte}>: pkg_cohttp.lwt
 <lib/driver/irminMain.{native,byte}>: pkg_comparelib.syntax
 <lib/driver/irminMain.{native,byte}>: pkg_core_kernel
-<lib/driver/irminMain.{native,byte}>: pkg_cryptokit
 <lib/driver/irminMain.{native,byte}>: pkg_dolog
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm.lwt
@@ -115,6 +114,7 @@
 <lib/driver/irminMain.{native,byte}>: pkg_ocamlgraph
 <lib/driver/irminMain.{native,byte}>: pkg_re.str
 <lib/driver/irminMain.{native,byte}>: pkg_sexplib.syntax
+<lib/driver/irminMain.{native,byte}>: pkg_sha
 <lib/driver/irminMain.{native,byte}>: pkg_unix
 <lib/driver/irminMain.{native,byte}>: pkg_uri
 <lib/driver/irminMain.{native,byte}>: use_backend
@@ -127,7 +127,6 @@
 <lib/driver/*.ml{,i}>: pkg_cohttp.lwt
 <lib/driver/*.ml{,i}>: pkg_comparelib.syntax
 <lib/driver/*.ml{,i}>: pkg_core_kernel
-<lib/driver/*.ml{,i}>: pkg_cryptokit
 <lib/driver/*.ml{,i}>: pkg_dolog
 <lib/driver/*.ml{,i}>: pkg_ezjsonm
 <lib/driver/*.ml{,i}>: pkg_ezjsonm.lwt
@@ -140,6 +139,7 @@
 <lib/driver/*.ml{,i}>: pkg_ocamlgraph
 <lib/driver/*.ml{,i}>: pkg_re.str
 <lib/driver/*.ml{,i}>: pkg_sexplib.syntax
+<lib/driver/*.ml{,i}>: pkg_sha
 <lib/driver/*.ml{,i}>: pkg_unix
 <lib/driver/*.ml{,i}>: pkg_uri
 <lib/driver/*.ml{,i}>: use_backend
@@ -153,7 +153,6 @@
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt
 <lib_test/test.{native,byte}>: pkg_comparelib.syntax
 <lib_test/test.{native,byte}>: pkg_core_kernel
-<lib_test/test.{native,byte}>: pkg_cryptokit
 <lib_test/test.{native,byte}>: pkg_dolog
 <lib_test/test.{native,byte}>: pkg_ezjsonm
 <lib_test/test.{native,byte}>: pkg_ezjsonm.lwt
@@ -166,6 +165,7 @@
 <lib_test/test.{native,byte}>: pkg_ocamlgraph
 <lib_test/test.{native,byte}>: pkg_re.str
 <lib_test/test.{native,byte}>: pkg_sexplib.syntax
+<lib_test/test.{native,byte}>: pkg_sha
 <lib_test/test.{native,byte}>: pkg_unix
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: use_backend
@@ -178,7 +178,6 @@
 <lib_test/*.ml{,i}>: pkg_cohttp.lwt
 <lib_test/*.ml{,i}>: pkg_comparelib.syntax
 <lib_test/*.ml{,i}>: pkg_core_kernel
-<lib_test/*.ml{,i}>: pkg_cryptokit
 <lib_test/*.ml{,i}>: pkg_dolog
 <lib_test/*.ml{,i}>: pkg_ezjsonm
 <lib_test/*.ml{,i}>: pkg_ezjsonm.lwt
@@ -191,6 +190,7 @@
 <lib_test/*.ml{,i}>: pkg_ocamlgraph
 <lib_test/*.ml{,i}>: pkg_re.str
 <lib_test/*.ml{,i}>: pkg_sexplib.syntax
+<lib_test/*.ml{,i}>: pkg_sha
 <lib_test/*.ml{,i}>: pkg_unix
 <lib_test/*.ml{,i}>: pkg_uri
 <lib_test/*.ml{,i}>: use_backend
