@@ -303,18 +303,31 @@ module Make
 
   let map_children t children f label =
     Log.debugf "map_children %s" label;
-    begin match String.Map.find children label with
-      | None   -> f empty
-      | Some k -> read_exn t k >>= f
-    end >>= fun node ->
-    begin
-      if is_empty node then return_none
-      else
-        add t node >>= fun k ->
-        return (Some k)
-    end >>= fun key ->
-    let children = String.Map.change children label (fun _ -> key) in
-    return children
+    let old_key = String.Map.find children label in
+    begin match old_key with
+      | None   -> return empty
+      | Some k -> read_exn t k
+    end >>= fun old_node ->
+    f old_node >>= fun node ->
+    if equal K.equal old_node node then
+      return children
+    else (
+      begin
+        if is_empty node then return_none
+        else
+          add t node >>= fun k ->
+          return (Some k)
+      end >>= fun key ->
+      let children = match old_key, key with
+        | None  , None     -> children
+        | Some _, None     -> String.Map.remove children label
+        | None  , Some k   -> String.Map.add children label k
+        | Some k1, Some k2 ->
+          if K.equal k1 k2 then children
+          else
+            String.Map.add children label k2 in
+      return children
+    )
 
   let map_subnode t node path f =
     let rec aux node = function
