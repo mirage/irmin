@@ -23,6 +23,7 @@ let () =
     `Quick, Test_dispatch.suite k [|
       Test_git.suite k `Disk;
       Test_memory.suite k;
+      Test_fs.suite k;
     |];
     `Slow , Test_crud.suite k (Test_memory.suite k);
     `Slow , Test_crud.suite k (Test_fs.suite k);
