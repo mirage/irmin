@@ -175,9 +175,7 @@ module Make
     | Some _ as x -> return x
     | None        ->
       Contents.mem c key >>= function
-      | true  ->
-        Log.debugf "leaf %s" (K.to_string key);
-        return (Some (leaf key))
+      | true  -> return (Some (leaf key))
       | false -> return_none
 
   let read_exn t key =
@@ -327,11 +325,11 @@ module Make
     aux node path
 
   let remove t node path =
-    Log.debugf "remove %s" (IrminPath.to_string path);
+    Log.debugf "remove %S" (IrminPath.to_string path);
     map_subnode t node path (fun node -> empty)
 
   let update (c, _ as t) node path value =
-    Log.debugf "update %s" (IrminPath.to_string path);
+    Log.debugf "update %S" (IrminPath.to_string path);
     Contents.add c value >>= fun k  ->
     map_subnode t node path (fun node -> { node with contents = Some k }) >>= fun n ->
     return n

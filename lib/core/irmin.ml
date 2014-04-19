@@ -211,6 +211,7 @@ module Make
 
   (* Return the subpaths. *)
   let list t paths =
+    Log.debugf "list";
     let one path =
       read_head_node t >>= fun node ->
       Node.sub (no t.vals) node path >>= function
@@ -229,6 +230,7 @@ module Make
     return (IrminPath.Set.to_list paths)
 
   let dump t =
+    Log.debugf "dump";
     read_head_node t >>= fun node ->
     let rec aux seen = function
       | []       -> return (List.sort compare seen)

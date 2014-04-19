@@ -159,6 +159,7 @@ module Make (K: IrminKey.S) (R: IrminReference.S) = struct
     g
 
   let output ppf vertex edges name =
+    Log.debugf "output %s" name;
     let g = G.create ~size:(List.length vertex) () in
     List.iter ~f:(fun (v,_) -> G.add_vertex g v) vertex;
     List.iter ~f:(fun (v1,_,v2) -> G.add_edge g v1 v2) edges;

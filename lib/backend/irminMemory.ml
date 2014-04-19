@@ -42,11 +42,11 @@ module RO (K: IrminKey.S) (V: Identifiable.S) = struct
     }
 
   let read { t } key =
-    Log.debugf "read %s" (K.to_string key);
+    (* Log.debugf "read %s" (K.to_string key); *)
     return (Hashtbl.find t key)
 
   let read_exn { t } key =
-    Log.debugf "read_exn %s" (K.to_string key);
+(*    Log.debugf "read_exn %s" (K.to_string key); *)
     match Hashtbl.find t key with
     | Some d -> return d
     | None   -> unknown key
@@ -56,7 +56,6 @@ module RO (K: IrminKey.S) (V: Identifiable.S) = struct
     return (Hashtbl.mem t key)
 
   let list { t } k =
-    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string k);
     return k
 
   let dump { t } =
