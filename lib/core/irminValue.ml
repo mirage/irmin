@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
 open Core_kernel.Std
 
 module Log = Log.Make(struct let section = "VALUE" end)
@@ -123,13 +124,11 @@ module Mux
   let node t = t.node
   let commit t = t.commit
 
-  open Lwt
-
   let create () =
     Commit.create () >>= fun ((contents, _ as node), _ as commit) ->
     return { contents; node; commit }
 
-  (* XXX: ugly *)
+  (* XXX: ugly and slow *)
   let read t key =
     Log.debugf "read %s" (K.to_string key);
     Contents.read t.contents key >>= function
@@ -191,7 +190,6 @@ module Mux
     return all
 
 end
-
 
 module type CASTABLE = sig
   type t
@@ -278,10 +276,17 @@ module Make
       let inj c = Commit c
     end)
 
-  module XContents = IrminContents.Make(K)(C)(BS)
-  module XNode = IrminNode.Make(K)(C)(XContents)(TS)
-  module XCommit = IrminCommit.Make(K)(XNode)(CS)
+  module Contents = IrminContents.Make(K)(C)(BS)
+  module Node = IrminNode.Make(K)(C)(Contents)(TS)
+  module Commit = IrminCommit.Make(K)(Node)(CS)
 
-  include Mux(K)(C)(XContents)(XNode)(XCommit)
+  include Store
+  type contents = Contents.value
+  module Key = K
+  module Value = S(K)(C)
+
+  let contents t = t
+  let node t = (t, t)
+  let commit t = ((t, t), t)
 
 end
