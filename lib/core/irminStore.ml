@@ -100,10 +100,10 @@ module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
   module LA = Log.Make(struct let section = "AO" end)
 
   let add t value =
-    LA.debugf "add %s" (V.to_string value);
+    LA.debugf "add";
     S.add t (IrminMisc.write V.bin_t value) >>= fun key ->
     let key = K.of_raw key in
-    LA.debugf "<-- add: %s -> key=%s" (V.to_string value) (K.to_string key);
+    LA.debugf "<-- added: %s" (K.to_string key);
     return key
 
 end

@@ -87,7 +87,7 @@ module JSON = struct
 
   (* XXX: replace by a clever merge function *)
   let merge =
-    IrminMerge.(map (module S) string of_string to_string)
+    IrminMerge.(biject (module S) string of_string to_string)
 
 end
 
@@ -109,6 +109,6 @@ module Make
   module Value = C
 
   let merge t =
-    IrminMerge.map' (module K) C.merge (add t) (read_exn t)
+    IrminMerge.biject' (module K) C.merge (add t) (read_exn t)
 
 end

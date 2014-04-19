@@ -15,29 +15,42 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
 open Core_kernel.Std
 
 module Log = Log.Make(struct let section = "NODE" end)
 
 type 'key t = {
   contents: 'key option;
-  succ    : (string * 'key) list;
+  succ    : 'key String.Map.t;
 } with bin_io, compare, sexp
+
+let equal key_equal t1 t2 =
+  begin match t1.contents, t2.contents with
+    | Some _ , None
+    | None   , Some _  -> false
+    | Some k1, Some k2 -> key_equal k1 k2
+    | None   , None    -> true
+  end
+  && String.Map.equal key_equal t1.succ t2.succ
 
 let edges t =
   begin match t.contents with
     | None   -> []
     | Some k -> [`Contents k]
   end
-  @ List.map ~f:(fun (_,k) -> `Node k) t.succ
+  @ Map.fold t.succ ~init:[]
+    ~f:(fun ~key:_ ~data:k acc -> `Node k :: acc)
 
 let to_json json_of_key t =
   let contents = match t.contents with
     | None   -> []
     | Some k -> [ "contents", json_of_key k ] in
-  let succ = match t.succ with
-    | [] -> []
-    | s  -> [ "succ", Ezjsonm.list (Ezjsonm.pair IrminMisc.json_encode json_of_key) s ] in
+  let succ =
+    if Map.is_empty t.succ then []
+    else
+      let l = Map.to_alist t.succ in
+      [ "succ", Ezjsonm.list (Ezjsonm.pair IrminMisc.json_encode json_of_key) l ] in
   `O (contents @ succ)
 
 let of_json key_of_json json =
@@ -54,17 +67,28 @@ let of_json key_of_json json =
         Ezjsonm.get_list
           (Ezjsonm.get_pair IrminMisc.json_decode_exn key_of_json)
           children in
-      children
-    with Not_found -> [] in
+      String.Map.of_alist_exn children
+    with Not_found -> String.Map.empty in
   { contents; succ }
 
 let empty =
   { contents = None;
-    succ = [] }
+    succ = String.Map.empty }
 
-let singleton elt =
-  { contents = Some elt;
-    succ = [] }
+let is_empty e =
+  e.contents = None && Map.is_empty e.succ
+
+let leaf e =
+  { contents = Some e;
+    succ = String.Map.empty }
+
+let is_leaf e =
+  e.contents <> None && Map.is_empty e.succ
+
+let contents_exn e =
+  match e.contents with
+  | None   -> raise Not_found
+  | Some c -> c
 
 module type S = sig
   type key
@@ -81,7 +105,7 @@ module type STORE = sig
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
     unit -> (key * value) Lwt.t
   val contents: t -> value -> contents Lwt.t option
-  val succ: t -> value -> (string * value Lwt.t) list
+  val succ: t -> value -> value Lwt.t String.Map.t
   val sub: t -> value -> IrminPath.t -> value option Lwt.t
   val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
   val update: t -> value -> IrminPath.t -> contents -> value Lwt.t
@@ -119,8 +143,8 @@ module Make
     (K: IrminKey.S)
     (C: IrminContents.S)
     (Contents: IrminContents.STORE with type key = K.t and type value = C.t)
-    (Node    : IrminStore.AO       with type key = K.t and type value = K.t t)
-= struct
+    (Node    : IrminStore.AO       with type key = K.t and type value = K.t t) =
+ struct
 
   module Key = K
   module Value = S(K)
@@ -133,16 +157,14 @@ module Make
 
   type t = Contents.t * Node.t
 
-  open Lwt
-
   let create () =
     Contents.create () >>= fun c ->
     Node.create () >>= fun t ->
     return (c, t)
 
-  let add (_, t) = function
-    | { succ = []; contents = Some k } -> return k
-    | node                             -> Node.add t node
+  let add (_, t) n = match n with
+    | { contents = Some k } -> if Map.is_empty n.succ then return k else Node.add t n
+    | _                     -> Node.add t n
 
   (* "leaf" nodes (ie. with no succ and some contents) are not
      duplicated: they are isomorphic to the contents itself and so:
@@ -154,8 +176,8 @@ module Make
     | None        ->
       Contents.mem c key >>= function
       | true  ->
-        Log.debugf "singleton %s" (K.to_string key);
-        return (Some (singleton key))
+        Log.debugf "leaf %s" (K.to_string key);
+        return (Some (leaf key))
       | false -> return_none
 
   let read_exn t key =
@@ -198,6 +220,7 @@ module Make
           return (l, k)
         ) succ
     end >>= fun succ ->
+    let succ = String.Map.of_alist_exn succ in
     let node = { contents; succ } in
     add t node >>= fun key ->
     return (key, node)
@@ -209,14 +232,14 @@ module Make
   let merge_value (c, _) merge_key =
     let explode n = (n.contents, n.succ) in
     let implode (contents, succ) = { contents; succ } in
-    let merge_pair = IrminMerge.pair (merge_contents c) (IrminMerge.assoc merge_key) in
-    IrminMerge.map (module Value) merge_pair implode explode
+    let merge_pair = IrminMerge.pair (merge_contents c) (IrminMerge.map merge_key) in
+    IrminMerge.biject (module Value) merge_pair implode explode
 
   let merge (c, _ as t) =
     let rec merge_key () =
       Log.debugf "merge";
       let merge = merge_value t (IrminMerge.apply merge_key ()) in
-      IrminMerge.map' (module K) merge (add t) (read_exn t) in
+      IrminMerge.biject' (module K) merge (add t) (read_exn t) in
     merge_key ()
 
   let contents (c, _) n =
@@ -225,19 +248,21 @@ module Make
     | Some k -> Some (Contents.read_exn c k)
 
   let succ t node =
-    List.map ~f:(fun (l, k) -> l, read_exn t k) node.succ
+    Map.mapi ~f:(fun ~key:l ~data:k -> read_exn t k) node.succ
 
   let next t node label =
-    List.Assoc.find (succ t node) label
+    match Map.find node.succ label with
+    | None   -> return_none
+    | Some k -> read t k
 
   let sub_exn t node path =
     let rec aux node path =
       match path with
-    | []    -> return node
-    | h::tl ->
-      match next t node h with
-      | None      -> fail Not_found
-      | Some node -> node >>= fun node -> aux node tl in
+      | []    -> return node
+      | h::tl ->
+        next t node h >>= function
+        | None      -> fail Not_found
+        | Some node -> aux node tl in
     aux node path
 
   let sub t node path =
@@ -279,27 +304,19 @@ module Make
       | Some _ -> return true
 
   let map_children t children f label =
-    let rec aux acc = function
-      | [] ->
-        f empty >>= fun node ->
-        if node = empty then return (List.rev acc)
-        else
-          add t node >>= fun k ->
-          return (List.rev_append acc [label, k])
-      | (l, k) as child :: children ->
-        if l = label then
-          read t k >>= function
-          | None      -> fail (IrminKey.Invalid (K.to_string k))
-          | Some node ->
-            f node >>= fun node ->
-            if node = empty then return (List.rev_append acc children)
-            else
-              add t node >>= fun k ->
-              return (List.rev_append acc ((l, k) :: children))
-        else
-          aux (child::acc) children
-    in
-    aux [] children
+    Log.debugf "map_children %s" label;
+    begin match String.Map.find children label with
+      | None   -> f empty
+      | Some k -> read_exn t k >>= f
+    end >>= fun node ->
+    begin
+      if is_empty node then return_none
+      else
+        add t node >>= fun k ->
+        return (Some k)
+    end >>= fun key ->
+    let children = String.Map.change children label (fun _ -> key) in
+    return children
 
   let map_subnode t node path f =
     let rec aux node = function
@@ -316,6 +333,7 @@ module Make
   let update (c, _ as t) node path value =
     Log.debugf "update %s" (IrminPath.to_string path);
     Contents.add c value >>= fun k  ->
-    map_subnode t node path (fun node -> { node with contents = Some k })
+    map_subnode t node path (fun node -> { node with contents = Some k }) >>= fun n ->
+    return n
 
 end

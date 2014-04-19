@@ -149,7 +149,7 @@ struct
           | Git.Value.Blob _ ->
             (* Create a dummy leaf node to hold contents. *)
             let key = key_of_git k in
-            Some { IrminNode.contents = Some key; succ = [] }
+            Some (IrminNode.leaf key)
           | Git.Value.Tree t ->
             let t = List.map ~f:(fun e -> Git.Tree.(e.name, key_of_git e.node)) t in
             let contents, succ = List.partition_tf ~f:(fun (n,_) -> n = contents_child) t in
@@ -157,12 +157,14 @@ struct
               | []       -> None
               | [(_, k)] -> Some k
               |  _  -> assert false in
+            let succ = String.Map.of_alist_exn succ in
             Some { IrminNode.contents; succ }
           | _ -> None
 
         let to_git t node =
           Log.debugf "Node.to_git %s" (X.to_string node);
           let mktree entries =
+            let entries = Map.to_alist entries in
             `Value (
               Lwt_list.map_p (fun (name, key) ->
                   let node = git_of_key key in
@@ -180,16 +182,16 @@ struct
                 ) entries >>= fun entries ->
               return (Git.Value.Tree entries)
             ) in
-          match node.IrminNode.succ, node.IrminNode.contents with
-          | l , None     -> mktree l
-          | [], Some key ->
+          if IrminNode.is_leaf node then (
             (* This is a dummy leaf node. Do nothing. *)
             Log.debugf "Skiping %s" (X.to_string node);
-            `Key (git_of_key key)
-          | l , Some key ->
-            (* This is an extended node (ie. with child and contents).
-               Store the node contents in a dummy `.contents` file. *)
-            mktree ((contents_child, key) :: l)
+            `Key (git_of_key (IrminNode.contents_exn node))
+          ) else match node.IrminNode.contents with
+            | None     -> mktree node.IrminNode.succ
+            | Some key ->
+              (* This is an extended node (ie. with child and contents).
+                 Store the node contents in a dummy `.contents` file. *)
+              mktree (Map.add node.IrminNode.succ contents_child key)
       end)
 
     module XCommit = AO(struct

@@ -16,6 +16,8 @@
 
 (** Merge operators. *)
 
+open Core_kernel.Std
+
 exception Conflict
 (** Exception raised during merge conflicts. *)
 
@@ -77,8 +79,8 @@ val some: 'a t -> 'a option t
     the provided values are inhabited, then call the provided merge
     function, otherwise use the same behavior as [create]. *)
 
-val assoc: 'a t -> (string * 'a) list t
-(** Lift to assoc lists. *)
+val map: 'a t -> 'a String.Map.t t
+(** Lift to hash-tables. *)
 
 val pair: 'a t -> 'b t -> ('a * 'b) t
 (** Lift to pairs. *)
@@ -86,12 +88,12 @@ val pair: 'a t -> 'b t -> ('a * 'b) t
 val apply: ('a -> 'b t ) -> 'a -> 'b t
 (** Apply operator. Use this operator to break recursive loops. *)
 
-val map: (module S with type t = 'b) -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
+val biject: (module S with type t = 'b) -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
 (** Use the merge function defined in another domain. If the
     functions given in argument are partial (ie. returning
     [Not_found] on some entries), the exception is catched and
     [Conflict] is returned instead. *)
 
-val map': (module S with type t = 'b) -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
+val biject': (module S with type t = 'b) -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
 (** Same as [map] but with potentially blocking converting
     functions. *)

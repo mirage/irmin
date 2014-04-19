@@ -119,11 +119,11 @@ module Make
     | None   -> []
     | Some r -> [r]
 
-  let update_node t path fn =
+    let update_node t path fn =
     read_head_commit t >>= fun commit ->
     read_node t commit >>= fun old_node ->
     fn old_node >>= fun node ->
-    if old_node = node then return_unit
+    if IrminNode.equal K.equal old_node node then return_unit
     else (
       let parents = parents_of_commit commit in
       let date = !date_hook () in
@@ -144,6 +144,7 @@ module Make
     update_node t path (fun node ->
         Node.update (no t.vals) node path contents
       )
+
   let remove t path =
     update_node t path (fun node ->
         Node.remove (no t.vals) node path
@@ -211,7 +212,8 @@ module Make
       | None      -> return_nil
       | Some node ->
         let c = Node.succ (no t.vals) node in
-        let paths = List.map ~f:(fun (c,_) -> path @ [c]) c in
+        let c = Map.keys c in
+        let paths = List.map ~f:(fun c -> path @ [c]) c in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
         one p >>= fun paths ->
@@ -272,7 +274,7 @@ module Make
       let v = string_of_contents (C.to_string v) in
       `Label (Printf.sprintf "%s | %s" k (String.escaped v)) in
     let leafs = List.map ~f:(fun (k,_) ->
-        (k, { IrminNode.contents = Some k; succ = [] })
+        (k, IrminNode.leaf k)
       ) contents in
     let nodes = leafs @ nodes in
     List.iter ~f:(fun (k, b) ->
@@ -284,13 +286,9 @@ module Make
           | None    -> ()
           | Some v  -> add_edge (`Node k) [`Style `Dotted] (`Contents v)
         end;
-        begin match t.IrminNode.succ with
-          | [] -> ()
-          | ts ->
-            List.iter ~f:(fun (l,c) ->
-                add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
-              ) ts
-        end
+        Map.iter ~f:(fun ~key:l ~data:c ->
+            add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
+          ) t.IrminNode.succ
       ) nodes;
     List.iter ~f:(fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label k];

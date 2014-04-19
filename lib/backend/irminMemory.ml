@@ -28,7 +28,7 @@ module RO (K: IrminKey.S) = struct
   type value = Cstruct.buffer
 
   type t = {
-    t: (key, value) Hashtbl.t;
+    t: value String.Table.t;
     w: W.t;
   }
 

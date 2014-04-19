@@ -139,18 +139,17 @@ let pair (type a) (type b) a b =
   in
   { m = (module S); equal; merge }
 
-let assoc (type a) t =
+let map (type a) t =
   let module T = (val t.m: S with type t = a) in
   let module S = struct
-    type t = (string * a) list
-    let to_string l =
+    type t = a String.Map.t
+    let to_string m =
+      let l = Map.to_alist m in
       let l = List.map ~f:(fun (l,x) ->
           Printf.sprintf "%s: %s" l (T.to_string x)
         ) l in
       "[" ^ (String.concat ~sep:", " l) ^ "]"
-    let equal l1 l2 =
-      let m1 = String.Map.of_alist_exn l1 in
-      let m2 = String.Map.of_alist_exn l2 in
+    let equal m1 m2 =
       let equal = ref true in
       Map.iter2 ~f:(fun ~key ~data ->
           match data with
@@ -159,9 +158,7 @@ let assoc (type a) t =
         ) m1 m2;
       !equal
   end in
-  let equal l1 l2 =
-    let m1 = String.Map.of_alist_exn l1 in
-    let m2 = String.Map.of_alist_exn l2 in
+  let equal m1 m2 =
     let equal = ref true in
     IrminMisc.Map.iter2 ~f:(fun ~key ~data ->
         match data with
@@ -173,15 +170,12 @@ let assoc (type a) t =
       ) m1 m2 >>= fun () ->
     return !equal
   in
-  let merge ~old l1 l2 =
-    Log.debugf "assoc %s | %s | %s" (S.to_string old) (S.to_string l1) (S.to_string l2);
+  let merge ~old m1 m2 =
+    Log.debugf "assoc %s | %s | %s" (S.to_string old) (S.to_string m1) (S.to_string m2);
     Lwt.catch
-      (fun () -> merge (default' (module S) equal) ~old l1 l2)
+      (fun () -> merge (default' (module S) equal) ~old m1 m2)
       (function
         | Conflict ->
-          let m1 = String.Map.of_alist_exn l1 in
-          let m2 = String.Map.of_alist_exn l2 in
-          let old = String.Map.of_alist_exn old in
           IrminMisc.Map.merge ~f:(fun ~key -> function
               | `Left v | `Right v ->
                 begin match Map.find old key with
@@ -211,12 +205,12 @@ let assoc (type a) t =
                     t.merge ~old:ov v1 v2 >>= fun v -> return (Some v)
             ) m1 m2
           >>= fun m3 ->
-          return (String.Map.to_alist m3)
+          return m3
         | e -> fail e)
   in
   { m = (module S); equal; merge }
 
-let map (type b) (module B: S with type t = b) t a_to_b b_to_a =
+let biject (type b) (module B: S with type t = b) t a_to_b b_to_a =
   let default = default (module B) in
   let equal b1 b2 =
     if B.equal b1 b2 then return true
@@ -244,7 +238,7 @@ let map (type b) (module B: S with type t = b) t a_to_b b_to_a =
   in
   { m = (module B); equal; merge }
 
-let map' (type b) (module B: S with type t = b) t a_to_b b_to_a =
+let biject' (type b) (module B: S with type t = b) t a_to_b b_to_a =
   let default = default (module B) in
   let equal b1 b2 =
     if B.equal b1 b2 then return true

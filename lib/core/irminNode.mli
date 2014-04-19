@@ -21,9 +21,15 @@ open Core_kernel.Std
 
 type 'key t = {
   contents: 'key option;
-  succ    : (string * 'key) list;
+  succ    : 'key String.Map.t;
 } with bin_io, compare, sexp
 (** Type of nodes .*)
+
+val equal: ('key -> 'key -> bool) -> 'key t -> 'key t -> bool
+(** Compare two nodes. *)
+
+val contents_exn: 'key t -> 'key
+(** Get the contents key, raise [Not_found] if None. *)
 
 val edges: 'a t -> ('a, 'b) IrminGraph.vertex list
 (** The graph edges. *)
@@ -33,6 +39,15 @@ val to_json: ('a -> Ezjsonm.t) -> 'a t -> Ezjsonm.t
 
 val empty: 'key t
 (** The empty node. *)
+
+val leaf: 'key -> 'key t
+(** Create a leaf node (with some contents and no successors). *)
+
+val is_empty: 'key t -> bool
+(** Is the node empty. *)
+
+val is_leaf: 'key t -> bool
+(** Is it a leaf node (see [leaf]) ? *)
 
 module type S = sig
 
@@ -77,7 +92,7 @@ module type STORE = sig
   val contents: t -> value -> contents Lwt.t option
   (** Return the node contents. *)
 
-  val succ: t -> value -> (string * value Lwt.t) list
+  val succ: t -> value -> value Lwt.t String.Map.t
   (** Return the node successors. *)
 
   val sub: t -> value -> IrminPath.t -> value option Lwt.t
