@@ -311,7 +311,8 @@ module Make
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
         Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
       );
-    let i = Sys.command (Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name) in
+    let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
+    let i = Sys.command cmd in
     if i <> 0 then Log.errorf "The %s.dot is corrupted" name;
     return_unit
 
@@ -343,7 +344,6 @@ module Make
   (* XXX: can be improved quite a lot *)
   let export t roots =
     Log.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
-    output t "export" >>= fun () ->
     let table = Internal.Key.Table.create () in
     let add k v = Hashtbl.add_multi table k v in
     Reference.read t.refs t.branch >>= function
