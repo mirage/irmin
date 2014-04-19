@@ -39,6 +39,13 @@ struct
   let key_of_git key =
     K.of_raw (Git.SHA1.to_string key)
 
+  let files = Lwt_pool.create 50 (fun () -> return_unit)
+
+  let with_file fn t k =
+    match X.kind with
+    | `Memory -> fn t k
+    | `Disk   -> Lwt_pool.use files (fun () -> fn t k)
+
   module XInternal = struct
 
     module type V = sig
@@ -65,14 +72,14 @@ struct
         G.mem t key >>= function
         | false    -> return false
         | true     ->
-          G.read t key >>= function
+          with_file G.read t key >>= function
           | None   -> return false
           | Some v -> return (V.type_eq (Git.Value.type_of v))
 
       let read t key =
         Log.debugf "Node.read %s" (K.to_string key);
         let key = git_of_key key in
-        G.read t key >>= function
+        with_file G.read t key >>= function
         | None   -> return_none
         | Some v -> return (V.of_git key v)
 
@@ -90,7 +97,7 @@ struct
         Log.debugf "Node.dump";
         G.list t >>= fun keys ->
         Lwt_list.fold_left_s (fun acc k ->
-            G.read_exn t k >>= fun v ->
+            with_file G.read_exn t k >>= fun v ->
             match V.of_git k v with
             | None   -> return acc
             | Some v -> return ((key_of_git k, v) :: acc)
@@ -101,7 +108,7 @@ struct
         | `Key k   -> return (key_of_git k)
         | `Value v ->
           v >>= fun v ->
-          G.write t v >>= fun k ->
+          with_file G.write t v >>= fun k ->
           return (key_of_git k)
 
     end
@@ -171,7 +178,10 @@ struct
                   (* XXX: handle exec files. *)
                   let file () = return { Git.Tree.perm = `Normal; name; node } in
                   let dir ()  = return { Git.Tree.perm = `Dir   ; name; node } in
-                  G.read t node >>= function
+                  catch
+                    (fun () -> with_file G.read t node)
+                    (function Zlib.Error _ -> return_none | e -> fail e)
+                  >>= function
                   | None   -> dir () (* on import, the children nodes migh not
                                         have been loaded properly yet. *)
                   | Some v ->
