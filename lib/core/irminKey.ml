@@ -70,38 +70,11 @@ module SHA1 = struct
   let of_json j =
     of_hex (Ezjsonm.get_string j)
 
-  (* |-----|-------------| *)
-  (* | 'K' | PAYLOAD(20) | *)
-  (* |-----|-------------| *)
-
-  let header = "K"
-
-  let sizeof _ =
-    1 + len
-
-  let get buf =
-    Log.debug (lazy "get");
-    let h = Mstruct.get_string buf 1 in
-    if header <> h then None
-    else
-      try
-        let str = Mstruct.get_string buf len in
-        Log.debugf "--> get %s" (to_string str);
-        Some str
-      with _ ->
-        None
-
-  let set buf t =
-    Log.debugf "set %s" (to_string t);
-    Mstruct.set_string buf header;
-    Mstruct.set_string buf t
-
   let of_bytes' str =
-    Log.debugf "of_bytes: %S" str;
+    Log.debugf "of_bytes'";
     IrminMisc.sha1 str
 
   let of_bytes ba =
-    Log.debugf "of_bigarray";
     (* XXX: avoid copies *)
     of_bytes' (Bigstring.to_string ba)
 
