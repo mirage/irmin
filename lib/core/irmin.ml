@@ -405,7 +405,7 @@ module Make
   exception Errors of (Internal.key * Internal.key * string) list
 
   let import t branch { IrminDump.head; store } =
-    Log.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst store));
+    Log.debugf "import %d" (List.length store);
     let errors = ref [] in
     let check msg k1 k2 =
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
