@@ -61,6 +61,9 @@ module type S = sig
       store. Update the commit pointed by [t] to the merge commit of
       the two branches. *)
 
+  (** Batch updates (transactions ?) *)
+  val updates: t -> (key * value) list -> unit Lwt.t
+
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 
