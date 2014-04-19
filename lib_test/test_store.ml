@@ -249,7 +249,7 @@ module Make (S: Irmin.S) = struct
 
       IrminMerge.merge (Node.merge node) ~old:k0 k2 k3 >>= fun k4 ->
       Node.read_exn node k4 >>= fun t4 ->
-      let succ = Node.succ node t4 in
+      let succ = Map.to_alist (Node.succ node t4) in
       Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
       >>= fun succ ->
       assert_succ_equal "k4" succ [ ("b", t1); ("c", t1) ];
@@ -279,7 +279,6 @@ module Make (S: Irmin.S) = struct
     let test () =
       create () >>= fun t          ->
       mk x.kind t >>= function { v1; v2 } ->
-
       update t ["a";"b"] v1 >>= fun ()  ->
 
       mem t ["a";"b"]       >>= fun b1  ->
@@ -320,13 +319,37 @@ module Make (S: Irmin.S) = struct
       create () >>= fun t1          ->
       mk x.kind t1 >>= function { v1; v2 } ->
 
+      let random_value () =
+        let str = Cryptokit.(Random.string urandom 1024) in
+        match x.kind with
+        | `String -> B.of_string str
+        | `JSON   -> B.of_string (
+            Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
+          ) in
+      let random_path () =
+        let short () = Cryptokit.(Random.string urandom 20) in
+        let rec aux = function
+          | 0 -> []
+          | n -> short () :: aux (n-1) in
+        aux 20 in
+      let random_node () =
+        random_path (), random_value () in
+      let random_nodes n =
+        let rec aux acc = function
+          | 0 -> acc
+          | n -> aux (random_node () :: acc) (n-1) in
+        aux [] n in
+      let nodes = random_nodes 500 in
+
+      updates t1 nodes       >>= fun () ->
+
       update t1 ["a";"b"] v1 >>= fun () ->
       snapshot t1            >>= fun r1 ->
       update t1 ["a";"c"] v2 >>= fun () ->
       snapshot t1            >>= fun r2 ->
       update t1 ["a";"d"] v1 >>= fun () ->
       snapshot t1            >>= fun r3 ->
-      output t1 "full"       >>= fun () ->
+
       export t1 [r3]         >>= fun partial ->
       export t1 []           >>= fun full    ->
 
@@ -338,7 +361,6 @@ module Make (S: Irmin.S) = struct
       let branch = R.of_string "import" in
       import t2 branch partial >>= fun () ->
       revert t2 r3             >>= fun () ->
-      output t2 "partial"      >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
@@ -350,6 +372,12 @@ module Make (S: Irmin.S) = struct
       assert_bool_equal "mem-ad" true b3;
       read_exn t2 ["a";"d"]  >>= fun v1' ->
       assert_contents_equal "v1" v1' v1;
+
+      Lwt_list.iteri_s (fun i (k, v) ->
+          read_exn t2 k >>= fun v' ->
+          assert_contents_equal ("c"^string_of_int i) v v';
+          return_unit
+        ) nodes >>= fun () ->
 
       catch
         (fun () ->
