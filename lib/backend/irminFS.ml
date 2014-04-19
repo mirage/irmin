@@ -102,28 +102,36 @@ let check (D root) =
     return_unit
   end
 
+let files = Lwt_pool.create 50 (fun () -> return_unit)
+let with_file fn =
+  Lwt_pool.use files fn
+
 let with_file_in file fn =
   Log.debugf "with_file_in %s" file;
-  let fd = Unix.(openfile file [O_RDONLY; O_NONBLOCK] 0o644) in
-  try
-    let r = fn fd in
-    Unix.close fd;
-    return r
-  with e ->
-    Unix.close fd;
-    fail e
+  with_file (fun () ->
+      let fd = Unix.(openfile file [O_RDONLY; O_NONBLOCK] 0o644) in
+      try
+        let r = fn fd in
+        Unix.close fd;
+        return r
+      with e ->
+        Unix.close fd;
+        fail e
+    )
 
 let with_file_out file fn =
   Log.debugf "with_file_out %s" file;
   mkdir (Filename.dirname file);
-  Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
-  try
-    fn fd >>= fun r ->
-    Lwt_unix.close fd >>= fun () ->
-    return r
-  with e ->
-    Lwt_unix.close fd >>= fun () ->
-    fail e
+  with_file (fun () ->
+      Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
+      try
+        fn fd >>= fun r ->
+        Lwt_unix.close fd >>= fun () ->
+        return r
+      with e ->
+        Lwt_unix.close fd >>= fun () ->
+        fail e
+    )
 
 let with_maybe_file_in file fn default =
   if Sys.file_exists file then
