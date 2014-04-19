@@ -19,47 +19,44 @@ open Core_kernel.Std
 
 module Log = Log.Make(struct let section = "MEMORY" end)
 
-module RO (K: IrminKey.S) = struct
+module RO (K: IrminKey.S) (V: Identifiable.S) = struct
 
-  module W = IrminWatch.Make(K)(Bigstring)
+  module W = IrminWatch.Make(K)(V)
 
-  type key = string
+  type key = K.t
 
-  type value = Cstruct.buffer
+  type value = V.t
 
   type t = {
-    t: value String.Table.t;
+    t: value K.Table.t;
     w: W.t;
   }
 
-  let pretty_key k =
-    K.to_string (K.of_raw k)
-
   let unknown k =
-    fail (IrminKey.Unknown (pretty_key k))
+    fail (IrminKey.Unknown (K.to_string k))
 
   let create () =
     return {
-      t = String.Table.create ();
+      t = K.Table.create ();
       w = W.create ();
     }
 
   let read { t } key =
-    Log.debugf "read %s" (pretty_key key);
+    Log.debugf "read %s" (K.to_string key);
     return (Hashtbl.find t key)
 
   let read_exn { t } key =
-    Log.debugf "read_exn %s" (pretty_key key);
+    Log.debugf "read_exn %s" (K.to_string key);
     match Hashtbl.find t key with
     | Some d -> return d
     | None   -> unknown key
 
   let mem { t } key =
-    Log.debugf "mem %s" (pretty_key key);
+    Log.debugf "mem %s" (K.to_string key);
     return (Hashtbl.mem t key)
 
   let list { t } k =
-    Log.debugf "list %s" (IrminMisc.pretty_list pretty_key k);
+    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string k);
     return k
 
   let dump { t } =
@@ -68,38 +65,40 @@ module RO (K: IrminKey.S) = struct
 
 end
 
-module AO (K: IrminKey.S) = struct
+module AO (K: IrminKey.S) (V: Identifiable.S) = struct
 
-  include RO(K)
+  include RO(K)(V)
 
   let add { t } value =
-    let key = K.to_raw (K.of_bytes value) in
+    (* XXX: hook to choose the serialization format / key generator
+       ? *)
+    let key = K.of_bytes (IrminMisc.write V.bin_t value) in
     match Hashtbl.add t key value with
     | `Ok | `Duplicate -> return key
 
 end
 
-module RW (K: IrminKey.S) = struct
+module RW (K: IrminKey.S) (V: Identifiable.S) = struct
 
-  include RO(K)
+  include RO(K)(V)
 
   let update t key value =
-    Log.debugf "update %s" (pretty_key key);
+    Log.debugf "update %s" (K.to_string key);
     Hashtbl.replace t.t key value;
-    W.notify t.w (K.of_raw key) (Some value);
+    W.notify t.w key (Some value);
     return_unit
 
   let remove t key =
-    Log.debugf "remove %s" (pretty_key key);
+    Log.debugf "remove %s" (K.to_string key);
     Hashtbl.remove t.t key;
-    W.notify t.w (K.of_raw key) None;
+    W.notify t.w key None;
     return_unit
 
   let watch t key =
-    Log.debugf "watch %S" (pretty_key key);
+    Log.debugf "watch %S" (K.to_string key);
     IrminMisc.lift_stream (
       read t key >>= fun value ->
-      return (W.watch t.w (K.of_raw key) value)
+      return (W.watch t.w key value)
     )
 
 end
@@ -107,7 +106,10 @@ end
 module Make (K: IrminKey.S) (C: IrminContents.S) (R: IrminReference.S) = struct
 
   let create () =
-    let module S = Irmin.Binary(K)(C)(R)(AO(K))(RW(R)) in
+    let module V = IrminValue.S(K)(C) in
+    let module Val = IrminValue.Make(K)(C)(AO(K)(V)) in
+    let module Ref = IrminReference.Make(R)(K)(RW(R)(K)) in
+    let module S = Irmin.Make(K)(C)(R)(Val)(Ref) in
     (module S: Irmin.S with type Internal.key = K.t
                         and type value = C.t
                         and type Reference.key = R.t)
