@@ -339,7 +339,7 @@ module Make (S: Irmin.S) = struct
           | 0 -> acc
           | n -> aux (random_node () :: acc) (n-1) in
         aux [] n in
-      let nodes = random_nodes 500 in
+      let nodes = random_nodes 100 in
 
       updates t1 nodes       >>= fun () ->
 
@@ -450,7 +450,7 @@ let suite (speed, x) =
     "Basic merge operations"          , speed, T.test_merges     x;
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
-    "High-level store merges"         , `Slow, T.test_merge_api  x;
+    "High-level store merges"         , speed, T.test_merge_api  x;
   ]
 
 let run name tl =
