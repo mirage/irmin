@@ -26,12 +26,12 @@ Library irminsule
            IrminMisc, IrminCommit, IrminStore, IrminValue,
            IrminReference, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch, IrminMerge
-  BuildDepends: ezjsonm, ocamlgraph, lwt, cryptokit,
+  BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
                 re.str, dolog, mstruct,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
-  XMETARequires: ezjsonm, ocamlgraph, lwt, cryptokit,
+  XMETARequires: ezjsonm, ocamlgraph, lwt, sha,
                  re.str, dolog, mstruct, core_kernel
 
 Library backend

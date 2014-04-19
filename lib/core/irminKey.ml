@@ -26,7 +26,7 @@ module type S = sig
   val to_raw: t -> string
   val to_json: t -> Ezjsonm.t
   val of_json: Ezjsonm.t -> t
-  val of_bytes: Cstruct.buffer -> t
+  val of_bytes: Bigstring.t -> t
   val of_bytes': string -> t
 
 end
@@ -71,11 +71,15 @@ module SHA1 = struct
     of_hex (Ezjsonm.get_string j)
 
   let of_bytes' str =
-    Log.debugf "of_bytes'";
-    IrminMisc.sha1 str
+    Log.debug (lazy "of_bytes'");
+    Sha1.(to_bin (string str))
 
-  let of_bytes ba =
-    (* XXX: avoid copies *)
-    of_bytes' (Bigstring.to_string ba)
+  external update_buffer: Sha1.ctx -> Bigstring.t -> unit = "stub_sha1_update_bigarray"
+
+  let of_bytes buf =
+    Log.debug (lazy "of_bytes");
+    let ctx = Sha1.init () in
+    update_buffer ctx buf;
+    Sha1.(to_bin (finalize ctx))
 
 end
