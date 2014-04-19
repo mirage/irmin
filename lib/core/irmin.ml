@@ -370,22 +370,26 @@ module Make
           return commits
       end >>= fun commits ->
       Log.debugf "export COMMITS=%s" (IrminMisc.pretty_list K.to_string commits);
-      Lwt_list.fold_left_s (fun set key ->
+      let nodes = ref K.Set.empty in
+      Lwt_list.iter_p (fun key ->
           Commit.read_exn (co t.vals) key >>= fun commit ->
           add key (IrminValue.Commit commit);
           match commit.IrminCommit.node with
-          | None   -> return set
-          | Some k -> return (Set.add set k)
-        ) K.Set.empty commits >>= fun nodes ->
+          | None   -> return_unit
+          | Some k -> nodes := Set.add !nodes k; return_unit
+        ) commits >>= fun () ->
+      let nodes = !nodes in
       Node.list (no t.vals) (K.Set.to_list nodes) >>= fun nodes ->
       Log.debugf "export NODES=%s" (IrminMisc.pretty_list K.to_string nodes);
-      Lwt_list.fold_left_s (fun set key ->
+      let contents = ref K.Set.empty in
+      Lwt_list.iter_p (fun key ->
           Node.read_exn (no t.vals) key >>= fun node ->
           add key (IrminValue.Node node);
           match node.IrminNode.contents with
-          | None   -> return set
-          | Some k -> return (Set.add set k)
-        ) K.Set.empty nodes >>= fun contents ->
+          | None   -> return_unit
+          | Some k -> contents := Set.add !contents k; return_unit
+        ) nodes >>= fun () ->
+      let contents = !contents in
       Contents.list (bl t.vals) (K.Set.to_list contents) >>= fun contents ->
       Log.debugf "export CONTENTS=%s" (IrminMisc.pretty_list K.to_string contents);
       Lwt_list.iter_p (fun k ->
