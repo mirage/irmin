@@ -1,5 +1,5 @@
 # OPAM packages needed to build tests.
-OPAM_PACKAGES="ezjsonm ocamlgraph lwt cryptokit re dolog mstruct core_kernel uri \
+OPAM_PACKAGES="ezjsonm ocamlgraph lwt sha re dolog mstruct core_kernel uri \
                cohttp ssl core_kernel cmdliner alcotest git"
 
 ppa=avsm/ocaml41+opam11
