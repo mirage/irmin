@@ -17,7 +17,7 @@
 open Lwt
 open Core_kernel.Std
 
-module Log = Log.Make(struct let section = "tree" end)
+module Log = Log.Make(struct let section = "view" end)
 
 module type S = sig
   include IrminStore.RW with type key = IrminPath.t
@@ -171,6 +171,7 @@ module Make (Store: IrminContents.STORE) = struct
   type value = C.t
 
   let create () =
+    Log.debugf "create";
     let node _ = return_none in
     let contents _ = return_none in
     let view = Node.empty () in
@@ -181,6 +182,7 @@ module Make (Store: IrminContents.STORE) = struct
     | Some x -> fn x >>= fun y -> return (Some y)
 
   let import ~contents ~node key =
+    Log.debugf "import %s" (K.to_string key);
     node key >>= function
     | None   -> fail Not_found
     | Some n ->
@@ -192,6 +194,7 @@ module Make (Store: IrminContents.STORE) = struct
       return { node; contents; view }
 
   let export ~contents ~node t =
+    Log.debugf "export";
     let node n =
       node (Node.export_node n) in
     let todo = Stack.create () in
