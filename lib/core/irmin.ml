@@ -40,6 +40,7 @@ module type S = sig
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
   module View: IrminView.S with type value := value
   val updates: t -> key -> View.t -> unit Lwt.t
+  val view: t -> key -> View.t Lwt.t
 end
 
 
@@ -464,6 +465,13 @@ module Make
     update_node t (fun node ->
         Node.map (no t.vals) node path (fun _ -> tree)
       )
+
+  let view t path =
+    let contents = Contents.read (bl t.vals) in
+    let node = Node.read (no t.vals) in
+    read_node Node.sub_exn t path >>= fun n ->
+    Node.add (no t.vals) n        >>= fun k ->
+    View.import ~contents ~node k
 
 end
 

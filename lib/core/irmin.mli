@@ -76,8 +76,11 @@ module type S = sig
   module View: IrminView.S with type value := value
   (** Load sub-trees in memory. *)
 
-  (** Batch updates (transactions ?) *)
   val updates: t -> key -> View.t -> unit Lwt.t
+  (** Commit a view to the store. *)
+
+  val view: t -> key -> View.t Lwt.t
+  (** Build a view from the store. *)
 
 end
 
