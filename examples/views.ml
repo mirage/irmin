@@ -40,8 +40,8 @@ let t_of_view v =
     return ({ x; y = int_of_string y } :: acc) in
   Store.View.list v [[]] >>= fun t2s ->
   let t2s = List.map (function
-      | [i] -> Printf.printf "XXX %s\n%!" i; int_of_string i
-      | _ -> assert false
+      | [i] -> int_of_string i
+      | _   -> assert false
     ) t2s in
   let t2s = List.sort compare t2s in
   Lwt_list.fold_left_s aux [] t2s
