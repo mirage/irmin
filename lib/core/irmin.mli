@@ -77,7 +77,9 @@ module type S = sig
   (** Load sub-trees in memory. *)
 
   val updates: t -> key -> View.t -> unit Lwt.t
-  (** Commit a view to the store. *)
+  (** Commit a view to the store. The view *replaces* the current
+      subtree, so if you want to do a merge, you have to do it manually
+      (by creating a new branch, or rebasing before commiting). *)
 
   val view: t -> key -> View.t Lwt.t
   (** Build a view from the store. *)
