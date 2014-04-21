@@ -76,11 +76,6 @@ let json_decode_exn j =
         (Ezjsonm.to_string j)
     )
 
-let sha1 str =
-  let hash = Cryptokit.Hash.sha1 () in
-  hash#add_string str;
-  hash#result
-
 let pretty_list f = function
   | [] -> "{}"
   | l  ->

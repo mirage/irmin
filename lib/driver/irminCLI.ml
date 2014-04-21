@@ -119,10 +119,11 @@ let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminRef
   | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
   | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
 
-let in_memory_store k: (module Irmin.S) =
+let in_memory_store (type key) k =
   Log.info (lazy "source: in-memory");
   let (module K), (module C), (module R) = modules k in
-  (module IrminMemory.Make(K)(C)(R))
+  let module M = IrminMemory.Make(K)(C)(R) in
+  M.(cast (create ()))
 
 let local_store k dir =
   Log.infof "source: dir=%s" dir;
@@ -132,9 +133,11 @@ let local_store k dir =
   M.(cast (create dir))
 
 let remote_store k uri =
-  let module CRUD = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
+  let module CRUD_ = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
+  let (module K), (module C), (module R) = modules k in
+  let module CRUD = CRUD_.Make(K)(C)(R) in
   Log.infof "source: uri=%s" (Uri.to_string uri);
-  CRUD.create k uri
+  CRUD.(cast (create uri))
 
 let git_store k g =
   Log.infof "git";
@@ -288,8 +291,8 @@ let ls = {
   term =
     let ls (module S: Irmin.S) path =
       run begin
-        S.create ()   >>= fun t ->
-        S.list t path >>= fun paths ->
+        S.create ()     >>= fun t ->
+        S.list t [path] >>= fun paths ->
         List.iter ~f:(fun p -> print "%s" (IrminPath.to_string p)) paths;
         return_unit
       end

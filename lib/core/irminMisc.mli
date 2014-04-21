@@ -37,9 +37,6 @@ val hex_encode: string -> string
 val hex_decode: string -> string
 (** Decode an hexa string to binary *)
 
-val sha1: string -> string
-(** Compute the sha1 of a binary string *)
-
 val pretty_list: ('a -> string) -> 'a list -> string
 (** Pretty-print a list. *)
 

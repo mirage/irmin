@@ -16,11 +16,22 @@
 
 (** In-memory store *)
 
-module AO (K: IrminKey.S) : IrminStore.AO_BINARY
-module RW (K: IrminKey.S) : IrminStore.RW_BINARY
+open Core_kernel.Std
+
+module AO (K: IrminKey.S) (V: Identifiable.S):
+  IrminStore.AO with type key = K.t and type value = V.t
+
+module RW (K: IrminKey.S) (V: Identifiable.S):
+  IrminStore.RW with type key = K.t and type value = V.t
 
 module Make
     (K: IrminKey.S)
     (C: IrminContents.S)
-    (R: IrminReference.S)
-  : Irmin.S
+    (R: IrminReference.S):
+sig
+
+  val create: unit -> (K.t, C.t, R.t) Irmin.t
+
+  val cast: (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
+
+end

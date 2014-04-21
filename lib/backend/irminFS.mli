@@ -31,12 +31,10 @@ module Make
     (R: IrminReference.S) :
 sig
 
-  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
-
-  val create: string -> (module S)
+  val create: string -> (K.t, C.t, R.t) Irmin.t
   (** Create an on-disk store at the given path. *)
 
-  val cast: (module S) -> (module Irmin.S)
+  val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
 
 end
 

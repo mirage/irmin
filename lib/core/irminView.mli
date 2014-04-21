@@ -14,25 +14,29 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Serialize the irminsule objects to a local Git store. *)
+(** In-memory partial views of the database, with lazy fetching. *)
 
-module type Config = sig
-  val root: string option
-  val kind: [`Memory | `Disk]
-  val bare: bool
+open Core_kernel.Std
+
+module type S = sig
+
+  include IrminStore.RW with type key = IrminPath.t
+
+  type internal_key
+
+  val import:
+    contents:(internal_key -> value option Lwt.t) ->
+    node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
+    internal_key -> t Lwt.t
+  (** Create a rooted view from a database node. *)
+
+  val export:
+    contents:(value -> internal_key Lwt.t) ->
+    node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
+    t -> internal_key Lwt.t
+  (** Export the view to the database. *)
+
 end
-(** On-disk configuration. *)
 
-module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (R: IrminReference.S):
-sig
-
-  val create: ?root:string -> kind:[`Memory|`Disk] -> bare:bool -> unit ->
-    (K.t, C.t, R.t) Irmin.t
-  (** Create a Git-backed irminsule store. *)
-
-  val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
-
-end
+module Make (Store: IrminContents.STORE): S with type value = Store.value
+                                             and type internal_key = Store.key

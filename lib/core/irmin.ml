@@ -17,8 +17,8 @@
 open Core_kernel.Std
 open Lwt
 
-module LogMake = Log.Make
-module Log = LogMake(struct let section = "IRMIN" end)
+module XLog = Log
+module Log = XLog.Make(struct let section = "IRMIN" end)
 
 module type S = sig
   type value
@@ -38,6 +38,8 @@ module type S = sig
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
+  module View: IrminView.S with type value := value
+  val updates: t -> key -> View.t -> unit Lwt.t
 end
 
 
@@ -119,11 +121,11 @@ module Make
     | None   -> []
     | Some r -> [r]
 
-  let update_node t path fn =
+  let update_node t fn =
     read_head_commit t >>= fun commit ->
     read_node t commit >>= fun old_node ->
     fn old_node >>= fun node ->
-    if old_node = node then return_unit
+    if IrminNode.equal K.equal old_node node then return_unit
     else (
       let parents = parents_of_commit commit in
       let date = !date_hook () in
@@ -140,12 +142,13 @@ module Make
     read_node Node.find
 
   let update t path contents =
-    read t path >>= fun old_v ->
-    update_node t path (fun node ->
+    Log.debugf "update %s" (IrminPath.to_string path);
+    update_node t (fun node ->
         Node.update (no t.vals) node path contents
       )
+
   let remove t path =
-    update_node t path (fun node ->
+    update_node t (fun node ->
         Node.remove (no t.vals) node path
       )
 
@@ -204,21 +207,32 @@ module Make
       ~old c1 c2
 
   (* Return the subpaths. *)
-  let list t path =
-    read_head_node t >>= fun node ->
-    Node.sub (no t.vals) node path >>= function
-    | None      -> return_nil
-    | Some node ->
-      let c = Node.succ (no t.vals) node in
-      let paths = List.map ~f:(fun (c,_) -> path @ [c]) c in
-      return paths
+  let list t paths =
+    Log.debugf "list";
+    let one path =
+      read_head_node t >>= fun node ->
+      Node.sub (no t.vals) node path >>= function
+      | None      -> return_nil
+      | Some node ->
+        let c = Node.succ (no t.vals) node in
+        let c = Map.keys c in
+        let paths = List.map ~f:(fun c -> path @ [c]) c in
+        return paths in
+    Lwt_list.fold_left_s (fun set p ->
+        one p >>= fun paths ->
+        let paths = IrminPath.Set.of_list paths in
+        return (IrminPath.Set.union set paths)
+      ) IrminPath.Set.empty paths
+    >>= fun paths ->
+    return (IrminPath.Set.to_list paths)
 
   let dump t =
+    Log.debugf "dump";
     read_head_node t >>= fun node ->
     let rec aux seen = function
       | []       -> return (List.sort compare seen)
       | path::tl ->
-        list t path >>= fun childs ->
+        list t [path] >>= fun childs ->
         let todo = childs @ tl in
         Node.find (no t.vals) node path >>= function
         | None   -> aux seen todo
@@ -264,7 +278,7 @@ module Make
       let v = string_of_contents (C.to_string v) in
       `Label (Printf.sprintf "%s | %s" k (String.escaped v)) in
     let leafs = List.map ~f:(fun (k,_) ->
-        (k, { IrminNode.contents = Some k; succ = [] })
+        (k, IrminNode.leaf k)
       ) contents in
     let nodes = leafs @ nodes in
     List.iter ~f:(fun (k, b) ->
@@ -276,13 +290,9 @@ module Make
           | None    -> ()
           | Some v  -> add_edge (`Node k) [`Style `Dotted] (`Contents v)
         end;
-        begin match t.IrminNode.succ with
-          | [] -> ()
-          | ts ->
-            List.iter ~f:(fun (l,c) ->
-                add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
-              ) ts
-        end
+        Map.iter ~f:(fun ~key:l ~data:c ->
+            add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
+          ) t.IrminNode.succ
       ) nodes;
     List.iter ~f:(fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label k];
@@ -305,7 +315,8 @@ module Make
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
         Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
       );
-    let i = Sys.command (Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name) in
+    let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
+    let i = Sys.command cmd in
     if i <> 0 then Log.errorf "The %s.dot is corrupted" name;
     return_unit
 
@@ -332,12 +343,11 @@ module Make
       return stream
     )
 
-  module Log = LogMake(struct let section ="DUMP" end)
+  module Log = XLog.Make(struct let section ="DUMP" end)
 
   (* XXX: can be improved quite a lot *)
   let export t roots =
     Log.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
-    output t "export" >>= fun () ->
     let table = Internal.Key.Table.create () in
     let add k v = Hashtbl.add_multi table k v in
     Reference.read t.refs t.branch >>= function
@@ -345,51 +355,45 @@ module Make
     | Some commit ->
       let head = Some commit in
       begin
-        if roots = [] then Commit.list (co t.vals) commit
+        if roots = [] then Commit.list (co t.vals) [commit]
         else
           let pred = function
-            | `Commit k ->
-              Commit.read_exn (co t.vals) k >>= fun r ->
-              return (IrminGraph.of_commits r.IrminCommit.parents)
-            | _ -> return_nil in
+            | `Commit k -> Commit.read_exn (co t.vals) k >>= fun c -> return (IrminCommit.edges c)
+            | _         -> return_nil in
           let min = IrminGraph.of_commits roots in
           let max = IrminGraph.of_commits [commit] in
           Graph.closure pred ~min ~max >>= fun g ->
           let commits = IrminGraph.to_commits (Graph.vertex g) in
           return commits
-      end
-      >>= fun commits ->
+      end >>= fun commits ->
       Log.debugf "export COMMITS=%s" (IrminMisc.pretty_list K.to_string commits);
-      Lwt_list.fold_left_s (fun set key ->
+      let nodes = ref K.Set.empty in
+      Lwt_list.iter_p (fun key ->
           Commit.read_exn (co t.vals) key >>= fun commit ->
           add key (IrminValue.Commit commit);
           match commit.IrminCommit.node with
-          | None      -> return set
-          | Some node ->
-            Node.list (no t.vals) node >>= fun nodes ->
-            return (Set.union set (K.Set.of_list nodes))
-        ) K.Set.empty commits
-      >>= fun nodes ->
-      let nodes = Set.elements nodes in
+          | None   -> return_unit
+          | Some k -> nodes := Set.add !nodes k; return_unit
+        ) commits >>= fun () ->
+      let nodes = !nodes in
+      Node.list (no t.vals) (K.Set.to_list nodes) >>= fun nodes ->
       Log.debugf "export NODES=%s" (IrminMisc.pretty_list K.to_string nodes);
-      Lwt_list.fold_left_s (fun set key ->
+      let contents = ref K.Set.empty in
+      Lwt_list.iter_p (fun key ->
           Node.read_exn (no t.vals) key >>= fun node ->
           add key (IrminValue.Node node);
           match node.IrminNode.contents with
-          | None          -> return set
-          | Some contents ->
-            Contents.list (bl t.vals) contents >>= fun contents ->
-            return (Set.union set (K.Set.of_list contents))
-        ) K.Set.empty nodes
-      >>= fun contents ->
-      let contents = Set.elements contents in
+          | None   -> return_unit
+          | Some k -> contents := Set.add !contents k; return_unit
+        ) nodes >>= fun () ->
+      let contents = !contents in
+      Contents.list (bl t.vals) (K.Set.to_list contents) >>= fun contents ->
       Log.debugf "export CONTENTS=%s" (IrminMisc.pretty_list K.to_string contents);
-      Lwt_list.iter_p (fun key ->
-          Contents.read_exn (bl t.vals) key >>= fun contents ->
-          add key (IrminValue.Contents contents);
+      Lwt_list.iter_p (fun k ->
+          Contents.read_exn (bl t.vals) k >>= fun b ->
+          add k (IrminValue.Contents b);
           return_unit
-        ) contents
-      >>= fun () ->
+        ) contents >>= fun () ->
       let store = Hashtbl.fold ~f:(fun ~key:k ~data init ->
           List.fold_left ~f:(fun acc v -> (k, v) :: acc) ~init data
         ) ~init:[] table in
@@ -398,7 +402,7 @@ module Make
   exception Errors of (Internal.key * Internal.key * string) list
 
   let import t branch { IrminDump.head; store } =
-    Log.debugf "import %s" (IrminMisc.pretty_list K.to_string (List.map ~f:fst store));
+    Log.debugf "import %d" (List.length store);
     let errors = ref [] in
     let check msg k1 k2 =
       if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
@@ -450,7 +454,23 @@ module Make
     merge_snapshot t1 c1 c2               >>= fun c3  ->
     Reference.update t1.refs t1.branch c3
 
+  module View = IrminView.Make(Contents)
+
+  let updates t path tree =
+    let contents = Contents.add (bl t.vals) in
+    let node = Node.add (no t.vals) in
+    View.export ~node ~contents tree >>= fun key ->
+    Node.read_exn (no t.vals) key >>= fun tree ->
+    update_node t (fun node ->
+        Node.map (no t.vals) node path (fun _ -> tree)
+      )
+
 end
+
+type ('key, 'value, 'ref) t =
+  (module S with type Internal.key = 'key
+             and type value = 'value
+             and type Reference.key = 'ref)
 
 module Binary
     (K : IrminKey.S)

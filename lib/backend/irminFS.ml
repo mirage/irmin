@@ -17,7 +17,7 @@
 open Core_kernel.Std
 open Lwt
 
-module L = Log.Make(struct let section = "FS" end)
+module Log = Log.Make(struct let section = "FS" end)
 
 exception Error of string
 
@@ -102,40 +102,48 @@ let check (D root) =
     return_unit
   end
 
+let files = Lwt_pool.create 50 (fun () -> return_unit)
+let with_file fn =
+  Lwt_pool.use files fn
+
 let with_file_in file fn =
-  L.debugf "with_file_in %s" file;
-  let fd = Unix.(openfile file [O_RDONLY; O_NONBLOCK] 0o644) in
-  try
-    let r = fn fd in
-    Unix.close fd;
-    return r
-  with e ->
-    Unix.close fd;
-    fail e
+  Log.debugf "with_file_in %s" file;
+  with_file (fun () ->
+      let fd = Unix.(openfile file [O_RDONLY; O_NONBLOCK] 0o644) in
+      try
+        let r = fn fd in
+        Unix.close fd;
+        return r
+      with e ->
+        Unix.close fd;
+        fail e
+    )
 
 let with_file_out file fn =
-  L.debugf "with_file_out %s" file;
+  Log.debugf "with_file_out %s" file;
   mkdir (Filename.dirname file);
-  Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
-  try
-    fn fd >>= fun r ->
-    Lwt_unix.close fd >>= fun () ->
-    return r
-  with e ->
-    Lwt_unix.close fd >>= fun () ->
-    fail e
+  with_file (fun () ->
+      Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
+      try
+        fn fd >>= fun r ->
+        Lwt_unix.close fd >>= fun () ->
+        return r
+      with e ->
+        Lwt_unix.close fd >>= fun () ->
+        fail e
+    )
 
 let with_maybe_file_in file fn default =
   if Sys.file_exists file then
     with_file_in file fn
   else (
-    L.debugf "with_maybe_file: %s does not exist, skipping" file;
+    Log.debugf "with_maybe_file: %s does not exist, skipping" file;
     return default
   )
 
 let write_bigstring fd ba =
   let rec rwrite fd buf ofs len =
-    L.debugf " ... write_buf %d" len;
+    Log.debugf " ... write_buf %d" len;
     Lwt_bytes.write fd buf ofs len >>= fun n ->
     if n = 0 then fail End_of_file
     else if n < len then rwrite fd buf (ofs + n) (len - n)
@@ -219,13 +227,13 @@ module RO (S: S) (K: IrminKey.S) = struct
     Lwt_bytes.map_file ~fd ~shared:false ()
 
   let read_exn t key =
-    L.debugf "read_exn %s" (pretty_key key);
+    Log.debugf "read_exn %s" (pretty_key key);
     mem t key >>= function
     | true  -> with_file_in (S.file_of_key key) read_bigstring
     | false -> unknown key
 
   let read t key =
-    L.debugf "read %s" (pretty_key key);
+    Log.debugf "read %s" (pretty_key key);
     mem t key >>= function
     | true  ->
       with_file_in (S.file_of_key key) read_bigstring >>= fun ba ->
@@ -233,14 +241,14 @@ module RO (S: S) (K: IrminKey.S) = struct
     | false -> return_none
 
   let list { t } k =
-    return [k]
+    return k
 
   let keys_of_dir root =
     let files = rec_files root in
     List.map ~f:S.key_of_file files
 
   let dump ({ t = D root } as t) =
-    L.debugf "dump %s" root;
+    Log.debugf "dump %s" root;
     check t.t >>= fun () ->
     let l = keys_of_dir root in
     Lwt_list.fold_left_s (fun acc x ->
@@ -256,7 +264,7 @@ module AO (S: S) (K: IrminKey.S) = struct
   include RO(S)(K)
 
   let add { t } value =
-    L.debugf "add";
+    Log.debugf "add";
     check t >>= fun () ->
     let key = K.to_raw (K.of_bytes value) in
     let file = S.file_of_key key in
@@ -288,14 +296,14 @@ module RW (S: S) (K: IrminKey.S) = struct
     return t
 
   let remove { t } key =
-    L.debugf "remove %s" (pretty_key key);
+    Log.debugf "remove %s" (pretty_key key);
     let file = S.file_of_key key in
     if Sys.file_exists file then
       Unix.unlink file;
     return_unit
 
   let update t key value =
-    L.debugf "update %s" (pretty_key key);
+    Log.debugf "update %s" (pretty_key key);
     check t.t >>= fun () ->
     remove t key >>= fun () ->
     with_file_out (S.file_of_key key) (fun fd ->
@@ -310,7 +318,7 @@ module RW (S: S) (K: IrminKey.S) = struct
     return_unit
 
   let watch t key =
-    L.debugf "watch %S" (pretty_key key);
+    Log.debugf "watch %S" (pretty_key key);
     IrminMisc.lift_stream (
       read t key >>= fun value ->
       return (W.watch t.w (K.of_raw key) value)
@@ -328,17 +336,20 @@ module Make
     (R: IrminReference.S) =
 struct
 
-  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
-
   let create path =
     let module X = struct let path = path end in
     let module Obj = OBJECTS(X)(K) in
     let module Ref = REFS(X) in
     let module M = Irmin.Binary(K)(C)(R)(AO(Obj)(K))(RW(Ref)(R)) in
-    (module M: S)
+    (module M: Irmin.S with type Internal.key = K.t
+                        and type value = C.t
+                        and type Reference.key = R.t)
 
-  let cast (module S: S) =
-    (module S: Irmin.S)
+  let cast (module M: Irmin.S with type Internal.key = K.t
+                               and type value = C.t
+                               and type Reference.key = R.t) =
+
+    (module M: Irmin.S)
 
 end
 

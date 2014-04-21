@@ -47,21 +47,18 @@ module type S = sig
     IrminStore.RW with type key = K.t and type value = V.t
   (** Build an a mutable store using the given url. *)
 
-  module S (U: U)
+  module Make
       (K: IrminKey.S)
-      (V: Jsonable)
-      (S: IrminKey.S)
-      (B: IrminKey.S)
-      (D: Jsonable)
-    : IrminStore.S with type key = K.t
-                    and type value = V.t
-                    and type snapshot = S.t
-                    and type branch = B.t
-                    and type dump = D.t
-  (** Build an irminsule store using the given uri. *)
+      (C: IrminContents.S)
+      (R: IrminReference.S):
+  sig
 
-  val create: [`JSON|`String] -> Uri.t -> (module Irmin.S)
-  (** Create a store using a JSON CRUD interface on the given uri. *)
+    val create: Uri.t -> (K.t, C.t, R.t) Irmin.t
+    (** Create a CRUD store. *)
+
+    val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
+
+  end
 
 end
 

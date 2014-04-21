@@ -24,7 +24,7 @@ module type RO = sig
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
-  val list: t -> key -> key list Lwt.t
+  val list: t -> key list -> key list Lwt.t
   val dump: t -> (key * value) list Lwt.t
 end
 
@@ -63,8 +63,9 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
   let mem t key =
     S.mem t (K.to_raw key)
 
-  let list t key =
-    S.list t (K.to_raw key) >>= fun ks ->
+  let list t keys =
+    let keys = List.map ~f:K.to_raw keys in
+    S.list t keys >>= fun ks ->
     let ks = List.map ~f:K.of_raw ks in
     return ks
 
@@ -99,10 +100,10 @@ module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
   module LA = Log.Make(struct let section = "AO" end)
 
   let add t value =
-    LA.debugf "add %s" (V.to_string value);
+    LA.debugf "add";
     S.add t (IrminMisc.write V.bin_t value) >>= fun key ->
     let key = K.of_raw key in
-    LA.debugf "<-- add: %s -> key=%s" (V.to_string value) (K.to_string key);
+    LA.debugf "<-- added: %s" (K.to_string key);
     return key
 
 end

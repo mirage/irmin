@@ -109,3 +109,25 @@ module Make (S: Irmin.S) = struct
     assert_nodes_equal msg k1 k2
 
 end
+
+open Lwt
+
+let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminReference.S) =
+  match x with
+  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
+  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
+
+type t = {
+  name : string;
+  kind : [`JSON | `String];
+  init : unit -> unit Lwt.t;
+  clean: unit -> unit Lwt.t;
+  store: (module Irmin.S);
+}
+
+let unit () =
+  return_unit
+
+let string_of_kind = function
+  | `JSON   -> ".JSON"
+  | `String -> ""

@@ -17,24 +17,10 @@
 open OUnit
 open Test_common
 open Lwt
+open Core_kernel.Std
 
-let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminReference.S) =
-  match x with
-  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
-  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
-
-type t = {
-  name : string;
-  kind : [`JSON | `String];
-  init : unit -> unit Lwt.t;
-  clean: unit -> unit Lwt.t;
-  store: (module Irmin.S);
-}
-
-let unit () =
-  return_unit
-
-let long_random_string = Cryptokit.(Random.string (Random.device_rng "/dev/urandom") 1024)
+let urandom = Cryptokit.Random.device_rng "/dev/urandom"
+let long_random_string = Cryptokit.Random.string urandom 1024
 
 module Make (S: Irmin.S) = struct
 
@@ -56,6 +42,28 @@ module Make (S: Irmin.S) = struct
     r1: R.t;
     r2: R.t;
   }
+
+  let random_value ~kind ~value =
+    let str = Cryptokit.(Random.string urandom value) in
+    match kind with
+    | `String -> B.of_string str
+    | `JSON   -> B.of_string (Ezjsonm.to_string (`A [ IrminMisc.json_encode str ]))
+
+  let random_path ~label ~path =
+    let short () = Cryptokit.(Random.string urandom label) in
+    let rec aux = function
+      | 0 -> []
+      | n -> short () :: aux (n-1) in
+    aux path
+
+  let random_node ~label ~path ~value ~kind =
+    random_path ~label ~path, random_value ~kind ~value
+
+  let random_nodes ?(label=8) ?(path=5) ?(value=1024) kind n =
+    let rec aux acc = function
+      | 0 -> acc
+      | n -> aux (random_node ~label ~path ~value ~kind :: acc) (n-1) in
+    aux [] n
 
   let mk k t =
     let v1 = match k with
@@ -191,10 +199,10 @@ module Make (S: Irmin.S) = struct
       assert_key_equal "kr2" kr2 kr2';
       assert_commit_equal "r2" r2 r2';
 
-      Commit.list commit kr1 >>= fun kr1s ->
+      Commit.list commit [kr1] >>= fun kr1s ->
       assert_keys_equal "g1" [kr1] kr1s;
 
-      Commit.list commit kr2 >>= fun kr2s ->
+      Commit.list commit [kr2] >>= fun kr2s ->
       assert_keys_equal "g2" [kr1; kr2] kr2s;
 
      return_unit
@@ -219,12 +227,12 @@ module Make (S: Irmin.S) = struct
       Reference.update reference r1 kv2 >>= fun ()   ->
       Reference.read   reference r1     >>= fun k2'' ->
       assert_key_opt_equal "r1-after-update" (Some kv2) k2'';
-      Reference.list   reference r1     >>= fun ts ->
+      Reference.list reference [r1]     >>= fun ts ->
       assert_references_equal "list" [r1; r2] ts;
       Reference.remove reference r1     >>= fun () ->
       Reference.read   reference r1     >>= fun empty ->
       assert_key_opt_equal "empty" None empty;
-      Reference.list   reference r1     >>= fun r2' ->
+      Reference.list reference [r1]     >>= fun r2' ->
       assert_references_equal "all-after-remove" [r2] r2';
       return_unit
     in
@@ -263,7 +271,7 @@ module Make (S: Irmin.S) = struct
 
       IrminMerge.merge (Node.merge node) ~old:k0 k2 k3 >>= fun k4 ->
       Node.read_exn node k4 >>= fun t4 ->
-      let succ = Node.succ node t4 in
+      let succ = Map.to_alist (Node.succ node t4) in
       Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
       >>= fun succ ->
       assert_succ_equal "k4" succ [ ("b", t1); ("c", t1) ];
@@ -293,7 +301,6 @@ module Make (S: Irmin.S) = struct
     let test () =
       create () >>= fun t          ->
       mk x.kind t >>= function { v1; v2 } ->
-
       update t ["a";"b"] v1 >>= fun ()  ->
 
       mem t ["a";"b"]       >>= fun b1  ->
@@ -322,9 +329,32 @@ module Make (S: Irmin.S) = struct
       revert t r1           >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
       assert_contents_opt_equal "v1.3" (Some v1) v1'';
-      list t ["a"]          >>= fun ks  ->
+      list t [["a"]]        >>= fun ks  ->
       assert_paths_equal "path" [["a";"b"]] ks;
       update t [long_random_string] v1 >>= fun () ->
+      return_unit
+    in
+    run x test
+
+  let test_views x () =
+    let test () =
+      create () >>= fun t ->
+      let nodes = random_nodes x.kind 100 in
+
+      View.create () >>= fun view ->
+      Lwt_list.iter_s (fun (k,v) -> View.update view k v) nodes >>= fun () ->
+
+      updates t ["b"] view >>= fun () ->
+      updates t ["a"] view  >>= fun () ->
+
+      Lwt_list.iteri_s (fun i (k, v) ->
+          read_exn t ("a"::k) >>= fun v' ->
+          assert_contents_equal ("a"^string_of_int i) v v';
+          read_exn t ("b"::k) >>= fun v' ->
+          assert_contents_equal ("b"^string_of_int i) v v';
+          return_unit
+        ) nodes >>= fun () ->
+
       return_unit
     in
     run x test
@@ -340,7 +370,7 @@ module Make (S: Irmin.S) = struct
       snapshot t1            >>= fun r2 ->
       update t1 ["a";"d"] v1 >>= fun () ->
       snapshot t1            >>= fun r3 ->
-      output t1 "full"       >>= fun () ->
+
       export t1 [r3]         >>= fun partial ->
       export t1 []           >>= fun full    ->
 
@@ -352,7 +382,6 @@ module Make (S: Irmin.S) = struct
       let branch = R.of_string "import" in
       import t2 branch partial >>= fun () ->
       revert t2 r3             >>= fun () ->
-      output t2 "partial"      >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
@@ -434,15 +463,12 @@ let suite (speed, x) =
     "Basic operations on commits"     , speed, T.test_commits    x;
     "Basic operations on references"  , speed, T.test_references x;
     "Basic merge operations"          , speed, T.test_merges     x;
+    "High-level operations in views"  , speed, T.test_views      x;
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
     "High-level store merges"         , speed, T.test_merge_api  x;
   ]
 
 let run name tl =
-  let tl = List.map suite tl in
+  let tl = List.map ~f:suite tl in
   Alcotest.run name tl
-
-let string_of_kind = function
-  | `JSON   -> ".JSON"
-  | `String -> ""

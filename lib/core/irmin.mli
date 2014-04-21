@@ -35,7 +35,7 @@ module type S = sig
 
   include IrminStore.S with type key      = string list
                         and type value   := value
-                       and type snapshot = Internal.key
+                        and type snapshot = Internal.key
                         and type dump     = (Internal.key, value) IrminDump.t
                         and type branch   = Reference.key
 
@@ -73,7 +73,18 @@ module type S = sig
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
   (** Base functions over dumps. *)
 
+  module View: IrminView.S with type value := value
+  (** Load sub-trees in memory. *)
+
+  (** Batch updates (transactions ?) *)
+  val updates: t -> key -> View.t -> unit Lwt.t
+
 end
+
+type ('key, 'value, 'ref) t =
+  (module S with type Internal.key = 'key
+             and type value = 'value
+             and type Reference.key = 'ref)
 
 module Make
     (K : IrminKey.S)

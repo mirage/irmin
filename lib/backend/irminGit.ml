@@ -39,6 +39,13 @@ struct
   let key_of_git key =
     K.of_raw (Git.SHA1.to_string key)
 
+  let files = Lwt_pool.create 50 (fun () -> return_unit)
+
+  let with_file fn t k =
+    match X.kind with
+    | `Memory -> fn t k
+    | `Disk   -> Lwt_pool.use files (fun () -> fn t k)
+
   module XInternal = struct
 
     module type V = sig
@@ -65,14 +72,14 @@ struct
         G.mem t key >>= function
         | false    -> return false
         | true     ->
-          G.read t key >>= function
+          with_file G.read t key >>= function
           | None   -> return false
           | Some v -> return (V.type_eq (Git.Value.type_of v))
 
       let read t key =
         Log.debugf "Node.read %s" (K.to_string key);
         let key = git_of_key key in
-        G.read t key >>= function
+        with_file G.read t key >>= function
         | None   -> return_none
         | Some v -> return (V.of_git key v)
 
@@ -83,14 +90,14 @@ struct
         | Some v -> return v
 
       let list t k =
-        Log.debugf "Node.list %s" (K.to_string k);
-        return [k]
+        Log.debugf "Node.list %s" (IrminMisc.pretty_list K.to_string k);
+        return k
 
       let dump t =
         Log.debugf "Node.dump";
         G.list t >>= fun keys ->
         Lwt_list.fold_left_s (fun acc k ->
-            G.read_exn t k >>= fun v ->
+            with_file G.read_exn t k >>= fun v ->
             match V.of_git k v with
             | None   -> return acc
             | Some v -> return ((key_of_git k, v) :: acc)
@@ -101,7 +108,7 @@ struct
         | `Key k   -> return (key_of_git k)
         | `Value v ->
           v >>= fun v ->
-          G.write t v >>= fun k ->
+          with_file G.write t v >>= fun k ->
           return (key_of_git k)
 
     end
@@ -149,7 +156,7 @@ struct
           | Git.Value.Blob _ ->
             (* Create a dummy leaf node to hold contents. *)
             let key = key_of_git k in
-            Some { IrminNode.contents = Some key; succ = [] }
+            Some (IrminNode.leaf key)
           | Git.Value.Tree t ->
             let t = List.map ~f:(fun e -> Git.Tree.(e.name, key_of_git e.node)) t in
             let contents, succ = List.partition_tf ~f:(fun (n,_) -> n = contents_child) t in
@@ -157,19 +164,24 @@ struct
               | []       -> None
               | [(_, k)] -> Some k
               |  _  -> assert false in
+            let succ = String.Map.of_alist_exn succ in
             Some { IrminNode.contents; succ }
           | _ -> None
 
         let to_git t node =
           Log.debugf "Node.to_git %s" (X.to_string node);
           let mktree entries =
+            let entries = Map.to_alist entries in
             `Value (
               Lwt_list.map_p (fun (name, key) ->
                   let node = git_of_key key in
                   (* XXX: handle exec files. *)
                   let file () = return { Git.Tree.perm = `Normal; name; node } in
                   let dir ()  = return { Git.Tree.perm = `Dir   ; name; node } in
-                  G.read t node >>= function
+                  catch
+                    (fun () -> with_file G.read t node)
+                    (function Zlib.Error _ -> return_none | e -> fail e)
+                  >>= function
                   | None   -> dir () (* on import, the children nodes migh not
                                         have been loaded properly yet. *)
                   | Some v ->
@@ -180,16 +192,16 @@ struct
                 ) entries >>= fun entries ->
               return (Git.Value.Tree entries)
             ) in
-          match node.IrminNode.succ, node.IrminNode.contents with
-          | l , None     -> mktree l
-          | [], Some key ->
+          if IrminNode.is_leaf node then (
             (* This is a dummy leaf node. Do nothing. *)
             Log.debugf "Skiping %s" (X.to_string node);
-            `Key (git_of_key key)
-          | l , Some key ->
-            (* This is an extended node (ie. with child and contents).
-               Store the node contents in a dummy `.contents` file. *)
-            mktree ((contents_child, key) :: l)
+            `Key (git_of_key (IrminNode.contents_exn node))
+          ) else match node.IrminNode.contents with
+            | None     -> mktree node.IrminNode.succ
+            | Some key ->
+              (* This is an extended node (ie. with child and contents).
+                 Store the node contents in a dummy `.contents` file. *)
+              mktree (Map.add node.IrminNode.succ contents_child key)
       end)
 
     module XCommit = AO(struct
@@ -347,8 +359,6 @@ module Make
     (R: IrminReference.S) =
 struct
 
-  module type S = Irmin.S with type value = C.t and type Reference.key = R.t
-
   let create ?root ~kind ~bare () =
     let module X = struct
       let root = root
@@ -360,9 +370,14 @@ struct
         | `Memory -> (module Git_memory: Git.Store.S))
     in
     let module M = XMake(X)(G)(K)(C)(R) in
-    (module M: S)
+    (module M: Irmin.S with type Internal.key = K.t
+                        and type value = C.t
+                        and type Reference.key = R.t)
 
-  let cast (module M: S) =
+  let cast (module M: Irmin.S with type Internal.key = K.t
+                               and type value = C.t
+                               and type Reference.key = R.t) =
+
     (module M: Irmin.S)
 
 end

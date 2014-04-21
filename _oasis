@@ -25,13 +25,13 @@ Library irminsule
   Modules: Irmin, IrminGraph, IrminKey,
            IrminMisc, IrminCommit, IrminStore, IrminValue,
            IrminReference, IrminContents, IrminNode, IrminVersion,
-           IrminDump, IrminPath, IrminWatch, IrminMerge
-  BuildDepends: ezjsonm, ocamlgraph, lwt, cryptokit,
+           IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView
+  BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
                 re.str, dolog, mstruct,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
-  XMETARequires: ezjsonm, ocamlgraph, lwt, cryptokit,
+  XMETARequires: ezjsonm, ocamlgraph, lwt, sha,
                  re.str, dolog, mstruct, core_kernel
 
 Library backend
@@ -39,7 +39,7 @@ Library backend
   Findlibname: backend
   FindlibParent: irminsule
   BuildDepends: irminsule, uri, cohttp.lwt, ezjsonm.lwt
-  Modules: IrminCRUD, IrminMemory
+  Modules: IrminCRUD, IrminMemory, IrminDispatch
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 

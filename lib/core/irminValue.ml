@@ -14,7 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
 open Core_kernel.Std
+
+module Log = Log.Make(struct let section = "VALUE" end)
 
 type ('key, 'contents) t =
   | Contents of 'contents
@@ -44,8 +47,6 @@ module S (K: IrminKey.S) (C: IrminContents.S) = struct
 
   type key = K.t
   type contents = C.t
-
-  module L = Log.Make(struct let section = "VALUE" end)
 
   module S = IrminMisc.Identifiable(struct
       type nonrec t = (K.t, C.t) t
@@ -123,13 +124,11 @@ module Mux
   let node t = t.node
   let commit t = t.commit
 
-  open Lwt
-
   let create () =
     Commit.create () >>= fun ((contents, _ as node), _ as commit) ->
     return { contents; node; commit }
 
-  (* XXX: ugly *)
+  (* XXX: ugly and slow *)
   let read t key =
     Log.debugf "read %s" (K.to_string key);
     Contents.read t.contents key >>= function
@@ -158,9 +157,26 @@ module Mux
     | Node tr  -> Node.add t.node tr
     | Commit c -> Commit.add t.commit c
 
-  let list t key =
-    Log.debugf "list %s" (K.to_string key);
-    Commit.list t.commit key
+  module Graph = IrminGraph.Make(K)(IrminReference.String)
+
+  let list t keys =
+    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+    let rec pred = function
+      | `Commit k ->
+        begin Commit.read t.commit k >>= function
+          | None   -> pred (`Node k)
+          | Some c -> return (IrminCommit.edges c)
+        end
+      | `Node k   ->
+        begin Node.read t.node k >>= function
+          | None   -> pred (`Contents k)
+          | Some n -> return (IrminNode.edges n)
+        end
+      | _         -> return_nil  in
+    let max = IrminGraph.of_commits keys in
+    Graph.closure pred ~min:[] ~max >>= fun g ->
+    let keys = IrminGraph.to_keys (Graph.vertex g) in
+    return keys
 
   let dump t =
     Log.debugf "dump";
@@ -174,7 +190,6 @@ module Mux
     return all
 
 end
-
 
 module type CASTABLE = sig
   type t
@@ -211,7 +226,8 @@ module Cast (S: IrminStore.AO) (C: CASTABLE with type t = S.value) = struct
     | Some _ -> return true
     | None   -> return false
 
-  let list = S.list
+  let list =
+    S.list
 
   let dump t =
     S.dump t >>= fun cs ->
@@ -260,10 +276,17 @@ module Make
       let inj c = Commit c
     end)
 
-  module XContents = IrminContents.Make(K)(C)(BS)
-  module XNode = IrminNode.Make(K)(C)(XContents)(TS)
-  module XCommit = IrminCommit.Make(K)(XNode)(CS)
+  module Contents = IrminContents.Make(K)(C)(BS)
+  module Node = IrminNode.Make(K)(C)(Contents)(TS)
+  module Commit = IrminCommit.Make(K)(Node)(CS)
 
-  include Mux(K)(C)(XContents)(XNode)(XCommit)
+  include Store
+  type contents = Contents.value
+  module Key = K
+  module Value = S(K)(C)
+
+  let contents t = t
+  let node t = (t, t)
+  let commit t = ((t, t), t)
 
 end
