@@ -344,16 +344,20 @@ module Make (S: Irmin.S) = struct
       let foo2 = random_value x.kind 10 in
 
       let check_view view =
-        View.update view ["foo";"1"] foo1 >>= fun () ->
-        View.update view ["foo";"2"] foo2 >>= fun () ->
-        View.list view [ ["foo"] ]        >>= fun ls ->
+        View.list view [ ["foo"] ] >>= fun ls ->
         assert_paths_equal "path1" [ ["foo";"1"]; ["foo";"2"] ] ls;
+        View.read view ["foo";"1"] >>= fun foo1' ->
+        assert_contents_opt_equal "foo1" (Some foo1) foo1';
+        View.read view ["foo";"2"] >>= fun foo2' ->
+        assert_contents_opt_equal "foo2" (Some foo2) foo2';
         return_unit in
 
       View.create () >>= fun v0 ->
       Lwt_list.iter_s (fun (k,v) ->
           View.update v0 k v
-        ) nodes     >>= fun () ->
+        ) nodes                       >>= fun () ->
+      View.update v0 ["foo";"1"] foo1 >>= fun () ->
+      View.update v0 ["foo";"2"] foo2 >>= fun () ->
       check_view v0 >>= fun () ->
 
       updates t ["b"] v0 >>= fun () ->
