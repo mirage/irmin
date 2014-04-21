@@ -1,4 +1,4 @@
-TARGETS = git_store custom_merge
+TARGETS = git_store custom_merge views
 
 BUILDS = $(TARGETS:%=_build/%.native)
 
