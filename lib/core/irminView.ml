@@ -233,17 +233,22 @@ module Make (Store: IrminContents.STORE) = struct
     loop () >>= fun () ->
     return (Node.export t.view)
 
-  let read { node; contents; view } path =
-    let rec aux = function
-      | []   -> Node.contents ~node ~contents view
+  let sub t path =
+    let rec aux node = function
+      | []   -> return (Some node)
       | h::p ->
-        Node.read node view >>= function
+        Node.read t.node node >>= function
         | None               -> return_none
         | Some { Node.succ } ->
           match Map.find succ h with
           | None   -> return_none
-          | Some v -> aux p in
-    aux path
+          | Some v -> aux v p in
+    aux t.view path
+
+  let read t path =
+    sub t path >>= function
+    | None   -> return_none
+    | Some n -> Node.contents ~node:t.node ~contents:t.contents n
 
   let read_exn t k =
     read t k >>= function
@@ -255,8 +260,19 @@ module Make (Store: IrminContents.STORE) = struct
     | None  -> return false
     | _     -> return true
 
-  let list t k =
-    return k
+  let list t paths =
+    let aux acc path =
+      sub t path >>= function
+      | None   -> return acc
+      | Some n ->
+        Node.read t.node n >>= function
+        | None               -> return acc
+        | Some { Node.succ } ->
+          let paths = List.map ~f:(fun p -> path @ [p]) (Map.keys succ) in
+          let paths = IrminPath.Set.of_list paths in
+          return (Set.union acc paths) in
+    Lwt_list.fold_left_s aux IrminPath.Set.empty paths >>= fun paths ->
+    return (Set.to_list paths)
 
   let dump t =
     failwith "TODO"
