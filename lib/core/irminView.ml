@@ -22,11 +22,14 @@ module Log = Log.Make(struct let section = "tree" end)
 module type S = sig
   include IrminStore.RW with type key = IrminPath.t
   type internal_key
-  val make:
+  val import:
     contents:(internal_key -> value option Lwt.t) ->
     node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
-    internal_key ->
-    t Lwt.t
+    internal_key -> t Lwt.t
+  val export:
+    contents:(value -> internal_key Lwt.t) ->
+    node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
+    t -> internal_key Lwt.t
 end
 
 module Make (Store: IrminContents.STORE) = struct
@@ -48,6 +51,11 @@ module Make (Store: IrminContents.STORE) = struct
 
     let create c =
       ref (Contents c)
+
+    let export c =
+      match !c with
+      | Key k      -> k
+      | Contents _ -> failwith "Contents.export"
 
     let key k =
       ref (Key k)
@@ -91,15 +99,29 @@ module Make (Store: IrminContents.STORE) = struct
     let empty () =
       create None String.Map.empty
 
-    let import' n =
+    let is_empty n =
+      match !n with
+      | Key _  -> false
+      | Node n -> n.contents = None && Map.is_empty n.succ
+
+    let import n =
       let contents = match n.IrminNode.contents with
         | None   -> None
         | Some k -> Some (Contents.key k) in
-      let succ = String.Map.map ~f:key n.IrminNode.succ in
+      let succ = Map.map ~f:key n.IrminNode.succ in
       { contents; succ }
 
-    let import n =
-      ref (import' n)
+    let export n =
+      match !n with
+      | Key k  -> k
+      | Node _ -> failwith "Node.export"
+
+    let export_node n =
+      let contents = match n.contents with
+        | None   -> None
+        | Some c -> Some (Contents.export c) in
+      let succ = Map.map ~f:export n.succ in
+      { IrminNode.contents; succ }
 
     let read ~node t =
       match !t with
@@ -158,16 +180,55 @@ module Make (Store: IrminContents.STORE) = struct
     | None   -> return_none
     | Some x -> fn x >>= fun y -> return (Some y)
 
-  let make  ~contents ~node key =
+  let import ~contents ~node key =
     node key >>= function
     | None   -> fail Not_found
     | Some n ->
       let node k =
         node k >>= function
         | None   -> return_none
-        | Some n -> return (Some (Node.import' n)) in
+        | Some n -> return (Some (Node.import n)) in
       let view = Node.key key in
       return { node; contents; view }
+
+  let export ~contents ~node t =
+    let node n =
+      node (Node.export_node n) in
+    let todo = Stack.create () in
+    let rec add_to_todo n =
+      match !n with
+      | Node.Key _  -> ()
+      | Node.Node x ->
+        (* 1. we push the current node job on the stack. *)
+        Stack.push todo (fun () ->
+            node x >>= fun k ->
+            n := Node.Key k;
+            return_unit
+          );
+        (* 2. we push the contents job on the stack. *)
+        Stack.push todo (fun () ->
+            match x.Node.contents with
+            | None   -> return_unit
+            | Some c ->
+              match !c with
+              | Contents.Key _       -> return_unit
+              | Contents.Contents x  ->
+                contents x >>= fun k ->
+                c := Contents.Key k;
+                return_unit
+          );
+        (* 3. we push the children jobs on the stack. *)
+        Map.iter ~f:(fun ~key:_ ~data:n ->
+            Stack.push todo (fun () -> add_to_todo n; return_unit)
+          ) x.Node.succ;
+    in
+    let rec loop () =
+      match Stack.pop todo with
+      | None      -> return_unit
+      | Some task -> task () >>= loop in
+    add_to_todo t.view;
+    loop () >>= fun () ->
+    return (Node.export t.view)
 
   let read { node; contents; view } path =
     let rec aux = function
@@ -197,8 +258,14 @@ module Make (Store: IrminContents.STORE) = struct
   let dump t =
     failwith "TODO"
 
-  (* XXX: clean the tree on remove (not sure it's worth, though, as
-     they will be GCed when the view is merged back to the store) *)
+  let with_cleanup t view fn =
+    fn () >>= fun () ->
+    Node.read t.node view >>= function
+    | None   -> return_unit
+    | Some n ->
+      let succ = Map.filter ~f:(fun ~key:_ ~data:n -> not (Node.is_empty n)) n.Node.succ in
+      Node.update_succ t.node view succ
+
   let update' t k v =
     let rec aux view = function
       | []   -> Node.update_contents t.node view v
@@ -207,7 +274,9 @@ module Make (Store: IrminContents.STORE) = struct
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
           match Map.find n.Node.succ h with
-          | Some view -> aux view p
+          | Some view ->
+            if v = None then with_cleanup t view (fun () -> aux view p)
+            else aux view p
           | None      ->
             if v = None then return_unit
             else

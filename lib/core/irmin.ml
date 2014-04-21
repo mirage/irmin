@@ -457,7 +457,13 @@ module Make
   module View = IrminView.Make(Contents)
 
   let updates t path tree =
-    failwith "TODO"
+    let contents = Contents.add (bl t.vals) in
+    let node = Node.add (no t.vals) in
+    View.export ~node ~contents tree >>= fun key ->
+    Node.read_exn (no t.vals) key >>= fun tree ->
+    update_node t (fun node ->
+        Node.map (no t.vals) node path (fun _ -> tree)
+      )
 
 end
 

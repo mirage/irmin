@@ -108,6 +108,7 @@ module type STORE = sig
   val succ: t -> value -> value Lwt.t String.Map.t
   val sub: t -> value -> IrminPath.t -> value option Lwt.t
   val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
+  val map: t -> value -> IrminPath.t -> (value -> value) -> value Lwt.t
   val update: t -> value -> IrminPath.t -> contents -> value Lwt.t
   val find: t -> value -> IrminPath.t -> contents option Lwt.t
   val find_exn: t -> value -> IrminPath.t -> contents Lwt.t
@@ -329,7 +330,7 @@ module Make
       return children
     )
 
-  let map_subnode t node path f =
+  let map t node path f =
     let rec aux node = function
       | []      -> return (f node)
       | h :: tl ->
@@ -339,12 +340,12 @@ module Make
 
   let remove t node path =
     Log.debugf "remove %S" (IrminPath.to_string path);
-    map_subnode t node path (fun node -> empty)
+    map t node path (fun node -> empty)
 
   let update (c, _ as t) node path value =
     Log.debugf "update %S" (IrminPath.to_string path);
     Contents.add c value >>= fun k  ->
-    map_subnode t node path (fun node -> { node with contents = Some k }) >>= fun n ->
+    map t node path (fun node -> { node with contents = Some k }) >>= fun n ->
     return n
 
 end

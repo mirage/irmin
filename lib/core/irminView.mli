@@ -24,12 +24,17 @@ module type S = sig
 
   type internal_key
 
-  val make:
+  val import:
     contents:(internal_key -> value option Lwt.t) ->
     node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
-    internal_key ->
-    t Lwt.t
+    internal_key -> t Lwt.t
   (** Create a rooted view from a database node. *)
+
+  val export:
+    contents:(value -> internal_key Lwt.t) ->
+    node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
+    t -> internal_key Lwt.t
+  (** Export the view to the database. *)
 
 end
 

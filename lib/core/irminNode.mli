@@ -101,6 +101,9 @@ module type STORE = sig
   val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
   (** Find a subvalue. Raise [Not_found] if it does not exist. *)
 
+  val map: t -> value -> IrminPath.t -> (value -> value) -> value Lwt.t
+  (** Modify a subtree. *)
+
   val update: t -> value -> IrminPath.t -> contents -> value Lwt.t
   (** Add a value by recusively saving subvalues and subvalues into the
       corresponding stores. *)
