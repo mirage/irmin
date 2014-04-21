@@ -73,11 +73,11 @@ module type S = sig
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
   (** Base functions over dumps. *)
 
-  module Tree: IrminTree.S with type value := value
+  module View: IrminView.S with type value := value
   (** Load sub-trees in memory. *)
 
   (** Batch updates (transactions ?) *)
-  val updates: t -> key -> Tree.t -> unit Lwt.t
+  val updates: t -> key -> View.t -> unit Lwt.t
 
 end
 

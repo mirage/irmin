@@ -38,8 +38,8 @@ module type S = sig
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
-  module Tree: IrminTree.S with type value := value
-  val updates: t -> key -> Tree.t -> unit Lwt.t
+  module View: IrminView.S with type value := value
+  val updates: t -> key -> View.t -> unit Lwt.t
 end
 
 
@@ -146,9 +146,6 @@ module Make
     update_node t (fun node ->
         Node.update (no t.vals) node path contents
       )
-
-  let updates _ =
-    failwith "TODO"
 
   let remove t path =
     update_node t (fun node ->
@@ -457,7 +454,10 @@ module Make
     merge_snapshot t1 c1 c2               >>= fun c3  ->
     Reference.update t1.refs t1.branch c3
 
-  module Tree = IrminTree.Make(C)
+  module View = IrminView.Make(Contents)
+
+  let updates t path tree =
+    failwith "TODO"
 
 end
 

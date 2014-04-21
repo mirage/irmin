@@ -14,10 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** In-memory trees. *)
+(** In-memory partial views of the database, with lazy fetching. *)
 
 open Core_kernel.Std
 
-module type S = IrminStore.RW with type key = IrminPath.t
+module type S = sig
 
-module Make (C: IrminContents.S): S with type value = C.t
+  include IrminStore.RW with type key = IrminPath.t
+
+  type internal_key
+
+  val make:
+    contents:(internal_key -> value option Lwt.t) ->
+    node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
+    internal_key ->
+    t Lwt.t
+  (** Create a rooted view from a database node. *)
+
+end
+
+module Make (Store: IrminContents.STORE): S with type value = Store.value
+                                             and type internal_key = Store.key
