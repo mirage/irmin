@@ -21,7 +21,7 @@ let () =
     `Quick, Test_git.suite k `Disk;
     `Quick, Test_git.suite k `Memory;
     `Quick, Test_dispatch.suite k [|
-      Test_git.suite k `Disk;
+(*      Test_git.suite k `Disk; *)
       Test_memory.suite k;
       Test_fs.suite k;
     |];
