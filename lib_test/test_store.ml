@@ -340,12 +340,34 @@ module Make (S: Irmin.S) = struct
     let test () =
       create () >>= fun t ->
       let nodes = random_nodes x.kind 100 in
+      let foo1 = random_value x.kind 10 in
+      let foo2 = random_value x.kind 10 in
 
-      View.create () >>= fun view ->
-      Lwt_list.iter_s (fun (k,v) -> View.update view k v) nodes >>= fun () ->
+      let check_view view =
+        View.update view ["foo";"1"] foo1 >>= fun () ->
+        View.update view ["foo";"2"] foo2 >>= fun () ->
+        View.list view [ ["foo"] ]        >>= fun ls ->
+        assert_paths_equal "path1" [ ["foo";"1"]; ["foo";"2"] ] ls;
+        return_unit in
 
-      updates t ["b"] view >>= fun () ->
-      updates t ["a"] view  >>= fun () ->
+      View.create () >>= fun v0 ->
+      Lwt_list.iter_s (fun (k,v) ->
+          View.update v0 k v
+        ) nodes     >>= fun () ->
+      check_view v0 >>= fun () ->
+
+      updates t ["b"] v0 >>= fun () ->
+      updates t ["a"] v0 >>= fun () ->
+
+      list t [["b";"foo"]] >>= fun ls ->
+      assert_paths_equal "path2" [ ["b";"foo";"1"]; ["b";"foo";"2"] ] ls;
+      read t ["b";"foo";"1"] >>= fun foo1' ->
+      assert_contents_opt_equal "foo1" (Some foo1) foo1';
+      read t ["a";"foo";"2"] >>= fun foo2' ->
+      assert_contents_opt_equal "foo2" (Some foo2) foo2';
+
+      view t ["b"]  >>= fun v1 ->
+      check_view v1 >>= fun () ->
 
       Lwt_list.iteri_s (fun i (k, v) ->
           read_exn t ("a"::k) >>= fun v' ->
