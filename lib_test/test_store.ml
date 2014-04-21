@@ -43,6 +43,28 @@ module Make (S: Irmin.S) = struct
     r2: R.t;
   }
 
+  let random_value ~kind ~value =
+    let str = Cryptokit.(Random.string urandom value) in
+    match kind with
+    | `String -> B.of_string str
+    | `JSON   -> B.of_string (Ezjsonm.to_string (`A [ IrminMisc.json_encode str ]))
+
+  let random_path ~label ~path =
+    let short () = Cryptokit.(Random.string urandom label) in
+    let rec aux = function
+      | 0 -> []
+      | n -> short () :: aux (n-1) in
+    aux path
+
+  let random_node ~label ~path ~value ~kind =
+    random_path ~label ~path, random_value ~kind ~value
+
+  let random_nodes ?(label=8) ?(path=5) ?(value=1024) kind n =
+    let rec aux acc = function
+      | 0 -> acc
+      | n -> aux (random_node ~label ~path ~value ~kind :: acc) (n-1) in
+    aux [] n
+
   let mk k t =
     let v1 = match k with
       | `String -> B.of_string long_random_string
@@ -314,36 +336,33 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_views x () =
+    let test () =
+      create () >>= fun t ->
+      let nodes = random_nodes x.kind 100 in
+
+      View.create () >>= fun view ->
+      Lwt_list.iter_s (fun (k,v) -> View.update view k v) nodes >>= fun () ->
+
+      updates t ["b"] view >>= fun () ->
+      updates t ["a"] view  >>= fun () ->
+
+      Lwt_list.iteri_s (fun i (k, v) ->
+          read_exn t ("a"::k) >>= fun v' ->
+          assert_contents_equal ("a"^string_of_int i) v v';
+          read_exn t ("b"::k) >>= fun v' ->
+          assert_contents_equal ("b"^string_of_int i) v v';
+          return_unit
+        ) nodes >>= fun () ->
+
+      return_unit
+    in
+    run x test
+
   let test_sync x () =
     let test () =
       create () >>= fun t1          ->
       mk x.kind t1 >>= function { v1; v2 } ->
-
-      let random_value () =
-        let str = Cryptokit.(Random.string urandom 1024) in
-        match x.kind with
-        | `String -> B.of_string str
-        | `JSON   -> B.of_string (
-            Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
-          ) in
-      let random_path () =
-        let short () = Cryptokit.(Random.string urandom 20) in
-        let rec aux = function
-          | 0 -> []
-          | n -> short () :: aux (n-1) in
-        aux 20 in
-      let random_node () =
-        random_path (), random_value () in
-      let random_nodes n =
-        let rec aux acc = function
-          | 0 -> acc
-          | n -> aux (random_node () :: acc) (n-1) in
-        aux [] n in
-      let nodes = random_nodes 100 in
-
-      View.create () >>= fun tree ->
-      Lwt_list.iter_s (fun (k,v) -> View.update tree k v) nodes;
-      updates t1 ["a"] tree  >>= fun () ->
 
       update t1 ["a";"b"] v1 >>= fun () ->
       snapshot t1            >>= fun r1 ->
@@ -374,12 +393,6 @@ module Make (S: Irmin.S) = struct
       assert_bool_equal "mem-ad" true b3;
       read_exn t2 ["a";"d"]  >>= fun v1' ->
       assert_contents_equal "v1" v1' v1;
-
-      Lwt_list.iteri_s (fun i (k, v) ->
-          read_exn t2 k >>= fun v' ->
-          assert_contents_equal ("c"^string_of_int i) v v';
-          return_unit
-        ) nodes >>= fun () ->
 
       catch
         (fun () ->
@@ -450,6 +463,7 @@ let suite (speed, x) =
     "Basic operations on commits"     , speed, T.test_commits    x;
     "Basic operations on references"  , speed, T.test_references x;
     "Basic merge operations"          , speed, T.test_merges     x;
+    "High-level operations in views"  , speed, T.test_views      x;
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
     "High-level store merges"         , speed, T.test_merge_api  x;
