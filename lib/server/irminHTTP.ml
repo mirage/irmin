@@ -110,6 +110,11 @@ module Server (S: Irmin.S) = struct
     output = D.to_json;
   }
 
+  let origin = {
+    input  = IrminOrigin.of_json;
+    output = IrminOrigin.to_json;
+  }
+
   let mk_dump key value =
     list (pair key value)
 
@@ -187,6 +192,10 @@ module Server (S: Irmin.S) = struct
     | None   -> error "%s: empty body" name
     | Some b  -> i.input b
 
+  let mk2b name i j = function
+    | None   -> error "%s: empty body" name
+    | Some b -> (pair i j).input b
+
   let mklp name i1 path =
     i1.input (Ezjsonm.strings path)
 
@@ -250,6 +259,16 @@ module Server (S: Irmin.S) = struct
         return (o.output r)
       )
 
+  (* list of arguments in the path, 2 arguments in the body, fixed answer *)
+  let mklp2bf name fn db i1 i2 i3 o =
+    name,
+    Fixed (fun t path params ->
+        let x1 = mklp name i1 path in
+        let x2, x3 = mk2b name i2 i3 params in
+        fn (db t) x1 x2 x3 >>= fun r ->
+        return (o.output r)
+      )
+
   (* list of arguments in the path, no body, streamed response *)
   let mklp0bs name fn db i1 o =
     name,
@@ -293,12 +312,15 @@ module Server (S: Irmin.S) = struct
       mklp0bs "watch"  Reference.watch  re reference key;
   ]
 
-  let store = Node [
+  let store =
+    let s_update t p o c = S.update t ?origin:o p c in
+    let s_remove t p o = S.remove t ?origin:o p in
+    Node [
       mklp0bf "read"     S.read     t path (some contents);
       mklp0bf "mem"      S.mem      t path bool;
       mk0p1bf "list"     S.list     t (list path) (list path);
-      mklp1bf "update"   S.update   t path contents unit;
-      mklp0bf "remove"   S.remove   t path unit;
+      mklp2bf "update"   s_update   t path (some origin) contents unit;
+      mklp1bf "remove"   s_remove   t path (some origin) unit;
       mk0p0bf "dump"     S.dump     t (mk_dump path contents);
       mk0p0bf "snapshot" S.snapshot t key;
       mk1p0bf "revert"   S.revert   t key unit;

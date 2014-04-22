@@ -19,8 +19,7 @@
 type 'key t = {
   node   : 'key option;
   parents: 'key list;
-  date   : float;
-  origin : string;
+  origin : IrminOrigin.t;
 } with bin_io, compare, sexp
 (** Type of concrete revisions. *)
 
@@ -61,7 +60,7 @@ module type STORE = sig
                          and type value := value
   (** Revision stores are append-only. *)
 
-  val commit: t -> date:float -> origin:string ->
+  val commit: t -> IrminOrigin.t ->
     ?node:key IrminNode.t -> parents:value list -> (key * value) Lwt.t
   (** Create a new commit. *)
 
@@ -71,7 +70,7 @@ module type STORE = sig
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val merge: t -> date:float -> origin:string -> key IrminMerge.t
+  val merge: t -> IrminOrigin.t -> key IrminMerge.t
   (** Lift [S.merge] to the store keys. *)
 
   module Key: IrminKey.S with type t = key
