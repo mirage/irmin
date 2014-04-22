@@ -44,6 +44,7 @@ module Make (Store: IrminContents.STORE) = struct
     type contents_or_key =
       | Key of K.t
       | Contents of C.t
+      | Both of K.t * C.t
 
     type t = contents_or_key ref
     (* Same as [IrminContents.t] but can either be a raw contents or a
@@ -54,6 +55,7 @@ module Make (Store: IrminContents.STORE) = struct
 
     let export c =
       match !c with
+      | Both (k, _)
       | Key k      -> k
       | Contents _ -> failwith "Contents.export"
 
@@ -62,6 +64,7 @@ module Make (Store: IrminContents.STORE) = struct
 
     let read ~contents t =
       match !t with
+      | Both (_, c)
       | Contents c -> return (Some c)
       | Key k      ->
         contents k >>= function
@@ -82,6 +85,7 @@ module Make (Store: IrminContents.STORE) = struct
     and node_or_key  =
       | Key of K.t
       | Node of node
+      | Both of K.t * node
 
     and t = node_or_key ref
     (* Similir to [IrminNode.t] but using where all of the values can
@@ -102,6 +106,7 @@ module Make (Store: IrminContents.STORE) = struct
     let is_empty n =
       match !n with
       | Key _  -> false
+      | Both (_, n)
       | Node n -> n.contents = None && Map.is_empty n.succ
 
     let import n =
@@ -113,6 +118,7 @@ module Make (Store: IrminContents.STORE) = struct
 
     let export n =
       match !n with
+      | Both (k, _)
       | Key k  -> k
       | Node _ -> failwith "Node.export"
 
@@ -125,6 +131,7 @@ module Make (Store: IrminContents.STORE) = struct
 
     let read ~node t =
       match !t with
+      | Both (_, n)
       | Node n   -> return (Some n)
       | Key k    ->
         node k >>= function
@@ -145,17 +152,18 @@ module Make (Store: IrminContents.STORE) = struct
       read node t >>= function
       | None   -> if v = None then return_unit else fail Not_found (* XXX ? *)
       | Some n ->
-        let n = match v with
+        let new_n = match v with
           | None   -> { n with contents = None }
           | Some c -> { n with contents = Some (Contents.create c) } in
-        t := Node n;
+        t := Node new_n;
         return_unit
 
     let update_succ ~node t succ =
       read node t >>= function
       | None   -> if Map.is_empty succ then return_unit else fail Not_found (* XXX ? *)
       | Some n ->
-        t := Node { n with succ };
+        let new_n = { n with succ } in
+        t := Node new_n;
         return_unit
 
   end
@@ -200,6 +208,7 @@ module Make (Store: IrminContents.STORE) = struct
     let todo = Stack.create () in
     let rec add_to_todo n =
       match !n with
+      | Node.Both _
       | Node.Key _  -> ()
       | Node.Node x ->
         (* 1. we push the current node job on the stack. *)
@@ -214,6 +223,7 @@ module Make (Store: IrminContents.STORE) = struct
             | None   -> return_unit
             | Some c ->
               match !c with
+              | Contents.Both _
               | Contents.Key _       -> return_unit
               | Contents.Contents x  ->
                 contents x >>= fun k ->
