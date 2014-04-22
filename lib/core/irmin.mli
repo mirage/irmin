@@ -39,6 +39,18 @@ module type S = sig
                         and type dump     = (Internal.key, value) IrminDump.t
                         and type branch   = Reference.key
 
+  val update: ?origin:IrminOrigin.t -> t -> key -> value -> unit Lwt.t
+  (** Same as [IrminStore.RW.update] but with an optional [origin]
+      argument to keep track of provenance. *)
+
+  val remove: ?origin:IrminOrigin.t -> t -> key -> unit Lwt.t
+  (** Same as [IrminStore.RW.remove] but with an optional [origin]
+      argument to keep track of provenance. *)
+
+  val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot -> snapshot Lwt.t
+  (** Same as [IrminStore.S.merge_snapshots] but with an option [origin]
+      to keep track of provenance. *)
+
   val output: t -> string -> unit Lwt.t
   (** Create a Graphviz graph representing the store state. Could be
       no-op if the backend does not support that operation (for instance,
@@ -55,7 +67,7 @@ module type S = sig
   val branch: t -> branch -> t Lwt.t
   (** Fork the store, using the giben branch name. *)
 
-  val merge: t -> into:t -> unit Lwt.t
+  val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit Lwt.t
   (** [merge t ~into] merges the branch [t.branch] into
       [into.branch]. Both stores should have the same underlying
       store. Update the commit pointed by [t] to the merge commit of
@@ -76,10 +88,11 @@ module type S = sig
   module View: IrminView.S with type value := value
   (** Load sub-trees in memory. *)
 
-  val updates: t -> key -> View.t -> unit Lwt.t
+  val updates: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
   (** Commit a view to the store. The view *replaces* the current
-      subtree, so if you want to do a merge, you have to do it manually
-      (by creating a new branch, or rebasing before commiting). *)
+      subtree, so if you want to do a merge, you have to do it
+      manually (by creating a new branch, or rebasing before
+      commiting). [origin] helps keeping track of provenance. *)
 
   val view: t -> key -> View.t Lwt.t
   (** Build a view from the store. *)
@@ -114,9 +127,3 @@ module Binary
 (** Create an irminsule store from binary store makers. Use only one
     append-only store for values, nodes and commits and a mutable
     store for the tags. *)
-
-val set_date_hook: (unit -> float) -> unit
-(** How to compute the commit dates. By default, increment a counter. *)
-
-val set_origin_hook: (unit -> string) -> unit
-(** How to compute the commit origins. By default, return a random number. *)

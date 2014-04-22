@@ -21,8 +21,8 @@ open Cmdliner
 let () =
   let origin =
     sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
-  Irmin.set_date_hook Unix.time;
-  Irmin.set_origin_hook (fun () -> origin);
+  IrminOrigin.set_date (fun () -> Int64.of_float (Unix.time ()));
+  IrminOrigin.set_id (fun () -> origin);
   IrminFS.install_dir_polling_listener 0.5
 
 (* Global options *)

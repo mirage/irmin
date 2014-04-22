@@ -29,34 +29,22 @@ module type S = sig
                         and type snapshot = Internal.key
                         and type dump     = (Internal.key, value) IrminDump.t
                         and type branch   = Reference.key
+  val update: ?origin:IrminOrigin.t -> t -> key -> value -> unit Lwt.t
+  val remove: ?origin:IrminOrigin.t -> t -> key -> unit Lwt.t
+  val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot -> snapshot Lwt.t
   val output: t -> string -> unit Lwt.t
   val internal: t -> Internal.t
   val reference: t -> Reference.t
   val branch: t -> branch -> t Lwt.t
-  val merge: t -> into:t -> unit Lwt.t
+  val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
   module View: IrminView.S with type value := value
-  val updates: t -> key -> View.t -> unit Lwt.t
+  val updates: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
   val view: t -> key -> View.t Lwt.t
 end
-
-
-let date_hook =
-  let c = ref 0. in
-  ref (fun () -> c := Float.add !c 1.; !c)
-
-let set_date_hook f =
-  date_hook := f
-
-let origin_hook =
-  let r = string_of_int (Random.int 1024) in
-  ref (fun () -> r)
-
-let set_origin_hook f =
-  origin_hook := f
 
 module Make
     (K : IrminKey.S)
@@ -122,16 +110,14 @@ module Make
     | None   -> []
     | Some r -> [r]
 
-  let update_node t fn =
+  let update_node ~origin t fn =
     read_head_commit t >>= fun commit ->
     read_node t commit >>= fun old_node ->
     fn old_node >>= fun node ->
     if IrminNode.equal K.equal old_node node then return_unit
     else (
       let parents = parents_of_commit commit in
-      let date = !date_hook () in
-      let origin = !origin_hook () in
-      Commit.commit (co t.vals) ~date ~origin ~node ~parents >>= fun (key, _) ->
+      Commit.commit (co t.vals) origin ~node ~parents >>= fun (key, _) ->
       Reference.update t.refs t.branch key
     )
 
@@ -142,14 +128,20 @@ module Make
   let read =
     read_node Node.find
 
-  let update t path contents =
+  let update ?origin t path contents =
+    let origin = match origin with
+      | None   -> IrminOrigin.create "Update %s." (IrminPath.to_string path)
+      | Some o -> o in
     Log.debugf "update %s" (IrminPath.to_string path);
-    update_node t (fun node ->
+    update_node t ~origin (fun node ->
         Node.update (no t.vals) node path contents
       )
 
-  let remove t path =
-    update_node t (fun node ->
+  let remove ?origin t path =
+    let origin = match origin with
+      | None   -> IrminOrigin.create "Remove %s." (IrminPath.to_string path)
+      | Some o -> o in
+    update_node t ~origin (fun node ->
         Node.remove (no t.vals) node path
       )
 
@@ -199,13 +191,12 @@ module Make
       (K.Set.empty, K.Set.singleton c1)
       (K.Set.empty, K.Set.singleton c2)
 
-  let merge_snapshot t c1 c2 =
-    let date = !date_hook () in
-    let origin = !origin_hook () in
+  let merge_snapshot ?origin t c1 c2 =
+    let origin = match origin with
+      | None   -> IrminOrigin.create "merge snapshots of %s and %s" (K.to_string c1) (K.to_string c2)
+      | Some o -> o in
     find_common_ancestor t c1 c2 >>= fun old ->
-    IrminMerge.merge
-      (Commit.merge (co t.vals) ~date ~origin)
-      ~old c1 c2
+    IrminMerge.merge (Commit.merge (co t.vals) origin) ~old c1 c2
 
   (* Return the subpaths. *)
   let list t paths =
@@ -449,20 +440,27 @@ module Make
     end >>= fun () ->
     return { t with branch }
 
-  let merge t1 ~into:t2 =
+  let merge ?origin t1 ~into:t2 =
+    let origin = match origin with
+      | Some o -> o
+      | None   -> IrminOrigin.create "Merge %s into %s."
+                    (R.to_string t1.branch) (R.to_string t2.branch) in
     Reference.read_exn t1.refs t1.branch  >>= fun c1  ->
     Reference.read_exn t2.refs t2.branch  >>= fun c2  ->
-    merge_snapshot t1 c1 c2               >>= fun c3  ->
+    merge_snapshot t1 ~origin c1 c2               >>= fun c3  ->
     Reference.update t1.refs t1.branch c3
 
   module View = IrminView.Make(Contents)
 
-  let updates t path tree =
+  let updates ?origin t path tree =
+    let origin = match origin with
+      | None   -> IrminOrigin.create "Update view to %s" (IrminPath.to_string path)
+      | Some o -> o in
     let contents = Contents.add (bl t.vals) in
     let node = Node.add (no t.vals) in
     View.export ~node ~contents tree >>= fun key ->
     Node.read_exn (no t.vals) key >>= fun tree ->
-    update_node t (fun node ->
+    update_node t ~origin (fun node ->
         Node.map (no t.vals) node path (fun _ -> tree)
       )
 

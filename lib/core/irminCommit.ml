@@ -19,8 +19,7 @@ open Core_kernel.Std
 type 'key t = {
   node   : 'key option;
   parents: 'key list;
-  date   : float;
-  origin : string;
+  origin : IrminOrigin.t;
 } with bin_io, compare, sexp
 
 let edges t =
@@ -33,8 +32,7 @@ let edges t =
 let to_json json_of_key t =
   `O (
     ("parents", Ezjsonm.list json_of_key t.parents) ::
-    ("date"   , Ezjsonm.string (Float.to_string t.date)) ::
-    ("origin" , Ezjsonm.string t.origin) ::
+    ("origin" , IrminOrigin.to_json t.origin) ::
     match t.node with
     | None   -> []
     | Some t -> [ ("node", json_of_key t) ]
@@ -44,13 +42,11 @@ let of_json key_of_json json =
   let parents =
     Ezjsonm.get_list key_of_json (Ezjsonm.find json ["parents"]) in
   let origin =
-    Ezjsonm.get_string (Ezjsonm.find json ["origin"]) in
-  let date =
-    Float.of_string (Ezjsonm.get_string (Ezjsonm.find json ["date"])) in
+    IrminOrigin.of_json (Ezjsonm.find json ["origin"]) in
   let node =
     try Some (key_of_json (Ezjsonm.find json ["node"]))
     with Not_found -> None in
-  { node; parents; date; origin }
+  { node; parents; origin }
 
 module Log = Log.Make(struct let section = "COMMIT" end)
 
@@ -87,11 +83,11 @@ module type STORE = sig
   type value = key t
   include IrminStore.AO with type key := key
                          and type value := value
-  val commit: t -> date:float -> origin:string -> ?node:key IrminNode.t ->
+  val commit: t -> IrminOrigin.t -> ?node:key IrminNode.t ->
     parents:value list -> (key * value) Lwt.t
   val node: t -> value -> key IrminNode.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
-  val merge: t -> date:float -> origin:string -> key IrminMerge.t
+  val merge: t -> IrminOrigin.t -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
 end
@@ -133,7 +129,7 @@ module Make
     | None   -> None
     | Some k -> Some (Node.read_exn n k)
 
-  let commit (n, c) ~date ~origin ?node ~parents =
+  let commit (n, c) origin ?node ~parents =
     begin match node with
       | None      -> return_none
       | Some node -> Node.add n node >>= fun k -> return (Some k)
@@ -141,7 +137,7 @@ module Make
     >>= fun node ->
     Lwt_list.map_p (Commit.add c) parents
     >>= fun parents ->
-    let commit = { node; parents; date; origin } in
+    let commit = { node; parents; origin } in
     Commit.add c commit >>= fun key ->
     return (key, commit)
 
@@ -166,14 +162,14 @@ module Make
   let merge_node n =
     IrminMerge.some (Node.merge n)
 
-  let merge (n, _ as t) ~date ~origin =
+  let merge (n, _ as t) origin =
     let merge ~old k1 k2 =
       read_exn t old >>= fun vold ->
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
       IrminMerge.merge (merge_node n) ~old:vold.node v1.node v2.node >>= fun node ->
       let parents = [k1; k2] in
-      let commit = { node; parents; date; origin } in
+      let commit = { node; parents; origin } in
       add t commit
     in
     IrminMerge.create' (module K) merge

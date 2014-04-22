@@ -176,6 +176,7 @@ module Make (S: Irmin.S) = struct
 
       let node = node t in
       let commit = commit t in
+      let origin = IrminOrigin.create ~date:0L ~id:"test" "Test commit!" in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
       Node.node node ~contents:v1 ()    >>= fun (k1, _) ->
@@ -186,15 +187,15 @@ module Make (S: Irmin.S) = struct
       Node.read_exn node k3             >>= fun t3 ->
 
       (* r1 : t2 *)
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun (kr1 , r1 ) ->
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t2 ~parents:[] >>= fun (kr1', r1') ->
+      Commit.commit commit origin ~node:t2 ~parents:[] >>= fun (kr1 , r1 ) ->
+      Commit.commit commit origin ~node:t2 ~parents:[] >>= fun (kr1', r1') ->
       assert_key_equal "kr1" kr1 kr1';
       assert_commit_equal "r1" r1 r1';
 
       (* r1 -> r2 : t3 *)
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t3 ~parents:[r1]
+      Commit.commit commit origin ~node:t3 ~parents:[r1]
       >>= fun (kr2 , r2) ->
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t3 ~parents:[r1]
+      Commit.commit commit origin ~node:t3 ~parents:[r1]
       >>= fun (kr2', r2') ->
       assert_key_equal "kr2" kr2 kr2';
       assert_commit_equal "r2" r2 r2';
@@ -279,16 +280,17 @@ module Make (S: Irmin.S) = struct
       (* merge commits *)
 
       let commit = commit t in
-      Commit.commit commit ~date:0. ~origin:"test" ~node:t0 ~parents:[] >>= fun (kr0, r0) ->
-      Commit.commit commit ~date:1. ~origin:"test" ~node:t2 ~parents:[r0]
+      let origin date =
+        IrminOrigin.create ~date:(Int64.of_int date) ~id:"test" "Test commit" in
+      Commit.commit commit (origin 0) ~node:t0 ~parents:[] >>= fun (kr0, r0) ->
+      Commit.commit commit (origin 1) ~node:t2 ~parents:[r0]
       >>= fun (kr1, r1) ->
-      Commit.commit commit ~date:2. ~origin:"test" ~node:t3 ~parents:[r0]
+      Commit.commit commit (origin 2) ~node:t3 ~parents:[r0]
       >>= fun (kr2, r2) ->
-      IrminMerge.merge
-        (Commit.merge commit ~date:3. ~origin:"test") ~old:kr0 kr1 kr2
+      IrminMerge.merge (Commit.merge commit (origin 3)) ~old:kr0 kr1 kr2
       >>= fun kr3 ->
       Commit.read_exn commit kr3 >>= fun r3 ->
-      Commit.commit commit ~date:3. ~origin:"test" ~node:t4 ~parents:[r1; r2]
+      Commit.commit commit (origin 3) ~node:t4 ~parents:[r1; r2]
       >>= fun (kr3', r3') ->
       assert_key_equal "kr3" kr3 kr3';
       assert_commit_equal "r3" r3 r3';
