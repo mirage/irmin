@@ -1,3 +1,19 @@
+0.7.0:
+* Feature: add support for views: these are temporary stores with
+  lazy reads + in-memory writes; they can be used to convert back
+  and forth an OCaml value into a store, or to have a fast stagging
+  area without the need to commit every operation to the store.
+* Backend: add a 'dispatch' backend for combining multiple backends
+  into one. This can be used to have a P2P store where there is
+  well-defined mapping between keys and host (as a DHT).
+* Fix: limit the number of simulteanous open files in the Git and
+  the file-system backend
+* Speed-up the in-memory store
+* Speed-up the import/export codepath
+* Speed-up the reads
+* Speed-up IrminValue.Mux
+* Deps: use ocaml-sha instead of cryptokit
+
 0.6.0: (2014-04-12)
 * Support for user-defined contents (with custom merge operators)
 * Support for merge operations
