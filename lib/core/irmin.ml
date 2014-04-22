@@ -453,6 +453,7 @@ module Make
   module View = IrminView.Make(Contents)
 
   let updates ?origin t path tree =
+    Log.debugf "updates %s" (IrminPath.to_string path);
     let origin = match origin with
       | None   -> IrminOrigin.create "Update view to %s" (IrminPath.to_string path)
       | Some o -> o in
@@ -465,6 +466,7 @@ module Make
       )
 
   let view t path =
+    Log.debugf "view %s" (IrminPath.to_string path);
     let contents = Contents.read (bl t.vals) in
     let node = Node.read (no t.vals) in
     read_node Node.sub_exn t path >>= fun n ->
