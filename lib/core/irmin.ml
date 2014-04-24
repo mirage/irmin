@@ -234,7 +234,7 @@ module Make
       | Some v -> return [ ([], v) ]
     end
     >>= fun init ->
-    list t [] >>= aux init
+    list t [[]] >>= aux init
 
   module Graph = IrminGraph.Make(K)(R)
 
