@@ -30,7 +30,7 @@ let to_json t =
 let of_json j =
   let date = Ezjsonm.find j ["date"] |> Ezjsonm.get_string |> Int64.of_string in
   let id   = Ezjsonm.find j ["id"]   |> Ezjsonm.get_string in
-  let msg  = Ezjsonm.find j ["msg"]  |> Ezjsonm.get_string in
+  let msg  = Ezjsonm.find j ["msg"]  |> IrminMisc.json_decode_exn in
   { date; id; msg }
 
 
