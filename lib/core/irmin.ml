@@ -470,9 +470,11 @@ module Make
     Log.debugf "read_view %s" (IrminPath.to_string path);
     let contents = Contents.read (bl t.vals) in
     let node = Node.read (no t.vals) in
-    read_node Node.sub_exn t path >>= fun n ->
-    Node.add (no t.vals) n        >>= fun k ->
-    View.import ~contents ~node k
+    read_node Node.sub t path >>= function
+    | None   -> View.create ()
+    | Some n ->
+      Node.add (no t.vals) n >>= fun k ->
+      View.import ~contents ~node k
 
   let node_of_view t view =
     let contents = Contents.add (bl t.vals) in
