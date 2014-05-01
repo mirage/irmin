@@ -21,6 +21,8 @@ open IrminMerge.OP
 module XLog = Log
 module Log = XLog.Make(struct let section = "IRMIN" end)
 
+exception Conflict of string
+
 module type S = sig
   type value
   module Internal: IrminValue.STORE with type contents = value
@@ -34,11 +36,13 @@ module type S = sig
   val remove: ?origin:IrminOrigin.t -> t -> key -> unit Lwt.t
   val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot ->
     snapshot IrminMerge.result Lwt.t
+  val merge_snapshot_exn: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot -> snapshot Lwt.t
   val output: t -> string -> unit Lwt.t
   val internal: t -> Internal.t
   val reference: t -> Reference.t
   val branch: t -> branch -> t Lwt.t
   val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit IrminMerge.result Lwt.t
+  val merge_exn: ?origin:IrminOrigin.t -> t -> into:t -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
@@ -47,6 +51,7 @@ module type S = sig
   val read_view: t -> key -> View.t Lwt.t
   val update_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
   val merge_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit IrminMerge.result Lwt.t
+  val merge_view_exn: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
 end
 
 module Make
@@ -197,6 +202,10 @@ module Make
       | Some o -> o in
     find_common_ancestor t c1 c2 >>| fun old ->
     IrminMerge.merge (Commit.merge (co t.vals) origin) ~old c1 c2
+
+  let merge_snapshot_exn ?origin t c1 c2 =
+    merge_snapshot ?origin t c1 c2 >>=
+    IrminMerge.exn (fun x -> Conflict x)
 
   (* Return the subpaths. *)
   let list t paths =
@@ -451,6 +460,10 @@ module Make
     Reference.update t1.refs t1.branch c3 >>= fun () ->
     ok ()
 
+  let merge_exn ?origin t ~into =
+    merge ?origin t ~into >>=
+    IrminMerge.exn (fun x -> Conflict x)
+
   module View = IrminView.Make(Contents)
 
   let read_view t path =
@@ -493,6 +506,10 @@ module Make
       | Some o -> o in
     update_view ~origin t path head >>= fun () ->
     ok ()
+
+  let merge_view_exn ?origin t path view =
+    merge_view ?origin t path view >>=
+    IrminMerge.exn (fun x -> Conflict x)
 
 end
 

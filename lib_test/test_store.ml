@@ -377,10 +377,9 @@ module Make (S: Irmin.S) = struct
       read_view t ["b"]  >>= fun v1 ->
       check_view v1 >>= fun () ->
 
-      update      t  ["b";"x"] foo1       >>= fun () ->
-      View.update v1 ["y"]     foo2       >>= fun () ->
-      merge_view t   ["b"] v1             >>=
-      IrminMerge.exn (fun x -> Failure x) >>= fun () ->
+      update      t    ["b";"x"] foo1 >>= fun () ->
+      View.update v1   ["y"]     foo2 >>= fun () ->
+      merge_view_exn t ["b"] v1       >>= fun () ->
       read t ["b";"x"] >>= fun foo1' ->
       read t ["b";"y"] >>= fun foo2' ->
       assert_contents_opt_equal "merge: b/x" (Some foo1) foo1';
@@ -474,10 +473,9 @@ module Make (S: Irmin.S) = struct
 
       update t2 ["a";"b";"c"] v1 >>= fun () ->
 
-      output t1 "before" >>= fun () ->
-      merge t1 ~into:t2 >>=
-      IrminMerge.exn (fun k -> Failure k) >>= fun () ->
-      output t1 "after" >>= fun () ->
+      output t1 "before"    >>= fun () ->
+      merge_exn t1 ~into:t2 >>= fun () ->
+      output t1 "after"     >>= fun () ->
 
       read_exn t1 ["a";"b";"c"] >>= fun v1'  ->
       read_exn t2 ["a";"b";"b"] >>= fun v2'  ->

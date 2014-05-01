@@ -145,8 +145,8 @@ module type S = sig
   val revert: t -> snapshot -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
-  val merge_snapshot: t -> snapshot -> snapshot -> snapshot Lwt.t
-  (** 3-way between snapshots. *)
+  val merge_snapshot: t -> snapshot -> snapshot -> snapshot IrminMerge.result Lwt.t
+  (** 3-way merges of snapshots. *)
 
   val watch: t -> key -> (key * snapshot) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a

@@ -16,6 +16,9 @@
 
 (** API entry point *)
 
+exception Conflict of string
+(** Merge conflict. *)
+
 module type S = sig
 
   (** {2 Main signature for Irminsule stores} *)
@@ -52,6 +55,10 @@ module type S = sig
   (** Same as [IrminStore.S.merge_snapshots] but with an option [origin]
       to keep track of provenance. *)
 
+  val merge_snapshot_exn: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot -> snapshot Lwt.t
+  (** Same as [merge_snapshot] but raise a [Conflict] exception in case
+      of conflict. *)
+
   val output: t -> string -> unit Lwt.t
   (** Create a Graphviz graph representing the store state. Could be
       no-op if the backend does not support that operation (for instance,
@@ -73,6 +80,10 @@ module type S = sig
       [into.branch]. Both stores should have the same underlying
       store. Update the commit pointed by [t] to the merge commit of
       the two branches. *)
+
+  val merge_exn: ?origin:IrminOrigin.t -> t -> into:t -> unit Lwt.t
+  (** Same as [merge] but raise [Conflict "<msg>"] in case of a
+      conflict. *)
 
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
@@ -102,6 +113,10 @@ module type S = sig
 
   val merge_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit IrminMerge.result Lwt.t
   (** Same as [update_view] but *merges* with the current subtree. *)
+
+  val merge_view_exn: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
+  (** Same as [merge_view] but throw [Conflict "msg"] in case of
+      conflict. *)
 
 end
 
