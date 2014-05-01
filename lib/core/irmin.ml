@@ -16,6 +16,7 @@
 
 open Core_kernel.Std
 open Lwt
+open IrminMerge.OP
 
 module XLog = Log
 module Log = XLog.Make(struct let section = "IRMIN" end)
@@ -31,19 +32,21 @@ module type S = sig
                         and type branch   = Reference.key
   val update: ?origin:IrminOrigin.t -> t -> key -> value -> unit Lwt.t
   val remove: ?origin:IrminOrigin.t -> t -> key -> unit Lwt.t
-  val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot -> snapshot Lwt.t
+  val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot ->
+    snapshot IrminMerge.result Lwt.t
   val output: t -> string -> unit Lwt.t
   val internal: t -> Internal.t
   val reference: t -> Reference.t
   val branch: t -> branch -> t Lwt.t
-  val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit Lwt.t
+  val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit IrminMerge.result Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
   module View: IrminView.S with type value := value
-  val updates: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
-  val view: t -> key -> View.t Lwt.t
+  val read_view: t -> key -> View.t Lwt.t
+  val update_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
+  val merge_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit IrminMerge.result Lwt.t
 end
 
 module Make
@@ -118,6 +121,7 @@ module Make
     else (
       let parents = parents_of_commit commit in
       Commit.commit (co t.vals) origin ~node ~parents >>= fun (key, _) ->
+      (* XXX: the head might have changed since we started the operation *)
       Reference.update t.refs t.branch key
     )
 
@@ -180,22 +184,18 @@ module Make
         parents todo1 >>= fun todo1' ->
         parents todo2 >>= fun todo2' ->
         aux (seen1', todo1') (seen2', todo2')
-      | [r] ->
-        Log.debugf "common ancestor: %s" (K.to_string r);
-        return r
-      | rs  ->
-        Log.debugf "Error: Multiple common ancestor: %s."
-          (IrminMisc.pretty_list K.to_string rs);
-        fail IrminMerge.Conflict in
+      | [r] -> ok r
+      | rs  -> conflict "Multiple common ancestor: %s" (IrminMisc.pretty_list K.to_string rs) in
     aux
       (K.Set.empty, K.Set.singleton c1)
       (K.Set.empty, K.Set.singleton c2)
 
   let merge_snapshot ?origin t c1 c2 =
     let origin = match origin with
-      | None   -> IrminOrigin.create "merge snapshots of %s and %s" (K.to_string c1) (K.to_string c2)
+      | None   -> IrminOrigin.create "merge snapshots of %s and %s"
+                    (K.to_string c1) (K.to_string c2)
       | Some o -> o in
-    find_common_ancestor t c1 c2 >>= fun old ->
+    find_common_ancestor t c1 c2 >>| fun old ->
     IrminMerge.merge (Commit.merge (co t.vals) origin) ~old c1 c2
 
   (* Return the subpaths. *)
@@ -445,33 +445,54 @@ module Make
       | Some o -> o
       | None   -> IrminOrigin.create "Merge %s into %s."
                     (R.to_string t1.branch) (R.to_string t2.branch) in
-    Reference.read_exn t1.refs t1.branch  >>= fun c1  ->
-    Reference.read_exn t2.refs t2.branch  >>= fun c2  ->
-    merge_snapshot t1 ~origin c1 c2               >>= fun c3  ->
-    Reference.update t1.refs t1.branch c3
+    Reference.read_exn t1.refs t1.branch  >>= fun c1 ->
+    Reference.read_exn t2.refs t2.branch  >>= fun c2 ->
+    merge_snapshot t1 ~origin c1 c2       >>| fun c3 ->
+    Reference.update t1.refs t1.branch c3 >>= fun () ->
+    ok ()
 
   module View = IrminView.Make(Contents)
 
-  let updates ?origin t path tree =
-    Log.debugf "updates %s" (IrminPath.to_string path);
-    let origin = match origin with
-      | None   -> IrminOrigin.create "Update view to %s" (IrminPath.to_string path)
-      | Some o -> o in
-    let contents = Contents.add (bl t.vals) in
-    let node = Node.add (no t.vals) in
-    View.export ~node ~contents tree >>= fun key ->
-    Node.read_exn (no t.vals) key >>= fun tree ->
-    update_node t ~origin (fun node ->
-        Node.map (no t.vals) node path (fun _ -> tree)
-      )
-
-  let view t path =
-    Log.debugf "view %s" (IrminPath.to_string path);
+  let read_view t path =
+    Log.debugf "read_view %s" (IrminPath.to_string path);
     let contents = Contents.read (bl t.vals) in
     let node = Node.read (no t.vals) in
     read_node Node.sub_exn t path >>= fun n ->
     Node.add (no t.vals) n        >>= fun k ->
     View.import ~contents ~node k
+
+  let node_of_view t view =
+    let contents = Contents.add (bl t.vals) in
+    let node = Node.add (no t.vals) in
+    View.export ~node ~contents view >>= fun key ->
+    Node.read_exn (no t.vals) key
+
+  let update_view ?origin t path view =
+    Log.debugf "update_view %s" (IrminPath.to_string path);
+    let origin = match origin with
+      | None   -> IrminOrigin.create "Update view to %s" (IrminPath.to_string path)
+      | Some o -> o in
+    node_of_view t view >>= fun tree ->
+    update_node t ~origin (fun node ->
+        Node.map (no t.vals) node path (fun _ -> tree)
+      )
+
+  let merge_view ?origin t path view =
+    Log.debugf "merge_view %s" (IrminPath.to_string path);
+    read_view t path >>= fun head ->
+    View.merge view ~into:head >>| fun () ->
+    let origin = match origin with
+      | None   ->
+        let buf = Buffer.create 1024 in
+        let string_of_action = IrminView.Action.to_string (fun x -> "---") in
+        List.iter ~f:(fun a ->
+            bprintf buf "%s\n" (string_of_action a)
+          ) (View.actions view);
+        IrminOrigin.create "Merge view to %s\nActions:%s\n"
+          (IrminPath.to_string path) (Buffer.contents buf)
+      | Some o -> o in
+    update_view ~origin t path head >>= fun () ->
+    ok ()
 
 end
 

@@ -16,8 +16,30 @@
 
 open Lwt
 open Core_kernel.Std
+open IrminMerge.OP
 
 module Log = Log.Make(struct let section = "view" end)
+
+module Action = struct
+
+  type 'a t =
+    | Read of IrminPath.t * 'a option
+    | Write of IrminPath.t * 'a option
+    | List of IrminPath.t list * IrminPath.t list
+  with bin_io, compare, sexp
+
+  let o f = function
+    | None   -> "<none>"
+    | Some x -> f x
+
+  let l f = IrminMisc.pretty_list f
+
+  let to_string string_of_a = function
+    | Read (p,x)  -> sprintf "read %s -> %s" (IrminPath.to_string p) (o string_of_a x)
+    | Write (p,x) -> sprintf "write %s %s" (IrminPath.to_string p) (o string_of_a x)
+    | List (i,o)  -> sprintf "list %s -> %s" (l IrminPath.to_string i) (l IrminPath.to_string o)
+
+end
 
 module type S = sig
   include IrminStore.RW with type key = IrminPath.t
@@ -30,6 +52,8 @@ module type S = sig
     contents:(value -> internal_key Lwt.t) ->
     node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
     t -> internal_key Lwt.t
+  val actions: t -> value Action.t list
+  val merge: t -> into:t -> unit IrminMerge.result Lwt.t
 end
 
 module Make (Store: IrminContents.STORE) = struct
@@ -172,6 +196,7 @@ module Make (Store: IrminContents.STORE) = struct
     node    : K.t -> Node.node option Lwt.t;
     contents: K.t -> C.t option Lwt.t;
     view    : Node.t;
+    mutable ops: C.t Action.t list;
   }
 
   type key = IrminPath.t
@@ -183,7 +208,8 @@ module Make (Store: IrminContents.STORE) = struct
     let node _ = return_none in
     let contents _ = return_none in
     let view = Node.empty () in
-    return { node; contents; view }
+    let ops = [] in
+    return { node; contents; view; ops }
 
   let mapo fn = function
     | None   -> return_none
@@ -199,7 +225,8 @@ module Make (Store: IrminContents.STORE) = struct
         | None   -> return_none
         | Some n -> return (Some (Node.import n)) in
       let view = Node.key key in
-      return { node; contents; view }
+      let ops = [] in
+      return { node; contents; view; ops }
 
   let export ~contents ~node t =
     Log.debugf "export";
@@ -260,6 +287,11 @@ module Make (Store: IrminContents.STORE) = struct
     | None   -> return_none
     | Some n -> Node.contents ~node:t.node ~contents:t.contents n
 
+  let read t k =
+    read t k >>= fun v ->
+    t.ops <- Action.Read (k, v) :: t.ops;
+    return v
+
   let read_exn t k =
     read t k >>= function
     | None   -> fail Not_found
@@ -283,6 +315,11 @@ module Make (Store: IrminContents.STORE) = struct
           return (Set.union acc paths) in
     Lwt_list.fold_left_s aux IrminPath.Set.empty paths >>= fun paths ->
     return (Set.to_list paths)
+
+  let list t paths =
+    list t paths >>= fun result ->
+    t.ops <- Action.List (paths, result) :: t.ops;
+    return result
 
   let dump t =
     failwith "TODO"
@@ -315,6 +352,10 @@ module Make (Store: IrminContents.STORE) = struct
               aux child p in
     aux t.view k
 
+  let update' t k v =
+    t.ops <- Action.Write (k, v) :: t.ops;
+    update' t k v
+
   let update t k v =
     update' t k (Some v)
 
@@ -323,5 +364,31 @@ module Make (Store: IrminContents.STORE) = struct
 
   let watch _ =
     failwith "TODO"
+
+  let apply t a =
+    Log.debugf "apply %S" (Action.to_string C.to_string a);
+    match a with
+    | Action.Write (k, v) -> update' t k v >>= ok
+    | Action.Read (k, v)  ->
+      read t k >>= fun v' ->
+      if Option.equal C.equal v v' then ok ()
+      else
+        let str = function
+          | None   -> "<none>"
+          | Some c -> C.to_string c in
+        conflict "read %s: got %S, expecting %S"
+          (IrminPath.to_string k) (str v') (str v)
+    | Action.List (l,r) ->
+      list t l >>= fun r' ->
+      if List.equal ~equal:IrminPath.equal r r' then ok ()
+      else
+        let str = IrminMisc.pretty_list IrminPath.to_string in
+        conflict "list %s: got %s, expecting %s" (str l) (str r') (str r)
+
+  let actions t =
+    List.rev t.ops
+
+  let merge t1 ~into =
+    IrminMerge.iter (apply into) (List.rev t1.ops)
 
 end

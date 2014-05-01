@@ -19,17 +19,41 @@ open Core_kernel.Std
 
 module Log = Log.Make(struct let section = "MERGE" end)
 
-exception Conflict
-
 module type S = sig
   type t
   val to_string: t -> string
   val equal: t -> t -> bool
 end
 
+type 'a result = Ok of 'a | Conflict of string with bin_io, compare, sexp
+
+let exn mk = function
+  | Ok x       -> return x
+  | Conflict x -> fail (mk x)
+
+module Result = struct
+
+  type 'a t = 'a result with bin_io, compare, sexp
+
+  let to_string string_of_a = function
+    | Ok c       -> string_of_a c
+    | Conflict s -> "<conflict: " ^ s ^ ">"
+
+  let equal eq x y = match x, y with
+    | Ok x      , Ok y       -> eq x y
+    | Ok _      , Conflict _
+    | Conflict _, Ok _       -> false
+    | Conflict x, Conflict y -> String.equal x y
+
+end
+
+type 'a merge = old:'a -> 'a -> 'a -> 'a result
+
+type 'a merge' = old:'a -> 'a -> 'a -> 'a result Lwt.t
+
 type 'a t = {
   equal: 'a -> 'a -> bool Lwt.t;
-  merge: old:'a -> 'a -> 'a -> 'a Lwt.t;
+  merge: 'a merge';
   m: (module S with type t = 'a);
 }
 
@@ -42,17 +66,44 @@ let create' (type a) (module A: S with type t = a) merge =
   let equal a b = return (A.equal a b) in
   { m = (module A); equal; merge }
 
+let conflict fmt =
+  ksprintf (fun msg ->
+      Log.debugf "conflict: %s" msg;
+      return (Conflict msg)
+    ) fmt
+
+let bind x f =
+  x >>= function
+  | Conflict _ as x -> return x
+  | Ok x            -> f x
+
+module OP = struct
+
+  let ok x = return (Ok x)
+
+  let conflict = conflict
+
+  let (>>|) = bind
+
+end
+
+open OP
+
+let rec iter f = function
+  | []   -> ok ()
+  | h::t ->
+    f h >>= function
+    | Conflict x -> conflict "%s" x
+    | Ok ()      -> iter f t
+
 let default (type a) (module A: S with type t = a) =
   let equal a b = return (A.equal a b) in
   let merge ~old t1 t2 =
     Log.debugf "default %s | %s | %s" (A.to_string old) (A.to_string t1) (A.to_string t2);
-    if A.equal t1 t2 then return t1
-    else if A.equal old t1 then return t2
-    else if A.equal old t2 then return t1
-    else (
-      Log.debugf "conflict: default";
-      fail Conflict
-    )
+    if A.equal t1 t2 then ok t1
+    else if A.equal old t1 then ok t2
+    else if A.equal old t2 then ok t1
+    else conflict "default"
   in
   { m = (module A); equal; merge }
 
@@ -61,20 +112,19 @@ let default' (type a) (module A: S with type t = a) equal =
   let merge' ~old t1 t2 =
     Log.debugf "default' %s | %s | %s" (A.to_string old) (A.to_string t1) (A.to_string t2);
     equal t1 t2 >>= fun b1 ->
-    if b1 then return t1
+    if b1 then ok t1
     else
       equal old t1 >>= fun b2 ->
-      if b2 then return t2
+      if b2 then ok t2
       else
         equal old t2 >>= fun b3 ->
-        if b3 then return t1
-        else fail Conflict
+        if b3 then ok t1
+        else conflict "default'"
   in
   let merge ~old t1 t2 =
-    Lwt.catch
-      (fun () -> default.merge ~old t1 t2)
-      (function Conflict -> merge' ~old t1 t2
-              | e        -> fail e)
+    default.merge ~old t1 t2 >>= function
+    | Ok x       -> ok x
+    | Conflict _ -> merge' ~old t1 t2
   in
   { m = (module A); equal; merge }
 
@@ -100,18 +150,12 @@ let some (type a) t =
     | Some a, Some b -> t.equal a b in
   let merge ~old t1 t2 =
     Log.debugf "some %s | %s | %s" (S.to_string old) (S.to_string t1) (S.to_string t2);
-    Lwt.catch
-      (fun () -> merge (default' (module S) equal) ~old t1 t2)
-      (function
-        | Conflict ->
-          begin match old, t1, t2 with
-            | Some o, Some v1, Some v2 ->
-              t.merge ~old:o v1 v2 >>= fun t3 -> return (Some t3)
-            | _                               ->
-              Log.debugf "conflict: some";
-              fail Conflict
-          end
-        | e -> fail e)
+    merge (default' (module S) equal) ~old t1 t2 >>= function
+    | Ok x       -> ok x
+    | Conflict _ ->
+      match old, t1, t2 with
+      | Some o, Some v1, Some v2 -> t.merge ~old:o v1 v2 >>| fun x -> ok (Some x)
+      | _ -> conflict "some"
   in
   { m = (module S); equal; merge }
 
@@ -133,11 +177,13 @@ let pair (type a) (type b) a b =
   let merge ~old x y =
     Log.debugf "pair %s | %s | %s" (S.to_string old) (S.to_string x) (S.to_string y);
     let (o1, o2), (a1, b1), (a2, b2) = old, x, y in
-    a.merge ~old:o1 a1 a2 >>= fun a3 ->
-    b.merge ~old:o2 b1 b2 >>= fun b3 ->
-    return (a3, b3)
+    a.merge ~old:o1 a1 a2 >>| fun a3 ->
+    b.merge ~old:o2 b1 b2 >>| fun b3 ->
+    ok (a3, b3)
   in
   { m = (module S); equal; merge }
+
+exception C of string
 
 let map (type a) t =
   let module T = (val t.m: S with type t = a) in
@@ -172,10 +218,10 @@ let map (type a) t =
   in
   let merge ~old m1 m2 =
     Log.debugf "assoc %s | %s | %s" (S.to_string old) (S.to_string m1) (S.to_string m2);
-    Lwt.catch
-      (fun () -> merge (default' (module S) equal) ~old m1 m2)
-      (function
-        | Conflict ->
+    merge (default' (module S) equal) ~old m1 m2 >>= function
+    | Ok x       -> ok x
+    | Conflict _ ->
+      Lwt.catch (fun () ->
           IrminMisc.Map.merge ~f:(fun ~key -> function
               | `Left v | `Right v ->
                 begin match Map.find old key with
@@ -186,27 +232,22 @@ let map (type a) t =
                     t.equal v ov >>= fun b ->
                     (* the value has been removed in one branch *)
                     if b then return_none
-                    else (
-                      (* the value has been both created and removed. *)
-                      Log.debugf "conflict: assoc 1";
-                      fail Conflict
-                    )
+                    else fail (C "remove/add")
+                    (* the value has been both created and removed. *)
                 end
               | `Both (v1, v2) ->
                 t.equal v1 v2 >>= fun b ->
                 (* no modification. *)
                 if b then return (Some v1)
-                else
-                  match Map.find old key with
-                  | None    ->
-                    Log.debugf "conflict: assoc 2";
-                    fail Conflict
-                  | Some ov ->
-                    t.merge ~old:ov v1 v2 >>= fun v -> return (Some v)
+                else match Map.find old key with
+                  | None    -> fail (C "add/add")
+                  | Some ov -> t.merge ~old:ov v1 v2 >>= function
+                    | Conflict msg -> fail (C msg)
+                    | Ok x         -> return (Some x)
             ) m1 m2
-          >>= fun m3 ->
-          return m3
-        | e -> fail e)
+          >>= ok)
+        (function C msg ->  conflict "%s" msg
+                | e     -> fail e)
   in
   { m = (module S); equal; merge }
 
@@ -224,17 +265,15 @@ let biject (type b) (module B: S with type t = b) t a_to_b b_to_a =
       let a1 = b_to_a b1 in
       let a2 = b_to_a b2 in
       let old = b_to_a old in
-      merge t ~old a1 a2 >>= fun a3 ->
-      return (a_to_b a3)
+      merge t ~old a1 a2 >>| fun a3 ->
+      ok (a_to_b a3)
     with Not_found ->
-      Log.debugf "conflict: map";
-      fail Conflict
+      conflict "biject"
   in
   let merge ~old b1 b2 =
-    Lwt.catch
-      (fun () -> default.merge ~old b1 b2)
-      (function Conflict -> merge' ~old b1 b2
-              | e        -> fail e)
+    default.merge ~old b1 b2 >>= function
+    | Ok x       -> ok x
+    | Conflict _ -> merge' ~old b1 b2
   in
   { m = (module B); equal; merge }
 
@@ -252,17 +291,16 @@ let biject' (type b) (module B: S with type t = b) t a_to_b b_to_a =
       b_to_a b1  >>= fun a1 ->
       b_to_a b2  >>= fun a2 ->
       b_to_a old >>= fun old ->
-      merge t ~old a1 a2 >>= fun a3 ->
-      a_to_b a3
+      merge t ~old a1 a2 >>| fun a3 ->
+      a_to_b a3 >>=
+      ok
     with Not_found ->
-      Log.debugf "conflict: map'";
-      fail Conflict
+      conflict "biject'"
   in
   let merge ~old b1 b2 =
-    Lwt.catch
-      (fun () -> default.merge ~old b1 b2)
-      (function Conflict -> merge' ~old b1 b2
-              | e        -> fail e)
+    default.merge ~old b1 b2 >>= function
+    | Ok x       -> ok x
+    | Conflict _ -> merge' ~old b1 b2
   in
   { m = (module B); equal; merge }
 
@@ -285,5 +323,5 @@ let string =
 
 let counter =
   let equal x y = return (Int.equal x y) in
-  let merge ~old x y = return (x + y - old) in
+  let merge ~old x y = ok (x + y - old) in
   { m = (module Int); equal; merge }

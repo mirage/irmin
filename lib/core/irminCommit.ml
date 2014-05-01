@@ -15,6 +15,7 @@
  *)
 
 open Core_kernel.Std
+open IrminMerge.OP
 
 type 'key t = {
   node   : 'key option;
@@ -167,10 +168,11 @@ module Make
       read_exn t old >>= fun vold ->
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
-      IrminMerge.merge (merge_node n) ~old:vold.node v1.node v2.node >>= fun node ->
+      IrminMerge.merge (merge_node n) ~old:vold.node v1.node v2.node >>| fun node ->
       let parents = [k1; k2] in
       let commit = { node; parents; origin } in
-      add t commit
+      add t commit >>= fun key ->
+      ok key
     in
     IrminMerge.create' (module K) merge
 
