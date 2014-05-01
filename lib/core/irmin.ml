@@ -499,11 +499,11 @@ module Make
     let origin = match origin with
       | None   ->
         let buf = Buffer.create 1024 in
-        let string_of_action = IrminView.Action.to_string (fun x -> "---") in
+        let string_of_action = IrminView.Action.to_string (fun x -> "") in
         List.iter ~f:(fun a ->
-            bprintf buf "%s\n" (string_of_action a)
+            bprintf buf "- %s\n" (string_of_action a)
           ) (View.actions view);
-        IrminOrigin.create "Merge view to %s\nActions:%s\n"
+        IrminOrigin.create "Merge view to %s\n\nActions:\n%s\n"
           (IrminPath.to_string path) (Buffer.contents buf)
       | Some o -> o in
     update_view ~origin t path head >>= fun () ->
