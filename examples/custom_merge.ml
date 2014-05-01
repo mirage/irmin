@@ -96,7 +96,7 @@ module Log = struct
           if String.(v1 = v2) then Some v1
           else Some (v1 ^ " -- " ^ v2)
       ) in
-    list m3
+    IrminMerge.Ok (list m3)
 
   let merge = IrminMerge.create (module M) merge_t
 
@@ -135,7 +135,7 @@ let main () =
   add t m3  >>= fun () ->
   add x m4  >>= fun () ->
 
-  Store.merge t x >>= fun () ->
+  Store.merge_exn t x >>= fun () ->
 
   Store.read_exn t path >>= fun logs ->
   Printf.printf "I've just read:\n%s\n%!" (Log.to_string logs);

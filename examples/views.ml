@@ -56,14 +56,14 @@ let main () =
   view_of_t t >>= fun v ->
 
   Store.create () >>= fun t ->
-  Store.updates t ["a";"b"] v >>= fun () ->
+  Store.update_view t ["a";"b"] v >>= fun () ->
 
-  Store.view t ["a";"b"] >>= fun v ->
+  Store.read_view t ["a";"b"] >>= fun v ->
   t_of_view v >>= fun tt ->
 
   let tt = { x = "ggg"; y = 4 } :: tt in
   view_of_t tt >>= fun vv ->
-  Store.updates t ["a";"c"] vv
+  Store.merge_view_exn t ["a";"c"] vv
 
 let () =
   Lwt_unix.run (main ())
