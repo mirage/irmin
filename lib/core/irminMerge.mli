@@ -18,9 +18,6 @@
 
 open Core_kernel.Std
 
-exception Conflict
-(** Exception raised during merge conflicts. *)
-
 module type S = sig
 
   (** Mergeable contents. *)
@@ -38,7 +35,32 @@ end
 type 'a t
 (** Abstract merge functions. *)
 
-val merge: 'a t -> old:'a -> 'a -> 'a -> 'a Lwt.t
+(** {2 Merge resuls} *)
+
+type 'a result =
+  | Ok of 'a
+  | Conflict of string
+with bin_io, compare, sexp
+(** Merge results. *)
+
+module Result: sig
+  type 'a t = 'a result with bin_io, compare, sexp
+  val to_string: ('a -> string) -> 'a t -> string
+  val equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
+end
+
+val exn: (string -> exn) -> 'a result -> 'a Lwt.t
+(** Convert [Conflict] to lwt exceptions. *)
+
+(** {2 Merge functions} *)
+
+type 'a merge = old:'a -> 'a -> 'a -> 'a result
+(** Signature of a merge function. *)
+
+type 'a merge' = old:'a -> 'a -> 'a -> 'a result Lwt.t
+(** Signature of a blocking merge function. *)
+
+val merge: 'a t -> 'a merge'
 (** Get the merge functions.
 
             /----> t1 ----\
@@ -46,12 +68,33 @@ val merge: 'a t -> old:'a -> 'a -> 'a -> 'a Lwt.t
             \----> t2 ----/
 *)
 
+(** {2 Base combinators} *)
+
+val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
+(** Monadic bind. *)
+
+val iter: ('a -> unit result Lwt.t) -> 'a list -> unit result Lwt.t
+(** Manadic iter. *)
+
+module OP: sig
+
+  val ok: 'a -> 'a result Lwt.t
+  (** Return [`Ok x]. *)
+
+  val conflict: ('a, unit, string, 'b result Lwt.t) format4 -> 'a
+  (** Return [`Conflict str]. *)
+
+  val (>>|): 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
+  (** Same as [bind]. *)
+
+end
+
 (** {2 Combinators} *)
 
-val create: (module S with type t = 'a) -> (old:'a -> 'a -> 'a-> 'a) -> 'a t
+val create: (module S with type t = 'a) -> 'a merge -> 'a t
 (** Create a custom merge operator. *)
 
-val create': (module S with type t = 'a) -> (old:'a -> 'a -> 'a-> 'a Lwt.t) -> 'a t
+val create': (module S with type t = 'a) -> 'a merge' -> 'a t
 (** Create a custom merge operator which might block. *)
 
 val default: (module S with type t = 'a) -> 'a t

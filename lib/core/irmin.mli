@@ -47,7 +47,8 @@ module type S = sig
   (** Same as [IrminStore.RW.remove] but with an optional [origin]
       argument to keep track of provenance. *)
 
-  val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot -> snapshot Lwt.t
+  val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot ->
+    snapshot IrminMerge.result Lwt.t
   (** Same as [IrminStore.S.merge_snapshots] but with an option [origin]
       to keep track of provenance. *)
 
@@ -67,7 +68,7 @@ module type S = sig
   val branch: t -> branch -> t Lwt.t
   (** Fork the store, using the giben branch name. *)
 
-  val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit Lwt.t
+  val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit IrminMerge.result Lwt.t
   (** [merge t ~into] merges the branch [t.branch] into
       [into.branch]. Both stores should have the same underlying
       store. Update the commit pointed by [t] to the merge commit of
@@ -86,16 +87,21 @@ module type S = sig
   (** Base functions over dumps. *)
 
   module View: IrminView.S with type value := value
-  (** Load sub-trees in memory. *)
+  (** In-memory sub-trees, with operation history. *)
 
-  val updates: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
+  val read_view: t -> key -> View.t Lwt.t
+  (** Read a view from the store. This is a cheap operation, all the
+      real reads operation will be done on-demand when the view is
+      used. *)
+
+  val update_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
   (** Commit a view to the store. The view *replaces* the current
       subtree, so if you want to do a merge, you have to do it
       manually (by creating a new branch, or rebasing before
       commiting). [origin] helps keeping track of provenance. *)
 
-  val view: t -> key -> View.t Lwt.t
-  (** Build a view from the store. *)
+  val merge_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit IrminMerge.result Lwt.t
+  (** Same as [update_view] but *merges* with the current subtree. *)
 
 end
 

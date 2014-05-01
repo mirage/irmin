@@ -68,6 +68,12 @@ module Make (S: Irmin.S) = struct
   let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
     mk K.equal K.compare K.to_string
 
+  let assert_key_result_equal, assert_key_result_opt_equal, assert_key_results_equal =
+    mk
+      (IrminMerge.Result.equal K.equal)
+      (IrminMerge.Result.compare K.compare)
+      (IrminMerge.Result.to_string K.to_string)
+
   module Contents = Internal.Contents
   module B = Contents.Value
   let assert_contents_equal, assert_contents_opt_equal, assert_contentss_equal =

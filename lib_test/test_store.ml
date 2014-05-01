@@ -251,9 +251,9 @@ module Make (S: Irmin.S) = struct
 
       let v = contents t in
       IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv1 >>= fun kv1'  ->
-      assert_key_equal "merge kv1" kv1 kv1';
+      assert_key_result_equal "merge kv1" (IrminMerge.Ok kv1) kv1';
       IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv2 >>= fun kv2'  ->
-      assert_key_equal "merge kv2" kv2 kv2';
+      assert_key_result_equal "merge kv2" (IrminMerge.Ok kv2) kv2';
 
       (* merge nodes *)
 
@@ -271,6 +271,7 @@ module Make (S: Irmin.S) = struct
                              \c/  *)
 
       IrminMerge.merge (Node.merge node) ~old:k0 k2 k3 >>= fun k4 ->
+      IrminMerge.exn (fun s -> Failure s) k4           >>= fun k4 ->
       Node.read_exn node k4 >>= fun t4 ->
       let succ = Map.to_alist (Node.succ node t4) in
       Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
@@ -289,6 +290,7 @@ module Make (S: Irmin.S) = struct
       >>= fun (kr2, r2) ->
       IrminMerge.merge (Commit.merge commit (origin 3)) ~old:kr0 kr1 kr2
       >>= fun kr3 ->
+      IrminMerge.exn (fun k -> Failure k) kr3 >>= fun kr3 ->
       Commit.read_exn commit kr3 >>= fun r3 ->
       Commit.commit commit (origin 3) ~node:t4 ~parents:[r1; r2]
       >>= fun (kr3', r3') ->
@@ -362,8 +364,8 @@ module Make (S: Irmin.S) = struct
       View.update v0 ["foo";"2"] foo2 >>= fun () ->
       check_view v0 >>= fun () ->
 
-      updates t ["b"] v0 >>= fun () ->
-      updates t ["a"] v0 >>= fun () ->
+      update_view t ["b"] v0 >>= fun () ->
+      update_view t ["a"] v0 >>= fun () ->
 
       list t [["b";"foo"]] >>= fun ls ->
       assert_paths_equal "path2" [ ["b";"foo";"1"]; ["b";"foo";"2"] ] ls;
@@ -372,8 +374,17 @@ module Make (S: Irmin.S) = struct
       read t ["a";"foo";"2"] >>= fun foo2' ->
       assert_contents_opt_equal "foo2" (Some foo2) foo2';
 
-      view t ["b"]  >>= fun v1 ->
+      read_view t ["b"]  >>= fun v1 ->
       check_view v1 >>= fun () ->
+
+      update      t  ["b";"x"] foo1       >>= fun () ->
+      View.update v1 ["y"]     foo2       >>= fun () ->
+      merge_view t   ["b"] v1             >>=
+      IrminMerge.exn (fun x -> Failure x) >>= fun () ->
+      read t ["b";"x"] >>= fun foo1' ->
+      read t ["b";"y"] >>= fun foo2' ->
+      assert_contents_opt_equal "merge: b/x" (Some foo1) foo1';
+      assert_contents_opt_equal "merge: b/y" (Some foo2) foo2';
 
       Lwt_list.iteri_s (fun i (k, v) ->
           read_exn t ("a"::k) >>= fun v' ->
@@ -464,7 +475,8 @@ module Make (S: Irmin.S) = struct
       update t2 ["a";"b";"c"] v1 >>= fun () ->
 
       output t1 "before" >>= fun () ->
-      merge t1 ~into:t2 >>= fun () ->
+      merge t1 ~into:t2 >>=
+      IrminMerge.exn (fun k -> Failure k) >>= fun () ->
       output t1 "after" >>= fun () ->
 
       read_exn t1 ["a";"b";"c"] >>= fun v1'  ->
