@@ -16,7 +16,7 @@
 
 (** Dispatch between multiple backends. *)
 
-module Key
+module Make
     (K: IrminKey.S)
     (C: IrminContents.S)
     (R: IrminReference.S) :
