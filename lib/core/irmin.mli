@@ -42,6 +42,9 @@ module type S = sig
                         and type dump     = (Internal.key, value) IrminDump.t
                         and type branch   = Reference.key
 
+  val create: ?branch:branch -> unit -> t Lwt.t
+  (** Create a store. If branch is not set, use [R.master]. *)
+
   val update: ?origin:IrminOrigin.t -> t -> key -> value -> unit Lwt.t
   (** Same as [IrminStore.RW.update] but with an optional [origin]
       argument to keep track of provenance. *)

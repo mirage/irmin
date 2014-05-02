@@ -32,6 +32,7 @@ module type S = sig
                         and type snapshot = Internal.key
                         and type dump     = (Internal.key, value) IrminDump.t
                         and type branch   = Reference.key
+  val create: ?branch:branch -> unit -> t Lwt.t
   val update: ?origin:IrminOrigin.t -> t -> key -> value -> unit Lwt.t
   val remove: ?origin:IrminOrigin.t -> t -> key -> unit Lwt.t
   val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot ->
@@ -76,6 +77,7 @@ module Make
   type key = IrminPath.t
   type value = C.t
   type dump = Dump.t
+  type branch = Reference.key
 
   type watch = key * (key -> K.t -> unit)
 
@@ -92,10 +94,9 @@ module Make
   let no = Internal.node
   let bl = Internal.contents
 
-  let create () =
+  let create ?(branch=R.master) () =
     Internal.create ()  >>= fun vals ->
     Reference.create () >>= fun refs ->
-    let branch = R.master in
     return { vals; refs; branch }
 
   let read_head_commit t =
@@ -439,8 +440,6 @@ module Make
         (IrminMisc.pretty_list aux !errors);
       fail (Errors !errors)
     )
-
-  type branch = Reference.key
 
   let branch t branch =
     begin Reference.read t.refs t.branch >>= function
