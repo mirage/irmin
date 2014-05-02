@@ -1,4 +1,8 @@
-0.7.0:
+0.7.1:
+* Add an optional branch argument to Irmin.create to use
+  an already existing branch
+
+0.7.0 (2014-05-02):
 * Feature: support for in-memory transactions. They are built
   on top of views.
 * Feature: add support for views: these are temporary stores with
