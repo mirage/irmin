@@ -455,8 +455,8 @@ module Make
                     (R.to_string t1.branch) (R.to_string t2.branch) in
     Reference.read_exn t1.refs t1.branch  >>= fun c1 ->
     Reference.read_exn t2.refs t2.branch  >>= fun c2 ->
-    merge_snapshot t1 ~origin c1 c2       >>| fun c3 ->
-    Reference.update t1.refs t1.branch c3 >>= fun () ->
+    merge_snapshot t2 ~origin c2 c1       >>| fun c3 ->
+    Reference.update t2.refs t2.branch c3 >>= fun () ->
     ok ()
 
   let merge_exn ?origin t ~into =
