@@ -474,7 +474,7 @@ module Make (S: Irmin.S) = struct
       update t2 ["a";"b";"c"] v1 >>= fun () ->
 
       output t1 "before"    >>= fun () ->
-      merge_exn t1 ~into:t2 >>= fun () ->
+      merge_exn t2 ~into:t1 >>= fun () ->
       output t1 "after"     >>= fun () ->
 
       read_exn t1 ["a";"b";"c"] >>= fun v1'  ->
