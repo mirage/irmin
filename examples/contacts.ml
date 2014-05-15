@@ -68,29 +68,28 @@ module Contents = struct
 
 end
 
-module Git = IrminGit.Make(IrminKey.SHA1)(Contents)(IrminReference.String)
+module Git  = IrminGit .Make(IrminKey.SHA1)(Contents)(IrminReference.String)
+module View = IrminView.Make(IrminKey.SHA1)(Contents)
 
-type contact = {
-  id    : string;
-  name  : string;
-  phones: String.Set.t;
-}
+module Contact = struct
 
-module type S = Irmin.S with type value = Contents.t
-
-module MakeContact (Store: S) = struct
+  type t = {
+    id    : string;
+    name  : string;
+    phones: String.Set.t;
+  }
 
   let view_of_t t =
     let name = Contents.String t.name in
     let phones = Contents.Set t.phones in
-    Store.View.create () >>= fun view ->
-    Store.View.update view [t.id; "name"  ] name   >>= fun () ->
-    Store.View.update view [t.id; "phones"] phones >>= fun () ->
+    View.create () >>= fun view ->
+    View.update view [t.id; "name"  ] name   >>= fun () ->
+    View.update view [t.id; "phones"] phones >>= fun () ->
     return view
 
   let t_of_view id view =
-    Store.View.read_exn view ["name"  ] >>= fun name ->
-    Store.View.read_exn view ["phones"] >>= fun phones ->
+    View.read_exn view ["name"  ] >>= fun name ->
+    View.read_exn view ["phones"] >>= fun phones ->
     let name = match name with
       | Contents.String s -> s
       | _                 -> failwith "name" in
@@ -99,8 +98,18 @@ module MakeContact (Store: S) = struct
       | _              -> failwith "phones" in
     return { id; name; phones }
 
+end
+
+module type S = Irmin.S with type Internal.key = IrminKey.SHA1.t
+                         and type value = Contents.t
+                         and type Reference.key = IrminReference.String.t
+
+module ContactStore (Store: S) = struct
+
+  open Contact
+
   let add t contact =
-    view_of_t contact >>= fun view ->
+    Contact.view_of_t contact >>= fun view ->
     Store.merge_view_exn t ["contacts"] view
 
   let add_phone contact phone =
@@ -121,15 +130,15 @@ module MakeContact (Store: S) = struct
 end
 
 let thomas = {
-  id     = "tg364";
-  name   = "Thomas Gazagnaire";
-  phones = String.Set.of_list [ "+33 677891037"; "+44 7712345655" ]
+  Contact.id = "tg364";
+  name       = "Thomas Gazagnaire";
+  phones     = String.Set.of_list [ "+33 677891037"; "+44 7712345655" ]
 }
 
 let anil = {
-  id     = "avsm2";
-  name   = "Anil";
-  phones = String.Set.empty;
+  Contact.id = "avsm2";
+  name       = "Anil";
+  phones     = String.Set.empty;
 }
 
 let error () =
@@ -148,25 +157,25 @@ let main () =
   | "init" ->
 
     let module Local = (val Git.create ~bare:true ~kind:`Disk ~root:cwd ()) in
-    let module Contact = MakeContact (Local) in
+    let module CS = ContactStore (Local) in
 
-    Local.create ()       >>= fun t ->
-    Contact.add t thomas  >>= fun () ->
-    Contact.add t anil    >>= fun () ->
+    Local.create () >>= fun t ->
+    CS.add t thomas >>= fun () ->
+    CS.add t anil   >>= fun () ->
 
     Local.branch t "refs/heads/test" >>= fun test ->
 
-    let anil_test = Contact.add_phone anil      "+44 12345" in
-    let anil_test = Contact.add_phone anil_test "+44 45678" in
-    let anil_t    = Contact.add_phone anil      "+33 123456" in
+    let anil_test = CS.add_phone anil      "+44 12345" in
+    let anil_test = CS.add_phone anil_test "+44 45678" in
+    let anil_t    = CS.add_phone anil      "+33 123456" in
 
-    Contact.add test anil_test  >>= fun () ->
-    Contact.add t anil_t        >>= fun () ->
+    CS.add test anil_test >>= fun () ->
+    CS.add t anil_t       >>= fun () ->
 
     Local.merge_exn test ~into:t >>= fun () ->
 
-    let thomas = Contact.update_name thomas "T. Gazagnaire" in
-    Contact.add t thomas >>= fun () ->
+    let thomas = CS.update_name thomas "T. Gazagnaire" in
+    CS.add t thomas >>= fun () ->
 
     return_unit
 
@@ -178,13 +187,13 @@ let main () =
     let module Local = (val Git.create ~bare:true ~kind:`Disk ~root:cwd ()) in
     let module Remote = (val Git.create ~bare:true ~kind:`Disk ~root:path ()) in
 
-    let module LocalContact  = MakeContact (Local) in
-    let module RemoteContact = MakeContact (Remote) in
+    let module LocalCS  = ContactStore (Local) in
+    let module RemoteCS = ContactStore (Remote) in
 
-    Local.create ()           >>= fun local    ->
-    Remote.create ()          >>= fun remote   ->
-    RemoteContact.list remote >>= fun contacts ->
-    Lwt_list.iter_p (LocalContact.add local) contacts
+    Local.create ()      >>= fun local    ->
+    Remote.create ()     >>= fun remote   ->
+    RemoteCS.list remote >>= fun contacts ->
+    Lwt_list.iter_p (LocalCS.add local) contacts
 
   | _ -> error ()
 

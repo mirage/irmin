@@ -18,6 +18,10 @@
 
 open Core_kernel.Std
 
+type ('key, 'contents) t
+(** Views over keys of types ['key] and contents of type
+    ['contents]. *)
+
 module Action: sig
 
   (** Actions performed on a view. *)
@@ -36,18 +40,22 @@ end
 
 module type S = sig
 
-  include IrminStore.RW with type key = IrminPath.t
+  type value
+  (** Contents value. *)
 
   type internal_key
+  (** Internal keys. *)
+
+  include IrminStore.RW
+    with type t = (internal_key, value) t
+     and type value := value
+     and type key = IrminPath.t
 
   val import:
     contents:(internal_key -> value option Lwt.t) ->
     node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
     internal_key -> t Lwt.t
-  (** Create a rooted view from a database node. The (optional)
-      [commit] is there to remember where this view comes from, which
-      is useful when you want to 3-way merge a view back to the
-      store. *)
+  (** Create a rooted view from a database node. *)
 
   val export:
     contents:(value -> internal_key Lwt.t) ->
@@ -66,5 +74,6 @@ module type S = sig
 
 end
 
-module Make (Store: IrminContents.STORE): S with type value = Store.value
-                                             and type internal_key = Store.key
+module Make (K: IrminKey.S) (C: IrminContents.S)
+  : S with type value = C.t
+       and type internal_key = K.t

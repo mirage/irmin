@@ -41,163 +41,147 @@ module Action = struct
 
 end
 
-module type S = sig
-  include IrminStore.RW with type key = IrminPath.t
-  type internal_key
-  val import:
-    contents:(internal_key -> value option Lwt.t) ->
-    node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
-    internal_key -> t Lwt.t
-  val export:
-    contents:(value -> internal_key Lwt.t) ->
-    node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
-    t -> internal_key Lwt.t
-  val actions: t -> value Action.t list
-  val merge: t -> into:t -> unit IrminMerge.result Lwt.t
+module Contents = struct
+
+  type ('k, 'c) contents_or_key =
+    | Key of 'k
+    | Contents of 'c
+    | Both of 'k * 'c
+
+  type ('k, 'c) t = ('k, 'c) contents_or_key ref
+  (* Same as [IrminContents.t] but can either be a raw contents or a
+     key that will be fetched lazily. *)
+
+  let create c =
+    ref (Contents c)
+
+  let export c =
+    match !c with
+    | Both (k, _)
+    | Key k      -> k
+    | Contents _ -> failwith "Contents.export"
+
+  let key k =
+    ref (Key k)
+
+  let read ~contents t =
+    match !t with
+    | Both (_, c)
+    | Contents c -> return (Some c)
+    | Key k      ->
+      contents k >>= function
+      | None   -> return_none
+      | Some c ->
+        t := Contents c;
+        return (Some c)
+
 end
 
-module Make (Store: IrminContents.STORE) = struct
+module Node = struct
 
-  module K = Store.Key
-  module C = Store.Value
-
-  type internal_key = Store.key
-
-  module Contents = struct
-
-    type contents_or_key =
-      | Key of K.t
-      | Contents of C.t
-      | Both of K.t * C.t
-
-    type t = contents_or_key ref
-    (* Same as [IrminContents.t] but can either be a raw contents or a
-       key that will be fetched lazily. *)
-
-    let create c =
-      ref (Contents c)
-
-    let export c =
-      match !c with
-      | Both (k, _)
-      | Key k      -> k
-      | Contents _ -> failwith "Contents.export"
-
-    let key k =
-      ref (Key k)
-
-    let read ~contents t =
-      match !t with
-      | Both (_, c)
-      | Contents c -> return (Some c)
-      | Key k      ->
-        contents k >>= function
-        | None   -> return_none
-        | Some c ->
-          t := Contents c;
-          return (Some c)
-
-  end
-
-  module Node = struct
-
-    type node = {
-      contents: Contents.t option;
-      succ    : t String.Map.t;
-    }
-
-    and node_or_key  =
-      | Key of K.t
-      | Node of node
-      | Both of K.t * node
-
-    and t = node_or_key ref
-    (* Similir to [IrminNode.t] but using where all of the values can
-       just be keys. *)
-
-    let create' contents succ =
-      Node { contents; succ }
-
-    let create contents succ =
-      ref (create' contents succ)
-
-    let key k =
-      ref (Key k)
-
-    let empty () =
-      create None String.Map.empty
-
-    let is_empty n =
-      match !n with
-      | Key _  -> false
-      | Both (_, n)
-      | Node n -> n.contents = None && Map.is_empty n.succ
-
-    let import n =
-      let contents = match n.IrminNode.contents with
-        | None   -> None
-        | Some k -> Some (Contents.key k) in
-      let succ = Map.map ~f:key n.IrminNode.succ in
-      { contents; succ }
-
-    let export n =
-      match !n with
-      | Both (k, _)
-      | Key k  -> k
-      | Node _ -> failwith "Node.export"
-
-    let export_node n =
-      let contents = match n.contents with
-        | None   -> None
-        | Some c -> Some (Contents.export c) in
-      let succ = Map.map ~f:export n.succ in
-      { IrminNode.contents; succ }
-
-    let read ~node t =
-      match !t with
-      | Both (_, n)
-      | Node n   -> return (Some n)
-      | Key k    ->
-        node k >>= function
-        | None   -> return_none
-        | Some n ->
-          t := Node n;
-          return (Some n)
-
-    let contents ~node ~contents t =
-     read node t >>= function
-     | None   -> return_none
-     | Some c ->
-       match c.contents with
-       | None   -> return_none
-       | Some c -> Contents.read contents c
-
-    let update_contents ~node t v =
-      read node t >>= function
-      | None   -> if v = None then return_unit else fail Not_found (* XXX ? *)
-      | Some n ->
-        let new_n = match v with
-          | None   -> { n with contents = None }
-          | Some c -> { n with contents = Some (Contents.create c) } in
-        t := Node new_n;
-        return_unit
-
-    let update_succ ~node t succ =
-      read node t >>= function
-      | None   -> if Map.is_empty succ then return_unit else fail Not_found (* XXX ? *)
-      | Some n ->
-        let new_n = { n with succ } in
-        t := Node new_n;
-        return_unit
-
-  end
-
-  type t = {
-    node    : K.t -> Node.node option Lwt.t;
-    contents: K.t -> C.t option Lwt.t;
-    view    : Node.t;
-    mutable ops: C.t Action.t list;
+  type ('k, 'c) node = {
+    contents: ('k, 'c) Contents.t option;
+    succ    : ('k, 'c) t String.Map.t;
   }
+
+  and ('k, 'c) node_or_key  =
+    | Key of 'k
+    | Node of ('k, 'c) node
+    | Both of 'k * ('k, 'c) node
+
+  and ('k, 'c) t = ('k, 'c) node_or_key ref
+  (* Similir to [IrminNode.t] but using where all of the values can
+     just be keys. *)
+
+  let create' contents succ =
+    Node { contents; succ }
+
+  let create contents succ =
+    ref (create' contents succ)
+
+  let key k =
+    ref (Key k)
+
+  let empty () =
+    create None String.Map.empty
+
+  let is_empty n =
+    match !n with
+    | Key _  -> false
+    | Both (_, n)
+    | Node n -> n.contents = None && Map.is_empty n.succ
+
+  let import n =
+    let contents = match n.IrminNode.contents with
+      | None   -> None
+      | Some k -> Some (Contents.key k) in
+    let succ = Map.map ~f:key n.IrminNode.succ in
+    { contents; succ }
+
+  let export n =
+    match !n with
+    | Both (k, _)
+    | Key k  -> k
+    | Node _ -> failwith "Node.export"
+
+  let export_node n =
+    let contents = match n.contents with
+      | None   -> None
+      | Some c -> Some (Contents.export c) in
+    let succ = Map.map ~f:export n.succ in
+    { IrminNode.contents; succ }
+
+  let read ~node t =
+    match !t with
+    | Both (_, n)
+    | Node n   -> return (Some n)
+    | Key k    ->
+      node k >>= function
+      | None   -> return_none
+      | Some n ->
+        t := Node n;
+        return (Some n)
+
+  let contents ~node ~contents t =
+    read node t >>= function
+    | None   -> return_none
+    | Some c ->
+      match c.contents with
+      | None   -> return_none
+      | Some c -> Contents.read contents c
+
+  let update_contents ~node t v =
+    read node t >>= function
+    | None   -> if v = None then return_unit else fail Not_found (* XXX ? *)
+    | Some n ->
+      let new_n = match v with
+        | None   -> { n with contents = None }
+        | Some c -> { n with contents = Some (Contents.create c) } in
+      t := Node new_n;
+      return_unit
+
+  let update_succ ~node t succ =
+    read node t >>= function
+    | None   -> if Map.is_empty succ then return_unit else fail Not_found (* XXX ? *)
+    | Some n ->
+      let new_n = { n with succ } in
+      t := Node new_n;
+      return_unit
+
+end
+
+type ('k, 'c) t = {
+  node    : 'k -> ('k, 'c) Node.node option Lwt.t;
+  contents: 'k -> 'c option Lwt.t;
+  view    : ('k, 'c) Node.t;
+  mutable ops: 'c Action.t list;
+}
+
+module Make (K: IrminKey.S) (C: IrminContents.S) = struct
+
+  type internal_key = K.t
+
+  type nonrec t = (K.t, C.t) t
 
   type key = IrminPath.t
 
@@ -282,7 +266,7 @@ module Make (Store: IrminContents.STORE) = struct
           | Some v -> aux v p in
     aux t.view path
 
-  let read t path =
+  let read (t:t) path =
     sub t path >>= function
     | None   -> return_none
     | Some n -> Node.contents ~node:t.node ~contents:t.contents n
@@ -391,4 +375,23 @@ module Make (Store: IrminContents.STORE) = struct
   let merge t1 ~into =
     IrminMerge.iter (apply into) (List.rev t1.ops)
 
+end
+
+module type S = sig
+  type value
+  type internal_key
+  include IrminStore.RW
+    with type t = (internal_key, value) t
+     and type value := value
+     and type key = IrminPath.t
+  val import:
+    contents:(internal_key -> value option Lwt.t) ->
+    node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
+    internal_key -> t Lwt.t
+  val export:
+    contents:(value -> internal_key Lwt.t) ->
+    node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
+    t -> internal_key Lwt.t
+  val actions: t -> value Action.t list
+  val merge: t -> into:t -> unit IrminMerge.result Lwt.t
 end

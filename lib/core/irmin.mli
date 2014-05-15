@@ -100,7 +100,8 @@ module type S = sig
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
   (** Base functions over dumps. *)
 
-  module View: IrminView.S with type value := value
+  module View: IrminView.S with type internal_key = Internal.key
+                            and type value := value
   (** In-memory sub-trees, with operation history. *)
 
   val read_view: t -> key -> View.t Lwt.t

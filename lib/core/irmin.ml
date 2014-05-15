@@ -48,7 +48,7 @@ module type S = sig
   module Value: IrminContents.S with type t = value
   module Snapshot: IrminKey.S with type t = snapshot
   module Dump: IrminDump.S with type key = Internal.key and type contents = value
-  module View: IrminView.S with type value := value
+  module View: IrminView.S with type value := value and type internal_key = Internal.key
   val read_view: t -> key -> View.t Lwt.t
   val update_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
   val merge_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit IrminMerge.result Lwt.t
@@ -463,7 +463,7 @@ module Make
     merge ?origin t ~into >>=
     IrminMerge.exn (fun x -> Conflict x)
 
-  module View = IrminView.Make(Contents)
+  module View = IrminView.Make(K)(C)
 
   let read_view t path =
     Log.debugf "read_view %s" (IrminPath.to_string path);
