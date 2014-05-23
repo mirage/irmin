@@ -43,24 +43,24 @@ module type S = sig
   type value
   (** Contents value. *)
 
-  type internal_key
-  (** Internal keys. *)
+  type node
+  (** Internal nodes. *)
 
   include IrminStore.RW
-    with type t = (internal_key, value) t
+    with type t = (node, value) t
      and type value := value
      and type key = IrminPath.t
 
   val import:
-    contents:(internal_key -> value option Lwt.t) ->
-    node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
-    internal_key -> t Lwt.t
+    contents:(node -> value option Lwt.t) ->
+    node:(node -> node IrminNode.t option Lwt.t) ->
+    node -> t Lwt.t
   (** Create a rooted view from a database node. *)
 
   val export:
-    contents:(value -> internal_key Lwt.t) ->
-    node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
-    t -> internal_key Lwt.t
+    contents:(value -> node Lwt.t) ->
+    node:(node IrminNode.t -> node Lwt.t) ->
+    t -> node Lwt.t
   (** Export the view to the database. *)
 
   val actions: t -> value Action.t list
@@ -76,4 +76,4 @@ end
 
 module Make (K: IrminKey.S) (C: IrminContents.S)
   : S with type value = C.t
-       and type internal_key = K.t
+       and type node = K.t
