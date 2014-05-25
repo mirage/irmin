@@ -17,6 +17,7 @@
 open Lwt
 open Core_kernel.Std
 open IrminMerge.OP
+open IrminSig
 
 module Log = Log.Make(struct let section = "view" end)
 
@@ -179,7 +180,7 @@ type ('k, 'c) t = {
 
 module Make (K: IrminKey.S) (C: IrminContents.S) = struct
 
-  type internal_key = K.t
+  type node = K.t
 
   type nonrec t = (K.t, C.t) t
 
@@ -194,65 +195,6 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     let view = Node.empty () in
     let ops = [] in
     return { node; contents; view; ops }
-
-  let mapo fn = function
-    | None   -> return_none
-    | Some x -> fn x >>= fun y -> return (Some y)
-
-  let import ~contents ~node key =
-    Log.debugf "import %s" (K.to_string key);
-    node key >>= function
-    | None   -> fail Not_found
-    | Some n ->
-      let node k =
-        node k >>= function
-        | None   -> return_none
-        | Some n -> return (Some (Node.import n)) in
-      let view = Node.key key in
-      let ops = [] in
-      return { node; contents; view; ops }
-
-  let export ~contents ~node t =
-    Log.debugf "export";
-    let node n =
-      node (Node.export_node n) in
-    let todo = Stack.create () in
-    let rec add_to_todo n =
-      match !n with
-      | Node.Both _
-      | Node.Key _  -> ()
-      | Node.Node x ->
-        (* 1. we push the current node job on the stack. *)
-        Stack.push todo (fun () ->
-            node x >>= fun k ->
-            n := Node.Key k;
-            return_unit
-          );
-        (* 2. we push the contents job on the stack. *)
-        Stack.push todo (fun () ->
-            match x.Node.contents with
-            | None   -> return_unit
-            | Some c ->
-              match !c with
-              | Contents.Both _
-              | Contents.Key _       -> return_unit
-              | Contents.Contents x  ->
-                contents x >>= fun k ->
-                c := Contents.Key k;
-                return_unit
-          );
-        (* 3. we push the children jobs on the stack. *)
-        Map.iter ~f:(fun ~key:_ ~data:n ->
-            Stack.push todo (fun () -> add_to_todo n; return_unit)
-          ) x.Node.succ;
-    in
-    let rec loop () =
-      match Stack.pop todo with
-      | None      -> return_unit
-      | Some task -> task () >>= loop in
-    add_to_todo t.view;
-    loop () >>= fun () ->
-    return (Node.export t.view)
 
   let sub t path =
     let rec aux node = function
@@ -377,21 +319,140 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
 
 end
 
+module Store (S: IrminBranch.STORE) = struct
+
+  module K = S.Block.Key
+  module C = S.Value
+
+  include Make(K)(C)
+
+  type db = S.t
+  type path = S.key
+
+  let import ~contents ~node key =
+    Log.debugf "import %s" (K.to_string key);
+    node key >>= function
+    | None   -> fail Not_found
+    | Some n ->
+      let node k =
+        node k >>= function
+        | None   -> return_none
+        | Some n -> return (Some (Node.import n)) in
+      let view = Node.key key in
+      let ops = [] in
+      return { node; contents; view; ops }
+
+  let export ~contents ~node t =
+    Log.debugf "export";
+    let node n =
+      node (Node.export_node n) in
+    let todo = Stack.create () in
+    let rec add_to_todo n =
+      match !n with
+      | Node.Both _
+      | Node.Key _  -> ()
+      | Node.Node x ->
+        (* 1. we push the current node job on the stack. *)
+        Stack.push todo (fun () ->
+            node x >>= fun k ->
+            n := Node.Key k;
+            return_unit
+          );
+        (* 2. we push the contents job on the stack. *)
+        Stack.push todo (fun () ->
+            match x.Node.contents with
+            | None   -> return_unit
+            | Some c ->
+              match !c with
+              | Contents.Both _
+              | Contents.Key _       -> return_unit
+              | Contents.Contents x  ->
+                contents x >>= fun k ->
+                c := Contents.Key k;
+                return_unit
+          );
+        (* 3. we push the children jobs on the stack. *)
+        Map.iter ~f:(fun ~key:_ ~data:n ->
+            Stack.push todo (fun () -> add_to_todo n; return_unit)
+          ) x.Node.succ;
+    in
+    let rec loop () =
+      match Stack.pop todo with
+      | None      -> return_unit
+      | Some task -> task () >>= loop in
+    add_to_todo t.view;
+    loop () >>= fun () ->
+    return (Node.export t.view)
+
+  module Contents = S.Block.Contents
+  module Node = S.Block.Node
+
+  let of_path t path =
+    Log.debugf "read_view %s" (IrminPath.to_string path);
+    let contents = Contents.read (S.contents_t t) in
+    let node = Node.read (S.node_t t) in
+    S.map_head_node t path ~f:Node.sub >>= function
+    | None   -> create ()
+    | Some n ->
+      Node.add (S.node_t t) n >>= fun k ->
+      import ~contents ~node k
+
+  let node_of_view t view =
+    let contents = Contents.add (S.contents_t t) in
+    let node = Node.add (S.node_t t) in
+    export ~node ~contents view >>= fun key ->
+    Node.read_exn (S.node_t t) key
+
+  let update_path ?origin t path view =
+    Log.debugf "update_view %s" (IrminPath.to_string path);
+    let origin = match origin with
+      | None   -> IrminOrigin.create "Update view to %s" (IrminPath.to_string path)
+      | Some o -> o in
+    node_of_view t view >>= fun tree ->
+    S.update_head_node t ~origin ~f:(fun node ->
+        Node.map (S.node_t t) node path (fun _ -> tree)
+      )
+
+  let merge_path ?origin t path view =
+    Log.debugf "merge_view %s" (IrminPath.to_string path);
+    of_path t path >>= fun head ->
+    merge view ~into:head >>| fun () ->
+    let origin = match origin with
+      | None   ->
+        let buf = Buffer.create 1024 in
+        let string_of_action = Action.to_string (fun x -> "") in
+        List.iter ~f:(fun a ->
+            bprintf buf "- %s\n" (string_of_action a)
+          ) (actions view);
+        IrminOrigin.create "Merge view to %s\n\nActions:\n%s\n"
+          (IrminPath.to_string path) (Buffer.contents buf)
+      | Some o -> o in
+    update_path ~origin t path head >>= fun () ->
+    ok ()
+
+  let merge_path_exn ?origin t path view =
+    merge_path ?origin t path view >>=
+    IrminMerge.exn
+
+end
+
 module type S = sig
   type value
-  type internal_key
-  include IrminStore.RW
-    with type t = (internal_key, value) t
+  type node
+  include RW
+    with type t = (node, value) t
      and type value := value
      and type key = IrminPath.t
-  val import:
-    contents:(internal_key -> value option Lwt.t) ->
-    node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
-    internal_key -> t Lwt.t
-  val export:
-    contents:(value -> internal_key Lwt.t) ->
-    node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
-    t -> internal_key Lwt.t
   val actions: t -> value Action.t list
   val merge: t -> into:t -> unit IrminMerge.result Lwt.t
+end
+
+module type STORE = sig
+  include S
+  type db
+  type path
+  val of_path: db -> path -> t Lwt.t
+  val update_path: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  val merge_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
+  val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
 end

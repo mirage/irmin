@@ -16,6 +16,8 @@
 
 open Core_kernel.Std
 
+module Log = Log.Make(struct let section = "GRAPH" end)
+
 module type S = sig
   include Graph.Sig.I
   include Graph.Oper.S with type g := t
@@ -62,14 +64,12 @@ let to_keys     = List.filter_map ~f:(function `Commit k
                                              | `Contents k -> Some k
                                              | `Ref _      -> None)
 
-module Make (K: IrminKey.S) (R: IrminReference.S) = struct
+module Make (K: IrminKey.S) (R: IrminTag.S) = struct
 
   open Lwt
 
-  module Log = Log.Make(struct let section = "GRAPH" end)
-
   module K = struct
-    module M = IrminMisc.Identifiable(struct
+    module M = IrminIdent.Make(struct
         type t = (K.t, R.t) vertex
         with bin_io, compare, sexp
       end)
@@ -144,7 +144,7 @@ module Make (K: IrminKey.S) (R: IrminReference.S) = struct
         | Some n -> [`Label n]
     end)
 
-  module Dump = IrminMisc.Identifiable(struct
+  module Dump = IrminIdent.Make(struct
       type nonrec t = K.t list * (K.t * K.t) list
       with bin_io, compare, sexp
     end)

@@ -16,23 +16,13 @@
 
 (** Serialize the irminsule objects to a local Git store. *)
 
-module type Config = sig
-  val root: string option
-  val kind: [`Memory | `Disk]
-  val bare: bool
-end
-(** On-disk configuration. *)
+type config = {
+  root: string;
+  kind: [`Memory|`Disk];
+  bare: bool;
+}
 
-module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (R: IrminReference.S):
-sig
+val config: ?root:string -> kind:[`Memory|`Disk] -> ?bare:bool -> unit
+(** Create a initialisation value. *)
 
-  val create: ?root:string -> kind:[`Memory|`Disk] -> bare:bool -> unit ->
-    (K.t, C.t, R.t) Irmin.t
-  (** Create a Git-backed irminsule store. *)
-
-  val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
-
-end
+include Irmin.BACKEND with type config := config

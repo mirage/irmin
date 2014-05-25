@@ -16,18 +16,17 @@
 
 (** Manage the database history. *)
 
+open IrminSig
+
 type 'key t = {
   node   : 'key option;
   parents: 'key list;
-  origin : IrminOrigin.t;
+  origin : origin;
 } with bin_io, compare, sexp
 (** Type of concrete revisions. *)
 
 val edges: 'a t -> ('a, 'b) IrminGraph.vertex list
 (** The graph edges. *)
-
-val of_json: (Ezjsonm.t -> 'a) -> Ezjsonm.t -> 'a t
-val to_json: ('a -> Ezjsonm.t) -> 'a t -> Ezjsonm.t
 
 module type S = sig
 
@@ -41,39 +40,47 @@ module type S = sig
 
 end
 
-module S (K: IrminKey.S): S with type key = K.t
+module S (K: Key): S with type key = K.t
 
 module SHA1: S with type key = IrminKey.SHA1.t
 (** Simple implementation where keys are SHA1s. *)
 
 module type STORE = sig
 
-  (** The database history is a partial-order of revisions. *)
+  (** Store the history as a partial-order of revisions. *)
 
   type key
-  (** Type of keys. *)
+  (** Database keys. *)
 
   type value = key t
-  (** Type of revisions. *)
+  (** Commit values. *)
 
-  include IrminStore.AO with type key := key
-                         and type value := value
-  (** Revision stores are append-only. *)
+  include AO with type key   := key
+              and type value := value
 
-  val commit: t -> IrminOrigin.t ->
-    ?node:key IrminNode.t -> parents:value list -> (key * value) Lwt.t
+  type node = key IrminNode.t
+  (** Node values. *)
+
+  val commit: t -> origin -> ?node:node -> parents:value list -> (key * value) Lwt.t
   (** Create a new commit. *)
 
-  val node: t -> value -> key IrminNode.t Lwt.t option
+  val node: t -> value -> node Lwt.t option
   (** Get the commit node. *)
 
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val merge: t -> IrminOrigin.t -> key IrminMerge.t
+  val merge: t -> origin -> key merge
   (** Lift [S.merge] to the store keys. *)
 
-  module Key: IrminKey.S with type t = key
+  val find_common_ancestor: t -> key -> key -> key option Lwt.t
+  (** Find the common ancestor of two commits. *)
+
+  val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
+  (** Same as [find_common_ancestor] but raises [Not_found] if the two
+      commits share no common ancestor. *)
+
+  module Key: Key with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key
@@ -82,9 +89,9 @@ module type STORE = sig
 end
 
 module Make
-    (K: IrminKey.S)
+    (K     : Key)
     (Node  : IrminNode.STORE with type key = K.t and type value = K.t IrminNode.t)
-    (Commit: IrminStore.AO   with type key = K.t and type value = K.t t)
+    (Commit: AO              with type key = K.t and type value = K.t t)
   : STORE with type t = Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)

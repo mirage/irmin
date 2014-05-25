@@ -7,6 +7,8 @@ License:     ISC
 Plugins:     META (0.3), DevFiles (0.3)
 BuildTools:  ocamlbuild
 
+AlphaFeatures: pure_interface
+
 Flag xen
   Description: build the Xen library
   Default: false
@@ -23,10 +25,10 @@ Library irminsule
   Path: lib/core
   Findlibname: irminsule
   Modules: Irmin, IrminGraph, IrminKey,
-           IrminMisc, IrminCommit, IrminStore, IrminValue,
-           IrminReference, IrminContents, IrminNode, IrminVersion,
+           IrminMisc, IrminCommit, IrminStore, IrminBlock,
+           IrminTag, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView,
-           IrminOrigin
+           IrminOrigin, IrminIdent, IrminSig, IrminBranch
   BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
                 re.str, dolog, mstruct,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax

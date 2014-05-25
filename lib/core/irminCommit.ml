@@ -14,13 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module Log = Log.Make(struct let section = "COMMIT" end)
+
 open Core_kernel.Std
 open IrminMerge.OP
+open IrminSig
 
 type 'key t = {
   node   : 'key option;
   parents: 'key list;
-  origin : IrminOrigin.t;
+  origin : origin;
 } with bin_io, compare, sexp
 
 let edges t =
@@ -29,27 +32,6 @@ let edges t =
     | Some k -> [`Node k]
   end
   @ List.map ~f:(fun k -> `Commit k) t.parents
-
-let to_json json_of_key t =
-  `O (
-    ("parents", Ezjsonm.list json_of_key t.parents) ::
-    ("origin" , IrminOrigin.to_json t.origin) ::
-    match t.node with
-    | None   -> []
-    | Some t -> [ ("node", json_of_key t) ]
-  )
-
-let of_json key_of_json json =
-  let parents =
-    Ezjsonm.get_list key_of_json (Ezjsonm.find json ["parents"]) in
-  let origin =
-    IrminOrigin.of_json (Ezjsonm.find json ["origin"]) in
-  let node =
-    try Some (key_of_json (Ezjsonm.find json ["node"]))
-    with Not_found -> None in
-  { node; parents; origin }
-
-module Log = Log.Make(struct let section = "COMMIT" end)
 
 module type S = sig
   type key
@@ -60,17 +42,11 @@ module S (K: IrminKey.S) = struct
 
   type key = K.t
 
-  module S = IrminMisc.Identifiable(struct
-      type nonrec t = K.t t
-      with bin_io, compare, sexp
+  module S = IrminIdent.Make(struct
+      type nonrec t = K.t t with bin_io, compare, sexp
     end)
+
   include S
-
-  let to_json =
-    to_json K.to_json
-
-  let of_json =
-    of_json K.of_json
 
   let merge =
     IrminMerge.default (module S)
@@ -82,13 +58,15 @@ module SHA1 = S(IrminKey.SHA1)
 module type STORE = sig
   type key
   type value = key t
-  include IrminStore.AO with type key := key
-                         and type value := value
-  val commit: t -> IrminOrigin.t -> ?node:key IrminNode.t ->
-    parents:value list -> (key * value) Lwt.t
+  include AO with type key := key
+              and type value := value
+  type node = key IrminNode.t
+  val commit: t -> origin -> ?node:key IrminNode.t -> parents:value list -> (key * value) Lwt.t
   val node: t -> value -> key IrminNode.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
-  val merge: t -> IrminOrigin.t -> key IrminMerge.t
+  val merge: t -> origin -> key merge
+  val find_common_ancestor: t -> key -> key -> key option Lwt.t
+  val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
 end
@@ -96,12 +74,13 @@ end
 module Make
     (K     : IrminKey.S)
     (Node  : IrminNode.STORE with type key = K.t and type value = K.t IrminNode.t)
-    (Commit: IrminStore.AO   with type key = K.t and type value = K.t t)
+    (Commit: AO              with type key = K.t and type value = K.t t)
 = struct
 
   type key = K.t
   type value = key t
   type t = Node.t * Commit.t
+  type node = key IrminNode.t
 
   module Key = K
   module Value = S(K)
@@ -145,7 +124,7 @@ module Make
   let parents t c =
     List.map ~f:(read_exn t) c.parents
 
-  module Graph = IrminGraph.Make(K)(IrminReference.String)
+  module Graph = IrminGraph.Make(K)(IrminTag.String)
 
   let list t keys =
     Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
@@ -175,5 +154,37 @@ module Make
       ok key
     in
     IrminMerge.create' (module K) merge
+
+  let find_common_ancestor t c1 c2 =
+    let rec aux (seen1, todo1) (seen2, todo2) =
+      let seen1' = K.Set.union seen1 todo1 in
+      let seen2' = K.Set.union seen2 todo2 in
+      match K.Set.to_list (K.Set.inter seen1' seen2') with
+      | []  ->
+        (* Compute the immediate parents *)
+        let parents todo =
+          let parents_of_commit seen c =
+            read_exn t c >>= fun v ->
+            let parents = K.Set.of_list v.parents in
+            return (K.Set.diff parents seen) in
+          Lwt_list.fold_left_s parents_of_commit todo (K.Set.to_list todo)
+        in
+        parents todo1 >>= fun todo1' ->
+        parents todo2 >>= fun todo2' ->
+        if K.Set.equal todo1 todo1' && K.Set.equal todo2 todo2' then
+          return_none
+        else
+          aux (seen1', todo1') (seen2', todo2')
+      | [r] -> return (Some r)
+      | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
+                                (IrminMisc.pretty_list K.to_string rs))) in
+    aux
+      (K.Set.empty, K.Set.singleton c1)
+      (K.Set.empty, K.Set.singleton c2)
+
+  let find_common_ancestor_exn t c1 c2 =
+    find_common_ancestor t c1 c2 >>= function
+    | Some r -> return r
+    | None   -> fail Not_found
 
 end

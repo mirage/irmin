@@ -22,18 +22,6 @@ type t = {
   msg : string;
 } with bin_io, compare, sexp
 
-let to_json t =
-  `O [ "date", Ezjsonm.string (Int64.to_string t.date) ;
-       "id"  , IrminMisc.json_encode t.id;
-       "msg" , IrminMisc.json_encode t.msg; ]
-
-let of_json j =
-  let date = Ezjsonm.find j ["date"] |> Ezjsonm.get_string |> Int64.of_string in
-  let id   = Ezjsonm.find j ["id"]   |> Ezjsonm.get_string in
-  let msg  = Ezjsonm.find j ["msg"]  |> IrminMisc.json_decode_exn in
-  { date; id; msg }
-
-
 let date_hook =
   let c = ref 0L in
   ref (fun () -> c := Int64.(!c + 1L); !c)

@@ -14,114 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Stores. *)
+(** Signatures. *)
 
 open Core_kernel.Std
-
-(** {2 Read-only store} *)
-
-module type RO = sig
-
-  (** Base types for read-only stores. *)
-
-  type t
-  (** Type a store. *)
-
-  type key
-  (** Type of keys. *)
-
-  type value
-  (** Type of values. *)
-
-  val create: unit -> t Lwt.t
-  (** Create a store handle. *)
-
-  val read: t -> key -> value option Lwt.t
-  (** Read a value from the store. *)
-
-  val read_exn: t -> key -> value Lwt.t
-  (** Read a value from the store. Raise [Unknown k] if [k] does not
-      have an associated value. *)
-
-  val mem: t -> key -> bool Lwt.t
-  (** Check if a key exists. *)
-
-  val list: t -> key list -> key list Lwt.t
-  (** Return all the keys that are allowed to access, knowing a given
-      collection of keys (which might be seen as a passwords). *)
-
-  val dump: t -> (key * value) list Lwt.t
-  (** Return the store contents. *)
-
-end
-
-module type RO_BINARY = RO with type key = string
-                            and type value = Cstruct.buffer
-(** Read-only store which associate strings to big arrays. *)
-
-module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  RO with type key = K.t
-      and type value = V.t
-(** Read-only store makers. *)
+open IrminSig
 
 module RO_MAKER (B: RO_BINARY): RO_MAKER
-(** Build typed read-only from a binary one. *)
-
-(** {2 Append-only Stores} *)
-
-module type AO = sig
-
-  (** Base types for append-only stores. *)
-
-  include RO
-
-  val add: t -> value -> key Lwt.t
-  (** Write the contents of a value to the store. That's the
-      responsibility of the append-only store to generate a consistent
-      key. *)
-
-end
-
-module type AO_BINARY = AO with type key = string
-                            and type value = Cstruct.buffer
-(** Append-only store which associate strings to big arrays. *)
-
-module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  AO with type key = K.t
-      and type value = V.t
-(** Append-only store makers. *)
+(** Create a read-only store from a binary store. *)
 
 module AO_MAKER (B: AO_BINARY): AO_MAKER
-(** Build a typed append-only store from a binary one. *)
-
-(** {2 Mutable store} *)
-
-module type RW = sig
-
-  (** Signature for mutable (ie. read/write) stores. *)
-
-  include RO
-
-  val update: t -> key -> value -> unit Lwt.t
-  (** Replace the contents of [key] by [value] if [key] is already
-      defined and create it otherwise. *)
-
-  val remove: t -> key -> unit Lwt.t
-  (** Remove the given key. *)
-
-  val watch: t -> key -> value Lwt_stream.t
-  (** Watch a given key. *)
-
-end
-
-module type RW_BINARY = RW with type key = string
-                            and type value = Cstruct.buffer
-(** read-write store which associate strings to big arrays. *)
-
-module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  RW with type key = K.t
-      and type value = V.t
-(** Mutable store makers. *)
+(** Create an append-only store from a binary store. *)
 
 module RW_MAKER (B: RW_BINARY): RW_MAKER
-(** Build a typed read-write store from a binary one. *)
+(** Create a mutable store from a binary store. *)

@@ -15,44 +15,29 @@
  *)
 
 open Core_kernel.Std
+open IrminSig
 
 module Log = Log.Make(struct let section = "VALUE" end)
 
 exception Invalid of string
 
 module type S = sig
-  include Identifiable.S
-  val to_json: t -> Ezjsonm.t
-  val of_json: Ezjsonm.t -> t
-  val merge: t IrminMerge.t
+  include IrminIdent.S
+  val merge: t merge
 end
 
 module String  = struct
 
-  include String
+  module S = IrminIdent.String
 
-  let of_json = IrminMisc.json_decode_exn
-
-  let to_json = IrminMisc.json_encode
+  include S
 
   let merge =
-    IrminMerge.default (module String)
+    IrminMerge.default (module S)
 
 end
 
 module JSON = struct
-
-  module S = IrminMisc.Identifiable(struct
-      type t =
-        [ `Null
-        | `Bool of bool
-        | `Float of float
-        | `String of string
-        | `A of t list
-        | `O of (string * t) list ]
-      with bin_io, compare, sexp
-    end)
-  include S
 
   let rec encode t: Ezjsonm.t =
     match t with
@@ -62,8 +47,6 @@ module JSON = struct
     | `String s -> IrminMisc.json_encode s
     | `A l      -> `A (List.rev_map ~f:encode l)
     | `O l      -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
-
-  let to_json = encode
 
   let rec decode t: Ezjsonm.t =
     match t with
@@ -77,7 +60,20 @@ module JSON = struct
       | Some s -> `String s
       | None   -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
 
-  let of_json = decode
+  module S = IrminIdent.Make(struct
+      type t =
+        [ `Null
+        | `Bool of bool
+        | `Float of float
+        | `String of string
+        | `A of t list
+        | `O of (string * t) list ]
+      with bin_io, compare, sexp
+      let to_json = encode
+      let of_json = decode
+    end)
+
+  include S
 
   let to_string t =
     Ezjsonm.to_string (to_json t)
@@ -92,8 +88,8 @@ module JSON = struct
 end
 
 module type STORE = sig
-  include IrminStore.AO
-  val merge: t -> key IrminMerge.t
+  include AO
+  val merge: t -> key merge
   module Key: IrminKey.S with type t = key
   module Value: S with type t = value
 end
@@ -101,7 +97,7 @@ end
 module Make
     (K: IrminKey.S)
     (C: S)
-    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
+    (Contents: AO with type key = K.t and type value = C.t)
 = struct
 
   include Contents

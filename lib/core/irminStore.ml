@@ -15,25 +15,7 @@
  *)
 
 open Core_kernel.Std
-
-module type RO = sig
-  type t
-  type key
-  type value
-  val create: unit -> t Lwt.t
-  val read: t -> key -> value option Lwt.t
-  val read_exn: t -> key -> value Lwt.t
-  val mem: t -> key -> bool Lwt.t
-  val list: t -> key list -> key list Lwt.t
-  val dump: t -> (key * value) list Lwt.t
-end
-
-module type RO_BINARY = RO with type key = string
-                            and type value = Cstruct.buffer
-
-module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  RO with type key = K.t
-      and type value = V.t
+open IrminSig
 
 module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
@@ -79,18 +61,6 @@ module RO_MAKER (S: RO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
 end
 
-module type AO = sig
-  include RO
-  val add: t -> value -> key Lwt.t
-end
-
-module type AO_BINARY = AO with type key = string
-                            and type value = Cstruct.buffer
-
-module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  AO with type key = K.t
-      and type value = V.t
-
 module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
   open Lwt
@@ -107,20 +77,6 @@ module AO_MAKER (S: AO_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
     return key
 
 end
-
-module type RW = sig
-  include RO
-  val update: t -> key -> value -> unit Lwt.t
-  val remove: t -> key -> unit Lwt.t
-  val watch: t -> key -> value Lwt_stream.t
-end
-
-module type RW_BINARY = RW with type key = string
-                            and type value = Cstruct.buffer
-
-module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  RW with type key = K.t
-      and type value = V.t
 
 module RW_MAKER (S: RW_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
 
@@ -143,26 +99,3 @@ module RW_MAKER (S: RW_BINARY) (K: IrminKey.S) (V: Identifiable.S) = struct
       ) (S.watch t (K.to_string key))
 
 end
-
-module type S = sig
-  include RW
-  type snapshot
-  val snapshot: t -> snapshot Lwt.t
-  val revert: t -> snapshot -> unit Lwt.t
-  val merge_snapshot: t -> snapshot -> snapshot -> snapshot IrminMerge.result Lwt.t
-  val watch: t -> key -> (key * snapshot) Lwt_stream.t
-  type dump
-  val export: t -> snapshot list -> dump Lwt.t
-  type branch
-  val import: t -> branch -> dump -> unit Lwt.t
-end
-
-module type S_MAKER =
-  functor (K: IrminKey.S) ->
-  functor (V: Identifiable.S) ->
-  functor (S: Identifiable.S) ->
-  functor (D: Identifiable.S) ->
-    S with type key = K.t
-       and type value = V.t
-       and type snapshot = S.t
-       and type dump = D.t

@@ -16,11 +16,13 @@
 
 open Lwt
 open Core_kernel.Std
+open IrminSig
 
-module type Jsonable = sig
-  include Identifiable.S
-  val to_json: t -> Ezjsonm.t
-  val of_json: Ezjsonm.t -> t
+module type URI = sig
+
+  val t: Uri.t
+  (** The server URI. *)
+
 end
 
 module XLog = Log
@@ -99,13 +101,9 @@ module Make (Client: Cohttp_lwt.Client) = struct
     Cohttp_lwt_unix.Client.post ~body (uri t path) >>=
     map_string_response fn
 
-  module type U = sig
-    val uri: Uri.t
-  end
+  module RO (U: URI) (K: Key) (V: Ident) = struct
 
-  module RO (U: U) (K: IrminKey.S) (V: Jsonable) = struct
-
-    module Log = XLog.Make(struct let section = "CRUD" ^ Uri.path U.uri end)
+    module Log = XLog.Make(struct let section = "CRUD" ^ Uri.path U.t end)
 
     type t = Uri.t
 
@@ -117,7 +115,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
       Some (fn x)
 
     let create () =
-      return U.uri
+      return U.t
 
     let read t key =
       Log.debugf "read %s" (K.to_string key);
@@ -144,7 +142,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module AO (U: U) (K: IrminKey.S) (V: Jsonable) = struct
+  module AO (U: URI) (K: Key) (V: Ident) = struct
 
     include RO(U)(K)(V)
 
@@ -154,7 +152,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module RW (U: U) (K: IrminKey.S) (V: Jsonable) = struct
+  module RW (U: URI) (K: Key) (V: Ident) = struct
 
     include RO(U)(K)(V)
 
@@ -172,28 +170,21 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module S (U: U)
-      (K: IrminKey.S)
-      (V: Jsonable)
-      (S: IrminKey.S)
-      (B: IrminKey.S)
-      (D: Jsonable)
-  = struct
+  module S (U: URI) (K: Key) (C: IrminContents.S) (T: IrminTag.S) = struct
 
-    include RW(U)(K)(V)
+    include RW(U)(K)(C)
 
-    type snapshot = S.t
+    type branch = T.t
 
-    type dump = D.t
+    let create ?branch t =
+      Log.debugf "create'";
+      let branch = match branch with
+        | None   -> []
+        | Some b -> T.to_string b in
+      get t ("create" :: branch) S.of_json
 
-    type branch = B.t
-
-    let snapshot t =
-      Log.debugf "snapshot";
-      get t ["snapshot"] S.of_json
-
-    let revert t rev =
-      Log.debugf "revert";
+    let current_branch t rev =
+      Log.debugf "current_branch";
       get t ["revert"; S.to_string rev] Ezjsonm.get_unit
 
     let merge_snapshot t s1 s2 =
@@ -214,7 +205,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module Make (K: IrminKey.S) (B: IrminContents.S) (R: IrminReference.S) = struct
+  module Make (K: IrminKey.S) (B: IrminContents.S) (R: IrminTag.S) = struct
 
     module N = IrminNode.S(K)
     module C = IrminCommit.S(K)
@@ -235,8 +226,8 @@ module Make (Client: Cohttp_lwt.Client) = struct
       let module Store = S(struct
           let uri = u
         end) in
-      let module Internal = IrminValue.Mux(K)(B)(Contents)(Node)(Commit) in
-      let module Reference = IrminReference.Make(R)(K)(Reference) in
+      let module Block = IrminBlock.Mux(K)(B)(Contents)(Node)(Commit) in
+      let module Tag = IrminTag.Make(R)(K)(Reference) in
       let module S = Irmin.Make(K)(B)(R)(Internal)(Reference) in
       (module S: Irmin.S with type Internal.key = K.t
                           and type value = B.t

@@ -17,15 +17,13 @@
 (** Store dumps. *)
 
 open Core_kernel.Std
+open IrminSig
 
 type ('key, 'contents) t = {
   head : 'key option;
-  store: ('key * ('key, 'contents) IrminValue.t) list;
+  store: ('key * ('key, 'contents) IrminBlock.t) list;
 }
 (** Dump values. *)
-
-val of_json: (Ezjsonm.t -> 'a) -> (Ezjsonm.t -> 'b) -> Ezjsonm.t -> ('a, 'b) t
-val to_json: ('a -> Ezjsonm.t) -> ('b -> Ezjsonm.t) -> ('a, 'b) t -> Ezjsonm.t
 
 module type S = sig
 
@@ -35,16 +33,61 @@ module type S = sig
   (** Keys. *)
 
   type contents
-  (** Contentss. *)
+  (** Contents. *)
 
-  include Identifiable.S with type t = (key, contents) t
+  include IrminIdent.S with type t = (key, contents) t
   (** Base functions over dump values. *)
-
-  val of_json: Ezjsonm.t -> t
-  val to_json: t -> Ezjsonm.t
 
 end
 
-module S (K: IrminKey.S) (C: IrminContents.S):
-  S with type key = K.t and type contents = C.t
+module S (K: Key) (C: IrminContents.S): S with type key = K.t and type contents = C.t
 (** Base functions over dump values. *)
+
+module type STORE = sig
+
+  (** Store with import/export capabilities. *)
+
+  type key
+  (** Database internal keys. *)
+
+  type contents
+  (** User-defined contents. *)
+
+  type dump = (key, contents) t
+  (** Database dumps. *)
+
+  type t
+  (** Database handlers. *)
+
+  val create: t -> key list -> dump Lwt.t
+  (** [create t last] returns the new contents stored in [t] since the
+      [last] snaphots has been taken. If no previous snapshots
+      are provided, return the full contents of the store. *)
+
+  val update: t -> dump -> unit Lwt.t
+  (** [update t dump] imports the contents of [dump] in the
+      database. This replace the current branch with the imported
+      contents.  *)
+
+  val merge: t -> ?origin:origin -> dump -> unit IrminMerge.result Lwt.t
+  (** Same as [update] but merge with the current branch. *)
+
+  val merge_exn: t -> ?origin:origin -> dump -> unit Lwt.t
+  (** Same as [merge] but merge raise an exception in case of conflict. *)
+
+  val output: t -> string -> unit Lwt.t
+  (** Create a Graphviz graph representing the store state. Could be
+      no-op if the backend does not support that operation (for instance,
+      for remote connections). *)
+
+  module Dump: S with type key = key and type contents = contents
+  (** Base functions over database dumps. *)
+
+end
+
+module Make (S: IrminBranch.STORE):
+  STORE with type t        = S.t
+         and type key      = S.Block.key
+         and type contents = S.Block.contents
+(** Extend a branch consistent store with import/export
+    capabilities. *)

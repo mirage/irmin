@@ -14,49 +14,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Core_kernel.Std
 
-module Log = Log.Make(struct let section = "REFS" end)
-
 module type S = sig
-  include IrminKey.S
-  val master: t
-end
 
-module String = struct
-  include String
-  let to_bytes r = r
-  let of_bytes b = Bigstring.to_string b
-  let of_bytes' r = r
-  let of_raw s = s
-  let to_raw s = s
-  let master = "refs/heads/master"
-  let of_json j = IrminPath.to_string (IrminPath.of_json j)
-  let to_json s = IrminPath.to_json (IrminPath.of_string s)
-end
+  (** Extension of [Identifiable.S]. *)
 
-module type STORE = sig
-  include IrminStore.RW
-  module Key: S with type t = key
-  module Value: IrminKey.S with type t = value
-end
+  include Identifiable.S
 
+  val of_json: Ezjsonm.t -> t
+  (** Convert from JSON. *)
 
-module Make
-    (K: S)
-    (V: IrminKey.S)
-    (S: IrminStore.RW with type key = K.t and type value = V.t)
-= struct
-
-  module Key = K
-
-  module Value = V
-
-  include S
-
-  let list t _ =
-    dump t >>= fun l ->
-    return (List.map ~f:fst l)
+  val to_json: t -> Ezjsonm.t
+  (** Convert to JSON. *)
 
 end
+
+module String: S with type t = string
+(** Strings. *)
+
+module Int: S with type t = int
+(** Integers. *)
+
+module Make (S: sig type t with bin_io, sexp, compare end): S with type t = S.t
+(** Build an identifiable implementation. *)

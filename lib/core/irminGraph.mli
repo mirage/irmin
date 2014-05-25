@@ -98,4 +98,4 @@ val to_contents: ('a, 'b) vertex list -> 'a list
 val to_keys: ('a, 'b) vertex list -> 'a list
 
 (** Build a graph. *)
-module Make(K: IrminKey.S)(R: IrminReference.S): S with type V.t = (K.t, R.t) vertex
+module Make(K: IrminKey.S)(R: IrminTag.S): S with type V.t = (K.t, R.t) vertex

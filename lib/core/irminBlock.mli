@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Structured values: contents, node or commits. *)
+(** Store structured values: contents, node and commits. *)
+
+open IrminSig
 
 type ('key, 'contents) t =
   | Contents of 'contents
@@ -23,9 +25,6 @@ type ('key, 'contents) t =
 with bin_io, compare, sexp
 (** The different kinds of values which can be stored in the
     database. *)
-
-val of_json: (Ezjsonm.t -> 'a) -> (Ezjsonm.t -> 'b) -> Ezjsonm.t -> ('a, 'b) t
-val to_json: ('a -> Ezjsonm.t) -> ('b -> Ezjsonm.t) -> ('a, 'b) t -> Ezjsonm.t
 
 module type S = sig
 
@@ -42,7 +41,7 @@ module type S = sig
 
 end
 
-module S (K: IrminKey.S) (C: IrminContents.S): S with type key = K.t and type contents = C.t
+module S (K: Key) (C: IrminContents.S): S with type key = K.t and type contents = C.t
 
 module String: S with type key = IrminKey.SHA1.t and type contents = IrminContents.String.t
 (** String contents, with SHA1 keys. *)
@@ -50,29 +49,38 @@ module String: S with type key = IrminKey.SHA1.t and type contents = IrminConten
 module JSON: S with type key = IrminKey.SHA1.t and type contents = IrminContents.JSON.t
 (** JSON contents, with SHA1 keys. *)
 
+
 module type STORE = sig
 
-  (** Value are stored in an append-only database. *)
+  (** The block store holds the representation of all the immutable
+      values of the system. *)
 
   type key
-  (** Key objects. *)
+  (** Database keys. *)
 
   type contents
   (** Contents values. *)
 
-  include IrminStore.AO with type key := key
-                         and type value = (key, contents) t
+  type value =  (key, contents) t
+  (** Block values. *)
 
-  module Contents: IrminContents.STORE
-    with type key = key
-     and type value = contents
+  include AO with type key   := key
+              and type value := value
 
-  module Node: IrminNode.STORE
-    with type key = key
-     and type contents = contents
+  module Contents: IrminContents.STORE with type key = key
+                                        and type value = contents
+
+  module Node: IrminNode.STORE with type key = key
+                                and type contents = contents
+
+  type node = Node.value
+  (** Node values. *)
 
   module Commit: IrminCommit.STORE
     with type key = key
+
+  type commit = Commit.value
+  (** Commit values. *)
 
   val contents: t -> Contents.t
   (** The handler for the contents database. *)
@@ -83,7 +91,7 @@ module type STORE = sig
   val commit: t -> Commit.t
   (** The handler for the commit database. *)
 
-  module Key: IrminKey.S with type t = key
+  module Key: Key with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key and type contents = contents
@@ -94,7 +102,7 @@ end
 module Make
   (K: IrminKey.S)
   (C: IrminContents.S)
-  (S: IrminStore.AO with type key = K.t and type value = (K.t, C.t) t)
+  (S: AO with type key = K.t and type value = (K.t, C.t) t)
   : STORE with type key = K.t
            and type contents = C.t
 (** Create a store for structured values. *)
@@ -102,9 +110,9 @@ module Make
 module Mux
   (K: IrminKey.S)
   (C: IrminContents.S)
-  (Contents: IrminStore.AO with type key = K.t and type value = C.t)
-  (Node    : IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
-  (Commit  : IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
+  (Contents: AO with type key = K.t and type value = C.t)
+  (Node    : AO with type key = K.t and type value = K.t IrminNode.t)
+  (Commit  : AO with type key = K.t and type value = K.t IrminCommit.t)
   : STORE with type key = K.t
            and type contents = C.t
 (** Combine multiple stores to create a global store for structured

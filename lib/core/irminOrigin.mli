@@ -19,12 +19,6 @@
 type t with bin_io, compare, sexp
 (** Provenace values. *)
 
-val to_json: t -> Ezjsonm.t
-(** Create a JSON object from a value of type [t]. *)
-
-val of_json: Ezjsonm.t -> t
-(** Create a value of type [t] from a JSON object. *)
-
 val set_date: (unit -> int64) -> unit
 (** How to compute the commit dates. By default, increment a counter. *)
 

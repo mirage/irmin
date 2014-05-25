@@ -17,6 +17,7 @@
 (** Values. *)
 
 open Core_kernel.Std
+open IrminSig
 
 exception Invalid of string
 (** Invalid parsing. *)
@@ -25,16 +26,10 @@ module type S = sig
 
   (** Signature for store contents. *)
 
-  include Identifiable.S
+  include IrminIdent.S
   (** Base types. *)
 
-  val to_json: t -> Ezjsonm.t
-  (** Convert the contents to JSON. *)
-
-  val of_json: Ezjsonm.t -> t
-  (** Read some JSON encoded contents. *)
-
-  val merge: t IrminMerge.t
+  val merge: t merge
   (** Merge function. Raise [Conflict] if the values cannot be merged
       properly. *)
 
@@ -45,33 +40,34 @@ module String: S with type t = string
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-module JSON: S with type t = Ezjsonm.t
+module JSON: S with type t = json
 (** JSON values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-(** JSON values. *)
+
 module type STORE = sig
 
-  include IrminStore.AO
+  (** Store user-defined contents. *)
+
+  include AO
   (** Contents stores are append-only. *)
 
-  val merge: t -> key IrminMerge.t
+  val merge: t -> key merge
   (** Store merge function. Lift [S.merge] to keys. *)
 
-  module Key: IrminKey.S with type t = key
+  module Key: Key with type t = key
   (** Base functions for foreign keys. *)
 
   module Value: S with type t = value
   (** Base functions for values. *)
 
 end
-(** Blobs are stored in append-only stores. *)
 
 module Make
-    (K: IrminKey.S)
+    (K: Key)
     (C: S)
-    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
+    (Contents: AO with type key = K.t and type value = C.t)
   : STORE with type t = Contents.t
            and type key = K.t
            and type value = C.t

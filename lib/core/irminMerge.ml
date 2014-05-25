@@ -19,31 +19,30 @@ open Core_kernel.Std
 
 module Log = Log.Make(struct let section = "MERGE" end)
 
-module type S = sig
-  type t
-  val to_string: t -> string
-  val equal: t -> t -> bool
-end
+module type S = IrminIdent.S
 
-type 'a result = Ok of 'a | Conflict of string with bin_io, compare, sexp
+type 'a result =
+  [ `Ok of 'a
+  | `Conflict of string ]
+with bin_io, compare, sexp
 
-let exn mk = function
-  | Ok x       -> return x
-  | Conflict x -> fail (mk x)
+exception Conflict of string
 
-module Result = struct
+let exn = function
+  | `Ok x       -> return x
+  | `Conflict x -> fail (Conflict x)
 
-  type 'a t = 'a result with bin_io, compare, sexp
+module Result (A: IrminIdent.S) = struct
 
-  let to_string string_of_a = function
-    | Ok c       -> string_of_a c
-    | Conflict s -> "<conflict: " ^ s ^ ">"
+  module S = IrminIdent.Make(struct
+      type t = A.t result with bin_io, compare, sexp
+    end)
 
-  let equal eq x y = match x, y with
-    | Ok x      , Ok y       -> eq x y
-    | Ok _      , Conflict _
-    | Conflict _, Ok _       -> false
-    | Conflict x, Conflict y -> String.equal x y
+  include S
+
+  let to_string = function
+    | `Ok c       -> A.to_string c
+    | `Conflict s -> "<conflict: " ^ s ^ ">"
 
 end
 
@@ -54,7 +53,7 @@ type 'a merge' = old:'a -> 'a -> 'a -> 'a result Lwt.t
 type 'a t = {
   equal: 'a -> 'a -> bool Lwt.t;
   merge: 'a merge';
-  m: (module S with type t = 'a);
+  m    : (module S with type t = 'a);
 }
 
 let create (type a) (module A: S with type t = a) merge =
@@ -69,19 +68,19 @@ let create' (type a) (module A: S with type t = a) merge =
 let conflict fmt =
   ksprintf (fun msg ->
       Log.debugf "conflict: %s" msg;
-      return (Conflict msg)
+      return (`Conflict msg)
     ) fmt
 
 let bind x f =
   x >>= function
-  | Conflict _ as x -> return x
-  | Ok x            -> f x
+  | `Conflict _ as x -> return x
+  | `Ok x            -> f x
 
 module OP = struct
 
-  let ok x = return (Ok x)
+  let ok x: 'a result Lwt.t = return (`Ok x)
 
-  let conflict = conflict
+  let conflict: ('a, unit, string, 'b result Lwt.t) format4 -> 'a = conflict
 
   let (>>|) = bind
 
@@ -93,8 +92,8 @@ let rec iter f = function
   | []   -> ok ()
   | h::t ->
     f h >>= function
-    | Conflict x -> conflict "%s" x
-    | Ok ()      -> iter f t
+    | `Conflict x -> conflict "%s" x
+    | `Ok ()      -> iter f t
 
 let default (type a) (module A: S with type t = a) =
   let equal a b = return (A.equal a b) in
@@ -123,8 +122,8 @@ let default' (type a) (module A: S with type t = a) equal =
   in
   let merge ~old t1 t2 =
     default.merge ~old t1 t2 >>= function
-    | Ok x       -> ok x
-    | Conflict _ -> merge' ~old t1 t2
+    | `Ok x       -> ok x
+    | `Conflict _ -> merge' ~old t1 t2
   in
   { m = (module A); equal; merge }
 
@@ -132,17 +131,9 @@ let merge t = t.merge
 
 let some (type a) t =
   let module T = (val t.m: S with type t = a) in
-  let module S = struct
-    type t = T.t option
-    let to_string = function
-      | None   -> "None"
-      | Some v -> Printf.sprintf "(Some %s)" (T.to_string v)
-    let equal x y = match x, y with
-      | None, None     -> true
-      | Some _, None
-      | None  , Some _ -> false
-      | Some x, Some y -> T.equal x y
-  end in
+  let module S = IrminIdent.Make(struct
+      type t = T.t option with bin_io, compare, sexp
+    end) in
   let equal v1 v2 = match v1, v2 with
     | None  , None   -> return true
     | Some _, None
@@ -151,8 +142,8 @@ let some (type a) t =
   let merge ~old t1 t2 =
     Log.debugf "some %s | %s | %s" (S.to_string old) (S.to_string t1) (S.to_string t2);
     merge (default' (module S) equal) ~old t1 t2 >>= function
-    | Ok x       -> ok x
-    | Conflict _ ->
+    | `Ok x       -> ok x
+    | `Conflict _ ->
       match old, t1, t2 with
       | Some o, Some v1, Some v2 -> t.merge ~old:o v1 v2 >>| fun x -> ok (Some x)
       | _ -> conflict "some"
@@ -162,13 +153,9 @@ let some (type a) t =
 let pair (type a) (type b) a b =
   let module A = (val a.m: S with type t = a) in
   let module B = (val b.m: S with type t = b) in
-  let module S = struct
-    type t = a * b
-    let to_string (x, y) =
-      Printf.sprintf "(%s, %s)" (A.to_string x) (B.to_string y)
-    let equal (x1, y1) (x2, y2) =
-      A.equal x1 x2 && B.equal y1 y2
-  end in
+  let module S = IrminIdent.Make(struct
+    type t = A.t * B.t with bin_io, compare, sexp
+    end) in
   let equal (a1, b1) (a2, b2) =
     a.equal a1 a2 >>= fun a3 ->
     if a3 then b.equal b1 b2
@@ -186,24 +173,10 @@ let pair (type a) (type b) a b =
 exception C of string
 
 let map (type a) t =
-  let module T = (val t.m: S with type t = a) in
-  let module S = struct
-    type t = a String.Map.t
-    let to_string m =
-      let l = Map.to_alist m in
-      let l = List.map ~f:(fun (l,x) ->
-          Printf.sprintf "%s: %s" l (T.to_string x)
-        ) l in
-      "[" ^ (String.concat ~sep:", " l) ^ "]"
-    let equal m1 m2 =
-      let equal = ref true in
-      Map.iter2 ~f:(fun ~key ~data ->
-          match data with
-          | `Left _ | `Right _ -> equal := false
-          | `Both (a, b)       -> equal := !equal && T.equal a b
-        ) m1 m2;
-      !equal
-  end in
+  let module A = (val t.m: S with type t = a) in
+  let module S = IrminIdent.Make(struct
+    type t = A.t String.Map.t with bin_io, compare, sexp
+    end) in
   let equal m1 m2 =
     let equal = ref true in
     IrminMisc.Map.iter2 ~f:(fun ~key ~data ->
@@ -219,8 +192,8 @@ let map (type a) t =
   let merge ~old m1 m2 =
     Log.debugf "assoc %s | %s | %s" (S.to_string old) (S.to_string m1) (S.to_string m2);
     merge (default' (module S) equal) ~old m1 m2 >>= function
-    | Ok x       -> ok x
-    | Conflict _ ->
+    | `Ok x       -> ok x
+    | `Conflict _ ->
       Lwt.catch (fun () ->
           IrminMisc.Map.merge ~f:(fun ~key -> function
               | `Left v | `Right v ->
@@ -242,8 +215,8 @@ let map (type a) t =
                 else match Map.find old key with
                   | None    -> fail (C "add/add")
                   | Some ov -> t.merge ~old:ov v1 v2 >>= function
-                    | Conflict msg -> fail (C msg)
-                    | Ok x         -> return (Some x)
+                    | `Conflict msg -> fail (C msg)
+                    | `Ok x         -> return (Some x)
             ) m1 m2
           >>= ok)
         (function C msg ->  conflict "%s" msg
@@ -272,8 +245,8 @@ let biject (type b) (module B: S with type t = b) t a_to_b b_to_a =
   in
   let merge ~old b1 b2 =
     default.merge ~old b1 b2 >>= function
-    | Ok x       -> ok x
-    | Conflict _ -> merge' ~old b1 b2
+    | `Ok x       -> ok x
+    | `Conflict _ -> merge' ~old b1 b2
   in
   { m = (module B); equal; merge }
 
@@ -299,29 +272,20 @@ let biject' (type b) (module B: S with type t = b) t a_to_b b_to_a =
   in
   let merge ~old b1 b2 =
     default.merge ~old b1 b2 >>= function
-    | Ok x       -> ok x
-    | Conflict _ -> merge' ~old b1 b2
+    | `Ok x       -> ok x
+    | `Conflict _ -> merge' ~old b1 b2
   in
   { m = (module B); equal; merge }
 
-let apply (type b) f x =
-  let module B = struct
-    type t = b
-    let to_string a =
-      let module B = (val (f x).m: S with type t = b) in
-      B.to_string a
-    let equal a b =
-      let module B = (val (f x).m: S with type t = b) in
-      B.equal a b
-  end in
+let apply m f x =
   let equal a b = (f x).equal a b in
   let merge ~old a b = (f x).merge ~old a b in
-  { m = (module B); equal; merge }
+  { m; equal; merge }
 
 let string =
-  default (module String)
+  default (module IrminIdent.String)
 
 let counter =
   let equal x y = return (Int.equal x y) in
   let merge ~old x y = ok (x + y - old) in
-  { m = (module Int); equal; merge }
+  { m = (module IrminIdent.Int); equal; merge }
