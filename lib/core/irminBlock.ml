@@ -16,7 +16,6 @@
 
 open Lwt
 open Core_kernel.Std
-open IrminSig
 
 module Log = Log.Make(struct let section = "VALUE" end)
 
@@ -63,7 +62,7 @@ module JSON = S(IrminKey.SHA1)(IrminContents.JSON)
 module type STORE = sig
   type key
   type contents
-  include AO with type key := key and type value = (key, contents) t
+  include IrminStore.AO with type key := key and type value = (key, contents) t
   module Contents: IrminContents.STORE with type key = key and type value = contents
   module Node: IrminNode.STORE with type key = key and type contents = contents
   type node = Node.value
@@ -79,9 +78,9 @@ end
 module Mux
   (K: IrminKey.S)
   (C: IrminContents.S)
-  (XContents: AO with type key = K.t and type value = C.t)
-  (XNode    : AO with type key = K.t and type value = K.t IrminNode.t)
-  (XCommit  : AO with type key = K.t and type value = K.t IrminCommit.t)
+  (XContents: IrminStore.AO with type key = K.t and type value = C.t)
+  (XNode    : IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
+  (XCommit  : IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
 = struct
 
   type contents = C.t
@@ -178,7 +177,7 @@ module type CASTABLE = sig
   val inj: cast -> t
 end
 
-module Cast (S: AO) (C: CASTABLE with type t = S.value) = struct
+module Cast (S: IrminStore.AO) (C: CASTABLE with type t = S.value) = struct
 
   open Lwt
 
@@ -226,7 +225,7 @@ end
 module Make
   (K: IrminKey.S)
   (C: IrminContents.S)
-  (Store: AO with type key = K.t and type value = (K.t, C.t) t)
+  (Store: IrminStore.AO with type key = K.t and type value = (K.t, C.t) t)
 = struct
 
   module BS = Cast(Store)(struct

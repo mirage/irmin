@@ -16,7 +16,7 @@
 
 (** Manage snapshot/revert capabilities. *)
 
-open IrminSig
+type origin = IrminOrigin.t
 
 module type STORE = sig
 

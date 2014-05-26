@@ -15,17 +15,17 @@
  *)
 
 open Core_kernel.Std
-open IrminSig
 open Lwt
 open IrminMerge.OP
 
 module Log = Log.Make(struct let section ="dump" end)
 
+type origin = IrminOrigin.t
+
 type ('key, 'contents) t = {
   head : 'key option;
   store: ('key * ('key, 'contents) IrminBlock.t) list;
-}
-with bin_io, compare, sexp
+} with bin_io, compare, sexp
 
 module type S = sig
   type key

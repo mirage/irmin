@@ -16,14 +16,15 @@
 
 (** Branch consistent stores: support fork/merge operations. *)
 
-open IrminSig
+type origin = IrminOrigin.t
+type path = IrminPath.t
 
 module type STORE = sig
 
   (** A branch-consistent store is a mutable store which supports
       fork/join operations. *)
 
-  include RW with type key = IrminPath.t
+  include IrminStore.RW with type key = path
 
   type branch
   (** Branch names. *)

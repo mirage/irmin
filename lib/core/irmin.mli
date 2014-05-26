@@ -16,8 +16,6 @@
 
 (** API entry point *)
 
-open IrminSig
-
 module type S = sig
 
   (** Main signature for Irminsule stores. *)
@@ -48,39 +46,34 @@ module Make
        and type branch    = Tag.key
 (** Build a full iminsule store. *)
 
-module Binary
-    (K : IrminKey.S)
-    (C : IrminContents.S)
-    (T : IrminTag.S)
-    (AO: AO_BINARY)
-    (RW: RW_BINARY)
-  : S with type Block.key = K.t
-       and type value     = C.t
-       and type branch    = T.t
-(** Create an irminsule store from binary store makers. Use only one
-    append-only store for values, nodes and commits and a mutable
-    store for the tags. *)
-
 module type BACKEND = sig
 
   (** Common signature for all backends. *)
 
-  type config
-  (** Configuration values for the backend. *)
+  module RO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
+  module AO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
+  module RW (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RW
 
-  module RO: RO_MAKER
-  module AO: AO_MAKER
-  module RW: RW_MAKER
-  module BC: IrminBranch.MAKER
-
-  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S): sig
-
-    type nonrec t = (K.t, C.t, T.t) t
-
-    val create: config -> t
-
-    val cast: t -> (module S)
-
-  end
+  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S):
+    S with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t
 
 end
+
+(** {2 Binary stores} *)
+
+module RO_BINARY (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
+module AO_BINARY (S: IrminStore.AO_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
+module RW_BINARY (S: IrminStore.RW_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RW
+
+module Binary
+    (AO: IrminStore.AO_BINARY)
+    (RW: IrminStore.RW_BINARY)
+    (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S)
+  : S with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t
+(** Create an irminsule store from binary stores. Use one common
+    append-only store for contents, nodes and commits and a mutable
+    store for the tags. *)

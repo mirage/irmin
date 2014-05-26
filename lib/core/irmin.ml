@@ -17,9 +17,6 @@
 open Core_kernel.Std
 open Lwt
 open IrminMerge.OP
-open IrminSig
-
-module Log = Log.Make(struct let section = "IRMIN" end)
 
 module type S = sig
   include IrminBranch.STORE with type key = IrminPath.t
@@ -47,36 +44,110 @@ struct
 
 end
 
-module Binary
-    (K : IrminKey.S)
-    (C : IrminContents.S)
-    (T : IrminTag.S)
-    (AO: AO_BINARY)
-    (RW: RW_BINARY) =
-struct
+module RO_BINARY  (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: IrminIdent.S) = struct
 
-  module V = IrminBlock.S(K)(C)
+  module L = Log.Make(struct let section = "RO" end)
 
-  module AO = IrminStore.AO_MAKER(AO)
-  module RW = IrminStore.RW_MAKER(RW)
+  type t = S.t
 
-  module XBlock = IrminBlock.Make(K)(C)(AO(K)(V))
-  module XTag   = IrminTag.Make(T)(K)(RW(T)(K))
+  type key = K.t
 
-  include Make(XBlock)(XTag)
+  type value = V.t
+
+  let create () =
+    S.create ()
+
+  let read t key =
+    S.read t (K.to_raw key) >>= function
+    | None    -> return_none
+    | Some ba -> return (IrminMisc.read V.bin_t ba)
+
+  let read_exn t key =
+    read t key >>= function
+    | None   -> fail (IrminKey.Unknown (K.to_string key))
+    | Some v -> return v
+
+  let mem t key =
+    S.mem t (K.to_raw key)
+
+  let list t keys =
+    let keys = List.map ~f:K.to_raw keys in
+    S.list t keys >>= fun ks ->
+    let ks = List.map ~f:K.of_raw ks in
+    return ks
+
+  let dump t =
+    S.dump t >>= fun l ->
+    Lwt_list.fold_left_s (fun acc (s, ba) ->
+        match IrminMisc.read V.bin_t ba with
+        | None   -> return acc
+        | Some v -> return ((K.of_raw s, v) :: acc)
+      ) [] l
 
 end
 
+module AO_BINARY (S: IrminStore.AO_BINARY)  (K: IrminKey.S) (V: IrminIdent.S) = struct
+
+  include RO_BINARY(S)(K)(V)
+
+  module LA = Log.Make(struct let section = "AO" end)
+
+  let add t value =
+    LA.debugf "add";
+    S.add t (IrminMisc.write V.bin_t value) >>= fun key ->
+    let key = K.of_raw key in
+    LA.debugf "<-- added: %s" (K.to_string key);
+    return key
+
+end
+
+module RW_BINARY (S: IrminStore.RW_BINARY) (K: IrminKey.S) (V: IrminIdent.S) = struct
+
+  include RO_BINARY(S)(K)(V)
+
+  module LM = Log.Make(struct let section = "RW" end)
+
+  let update t key value =
+    LM.debug (lazy "update");
+    S.update t (K.to_string key) (IrminMisc.write V.bin_t value)
+
+  let remove t key =
+    S.remove t (K.to_string key)
+
+  let watch t key =
+    Lwt_stream.map (fun v ->
+        match IrminMisc.read V.bin_t v with
+        | None   -> failwith "watch"
+        | Some v -> v
+      ) (S.watch t (K.to_string key))
+
+end
+
+module Binary
+    (AO: IrminStore.AO_BINARY)
+    (RW: IrminStore.RW_BINARY)
+    (K : IrminKey.S)
+    (C : IrminContents.S)
+    (T : IrminTag.S) =
+struct
+  module V = IrminBlock.S(K)(C)
+  module B = IrminBlock.S(K)(C)
+  module XBlock = IrminBlock.Make(K)(C)(AO_BINARY(AO)(K)(B))
+  module XTag = IrminTag.Make(T)(K)(RW_BINARY(RW)(T)(K))
+  include Make(XBlock)(XTag)
+end
 
 module type BACKEND = sig
-  type config
-  module RO: RO_MAKER
-  module AO: AO_MAKER
-  module RW: RW_MAKER
-  module BC: IrminBranch.MAKER
-  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S): sig
-    type nonrec t = (K.t, C.t, T.t) t
-    val create: config -> t
-    val cast: t -> (module S)
-  end
+
+  (** Common signature for all backends. *)
+
+  module RO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
+  module AO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
+  module RW (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RW
+
+  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S):
+    S with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t
+
 end

@@ -18,6 +18,8 @@ open Core_kernel.Std
 open Lwt
 open IrminMerge.OP
 
+type origin = IrminOrigin.t
+
 module Log = Log.Make(struct let section = "SNAPSHOT" end)
 
 module type STORE = sig

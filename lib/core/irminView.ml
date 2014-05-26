@@ -17,7 +17,9 @@
 open Lwt
 open Core_kernel.Std
 open IrminMerge.OP
-open IrminSig
+
+type origin = IrminOrigin.t
+type path = IrminPath.t
 
 module Log = Log.Make(struct let section = "view" end)
 
@@ -437,7 +439,7 @@ end
 module type S = sig
   type value
   type node
-  include RW
+  include IrminStore.RW
     with type t = (node, value) t
      and type value := value
      and type key = IrminPath.t

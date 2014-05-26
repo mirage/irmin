@@ -15,15 +15,17 @@
  *)
 
 open Core_kernel.Std
-open IrminSig
 open Lwt
 open IrminMerge.OP
+
+type origin = IrminOrigin.t
+type path = IrminPath.t
 
 module Log = Log.Make(struct let section = "BRANCH" end)
 
 
 module type STORE = sig
-  include RW with type key = IrminPath.t
+  include IrminStore.RW with type key = path
   type branch
   val create: ?branch:branch -> unit -> t
   val branch: t -> branch

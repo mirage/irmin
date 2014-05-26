@@ -36,5 +36,5 @@ module String: S with type t = string
 module Int: S with type t = int
 (** Integers. *)
 
-module Make (S: sig type t with bin_io, sexp, compare end): S with type t = S.t
+module Make (S: sig type t with sexp, compare end): S with type t = S.t
 (** Build an identifiable implementation. *)

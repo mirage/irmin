@@ -17,7 +17,6 @@
 
 open Lwt
 open Core_kernel.Std
-open IrminSig
 
 module Log = Log.Make(struct let section = "NODE" end)
 
@@ -73,8 +72,8 @@ module type STORE = sig
   type contents
   type path = IrminPath.t
   type value = key t
-  include AO with type key := key
-              and type value := value
+  include IrminStore.AO with type key := key
+                         and type value := value
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
     unit -> (key * value) Lwt.t
   val contents: t -> value -> contents Lwt.t option
@@ -113,7 +112,7 @@ module Make
     (K: IrminKey.S)
     (C: IrminContents.S)
     (Contents: IrminContents.STORE with type key = K.t and type value = C.t)
-    (Node    : AO                  with type key = K.t and type value = K.t t) =
+    (Node    : IrminStore.AO       with type key = K.t and type value = K.t t) =
  struct
 
   module Key = K

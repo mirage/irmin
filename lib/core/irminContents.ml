@@ -15,15 +15,14 @@
  *)
 
 open Core_kernel.Std
-open IrminSig
 
-module Log = Log.Make(struct let section = "VALUE" end)
+module Log = Log.Make(struct let section = "CONTENTS" end)
 
 exception Invalid of string
 
 module type S = sig
   include IrminIdent.S
-  val merge: t merge
+  val merge: t IrminMerge.t
 end
 
 module String  = struct
@@ -88,8 +87,8 @@ module JSON = struct
 end
 
 module type STORE = sig
-  include AO
-  val merge: t -> key merge
+  include IrminStore.AO
+  val merge: t -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type t = value
 end
@@ -97,7 +96,7 @@ end
 module Make
     (K: IrminKey.S)
     (C: S)
-    (Contents: AO with type key = K.t and type value = C.t)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
 = struct
 
   include Contents

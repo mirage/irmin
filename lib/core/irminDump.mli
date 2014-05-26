@@ -17,7 +17,8 @@
 (** Store dumps. *)
 
 open Core_kernel.Std
-open IrminSig
+
+type origin = IrminOrigin.t
 
 type ('key, 'contents) t = {
   head : 'key option;
@@ -40,7 +41,7 @@ module type S = sig
 
 end
 
-module S (K: Key) (C: IrminContents.S): S with type key = K.t and type contents = C.t
+module S (K: IrminKey.S) (C: IrminContents.S): S with type key = K.t and type contents = C.t
 (** Base functions over dump values. *)
 
 module type STORE = sig

@@ -16,8 +16,6 @@
 
 (** Store structured values: contents, node and commits. *)
 
-open IrminSig
-
 type ('key, 'contents) t =
   | Contents of 'contents
   | Node of 'key IrminNode.t
@@ -41,7 +39,7 @@ module type S = sig
 
 end
 
-module S (K: Key) (C: IrminContents.S): S with type key = K.t and type contents = C.t
+module S (K: IrminKey.S) (C: IrminContents.S): S with type key = K.t and type contents = C.t
 
 module String: S with type key = IrminKey.SHA1.t and type contents = IrminContents.String.t
 (** String contents, with SHA1 keys. *)
@@ -64,8 +62,7 @@ module type STORE = sig
   type value =  (key, contents) t
   (** Block values. *)
 
-  include AO with type key   := key
-              and type value := value
+  include IrminStore.AO with type key := key and type value := value
 
   module Contents: IrminContents.STORE with type key = key
                                         and type value = contents
@@ -91,7 +88,7 @@ module type STORE = sig
   val commit: t -> Commit.t
   (** The handler for the commit database. *)
 
-  module Key: Key with type t = key
+  module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key and type contents = contents
@@ -102,7 +99,7 @@ end
 module Make
   (K: IrminKey.S)
   (C: IrminContents.S)
-  (S: AO with type key = K.t and type value = (K.t, C.t) t)
+  (S: IrminStore.AO with type key = K.t and type value = (K.t, C.t) t)
   : STORE with type key = K.t
            and type contents = C.t
 (** Create a store for structured values. *)
@@ -110,9 +107,9 @@ module Make
 module Mux
   (K: IrminKey.S)
   (C: IrminContents.S)
-  (Contents: AO with type key = K.t and type value = C.t)
-  (Node    : AO with type key = K.t and type value = K.t IrminNode.t)
-  (Commit  : AO with type key = K.t and type value = K.t IrminCommit.t)
+  (Contents: IrminStore.AO with type key = K.t and type value = C.t)
+  (Node    : IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
+  (Commit  : IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
   : STORE with type key = K.t
            and type contents = C.t
 (** Combine multiple stores to create a global store for structured

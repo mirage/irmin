@@ -17,7 +17,9 @@
 (** In-memory partial views of the database, with lazy fetching. *)
 
 open Core_kernel.Std
-open IrminSig
+
+type origin = IrminOrigin.t
+type path = IrminPath.t
 
 type ('key, 'contents) t
 (** Views over keys of types ['key] and contents of type
@@ -49,7 +51,7 @@ module type S = sig
   type node
   (** Internal nodes. *)
 
-  include RW
+  include IrminStore.RW
     with type t = (node, value) t
      and type value := value
      and type key = path
@@ -65,7 +67,7 @@ module type S = sig
 
 end
 
-module Make (K: Key) (C: IrminContents.S):
+module Make (K: IrminKey.S) (C: IrminContents.S):
   S with type value = C.t and type node = K.t
 (** Create a view implementation independant of any underlying
     store. *)

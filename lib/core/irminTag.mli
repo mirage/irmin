@@ -19,8 +19,6 @@
 (** Tags are branch pointers: they associad branch names to keys in
     the block store. *)
 
-open IrminSig
-
 module type S = sig
 
   (** Signature for mutable tags. *)
@@ -47,20 +45,20 @@ module type STORE = sig
       keys in the tag store, are this store is not supposed to be
       really efficient.  *)
 
-  include IrminSig.RW
+  include IrminStore.RW
 
   module Key: S with type t = key
   (** Base functions over keys. *)
 
-  module Value: Key with type t = value
+  module Value: IrminKey.S with type t = value
   (** Base functions over values. *)
 
 end
 
 module Make
     (K: S)
-    (V: Key)
-    (S: RW with type key = K.t and type value = V.t)
+    (V: IrminKey.S)
+    (S: IrminStore.RW with type key = K.t and type value = V.t)
   : STORE with type t = S.t
            and type key = K.t
            and type value = V.t

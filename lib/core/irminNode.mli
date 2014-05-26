@@ -24,7 +24,6 @@
     graph might carry some optional contents. *)
 
 open Core_kernel.Std
-open IrminSig
 
 type 'key t = {
   contents: 'key option;
@@ -78,8 +77,7 @@ module type STORE = sig
   type value = key t
   (** Node values. *)
 
-  include AO with type key   := key
-              and type value := value
+  include IrminStore.AO with type key := key and type value := value
 
   type contents
   (** Node contents. *)
@@ -122,10 +120,10 @@ module type STORE = sig
   val valid: t -> value -> path -> bool Lwt.t
   (** Is a path valid. *)
 
-  val merge: t -> key merge
+  val merge: t -> key IrminMerge.t
   (** Merge two nodes together. *)
 
-  module Key: Key with type t = key
+  module Key: IrminKey.S with type t = key
   (** Base functions for keys. *)
 
   module Value: S with type key = key
@@ -133,17 +131,17 @@ module type STORE = sig
 
 end
 
-module S (K: Key): S with type key = K.t
+module S (K: IrminKey.S): S with type key = K.t
 (** Base functions for nodes. *)
 
 module SHA1: S with type key = IrminKey.SHA1.t
 (** Simple node implementation, where keys are SHA1s. *)
 
 module Make
-    (K: Key)
+    (K: IrminKey.S)
     (C: IrminContents.S)
     (Contents: IrminContents.STORE with type key = K.t and type value = C.t)
-    (Node    : AO                  with type key = K.t and type value = K.t t)
+    (Node    : IrminStore.AO       with type key = K.t and type value = K.t t)
   : STORE with type t = Contents.t * Node.t
            and type key = K.t
            and type contents = C.t

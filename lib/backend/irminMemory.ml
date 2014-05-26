@@ -35,11 +35,10 @@ module RO (K: IrminKey.S) (V: Identifiable.S) = struct
   let unknown k =
     fail (IrminKey.Unknown (K.to_string k))
 
-  let create () =
-    return {
-      t = K.Table.create ();
-      w = W.create ();
-    }
+  let create () = {
+    t = K.Table.create ();
+    w = W.create ();
+  }
 
   let read { t } key =
     (* Log.debugf "read %s" (K.to_string key); *)
@@ -102,21 +101,11 @@ module RW (K: IrminKey.S) (V: Identifiable.S) = struct
 
 end
 
-module Make (K: IrminKey.S) (C: IrminContents.S) (R: IrminReference.S) = struct
+type config = unit
 
-  let create () =
-    let module V = IrminValue.S(K)(C) in
-    let module Val = IrminValue.Make(K)(C)(AO(K)(V)) in
-    let module Ref = IrminReference.Make(R)(K)(RW(R)(K)) in
-    let module S = Irmin.Make(K)(C)(R)(Val)(Ref) in
-    (module S: Irmin.S with type Internal.key = K.t
-                        and type value = C.t
-                        and type Reference.key = R.t)
-
-  let cast (module M: Irmin.S with type Internal.key = K.t
-                               and type value = C.t
-                               and type Reference.key = R.t) =
-
-    (module M: Irmin.S)
-
+module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
+  module V = IrminBlock.S(K)(C)
+  module XBlock = IrminBlock.Make(K)(C)(AO(K)(V))
+  module XTag = IrminTag.Make(T)(K)(RW(T)(K))
+  include Irmin.Make(XBlock)(XTag)
 end

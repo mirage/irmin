@@ -46,12 +46,17 @@ let rec sexp_of_json json =
     | `A l -> Sexplib.Type.List (List.map ~f:sexp_of_json l)
     | _    -> failwith (sprintf "sexp_of_json: %s" (Ezjsonm.to_string json))
 
-module Make (S: sig type t with bin_io, sexp, compare end) = struct
+module Make (S: sig type t with sexp, compare end) = struct
+  module S = struct
+    type t = S.t with sexp, compare
+    include Sexpable.To_stringable (struct type t = S.t with sexp end)
+  end
+  module B = Binable.Of_stringable(S)
   module M = struct
-    type t = S.t with bin_io, sexp, compare
-      let hash (t : t) = Hashtbl.hash t
-      include Sexpable.To_stringable (struct type t = S.t with sexp end)
-      let module_name = "Id"
+    include S
+    let hash (t : t) = Hashtbl.hash t
+    include B
+    let module_name = "Ident"
   end
   include M
   include Identifiable.Make (M)

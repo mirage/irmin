@@ -16,4 +16,4 @@
 
 (** In-memory store *)
 
-include Irmin.BACKEND with type config = unit
+include Irmin.BACKEND

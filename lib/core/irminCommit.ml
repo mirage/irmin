@@ -18,12 +18,13 @@ module Log = Log.Make(struct let section = "COMMIT" end)
 
 open Core_kernel.Std
 open IrminMerge.OP
-open IrminSig
+
+type origin = IrminOrigin.t
 
 type 'key t = {
   node   : 'key option;
   parents: 'key list;
-  origin : origin;
+  origin : IrminOrigin.t;
 } with bin_io, compare, sexp
 
 let edges t =
@@ -58,13 +59,13 @@ module SHA1 = S(IrminKey.SHA1)
 module type STORE = sig
   type key
   type value = key t
-  include AO with type key := key
-              and type value := value
+  include IrminStore.AO with type key := key
+                         and type value := value
   type node = key IrminNode.t
   val commit: t -> origin -> ?node:key IrminNode.t -> parents:value list -> (key * value) Lwt.t
   val node: t -> value -> key IrminNode.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
-  val merge: t -> origin -> key merge
+  val merge: t -> origin -> key IrminMerge.t
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
   val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
   module Key: IrminKey.S with type t = key
@@ -74,7 +75,7 @@ end
 module Make
     (K     : IrminKey.S)
     (Node  : IrminNode.STORE with type key = K.t and type value = K.t IrminNode.t)
-    (Commit: AO              with type key = K.t and type value = K.t t)
+    (Commit: IrminStore.AO   with type key = K.t and type value = K.t t)
 = struct
 
   type key = K.t

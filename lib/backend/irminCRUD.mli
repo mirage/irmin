@@ -16,13 +16,13 @@
 
 (** JSON CRUD interface. *)
 
-module type URI = sig
+module type Config = sig
 
-  val t: Uri.t
+  val uri: Uri.t
   (** The server URI. *)
 
 end
 
-module Make (C: Cohttp_lwt.Client) (U: URI): Irmin.BACKEND with type config = unit
+module Make (C: Cohttp_lwt.Client) (C: Config): Irmin.BACKEND
 (** Build a CRUD client using the given cohttp client
     implementation. *)

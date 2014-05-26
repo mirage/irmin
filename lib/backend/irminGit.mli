@@ -16,13 +16,23 @@
 
 (** Serialize the irminsule objects to a local Git store. *)
 
-type config = {
-  root: string;
-  kind: [`Memory|`Disk];
-  bare: bool;
-}
+module Config = sig
 
-val config: ?root:string -> kind:[`Memory|`Disk] -> ?bare:bool -> unit
-(** Create a initialisation value. *)
+  val root: string option
+  (** Database root. *)
 
-include Irmin.BACKEND with type config := config
+  val kind: [`Memory|`Disk]
+  (** Databse kind *)
+
+  val bare: bool
+  (** Should we extend the filesystem *)
+
+end
+
+module Memory: Config
+(** In-memory Git-store. *)
+
+module CWD: Config
+(** Use the current working directory *)
+
+module Make (C: Config) = include Irmin.BACKEND

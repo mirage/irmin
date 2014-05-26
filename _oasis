@@ -28,7 +28,7 @@ Library irminsule
            IrminMisc, IrminCommit, IrminStore, IrminBlock,
            IrminTag, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView,
-           IrminOrigin, IrminIdent, IrminSig, IrminBranch
+           IrminOrigin, IrminIdent, IrminBranch
   BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
                 re.str, dolog, mstruct,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
@@ -42,7 +42,7 @@ Library backend
   Findlibname: backend
   FindlibParent: irminsule
   BuildDepends: irminsule, uri, cohttp.lwt, ezjsonm.lwt
-  Modules: IrminCRUD, IrminMemory, IrminDispatch
+  Modules: IrminCRUD, IrminMemory
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 

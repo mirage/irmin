@@ -17,7 +17,6 @@
 (** Values. *)
 
 open Core_kernel.Std
-open IrminSig
 
 exception Invalid of string
 (** Invalid parsing. *)
@@ -29,7 +28,7 @@ module type S = sig
   include IrminIdent.S
   (** Base types. *)
 
-  val merge: t merge
+  val merge: t IrminMerge.t
   (** Merge function. Raise [Conflict] if the values cannot be merged
       properly. *)
 
@@ -40,7 +39,7 @@ module String: S with type t = string
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-module JSON: S with type t = json
+module JSON: S with type t = Ezjsonm.t
 (** JSON values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
@@ -50,13 +49,13 @@ module type STORE = sig
 
   (** Store user-defined contents. *)
 
-  include AO
+  include IrminStore.AO
   (** Contents stores are append-only. *)
 
-  val merge: t -> key merge
+  val merge: t -> key IrminMerge.t
   (** Store merge function. Lift [S.merge] to keys. *)
 
-  module Key: Key with type t = key
+  module Key: IrminKey.S with type t = key
   (** Base functions for foreign keys. *)
 
   module Value: S with type t = value
@@ -65,9 +64,9 @@ module type STORE = sig
 end
 
 module Make
-    (K: Key)
+    (K: IrminKey.S)
     (C: S)
-    (Contents: AO with type key = K.t and type value = C.t)
+    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
   : STORE with type t = Contents.t
            and type key = K.t
            and type value = C.t

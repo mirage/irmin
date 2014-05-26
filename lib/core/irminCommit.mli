@@ -16,7 +16,7 @@
 
 (** Manage the database history. *)
 
-open IrminSig
+type origin = IrminOrigin.t
 
 type 'key t = {
   node   : 'key option;
@@ -40,7 +40,7 @@ module type S = sig
 
 end
 
-module S (K: Key): S with type key = K.t
+module S (K: IrminKey.S): S with type key = K.t
 
 module SHA1: S with type key = IrminKey.SHA1.t
 (** Simple implementation where keys are SHA1s. *)
@@ -55,8 +55,7 @@ module type STORE = sig
   type value = key t
   (** Commit values. *)
 
-  include AO with type key   := key
-              and type value := value
+  include IrminStore.AO with type key := key and type value := value
 
   type node = key IrminNode.t
   (** Node values. *)
@@ -70,7 +69,7 @@ module type STORE = sig
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val merge: t -> origin -> key merge
+  val merge: t -> origin -> key IrminMerge.t
   (** Lift [S.merge] to the store keys. *)
 
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
@@ -80,7 +79,7 @@ module type STORE = sig
   (** Same as [find_common_ancestor] but raises [Not_found] if the two
       commits share no common ancestor. *)
 
-  module Key: Key with type t = key
+  module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key
@@ -89,9 +88,9 @@ module type STORE = sig
 end
 
 module Make
-    (K     : Key)
+    (K     : IrminKey.S)
     (Node  : IrminNode.STORE with type key = K.t and type value = K.t IrminNode.t)
-    (Commit: AO              with type key = K.t and type value = K.t t)
+    (Commit: IrminStore.AO   with type key = K.t and type value = K.t t)
   : STORE with type t = Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)

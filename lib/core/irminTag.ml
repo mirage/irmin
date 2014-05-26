@@ -16,9 +16,8 @@
 
 open Lwt
 open Core_kernel.Std
-open IrminSig
 
-module Log = Log.Make(struct let section = "REFS" end)
+module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
   include IrminKey.S
@@ -38,15 +37,15 @@ module String = struct
 end
 
 module type STORE = sig
-  include RW
+  include IrminStore.RW
   module Key: S with type t = key
-  module Value: Key with type t = value
+  module Value: IrminKey.S with type t = value
 end
 
 module Make
     (K: S)
     (V: IrminKey.S)
-    (S: RW with type key = K.t and type value = V.t)
+    (S: IrminStore.RW with type key = K.t and type value = V.t)
 = struct
 
   module Key = K
