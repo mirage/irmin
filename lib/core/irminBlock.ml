@@ -105,8 +105,8 @@ module Mux
   let commit t = t.commit
 
   let create () =
-    Commit.create () >>= fun ((contents, _ as node), _ as commit) ->
-    return { contents; node; commit }
+    let ((contents, _ as node), _ as commit) = Commit.create () in
+    { contents; node; commit }
 
   (* XXX: ugly and slow *)
   let read t key =

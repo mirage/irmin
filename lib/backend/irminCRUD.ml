@@ -177,15 +177,10 @@ module Make (Client: Cohttp_lwt.Client) = struct
     type branch = T.t
 
     let create ?branch t =
-      Log.debugf "create'";
       let branch = match branch with
-        | None   -> []
-        | Some b -> T.to_string b in
-      get t ("create" :: branch) S.of_json
-
-    let current_branch t rev =
-      Log.debugf "current_branch";
-      get t ["revert"; S.to_string rev] Ezjsonm.get_unit
+        | None   -> T.master
+        | Some b -> b in
+      U.t, branch
 
     let merge_snapshot t s1 s2 =
       Log.debugf "merge_snapshot";

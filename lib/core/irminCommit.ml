@@ -88,9 +88,9 @@ module Make
   open Lwt
 
   let create () =
-    Node.create ()   >>= fun n ->
-    Commit.create () >>= fun c ->
-    return (n, c)
+    let n = Node.create () in
+    let c = Commit.create () in
+    (n, c)
 
   let add (_, t) c =
     Commit.add t c

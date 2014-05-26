@@ -18,22 +18,25 @@
 
 open IrminSig
 
-module type S = sig
+module type STORE = sig
 
   (** A branch-consistent store is a mutable store which supports
       fork/join operations. *)
 
-  include RW
+  include RW with type key = IrminPath.t
 
   type branch
   (** Branch names. *)
 
-  val create: ?branch:branch -> unit -> t Lwt.t
+  val create: ?branch:branch -> unit -> t
   (** Create a store handle. The default branch (if not set) is
       [Branch.master]. *)
 
-  val current_branch: t -> branch Lwt.t
-  (** Return the current branch. *)
+  val branch: t -> branch
+  (** Return the branch of the given store handle. *)
+
+  val with_branch: t -> branch -> t
+  (** Return a new store handle with a new branch. *)
 
   val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
   (** Same as [IrminStore.RW.update] but with an optional [origin]
@@ -59,23 +62,14 @@ module type S = sig
   (** Same as [merge] but raise [Conflict "<msg>"] in case of a
       conflict. *)
 
-end
+  (** {2 Lower level functions} *)
 
-module type STORE = sig
-
-  (** Same as [S] but exposes the lower level internal stores and
-      their structure. *)
-
-   module Block: IrminBlock.STORE
+  module Block: IrminBlock.STORE with type contents = value
   (** Append-only persistent block store where leafs are user-defined
-      contents. *)
+       contents. *)
 
-  module Tag: IrminTag.STORE with type value = Block.key
+  module Tag: IrminTag.STORE with type key = branch and type value = Block.key
   (** Read/write store for branch pointers. *)
-
-  include S with type key = IrminPath.t
-             and type branch = Tag.key
-             and type value = Block.contents
 
   val block_t: t -> Block.t
   (** Return an handler to the internal store. *)
@@ -92,18 +86,20 @@ module type STORE = sig
   val tag_t: t -> Tag.t
   (** Return an handler to the reference store. *)
 
-  val map_head_node: t -> key -> f:(Block.Node.t -> Block.node -> key -> 'a Lwt.t) -> 'a Lwt.t
-  (** Apply a function from the node domain to the store's head
-      node. *)
+  val read_node: t -> key -> Block.node option Lwt.t
+  (** Read a node. *)
 
-  val update_head_node: t -> origin:origin -> f:(Block.node -> Block.node Lwt.t) -> unit Lwt.t
-  (** Update a the head node. *)
+  val update_node: t -> origin -> key -> Block.node -> unit Lwt.t
+  (** Update a node. *)
+
+  val watch_node: t -> key -> (key * Block.key) Lwt_stream.t
+  (** Watch node changes. Return the stream of changing sub-nodes. *)
+
+  val update_commit: t -> Block.key -> unit Lwt.t
+  (** Set the current branch to point to the given commit. *)
 
   val merge_commit: t -> ?origin:origin -> Block.key -> unit IrminMerge.result Lwt.t
-  (** Merge a commit in the store's current branch. *)
-
-  val watch_nodes: t -> key -> (key * Block.key) Lwt_stream.t
-  (** Watch node changes. Return the stream of changing sub-nodes. *)
+  (** Merge a commit in the current branch. *)
 
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
@@ -119,13 +115,18 @@ end
 module Make
     (Block: IrminBlock.STORE)
     (Tag  : IrminTag.STORE with type value = Block.key)
-  : STORE with module Block = Block
+  : STORE with type branch  = Tag.key
+           and type value   = Block.contents
+           and module Block = Block
            and module Tag   = Tag
-(** Build a branch consistent store from user-defined [Contents] and
-    using the provided [Block] and [Tag] store implementations. *)
+(** Build a branch consistent store from custom Block] and [Tag] store
+    implementations. *)
 
 module type MAKER =
   functor (K: IrminKey.S) ->
   functor (C: IrminContents.S) ->
   functor (T: IrminTag.S) ->
-    S with type key = K.t and type value = C.t and type branch = T.t
+    STORE with type Block.key = K.t
+           and type value     = C.t
+           and type branch    = T.t
+(** Branch-consistent store maker. *)

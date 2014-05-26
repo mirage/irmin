@@ -33,7 +33,9 @@ end
 
 module Make (S: IrminBranch.STORE) = struct
 
-  open S
+  module Block = S.Block
+  module Tag = S.Tag
+
   module K = Block.Key
   type state = Block.key
 
@@ -41,24 +43,23 @@ module Make (S: IrminBranch.STORE) = struct
   type path = S.key
 
   let create t =
-    current_branch t >>= fun branch ->
-    Tag.read_exn (tag_t t) branch
+    Tag.read_exn (S.tag_t t) (S.branch t)
 
   let revert t r =
-    current_branch t >>= fun branch ->
-    Tag.update (tag_t t) branch r
+    Tag.update (S.tag_t t) (S.branch t) r
 
   let merge t ?origin c1 =
     let origin = match origin with
       | None   -> IrminOrigin.create "Merge snapshot %s"
                     (K.to_string c1)
       | Some o -> o in
-    merge_commit t ~origin c1
+    S.merge_commit t ~origin c1
 
   let merge_exn t ?origin c1 =
     merge ?origin t c1 >>=
     IrminMerge.exn
 
-  let watch = watch_nodes
+  let watch =
+    S.watch_node
 
 end

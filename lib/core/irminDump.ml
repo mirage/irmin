@@ -57,74 +57,75 @@ end
 
 module Make (Store: IrminBranch.STORE) = struct
 
-  open Store
-
   type t = Store.t
 
-  module K = Block.Key
+  module K = Store.Block.Key
   type key = K.t
 
-  module C = Value
+  module C = Store.Value
   type contents = C.t
 
   module Dump = S(K)(C)
   type dump = Dump.t
 
+  module Tag = Store.Tag
   module T = Tag.Key
 
+  module Block = Store.Block
   module Commit = Block.Commit
   module Node = Block.Node
   module Contents = Block.Contents
+
+  module S = Store
 
   (* XXX: can be improved quite a lot *)
   let create t roots =
     Log.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
     let table = Block.Key.Table.create () in
     let add k v = Hashtbl.add_multi table k v in
-    current_branch t >>= fun branch ->
-    Tag.read (tag_t t) branch >>= function
+    Tag.read (S.tag_t t) (S.branch t) >>= function
     | None        -> return { head = None; store = [] }
     | Some commit ->
       let head = Some commit in
       begin match roots with
-        | [] -> Commit.list (commit_t t) [commit]
+        | [] -> Commit.list (S.commit_t t) [commit]
         | _  ->
           let pred = function
             | `Commit k ->
-              Commit.read_exn (commit_t t) k >>= fun c ->
+              Commit.read_exn (S.commit_t t) k >>= fun c ->
               return (IrminCommit.edges c)
             | _ -> return_nil in
           let min = IrminGraph.of_commits roots in
           let max = IrminGraph.of_commits [commit] in
-          Graph.closure pred ~min ~max >>= fun g ->
-          let commits = IrminGraph.to_commits (Graph.vertex g) in
+          S.Graph.closure pred ~min ~max >>= fun g ->
+          let commits = IrminGraph.to_commits (S.Graph.vertex g) in
           return commits
       end >>= fun commits ->
       Log.debugf "export COMMITS=%s" (IrminMisc.pretty_list K.to_string commits);
       let nodes = ref K.Set.empty in
       Lwt_list.iter_p (fun key ->
-          Commit.read_exn (commit_t t) key >>= fun commit ->
+          Commit.read_exn (S.commit_t t) key >>= fun commit ->
           add key (IrminBlock.Commit commit);
           match commit.IrminCommit.node with
           | None   -> return_unit
           | Some k -> nodes := K.Set.add !nodes k; return_unit
         ) commits >>= fun () ->
       let nodes = !nodes in
-      Node.list (node_t t) (K.Set.to_list nodes) >>= fun nodes ->
+      Node.list (S.node_t t) (K.Set.to_list nodes) >>= fun nodes ->
       Log.debugf "export NODES=%s" (IrminMisc.pretty_list K.to_string nodes);
       let contents = ref K.Set.empty in
       Lwt_list.iter_p (fun key ->
-          Node.read_exn (node_t t) key >>= fun node ->
+          Node.read_exn (S.node_t t) key >>= fun node ->
           add key (IrminBlock.Node node);
           match node.IrminNode.contents with
           | None   -> return_unit
           | Some k -> contents := K.Set.add !contents k; return_unit
         ) nodes >>= fun () ->
       let contents = !contents in
-      Contents.list (contents_t t) (K.Set.to_list contents) >>= fun contents ->
+      Contents.list (S.contents_t t) (K.Set.to_list contents) >>= fun contents ->
       Log.debugf "export CONTENTS=%s" (IrminMisc.pretty_list K.to_string contents);
       Lwt_list.iter_p (fun k ->
-          Contents.read_exn (contents_t t) k >>= fun b ->
+          Contents.read_exn (S.contents_t t) k >>= fun b ->
           add k (IrminBlock.Contents b);
           return_unit
         ) contents >>= fun () ->
@@ -145,17 +146,17 @@ module Make (Store: IrminBranch.STORE) = struct
     (* Import contents first *)
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminBlock.Contents x -> Contents.add (contents_t t) x >>= check "value" k
+        | IrminBlock.Contents x -> Contents.add (S.contents_t t) x >>= check "value" k
         | _ -> return_unit
       ) store >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminBlock.Node x -> Node.add (node_t t) x >>= check "node" k
+        | IrminBlock.Node x -> Node.add (S.node_t t) x >>= check "node" k
         | _ -> return_unit
       ) store >>= fun () ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
-        | IrminBlock.Commit x -> Commit.add (commit_t t) x >>= check "commit" k
+        | IrminBlock.Commit x -> Commit.add (S.commit_t t) x >>= check "commit" k
         | _ -> return_unit
       ) store >>= fun () ->
     match !errors with
@@ -174,9 +175,7 @@ module Make (Store: IrminBranch.STORE) = struct
     update_aux t dump >>= fun () ->
     match dump.head with
     | None   -> return_unit
-    | Some h ->
-      current_branch t >>= fun branch ->
-      Tag.update (tag_t t) branch h
+    | Some h -> Tag.update (S.tag_t t) (S.branch t) h
 
   let merge t ?origin dump =
     let origin = match origin with
@@ -185,7 +184,7 @@ module Make (Store: IrminBranch.STORE) = struct
     update_aux t dump >>= fun () ->
     match dump.head with
     | None   -> ok ()
-    | Some h -> merge_commit ~origin t h
+    | Some h -> S.merge_commit t ~origin h
 
   let merge_exn t ?origin dump =
     merge t ?origin dump >>=
@@ -193,10 +192,10 @@ module Make (Store: IrminBranch.STORE) = struct
 
   let output t name =
     Log.debugf "output %s" name;
-    Contents.dump (contents_t t) >>= fun contents ->
-    Node.dump (node_t t)         >>= fun nodes    ->
-    Commit.dump (commit_t t)     >>= fun commits  ->
-    Tag.dump (tag_t t)           >>= fun tags     ->
+    Contents.dump (S.contents_t t) >>= fun contents ->
+    Node.dump (S.node_t t)         >>= fun nodes    ->
+    Commit.dump (S.commit_t t)     >>= fun commits  ->
+    Tag.dump (S.tag_t t)           >>= fun tags     ->
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
@@ -258,7 +257,7 @@ module Make (Store: IrminBranch.STORE) = struct
       ) tags;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
-        Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
+        S.Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
       );
     let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
     let i = Sys.command cmd in

@@ -21,34 +21,31 @@ open IrminMerge.OP
 
 module Log = Log.Make(struct let section = "BRANCH" end)
 
-module type S = sig
-  include RW
+
+module type STORE = sig
+  include RW with type key = IrminPath.t
   type branch
-  val create: ?branch:branch -> unit -> t Lwt.t
-  val current_branch: t -> branch Lwt.t
+  val create: ?branch:branch -> unit -> t
+  val branch: t -> branch
+  val with_branch: t -> branch -> t
   val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
   val remove: t -> ?origin:origin -> key -> unit Lwt.t
   val clone: t -> branch -> t option Lwt.t
   val clone_force: t -> branch -> t Lwt.t
   val merge: t -> ?origin:origin -> branch -> unit IrminMerge.result Lwt.t
   val merge_exn: t -> ?origin:origin -> branch -> unit Lwt.t
-end
-
-module type STORE = sig
-  module Block: IrminBlock.STORE
-  module Tag: IrminTag.STORE with type value = Block.key
-  include S with type key = IrminPath.t
-             and type branch = Tag.key
-             and type value = Block.contents
+  module Block: IrminBlock.STORE with type contents = value
+  module Tag: IrminTag.STORE with type key = branch and type value = Block.key
   val block_t: t -> Block.t
   val contents_t: t -> Block.Contents.t
   val node_t: t -> Block.Node.t
   val commit_t: t -> Block.Commit.t
   val tag_t: t -> Tag.t
-  val map_head_node: t -> key -> f:(Block.Node.t -> Block.node -> key -> 'a Lwt.t) -> 'a Lwt.t
-  val update_head_node: t -> origin:origin -> f:(Block.node -> Block.node Lwt.t) -> unit Lwt.t
+  val read_node: t -> key -> Block.node option Lwt.t
+  val update_node: t -> origin -> key -> Block.node -> unit Lwt.t
+  val watch_node: t -> key -> (key * Block.key) Lwt_stream.t
+  val update_commit: t -> Block.key -> unit Lwt.t
   val merge_commit: t -> ?origin:origin -> Block.key -> unit IrminMerge.result Lwt.t
-  val watch_nodes: t -> key -> (key * Block.key) Lwt_stream.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
@@ -90,7 +87,8 @@ struct
     branch: T.t;
   }
 
-  let current_branch t = return t.branch
+  let branch t = t.branch
+  let with_branch t branch = { t with branch }
 
   let block_t    t = t.block
   let tag_t      t = t.tag
@@ -99,9 +97,9 @@ struct
   let contents_t t = Block.contents t.block
 
   let create ?(branch=T.master) () =
-    Block.create () >>= fun block ->
-    Tag.create ()   >>= fun tag ->
-    return { block; tag; branch }
+    let block = Block.create () in
+    let tag = Tag.create () in
+    { block; tag; branch }
 
   let read_head_commit t =
     Tag.read t.tag t.branch >>= function
@@ -125,11 +123,16 @@ struct
     | None   -> []
     | Some r -> [r]
 
-  let update_head_node t ~origin ~f =
+  let read_node t path =
+    read_head_commit t          >>= fun commit ->
+    node_of_opt_commit t commit >>= fun node ->
+    Node.sub (node_t t) node path
+
+  let apply t origin ~f =
     read_head_commit t          >>= fun commit ->
     node_of_opt_commit t commit >>= fun old_node ->
     f old_node                  >>= fun node ->
-    if N.equal old_node node then return_unit
+    if N.equal node old_node then return_unit
     else (
       let parents = parents_of_commit commit in
       Commit.commit (commit_t t) origin ~node ~parents >>= fun (key, _) ->
@@ -137,35 +140,40 @@ struct
       Tag.update t.tag t.branch key
     )
 
-  let map_head_node t path ~f =
+  let update_node t origin path node =
+    apply t origin ~f:(fun head ->
+        Node.map (node_t t) head path (fun _ -> node)
+      )
+
+  let map t path ~f =
     read_head_node t >>= fun node ->
     f (node_t t) node path
 
   let read t path =
-    map_head_node t path ~f:Node.find
+    map t path ~f:Node.find
 
   let update t ?origin path contents =
     let origin = match origin with
       | None   -> IrminOrigin.create "Update %s." (IrminPath.to_string path)
       | Some o -> o in
     Log.debugf "update %s" (IrminPath.to_string path);
-    update_head_node t ~origin ~f:(fun n ->
-        Node.update (node_t t) n path contents
+    apply t origin ~f:(fun node ->
+        Node.update (node_t t) node path contents
       )
 
   let remove t ?origin path =
     let origin = match origin with
       | None   -> IrminOrigin.create "Remove %s." (IrminPath.to_string path)
       | Some o -> o in
-    update_head_node t ~origin ~f:(fun n ->
-        Node.remove (node_t t) n path
+    apply t origin ~f:(fun node ->
+        Node.remove (node_t t) node path
       )
 
   let read_exn t path =
-    map_head_node t path ~f:Node.find_exn
+    map t path ~f:Node.find_exn
 
   let mem t path =
-    map_head_node t path ~f:Node.valid
+    map t path ~f:Node.valid
 
   (* Return the subpaths. *)
   let list t paths =
@@ -208,22 +216,26 @@ struct
   (* Merge two commits:
      - Search for a common ancestor
      - Perform a 3-way merge *)
-  let three_way_merge ?origin t c1 c2 =
-    let origin = match origin with
-      | None   -> IrminOrigin.create "Merge commits %s and %s"
-                    (K.to_string c1) (K.to_string c2)
-      | Some o -> o in
+  let three_way_merge t ?origin c1 c2 =
     Commit.find_common_ancestor (commit_t t) c1 c2 >>= function
     | None     -> conflict "no common ancestor"
     | Some old ->
+      let origin = match origin with
+        | None   -> IrminOrigin.create "Merge commits %s and %s.\n\n\
+                                        The common ancestor was %s."
+                      (K.to_string c1) (K.to_string c2) (K.to_string old)
+        | Some o -> o in
       let m = Commit.merge (commit_t t) origin in
       IrminMerge.merge m ~old c1 c2
+
+  let update_commit t c =
+    Tag.update t.tag t.branch c
 
   let merge_commit t ?origin c1 =
     Tag.read t.tag t.branch >>= function
     | None    -> Tag.update t.tag t.branch c1 >>= ok
     | Some c2 ->
-      three_way_merge ?origin t c1 c2 >>| fun c3 ->
+      three_way_merge t ?origin c1 c2 >>| fun c3 ->
       Tag.update t.tag t.branch c3   >>=
       ok
 
@@ -239,23 +251,23 @@ struct
     | true  -> return_none
     | false -> clone_force t branch >>= fun t -> return (Some t)
 
-  let merge t  ?origin branch =
+  let merge t ?origin branch =
     let origin = match origin with
       | Some o -> o
       | None   -> IrminOrigin.create "Merge branch %s."
                     (T.to_string t.branch) in
     Tag.read_exn t.tag branch >>= fun c ->
-    merge_commit ~origin t c
+    merge_commit t ~origin c
 
   let merge_exn t ?origin tag =
-    merge ?origin t tag >>=
+    merge t ?origin tag >>=
     IrminMerge.exn
 
-  let watch_nodes t path =
+  let watch_node t path =
     Log.infof "Adding a watch on %s" (IrminPath.to_string path);
     let stream = Tag.watch t.tag t.branch in
     IrminMisc.lift_stream (
-      map_head_node t path ~f:Node.sub >>= fun node ->
+      read_node t path >>= fun node ->
       let old_node = ref node in
       let stream = Lwt_stream.filter_map_s (fun key ->
           Log.debugf "watch: %s" (Block.Key.to_string key);
@@ -276,7 +288,7 @@ struct
 
   (* watch contents changes. *)
   let watch t path =
-    let stream = watch_nodes t path in
+    let stream = watch_node t path in
     Lwt_stream.filter_map_s (fun (p, k) ->
         if IrminPath.(p = path) then
           Commit.read (commit_t t) k >>= function
@@ -294,4 +306,6 @@ module type MAKER =
   functor (K: IrminKey.S) ->
   functor (C: IrminContents.S) ->
   functor (T: IrminTag.S) ->
-    S with type key = K.t and type value = C.t and type branch = T.t
+    STORE with type Block.key = K.t
+           and type value = C.t
+           and type branch = T.t

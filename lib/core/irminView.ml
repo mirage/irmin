@@ -194,7 +194,7 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     let contents _ = return_none in
     let view = Node.empty () in
     let ops = [] in
-    return { node; contents; view; ops }
+    { node; contents; view; ops }
 
   let sub t path =
     let rec aux node = function
@@ -391,8 +391,8 @@ module Store (S: IrminBranch.STORE) = struct
     Log.debugf "read_view %s" (IrminPath.to_string path);
     let contents = Contents.read (S.contents_t t) in
     let node = Node.read (S.node_t t) in
-    S.map_head_node t path ~f:Node.sub >>= function
-    | None   -> create ()
+    S.read_node t path >>= function
+    | None   -> return (create ())
     | Some n ->
       Node.add (S.node_t t) n >>= fun k ->
       import ~contents ~node k
@@ -408,10 +408,8 @@ module Store (S: IrminBranch.STORE) = struct
     let origin = match origin with
       | None   -> IrminOrigin.create "Update view to %s" (IrminPath.to_string path)
       | Some o -> o in
-    node_of_view t view >>= fun tree ->
-    S.update_head_node t ~origin ~f:(fun node ->
-        Node.map (S.node_t t) node path (fun _ -> tree)
-      )
+    node_of_view t view >>= fun node ->
+    S.update_node t origin path node
 
   let merge_path ?origin t path view =
     Log.debugf "merge_view %s" (IrminPath.to_string path);

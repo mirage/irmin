@@ -107,7 +107,7 @@ module type STORE = sig
   (** Modify a subtree. *)
 
   val update: t -> value -> path -> contents -> value Lwt.t
-  (** Add a value by recusively saving subvalues and subvalues into the
+  (** Add a value by recusively saving subvalues into the
       corresponding stores. *)
 
   val find: t -> value -> path -> contents option Lwt.t

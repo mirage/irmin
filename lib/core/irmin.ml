@@ -33,8 +33,8 @@ end
 
 type ('key, 'contents, 'tag) t =
   (module S with type Block.key = 'key
-             and type Block.contents = 'contents
-             and type Tag.key = 'tag)
+             and type value     = 'contents
+             and type branch    = 'tag)
 
 module Make (Block: IrminBlock.STORE) (Tag: IrminTag.STORE with type value = Block.key) =
 struct

@@ -36,14 +36,16 @@ module type S = sig
 end
 
 type ('key, 'contents, 'tag) t =
-  (module S with type Block.key      = 'key
-             and type Block.contents = 'contents
-             and type Tag.key        = 'tag)
+  (module S with type Block.key = 'key
+             and type value     = 'contents
+             and type branch    = 'tag)
 
 module Make
     (Block: IrminBlock.STORE)
     (Tag  : IrminTag.STORE with type value = Block.key)
-  : S with module Block = Block and module Tag   = Tag
+  : S with type Block.key = Block.key
+       and type value     = Block.contents
+       and type branch    = Tag.key
 (** Build a full iminsule store. *)
 
 module Binary
@@ -52,9 +54,9 @@ module Binary
     (T : IrminTag.S)
     (AO: AO_BINARY)
     (RW: RW_BINARY)
-  : S with type Block.key      = K.t
-       and type Block.contents = C.t
-       and type Tag.key        = T.t
+  : S with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t
 (** Create an irminsule store from binary store makers. Use only one
     append-only store for values, nodes and commits and a mutable
     store for the tags. *)
