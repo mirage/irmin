@@ -1,4 +1,15 @@
-0.7.1:
+0.8.0: (2014-05-27)
+* Spring clean-ups in the API. Separation in IrminBranch for
+  fork/join operations, IrminSnapshot for snapshot/revert
+  operations and IrminDump for import/export operations.
+  The later two implementation can be derived automaticaly
+  from a base IrminBranch implementation. The update and merge
+  operations are supported on each backend
+* IrminGit does not depend on unix anymore and can thus be
+  compile to javascript or xen with mirage
+* No need to have bin_io converter for contents anymore
+* No need to have JSON converter for contents anymore
+* No more IrminDispatch
 * Add an optional branch argument to Irmin.create to use
   an already existing branch
 * Fix order of arguments in Irmin.merge
