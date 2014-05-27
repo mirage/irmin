@@ -46,6 +46,10 @@ module Result (A: IrminIdent.S) = struct
 
 end
 
+module UnitResult = Result(IrminIdent.Make(struct
+    type t = unit with sexp,compare
+  end))
+
 type 'a merge = old:'a -> 'a -> 'a -> 'a result
 
 type 'a merge' = old:'a -> 'a -> 'a -> 'a result Lwt.t

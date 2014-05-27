@@ -31,7 +31,10 @@ type 'a result =
 (** Merge results. *)
 
 module Result (A: IrminIdent.S): IrminIdent.S with type t = A.t result
-(** Base function over results. *)
+(** Base function over [A.t result]s.. *)
+
+module UnitResult: IrminIdent.S with type t = unit result
+(** Base functions overs [unit result]s. *)
 
 exception Conflict of string
 (** Exception which might be raised when merging.  *)

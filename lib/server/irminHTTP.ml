@@ -115,10 +115,9 @@ module Server (S: Irmin.S) = struct
     output = IrminOrigin.to_json;
   }
 
-  module Result = IrminMerge.Result(IrminIdent.Make(struct type t = unit with sexp,compare end))
   let result = {
-    input  = Result.of_json;
-    output = Result.to_json;
+    input  = IrminMerge.UnitResult.of_json;
+    output = IrminMerge.UnitResult.to_json;
   }
 
   let mk_dump key value =
