@@ -33,7 +33,7 @@ let suite k =
     init;
     clean = unit;
     store =
-      let (module K), (module C), (module R) = modules k in
-      let module M = IrminFS.Make(K)(C)(R) in
-      M.(cast (create test_db));
+      let module M = IrminFS.Make (struct let path = test_db end) in
+      let (module K), (module C), (module T) = modules k in
+      Irmin.cast (module M.Make(K)(C)(T));
   }

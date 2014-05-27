@@ -20,15 +20,11 @@ exception Invalid of string
 exception Unknown of string
 
 module type S = sig
-  include Identifiable.S
-
+  include IrminIdent.S
   val of_raw: string -> t
   val to_raw: t -> string
-  val to_json: t -> Ezjsonm.t
-  val of_json: Ezjsonm.t -> t
   val of_bytes: Bigstring.t -> t
   val of_bytes': string -> t
-
 end
 
 module SHA1 = struct
@@ -41,19 +37,15 @@ module SHA1 = struct
   let of_hex hex =
     IrminMisc.hex_decode hex
 
-  module M = struct
-    type t = string
-    with bin_io, compare, sexp
-    let hash (t : t) = Hashtbl.hash t
-    let sexp_of_t t =
-      Sexplib.Sexp.Atom (to_hex t)
-    let t_of_sexp s =
-      of_hex (Sexplib.Conv.string_of_sexp s)
-    include Sexpable.To_stringable (struct type nonrec t = t with sexp end)
-    let module_name = "Key"
-  end
+  module M = IrminIdent.Make(struct
+      type t = string with bin_io, compare
+      let sexp_of_t t =
+        Sexplib.Sexp.Atom (to_hex t)
+      let t_of_sexp s =
+        of_hex (Sexplib.Conv.string_of_sexp s)
+    end)
+
   include M
-  include Identifiable.Make (M)
 
   let len = 20
 
@@ -63,12 +55,6 @@ module SHA1 = struct
 
   let to_raw str =
     str
-
-  let to_json t =
-    Ezjsonm.string (to_hex t)
-
-  let of_json j =
-    of_hex (Ezjsonm.get_string j)
 
   let of_bytes' str =
     Log.debug (lazy "of_bytes'");

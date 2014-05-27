@@ -28,7 +28,7 @@ module type S = sig
 
   (** Signature for deterministic keys. *)
 
-  include Identifiable.S
+  include IrminIdent.S
 
   val of_raw: string -> t
   (** Cast a raw string into a key. Check that the format of the raw
@@ -36,12 +36,6 @@ module type S = sig
 
   val to_raw: t -> string
   (** Return the raw key. *)
-
-  val to_json: t -> Ezjsonm.t
-  (** Convert a key to JSON. *)
-
-  val of_json: Ezjsonm.t -> t
-  (** Read a key which has been JSON encoded. *)
 
   val of_bytes: Bigstring.t -> t
   (** Compute a (deterministic) key from a bigstring. *)

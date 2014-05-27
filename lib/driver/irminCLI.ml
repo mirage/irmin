@@ -114,36 +114,44 @@ let default_dir = ".irmin"
 let init_hook =
   ref (fun () -> ())
 
-let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminReference.S) =
+let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminTag.S) =
   match x with
-  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
-  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
+  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminTag.String)
+  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminTag.String)
 
 let in_memory_store (type key) k =
   Log.info (lazy "source: in-memory");
-  let (module K), (module C), (module R) = modules k in
-  let module M = IrminMemory.Make(K)(C)(R) in
-  M.(cast (create ()))
+  let (module K), (module C), (module T) = modules k in
+  let module M = IrminMemory.Make(K)(C)(T) in
+  Irmin.cast (module M)
 
 let local_store k dir =
   Log.infof "source: dir=%s" dir;
   init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
-  let (module K), (module C), (module R) = modules k in
-  let module M = IrminFS.Make(K)(C)(R) in
-  M.(cast (create dir))
+  let (module K), (module C), (module T) = modules k in
+  let module M = IrminFS.Make(struct let path = dir end) in
+  Irmin.cast (module M.Make(K)(C)(T))
 
 let remote_store k uri =
-  let module CRUD_ = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
   let (module K), (module C), (module R) = modules k in
-  let module CRUD = CRUD_.Make(K)(C)(R) in
+  let module M = IrminCRUD.Make(Cohttp_lwt_unix.Client)(struct let uri = uri end) in
   Log.infof "source: uri=%s" (Uri.to_string uri);
-  CRUD.(cast (create uri))
+  Irmin.cast (module M.Make
+(K)(C)(R))
 
 let git_store k g =
   Log.infof "git";
   let (module K), (module C), (module R) = modules k in
-  let module M = IrminGit.Make(K)(C)(R) in
-  M.(cast (create ~kind:g ~bare:false ()))
+  let (module Config) = match g with
+    | `Memory -> (module IrminGit.Memory: IrminGit.Config)
+    | `Disk   -> (module struct
+        let root = None
+        module Store = Git_fs
+        let bare = false
+        let disk = true
+      end) in
+  let module M = IrminGit.Make(Config) in
+  Irmin.cast (module M.Make(K)(C)(R))
 
 let store_of_string str =
   let open Core_kernel.Std in
@@ -371,11 +379,11 @@ let rm = {
 }
 
 let convert_dump
-    (type a) (type b) (module L: Irmin.S with type Internal.key = a and type value = b)
-    (type c) (type d) (module R: Irmin.S with type Internal.key = c and type value = d)
-    (dump: R.dump): L.dump =
-  let key k = L.Internal.Key.of_string (R.Internal.Key.to_string k) in
-  let value v = L.Internal.Value.of_string (R.Internal.Value.to_string v) in
+    (type a) (type b) (module L: Irmin.S with type Block.key = a and type value = b)
+    (type c) (type d) (module R: Irmin.S with type Block.key = c and type value = d)
+    (dump: R.Dump.t): L.Dump.t =
+  let key k = L.Block.Key.of_string (R.Block.Key.to_string k) in
+  let value v = L.Block.Value.of_string (R.Block.Value.to_string v) in
   let head = match dump.IrminDump.head with
     | None   -> None
     | Some k -> Some (key k) in
@@ -392,34 +400,34 @@ let clone = {
       !init_hook ();
       let (module R) = store_of_string_exn repository in
       run begin
-        L.create ()         >>= fun local  ->
-        R.create ()         >>= fun remote ->
-        R.snapshot remote   >>= fun tag    ->
-        R.export remote []  >>= fun dump   ->
+        L.create ()              >>= fun local  ->
+        R.create ()              >>= fun remote ->
+        R.Dump.create remote []  >>= fun dump   ->
         print "Cloning %d bytes" (R.Dump.bin_size_t dump);
         let dump = convert_dump (module L) (module R) dump in
-        L.import local L.Reference.Key.master dump
+        L.Dump.update local dump
       end
     in
     Term.(mk clone $ store $ repository);
 }
 
-let op_repo op (module L: Irmin.S) (module R: Irmin.S) branch =
-  L.create ()         >>= fun local  ->
-  R.create ()         >>= fun remote ->
-  L.snapshot local    >>= fun l      ->
-  let l = R.Internal.Key.of_string (L.Internal.Key.to_string l) in
-  R.snapshot remote   >>= fun r      ->
-  let r = L.Internal.Key.of_string (R.Internal.Key.to_string l) in
-  R.export remote [l] >>= fun dump   ->
+let op_repo op (module L: Irmin.S) (module R: Irmin.S) =
+  L.create ()              >>= fun local  ->
+  R.create ()              >>= fun remote ->
+  L.Snapshot.create local  >>= fun l ->
+  let l =
+    L.Snapshot.to_state l
+    |> L.Snapshot.to_string
+    |> R.Snapshot.of_string in
+  R.Dump.create remote [l] >>= fun dump   ->
   print "%sing %d bytes" op (R.Dump.bin_size_t dump);
   let dump = convert_dump (module L) (module R) dump in
-  let branch = L.Reference.Key.of_string "import" in
-  L.import local branch dump >>= fun () ->
-  return (L.Internal.Key.to_string r)
+  let branch = L.Branch.of_string "refs/FETCH_HEAD" in
+  L.create ~branch ()      >>= fun t ->
+  L.Dump.update t dump     >>= fun () ->
+  return (L.Branch.to_string branch)
 
-let fetch_repo local remote branch =
-  op_repo "Fetch" local remote branch
+let fetch_repo = op_repo "Fetch"
 
 (* FETCH *)
 let fetch = {
@@ -427,11 +435,10 @@ let fetch = {
   doc  = "Download objects and refs from another repository.";
   man  = [];
   term =
-    let fetch (module L: Irmin.S) repository =
+    let fetch local repository =
       let remote = store_of_string_exn repository in
       run begin
-        let branch = L.Reference.Key.of_string "FETCH_HEAD" in
-        fetch_repo (module L) remote branch >>= fun _ ->
+        fetch_repo local remote >>= fun _ ->
         return_unit
       end
     in
@@ -447,16 +454,12 @@ let pull = {
     let pull (module L: Irmin.S) repository =
       let remote = store_of_string_exn repository in
       run begin
-        let branch = L.Reference.Key.of_string "FETCH_HEAD" in
-        fetch_repo (module L) remote branch >>= fun r ->
-        let r = L.Internal.Key.of_string r in
-        L.create () >>= fun t ->
-        (* XXX: implement merge
-           L.Reference.(read_exn (L.reference l) Key.master) >>= fun l ->
-           match S.merge t r l with
-          | None   -> failwith "Conflict!"
-          | Some m -> *)
-        L.Reference.(update (L.reference t) Key.master r)
+        fetch_repo (module L) remote >>= fun branch ->
+        let branch = L.Branch.of_string branch in
+        L.create ()                  >>= fun t ->
+        L.merge t branch             >>= function
+        | `Ok _         -> return_unit
+        | `Conflict msg -> eprintf "Conflict: %s\n" msg; exit 0
       end
     in
     Term.(mk pull $ store $ repository);
@@ -472,10 +475,10 @@ let push = {
   term =
     let push local repository =
       let (module R) = store_of_string_exn repository in
-      let name = R.Reference.Key.to_string R.Reference.Key.master in
       run begin
-        push_repo (module R) local name >>= fun _ ->
-        return_unit
+        push_repo (module R) local          >>= fun branch ->
+        R.create ~branch:R.Branch.master () >>= fun t ->
+        R.switch t (R.Branch.of_string branch)
       end
     in
     Term.(mk push $ store $ repository);
@@ -489,9 +492,9 @@ let snapshot = {
   term =
     let snapshot (module S: Irmin.S) =
       run begin
-        S.create ()  >>= fun t ->
-        S.snapshot t >>= fun k ->
-        print "%s" (S.Snapshot.to_string k);
+        S.create ()         >>= fun t ->
+        S.Snapshot.create t >>= fun k ->
+        print "%s" S.Snapshot.(to_string @@ to_state k);
         return_unit
       end
     in
@@ -504,17 +507,17 @@ let revert = {
   doc  = "Revert the contents of the store to a previous state.";
   man  = [];
   term =
-    let revision =
-      let doc = Arg.info ~docv:"REVISION" ~doc:"The revision to revert to." [] in
+    let snapshot =
+      let doc = Arg.info ~docv:"SNAPSHOT" ~doc:"The snapshot to revert to." [] in
       Arg.(required & pos 0 (some string) None & doc) in
-    let revert (module S: Irmin.S) revision =
-      let revision = S.Internal.Key.of_string revision in
+    let revert (module S: Irmin.S) snapshot =
       run begin
         S.create () >>= fun t ->
-        S.revert t revision
+        let s = S.Snapshot.(of_state t @@ S.Snapshot.of_string snapshot) in
+        S.Snapshot.revert t s
       end
     in
-    Term.(mk revert $ store $ revision)
+    Term.(mk revert $ store $ snapshot)
 }
 (* WATCH *)
 let watch = {
@@ -529,9 +532,9 @@ let watch = {
     let watch (module S: Irmin.S) path =
       run begin
         S.create () >>= fun t ->
-        let stream = S.watch t path in
-        Lwt_stream.iter_s (fun (path, rev) ->
-            print "%s %s" (IrminPath.to_string path) (S.Snapshot.to_string rev);
+        let stream = S.Snapshot.watch t path in
+        Lwt_stream.iter_s (fun (path, s) ->
+            print "%s %s" (IrminPath.to_string path) S.Snapshot.(to_string @@ to_state s);
             return_unit
           ) stream
       end
@@ -552,7 +555,7 @@ let dump = {
     let dump (module S: Irmin.S) basename =
       run begin
         S.create () >>= fun t ->
-        S.output t basename
+        S.Dump.output t basename
       end
     in
     Term.(mk dump $ store $ basename);

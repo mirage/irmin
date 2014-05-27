@@ -39,8 +39,8 @@ module Make (S: Irmin.S) = struct
     v2: B.t;
     kv1: K.t Lwt.t Lazy.t;
     kv2: K.t Lwt.t Lazy.t;
-    r1: R.t;
-    r2: R.t;
+    r1: T.t;
+    r2: T.t;
   }
 
   let random_value ~kind ~value =
@@ -74,10 +74,10 @@ module Make (S: Irmin.S) = struct
     let v2 = match k with
       | `String -> B.of_string ""
       | `JSON   -> B.of_string (Ezjsonm.to_string (`A[])) in
-    let kv1 = lazy (S.Internal.add (S.internal t) (IrminValue.Contents v1)) in
-    let kv2 = lazy (S.Internal.add (S.internal t) (IrminValue.Contents v2)) in
-    let r1 = R.of_string "refs/foo" in
-    let r2 = R.of_string "refs/bar" in
+    let kv1 = lazy (Block.add (block_t t) (IrminBlock.Contents v1)) in
+    let kv2 = lazy (Block.add (block_t t) (IrminBlock.Contents v2)) in
+    let r1 = T.of_string "refs/foo" in
+    let r2 = T.of_string "refs/bar" in
     return { v1; v2; kv1; kv2; r1; r2 }
 
   let test_contents x () =
@@ -88,7 +88,7 @@ module Make (S: Irmin.S) = struct
       Lazy.force kv1 >>= fun kv1 ->
       Lazy.force kv2 >>= fun kv2 ->
 
-      let v = contents t in
+      let v = contents_t t in
       Contents.add v v1                >>= fun k1'  ->
       assert_key_equal "kv1" kv1 k1';
       Contents.add v v1                >>= fun k1'' ->
@@ -109,7 +109,7 @@ module Make (S: Irmin.S) = struct
     let test () =
       create () >>= fun t          ->
       mk x.kind t >>= function { v1; v2 } ->
-      let node = node t in
+      let node = node_t t in
 
       (* Create a node containing t1(v1) *)
       Node.node node ~contents:v1 () >>= fun (k1 , _) ->
@@ -174,8 +174,8 @@ module Make (S: Irmin.S) = struct
       create () >>= fun t      ->
       mk x.kind t >>= function { v1 } ->
 
-      let node = node t in
-      let commit = commit t in
+      let node = node_t t in
+      let commit = commit_t t in
       let origin = IrminOrigin.create ~date:0L ~id:"test" "Test commit!" in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
@@ -210,7 +210,7 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-  let test_references x () =
+  let test_tags x () =
     let test () =
       create () >>= fun t                    ->
       mk x.kind t >>= function { kv1; kv2; r1; r2 } ->
@@ -218,23 +218,23 @@ module Make (S: Irmin.S) = struct
       Lazy.force kv1 >>= fun kv1 ->
       Lazy.force kv2 >>= fun kv2 ->
 
-      let reference = reference t in
-      Reference.update reference r1 kv1 >>= fun ()  ->
-      Reference.read   reference r1     >>= fun k1' ->
+      let tag = tag_t t in
+      Tag.update tag r1 kv1 >>= fun ()  ->
+      Tag.read   tag r1     >>= fun k1' ->
       assert_key_opt_equal "r1" (Some kv1) k1';
-      Reference.update reference r2 kv2 >>= fun ()  ->
-      Reference.read   reference r2     >>= fun k2' ->
+      Tag.update tag r2 kv2 >>= fun ()  ->
+      Tag.read   tag r2     >>= fun k2' ->
       assert_key_opt_equal "r2" (Some kv2) k2';
-      Reference.update reference r1 kv2 >>= fun ()   ->
-      Reference.read   reference r1     >>= fun k2'' ->
+      Tag.update tag r1 kv2 >>= fun ()   ->
+      Tag.read   tag r1     >>= fun k2'' ->
       assert_key_opt_equal "r1-after-update" (Some kv2) k2'';
-      Reference.list reference [r1]     >>= fun ts ->
-      assert_references_equal "list" [r1; r2] ts;
-      Reference.remove reference r1     >>= fun () ->
-      Reference.read   reference r1     >>= fun empty ->
+      Tag.list tag [r1]     >>= fun ts ->
+      assert_tags_equal "list" [r1; r2] ts;
+      Tag.remove tag r1     >>= fun () ->
+      Tag.read   tag r1     >>= fun empty ->
       assert_key_opt_equal "empty" None empty;
-      Reference.list reference [r1]     >>= fun r2' ->
-      assert_references_equal "all-after-remove" [r2] r2';
+      Tag.list tag [r1]     >>= fun r2' ->
+      assert_tags_equal "all-after-remove" [r2] r2';
       return_unit
     in
     run x test
@@ -249,15 +249,15 @@ module Make (S: Irmin.S) = struct
 
       (* merge contents *)
 
-      let v = contents t in
+      let v = contents_t t in
       IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv1 >>= fun kv1'  ->
-      assert_key_result_equal "merge kv1" (IrminMerge.Ok kv1) kv1';
+      assert_key_result_equal "merge kv1" (`Ok kv1) kv1';
       IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv2 >>= fun kv2'  ->
-      assert_key_result_equal "merge kv2" (IrminMerge.Ok kv2) kv2';
+      assert_key_result_equal "merge kv2" (`Ok kv2) kv2';
 
       (* merge nodes *)
 
-      let node = node t in
+      let node = node_t t in
       (* The empty node *)
       Node.node node ()                 >>= fun (k0, t0) ->
       (* Create a node containing t1(v1) *)
@@ -271,8 +271,8 @@ module Make (S: Irmin.S) = struct
                              \c/  *)
 
       IrminMerge.merge (Node.merge node) ~old:k0 k2 k3 >>= fun k4 ->
-      IrminMerge.exn (fun s -> Failure s) k4           >>= fun k4 ->
-      Node.read_exn node k4 >>= fun t4 ->
+      IrminMerge.exn  k4                               >>= fun k4 ->
+      Node.read_exn node k4                            >>= fun t4 ->
       let succ = Map.to_alist (Node.succ node t4) in
       Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
       >>= fun succ ->
@@ -280,7 +280,7 @@ module Make (S: Irmin.S) = struct
 
       (* merge commits *)
 
-      let commit = commit t in
+      let commit = commit_t t in
       let origin date =
         IrminOrigin.create ~date:(Int64.of_int date) ~id:"test" "Test commit" in
       Commit.commit commit (origin 0) ~node:t0 ~parents:[] >>= fun (kr0, r0) ->
@@ -290,7 +290,7 @@ module Make (S: Irmin.S) = struct
       >>= fun (kr2, r2) ->
       IrminMerge.merge (Commit.merge commit (origin 3)) ~old:kr0 kr1 kr2
       >>= fun kr3 ->
-      IrminMerge.exn (fun k -> Failure k) kr3 >>= fun kr3 ->
+      IrminMerge.exn kr3         >>= fun kr3 ->
       Commit.read_exn commit kr3 >>= fun r3 ->
       Commit.commit commit (origin 3) ~node:t4 ~parents:[r1; r2]
       >>= fun (kr3', r3') ->
@@ -313,7 +313,7 @@ module Make (S: Irmin.S) = struct
       assert_bool_equal "mem2" false b2;
       read_exn t ["a";"b"]  >>= fun v1' ->
       assert_contents_equal "v1.1" v1 v1';
-      snapshot t            >>= fun r1  ->
+      Snapshot.create t     >>= fun r1  ->
 
       update t ["a";"c"] v2 >>= fun ()  ->
       mem t ["a";"b"]       >>= fun b1  ->
@@ -330,7 +330,7 @@ module Make (S: Irmin.S) = struct
       remove t ["a";"b"]    >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
       assert_contents_opt_equal "v1.2" None v1'';
-      revert t r1           >>= fun ()  ->
+      Snapshot.revert t r1  >>= fun ()  ->
       read t ["a";"b"]      >>= fun v1''->
       assert_contents_opt_equal "v1.3" (Some v1) v1'';
       list t [["a"]]        >>= fun ks  ->
@@ -364,8 +364,8 @@ module Make (S: Irmin.S) = struct
       View.update v0 ["foo";"2"] foo2 >>= fun () ->
       check_view v0 >>= fun () ->
 
-      update_view t ["b"] v0 >>= fun () ->
-      update_view t ["a"] v0 >>= fun () ->
+      View.update_path t ["b"] v0 >>= fun () ->
+      View.update_path t ["a"] v0 >>= fun () ->
 
       list t [["b";"foo"]] >>= fun ls ->
       assert_paths_equal "path2" [ ["b";"foo";"1"]; ["b";"foo";"2"] ] ls;
@@ -374,12 +374,12 @@ module Make (S: Irmin.S) = struct
       read t ["a";"foo";"2"] >>= fun foo2' ->
       assert_contents_opt_equal "foo2" (Some foo2) foo2';
 
-      read_view t ["b"]  >>= fun v1 ->
-      check_view v1 >>= fun () ->
+      View.of_path t ["b"] >>= fun v1 ->
+      check_view v1        >>= fun () ->
 
-      update      t    ["b";"x"] foo1 >>= fun () ->
-      View.update v1   ["y"]     foo2 >>= fun () ->
-      merge_view_exn t ["b"] v1       >>= fun () ->
+      update t ["b";"x"] foo1        >>= fun () ->
+      View.update v1 ["y"] foo2      >>= fun () ->
+      View.merge_path_exn t ["b"] v1 >>= fun () ->
       read t ["b";"x"] >>= fun foo1' ->
       read t ["b";"y"] >>= fun foo2' ->
       assert_contents_opt_equal "merge: b/x" (Some foo1) foo1';
@@ -403,23 +403,23 @@ module Make (S: Irmin.S) = struct
       mk x.kind t1 >>= function { v1; v2 } ->
 
       update t1 ["a";"b"] v1 >>= fun () ->
-      snapshot t1            >>= fun r1 ->
+      Snapshot.create t1     >>= fun r1 ->
       update t1 ["a";"c"] v2 >>= fun () ->
-      snapshot t1            >>= fun r2 ->
+      Snapshot.create t1     >>= fun r2 ->
       update t1 ["a";"d"] v1 >>= fun () ->
-      snapshot t1            >>= fun r3 ->
+      Snapshot.create t1     >>= fun r3 ->
 
-      export t1 [r3]         >>= fun partial ->
-      export t1 []           >>= fun full    ->
+      Dump.create t1 [Snapshot.to_state r3] >>= fun partial ->
+      Dump.create t1 []                     >>= fun full    ->
 
       (* Restart a fresh store and import everything in there. *)
       x.clean ()             >>= fun () ->
       x.init ()              >>= fun () ->
-      create ()              >>= fun t2 ->
 
-      let branch = R.of_string "import" in
-      import t2 branch partial >>= fun () ->
-      revert t2 r3             >>= fun () ->
+      let branch = T.of_string "import" in
+      S.create ~branch ()    >>= fun t2 ->
+      Dump.update t2 partial >>= fun () ->
+      Snapshot.revert t2 r3  >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
@@ -434,12 +434,12 @@ module Make (S: Irmin.S) = struct
 
       catch
         (fun () ->
-           revert t2 r2      >>= fun () ->
+           Snapshot.revert t2 r2 >>= fun () ->
            OUnit.assert_bool "revert" false;
            return_unit)
         (fun e ->
-           import t2 branch full >>= fun () ->
-           revert t2 r2          >>= fun () ->
+           Dump.update t2 full   >>= fun () ->
+           Snapshot.revert t2 r2 >>= fun () ->
            mem t2 ["a";"d"]      >>= fun b4 ->
            assert_bool_equal "mem-ab" false b4;
            return_unit)
@@ -464,22 +464,22 @@ module Make (S: Irmin.S) = struct
       update t1 ["a";"b";"b"] v2 >>= fun () ->
       update t1 ["a";"b";"c"] v3 >>= fun () ->
 
-      let test = R.of_string "refs/heads/test" in
+      let test = T.of_string "refs/heads/test" in
 
-      branch t1 test >>= fun t2 ->
+      clone_force t1 test >>= fun t2 ->
 
       update t1 ["a";"b";"b"] v1 >>= fun () ->
       update t1 ["a";"b";"b"] v3 >>= fun () ->
 
       update t2 ["a";"b";"c"] v1 >>= fun () ->
 
-      output t1 "before"    >>= fun () ->
-      merge_exn t2 ~into:t1 >>= fun () ->
-      output t1 "after"     >>= fun () ->
+      Dump.output t1 "before"    >>= fun () ->
+      merge_exn t1 test          >>= fun () ->
+      Dump.output t1 "after"     >>= fun () ->
 
-      read_exn t1 ["a";"b";"c"] >>= fun v1'  ->
-      read_exn t2 ["a";"b";"b"] >>= fun v2'  ->
-      read_exn t1 ["a";"b";"b"] >>= fun v3' ->
+      read_exn t1 ["a";"b";"c"]  >>= fun v1' ->
+      read_exn t2 ["a";"b";"b"]  >>= fun v2' ->
+      read_exn t1 ["a";"b";"b"]  >>= fun v3' ->
 
       assert_contents_equal "v1" v1 v1;
       assert_contents_equal "v2" v2 v2';
@@ -499,7 +499,7 @@ let suite (speed, x) =
     "Basic operations on contents"    , speed, T.test_contents   x;
     "Basic operations on nodes"       , speed, T.test_nodes      x;
     "Basic operations on commits"     , speed, T.test_commits    x;
-    "Basic operations on references"  , speed, T.test_references x;
+    "Basic operations on tags"        , speed, T.test_tags x;
     "Basic merge operations"          , speed, T.test_merges     x;
     "High-level operations in views"  , speed, T.test_views      x;
     "High-level store operations"     , speed, T.test_stores     x;

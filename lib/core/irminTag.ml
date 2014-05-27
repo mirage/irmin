@@ -14,47 +14,48 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Tags *)
+open Lwt
+open Core_kernel.Std
+
+module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
-
-  (** Signature for mutable references. *)
-
   include IrminKey.S
-
   val master: t
-  (** The master branch. *)
-
 end
 
-module String: S with type t = string
-(** Simple string references. *)
-
-(** {2 Store} *)
+module String = struct
+  include String
+  let to_bytes r = r
+  let of_bytes b = Bigstring.to_string b
+  let of_bytes' r = r
+  let of_raw s = s
+  let to_raw s = s
+  let master = "refs/heads/master"
+  let of_json j = IrminPath.to_string (IrminPath.of_json j)
+  let to_json s = IrminPath.to_json (IrminPath.of_string s)
+end
 
 module type STORE = sig
-
-(** The *reference store* is a key/value store, where keys are names
-    created by users (and/or global names created by convention) and
-    values are keys from the low-level data-store.
-
-    A typical Irminsule application should have a very low number of
-    keys, are this store is not supposed to be really efficient.  *)
   include IrminStore.RW
-
   module Key: S with type t = key
-  (** Base functions over keys. *)
-
   module Value: IrminKey.S with type t = value
-  (** Base functions over values. *)
-
 end
 
 module Make
     (K: S)
     (V: IrminKey.S)
     (S: IrminStore.RW with type key = K.t and type value = V.t)
-  : STORE with type t = S.t
-           and type key = K.t
-           and type value = V.t
-(** Build a reference store. *)
+= struct
+
+  module Key = K
+
+  module Value = V
+
+  include S
+
+  let list t _ =
+    dump t >>= fun l ->
+    return (List.map ~f:fst l)
+
+end

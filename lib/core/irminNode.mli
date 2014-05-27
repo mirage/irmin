@@ -15,7 +15,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Node-like structures of values. *)
+(** Nodes represent structured values serialized in the block
+    store. *)
+
+(** The blocks form a labeled directed acyclic graph (DAG). For
+    instance, using the following API it is possible to go from one
+    node to another following a path in the graph. Every node of the
+    graph might carry some optional contents. *)
 
 open Core_kernel.Std
 
@@ -23,7 +29,8 @@ type 'key t = {
   contents: 'key option;
   succ    : 'key String.Map.t;
 } with bin_io, compare, sexp
-(** Type of nodes .*)
+(** Node values. They might contain a pointer to an optional contents,
+    and pointers to its successors.*)
 
 val equal: ('key -> 'key -> bool) -> 'key t -> 'key t -> bool
 (** Compare two nodes. *)
@@ -32,10 +39,7 @@ val contents_exn: 'key t -> 'key
 (** Get the contents key, raise [Not_found] if None. *)
 
 val edges: 'a t -> ('a, 'b) IrminGraph.vertex list
-(** The graph edges. *)
-
-val of_json: (Ezjsonm.t -> 'a) -> Ezjsonm.t -> 'a t
-val to_json: ('a -> Ezjsonm.t) -> 'a t -> Ezjsonm.t
+(** Return the list of successor vertices. *)
 
 val empty: 'key t
 (** The empty node. *)
@@ -62,28 +66,24 @@ module type S = sig
 
 end
 
-module S (K: IrminKey.S): S with type key = K.t
-(** Base functions for nodes. *)
-
-module SHA1: S with type key = IrminKey.SHA1.t
-(** Simple node implementation, where keys are SHA1s. *)
-
 module type STORE = sig
 
-  (** Node stores. *)
+  (** The node store encodes a labeled DAG where every node might hold
+      some contents. *)
 
   type key
-  (** Foreign keys. *)
+  (** Database keys. *)
+
+  type value = key t
+  (** Node values. *)
+
+  include IrminStore.AO with type key := key and type value := value
 
   type contents
   (** Node contents. *)
 
-  type value = key t
-  (** Type of values. *)
-
-  include IrminStore.AO with type key := key
-                         and type value := value
-  (** Node stores are append-only. *)
+  type path = IrminPath.t
+  (** Paths to go from one node to an other. *)
 
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
     unit -> (key * value) Lwt.t
@@ -95,29 +95,29 @@ module type STORE = sig
   val succ: t -> value -> value Lwt.t String.Map.t
   (** Return the node successors. *)
 
-  val sub: t -> value -> IrminPath.t -> value option Lwt.t
+  val sub: t -> value -> path -> value option Lwt.t
   (** Find a subvalue. *)
 
-  val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
+  val sub_exn: t -> value -> path -> value Lwt.t
   (** Find a subvalue. Raise [Not_found] if it does not exist. *)
 
-  val map: t -> value -> IrminPath.t -> (value -> value) -> value Lwt.t
+  val map: t -> value -> path -> (value -> value) -> value Lwt.t
   (** Modify a subtree. *)
 
-  val update: t -> value -> IrminPath.t -> contents -> value Lwt.t
-  (** Add a value by recusively saving subvalues and subvalues into the
+  val update: t -> value -> path -> contents -> value Lwt.t
+  (** Add a value by recusively saving subvalues into the
       corresponding stores. *)
 
-  val find: t -> value -> IrminPath.t -> contents option Lwt.t
+  val find: t -> value -> path -> contents option Lwt.t
   (** Find a value. *)
 
-  val find_exn: t -> value -> IrminPath.t -> contents Lwt.t
+  val find_exn: t -> value -> path -> contents Lwt.t
   (** Find a value. Raise [Not_found] is [path] is not defined. *)
 
-  val remove: t -> value -> IrminPath.t -> value Lwt.t
+  val remove: t -> value -> path -> value Lwt.t
   (** Remove a value. *)
 
-  val valid: t -> value -> IrminPath.t -> bool Lwt.t
+  val valid: t -> value -> path -> bool Lwt.t
   (** Is a path valid. *)
 
   val merge: t -> key IrminMerge.t
@@ -131,6 +131,12 @@ module type STORE = sig
 
 end
 
+module S (K: IrminKey.S): S with type key = K.t
+(** Base functions for nodes. *)
+
+module SHA1: S with type key = IrminKey.SHA1.t
+(** Simple node implementation, where keys are SHA1s. *)
+
 module Make
     (K: IrminKey.S)
     (C: IrminContents.S)
@@ -139,4 +145,5 @@ module Make
   : STORE with type t = Contents.t * Node.t
            and type key = K.t
            and type contents = C.t
+           and type path = IrminPath.t
 (** Create a node store from an append-only database. *)

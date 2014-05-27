@@ -70,36 +70,36 @@ exception Invalid
 
 module Server (S: Irmin.S) = struct
 
-  module K = S.Internal.Key
+  module K = S.Block.Key
   let key = {
     input  = K.of_json;
     output = K.to_json;
   }
 
-  module Contents = S.Internal.Contents
+  module Contents = S.Block.Contents
   module B = Contents.Value
   let contents = {
     input  = B.of_json;
     output = B.to_json;
   }
 
-  module Node = S.Internal.Node
+  module Node = S.Block.Node
   module T = Node.Value
   let node = {
     input  = T.of_json;
     output = T.to_json;
   }
 
-  module Commit = S.Internal.Commit
+  module Commit = S.Block.Commit
   module C = Commit.Value
   let commit = {
     input  = C.of_json;
     output = C.to_json;
   }
 
-  module Reference = S.Reference
-  module R = Reference.Key
-  let reference = {
+  module Tag = S.Tag
+  module R = Tag.Key
+  let tag = {
     input  = R.of_json;
     output = R.to_json;
   }
@@ -168,10 +168,6 @@ module Server (S: Irmin.S) = struct
       try List.Assoc.find_exn l c
       with Not_found -> error ()
 
-  let bl t = S.Internal.contents (S.internal t)
-  let no t = S.Internal.node (S.internal t)
-  let co t = S.Internal.commit (S.internal t)
-  let re t = S.reference t
   let t x = x
 
   let mk0p name = function
@@ -279,37 +275,37 @@ module Server (S: Irmin.S) = struct
       )
 
   let contents_store = Node [
-      mk1p0bf "read" Contents.read bl key (some contents);
-      mk1p0bf "mem"  Contents.mem  bl key bool;
-      mklp0bf "list" Contents.list bl (list key) (list key);
-      mk0p1bf "add"  Contents.add  bl contents key;
-      mk0p0bf "dump" Contents.dump bl (mk_dump key contents);
+      mk1p0bf "read" Contents.read S.contents_t key (some contents);
+      mk1p0bf "mem"  Contents.mem  S.contents_t key bool;
+      mklp0bf "list" Contents.list S.contents_t (list key) (list key);
+      mk0p1bf "add"  Contents.add  S.contents_t contents key;
+      mk0p0bf "dump" Contents.dump S.contents_t (mk_dump key contents);
   ]
 
   let node_store = Node [
-      mk1p0bf "read" Node.read no key (some node);
-      mk1p0bf "mem"  Node.mem  no key bool;
-      mklp0bf "list" Node.list no (list key) (list key);
-      mk0p1bf "add"  Node.add  no node key;
-      mk0p0bf "dump" Node.dump no (mk_dump key node);
+      mk1p0bf "read" Node.read S.node_t key (some node);
+      mk1p0bf "mem"  Node.mem  S.node_t key bool;
+      mklp0bf "list" Node.list S.node_t (list key) (list key);
+      mk0p1bf "add"  Node.add  S.node_t node key;
+      mk0p0bf "dump" Node.dump S.node_t (mk_dump key node);
   ]
 
   let commit_store = Node [
-      mk1p0bf "read" Commit.read co key (some commit);
-      mk1p0bf "mem"  Commit.mem  co key bool;
-      mklp0bf "list" Commit.list co (list key) (list key);
-      mk0p1bf "add"  Commit.add  co commit key;
-      mk0p0bf "dump" Commit.dump co (mk_dump key commit);
+      mk1p0bf "read" Commit.read S.commit_t key (some commit);
+      mk1p0bf "mem"  Commit.mem  S.commit_t key bool;
+      mklp0bf "list" Commit.list S.commit_t (list key) (list key);
+      mk0p1bf "add"  Commit.add  S.commit_t commit key;
+      mk0p0bf "dump" Commit.dump S.commit_t (mk_dump key commit);
   ]
 
-  let reference_store = Node [
-      mklp0bf "read"   Reference.read   re reference (some key);
-      mklp0bf "mem"    Reference.mem    re reference bool;
-      mklp0bf "list"   Reference.list   re (list reference) (list reference);
-      mklp1bf "update" Reference.update re reference key unit;
-      mklp0bf "remove" Reference.remove re reference unit;
-      mk0p0bf "dump"   Reference.dump   re (mk_dump reference key);
-      mklp0bs "watch"  Reference.watch  re reference key;
+  let tag_store = Node [
+      mklp0bf "read"   Tag.read   S.tag_t tag (some key);
+      mklp0bf "mem"    Tag.mem    S.tag_t tag bool;
+      mklp0bf "list"   Tag.list   S.tag_t (list tag) (list tag);
+      mklp1bf "update" Tag.update S.tag_t tag key unit;
+      mklp0bf "remove" Tag.remove S.tag_t tag unit;
+      mk0p0bf "dump"   Tag.dump   S.tag_t (mk_dump tag key);
+      mklp0bs "watch"  Tag.watch  S.tag_t tag key;
   ]
 
   let store =
@@ -322,15 +318,11 @@ module Server (S: Irmin.S) = struct
       mklp2bf "update"   s_update   t path (some origin) contents unit;
       mklp1bf "remove"   s_remove   t path (some origin) unit;
       mk0p0bf "dump"     S.dump     t (mk_dump path contents);
-      mk0p0bf "snapshot" S.snapshot t key;
-      mk1p0bf "revert"   S.revert   t key unit;
-      mklp0bf "export"   S.export   t (list key) dump;
-      mk1p1bf "import"   S.import   t reference dump unit;
-      mklp0bs "watch"    S.watch    t path (pair path key);
-      "contents"  , contents_store;
-      "node"  , node_store;
-      "commit", commit_store;
-      "ref"   , reference_store;
+      mklp0bs "watch"    S.watch    t path contents;
+      "contents", contents_store;
+      "node"    , node_store;
+      "commit"  , commit_store;
+      "tag"     , tag_store;
   ]
 
   let process t req body path =

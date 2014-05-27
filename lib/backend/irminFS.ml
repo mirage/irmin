@@ -150,50 +150,14 @@ let write_bigstring fd ba =
     else return () in
   rwrite fd ba 0 (Bigarray.Array1.dim ba)
 
-module type S = sig
+module type Config' = sig
   val path: string
   val file_of_key: string -> string
   val key_of_file: string -> string
 end
 
-module type S0 = sig
-  val path: string
-end
 
-module OBJECTS (S: S0) (K: IrminKey.S) = struct
-
-    let path = S.path / "objects"
-
-    let file_of_key k =
-      let key = K.to_string (K.of_raw k) in
-      let len = String.length key in
-      let pre = String.sub key 0 2 in
-      let suf = String.sub key 2 (len - 2) in
-      path / pre / suf
-
-    let key_of_file path =
-      Log.debugf "key_of_file %s" path;
-      let path = IrminPath.of_string path in
-      let path = String.concat ~sep:"" path in
-      K.to_raw (K.of_string path)
-
-  end
-
-module REFS (S: S0) = struct
-
-  let path = S.path / "refs"
-
-  let file_of_key key =
-    path / key
-
-  let key_of_file file =
-    Log.debugf "key_of_file %s" file;
-    file
-
-end
-
-
-module RO (S: S) (K: IrminKey.S) = struct
+module RO (S: Config') (K: IrminKey.S) = struct
 
   type key = string
 
@@ -259,7 +223,7 @@ module RO (S: S) (K: IrminKey.S) = struct
 
 end
 
-module AO (S: S) (K: IrminKey.S) = struct
+module AO (S: Config') (K: IrminKey.S) = struct
 
   include RO(S)(K)
 
@@ -279,7 +243,7 @@ module AO (S: S) (K: IrminKey.S) = struct
 
 end
 
-module RW (S: S) (K: IrminKey.S) = struct
+module RW (S: Config') (K: IrminKey.S) = struct
 
   include RO(S)(K)
 
@@ -330,27 +294,56 @@ module type Config = sig
   val path: string
 end
 
-module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (R: IrminReference.S) =
-struct
+module REFS (S: Config) = struct
 
-  let create path =
-    let module X = struct let path = path end in
-    let module Obj = OBJECTS(X)(K) in
-    let module Ref = REFS(X) in
-    let module M = Irmin.Binary(K)(C)(R)(AO(Obj)(K))(RW(Ref)(R)) in
-    (module M: Irmin.S with type Internal.key = K.t
-                        and type value = C.t
-                        and type Reference.key = R.t)
+  let path = S.path / "refs"
 
-  let cast (module M: Irmin.S with type Internal.key = K.t
-                               and type value = C.t
-                               and type Reference.key = R.t) =
+  let file_of_key key =
+    path / key
 
-    (module M: Irmin.S)
+  let key_of_file file =
+    Log.debugf "key_of_file %s" file;
+    file
 
+end
+
+module OBJECTS (S: Config) (K: IrminKey.S) = struct
+
+  let path = S.path / "objects"
+
+  let file_of_key k =
+    let key = K.to_string (K.of_raw k) in
+    let len = String.length key in
+    let pre = String.sub key 0 2 in
+    let suf = String.sub key 2 (len - 2) in
+    path / pre / suf
+
+  let key_of_file path =
+    Log.debugf "key_of_file %s" path;
+    let path = IrminPath.of_string path in
+    let path = String.concat ~sep:"" path in
+    K.to_raw (K.of_string path)
+
+end
+
+module Make (X: Config) = struct
+  module Y = OBJECTS(X)
+  module Z = REFS(X)
+  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
+    include Irmin.Binary(AO(Y(K))(K))(RW(Z)(T))(K)(C)(T)
+  end
+  module RO(K: IrminKey.S) = Irmin.RO_BINARY(RO(Y(K))(K))(K)
+  module AO(K: IrminKey.S) = Irmin.AO_BINARY(AO(Y(K))(K))(K)
+  module RW(K: IrminKey.S) = Irmin.RW_BINARY(RW(Z)(K))(K)
+end
+
+module Make' (X: Config') = struct
+  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
+    include Irmin.Binary(AO(X)(K))(RW(X)(T))(K)(C)(T)
+  end
+  module RO(K: IrminKey.S) = Irmin.RO_BINARY(RO(X)(K))(K)
+  module AO(K: IrminKey.S) = Irmin.AO_BINARY(AO(X)(K))(K)
+  module RW(K: IrminKey.S) = Irmin.RW_BINARY(RW(X)(K))(K)
 end
 
 let install_dir_polling_listener delay =

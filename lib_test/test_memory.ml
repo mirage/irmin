@@ -18,12 +18,12 @@ open Lwt
 open Test_common
 
 let suite k =
-  let (module K), (module C), (module R) = modules k in
-  let module M = IrminMemory.Make(K)(C)(R) in
+  let (module K), (module C), (module T) = modules k in
+  let module M = IrminMemory.Make(K)(C)(T) in
   {
     name  = "MEM" ^ string_of_kind k;
     kind  = k;
     init  = unit;
     clean = unit;
-    store = M.(cast (create ()));
+    store = Irmin.cast (module M);
   }

@@ -16,23 +16,15 @@
 
 open Core_kernel.Std
 
-type t = {
-  date: int64;
-  id  : string;
-  msg : string;
-} with bin_io, compare, sexp
+module M = struct
+  type t = {
+    date: int64;
+    id  : string;
+    msg : string;
+  } with bin_io, compare, sexp
+end
 
-let to_json t =
-  `O [ "date", Ezjsonm.string (Int64.to_string t.date) ;
-       "id"  , IrminMisc.json_encode t.id;
-       "msg" , IrminMisc.json_encode t.msg; ]
-
-let of_json j =
-  let date = Ezjsonm.find j ["date"] |> Ezjsonm.get_string |> Int64.of_string in
-  let id   = Ezjsonm.find j ["id"]   |> Ezjsonm.get_string in
-  let msg  = Ezjsonm.find j ["msg"]  |> IrminMisc.json_decode_exn in
-  { date; id; msg }
-
+include IrminIdent.Make(M)
 
 let date_hook =
   let c = ref 0L in
@@ -48,6 +40,8 @@ let id_hook =
 let set_id f =
   id_hook := f
 
+open M
+
 let create ?date ? id fmt =
   let date = match date with
     | None   -> !date_hook ()
@@ -56,7 +50,7 @@ let create ?date ? id fmt =
     | None   -> !id_hook ()
     | Some i -> i in
   ksprintf (fun msg ->
-      { date; id; msg }
+      { M.date; id; msg }
     ) fmt
 
 let date t = t.date

@@ -64,31 +64,30 @@ module Make (S: Irmin.S) = struct
     aux (cmp_opt equal) (printer_opt pretty),
     aux (cmp_list equal compare) (printer_list pretty)
 
-  module K = Internal.Key
+  module K = Block.Key
   let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
     mk K.equal K.compare K.to_string
 
-  let assert_key_result_equal, assert_key_result_opt_equal, assert_key_results_equal =
-    mk
-      (IrminMerge.Result.equal K.equal)
-      (IrminMerge.Result.compare K.compare)
-      (IrminMerge.Result.to_string K.to_string)
+  module R = IrminMerge.Result(K)
 
-  module Contents = Internal.Contents
+  let assert_key_result_equal, assert_key_result_opt_equal, assert_key_results_equal =
+    mk R.equal R.compare R.to_string
+
+  module Contents = Block.Contents
   module B = Contents.Value
   let assert_contents_equal, assert_contents_opt_equal, assert_contentss_equal =
     mk B.equal B.compare B.to_string
 
-  module R = Reference.Key
-  let assert_reference_equal, assert_reference_opt_equal, assert_references_equal =
-    mk R.equal R.compare R.to_string
-
-  module Node = Internal.Node
-  module T = Node.Value
-  let assert_node_equal, assert_node_opt_equal, assert_nodes_equal =
+  module T = Tag.Key
+  let assert_tag_equal, assert_tag_opt_equal, assert_tags_equal =
     mk T.equal T.compare T.to_string
 
-  module Commit = Internal.Commit
+  module Node = Block.Node
+  module N = Node.Value
+  let assert_node_equal, assert_node_opt_equal, assert_nodes_equal =
+    mk N.equal N.compare N.to_string
+
+  module Commit = Block.Commit
   module C = Commit.Value
   let assert_commit_equal, assert_commit_opt_equal, assert_commits_equal =
     mk C.equal C.compare C.to_string
@@ -96,17 +95,13 @@ module Make (S: Irmin.S) = struct
   module P = IrminPath
   let assert_path_equal, assert_path_opt_equal, assert_paths_equal =
     mk P.equal P.compare P.to_string
-  module V = Internal.Value
+  module V = Block.Value
 
   let assert_bool_equal, assert_bool_opt_equal, assert_bools_equal =
     mk (=) compare string_of_bool
 
   let assert_string_equal, assert_string_opt_equal, assert_strings_equal =
     mk String.equal String.compare (fun x -> x)
-
-  let contents t = Internal.contents (internal t)
-  let node t = Internal.node (internal t)
-  let commit t = Internal.commit (internal t)
 
   let assert_succ_equal msg s1 s2 =
     let l1, k1 = List.unzip s1 in
@@ -118,10 +113,10 @@ end
 
 open Lwt
 
-let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminReference.S) =
+let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminTag.S) =
   match x with
-  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
-  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
+  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminTag.String)
+  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminTag.String)
 
 type t = {
   name : string;

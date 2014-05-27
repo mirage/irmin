@@ -17,15 +17,16 @@
 open Lwt
 open Core_kernel.Std
 
-module type Jsonable = sig
-  include Identifiable.S
-  val to_json: t -> Ezjsonm.t
-  val of_json: Ezjsonm.t -> t
+module type Config = sig
+
+  val uri: Uri.t
+  (** The server URI. *)
+
 end
 
 module XLog = Log
 
-module Make (Client: Cohttp_lwt.Client) = struct
+module XMake (Client: Cohttp_lwt.Client) = struct
 
   module Log = XLog.Make(struct let section = "CRUD" end)
 
@@ -99,11 +100,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
     Cohttp_lwt_unix.Client.post ~body (uri t path) >>=
     map_string_response fn
 
-  module type U = sig
-    val uri: Uri.t
-  end
-
-  module RO (U: U) (K: IrminKey.S) (V: Jsonable) = struct
+  module RO (U: Config) (K: IrminKey.S) (V: IrminIdent.S) = struct
 
     module Log = XLog.Make(struct let section = "CRUD" ^ Uri.path U.uri end)
 
@@ -144,7 +141,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module AO (U: U) (K: IrminKey.S) (V: Jsonable) = struct
+  module AO (U: Config) (K: IrminKey.S) (V: IrminIdent.S) = struct
 
     include RO(U)(K)(V)
 
@@ -154,7 +151,7 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module RW (U: U) (K: IrminKey.S) (V: Jsonable) = struct
+  module RW (U: Config) (K: IrminKey.S) (V: IrminIdent.S) = struct
 
     include RO(U)(K)(V)
 
@@ -172,102 +169,95 @@ module Make (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module S (U: U)
-      (K: IrminKey.S)
-      (V: Jsonable)
-      (S: IrminKey.S)
-      (B: IrminKey.S)
-      (D: Jsonable)
-  = struct
+(*
+  module BC (U: Config) (K: Key) (C: IrminContents.S) (T: IrminTag.S) = struct
 
-    include RW(U)(K)(V)
+    module RW = RW(U)(K)(C)
 
-    type snapshot = S.t
+    type t = Uri.t * T.t
 
-    type dump = D.t
+    type branch = T.t
 
-    type branch = B.t
+    let create ?branch t =
+      let branch = match branch with
+        | None   -> T.master
+        | Some b -> b in
+      U.uri, branch
 
-    let snapshot t =
-      Log.debugf "snapshot";
-      get t ["snapshot"] S.of_json
+    let branch (_, b) = b
 
-    let revert t rev =
-      Log.debugf "revert";
-      get t ["revert"; S.to_string rev] Ezjsonm.get_unit
+    let with_branch (t, _) b = (t, b)
 
-    let merge_snapshot t s1 s2 =
-      Log.debugf "merge_snapshot";
-      get t ["merge_snapshot"; S.to_string s1; S.to_string s2] S.of_json
+    let json_of_origin =
+      Ezjsonm.option IrminOrigin.to_json
 
-    let watch t path =
-      Log.debugf "watch";
-      get_stream t ["watch"; K.to_string path] (Ezjsonm.get_pair K.of_json S.of_json)
+    let update t ?origin key value =
+      Log.debugf "update %s" (K.to_string key);
+      post t ["update"; K.to_string key]
+        (Ezjson.pair json_of_origin V.to_json (origin, value))
+        Ezjsonm.get_unit
 
-    let export t revs =
-      Log.debugf "export %s" (IrminMisc.pretty_list S.to_string revs);
-      get t ("export" :: List.map ~f:S.to_string revs) D.of_json
+    let remove t ?origin key =
+      Log.debugf "remove %s" (K.to_string key);
+      post t ["remove"; K.to_string key] (json_of_origin origin) Ezjsonm.get_unit
 
-    let import t branch dump =
-      Log.debugf "dump";
-      post t ["import"; B.to_string branch] (D.to_json dump) Ezjsonm.get_unit
+    let clone t branch =
+      Log.debugf "clone %s" (T.to_string branch);
+      post t ["clone"; T.to_string branch ] >>= fun () ->
+      with_branch t branch
+
+    let force_clone t branch =
+      Log.debugf "force_clone %s" (T.to_string branch);
+      post t ["force-clone"; T.to_string branch ] >>= fun () ->
+      with_branch t branch
+
+    let merge t ?origin branch =
+      Log.debugf "merge";
+      post t ["merge"; T.to_string branch]
+        (json_of_origin origin) (result_of_json Ezjsonm.get_unit)
+
+    let merge_exn t ?origin branch =
+      Log.debugf "merge";
+      post t ["merge"; T.to_string branch]
+        (json_of_origin origin) Ezjsonm.get_unit
 
   end
+*)
 
-  module Make (K: IrminKey.S) (B: IrminContents.S) (R: IrminReference.S) = struct
+  module Make (U: Config) (K: IrminKey.S) (B: IrminContents.S) (T: IrminTag.S) = struct
 
     module N = IrminNode.S(K)
     module C = IrminCommit.S(K)
 
-    let create u =
-      let module Contents = AO(struct
-          let uri = uri u ["contents"]
-        end)(K)(B) in
-      let module Node = AO(struct
-          let uri = uri u ["node"]
-        end)(K)(N) in
-      let module Commit = AO(struct
-          let uri = uri u ["commit"]
-        end)(K)(C) in
-      let module Reference = RW(struct
-          let uri = uri u ["ref"]
-        end)(R)(K) in
-      let module Store = S(struct
-          let uri = u
-        end) in
-      let module Internal = IrminValue.Mux(K)(B)(Contents)(Node)(Commit) in
-      let module Reference = IrminReference.Make(R)(K)(Reference) in
-      let module S = Irmin.Make(K)(B)(R)(Internal)(Reference) in
-      (module S: Irmin.S with type Internal.key = K.t
-                          and type value = B.t
-                          and type Reference.key = R.t)
+    module XContents = AO(struct
+        let uri = uri U.uri ["contents"]
+      end)(K)(B)
 
-    let cast (module M: Irmin.S with type Internal.key = K.t
-                                 and type value = B.t
-                                 and type Reference.key = R.t) =
+    module XNode = AO(struct
+        let uri = uri U.uri ["node"]
+      end)(K)(N)
 
-      (module M: Irmin.S)
+    module XCommit = AO(struct
+        let uri = uri U.uri ["commit"]
+      end)(K)(C)
+
+    module XTag = RW(struct
+        let uri = uri U.uri ["tag"]
+      end)(T)(K)
+
+    module XXBlock = IrminBlock.Mux(K)(B)(XContents)(XNode)(XCommit)
+    module XXTag = IrminTag.Make(T)(K)(XTag)
+
+    include Irmin.Make(XXBlock)(XXTag)
 
   end
 
 end
 
-module type S = sig
-  module type U = sig
-    val uri: Uri.t
-  end
-  module RO (U: U) (K: IrminKey.S) (V: Jsonable):
-    IrminStore.RO with type key = K.t and type value = V.t
-  module AO (U: U) (K: IrminKey.S) (V: Jsonable):
-    IrminStore.AO with type key = K.t and type value = V.t
-  module RW (U: U) (K: IrminKey.S) (V: Jsonable):
-    IrminStore.RW with type key = K.t and type value = V.t
-  module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (R: IrminReference.S):
-  sig
-    val create: Uri.t ->  (K.t, C.t, R.t) Irmin.t
-    val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
-  end
+module Make (C: Cohttp_lwt.Client) (U: Config) = struct
+  module M = XMake(C)
+  module RO = M.RO(U)
+  module AO = M.AO(U)
+  module RW = M.RW(U)
+  module Make = M.Make(U)
 end

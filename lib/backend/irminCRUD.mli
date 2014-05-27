@@ -16,52 +16,13 @@
 
 (** JSON CRUD interface. *)
 
-open Core_kernel.Std
+module type Config = sig
 
-module type Jsonable = sig
-  include Identifiable.S
-  val to_json: t -> Ezjsonm.t
-  val of_json: Ezjsonm.t -> t
-end
-
-module type S = sig
-
-  (** Signature for CRUD interfaces. *)
-
-  module type U = sig
-
-    val uri: Uri.t
-    (** The server URI. *)
-
-  end
-
-  module RO (U: U) (K: IrminKey.S) (V: Jsonable):
-    IrminStore.RO with type key = K.t and type value = V.t
-  (** Build a read-only store using the given url. *)
-
-  module AO (U: U) (K: IrminKey.S) (V: Jsonable):
-    IrminStore.AO with type key = K.t and type value = V.t
-  (** Build an append-only store using the given url. *)
-
-  module RW (U: U) (K: IrminKey.S) (V: Jsonable):
-    IrminStore.RW with type key = K.t and type value = V.t
-  (** Build an a mutable store using the given url. *)
-
-  module Make
-      (K: IrminKey.S)
-      (C: IrminContents.S)
-      (R: IrminReference.S):
-  sig
-
-    val create: Uri.t -> (K.t, C.t, R.t) Irmin.t
-    (** Create a CRUD store. *)
-
-    val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
-
-  end
+  val uri: Uri.t
+  (** The server URI. *)
 
 end
 
-module Make (C: Cohttp_lwt.Client): S
+module Make (C: Cohttp_lwt.Client) (C: Config): Irmin.BACKEND
 (** Build a CRUD client using the given cohttp client
     implementation. *)

@@ -14,15 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Stores. *)
+(** Signatures. *)
 
 open Core_kernel.Std
 
-(** {2 Read-only store} *)
-
 module type RO = sig
 
-  (** Base types for read-only stores. *)
+  (** Read-only store. *)
 
   type t
   (** Type a store. *)
@@ -34,7 +32,9 @@ module type RO = sig
   (** Type of values. *)
 
   val create: unit -> t Lwt.t
-  (** Create a store handle. *)
+  (** Create a store handle. The operation can be used multiple times
+      as it is supposed to be very cheap (and usually
+      non-blocking). *)
 
   val read: t -> key -> value option Lwt.t
   (** Read a value from the store. *)
@@ -55,23 +55,12 @@ module type RO = sig
 
 end
 
-module type RO_BINARY = RO with type key = string
-                            and type value = Cstruct.buffer
-(** Read-only store which associate strings to big arrays. *)
-
-module type RO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  RO with type key = K.t
-      and type value = V.t
-(** Read-only store makers. *)
-
-module RO_MAKER (B: RO_BINARY): RO_MAKER
-(** Build typed read-only from a binary one. *)
-
-(** {2 Append-only Stores} *)
+module type RO_BINARY = RO with type key = string and type value = Bigstring.t
+(** Read-only store which associate strings to bigstrings. *)
 
 module type AO = sig
 
-  (** Base types for append-only stores. *)
+  (** {2 Append-only Stores} *)
 
   include RO
 
@@ -82,23 +71,12 @@ module type AO = sig
 
 end
 
-module type AO_BINARY = AO with type key = string
-                            and type value = Cstruct.buffer
+module type AO_BINARY = AO with type key = string and type value = Bigstring.t
 (** Append-only store which associate strings to big arrays. *)
-
-module type AO_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  AO with type key = K.t
-      and type value = V.t
-(** Append-only store makers. *)
-
-module AO_MAKER (B: AO_BINARY): AO_MAKER
-(** Build a typed append-only store from a binary one. *)
-
-(** {2 Mutable store} *)
 
 module type RW = sig
 
-  (** Signature for mutable (ie. read/write) stores. *)
+  (** Mutable store. *)
 
   include RO
 
@@ -114,69 +92,5 @@ module type RW = sig
 
 end
 
-module type RW_BINARY = RW with type key = string
-                            and type value = Cstruct.buffer
+module type RW_BINARY = RW with type key = string and type value = Bigstring.t
 (** read-write store which associate strings to big arrays. *)
-
-module type RW_MAKER = functor (K: IrminKey.S) -> functor (V: Identifiable.S) ->
-  RW with type key = K.t
-      and type value = V.t
-(** Mutable store makers. *)
-
-module RW_MAKER (B: RW_BINARY): RW_MAKER
-(** Build a typed read-write store from a binary one. *)
-
-(** {2 Irminsule Stores} *)
-
-module type S = sig
-
-  (** On an high-level view, Irminsule exposes the same interface as a
-      low-level mutable store, but you gain the commit, rollback and
-      notification mechanisms. *)
-
-  include RW
-
-  type snapshot
-  (** Abstract snapshot values. *)
-
-  val snapshot: t -> snapshot Lwt.t
-  (** Get a snapshot of the current store state. *)
-
-  val revert: t -> snapshot -> unit Lwt.t
-  (** Revert the store to a previous state. *)
-
-  val merge_snapshot: t -> snapshot -> snapshot -> snapshot IrminMerge.result Lwt.t
-  (** 3-way merges of snapshots. *)
-
-  val watch: t -> key -> (key * snapshot) Lwt_stream.t
-  (** Subscribe to the stream of modification events attached to a
-      given key. *)
-
-  (** {Import/export} *)
-
-  type dump
-  (** Raw dump. *)
-
-   val export: t -> snapshot list -> dump Lwt.t
-  (** Return all the new contents in the store *from* which has been
-      added after the revisions. If the revision is [None], then
-      export everything. *)
-
-   type branch
-   (** Branch name. *)
-
-   val import: t -> branch -> dump -> unit Lwt.t
-  (** Import some raw contents. This does not change the tags. *)
-
-end
-
-module type S_MAKER =
-  functor (K: IrminKey.S) ->
-  functor (V: Identifiable.S) ->
-  functor (S: Identifiable.S) ->
-  functor (D: Identifiable.S) ->
-    S with type key = K.t
-       and type value = V.t
-       and type snapshot = S.t
-       and type dump = D.t
-(** Irminsule store makers. *)

@@ -18,6 +18,9 @@
 
 open Core_kernel.Std
 
+type origin = IrminOrigin.t
+type path = IrminPath.t
+
 type ('key, 'contents) t
 (** Views over keys of types ['key] and contents of type
     ['contents]. *)
@@ -26,9 +29,9 @@ module Action: sig
 
   (** Actions performed on a view. *)
   type 'contents t =
-    | Read of IrminPath.t * 'contents option
-    | Write of IrminPath.t * 'contents option
-    | List of IrminPath.t list * IrminPath.t list
+    | Read of path * 'contents option
+    | Write of path * 'contents option
+    | List of path list * path list
   with bin_io, compare, sexp
   (** Operations on view. We record the result of reads to be able to
       replay them on merge. *)
@@ -40,28 +43,18 @@ end
 
 module type S = sig
 
+  (** Signature for views independant of any database substrate. *)
+
   type value
   (** Contents value. *)
 
-  type internal_key
-  (** Internal keys. *)
+  type node
+  (** Internal nodes. *)
 
   include IrminStore.RW
-    with type t = (internal_key, value) t
+    with type t = (node, value) t
      and type value := value
-     and type key = IrminPath.t
-
-  val import:
-    contents:(internal_key -> value option Lwt.t) ->
-    node:(internal_key ->  internal_key IrminNode.t option Lwt.t) ->
-    internal_key -> t Lwt.t
-  (** Create a rooted view from a database node. *)
-
-  val export:
-    contents:(value -> internal_key Lwt.t) ->
-    node:(internal_key IrminNode.t -> internal_key Lwt.t) ->
-    t -> internal_key Lwt.t
-  (** Export the view to the database. *)
+     and type key = path
 
   val actions: t -> value Action.t list
   (** Return the list of actions performed on this view since its
@@ -74,6 +67,45 @@ module type S = sig
 
 end
 
-module Make (K: IrminKey.S) (C: IrminContents.S)
-  : S with type value = C.t
-       and type internal_key = K.t
+module Make (K: IrminKey.S) (C: IrminContents.S):
+  S with type value = C.t and type node = K.t
+(** Create a view implementation independant of any underlying
+    store. *)
+
+module type STORE = sig
+
+  (** Signature for views which are sub-tree of a given database
+      implementation. *)
+
+  include S
+
+  type db
+  (** Database handler. *)
+
+  type path = IrminPath.t
+  (** Database path. *)
+
+  val of_path: db -> path -> t Lwt.t
+  (** Read a view from a path in the store. This is a cheap operation,
+      all the real reads operation will be done on-demand when the
+      view is used. *)
+
+  val update_path: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  (** Commit a view to the store. The view *replaces* the current
+      subtree, so if you want to do a merge, you have to do it
+      manually (by creating a new branch, or rebasing before
+      commiting). [origin] helps keeping track of provenance. *)
+
+  val merge_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
+  (** Same as [update_view] but *merges* with the current subtree. *)
+
+  val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  (** Same as [merge_view] but throw [Conflict "msg"] in case of
+      conflict. *)
+
+end
+
+module Store (S: IrminBranch.STORE): STORE with type db    = S.t
+                                            and type value = S.value
+                                            and type node  = S.Block.key
+(** Create a view implementation tied to a the store [S]. *)

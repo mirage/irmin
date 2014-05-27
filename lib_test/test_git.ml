@@ -17,20 +17,39 @@
 open Lwt
 open Test_common
 
-let test_db = ".git"
+let test_db = "test_db_git"
 
 let init_memory () =
-  Git_memory.create ~root:"." () >>= fun t ->
+  Git_memory.create ~root:test_db () >>= fun t ->
   Git_memory.clear t
 
 let init_disk () =
   if Filename.basename (Sys.getcwd ()) <> "lib_test" then
     failwith "The Git test should be run in the lib_test/ directory."
   else if Sys.file_exists test_db then
-    Git_fs.create ~root:"." () >>= fun t ->
+    Git_fs.create ~root:test_db () >>= fun t ->
     Git_fs.clear t
   else
     return_unit
+
+module Memory = struct
+  include IrminGit.Memory
+  let root = Some test_db
+end
+
+module Disk = struct
+
+  let root = Some test_db
+
+  module Store = Git_fs
+
+  (* expanding the filesystem with random binary filenames is ususally
+     not a good idea. *)
+  let bare = true
+
+  let disk = true
+
+end
 
 let init = function
   | `Disk   -> init_disk
@@ -47,7 +66,10 @@ let suite k g =
     init  = init g;
     clean = unit;
     store =
-      let (module K), (module C), (module R) = modules k in
-      let module M = IrminGit.Make(K)(C)(R) in
-      M.(cast (create ~bare:true ~kind:g ~root:"." ()));
+      let (module Config) = match g with
+        | `Memory -> (module Memory: IrminGit.Config)
+        | `Disk   -> (module Disk  : IrminGit.Config) in
+      let module M = IrminGit.Make(Config) in
+      let (module K), (module C), (module T) = modules k in
+      Irmin.cast (module M.Make(K)(C)(T))
   }

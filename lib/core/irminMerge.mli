@@ -18,39 +18,26 @@
 
 open Core_kernel.Std
 
-module type S = sig
-
-  (** Mergeable contents. *)
-
-  type t
-
-  val to_string: t -> string
-  (** Pretty-print. *)
-
-  val equal: t -> t -> bool
-  (** Equality. *)
-
-end
+module type S = IrminIdent.S
 
 type 'a t
-(** Abstract merge functions. *)
+(** Abstract merge function for values of type ['a]. *)
 
 (** {2 Merge resuls} *)
 
 type 'a result =
-  | Ok of 'a
-  | Conflict of string
-with bin_io, compare, sexp
+  [ `Ok of 'a
+  | `Conflict of string ]
 (** Merge results. *)
 
-module Result: sig
-  type 'a t = 'a result with bin_io, compare, sexp
-  val to_string: ('a -> string) -> 'a t -> string
-  val equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
-end
+module Result (A: IrminIdent.S): IrminIdent.S with type t = A.t result
+(** Base function over results. *)
 
-val exn: (string -> exn) -> 'a result -> 'a Lwt.t
-(** Convert [Conflict] to lwt exceptions. *)
+exception Conflict of string
+(** Exception which might be raised when merging.  *)
+
+val exn: 'a result -> 'a Lwt.t
+(** Convert [Conflict] values to [Conflict] exceptions. *)
 
 (** {2 Merge functions} *)
 
@@ -128,7 +115,7 @@ val map: 'a t -> 'a String.Map.t t
 val pair: 'a t -> 'b t -> ('a * 'b) t
 (** Lift to pairs. *)
 
-val apply: ('a -> 'b t ) -> 'a -> 'b t
+val apply: (module S with type t = 'b) -> ('a -> 'b t ) -> 'a -> 'b t
 (** Apply operator. Use this operator to break recursive loops. *)
 
 val biject: (module S with type t = 'b) -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t

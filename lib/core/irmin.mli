@@ -16,139 +16,68 @@
 
 (** API entry point *)
 
-exception Conflict of string
-(** Merge conflict. *)
-
 module type S = sig
 
-  (** {2 Main signature for Irminsule stores} *)
+  (** Main signature for Irminsule stores. *)
 
-  type value
-  (** Value for abstract blobs. It's usually a raw string, but it can
-      also be a structured value. One should be able to merge two
-      diverging blobs. *)
+  include IrminBranch.STORE with type key = IrminPath.t
 
-  module Internal: IrminValue.STORE with type contents = value
-  (** Append-only persistent store for internal values. *)
+  module Snapshot: IrminSnapshot.STORE with type db = t
+                                        and type state = Block.key
 
-  (** {2 Irminsule store interface} *)
+  module Dump: IrminDump.STORE with type db       = t
+                                and type key      = Block.key
+                                and type contents = Block.contents
 
-  module Reference: IrminReference.STORE with type value = Internal.key
-  (** Read/write store for references. *)
-
-  include IrminStore.S with type key      = string list
-                        and type value   := value
-                        and type snapshot = Internal.key
-                        and type dump     = (Internal.key, value) IrminDump.t
-                        and type branch   = Reference.key
-
-  val create: ?branch:branch -> unit -> t Lwt.t
-  (** Create a store. If branch is not set, use [R.master]. *)
-
-  val update: ?origin:IrminOrigin.t -> t -> key -> value -> unit Lwt.t
-  (** Same as [IrminStore.RW.update] but with an optional [origin]
-      argument to keep track of provenance. *)
-
-  val remove: ?origin:IrminOrigin.t -> t -> key -> unit Lwt.t
-  (** Same as [IrminStore.RW.remove] but with an optional [origin]
-      argument to keep track of provenance. *)
-
-  val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot ->
-    snapshot IrminMerge.result Lwt.t
-  (** Same as [IrminStore.S.merge_snapshots] but with an option [origin]
-      to keep track of provenance. *)
-
-  val merge_snapshot_exn: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot -> snapshot Lwt.t
-  (** Same as [merge_snapshot] but raise a [Conflict] exception in case
-      of conflict. *)
-
-  val output: t -> string -> unit Lwt.t
-  (** Create a Graphviz graph representing the store state. Could be
-      no-op if the backend does not support that operation (for instance,
-      for remote connections). *)
-
-  val internal: t -> Internal.t
-  (** Return an handler to the internal store. *)
-
-  val reference: t -> Reference.t
-  (** Return an handler to the reference store. *)
-
-  (** {Branches} *)
-
-  val branch: t -> branch -> t Lwt.t
-  (** Fork the store, using the giben branch name. *)
-
-  val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit IrminMerge.result Lwt.t
-  (** [merge t ~into] merges the branch [t.branch] into
-      [into.branch]. Both stores should have the same underlying
-      store. Update the commit pointed by [t] to the merge commit of
-      the two branches. *)
-
-  val merge_exn: ?origin:IrminOrigin.t -> t -> into:t -> unit Lwt.t
-  (** Same as [merge] but raise [Conflict "<msg>"] in case of a
-      conflict. *)
-
-  module Key: IrminKey.S with type t = key
-  (** Base functions over keys. *)
-
-  module Value: IrminContents.S with type t = value
-  (** Base functions over values. *)
-
-  module Snapshot: IrminKey.S with type t = snapshot
-  (** Base functions over snapshots. *)
-
-  module Dump: IrminDump.S with type key = Internal.key and type contents = value
-  (** Base functions over dumps. *)
-
-  module View: IrminView.S with type internal_key = Internal.key
-                            and type value := value
-  (** In-memory sub-trees, with operation history. *)
-
-  val read_view: t -> key -> View.t Lwt.t
-  (** Read a view from the store. This is a cheap operation, all the
-      real reads operation will be done on-demand when the view is
-      used. *)
-
-  val update_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
-  (** Commit a view to the store. The view *replaces* the current
-      subtree, so if you want to do a merge, you have to do it
-      manually (by creating a new branch, or rebasing before
-      commiting). [origin] helps keeping track of provenance. *)
-
-  val merge_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit IrminMerge.result Lwt.t
-  (** Same as [update_view] but *merges* with the current subtree. *)
-
-  val merge_view_exn: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
-  (** Same as [merge_view] but throw [Conflict "msg"] in case of
-      conflict. *)
+  module View: IrminView.STORE with type db    = t
+                                and type node  = Block.key
+                                and type value = value
 
 end
 
-type ('key, 'value, 'ref) t =
-  (module S with type Internal.key = 'key
-             and type value = 'value
-             and type Reference.key = 'ref)
+type ('key, 'contents, 'tag) t =
+  (module S with type Block.key = 'key
+             and type value     = 'contents
+             and type branch    = 'tag)
+
+val cast: ('a, 'b, 'c) t -> (module S)
 
 module Make
-    (K : IrminKey.S)
-    (C : IrminContents.S)
-    (R : IrminReference.S)
-    (Internal : IrminValue.STORE     with type key = K.t and type contents = C.t)
-    (Reference: IrminReference.STORE with type key = R.t and type value = K.t)
-  : S with type value = C.t
-       and module Internal = Internal
-       and module Reference = Reference
+    (Block: IrminBlock.STORE)
+    (Tag  : IrminTag.STORE with type value = Block.key)
+  : S with type Block.key = Block.key
+       and type value     = Block.contents
+       and type branch    = Tag.key
 (** Build a full iminsule store. *)
 
+module type BACKEND = sig
+
+  (** Common signature for all backends. *)
+
+  module RO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
+  module AO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
+  module RW (K: IrminKey.S) (V: IrminKey.S)  : IrminStore.RW
+
+  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S):
+    S with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t
+
+end
+
+(** {2 Binary stores} *)
+
+module RO_BINARY (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
+module AO_BINARY (S: IrminStore.AO_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
+module RW_BINARY (S: IrminStore.RW_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RW
+
 module Binary
-    (K : IrminKey.S)
-    (C : IrminContents.S)
-    (R : IrminReference.S)
     (AO: IrminStore.AO_BINARY)
     (RW: IrminStore.RW_BINARY)
-  : S with type value = C.t
-       and type Internal.key = K.t
-       and type Reference.key = R.t
-(** Create an irminsule store from binary store makers. Use only one
-    append-only store for values, nodes and commits and a mutable
+    (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S)
+  : S with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t
+(** Create an irminsule store from binary stores. Use one common
+    append-only store for contents, nodes and commits and a mutable
     store for the tags. *)

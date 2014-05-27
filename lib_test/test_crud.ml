@@ -72,8 +72,7 @@ let suite k server =
     end;
 
     store =
-      let module CRUD_ = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
-      let (module K), (module C), (module R) = modules k in
-      let module CRUD = CRUD_.Make(K)(C)(R) in
-      CRUD.(cast (create uri))
+      let module M = IrminCRUD.Make(Cohttp_lwt_unix.Client)(struct let uri = uri end) in
+      let (module K), (module C), (module T) = modules k in
+      Irmin.cast (module M.Make(K)(C)(T))
   }

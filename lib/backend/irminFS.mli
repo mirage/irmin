@@ -16,29 +16,35 @@
 
 (** Disk persistence. *)
 
-module type S = sig
+module type Config = sig
+
+  (** Simple configuration containing the store location on the
+      filesystem. *)
+
   val path: string
+
+end
+
+module Make (C: Config): Irmin.BACKEND
+
+module type Config' = sig
+
+  (** Same as [Config] but gives more control on the file
+      hierarchy. *)
+
+  val path: string
+  (** The database root. *)
+
   val file_of_key: string -> string
+  (** Convert a key to a filename. *)
+
   val key_of_file: string -> string
-end
-
-module AO (S: S) (K: IrminKey.S) : IrminStore.AO_BINARY
-module RW (S: S) (K: IrminKey.S) : IrminStore.RW_BINARY
-
-module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (R: IrminReference.S) :
-sig
-
-  val create: string -> (K.t, C.t, R.t) Irmin.t
-  (** Create an on-disk store at the given path. *)
-
-  val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
+    (** Convert a filename to a key. *)
 
 end
 
+module Make' (C: Config'): Irmin.BACKEND
 
 val install_dir_polling_listener: float -> unit
 (** Install the directory listener using active polling. The parameter
-    is the threads sleep time. *)
+    is the thread sleep time. *)

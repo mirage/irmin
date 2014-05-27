@@ -42,35 +42,6 @@ let edges t =
   @ Map.fold t.succ ~init:[]
     ~f:(fun ~key:_ ~data:k acc -> `Node k :: acc)
 
-let to_json json_of_key t =
-  let contents = match t.contents with
-    | None   -> []
-    | Some k -> [ "contents", json_of_key k ] in
-  let succ =
-    if Map.is_empty t.succ then []
-    else
-      let l = Map.to_alist t.succ in
-      [ "succ", Ezjsonm.list (Ezjsonm.pair IrminMisc.json_encode json_of_key) l ] in
-  `O (contents @ succ)
-
-let of_json key_of_json json =
-  let contents =
-    try
-      let leaf = Ezjsonm.find json ["contents"] in
-      Some (key_of_json leaf)
-    with Not_found ->
-      None in
-  let succ =
-    try
-      let children = Ezjsonm.find json ["succ"] in
-      let children =
-        Ezjsonm.get_list
-          (Ezjsonm.get_pair IrminMisc.json_decode_exn key_of_json)
-          children in
-      String.Map.of_alist_exn children
-    with Not_found -> String.Map.empty in
-  { contents; succ }
-
 let empty =
   { contents = None;
     succ = String.Map.empty }
@@ -99,6 +70,7 @@ end
 module type STORE = sig
   type key
   type contents
+  type path = IrminPath.t
   type value = key t
   include IrminStore.AO with type key := key
                          and type value := value
@@ -123,15 +95,11 @@ module S (K: IrminKey.S) = struct
 
   type key = K.t
 
-  module S = IrminMisc.Identifiable(struct
-      type nonrec t = K.t t
-      with bin_io, compare, sexp
+  module S = IrminIdent.Make(struct
+      type nonrec t = K.t t with bin_io, compare, sexp
     end)
+
   include S
-
-  let of_json = of_json K.of_json
-
-  let to_json = to_json K.to_json
 
   let merge =
     IrminMerge.default (module S)
@@ -148,11 +116,14 @@ module Make
  struct
 
   module Key = K
+
   module Value = S(K)
 
   type key = K.t
 
   type contents = C.t
+
+  type path = IrminPath.t
 
   type value = K.t t
 
@@ -160,7 +131,7 @@ module Make
 
   let create () =
     Contents.create () >>= fun c ->
-    Node.create () >>= fun t ->
+    Node.create ()     >>= fun t ->
     return (c, t)
 
   let add (_, t) n = match n with
@@ -191,7 +162,7 @@ module Make
     | false -> Contents.mem c key
     | true  -> return true
 
-  module Graph = IrminGraph.Make(K)(IrminReference.String)
+  module Graph = IrminGraph.Make(K)(IrminTag.String)
 
   let list t keys =
     Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
@@ -237,7 +208,7 @@ module Make
   let merge (c, _ as t) =
     let rec merge_key () =
       Log.debugf "merge";
-      let merge = merge_value t (IrminMerge.apply merge_key ()) in
+      let merge = merge_value t (IrminMerge.apply (module K) merge_key ()) in
       IrminMerge.biject' (module K) merge (add t) (read_exn t) in
     merge_key ()
 
@@ -247,7 +218,7 @@ module Make
     | Some k -> Some (Contents.read_exn c k)
 
   let succ t node =
-    Map.mapi ~f:(fun ~key:l ~data:k -> read_exn t k) node.succ
+    Map.map ~f:(fun k -> read_exn t k) node.succ
 
   let next t node label =
     match Map.find node.succ label with

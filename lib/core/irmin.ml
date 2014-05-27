@@ -18,523 +18,137 @@ open Core_kernel.Std
 open Lwt
 open IrminMerge.OP
 
-module XLog = Log
-module Log = XLog.Make(struct let section = "IRMIN" end)
-
-exception Conflict of string
-
 module type S = sig
-  type value
-  module Internal: IrminValue.STORE with type contents = value
-  module Reference: IrminReference.STORE with type value = Internal.key
-  include IrminStore.S with type key      = string list
-                        and type value   := value
-                        and type snapshot = Internal.key
-                        and type dump     = (Internal.key, value) IrminDump.t
-                        and type branch   = Reference.key
-  val create: ?branch:branch -> unit -> t Lwt.t
-  val update: ?origin:IrminOrigin.t -> t -> key -> value -> unit Lwt.t
-  val remove: ?origin:IrminOrigin.t -> t -> key -> unit Lwt.t
-  val merge_snapshot: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot ->
-    snapshot IrminMerge.result Lwt.t
-  val merge_snapshot_exn: ?origin:IrminOrigin.t -> t -> snapshot -> snapshot -> snapshot Lwt.t
-  val output: t -> string -> unit Lwt.t
-  val internal: t -> Internal.t
-  val reference: t -> Reference.t
-  val branch: t -> branch -> t Lwt.t
-  val merge: ?origin:IrminOrigin.t -> t -> into:t -> unit IrminMerge.result Lwt.t
-  val merge_exn: ?origin:IrminOrigin.t -> t -> into:t -> unit Lwt.t
-  module Key: IrminKey.S with type t = key
-  module Value: IrminContents.S with type t = value
-  module Snapshot: IrminKey.S with type t = snapshot
-  module Dump: IrminDump.S with type key = Internal.key and type contents = value
-  module View: IrminView.S with type value := value and type internal_key = Internal.key
-  val read_view: t -> key -> View.t Lwt.t
-  val update_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
-  val merge_view: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit IrminMerge.result Lwt.t
-  val merge_view_exn: ?origin:IrminOrigin.t -> t -> key -> View.t -> unit Lwt.t
+  include IrminBranch.STORE with type key = IrminPath.t
+  module Snapshot: IrminSnapshot.STORE with type db = t
+                                        and type state = Block.key
+  module Dump: IrminDump.STORE with type db       = t
+                                and type key      = Block.key
+                                and type contents = Block.contents
+  module View: IrminView.STORE with type db    = t
+                                and type node  = Block.key
+                                and type value = value
 end
 
-module Make
-    (K : IrminKey.S)
-    (C : IrminContents.S)
-    (R : IrminReference.S)
-    (Internal : IrminValue.STORE with type key = K.t and type contents = C.t)
-    (Reference: IrminReference.STORE with type key = R.t and type value = K.t)
-= struct
+type ('key, 'contents, 'tag) t =
+  (module S with type Block.key = 'key
+             and type value     = 'contents
+             and type branch    = 'tag)
 
-  module Internal = Internal
-  module Reference = Reference
-  module Key = IrminPath
-  module Value = C
-  module Contents = Internal.Contents
-  module Node = Internal.Node
-  module Commit = Internal.Commit
-  module Dump = IrminDump.S(K)(C)
-  module Snapshot = Internal.Key
+let cast (type a) (type b) (type c) (t: (a, b, c) t) =
+  let module M = (val t) in
+  (module M: S)
 
-  type snapshot = K.t
-  type key = IrminPath.t
-  type value = C.t
-  type dump = Dump.t
-  type branch = Reference.key
-
-  type watch = key * (key -> K.t -> unit)
-
-  type t = {
-    vals  : Internal.t;
-    refs  : Reference.t;
-    branch: R.t;
-  }
-
-  let internal t = t.vals
-  let reference t = t.refs
-
-  let co = Internal.commit
-  let no = Internal.node
-  let bl = Internal.contents
-
-  let create ?(branch=R.master) () =
-    Internal.create ()  >>= fun vals ->
-    Reference.create () >>= fun refs ->
-    return { vals; refs; branch }
-
-  let read_head_commit t =
-    Reference.read t.refs t.branch >>= function
-    | None   -> return_none
-    | Some k -> Commit.read (co t.vals) k
-
-  let read_node t = function
-    | None       -> return IrminNode.empty
-    | Some commit ->
-      match Commit.node (co t.vals) commit with
-      | None      -> return IrminNode.empty
-      | Some node -> node
-
-  let read_head_node t =
-    read_head_commit t >>=
-    read_node t
-
-  let parents_of_commit = function
-    | None   -> []
-    | Some r -> [r]
-
-  let update_node ~origin t fn =
-    read_head_commit t >>= fun commit ->
-    read_node t commit >>= fun old_node ->
-    fn old_node >>= fun node ->
-    if IrminNode.equal K.equal old_node node then return_unit
-    else (
-      let parents = parents_of_commit commit in
-      Commit.commit (co t.vals) origin ~node ~parents >>= fun (key, _) ->
-      (* XXX: the head might have changed since we started the operation *)
-      Reference.update t.refs t.branch key
-    )
-
-  let read_node fn t path =
-    read_head_node t >>= fun node ->
-    fn (no t.vals) node path
-
-  let read =
-    read_node Node.find
-
-  let update ?origin t path contents =
-    let origin = match origin with
-      | None   -> IrminOrigin.create "Update %s." (IrminPath.to_string path)
-      | Some o -> o in
-    Log.debugf "update %s" (IrminPath.to_string path);
-    update_node t ~origin (fun node ->
-        Node.update (no t.vals) node path contents
-      )
-
-  let remove ?origin t path =
-    let origin = match origin with
-      | None   -> IrminOrigin.create "Remove %s." (IrminPath.to_string path)
-      | Some o -> o in
-    update_node t ~origin (fun node ->
-        Node.remove (no t.vals) node path
-      )
-
-  let read_exn =
-    read_node Node.find_exn
-
-  let mem =
-    read_node Node.valid
-
-  let snapshot t =
-    Reference.read_exn t.refs t.branch
-
-  let revert t r =
-    Reference.update t.refs t.branch r
-
-  let string_of_set s =
-    IrminMisc.pretty_list K.to_string (K.Set.to_list s)
-
-  (* XXX: is this correct ? *)
-  let find_common_ancestor t c1 c2 =
-    let rec aux (seen1, todo1) (seen2, todo2) =
-      Log.debugf "seen1=%s todo1=%s" (string_of_set seen1) (string_of_set todo1);
-      Log.debugf "seen2=%s todo2=%s" (string_of_set seen2) (string_of_set todo2);
-      let seen1' = K.Set.union seen1 todo1 in
-      let seen2' = K.Set.union seen2 todo2 in
-      match K.Set.to_list (K.Set.inter seen1' seen2') with
-      | []  ->
-        (* Compute the immediate parents *)
-        let parents todo =
-          let parents_of_commit seen c =
-            Commit.read_exn (co t.vals) c >>= fun v ->
-            let parents = K.Set.of_list v.IrminCommit.parents in
-            return (K.Set.diff parents seen) in
-          Lwt_list.fold_left_s parents_of_commit todo (K.Set.to_list todo)
-        in
-        parents todo1 >>= fun todo1' ->
-        parents todo2 >>= fun todo2' ->
-        aux (seen1', todo1') (seen2', todo2')
-      | [r] -> ok r
-      | rs  -> conflict "Multiple common ancestor: %s" (IrminMisc.pretty_list K.to_string rs) in
-    aux
-      (K.Set.empty, K.Set.singleton c1)
-      (K.Set.empty, K.Set.singleton c2)
-
-  let merge_snapshot ?origin t c1 c2 =
-    let origin = match origin with
-      | None   -> IrminOrigin.create "merge snapshots of %s and %s"
-                    (K.to_string c1) (K.to_string c2)
-      | Some o -> o in
-    find_common_ancestor t c1 c2 >>| fun old ->
-    IrminMerge.merge (Commit.merge (co t.vals) origin) ~old c1 c2
-
-  let merge_snapshot_exn ?origin t c1 c2 =
-    merge_snapshot ?origin t c1 c2 >>=
-    IrminMerge.exn (fun x -> Conflict x)
-
-  (* Return the subpaths. *)
-  let list t paths =
-    Log.debugf "list";
-    let one path =
-      read_head_node t >>= fun node ->
-      Node.sub (no t.vals) node path >>= function
-      | None      -> return_nil
-      | Some node ->
-        let c = Node.succ (no t.vals) node in
-        let c = Map.keys c in
-        let paths = List.map ~f:(fun c -> path @ [c]) c in
-        return paths in
-    Lwt_list.fold_left_s (fun set p ->
-        one p >>= fun paths ->
-        let paths = IrminPath.Set.of_list paths in
-        return (IrminPath.Set.union set paths)
-      ) IrminPath.Set.empty paths
-    >>= fun paths ->
-    return (IrminPath.Set.to_list paths)
-
-  let dump t =
-    Log.debugf "dump";
-    read_head_node t >>= fun node ->
-    let rec aux seen = function
-      | []       -> return (List.sort compare seen)
-      | path::tl ->
-        list t [path] >>= fun childs ->
-        let todo = childs @ tl in
-        Node.find (no t.vals) node path >>= function
-        | None   -> aux seen todo
-        | Some v -> aux ((path, v) :: seen) todo in
-    begin Node.find (no t.vals) node [] >>= function
-      | None   -> return_nil
-      | Some v -> return [ ([], v) ]
-    end
-    >>= fun init ->
-    list t [[]] >>= aux init
-
-  module Graph = IrminGraph.Make(K)(R)
-
-  let output t name =
-    Log.debugf "output %s" name;
-    Contents.dump (bl t.vals) >>= fun contents ->
-    Node.dump (no t.vals)     >>= fun nodes    ->
-    Commit.dump (co t.vals)   >>= fun commits  ->
-    Reference.dump t.refs     >>= fun refs     ->
-    let vertex = ref [] in
-    let add_vertex v l =
-      vertex := (v, l) :: !vertex in
-    let edges = ref [] in
-    let add_edge v1 l v2 =
-      edges := (v1, l, v2) :: !edges in
-    let string_of_key k =
-      let s = K.to_string k in
-      if String.length s <= 8 then s else String.sub s 0 8 in
-    let string_of_contents s =
-      let s =
-        if String.length s <= 10 then s
-        else String.sub s 0 10 in
-      let s =
-          if IrminMisc.is_valid_utf8 s then s
-          else IrminMisc.hex_encode s in
-      s in
-    let label k =
-      `Label (string_of_key k) in
-    let label_of_path l =
-      `Label (string_of_contents l) in
-    let label_of_contents k v =
-      let k = string_of_key k in
-      let v = string_of_contents (C.to_string v) in
-      `Label (Printf.sprintf "%s | %s" k (String.escaped v)) in
-    let leafs = List.map ~f:(fun (k,_) ->
-        (k, IrminNode.leaf k)
-      ) contents in
-    let nodes = leafs @ nodes in
-    List.iter ~f:(fun (k, b) ->
-        add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
-      ) contents;
-    List.iter ~f:(fun (k, t) ->
-        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label k];
-        begin match t.IrminNode.contents with
-          | None    -> ()
-          | Some v  -> add_edge (`Node k) [`Style `Dotted] (`Contents v)
-        end;
-        Map.iter ~f:(fun ~key:l ~data:c ->
-            add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
-          ) t.IrminNode.succ
-      ) nodes;
-    List.iter ~f:(fun (k, r) ->
-        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label k];
-        List.iter ~f:(fun p ->
-            add_edge (`Commit k) [`Style `Bold] (`Commit p)
-          ) r.IrminCommit.parents;
-        match r.IrminCommit.node with
-        | None      -> ()
-        | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
-      ) commits;
-    List.iter ~f:(fun (r,k) ->
-        add_vertex (`Ref r) [`Shape `Plaintext; `Label (R.to_string r); `Style `Filled];
-        let exists l = List.exists ~f:(fun (kk,_) -> kk=k) l in
-        if exists commits then
-          add_edge (`Ref r) [`Style `Bold] (`Commit k);
-        if exists nodes then
-          add_edge (`Ref r) [`Style `Bold] (`Node k);
-      ) refs;
-    (* XXX: this is not Xen-friendly *)
-    Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
-        Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
-      );
-    let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
-    let i = Sys.command cmd in
-    if i <> 0 then Log.errorf "The %s.dot is corrupted" name;
-    return_unit
-
-  let watch t path =
-    Log.infof "Adding a watch on %s" (IrminPath.to_string path);
-    let stream = Reference.watch t.refs t.branch in
-    IrminMisc.lift_stream (
-      read_node Node.sub t path >>= fun node ->
-      let old_node = ref node in
-      let stream = Lwt_stream.filter_map_s (fun key ->
-          Log.debugf "watch: %s" (Snapshot.to_string key);
-          Commit.read_exn (co t.vals) key >>= fun commit ->
-          begin match Commit.node (co t.vals) commit with
-            | None      -> return IrminNode.empty
-            | Some node -> node
-          end >>= fun node ->
-          Node.sub (no t.vals) node path >>= fun node ->
-          if node = !old_node then return_none
-          else (
-            old_node := node;
-            return (Some (path, key))
-          )
-        ) stream in
-      return stream
-    )
-
-  module Log = XLog.Make(struct let section ="DUMP" end)
-
-  (* XXX: can be improved quite a lot *)
-  let export t roots =
-    Log.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
-    let table = Internal.Key.Table.create () in
-    let add k v = Hashtbl.add_multi table k v in
-    Reference.read t.refs t.branch >>= function
-    | None        -> return { IrminDump.head = None; store = [] }
-    | Some commit ->
-      let head = Some commit in
-      begin
-        if roots = [] then Commit.list (co t.vals) [commit]
-        else
-          let pred = function
-            | `Commit k -> Commit.read_exn (co t.vals) k >>= fun c -> return (IrminCommit.edges c)
-            | _         -> return_nil in
-          let min = IrminGraph.of_commits roots in
-          let max = IrminGraph.of_commits [commit] in
-          Graph.closure pred ~min ~max >>= fun g ->
-          let commits = IrminGraph.to_commits (Graph.vertex g) in
-          return commits
-      end >>= fun commits ->
-      Log.debugf "export COMMITS=%s" (IrminMisc.pretty_list K.to_string commits);
-      let nodes = ref K.Set.empty in
-      Lwt_list.iter_p (fun key ->
-          Commit.read_exn (co t.vals) key >>= fun commit ->
-          add key (IrminValue.Commit commit);
-          match commit.IrminCommit.node with
-          | None   -> return_unit
-          | Some k -> nodes := Set.add !nodes k; return_unit
-        ) commits >>= fun () ->
-      let nodes = !nodes in
-      Node.list (no t.vals) (K.Set.to_list nodes) >>= fun nodes ->
-      Log.debugf "export NODES=%s" (IrminMisc.pretty_list K.to_string nodes);
-      let contents = ref K.Set.empty in
-      Lwt_list.iter_p (fun key ->
-          Node.read_exn (no t.vals) key >>= fun node ->
-          add key (IrminValue.Node node);
-          match node.IrminNode.contents with
-          | None   -> return_unit
-          | Some k -> contents := Set.add !contents k; return_unit
-        ) nodes >>= fun () ->
-      let contents = !contents in
-      Contents.list (bl t.vals) (K.Set.to_list contents) >>= fun contents ->
-      Log.debugf "export CONTENTS=%s" (IrminMisc.pretty_list K.to_string contents);
-      Lwt_list.iter_p (fun k ->
-          Contents.read_exn (bl t.vals) k >>= fun b ->
-          add k (IrminValue.Contents b);
-          return_unit
-        ) contents >>= fun () ->
-      let store = Hashtbl.fold ~f:(fun ~key:k ~data init ->
-          List.fold_left ~f:(fun acc v -> (k, v) :: acc) ~init data
-        ) ~init:[] table in
-      return { IrminDump.head; store }
-
-  exception Errors of (Internal.key * Internal.key * string) list
-
-  let import t branch { IrminDump.head; store } =
-    Log.debugf "import %d" (List.length store);
-    let errors = ref [] in
-    let check msg k1 k2 =
-      if k1 <> k2 then errors := (k1, k2, msg) :: !errors;
-      return_unit
-    in
-    (* Import contents first *)
-    Lwt_list.iter_p (fun (k,v) ->
-        match v with
-        | IrminValue.Contents x -> Contents.add (bl t.vals) x >>= check "value" k
-        | _ -> return_unit
-      ) store >>= fun () ->
-    Lwt_list.iter_p (fun (k,v) ->
-        match v with
-        | IrminValue.Node x -> Node.add (no t.vals) x >>= check "node" k
-        | _ -> return_unit
-      ) store >>= fun () ->
-    Lwt_list.iter_p (fun (k,v) ->
-        match v with
-        | IrminValue.Commit x -> Commit.add (co t.vals) x >>= check "commit" k
-        | _ -> return_unit
-      ) store >>= fun () ->
-    if !errors = [] then
-      match head with
-      | None   -> return_unit
-      | Some h -> Reference.update t.refs branch h
-    else (
-      let aux (expected, got, n) =
-        Printf.sprintf
-          "[expected %s (%s), got %s]"
-          (K.to_string expected) n
-          (K.to_string got) in
-      Log.debugf "The following keys are invalid: %s"
-        (IrminMisc.pretty_list aux !errors);
-      fail (Errors !errors)
-    )
-
-  let branch t branch =
-    begin Reference.read t.refs t.branch >>= function
-    | None   -> Reference.remove t.refs branch
-    | Some c -> Reference.update t.refs branch c
-    end >>= fun () ->
-    return { t with branch }
-
-  let merge ?origin t1 ~into:t2 =
-    let origin = match origin with
-      | Some o -> o
-      | None   -> IrminOrigin.create "Merge %s into %s."
-                    (R.to_string t1.branch) (R.to_string t2.branch) in
-    Reference.read_exn t1.refs t1.branch  >>= fun c1 ->
-    Reference.read_exn t2.refs t2.branch  >>= fun c2 ->
-    merge_snapshot t2 ~origin c2 c1       >>| fun c3 ->
-    Reference.update t2.refs t2.branch c3 >>= fun () ->
-    ok ()
-
-  let merge_exn ?origin t ~into =
-    merge ?origin t ~into >>=
-    IrminMerge.exn (fun x -> Conflict x)
-
-  module View = IrminView.Make(K)(C)
-
-  let read_view t path =
-    Log.debugf "read_view %s" (IrminPath.to_string path);
-    let contents = Contents.read (bl t.vals) in
-    let node = Node.read (no t.vals) in
-    read_node Node.sub t path >>= function
-    | None   -> View.create ()
-    | Some n ->
-      Node.add (no t.vals) n >>= fun k ->
-      View.import ~contents ~node k
-
-  let node_of_view t view =
-    let contents = Contents.add (bl t.vals) in
-    let node = Node.add (no t.vals) in
-    View.export ~node ~contents view >>= fun key ->
-    Node.read_exn (no t.vals) key
-
-  let update_view ?origin t path view =
-    Log.debugf "update_view %s" (IrminPath.to_string path);
-    let origin = match origin with
-      | None   -> IrminOrigin.create "Update view to %s" (IrminPath.to_string path)
-      | Some o -> o in
-    node_of_view t view >>= fun tree ->
-    update_node t ~origin (fun node ->
-        Node.map (no t.vals) node path (fun _ -> tree)
-      )
-
-  let merge_view ?origin t path view =
-    Log.debugf "merge_view %s" (IrminPath.to_string path);
-    read_view t path >>= fun head ->
-    View.merge view ~into:head >>| fun () ->
-    let origin = match origin with
-      | None   ->
-        let buf = Buffer.create 1024 in
-        let string_of_action = IrminView.Action.to_string (fun x -> "") in
-        List.iter ~f:(fun a ->
-            bprintf buf "- %s\n" (string_of_action a)
-          ) (View.actions view);
-        IrminOrigin.create "Merge view to %s\n\nActions:\n%s\n"
-          (IrminPath.to_string path) (Buffer.contents buf)
-      | Some o -> o in
-    update_view ~origin t path head >>= fun () ->
-    ok ()
-
-  let merge_view_exn ?origin t path view =
-    merge_view ?origin t path view >>=
-    IrminMerge.exn (fun x -> Conflict x)
-
-end
-
-type ('key, 'value, 'ref) t =
-  (module S with type Internal.key = 'key
-             and type value = 'value
-             and type Reference.key = 'ref)
-
-module Binary
-    (K : IrminKey.S)
-    (C : IrminContents.S)
-    (R : IrminReference.S)
-    (AO: IrminStore.AO_BINARY)
-    (RW: IrminStore.RW_BINARY) =
+module Make (Block: IrminBlock.STORE) (Tag: IrminTag.STORE with type value = Block.key) =
 struct
 
-  module V = IrminValue.S(K)(C)
+  module S = IrminBranch.Make(Block)(Tag)
+  module Snapshot = IrminSnapshot.Make(S)
+  module Dump = IrminDump.Make(S)
+  module View = IrminView.Store(S)
+  include S
 
-  module AO = IrminStore.AO_MAKER(AO)
-  module RW = IrminStore.RW_MAKER(RW)
+end
 
-  module Val = IrminValue.Make(K)(C)(AO(K)(V))
-  module Ref = IrminReference.Make(R)(K)(RW(R)(K))
+module RO_BINARY  (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: IrminIdent.S) = struct
 
-  include Make (K)(C)(R)(Val)(Ref)
+  module L = Log.Make(struct let section = "RO" end)
 
+  type t = S.t
+
+  type key = K.t
+
+  type value = V.t
+
+  let create () =
+    S.create ()
+
+  let read t key =
+    S.read t (K.to_raw key) >>= function
+    | None    -> return_none
+    | Some ba -> return (IrminMisc.read V.bin_t ba)
+
+  let read_exn t key =
+    read t key >>= function
+    | None   -> fail (IrminKey.Unknown (K.to_string key))
+    | Some v -> return v
+
+  let mem t key =
+    S.mem t (K.to_raw key)
+
+  let list t keys =
+    let keys = List.map ~f:K.to_raw keys in
+    S.list t keys >>= fun ks ->
+    let ks = List.map ~f:K.of_raw ks in
+    return ks
+
+  let dump t =
+    S.dump t >>= fun l ->
+    Lwt_list.fold_left_s (fun acc (s, ba) ->
+        match IrminMisc.read V.bin_t ba with
+        | None   -> return acc
+        | Some v -> return ((K.of_raw s, v) :: acc)
+      ) [] l
+
+end
+
+module AO_BINARY (S: IrminStore.AO_BINARY)  (K: IrminKey.S) (V: IrminIdent.S) = struct
+
+  include RO_BINARY(S)(K)(V)
+
+  module LA = Log.Make(struct let section = "AO" end)
+
+  let add t value =
+    LA.debugf "add";
+    S.add t (IrminMisc.write V.bin_t value) >>= fun key ->
+    let key = K.of_raw key in
+    LA.debugf "<-- added: %s" (K.to_string key);
+    return key
+
+end
+
+module RW_BINARY (S: IrminStore.RW_BINARY) (K: IrminKey.S) (V: IrminIdent.S) = struct
+
+  include RO_BINARY(S)(K)(V)
+
+  module LM = Log.Make(struct let section = "RW" end)
+
+  let update t key value =
+    LM.debug (lazy "update");
+    S.update t (K.to_string key) (IrminMisc.write V.bin_t value)
+
+  let remove t key =
+    S.remove t (K.to_string key)
+
+  let watch t key =
+    Lwt_stream.map (fun v ->
+        match IrminMisc.read V.bin_t v with
+        | None   -> failwith "watch"
+        | Some v -> v
+      ) (S.watch t (K.to_string key))
+
+end
+
+module Binary
+    (AO: IrminStore.AO_BINARY)
+    (RW: IrminStore.RW_BINARY)
+    (K : IrminKey.S)
+    (C : IrminContents.S)
+    (T : IrminTag.S) =
+struct
+  module V = IrminBlock.S(K)(C)
+  module B = IrminBlock.S(K)(C)
+  module XBlock = IrminBlock.Make(K)(C)(AO_BINARY(AO)(K)(B))
+  module XTag = IrminTag.Make(T)(K)(RW_BINARY(RW)(T)(K))
+  include Make(XBlock)(XTag)
+end
+
+module type BACKEND = sig
+  module RO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
+  module AO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
+  module RW (K: IrminKey.S) (V: IrminKey.S)  : IrminStore.RW
+  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S):
+    S with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t
 end

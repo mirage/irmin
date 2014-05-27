@@ -17,22 +17,24 @@
 (** Serialize the irminsule objects to a local Git store. *)
 
 module type Config = sig
+
   val root: string option
-  val kind: [`Memory | `Disk]
+  (** Database root. *)
+
+  module Store: Git.Store.S
+  (** Git database implementation. Can be [Git_fs] or [Git_memory]. *)
+
   val bare: bool
-end
-(** On-disk configuration. *)
+  (** Should we extend the filesystem *)
 
-module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (R: IrminReference.S):
-sig
-
-  val create: ?root:string -> kind:[`Memory|`Disk] -> bare:bool -> unit ->
-    (K.t, C.t, R.t) Irmin.t
-  (** Create a Git-backed irminsule store. *)
-
-  val cast:  (K.t, C.t, R.t) Irmin.t -> (module Irmin.S)
+  val disk: bool
+  (** Enable disk operations such as installing watches and limiting
+      concurrent open files. Should be consistent with the [Store]
+      implementation. *)
 
 end
+
+module Memory: Config
+(** In-memory Git store (using [Git_memory]). *)
+
+module Make (C: Config): Irmin.BACKEND

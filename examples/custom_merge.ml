@@ -21,8 +21,6 @@ let () =
       Log.set_log_level Log.DEBUG
   with Not_found -> ()
 
-let path = "/tmp/irmin/test"
-
 module Log = struct
 
   (* A log file is a list of timestamped message (one per line). *)
@@ -42,20 +40,10 @@ module Log = struct
       | None              -> failwith (str ^ " is not a valid log line.")
       | Some (t, message) -> { timestamp = int_of_string t; message }
 
-    let to_json elt =
-      `O [ "timestamp", Ezjsonm.int elt.timestamp;
-           "message"  , Ezjsonm.string elt.message; ]
-
-    let of_json json =
-      let timestamp = Ezjsonm.(get_int (find json ["timestamp"])) in
-      let message = Ezjsonm.(get_string (find json ["message"])) in
-      { timestamp; message }
-
   end
 
-  module M = IrminMisc.Identifiable(struct
-      type t = Elt.t list
-      with bin_io, compare, sexp
+  module M = IrminIdent.Make(struct
+      type t = Elt.t list with compare, sexp
     end)
   include M
 
@@ -71,12 +59,6 @@ module Log = struct
     let l = String.split str ~on:'\n' in
     let l = List.filter ~f:(fun s -> String.(s <>"")) l in
     List.map ~f:Elt.of_string l
-
-  let of_json json =
-    Ezjsonm.get_list Elt.of_json json
-
-  let to_json t =
-    Ezjsonm.list Elt.to_json t
 
   let merge_t ~old:_ t1 t2 =
     let map t =
@@ -96,15 +78,22 @@ module Log = struct
           if String.(v1 = v2) then Some v1
           else Some (v1 ^ " -- " ^ v2)
       ) in
-    IrminMerge.Ok (list m3)
+    `Ok (list m3)
 
   let merge = IrminMerge.create (module M) merge_t
 
 end
 
+module Config = struct
+  let root = Some "/tmp/irmin/test"
+  module Store = Git_fs
+  let bare = true
+  let disk = true
+end
 
-module Git = IrminGit.Make(IrminKey.SHA1)(Log)(IrminReference.String)
-module Store = (val Git.create ~bare:true ~kind:`Disk ~root:path ())
+module Git = IrminGit.Make(Config)
+
+module Store = Git.Make(IrminKey.SHA1)(Log)(IrminTag.String)
 
 let main () =
   let path = ["local"; "me"] in
@@ -129,13 +118,13 @@ let main () =
   Store.read_exn t path  >>= fun logs ->
   Printf.printf "I've just read:\n-----------\n%s-----------\n%!" (Log.to_string logs);
 
-  Store.branch t "refs/heads/test" >>= fun x ->
+  Store.clone_force t "refs/heads/test" >>= fun x ->
   add x m2 >>= fun () ->
   add t m2' >>= fun () ->
   add t m3  >>= fun () ->
   add x m4  >>= fun () ->
 
-  Store.merge_exn t x >>= fun () ->
+  Store.merge_exn t (Store.branch x) >>= fun () ->
 
   Store.read_exn t path >>= fun logs ->
   Printf.printf "I've just read:\n%s\n%!" (Log.to_string logs);

@@ -16,43 +16,27 @@
 
 open Core_kernel.Std
 
-module Log = Log.Make(struct let section = "VALUE" end)
+module Log = Log.Make(struct let section = "CONTENTS" end)
 
 exception Invalid of string
 
 module type S = sig
-  include Identifiable.S
-  val to_json: t -> Ezjsonm.t
-  val of_json: Ezjsonm.t -> t
+  include IrminIdent.S
   val merge: t IrminMerge.t
 end
 
 module String  = struct
 
-  include String
+  module S = IrminIdent.String
 
-  let of_json = IrminMisc.json_decode_exn
-
-  let to_json = IrminMisc.json_encode
+  include S
 
   let merge =
-    IrminMerge.default (module String)
+    IrminMerge.default (module S)
 
 end
 
 module JSON = struct
-
-  module S = IrminMisc.Identifiable(struct
-      type t =
-        [ `Null
-        | `Bool of bool
-        | `Float of float
-        | `String of string
-        | `A of t list
-        | `O of (string * t) list ]
-      with bin_io, compare, sexp
-    end)
-  include S
 
   let rec encode t: Ezjsonm.t =
     match t with
@@ -62,8 +46,6 @@ module JSON = struct
     | `String s -> IrminMisc.json_encode s
     | `A l      -> `A (List.rev_map ~f:encode l)
     | `O l      -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
-
-  let to_json = encode
 
   let rec decode t: Ezjsonm.t =
     match t with
@@ -76,6 +58,21 @@ module JSON = struct
       match IrminMisc.json_decode t with
       | Some s -> `String s
       | None   -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
+
+  module S = IrminIdent.Make(struct
+      type t =
+        [ `Null
+        | `Bool of bool
+        | `Float of float
+        | `String of string
+        | `A of t list
+        | `O of (string * t) list ]
+      with compare, sexp
+    end)
+
+  include S
+
+  let to_json = encode
 
   let of_json = decode
 

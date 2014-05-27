@@ -25,18 +25,6 @@ type ('key, 'contents) t =
   | Commit of 'key IrminCommit.t
 with bin_io, compare, sexp
 
-let to_json json_of_key json_of_contents = function
-  | Contents b   -> `O [ "contents"  , json_of_contents b ]
-  | Node t   -> `O [ "node"  , IrminNode.to_json json_of_key t ]
-  | Commit c -> `O [ "commit", IrminCommit.to_json json_of_key c]
-
-let of_json key_of_json contents_of_json json =
-  match Ezjsonm.get_dict json with
-  | [ "contents"  , b ] -> Contents (contents_of_json b)
-  | [ "node"  , t ] -> Node (IrminNode.of_json key_of_json t)
-  | [ "commit", c ] -> Commit (IrminCommit.of_json key_of_json c)
-  | _ -> failwith ("error: Value.of_json " ^ Ezjsonm.to_string json)
-
 module type S = sig
   type key
   type contents
@@ -48,10 +36,10 @@ module S (K: IrminKey.S) (C: IrminContents.S) = struct
   type key = K.t
   type contents = C.t
 
-  module S = IrminMisc.Identifiable(struct
-      type nonrec t = (K.t, C.t) t
-      with bin_io, compare, sexp
+  module S = IrminIdent.Make(struct
+      type nonrec t = (K.t, C.t) t with bin_io, compare, sexp
     end)
+
   include S
 
   module Key = K
@@ -61,12 +49,6 @@ module S (K: IrminKey.S) (C: IrminContents.S) = struct
   module Node = IrminNode.S(K)
 
   module Commit = IrminCommit.S(K)
-
-  let of_json =
-    of_json K.of_json C.of_json
-
-  let to_json =
-    to_json K.to_json C.to_json
 
   let merge =
     IrminMerge.default (module S)
@@ -80,16 +62,12 @@ module JSON = S(IrminKey.SHA1)(IrminContents.JSON)
 module type STORE = sig
   type key
   type contents
-  include IrminStore.AO with type key := key
-                         and type value = (key, contents) t
-  module Contents: IrminContents.STORE
-    with type key = key
-     and type value = contents
-  module Node: IrminNode.STORE
-    with type key = key
-     and type contents = contents
-  module Commit: IrminCommit.STORE
-    with type key = key
+  include IrminStore.AO with type key := key and type value = (key, contents) t
+  module Contents: IrminContents.STORE with type key = key and type value = contents
+  module Node: IrminNode.STORE with type key = key and type contents = contents
+  type node = Node.value
+  module Commit: IrminCommit.STORE with type key = key
+  type commit = Commit.value
   val contents: t -> Contents.t
   val node: t -> Node.t
   val commit: t -> Commit.t
@@ -113,7 +91,8 @@ module Mux
   module Node = IrminNode.Make(K)(C)(Contents)(XNode)
   module Commit = IrminCommit.Make(K)(Node)(XCommit)
   module Value = S(K)(C)
-
+  type commit = Commit.value
+  type node = Node.value
   type t = {
     contents : Contents.t;
     node     : Node.t;
@@ -125,7 +104,7 @@ module Mux
   let commit t = t.commit
 
   let create () =
-    Commit.create () >>= fun ((contents, _ as node), _ as commit) ->
+    Commit.create () >>= fun  ((contents, _ as node), _ as commit) ->
     return { contents; node; commit }
 
   (* XXX: ugly and slow *)
@@ -157,7 +136,7 @@ module Mux
     | Node tr  -> Node.add t.node tr
     | Commit c -> Commit.add t.commit c
 
-  module Graph = IrminGraph.Make(K)(IrminReference.String)
+  module Graph = IrminGraph.Make(K)(IrminTag.String)
 
   let list t keys =
     Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
@@ -279,6 +258,9 @@ module Make
   module Contents = IrminContents.Make(K)(C)(BS)
   module Node = IrminNode.Make(K)(C)(Contents)(TS)
   module Commit = IrminCommit.Make(K)(Node)(CS)
+
+  type commit = Commit.value
+  type node = Node.value
 
   include Store
   type contents = Contents.value

@@ -17,8 +17,7 @@
 open Core_kernel.Std
 
 module M = struct
-  type nonrec t = string list
-  with bin_io, compare, sexp
+  type nonrec t = string list with bin_io, compare, sexp
   let hash (t : t) = Hashtbl.hash t
   let to_string t =
     String.concat ~sep:"/" t

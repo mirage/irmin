@@ -25,14 +25,8 @@ module type S = sig
 
   (** Signature for store contents. *)
 
-  include Identifiable.S
+  include IrminIdent.S
   (** Base types. *)
-
-  val to_json: t -> Ezjsonm.t
-  (** Convert the contents to JSON. *)
-
-  val of_json: Ezjsonm.t -> t
-  (** Read some JSON encoded contents. *)
 
   val merge: t IrminMerge.t
   (** Merge function. Raise [Conflict] if the values cannot be merged
@@ -50,8 +44,10 @@ module JSON: S with type t = Ezjsonm.t
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-(** JSON values. *)
+
 module type STORE = sig
+
+  (** Store user-defined contents. *)
 
   include IrminStore.AO
   (** Contents stores are append-only. *)
@@ -66,7 +62,6 @@ module type STORE = sig
   (** Base functions for values. *)
 
 end
-(** Blobs are stored in append-only stores. *)
 
 module Make
     (K: IrminKey.S)

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Log = Log.Make(struct let section = "watch" end)
+module Log = Log.Make(struct let section = "WATCH" end)
 
 open Core_kernel.Std
 open Lwt
