@@ -450,7 +450,7 @@ end
 module type STORE = sig
   include S
   type db
-  type path
+  type path = IrminPath.t
   val of_path: db -> path -> t Lwt.t
   val update_path: ?origin:origin -> db -> path -> t -> unit Lwt.t
   val merge_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t

@@ -19,9 +19,8 @@ module Contents = struct
   with bin_io, compare, sexp
 
   (* Glue code *)
-  module X = IrminMisc.Identifiable(struct
-      type nonrec t = elt
-      with bin_io, compare, sexp
+  module X = IrminIdent.Make(struct
+      type nonrec t = elt with compare, sexp
     end)
   include X
 
@@ -35,15 +34,6 @@ module Contents = struct
       let l = List.filter ~f:(fun x -> String.(x <> "")) l in
       Set (String.Set.of_list l)
     | _            -> String str
-
-  let to_json = function
-    | String s -> Ezjsonm.string s
-    | Set s    -> Ezjsonm.list Ezjsonm.string (String.Set.to_list s)
-
-  let of_json x = match x with
-    | `String _ -> String (Ezjsonm.get_string x)
-    | `A _      -> Set (String.Set.of_list (Ezjsonm.(get_list get_string x)))
-    | _         -> failwith "Contents.of_json"
 
   let (++) = String.Set.union
   let (--) = String.Set.diff
@@ -68,7 +58,6 @@ module Contents = struct
 
 end
 
-module Git  = IrminGit .Make(IrminKey.SHA1)(Contents)(IrminReference.String)
 module View = IrminView.Make(IrminKey.SHA1)(Contents)
 
 module Contact = struct
@@ -100,9 +89,9 @@ module Contact = struct
 
 end
 
-module type S = Irmin.S with type Internal.key = IrminKey.SHA1.t
+module type S = Irmin.S with type Block.key = IrminKey.SHA1.t
                          and type value = Contents.t
-                         and type Reference.key = IrminReference.String.t
+                         and type branch = IrminTag.String.t
 
 module ContactStore (Store: S) = struct
 
@@ -110,7 +99,7 @@ module ContactStore (Store: S) = struct
 
   let add t contact =
     Contact.view_of_t contact >>= fun view ->
-    Store.merge_view_exn t ["contacts"] view
+    Store.View.merge_path_exn t ["contacts"] view
 
   let add_phone contact phone =
     let phones = String.Set.add contact.phones phone in
@@ -122,7 +111,7 @@ module ContactStore (Store: S) = struct
   let list t =
     Store.list t [["contacts"]] >>= fun paths ->
     Lwt_list.map_s (fun path ->
-        Store.read_view t path >>= fun view ->
+        Store.View.of_path t path >>= fun view ->
         let id = List.hd_exn (List.rev path) in
         t_of_view id view
       ) paths
@@ -146,7 +135,16 @@ let error () =
           \       contact import <path>\n";
   exit 1
 
-let cwd = Sys.getcwd ()
+module Git (C: sig val root: string option end) = struct
+  module LocalConfig = struct
+    let root = C.root
+    module Store = Git_fs
+    let bare = true
+    let disk = true
+  end
+  module G = IrminGit.Make(LocalConfig)
+  include G.Make(IrminKey.SHA1)(Contents)(IrminTag.String)
+end
 
 let main () =
 
@@ -156,14 +154,14 @@ let main () =
   match Sys.argv.(1) with
   | "init" ->
 
-    let module Local = (val Git.create ~bare:true ~kind:`Disk ~root:cwd ()) in
-    let module CS = ContactStore (Local) in
+    let module Local = Git(struct let root = None end) in
+    let module CS    = ContactStore (Local) in
 
     Local.create () >>= fun t ->
     CS.add t thomas >>= fun () ->
     CS.add t anil   >>= fun () ->
 
-    Local.branch t "refs/heads/test" >>= fun test ->
+    Local.clone_force t "refs/heads/test" >>= fun test ->
 
     let anil_test = CS.add_phone anil      "+44 12345" in
     let anil_test = CS.add_phone anil_test "+44 45678" in
@@ -172,7 +170,7 @@ let main () =
     CS.add test anil_test >>= fun () ->
     CS.add t anil_t       >>= fun () ->
 
-    Local.merge_exn test ~into:t >>= fun () ->
+    Local.merge_exn t (Local.branch test) >>= fun () ->
 
     let thomas = CS.update_name thomas "T. Gazagnaire" in
     CS.add t thomas >>= fun () ->
@@ -184,8 +182,8 @@ let main () =
     if argc <> 3 then error ();
     let path = Sys.argv.(2) in
 
-    let module Local = (val Git.create ~bare:true ~kind:`Disk ~root:cwd ()) in
-    let module Remote = (val Git.create ~bare:true ~kind:`Disk ~root:path ()) in
+    let module Local  = Git(struct let root = None end) in
+    let module Remote = Git(struct let root = Some path end) in
 
     let module LocalCS  = ContactStore (Local) in
     let module RemoteCS = ContactStore (Remote) in

@@ -21,6 +21,7 @@ open IrminMerge.OP
 module type S = sig
   include IrminBranch.STORE with type key = IrminPath.t
   module Snapshot: IrminSnapshot.STORE with type db = t
+                                        and type state = Block.key
   module Dump: IrminDump.STORE with type db       = t
                                 and type key      = Block.key
                                 and type contents = Block.contents

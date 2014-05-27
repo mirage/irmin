@@ -82,7 +82,7 @@ module type STORE = sig
   type db
   (** Database handler. *)
 
-  type path
+  type path = IrminPath.t
   (** Database path. *)
 
   val of_path: db -> path -> t Lwt.t
@@ -108,5 +108,4 @@ end
 module Store (S: IrminBranch.STORE): STORE with type db    = S.t
                                             and type value = S.value
                                             and type node  = S.Block.key
-                                            and type path  = IrminPath.t
 (** Create a view implementation tied to a the store [S]. *)

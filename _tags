@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 93fbffb197fc1dac37959af0fe70b3f1)
+# DO NOT EDIT (digest: 483d241a6d0fb550018c5438adecf6c7)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -13,12 +13,12 @@
 ".git": not_hygienic
 "_darcs": -traverse
 "_darcs": not_hygienic
-# Library irminsule
-"lib/core/irminsule.cmxs": use_irminsule
-<lib/core/irminsule.{cma,cmxa}>: oasis_library_irminsule_byte
-<lib/core/*.ml{,i}>: oasis_library_irminsule_byte
-<lib/core/irminsule.{cma,cmxa}>: oasis_library_irminsule_native
-<lib/core/*.ml{,i}>: oasis_library_irminsule_native
+# Library irmin
+"lib/core/irmin.cmxs": use_irmin
+<lib/core/irmin.{cma,cmxa}>: oasis_library_irmin_byte
+<lib/core/*.ml{,i}>: oasis_library_irmin_byte
+<lib/core/irmin.{cma,cmxa}>: oasis_library_irmin_native
+<lib/core/*.ml{,i}>: oasis_library_irmin_native
 <lib/core/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/core/*.ml{,i}>: pkg_comparelib.syntax
 <lib/core/*.ml{,i}>: pkg_core_kernel
@@ -59,7 +59,7 @@
 <lib/backend/*.ml{,i}>: pkg_sha
 <lib/backend/*.ml{,i}>: pkg_uri
 <lib/backend/*.ml{,i}>: use_backend
-<lib/backend/*.ml{,i}>: use_irminsule
+<lib/backend/*.ml{,i}>: use_irmin
 # Library server
 "lib/server/server.cmxs": use_server
 <lib/server/server.{cma,cmxa}>: oasis_library_server_byte
@@ -86,7 +86,7 @@
 <lib/server/*.ml{,i}>: pkg_uri
 <lib/server/*.ml{,i}>: use_backend
 <lib/server/*.ml{,i}>: use_fs
-<lib/server/*.ml{,i}>: use_irminsule
+<lib/server/*.ml{,i}>: use_irmin
 # Executable irmin
 <lib/driver/irminMain.{native,byte}>: pkg_bin_prot.syntax
 <lib/driver/irminMain.{native,byte}>: pkg_cmdliner
@@ -96,6 +96,7 @@
 <lib/driver/irminMain.{native,byte}>: pkg_dolog
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm.lwt
+<lib/driver/irminMain.{native,byte}>: pkg_git.fs
 <lib/driver/irminMain.{native,byte}>: pkg_git.memory
 <lib/driver/irminMain.{native,byte}>: pkg_lwt
 <lib/driver/irminMain.{native,byte}>: pkg_lwt.ssl
@@ -109,7 +110,7 @@
 <lib/driver/irminMain.{native,byte}>: pkg_uri
 <lib/driver/irminMain.{native,byte}>: use_backend
 <lib/driver/irminMain.{native,byte}>: use_fs
-<lib/driver/irminMain.{native,byte}>: use_irminsule
+<lib/driver/irminMain.{native,byte}>: use_irmin
 <lib/driver/irminMain.{native,byte}>: use_server
 <lib/driver/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/driver/*.ml{,i}>: pkg_cmdliner
@@ -119,6 +120,7 @@
 <lib/driver/*.ml{,i}>: pkg_dolog
 <lib/driver/*.ml{,i}>: pkg_ezjsonm
 <lib/driver/*.ml{,i}>: pkg_ezjsonm.lwt
+<lib/driver/*.ml{,i}>: pkg_git.fs
 <lib/driver/*.ml{,i}>: pkg_git.memory
 <lib/driver/*.ml{,i}>: pkg_lwt
 <lib/driver/*.ml{,i}>: pkg_lwt.ssl
@@ -132,7 +134,7 @@
 <lib/driver/*.ml{,i}>: pkg_uri
 <lib/driver/*.ml{,i}>: use_backend
 <lib/driver/*.ml{,i}>: use_fs
-<lib/driver/*.ml{,i}>: use_irminsule
+<lib/driver/*.ml{,i}>: use_irmin
 <lib/driver/*.ml{,i}>: use_server
 # Executable test_irmin
 <lib_test/test.{native,byte}>: pkg_alcotest
@@ -143,6 +145,7 @@
 <lib_test/test.{native,byte}>: pkg_dolog
 <lib_test/test.{native,byte}>: pkg_ezjsonm
 <lib_test/test.{native,byte}>: pkg_ezjsonm.lwt
+<lib_test/test.{native,byte}>: pkg_git.fs
 <lib_test/test.{native,byte}>: pkg_git.memory
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_lwt.ssl
@@ -156,7 +159,7 @@
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: use_backend
 <lib_test/test.{native,byte}>: use_fs
-<lib_test/test.{native,byte}>: use_irminsule
+<lib_test/test.{native,byte}>: use_irmin
 <lib_test/test.{native,byte}>: use_server
 <lib_test/*.ml{,i}>: pkg_alcotest
 <lib_test/*.ml{,i}>: pkg_bin_prot.syntax
@@ -166,6 +169,7 @@
 <lib_test/*.ml{,i}>: pkg_dolog
 <lib_test/*.ml{,i}>: pkg_ezjsonm
 <lib_test/*.ml{,i}>: pkg_ezjsonm.lwt
+<lib_test/*.ml{,i}>: pkg_git.fs
 <lib_test/*.ml{,i}>: pkg_git.memory
 <lib_test/*.ml{,i}>: pkg_lwt
 <lib_test/*.ml{,i}>: pkg_lwt.ssl
@@ -179,7 +183,111 @@
 <lib_test/*.ml{,i}>: pkg_uri
 <lib_test/*.ml{,i}>: use_backend
 <lib_test/*.ml{,i}>: use_fs
-<lib_test/*.ml{,i}>: use_irminsule
+<lib_test/*.ml{,i}>: use_irmin
 <lib_test/*.ml{,i}>: use_server
+# Executable test_git_store
+<examples/git_store.{native,byte}>: pkg_bin_prot.syntax
+<examples/git_store.{native,byte}>: pkg_cohttp.lwt
+<examples/git_store.{native,byte}>: pkg_comparelib.syntax
+<examples/git_store.{native,byte}>: pkg_core_kernel
+<examples/git_store.{native,byte}>: pkg_dolog
+<examples/git_store.{native,byte}>: pkg_ezjsonm
+<examples/git_store.{native,byte}>: pkg_ezjsonm.lwt
+<examples/git_store.{native,byte}>: pkg_git.fs
+<examples/git_store.{native,byte}>: pkg_git.memory
+<examples/git_store.{native,byte}>: pkg_lwt
+<examples/git_store.{native,byte}>: pkg_lwt.unix
+<examples/git_store.{native,byte}>: pkg_mstruct
+<examples/git_store.{native,byte}>: pkg_ocamlgraph
+<examples/git_store.{native,byte}>: pkg_re.str
+<examples/git_store.{native,byte}>: pkg_sexplib.syntax
+<examples/git_store.{native,byte}>: pkg_sha
+<examples/git_store.{native,byte}>: pkg_uri
+<examples/git_store.{native,byte}>: use_backend
+<examples/git_store.{native,byte}>: use_fs
+<examples/git_store.{native,byte}>: use_irmin
+# Executable test_custom_merge
+<examples/custom_merge.{native,byte}>: pkg_bin_prot.syntax
+<examples/custom_merge.{native,byte}>: pkg_cohttp.lwt
+<examples/custom_merge.{native,byte}>: pkg_comparelib.syntax
+<examples/custom_merge.{native,byte}>: pkg_core_kernel
+<examples/custom_merge.{native,byte}>: pkg_dolog
+<examples/custom_merge.{native,byte}>: pkg_ezjsonm
+<examples/custom_merge.{native,byte}>: pkg_ezjsonm.lwt
+<examples/custom_merge.{native,byte}>: pkg_git.fs
+<examples/custom_merge.{native,byte}>: pkg_git.memory
+<examples/custom_merge.{native,byte}>: pkg_lwt
+<examples/custom_merge.{native,byte}>: pkg_lwt.unix
+<examples/custom_merge.{native,byte}>: pkg_mstruct
+<examples/custom_merge.{native,byte}>: pkg_ocamlgraph
+<examples/custom_merge.{native,byte}>: pkg_re.str
+<examples/custom_merge.{native,byte}>: pkg_sexplib.syntax
+<examples/custom_merge.{native,byte}>: pkg_sha
+<examples/custom_merge.{native,byte}>: pkg_uri
+<examples/custom_merge.{native,byte}>: use_backend
+<examples/custom_merge.{native,byte}>: use_fs
+<examples/custom_merge.{native,byte}>: use_irmin
+# Executable test_views
+<examples/views.{native,byte}>: pkg_bin_prot.syntax
+<examples/views.{native,byte}>: pkg_cohttp.lwt
+<examples/views.{native,byte}>: pkg_comparelib.syntax
+<examples/views.{native,byte}>: pkg_core_kernel
+<examples/views.{native,byte}>: pkg_dolog
+<examples/views.{native,byte}>: pkg_ezjsonm
+<examples/views.{native,byte}>: pkg_ezjsonm.lwt
+<examples/views.{native,byte}>: pkg_git.fs
+<examples/views.{native,byte}>: pkg_git.memory
+<examples/views.{native,byte}>: pkg_lwt
+<examples/views.{native,byte}>: pkg_lwt.unix
+<examples/views.{native,byte}>: pkg_mstruct
+<examples/views.{native,byte}>: pkg_ocamlgraph
+<examples/views.{native,byte}>: pkg_re.str
+<examples/views.{native,byte}>: pkg_sexplib.syntax
+<examples/views.{native,byte}>: pkg_sha
+<examples/views.{native,byte}>: pkg_uri
+<examples/views.{native,byte}>: use_backend
+<examples/views.{native,byte}>: use_fs
+<examples/views.{native,byte}>: use_irmin
+# Executable test_contatcs
+<examples/contacts.{native,byte}>: pkg_bin_prot.syntax
+<examples/contacts.{native,byte}>: pkg_cohttp.lwt
+<examples/contacts.{native,byte}>: pkg_comparelib.syntax
+<examples/contacts.{native,byte}>: pkg_core_kernel
+<examples/contacts.{native,byte}>: pkg_dolog
+<examples/contacts.{native,byte}>: pkg_ezjsonm
+<examples/contacts.{native,byte}>: pkg_ezjsonm.lwt
+<examples/contacts.{native,byte}>: pkg_git.fs
+<examples/contacts.{native,byte}>: pkg_git.memory
+<examples/contacts.{native,byte}>: pkg_lwt
+<examples/contacts.{native,byte}>: pkg_lwt.unix
+<examples/contacts.{native,byte}>: pkg_mstruct
+<examples/contacts.{native,byte}>: pkg_ocamlgraph
+<examples/contacts.{native,byte}>: pkg_re.str
+<examples/contacts.{native,byte}>: pkg_sexplib.syntax
+<examples/contacts.{native,byte}>: pkg_sha
+<examples/contacts.{native,byte}>: pkg_uri
+<examples/contacts.{native,byte}>: use_backend
+<examples/contacts.{native,byte}>: use_fs
+<examples/contacts.{native,byte}>: use_irmin
+<examples/*.ml{,i}>: pkg_bin_prot.syntax
+<examples/*.ml{,i}>: pkg_cohttp.lwt
+<examples/*.ml{,i}>: pkg_comparelib.syntax
+<examples/*.ml{,i}>: pkg_core_kernel
+<examples/*.ml{,i}>: pkg_dolog
+<examples/*.ml{,i}>: pkg_ezjsonm
+<examples/*.ml{,i}>: pkg_ezjsonm.lwt
+<examples/*.ml{,i}>: pkg_git.fs
+<examples/*.ml{,i}>: pkg_git.memory
+<examples/*.ml{,i}>: pkg_lwt
+<examples/*.ml{,i}>: pkg_lwt.unix
+<examples/*.ml{,i}>: pkg_mstruct
+<examples/*.ml{,i}>: pkg_ocamlgraph
+<examples/*.ml{,i}>: pkg_re.str
+<examples/*.ml{,i}>: pkg_sexplib.syntax
+<examples/*.ml{,i}>: pkg_sha
+<examples/*.ml{,i}>: pkg_uri
+<examples/*.ml{,i}>: use_backend
+<examples/*.ml{,i}>: use_fs
+<examples/*.ml{,i}>: use_irmin
 # OASIS_STOP
 true: bin_annot, annot, debug

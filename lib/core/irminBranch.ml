@@ -34,6 +34,7 @@ module type STORE = sig
   val remove: t -> ?origin:origin -> key -> unit Lwt.t
   val clone: t -> branch -> t option Lwt.t
   val clone_force: t -> branch -> t Lwt.t
+  val switch: t -> branch -> unit Lwt.t
   val merge: t -> ?origin:origin -> branch -> unit IrminMerge.result Lwt.t
   val merge_exn: t -> ?origin:origin -> branch -> unit Lwt.t
   module Block: IrminBlock.STORE with type contents = value
@@ -50,6 +51,7 @@ module type STORE = sig
   val merge_commit: t -> ?origin:origin -> Block.key -> unit IrminMerge.result Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
+  module Branch: IrminTag.S with type t = branch
   module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
 end
 
@@ -62,6 +64,7 @@ struct
 
   module Tag = Tag
   module T = Tag.Key
+  module Branch = T
 
   module Key = IrminPath
   module K = Block.Key
@@ -232,6 +235,11 @@ struct
 
   let update_commit t c =
     Tag.update t.tag t.branch c
+
+  let switch t branch =
+    Tag.read t.tag branch >>= function
+    | Some c -> Tag.update t.tag t.branch c
+    | None   -> Tag.remove t.tag t.branch
 
   let merge_commit t ?origin c1 =
     Tag.read t.tag t.branch >>= function

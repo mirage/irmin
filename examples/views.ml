@@ -10,9 +10,16 @@
 
 open Lwt
 
-let path = "/tmp/irmin/test"
-module Git = IrminGit.Make(IrminKey.SHA1)(IrminContents.String)(IrminReference.String)
-module Store = (val Git.create ~bare:false ~kind:`Disk ~root:path ())
+module Config = struct
+  let root = Some "/tmp/irmin/test"
+  module Store = Git_fs
+  let bare = true
+  let disk = true
+end
+
+module Git = IrminGit.Make(Config)
+
+module Store = Git.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String)
 
 type t1 = int
 
@@ -56,14 +63,14 @@ let main () =
   view_of_t t >>= fun v ->
 
   Store.create () >>= fun t ->
-  Store.update_view t ["a";"b"] v >>= fun () ->
+  Store.View.update_path t ["a";"b"] v >>= fun () ->
 
-  Store.read_view t ["a";"b"] >>= fun v ->
+  Store.View.of_path t ["a";"b"] >>= fun v ->
   t_of_view v >>= fun tt ->
 
   let tt = { x = "ggg"; y = 4 } :: tt in
   view_of_t tt >>= fun vv ->
-  Store.merge_view_exn t ["a";"c"] vv
+  Store.View.merge_path_exn t ["a";"c"] vv
 
 let () =
   Lwt_unix.run (main ())

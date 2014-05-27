@@ -47,7 +47,15 @@ let suite k g =
     init  = init g;
     clean = unit;
     store =
-      let (module K), (module C), (module R) = modules k in
-      let module M = IrminGit.Make(K)(C)(R) in
-      M.(cast (create ~bare:true ~kind:g ~root:"." ()));
+      let (module Config) = match g with
+        | `Memory -> (module IrminGit.Memory: IrminGit.Config)
+        | `Disk   -> (module struct
+            let root = None
+            module Store = Git_fs
+            let bare = false
+            let disk = true
+          end) in
+      let module M = IrminGit.Make(Config) in
+      let (module K), (module C), (module T) = modules k in
+      Irmin.cast (module M.Make(K)(C)(T))
   }

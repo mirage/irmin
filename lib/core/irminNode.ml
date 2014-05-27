@@ -218,7 +218,7 @@ module Make
     | Some k -> Some (Contents.read_exn c k)
 
   let succ t node =
-    Map.mapi ~f:(fun ~key:l ~data:k -> read_exn t k) node.succ
+    Map.map ~f:(fun k -> read_exn t k) node.succ
 
   let next t node label =
     match Map.find node.succ label with

@@ -20,9 +20,16 @@ let () =
       Log.set_log_level Log.DEBUG
   with Not_found -> ()
 
-let path = "/tmp/irmin/test"
-module Git = IrminGit.Make(IrminKey.SHA1)(IrminContents.String)(IrminReference.String)
-module Store = (val Git.create ~bare:true ~kind:`Disk ~root:path ())
+module Config = struct
+  let root = Some "/tmp/irmin/test"
+  module Store = Git_fs
+  let bare = true
+  let disk = true
+end
+
+module Git = IrminGit.Make(Config)
+
+module Store = Git.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String)
 
 let main () =
   Store.create () >>= fun t ->
@@ -33,13 +40,13 @@ let main () =
   Store.read_exn t ["root";"misc";"2.txt"] >>= fun file ->
   Printf.printf "I've just read: %s\n%!" file;
 
-  Store.branch t "refs/heads/test" >>= fun x ->
+  Store.clone_force t "refs/heads/test" >>= fun x ->
 
   let str = Cryptokit.(Random.string (Random.device_rng "/dev/urandom") 1024) in
   Store.update   t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
   Store.update   x ["root";"misc";"2.txt"] str >>= fun () ->
 
-  Store.merge_exn t x >>= fun () ->
+  Store.merge_exn t (Store.branch x)        >>= fun () ->
 
   Store.read_exn t ["root";"misc";"2.txt"]  >>= fun file2 ->
   Store.read_exn t ["root";"misc";"3.txt"]  >>= fun file3 ->

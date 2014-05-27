@@ -1,5 +1,5 @@
 OASISFormat: 0.4
-Name:        irminsule
+Name:        irmin
 Version:     0.7.1
 Synopsis:    A Distributed Version Control Database
 Authors:     Thomas Gazagnaire
@@ -21,10 +21,10 @@ Flag unix
   Description: build the Unix library
   Default: true
 
-Library irminsule
+Library irmin
   Path: lib/core
-  Findlibname: irminsule
-  Modules: Irmin, IrminGraph, IrminKey,
+  Findlibname: irmin
+  Modules: Irmin, IrminGraph, IrminKey, IrminSnapshot,
            IrminMisc, IrminCommit, IrminStore, IrminBlock,
            IrminTag, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView,
@@ -40,8 +40,8 @@ Library irminsule
 Library backend
   Path: lib/backend
   Findlibname: backend
-  FindlibParent: irminsule
-  BuildDepends: irminsule, uri, cohttp.lwt, ezjsonm.lwt, git.memory
+  FindlibParent: irmin
+  BuildDepends: irmin, uri, cohttp.lwt, ezjsonm.lwt, git.memory
   Modules: IrminCRUD, IrminMemory, IrminGit
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
@@ -52,7 +52,7 @@ Library fs
   Path: lib/backend
   Findlibname: fs
   FindlibParent: backend
-  BuildDepends: lwt.unix, uri, irminsule.backend, irminsule
+  BuildDepends: lwt.unix, uri, irmin.backend, irmin
   Modules: IrminFS
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
@@ -62,28 +62,28 @@ Library server
   Install$: flag(unix) && flag(git)
   Path: lib/server
   Findlibname: server
-  FindlibParent: irminsule
+  FindlibParent: irmin
   BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl,
-                irminsule.backend.fs, irminsule.backend, irminsule
+                irmin.backend.fs, irmin.backend, irmin
   Modules: IrminHTTP
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 
-Document irminsule
-  Title:                Irminsule docs
+Document irmin
+  Title:                Irmin docs
   Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib/core
-  XOCamlbuildLibraries: irminsule
+  XOCamlbuildLibraries: irmin
 
 Document backend
-  Title:                Irminsule backends docs
+  Title:                Irmin backends docs
   Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib/backend
-  XOCamlbuildLibraries: irminsule.backend, irminsule.backend.fs
+  XOCamlbuildLibraries: irmin.backend, irmin.backend.fs
 
 Executable irmin
   Path:               lib/driver
@@ -91,8 +91,8 @@ Executable irmin
   Build$:             flag(unix)
   CompiledObject:     best
   Install:            true
-  BuildDepends:       cmdliner, irminsule.backend.fs,
-                      irminsule.backend, irminsule.server, irminsule
+  BuildDepends:       cmdliner, irmin.backend.fs, git.fs,
+                      irmin.backend, irmin.server, irmin
 
 Executable test_irmin
   Path:               lib_test
@@ -100,17 +100,41 @@ Executable test_irmin
   Build$:             flag(tests) && flag(unix)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irminsule, irminsule.backend, irminsule.backend.fs, alcotest, irminsule.server
+  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, alcotest, irmin.server, git.fs
 
 Test test_irmin
   Run$:               flag(tests) && flag(unix)
   Command:            $test_irmin -q
   WorkingDirectory:   lib_test
 
-Executable test_irmin
+Executable test_git_store
   Path:               examples/
   MainIs:             git_store.ml
   Build$:             flag(unix)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irminsule, irminsule.backend, irminsule.backend.fs
+  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+
+Executable test_custom_merge
+  Path:               examples/
+  MainIs:             custom_merge.ml
+  Build$:             flag(unix)
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+
+Executable test_views
+  Path:               examples/
+  MainIs:             views.ml
+  Build$:             flag(unix)
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+
+Executable test_contatcs
+  Path:               examples/
+  MainIs:             contacts.ml
+  Build$:             flag(unix)
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs

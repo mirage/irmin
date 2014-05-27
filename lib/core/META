@@ -1,18 +1,18 @@
 # OASIS_START
-# DO NOT EDIT (digest: d1150a76ebeaccdc7e9ce303510ea944)
+# DO NOT EDIT (digest: 3019c1f508be3b9fce3b39855956adbe)
 version = "0.7.1"
 description = "A Distributed Version Control Database"
 requires = "ezjsonm ocamlgraph lwt sha re.str dolog mstruct core_kernel"
-archive(byte) = "irminsule.cma"
-archive(byte, plugin) = "irminsule.cma"
-archive(native) = "irminsule.cmxa"
-archive(native, plugin) = "irminsule.cmxs"
-exists_if = "irminsule.cma"
+archive(byte) = "irmin.cma"
+archive(byte, plugin) = "irmin.cma"
+archive(native) = "irmin.cmxa"
+archive(native, plugin) = "irmin.cmxs"
+exists_if = "irmin.cma"
 package "server" (
  version = "0.7.1"
  description = "A Distributed Version Control Database"
  requires =
- "cohttp.lwt unix lwt.unix lwt.ssl irminsule.backend.fs irminsule.backend irminsule"
+ "cohttp.lwt unix lwt.unix lwt.ssl irmin.backend.fs irmin.backend irmin"
  archive(byte) = "server.cma"
  archive(byte, plugin) = "server.cma"
  archive(native) = "server.cmxa"
@@ -23,7 +23,7 @@ package "server" (
 package "backend" (
  version = "0.7.1"
  description = "A Distributed Version Control Database"
- requires = "irminsule uri cohttp.lwt ezjsonm.lwt git.memory"
+ requires = "irmin uri cohttp.lwt ezjsonm.lwt git.memory"
  archive(byte) = "backend.cma"
  archive(byte, plugin) = "backend.cma"
  archive(native) = "backend.cmxa"
@@ -32,7 +32,7 @@ package "backend" (
  package "fs" (
   version = "0.7.1"
   description = "A Distributed Version Control Database"
-  requires = "lwt.unix uri irminsule.backend irminsule"
+  requires = "lwt.unix uri irmin.backend irmin"
   archive(byte) = "fs.cma"
   archive(byte, plugin) = "fs.cma"
   archive(native) = "fs.cmxa"

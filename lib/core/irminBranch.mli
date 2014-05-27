@@ -55,9 +55,13 @@ module type STORE = sig
   (** Same as [clone] but delete and update the existing branch if a
       branch with the same name already exists. *)
 
+  val switch: t -> branch -> unit Lwt.t
+  (** Switch the database contents the be same as the contents of the
+      given branch. The two branches are still independant. *)
+
   val merge: t -> ?origin:origin -> branch -> unit IrminMerge.result Lwt.t
   (** [merge db t] merges the branch [t] into the current database
-      branch. *)
+      branch. The two branches are still independant. *)
 
   val merge_exn: t -> ?origin:origin -> branch -> unit Lwt.t
   (** Same as [merge] but raise [Conflict "<msg>"] in case of a
@@ -107,6 +111,9 @@ module type STORE = sig
 
   module Value: IrminContents.S with type t = value
   (** Base functions over values. *)
+
+  module Branch: IrminTag.S with type t = branch
+  (** Base functions over branches. *)
 
   module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
   (** Object graph. *)

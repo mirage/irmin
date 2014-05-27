@@ -1,0 +1,22 @@
+# OASIS_START
+# DO NOT EDIT (digest: f71c89a9cc8bbae1d9439824c0a73da1)
+Irmin
+IrminGraph
+IrminKey
+IrminSnapshot
+IrminMisc
+IrminCommit
+IrminBlock
+IrminTag
+IrminContents
+IrminNode
+IrminVersion
+IrminDump
+IrminPath
+IrminWatch
+IrminMerge
+IrminView
+IrminOrigin
+IrminIdent
+IrminBranch
+# OASIS_STOP
