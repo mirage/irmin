@@ -18,6 +18,32 @@ Irmin is packaged with [opam](https://opam.ocaml.org):
 opam install irmin
 ```
 
+### Usage
+
+Irmin comes with a command-line tool called `irmin`. See `irmin
+ --help` for further reading. Use either `irmin <command> --help` or
+ `irmin help <command>` for more information on a specific command.
+
+To get the full capabilites of Irmin, use the API:
+
+```ocaml
+$ ledit ocaml
+# #require "irmin.backend";;
+# module G = IrminGit.Make(IrminGit.Memory);;
+# module S = G.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String);;
+# let () =
+    S.create () >>= fun t ->
+    S.update t ["foo"; "bar"] "hi!"
+```
+
+### Tutorial
+
+A tutorial is available on the [wiki](https://github.com/mirage/irmin/wiki/Getting-Started).
+
+### Issues
+
+To report any issues please use the [bugtracker on Github](https://github.com/irmin/issues).
+
 ### Install from source
 
 If you need to install Irmin from source, first you need to have
@@ -47,29 +73,3 @@ unreliable. Instead, use:
 ocamlfind remove irmin
 rm $(which irmin)
 ```
-
-### Usage
-
-Irmin comes with a command-line tool called `irmin`. See `irmin
- --help` for further reading. Use either `irmin <command> --help` or
- `irmin help <command>` for more information on a specific command.
-
-To get the full capabilites of Irmin, use the API:
-
-```
-$ ledit ocaml
-# #require "irmin.backend";;
-# module G = IrminGit.Make(IrminGit.Memory);;
-# module S = G.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String);;
-# let () =
-    S.create () >>= fun t ->
-    S.update t ["foo"; "bar"] "hi!"
-```
-
-### Tutorial
-
-A tutorial is available on the [wiki](https://github.com/mirage/irmin/wiki/Getting-Started).
-
-### Issues
-
-To report any issues please use the [bugtracker on Github](https://github.com/irmin/issues).
