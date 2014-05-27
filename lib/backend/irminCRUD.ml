@@ -169,61 +169,6 @@ module XMake (Client: Cohttp_lwt.Client) = struct
 
   end
 
-(*
-  module BC (U: Config) (K: Key) (C: IrminContents.S) (T: IrminTag.S) = struct
-
-    module RW = RW(U)(K)(C)
-
-    type t = Uri.t * T.t
-
-    type branch = T.t
-
-    let create ?branch t =
-      let branch = match branch with
-        | None   -> T.master
-        | Some b -> b in
-      U.uri, branch
-
-    let branch (_, b) = b
-
-    let with_branch (t, _) b = (t, b)
-
-    let json_of_origin =
-      Ezjsonm.option IrminOrigin.to_json
-
-    let update t ?origin key value =
-      Log.debugf "update %s" (K.to_string key);
-      post t ["update"; K.to_string key]
-        (Ezjson.pair json_of_origin V.to_json (origin, value))
-        Ezjsonm.get_unit
-
-    let remove t ?origin key =
-      Log.debugf "remove %s" (K.to_string key);
-      post t ["remove"; K.to_string key] (json_of_origin origin) Ezjsonm.get_unit
-
-    let clone t branch =
-      Log.debugf "clone %s" (T.to_string branch);
-      post t ["clone"; T.to_string branch ] >>= fun () ->
-      with_branch t branch
-
-    let force_clone t branch =
-      Log.debugf "force_clone %s" (T.to_string branch);
-      post t ["force-clone"; T.to_string branch ] >>= fun () ->
-      with_branch t branch
-
-    let merge t ?origin branch =
-      Log.debugf "merge";
-      post t ["merge"; T.to_string branch]
-        (json_of_origin origin) (result_of_json Ezjsonm.get_unit)
-
-    let merge_exn t ?origin branch =
-      Log.debugf "merge";
-      post t ["merge"; T.to_string branch]
-        (json_of_origin origin) Ezjsonm.get_unit
-
-  end
-*)
-
   module Make (U: Config) (K: IrminKey.S) (B: IrminContents.S) (T: IrminTag.S) = struct
 
     module N = IrminNode.S(K)
