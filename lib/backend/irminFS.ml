@@ -179,7 +179,7 @@ module RO (S: Config') (K: IrminKey.S) = struct
   let create () =
     let t = D S.path in
     let w = W.create () in
-    { t; w }
+    return { t; w }
 
   let mem { t } key =
     check t >>= fun () ->
@@ -257,7 +257,7 @@ module RW (S: Config') (K: IrminKey.S) = struct
     let w = W.create () in
     let t = { t; w } in
     W.listen_dir w S.path key_of_file (read_key t);
-    t
+    return t
 
   let remove { t } key =
     Log.debugf "remove %s" (pretty_key key);

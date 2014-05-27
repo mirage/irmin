@@ -16,11 +16,15 @@
 
 open Core_kernel.Std
 
-type t = {
-  date: int64;
-  id  : string;
-  msg : string;
-} with bin_io, compare, sexp
+module M = struct
+  type t = {
+    date: int64;
+    id  : string;
+    msg : string;
+  } with bin_io, compare, sexp
+end
+
+include IrminIdent.Make(M)
 
 let date_hook =
   let c = ref 0L in
@@ -36,6 +40,8 @@ let id_hook =
 let set_id f =
   id_hook := f
 
+open M
+
 let create ?date ? id fmt =
   let date = match date with
     | None   -> !date_hook ()
@@ -44,7 +50,7 @@ let create ?date ? id fmt =
     | None   -> !id_hook ()
     | Some i -> i in
   ksprintf (fun msg ->
-      { date; id; msg }
+      { M.date; id; msg }
     ) fmt
 
 let date t = t.date

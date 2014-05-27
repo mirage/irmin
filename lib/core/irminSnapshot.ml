@@ -23,17 +23,19 @@ type origin = IrminOrigin.t
 module Log = Log.Make(struct let section = "SNAPSHOT" end)
 
 module type STORE = sig
-  type t
+  include IrminIdent.S
+  type db
   type path
-  type state
-  val create: t -> state Lwt.t
-  val revert: t -> state -> unit Lwt.t
-  val merge: t -> ?origin:IrminOrigin.t -> state -> unit IrminMerge.result Lwt.t
-  val merge_exn: t -> ?origin:IrminOrigin.t -> state -> unit Lwt.t
-  val watch: t -> path -> (path * state) Lwt_stream.t
+  val create: db -> t Lwt.t
+  val revert: db -> t -> unit Lwt.t
+  val merge: db -> ?origin:IrminOrigin.t -> t -> unit IrminMerge.result Lwt.t
+  val merge_exn: db -> ?origin:IrminOrigin.t -> t -> unit Lwt.t
+  val watch: db -> path -> (path * t) Lwt_stream.t
 end
 
 module Make (S: IrminBranch.STORE) = struct
+
+  include S.Block.Key
 
   module Block = S.Block
   module Tag = S.Tag
@@ -41,7 +43,7 @@ module Make (S: IrminBranch.STORE) = struct
   module K = Block.Key
   type state = Block.key
 
-  type t = S.t
+  type db = S.t
   type path = S.key
 
   let create t =

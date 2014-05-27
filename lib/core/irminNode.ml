@@ -130,9 +130,9 @@ module Make
   type t = Contents.t * Node.t
 
   let create () =
-    let c = Contents.create () in
-    let t = Node.create () in
-    (c, t)
+    Contents.create () >>= fun c ->
+    Node.create ()     >>= fun t ->
+    return (c, t)
 
   let add (_, t) n = match n with
     | { contents = Some k } -> if Map.is_empty n.succ then return k else Node.add t n

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 26439ca1e51d0ea891d04f1cd96c6939)
+# DO NOT EDIT (digest: 93fbffb197fc1dac37959af0fe70b3f1)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -42,13 +42,6 @@
 <lib/backend/*.ml{,i}>: oasis_library_fs_byte
 <lib/backend/fs.{cma,cmxa}>: oasis_library_fs_native
 <lib/backend/*.ml{,i}>: oasis_library_fs_native
-<lib/backend/*.ml{,i}>: pkg_lwt.unix
-# Library git
-"lib/backend/git.cmxs": use_git
-<lib/backend/git.{cma,cmxa}>: oasis_library_git_byte
-<lib/backend/*.ml{,i}>: oasis_library_git_byte
-<lib/backend/git.{cma,cmxa}>: oasis_library_git_native
-<lib/backend/*.ml{,i}>: oasis_library_git_native
 <lib/backend/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/backend/*.ml{,i}>: pkg_cohttp.lwt
 <lib/backend/*.ml{,i}>: pkg_comparelib.syntax
@@ -56,9 +49,9 @@
 <lib/backend/*.ml{,i}>: pkg_dolog
 <lib/backend/*.ml{,i}>: pkg_ezjsonm
 <lib/backend/*.ml{,i}>: pkg_ezjsonm.lwt
-<lib/backend/*.ml{,i}>: pkg_git.fs
 <lib/backend/*.ml{,i}>: pkg_git.memory
 <lib/backend/*.ml{,i}>: pkg_lwt
+<lib/backend/*.ml{,i}>: pkg_lwt.unix
 <lib/backend/*.ml{,i}>: pkg_mstruct
 <lib/backend/*.ml{,i}>: pkg_ocamlgraph
 <lib/backend/*.ml{,i}>: pkg_re.str
@@ -80,7 +73,6 @@
 <lib/server/*.ml{,i}>: pkg_dolog
 <lib/server/*.ml{,i}>: pkg_ezjsonm
 <lib/server/*.ml{,i}>: pkg_ezjsonm.lwt
-<lib/server/*.ml{,i}>: pkg_git.fs
 <lib/server/*.ml{,i}>: pkg_git.memory
 <lib/server/*.ml{,i}>: pkg_lwt
 <lib/server/*.ml{,i}>: pkg_lwt.ssl
@@ -94,7 +86,6 @@
 <lib/server/*.ml{,i}>: pkg_uri
 <lib/server/*.ml{,i}>: use_backend
 <lib/server/*.ml{,i}>: use_fs
-<lib/server/*.ml{,i}>: use_git
 <lib/server/*.ml{,i}>: use_irminsule
 # Executable irmin
 <lib/driver/irminMain.{native,byte}>: pkg_bin_prot.syntax
@@ -105,7 +96,6 @@
 <lib/driver/irminMain.{native,byte}>: pkg_dolog
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm.lwt
-<lib/driver/irminMain.{native,byte}>: pkg_git.fs
 <lib/driver/irminMain.{native,byte}>: pkg_git.memory
 <lib/driver/irminMain.{native,byte}>: pkg_lwt
 <lib/driver/irminMain.{native,byte}>: pkg_lwt.ssl
@@ -119,7 +109,6 @@
 <lib/driver/irminMain.{native,byte}>: pkg_uri
 <lib/driver/irminMain.{native,byte}>: use_backend
 <lib/driver/irminMain.{native,byte}>: use_fs
-<lib/driver/irminMain.{native,byte}>: use_git
 <lib/driver/irminMain.{native,byte}>: use_irminsule
 <lib/driver/irminMain.{native,byte}>: use_server
 <lib/driver/*.ml{,i}>: pkg_bin_prot.syntax
@@ -130,7 +119,6 @@
 <lib/driver/*.ml{,i}>: pkg_dolog
 <lib/driver/*.ml{,i}>: pkg_ezjsonm
 <lib/driver/*.ml{,i}>: pkg_ezjsonm.lwt
-<lib/driver/*.ml{,i}>: pkg_git.fs
 <lib/driver/*.ml{,i}>: pkg_git.memory
 <lib/driver/*.ml{,i}>: pkg_lwt
 <lib/driver/*.ml{,i}>: pkg_lwt.ssl
@@ -144,7 +132,6 @@
 <lib/driver/*.ml{,i}>: pkg_uri
 <lib/driver/*.ml{,i}>: use_backend
 <lib/driver/*.ml{,i}>: use_fs
-<lib/driver/*.ml{,i}>: use_git
 <lib/driver/*.ml{,i}>: use_irminsule
 <lib/driver/*.ml{,i}>: use_server
 # Executable test_irmin
@@ -156,7 +143,6 @@
 <lib_test/test.{native,byte}>: pkg_dolog
 <lib_test/test.{native,byte}>: pkg_ezjsonm
 <lib_test/test.{native,byte}>: pkg_ezjsonm.lwt
-<lib_test/test.{native,byte}>: pkg_git.fs
 <lib_test/test.{native,byte}>: pkg_git.memory
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_lwt.ssl
@@ -170,7 +156,6 @@
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: use_backend
 <lib_test/test.{native,byte}>: use_fs
-<lib_test/test.{native,byte}>: use_git
 <lib_test/test.{native,byte}>: use_irminsule
 <lib_test/test.{native,byte}>: use_server
 <lib_test/*.ml{,i}>: pkg_alcotest
@@ -181,7 +166,6 @@
 <lib_test/*.ml{,i}>: pkg_dolog
 <lib_test/*.ml{,i}>: pkg_ezjsonm
 <lib_test/*.ml{,i}>: pkg_ezjsonm.lwt
-<lib_test/*.ml{,i}>: pkg_git.fs
 <lib_test/*.ml{,i}>: pkg_git.memory
 <lib_test/*.ml{,i}>: pkg_lwt
 <lib_test/*.ml{,i}>: pkg_lwt.ssl
@@ -195,7 +179,6 @@
 <lib_test/*.ml{,i}>: pkg_uri
 <lib_test/*.ml{,i}>: use_backend
 <lib_test/*.ml{,i}>: use_fs
-<lib_test/*.ml{,i}>: use_git
 <lib_test/*.ml{,i}>: use_irminsule
 <lib_test/*.ml{,i}>: use_server
 # OASIS_STOP

@@ -29,7 +29,7 @@ module type STORE = sig
   type branch
   (** Branch names. *)
 
-  val create: ?branch:branch -> unit -> t
+  val create: ?branch:branch -> unit -> t Lwt.t
   (** Create a store handle. The default branch (if not set) is
       [Branch.master]. *)
 

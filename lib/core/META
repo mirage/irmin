@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f43ae409bb82e87491774975383c6a39)
+# DO NOT EDIT (digest: d1150a76ebeaccdc7e9ce303510ea944)
 version = "0.7.1"
 description = "A Distributed Version Control Database"
 requires = "ezjsonm ocamlgraph lwt sha re.str dolog mstruct core_kernel"
@@ -12,7 +12,7 @@ package "server" (
  version = "0.7.1"
  description = "A Distributed Version Control Database"
  requires =
- "cohttp.lwt unix lwt.unix lwt.ssl irminsule.backend.fs irminsule.backend irminsule irminsule.backend.git"
+ "cohttp.lwt unix lwt.unix lwt.ssl irminsule.backend.fs irminsule.backend irminsule"
  archive(byte) = "server.cma"
  archive(byte, plugin) = "server.cma"
  archive(native) = "server.cmxa"
@@ -23,23 +23,12 @@ package "server" (
 package "backend" (
  version = "0.7.1"
  description = "A Distributed Version Control Database"
- requires = "irminsule uri cohttp.lwt ezjsonm.lwt"
+ requires = "irminsule uri cohttp.lwt ezjsonm.lwt git.memory"
  archive(byte) = "backend.cma"
  archive(byte, plugin) = "backend.cma"
  archive(native) = "backend.cmxa"
  archive(native, plugin) = "backend.cmxs"
  exists_if = "backend.cma"
- package "git" (
-  version = "0.7.1"
-  description = "A Distributed Version Control Database"
-  requires = "irminsule.backend irminsule git.fs git.memory"
-  archive(byte) = "git.cma"
-  archive(byte, plugin) = "git.cma"
-  archive(native) = "git.cmxa"
-  archive(native, plugin) = "git.cmxs"
-  exists_if = "git.cma"
- )
- 
  package "fs" (
   version = "0.7.1"
   description = "A Distributed Version Control Database"

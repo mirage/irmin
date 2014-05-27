@@ -72,7 +72,7 @@ module type S = sig
   val import: dump -> t
   (** Import a graph. *)
 
-  module Dump: Identifiable.S with type t = dump
+  module Dump: IrminIdent.S with type t = dump
   (** The base functions over graph internals. *)
 
 end

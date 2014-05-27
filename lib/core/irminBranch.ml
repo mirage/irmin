@@ -27,7 +27,7 @@ module Log = Log.Make(struct let section = "BRANCH" end)
 module type STORE = sig
   include IrminStore.RW with type key = path
   type branch
-  val create: ?branch:branch -> unit -> t
+  val create: ?branch:branch -> unit -> t Lwt.t
   val branch: t -> branch
   val with_branch: t -> branch -> t
   val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
@@ -99,9 +99,9 @@ struct
   let contents_t t = Block.contents t.block
 
   let create ?(branch=T.master) () =
-    let block = Block.create () in
-    let tag = Tag.create () in
-    { block; tag; branch }
+    Block.create () >>= fun block ->
+    Tag.create ()   >>= fun tag ->
+    return { block; tag; branch }
 
   let read_head_commit t =
     Tag.read t.tag t.branch >>= function

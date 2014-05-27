@@ -31,9 +31,10 @@ module type RO = sig
   type value
   (** Type of values. *)
 
-  val create: unit -> t
-  (** Create a store handle. The operation is non-blocking as it is
-      supposed to have no side-effects. *)
+  val create: unit -> t Lwt.t
+  (** Create a store handle. The operation can be used multiple times
+      as it is supposed to be very cheap (and usually
+      non-blocking). *)
 
   val read: t -> key -> value option Lwt.t
   (** Read a value from the store. *)

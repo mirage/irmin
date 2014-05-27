@@ -40,7 +40,7 @@ module type S = sig
   type dump = vertex list * (vertex * vertex) list
   val export: t -> dump
   val import: dump -> t
-  module Dump: Identifiable.S with type t = dump
+  module Dump: IrminIdent.S with type t = dump
 end
 
 type ('a, 'b) vertex =

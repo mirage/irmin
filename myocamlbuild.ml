@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 3e50d9dc499c86c5a2762a443fe42140) *)
+(* DO NOT EDIT (digest: 963143ef586f09d37071e1a7136288fb) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -600,7 +600,6 @@ let package_default =
           ("irminsule", ["lib/core"], ["IrminStore"]);
           ("backend", ["lib/backend"], []);
           ("fs", ["lib/backend"], []);
-          ("git", ["lib/backend"], []);
           ("server", ["lib/server"], [])
        ];
      lib_c = [];
@@ -642,18 +641,6 @@ let package_default =
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
           (["oasis_library_fs_native"; "ocaml"; "compile"; "native"],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_git_byte"; "ocaml"; "link"; "byte"],
-            [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_git_native"; "ocaml"; "link"; "native"],
-            [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_git_byte"; "ocaml"; "ocamldep"; "byte"],
-            [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_git_native"; "ocaml"; "ocamldep"; "native"],
-            [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_git_byte"; "ocaml"; "compile"; "byte"],
-            [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_git_native"; "ocaml"; "compile"; "native"],
-            [(OASISExpr.EBool true, S [A "-bin-annot"])]);
           (["oasis_library_server_byte"; "ocaml"; "link"; "byte"],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
           (["oasis_library_server_native"; "ocaml"; "link"; "native"],
@@ -679,6 +666,6 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 683 "myocamlbuild.ml"
+# 670 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

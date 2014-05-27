@@ -16,8 +16,8 @@
 
 (** Provenance tracking. *)
 
-type t with bin_io, compare, sexp
-(** Provenace values. *)
+include IrminIdent.S
+(** Provenance values. *)
 
 val set_date: (unit -> int64) -> unit
 (** How to compute the commit dates. By default, increment a counter. *)

@@ -41,8 +41,8 @@ Library backend
   Path: lib/backend
   Findlibname: backend
   FindlibParent: irminsule
-  BuildDepends: irminsule, uri, cohttp.lwt, ezjsonm.lwt
-  Modules: IrminCRUD, IrminMemory
+  BuildDepends: irminsule, uri, cohttp.lwt, ezjsonm.lwt, git.memory
+  Modules: IrminCRUD, IrminMemory, IrminGit
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 
@@ -57,17 +57,6 @@ Library fs
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 
-Library git
-  Build$: flag(git)
-  Install$: flag(git)
-  Path: lib/backend
-  Findlibname: git
-  FindlibParent: backend
-  BuildDepends: irminsule.backend, irminsule, git.fs, git.memory
-  Modules: IrminGit
-  ByteOpt: -bin-annot
-  NativeOpt: -bin-annot
-
 Library server
   Build$: flag(unix) && flag(git)
   Install$: flag(unix) && flag(git)
@@ -75,8 +64,7 @@ Library server
   Findlibname: server
   FindlibParent: irminsule
   BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl,
-                irminsule.backend.fs, irminsule.backend, irminsule,
-                irminsule.backend.git
+                irminsule.backend.fs, irminsule.backend, irminsule
   Modules: IrminHTTP
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
@@ -95,7 +83,7 @@ Document backend
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib/backend
-  XOCamlbuildLibraries: irminsule.backend, irminsule.backend.fs, irminsule.backend.git
+  XOCamlbuildLibraries: irminsule.backend, irminsule.backend.fs
 
 Executable irmin
   Path:               lib/driver

@@ -19,7 +19,7 @@ open Core_kernel.Std
 
 module Log = Log.Make(struct let section = "MEMORY" end)
 
-module RO (K: IrminKey.S) (V: Identifiable.S) = struct
+module RO (K: IrminKey.S) (V: IrminIdent.S) = struct
 
   module W = IrminWatch.Make(K)(V)
 
@@ -35,10 +35,12 @@ module RO (K: IrminKey.S) (V: Identifiable.S) = struct
   let unknown k =
     fail (IrminKey.Unknown (K.to_string k))
 
-  let create () = {
-    t = K.Table.create ();
-    w = W.create ();
-  }
+  let create () =
+    let t = {
+      t = K.Table.create ();
+      w = W.create ();
+    } in
+    return t
 
   let read { t } key =
     (* Log.debugf "read %s" (K.to_string key); *)
@@ -63,7 +65,7 @@ module RO (K: IrminKey.S) (V: Identifiable.S) = struct
 
 end
 
-module AO (K: IrminKey.S) (V: Identifiable.S) = struct
+module AO (K: IrminKey.S) (V: IrminIdent.S) = struct
 
   include RO(K)(V)
 
@@ -76,7 +78,7 @@ module AO (K: IrminKey.S) (V: Identifiable.S) = struct
 
 end
 
-module RW (K: IrminKey.S) (V: Identifiable.S) = struct
+module RW (K: IrminKey.S) (V: IrminKey.S) = struct
 
   include RO(K)(V)
 

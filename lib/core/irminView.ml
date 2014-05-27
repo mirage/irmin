@@ -196,7 +196,7 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     let contents _ = return_none in
     let view = Node.empty () in
     let ops = [] in
-    { node; contents; view; ops }
+    return { node; contents; view; ops }
 
   let sub t path =
     let rec aux node = function
@@ -394,7 +394,7 @@ module Store (S: IrminBranch.STORE) = struct
     let contents = Contents.read (S.contents_t t) in
     let node = Node.read (S.node_t t) in
     S.read_node t path >>= function
-    | None   -> return (create ())
+    | None   -> create ()
     | Some n ->
       Node.add (S.node_t t) n >>= fun k ->
       import ~contents ~node k

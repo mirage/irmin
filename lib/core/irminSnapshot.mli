@@ -22,36 +22,34 @@ module type STORE = sig
 
   (** A store with snapshot/revert capabilities. *)
 
-  type t
+  include IrminIdent.S
+
+  type db
   (** Database handler. *)
 
   type path
   (** Database paths. *)
 
-  type state
-  (** Snapshot states. *)
-
-  val create: t -> state Lwt.t
+  val create: db -> t Lwt.t
   (** Snapshot the current state of the store. *)
 
-  val revert: t -> state -> unit Lwt.t
+  val revert: db -> t -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
-  val merge: t -> ?origin:origin -> state -> unit IrminMerge.result Lwt.t
+  val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
   (** Merge the given snasphot into the current branch of the
       database. *)
 
-  val merge_exn: t -> ?origin:origin -> state -> unit Lwt.t
+  val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   (** Same as [merge_snapshot] but raise a [Conflict] exception in
       case of conflict. *)
 
-  val watch: t -> path -> (path * state) Lwt_stream.t
+  val watch: db -> path -> (path * t) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
       given path. Return an event for each modification of a
       subpath. *)
 
 end
 
-module Make (S: IrminBranch.STORE): STORE with type t = S.t
-                                           and type state = S.Block.key
+module Make (S: IrminBranch.STORE): STORE with type db = S.t
 (** Add snapshot capabilities to a branch-consistent store. *)

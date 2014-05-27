@@ -105,7 +105,8 @@ module type STORE = sig
 
 end
 
-module Store (S: IrminBranch.STORE): STORE with type value = S.value
-                                        and type node = S.Block.key
-                                        and type path = S.key
+module Store (S: IrminBranch.STORE): STORE with type db    = S.t
+                                            and type value = S.value
+                                            and type node  = S.Block.key
+                                            and type path  = IrminPath.t
 (** Create a view implementation tied to a the store [S]. *)

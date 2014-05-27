@@ -114,36 +114,46 @@ let default_dir = ".irmin"
 let init_hook =
   ref (fun () -> ())
 
-let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminReference.S) =
+let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminTag.S) =
   match x with
-  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminReference.String)
-  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminReference.String)
+  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminTag.String)
+  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminTag.String)
 
 let in_memory_store (type key) k =
   Log.info (lazy "source: in-memory");
-  let (module K), (module C), (module R) = modules k in
-  let module M = IrminMemory.Make(K)(C)(R) in
-  M.(cast (create ()))
+  let (module K), (module C), (module T) = modules k in
+  let module M = IrminMemory.Make(K)(C)(T) in
+  Irmin.cast (module M)
 
 let local_store k dir =
   Log.infof "source: dir=%s" dir;
   init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
-  let (module K), (module C), (module R) = modules k in
-  let module M = IrminFS.Make(K)(C)(R) in
-  M.(cast (create dir))
+  let (module K), (module C), (module T) = modules k in
+  let module Config = struct let path = dir end in
+  let module M = IrminFS.Make(Config)(K)(C)(T) in
+  Irmin.cast (module M)
 
 let remote_store k uri =
-  let module CRUD_ = IrminCRUD.Make(Cohttp_lwt_unix.Client) in
   let (module K), (module C), (module R) = modules k in
-  let module CRUD = CRUD_.Make(K)(C)(R) in
+  let module Config = struct let uri = uri end in
+  let module M = IrminCRUD.Make(Cohttp_lwt_unix.Client)(Config)(K)(C)(R) in
   Log.infof "source: uri=%s" (Uri.to_string uri);
-  CRUD.(cast (create uri))
+  Irmin.cast (module M)
 
 let git_store k g =
   Log.infof "git";
   let (module K), (module C), (module R) = modules k in
-  let module M = IrminGit.Make(K)(C)(R) in
-  M.(cast (create ~kind:g ~bare:false ()))
+  let config = match g with
+    | `Memory -> (module IrminGit.Memory)
+    | `Disk   -> (module struct
+        let root = None
+        module Store = Git_fs
+        let bare = false
+        let disk = true
+      end) in
+  let (module Config) = config in
+  let module M = IrminGit.Make(Config)(K)(C)(R) in
+  Irmin.cast (module M)
 
 let store_of_string str =
   let open Core_kernel.Std in

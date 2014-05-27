@@ -114,7 +114,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
       Some (fn x)
 
     let create () =
-      U.uri
+      return U.uri
 
     let read t key =
       Log.debugf "read %s" (K.to_string key);

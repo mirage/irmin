@@ -16,6 +16,7 @@
 
 module Log = Log.Make(struct let section = "COMMIT" end)
 
+open Lwt
 open Core_kernel.Std
 open IrminMerge.OP
 
@@ -86,12 +87,10 @@ module Make
   module Key = K
   module Value = S(K)
 
-  open Lwt
-
   let create () =
-    let n = Node.create () in
-    let c = Commit.create () in
-    (n, c)
+    Node.create ()   >>= fun n ->
+    Commit.create () >>= fun c ->
+    return (n, c)
 
   let add (_, t) c =
     Commit.add t c

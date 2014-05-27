@@ -48,46 +48,37 @@ module type STORE = sig
 
   (** Store with import/export capabilities. *)
 
-  type key
-  (** Database internal keys. *)
+  include S
+  (** Base functions over database dumps. *)
 
-  type contents
-  (** User-defined contents. *)
-
-  type dump = (key, contents) t
-  (** Database dumps. *)
-
-  type t
+  type db
   (** Database handlers. *)
 
-  val create: t -> key list -> dump Lwt.t
+  val create: db -> key list -> t Lwt.t
   (** [create t last] returns the new contents stored in [t] since the
       [last] snaphots has been taken. If no previous snapshots
       are provided, return the full contents of the store. *)
 
-  val update: t -> dump -> unit Lwt.t
+  val update: db -> t -> unit Lwt.t
   (** [update t dump] imports the contents of [dump] in the
       database. This replace the current branch with the imported
       contents.  *)
 
-  val merge: t -> ?origin:origin -> dump -> unit IrminMerge.result Lwt.t
+  val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
   (** Same as [update] but merge with the current branch. *)
 
-  val merge_exn: t -> ?origin:origin -> dump -> unit Lwt.t
+  val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   (** Same as [merge] but merge raise an exception in case of conflict. *)
 
-  val output: t -> string -> unit Lwt.t
+  val output: db -> string -> unit Lwt.t
   (** Create a Graphviz graph representing the store state. Could be
       no-op if the backend does not support that operation (for instance,
       for remote connections). *)
 
-  module Dump: S with type key = key and type contents = contents
-  (** Base functions over database dumps. *)
-
 end
 
 module Make (S: IrminBranch.STORE):
-  STORE with type t        = S.t
+  STORE with type db       = S.t
          and type key      = S.Block.key
          and type contents = S.Block.contents
 (** Extend a branch consistent store with import/export

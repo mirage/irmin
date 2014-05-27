@@ -20,11 +20,12 @@ open IrminMerge.OP
 
 module type S = sig
   include IrminBranch.STORE with type key = IrminPath.t
-  module Snapshot: IrminSnapshot.STORE with type t = t
-  module Dump: IrminDump.STORE with type t        = t
+  module Snapshot: IrminSnapshot.STORE with type db = t
+  module Dump: IrminDump.STORE with type db       = t
                                 and type key      = Block.key
                                 and type contents = Block.contents
-  module View: IrminView.STORE with type node  = Block.key
+  module View: IrminView.STORE with type db    = t
+                                and type node  = Block.key
                                 and type value = value
 end
 
@@ -32,6 +33,10 @@ type ('key, 'contents, 'tag) t =
   (module S with type Block.key = 'key
              and type value     = 'contents
              and type branch    = 'tag)
+
+let cast (type a) (type b) (type c) (t: (a, b, c) t) =
+  let module M = (val t) in
+  (module M: S)
 
 module Make (Block: IrminBlock.STORE) (Tag: IrminTag.STORE with type value = Block.key) =
 struct
@@ -138,16 +143,11 @@ struct
 end
 
 module type BACKEND = sig
-
-  (** Common signature for all backends. *)
-
   module RO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
   module AO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
-  module RW (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RW
-
+  module RW (K: IrminKey.S) (V: IrminKey.S)  : IrminStore.RW
   module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S):
     S with type Block.key = K.t
        and type value     = C.t
        and type branch    = T.t
-
 end
