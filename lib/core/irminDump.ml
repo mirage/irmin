@@ -18,7 +18,7 @@ open Core_kernel.Std
 open Lwt
 open IrminMerge.OP
 
-module Log = Log.Make(struct let section ="dump" end)
+module Log = Log.Make(struct let section ="DUMP" end)
 
 type origin = IrminOrigin.t
 
