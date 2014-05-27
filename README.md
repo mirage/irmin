@@ -10,12 +10,19 @@ on top of Xen.
 
 [![Build Status](https://travis-ci.org/mirage/irmin.png?branch=master)](https://travis-ci.org/mirage/irmin)
 
-### Build & Install
+### Install
 
-You first need to have `libssl` on your system. For instance, on Debian/Ubuntu:
+Irmin is packaged with [opam](https://opam.ocaml.org):
+
 ```
-apt-get install libssl-dev
+opam install irmin
 ```
+
+### Install from source
+
+If you need to install Irmin from source, first you need to have
+`libssl` on your system. For instance, on Debian/Ubuntu: ``` apt-get
+install libssl-dev```.
 
 Then, install the OCaml dependencies using [OPAM](http://opam.ocaml.org):
 ```
@@ -33,9 +40,8 @@ make PREFIX=$(opam config var prefix)
 make install
 ```
 
-### Uninstall
-
-Due to a bug in [oasis], the uninstall target is quite unreliable. Instead, use:
+Due to a bug in [oasis], the uninstall target from source is quite
+unreliable. Instead, use:
 
 ```
 ocamlfind remove irmin
@@ -47,6 +53,18 @@ rm $(which irmin)
 Irmin comes with a command-line tool called `irmin`. See `irmin
  --help` for further reading. Use either `irmin <command> --help` or
  `irmin help <command>` for more information on a specific command.
+
+To get the full capabilites of Irmin, use the API:
+
+```
+$ ledit ocaml
+# #require "irmin.backend";;
+# module G = IrminGit.Make(IrminGit.Memory);;
+# module S = G.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String);;
+# let () =
+    S.create () >>= fun t ->
+    S.update t ["foo"; "bar"] "hi!"
+```
 
 ### Tutorial
 
