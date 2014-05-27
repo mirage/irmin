@@ -1,14 +1,14 @@
-## Irminsule
+## Irmin
 
-Irminsule is a distributed database with built-in snapshot, branch and
+Irmin is a distributed database with built-in snapshot, branch and
 revert mechanisms. It is designed to use a large variety of backends,
 although it is optimized for append-only store.
 
-Irminsule is written in pure OCaml. It can thus be compiled to Javascript
+Irmin is written in pure OCaml. It can thus be compiled to Javascript
 -- and run in the browsers; or into a Mirage unikernel -- and run directly
 on top of Xen.
 
-[![Build Status](https://travis-ci.org/samoht/irminsule.png?branch=master)](https://travis-ci.org/samoht/irminsule)
+[![Build Status](https://travis-ci.org/mirage/irmin.png?branch=master)](https://travis-ci.org/mirage/irmin)
 
 ### Build & Install
 
@@ -25,7 +25,7 @@ opam install ezjsonm ocamlgraph lwt sha \
              cmdliner alcotest git
 ```
 
-You can then download the source code of Irminsule, uncompress it, and run
+You can then download the source code of Irmin, uncompress it, and run
 the usual steps:
 
 ```
@@ -38,20 +38,20 @@ make install
 Due to a bug in [oasis], the uninstall target is quite unreliable. Instead, use:
 
 ```
-ocamlfind remove irminsule
+ocamlfind remove irmin
 rm $(which irmin)
 ```
 
 ### Usage
 
-Irminsule comes with a command-line tool called `irmin`. See `irmin
+Irmin comes with a command-line tool called `irmin`. See `irmin
  --help` for further reading. Use either `irmin <command> --help` or
  `irmin help <command>` for more information on a specific command.
 
 ### Tutorial
 
-A tutorial is available on the [wiki](https://github.com/samoht/irminsule/wiki/Getting-Started).
+A tutorial is available on the [wiki](https://github.com/mirage/irmin/wiki/Getting-Started).
 
 ### Issues
 
-To report any issues please use the [bugtracker on Github](https://github.com/samoht/issues).
+To report any issues please use the [bugtracker on Github](https://github.com/irmin/issues).
