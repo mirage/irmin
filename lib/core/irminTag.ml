@@ -54,4 +54,8 @@ module Make
 
   include S
 
+  let list t _ =
+    dump t >>= fun l ->
+    return (List.map ~f:fst l)
+
 end

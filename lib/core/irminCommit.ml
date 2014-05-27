@@ -161,20 +161,21 @@ module Make
       let seen2' = K.Set.union seen2 todo2 in
       match K.Set.to_list (K.Set.inter seen1' seen2') with
       | []  ->
-        (* Compute the immediate parents *)
-        let parents todo =
-          let parents_of_commit seen c =
-            read_exn t c >>= fun v ->
-            let parents = K.Set.of_list v.parents in
-            return (K.Set.diff parents seen) in
-          Lwt_list.fold_left_s parents_of_commit todo (K.Set.to_list todo)
-        in
-        parents todo1 >>= fun todo1' ->
-        parents todo2 >>= fun todo2' ->
-        if K.Set.equal todo1 todo1' && K.Set.equal todo2 todo2' then
+(*        if K.Set.equal seen1 seen1' && K.Set.equal seen2 seen2' then
           return_none
-        else
+        else *) (
+          (* Compute the immediate parents *)
+          let parents todo =
+            let parents_of_commit seen c =
+              read_exn t c >>= fun v ->
+              let parents = K.Set.of_list v.parents in
+              return (K.Set.diff parents seen) in
+            Lwt_list.fold_left_s parents_of_commit todo (K.Set.to_list todo)
+          in
+          parents todo1 >>= fun todo1' ->
+          parents todo2 >>= fun todo2' ->
           aux (seen1', todo1') (seen2', todo2')
+        )
       | [r] -> return (Some r)
       | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
                                 (IrminMisc.pretty_list K.to_string rs))) in
