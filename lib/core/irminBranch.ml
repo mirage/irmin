@@ -23,7 +23,6 @@ type path = IrminPath.t
 
 module Log = Log.Make(struct let section = "BRANCH" end)
 
-
 module type STORE = sig
   include IrminStore.RW with type key = path
   type branch
@@ -222,6 +221,7 @@ struct
      - Search for a common ancestor
      - Perform a 3-way merge *)
   let three_way_merge t ?origin c1 c2 =
+    Log.debugf "3-way merge between %s and %s" (K.to_string c1) (K.to_string c2);
     Commit.find_common_ancestor (commit_t t) c1 c2 >>= function
     | None     -> conflict "no common ancestor"
     | Some old ->
@@ -237,6 +237,7 @@ struct
     Tag.update t.tag t.branch c
 
   let switch t branch =
+    Log.debugf "switch %s" (T.to_string branch);
     Tag.read t.tag branch >>= function
     | Some c -> Tag.update t.tag t.branch c
     | None   -> Tag.remove t.tag t.branch
@@ -250,7 +251,8 @@ struct
       ok
 
   let clone_force t branch =
-    begin Tag.read t.tag branch >>= function
+    Log.debugf "clone %s" (T.to_string branch);
+    begin Tag.read t.tag t.branch >>= function
       | None   -> Tag.remove t.tag branch
       | Some c -> Tag.update t.tag branch c
     end >>= fun () ->
@@ -262,6 +264,7 @@ struct
     | false -> clone_force t branch >>= fun t -> return (Some t)
 
   let merge t ?origin branch =
+    Log.debugf "merge %s" (Branch.to_string branch);
     let origin = match origin with
       | Some o -> o
       | None   -> IrminOrigin.create "Merge branch %s."
