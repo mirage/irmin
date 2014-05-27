@@ -67,12 +67,14 @@ module JSON = struct
         | `String of string
         | `A of t list
         | `O of (string * t) list ]
-      with bin_io, compare, sexp
-      let to_json = encode
-      let of_json = decode
+      with compare, sexp
     end)
 
   include S
+
+  let to_json = encode
+
+  let of_json = decode
 
   let to_string t =
     Ezjsonm.to_string (to_json t)
