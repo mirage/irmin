@@ -115,6 +115,11 @@ module Server (S: Irmin.S) = struct
     output = IrminOrigin.to_json;
   }
 
+  let result = {
+    input  = IrminMerge.UnitResult.of_json;
+    output = IrminMerge.UnitResult.to_json;
+  }
+
   let mk_dump key value =
     list (pair key value)
 
@@ -311,6 +316,7 @@ module Server (S: Irmin.S) = struct
   let store =
     let s_update t p o c = S.update t ?origin:o p c in
     let s_remove t p o = S.remove t ?origin:o p in
+    let s_merge t b o = S.merge t ?origin:o b in
     Node [
       mklp0bf "read"     S.read     t path (some contents);
       mklp0bf "mem"      S.mem      t path bool;
@@ -319,6 +325,7 @@ module Server (S: Irmin.S) = struct
       mklp1bf "remove"   s_remove   t path (some origin) unit;
       mk0p0bf "dump"     S.dump     t (mk_dump path contents);
       mklp0bs "watch"    S.watch    t path contents;
+      mklp1bf "merge"    s_merge    t tag (some origin) result;
       "contents", contents_store;
       "node"    , node_store;
       "commit"  , commit_store;
