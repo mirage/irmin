@@ -260,12 +260,12 @@ module Make (Store: IrminBranch.INTERNAL) = struct
         | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
     List.iter ~f:(fun (r,k) ->
-        add_vertex (`Ref r) [`Shape `Plaintext; `Label (T.to_string r); `Style `Filled];
+        add_vertex (`Tag r) [`Shape `Plaintext; `Label (T.to_string r); `Style `Filled];
         let exists l = List.exists ~f:(fun (kk,_) -> K.(kk=k)) l in
         if exists commits then
-          add_edge (`Ref r) [`Style `Bold] (`Commit k);
+          add_edge (`Tag r) [`Style `Bold] (`Commit k);
         if exists nodes then
-          add_edge (`Ref r) [`Style `Bold] (`Node k);
+          add_edge (`Tag r) [`Style `Bold] (`Node k);
       ) tags;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
