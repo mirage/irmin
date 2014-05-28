@@ -66,7 +66,7 @@ module type STORE = sig
   val commit: t -> origin -> ?node:key IrminNode.t -> parents:value list -> (key * value) Lwt.t
   val node: t -> value -> key IrminNode.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
-  val merge: t -> origin -> key IrminMerge.t
+  val merge: t -> key IrminMerge.t
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
   val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
   module Key: IrminKey.S with type t = key
@@ -142,12 +142,12 @@ module Make
   let merge_node n =
     IrminMerge.some (Node.merge n)
 
-  let merge (n, _ as t) origin =
-    let merge ~old k1 k2 =
+  let merge (n, _ as t) =
+    let merge ~origin ~old k1 k2 =
       read_exn t old >>= fun vold ->
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
-      IrminMerge.merge (merge_node n) ~old:vold.node v1.node v2.node >>| fun node ->
+      IrminMerge.merge (merge_node n) ~origin ~old:vold.node v1.node v2.node >>| fun node ->
       let parents = [k1; k2] in
       let commit = { node; parents; origin } in
       add t commit >>= fun key ->

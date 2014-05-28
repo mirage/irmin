@@ -60,7 +60,7 @@ module Log = struct
     let l = List.filter ~f:(fun s -> String.(s <>"")) l in
     List.map ~f:Elt.of_string l
 
-  let merge_t ~old:_ t1 t2 =
+  let merge_t ~origin:_ ~old:_ t1 t2 =
     let map t =
       let explode e = e.Elt.timestamp, e.Elt.message in
       let l = List.map ~f:explode t in

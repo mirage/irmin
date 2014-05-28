@@ -20,6 +20,8 @@ open Core_kernel.Std
 
 module type S = IrminIdent.S
 
+type origin = IrminOrigin.t
+
 type 'a t
 (** Abstract merge function for values of type ['a]. *)
 
@@ -44,10 +46,10 @@ val exn: 'a result -> 'a Lwt.t
 
 (** {2 Merge functions} *)
 
-type 'a merge = old:'a -> 'a -> 'a -> 'a result
+type 'a merge = origin:origin -> old:'a -> 'a -> 'a -> 'a result
 (** Signature of a merge function. *)
 
-type 'a merge' = old:'a -> 'a -> 'a -> 'a result Lwt.t
+type 'a merge' = origin:origin -> old:'a -> 'a -> 'a -> 'a result Lwt.t
 (** Signature of a blocking merge function. *)
 
 val merge: 'a t -> 'a merge'
@@ -61,10 +63,10 @@ val merge: 'a t -> 'a merge'
 (** {2 Base combinators} *)
 
 val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
-(** Monadic bind. *)
+(** Monadic bind over Result. *)
 
 val iter: ('a -> unit result Lwt.t) -> 'a list -> unit result Lwt.t
-(** Manadic iter. *)
+(** Monadic iterations over results. *)
 
 module OP: sig
 
@@ -106,6 +108,9 @@ val string: string t
 
 val counter: int t
 (** Mergeable counters. *)
+
+val seq: 'a t list -> 'a t
+(** Try the merge operations in sequence. *)
 
 val some: 'a t -> 'a option t
 (** Lift a merge function to optional values of the same type. If all

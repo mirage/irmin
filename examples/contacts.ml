@@ -38,7 +38,7 @@ module Contents = struct
   let (++) = String.Set.union
   let (--) = String.Set.diff
 
-  let merge_t ~old t1 t2 =
+  let merge_t ~origin ~old t1 t2 =
     match old, t1, t2 with
 
     | Set old, Set s1, Set s2 ->
@@ -50,7 +50,10 @@ module Contents = struct
       if String.(old = x1) then ok (String x2)
       else if String.(old = x2) then ok (String x1)
       else if String.(x1 = x2) then ok (String x1)
-      else conflict "Not mergeable string (%s / %s / %s)" old x1 x2
+      else if String.(IrminOrigin.id origin = "root") then
+        ok (String "Muhahaha!")
+      else
+        conflict "Not mergeable string (%s / %s / %s)" old x1 x2
 
     | _ -> conflict "Not mergeable contents"
 

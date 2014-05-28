@@ -69,7 +69,7 @@ module type STORE = sig
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val merge: t -> origin -> key IrminMerge.t
+  val merge: t -> key IrminMerge.t
   (** Lift [S.merge] to the store keys. *)
 
   val find_common_ancestor: t -> key -> key -> key option Lwt.t

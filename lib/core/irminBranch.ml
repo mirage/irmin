@@ -100,9 +100,9 @@ struct
 
   let block_t    t = t.block
   let tag_t      t = t.tag
-  let commit_t   t = Block.commit t.block
-  let node_t     t = Block.node t.block
-  let contents_t t = Block.contents t.block
+  let commit_t   t = Block.commit_t t.block
+  let node_t     t = Block.node_t t.block
+  let contents_t t = Block.contents_t t.block
 
   let create ?(branch=T.master) () =
     Block.create () >>= fun block ->
@@ -234,8 +234,8 @@ struct
                                         The common ancestor was %s."
                       (K.to_string c1) (K.to_string c2) (K.to_string old)
         | Some o -> o in
-      let m = Commit.merge (commit_t t) origin in
-      IrminMerge.merge m ~old c1 c2
+      let m = Commit.merge (commit_t t) in
+      IrminMerge.merge m ~origin ~old c1 c2
 
   let update_commit t c =
     Tag.update t.tag t.branch c

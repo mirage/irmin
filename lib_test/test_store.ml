@@ -65,6 +65,9 @@ module Make (S: Irmin.S) = struct
       | n -> aux (random_node ~label ~path ~value ~kind :: acc) (n-1) in
     aux [] n
 
+  let origin =
+    IrminOrigin.create ~date:0L ~id:"test" "Very useful tracking information"
+
   let mk k t =
     let v1 = match k with
       | `String -> B.of_string long_random_string
@@ -176,7 +179,6 @@ module Make (S: Irmin.S) = struct
 
       let node = node_t t in
       let commit = commit_t t in
-      let origin = IrminOrigin.create ~date:0L ~id:"test" "Test commit!" in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
       Node.node node ~contents:v1 ()    >>= fun (k1, _) ->
@@ -250,9 +252,9 @@ module Make (S: Irmin.S) = struct
       (* merge contents *)
 
       let v = contents_t t in
-      IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv1 >>= fun kv1'  ->
+      IrminMerge.merge (Contents.merge v) ~origin ~old:kv1 kv1 kv1 >>= fun kv1'  ->
       assert_key_result_equal "merge kv1" (`Ok kv1) kv1';
-      IrminMerge.merge (Contents.merge v) ~old:kv1 kv1 kv2 >>= fun kv2'  ->
+      IrminMerge.merge (Contents.merge v) ~origin ~old:kv1 kv1 kv2 >>= fun kv2'  ->
       assert_key_result_equal "merge kv2" (`Ok kv2) kv2';
 
       (* merge nodes *)
@@ -270,9 +272,9 @@ module Make (S: Irmin.S) = struct
                           t4 -b-> t1(v1)
                              \c/  *)
 
-      IrminMerge.merge (Node.merge node) ~old:k0 k2 k3 >>= fun k4 ->
-      IrminMerge.exn  k4                               >>= fun k4 ->
-      Node.read_exn node k4                            >>= fun t4 ->
+      IrminMerge.merge (Node.merge node) ~origin ~old:k0 k2 k3 >>= fun k4 ->
+      IrminMerge.exn  k4                                       >>= fun k4 ->
+      Node.read_exn node k4                                    >>= fun t4 ->
       let succ = Map.to_alist (Node.succ node t4) in
       Lwt_list.map_p (fun (l, v) -> v >>= fun v -> return (l, v)) succ
       >>= fun succ ->
@@ -288,7 +290,7 @@ module Make (S: Irmin.S) = struct
       >>= fun (kr1, r1) ->
       Commit.commit commit (origin 2) ~node:t3 ~parents:[r0]
       >>= fun (kr2, r2) ->
-      IrminMerge.merge (Commit.merge commit (origin 3)) ~old:kr0 kr1 kr2
+      IrminMerge.merge (Commit.merge commit) ~origin:(origin 3) ~old:kr0 kr1 kr2
       >>= fun kr3 ->
       IrminMerge.exn kr3         >>= fun kr3 ->
       Commit.read_exn commit kr3 >>= fun r3 ->

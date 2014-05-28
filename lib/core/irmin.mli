@@ -38,6 +38,10 @@ module type S = sig
 
 end
 
+module Rec (S: S): S with type value = S.Block.value
+(** Recursive store, where contents are pointers to arbitrary blocks
+    living in the store. *)
+
 type ('key, 'contents, 'tag) t =
   (module S with type Block.key = 'key
              and type value     = 'contents

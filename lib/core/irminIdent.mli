@@ -36,5 +36,8 @@ module String: S with type t = string
 module Int: S with type t = int
 (** Integers. *)
 
+module Unit: S with type t = unit
+(** Unit. *)
+
 module Make (S: sig type t with sexp, compare end): S with type t = S.t
 (** Build an identifiable implementation. *)
