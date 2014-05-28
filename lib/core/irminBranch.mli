@@ -67,8 +67,6 @@ module type STORE = sig
   (** Same as [merge] but raise [Conflict "<msg>"] in case of a
       conflict. *)
 
-  (** {2 Lower level functions} *)
-
   module Block: IrminBlock.STORE with type contents = value
   (** Append-only persistent block store where leafs are user-defined
        contents. *)
@@ -91,6 +89,28 @@ module type STORE = sig
   val tag_t: t -> Tag.t
   (** Return an handler to the reference store. *)
 
+  module Key: IrminKey.S with type t = key
+  (** Base functions over keys. *)
+
+  module Value: IrminContents.S with type t = value
+  (** Base functions over values. *)
+
+  module Branch: IrminTag.S with type t = branch
+  (** Base functions over branches. *)
+
+  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
+  (** Object graph. *)
+
+end
+
+module type INTERNAL = sig
+
+  (** Expose internal functions to be used by inside the library. *)
+
+  include STORE
+
+  (** {2 Lower level functions} *)
+
   val read_node: t -> key -> Block.node option Lwt.t
   (** Read a node. *)
 
@@ -106,27 +126,15 @@ module type STORE = sig
   val merge_commit: t -> ?origin:origin -> Block.key -> unit IrminMerge.result Lwt.t
   (** Merge a commit in the current branch. *)
 
-  module Key: IrminKey.S with type t = key
-  (** Base functions over keys. *)
-
-  module Value: IrminContents.S with type t = value
-  (** Base functions over values. *)
-
-  module Branch: IrminTag.S with type t = branch
-  (** Base functions over branches. *)
-
-  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
-  (** Object graph. *)
-
 end
 
 module Make
     (Block: IrminBlock.STORE)
     (Tag  : IrminTag.STORE with type value = Block.key)
-  : STORE with type branch  = Tag.key
-           and type value   = Block.contents
-           and module Block = Block
-           and module Tag   = Tag
+  : INTERNAL with type branch  = Tag.key
+              and type value   = Block.contents
+              and module Block = Block
+              and module Tag   = Tag
 (** Build a branch consistent store from custom Block] and [Tag] store
     implementations. *)
 

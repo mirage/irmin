@@ -20,39 +20,24 @@ open Core_kernel.Std
 
 type origin = IrminOrigin.t
 
-type ('key, 'contents) t = {
-  head : 'key option;
-  store: ('key * ('key, 'contents) IrminBlock.t) list;
-}
-(** Dump values. *)
-
-module type S = sig
-
-  (** Signature for dump values .*)
-
-  type key
-  (** Keys. *)
-
-  type contents
-  (** Contents. *)
-
-  include IrminIdent.S with type t = (key, contents) t
-  (** Base functions over dump values. *)
-
-end
-
-module S (K: IrminKey.S) (C: IrminContents.S): S with type key = K.t and type contents = C.t
-(** Base functions over dump values. *)
-
 module type STORE = sig
 
   (** Store with import/export capabilities. *)
 
-  include S
+  include IrminStore.RO
   (** Base functions over database dumps. *)
 
   type db
   (** Database handlers. *)
+
+  val head: t -> key option
+  (** Return the (optional) dump head. *)
+
+  val with_head: t -> key option -> t
+  (** Change the dump head. *)
+
+  val empty: t
+  (** Return the empty dump. *)
 
   val create: db -> key list -> t Lwt.t
   (** [create t last] returns the new contents stored in [t] since the
@@ -75,11 +60,20 @@ module type STORE = sig
       no-op if the backend does not support that operation (for instance,
       for remote connections). *)
 
+  module Key: IrminKey.S with type t = key
+  (** Dump keys. *)
+
+  module Value: IrminIdent.S with type t = value
+  (** Dump values. *)
+
+  include IrminIdent.S with type t := t
+  (** Base functions over database dumps. *)
+
 end
 
-module Make (S: IrminBranch.STORE):
-  STORE with type db       = S.t
-         and type key      = S.Block.key
-         and type contents = S.Block.contents
+module Make (S: IrminBranch.INTERNAL):
+  STORE with type db    = S.t
+         and type key   = S.Block.key
+         and type value = S.Block.value
 (** Extend a branch consistent store with import/export
     capabilities. *)

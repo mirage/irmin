@@ -16,18 +16,21 @@
 
 (** API entry point *)
 
+type path = IrminPath.t
+
+type origin = IrminOrigin.t
+
 module type S = sig
 
   (** Main signature for Irminsule stores. *)
 
   include IrminBranch.STORE with type key = IrminPath.t
 
-  module Snapshot: IrminSnapshot.STORE with type db = t
-                                        and type state = Block.key
+  module Dump: IrminDump.STORE with type db    = t
+                                and type value = Block.value
 
-  module Dump: IrminDump.STORE with type db       = t
-                                and type key      = Block.key
-                                and type contents = Block.contents
+  module Snapshot: IrminSnapshot.STORE with type db    = t
+                                        and type state = Dump.key
 
   module View: IrminView.STORE with type db    = t
                                 and type node  = Block.key
@@ -62,6 +65,8 @@ module type BACKEND = sig
     S with type Block.key = K.t
        and type value     = C.t
        and type branch    = T.t
+  (** Base constructor: build a store whose leafs are serialized
+      contents of type [C.t]. *)
 
 end
 

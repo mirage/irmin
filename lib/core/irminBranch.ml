@@ -43,15 +43,19 @@ module type STORE = sig
   val node_t: t -> Block.Node.t
   val commit_t: t -> Block.Commit.t
   val tag_t: t -> Tag.t
+  module Key: IrminKey.S with type t = key
+  module Value: IrminContents.S with type t = value
+  module Branch: IrminTag.S with type t = branch
+  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
+end
+
+module type INTERNAL = sig
+  include STORE
   val read_node: t -> key -> Block.node option Lwt.t
   val update_node: t -> origin -> key -> Block.node -> unit Lwt.t
   val watch_node: t -> key -> (key * Block.key) Lwt_stream.t
   val update_commit: t -> Block.key -> unit Lwt.t
   val merge_commit: t -> ?origin:origin -> Block.key -> unit IrminMerge.result Lwt.t
-  module Key: IrminKey.S with type t = key
-  module Value: IrminContents.S with type t = value
-  module Branch: IrminTag.S with type t = branch
-  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
 end
 
 module Make
