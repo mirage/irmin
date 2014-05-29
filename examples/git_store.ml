@@ -40,7 +40,7 @@ let main () =
   Store.read_exn t ["root";"misc";"2.txt"] >>= fun file ->
   Printf.printf "I've just read: %s\n%!" file;
 
-  Store.clone_force t "refs/heads/test" >>= fun x ->
+  Store.clone_force t "test" >>= fun x ->
 
   let str = Cryptokit.(Random.string (Random.device_rng "/dev/urandom") 1024) in
   Store.update   t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->

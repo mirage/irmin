@@ -79,8 +79,8 @@ module Make (S: Irmin.S) = struct
       | `JSON   -> B.of_string (Ezjsonm.to_string (`A[])) in
     let kv1 = lazy (Block.add (block_t t) (IrminBlock.Contents v1)) in
     let kv2 = lazy (Block.add (block_t t) (IrminBlock.Contents v2)) in
-    let r1 = T.of_string "refs/foo" in
-    let r2 = T.of_string "refs/bar" in
+    let r1 = T.of_string "foo" in
+    let r2 = T.of_string "bar" in
     return { v1; v2; kv1; kv2; r1; r2 }
 
   let test_contents x () =
@@ -466,7 +466,7 @@ module Make (S: Irmin.S) = struct
       update t1 ["a";"b";"b"] v2 >>= fun () ->
       update t1 ["a";"b";"c"] v3 >>= fun () ->
 
-      let test = T.of_string "refs/heads/test" in
+      let test = T.of_string "test" in
 
       clone_force t1 test >>= fun t2 ->
 

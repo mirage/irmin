@@ -287,15 +287,21 @@ module Make (Config: Config) = struct
       w: W.t;
     }
 
+    let (/) = Filename.concat
+
     type key = T.t
 
     type value = K.t
 
     let ref_of_git r =
-      T.of_string (Git.Reference.to_string r)
+      let str = Git.Reference.to_string r in
+      match String.chop_prefix ~prefix:"refs/heads/" str with
+      | None   -> None
+      | Some r -> Some (T.of_string r)
 
     let git_of_ref r =
-      Git.Reference.of_string (T.to_string r)
+      let str = T.to_string r in
+      Git.Reference.of_string ("refs/heads" / str)
 
     let mem { t } r =
       G.mem_reference t (git_of_ref r)
@@ -308,16 +314,15 @@ module Make (Config: Config) = struct
       | Some k -> return (Some (key_of_git k))
 
   let create () =
-    let (/) = Filename.concat in
     G.create ?root:Config.root () >>= fun t ->
     let git_root = G.root t / ".git" in
     let ref_of_file file =
-      match String.chop_prefix ~prefix:(git_root / "") file with
+      match String.chop_prefix ~prefix:(git_root / "refs/heads/") file with
       | None   -> None
       | Some r -> Some (T.of_raw r) in
     let w = W.create () in
     let t = { t; w } in
-    if Config.disk then W.listen_dir w (git_root / "refs") ref_of_file (read t);
+    if Config.disk then W.listen_dir w (git_root / "refs/heads") ref_of_file (read t);
     return t
 
     let read_exn { t } r =
@@ -326,15 +331,21 @@ module Make (Config: Config) = struct
       return (key_of_git k)
 
     let list { t } _ =
+      Log.debugf "list";
       G.references t >>= fun refs ->
-      return (List.map ~f:ref_of_git refs)
+      return (List.filter_map ~f:ref_of_git refs)
 
     let dump { t } =
+      Log.debugf "dump";
       G.references t >>= fun refs ->
       Lwt_list.map_p (fun r ->
-          G.read_reference_exn t r >>= fun k ->
-          return (ref_of_git r, key_of_git k)
-        ) refs
+          match ref_of_git r with
+          | None     -> return_none
+          | Some ref ->
+            G.read_reference_exn t r >>= fun k ->
+            return (Some (ref, key_of_git k))
+        ) refs >>= fun l ->
+      List.filter_map ~f:(fun x -> x) l |> return
 
     let git_of_key k = Git.SHA1.to_commit (git_of_key k)
 

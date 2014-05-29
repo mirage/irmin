@@ -416,7 +416,7 @@ let op_repo op (module L: Irmin.S) (module R: Irmin.S) =
   R.Dump.create remote [l] >>= fun dump   ->
   print "%sing %d bytes" op (R.Dump.bin_size_t dump);
   let dump = convert_dump (module L) (module R) dump in
-  let branch = L.Branch.of_string "refs/FETCH_HEAD" in
+  let branch = L.Branch.of_string "import" in
   L.create ~branch ()      >>= fun t ->
   L.Dump.update t dump     >>= fun () ->
   return (L.Branch.to_string branch)
