@@ -173,7 +173,7 @@ let main () =
     CS.add test anil_test >>= fun () ->
     CS.add t anil_t       >>= fun () ->
 
-    Local.merge_exn t (Local.branch test) >>= fun () ->
+    Local.merge_exn t (Local.branch_exn test) >>= fun () ->
 
     let thomas = CS.update_name thomas "T. Gazagnaire" in
     CS.add t thomas >>= fun () ->

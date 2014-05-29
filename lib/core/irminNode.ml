@@ -256,7 +256,7 @@ module Make
       | Some b -> b
 
   let find t node path =
-    Log.debugf "find %S" (IrminPath.to_string path);
+    Log.debugf "XXX find %S" (IrminPath.to_string path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -319,4 +319,14 @@ module Make
     map t node path (fun node -> { node with contents = Some k }) >>= fun n ->
     return n
 
+end
+
+module Rec (S: STORE) = struct
+  include S.Key
+  let merge =
+    let merge ~origin ~old k1 k2 =
+      S.create ()  >>= fun t  ->
+      IrminMerge.merge (S.merge t) ~origin ~old k1 k2
+    in
+    IrminMerge.create' (module S.Key) merge
 end

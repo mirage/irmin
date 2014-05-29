@@ -51,8 +51,9 @@ module Make (S: IrminBranch.INTERNAL) = struct
   type value = S.value
 
   let create t =
-    Tag.read_exn (S.tag_t t) (S.branch t) >>= fun k ->
-    return (t, k)
+    S.head t >>= function
+    | None   -> fail Not_found
+    | Some k -> return (t, k)
 
   let root_node (t, c) =
     Commit.read (S.commit_t t) c >>= function
@@ -101,7 +102,9 @@ module Make (S: IrminBranch.INTERNAL) = struct
     failwith "TODO"
 
   let revert t (_, c) =
-    Tag.update (S.tag_t t) (S.branch t) c
+    match S.branch t with
+    | None     -> S.set_head t c; return_unit
+    | Some tag -> Tag.update (S.tag_t t) tag c
 
   let merge t ?origin (_, c) =
     let origin = match origin with

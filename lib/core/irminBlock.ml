@@ -24,7 +24,6 @@ type ('key, 'contents) t =
   | Contents of 'contents
   | Node of 'key IrminNode.t
   | Commit of 'key IrminCommit.t
-  | Key of 'key
 with bin_io, compare, sexp
 
 type origin = IrminOrigin.t
@@ -85,6 +84,7 @@ module type STORE = sig
   val contents_t: t -> Contents.t
   val node_t: t -> Node.t
   val commit_t: t -> Commit.t
+  val merge: t -> key IrminMerge.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key and type contents = contents
   module Graph: IrminGraph.S with type V.t = (key, unit) IrminGraph.vertex
@@ -150,7 +150,6 @@ module Mux
     | Contents b -> Contents.add t.contents b
     | Node tr    -> Node.add t.node tr
     | Commit c   -> Commit.add t.commit c
-    | Key k      -> return k
 
   module Graph = IrminGraph.Make(K)(Unit)
 
@@ -183,6 +182,14 @@ module Mux
       @ List.map nodes ~f:(fun (k, t) -> k, Node t)
       @ List.map commits ~f:(fun (k, c) -> k, Commit c) in
     return all
+
+  let merge t =
+    IrminMerge.seq [
+      IrminMerge.default (module Key);
+      Contents.merge     (contents_t t);
+      Node.merge         (node_t t);
+      Commit.merge       (commit_t t);
+    ]
 
 end
 
@@ -289,101 +296,22 @@ module Make
   let node_t t = (t, t)
   let commit_t t = ((t, t), t)
 
+  let merge t =
+    IrminMerge.seq [
+      IrminMerge.default (module Key);
+      Contents.merge     (contents_t t);
+      Node.merge         (node_t t);
+      Commit.merge       (commit_t t);
+    ]
+
 end
 
-module Rec (Store: STORE) = struct
-
-  type value = (Store.key, Store.value) t
-  type commit = Store.commit
-  type node = Store.node
-  type t = Store.t
-  type key = Store.key
-  type contents = Store.value
-
-  module Key = Store.Key
-  module Graph = Store.Graph
-  module Value = S(Key)(Store.Value)
-
-  module Commit = Store.Commit
-  let commit_t t = Store.commit_t t
-
-  module Contents = struct
-
-    include Store
-
-    let merge t =
-      IrminMerge.seq [
-        IrminMerge.default (module Key);
-        Store.Contents.merge (Store.contents_t t);
-        Store.Node.merge (Store.node_t t);
-        Store.Commit.merge (Store.commit_t t);
-      ]
-
-  end
-
-  let contents_t t = t
-
-  module Node = IrminNode.Make(Key)(Store.Value)(Contents)(Store.Node)
-  let node_t t = (t, Store.node_t t)
-
-  let create = Store.create
-
-  let to_contents k (v:Store.value): value =
-    match v with
-    | Contents _ -> Key k
-    | Commit c   -> Commit c
-    | Node n     -> Node n
-    | Key r      -> Key r
-
-  let of_contents (v:value): Store.value =
-    match v with
-    | Contents c -> c
-    | Commit c   -> Commit c
-    | Node n     -> Node n
-    | Key r      -> Key r
-
-  let read t k =
-    Store.read t k >>= function
-    | None   -> return_none
-    | Some v -> return (Some (to_contents k v))
-
-  let read_exn t k =
-    Store.read_exn t k >>= fun v ->
-    return (to_contents k v)
-
-  let mem = Store.mem
-
-  let add t v =
-    Store.add t (of_contents v)
-
-  let dump t =
-    Store.dump t >>= fun dump ->
-    List.map ~f:(fun (k, v) -> k, to_contents k v) dump
-    |> return
-
-  let list t keys =
-    Log.debugf "list %s" (IrminMisc.pretty_list Key.to_string keys);
-    let rec pred = function
-      | `Contents k  ->
-        (* XXX: the only difference with Make.list *)
-        begin Store.read t k >>= function
-          | None   -> return_nil
-          | Some c -> pred (`Commit k)
-        end
-      | `Commit k ->
-        begin Store.Commit.read (Store.commit_t t) k >>= function
-          | None   -> pred (`Node k)
-          | Some c -> return (IrminCommit.edges c)
-        end
-      | `Node k   ->
-        begin Store.Node.read (Store.node_t t) k >>= function
-          | None   -> pred (`Contents k)
-          | Some n -> return (IrminNode.edges n)
-        end
-      | _ -> return_nil  in
-    let max = IrminGraph.of_commits keys in
-    Graph.closure pred ~min:[] ~max >>= fun g ->
-    let keys = IrminGraph.to_keys (Graph.vertex g) in
-    return keys
-
+module Rec (S: STORE) = struct
+  include S.Key
+  let merge =
+    let merge ~origin ~old k1 k2 =
+      S.create ()  >>= fun t  ->
+      IrminMerge.merge (S.merge t) ~origin ~old k1 k2
+    in
+    IrminMerge.create' (module S.Key) merge
 end

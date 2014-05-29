@@ -147,3 +147,7 @@ module Make
            and type contents = C.t
            and type path = IrminPath.t
 (** Create a node store from an append-only database. *)
+
+module Rec (S: STORE): IrminContents.S with type t = S.key
+(** Convert a node store objects into storable keys, with the expected
+    merge function. *)

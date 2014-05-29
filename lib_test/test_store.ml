@@ -418,7 +418,7 @@ module Make (S: Irmin.S) = struct
       x.clean ()             >>= fun () ->
       x.init ()              >>= fun () ->
 
-      let branch = T.of_string "import" in
+      let branch = Branch.of_string "import" in
       S.create ~branch ()    >>= fun t2 ->
       Dump.update t2 partial >>= fun () ->
       Snapshot.revert t2 r3  >>= fun () ->
@@ -491,6 +491,45 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_rec_store x () =
+    let test () =
+      let mk str =
+        match x.kind with
+        | `String -> B.of_string str
+        | `JSON   -> B.of_string (
+            Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
+          ) in
+      let v1 = mk "X1" in
+      let v2 = mk "X2" in
+      let v3 = mk "X3" in
+
+      let module R = Irmin.Rec(IrminMemory.AO)(S) in
+
+      create ()                  >>= fun t  ->
+
+      update t ["a";"b";"a"] v1 >>= fun () ->
+      update t ["a";"b";"b"] v2 >>= fun () ->
+      update t ["a";"b";"c"] v3 >>= fun () ->
+      head_exn t                >>= fun h  ->
+
+      R.create ()               >>= fun r ->
+      R.update r ["a";"b"] h    >>= fun () ->
+
+      let check () =
+        R.read_exn r ["a";"b"]    >>= fun h1 ->
+        let t1 = with_head t h1 in
+        read t1 ["a";"b";"a"]     >>= fun v1' ->
+        assert_contents_opt_equal "v1" (Some v1) v1';
+        return_unit in
+
+      check ()                  >>= fun () ->
+      remove t ["a";"b";"a"]    >>= fun () ->
+      check ()                  >>= fun () ->
+
+      return_unit
+    in
+    run x test
+
 end
 
 let suite (speed, x) =
@@ -507,6 +546,7 @@ let suite (speed, x) =
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
     "High-level store merges"         , speed, T.test_merge_api  x;
+    "Recurisve stores"                , speed, T.test_rec_store  x;
   ]
 
 let run name tl =

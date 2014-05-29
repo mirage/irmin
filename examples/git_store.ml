@@ -46,7 +46,7 @@ let main () =
   Store.update   t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
   Store.update   x ["root";"misc";"2.txt"] str >>= fun () ->
 
-  Store.merge_exn t (Store.branch x)        >>= fun () ->
+  Store.merge_exn t (Store.branch_exn x)       >>= fun () ->
 
   Store.read_exn t ["root";"misc";"2.txt"]  >>= fun file2 ->
   Store.read_exn t ["root";"misc";"3.txt"]  >>= fun file3 ->

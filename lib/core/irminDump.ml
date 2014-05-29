@@ -82,7 +82,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     let store = ref K.Map.empty in
     let add k v =
       store := K.Map.add !store k v in
-    Tag.read (Store.tag_t t) (Store.branch t) >>= function
+    Store.head t >>= function
     | None        -> return empty
     | Some commit ->
       let head = Some commit in
@@ -188,7 +188,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     update_aux t dump >>= fun () ->
     match dump.head with
     | None   -> return_unit
-    | Some h -> Tag.update (Store.tag_t t) (Store.branch t) h
+    | Some h -> Store.update_commit t h
 
   let merge t ?origin dump =
     let origin = match origin with

@@ -124,7 +124,7 @@ let main () =
   add t m3  >>= fun () ->
   add x m4  >>= fun () ->
 
-  Store.merge_exn t (Store.branch x) >>= fun () ->
+  Store.merge_exn t (Store.branch_exn x) >>= fun () ->
 
   Store.read_exn t path >>= fun logs ->
   Printf.printf "I've just read:\n%s\n%!" (Log.to_string logs);

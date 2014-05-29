@@ -16,6 +16,9 @@
 
 open Core_kernel.Std
 
+open Lwt
+open IrminMerge.OP
+
 module Log = Log.Make(struct let section = "CONTENTS" end)
 
 exception Invalid of string
@@ -108,4 +111,14 @@ module Make
   let merge t =
     IrminMerge.biject' (module K) C.merge (add t) (read_exn t)
 
+end
+
+module Rec (S: STORE) = struct
+  include S.Key
+  let merge =
+    let merge ~origin ~old k1 k2 =
+      S.create ()  >>= fun t  ->
+      IrminMerge.merge (S.merge t) ~origin ~old k1 k2
+    in
+    IrminMerge.create' (module S.Key) merge
 end
