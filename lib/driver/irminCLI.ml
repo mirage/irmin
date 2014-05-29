@@ -549,7 +549,7 @@ let dump = {
     let dump (module S: Irmin.S) basename =
       run begin
         S.create () >>= fun t ->
-        S.Dump.output t basename
+        S.Dump.output_file basename t
       end
     in
     Term.(mk dump $ store $ basename);
