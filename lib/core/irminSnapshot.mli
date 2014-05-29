@@ -59,6 +59,6 @@ module type STORE = sig
 
 end
 
-module Make (S: IrminBranch.STORE): STORE with type db = S.t
-                                           and type state = S.Block.key
+module Make (S: IrminBranch.INTERNAL): STORE with type db = S.t
+                                              and type state = S.Block.key
 (** Add snapshot capabilities to a branch-consistent store. *)

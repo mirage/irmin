@@ -47,22 +47,22 @@ type ('a, 'b) vertex =
   [ `Contents of 'a
   | `Node of 'a
   | `Commit of 'a
-  | `Ref of 'b ]
+  | `Tag of 'b ]
 with bin_io, compare, sexp
 
-let of_refs     = List.map ~f:(fun k -> `Ref k)
+let of_tags     = List.map ~f:(fun k -> `Tag k)
 let of_contents = List.map ~f:(fun k -> `Contents k)
 let of_nodes    = List.map ~f:(fun k -> `Node k)
 let of_commits  = List.map ~f:(fun k -> `Commit k)
 
-let to_refs     = List.filter_map ~f:(function `Ref k -> Some k | _ -> None)
+let to_tags     = List.filter_map ~f:(function `Tag k -> Some k | _ -> None)
 let to_contents = List.filter_map ~f:(function `Contents k -> Some k | _ -> None)
 let to_nodes    = List.filter_map ~f:(function `Node k -> Some k | _ -> None)
 let to_commits  = List.filter_map ~f:(function `Commit k -> Some k | _ -> None)
 let to_keys     = List.filter_map ~f:(function `Commit k
                                              | `Node k
                                              | `Contents k -> Some k
-                                             | `Ref _      -> None)
+                                             | `Tag _      -> None)
 
 module Make (K: IrminKey.S) (R: IrminTag.S) = struct
 
@@ -78,7 +78,7 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
       | `Contents x -> "B" ^ K.to_string x
       | `Node     x -> "N" ^ K.to_string x
       | `Commit   x -> "C" ^ K.to_string x
-      | `Ref      x -> "R" ^ R.to_string x
+      | `Tag      x -> "R" ^ R.to_string x
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(K)

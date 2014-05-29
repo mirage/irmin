@@ -18,13 +18,16 @@ open Core_kernel.Std
 open Lwt
 open IrminMerge.OP
 
+type path = IrminPath.t
+
+type origin = IrminOrigin.t
+
 module type S = sig
   include IrminBranch.STORE with type key = IrminPath.t
+  module Dump: IrminDump.STORE with type db    = t
+                                and type value = Block.value
   module Snapshot: IrminSnapshot.STORE with type db = t
-                                        and type state = Block.key
-  module Dump: IrminDump.STORE with type db       = t
-                                and type key      = Block.key
-                                and type contents = Block.contents
+                                        and type state = Dump.key
   module View: IrminView.STORE with type db    = t
                                 and type node  = Block.key
                                 and type value = value
@@ -41,13 +44,11 @@ let cast (type a) (type b) (type c) (t: (a, b, c) t) =
 
 module Make (Block: IrminBlock.STORE) (Tag: IrminTag.STORE with type value = Block.key) =
 struct
-
   module S = IrminBranch.Make(Block)(Tag)
   module Snapshot = IrminSnapshot.Make(S)
   module Dump = IrminDump.Make(S)
   module View = IrminView.Store(S)
   include S
-
 end
 
 module RO_BINARY  (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: IrminIdent.S) = struct
@@ -151,4 +152,9 @@ module type BACKEND = sig
     S with type Block.key = K.t
        and type value     = C.t
        and type branch    = T.t
+end
+
+module Rec (S: S) = struct
+  module XBlock = IrminBlock.Rec(S.Block)
+  include Make(XBlock)(S.Tag)
 end

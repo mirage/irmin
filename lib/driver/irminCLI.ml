@@ -379,16 +379,10 @@ let rm = {
 }
 
 let convert_dump
-    (type a) (type b) (module L: Irmin.S with type Block.key = a and type value = b)
-    (type c) (type d) (module R: Irmin.S with type Block.key = c and type value = d)
-    (dump: R.Dump.t): L.Dump.t =
-  let key k = L.Block.Key.of_string (R.Block.Key.to_string k) in
-  let value v = L.Block.Value.of_string (R.Block.Value.to_string v) in
-  let head = match dump.IrminDump.head with
-    | None   -> None
-    | Some k -> Some (key k) in
-  let store = List.map ~f:(fun (k,v) -> key k, value v) dump.IrminDump.store in
-  { IrminDump.head; store }
+    (type a) (module L: Irmin.S with type Dump.t = a)
+    (type b) (module R: Irmin.S with type Dump.t = b)
+    (dump: b): a =
+  R.Dump.to_string dump |> L.Dump.of_string
 
 (* CLONE *)
 let clone = {

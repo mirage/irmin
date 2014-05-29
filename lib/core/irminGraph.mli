@@ -81,10 +81,10 @@ type ('a, 'b) vertex =
   [ `Contents of 'a
   | `Node of 'a
   | `Commit of 'a
-  | `Ref of 'b ]
+  | `Tag of 'b ]
 
-val of_refs: 'b list -> ('a, 'b) vertex list
-val to_refs: ('a, 'b) vertex list -> 'b list
+val of_tags: 'b list -> ('a, 'b) vertex list
+val to_tags: ('a, 'b) vertex list -> 'b list
 
 val of_commits: 'a list -> ('a, 'b) vertex list
 val to_commits: ('a, 'b) vertex list -> 'a list

@@ -43,15 +43,19 @@ module type STORE = sig
   val node_t: t -> Block.Node.t
   val commit_t: t -> Block.Commit.t
   val tag_t: t -> Tag.t
+  module Key: IrminKey.S with type t = key
+  module Value: IrminContents.S with type t = value
+  module Branch: IrminTag.S with type t = branch
+  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
+end
+
+module type INTERNAL = sig
+  include STORE
   val read_node: t -> key -> Block.node option Lwt.t
   val update_node: t -> origin -> key -> Block.node -> unit Lwt.t
   val watch_node: t -> key -> (key * Block.key) Lwt_stream.t
   val update_commit: t -> Block.key -> unit Lwt.t
   val merge_commit: t -> ?origin:origin -> Block.key -> unit IrminMerge.result Lwt.t
-  module Key: IrminKey.S with type t = key
-  module Value: IrminContents.S with type t = value
-  module Branch: IrminTag.S with type t = branch
-  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
 end
 
 module Make
@@ -96,9 +100,9 @@ struct
 
   let block_t    t = t.block
   let tag_t      t = t.tag
-  let commit_t   t = Block.commit t.block
-  let node_t     t = Block.node t.block
-  let contents_t t = Block.contents t.block
+  let commit_t   t = Block.commit_t t.block
+  let node_t     t = Block.node_t t.block
+  let contents_t t = Block.contents_t t.block
 
   let create ?(branch=T.master) () =
     Block.create () >>= fun block ->
@@ -230,8 +234,8 @@ struct
                                         The common ancestor was %s."
                       (K.to_string c1) (K.to_string c2) (K.to_string old)
         | Some o -> o in
-      let m = Commit.merge (commit_t t) origin in
-      IrminMerge.merge m ~old c1 c2
+      let m = Commit.merge (commit_t t) in
+      IrminMerge.merge m ~origin ~old c1 c2
 
   let update_commit t c =
     Tag.update t.tag t.branch c

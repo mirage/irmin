@@ -16,6 +16,7 @@
 
 open Lwt
 open Core_kernel.Std
+open IrminMerge.OP
 
 module Log = Log.Make(struct let section = "VALUE" end)
 
@@ -23,7 +24,10 @@ type ('key, 'contents) t =
   | Contents of 'contents
   | Node of 'key IrminNode.t
   | Commit of 'key IrminCommit.t
+  | Key of 'key
 with bin_io, compare, sexp
+
+type origin = IrminOrigin.t
 
 module type S = sig
   type key
@@ -59,20 +63,31 @@ module String = S(IrminKey.SHA1)(IrminContents.String)
 
 module JSON = S(IrminKey.SHA1)(IrminContents.JSON)
 
+module Unit = struct
+  include IrminIdent.Unit
+  let master = ()
+  let of_bytes _ = ()
+  let of_bytes' _ = ()
+  let to_raw _ = ""
+  let of_raw _ = ()
+end
+
 module type STORE = sig
   type key
   type contents
+  type node = key IrminNode.t
+  type commit = key IrminCommit.t
   include IrminStore.AO with type key := key and type value = (key, contents) t
   module Contents: IrminContents.STORE with type key = key and type value = contents
-  module Node: IrminNode.STORE with type key = key and type contents = contents
-  type node = Node.value
+  module Node: IrminNode.STORE with type key = key
+                                and type contents = contents
   module Commit: IrminCommit.STORE with type key = key
-  type commit = Commit.value
-  val contents: t -> Contents.t
-  val node: t -> Node.t
-  val commit: t -> Commit.t
+  val contents_t: t -> Contents.t
+  val node_t: t -> Node.t
+  val commit_t: t -> Commit.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key and type contents = contents
+  module Graph: IrminGraph.S with type V.t = (key, unit) IrminGraph.vertex
 end
 
 module Mux
@@ -99,9 +114,9 @@ module Mux
     commit   : Commit.t;
   }
 
-  let contents t = t.contents
-  let node t = t.node
-  let commit t = t.commit
+  let contents_t t = t.contents
+  let node_t t = t.node
+  let commit_t t = t.commit
 
   let create () =
     Commit.create () >>= fun  ((contents, _ as node), _ as commit) ->
@@ -132,11 +147,12 @@ module Mux
     | Some _ -> return true
 
   let add t = function
-    | Contents b   -> Contents.add t.contents b
-    | Node tr  -> Node.add t.node tr
-    | Commit c -> Commit.add t.commit c
+    | Contents b -> Contents.add t.contents b
+    | Node tr    -> Node.add t.node tr
+    | Commit c   -> Commit.add t.commit c
+    | Key k      -> return k
 
-  module Graph = IrminGraph.Make(K)(IrminTag.String)
+  module Graph = IrminGraph.Make(K)(Unit)
 
   let list t keys =
     Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
@@ -151,7 +167,7 @@ module Mux
           | None   -> pred (`Contents k)
           | Some n -> return (IrminNode.edges n)
         end
-      | _         -> return_nil  in
+      | _ -> return_nil  in
     let max = IrminGraph.of_commits keys in
     Graph.closure pred ~min:[] ~max >>= fun g ->
     let keys = IrminGraph.to_keys (Graph.vertex g) in
@@ -267,8 +283,107 @@ module Make
   module Key = K
   module Value = S(K)(C)
 
-  let contents t = t
-  let node t = (t, t)
-  let commit t = ((t, t), t)
+  module Graph = IrminGraph.Make(K)(Unit)
+
+  let contents_t t = t
+  let node_t t = (t, t)
+  let commit_t t = ((t, t), t)
+
+end
+
+module Rec (Store: STORE) = struct
+
+  type value = (Store.key, Store.value) t
+  type commit = Store.commit
+  type node = Store.node
+  type t = Store.t
+  type key = Store.key
+  type contents = Store.value
+
+  module Key = Store.Key
+  module Graph = Store.Graph
+  module Value = S(Key)(Store.Value)
+
+  module Commit = Store.Commit
+  let commit_t t = Store.commit_t t
+
+  module Contents = struct
+
+    include Store
+
+    let merge t =
+      IrminMerge.seq [
+        IrminMerge.default (module Key);
+        Store.Contents.merge (Store.contents_t t);
+        Store.Node.merge (Store.node_t t);
+        Store.Commit.merge (Store.commit_t t);
+      ]
+
+  end
+
+  let contents_t t = t
+
+  module Node = IrminNode.Make(Key)(Store.Value)(Contents)(Store.Node)
+  let node_t t = (t, Store.node_t t)
+
+  let create = Store.create
+
+  let to_contents k (v:Store.value): value =
+    match v with
+    | Contents _ -> Key k
+    | Commit c   -> Commit c
+    | Node n     -> Node n
+    | Key r      -> Key r
+
+  let of_contents (v:value): Store.value =
+    match v with
+    | Contents c -> c
+    | Commit c   -> Commit c
+    | Node n     -> Node n
+    | Key r      -> Key r
+
+  let read t k =
+    Store.read t k >>= function
+    | None   -> return_none
+    | Some v -> return (Some (to_contents k v))
+
+  let read_exn t k =
+    Store.read_exn t k >>= fun v ->
+    return (to_contents k v)
+
+  let mem = Store.mem
+
+  let add t v =
+    Store.add t (of_contents v)
+
+  let dump t =
+    Store.dump t >>= fun dump ->
+    List.map ~f:(fun (k, v) -> k, to_contents k v) dump
+    |> return
+
+  let list t keys =
+    Log.debugf "list %s" (IrminMisc.pretty_list Key.to_string keys);
+    let rec pred = function
+      | `Contents k  ->
+        (* XXX: the only difference with Make.list *)
+        begin Store.read t k >>= function
+          | None   -> return_nil
+          | Some c -> pred (`Commit k)
+        end
+      | `Commit k ->
+        begin Store.Commit.read (Store.commit_t t) k >>= function
+          | None   -> pred (`Node k)
+          | Some c -> return (IrminCommit.edges c)
+        end
+      | `Node k   ->
+        begin Store.Node.read (Store.node_t t) k >>= function
+          | None   -> pred (`Contents k)
+          | Some n -> return (IrminNode.edges n)
+        end
+      | _ -> return_nil  in
+    let max = IrminGraph.of_commits keys in
+    Graph.closure pred ~min:[] ~max >>= fun g ->
+    let keys = IrminGraph.to_keys (Graph.vertex g) in
+    return keys
 
 end

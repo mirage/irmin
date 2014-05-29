@@ -46,13 +46,13 @@ module Result (A: IrminIdent.S) = struct
 
 end
 
-module UnitResult = Result(IrminIdent.Make(struct
-    type t = unit with sexp,compare
-  end))
+module UnitResult = Result(IrminIdent.Unit)
 
-type 'a merge = old:'a -> 'a -> 'a -> 'a result
+type origin = IrminOrigin.t
 
-type 'a merge' = old:'a -> 'a -> 'a -> 'a result Lwt.t
+type 'a merge = origin:origin -> old:'a -> 'a -> 'a -> 'a result
+
+type 'a merge' = origin:origin -> old:'a -> 'a -> 'a -> 'a result Lwt.t
 
 type 'a t = {
   equal: 'a -> 'a -> bool Lwt.t;
@@ -62,7 +62,7 @@ type 'a t = {
 
 let create (type a) (module A: S with type t = a) merge =
   let equal a b = return (A.equal a b) in
-  let merge ~old a b = return (merge ~old a b) in
+  let merge ~origin ~old a b = return (merge ~origin ~old a b) in
   { m = (module A); equal; merge }
 
 let create' (type a) (module A: S with type t = a) merge =
@@ -101,7 +101,7 @@ let rec iter f = function
 
 let default (type a) (module A: S with type t = a) =
   let equal a b = return (A.equal a b) in
-  let merge ~old t1 t2 =
+  let merge ~origin ~old t1 t2 =
     Log.debugf "default %s | %s | %s" (A.to_string old) (A.to_string t1) (A.to_string t2);
     if A.equal t1 t2 then ok t1
     else if A.equal old t1 then ok t2
@@ -124,14 +124,27 @@ let default' (type a) (module A: S with type t = a) equal =
         if b3 then ok t1
         else conflict "default'"
   in
-  let merge ~old t1 t2 =
-    default.merge ~old t1 t2 >>= function
+  let merge ~origin ~old t1 t2 =
+    default.merge ~origin ~old t1 t2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ -> merge' ~old t1 t2
   in
   { m = (module A); equal; merge }
 
 let merge t = t.merge
+
+let seq = function
+  | []         -> raise Not_found
+  | t::_ as ts ->
+    let equal v1 v2 =
+      Lwt_list.exists_s (fun t -> t.equal v1 v2) ts in
+    let merge ~origin ~old v1 v2 =
+      Lwt_list.fold_left_s (fun acc t ->
+          match acc with
+          | `Ok x       -> ok x
+          | `Conflict _ -> t.merge ~origin ~old v1 v2
+        ) (`Conflict "nothing to do") ts in
+    { m = t.m; equal; merge }
 
 let some (type a) t =
   let module T = (val t.m: S with type t = a) in
@@ -143,13 +156,13 @@ let some (type a) t =
     | Some _, None
     | None  , Some _ -> return false
     | Some a, Some b -> t.equal a b in
-  let merge ~old t1 t2 =
+  let merge ~origin ~old t1 t2 =
     Log.debugf "some %s | %s | %s" (S.to_string old) (S.to_string t1) (S.to_string t2);
-    merge (default' (module S) equal) ~old t1 t2 >>= function
+    merge (default' (module S) equal) ~origin ~old t1 t2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
       match old, t1, t2 with
-      | Some o, Some v1, Some v2 -> t.merge ~old:o v1 v2 >>| fun x -> ok (Some x)
+      | Some o, Some v1, Some v2 -> t.merge ~origin ~old:o v1 v2 >>| fun x -> ok (Some x)
       | _ -> conflict "some"
   in
   { m = (module S); equal; merge }
@@ -165,11 +178,11 @@ let pair (type a) (type b) a b =
     if a3 then b.equal b1 b2
     else return false
   in
-  let merge ~old x y =
+  let merge ~origin ~old x y =
     Log.debugf "pair %s | %s | %s" (S.to_string old) (S.to_string x) (S.to_string y);
     let (o1, o2), (a1, b1), (a2, b2) = old, x, y in
-    a.merge ~old:o1 a1 a2 >>| fun a3 ->
-    b.merge ~old:o2 b1 b2 >>| fun b3 ->
+    a.merge ~origin ~old:o1 a1 a2 >>| fun a3 ->
+    b.merge ~origin ~old:o2 b1 b2 >>| fun b3 ->
     ok (a3, b3)
   in
   { m = (module S); equal; merge }
@@ -193,9 +206,9 @@ let map (type a) t =
       ) m1 m2 >>= fun () ->
     return !equal
   in
-  let merge ~old m1 m2 =
+  let merge ~origin ~old m1 m2 =
     Log.debugf "assoc %s | %s | %s" (S.to_string old) (S.to_string m1) (S.to_string m2);
-    merge (default' (module S) equal) ~old m1 m2 >>= function
+    merge (default' (module S) equal) ~origin ~old m1 m2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
       Lwt.catch (fun () ->
@@ -218,7 +231,7 @@ let map (type a) t =
                 if b then return (Some v1)
                 else match Map.find old key with
                   | None    -> fail (C "add/add")
-                  | Some ov -> t.merge ~old:ov v1 v2 >>= function
+                  | Some ov -> t.merge ~origin ~old:ov v1 v2 >>= function
                     | `Conflict msg -> fail (C msg)
                     | `Ok x         -> return (Some x)
             ) m1 m2
@@ -236,21 +249,21 @@ let biject (type b) (module B: S with type t = b) t a_to_b b_to_a =
       let a1 = b_to_a b1 in
       let a2 = b_to_a b2 in
       t.equal a1 a2 in
-  let merge' ~old b1 b2 =
+  let merge' ~origin ~old b1 b2 =
     Log.debugf "map %s | %s | %s" (B.to_string old) (B.to_string b1) (B.to_string b2);
     try
       let a1 = b_to_a b1 in
       let a2 = b_to_a b2 in
       let old = b_to_a old in
-      merge t ~old a1 a2 >>| fun a3 ->
+      merge t ~origin ~old a1 a2 >>| fun a3 ->
       ok (a_to_b a3)
     with Not_found ->
       conflict "biject"
   in
-  let merge ~old b1 b2 =
-    default.merge ~old b1 b2 >>= function
+  let merge ~origin ~old b1 b2 =
+    default.merge ~origin ~old b1 b2 >>= function
     | `Ok x       -> ok x
-    | `Conflict _ -> merge' ~old b1 b2
+    | `Conflict _ -> merge' ~origin ~old b1 b2
   in
   { m = (module B); equal; merge }
 
@@ -262,28 +275,28 @@ let biject' (type b) (module B: S with type t = b) t a_to_b b_to_a =
       b_to_a b1 >>= fun a1 ->
       b_to_a b2 >>= fun a2 ->
       t.equal a1 a2 in
-  let merge' ~old b1 b2 =
+  let merge' ~origin ~old b1 b2 =
     Log.debugf "map' %s | %s | %s" (B.to_string old) (B.to_string b1) (B.to_string b2);
     try
       b_to_a b1  >>= fun a1 ->
       b_to_a b2  >>= fun a2 ->
       b_to_a old >>= fun old ->
-      merge t ~old a1 a2 >>| fun a3 ->
+      merge t ~origin ~old a1 a2 >>| fun a3 ->
       a_to_b a3 >>=
       ok
     with Not_found ->
       conflict "biject'"
   in
-  let merge ~old b1 b2 =
-    default.merge ~old b1 b2 >>= function
+  let merge ~origin ~old b1 b2 =
+    default.merge ~origin ~old b1 b2 >>= function
     | `Ok x       -> ok x
-    | `Conflict _ -> merge' ~old b1 b2
+    | `Conflict _ -> merge' ~origin ~old b1 b2
   in
   { m = (module B); equal; merge }
 
 let apply m f x =
   let equal a b = (f x).equal a b in
-  let merge ~old a b = (f x).merge ~old a b in
+  let merge ~origin ~old a b = (f x).merge ~origin ~old a b in
   { m; equal; merge }
 
 let string =
@@ -291,5 +304,5 @@ let string =
 
 let counter =
   let equal x y = return (Int.equal x y) in
-  let merge ~old x y = ok (x + y - old) in
+  let merge ~origin ~old x y = ok (x + y - old) in
   { m = (module IrminIdent.Int); equal; merge }

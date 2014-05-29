@@ -22,43 +22,27 @@ module Log = Log.Make(struct let section ="DUMP" end)
 
 type origin = IrminOrigin.t
 
-type ('key, 'contents) t = {
-  head : 'key option;
-  store: ('key * ('key, 'contents) IrminBlock.t) list;
-} with bin_io, compare, sexp
-
-module type S = sig
-  type key
-  type contents
-  include IrminIdent.S with type t = (key, contents) t
-end
-
-module S (K: IrminKey.S) (C: IrminContents.S) = struct
-  type key = K.t
-  type contents = C.t
-  module S = IrminIdent.Make(struct
-      type nonrec t = (K.t, C.t) t with bin_io, compare, sexp
-    end)
-  include S
-end
-
 module type STORE = sig
-  include S
+  include IrminStore.RO
   type db
+  val head: t -> key option
+  val with_head: t -> key option -> t
+  val empty: t
   val create: db -> key list -> t Lwt.t
   val update: db -> t -> unit Lwt.t
   val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   val output: db -> string -> unit Lwt.t
+  module Key: IrminKey.S with type t = key
+  module Value: IrminIdent.S with type t = value
+  include IrminIdent.S with type t := t
 end
 
-module Make (Store: IrminBranch.STORE) = struct
+module Make (Store: IrminBranch.INTERNAL) = struct
 
   module K = Store.Block.Key
   module C = Store.Value
   module T = Store.Tag.Key
-
-  include S(K)(C)
 
   module Tag = Store.Tag
   module Block = Store.Block
@@ -66,15 +50,39 @@ module Make (Store: IrminBranch.STORE) = struct
   module Node = Block.Node
   module Contents = Block.Contents
 
+  module Key = K
+  module Value = Block.Value
+
   type db = Store.t
+
+  type dump = {
+    head : K.t option;
+    store: (K.t, C.t) IrminBlock.t K.Map.t;
+  } with sexp, compare
+
+  include IrminIdent.Make(struct type t = dump with sexp, compare end)
+
+  type key = Key.t
+
+  type value = Value.t
+
+  let empty = {
+    head  = None;
+    store = K.Map.empty;
+  }
+
+  let head t = t.head
+
+  let with_head t head = { t with head }
 
   (* XXX: can be improved quite a lot *)
   let create t roots =
     Log.debugf "export root=%s" (IrminMisc.pretty_list K.to_string roots);
-    let table = Block.Key.Table.create () in
-    let add k v = Hashtbl.add_multi table k v in
+    let store = ref K.Map.empty in
+    let add k v =
+      store := K.Map.add !store k v in
     Tag.read (Store.tag_t t) (Store.branch t) >>= function
-    | None        -> return { head = None; store = [] }
+    | None        -> return empty
     | Some commit ->
       let head = Some commit in
       begin match roots with
@@ -119,21 +127,35 @@ module Make (Store: IrminBranch.STORE) = struct
           add k (IrminBlock.Contents b);
           return_unit
         ) contents >>= fun () ->
-      let store = Hashtbl.fold ~f:(fun ~key:k ~data init ->
-          List.fold_left ~f:(fun acc v -> (k, v) :: acc) ~init data
-        ) ~init:[] table in
-      return { head; store }
+      return { head; store = !store }
+
+  let read t key =
+    return (K.Map.find t.store key)
+
+  let dump t =
+    return (K.Map.to_alist t.store)
+
+  let list t _ =
+    (* XXX: filter the keys *)
+    return (K.Map.keys t.store)
+
+  let mem t key =
+    return (K.Map.mem t.store key)
+
+  let read_exn t key =
+    return (K.Map.find_exn t.store key)
 
   exception Errors of (Block.key * Block.key * string) list
 
-  let update_aux t { store } =
-    Log.debugf "import %d" (List.length store);
+  let update_aux t s =
+    Log.debugf "import %d" (K.Map.length s.store);
     let errors = ref [] in
     let check msg k1 k2 =
       if K.(k1 <> k2) then errors := (k1, k2, msg) :: !errors;
       return_unit
     in
     (* Import contents first *)
+    dump s >>= fun store ->
     Lwt_list.iter_p (fun (k,v) ->
         match v with
         | IrminBlock.Contents x -> Contents.add (Store.contents_t t) x >>= check "value" k
@@ -238,12 +260,12 @@ module Make (Store: IrminBranch.STORE) = struct
         | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
     List.iter ~f:(fun (r,k) ->
-        add_vertex (`Ref r) [`Shape `Plaintext; `Label (T.to_string r); `Style `Filled];
+        add_vertex (`Tag r) [`Shape `Plaintext; `Label (T.to_string r); `Style `Filled];
         let exists l = List.exists ~f:(fun (kk,_) -> K.(kk=k)) l in
         if exists commits then
-          add_edge (`Ref r) [`Style `Bold] (`Commit k);
+          add_edge (`Tag r) [`Style `Bold] (`Commit k);
         if exists nodes then
-          add_edge (`Ref r) [`Style `Bold] (`Node k);
+          add_edge (`Tag r) [`Style `Bold] (`Node k);
       ) tags;
     (* XXX: this is not Xen-friendly *)
     Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->

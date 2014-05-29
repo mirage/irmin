@@ -63,3 +63,7 @@ module Make (S: sig type t with sexp, compare end) = struct
   let to_json t = json_of_sexp (sexp_of_t t)
   let of_json t = t_of_sexp (sexp_of_json t)
 end
+
+module Unit = Make(struct
+    type t = unit with sexp,compare
+  end)
