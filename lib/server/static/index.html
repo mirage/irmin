@@ -34,41 +34,10 @@
     }
   </style>
 
-  <body>
+  <body onload="loop();">
     <svg width=800 height=600>
       <g transform="translate(20,20)"/>
     </svg>
-    <script>
-
-      var inputGraph;
-      myGet('./dump/graph.dot', function(data) {
-        inputGraph = data.response;
-        console.log(inputGraph);
-        draw(inputGraph);
-      });
-
-      function draw(graph) {
-        var result = graphlibDot.parse(graph);
-        var renderer = new dagreD3.Renderer();
-
-        // Custom transition function
-        function transition(selection) {
-          return selection.transition().duration(500);
-        }
-
-        renderer.transition(transition);
-        var layout = renderer.run(result, d3.select("svg g"));
-        transition(d3.select("svg"))
-          .attr("width", layout.graph().width + 40)
-          .attr("height", layout.graph().height + 40);
-        d3.select("svg")
-          .call(d3.behavior.zoom().on("zoom", function() {
-            var ev = d3.event;
-            svg.select("g")
-              .attr("transform", "translate(" + ev.translate + ") scale(" + ev.scale + ")");
-          }));
-      }
-    </script>
 
 </body>
 </html>
