@@ -139,3 +139,7 @@ module Map = struct
     return m3
 
 end
+
+let replace ~pattern subst str =
+  let rex = Re_perl.compile_pat pattern in
+  Re_pcre.substitute ~rex ~subst str

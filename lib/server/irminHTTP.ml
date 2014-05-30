@@ -151,9 +151,8 @@ module Server (S: Irmin.S) = struct
       S.Dump.output_buffer buffer dump >>= fun () ->
       let str = Buffer.contents buffer in
       (* XXX: fix the OCamlGraph output *)
-      let rex = Re_perl.compile_pat ", ]" in
-      let subst _ = "]" in
-      let str = Re_pcre.substitute ~rex ~subst str in
+      let str = IrminMisc.replace ~pattern:", ]" (fun _ -> "]") str in
+      let str = IrminMisc.replace ~pattern:" \| " (fun _ -> "\n") str in
       return str
     | [path] ->
       begin match List.Assoc.find files path with

@@ -229,6 +229,14 @@ module Make (Store: IrminBranch.INTERNAL) = struct
       `Label (string_of_key k) in
     let label_of_path l =
       `Label (string_of_contents l) in
+    let label_of_commit k c =
+      let k = string_of_key k in
+      let o = c.IrminCommit.origin in
+      let s = sprintf "%s | %s | %Ld | %s" k
+          (IrminOrigin.id o)
+          (IrminOrigin.date o)
+          (IrminOrigin.message o) in
+      `Label s in
     let label_of_contents k v =
       let k = string_of_key k in
       let v = string_of_contents (C.to_string v) in
@@ -251,7 +259,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
           ) t.IrminNode.succ
       ) nodes;
     List.iter ~f:(fun (k, r) ->
-        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label k];
+        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
         List.iter ~f:(fun p ->
             add_edge (`Commit k) [`Style `Bold] (`Commit p)
           ) r.IrminCommit.parents;
