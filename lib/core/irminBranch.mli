@@ -48,9 +48,6 @@ module type STORE = sig
   val set_branch: t -> branch -> unit
   (** Update the current branch name. *)
 
-  val with_branch: t -> branch -> t
-  (** Return a branch in the same store. *)
-
   val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
   (** Same as [IrminStore.RW.update] but with an optional [origin]
       argument to keep track of provenance. *)
@@ -101,7 +98,7 @@ module type STORE = sig
   val tag_t: t -> Tag.t
   (** Return an handler to the reference store. *)
 
-  val temp: Block.key -> t Lwt.t
+  val create_head: Block.key -> t Lwt.t
   (** Create a temporary branch, which will not be recorded in the tag
       branch. *)
 
@@ -114,9 +111,6 @@ module type STORE = sig
 
   val set_head: t -> Block.key -> unit
   (** Set the commit head. *)
-
-  val with_head: t -> Block.key -> t
-  (** Return a new detached head in the same store. *)
 
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)

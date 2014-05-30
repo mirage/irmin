@@ -16,4 +16,25 @@
 
 (** In-memory store *)
 
-include Irmin.BACKEND
+module type S_MAKER =
+  functor (K: IrminKey.S)      ->
+  functor (C: IrminContents.S) ->
+  functor (T: IrminTag.S)      ->
+    sig
+      include Irmin.S with type Block.key = K.t
+                       and type value     = C.t
+                       and type branch    = T.t
+      val clear: unit -> unit
+      (** Clear the store. *)
+    end
+
+module type BACKEND = sig
+  module RO  : Irmin.RO_MAKER
+  module AO  : Irmin.AO_MAKER
+  module RW  : Irmin.RW_MAKER
+  module Make: S_MAKER
+end
+
+include BACKEND
+
+module Fresh (X: sig end): BACKEND

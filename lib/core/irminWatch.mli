@@ -38,6 +38,9 @@ module type S = sig
   val create: unit -> t
   (** Create in-memory notifications. *)
 
+  val clear: t -> unit
+  (** Clear all watches. *)
+
   val watch: t -> key -> value option -> value Lwt_stream.t
   (** Create a stream of event notifications. Need to provide the
       initial value (or [None] if the key does not have associated

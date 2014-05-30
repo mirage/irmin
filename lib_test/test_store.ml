@@ -517,7 +517,7 @@ module Make (S: Irmin.S) = struct
 
       let check () =
         R.read_exn r ["a";"b"]    >>= fun h1 ->
-        let t1 = with_head t h1 in
+        create_head h1            >>= fun t1 ->
         read t1 ["a";"b";"a"]     >>= fun v1' ->
         assert_contents_opt_equal "v1" (Some v1) v1';
         return_unit in

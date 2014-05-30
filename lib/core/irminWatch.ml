@@ -25,6 +25,7 @@ module type S = sig
   type t
   val notify: t -> key -> value option -> unit
   val create: unit -> t
+  val clear: t -> unit
   val watch: t -> key -> value option -> value Lwt_stream.t
   val listen_dir: t -> string
     -> key:(string -> key option)
@@ -47,6 +48,9 @@ module Make (K: IrminKey.S) (V: sig type t end) = struct
 
   let create () =
     K.Table.create ()
+
+  let clear t =
+    K.Table.clear t
 
   let unwatch t key id =
     let ws = match Hashtbl.find t key with
