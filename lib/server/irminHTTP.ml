@@ -123,86 +123,44 @@ module Server (S: Irmin.S) = struct
   let mk_dump key value =
     list (pair key value)
 
-  let graph_of_dump (dump:S.Dump.db) =
-    let buffer = Buffer.create 1024 in
-    S.Dump.output_buffer buffer dump >>= fun () ->
-    let str = Buffer.contents buffer in
-    (* XXX: fix the OCamlGraph output *)
-    let str =
+(*
+  let d3_js = "http://d3js.org/d3.v3.min.js"
+  let dagre_d3_js = "http://cpettitt.github.io/project/dagre-d3/latest/dagre-d3.min.js"
+  let graphlib_dot_js = "http://cpettitt.github.io/project/graphlib-dot/latest/graphlib-dot.min.js"
+*)
+
+  let read_exn file =
+    match IrminHTTPStatic.read file with
+    | None   -> raise Not_found
+    | Some s -> file, s
+
+  let index = read_exn "index.html"
+
+  let files = [
+    index;
+    read_exn "d3.v3.min.js";
+    read_exn "dagre-d3.min.js";
+    read_exn "graphlib-dot.min.js";
+    read_exn "get.js";
+  ]
+
+  let graph_of_dump (dump:S.Dump.db) = function
+    | [] -> return (snd index)
+    | ["graph.dot"] ->
+      let buffer = Buffer.create 1024 in
+      S.Dump.output_buffer buffer dump >>= fun () ->
+      let str = Buffer.contents buffer in
+      (* XXX: fix the OCamlGraph output *)
       let rex = Re_perl.compile_pat ", ]" in
       let subst _ = "]" in
-      Re_pcre.substitute ~rex ~subst str in
-    let str = String.escaped str in
-    let html = Printf.sprintf
-        "<html>\n\
-         <meta charset=\"utf-8\">
-         <script src=\"http://d3js.org/d3.v3.min.js\"></script>\n\
-         <script src=\"http://cpettitt.github.io/project/dagre-d3/latest/dagre-d3.min.js\"></script>\n\
-         <script src=\"http://cpettitt.github.io/project/graphlib-dot/latest/graphlib-dot.min.js\"></script>\n\
-         \n\
-         <style>\n\
-        \  svg {\n\
-        \    border: 1px solid #999;\n\
-        \    overflow: hidden;\n\
-        \  }\n\
-         \n\
-        \  text {\n\
-        \    font-weight: 300;\n\
-        \    font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serf;\n\
-        \   font-size: 14px;\n\
-        \  }\n\
-         \n\
-        \  .node rect {\n\
-        \    stroke: #333;\n\
-        \    stroke-width: 2px;\n\
-        \    fill: #fff;\n\
-        \  }\n\
-         \n\
-        \  .edgeLabel rect {\n\
-        \    fill: #fff;\n\
-        \  }\n\
-         \n\
-        \  .edgePath path {\n\
-        \    stroke: #333;\n\
-        \    stroke-width: 1.5px;\n\
-        \    fill: none;\n\
-        \  }\n\
-        \  </style>\n\
-         \n\
-         <body onLoad=\"tryDraw();\">\n\
-         <svg width=800 height=600>\n\
-         \  <g transform=\"translate(20,20)\"/>\n\
-         </svg>\n\
-         <script>\n\
-         \n\
-         var inputGraph = '%s';\n\
-         \n\
-         function tryDraw() {\n\
-        \  var result = graphlibDot.parse(inputGraph);\n\
-        \  var renderer = new dagreD3.Renderer();\n\
-         \n\
-        \  // Custom transition function\n\
-        \  function transition(selection) {\n\
-        \    return selection.transition().duration(500);\n\
-        \  }\n\
-        \  renderer.transition(transition);\n\
-         \n\
-        \  var layout = renderer.run(result, d3.select(\"svg g\"));\n\
-        \  transition(d3.select(\"svg\"))\n\
-        \    .attr(\"width\", layout.graph().width + 40)\n\
-        \    .attr(\"height\", layout.graph().height + 40);\n\
-        \  d3.select(\"svg\")\n\
-        \    .call(d3.behavior.zoom().on(\"zoom\", function() {\n\
-        \      var ev = d3.event;\n\
-        \      svg.select(\"g\")\n\
-        \        .attr(\"transform\", \"translate(\" + ev.translate + \") scale(\" + ev.scale + \")\");\n\
-        \    }));\n\
-         }\n\
-         </script>\n\
-         \n\
-         </body></html>"
-        str in
-    return html
+      let str = Re_pcre.substitute ~rex ~subst str in
+      return str
+    | [path] ->
+      begin match List.Assoc.find files path with
+        | None   -> raise Not_found
+        | Some s -> return s
+      end
+    | l -> raise Not_found
 
   let respond ?headers body =
     Log.debugf "%S" body;
@@ -251,8 +209,8 @@ module Server (S: Irmin.S) = struct
       failwith ("Unknown action: " ^ c) in
     match t with
     | Fixed _
-    | Html _
     | Stream _ -> error ()
+    | Html _   -> t
     | Node l   ->
       try List.Assoc.find_exn l c
       with Not_found -> error ()
@@ -298,9 +256,8 @@ module Server (S: Irmin.S) = struct
   let mk0p0bh name fn db =
     name,
     Html (fun t path params ->
-        mk0p name path;
         mk0b name params;
-        fn (db t)
+        fn (db t) path
       )
 
   (* 1 argument in the path, fixed answer *)

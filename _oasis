@@ -65,7 +65,7 @@ Library server
   FindlibParent: irmin
   BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl,
                 irmin.backend.fs, irmin.backend, irmin
-  Modules: IrminHTTP
+  Modules: IrminHTTP, IrminHTTPStatic
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 

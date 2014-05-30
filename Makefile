@@ -1,10 +1,13 @@
-VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
-SETUP   = ocaml setup.ml
-VFILE   = lib/core/irminVersion.ml
 TESTS  ?= --enable-tests
 PREFIX ?= /usr/local
 
-build: setup.data $(VFILE)
+VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
+SETUP   = ocaml setup.ml
+VFILE   = lib/core/irminVersion.ml
+SFILE   = lib/server/IrminHTTPStatic.ml
+SFILES  = $(wildcard lib/server/static/*.js) $(wildcard lib/server/static/*.html)
+
+build: setup.data $(VFILE) $(SFILE)
 	$(SETUP) -build $(BUILDFLAGS)
 
 doc: setup.data build
@@ -27,7 +30,7 @@ reinstall: setup.data
 
 clean:
 	$(SETUP) -clean $(CLEANFLAGS)
-	rm -f $(VFILE)
+	rm -f $(VFILE) $(SFILE)
 	rm -rf ./test-db
 
 distclean:
@@ -40,3 +43,6 @@ setup.data:
 
 $(VFILE): _oasis
 	echo "let current = \"$(VERSION)\"" > $@
+
+$(SFILE): $(SFILES)
+	cd lib/server/ && ./make_static.sh

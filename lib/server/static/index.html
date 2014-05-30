@@ -1,0 +1,74 @@
+<html>
+  <meta charset="utf-8">
+  <script src="./dump/d3.v3.min.js"></script>
+  <script src="./dump/dagre-d3.min.js"></script>
+  <script src="./dump/graphlib-dot.min.js"></script>
+  <script src="./dump/get.js"></script>
+
+  <style>
+    svg {
+    border: 1px solid #999;
+    overflow: hidden;
+    }
+
+    text {
+    font-weight: 300;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serf;
+    font-size: 14px;
+    }
+
+    .node rect {
+    stroke: #333;
+    stroke-width: 2px;
+    fill: #fff;
+    }
+
+    .edgeLabel rect {
+    fill: #fff;
+    }
+
+    .edgePath path {
+    stroke: #333;
+    stroke-width: 1.5px;
+    fill: none;
+    }
+  </style>
+
+  <body>
+    <svg width=800 height=600>
+      <g transform="translate(20,20)"/>
+    </svg>
+    <script>
+
+      var inputGraph;
+      myGet('./dump/graph.dot', function(data) {
+        inputGraph = data.response;
+        console.log(inputGraph);
+        draw(inputGraph);
+      });
+
+      function draw(graph) {
+        var result = graphlibDot.parse(graph);
+        var renderer = new dagreD3.Renderer();
+
+        // Custom transition function
+        function transition(selection) {
+          return selection.transition().duration(500);
+        }
+
+        renderer.transition(transition);
+        var layout = renderer.run(result, d3.select("svg g"));
+        transition(d3.select("svg"))
+          .attr("width", layout.graph().width + 40)
+          .attr("height", layout.graph().height + 40);
+        d3.select("svg")
+          .call(d3.behavior.zoom().on("zoom", function() {
+            var ev = d3.event;
+            svg.select("g")
+              .attr("transform", "translate(" + ev.translate + ") scale(" + ev.scale + ")");
+          }));
+      }
+    </script>
+
+</body>
+</html>
