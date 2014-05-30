@@ -123,43 +123,24 @@ module Server (S: Irmin.S) = struct
   let mk_dump key value =
     list (pair key value)
 
-(*
-  let d3_js = "http://d3js.org/d3.v3.min.js"
-  let dagre_d3_js = "http://cpettitt.github.io/project/dagre-d3/latest/dagre-d3.min.js"
-  let graphlib_dot_js = "http://cpettitt.github.io/project/graphlib-dot/latest/graphlib-dot.min.js"
-*)
-
   let read_exn file =
     match IrminHTTPStatic.read file with
     | None   -> raise Not_found
-    | Some s -> file, s
+    | Some s -> s
 
   let index = read_exn "index.html"
 
-  let files = [
-    index;
-    read_exn "d3.v3.min.js";
-    read_exn "dagre-d3.min.js";
-    read_exn "graphlib-dot.min.js";
-    read_exn "get.js";
-  ]
-
   let graph_of_dump (dump:S.Dump.db) = function
-    | [] -> return (snd index)
+    | [] -> return index
     | ["graph.dot"] ->
       let buffer = Buffer.create 1024 in
       S.Dump.output_buffer buffer dump >>= fun () ->
       let str = Buffer.contents buffer in
-      (* XXX: fix the OCamlGraph output *)
+      (* Fix the OCamlGraph output (XXX: open an issue upstream) *)
       let str = IrminMisc.replace ~pattern:", ]" (fun _ -> "]") str in
-      let str = IrminMisc.replace ~pattern:" \| " (fun _ -> "\n") str in
       return str
-    | [path] ->
-      begin match List.Assoc.find files path with
-        | None   -> raise Not_found
-        | Some s -> return s
-      end
-    | l -> raise Not_found
+    | [file] -> return (read_exn file)
+    | l      -> raise Not_found
 
   let respond ?headers body =
     Log.debugf "%S" body;

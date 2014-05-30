@@ -5,7 +5,9 @@ VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
 SETUP   = ocaml setup.ml
 VFILE   = lib/core/irminVersion.ml
 SFILE   = lib/server/IrminHTTPStatic.ml
-SFILES  = $(wildcard lib/server/static/*.js) $(wildcard lib/server/static/*.html)
+SFILES  = $(wildcard lib/server/static/*.js) \
+	  $(wildcard lib/server/static/*.html) \
+	  $(wildcard lib/server/static/*.css)
 
 build: setup.data $(VFILE) $(SFILE)
 	$(SETUP) -build $(BUILDFLAGS)

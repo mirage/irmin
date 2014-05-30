@@ -203,7 +203,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     merge t ?origin dump >>=
     IrminMerge.exn
 
-  let fprintf name t =
+  let fprintf name ~html t =
     Contents.dump (Store.contents_t t) >>= fun contents ->
     Node.dump (Store.node_t t)         >>= fun nodes    ->
     Commit.dump (Store.commit_t t)     >>= fun commits  ->
@@ -225,14 +225,37 @@ module Make (Store: IrminBranch.INTERNAL) = struct
         if IrminMisc.is_valid_utf8 s then s
         else IrminMisc.hex_encode s in
       s in
-    let label k =
-      `Label (string_of_key k) in
+    let label_of_node k _ =
+      let s =
+        (if html then
+           sprintf "<div class='node'>%s</div>"
+         else
+           fun x -> x)
+          (string_of_key k) in
+      `Label s in
     let label_of_path l =
-      `Label (string_of_contents l) in
+      let s =
+        (if html then
+          sprintf "<div class='path'>%s</div>"
+        else
+          fun x -> x)
+          (string_of_contents l) in
+      `Label s in
     let label_of_commit k c =
       let k = string_of_key k in
       let o = c.IrminCommit.origin in
-      let s = sprintf "%s | %s | %Ld | %s" k
+      let s =
+        (if html then
+          sprintf
+            "<div class='commit'>\n\
+            \  <div class='sha1'>%s</div>\n\
+            \  <div class='author'>%s</div>\n\
+            \  <div class='date'>%Ld</div>\n\
+            \  <div class='message'>%s</div>\n\
+             </div>"
+        else
+          sprintf "%s | %s | %Ld | %s")
+          k
           (IrminOrigin.id o)
           (IrminOrigin.date o)
           (IrminOrigin.message o) in
@@ -240,7 +263,16 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     let label_of_contents k v =
       let k = string_of_key k in
       let v = string_of_contents (C.to_string v) in
-      `Label (Printf.sprintf "%s | %s" k (String.escaped v)) in
+      let s =
+        (if html then
+           sprintf "<div class='contents'>\n\
+                   \  <div class='sha1'>%s</div>\n\
+                   \  <div class='blob'>%s</div>\n\
+                    </div>"
+         else
+           sprintf "%s | %s")
+          k (String.escaped v) in
+      `Label s in
     let leafs = List.map ~f:(fun (k,_) ->
         (k, IrminNode.leaf k)
       ) contents in
@@ -249,7 +281,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
         add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
       ) contents;
     List.iter ~f:(fun (k, t) ->
-        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label k];
+        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
         begin match t.IrminNode.contents with
           | None    -> ()
           | Some v  -> add_edge (`Node k) [`Style `Dotted] (`Contents v)
@@ -280,7 +312,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
 
   let output_file name t =
     Log.debugf "output %s" name;
-    fprintf name t >>= fun fprintf ->
+    fprintf name ~html:false t >>= fun fprintf ->
     let oc = Out_channel.create (name ^ ".dot") in
     fprintf (Format.formatter_of_out_channel oc);
     Out_channel.close oc;
@@ -290,7 +322,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     return_unit
 
   let output_buffer buf t =
-    fprintf "graph" t >>= fun fprintf ->
+    fprintf "graph" ~html:true t >>= fun fprintf ->
     let ppf = Format.formatter_of_buffer buf in
     fprintf ppf;
     return_unit
