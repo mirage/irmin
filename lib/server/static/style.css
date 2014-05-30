@@ -24,3 +24,12 @@ text {
     stroke-width: 1.5px;
     fill: none;
 }
+
+.tag {
+    background-color: #eee;
+    font-size: 200%;
+}
+
+.commit .message {
+    font-weight: bold;
+}

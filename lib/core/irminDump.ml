@@ -273,6 +273,14 @@ module Make (Store: IrminBranch.INTERNAL) = struct
            sprintf "%s | %s")
           k (String.escaped v) in
       `Label s in
+    let label_of_tag t =
+      let s =
+        (if html then
+           sprintf "<div class='tag'>%s</div>"
+         else
+           fun x -> x)
+          (T.to_string t) in
+      `Label s in
     let leafs = List.map ~f:(fun (k,_) ->
         (k, IrminNode.leaf k)
       ) contents in
@@ -300,7 +308,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
         | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
     List.iter ~f:(fun (r,k) ->
-        add_vertex (`Tag r) [`Shape `Plaintext; `Label (T.to_string r); `Style `Filled];
+        add_vertex (`Tag r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
         let exists l = List.exists ~f:(fun (kk,_) -> K.(kk=k)) l in
         if exists commits then
           add_edge (`Tag r) [`Style `Bold] (`Commit k);
