@@ -123,6 +123,87 @@ module Server (S: Irmin.S) = struct
   let mk_dump key value =
     list (pair key value)
 
+  let graph_of_dump (dump:S.Dump.db) =
+    let buffer = Buffer.create 1024 in
+    S.Dump.output_buffer buffer dump >>= fun () ->
+    let str = Buffer.contents buffer in
+    (* XXX: fix the OCamlGraph output *)
+    let str =
+      let rex = Re_perl.compile_pat ", ]" in
+      let subst _ = "]" in
+      Re_pcre.substitute ~rex ~subst str in
+    let str = String.escaped str in
+    let html = Printf.sprintf
+        "<html>\n\
+         <meta charset=\"utf-8\">
+         <script src=\"http://d3js.org/d3.v3.min.js\"></script>\n\
+         <script src=\"http://cpettitt.github.io/project/dagre-d3/latest/dagre-d3.min.js\"></script>\n\
+         <script src=\"http://cpettitt.github.io/project/graphlib-dot/latest/graphlib-dot.min.js\"></script>\n\
+         \n\
+         <style>\n\
+        \  svg {\n\
+        \    border: 1px solid #999;\n\
+        \    overflow: hidden;\n\
+        \  }\n\
+         \n\
+        \  text {\n\
+        \    font-weight: 300;\n\
+        \    font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serf;\n\
+        \   font-size: 14px;\n\
+        \  }\n\
+         \n\
+        \  .node rect {\n\
+        \    stroke: #333;\n\
+        \    stroke-width: 2px;\n\
+        \    fill: #fff;\n\
+        \  }\n\
+         \n\
+        \  .edgeLabel rect {\n\
+        \    fill: #fff;\n\
+        \  }\n\
+         \n\
+        \  .edgePath path {\n\
+        \    stroke: #333;\n\
+        \    stroke-width: 1.5px;\n\
+        \    fill: none;\n\
+        \  }\n\
+        \  </style>\n\
+         \n\
+         <body onLoad=\"tryDraw();\">\n\
+         <svg width=800 height=600>\n\
+         \  <g transform=\"translate(20,20)\"/>\n\
+         </svg>\n\
+         <script>\n\
+         \n\
+         var inputGraph = '%s';\n\
+         \n\
+         function tryDraw() {\n\
+        \  var result = graphlibDot.parse(inputGraph);\n\
+        \  var renderer = new dagreD3.Renderer();\n\
+         \n\
+        \  // Custom transition function\n\
+        \  function transition(selection) {\n\
+        \    return selection.transition().duration(500);\n\
+        \  }\n\
+        \  renderer.transition(transition);\n\
+         \n\
+        \  var layout = renderer.run(result, d3.select(\"svg g\"));\n\
+        \  transition(d3.select(\"svg\"))\n\
+        \    .attr(\"width\", layout.graph().width + 40)\n\
+        \    .attr(\"height\", layout.graph().height + 40);\n\
+        \  d3.select(\"svg\")\n\
+        \    .call(d3.behavior.zoom().on(\"zoom\", function() {\n\
+        \      var ev = d3.event;\n\
+        \      svg.select(\"g\")\n\
+        \        .attr(\"transform\", \"translate(\" + ev.translate + \") scale(\" + ev.scale + \")\");\n\
+        \    }));\n\
+         }\n\
+         </script>\n\
+         \n\
+         </body></html>"
+        str in
+    return html
+
   let respond ?headers body =
     Log.debugf "%S" body;
     Cohttp_lwt_unix.Server.respond_string ?headers ~status:`OK ~body ()
@@ -153,11 +234,13 @@ module Server (S: Irmin.S) = struct
     | Fixed  of Ezjsonm.t Lwt.t leaf
     | Stream of Ezjsonm.t Lwt_stream.t leaf
     | Node   of (string * t) list
+    | Html   of string Lwt.t leaf
 
   let to_json t =
     let rec aux path acc = function
       | Fixed   _
       | Stream _ -> `String (IrminPath.to_string (List.rev path)) :: acc
+      | Html s   -> failwith "to_json: HTML node"
       | Node c   -> List.fold_left c
                       ~f:(fun acc (s,t) -> aux (s::path) acc t)
                       ~init:acc in
@@ -168,6 +251,7 @@ module Server (S: Irmin.S) = struct
       failwith ("Unknown action: " ^ c) in
     match t with
     | Fixed _
+    | Html _
     | Stream _ -> error ()
     | Node l   ->
       try List.Assoc.find_exn l c
@@ -208,6 +292,15 @@ module Server (S: Irmin.S) = struct
         mk0b name params;
         fn (db t) >>= fun r ->
         return (o.output r)
+      )
+
+  (* 0 argument, return an html page. *)
+  let mk0p0bh name fn db =
+    name,
+    Html (fun t path params ->
+        mk0p name path;
+        mk0b name params;
+        fn (db t)
       )
 
   (* 1 argument in the path, fixed answer *)
@@ -317,13 +410,14 @@ module Server (S: Irmin.S) = struct
     let s_update t p o c = S.update t ?origin:o p c in
     let s_remove t p o = S.remove t ?origin:o p in
     let s_merge t b o = S.merge t ?origin:o b in
+    let s_dump t = graph_of_dump t in (* XXX: weird API *)
     Node [
       mklp0bf "read"     S.read     t path (some contents);
       mklp0bf "mem"      S.mem      t path bool;
       mk0p1bf "list"     S.list     t (list path) (list path);
       mklp2bf "update"   s_update   t path (some origin) contents unit;
       mklp1bf "remove"   s_remove   t path (some origin) unit;
-      mk0p0bf "dump"     S.dump     t (mk_dump path contents);
+      mk0p0bh "dump"     s_dump     t;
       mklp0bs "watch"    S.watch    t path contents;
       mklp1bf "merge"    s_merge    t tag (some origin) result;
       "contents", contents_store;
@@ -364,6 +458,7 @@ module Server (S: Irmin.S) = struct
         match child h actions with
         | Fixed fn  -> fn t path params >>= respond_json
         | Stream fn -> respond_json_stream (fn t path params)
+        | Html fn   -> fn t path params >>= respond
         | actions   -> aux actions path in
     aux store path
 

@@ -40,13 +40,13 @@ let main () =
   Store.read_exn t ["root";"misc";"2.txt"] >>= fun file ->
   Printf.printf "I've just read: %s\n%!" file;
 
-  Store.clone_force t "refs/heads/test" >>= fun x ->
+  Store.clone_force t "test" >>= fun x ->
 
   let str = Cryptokit.(Random.string (Random.device_rng "/dev/urandom") 1024) in
   Store.update   t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
   Store.update   x ["root";"misc";"2.txt"] str >>= fun () ->
 
-  Store.merge_exn t (Store.branch x)        >>= fun () ->
+  Store.merge_exn t (Store.branch_exn x)       >>= fun () ->
 
   Store.read_exn t ["root";"misc";"2.txt"]  >>= fun file2 ->
   Store.read_exn t ["root";"misc";"3.txt"]  >>= fun file3 ->

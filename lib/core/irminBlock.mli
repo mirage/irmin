@@ -20,7 +20,6 @@ type ('key, 'contents) t =
   | Contents of 'contents
   | Node of 'key IrminNode.t
   | Commit of 'key IrminCommit.t
-  | Key of 'key
 with bin_io, compare, sexp
 (** The different kinds of values which can be stored in the
     database. *)
@@ -93,6 +92,9 @@ module type STORE = sig
   val commit_t: t -> Commit.t
   (** The handler for the commit database. *)
 
+  val merge: t -> key IrminMerge.t
+  (** Merge keys of the store together. *)
+
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 
@@ -111,11 +113,6 @@ module Make
            and type contents = C.t
 (** Create a store for structured values. *)
 
-module Rec (S: STORE): STORE with type key = S.key
-                              and type contents = S.value
-(** Create a recursive block store, where contents are pointers to
-    blocks living in the same block store. *)
-
 module Mux
   (K: IrminKey.S)
   (C: IrminContents.S)
@@ -127,3 +124,6 @@ module Mux
 (** Combine multiple stores to create a global store for structured
     values. XXX: discuss about the cost model, ie. the difference
     between Mux and Make. *)
+
+module Rec (S: STORE): IrminContents.S with type t = S.key
+(** Interpret the blocks in a block store as storable objects. *)

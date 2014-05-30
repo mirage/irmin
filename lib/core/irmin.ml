@@ -144,17 +144,45 @@ struct
   include Make(XBlock)(XTag)
 end
 
-module type BACKEND = sig
-  module RO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
-  module AO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
-  module RW (K: IrminKey.S) (V: IrminKey.S)  : IrminStore.RW
-  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S):
+
+module type RO_MAKER =
+  functor (K: IrminKey.S)   ->
+  functor (V: IrminIdent.S) ->
+    IrminStore.RO with type key   = K.t
+                   and type value = V.t
+
+module type AO_MAKER =
+  functor (K: IrminKey.S)   ->
+  functor (V: IrminIdent.S) ->
+    IrminStore.AO with type key   = K.t
+                   and type value = V.t
+
+module type RW_MAKER =
+  functor (K: IrminKey.S) ->
+  functor (V: IrminKey.S) ->
+    IrminStore.RW with type key   = K.t
+                   and type value = V.t
+
+module type S_MAKER =
+  functor (K: IrminKey.S)      ->
+  functor (C: IrminContents.S) ->
+  functor (T: IrminTag.S)      ->
     S with type Block.key = K.t
        and type value     = C.t
        and type branch    = T.t
+
+module type BACKEND = sig
+  module RO: RO_MAKER
+  module AO: AO_MAKER
+  module RW: RW_MAKER
+  module Make: S_MAKER
 end
 
-module Rec (S: S) = struct
-  module XBlock = IrminBlock.Rec(S.Block)
+module Rec (AO: AO_MAKER) (S: S) = struct
+  module K = S.Block.Key
+  module C = IrminBlock.Rec(S.Block)
+  module B = IrminBlock.S(K)(C)
+  module AO = AO(K)(B)
+  module XBlock = IrminBlock.Make(K)(C)(AO)
   include Make(XBlock)(S.Tag)
 end

@@ -1,3 +1,10 @@
+trunk:
+* The HTTP server now outputs some nice graph (using
+  dagre-d3). Don't expect to display very large graphs
+* More friendly tag names in the Git backend (no need to
+  prefix everything by `refs/heads/` anymore)
+* Partial support for recursive stores (WIP)
+
 0.8.0: (2014-05-27)
 * Spring clean-ups in the API. Separation in IrminBranch for
   fork/join operations, IrminSnapshot for snapshot/revert

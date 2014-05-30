@@ -31,7 +31,7 @@ module String = struct
   let of_bytes' r = r
   let of_raw s = s
   let to_raw s = s
-  let master = "refs/heads/master"
+  let master = "master"
   let of_json j = IrminPath.to_string (IrminPath.of_json j)
   let to_json s = IrminPath.to_json (IrminPath.of_string s)
 end

@@ -188,3 +188,13 @@ module Make
     | None   -> fail Not_found
 
 end
+
+module Rec (S: STORE) = struct
+  include S.Key
+  let merge =
+    let merge ~origin ~old k1 k2 =
+      S.create ()  >>= fun t  ->
+      IrminMerge.merge (S.merge t) ~origin ~old k1 k2
+    in
+    IrminMerge.create' (module S.Key) merge
+end

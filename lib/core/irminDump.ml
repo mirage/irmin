@@ -32,7 +32,8 @@ module type STORE = sig
   val update: db -> t -> unit Lwt.t
   val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
-  val output: db -> string -> unit Lwt.t
+  val output_file: string -> db ->  unit Lwt.t
+  val output_buffer: Buffer.t -> db -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminIdent.S with type t = value
   include IrminIdent.S with type t := t
@@ -81,7 +82,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     let store = ref K.Map.empty in
     let add k v =
       store := K.Map.add !store k v in
-    Tag.read (Store.tag_t t) (Store.branch t) >>= function
+    Store.head t >>= function
     | None        -> return empty
     | Some commit ->
       let head = Some commit in
@@ -187,7 +188,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     update_aux t dump >>= fun () ->
     match dump.head with
     | None   -> return_unit
-    | Some h -> Tag.update (Store.tag_t t) (Store.branch t) h
+    | Some h -> Store.update_commit t h
 
   let merge t ?origin dump =
     let origin = match origin with
@@ -202,8 +203,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     merge t ?origin dump >>=
     IrminMerge.exn
 
-  let output t name =
-    Log.debugf "output %s" name;
+  let fprintf name t =
     Contents.dump (Store.contents_t t) >>= fun contents ->
     Node.dump (Store.node_t t)         >>= fun nodes    ->
     Commit.dump (Store.commit_t t)     >>= fun commits  ->
@@ -268,12 +268,23 @@ module Make (Store: IrminBranch.INTERNAL) = struct
           add_edge (`Tag r) [`Style `Bold] (`Node k);
       ) tags;
     (* XXX: this is not Xen-friendly *)
-    Out_channel.with_file (name ^ ".dot") ~f:(fun oc ->
-        Store.Graph.output (Format.formatter_of_out_channel oc) !vertex !edges name;
-      );
+    return (fun ppf -> Store.Graph.output ppf !vertex !edges name)
+
+  let output_file name t =
+    Log.debugf "output %s" name;
+    fprintf name t >>= fun fprintf ->
+    let oc = Out_channel.create (name ^ ".dot") in
+    fprintf (Format.formatter_of_out_channel oc);
+    Out_channel.close oc;
     let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
     let i = Sys.command cmd in
     if Int.(i <> 0) then Log.errorf "The %s.dot is corrupted" name;
+    return_unit
+
+  let output_buffer buf t =
+    fprintf "graph" t >>= fun fprintf ->
+    let ppf = Format.formatter_of_buffer buf in
+    fprintf ppf;
     return_unit
 
 end

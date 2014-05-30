@@ -164,7 +164,7 @@ let main () =
     CS.add t thomas >>= fun () ->
     CS.add t anil   >>= fun () ->
 
-    Local.clone_force t "refs/heads/test" >>= fun test ->
+    Local.clone_force t "test" >>= fun test ->
 
     let anil_test = CS.add_phone anil      "+44 12345" in
     let anil_test = CS.add_phone anil_test "+44 45678" in
@@ -173,7 +173,7 @@ let main () =
     CS.add test anil_test >>= fun () ->
     CS.add t anil_t       >>= fun () ->
 
-    Local.merge_exn t (Local.branch test) >>= fun () ->
+    Local.merge_exn t (Local.branch_exn test) >>= fun () ->
 
     let thomas = CS.update_name thomas "T. Gazagnaire" in
     CS.add t thomas >>= fun () ->

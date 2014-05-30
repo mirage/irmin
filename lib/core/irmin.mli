@@ -38,10 +38,6 @@ module type S = sig
 
 end
 
-module Rec (S: S): S with type value = S.Block.value
-(** Recursive store, where contents are pointers to arbitrary blocks
-    living in the store. *)
-
 type ('key, 'contents, 'tag) t =
   (module S with type Block.key = 'key
              and type value     = 'contents
@@ -57,28 +53,53 @@ module Make
        and type branch    = Tag.key
 (** Build a full iminsule store. *)
 
-module type BACKEND = sig
+(** {2 Backends} *)
 
-  (** Common signature for all backends. *)
+module type RO_MAKER =
+  functor (K: IrminKey.S)   ->
+  functor (V: IrminIdent.S) ->
+    IrminStore.RO with type key   = K.t
+                   and type value = V.t
 
-  module RO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
-  module AO (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
-  module RW (K: IrminKey.S) (V: IrminKey.S)  : IrminStore.RW
+module type AO_MAKER =
+  functor (K: IrminKey.S)   ->
+  functor (V: IrminIdent.S) ->
+    IrminStore.AO with type key   = K.t
+                   and type value = V.t
 
-  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S):
+module type RW_MAKER =
+  functor (K: IrminKey.S) ->
+  functor (V: IrminKey.S) ->
+    IrminStore.RW with type key   = K.t
+                   and type value = V.t
+
+module type S_MAKER =
+  functor (K: IrminKey.S)      ->
+  functor (C: IrminContents.S) ->
+  functor (T: IrminTag.S)      ->
     S with type Block.key = K.t
        and type value     = C.t
        and type branch    = T.t
-  (** Base constructor: build a store whose leafs are serialized
-      contents of type [C.t]. *)
 
+(** {2 Backends} *)
+module type BACKEND = sig
+  module RO  : RO_MAKER
+  module AO  : AO_MAKER
+  module RW  : RW_MAKER
+  module Make: S_MAKER
 end
+
+(** {2 Recursive stores} *)
+
+module Rec (AO: AO_MAKER) (S: S): S with type value = S.Block.key
+(** Recursive store, where contents are pointers to arbitrary blocks
+    living in the store. *)
 
 (** {2 Binary stores} *)
 
-module RO_BINARY (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RO
-module AO_BINARY (S: IrminStore.AO_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.AO
-module RW_BINARY (S: IrminStore.RW_BINARY) (K: IrminKey.S) (V: IrminIdent.S): IrminStore.RW
+module RO_BINARY (S: IrminStore.RO_BINARY): RO_MAKER
+module AO_BINARY (S: IrminStore.AO_BINARY): AO_MAKER
+module RW_BINARY (S: IrminStore.RW_BINARY): RW_MAKER
 
 module Binary
     (AO: IrminStore.AO_BINARY)

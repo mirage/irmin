@@ -27,7 +27,10 @@ module type STORE = sig
   include IrminStore.RW with type key = path
   type branch
   val create: ?branch:branch -> unit -> t Lwt.t
-  val branch: t -> branch
+  val detach: t -> unit Lwt.t
+  val branch: t -> branch option
+  val branch_exn: t -> branch
+  val set_branch: t -> branch -> unit
   val with_branch: t -> branch -> t
   val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
   val remove: t -> ?origin:origin -> key -> unit Lwt.t
@@ -43,6 +46,11 @@ module type STORE = sig
   val node_t: t -> Block.Node.t
   val commit_t: t -> Block.Commit.t
   val tag_t: t -> Tag.t
+  val temp: Block.key -> t Lwt.t
+  val head: t -> Block.key option Lwt.t
+  val head_exn: t -> Block.key Lwt.t
+  val set_head: t -> Block.key -> unit
+  val with_head: t -> Block.key -> t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Branch: IrminTag.S with type t = branch
@@ -67,7 +75,6 @@ struct
 
   module Tag = Tag
   module T = Tag.Key
-  module Branch = T
 
   module Key = IrminPath
   module K = Block.Key
@@ -85,18 +92,61 @@ struct
 
   type value = C.t
 
-  type branch = T.t
+  module Branch = T
+
+  type branch = Branch.t
+
+  module TK = IrminIdent.Make(struct
+      type t =
+        [ `Tag of T.t
+        | `Key of K.t ]
+    with sexp, compare
+    end)
 
   module Graph = IrminGraph.Make(K)(T)
 
   type t = {
-    block: Block.t;
-    tag: Tag.t;
-    branch: T.t;
+    block : Block.t;
+    tag   : Tag.t;
+    mutable branch: TK.t;
   }
 
-  let branch t = t.branch
-  let with_branch t branch = { t with branch }
+  let branch t = match t.branch with
+    | `Tag t -> Some t
+    | `Key _ -> None
+
+  let branch_exn t = match t.branch with
+    | `Tag t -> t
+    | `Key _ -> raise Not_found
+
+  let set_branch t branch =
+    t.branch <- `Tag branch
+
+  let with_branch t tag =
+    { t with branch = `Tag tag }
+
+  let head t = match t.branch with
+    | `Key key -> return (Some key)
+    | `Tag tag -> Tag.read t.tag tag
+
+  let head_exn t =
+    head t >>= function
+    | None   -> fail Not_found
+    | Some k -> return k
+
+  let set_head t key =
+    t.branch <- `Key key
+
+  let with_head t key =
+    { t with branch = `Key key }
+
+  let detach t =
+    match t.branch with
+    | `Key _   -> return_unit
+    | `Tag tag ->
+      Tag.read_exn t.tag tag >>= fun key ->
+      t.branch <- `Key key;
+      return_unit
 
   let block_t    t = t.block
   let tag_t      t = t.tag
@@ -104,15 +154,28 @@ struct
   let node_t     t = Block.node_t t.block
   let contents_t t = Block.contents_t t.block
 
-  let create ?(branch=T.master) () =
+  let create ?(branch=Branch.master) () =
     Block.create () >>= fun block ->
     Tag.create ()   >>= fun tag ->
+    let branch = `Tag branch in
     return { block; tag; branch }
 
+  let temp key =
+    create () >>= fun t ->
+    set_head t key;
+    return t
+
   let read_head_commit t =
-    Tag.read t.tag t.branch >>= function
-    | None   -> return_none
-    | Some k -> Commit.read (commit_t t) k
+    match t.branch with
+    | `Key key ->
+      Log.debugf "read detached head: %s" (K.to_string key);
+      Commit.read (commit_t t) key
+    | `Tag tag ->
+      Log.debugf "read head: %s" (T.to_string tag);
+      Tag.read t.tag tag >>= function
+      | None   -> return_none
+      | Some k -> Commit.read (commit_t t) k
+
 
   let node_of_commit t c =
     match Commit.node (commit_t t) c with
@@ -120,10 +183,11 @@ struct
     | Some n -> n
 
   let node_of_opt_commit t = function
-    | None   -> return IrminNode.empty
-    | Some c -> node_of_commit t c
+    | None   -> Log.debugf "XXX empty node"; return IrminNode.empty
+    | Some c -> Log.debugf "XXX non-empty node"; node_of_commit t c
 
   let read_head_node t =
+    Log.debug (lazy "read_head_node");
     read_head_commit t >>=
     node_of_opt_commit t
 
@@ -145,7 +209,9 @@ struct
       let parents = parents_of_commit commit in
       Commit.commit (commit_t t) origin ~node ~parents >>= fun (key, _) ->
       (* XXX: the head might have changed since we started the operation *)
-      Tag.update t.tag t.branch key
+      match t.branch with
+      | `Tag tag -> Tag.update t.tag tag key
+      | `Key _   -> t.branch <- `Key key; return_unit
     )
 
   let update_node t origin path node =
@@ -178,6 +244,7 @@ struct
       )
 
   let read_exn t path =
+    Log.debugf "read_exn %s" (IrminPath.to_string path);
     map t path ~f:Node.find_exn
 
   let mem t path =
@@ -238,29 +305,38 @@ struct
       IrminMerge.merge m ~origin ~old c1 c2
 
   let update_commit t c =
-    Tag.update t.tag t.branch c
+    match t.branch with
+    | `Tag tag -> Tag.update t.tag tag c
+    | `Key _   -> t.branch <- `Key c; return_unit
 
   let switch t branch =
-    Log.debugf "switch %s" (T.to_string branch);
+    Log.debugf "switch %s" (Branch.to_string branch);
     Tag.read t.tag branch >>= function
-    | Some c -> Tag.update t.tag t.branch c
-    | None   -> Tag.remove t.tag t.branch
+    | Some c -> update_commit t c
+    | None   -> fail Not_found
 
   let merge_commit t ?origin c1 =
-    Tag.read t.tag t.branch >>= function
-    | None    -> Tag.update t.tag t.branch c1 >>= ok
-    | Some c2 ->
+    let aux c2 =
       three_way_merge t ?origin c1 c2 >>| fun c3 ->
-      Tag.update t.tag t.branch c3   >>=
-      ok
+      update_commit t c3 >>= ok
+    in
+    match t.branch with
+    | `Key c2  -> aux c2
+    | `Tag tag ->
+      Tag.read t.tag tag >>= function
+      | None    -> update_commit t c1 >>= ok
+      | Some c2 -> aux c2
 
   let clone_force t branch =
-    Log.debugf "clone %s" (T.to_string branch);
-    begin Tag.read t.tag t.branch >>= function
-      | None   -> Tag.remove t.tag branch
-      | Some c -> Tag.update t.tag branch c
-    end >>= fun () ->
-    return { t with branch }
+    Log.debugf "clone %s" (Branch.to_string branch);
+    begin match t.branch with
+      | `Key c -> Tag.update t.tag branch c
+      | `Tag tag ->
+        Tag.read t.tag tag >>= function
+        | None   -> fail Not_found
+        | Some c -> Tag.update t.tag branch c
+    end  >>= fun () ->
+    return { t with branch = `Tag branch }
 
   let clone t branch =
     Tag.mem t.tag branch >>= function
@@ -272,7 +348,7 @@ struct
     let origin = match origin with
       | Some o -> o
       | None   -> IrminOrigin.create "Merge branch %s."
-                    (T.to_string t.branch) in
+                    (TK.to_string t.branch) in
     Tag.read_exn t.tag branch >>= fun c ->
     merge_commit t ~origin c
 
@@ -282,26 +358,29 @@ struct
 
   let watch_node t path =
     Log.infof "Adding a watch on %s" (IrminPath.to_string path);
-    let stream = Tag.watch t.tag t.branch in
-    IrminMisc.lift_stream (
-      read_node t path >>= fun node ->
-      let old_node = ref node in
-      let stream = Lwt_stream.filter_map_s (fun key ->
-          Log.debugf "watch: %s" (Block.Key.to_string key);
-          Commit.read_exn (commit_t t) key >>= fun commit ->
-          begin match Commit.node (commit_t t) commit with
-            | None      -> return IrminNode.empty
-            | Some node -> node
-          end >>= fun node ->
-          Node.sub (node_t t) node path >>= fun node ->
-          if node = !old_node then return_none
-          else (
-            old_node := node;
-            return (Some (path, key))
-          )
-        ) stream in
-      return stream
-    )
+    match t.branch with
+    | `Key _   -> Lwt_stream.of_list []
+    | `Tag tag ->
+      let stream = Tag.watch t.tag tag in
+      IrminMisc.lift_stream (
+        read_node t path >>= fun node ->
+        let old_node = ref node in
+        let stream = Lwt_stream.filter_map_s (fun key ->
+            Log.debugf "watch: %s" (Block.Key.to_string key);
+            Commit.read_exn (commit_t t) key >>= fun commit ->
+            begin match Commit.node (commit_t t) commit with
+              | None      -> return IrminNode.empty
+              | Some node -> node
+            end >>= fun node ->
+            Node.sub (node_t t) node path >>= fun node ->
+            if node = !old_node then return_none
+            else (
+              old_node := node;
+              return (Some (path, key))
+            )
+          ) stream in
+        return stream
+      )
 
   (* watch contents changes. *)
   let watch t path =
@@ -318,11 +397,3 @@ struct
       ) stream
 
 end
-
-module type MAKER =
-  functor (K: IrminKey.S) ->
-  functor (C: IrminContents.S) ->
-  functor (T: IrminTag.S) ->
-    STORE with type Block.key = K.t
-           and type value = C.t
-           and type branch = T.t

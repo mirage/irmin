@@ -94,3 +94,7 @@ module Make
   : STORE with type t = Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)
+
+module Rec (S: STORE): IrminContents.S with type t = S.key
+(** Convert a commit store objects into storable keys, with the
+    expected merge functions. *)

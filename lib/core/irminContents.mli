@@ -71,3 +71,8 @@ module Make
            and type key = K.t
            and type value = C.t
 (** Build a contents store. *)
+
+module Rec (S: STORE): S with type t = S.key
+(** Convert a contents store objects into storable keys, with the
+    expected merge function (eg. read the contents, merge them and
+    write back the restult to get the final key). *)

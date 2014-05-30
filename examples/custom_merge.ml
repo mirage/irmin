@@ -118,13 +118,13 @@ let main () =
   Store.read_exn t path  >>= fun logs ->
   Printf.printf "I've just read:\n-----------\n%s-----------\n%!" (Log.to_string logs);
 
-  Store.clone_force t "refs/heads/test" >>= fun x ->
+  Store.clone_force t "test" >>= fun x ->
   add x m2 >>= fun () ->
   add t m2' >>= fun () ->
   add t m3  >>= fun () ->
   add x m4  >>= fun () ->
 
-  Store.merge_exn t (Store.branch x) >>= fun () ->
+  Store.merge_exn t (Store.branch_exn x) >>= fun () ->
 
   Store.read_exn t path >>= fun logs ->
   Printf.printf "I've just read:\n%s\n%!" (Log.to_string logs);

@@ -34,8 +34,14 @@ module SHA1 = struct
   let to_hex t =
     IrminMisc.hex_encode t
 
+  let len = 20
+  let hex_len = 40
+
   let of_hex hex =
-    IrminMisc.hex_decode hex
+    if String.length hex = hex_len then
+      IrminMisc.hex_decode hex
+    else
+      raise (Invalid hex)
 
   module M = IrminIdent.Make(struct
       type t = string with bin_io, compare
@@ -46,8 +52,6 @@ module SHA1 = struct
     end)
 
   include M
-
-  let len = 20
 
   let of_raw str =
     if Int.(String.length str = len) then str

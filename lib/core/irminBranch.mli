@@ -27,17 +27,29 @@ module type STORE = sig
   include IrminStore.RW with type key = path
 
   type branch
-  (** Branch names. *)
+  (** Branch can be either a tag name or a commit hash. In the later
+      case, the branch is said to be in a 'detached' state. *)
 
   val create: ?branch:branch -> unit -> t Lwt.t
-  (** Create a store handle. The default branch (if not set) is
-      [Branch.master]. *)
+  (** Create a store handle. The default branch, if not set, is
+      [Tag.master]. *)
 
-  val branch: t -> branch
+  val detach: t -> unit Lwt.t
+  (** Detach the current branch (ie. it is not assiaciated to a tag
+      name anymore). *)
+
+  val branch: t -> branch option
   (** Return the branch of the given store handle. *)
 
+  val branch_exn: t -> branch
+  (** Same as [branch] but raise [Not_found] in case of a detached
+      head. *)
+
+  val set_branch: t -> branch -> unit
+  (** Update the current branch name. *)
+
   val with_branch: t -> branch -> t
-  (** Return a new store handle with a new branch. *)
+  (** Return a branch in the same store. *)
 
   val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
   (** Same as [IrminStore.RW.update] but with an optional [origin]
@@ -89,6 +101,23 @@ module type STORE = sig
   val tag_t: t -> Tag.t
   (** Return an handler to the reference store. *)
 
+  val temp: Block.key -> t Lwt.t
+  (** Create a temporary branch, which will not be recorded in the tag
+      branch. *)
+
+  val head: t -> Block.key option Lwt.t
+  (** Return the head commit. *)
+
+  val head_exn: t -> Block.key Lwt.t
+  (** Same as [read_head] but raise [Not_found] if the does not
+      exist. *)
+
+  val set_head: t -> Block.key -> unit
+  (** Set the commit head. *)
+
+  val with_head: t -> Block.key -> t
+  (** Return a new detached head in the same store. *)
+
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 
@@ -131,18 +160,8 @@ end
 module Make
     (Block: IrminBlock.STORE)
     (Tag  : IrminTag.STORE with type value = Block.key)
-  : INTERNAL with type branch  = Tag.key
-              and type value   = Block.contents
+  : INTERNAL with type value   = Block.contents
               and module Block = Block
-              and module Tag   = Tag
+              and type branch  = Tag.key
 (** Build a branch consistent store from custom Block] and [Tag] store
     implementations. *)
-
-module type MAKER =
-  functor (K: IrminKey.S) ->
-  functor (C: IrminContents.S) ->
-  functor (T: IrminTag.S) ->
-    STORE with type Block.key = K.t
-           and type value     = C.t
-           and type branch    = T.t
-(** Branch-consistent store maker. *)

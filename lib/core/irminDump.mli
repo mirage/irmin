@@ -55,10 +55,13 @@ module type STORE = sig
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   (** Same as [merge] but merge raise an exception in case of conflict. *)
 
-  val output: db -> string -> unit Lwt.t
+  val output_file: string -> db -> unit Lwt.t
   (** Create a Graphviz graph representing the store state. Could be
       no-op if the backend does not support that operation (for instance,
       for remote connections). *)
+
+  val output_buffer: Buffer.t -> db -> unit Lwt.t
+  (** Same as [output_file] but writes in a buffer. *)
 
   module Key: IrminKey.S with type t = key
   (** Dump keys. *)
