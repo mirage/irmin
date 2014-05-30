@@ -35,5 +35,5 @@ let suite k =
     store =
       let module M = IrminFS.Make (struct let path = test_db end) in
       let (module K), (module C), (module T) = modules k in
-      Irmin.cast (module M.Make(K)(C)(T));
+      Irmin.cast (module M.Make(K)(C)(T))
   }

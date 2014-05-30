@@ -23,7 +23,8 @@ let suite k =
   {
     name  = "MEM" ^ string_of_kind k;
     kind  = k;
-    init  = unit;
+    init  = (fun () -> M.clear (); return_unit);
     clean = unit;
-    store = Irmin.cast (module M);
-  }
+    store =
+      Irmin.cast (module M)
+}

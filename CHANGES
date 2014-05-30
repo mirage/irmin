@@ -1,8 +1,11 @@
 trunk:
-* The HTTP server now outputs some nice graph (using
-  dagre-d3). Don't expect to display very large graphs
-* More friendly tag names in the Git backend (no need to
-  prefix everything by `refs/heads/` anymore)
+* Fix the behavior of `IrminMemory.Make` to return an hanlder to a
+  shared datastore instead of creating a fresh one. Add
+  `IrminMemory.Fresh` to return a fresh in-memory datastore maker.
+* The HTTP server now outputs some nice graph (using dagre-d3). Don't
+  expect to display very large graphs
+* More friendly tag names in the Git backend (no need to prefix
+  everything by `refs/heads/` anymore)
 * Partial support for recursive stores (WIP)
 
 0.8.0: (2014-05-27)

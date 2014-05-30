@@ -19,6 +19,8 @@ open Core_kernel.Std
 
 module Log = Log.Make(struct let section = "MEMORY" end)
 
+module Fresh (C: sig end) = struct
+
 module RO (K: IrminKey.S) (V: IrminIdent.S) = struct
 
   module W = IrminWatch.Make(K)(V)
@@ -35,12 +37,19 @@ module RO (K: IrminKey.S) (V: IrminIdent.S) = struct
   let unknown k =
     fail (IrminKey.Unknown (K.to_string k))
 
+  let table = K.Table.create ()
+  let watches = W.create ()
+
   let create () =
     let t = {
-      t = K.Table.create ();
-      w = W.create ();
+      t = table;
+      w = watches;
     } in
     return t
+
+  let clear () =
+    K.Table.clear table;
+    W.clear watches
 
   let read { t } key =
     (* Log.debugf "read %s" (K.to_string key); *)
@@ -103,11 +112,38 @@ module RW (K: IrminKey.S) (V: IrminKey.S) = struct
 
 end
 
-type config = unit
-
 module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
   module V = IrminBlock.S(K)(C)
-  module XBlock = IrminBlock.Make(K)(C)(AO(K)(V))
-  module XTag = IrminTag.Make(T)(K)(RW(T)(K))
+  module AO_K_V = AO(K)(V)
+  module RW_T_K = RW(T)(K)
+  module XBlock = IrminBlock.Make(K)(C)(AO_K_V)
+  module XTag = IrminTag.Make(T)(K)(RW_T_K)
   include Irmin.Make(XBlock)(XTag)
+  let clear () =
+    AO_K_V.clear ();
+    RW_T_K.clear ()
+end
+
+end
+
+include Fresh(struct end)
+
+
+module type S_MAKER =
+  functor (K: IrminKey.S)      ->
+  functor (C: IrminContents.S) ->
+  functor (T: IrminTag.S)      ->
+    sig
+      include Irmin.S with type Block.key = K.t
+                       and type value     = C.t
+                       and type branch    = T.t
+      val clear: unit -> unit
+      (** Clear the store. *)
+    end
+
+module type BACKEND = sig
+  module RO  : Irmin.RO_MAKER
+  module AO  : Irmin.AO_MAKER
+  module RW  : Irmin.RW_MAKER
+  module Make: S_MAKER
 end

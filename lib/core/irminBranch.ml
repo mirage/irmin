@@ -31,7 +31,6 @@ module type STORE = sig
   val branch: t -> branch option
   val branch_exn: t -> branch
   val set_branch: t -> branch -> unit
-  val with_branch: t -> branch -> t
   val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
   val remove: t -> ?origin:origin -> key -> unit Lwt.t
   val clone: t -> branch -> t option Lwt.t
@@ -46,11 +45,10 @@ module type STORE = sig
   val node_t: t -> Block.Node.t
   val commit_t: t -> Block.Commit.t
   val tag_t: t -> Tag.t
-  val temp: Block.key -> t Lwt.t
+  val create_head: Block.key -> t Lwt.t
   val head: t -> Block.key option Lwt.t
   val head_exn: t -> Block.key Lwt.t
   val set_head: t -> Block.key -> unit
-  val with_head: t -> Block.key -> t
   module Key: IrminKey.S with type t = key
   module Value: IrminContents.S with type t = value
   module Branch: IrminTag.S with type t = branch
@@ -122,9 +120,6 @@ struct
   let set_branch t branch =
     t.branch <- `Tag branch
 
-  let with_branch t tag =
-    { t with branch = `Tag tag }
-
   let head t = match t.branch with
     | `Key key -> return (Some key)
     | `Tag tag -> Tag.read t.tag tag
@@ -136,9 +131,6 @@ struct
 
   let set_head t key =
     t.branch <- `Key key
-
-  let with_head t key =
-    { t with branch = `Key key }
 
   let detach t =
     match t.branch with
@@ -160,7 +152,7 @@ struct
     let branch = `Tag branch in
     return { block; tag; branch }
 
-  let temp key =
+  let create_head key =
     create () >>= fun t ->
     set_head t key;
     return t
