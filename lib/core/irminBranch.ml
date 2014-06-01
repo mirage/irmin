@@ -18,26 +18,11 @@ open Core_kernel.Std
 open Lwt
 open IrminMerge.OP
 
-type origin = IrminOrigin.t
-type path = IrminPath.t
-
 module Log = Log.Make(struct let section = "BRANCH" end)
 
 module type STORE = sig
-  include IrminStore.RW with type key = path
-  type branch
-  val create: ?branch:branch -> unit -> t Lwt.t
-  val detach: t -> unit Lwt.t
-  val branch: t -> branch option
-  val branch_exn: t -> branch
-  val set_branch: t -> branch -> unit
-  val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
-  val remove: t -> ?origin:origin -> key -> unit Lwt.t
-  val clone: t -> branch -> t option Lwt.t
-  val clone_force: t -> branch -> t Lwt.t
-  val switch: t -> branch -> unit Lwt.t
-  val merge: t -> ?origin:origin -> branch -> unit IrminMerge.result Lwt.t
-  val merge_exn: t -> ?origin:origin -> branch -> unit Lwt.t
+  include IrminStore.S with type key = IrminPath.t
+                        and type origin = IrminOrigin.t
   module Block: IrminBlock.STORE with type contents = value
   module Tag: IrminTag.STORE with type key = branch and type value = Block.key
   val block_t: t -> Block.t
@@ -70,6 +55,8 @@ module Make
 struct
 
   module Block = Block
+
+  type origin = IrminOrigin.t
 
   module Tag = Tag
   module T = Tag.Key

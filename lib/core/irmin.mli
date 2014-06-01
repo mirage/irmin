@@ -25,6 +25,7 @@ module type S = sig
   (** Main signature for Irminsule stores. *)
 
   include IrminBranch.STORE with type key = IrminPath.t
+  (* XXX: include IrminStore.S with type key = IrminPath.t *)
 
   module Dump: IrminDump.STORE with type db    = t
                                 and type value = Block.value
