@@ -132,7 +132,7 @@ module Make
       | `Commit k -> read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
     let max = IrminGraph.of_commits keys in
-    Graph.closure pred ~min:[] ~max >>= fun g ->
+    Graph.closure max ~pred >>= fun g ->
     let keys = IrminGraph.to_commits (Graph.vertex g) in
     return keys
 

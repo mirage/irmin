@@ -10,8 +10,6 @@ text {
 }
 
 .node rect {
-    stroke: #333;
-    stroke-width: 2px;
     fill: #fff;
 }
 
@@ -27,7 +25,7 @@ text {
 
 .tag {
     background-color: #eee;
-    font-size: 200%;
+    font-size: 150%;
 }
 
 .commit .message {

@@ -170,7 +170,7 @@ module Make
       | `Node k -> read_exn t k >>= fun node -> return (edges node)
       | _       -> return_nil in
     let max = IrminGraph.of_nodes keys in
-    Graph.closure pred ~min:[] ~max >>= fun g ->
+    Graph.closure ~pred max >>= fun g ->
     let keys = IrminGraph.to_nodes (Graph.vertex g) in
     return keys
 

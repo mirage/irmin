@@ -17,6 +17,11 @@
 open Core_kernel.Std
 open Lwt
 
+let error fmt =
+  Printf.ksprintf (fun msg ->
+      failwith ("error: " ^ msg)
+    ) fmt
+
 module Log = Log.Make(struct let section = "HTTP" end)
 
 type 'a t = {
@@ -125,22 +130,8 @@ module Server (S: Irmin.S) = struct
 
   let read_exn file =
     match IrminHTTPStatic.read file with
-    | None   -> raise Not_found
+    | None   -> error "%s: not found" file
     | Some s -> s
-
-  let index = read_exn "index.html"
-
-  let graph_of_dump (dump:S.Dump.db) = function
-    | [] -> return index
-    | ["graph.dot"] ->
-      let buffer = Buffer.create 1024 in
-      S.Dump.output_buffer buffer dump >>= fun () ->
-      let str = Buffer.contents buffer in
-      (* Fix the OCamlGraph output (XXX: open an issue upstream) *)
-      let str = IrminMisc.replace ~pattern:", ]" (fun _ -> "]") str in
-      return str
-    | [file] -> return (read_exn file)
-    | l      -> raise Not_found
 
   let respond ?headers body =
     Log.debugf "%S" body;
@@ -161,12 +152,7 @@ module Server (S: Irmin.S) = struct
     let body = Cohttp_lwt_body.of_stream stream in
     Cohttp_lwt_unix.Server.respond ~headers:json_headers ~status:`OK ~body ()
 
-  let error fmt =
-    Printf.ksprintf (fun msg ->
-        failwith ("error: " ^ msg)
-      ) fmt
-
-  type 'a leaf = S.t -> string list -> Ezjsonm.t option -> 'a
+  type 'a leaf = S.t -> string list -> Ezjsonm.t option -> (string * string list) list -> 'a
 
   type t =
     | Fixed  of Ezjsonm.t Lwt.t leaf
@@ -205,6 +191,10 @@ module Server (S: Irmin.S) = struct
     | None   -> ()
     | Some _ -> error "%s: non-empty body" name
 
+  let mk0q name = function
+    | [] -> ()
+    | _  -> error "%s: non-empty query" name
+
   let mk1p name i path =
     match path with
     | [x] -> i.input (`String x)
@@ -225,9 +215,10 @@ module Server (S: Irmin.S) = struct
   (* no arguments, fixed answer *)
   let mk0p0bf name fn db o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         mk0p name path;
         mk0b name params;
+        mk0q name query;
         fn (db t) >>= fun r ->
         return (o.output r)
       )
@@ -235,17 +226,18 @@ module Server (S: Irmin.S) = struct
   (* 0 argument, return an html page. *)
   let mk0p0bh name fn db =
     name,
-    Html (fun t path params ->
+    Html (fun t path params query ->
         mk0b name params;
-        fn (db t) path
+        fn (db t) path query
       )
 
   (* 1 argument in the path, fixed answer *)
   let mk1p0bf name fn db i1 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
+        mk0q name query;
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
@@ -253,9 +245,10 @@ module Server (S: Irmin.S) = struct
   (* list of arguments in the path, fixed answer *)
   let mklp0bf name fn db i1 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x = mklp name i1 path in
         mk0b name params;
+        mk0q name query;
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
@@ -263,8 +256,9 @@ module Server (S: Irmin.S) = struct
   (* 1 argument in the body *)
   let mk0p1bf name fn db i1 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         mk0p name path;
+        mk0q name query;
         let x = mk1b name i1 params in
         fn (db t) x >>= fun r ->
         return (o.output r)
@@ -273,9 +267,10 @@ module Server (S: Irmin.S) = struct
   (* 1 argument in the path, 1 argument in the body, fixed answer *)
   let mk1p1bf name fn db i1 i2 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
+        mk0q name query;
         fn (db t) x1 x2 >>= fun r ->
         return (o.output r)
       )
@@ -283,9 +278,10 @@ module Server (S: Irmin.S) = struct
   (* list of arguments in the path, 1 argument in the body, fixed answer *)
   let mklp1bf name fn db i1 i2 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x1 = mklp name i1 path in
         let x2 = mk1b name i2 params in
+        mk0q name query;
         fn (db t) x1 x2 >>= fun r ->
         return (o.output r)
       )
@@ -293,9 +289,10 @@ module Server (S: Irmin.S) = struct
   (* list of arguments in the path, 2 arguments in the body, fixed answer *)
   let mklp2bf name fn db i1 i2 i3 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x1 = mklp name i1 path in
         let x2, x3 = mk2b name i2 i3 params in
+        mk0q name query;
         fn (db t) x1 x2 x3 >>= fun r ->
         return (o.output r)
       )
@@ -303,11 +300,30 @@ module Server (S: Irmin.S) = struct
   (* list of arguments in the path, no body, streamed response *)
   let mklp0bs name fn db i1 o =
     name,
-    Stream (fun t path params ->
+    Stream (fun t path params query ->
         let x1 = mklp name i1 path in
+        mk0q name query;
         let stream = fn (db t) x1 in
         Lwt_stream.map (fun r -> o.output r) stream
       )
+
+  let graph_index = read_exn "index.html"
+
+  let graph_of_dump (dump:S.Dump.db) path query =
+    match path with
+    | [] -> return graph_index
+    | ["graph.dot"] ->
+      let depth = match List.Assoc.find query "depth" with
+        | Some [x] -> Some (Int.of_string x)
+        | _        -> None in
+      let buffer = Buffer.create 1024 in
+      S.Dump.output_buffer dump ?depth buffer >>= fun () ->
+      let str = Buffer.contents buffer in
+      (* Fix the OCamlGraph output (XXX: open an issue upstream) *)
+      let str = IrminMisc.replace ~pattern:", ]" (fun _ -> "]") str in
+      return str
+    | [file] -> mk0q "dump" query; return (read_exn file)
+    | l      -> error "%s: not found" (String.concat ~sep:"/" l)
 
   let contents_store = Node [
       mk1p0bf "read" Contents.read S.contents_t key (some contents);
@@ -388,14 +404,15 @@ module Server (S: Irmin.S) = struct
         end
       | _ -> fail Invalid
     end >>= fun params ->
+    let query = Uri.query (Cohttp.Request.uri req) in
     let rec aux actions path =
       match path with
       | []      -> respond_json (to_json actions)
       | h::path ->
         match child h actions with
-        | Fixed fn  -> fn t path params >>= respond_json
-        | Stream fn -> respond_json_stream (fn t path params)
-        | Html fn   -> fn t path params >>= respond
+        | Fixed fn  -> fn t path params query >>= respond_json
+        | Stream fn -> respond_json_stream (fn t path params query)
+        | Html fn   -> fn t path params query >>= respond
         | actions   -> aux actions path in
     aux store path
 
