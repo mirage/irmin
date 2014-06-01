@@ -383,3 +383,28 @@ module Make (Config: Config) = struct
   end
 
 end
+
+let connect (module C: Config) ?depth remote =
+  let root = match C.root with
+    | Some d -> d
+    | None   ->
+      let str = Uri.path (Git.Gri.to_uri remote) in
+      let dir = Filename.basename str in
+      if Filename.check_suffix dir ".git" then
+        Filename.chop_extension dir
+      else
+        dir
+  in
+  let module Local = Git_unix.Remote(C.Store) in
+  C.Store.create ~root () >>= fun t ->
+  Log.debugf "Cloning into '%s' ...\n%!" (Filename.basename root);
+  Local.clone t ?deepen:depth ~unpack:false ~bare:C.bare remote >>= fun r ->
+  match r.Git.Remote.head with
+  | None      -> return_unit
+  | Some head ->
+    begin
+      if not C.bare then C.Store.write_cache t head
+      else return_unit
+    end >>= fun () ->
+    Log.debugf "HEAD is now at %s\n" (Git.SHA1.Commit.to_hex head);
+    return_unit
