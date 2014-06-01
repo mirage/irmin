@@ -320,7 +320,7 @@ module Server (S: Irmin.S) = struct
       S.Dump.output_buffer dump ?depth buffer >>= fun () ->
       let str = Buffer.contents buffer in
       (* Fix the OCamlGraph output (XXX: open an issue upstream) *)
-      let str = IrminMisc.replace ~pattern:", ]" (fun _ -> "]") str in
+      let str = IrminMisc.replace ~pattern:",[ \\n]*]" (fun _ -> "]") str in
       return str
     | [file] -> mk0q "dump" query; return (read_exn file)
     | l      -> error "%s: not found" (String.concat ~sep:"/" l)
