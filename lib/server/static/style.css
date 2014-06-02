@@ -34,11 +34,29 @@ text {
     padding: 1em;
 }
 
+.updated .tag {
+    background-color: #FF6600;
+    font-size: 150%;
+    padding: 1em;
+}
+
 .commit {
     background-color: #6699FF;
     padding: 0.5em;
 }
 
+.updated .commit {
+    background-color: #000099;
+    padding: 0.5em;
+}
 .commit .message {
     font-weight: bold;
+}
+
+.updated .node {
+    background-color: #CCCC66;
+}
+
+.updated .contents {
+    background-color: #CCCC66;
 }
