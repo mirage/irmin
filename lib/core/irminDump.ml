@@ -38,7 +38,6 @@ module type STORE = sig
   val push: db -> ?depth:int -> remote -> t option Lwt.t
   val push_exn: db -> ?depth:int -> remote -> t Lwt.t
   val update: db -> t -> unit Lwt.t
-  val update: db -> t -> unit Lwt.t
   val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   val output_file: db -> ?depth:int -> string ->  unit Lwt.t

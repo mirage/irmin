@@ -149,7 +149,6 @@ let store =
   in
   Term.(pure create $ json $ git $ in_memory $ local $ remote)
 
-
 let remote =
   let branch =
     let doc =
