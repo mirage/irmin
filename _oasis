@@ -138,3 +138,11 @@ Executable test_contatcs
   CompiledObject:     best
   Install:            false
   BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+
+Executable test_intrusion
+  Path:               examples/
+  MainIs:             intrusion.ml
+  Build$:             flag(unix)
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs

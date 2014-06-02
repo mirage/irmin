@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 483d241a6d0fb550018c5438adecf6c7)
+# DO NOT EDIT (digest: d85e7d5e225b6640d0acfa85819a12d5)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -269,6 +269,27 @@
 <examples/contacts.{native,byte}>: use_backend
 <examples/contacts.{native,byte}>: use_fs
 <examples/contacts.{native,byte}>: use_irmin
+# Executable test_intrusion
+<examples/intrusion.{native,byte}>: pkg_bin_prot.syntax
+<examples/intrusion.{native,byte}>: pkg_cohttp.lwt
+<examples/intrusion.{native,byte}>: pkg_comparelib.syntax
+<examples/intrusion.{native,byte}>: pkg_core_kernel
+<examples/intrusion.{native,byte}>: pkg_dolog
+<examples/intrusion.{native,byte}>: pkg_ezjsonm
+<examples/intrusion.{native,byte}>: pkg_ezjsonm.lwt
+<examples/intrusion.{native,byte}>: pkg_git.fs
+<examples/intrusion.{native,byte}>: pkg_git.memory
+<examples/intrusion.{native,byte}>: pkg_lwt
+<examples/intrusion.{native,byte}>: pkg_lwt.unix
+<examples/intrusion.{native,byte}>: pkg_mstruct
+<examples/intrusion.{native,byte}>: pkg_ocamlgraph
+<examples/intrusion.{native,byte}>: pkg_re.str
+<examples/intrusion.{native,byte}>: pkg_sexplib.syntax
+<examples/intrusion.{native,byte}>: pkg_sha
+<examples/intrusion.{native,byte}>: pkg_uri
+<examples/intrusion.{native,byte}>: use_backend
+<examples/intrusion.{native,byte}>: use_fs
+<examples/intrusion.{native,byte}>: use_irmin
 <examples/*.ml{,i}>: pkg_bin_prot.syntax
 <examples/*.ml{,i}>: pkg_cohttp.lwt
 <examples/*.ml{,i}>: pkg_comparelib.syntax
