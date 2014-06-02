@@ -168,7 +168,7 @@ module Mux
         end
       | _ -> return_nil  in
     let max = IrminGraph.of_commits keys in
-    Graph.closure pred ~min:[] ~max >>= fun g ->
+    Graph.closure ~pred max >>= fun g ->
     let keys = IrminGraph.to_keys (Graph.vertex g) in
     return keys
 

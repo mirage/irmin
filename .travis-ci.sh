@@ -1,7 +1,7 @@
 # OPAM packages needed to build tests.
 # We need cryptokit to run the tests
 OPAM_PACKAGES="ezjsonm ocamlgraph lwt sha re dolog mstruct core_kernel uri \
-               cohttp ssl core_kernel cmdliner alcotest git cryptokit"
+               cohttp ssl core_kernel cmdliner alcotest git cryptokit crunch"
 
 ppa=avsm/ocaml41+opam11
 echo "yes" | sudo add-apt-repository ppa:$ppa

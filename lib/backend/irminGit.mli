@@ -38,3 +38,6 @@ module Memory: Config
 (** In-memory Git store (using [Git_memory]). *)
 
 module Make (C: Config): Irmin.BACKEND
+
+val connect: (module Config) -> ?depth:int -> Git.Gri.t -> unit Lwt.t
+(** Connect to a remote store. *)

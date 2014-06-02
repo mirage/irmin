@@ -36,3 +36,9 @@ val id: t -> string
 
 val message: t -> string
 (** Get the origin message. *)
+
+val set_string_of_date: (int64 -> string) -> unit
+(** Hook for printing dates. *)
+
+val string_of_date: int64 -> string
+(** Use the registered hook to print a date. *)

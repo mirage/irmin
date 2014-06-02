@@ -21,6 +21,10 @@ Flag unix
   Description: build the Unix library
   Default: true
 
+Flag examples
+  Description: build the examples
+  Default: false
+
 Library irmin
   Path: lib/core
   Findlibname: irmin
@@ -65,7 +69,7 @@ Library server
   FindlibParent: irmin
   BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl,
                 irmin.backend.fs, irmin.backend, irmin
-  Modules: IrminHTTP
+  Modules: IrminHTTP, IrminHTTPStatic
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 
@@ -110,7 +114,7 @@ Test test_irmin
 Executable test_git_store
   Path:               examples/
   MainIs:             git_store.ml
-  Build$:             flag(unix)
+  Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
   BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
@@ -118,7 +122,7 @@ Executable test_git_store
 Executable test_custom_merge
   Path:               examples/
   MainIs:             custom_merge.ml
-  Build$:             flag(unix)
+  Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
   BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
@@ -126,7 +130,7 @@ Executable test_custom_merge
 Executable test_views
   Path:               examples/
   MainIs:             views.ml
-  Build$:             flag(unix)
+  Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
   BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
@@ -134,7 +138,23 @@ Executable test_views
 Executable test_contatcs
   Path:               examples/
   MainIs:             contacts.ml
-  Build$:             flag(unix)
+  Build$:             flag(unix) & flag(examples)
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+
+Executable test_intrusion
+  Path:               examples/
+  MainIs:             intrusion.ml
+  Build$:             flag(unix) & flag(examples)
+  CompiledObject:     best
+  Install:            false
+  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+
+Executable test_process
+  Path:               examples/
+  MainIs:             process.ml
+  Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
   BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs

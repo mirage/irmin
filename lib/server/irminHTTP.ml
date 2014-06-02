@@ -17,6 +17,11 @@
 open Core_kernel.Std
 open Lwt
 
+let error fmt =
+  Printf.ksprintf (fun msg ->
+      failwith ("error: " ^ msg)
+    ) fmt
+
 module Log = Log.Make(struct let section = "HTTP" end)
 
 type 'a t = {
@@ -123,86 +128,10 @@ module Server (S: Irmin.S) = struct
   let mk_dump key value =
     list (pair key value)
 
-  let graph_of_dump (dump:S.Dump.db) =
-    let buffer = Buffer.create 1024 in
-    S.Dump.output_buffer buffer dump >>= fun () ->
-    let str = Buffer.contents buffer in
-    (* XXX: fix the OCamlGraph output *)
-    let str =
-      let rex = Re_perl.compile_pat ", ]" in
-      let subst _ = "]" in
-      Re_pcre.substitute ~rex ~subst str in
-    let str = String.escaped str in
-    let html = Printf.sprintf
-        "<html>\n\
-         <meta charset=\"utf-8\">
-         <script src=\"http://d3js.org/d3.v3.min.js\"></script>\n\
-         <script src=\"http://cpettitt.github.io/project/dagre-d3/latest/dagre-d3.min.js\"></script>\n\
-         <script src=\"http://cpettitt.github.io/project/graphlib-dot/latest/graphlib-dot.min.js\"></script>\n\
-         \n\
-         <style>\n\
-        \  svg {\n\
-        \    border: 1px solid #999;\n\
-        \    overflow: hidden;\n\
-        \  }\n\
-         \n\
-        \  text {\n\
-        \    font-weight: 300;\n\
-        \    font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serf;\n\
-        \   font-size: 14px;\n\
-        \  }\n\
-         \n\
-        \  .node rect {\n\
-        \    stroke: #333;\n\
-        \    stroke-width: 2px;\n\
-        \    fill: #fff;\n\
-        \  }\n\
-         \n\
-        \  .edgeLabel rect {\n\
-        \    fill: #fff;\n\
-        \  }\n\
-         \n\
-        \  .edgePath path {\n\
-        \    stroke: #333;\n\
-        \    stroke-width: 1.5px;\n\
-        \    fill: none;\n\
-        \  }\n\
-        \  </style>\n\
-         \n\
-         <body onLoad=\"tryDraw();\">\n\
-         <svg width=800 height=600>\n\
-         \  <g transform=\"translate(20,20)\"/>\n\
-         </svg>\n\
-         <script>\n\
-         \n\
-         var inputGraph = '%s';\n\
-         \n\
-         function tryDraw() {\n\
-        \  var result = graphlibDot.parse(inputGraph);\n\
-        \  var renderer = new dagreD3.Renderer();\n\
-         \n\
-        \  // Custom transition function\n\
-        \  function transition(selection) {\n\
-        \    return selection.transition().duration(500);\n\
-        \  }\n\
-        \  renderer.transition(transition);\n\
-         \n\
-        \  var layout = renderer.run(result, d3.select(\"svg g\"));\n\
-        \  transition(d3.select(\"svg\"))\n\
-        \    .attr(\"width\", layout.graph().width + 40)\n\
-        \    .attr(\"height\", layout.graph().height + 40);\n\
-        \  d3.select(\"svg\")\n\
-        \    .call(d3.behavior.zoom().on(\"zoom\", function() {\n\
-        \      var ev = d3.event;\n\
-        \      svg.select(\"g\")\n\
-        \        .attr(\"transform\", \"translate(\" + ev.translate + \") scale(\" + ev.scale + \")\");\n\
-        \    }));\n\
-         }\n\
-         </script>\n\
-         \n\
-         </body></html>"
-        str in
-    return html
+  let read_exn file =
+    match IrminHTTPStatic.read file with
+    | None   -> error "%s: not found" file
+    | Some s -> s
 
   let respond ?headers body =
     Log.debugf "%S" body;
@@ -223,12 +152,7 @@ module Server (S: Irmin.S) = struct
     let body = Cohttp_lwt_body.of_stream stream in
     Cohttp_lwt_unix.Server.respond ~headers:json_headers ~status:`OK ~body ()
 
-  let error fmt =
-    Printf.ksprintf (fun msg ->
-        failwith ("error: " ^ msg)
-      ) fmt
-
-  type 'a leaf = S.t -> string list -> Ezjsonm.t option -> 'a
+  type 'a leaf = S.t -> string list -> Ezjsonm.t option -> (string * string list) list -> 'a
 
   type t =
     | Fixed  of Ezjsonm.t Lwt.t leaf
@@ -251,8 +175,8 @@ module Server (S: Irmin.S) = struct
       failwith ("Unknown action: " ^ c) in
     match t with
     | Fixed _
-    | Html _
     | Stream _ -> error ()
+    | Html _   -> t
     | Node l   ->
       try List.Assoc.find_exn l c
       with Not_found -> error ()
@@ -266,6 +190,10 @@ module Server (S: Irmin.S) = struct
   let mk0b name = function
     | None   -> ()
     | Some _ -> error "%s: non-empty body" name
+
+  let mk0q name = function
+    | [] -> ()
+    | _  -> error "%s: non-empty query" name
 
   let mk1p name i path =
     match path with
@@ -287,9 +215,10 @@ module Server (S: Irmin.S) = struct
   (* no arguments, fixed answer *)
   let mk0p0bf name fn db o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         mk0p name path;
         mk0b name params;
+        mk0q name query;
         fn (db t) >>= fun r ->
         return (o.output r)
       )
@@ -297,18 +226,18 @@ module Server (S: Irmin.S) = struct
   (* 0 argument, return an html page. *)
   let mk0p0bh name fn db =
     name,
-    Html (fun t path params ->
-        mk0p name path;
+    Html (fun t path params query ->
         mk0b name params;
-        fn (db t)
+        fn (db t) path query
       )
 
   (* 1 argument in the path, fixed answer *)
   let mk1p0bf name fn db i1 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
+        mk0q name query;
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
@@ -316,9 +245,10 @@ module Server (S: Irmin.S) = struct
   (* list of arguments in the path, fixed answer *)
   let mklp0bf name fn db i1 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x = mklp name i1 path in
         mk0b name params;
+        mk0q name query;
         fn (db t) x >>= fun r ->
         return (o.output r)
       )
@@ -326,8 +256,9 @@ module Server (S: Irmin.S) = struct
   (* 1 argument in the body *)
   let mk0p1bf name fn db i1 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         mk0p name path;
+        mk0q name query;
         let x = mk1b name i1 params in
         fn (db t) x >>= fun r ->
         return (o.output r)
@@ -336,9 +267,10 @@ module Server (S: Irmin.S) = struct
   (* 1 argument in the path, 1 argument in the body, fixed answer *)
   let mk1p1bf name fn db i1 i2 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
+        mk0q name query;
         fn (db t) x1 x2 >>= fun r ->
         return (o.output r)
       )
@@ -346,9 +278,10 @@ module Server (S: Irmin.S) = struct
   (* list of arguments in the path, 1 argument in the body, fixed answer *)
   let mklp1bf name fn db i1 i2 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x1 = mklp name i1 path in
         let x2 = mk1b name i2 params in
+        mk0q name query;
         fn (db t) x1 x2 >>= fun r ->
         return (o.output r)
       )
@@ -356,9 +289,10 @@ module Server (S: Irmin.S) = struct
   (* list of arguments in the path, 2 arguments in the body, fixed answer *)
   let mklp2bf name fn db i1 i2 i3 o =
     name,
-    Fixed (fun t path params ->
+    Fixed (fun t path params query ->
         let x1 = mklp name i1 path in
         let x2, x3 = mk2b name i2 i3 params in
+        mk0q name query;
         fn (db t) x1 x2 x3 >>= fun r ->
         return (o.output r)
       )
@@ -366,11 +300,30 @@ module Server (S: Irmin.S) = struct
   (* list of arguments in the path, no body, streamed response *)
   let mklp0bs name fn db i1 o =
     name,
-    Stream (fun t path params ->
+    Stream (fun t path params query ->
         let x1 = mklp name i1 path in
+        mk0q name query;
         let stream = fn (db t) x1 in
         Lwt_stream.map (fun r -> o.output r) stream
       )
+
+  let graph_index = read_exn "index.html"
+
+  let graph_of_dump (dump:S.Dump.db) path query =
+    match path with
+    | [] -> return graph_index
+    | ["graph.dot"] ->
+      let depth = match List.Assoc.find query "depth" with
+        | Some [x] -> Some (Int.of_string x)
+        | _        -> None in
+      let buffer = Buffer.create 1024 in
+      S.Dump.output_buffer dump ?depth buffer >>= fun () ->
+      let str = Buffer.contents buffer in
+      (* Fix the OCamlGraph output (XXX: open an issue upstream) *)
+      let str = IrminMisc.replace ~pattern:",[ \\n]*]" (fun _ -> "]") str in
+      return str
+    | [file] -> mk0q "dump" query; return (read_exn file)
+    | l      -> error "%s: not found" (String.concat ~sep:"/" l)
 
   let contents_store = Node [
       mk1p0bf "read" Contents.read S.contents_t key (some contents);
@@ -451,14 +404,15 @@ module Server (S: Irmin.S) = struct
         end
       | _ -> fail Invalid
     end >>= fun params ->
+    let query = Uri.query (Cohttp.Request.uri req) in
     let rec aux actions path =
       match path with
       | []      -> respond_json (to_json actions)
       | h::path ->
         match child h actions with
-        | Fixed fn  -> fn t path params >>= respond_json
-        | Stream fn -> respond_json_stream (fn t path params)
-        | Html fn   -> fn t path params >>= respond
+        | Fixed fn  -> fn t path params query >>= respond_json
+        | Stream fn -> respond_json_stream (fn t path params query)
+        | Html fn   -> fn t path params query >>= respond
         | actions   -> aux actions path in
     aux store path
 

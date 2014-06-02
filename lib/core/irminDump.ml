@@ -32,8 +32,8 @@ module type STORE = sig
   val update: db -> t -> unit Lwt.t
   val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
-  val output_file: string -> db ->  unit Lwt.t
-  val output_buffer: Buffer.t -> db -> unit Lwt.t
+  val output_file: db -> ?depth:int -> string ->  unit Lwt.t
+  val output_buffer: db -> ?depth:int -> Buffer.t -> unit Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: IrminIdent.S with type t = value
   include IrminIdent.S with type t := t
@@ -96,7 +96,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
             | _ -> return_nil in
           let min = IrminGraph.of_commits roots in
           let max = IrminGraph.of_commits [commit] in
-          Store.Graph.closure pred ~min ~max >>= fun g ->
+          Store.Graph.closure ~pred ~min max >>= fun g ->
           let commits = IrminGraph.to_commits (Store.Graph.vertex g) in
           return commits
       end >>= fun commits ->
@@ -203,11 +203,55 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     merge t ?origin dump >>=
     IrminMerge.exn
 
-  let fprintf name t =
-    Contents.dump (Store.contents_t t) >>= fun contents ->
-    Node.dump (Store.node_t t)         >>= fun nodes    ->
-    Commit.dump (Store.commit_t t)     >>= fun commits  ->
-    Tag.dump (Store.tag_t t)           >>= fun tags     ->
+  let get_contents t = function
+    | None  ->
+      Contents.dump (Store.contents_t t) >>= fun contents ->
+      Node.dump (Store.node_t t)         >>= fun nodes    ->
+      Commit.dump (Store.commit_t t)     >>= fun commits  ->
+      Tag.dump (Store.tag_t t)           >>= fun tags     ->
+      return (contents, nodes, commits, tags)
+    | Some depth ->
+      Log.debugf "XXX depth=%d" depth;
+      Tag.dump (Store.tag_t t) >>= fun tags ->
+      Log.debugf "XXX tags %s"
+        (String.concat ~sep:"," (List.map ~f:(fun (t,k) ->
+             sprintf "%s:%s" (T.to_string t) (K.to_string k)) tags));
+      let max = List.map ~f:(fun (_,k) -> `Commit k) tags in
+      let pred = function
+        | `Commit k ->
+          begin Commit.read (Store.commit_t t) k >>= function
+            | None   -> return_nil
+            | Some c -> return (IrminGraph.of_commits c.IrminCommit.parents)
+          end
+        | _ -> return_nil in
+      Store.Graph.closure ~depth ~pred max >>= fun g ->
+      let keys = IrminGraph.to_commits (Store.Graph.vertex g) in
+      Log.debugf "XXX keys=%d" (List.length keys);
+      Lwt_list.map_p (fun k ->
+          Commit.read_exn (Store.commit_t t) k >>= fun c ->
+          return (k, c)
+        ) keys
+      >>= fun commits ->
+      let root_nodes = List.filter_map ~f:(fun (_,c) -> c.IrminCommit.node) commits in
+      Node.list (Store.node_t t) root_nodes >>= fun nodes ->
+      Lwt_list.map_p (fun k ->
+          Node.read (Store.node_t t) k >>= function
+          | None   -> return_none
+          | Some v -> return (Some (k, v))
+        ) nodes >>= fun nodes ->
+      let nodes = List.filter_map ~f:(fun x -> x) nodes in
+      let root_contents = List.filter_map ~f:(fun (_,n) -> n.IrminNode.contents) nodes in
+      Contents.list (Store.contents_t t) root_contents >>= fun contents ->
+      Lwt_list.map_p (fun k ->
+          Contents.read (Store.contents_t t) k >>= function
+          | None   -> return_none
+          | Some v -> return (Some (k, v))
+        ) contents >>= fun contents ->
+      let contents = List.filter_map ~f:(fun x -> x) contents in
+      return (contents, nodes, commits, tags)
+
+  let fprintf t ?depth ?(html=false) name =
+    get_contents t depth >>= fun (contents, nodes, commits, tags) ->
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
@@ -225,14 +269,62 @@ module Make (Store: IrminBranch.INTERNAL) = struct
         if IrminMisc.is_valid_utf8 s then s
         else IrminMisc.hex_encode s in
       s in
-    let label k =
-      `Label (string_of_key k) in
+    let label_of_node k _ =
+      let s =
+        (if html then
+           sprintf "<div class='node'><div class='sha1'>%s</div></div>"
+         else
+           fun x -> x)
+          (string_of_key k) in
+      `Label s in
     let label_of_path l =
-      `Label (string_of_contents l) in
+      let s =
+        (if html then
+          sprintf "<div class='path'>%s</div>"
+        else
+          fun x -> x)
+          (string_of_contents l) in
+      `Label s in
+    let label_of_commit k c =
+      let k = string_of_key k in
+      let o = c.IrminCommit.origin in
+      let s =
+        (if html then
+          sprintf
+            "<div class='commit'>\n\
+            \  <div class='sha1'>%s</div>\n\
+            \  <div class='author'>%s</div>\n\
+            \  <div class='date'>%s</div>\n\
+            \  <div class='message'>%s</div>\n\
+             </div>"
+        else
+          sprintf "%s | %s | %s | %s")
+          k
+          (IrminOrigin.id o)
+          (IrminOrigin.(string_of_date (date o)))
+          (IrminOrigin.message o) in
+      `Label s in
     let label_of_contents k v =
       let k = string_of_key k in
-      let v = string_of_contents (C.to_string v) in
-      `Label (Printf.sprintf "%s | %s" k (String.escaped v)) in
+      let s =
+        if html then
+          sprintf "<div class='contents'>\n\
+                  \  <div class='sha1'>%s</div>\n\
+                  \  <div class='blob'><pre>%s</pre></div>\n\
+                   </div>"
+            k (C.to_string v)
+        else
+           let v = string_of_contents (C.to_string v) in
+           sprintf "%s | %s" k (String.escaped v) in
+      `Label s in
+    let label_of_tag t =
+      let s =
+        (if html then
+           sprintf "<div class='tag'>%s</div>"
+         else
+           fun x -> x)
+          (T.to_string t) in
+      `Label s in
     let leafs = List.map ~f:(fun (k,_) ->
         (k, IrminNode.leaf k)
       ) contents in
@@ -241,7 +333,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
         add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
       ) contents;
     List.iter ~f:(fun (k, t) ->
-        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label k];
+        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
         begin match t.IrminNode.contents with
           | None    -> ()
           | Some v  -> add_edge (`Node k) [`Style `Dotted] (`Contents v)
@@ -251,7 +343,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
           ) t.IrminNode.succ
       ) nodes;
     List.iter ~f:(fun (k, r) ->
-        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label k];
+        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
         List.iter ~f:(fun p ->
             add_edge (`Commit k) [`Style `Bold] (`Commit p)
           ) r.IrminCommit.parents;
@@ -260,7 +352,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
         | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
     List.iter ~f:(fun (r,k) ->
-        add_vertex (`Tag r) [`Shape `Plaintext; `Label (T.to_string r); `Style `Filled];
+        add_vertex (`Tag r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
         let exists l = List.exists ~f:(fun (kk,_) -> K.(kk=k)) l in
         if exists commits then
           add_edge (`Tag r) [`Style `Bold] (`Commit k);
@@ -270,9 +362,9 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     (* XXX: this is not Xen-friendly *)
     return (fun ppf -> Store.Graph.output ppf !vertex !edges name)
 
-  let output_file name t =
+  let output_file t ?depth name =
     Log.debugf "output %s" name;
-    fprintf name t >>= fun fprintf ->
+    fprintf t ?depth name ~html:false >>= fun fprintf ->
     let oc = Out_channel.create (name ^ ".dot") in
     fprintf (Format.formatter_of_out_channel oc);
     Out_channel.close oc;
@@ -281,8 +373,8 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     if Int.(i <> 0) then Log.errorf "The %s.dot is corrupted" name;
     return_unit
 
-  let output_buffer buf t =
-    fprintf "graph" t >>= fun fprintf ->
+  let output_buffer t ?depth buf =
+    fprintf t ?depth "graph" ~html:true >>= fun fprintf ->
     let ppf = Format.formatter_of_buffer buf in
     fprintf ppf;
     return_unit

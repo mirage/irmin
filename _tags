@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 483d241a6d0fb550018c5438adecf6c7)
+# DO NOT EDIT (digest: e7d71605d4d49e3ec1b255b94a1aa787)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -269,6 +269,48 @@
 <examples/contacts.{native,byte}>: use_backend
 <examples/contacts.{native,byte}>: use_fs
 <examples/contacts.{native,byte}>: use_irmin
+# Executable test_intrusion
+<examples/intrusion.{native,byte}>: pkg_bin_prot.syntax
+<examples/intrusion.{native,byte}>: pkg_cohttp.lwt
+<examples/intrusion.{native,byte}>: pkg_comparelib.syntax
+<examples/intrusion.{native,byte}>: pkg_core_kernel
+<examples/intrusion.{native,byte}>: pkg_dolog
+<examples/intrusion.{native,byte}>: pkg_ezjsonm
+<examples/intrusion.{native,byte}>: pkg_ezjsonm.lwt
+<examples/intrusion.{native,byte}>: pkg_git.fs
+<examples/intrusion.{native,byte}>: pkg_git.memory
+<examples/intrusion.{native,byte}>: pkg_lwt
+<examples/intrusion.{native,byte}>: pkg_lwt.unix
+<examples/intrusion.{native,byte}>: pkg_mstruct
+<examples/intrusion.{native,byte}>: pkg_ocamlgraph
+<examples/intrusion.{native,byte}>: pkg_re.str
+<examples/intrusion.{native,byte}>: pkg_sexplib.syntax
+<examples/intrusion.{native,byte}>: pkg_sha
+<examples/intrusion.{native,byte}>: pkg_uri
+<examples/intrusion.{native,byte}>: use_backend
+<examples/intrusion.{native,byte}>: use_fs
+<examples/intrusion.{native,byte}>: use_irmin
+# Executable test_process
+<examples/process.{native,byte}>: pkg_bin_prot.syntax
+<examples/process.{native,byte}>: pkg_cohttp.lwt
+<examples/process.{native,byte}>: pkg_comparelib.syntax
+<examples/process.{native,byte}>: pkg_core_kernel
+<examples/process.{native,byte}>: pkg_dolog
+<examples/process.{native,byte}>: pkg_ezjsonm
+<examples/process.{native,byte}>: pkg_ezjsonm.lwt
+<examples/process.{native,byte}>: pkg_git.fs
+<examples/process.{native,byte}>: pkg_git.memory
+<examples/process.{native,byte}>: pkg_lwt
+<examples/process.{native,byte}>: pkg_lwt.unix
+<examples/process.{native,byte}>: pkg_mstruct
+<examples/process.{native,byte}>: pkg_ocamlgraph
+<examples/process.{native,byte}>: pkg_re.str
+<examples/process.{native,byte}>: pkg_sexplib.syntax
+<examples/process.{native,byte}>: pkg_sha
+<examples/process.{native,byte}>: pkg_uri
+<examples/process.{native,byte}>: use_backend
+<examples/process.{native,byte}>: use_fs
+<examples/process.{native,byte}>: use_irmin
 <examples/*.ml{,i}>: pkg_bin_prot.syntax
 <examples/*.ml{,i}>: pkg_cohttp.lwt
 <examples/*.ml{,i}>: pkg_comparelib.syntax

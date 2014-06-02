@@ -23,6 +23,10 @@ let () =
     sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
   IrminOrigin.set_date (fun () -> Int64.of_float (Unix.time ()));
   IrminOrigin.set_id (fun () -> origin);
+  IrminOrigin.set_string_of_date (fun d ->
+      let tm = Unix.localtime (Int64.to_float d) in
+      sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+    );
   IrminFS.install_dir_polling_listener 0.5
 
 (* Global options *)
@@ -542,17 +546,21 @@ let dump = {
   doc  = "Dump the contents of the store as a Graphviz file.";
   man  = [];
   term =
+    let depth =
+      let doc =
+        Arg.info ~docv:"DEPTH" ~doc:"Limit the dump depth." ["d";"depth"] in
+      Arg.(value & opt (some int) None & doc) in
     let basename =
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
       Arg.(required & pos 0 (some & string) None & doc) in
-    let dump (module S: Irmin.S) basename =
+    let dump (module S: Irmin.S) basename depth =
       run begin
         S.create () >>= fun t ->
-        S.Dump.output_file basename t
+        S.Dump.output_file t ?depth basename
       end
     in
-    Term.(mk dump $ store $ basename);
+    Term.(mk dump $ store $ basename $ depth);
 }
 
 (* HELP *)

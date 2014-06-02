@@ -26,9 +26,11 @@ module type S = sig
   end
   val vertex: t -> vertex list
   val edges: t -> (vertex * vertex) list
-  val closure: (vertex -> vertex list Lwt.t)
-    -> min:vertex list
-    -> max:vertex list
+  val closure:
+    ?depth:int
+    -> ?min:vertex list
+    -> pred:(vertex -> vertex list Lwt.t)
+    -> vertex list
     -> t Lwt.t
   val output:
     Format.formatter ->
@@ -94,24 +96,32 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
   let edges g =
     G.fold_edges (fun k1 k2 list -> (k1,k2) :: list) g []
 
-  let closure pred ~min ~max =
+  let closure ?(depth=Int.max_value) ?(min=[]) ~pred max =
+    Log.debugf "closure depth=%d (%d elements)" depth (List.length max);
     let g = G.create ~size:1024 () in
     let marks = K.Table.create () in
-    let mark key = Hashtbl.add_exn marks key true in
+    let mark key level = Hashtbl.add_exn marks key level in
     let has_mark key = Hashtbl.mem marks key in
-    List.iter ~f:mark min;
-    List.iter ~f:(G.add_vertex g) min;
-    let rec add key =
-      if has_mark key then Lwt.return ()
-      else (
-        mark key;
-        Log.debugf "ADD %s" (K.to_string key);
-        if not (G.mem_vertex g key) then G.add_vertex g key;
-        pred key >>= fun keys ->
-        List.iter ~f:(fun k -> G.add_edge g k key) keys;
-        Lwt_list.iter_p add keys
+    List.iter ~f:(fun k -> mark k Int.max_value) min;
+    List.iter ~f:(G.add_vertex g) max;
+    let todo = Queue.create () in
+    List.iter ~f:(fun k -> Queue.enqueue todo (k,0)) max;
+    let rec add () =
+      match Queue.dequeue todo with
+      | None              -> return_unit
+      | Some (key, level) ->
+        if Int.(level >= depth) then add ()
+        else if has_mark key then add ()
+        else (
+          mark key level;
+          Log.debugf "ADD %s %d" (K.to_string key) level;
+          if not (G.mem_vertex g key) then G.add_vertex g key;
+          pred key >>= fun keys ->
+          List.iter ~f:(fun k -> G.add_edge g k key) keys;
+          List.iter ~f:(fun k -> Queue.enqueue todo (k, level+1)) keys;
+          add ()
       ) in
-    Lwt_list.iter_p add max >>= fun () ->
+    add () >>= fun () ->
     Lwt.return g
 
   let min g =

@@ -64,3 +64,6 @@ module Map: sig
     (** Same as [Map.iter2]. *)
 
 end
+
+val replace: pattern:string -> (string -> string) -> string -> string
+(** Replace a pattern in a string. *)

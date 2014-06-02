@@ -1,0 +1,44 @@
+svg {
+    border: 1px solid #999;
+    overflow: hidden;
+}
+
+text {
+    font-weight: 300;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serf;
+    font-size: 14px;
+}
+
+.node {
+    fill: #fff;
+}
+
+.edgeLabel {
+    fill: #fff;
+}
+
+.edgePath {
+    stroke: #333;
+    stroke-width: 1.5px;
+    fill: none;
+}
+
+.sha1 {
+    color: grey;
+    font-size: 75%;
+}
+
+.tag {
+    background-color: #00CC66;
+    font-size: 150%;
+    padding: 1em;
+}
+
+.commit {
+    background-color: #6699FF;
+    padding: 0.5em;
+}
+
+.commit .message {
+    font-weight: bold;
+}
