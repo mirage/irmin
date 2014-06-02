@@ -1,4 +1,4 @@
-trunk:
+0.8.1: (2014-06-02)
 * Fix the behavior of `IrminMemory.Make` to return an hanlder to a
   shared datastore instead of creating a fresh one. Add
   `IrminMemory.Fresh` to return a fresh in-memory datastore maker.
