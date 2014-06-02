@@ -92,7 +92,7 @@ Executable irmin
   CompiledObject:     best
   Install:            true
   BuildDepends:       cmdliner, irmin.backend.fs, git.fs,
-                      irmin.backend, irmin.server, irmin
+                      irmin.backend, irmin.server, irmin,
 
 Executable test_irmin
   Path:               lib_test

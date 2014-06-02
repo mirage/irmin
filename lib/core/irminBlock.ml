@@ -77,6 +77,7 @@ module type STORE = sig
   type node = key IrminNode.t
   type commit = key IrminCommit.t
   include IrminStore.AO with type key := key and type value = (key, contents) t
+  val list: t -> ?depth:int -> key list -> key list Lwt.t
   module Contents: IrminContents.STORE with type key = key and type value = contents
   module Node: IrminNode.STORE with type key = key
                                 and type contents = contents
@@ -153,25 +154,6 @@ module Mux
 
   module Graph = IrminGraph.Make(K)(Unit)
 
-  let list t keys =
-    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
-    let rec pred = function
-      | `Commit k ->
-        begin Commit.read t.commit k >>= function
-          | None   -> pred (`Node k)
-          | Some c -> return (IrminCommit.edges c)
-        end
-      | `Node k   ->
-        begin Node.read t.node k >>= function
-          | None   -> pred (`Contents k)
-          | Some n -> return (IrminNode.edges n)
-        end
-      | _ -> return_nil  in
-    let max = IrminGraph.of_commits keys in
-    Graph.closure ~pred max >>= fun g ->
-    let keys = IrminGraph.to_keys (Graph.vertex g) in
-    return keys
-
   let dump t =
     Log.debugf "dump";
     Contents.dump t.contents >>= fun contents ->
@@ -183,6 +165,8 @@ module Mux
       @ List.map commits ~f:(fun (k, c) -> k, Commit c) in
     return all
 
+  (* XXX: code repetition ... *)
+
   let merge t =
     IrminMerge.seq [
       IrminMerge.default (module Key);
@@ -190,6 +174,33 @@ module Mux
       Node.merge         (node_t t);
       Commit.merge       (commit_t t);
     ]
+
+  let list t ?depth keys =
+    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+    (* start by loading the bounded history. *)
+    let pred = function
+      | `Commit k ->
+        begin Commit.read t.commit k >>= function
+          | None   -> return_nil
+          | Some c -> return (IrminCommit.edges c)
+        end
+      | _ -> return_nil in
+    let max = IrminGraph.of_commits keys in
+    Graph.closure ?depth ~pred max >>= fun g ->
+    let keys = IrminGraph.to_commits (Graph.vertex g) in
+    (* then load the rest *)
+    let pred = function
+      | `Commit k -> failwith "IrminBlock.list: commit"
+      | `Node k   ->
+        begin Node.read t.node k >>= function
+          | None   -> return_nil
+          | Some n -> return (IrminNode.edges n)
+        end
+      | _ -> return_nil  in
+    let max = IrminGraph.of_commits keys in
+    Graph.closure ~pred max >>= fun g ->
+    let keys = IrminGraph.to_keys (Graph.vertex g) in
+    return keys
 
 end
 
@@ -228,8 +239,7 @@ module Cast (S: IrminStore.AO) (C: CASTABLE with type t = S.value) = struct
     | Some _ -> return true
     | None   -> return false
 
-  let list =
-    S.list
+  let list = S.list
 
   let dump t =
     S.dump t >>= fun cs ->
@@ -296,6 +306,8 @@ module Make
   let node_t t = (t, t)
   let commit_t t = ((t, t), t)
 
+  (* XXX: code repetition ... *)
+
   let merge t =
     IrminMerge.seq [
       IrminMerge.default (module Key);
@@ -303,6 +315,33 @@ module Make
       Node.merge         (node_t t);
       Commit.merge       (commit_t t);
     ]
+
+  let list t ?depth keys =
+    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+    (* start by loading the bounded history. *)
+    let pred = function
+      | `Commit k ->
+        begin Commit.read (commit_t t) k >>= function
+          | None   -> return_nil
+          | Some c -> return (IrminCommit.edges c)
+        end
+      | _ -> return_nil in
+    let max = IrminGraph.of_commits keys in
+    Graph.closure ?depth ~pred max >>= fun g ->
+    let keys = IrminGraph.to_commits (Graph.vertex g) in
+    (* then load the rest *)
+    let pred = function
+      | `Commit k -> failwith "IrminBlock.list: commit"
+      | `Node k   ->
+        begin Node.read (node_t t) k >>= function
+          | None   -> return_nil
+          | Some n -> return (IrminNode.edges n)
+        end
+      | _ -> return_nil  in
+    let max = IrminGraph.of_commits keys in
+    Graph.closure ~pred max >>= fun g ->
+    let keys = IrminGraph.to_keys (Graph.vertex g) in
+    return keys
 
 end
 

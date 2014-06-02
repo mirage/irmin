@@ -253,6 +253,16 @@ module Server (S: Irmin.S) = struct
         return (o.output r)
       )
 
+  (* list of arguments in the path, query strings, fixed answer *)
+  let mklp0b1qf name fn db i1 o =
+    name,
+    Fixed (fun t path params query ->
+        let x = mklp name i1 path in
+        mk0b name params;
+        fn (db t) x query >>= fun r ->
+        return (o.output r)
+      )
+
   (* 1 argument in the body *)
   let mk0p1bf name fn db i1 o =
     name,
@@ -341,12 +351,19 @@ module Server (S: Irmin.S) = struct
       mk0p0bf "dump" Node.dump S.node_t (mk_dump key node);
   ]
 
-  let commit_store = Node [
-      mk1p0bf "read" Commit.read S.commit_t key (some commit);
-      mk1p0bf "mem"  Commit.mem  S.commit_t key bool;
-      mklp0bf "list" Commit.list S.commit_t (list key) (list key);
-      mk0p1bf "add"  Commit.add  S.commit_t commit key;
-      mk0p0bf "dump" Commit.dump S.commit_t (mk_dump key commit);
+  let commit_store =
+    let commit_list t keys query =
+      let depth =
+        match List.Assoc.find query "depth" with
+        | Some [d] -> Some (Int.of_string d)
+        | _        -> None in
+      Commit.list t ?depth keys in
+    Node [
+      mk1p0bf   "read" Commit.read S.commit_t key (some commit);
+      mk1p0bf   "mem"  Commit.mem  S.commit_t key bool;
+      mklp0b1qf "list" commit_list S.commit_t (list key) (list key);
+      mk0p1bf   "add"  Commit.add  S.commit_t commit key;
+      mk0p0bf   "dump" Commit.dump S.commit_t (mk_dump key commit);
   ]
 
   let tag_store = Node [
