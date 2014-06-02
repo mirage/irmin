@@ -31,3 +31,6 @@ val store_of_string_exn: string -> (module Irmin.S)
 
 val store_of_env_var: unit -> (module Irmin.S) option
 (** Read the "IRMIN" env variable. *)
+
+val remote: IrminDump.remote Cmdliner.Term.t
+(** Parse a remote store. *)

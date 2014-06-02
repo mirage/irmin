@@ -102,11 +102,6 @@ let path =
   let doc = Arg.info ~docv:"PATH" ~doc:"Path." [] in
   Arg.(value & pos 0 path_conv [] & doc)
 
-let repository =
-  let doc = Arg.info ~docv:"REPOSITORY"
-      ~doc:"The (possibly remote) repository to clone from." [] in
-  Arg.(required & pos 0 (some string) None & doc)
-
 let depth =
   let doc =
     Arg.info ~docv:"DEPTH" ~doc:"Limit the dump depth." ["d";"depth"] in
@@ -264,40 +259,16 @@ let clone = {
   doc  = "Clone a repository into a new store.";
   man  = [];
   term =
-    let clone (module L: Irmin.S) repository depth =
+    let clone (module L: Irmin.S) remote depth =
       IrminResolver.init_hook ();
-      let (module Remote) = IrminResolver.store_of_string_exn repository in
-      let remote = {
-        IrminDump.store = (module Remote: IrminBranch.STORE);
-        branch = Remote.Branch.master;
-      } in
       run begin
-        L.create ()                       >>= fun local  ->
-        L.Dump.create local ?depth remote >>= function
-        | None      -> eprintf "Error while cloning."; exit 2
-        | Some dump -> L.Dump.update local dump
+        L.create ()                           >>= fun local  ->
+        L.Dump.create_exn local ?depth remote >>= fun d ->
+        L.Dump.update local d
       end
     in
-    Term.(mk clone $ store $ repository);
+    Term.(mk clone $ IrminResolver.store $ IrminResolver.remote $ depth);
 }
-
-let op_repo op (module L: Irmin.S) (module R: Irmin.S) =
-  L.create ()              >>= fun local  ->
-  R.create ()              >>= fun remote ->
-  L.Snapshot.create local  >>= fun l ->
-  let l =
-    L.Snapshot.to_state l
-    |> L.Snapshot.to_string
-    |> R.Snapshot.of_string in
-  R.Dump.create remote [l] >>= fun dump   ->
-  print "%sing %d bytes" op (R.Dump.bin_size_t dump);
-  let dump = convert_dump (module L) (module R) dump in
-  let branch = L.Branch.of_string "import" in
-  L.create ~branch ()      >>= fun t ->
-  L.Dump.update t dump     >>= fun () ->
-  return (L.Branch.to_string branch)
-
-let fetch_repo = op_repo "Fetch"
 
 (* FETCH *)
 let fetch = {
@@ -305,14 +276,15 @@ let fetch = {
   doc  = "Download objects and refs from another repository.";
   man  = [];
   term =
-    let fetch local repository =
-      let remote = store_of_string_exn repository in
+    let fetch (module L: Irmin.S) remote =
       run begin
-        fetch_repo local remote >>= fun _ ->
-        return_unit
+        let branch = L.Branch.of_string "import" in
+        L.create ~branch ()            >>= fun local ->
+        L.Dump.create_exn local remote >>= fun d ->
+        L.Dump.update local d
       end
     in
-    Term.(mk fetch $ store $ repository);
+    Term.(mk fetch $ IrminResolver.store $ IrminResolver.remote);
 }
 
 (* PULL *)
@@ -321,21 +293,15 @@ let pull = {
   doc  = "Fetch and merge with another repository.";
   man  = [];
   term =
-    let pull (module L: Irmin.S) repository =
-      let remote = store_of_string_exn repository in
+    let pull (module L: Irmin.S) remote =
       run begin
-        fetch_repo (module L) remote >>= fun branch ->
-        let branch = L.Branch.of_string branch in
-        L.create ()                  >>= fun t ->
-        L.merge t branch             >>= function
-        | `Ok _         -> return_unit
-        | `Conflict msg -> eprintf "Conflict: %s\n" msg; exit 0
+        L.create ()                    >>= fun local ->
+        L.Dump.create_exn local remote >>= fun d ->
+        L.Dump.merge_exn local d
       end
     in
-    Term.(mk pull $ store $ repository);
+    Term.(mk pull $ IrminResolver.store $ IrminResolver.remote);
 }
-
-let push_repo = op_repo "Push"
 
 (* PUSH *)
 let push = {
@@ -343,15 +309,14 @@ let push = {
   doc  = "Update remote references along with associated objects.";
   man  = [];
   term =
-    let push local repository =
-      let (module R) = store_of_string_exn repository in
+    let push (module L: Irmin.S) remote =
       run begin
-        push_repo (module R) local          >>= fun branch ->
-        R.create ~branch:R.Branch.master () >>= fun t ->
-        R.switch t (R.Branch.of_string branch)
+        L.create ()                  >>= fun local ->
+        L.Dump.push_exn local remote >>= fun _ ->
+        return_unit
       end
     in
-    Term.(mk push $ store $ repository);
+    Term.(mk push $ IrminResolver.store $ IrminResolver.remote);
 }
 
 (* SNAPSHOT *)
@@ -368,7 +333,7 @@ let snapshot = {
         return_unit
       end
     in
-    Term.(mk snapshot $ store)
+    Term.(mk snapshot $ IrminResolver.store)
 }
 
 (* REVERT *)
@@ -387,7 +352,7 @@ let revert = {
         S.Snapshot.revert t s
       end
     in
-    Term.(mk revert $ store $ snapshot)
+    Term.(mk revert $ IrminResolver.store $ snapshot)
 }
 (* WATCH *)
 let watch = {
@@ -409,7 +374,7 @@ let watch = {
           ) stream
       end
     in
-    Term.(mk watch $ store $ path)
+    Term.(mk watch $ IrminResolver.store $ path)
 }
 
 (* DUMP *)
@@ -428,7 +393,7 @@ let dump = {
         S.Dump.output_file t ?depth basename
       end
     in
-    Term.(mk dump $ store $ basename $ depth);
+    Term.(mk dump $ IrminResolver.store $ basename $ depth);
 }
 
 (* HELP *)

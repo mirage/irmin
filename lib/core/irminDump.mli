@@ -20,9 +20,18 @@ open Core_kernel.Std
 
 type origin = IrminOrigin.t
 
-type remote =
-  | Remote: (module IrminBranch.STORE with type branch = 'a) * 'a -> remote
-  | URI of string
+type remote
+(** Remote store. *)
+
+val remote: (module IrminBranch.STORE with type branch = 'a) -> 'a -> remote
+(** Build a remote handler. *)
+
+val uri: string -> remote
+(** Build an URI remote handler. Each backend implements its own logic
+    to handle remote URIs. *)
+
+exception Failure of string
+(** Might be raised when a push/pull operation fails. *)
 
 module type STORE = sig
 
@@ -39,11 +48,19 @@ module type STORE = sig
       local database can then be either [merged] or [updated] to the
       new contents. The [depth] parameter limits the history depth.*)
 
+  val create_exn: db -> ?depth:int -> remote -> t Lwt.t
+  (** Same as [create] but raise [Failure] is the fetch operation
+      fails. *)
+
   val push: db -> ?depth:int -> remote -> t option Lwt.t
   (** [push t dump] push the contents of the currnet branch of the
       database to the remote database -- also update the remote branch
       with the same name as the local one to points to the new
       state. *)
+
+  val push_exn: db -> ?depth:int -> remote -> t Lwt.t
+  (** Same as [push] but raise [Failure] is the push operation
+      fails. *)
 
   val update: db -> t -> unit Lwt.t
   (** [update t dump] imports the contents of [dump] in the

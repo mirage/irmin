@@ -148,3 +148,21 @@ let store =
       | Some s -> s
   in
   Term.(pure create $ json $ git $ in_memory $ local $ remote)
+
+
+let remote =
+  let branch =
+    let doc =
+      Arg.info ~docv:"BRANCH" ~doc:"Branch name." ["b";"branch"] in
+    Arg.(value & opt (some string) None & doc) in
+  let repository =
+    let doc = Arg.info ~docv:"REPOSITORY"
+        ~doc:"The (possibly remote) repository to clone from." [] in
+    Arg.(required & pos 0 (some string) None & doc) in
+  let create branch repository =
+    match store_of_string repository with
+    | None            -> IrminDump.uri repository
+    | Some (module S) ->
+      let module Remote: IrminBranch.STORE = S in
+      IrminDump.remote (module Remote) Remote.Branch.master in
+  Term.(pure create $ branch $ repository)

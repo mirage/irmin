@@ -26,11 +26,17 @@ type remote =
   | Remote: (module IrminBranch.STORE with type branch = 'a) * 'a -> remote
   | URI of string
 
+let remote m b = Remote (m, b)
+
+let uri s = URI s
+
 module type STORE = sig
   type t
   type db
   val create: db -> ?depth:int -> remote -> t option Lwt.t
+  val create_exn: db -> ?depth:int -> remote -> t Lwt.t
   val push: db -> ?depth:int -> remote -> t option Lwt.t
+  val push_exn: db -> ?depth:int -> remote -> t Lwt.t
   val update: db -> t -> unit Lwt.t
   val update: db -> t -> unit Lwt.t
   val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
@@ -39,6 +45,8 @@ module type STORE = sig
   val output_buffer: db -> ?depth:int -> Buffer.t -> unit Lwt.t
   include IrminIdent.S with type t := t
 end
+
+exception Failure of string
 
 module Make (Store: IrminBranch.STORE) = struct
 
@@ -88,25 +96,35 @@ module Make (Store: IrminBranch.STORE) = struct
       >>= fun () ->
       return (Some (local_key remote_head))
 
-  let create (type a) (type b) (type c) t ?depth remote =
+  let create t ?depth remote =
     Log.debugf "create";
-    let (module Remote: IrminBranch.STORE with type Block.key = a
-                                           and type value = b
-                                           and type branch = c) = remote.store in
-    Remote.create ~branch:remote.branch () >>= fun r ->
-    sync ?depth (module Store) t (module Remote) r
+    match remote with
+    | URI _ -> return_none
+    | Remote ((module Remote), branch) ->
+      Remote.create ~branch () >>= fun r ->
+      sync ?depth (module Store) t (module Remote) r
 
-  let push (type a) (type b) (type c) t ?depth remote =
+  let create_exn t ?depth remote =
+    create t ?depth remote >>= function
+    | None   -> fail (Failure "create")
+    | Some d -> return d
+
+  let push t ?depth remote =
     Log.debugf "push";
-    let (module Remote: IrminBranch.STORE with type Block.key = a
-                                           and type value = b
-                                           and type branch = c) = remote.store in
-    Remote.create ~branch:remote.branch () >>= fun r ->
-    sync ?depth (module Remote) r (module Store) t >>= function
-    | None   -> return_none
-    | Some k ->
-      Remote.update_commit r k >>= fun _ ->
-      return (Some (Store.Block.Key.of_raw (Remote.Block.Key.to_raw k)))
+    match remote with
+    | URI _ -> return_none
+    | Remote ((module Remote), branch) ->
+      Remote.create ~branch () >>= fun r ->
+      sync ?depth (module Remote) r (module Store) t >>= function
+      | None   -> return_none
+      | Some k ->
+        Remote.update_commit r k >>= fun _ ->
+        return (Some (Store.Block.Key.of_raw (Remote.Block.Key.to_raw k)))
+
+  let push_exn t ?depth remote =
+    push t ?depth remote >>= function
+    | None   -> fail (Failure "push")
+    | Some d -> return d
 
   let update =
     Store.update_commit
