@@ -9,23 +9,34 @@ text {
     font-size: 14px;
 }
 
-.node rect {
+.node {
     fill: #fff;
 }
 
-.edgeLabel rect {
+.edgeLabel {
     fill: #fff;
 }
 
-.edgePath path {
+.edgePath {
     stroke: #333;
     stroke-width: 1.5px;
     fill: none;
 }
 
+.sha1 {
+    color: grey;
+    font-size: 75%;
+}
+
 .tag {
-    background-color: #eee;
+    background-color: #00CC66;
     font-size: 150%;
+    padding: 1em;
+}
+
+.commit {
+    background-color: #6699FF;
+    padding: 0.5em;
 }
 
 .commit .message {

@@ -56,3 +56,11 @@ let create ?date ? id fmt =
 let date t = t.date
 let id t = t.id
 let message t = t.msg
+
+let string_of_date_hook = ref Int64.to_string
+
+let string_of_date d =
+  !string_of_date_hook d
+
+let set_string_of_date fn =
+  string_of_date_hook := fn

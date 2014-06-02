@@ -272,7 +272,7 @@ module Make (Store: IrminBranch.INTERNAL) = struct
     let label_of_node k _ =
       let s =
         (if html then
-           sprintf "<div class='node'>%s</div>"
+           sprintf "<div class='node'><div class='sha1'>%s</div></div>"
          else
            fun x -> x)
           (string_of_key k) in
@@ -294,28 +294,28 @@ module Make (Store: IrminBranch.INTERNAL) = struct
             "<div class='commit'>\n\
             \  <div class='sha1'>%s</div>\n\
             \  <div class='author'>%s</div>\n\
-            \  <div class='date'>%Ld</div>\n\
+            \  <div class='date'>%s</div>\n\
             \  <div class='message'>%s</div>\n\
              </div>"
         else
-          sprintf "%s | %s | %Ld | %s")
+          sprintf "%s | %s | %s | %s")
           k
           (IrminOrigin.id o)
-          (IrminOrigin.date o)
+          (IrminOrigin.(string_of_date (date o)))
           (IrminOrigin.message o) in
       `Label s in
     let label_of_contents k v =
       let k = string_of_key k in
-      let v = string_of_contents (C.to_string v) in
       let s =
-        (if html then
-           sprintf "<div class='contents'>\n\
-                   \  <div class='sha1'>%s</div>\n\
-                   \  <div class='blob'>%s</div>\n\
-                    </div>"
-         else
-           sprintf "%s | %s")
-          k (String.escaped v) in
+        if html then
+          sprintf "<div class='contents'>\n\
+                  \  <div class='sha1'>%s</div>\n\
+                  \  <div class='blob'><pre>%s</pre></div>\n\
+                   </div>"
+            k (C.to_string v)
+        else
+           let v = string_of_contents (C.to_string v) in
+           sprintf "%s | %s" k (String.escaped v) in
       `Label s in
     let label_of_tag t =
       let s =

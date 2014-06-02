@@ -23,6 +23,10 @@ let () =
     sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
   IrminOrigin.set_date (fun () -> Int64.of_float (Unix.time ()));
   IrminOrigin.set_id (fun () -> origin);
+  IrminOrigin.set_string_of_date (fun d ->
+      let tm = Unix.localtime (Int64.to_float d) in
+      sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+    );
   IrminFS.install_dir_polling_listener 0.5
 
 (* Global options *)
