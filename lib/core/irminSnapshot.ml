@@ -36,7 +36,7 @@ module type STORE = sig
   include IrminIdent.S with type t := state
 end
 
-module Make (S: IrminBranch.INTERNAL) = struct
+module Make (S: IrminBranch.STORE) = struct
 
   module Tag = S.Tag
   module Node = S.Block.Node

@@ -69,6 +69,7 @@ module type STORE = sig
   val merge: t -> key IrminMerge.t
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
   val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
+  val list: t -> ?depth:int -> key list -> key list Lwt.t
   module Key: IrminKey.S with type t = key
   module Value: S with type key = key
 end
@@ -126,13 +127,13 @@ module Make
 
   module Graph = IrminGraph.Make(K)(IrminTag.String)
 
-  let list t keys =
+  let list t ?depth keys =
     Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
     let pred = function
       | `Commit k -> read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
     let max = IrminGraph.of_commits keys in
-    Graph.closure max ~pred >>= fun g ->
+    Graph.closure ?depth max ~pred >>= fun g ->
     let keys = IrminGraph.to_commits (Graph.vertex g) in
     return keys
 

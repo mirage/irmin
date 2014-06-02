@@ -321,7 +321,7 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
 
 end
 
-module Store (S: IrminBranch.INTERNAL) = struct
+module Store (S: IrminBranch.STORE) = struct
 
   module K = S.Block.Key
   module C = S.Value

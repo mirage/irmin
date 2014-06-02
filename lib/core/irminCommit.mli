@@ -79,6 +79,10 @@ module type STORE = sig
   (** Same as [find_common_ancestor] but raises [Not_found] if the two
       commits share no common ancestor. *)
 
+  val list: t -> ?depth:int -> key list -> key list Lwt.t
+  (** Return all previous commit hashes, with an (optional) limit on
+      the history depth. *)
+
   module Key: IrminKey.S with type t = key
   (** Base functions over keys. *)
 

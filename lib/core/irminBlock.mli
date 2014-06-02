@@ -75,6 +75,9 @@ module type STORE = sig
 
   include IrminStore.AO with type key := key and type value := value
 
+  val list: t -> ?depth:int -> key list -> key list Lwt.t
+  (** Return the related blocks, with an history depth limit. *)
+
   module Contents: IrminContents.STORE with type key = key
                                         and type value = contents
 
