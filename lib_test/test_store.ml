@@ -417,10 +417,8 @@ module Make (S: Irmin.S) = struct
       Dump.create_exn t1          remote >>= fun full    ->
 
       (* Restart a fresh store and import everything in there. *)
-      x.clean ()             >>= fun () ->
-      x.init ()              >>= fun () ->
-
-      S.create  ()           >>= fun t2 ->
+      let branch = Branch.of_string "export" in
+      S.create ~branch ()    >>= fun t2 ->
       Dump.update t2 partial >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
@@ -434,17 +432,15 @@ module Make (S: Irmin.S) = struct
       read_exn t2 ["a";"d"]  >>= fun v1' ->
       assert_contents_equal "v1" v1' v1;
 
-      catch
-        (fun () ->
-           Snapshot.revert t2 r2 >>= fun () ->
-           OUnit.assert_bool "revert" false;
-           return_unit)
-        (fun e ->
-           Dump.update t2 full   >>= fun () ->
-           Snapshot.revert t2 r2 >>= fun () ->
-           mem t2 ["a";"d"]      >>= fun b4 ->
-           assert_bool_equal "mem-ab" false b4;
-           return_unit)
+      Snapshot.revert t2 r2 >>= fun () ->
+      mem t2 ["a";"d"]      >>= fun b4 ->
+      assert_bool_equal "mem-ab" false b4;
+
+      Dump.update t2 full   >>= fun () ->
+      Snapshot.revert t2 r2 >>= fun () ->
+      mem t2 ["a";"d"]      >>= fun b4 ->
+      assert_bool_equal "mem-ab" false b4;
+      return_unit
     in
     run x test
 
