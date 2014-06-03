@@ -163,8 +163,8 @@ struct
     | Some n -> n
 
   let node_of_opt_commit t = function
-    | None   -> Log.debugf "XXX empty node"; return IrminNode.empty
-    | Some c -> Log.debugf "XXX non-empty node"; node_of_commit t c
+    | None   -> return IrminNode.empty
+    | Some c -> node_of_commit t c
 
   let read_head_node t =
     Log.debug (lazy "read_head_node");

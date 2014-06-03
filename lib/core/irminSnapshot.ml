@@ -102,11 +102,13 @@ module Make (S: IrminBranch.STORE) = struct
     failwith "TODO"
 
   let revert t (_, c) =
+    Log.debugf "revert %s" (K.to_string c);
     match S.branch t with
     | None     -> S.set_head t c; return_unit
     | Some tag -> Tag.update (S.tag_t t) tag c
 
   let merge t ?origin (_, c) =
+    Log.debugf "merge %s" (K.to_string c);
     let origin = match origin with
       | None   -> IrminOrigin.create "Merge snapshot %s" (K.to_string c)
       | Some o -> o in
