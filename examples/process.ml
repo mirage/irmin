@@ -46,7 +46,7 @@ let commands = [|
 
 let branches = [|
       "12345/cron";
-      "112323/maidir";
+      "112323/maildir";
       "1333/apache";
 |]
 
