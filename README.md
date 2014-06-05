@@ -42,7 +42,7 @@ A tutorial is available on the [wiki](https://github.com/mirage/irmin/wiki/Getti
 
 ### Issues
 
-To report any issues please use the [bugtracker on Github](https://github.com/irmin/issues).
+To report any issues please use the [bugtracker on Github](https://github.com/mirage/irmin/issues).
 
 ### Install from source
 
