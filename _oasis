@@ -84,7 +84,7 @@ Executable irmin
   Build$:             flag(unix)
   CompiledObject:     best
   Install:            true
-  BuildDepends:       cmdliner, irmin.unix
+  BuildDepends:       cmdliner, irmin, irmin.unix
 
 Executable test_irmin
   Path:               lib_test
