@@ -411,15 +411,15 @@ module Make (S: Irmin.S) = struct
       update t1 ["a";"d"] v1 >>= fun () ->
       Snapshot.create t1     >>= fun r3 ->
 
-      let remote = IrminDump.remote (module S) Branch.master in
+      let remote = IrminSync.remote (module S) Branch.master in
 
-      Dump.create_exn t1 ~depth:0 remote >>= fun partial ->
-      Dump.create_exn t1          remote >>= fun full    ->
+      Sync.fetch_exn t1 ~depth:0 remote >>= fun partial ->
+      Sync.fetch_exn t1          remote >>= fun full    ->
 
       (* Restart a fresh store and import everything in there. *)
       let branch = Branch.of_string "export" in
       S.create ~branch ()    >>= fun t2 ->
-      Dump.update t2 partial >>= fun () ->
+      Sync.update t2 partial >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
@@ -436,7 +436,7 @@ module Make (S: Irmin.S) = struct
       mem t2 ["a";"d"]      >>= fun b4 ->
       assert_bool_equal "mem-ab" false b4;
 
-      Dump.update t2 full   >>= fun () ->
+      Sync.update t2 full   >>= fun () ->
       Snapshot.revert t2 r2 >>= fun () ->
       mem t2 ["a";"d"]      >>= fun b4 ->
       assert_bool_equal "mem-ab" false b4;

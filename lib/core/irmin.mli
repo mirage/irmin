@@ -24,12 +24,12 @@ module type S = sig
   (* include IrminStore.S with type key = IrminPath.t
                         and type origin = IrminOrigin.t *)
 
-  module Dump: IrminDump.STORE with type db = t
+  module Dump: IrminDump.S with type t = t
   module Snapshot: IrminSnapshot.STORE with type db = t
   module View: IrminView.STORE with type db    = t
                                 and type node  = Block.key
                                 and type value = value
-
+  module Sync: IrminSync.STORE with type db  = t
 end
 
 type ('key, 'contents, 'tag) t =
@@ -40,8 +40,8 @@ type ('key, 'contents, 'tag) t =
 val cast: ('a, 'b, 'c) t -> (module S)
 
 module Make
-    (Block: IrminBlock.STORE)
-    (Tag  : IrminTag.STORE with type value = Block.key)
+    (Block   : IrminBlock.STORE)
+    (Tag     : IrminTag.STORE with type value = Block.key)
   : S with type Block.key = Block.key
        and type value     = Block.contents
        and type branch    = Tag.key

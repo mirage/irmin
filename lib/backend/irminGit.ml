@@ -22,15 +22,9 @@ module Log = Log.Make(struct let section = "GIT" end)
 module type Config = sig
   val root: string option
   module Store: Git.Store.S
+  module Sync: Git.Sync.S with type t = Store.t
   val bare: bool
   val disk: bool
-end
-
-module Memory = struct
-  let root = None
-  module Store = Git_memory
-  let bare = false
-  let disk = false
 end
 
 module Make (Config: Config) = struct
@@ -379,32 +373,92 @@ module Make (Config: Config) = struct
     module XBlock = IrminBlock.Mux(K)(C)(AO.Contents)(AO.Node)(AO.Commit)
     module RW = RW(T)(K)
     module XTag = IrminTag.Make(T)(K)(RW)
-    include Irmin.Make(XBlock)(XTag)
+    module S = IrminBranch.Make(XBlock)(XTag)
+    module Snapshot = IrminSnapshot.Make(S)
+    module Dump = IrminDump.Make(S)
+    module View = IrminView.Store(S)
+    module XSync = struct
+
+      type t = S.t
+
+      type key = S.Block.key
+
+      let key_of_git key =
+        S.Block.Key.of_raw (Git.SHA1.Commit.to_string key)
+
+      let o_key_of_git = function
+        | None   -> return_none
+        | Some k -> return (Some (key_of_git k))
+
+      let fetch t ?depth uri =
+        let gri = Git.Gri.of_string uri in
+        let deepen = depth in
+        let result { Git.Sync.Result.head } = o_key_of_git head in
+        Config.Sync.fetch (S.contents_t t) ?deepen gri >>=
+        result
+
+      let push t ?depth uri =
+        match S.branch t with
+        | None        -> return_none
+        | Some branch ->
+          let branch = Git.Reference.of_string (S.Branch.to_string branch) in
+          let gri = Git.Gri.of_string uri in
+          let result { Git.Sync.Result.result } = match result with
+            | `Ok      -> S.head t
+            | `Error _ -> return_none in
+          Config.Sync.push (S.contents_t t) ~branch gri >>=
+          result
+
+    end
+    module Sync = IrminSync.Fast(S)(XSync)
+    include S
   end
 
 end
 
-let connect (module C: Config) ?depth remote =
-  let root = match C.root with
-    | Some d -> d
-    | None   ->
-      let str = Uri.path (Git.Gri.to_uri remote) in
-      let dir = Filename.basename str in
-      if Filename.check_suffix dir ".git" then
-        Filename.chop_extension dir
-      else
-        dir
-  in
-  let module Local = Git_unix.Remote(C.Store) in
-  C.Store.create ~root () >>= fun t ->
-  Log.debugf "Cloning into '%s' ...\n%!" (Filename.basename root);
-  Local.clone t ?deepen:depth ~unpack:false ~bare:C.bare remote >>= fun r ->
-  match r.Git.Remote.head with
-  | None      -> return_unit
-  | Some head ->
-    begin
-      if not C.bare then C.Store.write_cache t head
-      else return_unit
-    end >>= fun () ->
-    Log.debugf "HEAD is now at %s\n" (Git.SHA1.Commit.to_hex head);
-    return_unit
+module NoSync = struct
+
+  open Git.Sync.Result
+
+  let empty_fetch = {
+    head       = None;
+    references = Git.Reference.Map.empty;
+    sha1s      = [];
+  }
+
+  let empty_push = {
+    result   = `Error "Not_implemented";
+    commands = [];
+  }
+
+  let ls _ = assert false
+
+  let push t ~branch uri = return empty_push
+
+  let clone t ?bare ?deepen ?unpack gri = return empty_fetch
+
+  let fetch t ?deepen ?unpack uri = return empty_fetch
+
+end
+
+module Memory = Make(struct
+    let root = None
+    module Store = Git.Memory
+    module Sync = struct
+      type t = Store.t
+      include NoSync
+    end
+    let bare = true
+    let disk = false
+  end)
+
+module Memory' (C: sig val root: string end) = Make(struct
+    let root = Some C.root
+    module Store = Git.Memory
+    module Sync = struct
+      type t = Store.t
+      include NoSync
+    end
+    let bare = true
+    let disk = false
+  end)

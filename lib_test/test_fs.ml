@@ -16,6 +16,7 @@
 
 open Lwt
 open Test_common
+open Irmin_unix
 
 let test_db = "test-db"
 

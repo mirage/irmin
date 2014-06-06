@@ -9,15 +9,12 @@
 *)
 
 open Lwt
+open Irmin_unix
 
-module Config = struct
-  let root = Some "/tmp/irmin/test"
-  module Store = Git_fs
-  let bare = true
-  let disk = true
-end
-
-module Git = IrminGit.Make(Config)
+module Git = IrminGit.FS(struct
+    let root = Some "/tmp/irmin/test"
+    let bare = true
+  end)
 
 module Store = Git.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String)
 

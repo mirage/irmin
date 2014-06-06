@@ -20,32 +20,11 @@ open IrminMerge.OP
 
 module Log = Log.Make(struct let section ="DUMP" end)
 
-type origin = IrminOrigin.t
-
-type remote =
-  | Remote: (module IrminBranch.STORE with type branch = 'a) * 'a -> remote
-  | URI of string
-
-let remote m b = Remote (m, b)
-
-let uri s = URI s
-
-module type STORE = sig
+module type S = sig
   type t
-  type db
-  val create: db -> ?depth:int -> remote -> t option Lwt.t
-  val create_exn: db -> ?depth:int -> remote -> t Lwt.t
-  val push: db -> ?depth:int -> remote -> t option Lwt.t
-  val push_exn: db -> ?depth:int -> remote -> t Lwt.t
-  val update: db -> t -> unit Lwt.t
-  val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
-  val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
-  val output_file: db -> ?depth:int -> string ->  unit Lwt.t
-  val output_buffer: db -> ?depth:int -> Buffer.t -> unit Lwt.t
-  include IrminIdent.S with type t := t
+  val output_file: t -> ?depth:int -> string ->  unit Lwt.t
+  val output_buffer: t -> ?depth:int -> Buffer.t -> unit Lwt.t
 end
-
-exception Failure of string
 
 module Make (Store: IrminBranch.STORE) = struct
 
@@ -59,84 +38,7 @@ module Make (Store: IrminBranch.STORE) = struct
   module Node = Block.Node
   module Contents = Block.Contents
 
-  type db = Store.t
-
-  include K
-
-  let sync ?depth (type k)
-      (type l) (module L: IrminBranch.STORE with type t = l and type Block.key = k) (l:l)
-      (type r) (module R: IrminBranch.STORE with type t = r) (r:r)
-    =
-    let remote_key k = R.Block.Key.of_raw (L.Block.Key.to_raw k) in
-    let local_key k = L.Block.Key.of_raw (R.Block.Key.to_raw k) in
-    R.head r >>= function
-    | None             -> return_none
-    | Some remote_head ->
-      begin
-        L.head l >>= function
-        | None     -> return_nil
-        | Some key -> L.Block.Commit.list (L.commit_t l) ?depth [key]
-      end
-      >>= fun local_keys ->
-      let local_keys = List.map ~f:remote_key local_keys in
-      R.Block.Commit.list (R.commit_t r) ?depth [remote_head]
-      >>= fun remote_keys ->
-      let keys = R.Block.Key.Set.(to_list (diff (of_list remote_keys) (of_list local_keys))) in
-      Log.debugf "sync keys=%s" (IrminMisc.pretty_list R.Block.Key.to_string keys);
-      Lwt_list.iter_p (fun key ->
-          R.Block.read (R.block_t r) key >>= function
-          | None   -> return_unit
-          | Some v ->
-            R.Block.Value.to_string v
-            |> L.Block.Value.of_string
-            |> L.Block.add (L.block_t l)
-            >>= fun _ -> return_unit
-        ) keys
-      >>= fun () ->
-      return (Some (local_key remote_head))
-
-  let create t ?depth remote =
-    Log.debugf "create";
-    match remote with
-    | URI _ -> return_none
-    | Remote ((module Remote), branch) ->
-      Remote.create ~branch () >>= fun r ->
-      sync ?depth (module Store) t (module Remote) r
-
-  let create_exn t ?depth remote =
-    create t ?depth remote >>= function
-    | None   -> fail (Failure "create")
-    | Some d -> return d
-
-  let push t ?depth remote =
-    Log.debugf "push";
-    match remote with
-    | URI _ -> return_none
-    | Remote ((module Remote), branch) ->
-      Remote.create ~branch () >>= fun r ->
-      sync ?depth (module Remote) r (module Store) t >>= function
-      | None   -> return_none
-      | Some k ->
-        Remote.update_commit r k >>= fun _ ->
-        return (Some (Store.Block.Key.of_raw (Remote.Block.Key.to_raw k)))
-
-  let push_exn t ?depth remote =
-    push t ?depth remote >>= function
-    | None   -> fail (Failure "push")
-    | Some d -> return d
-
-  let update =
-    Store.update_commit
-
-  let merge t ?origin dump =
-    let origin = match origin with
-      | None   -> IrminOrigin.create "Merge pulled state."
-      | Some o -> o in
-    Store.merge_commit t ~origin dump
-
-  let merge_exn t ?origin dump =
-    merge t ?origin dump >>=
-    IrminMerge.exn
+  type t = Store.t
 
   let get_contents t = function
     | None  ->
@@ -289,7 +191,6 @@ module Make (Store: IrminBranch.STORE) = struct
         if exists nodes then
           add_edge (`Tag r) [`Style `Bold] (`Node k);
       ) tags;
-    (* XXX: this is not Xen-friendly *)
     return (fun ppf -> Store.Graph.output ppf !vertex !edges name)
 
   let output_file t ?depth name =
@@ -299,6 +200,7 @@ module Make (Store: IrminBranch.STORE) = struct
     fprintf (Format.formatter_of_out_channel oc);
     Out_channel.close oc;
     let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
+    (* XXX: this is not Xen-friendly *)
     let i = Sys.command cmd in
     if Int.(i <> 0) then Log.errorf "The %s.dot is corrupted" name;
     return_unit

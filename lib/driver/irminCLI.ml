@@ -17,6 +17,7 @@
 open Lwt
 open Core_kernel.Std
 open Cmdliner
+open Irmin_unix
 
 let () =
   let origin =
@@ -27,7 +28,7 @@ let () =
       let tm = Unix.localtime (Int64.to_float d) in
       sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     );
-  IrminFS.install_dir_polling_listener 0.5
+  install_dir_polling_listener 0.5
 
 (* Global options *)
 type global = {
@@ -136,10 +137,11 @@ let init = {
       run begin
         S.create () >>= fun t ->
         IrminResolver.init_hook ();
+        let module HTTP = IrminHTTP.Make(S) in
         if daemon then
           let uri = Uri.of_string uri in
           Log.infof "daemon: %s" (Uri.to_string uri);
-          IrminHTTP.start_server (module S) t uri
+          HTTP.listen t uri
         else return_unit
       end
     in
@@ -263,8 +265,8 @@ let clone = {
       IrminResolver.init_hook ();
       run begin
         L.create ()                           >>= fun local  ->
-        L.Dump.create_exn local ?depth remote >>= fun d ->
-        L.Dump.update local d
+        L.Sync.fetch_exn local ?depth remote >>= fun d ->
+        L.Sync.update local d
       end
     in
     Term.(mk clone $ IrminResolver.store $ IrminResolver.remote $ depth);
@@ -280,8 +282,8 @@ let fetch = {
       run begin
         let branch = L.Branch.of_string "import" in
         L.create ~branch ()            >>= fun local ->
-        L.Dump.create_exn local remote >>= fun d ->
-        L.Dump.update local d
+        L.Sync.fetch_exn local remote >>= fun d ->
+        L.Sync.update local d
       end
     in
     Term.(mk fetch $ IrminResolver.store $ IrminResolver.remote);
@@ -296,8 +298,8 @@ let pull = {
     let pull (module L: Irmin.S) remote =
       run begin
         L.create ()                    >>= fun local ->
-        L.Dump.create_exn local remote >>= fun d ->
-        L.Dump.merge_exn local d
+        L.Sync.fetch_exn local remote >>= fun d ->
+        L.Sync.merge_exn local d
       end
     in
     Term.(mk pull $ IrminResolver.store $ IrminResolver.remote);
@@ -312,7 +314,7 @@ let push = {
     let push (module L: Irmin.S) remote =
       run begin
         L.create ()                  >>= fun local ->
-        L.Dump.push_exn local remote >>= fun _ ->
+        L.Sync.push_exn local remote >>= fun _ ->
         return_unit
       end
     in

@@ -16,6 +16,27 @@
 
 (** HTTP server *)
 
-val start_server: (module Irmin.S with type t = 'a) -> 'a -> Uri.t -> unit Lwt.t
-(** [start_server s uri] start a server serving the contents of [db]
-    (of kind [s]) at the address [uri]. *)
+module type S = sig
+
+  type t
+  (** Database type. *)
+
+  val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+  (** [start_server t uri] start a server serving the contents of [t]
+      at the address [uri]. *)
+
+end
+
+(** {2 Constructor} *)
+
+module type SERVER = sig
+
+  include Cohttp_lwt.Server
+
+  val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+  (** Start the server, listening at the given adress. *)
+
+end
+
+module Make (HTTP: SERVER) (S: Irmin.S): S with type t = S.t
+(** Create an HTTP server, serving the contents of an Irmin database. *)

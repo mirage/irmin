@@ -34,130 +34,21 @@ let warning fmt =
 
 let (/) = Filename.concat
 
-let in_dir dir fn =
-  let reset_cwd =
-    let cwd =
-      try Some (Sys.getcwd ())
-      with _ -> None in
-    fun () ->
-      match cwd with
-      | None     -> ()
-      | Some cwd -> try Unix.chdir cwd with _ -> () in
-  Unix.chdir dir;
-  try
-    let r = fn () in
-    reset_cwd ();
-    r
-  with e ->
-    reset_cwd ();
-    raise e
-
-let list kind dir =
-  if Sys.file_exists dir then
-    in_dir dir (fun () ->
-      let d = Sys.readdir (Sys.getcwd ()) in
-      let d = Array.to_list d in
-      let l = List.filter ~f:kind d in
-      List.sort ~cmp:compare (List.rev_map ~f:(Filename.concat dir) l)
-    )
-  else
-    []
-
-let directories_with_links =
-  list (fun f -> try Sys.is_directory f with _ -> false)
-
-let files_with_links =
-  list (fun f -> try not (Sys.is_directory f) with _ -> true)
-
-let rec_files root =
-  let rec aux accu dir =
-    let d = directories_with_links dir in
-    let f = files_with_links dir in
-    List.fold_left ~f:aux ~init:(f @ accu) d in
-  let files = aux [] root in
-  let prefix = root / "" in
-  List.map ~f:(String.chop_prefix_exn ~prefix) files
-
-type root = D of string
-
-let mkdir dir =
-  let safe_mkdir dir =
-    if not (Sys.file_exists dir) then
-      try Unix.mkdir dir 0o755
-      with Unix.Unix_error(Unix.EEXIST,_,_) -> () in
-  let rec aux dir =
-    if not (Sys.file_exists dir) then begin
-      aux (Filename.dirname dir);
-      safe_mkdir dir;
-    end in
-  aux dir
-
-let check (D root) =
-  if Sys.file_exists root && not (Sys.is_directory root) then
-    error "%s is not a directory!" root
-  else begin
-    let mkdir dir =
-      if not (Sys.file_exists dir) then mkdir dir in
-    mkdir root;
-    return_unit
-  end
-
-let files = Lwt_pool.create 50 (fun () -> return_unit)
-let with_file fn =
-  Lwt_pool.use files fn
-
-let with_file_in file fn =
-  Log.debugf "with_file_in %s" file;
-  with_file (fun () ->
-      let fd = Unix.(openfile file [O_RDONLY; O_NONBLOCK] 0o644) in
-      try
-        let r = fn fd in
-        Unix.close fd;
-        return r
-      with e ->
-        Unix.close fd;
-        fail e
-    )
-
-let with_file_out file fn =
-  Log.debugf "with_file_out %s" file;
-  mkdir (Filename.dirname file);
-  with_file (fun () ->
-      Lwt_unix.(openfile file [O_RDWR; O_NONBLOCK; O_CREAT] 0o644) >>= fun fd ->
-      try
-        fn fd >>= fun r ->
-        Lwt_unix.close fd >>= fun () ->
-        return r
-      with e ->
-        Lwt_unix.close fd >>= fun () ->
-        fail e
-    )
-
-let with_maybe_file_in file fn default =
-  if Sys.file_exists file then
-    with_file_in file fn
-  else (
-    Log.debugf "with_maybe_file: %s does not exist, skipping" file;
-    return default
-  )
-
-let write_bigstring fd ba =
-  let rec rwrite fd buf ofs len =
-    Log.debugf " ... write_buf %d" len;
-    Lwt_bytes.write fd buf ofs len >>= fun n ->
-    if n = 0 then fail End_of_file
-    else if n < len then rwrite fd buf (ofs + n) (len - n)
-    else return () in
-  rwrite fd ba 0 (Bigarray.Array1.dim ba)
-
 module type Config' = sig
   val path: string
   val file_of_key: string -> string
   val key_of_file: string -> string
 end
 
+module type IO = sig
+  val check_dir: string -> unit Lwt.t
+  val with_file_in: string -> (Bigstring.t -> 'a Lwt.t) -> 'a Lwt.t
+  val rec_files: string -> string list
+  val with_file_out: string -> Bigstring.t -> unit Lwt.t
+  val remove_file: string -> unit Lwt.t
+end
 
-module RO (S: Config') (K: IrminKey.S) = struct
+module RO (IO: IO) (S: Config') (K: IrminKey.S) = struct
 
   type key = string
 
@@ -166,7 +57,7 @@ module RO (S: Config') (K: IrminKey.S) = struct
   module W = IrminWatch.Make(K)(Bigstring)
 
   type t = {
-    t: root;
+    t: string;
     w: W.t;
   }
 
@@ -177,43 +68,38 @@ module RO (S: Config') (K: IrminKey.S) = struct
     fail (IrminKey.Unknown (pretty_key k))
 
   let create () =
-    let t = D S.path in
+    let t = S.path in
     let w = W.create () in
     return { t; w }
 
   let mem { t } key =
-    check t >>= fun () ->
+    IO.check_dir t >>= fun () ->
     let file = S.file_of_key key in
     Log.debugf "file=%s" file;
     return (Sys.file_exists file)
 
-  let read_bigstring fd =
-    Lwt_bytes.map_file ~fd ~shared:false ()
-
   let read_exn t key =
     Log.debugf "read_exn %s" (pretty_key key);
     mem t key >>= function
-    | true  -> with_file_in (S.file_of_key key) read_bigstring
+    | true  -> IO.with_file_in (S.file_of_key key) (fun x -> return x)
     | false -> unknown key
 
   let read t key =
     Log.debugf "read %s" (pretty_key key);
     mem t key >>= function
-    | true  ->
-      with_file_in (S.file_of_key key) read_bigstring >>= fun ba ->
-      return (Some ba)
+    | true  -> IO.with_file_in (S.file_of_key key) (fun x -> return (Some x))
     | false -> return_none
 
   let list { t } k =
     return k
 
   let keys_of_dir root =
-    let files = rec_files root in
+    let files = IO.rec_files root in
     List.map ~f:S.key_of_file files
 
-  let dump ({ t = D root } as t) =
+  let dump ({ t = root } as t) =
     Log.debugf "dump %s" root;
-    check t.t >>= fun () ->
+    IO.check_dir t.t >>= fun () ->
     let l = keys_of_dir root in
     Lwt_list.fold_left_s (fun acc x ->
         read t x >>= function
@@ -223,29 +109,27 @@ module RO (S: Config') (K: IrminKey.S) = struct
 
 end
 
-module AO (S: Config') (K: IrminKey.S) = struct
+module AO (IO: IO) (S: Config') (K: IrminKey.S) = struct
 
-  include RO(S)(K)
+  include RO(IO)(S)(K)
 
   let add { t } value =
     Log.debugf "add";
-    check t >>= fun () ->
+    IO.check_dir t >>= fun () ->
     let key = K.to_raw (K.of_bytes value) in
     let file = S.file_of_key key in
     begin if Sys.file_exists file then
         return_unit
       else
-        with_file_out file (fun fd ->
-            write_bigstring fd value
-          )
+        IO.with_file_out file value
     end >>= fun () ->
     return key
 
 end
 
-module RW (S: Config') (K: IrminKey.S) = struct
+module RW (IO: IO) (S: Config') (K: IrminKey.S) = struct
 
-  include RO(S)(K)
+  include RO(IO)(S)(K)
 
   let read_key t key =
     read t (K.to_raw key)
@@ -253,7 +137,7 @@ module RW (S: Config') (K: IrminKey.S) = struct
   let create () =
     let key_of_file file =
       Some (K.of_string (S.key_of_file file)) in
-    let t = D S.path in
+    let t = S.path in
     let w = W.create () in
     let t = { t; w } in
     W.listen_dir w S.path key_of_file (read_key t);
@@ -262,17 +146,13 @@ module RW (S: Config') (K: IrminKey.S) = struct
   let remove { t } key =
     Log.debugf "remove %s" (pretty_key key);
     let file = S.file_of_key key in
-    if Sys.file_exists file then
-      Unix.unlink file;
-    return_unit
+    IO.remove_file file
 
   let update t key value =
     Log.debugf "update %s" (pretty_key key);
-    check t.t >>= fun () ->
+    IO.check_dir t.t >>= fun () ->
     remove t key >>= fun () ->
-    with_file_out (S.file_of_key key) (fun fd ->
-        write_bigstring fd value
-      ) >>= fun () ->
+    IO.with_file_out (S.file_of_key key) value >>= fun () ->
     W.notify t.w (K.of_raw key) (Some value);
     return_unit
 
@@ -294,7 +174,7 @@ module type Config = sig
   val path: string
 end
 
-module REFS (S: Config) = struct
+module REIO (S: Config) = struct
 
   let path = S.path / "refs"
 
@@ -326,52 +206,22 @@ module OBJECTS (S: Config) (K: IrminKey.S) = struct
 
 end
 
-module Make (X: Config) = struct
+module Make (IO: IO) (X: Config) = struct
   module Y = OBJECTS(X)
-  module Z = REFS(X)
+  module Z = REIO(X)
   module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
-    include Irmin.Binary(AO(Y(K))(K))(RW(Z)(T))(K)(C)(T)
+    include Irmin.Binary(AO(IO)(Y(K))(K))(RW(IO)(Z)(T))(K)(C)(T)
   end
-  module RO(K: IrminKey.S) = Irmin.RO_BINARY(RO(Y(K))(K))(K)
-  module AO(K: IrminKey.S) = Irmin.AO_BINARY(AO(Y(K))(K))(K)
-  module RW(K: IrminKey.S) = Irmin.RW_BINARY(RW(Z)(K))(K)
+  module RO(K: IrminKey.S) = Irmin.RO_BINARY(RO(IO)(Y(K))(K))(K)
+  module AO(K: IrminKey.S) = Irmin.AO_BINARY(AO(IO)(Y(K))(K))(K)
+  module RW(K: IrminKey.S) = Irmin.RW_BINARY(RW(IO)(Z)(K))(K)
 end
 
-module Make' (X: Config') = struct
+module Make' (IO: IO) (X: Config') = struct
   module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
-    include Irmin.Binary(AO(X)(K))(RW(X)(T))(K)(C)(T)
+    include Irmin.Binary(AO(IO)(X)(K))(RW(IO)(X)(T))(K)(C)(T)
   end
-  module RO(K: IrminKey.S) = Irmin.RO_BINARY(RO(X)(K))(K)
-  module AO(K: IrminKey.S) = Irmin.AO_BINARY(AO(X)(K))(K)
-  module RW(K: IrminKey.S) = Irmin.RW_BINARY(RW(X)(K))(K)
+  module RO(K: IrminKey.S) = Irmin.RO_BINARY(RO(IO)(X)(K))(K)
+  module AO(K: IrminKey.S) = Irmin.AO_BINARY(AO(IO)(X)(K))(K)
+  module RW(K: IrminKey.S) = Irmin.RW_BINARY(RW(IO)(X)(K))(K)
 end
-
-let install_dir_polling_listener delay =
-  IrminWatch.set_listen_dir_hook (fun dir fn ->
-
-      let read_files () =
-        let new_files = rec_files dir in
-        let new_files = List.map ~f:(fun f -> let f = dir / f in f , Digest.file f) new_files in
-        String.Map.of_alist_exn new_files in
-
-      let to_string set =
-        Sexp.to_string_hum (String.Map.sexp_of_t String.sexp_of_t set) in
-
-      let rec loop files =
-        let new_files = read_files () in
-        let diff = Map.merge files new_files (fun ~key -> function
-            | `Both (s1, s2)     -> if s1 = s2 then None else Some s1
-            | `Left s | `Right s -> Some s
-          ) in
-
-        if not (Map.is_empty diff) then
-          Log.debugf "polling %s: diff:%s" dir (to_string diff);
-        Lwt_list.iter_p (fun (f, _) -> fn f) (String.Map.to_alist diff) >>= fun () ->
-        Lwt_unix.sleep delay >>= fun () ->
-        loop new_files in
-
-      let t () =
-        loop (read_files ()) in
-
-      Lwt.async t
-    )

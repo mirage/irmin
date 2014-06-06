@@ -9,14 +9,6 @@ BuildTools:  ocamlbuild
 
 AlphaFeatures: pure_interface
 
-Flag xen
-  Description: build the Xen library
-  Default: false
-
-Flag git
-  Description: build the Git backend
-  Default: true
-
 Flag unix
   Description: build the Unix library
   Default: true
@@ -32,44 +24,41 @@ Library irmin
            IrminMisc, IrminCommit, IrminStore, IrminBlock,
            IrminTag, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView,
-           IrminOrigin, IrminIdent, IrminBranch
+           IrminOrigin, IrminIdent, IrminBranch, IrminSync
   BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
-                re.str, dolog, mstruct,
+                re.str, dolog, mstruct, uri,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
   XMETARequires: ezjsonm, ocamlgraph, lwt, sha,
-                 re.str, dolog, mstruct, core_kernel
+                 re.str, dolog, mstruct, core_kernel, uri
 
-Library backend
+Library "irmin-backend"
   Path: lib/backend
   Findlibname: backend
   FindlibParent: irmin
-  BuildDepends: irmin, uri, cohttp.lwt, ezjsonm.lwt, git.memory
-  Modules: IrminCRUD, IrminMemory, IrminGit
-  ByteOpt: -bin-annot
-  NativeOpt: -bin-annot
-
-Library fs
-  Build$: flag(unix)
-  Install$: flag(unix)
-  Path: lib/backend
-  Findlibname: fs
-  FindlibParent: backend
-  BuildDepends: lwt.unix, uri, irmin.backend, irmin
-  Modules: IrminFS
+  BuildDepends: irmin, cohttp.lwt, ezjsonm.lwt, git
+  Modules: IrminCRUD, IrminMemory, IrminGit, IrminFS
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 
 Library server
-  Build$: flag(unix) && flag(git)
-  Install$: flag(unix) && flag(git)
   Path: lib/server
   Findlibname: server
   FindlibParent: irmin
-  BuildDepends: cohttp.lwt, unix, lwt.unix, lwt.ssl,
-                irmin.backend.fs, irmin.backend, irmin
+  BuildDepends: cohttp.lwt, irmin
   Modules: IrminHTTP, IrminHTTPStatic
+  ByteOpt: -bin-annot
+  NativeOpt: -bin-annot
+
+Library "irmin-unix"
+  Build$: flag(unix)
+  Install$: flag(unix)
+  Path: lib/unix
+  Findlibname: unix
+  FindlibParent: irmin
+  BuildDepends: lwt.unix, irmin.backend, irmin.server, git.unix
+  Modules: Irmin_unix
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 
@@ -87,7 +76,7 @@ Document backend
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib/backend
-  XOCamlbuildLibraries: irmin.backend, irmin.backend.fs
+  XOCamlbuildLibraries: irmin.backend
 
 Executable irmin
   Path:               lib/driver
@@ -95,8 +84,7 @@ Executable irmin
   Build$:             flag(unix)
   CompiledObject:     best
   Install:            true
-  BuildDepends:       cmdliner, irmin.backend.fs, git.fs,
-                      irmin.backend, irmin.server, irmin,
+  BuildDepends:       cmdliner, irmin.unix
 
 Executable test_irmin
   Path:               lib_test
@@ -104,7 +92,7 @@ Executable test_irmin
   Build$:             flag(tests) && flag(unix)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, alcotest, irmin.server, git.fs
+  BuildDepends:       irmin.unix, alcotest
 
 Test test_irmin
   Run$:               flag(tests) && flag(unix)
@@ -117,7 +105,7 @@ Executable test_git_store
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+  BuildDepends:       irmin.unix
 
 Executable test_custom_merge
   Path:               examples/
@@ -125,7 +113,7 @@ Executable test_custom_merge
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+  BuildDepends:       irmin.unix
 
 Executable test_views
   Path:               examples/
@@ -133,7 +121,7 @@ Executable test_views
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+  BuildDepends:       irmin.unix
 
 Executable test_contatcs
   Path:               examples/
@@ -141,7 +129,7 @@ Executable test_contatcs
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+  BuildDepends:       irmin.unix
 
 Executable test_intrusion
   Path:               examples/
@@ -149,7 +137,7 @@ Executable test_intrusion
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+  BuildDepends:       irmin.unix
 
 Executable test_process
   Path:               examples/
@@ -157,4 +145,4 @@ Executable test_process
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin, irmin.backend, irmin.backend.fs, git.fs
+  BuildDepends:       irmin.unix

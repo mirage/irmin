@@ -16,6 +16,7 @@
 
 open Core_kernel.Std
 open Cmdliner
+open Irmin_unix
 
 let pr_str = Format.pp_print_string
 
@@ -59,16 +60,13 @@ let remote_store k uri =
 let git_store k g =
   Log.infof "git";
   let (module K), (module C), (module R) = modules k in
-  let (module Config) = match g with
-    | `Memory -> (module IrminGit.Memory: IrminGit.Config)
-    | `Disk   -> (module struct
+  let (module B: Irmin.BACKEND) = match g with
+    | `Memory -> (module IrminGit.Memory)
+    | `Disk   -> (module IrminGit.FS (struct
         let root = None
-        module Store = Git_fs
         let bare = false
-        let disk = true
-      end) in
-  let module M = IrminGit.Make(Config) in
-  Irmin.cast (module M.Make(K)(C)(R))
+      end)) in
+  Irmin.cast (module B.Make(K)(C)(R))
 
 let store_of_string str =
   let open Core_kernel.Std in
@@ -160,8 +158,8 @@ let remote =
     Arg.(required & pos 0 (some string) None & doc) in
   let create branch repository =
     match store_of_string repository with
-    | None            -> IrminDump.uri repository
+    | None            -> IrminSync.uri repository
     | Some (module S) ->
       let module Remote: IrminBranch.STORE = S in
-      IrminDump.remote (module Remote) Remote.Branch.master in
+      IrminSync.remote (module Remote) Remote.Branch.master in
   Term.(pure create $ branch $ repository)
