@@ -94,7 +94,6 @@ let store_of_string str =
       | Some u -> u in
     Some (uri |> Uri.of_string |> remote_store json)
   | _   ->
-    eprintf "%s is not a valid store specification\n%!" str;
     None
 
 let store_of_string_exn str =
@@ -160,6 +159,6 @@ let remote =
     match store_of_string repository with
     | None            -> IrminSync.uri repository
     | Some (module S) ->
-      let module Remote: IrminBranch.STORE = S in
-      IrminSync.remote (module Remote) Remote.Branch.master in
+      let module R: IrminBranch.STORE = S in
+      IrminSync.store (module R) R.Branch.master in
   Term.(pure create $ branch $ repository)

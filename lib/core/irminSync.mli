@@ -22,11 +22,11 @@ type remote
 type 'a store = (module IrminBranch.STORE with type branch = 'a)
 (** A tuple store implementation / branch name. *)
 
-val remote: 'a store -> 'a -> remote
-(** Consider a local store handler as remote. *)
+val store: 'a store -> 'a -> remote
+(** Remote stores. *)
 
 val uri: string -> remote
-(** A remote URI. *)
+(** Remote URI. *)
 
 module type STORE = sig
 

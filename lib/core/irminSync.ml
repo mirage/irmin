@@ -17,13 +17,15 @@
 open Core_kernel.Std
 open Lwt
 
+module Log = Log.Make(struct let section = "SYNC" end)
+
 type 'a store = (module IrminBranch.STORE with type branch = 'a)
 
 type remote =
-  | Remote: 'a store * 'a -> remote
+  | Store: 'a store * 'a -> remote
   | URI of string
 
-let remote m b = Remote (m, b)
+let store m b = Store (m, b)
 
 let uri s = URI s
 
@@ -102,29 +104,31 @@ struct
       return (Some (local_key remote_head))
 
   let fetch t ?depth remote =
-    Log.debugf "create";
     match remote with
-    | URI uri                          -> R.fetch t ?depth uri
-    | Remote ((module Remote), branch) ->
-      Remote.create ~branch () >>= fun r ->
-      sync ?depth (module S) t (module Remote) r
+    | URI uri                          ->
+      Log.debugf "fetch URI %s" uri;
+      R.fetch t ?depth uri
+    | Store ((module R), branch) ->
+      Log.debugf "fetch store";
+      R.create ~branch () >>= fun r ->
+      sync ?depth (module S) t (module R) r
 
   let fetch_exn t ?depth remote =
     fetch t ?depth remote >>= function
-    | None   -> fail (Failure "create")
+    | None   -> fail (Failure "fetch")
     | Some d -> return d
 
   let push t ?depth remote =
     Log.debugf "push";
     match remote with
     | URI uri                          -> R.push t ?depth uri
-    | Remote ((module Remote), branch) ->
-      Remote.create ~branch () >>= fun r ->
-      sync ?depth (module Remote) r (module S) t >>= function
+    | Store ((module R), branch) ->
+      R.create ~branch () >>= fun r ->
+      sync ?depth (module R) r (module S) t >>= function
       | None   -> return_none
       | Some k ->
-        Remote.update_commit r k >>= fun _ ->
-        return (Some (S.Block.Key.of_raw (Remote.Block.Key.to_raw k)))
+        R.update_commit r k >>= fun _ ->
+        return (Some (S.Block.Key.of_raw (R.Block.Key.to_raw k)))
 
   let push_exn t ?depth remote =
     push t ?depth remote >>= function
@@ -148,10 +152,19 @@ end
 
 module Slow (S: IrminBranch.STORE) = struct
   module B = struct
+
     type t = S.t
+
     type key = S.Block.key
-    let fetch t ?depth uri = return_none
-    let push t ?depth uri = return_none
+
+    let fetch t ?depth uri =
+      Log.debugf "slow fetch";
+      return_none
+
+    let push t ?depth uri =
+      Log.debugf "slow push";
+      return_none
+
   end
   include Fast(S)(B)
 end

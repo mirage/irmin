@@ -191,13 +191,10 @@ let install_dir_polling_listener delay =
 
 module IrminGit = struct
 
-  open Git
-  open Git_unix
-
   module Memory = IrminGit.Make(struct
       let root = None
       module Store = Git.Memory
-      module Sync = Sync.Make(Store)
+      module Sync = Git_unix.Sync.Make(Store)
       let bare = true
       let disk = false
     end)
@@ -205,7 +202,7 @@ module IrminGit = struct
   module Memory' (C: sig val root: string end) = IrminGit.Make(struct
       let root = Some C.root
       module Store = Git.Memory
-      module Sync = Sync.Make(Store)
+      module Sync = Git_unix.Sync.Make(Store)
       let bare = true
       let disk = false
     end)
@@ -217,8 +214,8 @@ module IrminGit = struct
 
   module FS (C: Config) = IrminGit.Make(struct
       let root = C.root
-      module Store = FS
-      module Sync = Sync.Make(Store)
+      module Store = Git_unix.FS
+      module Sync = Git_unix.Sync.Make(Store)
       let bare = C.bare
       let disk = true
     end)

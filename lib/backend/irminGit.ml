@@ -391,6 +391,7 @@ module Make (Config: Config) = struct
         | Some k -> return (Some (key_of_git k))
 
       let fetch t ?depth uri =
+        Log.debugf "fetch %s" uri;
         let gri = Git.Gri.of_string uri in
         let deepen = depth in
         let result { Git.Sync.Result.head } = o_key_of_git head in
@@ -398,6 +399,7 @@ module Make (Config: Config) = struct
         result
 
       let push t ?depth uri =
+        Log.debugf "push %s" uri;
         match S.branch t with
         | None        -> return_none
         | Some branch ->
@@ -433,11 +435,17 @@ module NoSync = struct
 
   let ls _ = assert false
 
-  let push t ~branch uri = return empty_push
+  let push t ~branch uri =
+    Log.debugf "no push";
+    return empty_push
 
-  let clone t ?bare ?deepen ?unpack gri = return empty_fetch
+  let clone t ?bare ?deepen ?unpack gri =
+    Log.debugf "no clone";
+    return empty_fetch
 
-  let fetch t ?deepen ?unpack uri = return empty_fetch
+  let fetch t ?deepen ?unpack uri =
+    Log.debugf "no fetch";
+    return empty_fetch
 
 end
 
