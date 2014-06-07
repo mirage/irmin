@@ -394,7 +394,23 @@ module Make (Config: Config) = struct
         Log.debugf "fetch %s" uri;
         let gri = Git.Gri.of_string uri in
         let deepen = depth in
-        let result { Git.Sync.Result.head } = o_key_of_git head in
+        let result r =
+          Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
+          let key = match r.Git.Sync.Result.head with
+            | Some _ as h -> h
+            | None        ->
+              let max () =
+                match Map.max_elt r.Git.Sync.Result.references with
+                | None        -> None
+                | Some (_, k) -> Some k in
+              match S.branch t with
+              | None        -> max ()
+              | Some branch ->
+                let branch = Git.Reference.of_string ("refs/heads/" ^ S.Branch.to_string branch) in
+                match Map.find r.Git.Sync.Result.references branch with
+                | Some _ as h -> h
+                | None        -> max () in
+          o_key_of_git key in
         Config.Sync.fetch (S.contents_t t) ?deepen gri >>=
         result
 
