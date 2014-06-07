@@ -411,7 +411,7 @@ module Make (S: Irmin.S) = struct
       update t1 ["a";"d"] v1 >>= fun () ->
       Snapshot.create t1     >>= fun r3 ->
 
-      let remote = IrminSync.remote (module S) Branch.master in
+      let remote = IrminSync.store (module S) Branch.master in
 
       Sync.fetch_exn t1 ~depth:0 remote >>= fun partial ->
       Sync.fetch_exn t1          remote >>= fun full    ->
