@@ -1,8 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: ff7683c9cd2515f17730e6ee4c2c9e5e)
+# DO NOT EDIT (digest: 8f9461033a0d029e2a8763670c188cb3)
 version = "0.8.1"
 description = "A Distributed Version Control Database"
-requires = "ezjsonm ocamlgraph lwt sha re.str dolog mstruct core_kernel"
+requires =
+"ezjsonm ocamlgraph lwt sha re.perl re.pcre dolog mstruct core_kernel"
 archive(byte) = "irmin.cma"
 archive(byte, plugin) = "irmin.cma"
 archive(native) = "irmin.cmxa"
@@ -23,7 +24,7 @@ package "server" (
 package "backend" (
  version = "0.8.1"
  description = "A Distributed Version Control Database"
- requires = "irmin uri cohttp.lwt ezjsonm.lwt git.memory"
+ requires = "irmin uri cohttp.lwt ezjsonm.lwt git.memory git.unix"
  archive(byte) = "backend.cma"
  archive(byte, plugin) = "backend.cma"
  archive(native) = "backend.cmxa"
