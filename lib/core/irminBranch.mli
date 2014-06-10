@@ -99,5 +99,5 @@ module Make
   : STORE with type value   = Block.contents
            and module Block = Block
            and type branch  = Tag.key
-(** Build a branch consistent store from custom Block] and [Tag] store
+(** Build a branch consistent store from custom [Block] and [Tag] store
     implementations. *)
