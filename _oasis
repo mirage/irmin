@@ -4,7 +4,7 @@ Version:     0.8.1
 Synopsis:    A Distributed Version Control Database
 Authors:     Thomas Gazagnaire
 License:     ISC
-Plugins:     META (0.3), DevFiles (0.3)
+Plugins:     META (0.4), DevFiles (0.4)
 BuildTools:  ocamlbuild
 
 AlphaFeatures: pure_interface
@@ -26,12 +26,12 @@ Library irmin
            IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView,
            IrminOrigin, IrminIdent, IrminBranch, IrminSync
   BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
-                re.str, dolog, mstruct, uri,
+                re.pcre, re.perl, dolog, mstruct, uri,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
   XMETARequires: ezjsonm, ocamlgraph, lwt, sha,
-                 re.str, dolog, mstruct, core_kernel, uri
+                 re.pcre, re.perl, dolog, mstruct, core_kernel, uri
 
 Library "irmin-backend"
   Path: lib/backend

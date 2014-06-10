@@ -1,8 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: ee94b13cf648921c02fb075b13d145d6)
+# DO NOT EDIT (digest: e9c50773a542701e975cbf4a9b257f13)
 version = "0.8.1"
 description = "A Distributed Version Control Database"
-requires = "ezjsonm ocamlgraph lwt sha re.str dolog mstruct core_kernel uri"
+requires =
+"ezjsonm ocamlgraph lwt sha re.pcre re.perl dolog mstruct core_kernel uri"
 archive(byte) = "irmin.cma"
 archive(byte, plugin) = "irmin.cma"
 archive(native) = "irmin.cmxa"
