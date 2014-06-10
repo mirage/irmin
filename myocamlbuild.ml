@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 063d1c2821e8537e9bd8f82297a71271) *)
+(* DO NOT EDIT (digest: c5ec2ab5c4f6f83d31474e56277e8614) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -599,7 +599,7 @@ let package_default =
        [
           ("irmin", ["lib/core"], ["IrminStore"]);
           ("irmin-backend", ["lib/backend"], []);
-          ("server", ["lib/server"], []);
+          ("irmin-server", ["lib/server"], []);
           ("irmin-unix", ["lib/unix"], [])
        ];
      lib_c = [];
@@ -639,17 +639,23 @@ let package_default =
               "native"
            ],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_server_byte"; "ocaml"; "link"; "byte"],
+          (["oasis_library_irmin_server_byte"; "ocaml"; "link"; "byte"],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_server_native"; "ocaml"; "link"; "native"],
+          (["oasis_library_irmin_server_native"; "ocaml"; "link"; "native"],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_server_byte"; "ocaml"; "ocamldep"; "byte"],
+          (["oasis_library_irmin_server_byte"; "ocaml"; "ocamldep"; "byte"],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_server_native"; "ocaml"; "ocamldep"; "native"],
+          ([
+              "oasis_library_irmin_server_native";
+              "ocaml";
+              "ocamldep";
+              "native"
+           ],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_server_byte"; "ocaml"; "compile"; "byte"],
+          (["oasis_library_irmin_server_byte"; "ocaml"; "compile"; "byte"],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
-          (["oasis_library_server_native"; "ocaml"; "compile"; "native"],
+          (["oasis_library_irmin_server_native"; "ocaml"; "compile"; "native"
+           ],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
           (["oasis_library_irmin_unix_byte"; "ocaml"; "link"; "byte"],
             [(OASISExpr.EBool true, S [A "-bin-annot"])]);
@@ -678,6 +684,6 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 682 "myocamlbuild.ml"
+# 688 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

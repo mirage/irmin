@@ -42,7 +42,7 @@ Library "irmin-backend"
   ByteOpt: -bin-annot
   NativeOpt: -bin-annot
 
-Library server
+Library "irmin-server"
   Path: lib/server
   Findlibname: server
   FindlibParent: irmin

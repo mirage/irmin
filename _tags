@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0bb1a26e8845f46a7ad04f50cb2ca46e)
+# DO NOT EDIT (digest: 881557ba97241dfccf913546bc75834e)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -55,12 +55,12 @@
 <lib/backend/*.ml{,i}>: pkg_sha
 <lib/backend/*.ml{,i}>: pkg_uri
 <lib/backend/*.ml{,i}>: use_irmin
-# Library server
-"lib/server/server.cmxs": use_server
-<lib/server/server.{cma,cmxa}>: oasis_library_server_byte
-<lib/server/*.ml{,i}>: oasis_library_server_byte
-<lib/server/server.{cma,cmxa}>: oasis_library_server_native
-<lib/server/*.ml{,i}>: oasis_library_server_native
+# Library irmin-server
+"lib/server/irmin-server.cmxs": use_irmin-server
+<lib/server/irmin-server.{cma,cmxa}>: oasis_library_irmin_server_byte
+<lib/server/*.ml{,i}>: oasis_library_irmin_server_byte
+<lib/server/irmin-server.{cma,cmxa}>: oasis_library_irmin_server_native
+<lib/server/*.ml{,i}>: oasis_library_irmin_server_native
 <lib/server/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/server/*.ml{,i}>: pkg_cohttp.lwt
 <lib/server/*.ml{,i}>: pkg_comparelib.syntax
@@ -102,7 +102,7 @@
 <lib/unix/*.ml{,i}>: pkg_uri
 <lib/unix/*.ml{,i}>: use_irmin
 <lib/unix/*.ml{,i}>: use_irmin-backend
-<lib/unix/*.ml{,i}>: use_server
+<lib/unix/*.ml{,i}>: use_irmin-server
 # Executable irmin
 <lib/driver/irminMain.{native,byte}>: pkg_bin_prot.syntax
 <lib/driver/irminMain.{native,byte}>: pkg_cmdliner
@@ -125,8 +125,8 @@
 <lib/driver/irminMain.{native,byte}>: pkg_uri
 <lib/driver/irminMain.{native,byte}>: use_irmin
 <lib/driver/irminMain.{native,byte}>: use_irmin-backend
+<lib/driver/irminMain.{native,byte}>: use_irmin-server
 <lib/driver/irminMain.{native,byte}>: use_irmin-unix
-<lib/driver/irminMain.{native,byte}>: use_server
 <lib/driver/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/driver/*.ml{,i}>: pkg_cmdliner
 <lib/driver/*.ml{,i}>: pkg_cohttp.lwt
@@ -148,8 +148,8 @@
 <lib/driver/*.ml{,i}>: pkg_uri
 <lib/driver/*.ml{,i}>: use_irmin
 <lib/driver/*.ml{,i}>: use_irmin-backend
+<lib/driver/*.ml{,i}>: use_irmin-server
 <lib/driver/*.ml{,i}>: use_irmin-unix
-<lib/driver/*.ml{,i}>: use_server
 # Executable test_irmin
 <lib_test/test.{native,byte}>: pkg_alcotest
 <lib_test/test.{native,byte}>: pkg_bin_prot.syntax
@@ -172,8 +172,8 @@
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: use_irmin
 <lib_test/test.{native,byte}>: use_irmin-backend
+<lib_test/test.{native,byte}>: use_irmin-server
 <lib_test/test.{native,byte}>: use_irmin-unix
-<lib_test/test.{native,byte}>: use_server
 <lib_test/*.ml{,i}>: pkg_alcotest
 <lib_test/*.ml{,i}>: pkg_bin_prot.syntax
 <lib_test/*.ml{,i}>: pkg_cohttp.lwt
@@ -195,8 +195,8 @@
 <lib_test/*.ml{,i}>: pkg_uri
 <lib_test/*.ml{,i}>: use_irmin
 <lib_test/*.ml{,i}>: use_irmin-backend
+<lib_test/*.ml{,i}>: use_irmin-server
 <lib_test/*.ml{,i}>: use_irmin-unix
-<lib_test/*.ml{,i}>: use_server
 # Executable test_git_store
 <examples/git_store.{native,byte}>: pkg_bin_prot.syntax
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
@@ -218,8 +218,8 @@
 <examples/git_store.{native,byte}>: pkg_uri
 <examples/git_store.{native,byte}>: use_irmin
 <examples/git_store.{native,byte}>: use_irmin-backend
+<examples/git_store.{native,byte}>: use_irmin-server
 <examples/git_store.{native,byte}>: use_irmin-unix
-<examples/git_store.{native,byte}>: use_server
 # Executable test_custom_merge
 <examples/custom_merge.{native,byte}>: pkg_bin_prot.syntax
 <examples/custom_merge.{native,byte}>: pkg_cohttp.lwt
@@ -241,8 +241,8 @@
 <examples/custom_merge.{native,byte}>: pkg_uri
 <examples/custom_merge.{native,byte}>: use_irmin
 <examples/custom_merge.{native,byte}>: use_irmin-backend
+<examples/custom_merge.{native,byte}>: use_irmin-server
 <examples/custom_merge.{native,byte}>: use_irmin-unix
-<examples/custom_merge.{native,byte}>: use_server
 # Executable test_views
 <examples/views.{native,byte}>: pkg_bin_prot.syntax
 <examples/views.{native,byte}>: pkg_cohttp.lwt
@@ -264,8 +264,8 @@
 <examples/views.{native,byte}>: pkg_uri
 <examples/views.{native,byte}>: use_irmin
 <examples/views.{native,byte}>: use_irmin-backend
+<examples/views.{native,byte}>: use_irmin-server
 <examples/views.{native,byte}>: use_irmin-unix
-<examples/views.{native,byte}>: use_server
 # Executable test_contatcs
 <examples/contacts.{native,byte}>: pkg_bin_prot.syntax
 <examples/contacts.{native,byte}>: pkg_cohttp.lwt
@@ -287,8 +287,8 @@
 <examples/contacts.{native,byte}>: pkg_uri
 <examples/contacts.{native,byte}>: use_irmin
 <examples/contacts.{native,byte}>: use_irmin-backend
+<examples/contacts.{native,byte}>: use_irmin-server
 <examples/contacts.{native,byte}>: use_irmin-unix
-<examples/contacts.{native,byte}>: use_server
 # Executable test_intrusion
 <examples/intrusion.{native,byte}>: pkg_bin_prot.syntax
 <examples/intrusion.{native,byte}>: pkg_cohttp.lwt
@@ -310,8 +310,8 @@
 <examples/intrusion.{native,byte}>: pkg_uri
 <examples/intrusion.{native,byte}>: use_irmin
 <examples/intrusion.{native,byte}>: use_irmin-backend
+<examples/intrusion.{native,byte}>: use_irmin-server
 <examples/intrusion.{native,byte}>: use_irmin-unix
-<examples/intrusion.{native,byte}>: use_server
 # Executable test_process
 <examples/process.{native,byte}>: pkg_bin_prot.syntax
 <examples/process.{native,byte}>: pkg_cohttp.lwt
@@ -333,8 +333,8 @@
 <examples/process.{native,byte}>: pkg_uri
 <examples/process.{native,byte}>: use_irmin
 <examples/process.{native,byte}>: use_irmin-backend
+<examples/process.{native,byte}>: use_irmin-server
 <examples/process.{native,byte}>: use_irmin-unix
-<examples/process.{native,byte}>: use_server
 <examples/*.ml{,i}>: pkg_bin_prot.syntax
 <examples/*.ml{,i}>: pkg_cohttp.lwt
 <examples/*.ml{,i}>: pkg_comparelib.syntax
@@ -355,7 +355,7 @@
 <examples/*.ml{,i}>: pkg_uri
 <examples/*.ml{,i}>: use_irmin
 <examples/*.ml{,i}>: use_irmin-backend
+<examples/*.ml{,i}>: use_irmin-server
 <examples/*.ml{,i}>: use_irmin-unix
-<examples/*.ml{,i}>: use_server
 # OASIS_STOP
 true: bin_annot, annot, debug
