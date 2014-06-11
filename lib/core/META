@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: ab9257cc1fc324c65e53907c6bd40f4b)
-version = "0.8.1"
+# DO NOT EDIT (digest: 4904797a6168b025043254c767783534)
+version = "0.8.2"
 description = "A Distributed Version Control Database"
 requires =
 "ezjsonm ocamlgraph lwt sha re.pcre re.perl dolog mstruct core_kernel uri"
@@ -10,7 +10,7 @@ archive(native) = "irmin.cmxa"
 archive(native, plugin) = "irmin.cmxs"
 exists_if = "irmin.cma"
 package "unix" (
- version = "0.8.1"
+ version = "0.8.2"
  description = "A Distributed Version Control Database"
  requires = "lwt.unix irmin.backend irmin.server git.unix"
  archive(byte) = "irmin-unix.cma"
@@ -21,7 +21,7 @@ package "unix" (
 )
 
 package "server" (
- version = "0.8.1"
+ version = "0.8.2"
  description = "A Distributed Version Control Database"
  requires = "cohttp.lwt irmin"
  archive(byte) = "irmin-server.cma"
@@ -32,7 +32,7 @@ package "server" (
 )
 
 package "backend" (
- version = "0.8.1"
+ version = "0.8.2"
  description = "A Distributed Version Control Database"
  requires = "irmin cohttp.lwt ezjsonm.lwt git"
  archive(byte) = "irmin-backend.cma"
