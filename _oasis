@@ -92,7 +92,7 @@ Executable test_irmin
   Build$:             flag(tests) && flag(unix)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin.unix, alcotest
+  BuildDepends:       irmin.unix, alcotest, cryptokit
 
 Test test_irmin
   Run$:               flag(tests) && flag(unix)

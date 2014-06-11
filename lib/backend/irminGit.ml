@@ -41,16 +41,16 @@ module Make (Config: Config) = struct
   module Stores (K: IrminKey.S) (C: IrminIdent.S) = struct
 
     let git_of_key key =
-      Git.SHA1.of_string (K.to_raw key)
+      Git.SHA.of_string (K.to_raw key)
 
     let key_of_git key =
-      K.of_raw (Git.SHA1.to_string key)
+      K.of_raw (Git.SHA.to_string key)
 
     module type V = sig
       type t
       val type_eq: Git.Object_type.t -> bool
-      val to_git: G.t -> t -> [`Value of Git.Value.t Lwt.t | `Key of Git.SHA1.t]
-      val of_git: Git.SHA1.t -> Git.Value.t -> t option
+      val to_git: G.t -> t -> [`Value of Git.Value.t Lwt.t | `Key of Git.SHA.t]
+      val of_git: Git.SHA.t -> Git.Value.t -> t option
     end
 
     module AO (V: V) = struct
@@ -216,8 +216,8 @@ module Make (Config: Config) = struct
           Log.debugf "Commit.of_git %s" (Git.Value.pretty v);
           match v with
           | Git.Value.Commit { Git.Commit.tree; parents; author; message } ->
-            let commit_key_of_git k = key_of_git (Git.SHA1.of_commit k) in
-            let node_key_of_git k = key_of_git (Git.SHA1.of_tree k) in
+            let commit_key_of_git k = key_of_git (Git.SHA.of_commit k) in
+            let node_key_of_git k = key_of_git (Git.SHA.of_tree k) in
             let parents = List.map ~f:commit_key_of_git parents in
             let node = Some (node_key_of_git tree) in
             let id = author.Git.User.name in
@@ -234,8 +234,8 @@ module Make (Config: Config) = struct
           match node with
           | None      -> failwith "Commit.to_git: not supported"
           | Some node ->
-            let git_of_commit_key k = Git.SHA1.to_commit (git_of_key k) in
-            let git_of_node_key k = Git.SHA1.to_tree (git_of_key k) in
+            let git_of_commit_key k = Git.SHA.to_commit (git_of_key k) in
+            let git_of_node_key k = Git.SHA.to_tree (git_of_key k) in
             let tree = git_of_node_key node in
             let parents = List.map ~f:git_of_commit_key parents in
             let date = Int64.to_string (IrminOrigin.date origin) ^ " +0000" in
@@ -269,10 +269,10 @@ module Make (Config: Config) = struct
   module RW (T: IrminKey.S) (K: IrminKey.S) = struct
 
     let git_of_key key =
-      Git.SHA1.of_string (K.to_raw key)
+      Git.SHA.of_string (K.to_raw key)
 
     let key_of_git key =
-      K.of_raw (Git.SHA1.to_string key)
+      K.of_raw (Git.SHA.to_string key)
 
     module W = IrminWatch.Make(T)(K)
 
@@ -300,7 +300,7 @@ module Make (Config: Config) = struct
     let mem { t } r =
       G.mem_reference t (git_of_ref r)
 
-    let key_of_git k = key_of_git (Git.SHA1.of_commit k)
+    let key_of_git k = key_of_git (Git.SHA.of_commit k)
 
     let read { t } r =
       G.read_reference t (git_of_ref r) >>= function
@@ -341,7 +341,7 @@ module Make (Config: Config) = struct
         ) refs >>= fun l ->
       List.filter_map ~f:(fun x -> x) l |> return
 
-    let git_of_key k = Git.SHA1.to_commit (git_of_key k)
+    let git_of_key k = Git.SHA.to_commit (git_of_key k)
 
     let update t r k =
       let gr = git_of_ref r in
@@ -384,7 +384,7 @@ module Make (Config: Config) = struct
       type key = S.Block.key
 
       let key_of_git key =
-        S.Block.Key.of_raw (Git.SHA1.Commit.to_string key)
+        S.Block.Key.of_raw (Git.SHA.Commit.to_string key)
 
       let o_key_of_git = function
         | None   -> return_none

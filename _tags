@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 881557ba97241dfccf913546bc75834e)
+# DO NOT EDIT (digest: 1d36c1f9dde66149e0cc6d85d677ab43)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -156,6 +156,7 @@
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt
 <lib_test/test.{native,byte}>: pkg_comparelib.syntax
 <lib_test/test.{native,byte}>: pkg_core_kernel
+<lib_test/test.{native,byte}>: pkg_cryptokit
 <lib_test/test.{native,byte}>: pkg_dolog
 <lib_test/test.{native,byte}>: pkg_ezjsonm
 <lib_test/test.{native,byte}>: pkg_ezjsonm.lwt
@@ -179,6 +180,7 @@
 <lib_test/*.ml{,i}>: pkg_cohttp.lwt
 <lib_test/*.ml{,i}>: pkg_comparelib.syntax
 <lib_test/*.ml{,i}>: pkg_core_kernel
+<lib_test/*.ml{,i}>: pkg_cryptokit
 <lib_test/*.ml{,i}>: pkg_dolog
 <lib_test/*.ml{,i}>: pkg_ezjsonm
 <lib_test/*.ml{,i}>: pkg_ezjsonm.lwt
