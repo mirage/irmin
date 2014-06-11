@@ -75,6 +75,9 @@ module type STORE = sig
 
   include IrminStore.AO with type key := key and type value := value
 
+  val list: t -> ?depth:int -> key list -> key list Lwt.t
+  (** Return the related blocks, with an history depth limit. *)
+
   module Contents: IrminContents.STORE with type key = key
                                         and type value = contents
 
@@ -110,7 +113,10 @@ module Make
   (C: IrminContents.S)
   (S: IrminStore.AO with type key = K.t and type value = (K.t, C.t) t)
   : STORE with type key = K.t
-           and type contents = C.t
+           and type contents   = C.t
+           and type Contents.t = S.t
+           and type Node.t     = S.t * S.t
+           and type Commit.t   = (S.t * S.t) * S.t
 (** Create a store for structured values. *)
 
 module Mux
@@ -120,7 +126,10 @@ module Mux
   (Node    : IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
   (Commit  : IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
   : STORE with type key = K.t
-           and type contents = C.t
+           and type contents   = C.t
+           and type Contents.t = Contents.t
+           and type Node.t     = Contents.t * Node.t
+           and type Commit.t   = (Contents.t * Node.t) * Commit.t
 (** Combine multiple stores to create a global store for structured
     values. XXX: discuss about the cost model, ie. the difference
     between Mux and Make. *)

@@ -24,6 +24,9 @@ module type Config = sig
   module Store: Git.Store.S
   (** Git database implementation. Can be [Git_fs] or [Git_memory]. *)
 
+  module Sync: Git.Sync.S with type t = Store.t
+  (** Synchronisation engine. *)
+
   val bare: bool
   (** Should we extend the filesystem *)
 
@@ -34,10 +37,11 @@ module type Config = sig
 
 end
 
-module Memory: Config
-(** In-memory Git store (using [Git_memory]). *)
+module Memory: Irmin.BACKEND
+(** In-memory Git store (using [Git.Memory]). *)
+
+module Memory' (C: sig val root: string end): Irmin.BACKEND
+(** Create a in-memory store with a given root path -- stores with
+    different roots will not share their contents. *)
 
 module Make (C: Config): Irmin.BACKEND
-
-val connect: (module Config) -> ?depth:int -> Git.Gri.t -> unit Lwt.t
-(** Connect to a remote store. *)

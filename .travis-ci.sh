@@ -10,6 +10,7 @@ sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
 export OPAMYES=1
 
 opam init
+opam pin git https://github.com/samoht/ocaml-git.git
 opam install ${OPAM_PACKAGES}
 
 eval `opam config env`

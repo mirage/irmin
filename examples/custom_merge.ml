@@ -11,6 +11,7 @@
 
 open Lwt
 open Core_kernel.Std
+open Irmin_unix
 
 (* Enable debug outputs if DEBUG is set *)
 let () =
@@ -84,14 +85,10 @@ module Log = struct
 
 end
 
-module Config = struct
-  let root = Some "/tmp/irmin/test"
-  module Store = Git_fs
-  let bare = true
-  let disk = true
-end
-
-module Git = IrminGit.Make(Config)
+module Git = IrminGit.FS(struct
+    let root = Some "/tmp/irmin/test"
+    let bare = true
+  end)
 
 module Store = Git.Make(IrminKey.SHA1)(Log)(IrminTag.String)
 

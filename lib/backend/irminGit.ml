@@ -22,15 +22,9 @@ module Log = Log.Make(struct let section = "GIT" end)
 module type Config = sig
   val root: string option
   module Store: Git.Store.S
+  module Sync: Git.Sync.S with type t = Store.t
   val bare: bool
   val disk: bool
-end
-
-module Memory = struct
-  let root = None
-  module Store = Git_memory
-  let bare = false
-  let disk = false
 end
 
 module Make (Config: Config) = struct
@@ -47,16 +41,16 @@ module Make (Config: Config) = struct
   module Stores (K: IrminKey.S) (C: IrminIdent.S) = struct
 
     let git_of_key key =
-      Git.SHA1.of_string (K.to_raw key)
+      Git.SHA.of_string (K.to_raw key)
 
     let key_of_git key =
-      K.of_raw (Git.SHA1.to_string key)
+      K.of_raw (Git.SHA.to_string key)
 
     module type V = sig
       type t
       val type_eq: Git.Object_type.t -> bool
-      val to_git: G.t -> t -> [`Value of Git.Value.t Lwt.t | `Key of Git.SHA1.t]
-      val of_git: Git.SHA1.t -> Git.Value.t -> t option
+      val to_git: G.t -> t -> [`Value of Git.Value.t Lwt.t | `Key of Git.SHA.t]
+      val of_git: Git.SHA.t -> Git.Value.t -> t option
     end
 
     module AO (V: V) = struct
@@ -222,8 +216,8 @@ module Make (Config: Config) = struct
           Log.debugf "Commit.of_git %s" (Git.Value.pretty v);
           match v with
           | Git.Value.Commit { Git.Commit.tree; parents; author; message } ->
-            let commit_key_of_git k = key_of_git (Git.SHA1.of_commit k) in
-            let node_key_of_git k = key_of_git (Git.SHA1.of_tree k) in
+            let commit_key_of_git k = key_of_git (Git.SHA.of_commit k) in
+            let node_key_of_git k = key_of_git (Git.SHA.of_tree k) in
             let parents = List.map ~f:commit_key_of_git parents in
             let node = Some (node_key_of_git tree) in
             let id = author.Git.User.name in
@@ -240,8 +234,8 @@ module Make (Config: Config) = struct
           match node with
           | None      -> failwith "Commit.to_git: not supported"
           | Some node ->
-            let git_of_commit_key k = Git.SHA1.to_commit (git_of_key k) in
-            let git_of_node_key k = Git.SHA1.to_tree (git_of_key k) in
+            let git_of_commit_key k = Git.SHA.to_commit (git_of_key k) in
+            let git_of_node_key k = Git.SHA.to_tree (git_of_key k) in
             let tree = git_of_node_key node in
             let parents = List.map ~f:git_of_commit_key parents in
             let date = Int64.to_string (IrminOrigin.date origin) ^ " +0000" in
@@ -275,10 +269,10 @@ module Make (Config: Config) = struct
   module RW (T: IrminKey.S) (K: IrminKey.S) = struct
 
     let git_of_key key =
-      Git.SHA1.of_string (K.to_raw key)
+      Git.SHA.of_string (K.to_raw key)
 
     let key_of_git key =
-      K.of_raw (Git.SHA1.to_string key)
+      K.of_raw (Git.SHA.to_string key)
 
     module W = IrminWatch.Make(T)(K)
 
@@ -306,7 +300,7 @@ module Make (Config: Config) = struct
     let mem { t } r =
       G.mem_reference t (git_of_ref r)
 
-    let key_of_git k = key_of_git (Git.SHA1.of_commit k)
+    let key_of_git k = key_of_git (Git.SHA.of_commit k)
 
     let read { t } r =
       G.read_reference t (git_of_ref r) >>= function
@@ -347,7 +341,7 @@ module Make (Config: Config) = struct
         ) refs >>= fun l ->
       List.filter_map ~f:(fun x -> x) l |> return
 
-    let git_of_key k = Git.SHA1.to_commit (git_of_key k)
+    let git_of_key k = Git.SHA.to_commit (git_of_key k)
 
     let update t r k =
       let gr = git_of_ref r in
@@ -379,32 +373,116 @@ module Make (Config: Config) = struct
     module XBlock = IrminBlock.Mux(K)(C)(AO.Contents)(AO.Node)(AO.Commit)
     module RW = RW(T)(K)
     module XTag = IrminTag.Make(T)(K)(RW)
-    include Irmin.Make(XBlock)(XTag)
+    module S = IrminBranch.Make(XBlock)(XTag)
+    module Snapshot = IrminSnapshot.Make(S)
+    module Dump = IrminDump.Make(S)
+    module View = IrminView.Store(S)
+    module XSync = struct
+
+      type t = S.t
+
+      type key = S.Block.key
+
+      let key_of_git key =
+        S.Block.Key.of_raw (Git.SHA.Commit.to_string key)
+
+      let o_key_of_git = function
+        | None   -> return_none
+        | Some k -> return (Some (key_of_git k))
+
+      let fetch t ?depth uri =
+        Log.debugf "fetch %s" uri;
+        let gri = Git.Gri.of_string uri in
+        let deepen = depth in
+        let result r =
+          Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
+          let key = match r.Git.Sync.Result.head with
+            | Some _ as h -> h
+            | None        ->
+              let max () =
+                match Map.max_elt r.Git.Sync.Result.references with
+                | None        -> None
+                | Some (_, k) -> Some k in
+              match S.branch t with
+              | None        -> max ()
+              | Some branch ->
+                let branch = Git.Reference.of_string ("refs/heads/" ^ S.Branch.to_string branch) in
+                match Map.find r.Git.Sync.Result.references branch with
+                | Some _ as h -> h
+                | None        -> max () in
+          o_key_of_git key in
+        Config.Sync.fetch (S.contents_t t) ?deepen gri >>=
+        result
+
+      let push t ?depth uri =
+        Log.debugf "push %s" uri;
+        match S.branch t with
+        | None        -> return_none
+        | Some branch ->
+          let branch = Git.Reference.of_string (S.Branch.to_string branch) in
+          let gri = Git.Gri.of_string uri in
+          let result { Git.Sync.Result.result } = match result with
+            | `Ok      -> S.head t
+            | `Error _ -> return_none in
+          Config.Sync.push (S.contents_t t) ~branch gri >>=
+          result
+
+    end
+    module Sync = IrminSync.Fast(S)(XSync)
+    include S
   end
 
 end
 
-let connect (module C: Config) ?depth remote =
-  let root = match C.root with
-    | Some d -> d
-    | None   ->
-      let str = Uri.path (Git.Gri.to_uri remote) in
-      let dir = Filename.basename str in
-      if Filename.check_suffix dir ".git" then
-        Filename.chop_extension dir
-      else
-        dir
-  in
-  let module Local = Git_unix.Remote(C.Store) in
-  C.Store.create ~root () >>= fun t ->
-  Log.debugf "Cloning into '%s' ...\n%!" (Filename.basename root);
-  Local.clone t ?deepen:depth ~unpack:false ~bare:C.bare remote >>= fun r ->
-  match r.Git.Remote.head with
-  | None      -> return_unit
-  | Some head ->
-    begin
-      if not C.bare then C.Store.write_cache t head
-      else return_unit
-    end >>= fun () ->
-    Log.debugf "HEAD is now at %s\n" (Git.SHA1.Commit.to_hex head);
-    return_unit
+module NoSync = struct
+
+  open Git.Sync.Result
+
+  let empty_fetch = {
+    head       = None;
+    references = Git.Reference.Map.empty;
+    sha1s      = [];
+  }
+
+  let empty_push = {
+    result   = `Error "Not_implemented";
+    commands = [];
+  }
+
+  let ls _ = assert false
+
+  let push t ~branch uri =
+    Log.debugf "no push";
+    return empty_push
+
+  let clone t ?bare ?deepen ?unpack gri =
+    Log.debugf "no clone";
+    return empty_fetch
+
+  let fetch t ?deepen ?unpack uri =
+    Log.debugf "no fetch";
+    return empty_fetch
+
+end
+
+module Memory = Make(struct
+    let root = None
+    module Store = Git.Memory
+    module Sync = struct
+      type t = Store.t
+      include NoSync
+    end
+    let bare = true
+    let disk = false
+  end)
+
+module Memory' (C: sig val root: string end) = Make(struct
+    let root = Some C.root
+    module Store = Git.Memory
+    module Sync = struct
+      type t = Store.t
+      include NoSync
+    end
+    let bare = true
+    let disk = false
+  end)

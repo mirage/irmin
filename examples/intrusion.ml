@@ -1,6 +1,7 @@
 (* Connect to http://localhost:8080/dump *)
 
 open Lwt
+open Irmin_unix
 
 (* Enable debug outputs if DEBUG is set *)
 let () =
@@ -20,16 +21,13 @@ let () =
       let tm = Unix.localtime (Int64.to_float d) in
       Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     );
-  IrminFS.install_dir_polling_listener 0.5
+  install_dir_polling_listener 0.5
 
-module Config = struct
-  let root = Some "/tmp/irmin/test"
-  module Store = Git_fs
-  let bare = true
-  let disk = true
-end
+module Git = IrminGit.FS(struct
+    let root = Some "/tmp/irmin/test"
+    let bare = true
+  end)
 
-module Git = IrminGit.Make(Config)
 module Store = Git.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String)
 
 let o id fmt = IrminOrigin.create ~id fmt

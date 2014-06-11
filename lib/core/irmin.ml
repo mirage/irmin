@@ -18,19 +18,16 @@ open Core_kernel.Std
 open Lwt
 open IrminMerge.OP
 
-type path = IrminPath.t
-
-type origin = IrminOrigin.t
-
 module type S = sig
   include IrminBranch.STORE with type key = IrminPath.t
-  module Dump: IrminDump.STORE with type db    = t
-                                and type value = Block.value
+  (*  include IrminStore.S with type key = IrminPath.t
+                            and type origin = OrminOrigin.t*)
+  module Dump: IrminDump.S with type t = t
   module Snapshot: IrminSnapshot.STORE with type db = t
-                                        and type state = Dump.key
   module View: IrminView.STORE with type db    = t
                                 and type node  = Block.key
                                 and type value = value
+  module Sync: IrminSync.STORE with type db  = t
 end
 
 type ('key, 'contents, 'tag) t =
@@ -48,6 +45,7 @@ struct
   module Snapshot = IrminSnapshot.Make(S)
   module Dump = IrminDump.Make(S)
   module View = IrminView.Store(S)
+  module Sync = IrminSync.Slow(S)
   include S
 end
 

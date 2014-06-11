@@ -411,17 +411,15 @@ module Make (S: Irmin.S) = struct
       update t1 ["a";"d"] v1 >>= fun () ->
       Snapshot.create t1     >>= fun r3 ->
 
-      Dump.create t1 [Snapshot.to_state r3] >>= fun partial ->
-      Dump.create t1 []                     >>= fun full    ->
+      let remote = IrminSync.store (module S) Branch.master in
+
+      Sync.fetch_exn t1 ~depth:0 remote >>= fun partial ->
+      Sync.fetch_exn t1          remote >>= fun full    ->
 
       (* Restart a fresh store and import everything in there. *)
-      x.clean ()             >>= fun () ->
-      x.init ()              >>= fun () ->
-
-      let branch = Branch.of_string "import" in
+      let branch = Branch.of_string "export" in
       S.create ~branch ()    >>= fun t2 ->
-      Dump.update t2 partial >>= fun () ->
-      Snapshot.revert t2 r3  >>= fun () ->
+      Sync.update t2 partial >>= fun () ->
 
       mem t2 ["a";"b"]       >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
@@ -434,17 +432,15 @@ module Make (S: Irmin.S) = struct
       read_exn t2 ["a";"d"]  >>= fun v1' ->
       assert_contents_equal "v1" v1' v1;
 
-      catch
-        (fun () ->
-           Snapshot.revert t2 r2 >>= fun () ->
-           OUnit.assert_bool "revert" false;
-           return_unit)
-        (fun e ->
-           Dump.update t2 full   >>= fun () ->
-           Snapshot.revert t2 r2 >>= fun () ->
-           mem t2 ["a";"d"]      >>= fun b4 ->
-           assert_bool_equal "mem-ab" false b4;
-           return_unit)
+      Snapshot.revert t2 r2 >>= fun () ->
+      mem t2 ["a";"d"]      >>= fun b4 ->
+      assert_bool_equal "mem-ab" false b4;
+
+      Sync.update t2 full   >>= fun () ->
+      Snapshot.revert t2 r2 >>= fun () ->
+      mem t2 ["a";"d"]      >>= fun b4 ->
+      assert_bool_equal "mem-ab" false b4;
+      return_unit
     in
     run x test
 

@@ -63,17 +63,19 @@ let json_headers = Cohttp.Header.of_list [
     "Content-type", "application/json"
   ]
 
-let respond_error e =
-  let json = `O [ "error", IrminMisc.json_encode (Exn.to_string e) ] in
-  let body = Ezjsonm.to_string json in
-  Cohttp_lwt_unix.Server.respond_string
-    ~headers:json_headers
-    ~status:`Internal_server_error
-    ~body ()
-
 exception Invalid
 
-module Server (S: Irmin.S) = struct
+module type S = sig
+  type t
+  val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+end
+
+module type SERVER = sig
+  include Cohttp_lwt.Server
+  val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+end
+
+module Make (HTTP: SERVER) (S: Irmin.S) = struct
 
   module K = S.Block.Key
   let key = {
@@ -103,16 +105,10 @@ module Server (S: Irmin.S) = struct
   }
 
   module Tag = S.Tag
-  module R = Tag.Key
+  module TK = Tag.Key
   let tag = {
-    input  = R.of_json;
-    output = R.to_json;
-  }
-
-  module D = S.Dump
-  let dump = {
-    input  = D.of_json;
-    output = D.to_json;
+    input  = TK.of_json;
+    output = TK.to_json;
   }
 
   let origin = {
@@ -133,9 +129,17 @@ module Server (S: Irmin.S) = struct
     | None   -> error "%s: not found" file
     | Some s -> s
 
+  let respond_error e =
+    let json = `O [ "error", IrminMisc.json_encode (Exn.to_string e) ] in
+    let body = Ezjsonm.to_string json in
+    HTTP.respond_string
+      ~headers:json_headers
+      ~status:`Internal_server_error
+      ~body ()
+
   let respond ?headers body =
     Log.debugf "%S" body;
-    Cohttp_lwt_unix.Server.respond_string ?headers ~status:`OK ~body ()
+    HTTP.respond_string ?headers ~status:`OK ~body ()
 
   let respond_json json =
     let json = `O [ "result", json ] in
@@ -150,14 +154,14 @@ module Server (S: Irmin.S) = struct
       ++ (Lwt_stream.of_list [" {\"result\":[]}]"])
     in
     let body = Cohttp_lwt_body.of_stream stream in
-    Cohttp_lwt_unix.Server.respond ~headers:json_headers ~status:`OK ~body ()
+    HTTP.respond ~headers:json_headers ~status:`OK ~body ()
 
   type 'a leaf = S.t -> string list -> Ezjsonm.t option -> (string * string list) list -> 'a
 
-  type t =
+  type response =
     | Fixed  of Ezjsonm.t Lwt.t leaf
     | Stream of Ezjsonm.t Lwt_stream.t leaf
-    | Node   of (string * t) list
+    | Node   of (string * response) list
     | Html   of string Lwt.t leaf
 
   let to_json t =
@@ -170,7 +174,7 @@ module Server (S: Irmin.S) = struct
                       ~init:acc in
     `A (List.rev (aux [] [] t))
 
-  let child c t: t =
+  let child c t: response =
     let error () =
       failwith ("Unknown action: " ^ c) in
     match t with
@@ -253,6 +257,16 @@ module Server (S: Irmin.S) = struct
         return (o.output r)
       )
 
+  (* list of arguments in the path, query strings, fixed answer *)
+  let mklp0b1qf name fn db i1 o =
+    name,
+    Fixed (fun t path params query ->
+        let x = mklp name i1 path in
+        mk0b name params;
+        fn (db t) x query >>= fun r ->
+        return (o.output r)
+      )
+
   (* 1 argument in the body *)
   let mk0p1bf name fn db i1 o =
     name,
@@ -309,7 +323,7 @@ module Server (S: Irmin.S) = struct
 
   let graph_index = read_exn "index.html"
 
-  let graph_of_dump (dump:S.Dump.db) path query =
+  let graph_of_dump (dump:S.Sync.db) path query =
     match path with
     | [] -> return graph_index
     | ["graph.dot"] ->
@@ -341,12 +355,19 @@ module Server (S: Irmin.S) = struct
       mk0p0bf "dump" Node.dump S.node_t (mk_dump key node);
   ]
 
-  let commit_store = Node [
-      mk1p0bf "read" Commit.read S.commit_t key (some commit);
-      mk1p0bf "mem"  Commit.mem  S.commit_t key bool;
-      mklp0bf "list" Commit.list S.commit_t (list key) (list key);
-      mk0p1bf "add"  Commit.add  S.commit_t commit key;
-      mk0p0bf "dump" Commit.dump S.commit_t (mk_dump key commit);
+  let commit_store =
+    let commit_list t keys query =
+      let depth =
+        match List.Assoc.find query "depth" with
+        | Some [d] -> Some (Int.of_string d)
+        | _        -> None in
+      Commit.list t ?depth keys in
+    Node [
+      mk1p0bf   "read" Commit.read S.commit_t key (some commit);
+      mk1p0bf   "mem"  Commit.mem  S.commit_t key bool;
+      mklp0b1qf "list" commit_list S.commit_t (list key) (list key);
+      mk0p1bf   "add"  Commit.add  S.commit_t commit key;
+      mk0p0bf   "dump" Commit.dump S.commit_t (mk_dump key commit);
   ]
 
   let tag_store = Node [
@@ -416,24 +437,27 @@ module Server (S: Irmin.S) = struct
         | actions   -> aux actions path in
     aux store path
 
-end
+  type t = S.t
 
-let start_server (type t) (module S: Irmin.S with type t = t) (t:t) uri =
-  let address = Uri.host_with_default ~default:"localhost" uri in
-  let port = match Uri.port uri with
-    | None   -> 8080
-    | Some p -> p in
-  let module Server = Server(S) in
-  printf "Server started on port %d.\n%!" port;
-  let callback conn_id req body =
-    let path = Uri.path (Cohttp.Request.uri req) in
-    Log.infof "Request received: PATH=%s" path;
-    let path = String.split path ~on:'/' in
-    let path = List.filter ~f:((<>) "") path in
-    catch
-      (fun () -> Server.process t req body path)
-      (fun e  -> respond_error e) in
-  let conn_closed conn_id () =
-    Log.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
-  let config = { Cohttp_lwt_unix.Server.callback; conn_closed } in
-  Cohttp_lwt_unix.Server.create ~address ~port config
+  let listen t ?timeout uri =
+    let uri = match Uri.host uri with
+      | None   -> Uri.with_host uri (Some "localhost")
+      | Some _ -> uri in
+    let port, uri = match Uri.port uri with
+      | None   -> 8080, Uri.with_port uri (Some 8080)
+      | Some p -> p   , uri in
+    printf "Server started on port %d.\n%!" port;
+    let callback conn_id req body =
+      let path = Uri.path (Cohttp.Request.uri req) in
+      Log.infof "Request received: PATH=%s" path;
+      let path = String.split path ~on:'/' in
+      let path = List.filter ~f:((<>) "") path in
+      catch
+        (fun () -> process t req body path)
+        (fun e  -> respond_error e) in
+    let conn_closed conn_id () =
+      Log.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
+    let config = { HTTP.callback; conn_closed } in
+    HTTP.listen config ?timeout uri
+
+end

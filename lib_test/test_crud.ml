@@ -16,6 +16,7 @@
 
 open Lwt
 open Test_common
+open Irmin_unix
 
 let uri = Uri.of_string "http://127.0.0.1:8080"
 
@@ -42,11 +43,12 @@ let suite k server =
 
     init = begin fun () ->
       let (module Server) = server.store in
+      let module HTTP = IrminHTTP.Make(Server) in
       let server () =
         server.init ()   >>= fun () ->
         Server.create () >>= fun t  ->
         signal ()        >>= fun () ->
-        IrminHTTP.start_server (module Server) t uri
+        HTTP.listen t uri
       in
       let () =
         try Unix.unlink file

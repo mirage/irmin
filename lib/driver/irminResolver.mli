@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,27 +14,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-open Test_common
-open Irmin_unix
+(** Irmin store resolver. *)
 
-let test_db = "test-db"
+val init_hook: unit -> unit
+(** Initialisation hooks. *)
 
-let init () =
-  if Sys.file_exists test_db then begin
-    let cmd = Printf.sprintf "rm -rf %s" test_db in
-    let _ = Sys.command cmd in ()
-  end;
-  return_unit
+val store: (module Irmin.S) Cmdliner.Term.t
+(** Parse a store on the command-line. *)
 
-let suite k =
-  {
-    name = "FS" ^ string_of_kind k;
-    kind = k;
-    init;
-    clean = unit;
-    store =
-      let module M = IrminFS.Make (struct let path = test_db end) in
-      let (module K), (module C), (module T) = modules k in
-      Irmin.cast (module M.Make(K)(C)(T))
-  }
+val store_of_string: string -> (module Irmin.S) option
+(** Parse a Irmin URI. *)
+
+val store_of_string_exn: string -> (module Irmin.S)
+(** Same as [store_of_string] but raises [Not_found] if it is not a
+    valid URI. *)
+
+val store_of_env_var: unit -> (module Irmin.S) option
+(** Read the "IRMIN" env variable. *)
+
+val remote: IrminSync.remote Cmdliner.Term.t
+(** Parse a remote store. *)

@@ -1,44 +1,45 @@
 # OASIS_START
-# DO NOT EDIT (digest: ff7683c9cd2515f17730e6ee4c2c9e5e)
+# DO NOT EDIT (digest: ab9257cc1fc324c65e53907c6bd40f4b)
 version = "0.8.1"
 description = "A Distributed Version Control Database"
-requires = "ezjsonm ocamlgraph lwt sha re.str dolog mstruct core_kernel"
+requires =
+"ezjsonm ocamlgraph lwt sha re.pcre re.perl dolog mstruct core_kernel uri"
 archive(byte) = "irmin.cma"
 archive(byte, plugin) = "irmin.cma"
 archive(native) = "irmin.cmxa"
 archive(native, plugin) = "irmin.cmxs"
 exists_if = "irmin.cma"
+package "unix" (
+ version = "0.8.1"
+ description = "A Distributed Version Control Database"
+ requires = "lwt.unix irmin.backend irmin.server git.unix"
+ archive(byte) = "irmin-unix.cma"
+ archive(byte, plugin) = "irmin-unix.cma"
+ archive(native) = "irmin-unix.cmxa"
+ archive(native, plugin) = "irmin-unix.cmxs"
+ exists_if = "irmin-unix.cma"
+)
+
 package "server" (
  version = "0.8.1"
  description = "A Distributed Version Control Database"
- requires =
- "cohttp.lwt unix lwt.unix lwt.ssl irmin.backend.fs irmin.backend irmin"
- archive(byte) = "server.cma"
- archive(byte, plugin) = "server.cma"
- archive(native) = "server.cmxa"
- archive(native, plugin) = "server.cmxs"
- exists_if = "server.cma"
+ requires = "cohttp.lwt irmin"
+ archive(byte) = "irmin-server.cma"
+ archive(byte, plugin) = "irmin-server.cma"
+ archive(native) = "irmin-server.cmxa"
+ archive(native, plugin) = "irmin-server.cmxs"
+ exists_if = "irmin-server.cma"
 )
 
 package "backend" (
  version = "0.8.1"
  description = "A Distributed Version Control Database"
- requires = "irmin uri cohttp.lwt ezjsonm.lwt git.memory"
- archive(byte) = "backend.cma"
- archive(byte, plugin) = "backend.cma"
- archive(native) = "backend.cmxa"
- archive(native, plugin) = "backend.cmxs"
- exists_if = "backend.cma"
- package "fs" (
-  version = "0.8.1"
-  description = "A Distributed Version Control Database"
-  requires = "lwt.unix uri irmin.backend irmin"
-  archive(byte) = "fs.cma"
-  archive(byte, plugin) = "fs.cma"
-  archive(native) = "fs.cmxa"
-  archive(native, plugin) = "fs.cmxs"
-  exists_if = "fs.cma"
- )
+ requires = "irmin cohttp.lwt ezjsonm.lwt git"
+ archive(byte) = "irmin-backend.cma"
+ archive(byte, plugin) = "irmin-backend.cma"
+ archive(native) = "irmin-backend.cmxa"
+ archive(native, plugin) = "irmin-backend.cmxs"
+ exists_if = "irmin-backend.cma"
 )
 # OASIS_STOP
 

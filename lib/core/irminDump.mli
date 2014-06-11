@@ -18,65 +18,23 @@
 
 open Core_kernel.Std
 
-type origin = IrminOrigin.t
-
-module type STORE = sig
+module type S = sig
 
   (** Store with import/export capabilities. *)
 
-  include IrminStore.RO
-  (** Base functions over database dumps. *)
+  type t
+  (** Local database handlers. *)
 
-  type db
-  (** Database handlers. *)
-
-  val head: t -> key option
-  (** Return the (optional) dump head. *)
-
-  val with_head: t -> key option -> t
-  (** Change the dump head. *)
-
-  val empty: t
-  (** Return the empty dump. *)
-
-  val create: db -> key list -> t Lwt.t
-  (** [create t last] returns the new contents stored in [t] since the
-      [last] snaphots has been taken. If no previous snapshots
-      are provided, return the full contents of the store. *)
-
-  val update: db -> t -> unit Lwt.t
-  (** [update t dump] imports the contents of [dump] in the
-      database. This replace the current branch with the imported
-      contents.  *)
-
-  val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
-  (** Same as [update] but merge with the current branch. *)
-
-  val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
-  (** Same as [merge] but merge raise an exception in case of conflict. *)
-
-  val output_file: db -> ?depth:int -> string -> unit Lwt.t
+  val output_file: t -> ?depth:int -> string -> unit Lwt.t
   (** Create a Graphviz graph representing the store state. Could be
       no-op if the backend does not support that operation (for instance,
       for remote connections). *)
 
-  val output_buffer: db -> ?depth:int -> Buffer.t -> unit Lwt.t
+  val output_buffer: t -> ?depth:int -> Buffer.t -> unit Lwt.t
   (** Same as [output_file] but writes in a buffer. *)
-
-  module Key: IrminKey.S with type t = key
-  (** Dump keys. *)
-
-  module Value: IrminIdent.S with type t = value
-  (** Dump values. *)
-
-  include IrminIdent.S with type t := t
-  (** Base functions over database dumps. *)
 
 end
 
-module Make (S: IrminBranch.INTERNAL):
-  STORE with type db    = S.t
-         and type key   = S.Block.key
-         and type value = S.Block.value
+module Make (S: IrminBranch.STORE): S with type t = S.t
 (** Extend a branch consistent store with import/export
     capabilities. *)

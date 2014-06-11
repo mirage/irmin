@@ -60,28 +60,6 @@ module type STORE = sig
   val set_head: t -> Block.key -> unit
   (** Set the commit head. *)
 
-  module Key: IrminKey.S with type t = key
-  (** Base functions over keys. *)
-
-  module Value: IrminContents.S with type t = value
-  (** Base functions over values. *)
-
-  module Branch: IrminTag.S with type t = branch
-  (** Base functions over branches. *)
-
-  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
-  (** Object graph. *)
-
-end
-
-module type INTERNAL = sig
-
-  (** Expose internal functions to be used by inside the library. *)
-
-  include STORE
-
-  (** {2 Lower level functions} *)
-
   val read_node: t -> key -> Block.node option Lwt.t
   (** Read a node. *)
 
@@ -97,13 +75,29 @@ module type INTERNAL = sig
   val merge_commit: t -> ?origin:origin -> Block.key -> unit IrminMerge.result Lwt.t
   (** Merge a commit in the current branch. *)
 
+  module Key: IrminKey.S with type t = key
+  (** Base functions over keys. *)
+
+  module Value: IrminContents.S with type t = value
+  (** Base functions over values. *)
+
+  module Branch: IrminTag.S with type t = branch
+  (** Base functions over branches. *)
+
+  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
+  (** Object graph. *)
+
 end
+
+type ('key, 'contents, 'tag) t = (module STORE with type Block.key = 'key
+                                                and type value     = 'contents
+                                                and type branch    = 'tag)
 
 module Make
     (Block: IrminBlock.STORE)
     (Tag  : IrminTag.STORE with type value = Block.key)
-  : INTERNAL with type value   = Block.contents
-              and module Block = Block
-              and type branch  = Tag.key
-(** Build a branch consistent store from custom Block] and [Tag] store
+  : STORE with type value   = Block.contents
+           and module Block = Block
+           and type branch  = Tag.key
+(** Build a branch consistent store from custom [Block] and [Tag] store
     implementations. *)

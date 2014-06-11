@@ -1,6 +1,7 @@
 open Lwt
 open Core_kernel.Std
 open IrminMerge.OP
+open Irmin_unix
 
 (* Enable debug outputs if DEBUG is set *)
 let () =
@@ -139,13 +140,10 @@ let error () =
   exit 1
 
 module Git (C: sig val root: string option end) = struct
-  module LocalConfig = struct
-    let root = C.root
-    module Store = Git_fs
-    let bare = true
-    let disk = true
-  end
-  module G = IrminGit.Make(LocalConfig)
+  module G = IrminGit.FS(struct
+      let root = C.root
+      let bare = true
+    end)
   include G.Make(IrminKey.SHA1)(Contents)(IrminTag.String)
 end
 

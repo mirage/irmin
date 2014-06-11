@@ -17,6 +17,7 @@
 open Lwt
 open Core_kernel.Std
 open Cmdliner
+open Irmin_unix
 
 let () =
   let origin =
@@ -27,7 +28,7 @@ let () =
       let tm = Unix.localtime (Int64.to_float d) in
       sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     );
-  IrminFS.install_dir_polling_listener 0.5
+  install_dir_polling_listener 0.5
 
 (* Global options *)
 type global = {
@@ -93,11 +94,6 @@ let create_command c =
 
 let pr_str = Format.pp_print_string
 
-let uri_conv =
-  let parse str = `Ok (Uri.of_string str) in
-  let print ppf v = pr_str ppf (Uri.to_string v) in
-  parse, print
-
 let path_conv =
   let parse str = `Ok (IrminPath.of_string str) in
   let print ppf path = pr_str ppf (IrminPath.to_string path) in
@@ -107,134 +103,10 @@ let path =
   let doc = Arg.info ~docv:"PATH" ~doc:"Path." [] in
   Arg.(value & pos 0 path_conv [] & doc)
 
-let repository =
-  let doc = Arg.info ~docv:"REPOSITORY"
-      ~doc:"The (possibly remote) repository to clone from." [] in
-  Arg.(required & pos 0 (some string) None & doc)
-
-let default_dir = ".irmin"
-
-(* XXX: ugly hack *)
-let init_hook =
-  ref (fun () -> ())
-
-let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminTag.S) =
-  match x with
-  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminTag.String)
-  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminTag.String)
-
-let in_memory_store (type key) k =
-  Log.info (lazy "source: in-memory");
-  let (module K), (module C), (module T) = modules k in
-  let module M = IrminMemory.Make(K)(C)(T) in
-  Irmin.cast (module M)
-
-let local_store k dir =
-  Log.infof "source: dir=%s" dir;
-  init_hook := (fun () -> if not (Sys.file_exists dir) then Unix.mkdir dir 0o755);
-  let (module K), (module C), (module T) = modules k in
-  let module M = IrminFS.Make(struct let path = dir end) in
-  Irmin.cast (module M.Make(K)(C)(T))
-
-let remote_store k uri =
-  let (module K), (module C), (module R) = modules k in
-  let module M = IrminCRUD.Make(Cohttp_lwt_unix.Client)(struct let uri = uri end) in
-  Log.infof "source: uri=%s" (Uri.to_string uri);
-  Irmin.cast (module M.Make
-(K)(C)(R))
-
-let git_store k g =
-  Log.infof "git";
-  let (module K), (module C), (module R) = modules k in
-  let (module Config) = match g with
-    | `Memory -> (module IrminGit.Memory: IrminGit.Config)
-    | `Disk   -> (module struct
-        let root = None
-        module Store = Git_fs
-        let bare = false
-        let disk = true
-      end) in
-  let module M = IrminGit.Make(Config) in
-  Irmin.cast (module M.Make(K)(C)(R))
-
-let store_of_string str =
-  let open Core_kernel.Std in
-  let prefix, suffix =
-    match String.split ~on:':' str with
-    | []   -> str, None
-    | [h]  -> h  , None
-    | h::t -> h  , Some (String.concat ~sep:":" t) in
-  let json = if String.mem prefix 'j' then `JSON else `String in
-  let mem = String.mem prefix 'm' in
-  let git = String.mem prefix 'g' in
-  let local = String.mem prefix 'l' in
-  let remote = String.mem prefix 'r' in
-  match mem, git, local, remote with
-  | true , false, false, false -> Some (in_memory_store json)
-  | _    , true , false, false -> Some (git_store json (if mem then `Memory else `Disk))
-  | false, false, true , false ->
-    let dir = match suffix with
-      | None   -> default_dir
-      | Some d -> Filename.concat d default_dir in
-    Some (local_store json dir)
-  | false, false, false, true  ->
-    let uri = match suffix with
-      | None   -> "http://localhost:8080"
-      | Some u -> u in
-    Some (uri |> Uri.of_string |> remote_store json)
-  | _   ->
-    eprintf "%s is not a valid store specification\n%!" str;
-    None
-
-let store_of_string_exn str =
-  match store_of_string str with
-  | None   -> failwith "store_of_string"
-  | Some s -> s
-
-let store_of_env_var () =
-  try store_of_string (Sys.getenv "IRMIN")
-  with Not_found -> None
-
-let store =
-  let json =
-    let doc = Arg.info ~doc:"Use JSON values." ["j";"json"] in
-    Arg.(value & flag & doc) in
-  let in_memory =
-    let doc =
-      Arg.info ~doc:"In-memory persistence." ["m";"in-memory"] in
-    Arg.(value & flag & doc) in
-  let local =
-    let doc =
-      Arg.info ~docv:"PATH" ~doc:"Local store." ["l";"local"] in
-    Arg.(value & opt (some string) None & doc) in
-  let remote =
-    let doc =
-      Arg.info ~docv:"URI" ~doc:"Remote store." ["r";"remote"] in
-    Arg.(value & opt (some uri_conv) None & doc) in
-  let git =
-    let doc =
-      Arg.info ~doc:"Local Git store." ["g";"git"] in
-    Arg.(value & flag & doc) in
-  let create json git in_memory local remote =
-    let json = if json then `JSON else `String in
-    if git || in_memory || local <> None || remote <> None  then
-      match git, in_memory, local, remote with
-      | true , _    , None   , None   -> git_store json (if in_memory then `Memory else `Disk)
-      | false, true , None   , None   -> in_memory_store json
-      | false, false, None   , Some u -> remote_store json u
-      | false, false, Some d , None   -> local_store json (Filename.concat d default_dir)
-      | false, false, None   , None   -> local_store json default_dir
-      | _ ->
-        let local = match local with None -> "<none>" | Some d -> d in
-        let remote = match remote with None -> "<none>" | Some u -> Uri.to_string u in
-        failwith (sprintf
-                    "Invalid store source [git=%b in-memory=%b %s %s]"
-                    git in_memory local remote)
-    else match store_of_env_var () with
-      | None   -> local_store json default_dir
-      | Some s -> s
-  in
-  Term.(pure create $ json $ git $ in_memory $ local $ remote)
+let depth =
+  let doc =
+    Arg.info ~docv:"DEPTH" ~doc:"Limit the dump depth." ["d";"depth"] in
+  Arg.(value & opt (some int) None & doc)
 
 let run t =
   Lwt_unix.run (
@@ -264,15 +136,16 @@ let init = {
     let init (module S: Irmin.S) daemon uri =
       run begin
         S.create () >>= fun t ->
-        !init_hook ();
+        IrminResolver.init_hook ();
+        let module HTTP = IrminHTTP.Make(S) in
         if daemon then
           let uri = Uri.of_string uri in
           Log.infof "daemon: %s" (Uri.to_string uri);
-          IrminHTTP.start_server (module S) t uri
+          HTTP.listen t uri
         else return_unit
       end
     in
-    Term.(mk init $ store $ daemon $ uri)
+    Term.(mk init $ IrminResolver.store $ daemon $ uri)
 }
 
 let print fmt =
@@ -292,7 +165,7 @@ let read = {
         | Some v -> print "%s" (S.Value.to_string v); return_unit
       end
     in
-    Term.(mk read $ store $ path);
+    Term.(mk read $ IrminResolver.store $ path);
 }
 
 (* LS *)
@@ -309,7 +182,7 @@ let ls = {
         return_unit
       end
     in
-    Term.(mk ls $ store $ path);
+    Term.(mk ls $ IrminResolver.store $ path);
 }
 
 (* TREE *)
@@ -338,7 +211,7 @@ let tree = {
       return_unit
     end
   in
-  Term.(mk tree $ store);
+  Term.(mk tree $ IrminResolver.store);
 }
 
 (* WRITE *)
@@ -364,7 +237,7 @@ let write = {
         S.update t path value
       end
     in
-    Term.(mk write $ store $ args);
+    Term.(mk write $ IrminResolver.store $ args);
 }
 
 (* RM *)
@@ -379,14 +252,8 @@ let rm = {
         S.remove t path
       end
     in
-    Term.(mk rm $ store $ path);
+    Term.(mk rm $ IrminResolver.store $ path);
 }
-
-let convert_dump
-    (type a) (module L: Irmin.S with type Dump.t = a)
-    (type b) (module R: Irmin.S with type Dump.t = b)
-    (dump: b): a =
-  R.Dump.to_string dump |> L.Dump.of_string
 
 (* CLONE *)
 let clone = {
@@ -394,38 +261,16 @@ let clone = {
   doc  = "Clone a repository into a new store.";
   man  = [];
   term =
-    let clone (module L: Irmin.S) repository =
-      !init_hook ();
-      let (module R) = store_of_string_exn repository in
+    let clone (module L: Irmin.S) remote depth =
+      IrminResolver.init_hook ();
       run begin
-        L.create ()              >>= fun local  ->
-        R.create ()              >>= fun remote ->
-        R.Dump.create remote []  >>= fun dump   ->
-        print "Cloning %d bytes" (R.Dump.bin_size_t dump);
-        let dump = convert_dump (module L) (module R) dump in
-        L.Dump.update local dump
+        L.create ()                           >>= fun local  ->
+        L.Sync.fetch_exn local ?depth remote >>= fun d ->
+        L.Sync.update local d
       end
     in
-    Term.(mk clone $ store $ repository);
+    Term.(mk clone $ IrminResolver.store $ IrminResolver.remote $ depth);
 }
-
-let op_repo op (module L: Irmin.S) (module R: Irmin.S) =
-  L.create ()              >>= fun local  ->
-  R.create ()              >>= fun remote ->
-  L.Snapshot.create local  >>= fun l ->
-  let l =
-    L.Snapshot.to_state l
-    |> L.Snapshot.to_string
-    |> R.Snapshot.of_string in
-  R.Dump.create remote [l] >>= fun dump   ->
-  print "%sing %d bytes" op (R.Dump.bin_size_t dump);
-  let dump = convert_dump (module L) (module R) dump in
-  let branch = L.Branch.of_string "import" in
-  L.create ~branch ()      >>= fun t ->
-  L.Dump.update t dump     >>= fun () ->
-  return (L.Branch.to_string branch)
-
-let fetch_repo = op_repo "Fetch"
 
 (* FETCH *)
 let fetch = {
@@ -433,14 +278,15 @@ let fetch = {
   doc  = "Download objects and refs from another repository.";
   man  = [];
   term =
-    let fetch local repository =
-      let remote = store_of_string_exn repository in
+    let fetch (module L: Irmin.S) remote =
       run begin
-        fetch_repo local remote >>= fun _ ->
-        return_unit
+        let branch = L.Branch.of_string "import" in
+        L.create ~branch ()            >>= fun local ->
+        L.Sync.fetch_exn local remote >>= fun d ->
+        L.Sync.update local d
       end
     in
-    Term.(mk fetch $ store $ repository);
+    Term.(mk fetch $ IrminResolver.store $ IrminResolver.remote);
 }
 
 (* PULL *)
@@ -449,21 +295,15 @@ let pull = {
   doc  = "Fetch and merge with another repository.";
   man  = [];
   term =
-    let pull (module L: Irmin.S) repository =
-      let remote = store_of_string_exn repository in
+    let pull (module L: Irmin.S) remote =
       run begin
-        fetch_repo (module L) remote >>= fun branch ->
-        let branch = L.Branch.of_string branch in
-        L.create ()                  >>= fun t ->
-        L.merge t branch             >>= function
-        | `Ok _         -> return_unit
-        | `Conflict msg -> eprintf "Conflict: %s\n" msg; exit 0
+        L.create ()                    >>= fun local ->
+        L.Sync.fetch_exn local remote >>= fun d ->
+        L.Sync.merge_exn local d
       end
     in
-    Term.(mk pull $ store $ repository);
+    Term.(mk pull $ IrminResolver.store $ IrminResolver.remote);
 }
-
-let push_repo = op_repo "Push"
 
 (* PUSH *)
 let push = {
@@ -471,15 +311,14 @@ let push = {
   doc  = "Update remote references along with associated objects.";
   man  = [];
   term =
-    let push local repository =
-      let (module R) = store_of_string_exn repository in
+    let push (module L: Irmin.S) remote =
       run begin
-        push_repo (module R) local          >>= fun branch ->
-        R.create ~branch:R.Branch.master () >>= fun t ->
-        R.switch t (R.Branch.of_string branch)
+        L.create ()                  >>= fun local ->
+        L.Sync.push_exn local remote >>= fun _ ->
+        return_unit
       end
     in
-    Term.(mk push $ store $ repository);
+    Term.(mk push $ IrminResolver.store $ IrminResolver.remote);
 }
 
 (* SNAPSHOT *)
@@ -496,7 +335,7 @@ let snapshot = {
         return_unit
       end
     in
-    Term.(mk snapshot $ store)
+    Term.(mk snapshot $ IrminResolver.store)
 }
 
 (* REVERT *)
@@ -515,7 +354,7 @@ let revert = {
         S.Snapshot.revert t s
       end
     in
-    Term.(mk revert $ store $ snapshot)
+    Term.(mk revert $ IrminResolver.store $ snapshot)
 }
 (* WATCH *)
 let watch = {
@@ -537,7 +376,7 @@ let watch = {
           ) stream
       end
     in
-    Term.(mk watch $ store $ path)
+    Term.(mk watch $ IrminResolver.store $ path)
 }
 
 (* DUMP *)
@@ -546,10 +385,6 @@ let dump = {
   doc  = "Dump the contents of the store as a Graphviz file.";
   man  = [];
   term =
-    let depth =
-      let doc =
-        Arg.info ~docv:"DEPTH" ~doc:"Limit the dump depth." ["d";"depth"] in
-      Arg.(value & opt (some int) None & doc) in
     let basename =
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
@@ -560,7 +395,7 @@ let dump = {
         S.Dump.output_file t ?depth basename
       end
     in
-    Term.(mk dump $ store $ basename $ depth);
+    Term.(mk dump $ IrminResolver.store $ basename $ depth);
 }
 
 (* HELP *)
