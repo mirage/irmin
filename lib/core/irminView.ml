@@ -426,8 +426,13 @@ module Store (S: IrminBranch.STORE) = struct
     S.read_node t []           >>= function
     | None           -> fail Not_found
     | Some head_node ->
+      (* First, we check than we can rebase the view on the current
+         HEAD. *)
       of_path t path             >>= fun head_view ->
       merge view ~into:head_view >>| fun () ->
+      (* Now that we know that rebasing is possible, we discard the
+         result and proceed as a normal merge, ie. we apply the view
+         on a branch, and we merge the branch back into the store. *)
       node_of_view t view        >>= fun view_node ->
       (* Create a commit with the contents of the view *)
       S.Block.Node.map (S.node_t t) head_node path (fun _ -> view_node)
@@ -446,7 +451,10 @@ module Store (S: IrminBranch.STORE) = struct
       in
       S.Block.Commit.commit (S.commit_t t) origin ~node:new_head_node ~parents
       >>= fun (k, _) ->
-      if List.length parents = 1 then
+      (* We want to avoid to create a merge commit when the HEAD has
+         not been updated since the view has been created. *)
+      S.head_exn t >>= fun head ->
+      if List.mem view.parents head then
         S.update_commit t k >>= fun () ->
         ok ()
       else
