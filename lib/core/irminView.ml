@@ -423,32 +423,37 @@ module Store (S: IrminBranch.STORE) = struct
 
   let merge_path ?origin t path view =
     Log.debugf "merge_view %s" (IrminPath.to_string path);
-    of_path t path        >>= fun head ->
-    merge view ~into:head >>| fun () ->
-    node_of_view t view   >>= fun view_node ->
-    S.read_node t []      >>= function
+    S.read_node t []           >>= function
     | None           -> fail Not_found
     | Some head_node ->
+      of_path t path             >>= fun head_view ->
+      merge view ~into:head_view >>| fun () ->
+      node_of_view t view        >>= fun view_node ->
       (* Create a commit with the contents of the view *)
       S.Block.Node.map (S.node_t t) head_node path (fun _ -> view_node)
-      >>= fun node ->
+      >>= fun new_head_node ->
       Lwt_list.map_p (S.Block.Commit.read_exn (S.commit_t t)) view.parents
       >>= fun parents ->
       let origin = match origin with
-      | None ->
-        let buf = Buffer.create 1024 in
-        let string_of_action = Action.to_string (fun x -> "") in
-        List.iter ~f:(fun a ->
-            bprintf buf "- %s\n" (string_of_action a)
-          ) (actions view);
-        IrminOrigin.create "Actions:\n%s\n" (Buffer.contents buf)
-      | Some o -> o
+        | None ->
+          let buf = Buffer.create 1024 in
+          let string_of_action = Action.to_string (fun x -> "") in
+          List.iter ~f:(fun a ->
+              bprintf buf "- %s\n" (string_of_action a)
+            ) (actions view);
+          IrminOrigin.create "Actions:\n%s\n" (Buffer.contents buf)
+        | Some o -> o
       in
-      S.Block.Commit.commit (S.commit_t t) origin ~node ~parents >>= fun (k, _) ->
-      let origin =
-        IrminOrigin.create "Merge view to %s\n"
-          (IrminPath.to_string path) in
-      S.merge_commit t ~origin k
+      S.Block.Commit.commit (S.commit_t t) origin ~node:new_head_node ~parents
+      >>= fun (k, _) ->
+      if List.length parents = 1 then
+        S.update_commit t k >>= fun () ->
+        ok ()
+      else
+        let origin =
+          IrminOrigin.create "Merge view to %s\n"
+            (IrminPath.to_string path) in
+        S.merge_commit t ~origin k
 
   let merge_path_exn ?origin t path view =
     merge_path ?origin t path view >>=
