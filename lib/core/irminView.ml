@@ -268,9 +268,9 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
           match Map.find n.Node.succ h with
-          | Some view ->
-            if v = None then with_cleanup t view (fun () -> aux view p)
-            else aux view p
+          | Some child ->
+            if v = None then with_cleanup t view (fun () -> aux child p)
+            else aux child p
           | None      ->
             if v = None then return_unit
             else
