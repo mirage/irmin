@@ -22,7 +22,7 @@ module Log = Log.Make(struct let section ="DUMP" end)
 
 module type S = sig
   type t
-  val output_file: t -> ?depth:int -> string ->  unit Lwt.t
+  val output_file: t -> ?depth:int -> ?call_dot:bool -> string ->  unit Lwt.t
   val output_buffer: t -> ?depth:int -> Buffer.t -> unit Lwt.t
 end
 
@@ -193,16 +193,17 @@ module Make (Store: IrminBranch.STORE) = struct
       ) tags;
     return (fun ppf -> Store.Graph.output ppf !vertex !edges name)
 
-  let output_file t ?depth name =
+  let output_file t ?depth ?(call_dot=true) name =
     Log.debugf "output %s" name;
     fprintf t ?depth name ~html:false >>= fun fprintf ->
     let oc = Out_channel.create (name ^ ".dot") in
     fprintf (Format.formatter_of_out_channel oc);
     Out_channel.close oc;
-    let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
-    (* XXX: this is not Xen-friendly *)
-    let i = Sys.command cmd in
-    if Int.(i <> 0) then Log.errorf "The %s.dot is corrupted" name;
+    if call_dot then (
+      let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
+      let i = Sys.command cmd in
+      if Int.(i <> 0) then Log.errorf "The %s.dot is corrupted" name;
+    );
     return_unit
 
   let output_buffer t ?depth buf =

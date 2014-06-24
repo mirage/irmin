@@ -25,7 +25,7 @@ module type S = sig
   type t
   (** Local database handlers. *)
 
-  val output_file: t -> ?depth:int -> string -> unit Lwt.t
+  val output_file: t -> ?depth:int -> ?call_dot:bool -> string -> unit Lwt.t
   (** Create a Graphviz graph representing the store state. Could be
       no-op if the backend does not support that operation (for instance,
       for remote connections). *)

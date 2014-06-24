@@ -389,13 +389,19 @@ let dump = {
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
       Arg.(required & pos 0 (some & string) None & doc) in
-    let dump (module S: Irmin.S) basename depth =
+    let no_dot_call =
+      let doc =
+        Arg.info ~doc:"Do not call the `dot' utility on the generated `.dot` file."
+          ["--no-dot-call"] in
+      Arg.(value & flag & doc) in
+    let dump (module S: Irmin.S) basename depth no_dot_call =
       run begin
         S.create () >>= fun t ->
-        S.Dump.output_file t ?depth basename
+        let call_dot = not no_dot_call in
+        S.Dump.output_file t ?depth ~call_dot basename
       end
     in
-    Term.(mk dump $ IrminResolver.store $ basename $ depth);
+    Term.(mk dump $ IrminResolver.store $ basename $ depth $ no_dot_call);
 }
 
 (* HELP *)
