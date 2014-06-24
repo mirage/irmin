@@ -20,7 +20,7 @@ module M = struct
   type nonrec t = string list with bin_io, compare, sexp
   let hash (t : t) = Hashtbl.hash t
   let to_string t =
-    String.concat ~sep:"/" t
+    "/" ^ (String.concat ~sep:"/" t)
   let of_string str =
     List.filter
       ~f:(fun s -> not (String.is_empty s))
