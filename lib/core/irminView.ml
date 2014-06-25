@@ -178,6 +178,7 @@ type ('k, 'c) t = {
   contents: 'k -> 'c option Lwt.t;
   view    : ('k, 'c) Node.t;
   mutable ops: 'c Action.t list;
+  mutable parents: 'k list;
 }
 
 module Make (K: IrminKey.S) (C: IrminContents.S) = struct
@@ -196,7 +197,8 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     let contents _ = return_none in
     let view = Node.empty () in
     let ops = [] in
-    return { node; contents; view; ops }
+    let parents = [] in
+    return { parents; node; contents; view; ops }
 
   let sub t path =
     let rec aux node = function
@@ -268,9 +270,9 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
           match Map.find n.Node.succ h with
-          | Some view ->
-            if v = None then with_cleanup t view (fun () -> aux view p)
-            else aux view p
+          | Some child ->
+            if v = None then with_cleanup t view (fun () -> aux child p)
+            else aux child p
           | None      ->
             if v = None then return_unit
             else
@@ -317,7 +319,9 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     List.rev t.ops
 
   let merge t1 ~into =
-    IrminMerge.iter (apply into) (List.rev t1.ops)
+    IrminMerge.iter (apply into) (List.rev t1.ops) >>| fun () ->
+    into.parents <- List.dedup (t1.parents @ into.parents);
+    ok ()
 
 end
 
@@ -331,7 +335,7 @@ module Store (S: IrminBranch.STORE) = struct
   type db = S.t
   type path = S.key
 
-  let import ~contents ~node key =
+  let import ~parents ~contents ~node key =
     Log.debugf "import %s" (K.to_string key);
     node key >>= function
     | None   -> fail Not_found
@@ -342,8 +346,7 @@ module Store (S: IrminBranch.STORE) = struct
         | Some n -> return (Some (Node.import n)) in
       let view = Node.key key in
       let ops = [] in
-      return { node; contents; view; ops }
-
+      return { parents; node; contents; view; ops }
   let export ~contents ~node t =
     Log.debugf "export";
     let node n =
@@ -393,11 +396,16 @@ module Store (S: IrminBranch.STORE) = struct
     Log.debugf "read_view %s" (IrminPath.to_string path);
     let contents = Contents.read (S.contents_t t) in
     let node = Node.read (S.node_t t) in
+    let parents =
+      S.head t >>= function
+      | None   -> return_nil
+      | Some h -> return [h] in
     S.read_node t path >>= function
     | None   -> create ()
     | Some n ->
       Node.add (S.node_t t) n >>= fun k ->
-      import ~contents ~node k
+      parents >>= fun parents ->
+      import ~parents ~contents ~node k
 
   let node_of_view t view =
     let contents = Contents.add (S.contents_t t) in
@@ -413,22 +421,67 @@ module Store (S: IrminBranch.STORE) = struct
     node_of_view t view >>= fun node ->
     S.update_node t origin path node
 
+  let origin_of_actions ?origin actions =
+    match origin with
+    | None ->
+      let buf = Buffer.create 1024 in
+      let string_of_action = Action.to_string (fun x -> "") in
+      List.iter ~f:(fun a ->
+          bprintf buf "- %s\n" (string_of_action a)
+        ) actions;
+      IrminOrigin.create "Actions:\n%s\n" (Buffer.contents buf)
+    | Some o -> o
+
+  let rebase_path ?origin t path view =
+    Log.debugf "merge_view %s" (IrminPath.to_string path);
+    S.read_node t []           >>= function
+    | None           -> fail Not_found
+    | Some head_node ->
+      of_path t path                       >>= fun head_view ->
+      merge view ~into:head_view           >>| fun () ->
+      let origin = origin_of_actions ?origin (actions view) in
+      update_path ~origin t path head_view >>= fun () ->
+      ok ()
+
+  let rebase_path_exn ?origin t path view =
+    rebase_path ?origin t path view >>=
+    IrminMerge.exn
+
   let merge_path ?origin t path view =
     Log.debugf "merge_view %s" (IrminPath.to_string path);
-    of_path t path >>= fun head ->
-    merge view ~into:head >>| fun () ->
-    let origin = match origin with
-      | None   ->
-        let buf = Buffer.create 1024 in
-        let string_of_action = Action.to_string (fun x -> "") in
-        List.iter ~f:(fun a ->
-            bprintf buf "- %s\n" (string_of_action a)
-          ) (actions view);
-        IrminOrigin.create "Merge view to %s\n\nActions:\n%s\n"
-          (IrminPath.to_string path) (Buffer.contents buf)
-      | Some o -> o in
-    update_path ~origin t path head >>= fun () ->
-    ok ()
+    S.read_node t []           >>= function
+    | None           -> fail Not_found
+    | Some head_node ->
+      (* First, we check than we can rebase the view on the current
+         HEAD. *)
+      of_path t path             >>= fun head_view ->
+      merge view ~into:head_view >>| fun () ->
+      (* Now that we know that rebasing is possible, we discard the
+         result and proceed as a normal merge, ie. we apply the view
+         on a branch, and we merge the branch back into the store. *)
+      node_of_view t view        >>= fun view_node ->
+      (* Create a commit with the contents of the view *)
+      S.Block.Node.map (S.node_t t) head_node path (fun _ -> view_node)
+      >>= fun new_head_node ->
+      Lwt_list.map_p (S.Block.Commit.read_exn (S.commit_t t)) view.parents
+      >>= fun parents ->
+      let origin = origin_of_actions ?origin (actions view) in
+      S.Block.Commit.commit (S.commit_t t) origin ~node:new_head_node ~parents
+      >>= fun (k, _) ->
+      (* We want to avoid to create a merge commit when the HEAD has
+         not been updated since the view has been created. *)
+      S.head t >>= function
+      | None ->
+        (* The store is empty, create a fresh commit. *)
+        S.update_commit t k >>= ok
+      | Some head ->
+        if List.mem view.parents head then
+          S.update_commit t k >>= ok
+        else
+          let origin =
+            IrminOrigin.create "Merge view to %s\n"
+              (IrminPath.to_string path) in
+          S.merge_commit t ~origin k
 
   let merge_path_exn ?origin t path view =
     merge_path ?origin t path view >>=
@@ -453,6 +506,8 @@ module type STORE = sig
   type path = IrminPath.t
   val of_path: db -> path -> t Lwt.t
   val update_path: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  val rebase_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
+  val rebase_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
   val merge_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
   val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
 end

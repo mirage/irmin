@@ -28,8 +28,6 @@ Library irmin
   BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
                 re.pcre, re.perl, dolog, mstruct, uri,
                 core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
-  ByteOpt: -bin-annot
-  NativeOpt: -bin-annot
   XMETARequires: ezjsonm, ocamlgraph, lwt, sha,
                  re.pcre, re.perl, dolog, mstruct, core_kernel, uri
 
@@ -39,8 +37,6 @@ Library "irmin-backend"
   FindlibParent: irmin
   BuildDepends: irmin, cohttp.lwt, ezjsonm.lwt, git
   Modules: IrminCRUD, IrminMemory, IrminGit, IrminFS
-  ByteOpt: -bin-annot
-  NativeOpt: -bin-annot
 
 Library "irmin-server"
   Path: lib/server
@@ -48,8 +44,6 @@ Library "irmin-server"
   FindlibParent: irmin
   BuildDepends: cohttp.lwt, irmin
   Modules: IrminHTTP, IrminHTTPStatic
-  ByteOpt: -bin-annot
-  NativeOpt: -bin-annot
 
 Library "irmin-unix"
   Build$: flag(unix)
@@ -57,10 +51,8 @@ Library "irmin-unix"
   Path: lib/unix
   Findlibname: unix
   FindlibParent: irmin
-  BuildDepends: lwt.unix, irmin.backend, irmin.server, git.unix
+  BuildDepends: irmin, lwt.unix, irmin.backend, irmin.server, git.unix
   Modules: Irmin_unix
-  ByteOpt: -bin-annot
-  NativeOpt: -bin-annot
 
 Document irmin
   Title:                Irmin docs
@@ -92,7 +84,7 @@ Executable test_irmin
   Build$:             flag(tests) && flag(unix)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin.unix, alcotest, cryptokit
+  BuildDepends:       irmin, irmin.unix, alcotest, cryptokit
 
 Test test_irmin
   Run$:               flag(tests) && flag(unix)
@@ -105,7 +97,7 @@ Executable test_git_store
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin.unix
+  BuildDepends:       irmin, irmin.unix
 
 Executable test_custom_merge
   Path:               examples/
@@ -113,7 +105,7 @@ Executable test_custom_merge
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin.unix
+  BuildDepends:       irmin, irmin.unix
 
 Executable test_views
   Path:               examples/
@@ -121,7 +113,7 @@ Executable test_views
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin.unix
+  BuildDepends:       irmin, irmin.unix
 
 Executable test_contatcs
   Path:               examples/
@@ -129,7 +121,7 @@ Executable test_contatcs
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin.unix
+  BuildDepends:       irmin, irmin.unix
 
 Executable test_intrusion
   Path:               examples/
@@ -137,7 +129,7 @@ Executable test_intrusion
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin.unix
+  BuildDepends:       irmin, irmin.unix
 
 Executable test_process
   Path:               examples/
@@ -145,4 +137,4 @@ Executable test_process
   Build$:             flag(unix) & flag(examples)
   CompiledObject:     best
   Install:            false
-  BuildDepends:       irmin.unix
+  BuildDepends:       irmin, irmin.unix

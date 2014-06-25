@@ -256,7 +256,7 @@ module Make
       | Some b -> b
 
   let find t node path =
-    Log.debugf "XXX find %S" (IrminPath.to_string path);
+    Log.debugf "find %S" (IrminPath.to_string path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->

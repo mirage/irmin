@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1d36c1f9dde66149e0cc6d85d677ab43)
+# DO NOT EDIT (digest: cbff1a03dd9fdd8fa008cfc16f854680)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -15,10 +15,6 @@
 "_darcs": not_hygienic
 # Library irmin
 "lib/core/irmin.cmxs": use_irmin
-<lib/core/irmin.{cma,cmxa}>: oasis_library_irmin_byte
-<lib/core/*.ml{,i}>: oasis_library_irmin_byte
-<lib/core/irmin.{cma,cmxa}>: oasis_library_irmin_native
-<lib/core/*.ml{,i}>: oasis_library_irmin_native
 <lib/core/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/core/*.ml{,i}>: pkg_comparelib.syntax
 <lib/core/*.ml{,i}>: pkg_core_kernel
@@ -34,10 +30,6 @@
 <lib/core/*.ml{,i}>: pkg_uri
 # Library irmin-backend
 "lib/backend/irmin-backend.cmxs": use_irmin-backend
-<lib/backend/irmin-backend.{cma,cmxa}>: oasis_library_irmin_backend_byte
-<lib/backend/*.ml{,i}>: oasis_library_irmin_backend_byte
-<lib/backend/irmin-backend.{cma,cmxa}>: oasis_library_irmin_backend_native
-<lib/backend/*.ml{,i}>: oasis_library_irmin_backend_native
 <lib/backend/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/backend/*.ml{,i}>: pkg_cohttp.lwt
 <lib/backend/*.ml{,i}>: pkg_comparelib.syntax
@@ -57,10 +49,6 @@
 <lib/backend/*.ml{,i}>: use_irmin
 # Library irmin-server
 "lib/server/irmin-server.cmxs": use_irmin-server
-<lib/server/irmin-server.{cma,cmxa}>: oasis_library_irmin_server_byte
-<lib/server/*.ml{,i}>: oasis_library_irmin_server_byte
-<lib/server/irmin-server.{cma,cmxa}>: oasis_library_irmin_server_native
-<lib/server/*.ml{,i}>: oasis_library_irmin_server_native
 <lib/server/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/server/*.ml{,i}>: pkg_cohttp.lwt
 <lib/server/*.ml{,i}>: pkg_comparelib.syntax
@@ -78,10 +66,6 @@
 <lib/server/*.ml{,i}>: use_irmin
 # Library irmin-unix
 "lib/unix/irmin-unix.cmxs": use_irmin-unix
-<lib/unix/irmin-unix.{cma,cmxa}>: oasis_library_irmin_unix_byte
-<lib/unix/*.ml{,i}>: oasis_library_irmin_unix_byte
-<lib/unix/irmin-unix.{cma,cmxa}>: oasis_library_irmin_unix_native
-<lib/unix/*.ml{,i}>: oasis_library_irmin_unix_native
 <lib/unix/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/unix/*.ml{,i}>: pkg_cohttp.lwt
 <lib/unix/*.ml{,i}>: pkg_comparelib.syntax

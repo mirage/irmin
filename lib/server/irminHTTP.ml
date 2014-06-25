@@ -138,7 +138,11 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
       ~body ()
 
   let respond ?headers body =
-    Log.debugf "%S" body;
+    Log.debug
+      (lazy (String.escaped @@
+             if String.length body > 140 then
+               String.sub body 0 100 ^ ".."
+             else body));
     HTTP.respond_string ?headers ~status:`OK ~body ()
 
   let respond_json json =
@@ -328,10 +332,13 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
     | [] -> return graph_index
     | ["graph.dot"] ->
       let depth = match List.Assoc.find query "depth" with
-        | Some [x] -> Some (Int.of_string x)
-        | _        -> None in
+        | Some (x::_) -> Some (Int.of_string x)
+        | _           -> None in
+      let full = match List.Assoc.find query "full" with
+        | Some (x::_) -> Some (x <> "0")
+        | _           -> None in
       let buffer = Buffer.create 1024 in
-      S.Dump.output_buffer dump ?depth buffer >>= fun () ->
+      S.Dump.output_buffer dump ?depth ?full buffer >>= fun () ->
       let str = Buffer.contents buffer in
       (* Fix the OCamlGraph output (XXX: open an issue upstream) *)
       let str = IrminMisc.replace ~pattern:",[ \\n]*]" (fun _ -> "]") str in

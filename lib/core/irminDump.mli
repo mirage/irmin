@@ -25,12 +25,16 @@ module type S = sig
   type t
   (** Local database handlers. *)
 
-  val output_file: t -> ?depth:int -> string -> unit Lwt.t
-  (** Create a Graphviz graph representing the store state. Could be
-      no-op if the backend does not support that operation (for instance,
-      for remote connections). *)
+  val output_file:
+    t -> ?depth:int -> ?call_dot:bool -> ?full:bool -> string -> unit Lwt.t
+  (** [output_file name] creates a Graphviz file [name.dot]
+      representing the store state. If [call_dot] is set (it is not by
+      default), call the `dot` binary to generate a the corresponding
+      `.png` file. If [full] is set (it is not by default), the full
+      graph, included the filesystem and blobs is exported, otherwise
+      it is the history graph only.  *)
 
-  val output_buffer: t -> ?depth:int -> Buffer.t -> unit Lwt.t
+  val output_buffer: t -> ?depth:int -> ?full:bool -> Buffer.t -> unit Lwt.t
   (** Same as [output_file] but writes in a buffer. *)
 
 end

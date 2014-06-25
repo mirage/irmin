@@ -32,8 +32,21 @@ module String = struct
   let of_raw s = s
   let to_raw s = s
   let master = "master"
-  let of_json j = IrminPath.to_string (IrminPath.of_json j)
-  let to_json s = IrminPath.to_json (IrminPath.of_string s)
+
+  let implode ts =
+    String.concat ~sep:"/" ts
+
+  let explode t =
+    List.filter
+      ~f:(fun s -> not (String.is_empty s))
+      (String.split t ~on:'/')
+
+  let to_json t =
+    Ezjsonm.list Ezjsonm.string (explode t)
+
+  let of_json j =
+    implode (Ezjsonm.get_list Ezjsonm.get_string j)
+
 end
 
 module type STORE = sig
