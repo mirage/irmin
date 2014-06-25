@@ -421,6 +421,32 @@ module Store (S: IrminBranch.STORE) = struct
     node_of_view t view >>= fun node ->
     S.update_node t origin path node
 
+  let origin_of_actions ?origin actions =
+    match origin with
+    | None ->
+      let buf = Buffer.create 1024 in
+      let string_of_action = Action.to_string (fun x -> "") in
+      List.iter ~f:(fun a ->
+          bprintf buf "- %s\n" (string_of_action a)
+        ) actions;
+      IrminOrigin.create "Actions:\n%s\n" (Buffer.contents buf)
+    | Some o -> o
+
+  let rebase_path ?origin t path view =
+    Log.debugf "merge_view %s" (IrminPath.to_string path);
+    S.read_node t []           >>= function
+    | None           -> fail Not_found
+    | Some head_node ->
+      of_path t path                       >>= fun head_view ->
+      merge view ~into:head_view           >>| fun () ->
+      let origin = origin_of_actions ?origin (actions view) in
+      update_path ~origin t path head_view >>= fun () ->
+      ok ()
+
+  let rebase_path_exn ?origin t path view =
+    rebase_path ?origin t path view >>=
+    IrminMerge.exn
+
   let merge_path ?origin t path view =
     Log.debugf "merge_view %s" (IrminPath.to_string path);
     S.read_node t []           >>= function
@@ -439,16 +465,7 @@ module Store (S: IrminBranch.STORE) = struct
       >>= fun new_head_node ->
       Lwt_list.map_p (S.Block.Commit.read_exn (S.commit_t t)) view.parents
       >>= fun parents ->
-      let origin = match origin with
-        | None ->
-          let buf = Buffer.create 1024 in
-          let string_of_action = Action.to_string (fun x -> "") in
-          List.iter ~f:(fun a ->
-              bprintf buf "- %s\n" (string_of_action a)
-            ) (actions view);
-          IrminOrigin.create "Actions:\n%s\n" (Buffer.contents buf)
-        | Some o -> o
-      in
+      let origin = origin_of_actions ?origin (actions view) in
       S.Block.Commit.commit (S.commit_t t) origin ~node:new_head_node ~parents
       >>= fun (k, _) ->
       (* We want to avoid to create a merge commit when the HEAD has
@@ -489,6 +506,8 @@ module type STORE = sig
   type path = IrminPath.t
   val of_path: db -> path -> t Lwt.t
   val update_path: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  val rebase_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
+  val rebase_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
   val merge_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
   val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
 end

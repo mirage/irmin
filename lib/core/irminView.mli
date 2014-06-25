@@ -96,11 +96,18 @@ module type STORE = sig
       manually (by creating a new branch, or rebasing before
       commiting). [origin] helps keeping track of provenance. *)
 
+  val rebase_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
+  (** Rebase the view to the tip of the store. *)
+
+  val rebase_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  (** Same as [rebase_path] but raise [Conflict] in case of
+      conflict. *)
+
   val merge_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
-  (** Same as [update_view] but *merges* with the current subtree. *)
+  (** Same as [update_path] but *merges* with the current subtree. *)
 
   val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
-  (** Same as [merge_view] but throw [Conflict "msg"] in case of
+  (** Same as [merge_path] but throw [Conflict "msg"] in case of
       conflict. *)
 
 end
