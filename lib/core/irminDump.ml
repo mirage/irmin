@@ -42,7 +42,7 @@ module Make (Store: IrminBranch.STORE) = struct
 
   type t = Store.t
 
-  let get_contents t ?(commits_only=false) = function
+  let get_contents t ?(commits_only=true) = function
     | None  ->
       Tag.dump (Store.tag_t t)           >>= fun tags     ->
       Commit.dump (Store.commit_t t)     >>= fun commits  ->
@@ -201,9 +201,9 @@ module Make (Store: IrminBranch.STORE) = struct
       ) tags;
     return (fun ppf -> Store.Graph.output ppf !vertex !edges name)
 
-  let output_file t ?depth ?(call_dot=true) ?(commits_only=false) name =
+  let output_file t ?depth ?(call_dot=true) ?commits_only name =
     Log.debugf "output %s" name;
-    fprintf t ?depth name ~html:false >>= fun fprintf ->
+    fprintf t ?depth ?commits_only ~html:false name >>= fun fprintf ->
     let oc = Out_channel.create (name ^ ".dot") in
     fprintf (Format.formatter_of_out_channel oc);
     Out_channel.close oc;
@@ -215,7 +215,7 @@ module Make (Store: IrminBranch.STORE) = struct
     return_unit
 
   let output_buffer t ?depth ?commits_only buf =
-    fprintf t ?depth "graph" ~html:true >>= fun fprintf ->
+    fprintf t ?depth ?commits_only ~html:true "graph" >>= fun fprintf ->
     let ppf = Format.formatter_of_buffer buf in
     fprintf ppf;
     return_unit
