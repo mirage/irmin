@@ -453,15 +453,18 @@ module Store (S: IrminBranch.STORE) = struct
       >>= fun (k, _) ->
       (* We want to avoid to create a merge commit when the HEAD has
          not been updated since the view has been created. *)
-      S.head_exn t >>= fun head ->
-      if List.mem view.parents head then
-        S.update_commit t k >>= fun () ->
-        ok ()
-      else
-        let origin =
-          IrminOrigin.create "Merge view to %s\n"
-            (IrminPath.to_string path) in
-        S.merge_commit t ~origin k
+      S.head t >>= function
+      | None ->
+        (* The store is empty, create a fresh commit. *)
+        S.update_commit t k >>= ok
+      | Some head ->
+        if List.mem view.parents head then
+          S.update_commit t k >>= ok
+        else
+          let origin =
+            IrminOrigin.create "Merge view to %s\n"
+              (IrminPath.to_string path) in
+          S.merge_commit t ~origin k
 
   let merge_path_exn ?origin t path view =
     merge_path ?origin t path view >>=
