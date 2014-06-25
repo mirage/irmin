@@ -53,6 +53,7 @@ module Make (Store: IrminBranch.STORE) = struct
         Node.dump (Store.node_t t)         >>= fun nodes    ->
         return (contents, nodes, commits, tags)
     | Some depth ->
+      Log.debugf "get_contents depth=%d full=%b" depth full;
       Tag.dump (Store.tag_t t) >>= fun tags ->
       let max = List.map ~f:(fun (_,k) -> `Commit k) tags in
       let pred = function
@@ -91,6 +92,10 @@ module Make (Store: IrminBranch.STORE) = struct
         return (contents, nodes, commits, tags)
 
   let fprintf t ?depth ?(html=false) ?full name =
+    Log.debugf "fprintf depth=%s html=%b full=%s"
+      (match depth with None -> "<none>" | Some d -> string_of_int d)
+      html
+      (match full with None -> "<none>" | Some b -> string_of_bool b);
     get_contents t ?full depth >>= fun (contents, nodes, commits, tags) ->
     let exists k l = List.exists ~f:(fun (kk,_) -> K.(kk=k)) l in
     let vertex = ref [] in
@@ -181,16 +186,16 @@ module Make (Store: IrminBranch.STORE) = struct
             if exists v contents then
               add_edge (`Node k) [`Style `Dotted] (`Contents v)
         end;
-        String.Map.iter ~f:(fun ~key:l ~data:c ->
-            if exists c commits then
-              add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
+        String.Map.iter ~f:(fun ~key:l ~data:n ->
+            if exists n nodes then
+              add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node n)
           ) t.IrminNode.succ
       ) nodes;
     List.iter ~f:(fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
-        List.iter ~f:(fun p ->
-            if exists p commits then
-              add_edge (`Commit k) [`Style `Bold] (`Commit p)
+        List.iter ~f:(fun c ->
+            if exists c commits then
+              add_edge (`Commit k) [`Style `Bold] (`Commit c)
           ) r.IrminCommit.parents;
         match r.IrminCommit.node with
         | None      -> ()

@@ -138,7 +138,11 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
       ~body ()
 
   let respond ?headers body =
-    Log.debugf "%S" body;
+    Log.debug
+      (lazy (String.escaped @@
+             if String.length body > 140 then
+               String.sub body 0 100 ^ ".."
+             else body));
     HTTP.respond_string ?headers ~status:`OK ~body ()
 
   let respond_json json =
