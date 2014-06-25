@@ -330,11 +330,11 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
       let depth = match List.Assoc.find query "depth" with
         | Some (x::_) -> Some (Int.of_string x)
         | _           -> None in
-      let commits_only = match List.Assoc.find query "commits-only" with
+      let full = match List.Assoc.find query "full" with
         | Some (x::_) -> Some (x <> "0")
         | _           -> None in
       let buffer = Buffer.create 1024 in
-      S.Dump.output_buffer dump ?depth ?commits_only buffer >>= fun () ->
+      S.Dump.output_buffer dump ?depth ?full buffer >>= fun () ->
       let str = Buffer.contents buffer in
       (* Fix the OCamlGraph output (XXX: open an issue upstream) *)
       let str = IrminMisc.replace ~pattern:",[ \\n]*]" (fun _ -> "]") str in

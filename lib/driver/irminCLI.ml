@@ -394,19 +394,20 @@ let dump = {
         Arg.info ~doc:"Do not call the `dot' utility on the generated `.dot` file."
           ["--no-dot-call"] in
       Arg.(value & flag & doc) in
-    let commits_only =
+    let full =
       let doc =
-        Arg.info ~doc:"Only show the commit history."
-          ["--commits-only"] in
+        Arg.info ~doc:"Show the full graph of objects, including the filesystem \
+                       nodes and the content blobs."
+          ["--full"] in
       Arg.(value & flag & doc) in
-    let dump (module S: Irmin.S) basename depth no_dot_call commits_only =
+    let dump (module S: Irmin.S) basename depth no_dot_call full =
       run begin
         S.create () >>= fun t ->
         let call_dot = not no_dot_call in
-        S.Dump.output_file t ?depth ~call_dot basename
+        S.Dump.output_file t ?depth ~full basename
       end
     in
-    Term.(mk dump $ IrminResolver.store $ basename $ depth $ no_dot_call $ commits_only);
+    Term.(mk dump $ IrminResolver.store $ basename $ depth $ no_dot_call $ full);
 }
 
 (* HELP *)

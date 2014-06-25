@@ -22,9 +22,9 @@ module Log = Log.Make(struct let section ="DUMP" end)
 
 module type S = sig
   type t
-  val output_file: t -> ?depth:int -> ?call_dot:bool -> ?commits_only:bool ->
+  val output_file: t -> ?depth:int -> ?call_dot:bool -> ?full:bool ->
     string ->  unit Lwt.t
-  val output_buffer: t -> ?depth:int -> ?commits_only:bool ->
+  val output_buffer: t -> ?depth:int -> ?full:bool ->
     Buffer.t -> unit Lwt.t
 end
 
@@ -42,11 +42,11 @@ module Make (Store: IrminBranch.STORE) = struct
 
   type t = Store.t
 
-  let get_contents t ?(commits_only=true) = function
+  let get_contents t ?(full=false) = function
     | None  ->
       Tag.dump (Store.tag_t t)           >>= fun tags     ->
       Commit.dump (Store.commit_t t)     >>= fun commits  ->
-      if commits_only then
+      if not full then
         return ([], [], commits, tags)
       else
         Contents.dump (Store.contents_t t) >>= fun contents ->
@@ -69,7 +69,7 @@ module Make (Store: IrminBranch.STORE) = struct
           return (k, c)
         ) keys
       >>= fun commits ->
-      if commits_only then
+      if not full then
         return ([], [], commits, tags)
       else
         let root_nodes = List.filter_map ~f:(fun (_,c) -> c.IrminCommit.node) commits in
@@ -90,8 +90,9 @@ module Make (Store: IrminBranch.STORE) = struct
         let contents = List.filter_map ~f:(fun x -> x) contents in
         return (contents, nodes, commits, tags)
 
-  let fprintf t ?depth ?(html=false) ?commits_only name =
-    get_contents t ?commits_only depth >>= fun (contents, nodes, commits, tags) ->
+  let fprintf t ?depth ?(html=false) ?full name =
+    get_contents t ?full depth >>= fun (contents, nodes, commits, tags) ->
+    let exists k l = List.exists ~f:(fun (kk,_) -> K.(kk=k)) l in
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
@@ -176,46 +177,55 @@ module Make (Store: IrminBranch.STORE) = struct
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
         begin match t.IrminNode.contents with
           | None    -> ()
-          | Some v  -> add_edge (`Node k) [`Style `Dotted] (`Contents v)
+          | Some v  ->
+            if exists v contents then
+              add_edge (`Node k) [`Style `Dotted] (`Contents v)
         end;
         String.Map.iter ~f:(fun ~key:l ~data:c ->
-            add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
+            if exists c commits then
+              add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node c)
           ) t.IrminNode.succ
       ) nodes;
     List.iter ~f:(fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
         List.iter ~f:(fun p ->
-            add_edge (`Commit k) [`Style `Bold] (`Commit p)
+            if exists p commits then
+              add_edge (`Commit k) [`Style `Bold] (`Commit p)
           ) r.IrminCommit.parents;
         match r.IrminCommit.node with
         | None      -> ()
-        | Some node -> add_edge (`Commit k) [`Style `Dashed] (`Node node)
+        | Some node ->
+          if exists node nodes then
+            add_edge (`Commit k) [`Style `Dashed] (`Node node)
       ) commits;
     List.iter ~f:(fun (r,k) ->
         add_vertex (`Tag r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
-        let exists l = List.exists ~f:(fun (kk,_) -> K.(kk=k)) l in
-        if exists commits then
+        if exists k commits then
           add_edge (`Tag r) [`Style `Bold] (`Commit k);
-        if exists nodes then
+        if exists k nodes then
           add_edge (`Tag r) [`Style `Bold] (`Node k);
       ) tags;
     return (fun ppf -> Store.Graph.output ppf !vertex !edges name)
 
-  let output_file t ?depth ?(call_dot=true) ?commits_only name =
+  let output_file t ?depth ?(call_dot=false) ?full name =
     Log.debugf "output %s" name;
-    fprintf t ?depth ?commits_only ~html:false name >>= fun fprintf ->
+    fprintf t ?depth ?full ~html:false name >>= fun fprintf ->
     let oc = Out_channel.create (name ^ ".dot") in
     fprintf (Format.formatter_of_out_channel oc);
     Out_channel.close oc;
     if call_dot then (
-      let cmd = Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name in
-      let i = Sys.command cmd in
+      let i = Sys.command "/bin/sh -c 'command -v dot'" in
+      if Int.(i <> 0) then Log.errorf
+          "Cannot find the `dot' utility. Please install it on your system \
+           and be sure it is available in your $PATH.";
+      let i = Sys.command
+          (Printf.sprintf "dot -Tpng %s.dot -o%s.png" name name) in
       if Int.(i <> 0) then Log.errorf "The %s.dot is corrupted" name;
     );
     return_unit
 
-  let output_buffer t ?depth ?commits_only buf =
-    fprintf t ?depth ?commits_only ~html:true "graph" >>= fun fprintf ->
+  let output_buffer t ?depth ?full buf =
+    fprintf t ?depth ?full ~html:true "graph" >>= fun fprintf ->
     let ppf = Format.formatter_of_buffer buf in
     fprintf ppf;
     return_unit
