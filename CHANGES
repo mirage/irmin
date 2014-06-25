@@ -1,3 +1,14 @@
+0.8.3 (2014-06-25)
+* Views now keep track of their parent commits - this makes
+  View.merge_path looks like a merge between branches. All the
+  view operations are squashed in a unique commit.
+* Better graphs, where we only show the commit history (the
+  full graph is still available using `--full` on the
+  command-lineor or `?full=1` on the web interface)
+* By default, do not call `dot` when dumping a graph on the
+  command-line. `dot` does not like big graphs, but that's
+  still useful to have the `.dot` file to analyze it.
+
 0.8.2: (2014-06-11)
 * Support backend specific protocols for push/pull
 * The Irmin Git backend can now sync with remote Git repositories
