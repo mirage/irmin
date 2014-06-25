@@ -22,8 +22,10 @@ module Log = Log.Make(struct let section ="DUMP" end)
 
 module type S = sig
   type t
-  val output_file: t -> ?depth:int -> ?call_dot:bool -> string ->  unit Lwt.t
-  val output_buffer: t -> ?depth:int -> Buffer.t -> unit Lwt.t
+  val output_file: t -> ?depth:int -> ?call_dot:bool -> ?commits_only:bool ->
+    string ->  unit Lwt.t
+  val output_buffer: t -> ?depth:int -> ?commits_only:bool ->
+    Buffer.t -> unit Lwt.t
 end
 
 module Make (Store: IrminBranch.STORE) = struct
@@ -40,13 +42,16 @@ module Make (Store: IrminBranch.STORE) = struct
 
   type t = Store.t
 
-  let get_contents t = function
+  let get_contents t ?(commits_only=false) = function
     | None  ->
-      Contents.dump (Store.contents_t t) >>= fun contents ->
-      Node.dump (Store.node_t t)         >>= fun nodes    ->
-      Commit.dump (Store.commit_t t)     >>= fun commits  ->
       Tag.dump (Store.tag_t t)           >>= fun tags     ->
-      return (contents, nodes, commits, tags)
+      Commit.dump (Store.commit_t t)     >>= fun commits  ->
+      if commits_only then
+        return ([], [], commits, tags)
+      else
+        Contents.dump (Store.contents_t t) >>= fun contents ->
+        Node.dump (Store.node_t t)         >>= fun nodes    ->
+        return (contents, nodes, commits, tags)
     | Some depth ->
       Tag.dump (Store.tag_t t) >>= fun tags ->
       let max = List.map ~f:(fun (_,k) -> `Commit k) tags in
@@ -64,26 +69,29 @@ module Make (Store: IrminBranch.STORE) = struct
           return (k, c)
         ) keys
       >>= fun commits ->
-      let root_nodes = List.filter_map ~f:(fun (_,c) -> c.IrminCommit.node) commits in
-      Node.list (Store.node_t t) root_nodes >>= fun nodes ->
-      Lwt_list.map_p (fun k ->
-          Node.read (Store.node_t t) k >>= function
-          | None   -> return_none
-          | Some v -> return (Some (k, v))
-        ) nodes >>= fun nodes ->
-      let nodes = List.filter_map ~f:(fun x -> x) nodes in
-      let root_contents = List.filter_map ~f:(fun (_,n) -> n.IrminNode.contents) nodes in
-      Contents.list (Store.contents_t t) root_contents >>= fun contents ->
-      Lwt_list.map_p (fun k ->
-          Contents.read (Store.contents_t t) k >>= function
-          | None   -> return_none
-          | Some v -> return (Some (k, v))
-        ) contents >>= fun contents ->
-      let contents = List.filter_map ~f:(fun x -> x) contents in
-      return (contents, nodes, commits, tags)
+      if commits_only then
+        return ([], [], commits, tags)
+      else
+        let root_nodes = List.filter_map ~f:(fun (_,c) -> c.IrminCommit.node) commits in
+        Node.list (Store.node_t t) root_nodes >>= fun nodes ->
+        Lwt_list.map_p (fun k ->
+            Node.read (Store.node_t t) k >>= function
+            | None   -> return_none
+            | Some v -> return (Some (k, v))
+          ) nodes >>= fun nodes ->
+        let nodes = List.filter_map ~f:(fun x -> x) nodes in
+        let root_contents = List.filter_map ~f:(fun (_,n) -> n.IrminNode.contents) nodes in
+        Contents.list (Store.contents_t t) root_contents >>= fun contents ->
+        Lwt_list.map_p (fun k ->
+            Contents.read (Store.contents_t t) k >>= function
+            | None   -> return_none
+            | Some v -> return (Some (k, v))
+          ) contents >>= fun contents ->
+        let contents = List.filter_map ~f:(fun x -> x) contents in
+        return (contents, nodes, commits, tags)
 
-  let fprintf t ?depth ?(html=false) name =
-    get_contents t depth >>= fun (contents, nodes, commits, tags) ->
+  let fprintf t ?depth ?(html=false) ?commits_only name =
+    get_contents t ?commits_only depth >>= fun (contents, nodes, commits, tags) ->
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
@@ -193,7 +201,7 @@ module Make (Store: IrminBranch.STORE) = struct
       ) tags;
     return (fun ppf -> Store.Graph.output ppf !vertex !edges name)
 
-  let output_file t ?depth ?(call_dot=true) name =
+  let output_file t ?depth ?(call_dot=true) ?(commits_only=false) name =
     Log.debugf "output %s" name;
     fprintf t ?depth name ~html:false >>= fun fprintf ->
     let oc = Out_channel.create (name ^ ".dot") in
@@ -206,7 +214,7 @@ module Make (Store: IrminBranch.STORE) = struct
     );
     return_unit
 
-  let output_buffer t ?depth buf =
+  let output_buffer t ?depth ?commits_only buf =
     fprintf t ?depth "graph" ~html:true >>= fun fprintf ->
     let ppf = Format.formatter_of_buffer buf in
     fprintf ppf;
