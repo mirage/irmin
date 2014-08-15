@@ -171,8 +171,8 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
   let to_json t =
     let rec aux path acc = function
       | Fixed   _
-      | Stream _ -> `String (IrminPath.to_string (List.rev path)) :: acc
-      | Html s   -> failwith "to_json: HTML node"
+      | Stream _
+      | Html _   -> `String (IrminPath.to_string (List.rev path)) :: acc
       | Node c   -> List.fold_left c
                       ~f:(fun acc (s,t) -> aux (s::path) acc t)
                       ~init:acc in
