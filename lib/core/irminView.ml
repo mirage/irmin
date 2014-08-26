@@ -15,8 +15,9 @@
  *)
 
 open Lwt
-open Core_kernel.Std
+open IrminCore
 open IrminMerge.OP
+open Printf
 
 type origin = IrminOrigin.t
 type path = IrminPath.t
@@ -112,13 +113,13 @@ module Node = struct
     match !n with
     | Key _  -> false
     | Both (_, n)
-    | Node n -> n.contents = None && Map.is_empty n.succ
+    | Node n -> n.contents = None && String.Map.is_empty n.succ
 
   let import n =
     let contents = match n.IrminNode.contents with
       | None   -> None
       | Some k -> Some (Contents.key k) in
-    let succ = Map.map ~f:key n.IrminNode.succ in
+    let succ = String.Map.map ~f:key n.IrminNode.succ in
     { contents; succ }
 
   let export n =
@@ -131,7 +132,7 @@ module Node = struct
     let contents = match n.contents with
       | None   -> None
       | Some c -> Some (Contents.export c) in
-    let succ = Map.map ~f:export n.succ in
+    let succ = String.Map.map ~f:export n.succ in
     { IrminNode.contents; succ }
 
   let read ~node t =
@@ -165,7 +166,9 @@ module Node = struct
 
   let update_succ ~node t succ =
     read node t >>= function
-    | None   -> if Map.is_empty succ then return_unit else fail Not_found (* XXX ? *)
+    | None   ->
+      if String.Map.is_empty succ then return_unit else
+        fail Not_found (* XXX ? *)
     | Some n ->
       let new_n = { n with succ } in
       t := Node new_n;
@@ -207,7 +210,7 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
         Node.read t.node node >>= function
         | None               -> return_none
         | Some { Node.succ } ->
-          match Map.find succ h with
+          match String.Map.find succ h with
           | None   -> return_none
           | Some v -> aux v p in
     aux t.view path
@@ -240,11 +243,11 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
         Node.read t.node n >>= function
         | None               -> return acc
         | Some { Node.succ } ->
-          let paths = List.map ~f:(fun p -> path @ [p]) (Map.keys succ) in
+          let paths = List.map ~f:(fun p -> path @ [p]) (String.Map.keys succ) in
           let paths = IrminPath.Set.of_list paths in
-          return (Set.union acc paths) in
+          return (IrminPath.Set.union acc paths) in
     Lwt_list.fold_left_s aux IrminPath.Set.empty paths >>= fun paths ->
-    return (Set.to_list paths)
+    return (IrminPath.Set.to_list paths)
 
   let list t paths =
     list t paths >>= fun result ->
@@ -259,7 +262,8 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     Node.read t.node view >>= function
     | None   -> return_unit
     | Some n ->
-      let succ = Map.filter ~f:(fun ~key:_ ~data:n -> not (Node.is_empty n)) n.Node.succ in
+      let succ = String.Map.filter
+          ~f:(fun ~key:_ ~data:n -> not (Node.is_empty n)) n.Node.succ in
       Node.update_succ t.node view succ
 
   let update' t k v =
@@ -269,7 +273,7 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
         Node.read t.node view >>= function
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
-          match Map.find n.Node.succ h with
+          match String.Map.find n.Node.succ h with
           | Some child ->
             if v = None then with_cleanup t view (fun () -> aux child p)
             else aux child p
@@ -277,7 +281,7 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
             if v = None then return_unit
             else
               let child = Node.empty () in
-              let succ = Map.add n.Node.succ h child in
+              let succ = String.Map.add n.Node.succ h child in
               Node.update_succ t.node view succ >>= fun () ->
               aux child p in
     aux t.view k
@@ -377,7 +381,7 @@ module Store (S: IrminBranch.STORE) = struct
                 return_unit
           );
         (* 3. we push the children jobs on the stack. *)
-        Map.iter ~f:(fun ~key:_ ~data:n ->
+        String.Map.iter ~f:(fun ~key:_ ~data:n ->
             Stack.push todo (fun () -> add_to_todo n; return_unit)
           ) x.Node.succ;
     in

@@ -16,7 +16,7 @@
 
 (** Values. *)
 
-open Core_kernel.Std
+open IrminCore
 
 exception Invalid of string
 (** Invalid parsing. *)
@@ -25,7 +25,7 @@ module type S = sig
 
   (** Signature for store contents. *)
 
-  include IrminIdent.S
+  include I0
   (** Base types. *)
 
   val merge: t IrminMerge.t

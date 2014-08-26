@@ -16,7 +16,7 @@
 
 (** Signatures. *)
 
-open Core_kernel.Std
+open IrminCore
 
 module type RO = sig
 

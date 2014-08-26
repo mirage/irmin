@@ -16,7 +16,7 @@
 
 (** Graphs. *)
 
-open Core_kernel.Std
+open IrminCore
 
 module type S = sig
 
@@ -73,7 +73,7 @@ module type S = sig
   val import: dump -> t
   (** Import a graph. *)
 
-  module Dump: IrminIdent.S with type t = dump
+  module Dump: I0 with type t = dump
   (** The base functions over graph internals. *)
 
 end

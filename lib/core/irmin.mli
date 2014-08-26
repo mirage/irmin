@@ -16,6 +16,8 @@
 
 (** API entry point *)
 
+open IrminCore
+
 module type S = sig
 
   (** Main signature for Irminsule stores. *)
@@ -51,13 +53,13 @@ module Make
 
 module type RO_MAKER =
   functor (K: IrminKey.S)   ->
-  functor (V: IrminIdent.S) ->
+  functor (V: I0) ->
     IrminStore.RO with type key   = K.t
                    and type value = V.t
 
 module type AO_MAKER =
   functor (K: IrminKey.S)   ->
-  functor (V: IrminIdent.S) ->
+  functor (V: I0) ->
     IrminStore.AO with type key   = K.t
                    and type value = V.t
 

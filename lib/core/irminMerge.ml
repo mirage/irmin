@@ -15,7 +15,8 @@
  *)
 
 open Lwt
-open Core_kernel.Std
+open IrminCore
+open Printf
 
 module Log = Log.Make(struct let section = "MERGE" end)
 
@@ -196,7 +197,7 @@ let map (type a) t =
     end) in
   let equal m1 m2 =
     let equal = ref true in
-    IrminMisc.Map.iter2 ~f:(fun ~key ~data ->
+    String.Map.Lwt.iter2 ~f:(fun ~key ~data ->
         match data with
         | `Left _ | `Right _ -> equal := false; return_unit
         | `Both (a, b)       ->
@@ -212,9 +213,9 @@ let map (type a) t =
     | `Ok x       -> ok x
     | `Conflict _ ->
       Lwt.catch (fun () ->
-          IrminMisc.Map.merge ~f:(fun ~key -> function
+          String.Map.Lwt.merge ~f:(fun ~key -> function
               | `Left v | `Right v ->
-                begin match Map.find old key with
+                begin match String.Map.find old key with
                   | None       ->
                     (* the value has been created in one branch *)
                     return (Some v)
@@ -229,7 +230,7 @@ let map (type a) t =
                 t.equal v1 v2 >>= fun b ->
                 (* no modification. *)
                 if b then return (Some v1)
-                else match Map.find old key with
+                else match String.Map.find old key with
                   | None    -> fail (C "add/add")
                   | Some ov -> t.merge ~origin ~old:ov v1 v2 >>= function
                     | `Conflict msg -> fail (C msg)

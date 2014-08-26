@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open IrminCore
 
 (* From OCaml's stdlib. See [Digest.to_hex] *)
 let hex_encode s =
@@ -57,18 +57,18 @@ let is_valid_utf8 str =
     true
   with Failure "utf8" -> false
 
-  let json_encode str =
-    if is_valid_utf8 str
-    then Ezjsonm.string str
-    else `O [ "hex", Ezjsonm.string (hex_encode str) ]
+let encode_json_string str =
+  if is_valid_utf8 str
+  then Ezjsonm.string str
+  else `O [ "hex", Ezjsonm.string (hex_encode str) ]
 
-let json_decode = function
+let decode_json_string = function
   | `String str               -> Some str
   | `O [ "hex", `String str ] -> Some (hex_decode str)
   | j                         -> None
 
-let json_decode_exn j =
-  match json_decode j with
+let decode_json_string_exn j =
+  match decode_json_string j with
   | Some s -> s
   | None   ->
     failwith (
@@ -90,19 +90,6 @@ let pretty_list f = function
     Buffer.add_string buf " }";
     Buffer.contents buf
 
-open Bin_prot.Type_class
-
-let read bin buf =
-  try Some (bin.reader.read ~pos_ref:(ref 0) buf)
-  with Bin_prot.Common.Read_error _ -> None
-
-let write bin t =
-  let n = bin.writer.size t in
-  let buf = Bigstring.create n in
-  let k = bin.writer.write buf ~pos:0 t in
-  assert (n=k);
-  buf
-
 open Lwt
 
 let lift_stream s =
@@ -116,29 +103,6 @@ let lift_stream s =
       get ()
   in
   Lwt_stream.from get
-
-module Map = struct
-
-  let iter2 m1 m2 ~f =
-    let m3 = ref [] in
-    Map.iter2 ~f:(fun ~key ~data ->
-        m3 := f ~key ~data :: !m3
-      ) m1 m2;
-    Lwt_list.iter_p
-      (fun b -> b >>= fun () -> return_unit) (List.rev !m3)
-
-  let merge m1 m2 ~f =
-    let l3 = ref [] in
-    let f ~key ~data =
-      f ~key data >>= function
-      | None   -> return_unit
-      | Some v -> l3 := (key, v) :: !l3; return_unit
-    in
-    iter2 m1 m2 ~f >>= fun () ->
-    let m3 = Map.of_alist_exn ~comparator:(Map.comparator m1) !l3 in
-    return m3
-
-end
 
 let replace ~pattern subst str =
   let rex = Re_perl.compile_pat pattern in

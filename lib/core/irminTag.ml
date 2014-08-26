@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-open Core_kernel.Std
+open IrminCore
 
 module Log = Log.Make(struct let section = "TAG" end)
 

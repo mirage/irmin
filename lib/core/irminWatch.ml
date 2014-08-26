@@ -16,7 +16,7 @@
 
 module Log = Log.Make(struct let section = "WATCH" end)
 
-open Core_kernel.Std
+open IrminCore
 open Lwt
 
 module type S = sig
@@ -53,17 +53,17 @@ module Make (K: IrminKey.S) (V: sig type t end) = struct
     K.Table.clear t
 
   let unwatch t key id =
-    let ws = match Hashtbl.find t key with
+    let ws = match K.Table.find t key with
       | None    -> []
       | Some ws -> ws in
     let ws = List.filter ~f:(fun (x,_,_) -> x <> id) ws in
     match ws with
-    | [] -> Hashtbl.remove t key
-    | ws -> Hashtbl.replace t ~key ~data:ws
+    | [] -> K.Table.remove t key
+    | ws -> K.Table.replace t ~key ~data:ws
 
   let notify t key value =
     Log.debugf "notify %s" (K.to_string key);
-    match Hashtbl.find t key with
+    match K.Table.find t key with
     | None    -> ()
     | Some ws ->
       let ws = List.map ws ~f:(fun (id, old_value, f as w) ->
@@ -75,7 +75,7 @@ module Make (K: IrminKey.S) (V: sig type t end) = struct
               raise e
           ) else w
         ) in
-      Hashtbl.replace t ~key ~data:ws
+      K.Table.replace t ~key ~data:ws
 
   let id =
     let c = ref 0 in
@@ -85,7 +85,7 @@ module Make (K: IrminKey.S) (V: sig type t end) = struct
     Log.debugf "watch %s" (K.to_string key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
-    Hashtbl.add_multi t ~key ~data:(id, value, push);
+    K.Table.add_multi t ~key ~data:(id, value, push);
     stream
 
   let listen_dir (t:t) dir ~(key:string -> key option) ~(value:key -> value option Lwt.t) =

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open IrminCore
 
 module M = struct
   type nonrec t = string list with bin_io, compare, sexp
@@ -27,7 +27,6 @@ module M = struct
       (String.split str ~on:'/')
   let module_name = "Path"
 end
-include M
 include Identifiable.Make (M)
 
 let of_raw = of_string

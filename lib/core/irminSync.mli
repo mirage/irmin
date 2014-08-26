@@ -16,6 +16,8 @@
 
 (** Common URI resolver. *)
 
+open IrminCore
+
 type remote
 (** Remote store hanlders. *)
 
@@ -71,7 +73,7 @@ module type STORE = sig
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   (** Same as [merge] but merge raise an exception in case of conflict. *)
 
-  include IrminIdent.S with type t := t
+  include I0 with type t := t
   (** Base functions over database dumps. *)
 
 end

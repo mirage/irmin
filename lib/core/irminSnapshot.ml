@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open IrminCore
 open Lwt
 open IrminMerge.OP
 
@@ -87,7 +87,7 @@ module Make (S: IrminBranch.STORE) = struct
       | None      -> return_nil
       | Some node ->
         let c = Node.succ (S.node_t t) node in
-        let c = Map.keys c in
+        let c = String.Map.keys c in
         let paths = List.map ~f:(fun c -> path @ [c]) c in
         return paths in
     Lwt_list.fold_left_s (fun set p ->

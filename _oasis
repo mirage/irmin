@@ -20,16 +20,16 @@ Flag examples
 Library irmin
   Path: lib/core
   Findlibname: irmin
-  Modules: Irmin, IrminGraph, IrminKey, IrminSnapshot,
+  Modules: IrminCore, Irmin, IrminGraph, IrminKey, IrminSnapshot,
            IrminMisc, IrminCommit, IrminStore, IrminBlock,
            IrminTag, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView,
-           IrminOrigin, IrminIdent, IrminBranch, IrminSync
+           IrminOrigin, IrminBranch, IrminSync
   BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
                 re.pcre, re.perl, dolog, mstruct, uri,
-                core_kernel, bin_prot.syntax, comparelib.syntax, sexplib.syntax
+                bin_prot.syntax, comparelib.syntax, sexplib.syntax
   XMETARequires: ezjsonm, ocamlgraph, lwt, sha,
-                 re.pcre, re.perl, dolog, mstruct, core_kernel, uri
+                 re.pcre, re.perl, dolog, mstruct, uri
 
 Library "irmin-backend"
   Path: lib/backend

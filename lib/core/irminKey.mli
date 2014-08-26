@@ -16,7 +16,7 @@
 
 (** Implementation of keys *)
 
-open Core_kernel.Std
+open IrminCore
 
 exception Invalid of string
 (** Exception raised when a key is not valid. *)
@@ -28,7 +28,7 @@ module type S = sig
 
   (** Signature for deterministic keys. *)
 
-  include IrminIdent.S
+  include I0
 
   val of_raw: string -> t
   (** Cast a raw string into a key. Check that the format of the raw
@@ -37,10 +37,10 @@ module type S = sig
   val to_raw: t -> string
   (** Return the raw key. *)
 
-  val of_bytes: Bigstring.t -> t
+  val compute: Bigstring.t -> t
   (** Compute a (deterministic) key from a bigstring. *)
 
-  val of_bytes': string -> t
+  val compute': string -> t
   (** Compute a (deterministic) key from a sequence of bytes. *)
 
 end

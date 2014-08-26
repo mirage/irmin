@@ -16,9 +16,9 @@
 
 (** Merge operators. *)
 
-open Core_kernel.Std
+open IrminCore
 
-module type S = IrminIdent.S
+module type S = I0
 
 type origin = IrminOrigin.t
 
@@ -32,10 +32,10 @@ type 'a result =
   | `Conflict of string ]
 (** Merge results. *)
 
-module Result (A: IrminIdent.S): IrminIdent.S with type t = A.t result
+module Result (A: S): S with type t = A.t result
 (** Base function over [A.t result]s.. *)
 
-module UnitResult: IrminIdent.S with type t = unit result
+module UnitResult: S with type t = unit result
 (** Base functions overs [unit result]s. *)
 
 exception Conflict of string
@@ -117,7 +117,7 @@ val some: 'a t -> 'a option t
     the provided values are inhabited, then call the provided merge
     function, otherwise use the same behavior as [create]. *)
 
-val map: 'a t -> 'a String.Map.t t
+val string_map: 'a t -> 'a Map.Make(String).t t
 (** Lift to hash-tables. *)
 
 val pair: 'a t -> 'b t -> ('a * 'b) t

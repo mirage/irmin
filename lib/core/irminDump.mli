@@ -16,7 +16,7 @@
 
 (** Store dumps. *)
 
-open Core_kernel.Std
+open IrminCore
 
 module type S = sig
 

@@ -16,7 +16,7 @@
  *)
 
 open Lwt
-open Core_kernel.Std
+open IrminCore
 
 module Log = Log.Make(struct let section = "NODE" end)
 
@@ -39,7 +39,7 @@ let edges t =
     | None   -> []
     | Some k -> [`Contents k]
   end
-  @ Map.fold t.succ ~init:[]
+  @ String.Map.fold t.succ ~init:[]
     ~f:(fun ~key:_ ~data:k acc -> `Node k :: acc)
 
 let empty =
@@ -47,14 +47,14 @@ let empty =
     succ = String.Map.empty }
 
 let is_empty e =
-  e.contents = None && Map.is_empty e.succ
+  e.contents = None && String.Map.is_empty e.succ
 
 let leaf e =
   { contents = Some e;
     succ = String.Map.empty }
 
 let is_leaf e =
-  e.contents <> None && Map.is_empty e.succ
+  e.contents <> None && String.Map.is_empty e.succ
 
 let contents_exn e =
   match e.contents with
@@ -135,7 +135,8 @@ module Make
     return (c, t)
 
   let add (_, t) n = match n with
-    | { contents = Some k } -> if Map.is_empty n.succ then return k else Node.add t n
+    | { contents = Some k } ->
+      if String.Map.is_empty n.succ then return k else Node.add t n
     | _                     -> Node.add t n
 
   (* "leaf" nodes (ie. with no succ and some contents) are not
@@ -218,10 +219,10 @@ module Make
     | Some k -> Some (Contents.read_exn c k)
 
   let succ t node =
-    Map.map ~f:(fun k -> read_exn t k) node.succ
+    String.Map.map ~f:(fun k -> read_exn t k) node.succ
 
   let next t node label =
-    match Map.find node.succ label with
+    match String.Map.find node.succ label with
     | None   -> return_none
     | Some k -> read t k
 

@@ -16,7 +16,7 @@
 
 (** Provenance tracking. *)
 
-include IrminIdent.S
+include IrminCore.I0
 (** Provenance values. *)
 
 val set_date: (unit -> int64) -> unit

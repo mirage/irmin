@@ -16,7 +16,7 @@
 
 (** In-memory partial views of the database, with lazy fetching. *)
 
-open Core_kernel.Std
+open IrminCore
 
 type origin = IrminOrigin.t
 type path = IrminPath.t

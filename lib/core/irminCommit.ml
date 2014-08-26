@@ -17,8 +17,9 @@
 module Log = Log.Make(struct let section = "COMMIT" end)
 
 open Lwt
-open Core_kernel.Std
+open IrminCore
 open IrminMerge.OP
+open Printf
 
 type origin = IrminOrigin.t
 

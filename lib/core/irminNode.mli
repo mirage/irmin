@@ -23,11 +23,11 @@
     node to another following a path in the graph. Every node of the
     graph might carry some optional contents. *)
 
-open Core_kernel.Std
+open IrminCore
 
 type 'key t = {
   contents: 'key option;
-  succ    : 'key String.Map.t;
+  succ    : 'key Map.Make(String).t;
 } with bin_io, compare, sexp
 (** Node values. They might contain a pointer to an optional contents,
     and pointers to its successors.*)
@@ -92,7 +92,7 @@ module type STORE = sig
   val contents: t -> value -> contents Lwt.t option
   (** Return the node contents. *)
 
-  val succ: t -> value -> value Lwt.t String.Map.t
+  val succ: t -> value -> value Lwt.t Map.Make(String).t
   (** Return the node successors. *)
 
   val sub: t -> value -> path -> value option Lwt.t

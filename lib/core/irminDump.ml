@@ -14,9 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open IrminCore
 open Lwt
 open IrminMerge.OP
+open Printf
 
 module Log = Log.Make(struct let section ="DUMP" end)
 

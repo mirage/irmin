@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: cbff1a03dd9fdd8fa008cfc16f854680)
+# DO NOT EDIT (digest: ef9262e5ac7f844896939d0f1faf7d4c)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -17,7 +17,6 @@
 "lib/core/irmin.cmxs": use_irmin
 <lib/core/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/core/*.ml{,i}>: pkg_comparelib.syntax
-<lib/core/*.ml{,i}>: pkg_core_kernel
 <lib/core/*.ml{,i}>: pkg_dolog
 <lib/core/*.ml{,i}>: pkg_ezjsonm
 <lib/core/*.ml{,i}>: pkg_lwt
@@ -33,7 +32,6 @@
 <lib/backend/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/backend/*.ml{,i}>: pkg_cohttp.lwt
 <lib/backend/*.ml{,i}>: pkg_comparelib.syntax
-<lib/backend/*.ml{,i}>: pkg_core_kernel
 <lib/backend/*.ml{,i}>: pkg_dolog
 <lib/backend/*.ml{,i}>: pkg_ezjsonm
 <lib/backend/*.ml{,i}>: pkg_ezjsonm.lwt
@@ -52,7 +50,6 @@
 <lib/server/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/server/*.ml{,i}>: pkg_cohttp.lwt
 <lib/server/*.ml{,i}>: pkg_comparelib.syntax
-<lib/server/*.ml{,i}>: pkg_core_kernel
 <lib/server/*.ml{,i}>: pkg_dolog
 <lib/server/*.ml{,i}>: pkg_ezjsonm
 <lib/server/*.ml{,i}>: pkg_lwt
@@ -69,7 +66,6 @@
 <lib/unix/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/unix/*.ml{,i}>: pkg_cohttp.lwt
 <lib/unix/*.ml{,i}>: pkg_comparelib.syntax
-<lib/unix/*.ml{,i}>: pkg_core_kernel
 <lib/unix/*.ml{,i}>: pkg_dolog
 <lib/unix/*.ml{,i}>: pkg_ezjsonm
 <lib/unix/*.ml{,i}>: pkg_ezjsonm.lwt
@@ -92,7 +88,6 @@
 <lib/driver/irminMain.{native,byte}>: pkg_cmdliner
 <lib/driver/irminMain.{native,byte}>: pkg_cohttp.lwt
 <lib/driver/irminMain.{native,byte}>: pkg_comparelib.syntax
-<lib/driver/irminMain.{native,byte}>: pkg_core_kernel
 <lib/driver/irminMain.{native,byte}>: pkg_dolog
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm.lwt
@@ -115,7 +110,6 @@
 <lib/driver/*.ml{,i}>: pkg_cmdliner
 <lib/driver/*.ml{,i}>: pkg_cohttp.lwt
 <lib/driver/*.ml{,i}>: pkg_comparelib.syntax
-<lib/driver/*.ml{,i}>: pkg_core_kernel
 <lib/driver/*.ml{,i}>: pkg_dolog
 <lib/driver/*.ml{,i}>: pkg_ezjsonm
 <lib/driver/*.ml{,i}>: pkg_ezjsonm.lwt
@@ -139,7 +133,6 @@
 <lib_test/test.{native,byte}>: pkg_bin_prot.syntax
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt
 <lib_test/test.{native,byte}>: pkg_comparelib.syntax
-<lib_test/test.{native,byte}>: pkg_core_kernel
 <lib_test/test.{native,byte}>: pkg_cryptokit
 <lib_test/test.{native,byte}>: pkg_dolog
 <lib_test/test.{native,byte}>: pkg_ezjsonm
@@ -163,7 +156,6 @@
 <lib_test/*.ml{,i}>: pkg_bin_prot.syntax
 <lib_test/*.ml{,i}>: pkg_cohttp.lwt
 <lib_test/*.ml{,i}>: pkg_comparelib.syntax
-<lib_test/*.ml{,i}>: pkg_core_kernel
 <lib_test/*.ml{,i}>: pkg_cryptokit
 <lib_test/*.ml{,i}>: pkg_dolog
 <lib_test/*.ml{,i}>: pkg_ezjsonm
@@ -187,7 +179,6 @@
 <examples/git_store.{native,byte}>: pkg_bin_prot.syntax
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
 <examples/git_store.{native,byte}>: pkg_comparelib.syntax
-<examples/git_store.{native,byte}>: pkg_core_kernel
 <examples/git_store.{native,byte}>: pkg_dolog
 <examples/git_store.{native,byte}>: pkg_ezjsonm
 <examples/git_store.{native,byte}>: pkg_ezjsonm.lwt
@@ -210,7 +201,6 @@
 <examples/custom_merge.{native,byte}>: pkg_bin_prot.syntax
 <examples/custom_merge.{native,byte}>: pkg_cohttp.lwt
 <examples/custom_merge.{native,byte}>: pkg_comparelib.syntax
-<examples/custom_merge.{native,byte}>: pkg_core_kernel
 <examples/custom_merge.{native,byte}>: pkg_dolog
 <examples/custom_merge.{native,byte}>: pkg_ezjsonm
 <examples/custom_merge.{native,byte}>: pkg_ezjsonm.lwt
@@ -233,7 +223,6 @@
 <examples/views.{native,byte}>: pkg_bin_prot.syntax
 <examples/views.{native,byte}>: pkg_cohttp.lwt
 <examples/views.{native,byte}>: pkg_comparelib.syntax
-<examples/views.{native,byte}>: pkg_core_kernel
 <examples/views.{native,byte}>: pkg_dolog
 <examples/views.{native,byte}>: pkg_ezjsonm
 <examples/views.{native,byte}>: pkg_ezjsonm.lwt
@@ -256,7 +245,6 @@
 <examples/contacts.{native,byte}>: pkg_bin_prot.syntax
 <examples/contacts.{native,byte}>: pkg_cohttp.lwt
 <examples/contacts.{native,byte}>: pkg_comparelib.syntax
-<examples/contacts.{native,byte}>: pkg_core_kernel
 <examples/contacts.{native,byte}>: pkg_dolog
 <examples/contacts.{native,byte}>: pkg_ezjsonm
 <examples/contacts.{native,byte}>: pkg_ezjsonm.lwt
@@ -279,7 +267,6 @@
 <examples/intrusion.{native,byte}>: pkg_bin_prot.syntax
 <examples/intrusion.{native,byte}>: pkg_cohttp.lwt
 <examples/intrusion.{native,byte}>: pkg_comparelib.syntax
-<examples/intrusion.{native,byte}>: pkg_core_kernel
 <examples/intrusion.{native,byte}>: pkg_dolog
 <examples/intrusion.{native,byte}>: pkg_ezjsonm
 <examples/intrusion.{native,byte}>: pkg_ezjsonm.lwt
@@ -302,7 +289,6 @@
 <examples/process.{native,byte}>: pkg_bin_prot.syntax
 <examples/process.{native,byte}>: pkg_cohttp.lwt
 <examples/process.{native,byte}>: pkg_comparelib.syntax
-<examples/process.{native,byte}>: pkg_core_kernel
 <examples/process.{native,byte}>: pkg_dolog
 <examples/process.{native,byte}>: pkg_ezjsonm
 <examples/process.{native,byte}>: pkg_ezjsonm.lwt
@@ -324,7 +310,6 @@
 <examples/*.ml{,i}>: pkg_bin_prot.syntax
 <examples/*.ml{,i}>: pkg_cohttp.lwt
 <examples/*.ml{,i}>: pkg_comparelib.syntax
-<examples/*.ml{,i}>: pkg_core_kernel
 <examples/*.ml{,i}>: pkg_dolog
 <examples/*.ml{,i}>: pkg_ezjsonm
 <examples/*.ml{,i}>: pkg_ezjsonm.lwt

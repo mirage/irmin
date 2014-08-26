@@ -16,6 +16,8 @@
 
 (** Manage snapshot/revert capabilities. *)
 
+open IrminCore
+
 type origin = IrminOrigin.t
 
 module type STORE = sig
@@ -55,7 +57,7 @@ module type STORE = sig
   val to_state: t -> state
   (** Get the snapshot state. *)
 
-  include IrminIdent.S with type t := state
+  include I0 with type t := state
 
 end
 

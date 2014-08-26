@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open IrminCore
 
 module Log = Log.Make(struct let section = "GRAPH" end)
 
@@ -52,10 +52,10 @@ type ('a, 'b) vertex =
   | `Tag of 'b ]
 with bin_io, compare, sexp
 
-let of_tags     = List.map ~f:(fun k -> `Tag k)
-let of_contents = List.map ~f:(fun k -> `Contents k)
-let of_nodes    = List.map ~f:(fun k -> `Node k)
-let of_commits  = List.map ~f:(fun k -> `Commit k)
+let of_tags     x = List.map ~f:(fun k -> `Tag k) x
+let of_contents x = List.map ~f:(fun k -> `Contents k) x
+let of_nodes    x = List.map ~f:(fun k -> `Node k) x
+let of_commits  x = List.map ~f:(fun k -> `Commit k) x
 
 let to_tags     = List.filter_map ~f:(function `Tag k -> Some k | _ -> None)
 let to_contents = List.filter_map ~f:(function `Contents k -> Some k | _ -> None)
@@ -100,8 +100,8 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
     Log.debugf "closure depth=%d (%d elements)" depth (List.length max);
     let g = G.create ~size:1024 () in
     let marks = K.Table.create () in
-    let mark key level = Hashtbl.add_exn marks key level in
-    let has_mark key = Hashtbl.mem marks key in
+    let mark key level = K.Table.add_exn marks key level in
+    let has_mark key = K.Table.mem marks key in
     List.iter ~f:(fun k -> mark k Int.max_value) min;
     List.iter ~f:(G.add_vertex g) max;
     let todo = Queue.create () in
