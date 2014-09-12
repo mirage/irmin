@@ -24,6 +24,7 @@ type origin = IrminOrigin.t
 
 type 'a t
 (** Abstract merge function for values of type ['a]. *)
+(* XXX: merge 'a t and 'a merge *)
 
 (** {2 Merge resuls} *)
 

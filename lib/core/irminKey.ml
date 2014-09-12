@@ -15,16 +15,19 @@
  *)
 
 open IrminCore
+open Sexplib.Std
+open Bin_prot.Std
 
 exception Invalid of string
-exception Unknown of string
+exception Unknown of Sexplib.Sexp.t
 
 module type S = sig
-  include IrminIdent.S
+  include I0
+  val pretty: t -> string
   val of_raw: string -> t
   val to_raw: t -> string
-  val of_bytes: Bigstring.t -> t
-  val of_bytes': string -> t
+  val compute_from_bigstring: Bigstring.t -> t
+  val compute_from_string: string -> t
 end
 
 module SHA1 = struct
@@ -33,6 +36,8 @@ module SHA1 = struct
 
   let to_hex t =
     IrminMisc.hex_encode t
+
+  let pretty = to_hex
 
   let len = 20
   let hex_len = 40
@@ -43,7 +48,7 @@ module SHA1 = struct
     else
       raise (Invalid hex)
 
-  module M = IrminIdent.Make(struct
+  module M = I0(struct
       type t = string with bin_io, compare
       let sexp_of_t t =
         Sexplib.Sexp.Atom (to_hex t)
@@ -60,13 +65,13 @@ module SHA1 = struct
   let to_raw str =
     str
 
-  let of_bytes' str =
+  let compute_from_string str =
     Log.debug (lazy "of_bytes'");
     Sha1.(to_bin (string str))
 
   external update_buffer: Sha1.ctx -> Bigstring.t -> unit = "stub_sha1_update_bigarray"
 
-  let of_bytes buf =
+  let compute_from_bigstring buf =
     Log.debug (lazy "of_bytes");
     let ctx = Sha1.init () in
     update_buffer ctx buf;

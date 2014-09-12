@@ -22,15 +22,24 @@ type 'a equal = 'a -> 'a -> bool
 (** Comparators. *)
 type 'a compare = 'a -> 'a -> int
 
+(** Hashing. *)
+type 'a hash = 'a -> int
+
 (** Pretty-printing. *)
 type 'a to_sexp = 'a -> Sexplib.Sexp.t
 val pretty: ('a -> Sexplib.Sexp.t) -> 'a -> string
+val prettys: ('a -> Sexplib.Sexp.t) -> 'a list -> string
 
 (** Cstruct readers. *)
 type 'a reader = Cstruct.t -> (Cstruct.t * 'a) option
+val read_all: 'a reader -> Cstruct.buffer -> 'a option
+
+(** Pre-compute the size of the written objects. *)
+type 'a size_of = 'a -> int
 
 (** Cstruct writers. *)
 type 'a writer = 'a -> Cstruct.t -> Cstruct.t
+val write_all: 'a size_of -> 'a writer -> 'a -> Cstruct.buffer
 
 (** JSON converters. *)
 type 'a to_json = 'a -> Ezjsonm.t
@@ -41,6 +50,7 @@ module type I0 = sig
   type t
   val equal: t equal
   val compare: t compare
+  val hash: t hash
 
   (** Used for debugging purposes, might expose internal state. *)
   val to_sexp: t to_sexp
@@ -50,6 +60,7 @@ module type I0 = sig
   val of_json: t of_json
 
   (** The serialization format. *)
+  val size_of: t size_of
   val write: t writer
   val read: t reader
 end
@@ -63,6 +74,9 @@ module type I1 = sig
   type 'a t
   val equal: 'a equal -> 'a t equal
   val compare: 'a compare -> 'a t compare
+  val hash: 'a hash -> 'a t hash
+
+  (** Pretty-printing *)
   val to_sexp: 'a to_sexp -> 'a t to_sexp
 
   (** The REST interface *)
@@ -70,6 +84,7 @@ module type I1 = sig
   val of_json: 'a of_json -> 'a t of_json
 
   (** The serialization format *)
+  val size_of: 'a size_of -> 'a t size_of
   val write: 'a writer -> 'a t writer
   val read: 'a reader -> 'a t reader
 end
@@ -78,11 +93,17 @@ end
 module I1 (S: sig type 'a t with sexp, compare, bin_io end):
   I1 with type 'a t = 'a S.t
 
+(** Monorphize a type with one parameter. *)
+module App1 (F: I1)(X: I0): I0 with type t = X.t F.t
+
 (** Abstract identifiers with two polymorphic parameters. *)
 module type I2 = sig
   type ('a, 'b) t
   val equal: 'a equal -> 'b equal -> ('a, 'b) t equal
   val compare: 'a compare -> 'b compare -> ('a, 'b) t compare
+  val hash: 'a hash -> 'b hash -> ('a, 'b) t hash
+
+  (** Pretty-printing *)
   val to_sexp: 'a to_sexp -> 'b to_sexp -> ('a, 'b) t to_sexp
 
   (** The REST interface *)
@@ -90,6 +111,7 @@ module type I2 = sig
   val of_json: 'a of_json -> 'b of_json -> ('a, 'b) t of_json
 
   (** The serialization format *)
+  val size_of: 'a size_of -> 'b size_of -> ('a, 'b) t size_of
   val write: 'a writer -> 'b writer -> ('a, 'b) t writer
   val read: 'a reader -> 'b reader -> ('a, 'b) t reader
 end
@@ -98,8 +120,75 @@ end
 module I2 (S: sig type ('a, 'b) t with sexp, compare, bin_io end):
   I2 with type ('a, 'b) t = ('a, 'b) S.t
 
-(** Dictionnaries with polymorphic values. *)
-module type DICT = sig
+(** Monorphize a type with two parameters. *)
+module App2(F: I2)(X: I0)(Y: I0): I0 with type t = (X.t, Y.t) F.t
+
+
+(** Abstract identifiers with two polymorphic parameters. *)
+module type I3 = sig
+  type ('a, 'b, 'c) t
+  val equal: 'a equal -> 'b equal -> 'c equal -> ('a, 'b, 'c) t equal
+  val compare: 'a compare -> 'b compare -> 'c compare -> ('a, 'b, 'c) t compare
+  val hash: 'a hash -> 'b hash -> 'c hash -> ('a, 'b, 'c) t hash
+
+  (** Pretty-printing *)
+  val to_sexp: 'a to_sexp -> 'b to_sexp -> 'c to_sexp -> ('a, 'b, 'c) t to_sexp
+
+  (** The REST interface *)
+  val to_json: 'a to_json -> 'b to_json -> 'c to_json -> ('a, 'b, 'c) t to_json
+  val of_json: 'a of_json -> 'b of_json -> 'c of_json -> ('a, 'b, 'c) t of_json
+
+  (** The serialization format *)
+  val size_of: 'a size_of -> 'b size_of -> 'c size_of -> ('a, 'b, 'c) t size_of
+  val write: 'a writer -> 'b writer -> 'c writer -> ('a, 'b, 'c) t writer
+  val read: 'a reader -> 'b reader -> 'c reader -> ('a, 'b, 'c) t reader
+end
+
+(** Build abstract identfiers with two polymorphic parameters. *)
+module I3 (S: sig type ('a, 'b, 'c) t with sexp, compare, bin_io end):
+  I3 with type ('a, 'b, 'c) t = ('a, 'b, 'c) S.t
+
+(** Monorphize a type with three parameters. *)
+module App3(F: I3)(X: I0)(Y: I0)(Z: I0): I0 with type t = (X.t, Y.t, Z.t) F.t
+
+(** List-like data-structures. *)
+module type ListLike0 = sig
+  type t
+  module K: I0
+  val to_list: t -> K.t list
+  val of_list: K.t list -> t
+end
+module ListLike0 (L: ListLike0): sig
+  include I0 with type t = L.t
+  include ListLike0 with type t := t
+end
+
+(** List-like data-structures with polymorphic elements. *)
+module type ListLike1 = sig
+  type 'a t
+  val to_list: 'a t -> 'a list
+  val of_list: 'a list -> 'a t
+end
+module ListLike1 (L: ListLike1): sig
+  include I1 with type 'a t = 'a L.t
+  include ListLike1 with type 'a t := 'a t
+end
+
+(** Association list-like data-structures, with polymorphic values. *)
+module type AListLike1 = sig
+  type 'a t
+  module K: I0
+  val to_alist: 'a t -> (K.t * 'a) list
+  val of_alist: (K.t * 'a) list -> [`Ok of 'a t | `Duplicate_key of K.t]
+  val of_alist_exn: (K.t * 'a) list -> 'a t
+end
+module AListLike1 (L: AListLike1): sig
+  include I1 with type 'a t = 'a L.t
+  include AListLike1 with type 'a t := 'a t
+end
+
+(** Dictionaries with polymorphic values. *)
+module type Dictionary = sig
   include I1
   type key
 
@@ -124,7 +213,7 @@ end
 (** Hash Tables. *)
 module Hashtbl: sig
   module type S = sig
-    include DICT
+    include Dictionary
     val create: ?size:int -> unit -> 'a t
     val clear: 'a t -> unit
     val of_alist_add: (key * 'a) list -> 'a t
@@ -141,7 +230,7 @@ end
 (** Persistent Maps. *)
 module Map: sig
   module type S = sig
-    include DICT
+    include Dictionary
     val empty: 'a t
     val add: 'a t -> key:key -> data:'a -> 'a t
     val remove: 'a t -> key -> 'a t
@@ -162,6 +251,12 @@ module Set: sig
   module type S = sig
     include I0
     type elt
+    val empty: t
+    val singleton: elt -> t
+    val is_empty: t -> bool
+    val union: t -> t -> t
+    val inter: t -> t -> t
+    val diff: t -> t -> t
     val of_list: elt list -> t
     val to_list: t -> elt list
   end
@@ -171,8 +266,15 @@ end
 (** Strings. *)
 module String: sig
   include I0 with type t = string
+  val create: int -> t
+  val make: int -> char -> t
+  val get: t -> int -> char
+  val set: t -> int -> char -> unit
   val is_empty: t -> bool
-  val split: t -> on:char -> string list
+  val length: t -> int
+  val split: t -> on:char -> t list
+  val blit: t -> int -> t -> int -> int -> unit
+  val concat: t list -> sep:t -> t
 end
 
 (** Characters. *)
@@ -196,10 +298,14 @@ end
 
 (** Polymorphic Lists. *)
 module List: sig
-  include I1
+  include I1 with type 'a t = 'a list
   val fold_left: 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
   val dedup: ?compare:'a compare -> 'a t -> 'a t
   val mem: 'a t -> 'a -> bool
+  val length: 'a t -> int
+  val iter: 'a t -> f:('a -> unit) -> unit
+  val map: 'a t -> f:('a -> 'b) -> 'b t
+  val filter: 'a t -> f:('a -> bool) -> 'a t
   val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
   val partition_map : 'a t -> f:('a -> [ `Fst of 'b | `Snd of 'c ]) -> 'b t * 'c t
   module Assoc : sig
@@ -235,6 +341,7 @@ end
 (** Polymorphic mutable queues. *)
 module Queue: sig
   include I1
+  val create: unit -> 'a t
   val enqueue: 'a t -> 'a -> unit
   val dequeue: 'a t -> 'a option
 end
@@ -248,3 +355,18 @@ module Out_channel: sig
   val create: string -> t
   val close: t -> unit
 end
+
+
+(*
+
+module Reader: sig
+  val to_bin_prot: 'a reader -> 'a Bin_prot.Read.reader
+  val of_bin_prot: 'a Bin_prot.Read.reader -> 'a reader
+end
+
+module Writer: sig
+  val to_bin_prot: 'a writer -> 'a Bin_prot.Write.writer
+  val of_bin_prot: 'a Bin_prot.Write.writer -> 'a writer
+end
+
+*)

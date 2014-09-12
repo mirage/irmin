@@ -18,14 +18,14 @@
 
 type origin = IrminOrigin.t
 
-type 'key t = {
+type ('origin, 'key) t = {
   node   : 'key option;
   parents: 'key list;
-  origin : origin;
+  origin : 'origin;
 } with bin_io, compare, sexp
 (** Type of concrete revisions. *)
 
-val edges: 'a t -> ('a, 'b) IrminGraph.vertex list
+val edges: (origin, 'a) t -> ('a, 'b) IrminGraph.vertex list
 (** The graph edges. *)
 
 module type S = sig
@@ -35,7 +35,7 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include IrminContents.S with type t = key t
+  include IrminContents.S with type t = (origin, key) t
   (** Base functions over commit objects. *)
 
 end
@@ -52,7 +52,7 @@ module type STORE = sig
   type key
   (** Database keys. *)
 
-  type value = key t
+  type value = (origin, key) t
   (** Commit values. *)
 
   include IrminStore.AO with type key := key and type value := value
@@ -93,8 +93,10 @@ end
 
 module Make
     (K     : IrminKey.S)
-    (Node  : IrminNode.STORE with type key = K.t and type value = K.t IrminNode.t)
-    (Commit: IrminStore.AO   with type key = K.t and type value = K.t t)
+    (Node  : IrminNode.STORE with type key = K.t
+                              and type value = K.t IrminNode.t)
+    (Commit: IrminStore.AO   with type key = K.t
+                              and type value = (origin, K.t) t)
   : STORE with type t = Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)

@@ -20,42 +20,34 @@ open IrminMerge.OP
 
 module Log = Log.Make(struct let section = "VALUE" end)
 
-type ('key, 'contents) t =
-  | Contents of 'contents
-  | Node of 'key IrminNode.t
-  | Commit of 'key IrminCommit.t
-with bin_io, compare, sexp
+module T3 = struct
+  type ('origin, 'key, 'contents) t =
+    | Contents of 'contents
+    | Node of 'key IrminNode.t
+    | Commit of ('origin, 'key) IrminCommit.t
+  with bin_io, compare, sexp
+end
+include T3
+module T = I3(T3)
 
 type origin = IrminOrigin.t
 
 module type S = sig
   type key
   type contents
-  include IrminContents.S with type t = (key, contents) t
+  include IrminContents.S with type t = (origin, key, contents) t
 end
 
 module S (K: IrminKey.S) (C: IrminContents.S) = struct
-
   type key = K.t
   type contents = C.t
-
-  module S = IrminIdent.Make(struct
-      type nonrec t = (K.t, C.t) t with bin_io, compare, sexp
-    end)
-
+  module S = App3(T)(IrminOrigin)(K)(C)
   include S
-
   module Key = K
-
   module Contents = C
-
   module Node = IrminNode.S(K)
-
   module Commit = IrminCommit.S(K)
-
-  let merge =
-    IrminMerge.default (module S)
-
+  let merge = IrminMerge.default (module S)
 end
 
 module String = S(IrminKey.SHA1)(IrminContents.String)
@@ -63,20 +55,22 @@ module String = S(IrminKey.SHA1)(IrminContents.String)
 module JSON = S(IrminKey.SHA1)(IrminContents.JSON)
 
 module Unit = struct
-  include IrminIdent.Unit
+  include Unit
   let master = ()
-  let of_bytes _ = ()
-  let of_bytes' _ = ()
-  let to_raw _ = ""
+  let compute_from_string _ = ()
+  let compute_from_bigstring _ = ()
+  let to_raw () = ""
   let of_raw _ = ()
+  let pretty () = ""
 end
 
 module type STORE = sig
   type key
   type contents
   type node = key IrminNode.t
-  type commit = key IrminCommit.t
-  include IrminStore.AO with type key := key and type value = (key, contents) t
+  type commit = (origin, key) IrminCommit.t
+  include IrminStore.AO with type key := key
+                         and type value = (origin, key, contents) t
   val list: t -> ?depth:int -> key list -> key list Lwt.t
   module Contents: IrminContents.STORE with type key = key and type value = contents
   module Node: IrminNode.STORE with type key = key
@@ -94,14 +88,17 @@ end
 module Mux
   (K: IrminKey.S)
   (C: IrminContents.S)
-  (XContents: IrminStore.AO with type key = K.t and type value = C.t)
-  (XNode    : IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
-  (XCommit  : IrminStore.AO with type key = K.t and type value = K.t IrminCommit.t)
+  (XContents: IrminStore.AO with type key   = K.t
+                             and type value = C.t)
+  (XNode    : IrminStore.AO with type key   = K.t
+                             and type value = K.t IrminNode.t)
+  (XCommit  : IrminStore.AO with type key   = K.t
+                             and type value = (origin, K.t) IrminCommit.t)
 = struct
 
   type contents = C.t
   type key = K.t
-  type value = (K.t, C.t) t
+  type value = (origin, K.t, C.t) t
   module Key = K
   module Contents = IrminContents.Make(K)(C)(XContents)
   module Node = IrminNode.Make(K)(C)(Contents)(XNode)
@@ -125,7 +122,7 @@ module Mux
 
   (* XXX: ugly and slow *)
   let read t key =
-    Log.debugf "read %s" (K.to_string key);
+    Log.debugf "read %s" (pretty K.to_sexp key);
     Contents.read t.contents key >>= function
     | Some b -> return (Some (Contents b))
     | None   ->
@@ -137,7 +134,7 @@ module Mux
         | None   -> return_none
 
   let read_exn t key =
-    Log.debugf "read_exn %s" (K.to_string key);
+    Log.debugf "read_exn %s" (pretty K.to_sexp key);
     read t key >>= function
     | Some v -> return v
     | None   -> fail Not_found
@@ -176,7 +173,7 @@ module Mux
     ]
 
   let list t ?depth keys =
-    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+    Log.debugf "list %s" (prettys K.to_sexp keys);
     (* start by loading the bounded history. *)
     let pred = function
       | `Commit k ->
@@ -258,7 +255,8 @@ end
 module Make
   (K: IrminKey.S)
   (C: IrminContents.S)
-  (Store: IrminStore.AO with type key = K.t and type value = (K.t, C.t) t)
+  (Store: IrminStore.AO with type key = K.t
+                         and type value = (origin, K.t, C.t) t)
 = struct
 
   module BS = Cast(Store)(struct
@@ -281,7 +279,7 @@ module Make
 
   module CS = Cast(Store)(struct
       type t = Store.value
-      type cast = K.t IrminCommit.t
+      type cast = (origin, K.t) IrminCommit.t
       let proj = function
         | Commit c -> Some c
         | _        -> None
@@ -317,7 +315,7 @@ module Make
     ]
 
   let list t ?depth keys =
-    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+    Log.debugf "list %s" (prettys K.to_sexp keys);
     (* start by loading the bounded history. *)
     let pred = function
       | `Commit k ->

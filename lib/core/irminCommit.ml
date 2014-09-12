@@ -20,14 +20,20 @@ open Lwt
 open IrminCore
 open IrminMerge.OP
 open Printf
+open Sexplib.Std
+open Bin_prot.Std
 
 type origin = IrminOrigin.t
 
-type 'key t = {
-  node   : 'key option;
-  parents: 'key list;
-  origin : IrminOrigin.t;
-} with bin_io, compare, sexp
+module T2 = struct
+  type ('origin, 'key) t = {
+    node   : 'key option;
+    parents: 'key list;
+    origin : 'origin;
+  } with bin_io, compare, sexp
+end
+include T2
+module T = I2(T2)
 
 let edges t =
   begin match t.node with
@@ -38,29 +44,21 @@ let edges t =
 
 module type S = sig
   type key
-  include IrminContents.S with type t = key t
+  include IrminContents.S with type t = (origin, key) t
 end
 
 module S (K: IrminKey.S) = struct
-
   type key = K.t
-
-  module S = IrminIdent.Make(struct
-      type nonrec t = K.t t with bin_io, compare, sexp
-    end)
-
+  module S = App2(T)(IrminOrigin)(K)
   include S
-
-  let merge =
-    IrminMerge.default (module S)
-
+  let merge = IrminMerge.default (module S)
 end
 
 module SHA1 = S(IrminKey.SHA1)
 
 module type STORE = sig
   type key
-  type value = key t
+  type value = (origin, key) t
   include IrminStore.AO with type key := key
                          and type value := value
   type node = key IrminNode.t
@@ -77,12 +75,14 @@ end
 
 module Make
     (K     : IrminKey.S)
-    (Node  : IrminNode.STORE with type key = K.t and type value = K.t IrminNode.t)
-    (Commit: IrminStore.AO   with type key = K.t and type value = K.t t)
+    (Node  : IrminNode.STORE with type key   = K.t
+                              and type value = K.t IrminNode.t)
+    (Commit: IrminStore.AO   with type key   = K.t
+                              and type value = (origin, K.t) t)
 = struct
 
   type key = K.t
-  type value = key t
+  type value = (origin, key) t
   type t = Node.t * Commit.t
   type node = key IrminNode.t
 
@@ -129,7 +129,7 @@ module Make
   module Graph = IrminGraph.Make(K)(IrminTag.String)
 
   let list t ?depth keys =
-    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+    Log.debugf "list %s" (prettys K.to_sexp keys);
     let pred = function
       | `Commit k -> read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
@@ -157,32 +157,34 @@ module Make
     in
     IrminMerge.create' (module K) merge
 
+  module KSet = Set.Make(K)
+
   let find_common_ancestor t c1 c2 =
     let rec aux (seen1, todo1) (seen2, todo2) =
-      if K.Set.is_empty todo1 && K.Set.is_empty todo2 then
+      if KSet.is_empty todo1 && KSet.is_empty todo2 then
         return_none
       else
-        let seen1' = K.Set.union seen1 todo1 in
-        let seen2' = K.Set.union seen2 todo2 in
-        match K.Set.to_list (K.Set.inter seen1' seen2') with
+        let seen1' = KSet.union seen1 todo1 in
+        let seen2' = KSet.union seen2 todo2 in
+        match KSet.to_list (KSet.inter seen1' seen2') with
         | []  ->
           (* Compute the immediate parents *)
           let parents todo =
             let parents_of_commit seen c =
               read_exn t c >>= fun v ->
-              let parents = K.Set.of_list v.parents in
-              return (K.Set.diff parents seen) in
-            Lwt_list.fold_left_s parents_of_commit todo (K.Set.to_list todo)
+              let parents = KSet.of_list v.parents in
+              return (KSet.diff parents seen) in
+            Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
           in
           parents todo1 >>= fun todo1' ->
           parents todo2 >>= fun todo2' ->
           aux (seen1', todo1') (seen2', todo2')
         | [r] -> return (Some r)
         | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
-                                  (IrminMisc.pretty_list K.to_string rs))) in
+                                  (IrminMisc.pretty_list K.pretty rs))) in
     aux
-      (K.Set.empty, K.Set.singleton c1)
-      (K.Set.empty, K.Set.singleton c2)
+      (KSet.empty, KSet.singleton c1)
+      (KSet.empty, KSet.singleton c2)
 
   let find_common_ancestor_exn t c1 c2 =
     find_common_ancestor t c1 c2 >>= function

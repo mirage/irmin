@@ -21,14 +21,17 @@ open IrminCore
 exception Invalid of string
 (** Exception raised when a key is not valid. *)
 
-exception Unknown of string
+exception Unknown of Sexplib.Sexp.t
 (** Exception raised when no value is associated to a key. *)
 
 module type S = sig
 
-  (** Signature for deterministic keys. *)
+  (** Signature for database keys. *)
 
   include I0
+
+  val pretty: t -> string
+  (** Pretty-print the key. *)
 
   val of_raw: string -> t
   (** Cast a raw string into a key. Check that the format of the raw
@@ -37,10 +40,10 @@ module type S = sig
   val to_raw: t -> string
   (** Return the raw key. *)
 
-  val compute: Bigstring.t -> t
+  val compute_from_bigstring: Bigstring.t -> t
   (** Compute a (deterministic) key from a bigstring. *)
 
-  val compute': string -> t
+  val compute_from_string: string -> t
   (** Compute a (deterministic) key from a sequence of bytes. *)
 
 end

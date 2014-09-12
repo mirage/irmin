@@ -14,7 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
 open IrminCore
+open Sexplib.Std
+open Bin_prot.Std
 
 module Log = Log.Make(struct let section = "GRAPH" end)
 
@@ -42,7 +45,7 @@ module type S = sig
   type dump = vertex list * (vertex * vertex) list
   val export: t -> dump
   val import: dump -> t
-  module Dump: IrminIdent.S with type t = dump
+  module Dump: I0 with type t = dump
 end
 
 type ('a, 'b) vertex =
@@ -51,6 +54,9 @@ type ('a, 'b) vertex =
   | `Commit of 'a
   | `Tag of 'b ]
 with bin_io, compare, sexp
+
+module V =
+  I2(struct type ('a, 'b) t = ('a, 'b) vertex with bin_io, compare, sexp end)
 
 let of_tags     x = List.map ~f:(fun k -> `Tag k) x
 let of_contents x = List.map ~f:(fun k -> `Contents k) x
@@ -68,27 +74,19 @@ let to_keys     = List.filter_map ~f:(function `Commit k
 
 module Make (K: IrminKey.S) (R: IrminTag.S) = struct
 
-  open Lwt
+  type v = (K.t, R.t) vertex
 
-  module K = struct
-    module M = IrminIdent.Make(struct
-        type t = (K.t, R.t) vertex
-        with bin_io, compare, sexp
-      end)
-    include M
-    let to_string = function
-      | `Contents x -> "B" ^ K.to_string x
-      | `Node     x -> "N" ^ K.to_string x
-      | `Commit   x -> "C" ^ K.to_string x
-      | `Tag      x -> "R" ^ R.to_string x
-  end
+  module X = App2(V)(K)(R)
 
-  module G = Graph.Imperative.Digraph.ConcreteBidirectional(K)
+  module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)
   module GO = Graph.Oper.I(G)
   module Topological = Graph.Topological.Make(G)
+  module Table = IrminCore.Hashtbl.Make(X)
+
   include G
   include GO
-  type dump = V.t list * (V.t * V.t) list
+
+  type dump = v list * (v * v) list
 
   let vertex g =
     G.fold_vertex (fun k set -> k :: set) g []
@@ -99,9 +97,9 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
   let closure ?(depth=Int.max_value) ?(min=[]) ~pred max =
     Log.debugf "closure depth=%d (%d elements)" depth (List.length max);
     let g = G.create ~size:1024 () in
-    let marks = K.Table.create () in
-    let mark key level = K.Table.add_exn marks key level in
-    let has_mark key = K.Table.mem marks key in
+    let marks = Table.create () in
+    let mark key level = Table.add_exn marks key level in
+    let has_mark key = Table.mem marks key in
     List.iter ~f:(fun k -> mark k Int.max_value) min;
     List.iter ~f:(G.add_vertex g) max;
     let todo = Queue.create () in
@@ -114,7 +112,7 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
         else if has_mark key then add ()
         else (
           mark key level;
-          Log.debugf "ADD %s %d" (K.to_string key) level;
+          Log.debugf "ADD %s %d" (pretty X.to_sexp key) level;
           if not (G.mem_vertex g key) then G.add_vertex g key;
           pred key >>= fun keys ->
           List.iter ~f:(fun k -> G.add_edge g k key) keys;
@@ -143,8 +141,7 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
       include G
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
-      let vertex_name k =
-        Printf.sprintf "%S" (K.to_string k)
+      let vertex_name k = Printf.sprintf "%S" (pretty X.to_sexp k)
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None
@@ -154,10 +151,13 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
         | Some n -> [`Label n]
     end)
 
-  module Dump = IrminIdent.Make(struct
-      type nonrec t = K.t list * (K.t * K.t) list
-      with bin_io, compare, sexp
-    end)
+
+  module Dump = struct
+    module D = I1(struct
+        type 'a t = 'a list * ('a * 'a) list with bin_io, compare, sexp
+      end)
+    include App1(D)(X)
+  end
 
   let export t =
     vertex t, edges t

@@ -22,6 +22,9 @@ type origin = IrminOrigin.t
 
 module Log = Log.Make(struct let section = "SNAPSHOT" end)
 
+module StringMap = Map.Make(String)
+module PathSet = Set.Make(IrminPath)
+
 module type STORE = sig
   include IrminStore.RO with type key = IrminPath.t
   type db
@@ -33,7 +36,7 @@ module type STORE = sig
   type state
   val of_state: db -> state -> t
   val to_state: t -> state
-  include IrminIdent.S with type t := state
+  include I0 with type t := state
 end
 
 module Make (S: IrminBranch.STORE) = struct
@@ -87,30 +90,30 @@ module Make (S: IrminBranch.STORE) = struct
       | None      -> return_nil
       | Some node ->
         let c = Node.succ (S.node_t t) node in
-        let c = String.Map.keys c in
+        let c = StringMap.keys c in
         let paths = List.map ~f:(fun c -> path @ [c]) c in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
         one p >>= fun paths ->
-        let paths = IrminPath.Set.of_list paths in
-        return (IrminPath.Set.union set paths)
-      ) IrminPath.Set.empty paths
+        let paths = PathSet.of_list paths in
+        return (PathSet.union set paths)
+      ) PathSet.empty paths
     >>= fun paths ->
-    return (IrminPath.Set.to_list paths)
+    return (PathSet.to_list paths)
 
   let dump (t, c) =
     failwith "TODO"
 
   let revert t (_, c) =
-    Log.debugf "revert %s" (K.to_string c);
+    Log.debugf "revert %s" (pretty K.to_sexp c);
     match S.branch t with
     | None     -> S.set_head t c; return_unit
     | Some tag -> Tag.update (S.tag_t t) tag c
 
   let merge t ?origin (_, c) =
-    Log.debugf "merge %s" (K.to_string c);
+    Log.debugf "merge %s" (pretty K.to_sexp c);
     let origin = match origin with
-      | None   -> IrminOrigin.create "Merge snapshot %s" (K.to_string c)
+      | None   -> IrminOrigin.create "Merge snapshot %s" (K.pretty c)
       | Some o -> o in
     S.merge_commit t ~origin c
 
@@ -128,6 +131,6 @@ module Make (S: IrminBranch.STORE) = struct
 
   let to_state (_, s) = s
 
-  include (S.Block.Key: IrminIdent.S with type t := state)
+  include (S.Block.Key: I0 with type t := state)
 
 end
