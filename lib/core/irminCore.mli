@@ -27,8 +27,6 @@ type 'a hash = 'a -> int
 
 (** Pretty-printing. *)
 type 'a to_sexp = 'a -> Sexplib.Sexp.t
-val pretty: ('a -> Sexplib.Sexp.t) -> 'a -> string
-val prettys: ('a -> Sexplib.Sexp.t) -> 'a list -> string
 
 (** Cstruct readers. *)
 type 'a reader = Cstruct.t -> (Cstruct.t * 'a) option
@@ -44,6 +42,26 @@ val write_all: 'a size_of -> 'a writer -> 'a -> Cstruct.buffer
 (** JSON converters. *)
 type 'a to_json = 'a -> Ezjsonm.t
 type 'a of_json = Ezjsonm.t -> 'a
+
+module JSON: sig
+
+  val is_valid_utf8: string -> bool
+  (** Check whether a string is valid UTF8 encoded. *)
+
+  val encode_string: string -> Ezjsonm.t
+  (** Convert a (possibly non-valid UTF8) string to a JSON object.*)
+
+  val decode_string: Ezjsonm.t -> string option
+  (** Convert a JSON object to a (possibly non-valid UTF8)
+      string. Return [None] if the JSON object is not a valid string. *)
+
+  val decode_string_exn: Ezjsonm.t -> string
+  (** Convert a JSON object to a (possibly non-valid UTF8) string. *)
+
+  val to_sexp: Ezjsonm.t -> Sexplib.Type.t
+  val of_sexp: Sexplib.Type.t -> Ezjsonm.t
+
+end
 
 (** Abstract Identifiers. *)
 module type I0 = sig
@@ -64,6 +82,21 @@ module type I0 = sig
   val write: t writer
   val read: t reader
 end
+
+(** type-classes *)
+val equal: (module I0 with type t = 'a) -> 'a equal
+val compare: (module I0 with type t = 'a) -> 'a compare
+val hash: (module I0 with type t = 'a) -> 'a hash
+val to_sexp: (module I0 with type t = 'a) -> 'a to_sexp
+val to_json: (module I0 with type t = 'a) -> 'a to_json
+val size_of: (module I0 with type t = 'a) -> 'a size_of
+val write: (module I0 with type t = 'a) -> 'a writer
+val read: (module I0 with type t = 'a) -> 'a reader
+
+(** derived type-classes for debugging*)
+val force: out_channel -> string Lazy.t -> unit
+val pretty: (module I0 with type t = 'a) -> 'a -> string Lazy.t
+val prettys: (module I0 with type t = 'a) -> 'a list -> string Lazy.t
 
 (** Build abstract identifiers. *)
 module I0 (S: sig type t with sexp, bin_io, compare end):
@@ -234,6 +267,7 @@ module Map: sig
     val empty: 'a t
     val add: 'a t -> key:key -> data:'a -> 'a t
     val remove: 'a t -> key -> 'a t
+    val keys: 'a t -> key list
     module Lwt: sig
       val merge: 'v1 t ->'v2 t ->
         f:(key:key -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> 'v3 option Lwt.t) ->
@@ -272,9 +306,25 @@ module String: sig
   val set: t -> int -> char -> unit
   val is_empty: t -> bool
   val length: t -> int
+  val sub: t -> pos:int -> len:int -> t
   val split: t -> on:char -> t list
   val blit: t -> int -> t -> int -> int -> unit
   val concat: t list -> sep:t -> t
+  val escaped: t -> t
+
+  val replace: pattern:t -> (t -> t) -> t -> t
+  (** Replace a pattern in a string. *)
+
+  module Hex: sig
+
+    val encode: string -> string
+    (** Encode a binary string to hexa *)
+
+    val decode: string -> string
+    (** Decode an hexa string to binary *)
+
+  end
+
 end
 
 (** Characters. *)
@@ -290,10 +340,17 @@ module Option: sig
   include I1 with type 'a t = 'a option
 end
 
+(** Pairs *)
+module Pair: sig
+  include I2 with type ('a, 'b) t = 'a * 'b
+end
+
 (** Strings allocated in the C heap. *)
 module Bigstring: sig
   open Bigarray
   include I0 with type t = (char, int8_unsigned_elt, c_layout) Array1.t
+  val to_string: t -> string
+  val of_string: string -> t
 end
 
 (** Polymorphic Lists. *)
@@ -301,10 +358,14 @@ module List: sig
   include I1 with type 'a t = 'a list
   val fold_left: 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
   val dedup: ?compare:'a compare -> 'a t -> 'a t
+  val sort: ?compare:'a compare -> 'a t -> 'a t
   val mem: 'a t -> 'a -> bool
   val length: 'a t -> int
+  val rev: 'a t -> 'a t
   val iter: 'a t -> f:('a -> unit) -> unit
   val map: 'a t -> f:('a -> 'b) -> 'b t
+  val rev_map: 'a t -> f:('a -> 'b) -> 'b t
+  val exists: 'a t -> f:('a -> bool) -> bool
   val filter: 'a t -> f:('a -> bool) -> 'a t
   val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
   val partition_map : 'a t -> f:('a -> [ `Fst of 'b | `Snd of 'c ]) -> 'b t * 'c t
@@ -313,6 +374,10 @@ module List: sig
     val find: ('a, 'b) t -> ?equal:'a equal -> 'a -> 'b option
     val find_exn: ('a, 'b) t -> ?equal:'a equal -> 'a -> 'b
   end
+
+  val pretty: ('a -> string) -> 'a t -> string
+  (** Pretty-print a list. *)
+
 end
 
 (** Polymorphic Stacks. *)
@@ -336,6 +401,7 @@ end
 module Int64: sig
   include I0 with type t = int64
   val (+): t -> t -> t
+  val to_string: t -> string
 end
 
 (** Polymorphic mutable queues. *)
@@ -356,9 +422,6 @@ module Out_channel: sig
   val close: t -> unit
 end
 
-
-(*
-
 module Reader: sig
   val to_bin_prot: 'a reader -> 'a Bin_prot.Read.reader
   val of_bin_prot: 'a Bin_prot.Read.reader -> 'a reader
@@ -369,4 +432,11 @@ module Writer: sig
   val of_bin_prot: 'a Bin_prot.Write.writer -> 'a writer
 end
 
-*)
+module Lwt_stream: sig
+
+  include (module type of Lwt_stream with type 'a t = 'a Lwt_stream.t)
+
+  val lift: 'a t Lwt.t -> 'a t
+  (** Lift a stream out of the monad. *)
+
+end

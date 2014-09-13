@@ -44,51 +44,53 @@ module Make (K: IrminKey.S) (V: sig type t end) = struct
   type key = K.t
   type value = V.t
 
-  type t = (int * value option * (value option -> unit)) list K.Table.t
+  module KTable = Hashtbl.Make(K)
+
+  type t = (int * value option * (value option -> unit)) list KTable.t
 
   let create () =
-    K.Table.create ()
+    KTable.create ()
 
   let clear t =
-    K.Table.clear t
+    KTable.clear t
 
   let unwatch t key id =
-    let ws = match K.Table.find t key with
+    let ws = match KTable.find t key with
       | None    -> []
       | Some ws -> ws in
     let ws = List.filter ~f:(fun (x,_,_) -> x <> id) ws in
     match ws with
-    | [] -> K.Table.remove t key
-    | ws -> K.Table.replace t ~key ~data:ws
+    | [] -> KTable.remove t key
+    | ws -> KTable.replace t ~key ~data:ws
 
   let notify t key value =
-    Log.debugf "notify %s" (K.to_string key);
-    match K.Table.find t key with
+    Log.debugf "notify %a" force (pretty (module K) key);
+    match KTable.find t key with
     | None    -> ()
     | Some ws ->
       let ws = List.map ws ~f:(fun (id, old_value, f as w) ->
           if old_value <> value then (
-            Log.debugf "firing watch %s:%d" (K.to_string key) id;
+            Log.debugf "firing watch %a:%d" force (pretty (module K) key) id;
             try f value; (id, value, f)
             with e ->
               unwatch t key id;
               raise e
           ) else w
         ) in
-      K.Table.replace t ~key ~data:ws
+      KTable.replace t ~key ~data:ws
 
   let id =
     let c = ref 0 in
     fun () -> incr c; !c
 
   let watch t key value =
-    Log.debugf "watch %s" (K.to_string key);
+    Log.debugf "watch %a" force (pretty (module K) key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
-    K.Table.add_multi t ~key ~data:(id, value, push);
+    KTable.add_multi t ~key ~data:(id, value, push);
     stream
 
-  let listen_dir (t:t) dir ~(key:string -> key option) ~(value:key -> value option Lwt.t) =
+  let listen_dir t dir ~key ~value =
     !listen_dir_hook dir (fun file ->
         Log.debugf "listen_dir_hook: %s" file;
         match key file with

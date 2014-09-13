@@ -15,26 +15,25 @@
  *)
 
 open IrminCore
+open Sexplib.Std
+open Bin_prot.Std
 
-module M = struct
-  type nonrec t = string list with bin_io, compare, sexp
-  let hash (t : t) = Hashtbl.hash t
-  let to_string t =
-    "/" ^ (String.concat ~sep:"/" t)
-  let of_string str =
-    List.filter
-      ~f:(fun s -> not (String.is_empty s))
-      (String.split str ~on:'/')
-  let module_name = "Path"
-end
-include Identifiable.Make (M)
+module T = I0(struct
+  type t = string list with bin_io, compare, sexp
+  end)
 
+include T
+
+let to_string t =
+  "/" ^ (String.concat ~sep:"/" t)
+
+let of_string str =
+  List.filter
+    ~f:(fun s -> not (String.is_empty s))
+    (String.split str ~on:'/')
+
+let pretty = to_string
 let of_raw = of_string
 let to_raw = to_string
-
-let to_json = Ezjsonm.list Ezjsonm.string
-let of_json = Ezjsonm.get_list Ezjsonm.get_string
-
-let to_bytes t = Bigstring.of_string (to_string t)
-let of_bytes s = of_string (Bigstring.to_string s)
-let of_bytes' = of_string
+let compute_from_string t = of_string t
+let compute_from_bigstring s = of_string (Bigstring.to_string s)

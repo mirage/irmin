@@ -41,6 +41,29 @@ module type I0 = sig
   val read: t reader
 end
 
+let equal (type t) (module S: I0 with type t = t) = S.equal
+let compare (type t) (module S: I0 with type t = t) = S.compare
+let hash (type t) (module S: I0 with type t = t) = S.hash
+let to_sexp (type t) (module S: I0 with type t = t) = S.to_sexp
+let to_json (type t) (module S: I0 with type t = t) = S.to_json
+let of_json (type t) (module S: I0 with type t = t) = S.of_json
+let size_of (type t) (module S: I0 with type t = t) = S.size_of
+let write (type t) (module S: I0 with type t = t) = S.write
+let read (type t) (module S: I0 with type t = t) = S.read
+
+let force oc s = output_string oc (Lazy.force s)
+
+let pretty (type t) (module S: I0 with type t = t) t =
+  lazy (
+    Sexplib.Sexp.to_string_hum (S.to_sexp t)
+  )
+
+let prettys (type t) (module S: I0 with type t = t) xs =
+  lazy (
+    List.map S.to_sexp xs
+    |> fun l -> Sexplib.Sexp.to_string_hum (Sexplib.Sexp.List l)
+  )
+
 module type I1 = sig
   type 'a t
   val equal: 'a equal -> 'a t equal
@@ -66,11 +89,6 @@ module type I2 = sig
   val write: 'a writer -> 'b writer -> ('a, 'b) t writer
   val read: 'a reader -> 'b reader -> ('a, 'b) t reader
 end
-
-let pretty fn x = Sexplib.Sexp.to_string_hum (fn x)
-let prettys fn xs =
-  List.map fn xs
-  |> fun l -> Sexplib.Sexp.to_string_hum (Sexplib.Sexp.List l)
 
 let read_all read ba =
   let buf = Cstruct.of_bigarray ba in
@@ -180,14 +198,78 @@ module Equal = struct
 
 end
 
+module Hex = struct
+
+  (* From OCaml's stdlib. See [Digest.to_hex] *)
+  let encode s =
+    let n = String.length s in
+    let result = String.create (n*2) in
+    for i = 0 to n-1 do
+      String.blit (Printf.sprintf "%02x" (int_of_char s.[i])) 0 result (2*i) 2;
+    done;
+    result
+
+  (* From OCaml's stdlib. See [Digest.from_hex] *)
+  let decode h =
+    let n = String.length h in
+    if n mod 2 <> 0 then (
+      let msg =
+        Printf.sprintf "hex_decode: wrong string size for %S (%d)" h (String.length h) in
+      raise (Invalid_argument msg)
+    );
+    let digit c =
+      match c with
+      | '0'..'9' -> Char.code c - Char.code '0'
+      | 'A'..'F' -> Char.code c - Char.code 'A' + 10
+      | 'a'..'f' -> Char.code c - Char.code 'a' + 10
+      | c ->
+        let msg = Printf.sprintf "hex_decode: %S is invalid" (String.make 1 c) in
+        raise (Invalid_argument msg) in
+    let byte i = digit h.[i] lsl 4 + digit h.[i+1] in
+    let result = String.create (n / 2) in
+    for i = 0 to n/2 - 1 do
+      result.[i] <- Char.chr (byte (2 * i));
+    done;
+    result
+
+end
+
 module JSON = struct
 
+  let is_valid_utf8 str =
+    try
+      Uutf.String.fold_utf_8 (fun _ _ -> function
+          | `Malformed _ -> raise (Failure "utf8")
+          | _ -> ()
+        ) () str;
+      true
+    with Failure "utf8" -> false
+
+  let encode_string str =
+    if is_valid_utf8 str
+    then Ezjsonm.string str
+    else `O [ "hex", Ezjsonm.string (Hex.encode str) ]
+
+  let decode_string = function
+    | `String str               -> Some str
+    | `O [ "hex", `String str ] -> Some (Hex.decode str)
+    | j                         -> None
+
+  let decode_string_exn j =
+    match decode_string j with
+    | Some s -> s
+    | None   ->
+      failwith (
+        Printf.sprintf "%s is not a valid UT8-encoded JSON string"
+          (Ezjsonm.to_string j)
+      )
+
   let rec of_sexp = function
-    | Sexplib.Type.Atom x -> IrminMisc.encode_json_string x
+    | Sexplib.Type.Atom x -> encode_string x
     | Sexplib.Type.List l -> Ezjsonm.list of_sexp l
 
   let rec to_sexp json =
-    match IrminMisc.decode_json_string json with
+    match decode_string json with
     | Some s -> Sexplib.Type.Atom s
     | None   ->
       match json with
@@ -229,10 +311,19 @@ module I0 (S: sig type t with sexp, bin_io, compare end) = struct
 
 end
 
+module Char = struct
+  include I0(struct type t = char with sexp, compare, bin_io end)
+  let to_int = Char.code
+  let of_int i = if i >= 0 && i <= 255 then Some (Char.chr i) else None
+  let of_int_exn i = match of_int i with
+    | None   -> raise (invalid_argf "Char.of_int_exn: %d is out of range." i)
+    | Some c -> c
+end
+
 module String = struct
   include I0(struct type t = string with sexp, compare, bin_io end)
-  let of_json = IrminMisc.decode_json_string_exn
-  let to_json = IrminMisc.encode_json_string
+  let of_json = JSON.decode_string_exn
+  let to_json = JSON.encode_string
   let create = String.create
   let make = String.make
   let get = String.get
@@ -242,6 +333,8 @@ module String = struct
   let sub str ~pos ~len = String.sub str pos len
   let length = String.length
   let concat ts ~sep = String.concat sep ts
+  let escaped = String.escaped
+
   let split str ~on =
     let len = String.length str in
     let rec loop acc i =
@@ -259,6 +352,12 @@ module String = struct
       )
     in
     loop [] (len - 1)
+
+  let replace ~pattern subst str =
+    let rex = Re_perl.compile_pat pattern in
+    Re_pcre.substitute ~rex ~subst str
+
+  module Hex = Hex
 
 end
 
@@ -282,6 +381,27 @@ module Bigstring = struct
   include I0(M)
   let create len = Array1.create char c_layout len
   let length t = Array1.dim t
+
+  external unsafe_blit_bigstring_to_string:
+    t -> int -> string -> int -> int -> unit = "caml_blit_bigstring_to_string"
+      "noalloc"
+
+  external unsafe_blit_string_to_bigstring:
+    string -> int -> t -> int -> int -> unit = "caml_blit_string_to_bigstring"
+      "noalloc"
+
+  let to_string t =
+    let len = length t in
+    let str = String.create len in
+    unsafe_blit_bigstring_to_string t 0 str 0 len;
+    str
+
+  let of_string str =
+    let len = String.length str in
+    let t = create len in
+    unsafe_blit_string_to_bigstring str 0 t 0 len;
+    t
+
 end
 
 module Unit = I0(struct type t = unit with sexp, bin_io, compare end)
@@ -289,15 +409,7 @@ module Unit = I0(struct type t = unit with sexp, bin_io, compare end)
 module Int64 = struct
   include I0(struct type t = int64 with sexp, bin_io, compare end)
   let (+) = Int64.add
-end
-
-module Char = struct
-  include I0(struct type t = char with sexp, compare, bin_io end)
-  let to_int = Char.code
-  let of_int i = if i >= 0 && i <= 255 then Some (Char.chr i) else None
-  let of_int_exn i = match of_int i with
-    | None   -> raise (invalid_argf "Char.of_int_exn: %d is out of range." i)
-    | Some c -> c
+  let to_string = Int64.to_string
 end
 
 module App1(F: I1)(X: I0) = struct
@@ -345,7 +457,7 @@ module I1 (S: sig type 'a t with sexp, compare, bin_io end):
     let open Sexplib.Type in
     let sexprs = ref [] in
     let rec sexp_of_json json =
-      let e = match IrminMisc.decode_json_string json with
+      let e = match JSON.decode_string json with
         | Some s -> Atom s
         | None   -> match json with
           | `A l -> List (List.map sexp_of_json l)
@@ -434,7 +546,7 @@ module I2 (S: sig type ('a, 'b) t with sexp, compare, bin_io end):
     let open Sexplib.Type in
     let sexprs = ref [] in
     let rec sexp_of_json json =
-      let e = match IrminMisc.decode_json_string json with
+      let e = match JSON.decode_string json with
         | Some s -> Atom s
         | None   -> match json with
           | `A l -> List (List.map sexp_of_json l)
@@ -538,7 +650,7 @@ module I3 (S: sig type ('a, 'b, 'c) t with sexp, compare, bin_io end):
     let open Sexplib.Type in
     let sexprs = ref [] in
     let rec sexp_of_json json =
-      let e = match IrminMisc.decode_json_string json with
+      let e = match JSON.decode_string json with
         | Some s -> Atom s
         | None   -> match json with
           | `A l -> List (List.map sexp_of_json l)
@@ -564,6 +676,10 @@ module Option = struct
   include I1(struct type 'a t = 'a option with sexp, bin_io, compare end)
 end
 
+module Pair = struct
+  include I2(struct type ('a, 'b) t = 'a * 'b with sexp, bin_io, compare end)
+end
+
 module List = struct
   include I1(struct type 'a t = 'a list with sexp, compare, bin_io end)
   let length = List.length
@@ -574,8 +690,10 @@ module List = struct
   let fold_left t ~init ~f = List.fold_left f init t
   let mem t x = List.mem x t
   let map t ~f = List.map f t
+  let rev_map t ~f = List.rev_map f t
   let filter t ~f = List.filter f t
-
+  let exists t ~f = List.exists f t
+  let sort ?(compare=Pervasives.compare) t = List.sort compare t
   let partition_map t ~f =
     let rec aux fst snd = function
       | []   -> List.rev fst, List.rev snd
@@ -623,6 +741,21 @@ module List = struct
       with Not_found -> None
 
   end
+
+  let pretty f = function
+    | [] -> "{}"
+    | l  ->
+      let buf = Buffer.create 1024 in
+      let len = ref (List.length l - 1) in
+      Buffer.add_string buf "{ ";
+      iter ~f:(fun e ->
+          Buffer.add_string buf (f e);
+          if !len > 0 then Buffer.add_string buf ", ";
+          decr len
+        ) l;
+      Buffer.add_string buf " }";
+      Buffer.contents buf
+
 end
 
 module type ListLike0 = sig
@@ -717,24 +850,24 @@ module AListLike1 (L: AListLike1) = struct
     | x -> x
 
   let compare compare_a m1 m2 =
-    let cmp = compare_bindings compare_a in
-    let l1 = List.sort ~cmp (L.to_alist m1) in
-    let l2 = List.sort ~cmp (L.to_alist m2) in
+    let compare = compare_bindings compare_a in
+    let l1 = List.sort ~compare (L.to_alist m1) in
+    let l2 = List.sort ~compare (L.to_alist m2) in
     let rec aux t1 t2 = match t1, t2 with
       | [], [] -> 0
       | [], _  -> -1
       | _ , [] -> 1
       | h1::t1, h2::t2 ->
-        match cmp h1 h2 with
+        match compare h1 h2 with
         | 0 -> aux t1 t2
         | x -> x
     in
     aux l1 l2
 
   let equal equal_a t1 t2 =
-    let cmp = compare_bindings (fun _ _ -> 0) in
-    let l1 = List.sort ~cmp (L.to_alist t1) in
-    let l2 = List.sort ~cmp (L.to_alist t2) in
+    let compare = compare_bindings (fun _ _ -> 0) in
+    let l1 = List.sort ~compare (L.to_alist t1) in
+    let l2 = List.sort ~compare (L.to_alist t2) in
     let f (k1, v1) (k2, v2) = L.K.equal k1 k2 && equal_a v1 v2 in
     List.for_all2 ~f l1 l2
 
@@ -883,7 +1016,8 @@ module Hashtbl = struct
       match of_alist l with
       | `Ok acc -> acc
       | `Duplicate_key k ->
-        raise (invalid_argf "Duplicate key: %s" (pretty K.to_sexp k))
+        raise (invalid_argf "Duplicate key: %s"
+                 (Lazy.force (pretty (module K) k)))
 
     let to_alist t =
       let acc = ref [] in
@@ -915,15 +1049,15 @@ module Hashtbl = struct
       Writer.of_bin_prot bin_t
 
     let compare compare_a t1 t2 =
-      let cmp = Compare.pair K.compare compare_a in
-      let l1 = List.sort ~cmp (to_alist t1) in
-      let l2 = List.sort ~cmp (to_alist t2) in
-      Compare.list cmp l1 l2
+      let compare = Compare.pair K.compare compare_a in
+      let l1 = List.sort ~compare (to_alist t1) in
+      let l2 = List.sort ~compare (to_alist t2) in
+      Compare.list compare l1 l2
 
     let equal equal_a t1 t2 =
-      let cmp = Compare.pair K.compare (fun _ _ -> 0) in
-      let l1 = List.sort ~cmp (to_alist t1) in
-      let l2 = List.sort ~cmp (to_alist t2) in
+      let compare = Compare.pair K.compare (fun _ _ -> 0) in
+      let l1 = List.sort ~compare (to_alist t1) in
+      let l2 = List.sort ~compare (to_alist t2) in
       Equal.list (Equal.pair K.equal equal_a) l1 l2
 
     let remove = Hashtbl.remove
@@ -945,7 +1079,8 @@ module Hashtbl = struct
       match add t ~key ~data with
       | `Ok -> ()
       | `Duplicate ->
-        raise (invalid_argf "Duplicate key: %s" (pretty K.to_sexp key))
+        raise (invalid_argf "Duplicate key: %s"
+                 (Lazy.force (pretty (module K) key)))
 
     let keys t =
       let acc = ref [] in
@@ -994,13 +1129,14 @@ module Map = struct
     val empty: 'a t
     val add: 'a t -> key:key -> data:'a -> 'a t
     val remove: 'a t -> key -> 'a t
+    val keys: 'a t -> key list
     module Lwt: sig
       val merge: 'v1 t ->'v2 t ->
-        f:(key:key -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> 'v3 option Lwt.t) ->
-        'v3 t Lwt.t
+        f:(key:key -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ]
+           -> 'v3 option Lwt.t) -> 'v3 t Lwt.t
       val iter2: 'v1 t -> 'v2 t ->
-        f:(key:key ->data:[ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> unit Lwt.t) ->
-        unit Lwt.t
+        f:(key:key ->data:[ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ]
+           -> unit Lwt.t) -> unit Lwt.t
     end
   end
   module Make (K: I0) = struct
@@ -1111,4 +1247,24 @@ module Map = struct
 
     end
   end
+end
+
+module Lwt_stream = struct
+
+  include Lwt_stream
+
+  open Lwt
+
+  let lift s =
+    let (stream: 'a Lwt_stream.t option ref) = ref None in
+    let rec get () =
+      match !stream with
+      | Some s -> Lwt_stream.get s
+      | None   ->
+        s >>= fun s ->
+        stream := Some s;
+        get ()
+    in
+    Lwt_stream.from get
+
 end

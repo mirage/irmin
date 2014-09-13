@@ -76,7 +76,14 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
 
   type v = (K.t, R.t) vertex
 
-  module X = App2(V)(K)(R)
+  module X = struct
+    include App2(V)(K)(R)
+    let pretty = function
+      | `Contents x -> "B" ^ K.pretty x
+      | `Node     x -> "N" ^ K.pretty x
+      | `Commit   x -> "C" ^ K.pretty x
+      | `Tag      x -> "R" ^ R.pretty x
+  end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)
   module GO = Graph.Oper.I(G)
@@ -112,7 +119,7 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
         else if has_mark key then add ()
         else (
           mark key level;
-          Log.debugf "ADD %s %d" (pretty X.to_sexp key) level;
+          Log.debugf "ADD %a %d" force (pretty (module X) key) level;
           if not (G.mem_vertex g key) then G.add_vertex g key;
           pred key >>= fun keys ->
           List.iter ~f:(fun k -> G.add_edge g k key) keys;
@@ -141,7 +148,7 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
       include G
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
-      let vertex_name k = Printf.sprintf "%S" (pretty X.to_sexp k)
+      let vertex_name k = Printf.sprintf "%S" (X.pretty k)
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None

@@ -21,7 +21,7 @@ Library irmin
   Path: lib/core
   Findlibname: irmin
   Modules: IrminCore, Irmin, IrminGraph, IrminKey, IrminSnapshot,
-           IrminMisc, IrminCommit, IrminStore, IrminBlock,
+           IrminCommit, IrminStore, IrminBlock,
            IrminTag, IrminContents, IrminNode, IrminVersion,
            IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView,
            IrminOrigin, IrminBranch, IrminSync

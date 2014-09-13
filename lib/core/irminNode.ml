@@ -17,13 +17,30 @@
 
 open Lwt
 open IrminCore
+open Sexplib.Std
+open Bin_prot.Std
 
 module Log = Log.Make(struct let section = "NODE" end)
 
-type 'key t = {
-  contents: 'key option;
-  succ    : 'key String.Map.t;
-} with bin_io, compare, sexp
+module StringMap = struct
+  include Map.Make(String)
+  let t_of_sexp fn s =
+    let fn' = Sexplib.Conv.(pair_of_sexp string_of_sexp fn) in
+    of_alist_exn (Sexplib.Conv.list_of_sexp fn' s)
+  let sexp_of_t = to_sexp
+  let bin_size_t = size_of
+  let bin_write_t fn = Writer.(to_bin_prot (write (of_bin_prot fn)))
+  let bin_read_t fn = Reader.(to_bin_prot (read (of_bin_prot fn)))
+end
+
+module T_ = struct
+  type 'key t = {
+    contents: 'key option;
+    succ    : 'key StringMap.t;
+  } with bin_io, compare, sexp
+end
+include T_
+module T = I1(T_)
 
 let equal key_equal t1 t2 =
   begin match t1.contents, t2.contents with
@@ -32,29 +49,29 @@ let equal key_equal t1 t2 =
     | Some k1, Some k2 -> key_equal k1 k2
     | None   , None    -> true
   end
-  && String.Map.equal key_equal t1.succ t2.succ
+  && StringMap.equal key_equal t1.succ t2.succ
 
 let edges t =
   begin match t.contents with
     | None   -> []
     | Some k -> [`Contents k]
   end
-  @ String.Map.fold t.succ ~init:[]
+  @ StringMap.fold t.succ ~init:[]
     ~f:(fun ~key:_ ~data:k acc -> `Node k :: acc)
 
 let empty =
   { contents = None;
-    succ = String.Map.empty }
+    succ = StringMap.empty }
 
 let is_empty e =
-  e.contents = None && String.Map.is_empty e.succ
+  e.contents = None && StringMap.is_empty e.succ
 
 let leaf e =
   { contents = Some e;
-    succ = String.Map.empty }
+    succ = StringMap.empty }
 
 let is_leaf e =
-  e.contents <> None && String.Map.is_empty e.succ
+  e.contents <> None && StringMap.is_empty e.succ
 
 let contents_exn e =
   match e.contents with
@@ -77,7 +94,7 @@ module type STORE = sig
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
     unit -> (key * value) Lwt.t
   val contents: t -> value -> contents Lwt.t option
-  val succ: t -> value -> value Lwt.t String.Map.t
+  val succ: t -> value -> value Lwt.t StringMap.t
   val sub: t -> value -> IrminPath.t -> value option Lwt.t
   val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
   val map: t -> value -> IrminPath.t -> (value -> value) -> value Lwt.t
@@ -92,18 +109,10 @@ module type STORE = sig
 end
 
 module S (K: IrminKey.S) = struct
-
   type key = K.t
-
-  module S = IrminIdent.Make(struct
-      type nonrec t = K.t t with bin_io, compare, sexp
-    end)
-
+  module S = App1(T)(K)
   include S
-
-  let merge =
-    IrminMerge.default (module S)
-
+  let merge = IrminMerge.default (module S)
 end
 
 module SHA1 = S(IrminKey.SHA1)
@@ -136,7 +145,7 @@ module Make
 
   let add (_, t) n = match n with
     | { contents = Some k } ->
-      if String.Map.is_empty n.succ then return k else Node.add t n
+      if StringMap.is_empty n.succ then return k else Node.add t n
     | _                     -> Node.add t n
 
   (* "leaf" nodes (ie. with no succ and some contents) are not
@@ -154,7 +163,7 @@ module Make
   let read_exn t key =
     read t key >>= function
     | None   ->
-      Log.debugf "Not_found: %s" (K.to_string key);
+      Log.debugf "Not_found: %a" force (pretty (module K) key);
       fail Not_found
     | Some v -> return v
 
@@ -166,7 +175,7 @@ module Make
   module Graph = IrminGraph.Make(K)(IrminTag.String)
 
   let list t keys =
-    Log.debugf "list %s" (IrminMisc.pretty_list K.to_string keys);
+    Log.debugf "list %a" force (prettys (module K) keys);
     let pred = function
       | `Node k -> read_exn t k >>= fun node -> return (edges node)
       | _       -> return_nil in
@@ -191,7 +200,7 @@ module Make
           return (l, k)
         ) succ
     end >>= fun succ ->
-    let succ = String.Map.of_alist_exn succ in
+    let succ = StringMap.of_alist_exn succ in
     let node = { contents; succ } in
     add t node >>= fun key ->
     return (key, node)
@@ -203,7 +212,10 @@ module Make
   let merge_value (c, _) merge_key =
     let explode n = (n.contents, n.succ) in
     let implode (contents, succ) = { contents; succ } in
-    let merge_pair = IrminMerge.pair (merge_contents c) (IrminMerge.map merge_key) in
+    let merge_pair = IrminMerge.pair
+        (merge_contents c)
+        (IrminMerge.string_map merge_key)
+    in
     IrminMerge.biject (module Value) merge_pair implode explode
 
   let merge (c, _ as t) =
@@ -219,10 +231,10 @@ module Make
     | Some k -> Some (Contents.read_exn c k)
 
   let succ t node =
-    String.Map.map ~f:(fun k -> read_exn t k) node.succ
+    StringMap.map ~f:(fun k -> read_exn t k) node.succ
 
   let next t node label =
-    match String.Map.find node.succ label with
+    match StringMap.find node.succ label with
     | None   -> return_none
     | Some k -> read t k
 
@@ -244,7 +256,7 @@ module Make
       (function Not_found -> return_none | e -> fail e)
 
   let find_exn t node path =
-    Log.debugf "find_exn %S" (IrminPath.to_string path);
+    Log.debugf "find_exn %a" force (pretty (module IrminPath) path);
     sub t node path >>= function
     | None      ->
       Log.debugf "subpath not found";
@@ -257,7 +269,7 @@ module Make
       | Some b -> b
 
   let find t node path =
-    Log.debugf "find %S" (IrminPath.to_string path);
+    Log.debugf "find %a" force (pretty (module IrminPath) path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -266,7 +278,7 @@ module Make
       | Some b -> b >>= fun b -> return (Some b)
 
   let valid t node path =
-    Log.debugf "valid %S" (IrminPath.to_string path);
+    Log.debugf "valid %a" force (pretty (module IrminPath) path);
     sub t node path >>= function
     | None      -> return false
     | Some node ->
@@ -276,7 +288,7 @@ module Make
 
   let map_children t children f label =
     Log.debugf "map_children %s" label;
-    let old_key = String.Map.find children label in
+    let old_key = StringMap.find children label in
     begin match old_key with
       | None   -> return empty
       | Some k -> read_exn t k
@@ -293,12 +305,12 @@ module Make
       end >>= fun key ->
       let children = match old_key, key with
         | None  , None     -> children
-        | Some _, None     -> String.Map.remove children label
-        | None  , Some k   -> String.Map.add children label k
+        | Some _, None     -> StringMap.remove children label
+        | None  , Some k   -> StringMap.add children label k
         | Some k1, Some k2 ->
           if K.equal k1 k2 then children
           else
-            String.Map.add children label k2 in
+            StringMap.add children label k2 in
       return children
     )
 
@@ -311,11 +323,11 @@ module Make
     aux node path
 
   let remove t node path =
-    Log.debugf "remove %S" (IrminPath.to_string path);
+    Log.debugf "remove %a" force (pretty (module IrminPath) path);
     map t node path (fun node -> empty)
 
   let update (c, _ as t) node path value =
-    Log.debugf "update %S" (IrminPath.to_string path);
+    Log.debugf "update %a" force (pretty (module IrminPath) path);
     Contents.add c value >>= fun k  ->
     map t node path (fun node -> { node with contents = Some k }) >>= fun n ->
     return n

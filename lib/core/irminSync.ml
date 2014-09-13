@@ -14,15 +14,19 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open IrminCore
 open Lwt
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
-type 'a store = (module IrminBranch.STORE with type branch = 'a)
+type ('key, 'contents, 'branch) store =
+  (module IrminBranch.STORE with type Block.key = 'key
+                             and type value = 'contents
+                             and type branch = 'branch)
 
-type remote =
-  | Store: 'a store * 'a -> remote
+type ('key, 'contents) remote =
+  | Store: ('key, 'contents, 'branch) store * 'branch
+    -> ('key, 'contents) remote
   | URI of string
 
 let store m b = Store (m, b)
@@ -30,20 +34,22 @@ let store m b = Store (m, b)
 let uri s = URI s
 
 module type STORE = sig
-  type db
   type t
+  type db
+  type key
+  type contents
   type origin
-  val fetch: db -> ?depth:int -> remote -> t option Lwt.t
-  val fetch_exn: db -> ?depth:int -> remote -> t Lwt.t
-  val push: db -> ?depth:int -> remote -> t option Lwt.t
-  val push_exn: db -> ?depth:int -> remote -> t Lwt.t
+  val fetch: db -> ?depth:int -> (key, contents) remote -> t option Lwt.t
+  val fetch_exn: db -> ?depth:int -> (key, contents) remote -> t Lwt.t
+  val push: db -> ?depth:int -> (key, contents) remote -> t option Lwt.t
+  val push_exn: db -> ?depth:int -> (key, contents) remote -> t Lwt.t
   val update: db -> t -> unit Lwt.t
   val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
-  include IrminIdent.S with type t := t
+  include I0 with type t := t
 end
 
-module type BACKEND = sig
+module type REMOTE = sig
   type t
   type key
   val fetch: t -> ?depth:int -> string -> key option Lwt.t
@@ -52,7 +58,7 @@ end
 
 module Fast
     (S: IrminBranch.STORE)
-    (R: BACKEND with type t = S.t and type key = S.Block.key) =
+    (R: REMOTE with type t = S.t and type key = S.Block.key)  =
 struct
 
   module K = S.Block.Key
@@ -68,15 +74,20 @@ struct
   type origin = IrminOrigin.t
 
   type db = S.t
+  type key = S.Block.key
+  type contents = S.value
 
   include K
 
-  let sync ?depth (type k)
-      (type l) (module L: IrminBranch.STORE with type t = l and type Block.key = k) (l:l)
-      (type r) (module R: IrminBranch.STORE with type t = r) (r:r)
+  let sync ?depth (type k) (type v) (type l) (type r)
+      (module L: IrminBranch.STORE with type t = l and type Block.key = k
+                                                   and type value = v)
+      (l:l)
+      (module R: IrminBranch.STORE with type t = r and type Block.key = k
+                                                   and type value = v)
+      (r:r)
     =
-    let remote_key k = R.Block.Key.of_raw (L.Block.Key.to_raw k) in
-    let local_key k = L.Block.Key.of_raw (R.Block.Key.to_raw k) in
+    let module RBlockKeySet = Set.Make(R.Block.Key) in
     R.head r >>= function
     | None             -> return_none
     | Some remote_head ->
@@ -86,24 +97,19 @@ struct
         | Some key -> L.Block.Commit.list (L.commit_t l) ?depth [key]
       end
       >>= fun local_keys ->
-      let local_keys = List.map ~f:remote_key local_keys in
       R.Block.Commit.list (R.commit_t r) ?depth [remote_head]
       >>= fun remote_keys ->
-      let keys = R.Block.Key.Set.(to_list (diff (of_list remote_keys) (of_list local_keys))) in
-      Log.debugf "sync keys=%s" (IrminMisc.pretty_list R.Block.Key.to_string keys);
+      let keys = RBlockKeySet.(to_list (diff (of_list remote_keys) (of_list local_keys))) in
+      Log.debugf "sync keys=%a" force (prettys (module R.Block.Key) keys);
       Lwt_list.iter_p (fun key ->
           R.Block.read (R.block_t r) key >>= function
           | None   -> return_unit
-          | Some v ->
-            R.Block.Value.to_string v
-            |> L.Block.Value.of_string
-            |> L.Block.add (L.block_t l)
-            >>= fun _ -> return_unit
+          | Some v -> L.Block.add (L.block_t l) v >>= fun _ -> return_unit
         ) keys
       >>= fun () ->
-      return (Some (local_key remote_head))
+      return (Some remote_head)
 
-  let fetch t ?depth remote =
+  let fetch t ?depth (remote: (K.t, C.t) remote) =
     match remote with
     | URI uri                          ->
       Log.debugf "fetch URI %s" uri;
@@ -118,10 +124,10 @@ struct
     | None   -> fail (Failure "fetch")
     | Some d -> return d
 
-  let push t ?depth remote =
+  let push t ?depth (remote: (K.t, C.t) remote) =
     Log.debugf "push";
     match remote with
-    | URI uri                          -> R.push t ?depth uri
+    | URI uri -> R.push t ?depth uri
     | Store ((module R), branch) ->
       R.create ~branch () >>= fun r ->
       sync ?depth (module R) r (module S) t >>= function

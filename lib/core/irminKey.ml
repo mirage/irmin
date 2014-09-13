@@ -35,7 +35,7 @@ module SHA1 = struct
   module Log = Log.Make(struct let section = "SHA1" end)
 
   let to_hex t =
-    IrminMisc.hex_encode t
+    String.Hex.encode t
 
   let pretty = to_hex
 
@@ -44,7 +44,7 @@ module SHA1 = struct
 
   let of_hex hex =
     if String.length hex = hex_len then
-      IrminMisc.hex_decode hex
+      String.Hex.decode hex
     else
       raise (Invalid hex)
 

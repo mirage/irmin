@@ -26,9 +26,9 @@ end
 
 module String = struct
   include String
-  let to_bytes r = r
-  let of_bytes b = Bigstring.to_string b
-  let of_bytes' r = r
+  let compute_from_bigstring b = Bigstring.to_string b
+  let compute_from_string r = r
+  let pretty t = t
   let of_raw s = s
   let to_raw s = s
   let master = "master"

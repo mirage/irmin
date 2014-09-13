@@ -101,7 +101,7 @@ module AO_BINARY (S: IrminStore.AO_BINARY)  (K: IrminKey.S) (V: I0) = struct
     LA.debugf "add";
     S.add t (write_all V.size_of V.write value) >>= fun key ->
     let key = K.of_raw key in
-    LA.debugf "<-- added: %s" (pretty K.to_sexp key);
+    LA.debugf "<-- added: %a" force (pretty (module K) key);
     return key
 
 end

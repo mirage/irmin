@@ -16,6 +16,14 @@
 
 (** Merge operators. *)
 
+(* FIXME: review the API
+
+  - we should maybe return the graph of changes.
+  - we should deal better with multiple BCAs
+  - we should simplify the API: merge ['a t] and ['a merge] and
+    have explicit type-class everywhere.
+*)
+
 open IrminCore
 
 module type S = I0
@@ -24,7 +32,6 @@ type origin = IrminOrigin.t
 
 type 'a t
 (** Abstract merge function for values of type ['a]. *)
-(* XXX: merge 'a t and 'a merge *)
 
 (** {2 Merge resuls} *)
 

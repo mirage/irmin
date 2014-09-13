@@ -14,11 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open IrminCore
 open Lwt
 open IrminMerge.OP
 
 module Log = Log.Make(struct let section = "BRANCH" end)
+module StringMap = Map.Make(String)
+module PathSet = Set.Make(IrminPath)
 
 module type STORE = sig
   include IrminStore.S with type key = IrminPath.t
@@ -49,6 +51,13 @@ type ('key, 'contents, 'tag) t =
   (module STORE with type Block.key = 'key
                  and type value     = 'contents
                  and type branch    = 'tag)
+
+module TK2 = I2(struct
+    type ('a, 'b) t =
+      [ `Tag of 'a
+      | `Key of 'b ]
+    with sexp, bin_io, compare
+  end)
 
 module Make
     (Block: IrminBlock.STORE)
@@ -82,12 +91,12 @@ struct
 
   type branch = Branch.t
 
-  module TK = IrminIdent.Make(struct
-      type t =
-        [ `Tag of T.t
-        | `Key of K.t ]
-    with sexp, compare
-    end)
+  module TK = struct
+    include App2(TK2)(T)(K)
+    let pretty = function
+      | `Tag t -> T.pretty t
+      | `Key k -> K.pretty k
+  end
 
   module Graph = IrminGraph.Make(K)(T)
 
@@ -148,10 +157,10 @@ struct
   let read_head_commit t =
     match t.branch with
     | `Key key ->
-      Log.debugf "read detached head: %s" (K.to_string key);
+      Log.debugf "read detached head: %a" force (pretty (module K) key);
       Commit.read (commit_t t) key
     | `Tag tag ->
-      Log.debugf "read head: %s" (T.to_string tag);
+      Log.debugf "read head: %a" force (pretty (module T) tag);
       Tag.read t.tag tag >>= function
       | None   -> return_none
       | Some k -> Commit.read (commit_t t) k
@@ -208,23 +217,23 @@ struct
 
   let update t ?origin path contents =
     let origin = match origin with
-      | None   -> IrminOrigin.create "Update %s." (IrminPath.to_string path)
+      | None   -> IrminOrigin.create "Update %s." (IrminPath.pretty path)
       | Some o -> o in
-    Log.debugf "update %s" (IrminPath.to_string path);
+    Log.debugf "update %a" force (pretty (module IrminPath) path);
     apply t origin ~f:(fun node ->
         Node.update (node_t t) node path contents
       )
 
   let remove t ?origin path =
     let origin = match origin with
-      | None   -> IrminOrigin.create "Remove %s." (IrminPath.to_string path)
+      | None   -> IrminOrigin.create "Remove %s." (IrminPath.pretty path)
       | Some o -> o in
     apply t origin ~f:(fun node ->
         Node.remove (node_t t) node path
       )
 
   let read_exn t path =
-    Log.debugf "read_exn %s" (IrminPath.to_string path);
+    Log.debugf "read_exn %a" force (pretty (module IrminPath) path);
     map t path ~f:Node.find_exn
 
   let mem t path =
@@ -239,22 +248,22 @@ struct
       | None      -> return_nil
       | Some node ->
         let c = Node.succ (node_t t) node in
-        let c = Map.keys c in
+        let c = StringMap.keys c in
         let paths = List.map ~f:(fun c -> path @ [c]) c in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
         one p >>= fun paths ->
-        let paths = IrminPath.Set.of_list paths in
-        return (IrminPath.Set.union set paths)
-      ) IrminPath.Set.empty paths
+        let paths = PathSet.of_list paths in
+        return (PathSet.union set paths)
+      ) PathSet.empty paths
     >>= fun paths ->
-    return (IrminPath.Set.to_list paths)
+    return (PathSet.to_list paths)
 
   let dump t =
     Log.debugf "dump";
     read_head_node t >>= fun node ->
     let rec aux seen = function
-      | []       -> return (List.sort compare seen)
+      | []       -> return (List.sort seen)
       | path::tl ->
         list t [path] >>= fun childs ->
         let todo = childs @ tl in
@@ -272,14 +281,16 @@ struct
      - Search for a common ancestor
      - Perform a 3-way merge *)
   let three_way_merge t ?origin c1 c2 =
-    Log.debugf "3-way merge between %s and %s" (K.to_string c1) (K.to_string c2);
+    Log.debugf "3-way merge between %a and %a"
+      force (pretty (module K) c1)
+      force (pretty (module K) c2);
     Commit.find_common_ancestor (commit_t t) c1 c2 >>= function
     | None     -> conflict "no common ancestor"
     | Some old ->
       let origin = match origin with
         | None   -> IrminOrigin.create "Merge commits %s and %s.\n\n\
                                         The common ancestor was %s."
-                      (K.to_string c1) (K.to_string c2) (K.to_string old)
+                      (K.pretty c1) (K.pretty c2) (K.pretty old)
         | Some o -> o in
       let m = Commit.merge (commit_t t) in
       IrminMerge.merge m ~origin ~old c1 c2
@@ -290,7 +301,7 @@ struct
     | `Key _   -> t.branch <- `Key c; return_unit
 
   let switch t branch =
-    Log.debugf "switch %s" (Branch.to_string branch);
+    Log.debugf "switch %a" force (pretty (module Branch) branch);
     Tag.read t.tag branch >>= function
     | Some c -> update_commit t c
     | None   -> fail Not_found
@@ -308,7 +319,7 @@ struct
       | Some c2 -> aux c2
 
   let clone_force t branch =
-    Log.debugf "clone %s" (Branch.to_string branch);
+    Log.debugf "clone %a" force (pretty (module Branch) branch);
     begin match t.branch with
       | `Key c -> Tag.update t.tag branch c
       | `Tag tag ->
@@ -324,11 +335,11 @@ struct
     | false -> clone_force t branch >>= fun t -> return (Some t)
 
   let merge t ?origin branch =
-    Log.debugf "merge %s" (Branch.to_string branch);
+    Log.debugf "merge %a" force (pretty (module Branch) branch);
     let origin = match origin with
       | Some o -> o
       | None   -> IrminOrigin.create "Merge branch %s."
-                    (TK.to_string t.branch) in
+                    (TK.pretty t.branch) in
     Tag.read_exn t.tag branch >>= fun c ->
     merge_commit t ~origin c
 
@@ -337,16 +348,16 @@ struct
     IrminMerge.exn
 
   let watch_node t path =
-    Log.infof "Adding a watch on %s" (IrminPath.to_string path);
+    Log.infof "Adding a watch on %a" force (pretty (module IrminPath) path);
     match t.branch with
     | `Key _   -> Lwt_stream.of_list []
     | `Tag tag ->
       let stream = Tag.watch t.tag tag in
-      IrminMisc.lift_stream (
+      Lwt_stream.lift (
         read_node t path >>= fun node ->
         let old_node = ref node in
         let stream = Lwt_stream.filter_map_s (fun key ->
-            Log.debugf "watch: %s" (Block.Key.to_string key);
+            Log.debugf "watch: %a" force (pretty (module Block.Key) key);
             Commit.read_exn (commit_t t) key >>= fun commit ->
             begin match Commit.node (commit_t t) commit with
               | None      -> return IrminNode.empty

@@ -18,19 +18,21 @@ open IrminCore
 
 open Lwt
 open IrminMerge.OP
+open Sexplib.Std
+open Bin_prot.Std
 
 module Log = Log.Make(struct let section = "CONTENTS" end)
 
 exception Invalid of string
 
 module type S = sig
-  include IrminIdent.S
+  include I0
   val merge: t IrminMerge.t
 end
 
 module String  = struct
 
-  module S = IrminIdent.String
+  module S = String
 
   include S
 
@@ -46,7 +48,7 @@ module JSON = struct
     | `Null
     | `Bool _
     | `Float _  -> t
-    | `String s -> IrminMisc.json_encode s
+    | `String s -> JSON.encode_string s
     | `A l      -> `A (List.rev_map ~f:encode l)
     | `O l      -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
 
@@ -58,11 +60,11 @@ module JSON = struct
     | `String _ -> t
     | `A l      -> `A (List.rev_map ~f:decode l)
     | `O l      ->
-      match IrminMisc.json_decode t with
+      match JSON.decode_string t with
       | Some s -> `String s
       | None   -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
 
-  module S = IrminIdent.Make(struct
+  module S = I0(struct
       type t =
         [ `Null
         | `Bool of bool
@@ -70,7 +72,7 @@ module JSON = struct
         | `String of string
         | `A of t list
         | `O of (string * t) list ]
-      with compare, sexp
+      with compare, sexp, bin_io
     end)
 
   include S

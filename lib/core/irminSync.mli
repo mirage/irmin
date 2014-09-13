@@ -18,16 +18,19 @@
 
 open IrminCore
 
-type remote
+type ('key, 'contents) remote
 (** Remote store hanlders. *)
 
-type 'a store = (module IrminBranch.STORE with type branch = 'a)
-(** A tuple store implementation / branch name. *)
+type ('key, 'contents, 'branch) store =
+  (module IrminBranch.STORE with type Block.key = 'key
+                             and type value = 'contents
+                             and type branch = 'branch)
+(** A pair (store implementation * branch name). *)
 
-val store: 'a store -> 'a -> remote
+val store: ('a, 'b, 'c) store -> 'c -> ('a, 'b) remote
 (** Remote stores. *)
 
-val uri: string -> remote
+val uri: string -> ('a, 'b) remote
 (** Remote URI. *)
 
 module type STORE = sig
@@ -40,25 +43,31 @@ module type STORE = sig
   type db
   (** Local database handlers. *)
 
+  type key
+  (** Type of internal keys. *)
+
+  type contents
+  (** Type of database contents. *)
+
   type origin
   (** Provenance tracker. *)
 
-  val fetch: db -> ?depth:int -> remote -> t option Lwt.t
+  val fetch: db -> ?depth:int -> (key, contents) remote -> t option Lwt.t
   (** [create t last] create a dump object in the local database. The
       local database can then be either [merged] or [updated] to the
       new contents. The [depth] parameter limits the history depth.*)
 
-  val fetch_exn: db -> ?depth:int -> remote -> t Lwt.t
+  val fetch_exn: db -> ?depth:int -> (key, contents) remote -> t Lwt.t
   (** Same as [create] but raise [Failure] is the fetch operation
       fails. *)
 
-  val push: db -> ?depth:int -> remote -> t option Lwt.t
+  val push: db -> ?depth:int -> (key, contents) remote -> t option Lwt.t
   (** [push t dump] push the contents of the currnet branch of the
       database to the remote database -- also update the remote branch
       with the same name as the local one to points to the new
       state. *)
 
-  val push_exn: db -> ?depth:int -> remote -> t Lwt.t
+  val push_exn: db -> ?depth:int -> (key, contents) remote -> t Lwt.t
   (** Same as [push] but raise [Failure] is the push operation
       fails. *)
 
@@ -78,7 +87,7 @@ module type STORE = sig
 
 end
 
-module type BACKEND = sig
+module type REMOTE = sig
 
   type t
   (** Database handler. *)
@@ -95,11 +104,15 @@ module type BACKEND = sig
 end
 
 module Slow (S: IrminBranch.STORE):
-  STORE with type db = S.t and type t = S.Block.key
+  STORE with type db = S.t
+         and type key = S.Block.key
+         and type contents = S.value
 (** Only local (and slow) synchronisation. *)
 
 module Fast
     (S: IrminBranch.STORE)
-    (B: BACKEND with type t = S.t and type key = S.Block.key):
-  STORE with type db = S.t and type t = S.Block.key
+    (R: REMOTE with type t = S.t and type key = S.Block.key):
+  STORE with type db = S.t
+         and type key = S.Block.key
+         and type contents = S.value
 (** Use a fast-path to synchronize when possible. *)

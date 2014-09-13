@@ -1,11 +1,10 @@
 # OASIS_START
-# DO NOT EDIT (digest: 43a8a068a19c11907b55f463796806f1)
+# DO NOT EDIT (digest: 2eb5ddad77450fd3bbe958a590ec1038)
 IrminCore
 Irmin
 IrminGraph
 IrminKey
 IrminSnapshot
-IrminMisc
 IrminCommit
 IrminStore
 IrminBlock

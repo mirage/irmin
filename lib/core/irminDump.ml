@@ -21,6 +21,8 @@ open Printf
 
 module Log = Log.Make(struct let section ="DUMP" end)
 
+module StringMap = Map.Make(String)
+
 module type S = sig
   type t
   val output_file: t -> ?depth:int -> ?call_dot:bool -> ?full:bool ->
@@ -106,15 +108,15 @@ module Make (Store: IrminBranch.STORE) = struct
     let add_edge v1 l v2 =
       edges := (v1, l, v2) :: !edges in
     let string_of_key k =
-      let s = K.to_string k in
+      let s = K.pretty k in
       if Int.(String.length s <= 8) then s else String.sub s 0 8 in
     let string_of_contents s =
       let s =
         if Int.(String.length s <= 10) then s
         else String.sub s 0 10 in
       let s =
-        if IrminMisc.is_valid_utf8 s then s
-        else IrminMisc.hex_encode s in
+        if JSON.is_valid_utf8 s then s
+        else String.Hex.encode s in
       s in
     let label_of_node k _ =
       let s =
@@ -159,18 +161,18 @@ module Make (Store: IrminBranch.STORE) = struct
                   \  <div class='sha1'>%s</div>\n\
                   \  <div class='blob'><pre>%s</pre></div>\n\
                    </div>"
-            k (C.to_string v)
+            k (Ezjsonm.to_string (C.to_json v))
         else
-           let v = string_of_contents (C.to_string v) in
+           let v = string_of_contents (Lazy.force (pretty (module C) v)) in
            sprintf "%s | %s" k (String.escaped v) in
       `Label s in
     let label_of_tag t =
       let s =
-        (if html then
-           sprintf "<div class='tag'>%s</div>"
-         else
-           fun x -> x)
-          (T.to_string t) in
+        if html then
+          sprintf "<div class='tag'>%s</div>" (Ezjsonm.to_string (T.to_json t))
+        else
+          Lazy.force (pretty (module T) t)
+      in
       `Label s in
     let leafs = List.map ~f:(fun (k,_) ->
         (k, IrminNode.leaf k)
@@ -187,7 +189,7 @@ module Make (Store: IrminBranch.STORE) = struct
             if exists v contents then
               add_edge (`Node k) [`Style `Dotted] (`Contents v)
         end;
-        String.Map.iter ~f:(fun ~key:l ~data:n ->
+        StringMap.iter ~f:(fun ~key:l ~data:n ->
             if exists n nodes then
               add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node n)
           ) t.IrminNode.succ

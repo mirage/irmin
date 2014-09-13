@@ -25,15 +25,15 @@ open Bin_prot.Std
 
 type origin = IrminOrigin.t
 
-module T2 = struct
+module T_ = struct
   type ('origin, 'key) t = {
     node   : 'key option;
     parents: 'key list;
     origin : 'origin;
   } with bin_io, compare, sexp
 end
-include T2
-module T = I2(T2)
+include T_
+module T = I2(T_)
 
 let edges t =
   begin match t.node with
@@ -129,7 +129,7 @@ module Make
   module Graph = IrminGraph.Make(K)(IrminTag.String)
 
   let list t ?depth keys =
-    Log.debugf "list %s" (prettys K.to_sexp keys);
+    Log.debugf "list %a" force (prettys (module K) keys);
     let pred = function
       | `Commit k -> read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
@@ -181,7 +181,7 @@ module Make
           aux (seen1', todo1') (seen2', todo2')
         | [r] -> return (Some r)
         | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
-                                  (IrminMisc.pretty_list K.pretty rs))) in
+                                  (List.pretty K.pretty rs))) in
     aux
       (KSet.empty, KSet.singleton c1)
       (KSet.empty, KSet.singleton c2)

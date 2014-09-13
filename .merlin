@@ -1,2 +1,2 @@
-PKG lwt sexplib comparelib dolog ezjsonm bin_prot cstruct
+PKG lwt sexplib comparelib dolog ezjsonm bin_prot cstruct re
 B _build/**

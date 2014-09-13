@@ -25,18 +25,20 @@ type ('key, 'contents) t
 (** Views over keys of types ['key] and contents of type
     ['contents]. *)
 
+type ('path, 'contents) action =
+  | Read of 'path * 'contents option
+  | Write of 'path * 'contents option
+  | List of 'path list * 'path list
+(** Operations on view. We record the result of reads to be able to
+    replay them on merge. *)
+
 module Action: sig
 
   (** Actions performed on a view. *)
-  type 'contents t =
-    | Read of path * 'contents option
-    | Write of path * 'contents option
-    | List of path list * path list
-  with bin_io, compare, sexp
-  (** Operations on view. We record the result of reads to be able to
-      replay them on merge. *)
 
-  val to_string: ('a -> string) -> 'a t -> string
+  include I2 with type ('a, 'b) t = ('a, 'b) action
+
+  val pretty: ('a -> string) -> ('b -> string) -> ('a, 'b) t -> string
   (** Pretty-print an action. *)
 
 end
@@ -56,7 +58,7 @@ module type S = sig
      and type value := value
      and type key = path
 
-  val actions: t -> value Action.t list
+  val actions: t -> (path, value) action list
   (** Return the list of actions performed on this view since its
       creation. *)
 

@@ -16,6 +16,8 @@
 
 open IrminCore
 open Printf
+open Sexplib.Std
+open Bin_prot.Std
 
 module M = struct
   type t = {
@@ -25,7 +27,7 @@ module M = struct
   } with bin_io, compare, sexp
 end
 
-include IrminIdent.Make(M)
+include I0(M)
 
 let date_hook =
   let c = ref 0L in

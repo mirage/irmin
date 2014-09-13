@@ -122,7 +122,7 @@ module Mux
 
   (* XXX: ugly and slow *)
   let read t key =
-    Log.debugf "read %s" (pretty K.to_sexp key);
+    Log.debugf "read %a" force (pretty (module K) key);
     Contents.read t.contents key >>= function
     | Some b -> return (Some (Contents b))
     | None   ->
@@ -134,7 +134,7 @@ module Mux
         | None   -> return_none
 
   let read_exn t key =
-    Log.debugf "read_exn %s" (pretty K.to_sexp key);
+    Log.debugf "read_exn %a" force (pretty (module K) key);
     read t key >>= function
     | Some v -> return v
     | None   -> fail Not_found
@@ -173,7 +173,7 @@ module Mux
     ]
 
   let list t ?depth keys =
-    Log.debugf "list %s" (prettys K.to_sexp keys);
+    Log.debugf "list %a" force (prettys (module K) keys);
     (* start by loading the bounded history. *)
     let pred = function
       | `Commit k ->
@@ -315,7 +315,7 @@ module Make
     ]
 
   let list t ?depth keys =
-    Log.debugf "list %s" (prettys K.to_sexp keys);
+    Log.debugf "list %a" force (prettys (module K) keys);
     (* start by loading the bounded history. *)
     let pred = function
       | `Commit k ->
