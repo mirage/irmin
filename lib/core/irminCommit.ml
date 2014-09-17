@@ -129,7 +129,7 @@ module Make
   module Graph = IrminGraph.Make(K)(IrminTag.String)
 
   let list t ?depth keys =
-    Log.debugf "list %a" force (prettys (module K) keys);
+    Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
       | `Commit k -> read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in

@@ -15,13 +15,13 @@
  *)
 
 open Lwt
-open Core_kernel.Std
+open IrminCore
 
 module Log = Log.Make(struct let section = "MEMORY" end)
 
 module Fresh (C: sig end) = struct
 
-module RO (K: IrminKey.S) (V: IrminIdent.S) = struct
+module RO (K: IrminKey.S) (V: I0) = struct
 
   module W = IrminWatch.Make(K)(V)
 
@@ -29,15 +29,17 @@ module RO (K: IrminKey.S) (V: IrminIdent.S) = struct
 
   type value = V.t
 
+  module KTable = Hashtbl.Make(K)
+
   type t = {
-    t: value K.Table.t;
+    t: value KTable.t;
     w: W.t;
   }
 
   let unknown k =
-    fail (IrminKey.Unknown (K.to_string k))
+    fail (IrminKey.Unknown (K.pretty k))
 
-  let table = K.Table.create ()
+  let table = KTable.create ()
   let watches = W.create ()
 
   let create () =
@@ -48,41 +50,41 @@ module RO (K: IrminKey.S) (V: IrminIdent.S) = struct
     return t
 
   let clear () =
-    K.Table.clear table;
+    KTable.clear table;
     W.clear watches
 
   let read { t } key =
-    (* Log.debugf "read %s" (K.to_string key); *)
-    return (Hashtbl.find t key)
+    Log.debugf "read %a" force (show (module K) key);
+    return (KTable.find t key)
 
   let read_exn { t } key =
-(*    Log.debugf "read_exn %s" (K.to_string key); *)
-    match Hashtbl.find t key with
+    Log.debugf "read_exn %a" force (show (module K) key);
+    match KTable.find t key with
     | Some d -> return d
     | None   -> unknown key
 
   let mem { t } key =
-    Log.debugf "mem %s" (K.to_string key);
-    return (Hashtbl.mem t key)
+    Log.debugf "mem %a" force (show (module K) key);
+    return (KTable.mem t key)
 
   let list { t } k =
     return k
 
   let dump { t } =
     Log.debugf "dump";
-    return (Hashtbl.to_alist t)
+    return (KTable.to_alist t)
 
 end
 
-module AO (K: IrminKey.S) (V: IrminIdent.S) = struct
+module AO (K: IrminKey.S) (V: I0) = struct
 
   include RO(K)(V)
 
   let add { t } value =
     (* XXX: hook to choose the serialization format / key generator
        ? *)
-    let key = K.of_bytes (IrminMisc.write V.bin_t value) in
-    match Hashtbl.add t key value with
+    let key = K.compute_from_bigstring (write_all (module V) value) in
+    match KTable.add t key value with
     | `Ok | `Duplicate -> return key
 
 end
@@ -92,20 +94,20 @@ module RW (K: IrminKey.S) (V: IrminKey.S) = struct
   include RO(K)(V)
 
   let update t key value =
-    Log.debugf "update %s" (K.to_string key);
-    Hashtbl.replace t.t key value;
+    Log.debugf "update %a" force (show (module K) key);
+    KTable.replace t.t key value;
     W.notify t.w key (Some value);
     return_unit
 
   let remove t key =
-    Log.debugf "remove %s" (K.to_string key);
-    Hashtbl.remove t.t key;
+    Log.debugf "remove %a" force (show (module K) key);
+    KTable.remove t.t key;
     W.notify t.w key None;
     return_unit
 
   let watch t key =
-    Log.debugf "watch %S" (K.to_string key);
-    IrminMisc.lift_stream (
+    Log.debugf "watch %a" force (show (module K) key);
+    Lwt_stream.lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)
     )

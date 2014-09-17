@@ -15,9 +15,12 @@
  *)
 
 open Lwt
-open Core_kernel.Std
+open IrminCore
 
 module Log = Log.Make(struct let section = "GIT" end)
+module StringMap = Map.Make(String)
+
+type origin = IrminOrigin.t
 
 module type Config = sig
   val root: string option
@@ -38,7 +41,7 @@ module Make (Config: Config) = struct
     | false -> fn t k
     | true  -> Lwt_pool.use files (fun () -> fn t k)
 
-  module Stores (K: IrminKey.S) (C: IrminIdent.S) = struct
+  module Stores (K: IrminKey.S) (C: I0) = struct
 
     let git_of_key key =
       Git.SHA.of_string (K.to_raw key)
@@ -65,7 +68,7 @@ module Make (Config: Config) = struct
         G.create ?root:Config.root ()
 
       let mem t key =
-        Log.debugf "Node.mem %s" (K.to_string key);
+        Log.debugf "mem %a" force (show (module K) key);
         let key = git_of_key key in
         G.mem t key >>= function
         | false    -> return false
@@ -75,24 +78,24 @@ module Make (Config: Config) = struct
           | Some v -> return (V.type_eq (Git.Value.type_of v))
 
       let read t key =
-        Log.debugf "Node.read %s" (K.to_string key);
+        Log.debugf "read %a" force (show (module K) key);
         let key = git_of_key key in
         with_file G.read t key >>= function
         | None   -> return_none
         | Some v -> return (V.of_git key v)
 
       let read_exn t key =
-        Log.debugf "read_exn %s" (K.to_string key);
+        Log.debugf "read_exn %a" force (show (module K) key);
         read t key >>= function
         | None   -> fail Not_found
         | Some v -> return v
 
       let list t k =
-        Log.debugf "Node.list %s" (IrminMisc.pretty_list K.to_string k);
+        Log.debugf "list %a" force (shows (module K) k);
         return k
 
       let dump t =
-        Log.debugf "Node.dump";
+        Log.debugf "dump";
         G.list t >>= fun keys ->
         Lwt_list.fold_left_s (fun acc k ->
             with_file G.read_exn t k >>= fun v ->
@@ -121,15 +124,15 @@ module Make (Config: Config) = struct
           | _ -> false
 
         let of_git k b =
-          Log.debugf "Contents.of_git: %S" (Git.Value.pretty b);
           match b with
-          | Git.Value.Blob b -> Some (C.of_string (Git.Blob.to_string b))
+          | Git.Value.Blob b -> read_string (module C) (Git.Blob.to_string b)
           | Git.Value.Tag _  -> None (* XXX: deal with tag objects *)
           | _                -> None
 
         let to_git _ b =
-          Log.debugf "Contents.to_git %S" (C.to_string b);
-          let value = Git.Value.Blob (Git.Blob.of_string (C.to_string b)) in
+          let value =
+            Git.Value.Blob (Git.Blob.of_string (write_string (module C) b))
+          in
           `Value (return value)
 
       end)
@@ -149,7 +152,6 @@ module Make (Config: Config) = struct
         let contents_child = ".contents"
 
         let of_git k v =
-          Log.debugf "Node.of_git %s" (Git.Value.pretty v);
           match v with
           | Git.Value.Blob _ ->
             (* Create a dummy leaf node to hold contents. *)
@@ -162,14 +164,13 @@ module Make (Config: Config) = struct
               | []       -> None
               | [(_, k)] -> Some k
               |  _  -> assert false in
-            let succ = String.Map.of_alist_exn succ in
+            let succ = StringMap.of_alist_exn succ in
             Some { IrminNode.contents; succ }
           | _ -> None
 
         let to_git t node =
-          Log.debugf "Node.to_git %s" (X.to_string node);
           let mktree entries =
-            let entries = Map.to_alist entries in
+            let entries = StringMap.to_alist entries in
             `Value (
               Lwt_list.map_p (fun (name, key) ->
                   let node = git_of_key key in
@@ -192,19 +193,19 @@ module Make (Config: Config) = struct
             ) in
           if IrminNode.is_leaf node then (
             (* This is a dummy leaf node. Do nothing. *)
-            Log.debugf "Skiping %s" (X.to_string node);
+            Log.debugf "Skiping %a" force (show (module X) node);
             `Key (git_of_key (IrminNode.contents_exn node))
           ) else match node.IrminNode.contents with
             | None     -> mktree node.IrminNode.succ
             | Some key ->
               (* This is an extended node (ie. with child and contents).
                  Store the node contents in a dummy `.contents` file. *)
-              mktree (Map.add node.IrminNode.succ contents_child key)
+              mktree (StringMap.add node.IrminNode.succ contents_child key)
       end)
 
     module Commit = AO(struct
 
-        type t = K.t IrminCommit.t
+        type t = (origin, K.t) IrminCommit.t
 
         module X = IrminCommit.S(K)
 
@@ -213,7 +214,6 @@ module Make (Config: Config) = struct
           | _ -> false
 
         let of_git k v =
-          Log.debugf "Commit.of_git %s" (Git.Value.pretty v);
           match v with
           | Git.Value.Commit { Git.Commit.tree; parents; author; message } ->
             let commit_key_of_git k = key_of_git (Git.SHA.of_commit k) in
@@ -229,7 +229,6 @@ module Make (Config: Config) = struct
           | _ -> None
 
         let to_git _ c =
-          Log.debugf "Commit.to_git %s" (X.to_string c);
           let { IrminCommit.node; parents; origin } = c in
           match node with
           | None      -> failwith "Commit.to_git: not supported"
@@ -256,12 +255,12 @@ module Make (Config: Config) = struct
 
   end
 
-  module RO (K: IrminKey.S) (V: IrminIdent.S) = struct
+  module RO (K: IrminKey.S) (V: I0) = struct
     module S = Stores(K)(V)
     include S.Contents
   end
 
-  module AO (K: IrminKey.S) (V: IrminIdent.S) = struct
+  module AO (K: IrminKey.S) (V: I0) = struct
     module S = Stores(K)(V)
     include S.Contents
   end
@@ -291,10 +290,10 @@ module Make (Config: Config) = struct
       let str = Git.Reference.to_string r in
       match String.chop_prefix ~prefix:"refs/heads/" str with
       | None   -> None
-      | Some r -> Some (T.of_string r)
+      | Some r -> read_string (module T) r
 
     let git_of_ref r =
-      let str = T.to_string r in
+      let str = write_string (module T) r in
       Git.Reference.of_string ("refs/heads" / str)
 
     let mem { t } r =
@@ -320,7 +319,7 @@ module Make (Config: Config) = struct
     return t
 
     let read_exn { t } r =
-      Log.debugf "read_exn %s" (T.to_string r);
+      Log.debugf "read_exn %a" force (show (module T) r);
       G.read_reference_exn t (git_of_ref r) >>= fun k ->
       return (key_of_git k)
 
@@ -360,8 +359,8 @@ module Make (Config: Config) = struct
       return_unit
 
     let watch t (r:key): value Lwt_stream.t =
-      Log.debugf "watch %s" (T.to_string r);
-      IrminMisc.lift_stream (
+      Log.debugf "watch %a" force (show (module T) r);
+      Lwt_stream.lift (
         read t r >>= fun k ->
         return (W.watch t.w r k)
       )
@@ -400,7 +399,7 @@ module Make (Config: Config) = struct
             | Some _ as h -> h
             | None        ->
               let max () =
-                match Map.max_elt r.Git.Sync.Result.references with
+                match StringMap.max_elt r.Git.Sync.Result.references with
                 | None        -> None
                 | Some (_, k) -> Some k in
               match S.branch t with

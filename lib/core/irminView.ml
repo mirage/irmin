@@ -307,7 +307,7 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     failwith "TODO"
 
   let apply t a =
-    Log.debugf "apply %a" force (pretty (module A) a);
+    Log.debugf "apply %a" force (show (module A) a);
     match a with
     | Write (k, v) -> update' t k v >>= ok
     | Read (k, v)  ->
@@ -316,7 +316,7 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
       else
         let str = function
           | None   -> "<none>"
-          | Some c -> Lazy.force (pretty (module C) c) in
+          | Some c -> Lazy.force (show (module C) c) in
         conflict "read %s: got %S, expecting %S"
           (IrminPath.pretty k) (str v') (str v)
     | List (l,r) ->
@@ -347,7 +347,7 @@ module Store (S: IrminBranch.STORE) = struct
   type path = S.key
 
   let import ~parents ~contents ~node key =
-    Log.debugf "import %a" force (pretty (module K) key);
+    Log.debugf "import %a" force (show (module K) key);
     node key >>= function
     | None   -> fail Not_found
     | Some n ->
@@ -404,7 +404,7 @@ module Store (S: IrminBranch.STORE) = struct
   module Node = S.Block.Node
 
   let of_path t path =
-    Log.debugf "read_view %a" force (pretty (module IrminPath) path);
+    Log.debugf "read_view %a" force (show (module IrminPath) path);
     let contents = Contents.read (S.contents_t t) in
     let node = Node.read (S.node_t t) in
     let parents =
@@ -425,7 +425,7 @@ module Store (S: IrminBranch.STORE) = struct
     Node.read_exn (S.node_t t) key
 
   let update_path ?origin t path view =
-    Log.debugf "update_view %a" force (pretty (module IrminPath) path);
+    Log.debugf "update_view %a" force (show (module IrminPath) path);
     let origin = match origin with
       | None   -> IrminOrigin.create "Update view to %s" (IrminPath.pretty path)
       | Some o -> o in
@@ -444,7 +444,7 @@ module Store (S: IrminBranch.STORE) = struct
     | Some o -> o
 
   let rebase_path ?origin t path view =
-    Log.debugf "merge_view %a" force (pretty (module IrminPath) path);
+    Log.debugf "merge_view %a" force (show (module IrminPath) path);
     S.read_node t []           >>= function
     | None           -> fail Not_found
     | Some head_node ->
@@ -459,7 +459,7 @@ module Store (S: IrminBranch.STORE) = struct
     IrminMerge.exn
 
   let merge_path ?origin t path view =
-    Log.debugf "merge_view %a" force (pretty (module IrminPath) path);
+    Log.debugf "merge_view %a" force (show (module IrminPath) path);
     S.read_node t []           >>= function
     | None           -> fail Not_found
     | Some head_node ->

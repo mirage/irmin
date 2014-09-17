@@ -163,7 +163,7 @@ module Make
   let read_exn t key =
     read t key >>= function
     | None   ->
-      Log.debugf "Not_found: %a" force (pretty (module K) key);
+      Log.debugf "Not_found: %a" force (show (module K) key);
       fail Not_found
     | Some v -> return v
 
@@ -175,7 +175,7 @@ module Make
   module Graph = IrminGraph.Make(K)(IrminTag.String)
 
   let list t keys =
-    Log.debugf "list %a" force (prettys (module K) keys);
+    Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
       | `Node k -> read_exn t k >>= fun node -> return (edges node)
       | _       -> return_nil in
@@ -256,7 +256,7 @@ module Make
       (function Not_found -> return_none | e -> fail e)
 
   let find_exn t node path =
-    Log.debugf "find_exn %a" force (pretty (module IrminPath) path);
+    Log.debugf "find_exn %a" force (show (module IrminPath) path);
     sub t node path >>= function
     | None      ->
       Log.debugf "subpath not found";
@@ -269,7 +269,7 @@ module Make
       | Some b -> b
 
   let find t node path =
-    Log.debugf "find %a" force (pretty (module IrminPath) path);
+    Log.debugf "find %a" force (show (module IrminPath) path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -278,7 +278,7 @@ module Make
       | Some b -> b >>= fun b -> return (Some b)
 
   let valid t node path =
-    Log.debugf "valid %a" force (pretty (module IrminPath) path);
+    Log.debugf "valid %a" force (show (module IrminPath) path);
     sub t node path >>= function
     | None      -> return false
     | Some node ->
@@ -323,11 +323,11 @@ module Make
     aux node path
 
   let remove t node path =
-    Log.debugf "remove %a" force (pretty (module IrminPath) path);
+    Log.debugf "remove %a" force (show (module IrminPath) path);
     map t node path (fun node -> empty)
 
   let update (c, _ as t) node path value =
-    Log.debugf "update %a" force (pretty (module IrminPath) path);
+    Log.debugf "update %a" force (show (module IrminPath) path);
     Contents.add c value >>= fun k  ->
     map t node path (fun node -> { node with contents = Some k }) >>= fun n ->
     return n

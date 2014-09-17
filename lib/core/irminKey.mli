@@ -21,7 +21,7 @@ open IrminCore
 exception Invalid of string
 (** Exception raised when a key is not valid. *)
 
-exception Unknown of Sexplib.Sexp.t
+exception Unknown of string
 (** Exception raised when no value is associated to a key. *)
 
 module type S = sig

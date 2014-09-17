@@ -157,10 +157,10 @@ struct
   let read_head_commit t =
     match t.branch with
     | `Key key ->
-      Log.debugf "read detached head: %a" force (pretty (module K) key);
+      Log.debugf "read detached head: %a" force (show (module K) key);
       Commit.read (commit_t t) key
     | `Tag tag ->
-      Log.debugf "read head: %a" force (pretty (module T) tag);
+      Log.debugf "read head: %a" force (show (module T) tag);
       Tag.read t.tag tag >>= function
       | None   -> return_none
       | Some k -> Commit.read (commit_t t) k
@@ -219,7 +219,7 @@ struct
     let origin = match origin with
       | None   -> IrminOrigin.create "Update %s." (IrminPath.pretty path)
       | Some o -> o in
-    Log.debugf "update %a" force (pretty (module IrminPath) path);
+    Log.debugf "update %a" force (show (module IrminPath) path);
     apply t origin ~f:(fun node ->
         Node.update (node_t t) node path contents
       )
@@ -233,7 +233,7 @@ struct
       )
 
   let read_exn t path =
-    Log.debugf "read_exn %a" force (pretty (module IrminPath) path);
+    Log.debugf "read_exn %a" force (show (module IrminPath) path);
     map t path ~f:Node.find_exn
 
   let mem t path =
@@ -282,8 +282,8 @@ struct
      - Perform a 3-way merge *)
   let three_way_merge t ?origin c1 c2 =
     Log.debugf "3-way merge between %a and %a"
-      force (pretty (module K) c1)
-      force (pretty (module K) c2);
+      force (show (module K) c1)
+      force (show (module K) c2);
     Commit.find_common_ancestor (commit_t t) c1 c2 >>= function
     | None     -> conflict "no common ancestor"
     | Some old ->
@@ -301,7 +301,7 @@ struct
     | `Key _   -> t.branch <- `Key c; return_unit
 
   let switch t branch =
-    Log.debugf "switch %a" force (pretty (module Branch) branch);
+    Log.debugf "switch %a" force (show (module Branch) branch);
     Tag.read t.tag branch >>= function
     | Some c -> update_commit t c
     | None   -> fail Not_found
@@ -319,7 +319,7 @@ struct
       | Some c2 -> aux c2
 
   let clone_force t branch =
-    Log.debugf "clone %a" force (pretty (module Branch) branch);
+    Log.debugf "clone %a" force (show (module Branch) branch);
     begin match t.branch with
       | `Key c -> Tag.update t.tag branch c
       | `Tag tag ->
@@ -335,7 +335,7 @@ struct
     | false -> clone_force t branch >>= fun t -> return (Some t)
 
   let merge t ?origin branch =
-    Log.debugf "merge %a" force (pretty (module Branch) branch);
+    Log.debugf "merge %a" force (show (module Branch) branch);
     let origin = match origin with
       | Some o -> o
       | None   -> IrminOrigin.create "Merge branch %s."
@@ -348,7 +348,7 @@ struct
     IrminMerge.exn
 
   let watch_node t path =
-    Log.infof "Adding a watch on %a" force (pretty (module IrminPath) path);
+    Log.infof "Adding a watch on %a" force (show (module IrminPath) path);
     match t.branch with
     | `Key _   -> Lwt_stream.of_list []
     | `Tag tag ->
@@ -357,7 +357,7 @@ struct
         read_node t path >>= fun node ->
         let old_node = ref node in
         let stream = Lwt_stream.filter_map_s (fun key ->
-            Log.debugf "watch: %a" force (pretty (module Block.Key) key);
+            Log.debugf "watch: %a" force (show (module Block.Key) key);
             Commit.read_exn (commit_t t) key >>= fun commit ->
             begin match Commit.node (commit_t t) commit with
               | None      -> return IrminNode.empty

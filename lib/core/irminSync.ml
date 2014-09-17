@@ -100,7 +100,7 @@ struct
       R.Block.Commit.list (R.commit_t r) ?depth [remote_head]
       >>= fun remote_keys ->
       let keys = RBlockKeySet.(to_list (diff (of_list remote_keys) (of_list local_keys))) in
-      Log.debugf "sync keys=%a" force (prettys (module R.Block.Key) keys);
+      Log.debugf "sync keys=%a" force (shows (module R.Block.Key) keys);
       Lwt_list.iter_p (fun key ->
           R.Block.read (R.block_t r) key >>= function
           | None   -> return_unit

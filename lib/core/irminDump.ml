@@ -163,7 +163,7 @@ module Make (Store: IrminBranch.STORE) = struct
                    </div>"
             k (Ezjsonm.to_string (C.to_json v))
         else
-           let v = string_of_contents (Lazy.force (pretty (module C) v)) in
+           let v = string_of_contents (Lazy.force (show (module C) v)) in
            sprintf "%s | %s" k (String.escaped v) in
       `Label s in
     let label_of_tag t =
@@ -171,7 +171,7 @@ module Make (Store: IrminBranch.STORE) = struct
         if html then
           sprintf "<div class='tag'>%s</div>" (Ezjsonm.to_string (T.to_json t))
         else
-          Lazy.force (pretty (module T) t)
+          Lazy.force (show (module T) t)
       in
       `Label s in
     let leafs = List.map ~f:(fun (k,_) ->

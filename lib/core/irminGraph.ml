@@ -119,7 +119,7 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
         else if has_mark key then add ()
         else (
           mark key level;
-          Log.debugf "ADD %a %d" force (pretty (module X) key) level;
+          Log.debugf "ADD %a %d" force (show (module X) key) level;
           if not (G.mem_vertex g key) then G.add_vertex g key;
           pred key >>= fun keys ->
           List.iter ~f:(fun k -> G.add_edge g k key) keys;

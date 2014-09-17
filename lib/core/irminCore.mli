@@ -30,14 +30,12 @@ type 'a to_sexp = 'a -> Sexplib.Sexp.t
 
 (** Cstruct readers. *)
 type 'a reader = Cstruct.t -> (Cstruct.t * 'a) option
-val read_all: 'a reader -> Cstruct.buffer -> 'a option
 
 (** Pre-compute the size of the written objects. *)
 type 'a size_of = 'a -> int
 
 (** Cstruct writers. *)
 type 'a writer = 'a -> Cstruct.t -> Cstruct.t
-val write_all: 'a size_of -> 'a writer -> 'a -> Cstruct.buffer
 
 (** JSON converters. *)
 type 'a to_json = 'a -> Ezjsonm.t
@@ -95,8 +93,14 @@ val read: (module I0 with type t = 'a) -> 'a reader
 
 (** derived type-classes for debugging*)
 val force: out_channel -> string Lazy.t -> unit
-val pretty: (module I0 with type t = 'a) -> 'a -> string Lazy.t
-val prettys: (module I0 with type t = 'a) -> 'a list -> string Lazy.t
+val show: (module I0 with type t = 'a) -> 'a -> string Lazy.t
+val shows: (module I0 with type t = 'a) -> 'a list -> string Lazy.t
+
+val read_all: (module I0 with type t = 'a) -> Cstruct.buffer -> 'a option
+val write_all: (module I0 with type t = 'a) -> 'a -> Cstruct.buffer
+
+val read_string: (module I0 with type t = 'a) -> string -> 'a option
+val write_string: (module I0 with type t = 'a) -> 'a -> string
 
 (** Build abstract identifiers. *)
 module I0 (S: sig type t with sexp, bin_io, compare end):
@@ -268,6 +272,7 @@ module Map: sig
     val add: 'a t -> key:key -> data:'a -> 'a t
     val remove: 'a t -> key -> 'a t
     val keys: 'a t -> key list
+    val max_elt: 'a t -> (key * 'a) option
     module Lwt: sig
       val merge: 'v1 t ->'v2 t ->
         f:(key:key -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> 'v3 option Lwt.t) ->
@@ -311,6 +316,7 @@ module String: sig
   val blit: t -> int -> t -> int -> int -> unit
   val concat: t list -> sep:t -> t
   val escaped: t -> t
+  val chop_prefix: t -> prefix:t -> t option
 
   val replace: pattern:t -> (t -> t) -> t -> t
   (** Replace a pattern in a string. *)
@@ -369,6 +375,7 @@ module List: sig
   val filter: 'a t -> f:('a -> bool) -> 'a t
   val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
   val partition_map : 'a t -> f:('a -> [ `Fst of 'b | `Snd of 'c ]) -> 'b t * 'c t
+  val partition_tf : 'a t -> f:('a -> bool) -> 'a t * 'a t
   module Assoc : sig
     include I2 with type ('a, 'b) t = ('a * 'b) list
     val find: ('a, 'b) t -> ?equal:'a equal -> 'a -> 'b option
@@ -402,6 +409,7 @@ module Int64: sig
   include I0 with type t = int64
   val (+): t -> t -> t
   val to_string: t -> string
+  val of_string: string -> t
 end
 
 (** Polymorphic mutable queues. *)

@@ -99,9 +99,9 @@ let default (type a) (module A: S with type t = a) =
   let equal a b = return (A.equal a b) in
   let merge ~origin ~old t1 t2 =
     Log.debugf "default %a | %a | %a"
-      force (pretty (module A) old)
-      force (pretty (module A) t1)
-      force (pretty (module A) t2);
+      force (show (module A) old)
+      force (show (module A) t1)
+      force (show (module A) t2);
     if A.equal t1 t2 then ok t1
     else if A.equal old t1 then ok t2
     else if A.equal old t2 then ok t1
@@ -113,9 +113,9 @@ let default' (type a) (module A: S with type t = a) equal =
   let default = default (module A) in
   let merge' ~old t1 t2 =
     Log.debugf "default' %a | %a | %a"
-      force (pretty (module A) old)
-      force (pretty (module A) t1)
-      force (pretty (module A) t2);
+      force (show (module A) old)
+      force (show (module A) t1)
+      force (show (module A) t2);
     equal t1 t2 >>= fun b1 ->
     if b1 then ok t1
     else
@@ -158,9 +158,9 @@ let some (type a) t =
     | Some a, Some b -> t.equal a b in
   let merge ~origin ~old t1 t2 =
     Log.debugf "some %a | %a | %a"
-      force (pretty (module S) old)
-      force (pretty (module S) t1)
-      force (pretty (module S) t2);
+      force (show (module S) old)
+      force (show (module S) t1)
+      force (show (module S) t2);
     merge (default' (module S) equal) ~origin ~old t1 t2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
@@ -181,9 +181,9 @@ let pair (type a) (type b) a b =
   in
   let merge ~origin ~old x y =
     Log.debugf "pair %a | %a | %a"
-      force (pretty (module S) old)
-      force (pretty (module S) x)
-      force (pretty (module S) y);
+      force (show (module S) old)
+      force (show (module S) x)
+      force (show (module S) y);
     let (o1, o2), (a1, b1), (a2, b2) = old, x, y in
     a.merge ~origin ~old:o1 a1 a2 >>| fun a3 ->
     b.merge ~origin ~old:o2 b1 b2 >>| fun b3 ->
@@ -210,9 +210,9 @@ let string_map (type a) t =
   in
   let merge ~origin ~old m1 m2 =
     Log.debugf "assoc %a | %a | %a"
-      force (pretty (module S) old)
-      force (pretty (module S) m1)
-      force (pretty (module S) m2);
+      force (show (module S) old)
+      force (show (module S) m1)
+      force (show (module S) m2);
     merge (default' (module S) equal) ~origin ~old m1 m2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
@@ -256,9 +256,9 @@ let biject (type b) (module B: S with type t = b) t a_to_b b_to_a =
       t.equal a1 a2 in
   let merge' ~origin ~old b1 b2 =
     Log.debugf "map %a | %a | %a"
-      force (pretty (module B) old)
-      force (pretty (module B) b1)
-      force (pretty (module B) b2);
+      force (show (module B) old)
+      force (show (module B) b1)
+      force (show (module B) b2);
     try
       let a1 = b_to_a b1 in
       let a2 = b_to_a b2 in
@@ -285,9 +285,9 @@ let biject' (type b) (module B: S with type t = b) t a_to_b b_to_a =
       t.equal a1 a2 in
   let merge' ~origin ~old b1 b2 =
     Log.debugf "map' %a | %a | %a"
-      force (pretty (module B) old)
-      force (pretty (module B) b1)
-      force (pretty (module B) b2);
+      force (show (module B) old)
+      force (show (module B) b1)
+      force (show (module B) b2);
     try
       b_to_a b1  >>= fun a1 ->
       b_to_a b2  >>= fun a2 ->

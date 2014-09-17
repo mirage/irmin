@@ -64,13 +64,13 @@ module Make (K: IrminKey.S) (V: sig type t end) = struct
     | ws -> KTable.replace t ~key ~data:ws
 
   let notify t key value =
-    Log.debugf "notify %a" force (pretty (module K) key);
+    Log.debugf "notify %a" force (show (module K) key);
     match KTable.find t key with
     | None    -> ()
     | Some ws ->
       let ws = List.map ws ~f:(fun (id, old_value, f as w) ->
           if old_value <> value then (
-            Log.debugf "firing watch %a:%d" force (pretty (module K) key) id;
+            Log.debugf "firing watch %a:%d" force (show (module K) key) id;
             try f value; (id, value, f)
             with e ->
               unwatch t key id;
@@ -84,7 +84,7 @@ module Make (K: IrminKey.S) (V: sig type t end) = struct
     fun () -> incr c; !c
 
   let watch t key value =
-    Log.debugf "watch %a" force (pretty (module K) key);
+    Log.debugf "watch %a" force (show (module K) key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
     KTable.add_multi t ~key ~data:(id, value, push);

@@ -19,7 +19,7 @@ open Sexplib.Std
 open Bin_prot.Std
 
 exception Invalid of string
-exception Unknown of Sexplib.Sexp.t
+exception Unknown of string
 
 module type S = sig
   include I0

@@ -65,12 +65,12 @@ module RO_BINARY  (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: I0) = struct
   let read t key =
     S.read t (K.to_raw key) >>= function
     | None    -> return_none
-    | Some ba -> return (read_all V.read ba)
+    | Some ba -> return (read_all (module V) ba)
 
   let read_exn t key =
     read t key >>= function
     | Some v -> return v
-    | None   -> fail (IrminKey.Unknown (K.to_sexp key))
+    | None   -> fail (IrminKey.Unknown (K.pretty key))
 
   let mem t key =
     S.mem t (K.to_raw key)
@@ -84,7 +84,7 @@ module RO_BINARY  (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: I0) = struct
   let dump t =
     S.dump t >>= fun l ->
     Lwt_list.fold_left_s (fun acc (s, ba) ->
-        match read_all V.read ba with
+        match read_all (module V) ba with
         | None   -> return acc
         | Some v -> return ((K.of_raw s, v) :: acc)
       ) [] l
@@ -99,9 +99,9 @@ module AO_BINARY (S: IrminStore.AO_BINARY)  (K: IrminKey.S) (V: I0) = struct
 
   let add t value =
     LA.debugf "add";
-    S.add t (write_all V.size_of V.write value) >>= fun key ->
+    S.add t (write_all (module V) value) >>= fun key ->
     let key = K.of_raw key in
-    LA.debugf "<-- added: %a" force (pretty (module K) key);
+    LA.debugf "<-- added: %a" force (show (module K) key);
     return key
 
 end
@@ -113,15 +113,15 @@ module RW_BINARY (S: IrminStore.RW_BINARY) (K: IrminKey.S) (V: I0) = struct
   module LM = Log.Make(struct let section = "RW" end)
 
   let update t key value =
-    LM.debug (lazy "update");
-    S.update t (K.to_raw key) (write_all V.size_of V.write value)
+    LM.debugf "update %a" force (show (module K) key);
+    S.update t (K.to_raw key) (write_all (module V) value)
 
   let remove t key =
     S.remove t (K.to_raw key)
 
   let watch t key =
     Lwt_stream.map (fun v ->
-        match read_all V.read v with
+        match read_all (module V) v with
         | None   -> failwith "watch"
         | Some v -> v
       ) (S.watch t (K.to_raw key))

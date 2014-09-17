@@ -53,12 +53,12 @@ let read (type t) (module S: I0 with type t = t) = S.read
 
 let force oc s = output_string oc (Lazy.force s)
 
-let pretty (type t) (module S: I0 with type t = t) t =
+let show (type t) (module S: I0 with type t = t) t =
   lazy (
     Sexplib.Sexp.to_string_hum (S.to_sexp t)
   )
 
-let prettys (type t) (module S: I0 with type t = t) xs =
+let shows (type t) (module S: I0 with type t = t) xs =
   lazy (
     List.map S.to_sexp xs
     |> fun l -> Sexplib.Sexp.to_string_hum (Sexplib.Sexp.List l)
@@ -89,20 +89,6 @@ module type I2 = sig
   val write: 'a writer -> 'b writer -> ('a, 'b) t writer
   val read: 'a reader -> 'b reader -> ('a, 'b) t reader
 end
-
-let read_all read ba =
-  let buf = Cstruct.of_bigarray ba in
-  match read buf with
-  | None -> None
-  | Some (_, t) ->
-    (* FIXME: assert the buffer is empty? *)
-    Some t
-
-let write_all (size_of:'a size_of) (write:'a writer) (t:'a) =
-  let buf = Cstruct.create (size_of t) in
-  let buf = write t buf in
-  (* FIXME: assert len=off *)
-  buf.Cstruct.buffer
 
 module Reader = struct
 
@@ -335,6 +321,14 @@ module String = struct
   let concat ts ~sep = String.concat sep ts
   let escaped = String.escaped
 
+  let chop_prefix t ~prefix =
+    let lt = String.length t in
+    let lp = String.length prefix in
+    if lt > lp then None else
+      let p = String.sub t 0 lp in
+      if String.compare p prefix <> 0 then None
+      else Some (String.sub t lp (lt - lp))
+
   let split str ~on =
     let len = String.length str in
     let rec loop acc i =
@@ -377,6 +371,7 @@ module Bigstring = struct
     let sexp_of_t = Sexplib.Conv.sexp_of_bigstring
     let t_of_sexp = Sexplib.Conv.bigstring_of_sexp
     let compare = Pervasives.compare (* FIXME *)
+    (* XXX: compare adresses instead ? *)
   end
   include I0(M)
   let create len = Array1.create char c_layout len
@@ -404,12 +399,31 @@ module Bigstring = struct
 
 end
 
+let read_all (type t) (module S: I0 with type t = t) ba =
+  let buf = Cstruct.of_bigarray ba in
+  match S.read buf with
+  | None -> None
+  | Some (_, t) ->
+    (* FIXME: assert that the buffer is empty? *)
+    Some t
+
+let write_all (type t) (module S: I0 with type t = t) t =
+  let buf = Cstruct.create (S.size_of t) in
+  let buf = S.write t buf in
+  (* FIXME: assert len=off *)
+  buf.Cstruct.buffer
+
+(* XXX: review performance *)
+let read_string m str = read_all m (Bigstring.of_string str)
+let write_string m t = Bigstring.to_string (write_all m t)
+
 module Unit = I0(struct type t = unit with sexp, bin_io, compare end)
 
 module Int64 = struct
   include I0(struct type t = int64 with sexp, bin_io, compare end)
   let (+) = Int64.add
   let to_string = Int64.to_string
+  let of_string = Int64.of_string
 end
 
 module App1(F: I1)(X: I0) = struct
@@ -693,7 +707,9 @@ module List = struct
   let rev_map t ~f = List.rev_map f t
   let filter t ~f = List.filter f t
   let exists t ~f = List.exists f t
+  let partition_tf t ~f = List.partition f t
   let sort ?(compare=Pervasives.compare) t = List.sort compare t
+
   let partition_map t ~f =
     let rec aux fst snd = function
       | []   -> List.rev fst, List.rev snd
@@ -1017,7 +1033,7 @@ module Hashtbl = struct
       | `Ok acc -> acc
       | `Duplicate_key k ->
         raise (invalid_argf "Duplicate key: %s"
-                 (Lazy.force (pretty (module K) k)))
+                 (Lazy.force (show (module K) k)))
 
     let to_alist t =
       let acc = ref [] in
@@ -1080,7 +1096,7 @@ module Hashtbl = struct
       | `Ok -> ()
       | `Duplicate ->
         raise (invalid_argf "Duplicate key: %s"
-                 (Lazy.force (pretty (module K) key)))
+                 (Lazy.force (show (module K) key)))
 
     let keys t =
       let acc = ref [] in
@@ -1130,6 +1146,7 @@ module Map = struct
     val add: 'a t -> key:key -> data:'a -> 'a t
     val remove: 'a t -> key -> 'a t
     val keys: 'a t -> key list
+    val max_elt: 'a t -> (key * 'a) option
     module Lwt: sig
       val merge: 'v1 t ->'v2 t ->
         f:(key:key -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ]
@@ -1152,6 +1169,7 @@ module Map = struct
     let is_empty = Map.is_empty
     let keys t = List.map ~f:fst (Map.bindings t)
     let iter t ~f = Map.iter (fun key data -> f ~key ~data) t
+    let max_elt t = try Some (Map.max_binding t) with Not_found -> None
 
     let find t k =
       try Some (Map.find k t)
