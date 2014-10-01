@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="IrminView.Make.html">
+<link rel="Up" href="IrminView.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>IrminView.Action</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="IrminView.html" title="IrminView">Up</a>
+&nbsp;<a class="post" href="IrminView.Make.html" title="IrminView.Make">Next</a>
+</div>
+<h1>Module <a href="type_IrminView.Action.html">IrminView.Action</a></h1>
+
+<pre><span class="keyword">module</span> Action: <code class="code">sig</code> <a href="IrminView.Action.html">..</a> <code class="code">end</code></pre><hr width="100%">
+
+<pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type">'contents</code> t</span> = </code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Read"><span class="constructor">Read</span></span> <span class="keyword">of</span> <code class="type"><a href="IrminView.html#TYPEpath">IrminView.path</a> * 'contents option</code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Write"><span class="constructor">Write</span></span> <span class="keyword">of</span> <code class="type"><a href="IrminView.html#TYPEpath">IrminView.path</a> * 'contents option</code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.List"><span class="constructor">List</span></span> <span class="keyword">of</span> <code class="type"><a href="IrminView.html#TYPEpath">IrminView.path</a> list * <a href="IrminView.html#TYPEpath">IrminView.path</a> list</code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >Operations on view. We record the result of reads to be able to
+      replay them on merge.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr></table>
+
+<div class="info ">
+Actions performed on a view.<br>
+</div>
+
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type">('a -> string) -> 'a <a href="IrminView.Action.html#TYPEt">t</a> -> string</code></pre>
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">(Sexplib.Sexp.t -> 'contents) -><br>       Sexplib.Sexp.t -> 'contents <a href="IrminView.Action.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type">('contents -> Sexplib.Sexp.t) -><br>       'contents <a href="IrminView.Action.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre>
+<pre><span id="VALcompare"><span class="keyword">val</span> compare</span> : <code class="type">('contents -> 'contents -> int) -><br>       'contents <a href="IrminView.Action.html#TYPEt">t</a> -> 'contents <a href="IrminView.Action.html#TYPEt">t</a> -> int</code></pre>
+<pre><span id="VALbin_t"><span class="keyword">val</span> bin_t</span> : <code class="type">'contents Core_kernel.Std.Bin_prot.Type_class.t -><br>       'contents <a href="IrminView.Action.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Type_class.t</code></pre>
+<pre><span id="VALbin_read_t"><span class="keyword">val</span> bin_read_t</span> : <code class="type">'contents Core_kernel.Std.Bin_prot.Read.reader -><br>       'contents <a href="IrminView.Action.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Read.reader</code></pre>
+<pre><span id="VAL__bin_read_t__"><span class="keyword">val</span> __bin_read_t__</span> : <code class="type">'contents Core_kernel.Std.Bin_prot.Read.reader -><br>       (int -> 'contents <a href="IrminView.Action.html#TYPEt">t</a>) Core_kernel.Std.Bin_prot.Read.reader</code></pre>
+<pre><span id="VALbin_reader_t"><span class="keyword">val</span> bin_reader_t</span> : <code class="type">'contents Core_kernel.Std.Bin_prot.Type_class.reader -><br>       'contents <a href="IrminView.Action.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Type_class.reader</code></pre>
+<pre><span id="VALbin_size_t"><span class="keyword">val</span> bin_size_t</span> : <code class="type">'contents Core_kernel.Std.Bin_prot.Size.sizer -><br>       'contents <a href="IrminView.Action.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Size.sizer</code></pre>
+<pre><span id="VALbin_write_t"><span class="keyword">val</span> bin_write_t</span> : <code class="type">'contents Core_kernel.Std.Bin_prot.Write.writer -><br>       'contents <a href="IrminView.Action.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Write.writer</code></pre>
+<pre><span id="VALbin_writer_t"><span class="keyword">val</span> bin_writer_t</span> : <code class="type">'contents Core_kernel.Std.Bin_prot.Type_class.writer -><br>       'contents <a href="IrminView.Action.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Type_class.writer</code></pre><div class="info ">
+Operations on view. We record the result of reads to be able to
+      replay them on merge.<br>
+</div>
+<br>
+Pretty-print an action.<br>
+</body></html>

@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="IrminStore.html">
+<link rel="next" href="IrminTag.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>IrminBlock</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="IrminStore.html" title="IrminStore">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="IrminTag.html" title="IrminTag">Next</a>
+</div>
+<h1>Module <a href="type_IrminBlock.html">IrminBlock</a></h1>
+
+<pre><span class="keyword">module</span> IrminBlock: <code class="code">sig</code> <a href="IrminBlock.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Store structured values: contents, node and commits.<br>
+</div>
+<hr width="100%">
+
+<pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type">('key, 'contents)</code> t</span> = </code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Contents"><span class="constructor">Contents</span></span> <span class="keyword">of</span> <code class="type">'contents</code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Node"><span class="constructor">Node</span></span> <span class="keyword">of</span> <code class="type">'key <a href="IrminNode.html#TYPEt">IrminNode.t</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Commit"><span class="constructor">Commit</span></span> <span class="keyword">of</span> <code class="type">'key <a href="IrminCommit.html#TYPEt">IrminCommit.t</a></code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >The different kinds of values which can be stored in the
+    database.</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr></table>
+
+
+
+<pre><span id="TYPEorigin"><span class="keyword">type</span> <code class="type"></code>origin</span> = <code class="type">IrminOrigin.t</code> </pre>
+
+
+<pre><span class="keyword">module type</span> <a href="IrminBlock.S.html">S</a> = <code class="code">sig</code> <a href="IrminBlock.S.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="IrminBlock.S.html">S</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminBlock.S.html">S</a></code><code class="type">  with type key = K.t
+                                                  and type contents = C.t</code></div></div></pre>
+<pre><span class="keyword">module</span> <a href="IrminBlock.String.html">String</a>: <code class="type"><a href="IrminBlock.S.html">S</a></code><code class="type">  with type key = <a href="IrminKey.SHA1.html">IrminKey.SHA1</a>.t
+                  and type contents = <a href="IrminContents.String.html">IrminContents.String</a>.t</code></pre><div class="info">
+String contents, with SHA1 keys.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminBlock.JSON.html">JSON</a>: <code class="type"><a href="IrminBlock.S.html">S</a></code><code class="type">  with type key = <a href="IrminKey.SHA1.html">IrminKey.SHA1</a>.t
+                and type contents = <a href="IrminContents.JSON.html">IrminContents.JSON</a>.t</code></pre><div class="info">
+JSON contents, with SHA1 keys.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="IrminBlock.STORE.html">STORE</a> = <code class="code">sig</code> <a href="IrminBlock.STORE.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="IrminBlock.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="IrminStore.AO.html">IrminStore.AO</a></code><code class="type">  with type key = K.t and type value = (K.t, C.t) t</code><code class="code">) -&gt; </code><code class="type"><a href="IrminBlock.STORE.html">STORE</a></code><code class="type">  with type key = K.t
+           and type contents   = C.t
+           and type Contents.t = S.t
+           and type Node.t     = S.t * S.t
+           and type Commit.t   = (S.t * S.t) * S.t</code></div></div></div></pre><div class="info">
+Create a store for structured values.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminBlock.Mux.html">Mux</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Contents</code><code class="code"> : </code><code class="type"><a href="IrminStore.AO.html">IrminStore.AO</a></code><code class="type">  with type key = K.t and type value = C.t</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Node</code><code class="code"> : </code><code class="type"><a href="IrminStore.AO.html">IrminStore.AO</a></code><code class="type">  with type key = K.t and type value = K.t IrminNode.t</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Commit</code><code class="code"> : </code><code class="type"><a href="IrminStore.AO.html">IrminStore.AO</a></code><code class="type">  with type key = K.t and type value = K.t IrminCommit.t</code><code class="code">) -&gt; </code><code class="type"><a href="IrminBlock.STORE.html">STORE</a></code><code class="type">  with type key = K.t
+           and type contents   = C.t
+           and type Contents.t = Contents.t
+           and type Node.t     = Contents.t * Node.t
+           and type Commit.t   = (Contents.t * Node.t) * Commit.t</code></div></div></div></div></div></pre><div class="info">
+Combine multiple stores to create a global store for structured
+    values.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminBlock.Rec.html">Rec</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="IrminBlock.STORE.html">STORE</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="type">  with type t = S.key</code></div></pre>
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">(Sexplib.Sexp.t -> 'key) -><br>       (Sexplib.Sexp.t -> 'contents) -><br>       Sexplib.Sexp.t -> ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type">('key -> Sexplib.Sexp.t) -><br>       ('contents -> Sexplib.Sexp.t) -><br>       ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre>
+<pre><span id="VALcompare"><span class="keyword">val</span> compare</span> : <code class="type">('key -> 'key -> int) -><br>       ('contents -> 'contents -> int) -><br>       ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> -> ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> -> int</code></pre>
+<pre><span id="VALbin_t"><span class="keyword">val</span> bin_t</span> : <code class="type">'key Bin_prot.Type_class.t -><br>       'contents Bin_prot.Type_class.t -><br>       ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> Bin_prot.Type_class.t</code></pre>
+<pre><span id="VALbin_read_t"><span class="keyword">val</span> bin_read_t</span> : <code class="type">'key Bin_prot.Read.reader -><br>       'contents Bin_prot.Read.reader -><br>       ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> Bin_prot.Read.reader</code></pre>
+<pre><span id="VAL__bin_read_t__"><span class="keyword">val</span> __bin_read_t__</span> : <code class="type">'key Bin_prot.Read.reader -><br>       'contents Bin_prot.Read.reader -><br>       (int -> ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a>) Bin_prot.Read.reader</code></pre>
+<pre><span id="VALbin_reader_t"><span class="keyword">val</span> bin_reader_t</span> : <code class="type">'key Bin_prot.Type_class.reader -><br>       'contents Bin_prot.Type_class.reader -><br>       ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> Bin_prot.Type_class.reader</code></pre>
+<pre><span id="VALbin_size_t"><span class="keyword">val</span> bin_size_t</span> : <code class="type">'key Bin_prot.Size.sizer -><br>       'contents Bin_prot.Size.sizer -><br>       ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> Bin_prot.Size.sizer</code></pre>
+<pre><span id="VALbin_write_t"><span class="keyword">val</span> bin_write_t</span> : <code class="type">'key Bin_prot.Write.writer -><br>       'contents Bin_prot.Write.writer -><br>       ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> Bin_prot.Write.writer</code></pre>
+<pre><span id="VALbin_writer_t"><span class="keyword">val</span> bin_writer_t</span> : <code class="type">'key Bin_prot.Type_class.writer -><br>       'contents Bin_prot.Type_class.writer -><br>       ('key, 'contents) <a href="IrminBlock.html#TYPEt">t</a> Bin_prot.Type_class.writer</code></pre><div class="info ">
+The different kinds of values which can be stored in the
+    database.<br>
+</div>
+<br>
+Signature for structured values.<br>
+<br>
+Keys.<br>
+<br>
+Contents.<br>
+<br>
+Base functions over structured values.<br>
+<br>
+String contents, with SHA1 keys.<br>
+<br>
+JSON contents, with SHA1 keys.<br>
+<br>
+The block store holds the representation of all the immutable
+      values of the system.<br>
+<br>
+Database keys.<br>
+<br>
+Contents values.<br>
+<br>
+Block values.<br>
+<br>
+Node values.<br>
+<br>
+Commit values.<br>
+<br>
+Return the related blocks, with an history depth limit.<br>
+<br>
+The handler for the contents database.<br>
+<br>
+The handler for the node database.<br>
+<br>
+The handler for the commit database.<br>
+<br>
+Merge keys of the store together.<br>
+<br>
+Base functions over keys.<br>
+<br>
+Base functions over values.<br>
+<br>
+Create a store for structured values.<br>
+<br>
+Combine multiple stores to create a global store for structured
+    values. XXX: discuss about the cost model, ie. the difference
+    between Mux and Make.<br>
+<br>
+Interpret the blocks in a block store as storable objects.<br>
+</body></html>

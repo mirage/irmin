@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="IrminWatch.html">
+<link rel="next" href="IrminView.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><link title="Merge resuls" rel="Section" href="#2_Mergeresuls">
+<link title="Merge functions" rel="Section" href="#2_Mergefunctions">
+<link title="Base combinators" rel="Section" href="#2_Basecombinators">
+<link title="Combinators" rel="Section" href="#2_Combinators">
+<title>IrminMerge</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="IrminWatch.html" title="IrminWatch">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="IrminView.html" title="IrminView">Next</a>
+</div>
+<h1>Module <a href="type_IrminMerge.html">IrminMerge</a></h1>
+
+<pre><span class="keyword">module</span> IrminMerge: <code class="code">sig</code> <a href="IrminMerge.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Merge operators.<br>
+</div>
+<hr width="100%">
+
+<pre><span class="keyword">module type</span> <a href="IrminMerge.S.html">S</a> = <code class="type"><a href="IrminIdent.S.html">IrminIdent.S</a></code></pre>
+<pre><span id="TYPEorigin"><span class="keyword">type</span> <code class="type"></code>origin</span> = <code class="type">IrminOrigin.t</code> </pre>
+
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> </pre>
+<div class="info ">
+Abstract merge function for values of type <code class="code">'a</code>.<br>
+</div>
+
+<br>
+<h2 id="2_Mergeresuls">Merge resuls</h2><br>
+
+<pre><span id="TYPEresult"><span class="keyword">type</span> <code class="type">'a</code> result</span> = <code class="type">[ `Conflict of string | `Ok of 'a ]</code> </pre>
+<div class="info ">
+Merge results.<br>
+</div>
+
+
+<pre><span class="keyword">module</span> <a href="IrminMerge.Result.html">Result</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">A</code><code class="code"> : </code><code class="type"><a href="IrminIdent.S.html">IrminIdent.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminIdent.S.html">IrminIdent.S</a></code><code class="type">  with type t = A.t result</code></div></pre><div class="info">
+Base function over <code class="code">A.t result</code>s..
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminMerge.UnitResult.html">UnitResult</a>: <code class="type"><a href="IrminIdent.S.html">IrminIdent.S</a></code><code class="type">  with type t = unit result</code></pre><div class="info">
+Base functions overs <code class="code">unit result</code>s.
+</div>
+
+<pre><span id="EXCEPTIONConflict"><span class="keyword">exception</span> Conflict</span> <span class="keyword">of</span> <code class="type">string</code></pre>
+<div class="info ">
+Exception which might be raised when merging.<br>
+</div>
+
+<pre><span id="VALexn"><span class="keyword">val</span> exn</span> : <code class="type">'a <a href="IrminMerge.html#TYPEresult">result</a> -> 'a Lwt.t</code></pre><div class="info ">
+Convert <code class="code">Conflict</code> values to <code class="code">Conflict</code> exceptions.<br>
+</div>
+<br>
+<h2 id="2_Mergefunctions">Merge functions</h2><br>
+
+<pre><span id="TYPEmerge"><span class="keyword">type</span> <code class="type">'a</code> merge</span> = <code class="type">origin:<a href="IrminMerge.html#TYPEorigin">origin</a> -> old:'a -> 'a -> 'a -> 'a <a href="IrminMerge.html#TYPEresult">result</a></code> </pre>
+<div class="info ">
+Signature of a merge function.<br>
+</div>
+
+
+<pre><span id="TYPEmerge'"><span class="keyword">type</span> <code class="type">'a</code> merge'</span> = <code class="type">origin:<a href="IrminMerge.html#TYPEorigin">origin</a> -> old:'a -> 'a -> 'a -> 'a <a href="IrminMerge.html#TYPEresult">result</a> Lwt.t</code> </pre>
+<div class="info ">
+Signature of a blocking merge function.<br>
+</div>
+
+
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">'a <a href="IrminMerge.html#TYPEt">t</a> -> 'a <a href="IrminMerge.html#TYPEmerge'">merge'</a></code></pre><div class="info ">
+Get the merge functions.
+<p>
+
+            /----&gt; t1 ----\
+    ----&gt; old              |--&gt; result
+            \----&gt; t2 ----/<br>
+</div>
+<br>
+<h2 id="2_Basecombinators">Base combinators</h2><br>
+
+<pre><span id="VALbind"><span class="keyword">val</span> bind</span> : <code class="type">'a <a href="IrminMerge.html#TYPEresult">result</a> Lwt.t -><br>       ('a -> 'b <a href="IrminMerge.html#TYPEresult">result</a> Lwt.t) -> 'b <a href="IrminMerge.html#TYPEresult">result</a> Lwt.t</code></pre><div class="info ">
+Monadic bind over Result.<br>
+</div>
+
+<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">('a -> unit <a href="IrminMerge.html#TYPEresult">result</a> Lwt.t) -><br>       'a list -> unit <a href="IrminMerge.html#TYPEresult">result</a> Lwt.t</code></pre><div class="info ">
+Monadic iterations over results.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminMerge.OP.html">OP</a>: <code class="code">sig</code> <a href="IrminMerge.OP.html">..</a> <code class="code">end</code></pre><br>
+<h2 id="2_Combinators">Combinators</h2><br>
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">(module IrminMerge.S with type t = 'a) -><br>       'a <a href="IrminMerge.html#TYPEmerge">merge</a> -> 'a <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Create a custom merge operator.<br>
+</div>
+
+<pre><span id="VALcreate'"><span class="keyword">val</span> create'</span> : <code class="type">(module IrminMerge.S with type t = 'a) -><br>       'a <a href="IrminMerge.html#TYPEmerge'">merge'</a> -> 'a <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Create a custom merge operator which might block.<br>
+</div>
+
+<pre><span id="VALdefault"><span class="keyword">val</span> default</span> : <code class="type">(module IrminMerge.S with type t = 'a) -> 'a <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Create a default merge function. This is a simple merge
+    functions which support changes in one branch at the time:
+<p>
+<ul>
+<li>if t1=t2  then return t1</li>
+<li>if t1=old then return t2</li>
+<li>if t2=old then return t1</li>
+<li>otherwise raise <code class="code">Conflict</code>.</li>
+</ul>
+<br>
+</div>
+
+<pre><span id="VALdefault'"><span class="keyword">val</span> default'</span> : <code class="type">(module IrminMerge.S with type t = 'a) -><br>       ('a -> 'a -> bool Lwt.t) -> 'a <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Same as <code class="code">default</code> but for blocking equality functions.<br>
+</div>
+
+<pre><span id="VALstring"><span class="keyword">val</span> string</span> : <code class="type">string <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+The default string merge function. Do not anything clever, just
+    compare the strings using the <code class="code">default</code> merge function.<br>
+</div>
+
+<pre><span id="VALcounter"><span class="keyword">val</span> counter</span> : <code class="type">int <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Mergeable counters.<br>
+</div>
+
+<pre><span id="VALseq"><span class="keyword">val</span> seq</span> : <code class="type">'a <a href="IrminMerge.html#TYPEt">t</a> list -> 'a <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Try the merge operations in sequence.<br>
+</div>
+
+<pre><span id="VALsome"><span class="keyword">val</span> some</span> : <code class="type">'a <a href="IrminMerge.html#TYPEt">t</a> -> 'a option <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Lift a merge function to optional values of the same type. If all
+    the provided values are inhabited, then call the provided merge
+    function, otherwise use the same behavior as <code class="code">create</code>.<br>
+</div>
+
+<pre><span id="VALmap"><span class="keyword">val</span> map</span> : <code class="type">'a <a href="IrminMerge.html#TYPEt">t</a> -> 'a Core_kernel.Std.String.Map.t <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Lift to hash-tables.<br>
+</div>
+
+<pre><span id="VALpair"><span class="keyword">val</span> pair</span> : <code class="type">'a <a href="IrminMerge.html#TYPEt">t</a> -> 'b <a href="IrminMerge.html#TYPEt">t</a> -> ('a * 'b) <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Lift to pairs.<br>
+</div>
+
+<pre><span id="VALapply"><span class="keyword">val</span> apply</span> : <code class="type">(module IrminMerge.S with type t = 'b) -><br>       ('a -> 'b <a href="IrminMerge.html#TYPEt">t</a>) -> 'a -> 'b <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Apply operator. Use this operator to break recursive loops.<br>
+</div>
+
+<pre><span id="VALbiject"><span class="keyword">val</span> biject</span> : <code class="type">(module IrminMerge.S with type t = 'b) -><br>       'a <a href="IrminMerge.html#TYPEt">t</a> -> ('a -> 'b) -> ('b -> 'a) -> 'b <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Use the merge function defined in another domain. If the
+    functions given in argument are partial (ie. returning
+    <code class="code">Not_found</code> on some entries), the exception is catched and
+    <code class="code">Conflict</code> is returned instead.<br>
+</div>
+
+<pre><span id="VALbiject'"><span class="keyword">val</span> biject'</span> : <code class="type">(module IrminMerge.S with type t = 'b) -><br>       'a <a href="IrminMerge.html#TYPEt">t</a> -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b <a href="IrminMerge.html#TYPEt">t</a></code></pre><div class="info ">
+Same as <code class="code">map</code> but with potentially blocking converting
+    functions.<br>
+</div>
+</body></html>

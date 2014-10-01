@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="IrminMisc.html">
+<link rel="next" href="IrminStore.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>IrminCommit</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="IrminMisc.html" title="IrminMisc">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="IrminStore.html" title="IrminStore">Next</a>
+</div>
+<h1>Module <a href="type_IrminCommit.html">IrminCommit</a></h1>
+
+<pre><span class="keyword">module</span> IrminCommit: <code class="code">sig</code> <a href="IrminCommit.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Manage the database history.<br>
+</div>
+<hr width="100%">
+
+<pre><span id="TYPEorigin"><span class="keyword">type</span> <code class="type"></code>origin</span> = <code class="type">IrminOrigin.t</code> </pre>
+
+
+<pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type">'key</code> t</span> = {</code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.node">node</span>&nbsp;: <code class="type">'key option</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.parents">parents</span>&nbsp;: <code class="type">'key list</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.origin">origin</span>&nbsp;: <code class="type"><a href="IrminCommit.html#TYPEorigin">origin</a></code>;</code></td>
+
+</tr></table>
+}
+
+<div class="info ">
+Type of concrete revisions.<br>
+</div>
+
+
+<pre><span id="VALedges"><span class="keyword">val</span> edges</span> : <code class="type">'a <a href="IrminCommit.html#TYPEt">t</a> -> ('a, 'b) <a href="IrminGraph.html#TYPEvertex">IrminGraph.vertex</a> list</code></pre><div class="info ">
+The graph edges.<br>
+</div>
+
+<pre><span class="keyword">module type</span> <a href="IrminCommit.S.html">S</a> = <code class="code">sig</code> <a href="IrminCommit.S.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="IrminCommit.S.html">S</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminCommit.S.html">S</a></code><code class="type">  with type key = K.t</code></div></pre>
+<pre><span class="keyword">module</span> <a href="IrminCommit.SHA1.html">SHA1</a>: <code class="type"><a href="IrminCommit.S.html">S</a></code><code class="type">  with type key = <a href="IrminKey.SHA1.html">IrminKey.SHA1</a>.t</code></pre><div class="info">
+Simple implementation where keys are SHA1s.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="IrminCommit.STORE.html">STORE</a> = <code class="code">sig</code> <a href="IrminCommit.STORE.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="IrminCommit.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Node</code><code class="code"> : </code><code class="type"><a href="IrminNode.STORE.html">IrminNode.STORE</a></code><code class="type">  with type key = K.t and type value = K.t IrminNode.t</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Commit</code><code class="code"> : </code><code class="type"><a href="IrminStore.AO.html">IrminStore.AO</a></code><code class="type">    with type key = K.t and type value = K.t t</code><code class="code">) -&gt; </code><code class="type"><a href="IrminCommit.STORE.html">STORE</a></code><code class="type">  with type t = Node.t * Commit.t
+           and type key = K.t</code></div></div></div></pre><div class="info">
+Create a revision store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminCommit.Rec.html">Rec</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="IrminCommit.STORE.html">STORE</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="type">  with type t = S.key</code></div></pre>
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">(Sexplib.Sexp.t -> 'key) -> Sexplib.Sexp.t -> 'key <a href="IrminCommit.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type">('key -> Sexplib.Sexp.t) -> 'key <a href="IrminCommit.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre>
+<pre><span id="VALcompare"><span class="keyword">val</span> compare</span> : <code class="type">('key -> 'key -> int) -> 'key <a href="IrminCommit.html#TYPEt">t</a> -> 'key <a href="IrminCommit.html#TYPEt">t</a> -> int</code></pre>
+<pre><span id="VALbin_t"><span class="keyword">val</span> bin_t</span> : <code class="type">'key Bin_prot.Type_class.t -> 'key <a href="IrminCommit.html#TYPEt">t</a> Bin_prot.Type_class.t</code></pre>
+<pre><span id="VALbin_read_t"><span class="keyword">val</span> bin_read_t</span> : <code class="type">'key Bin_prot.Read.reader -> 'key <a href="IrminCommit.html#TYPEt">t</a> Bin_prot.Read.reader</code></pre>
+<pre><span id="VAL__bin_read_t__"><span class="keyword">val</span> __bin_read_t__</span> : <code class="type">'key Bin_prot.Read.reader -> (int -> 'key <a href="IrminCommit.html#TYPEt">t</a>) Bin_prot.Read.reader</code></pre>
+<pre><span id="VALbin_reader_t"><span class="keyword">val</span> bin_reader_t</span> : <code class="type">'key Bin_prot.Type_class.reader -><br>       'key <a href="IrminCommit.html#TYPEt">t</a> Bin_prot.Type_class.reader</code></pre>
+<pre><span id="VALbin_size_t"><span class="keyword">val</span> bin_size_t</span> : <code class="type">'key Bin_prot.Size.sizer -> 'key <a href="IrminCommit.html#TYPEt">t</a> Bin_prot.Size.sizer</code></pre>
+<pre><span id="VALbin_write_t"><span class="keyword">val</span> bin_write_t</span> : <code class="type">'key Bin_prot.Write.writer -> 'key <a href="IrminCommit.html#TYPEt">t</a> Bin_prot.Write.writer</code></pre>
+<pre><span id="VALbin_writer_t"><span class="keyword">val</span> bin_writer_t</span> : <code class="type">'key Bin_prot.Type_class.writer -><br>       'key <a href="IrminCommit.html#TYPEt">t</a> Bin_prot.Type_class.writer</code></pre><div class="info ">
+Type of concrete revisions.<br>
+</div>
+<br>
+The graph edges.<br>
+<br>
+Signature for commit objects.<br>
+<br>
+Keys.<br>
+<br>
+Base functions over commit objects.<br>
+<br>
+Simple implementation where keys are SHA1s.<br>
+<br>
+Store the history as a partial-order of revisions.<br>
+<br>
+Database keys.<br>
+<br>
+Commit values.<br>
+<br>
+Node values.<br>
+<br>
+Create a new commit.<br>
+<br>
+Get the commit node.<br>
+<br>
+Get the immmediate precessors.<br>
+<br>
+Lift <code class="code">S.merge</code> to the store keys.<br>
+<br>
+Find the common ancestor of two commits.<br>
+<br>
+Same as <code class="code">find_common_ancestor</code> but raises <code class="code">Not_found</code> if the two
+      commits share no common ancestor.<br>
+<br>
+Return all previous commit hashes, with an (optional) limit on
+      the history depth.<br>
+<br>
+Base functions over keys.<br>
+<br>
+Base functions over values.<br>
+<br>
+Create a revision store.<br>
+<br>
+Convert a commit store objects into storable keys, with the
+    expected merge functions.<br>
+</body></html>

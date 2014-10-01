@@ -1,0 +1,63 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="IrminGraph.html">
+<link rel="next" href="IrminSnapshot.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>IrminKey</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="IrminGraph.html" title="IrminGraph">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="IrminSnapshot.html" title="IrminSnapshot">Next</a>
+</div>
+<h1>Module <a href="type_IrminKey.html">IrminKey</a></h1>
+
+<pre><span class="keyword">module</span> IrminKey: <code class="code">sig</code> <a href="IrminKey.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Implementation of keys<br>
+</div>
+<hr width="100%">
+
+<pre><span id="EXCEPTIONInvalid"><span class="keyword">exception</span> Invalid</span> <span class="keyword">of</span> <code class="type">string</code></pre>
+<div class="info ">
+Exception raised when a key is not valid.<br>
+</div>
+
+<pre><span id="EXCEPTIONUnknown"><span class="keyword">exception</span> Unknown</span> <span class="keyword">of</span> <code class="type">string</code></pre>
+<div class="info ">
+Exception raised when no value is associated to a key.<br>
+</div>
+
+<pre><span class="keyword">module type</span> <a href="IrminKey.S.html">S</a> = <code class="code">sig</code> <a href="IrminKey.S.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="IrminKey.SHA1.html">SHA1</a>: <code class="type"><a href="IrminKey.S.html">S</a></code><code class="type"> </code></pre><div class="info">
+SHA1 keys
+</div>
+</body></html>

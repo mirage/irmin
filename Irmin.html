@@ -1,0 +1,93 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="IrminGraph.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><link title="Backends" rel="Section" href="#2_Backends">
+<link title="Recursive stores" rel="Section" href="#2_Recursivestores">
+<link title="Binary stores" rel="Section" href="#2_Binarystores">
+<title>Irmin</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="IrminGraph.html" title="IrminGraph">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.html">Irmin</a></h1>
+
+<pre><span class="keyword">module</span> Irmin: <code class="code">sig</code> <a href="Irmin.html">..</a> <code class="code">end</code></pre><div class="info module top">
+API entry point<br>
+</div>
+<hr width="100%">
+
+<pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre>
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">('key, 'contents, 'tag)</code> t</span> = <code class="type">(module Irmin.S with type branch = 'tag and type value = 'contents and type Block.key = 'key)</code> </pre>
+
+
+<pre><span id="VALcast"><span class="keyword">val</span> cast</span> : <code class="type">('a, 'b, 'c) <a href="Irmin.html#TYPEt">t</a> -> (module Irmin.S)</code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">Block</code><code class="code"> : </code><code class="type"><a href="IrminBlock.STORE.html">IrminBlock.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Tag</code><code class="code"> : </code><code class="type"><a href="IrminTag.STORE.html">IrminTag.STORE</a></code><code class="type">  with type value = Block.key</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type Block.key = Block.key
+       and type value     = Block.contents
+       and type branch    = Tag.key</code></div></div></pre><div class="info">
+Build a full iminsule store.
+</div>
+<br>
+<h2 id="2_Backends">Backends</h2><br>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.RO_MAKER.html">RO_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type"><a href="IrminIdent.S.html">IrminIdent.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminStore.RO.html">IrminStore.RO</a></code><code class="type">  with type key   = K.t
+                   and type value = V.t</code></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER.html">AO_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type"><a href="IrminIdent.S.html">IrminIdent.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminStore.AO.html">IrminStore.AO</a></code><code class="type">  with type key   = K.t
+                   and type value = V.t</code></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminStore.RW.html">IrminStore.RW</a></code><code class="type">  with type key   = K.t
+                   and type value = V.t</code></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin.S_MAKER.html">S_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="IrminTag.S.html">IrminTag.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t</code></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin.BACKEND.html">BACKEND</a> = <code class="code">sig</code> <a href="Irmin.BACKEND.html">..</a> <code class="code">end</code></pre><div class="info">
+Backends
+</div>
+<br>
+<h2 id="2_Recursivestores">Recursive stores</h2><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Rec.html">Rec</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">AO</code><code class="code"> : </code><code class="type"><a href="Irmin.AO_MAKER.html">AO_MAKER</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type value = S.Block.key</code></div></div></pre><div class="info">
+Recursive store, where contents are pointers to arbitrary blocks
+    living in the store.
+</div>
+<br>
+<h2 id="2_Binarystores">Binary stores</h2><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.RO_BINARY.html">RO_BINARY</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="IrminStore.RO_BINARY.html">IrminStore.RO_BINARY</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RO_MAKER.html">RO_MAKER</a></code><code class="type"> </code></div></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.AO_BINARY.html">AO_BINARY</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="IrminStore.AO_BINARY.html">IrminStore.AO_BINARY</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.AO_MAKER.html">AO_MAKER</a></code><code class="type"> </code></div></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.RW_BINARY.html">RW_BINARY</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="IrminStore.RW_BINARY.html">IrminStore.RW_BINARY</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RW_MAKER.html">RW_MAKER</a></code><code class="type"> </code></div></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Binary.html">Binary</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">AO</code><code class="code"> : </code><code class="type"><a href="IrminStore.AO_BINARY.html">IrminStore.AO_BINARY</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">RW</code><code class="code"> : </code><code class="type"><a href="IrminStore.RW_BINARY.html">IrminStore.RW_BINARY</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="IrminTag.S.html">IrminTag.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type Block.key = K.t
+       and type value     = C.t
+       and type branch    = T.t</code></div></div></div></div></div></pre><div class="info">
+Create an irminsule store from binary stores.
+</div>
+</body></html>

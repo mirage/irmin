@@ -1,0 +1,59 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="IrminContents.JSON.html">
+<link rel="Up" href="IrminContents.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>IrminContents.String</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="IrminContents.html" title="IrminContents">Up</a>
+&nbsp;<a class="post" href="IrminContents.JSON.html" title="IrminContents.JSON">Next</a>
+</div>
+<h1>Module <a href="type_IrminContents.String.html">IrminContents.String</a></h1>
+
+<pre><span class="keyword">module</span> String: <code class="type"><a href="IrminContents.S.html">S</a></code><code class="type">  with type t = string</code></pre><div class="info module top">
+String values where only the last modified value is kept on
+    merge. If the value has been modified concurrently, the <code class="code">merge</code>
+    function raises <code class="code">Conflict</code>.<br>
+</div>
+<hr width="100%">
+<br>
+Signature for store contents.<br>
+
+<pre><span class="keyword">include</span> <a href="IrminIdent.S.html">IrminIdent.S</a></pre>
+<br>
+Base types.<br>
+
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t <a href="IrminMerge.html#TYPEt">IrminMerge.t</a></code></pre><div class="info ">
+Merge function. Raise <code class="code">Conflict</code> if the values cannot be merged
+      properly.<br>
+</div>
+</body></html>

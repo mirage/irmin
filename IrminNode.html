@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="IrminContents.html">
+<link rel="next" href="IrminVersion.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>IrminNode</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="IrminContents.html" title="IrminContents">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="IrminVersion.html" title="IrminVersion">Next</a>
+</div>
+<h1>Module <a href="type_IrminNode.html">IrminNode</a></h1>
+
+<pre><span class="keyword">module</span> IrminNode: <code class="code">sig</code> <a href="IrminNode.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Nodes represent structured values serialized in the block
+    store.<br>
+</div>
+<hr width="100%">
+<br>
+The blocks form a labeled directed acyclic graph (DAG). For
+    instance, using the following API it is possible to go from one
+    node to another following a path in the graph. Every node of the
+    graph might carry some optional contents.<br>
+
+<pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type">'key</code> t</span> = {</code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.contents">contents</span>&nbsp;: <code class="type">'key option</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.succ">succ</span>&nbsp;: <code class="type">'key Core_kernel.Std.String.Map.t</code>;</code></td>
+
+</tr></table>
+}
+
+<div class="info ">
+Node values. They might contain a pointer to an optional contents,
+    and pointers to its successors.<br>
+</div>
+
+
+<pre><span id="VALequal"><span class="keyword">val</span> equal</span> : <code class="type">('key -> 'key -> bool) -> 'key <a href="IrminNode.html#TYPEt">t</a> -> 'key <a href="IrminNode.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
+Compare two nodes.<br>
+</div>
+
+<pre><span id="VALcontents_exn"><span class="keyword">val</span> contents_exn</span> : <code class="type">'key <a href="IrminNode.html#TYPEt">t</a> -> 'key</code></pre><div class="info ">
+Get the contents key, raise <code class="code">Not_found</code> if None.<br>
+</div>
+
+<pre><span id="VALedges"><span class="keyword">val</span> edges</span> : <code class="type">'a <a href="IrminNode.html#TYPEt">t</a> -> ('a, 'b) <a href="IrminGraph.html#TYPEvertex">IrminGraph.vertex</a> list</code></pre><div class="info ">
+Return the list of successor vertices.<br>
+</div>
+
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type">'key <a href="IrminNode.html#TYPEt">t</a></code></pre><div class="info ">
+The empty node.<br>
+</div>
+
+<pre><span id="VALleaf"><span class="keyword">val</span> leaf</span> : <code class="type">'key -> 'key <a href="IrminNode.html#TYPEt">t</a></code></pre><div class="info ">
+Create a leaf node (with some contents and no successors).<br>
+</div>
+
+<pre><span id="VALis_empty"><span class="keyword">val</span> is_empty</span> : <code class="type">'key <a href="IrminNode.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
+Is the node empty.<br>
+</div>
+
+<pre><span id="VALis_leaf"><span class="keyword">val</span> is_leaf</span> : <code class="type">'key <a href="IrminNode.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
+Is it a leaf node (see <code class="code">leaf</code>) ?<br>
+</div>
+
+<pre><span class="keyword">module type</span> <a href="IrminNode.S.html">S</a> = <code class="code">sig</code> <a href="IrminNode.S.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module type</span> <a href="IrminNode.STORE.html">STORE</a> = <code class="code">sig</code> <a href="IrminNode.STORE.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="IrminNode.S.html">S</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminNode.S.html">S</a></code><code class="type">  with type key = K.t</code></div></pre><div class="info">
+Base functions for nodes.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminNode.SHA1.html">SHA1</a>: <code class="type"><a href="IrminNode.S.html">S</a></code><code class="type">  with type key = <a href="IrminKey.SHA1.html">IrminKey.SHA1</a>.t</code></pre><div class="info">
+Simple node implementation, where keys are SHA1s.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminNode.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Contents</code><code class="code"> : </code><code class="type"><a href="IrminContents.STORE.html">IrminContents.STORE</a></code><code class="type">  with type key = K.t and type value = C.t</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Node</code><code class="code"> : </code><code class="type"><a href="IrminStore.AO.html">IrminStore.AO</a></code><code class="type">        with type key = K.t and type value = K.t t</code><code class="code">) -&gt; </code><code class="type"><a href="IrminNode.STORE.html">STORE</a></code><code class="type">  with type t = Contents.t * Node.t
+           and type key = K.t
+           and type contents = C.t
+           and type path = IrminPath.t</code></div></div></div></div></pre><div class="info">
+Create a node store from an append-only database.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminNode.Rec.html">Rec</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="IrminNode.STORE.html">STORE</a></code><code class="code">) -&gt; </code><code class="type"><a href="IrminContents.S.html">IrminContents.S</a></code><code class="type">  with type t = S.key</code></div></pre>
+<pre><span id="VALt_of_sexp"><span class="keyword">val</span> t_of_sexp</span> : <code class="type">(Sexplib.Sexp.t -> 'key) -> Sexplib.Sexp.t -> 'key <a href="IrminNode.html#TYPEt">t</a></code></pre>
+<pre><span id="VALsexp_of_t"><span class="keyword">val</span> sexp_of_t</span> : <code class="type">('key -> Sexplib.Sexp.t) -> 'key <a href="IrminNode.html#TYPEt">t</a> -> Sexplib.Sexp.t</code></pre>
+<pre><span id="VALcompare"><span class="keyword">val</span> compare</span> : <code class="type">('key -> 'key -> int) -> 'key <a href="IrminNode.html#TYPEt">t</a> -> 'key <a href="IrminNode.html#TYPEt">t</a> -> int</code></pre>
+<pre><span id="VALbin_t"><span class="keyword">val</span> bin_t</span> : <code class="type">'key Core_kernel.Std.Bin_prot.Type_class.t -><br>       'key <a href="IrminNode.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Type_class.t</code></pre>
+<pre><span id="VALbin_read_t"><span class="keyword">val</span> bin_read_t</span> : <code class="type">'key Core_kernel.Std.Bin_prot.Read.reader -><br>       'key <a href="IrminNode.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Read.reader</code></pre>
+<pre><span id="VAL__bin_read_t__"><span class="keyword">val</span> __bin_read_t__</span> : <code class="type">'key Core_kernel.Std.Bin_prot.Read.reader -><br>       (int -> 'key <a href="IrminNode.html#TYPEt">t</a>) Core_kernel.Std.Bin_prot.Read.reader</code></pre>
+<pre><span id="VALbin_reader_t"><span class="keyword">val</span> bin_reader_t</span> : <code class="type">'key Core_kernel.Std.Bin_prot.Type_class.reader -><br>       'key <a href="IrminNode.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Type_class.reader</code></pre>
+<pre><span id="VALbin_size_t"><span class="keyword">val</span> bin_size_t</span> : <code class="type">'key Core_kernel.Std.Bin_prot.Size.sizer -><br>       'key <a href="IrminNode.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Size.sizer</code></pre>
+<pre><span id="VALbin_write_t"><span class="keyword">val</span> bin_write_t</span> : <code class="type">'key Core_kernel.Std.Bin_prot.Write.writer -><br>       'key <a href="IrminNode.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Write.writer</code></pre>
+<pre><span id="VALbin_writer_t"><span class="keyword">val</span> bin_writer_t</span> : <code class="type">'key Core_kernel.Std.Bin_prot.Type_class.writer -><br>       'key <a href="IrminNode.html#TYPEt">t</a> Core_kernel.Std.Bin_prot.Type_class.writer</code></pre><div class="info ">
+Node values. They might contain a pointer to an optional contents,
+    and pointers to its successors.<br>
+</div>
+<br>
+Compare two nodes.<br>
+<br>
+Get the contents key, raise <code class="code">Not_found</code> if None.<br>
+<br>
+Return the list of successor vertices.<br>
+<br>
+The empty node.<br>
+<br>
+Create a leaf node (with some contents and no successors).<br>
+<br>
+Is the node empty.<br>
+<br>
+Is it a leaf node (see <code class="code">leaf</code>) ?<br>
+<br>
+Node values.<br>
+<br>
+Foreign keys.<br>
+<br>
+The node store encodes a labeled DAG where every node might hold
+      some contents.<br>
+<br>
+Database keys.<br>
+<br>
+Node values.<br>
+<br>
+Node contents.<br>
+<br>
+Paths to go from one node to an other.<br>
+<br>
+Create a new node.<br>
+<br>
+Return the node contents.<br>
+<br>
+Return the node successors.<br>
+<br>
+Find a subvalue.<br>
+<br>
+Find a subvalue. Raise <code class="code">Not_found</code> if it does not exist.<br>
+<br>
+Modify a subtree.<br>
+<br>
+Add a value by recusively saving subvalues into the
+      corresponding stores.<br>
+<br>
+Find a value.<br>
+<br>
+Find a value. Raise <code class="code">Not_found</code> is <code class="code">path</code> is not defined.<br>
+<br>
+Remove a value.<br>
+<br>
+Is a path valid.<br>
+<br>
+Merge two nodes together.<br>
+<br>
+Base functions for keys.<br>
+<br>
+Base functions for values.<br>
+<br>
+Base functions for nodes.<br>
+<br>
+Simple node implementation, where keys are SHA1s.<br>
+<br>
+Create a node store from an append-only database.<br>
+<br>
+Convert a node store objects into storable keys, with the expected
+    merge function.<br>
+</body></html>

@@ -1,0 +1,67 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="IrminBranch.STORE.Block.html">
+<link rel="next" href="IrminBranch.STORE.Key.html">
+<link rel="Up" href="IrminBranch.STORE.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
+<link title="IrminKey" rel="Chapter" href="IrminKey.html">
+<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
+<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
+<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
+<link title="IrminStore" rel="Chapter" href="IrminStore.html">
+<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
+<link title="IrminTag" rel="Chapter" href="IrminTag.html">
+<link title="IrminContents" rel="Chapter" href="IrminContents.html">
+<link title="IrminNode" rel="Chapter" href="IrminNode.html">
+<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
+<link title="IrminDump" rel="Chapter" href="IrminDump.html">
+<link title="IrminPath" rel="Chapter" href="IrminPath.html">
+<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
+<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
+<link title="IrminView" rel="Chapter" href="IrminView.html">
+<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
+<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
+<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
+<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>IrminBranch.STORE.Tag</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="IrminBranch.STORE.Block.html" title="IrminBranch.STORE.Block">Previous</a>
+&nbsp;<a class="up" href="IrminBranch.STORE.html" title="IrminBranch.STORE">Up</a>
+&nbsp;<a class="post" href="IrminBranch.STORE.Key.html" title="IrminBranch.STORE.Key">Next</a>
+</div>
+<h1>Module <a href="type_IrminBranch.STORE.Tag.html">IrminBranch.STORE.Tag</a></h1>
+
+<pre><span class="keyword">module</span> Tag: <code class="type"><a href="IrminTag.STORE.html">IrminTag.STORE</a></code><code class="type">  with type key = branch and type value = Block.key</code></pre><div class="info module top">
+Read/write store for branch pointers.<br>
+</div>
+<hr width="100%">
+<br>
+The *tag store* is a key / value store, where keys are names
+      created by users (and/or global names created by convention) and
+      values are keys from the block store.
+<p>
+
+      A typical Irminsule application should have a very low number of
+      keys in the tag store, are this store is not supposed to be
+      really efficient.<br>
+
+<pre><span class="keyword">include</span> <a href="IrminStore.RW.html">IrminStore.RW</a></pre>
+
+<pre><span class="keyword">module</span> <a href="IrminTag.STORE.Key.html">Key</a>: <code class="type"><a href="IrminTag.S.html">IrminTag.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
+Base functions over keys.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminTag.STORE.Value.html">Value</a>: <code class="type"><a href="IrminKey.S.html">IrminKey.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
+Base functions over values.
+</div>
+</body></html>
