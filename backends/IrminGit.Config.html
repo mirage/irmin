@@ -1,0 +1,44 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="Up" href="IrminGit.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="IrminCRUD" rel="Chapter" href="IrminCRUD.html">
+<link title="IrminMemory" rel="Chapter" href="IrminMemory.html">
+<link title="IrminGit" rel="Chapter" href="IrminGit.html">
+<link title="IrminFS" rel="Chapter" href="IrminFS.html"><title>IrminGit.Config</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="IrminGit.html" title="IrminGit">Up</a>
+&nbsp;</div>
+<h1>Module type <a href="type_IrminGit.Config.html">IrminGit.Config</a></h1>
+
+<pre><span class="keyword">module type</span> Config = <code class="code">sig</code> <a href="IrminGit.Config.html">..</a> <code class="code">end</code></pre><hr width="100%">
+
+<pre><span id="VALroot"><span class="keyword">val</span> root</span> : <code class="type">string option</code></pre><div class="info ">
+Database root.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminGit.Config.Store.html">Store</a>: <code class="type">Git.Store.S</code><code class="type"> </code></pre><div class="info">
+Git database implementation.
+</div>
+
+<pre><span class="keyword">module</span> <a href="IrminGit.Config.Sync.html">Sync</a>: <code class="type">Git.Sync.S</code><code class="type">  with type t = Store.t</code></pre><div class="info">
+Synchronisation engine.
+</div>
+
+<pre><span id="VALbare"><span class="keyword">val</span> bare</span> : <code class="type">bool</code></pre><div class="info ">
+Should we extend the filesystem<br>
+</div>
+
+<pre><span id="VALdisk"><span class="keyword">val</span> disk</span> : <code class="type">bool</code></pre><div class="info ">
+Enable disk operations such as installing watches and limiting
+      concurrent open files. Should be consistent with the <code class="code">Store</code>
+      implementation.<br>
+</div>
+</body></html>

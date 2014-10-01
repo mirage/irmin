@@ -1,0 +1,34 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="IrminCRUD.html">
+<link rel="next" href="IrminGit.html">
+<link rel="Up" href="index.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="IrminCRUD" rel="Chapter" href="IrminCRUD.html">
+<link title="IrminMemory" rel="Chapter" href="IrminMemory.html">
+<link title="IrminGit" rel="Chapter" href="IrminGit.html">
+<link title="IrminFS" rel="Chapter" href="IrminFS.html"><title>IrminMemory</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="IrminCRUD.html" title="IrminCRUD">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="IrminGit.html" title="IrminGit">Next</a>
+</div>
+<h1>Module <a href="type_IrminMemory.html">IrminMemory</a></h1>
+
+<pre><span class="keyword">module</span> IrminMemory: <code class="code">sig</code> <a href="IrminMemory.html">..</a> <code class="code">end</code></pre><div class="info module top">
+In-memory store<br>
+</div>
+<hr width="100%">
+
+<pre><span class="keyword">module type</span> <a href="IrminMemory.S_MAKER.html">S_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type">IrminKey.S</code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type">IrminContents.S</code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type">IrminTag.S</code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="IrminMemory.S_MAKER.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module type</span> <a href="IrminMemory.BACKEND.html">BACKEND</a> = <code class="code">sig</code> <a href="IrminMemory.BACKEND.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">include</span> <a href="IrminMemory.BACKEND.html">IrminMemory.BACKEND</a></pre>
+
+<pre><span class="keyword">module</span> <a href="IrminMemory.Fresh.html">Fresh</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">X</code><code class="code"> : </code><code class="code">sig</code><div class="sig_block"></div><code class="code">end</code><code class="code">) -&gt; </code><code class="type"><a href="IrminMemory.BACKEND.html">BACKEND</a></code><code class="type"> </code></div></pre></body></html>

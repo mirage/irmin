@@ -1,0 +1,36 @@
+<html><head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="IrminCRUD" rel="Chapter" href="IrminCRUD.html">
+<link title="IrminMemory" rel="Chapter" href="IrminMemory.html">
+<link title="IrminGit" rel="Chapter" href="IrminGit.html">
+<link title="IrminFS" rel="Chapter" href="IrminFS.html"><title>IrminGit.Config</title>
+</head>
+<body>
+<code class="code"><span class="keyword">sig</span><br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;root&nbsp;:&nbsp;string&nbsp;option<br>
+&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Store</span>&nbsp;:&nbsp;<span class="constructor">Git</span>.<span class="constructor">Store</span>.<span class="constructor">S</span><br>
+&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Sync</span>&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sig</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t&nbsp;=&nbsp;<span class="constructor">Store</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;ls&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Git</span>.<span class="constructor">Gri</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Git</span>.<span class="constructor">SHA</span>.<span class="constructor">Commit</span>.t&nbsp;<span class="constructor">Git</span>.<span class="constructor">Reference</span>.<span class="constructor">Map</span>.t&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;push&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;branch:<span class="constructor">Git</span>.<span class="constructor">Reference</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Git</span>.<span class="constructor">Gri</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Git</span>.<span class="constructor">Sync</span>.<span class="constructor">Result</span>.push&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;clone&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;?bare:bool&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;?deepen:int&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;?unpack:bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Git</span>.<span class="constructor">Gri</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Git</span>.<span class="constructor">Sync</span>.<span class="constructor">Result</span>.fetch&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;fetch&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;?deepen:int&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;?unpack:bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Git</span>.<span class="constructor">Gri</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Git</span>.<span class="constructor">Sync</span>.<span class="constructor">Result</span>.fetch&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;bare&nbsp;:&nbsp;bool<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;disk&nbsp;:&nbsp;bool<br>
+<span class="keyword">end</span></code></body></html>
