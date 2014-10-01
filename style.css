@@ -1,41 +1,109 @@
-.keyword { font-weight : bold ; color : Red }
-.keywordsign { color : #C04600 }
-.superscript { font-size : 4 }
-.subscript { font-size : 4 }
-.comment { color : Green }
-.constructor { color : Blue }
-.type { color : #5C6585 }
-.string { color : Maroon }
-.warning { color : Red ; font-weight : bold }
-.info { margin-left : 3em; margin-right: 3em }
-.param_info { margin-top: 4px; margin-left : 3em; margin-right : 3em }
-.code { color : #465F91 ; }
-.typetable { border-style : hidden }
-.paramstable { border-style : hidden ; padding: 5pt 5pt}
-tr { background-color : White }
-td.typefieldcomment { background-color : #FFFFFF ; font-size: smaller ;}
-div.sig_block {margin-left: 2em}
-*:target { background: yellow; }
-body {font: 13px sans-serif; color: black; text-align: left; padding: 5px; margin: 0}
-h1 { font-size : 20pt ; text-align: center; }
-h2 { font-size : 20pt ; border: 1px solid #000000; margin-top: 5px; margin-bottom: 2px;text-align: center; background-color: #90BDFF ;padding: 2px; }
-h3 { font-size : 20pt ; border: 1px solid #000000; margin-top: 5px; margin-bottom: 2px;text-align: center; background-color: #90DDFF ;padding: 2px; }
-h4 { font-size : 20pt ; border: 1px solid #000000; margin-top: 5px; margin-bottom: 2px;text-align: center; background-color: #90EDFF ;padding: 2px; }
-h5 { font-size : 20pt ; border: 1px solid #000000; margin-top: 5px; margin-bottom: 2px;text-align: center; background-color: #90FDFF ;padding: 2px; }
-h6 { font-size : 20pt ; border: 1px solid #000000; margin-top: 5px; margin-bottom: 2px;text-align: center; background-color: #90BDFF ; padding: 2px; }
-div.h7 { font-size : 20pt ; border: 1px solid #000000; margin-top: 5px; margin-bottom: 2px;text-align: center; background-color: #E0FFFF ; padding: 2px; }
-div.h8 { font-size : 20pt ; border: 1px solid #000000; margin-top: 5px; margin-bottom: 2px;text-align: center; background-color: #F0FFFF ; padding: 2px; }
-div.h9 { font-size : 20pt ; border: 1px solid #000000; margin-top: 5px; margin-bottom: 2px;text-align: center; background-color: #FFFFFF ; padding: 2px; }
-a {color: #416DFF; text-decoration: none}
-a:hover {background-color: #ddd; text-decoration: underline}
-pre { margin-bottom: 4px; font-family: monospace; }
-pre.verbatim, pre.codepre { }
-.indextable {border: 1px #ddd solid; border-collapse: collapse}
-.indextable td, .indextable th {border: 1px #ddd solid; min-width: 80px}
-.indextable td.module {background-color: #eee ;  padding-left: 2px; padding-right: 2px}
-.indextable td.module a {color: 4E6272; text-decoration: none; display: block; width: 100%}
-.indextable td.module a:hover {text-decoration: underline; background-color: transparent}
-.deprecated {color: #888; font-style: italic}
-.indextable tr td div.info { margin-left: 2px; margin-right: 2px }
-ul.indexlist { margin-left: 0; padding-left: 0;}
-ul.indexlist li { list-style-type: none ; margin-left: 0; padding-left: 0; }
+/* A style for ocamldoc. Daniel C. Buenzli */
+
+/* Reset a few things. */
+html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,
+a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,
+small,strike,strong,sub,sup,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,
+form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td 
+{ margin: 0; padding: 0; border: 0 none; outline: 0; font-size: 100%; 
+  font-weight: inherit; font-style:inherit; font-family:inherit; 
+  line-height: inherit; vertical-align: baseline; text-align:inherit;
+  color:inherit; background: transparent; }
+
+table { border-collapse: collapse; border-spacing: 0; }
+
+/* Basic page layout */
+
+body { font: normal 10pt/1.375em helvetica, arial, sans-serif; text-align:left;
+       margin: 1.375em 10%; min-width: 40ex; max-width: 72ex;
+       color: black; background: transparent /* url(line-height-22.gif) */; }
+
+b { font-weight: bold }
+em { font-style: italic } 
+
+tt, code, pre { font-family: WorkAroundWebKitAndMozilla, monospace; 
+                font-size: 1em; }
+pre code { font-size : inherit; }
+.codepre { margin-bottom:1.375em /* after code example we introduce space. */ } 
+
+.superscript,.subscript 
+{ font-size : 0.813em; line-height:0; margin-left:0.4ex;}
+.superscript { vertical-align: super; }
+.subscript { vertical-align: sub; }
+
+/* ocamldoc markup workaround hacks */
+
+
+
+hr, hr + br, div + br, center + br, span + br, ul + br, ol + br, pre + br
+{ display: none } /* annoying */
+
+div.info + br { display:block}
+
+.codepre br + br { display: none }
+h1 + pre { margin-bottom:1.375em} /* Toplevel module description */
+
+/* Sections and document divisions */
+
+/* .navbar { margin-bottom: -1.375em } */
+h1 { font-weight: bold; font-size: 1.5em; /* margin-top:1.833em; */
+     margin-top:0.917em; padding-top:0.875em; 
+     border-top-style:solid; border-width:1px; border-color:#AAA; }
+h2 { font-weight: bold; font-size: 1.313em; margin-top: 1.048em }
+h3 { font-weight: bold; font-size: 1.125em; margin-top: 1.222em }
+h3 { font-weight: bold; font-size: 1em; margin-top: 1.375em}
+h4 { font-style: italic;  }
+
+/* Used by OCaml's own library documentation. */
+ h6 { font-weight: bold; font-size: 1.125em; margin-top: 1.222em }
+ .h7 { font-weight: bold; font-size: 1em; margin-top: 1.375em }
+
+p { margin-top: 1.375em }
+pre { margin-top: 1.375em }
+.info { margin: 0.458em 0em -0.458em 2em;}/* Description of types values etc. */
+td .info { margin:0; padding:0; margin-left: 2em;} /* Description in indexes */
+
+ul, ol { margin-top:0.688em; padding-bottom:0.687em;  
+	 list-style-position:outside}
+ul + p, ol + p { margin-top: 0em }
+ul { list-style-type: square }
+
+
+/* h2 + ul, h3 + ul, p + ul { } */
+ul > li { margin-left: 1.375em; }
+ol > li { margin-left: 1.7em; }
+/* Links */
+
+a, a:link, a:visited, a:active, a:hover { color : #00B; text-decoration: none } 
+a:hover { text-decoration : underline }
+*:target {background-color: #FFFF99;} /* anchor highlight */
+
+/* Code */
+
+.keyword { font-weight: bold; }
+.comment { color : red }
+.constructor { color : green }
+.string { color : brown }
+.warning { color : red ; font-weight : bold }
+
+/* Functors */
+
+.paramstable { border-style : hidden ; padding-bottom:1.375em} 
+.paramstable code { margin-left: 1ex; margin-right: 1ex }
+.sig_block {margin-left: 1em}
+
+/* Images */
+
+img { margin-top: 1.375em }
+
+
+
+
+
+
+
+
+
+
+
+
