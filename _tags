@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 31de755e3ddbde08b9eca2631be115bd)
+# DO NOT EDIT (digest: 2be4d45617a9031b69741db16d3f5712)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -15,6 +15,26 @@
 "_darcs": not_hygienic
 # Library irmin
 "lib/core/irmin.cmxs": use_irmin
+"lib/core/misc.cmx": for-pack(Irmin)
+"lib/core/s.cmx": for-pack(Irmin)
+"lib/core/digraph.cmx": for-pack(Irmin)
+"lib/core/key.cmx": for-pack(Irmin)
+"lib/core/snapshot.cmx": for-pack(Irmin)
+"lib/core/commit.cmx": for-pack(Irmin)
+"lib/core/store.cmx": for-pack(Irmin)
+"lib/core/block.cmx": for-pack(Irmin)
+"lib/core/tag.cmx": for-pack(Irmin)
+"lib/core/contents.cmx": for-pack(Irmin)
+"lib/core/node.cmx": for-pack(Irmin)
+"lib/core/version.cmx": for-pack(Irmin)
+"lib/core/dump.cmx": for-pack(Irmin)
+"lib/core/path.cmx": for-pack(Irmin)
+"lib/core/watch.cmx": for-pack(Irmin)
+"lib/core/merge.cmx": for-pack(Irmin)
+"lib/core/view.cmx": for-pack(Irmin)
+"lib/core/origin.cmx": for-pack(Irmin)
+"lib/core/branch.cmx": for-pack(Irmin)
+"lib/core/sync.cmx": for-pack(Irmin)
 <lib/core/*.ml{,i}>: pkg_bin_prot.syntax
 <lib/core/*.ml{,i}>: pkg_comparelib.syntax
 <lib/core/*.ml{,i}>: pkg_cstruct
@@ -22,11 +42,9 @@
 <lib/core/*.ml{,i}>: pkg_ezjsonm
 <lib/core/*.ml{,i}>: pkg_lwt
 <lib/core/*.ml{,i}>: pkg_mstruct
+<lib/core/*.ml{,i}>: pkg_nocrypto
 <lib/core/*.ml{,i}>: pkg_ocamlgraph
-<lib/core/*.ml{,i}>: pkg_re.pcre
-<lib/core/*.ml{,i}>: pkg_re.perl
 <lib/core/*.ml{,i}>: pkg_sexplib.syntax
-<lib/core/*.ml{,i}>: pkg_sha
 <lib/core/*.ml{,i}>: pkg_uri
 # Library irmin-backend
 "lib/backend/irmin-backend.cmxs": use_irmin-backend
@@ -40,11 +58,9 @@
 <lib/backend/*.ml{,i}>: pkg_git
 <lib/backend/*.ml{,i}>: pkg_lwt
 <lib/backend/*.ml{,i}>: pkg_mstruct
+<lib/backend/*.ml{,i}>: pkg_nocrypto
 <lib/backend/*.ml{,i}>: pkg_ocamlgraph
-<lib/backend/*.ml{,i}>: pkg_re.pcre
-<lib/backend/*.ml{,i}>: pkg_re.perl
 <lib/backend/*.ml{,i}>: pkg_sexplib.syntax
-<lib/backend/*.ml{,i}>: pkg_sha
 <lib/backend/*.ml{,i}>: pkg_uri
 <lib/backend/*.ml{,i}>: use_irmin
 # Library irmin-server
@@ -57,11 +73,9 @@
 <lib/server/*.ml{,i}>: pkg_ezjsonm
 <lib/server/*.ml{,i}>: pkg_lwt
 <lib/server/*.ml{,i}>: pkg_mstruct
+<lib/server/*.ml{,i}>: pkg_nocrypto
 <lib/server/*.ml{,i}>: pkg_ocamlgraph
-<lib/server/*.ml{,i}>: pkg_re.pcre
-<lib/server/*.ml{,i}>: pkg_re.perl
 <lib/server/*.ml{,i}>: pkg_sexplib.syntax
-<lib/server/*.ml{,i}>: pkg_sha
 <lib/server/*.ml{,i}>: pkg_uri
 <lib/server/*.ml{,i}>: use_irmin
 # Library irmin-unix
@@ -78,11 +92,9 @@
 <lib/unix/*.ml{,i}>: pkg_lwt
 <lib/unix/*.ml{,i}>: pkg_lwt.unix
 <lib/unix/*.ml{,i}>: pkg_mstruct
+<lib/unix/*.ml{,i}>: pkg_nocrypto
 <lib/unix/*.ml{,i}>: pkg_ocamlgraph
-<lib/unix/*.ml{,i}>: pkg_re.pcre
-<lib/unix/*.ml{,i}>: pkg_re.perl
 <lib/unix/*.ml{,i}>: pkg_sexplib.syntax
-<lib/unix/*.ml{,i}>: pkg_sha
 <lib/unix/*.ml{,i}>: pkg_uri
 <lib/unix/*.ml{,i}>: use_irmin
 <lib/unix/*.ml{,i}>: use_irmin-backend
@@ -101,11 +113,9 @@
 <lib/driver/irminMain.{native,byte}>: pkg_lwt
 <lib/driver/irminMain.{native,byte}>: pkg_lwt.unix
 <lib/driver/irminMain.{native,byte}>: pkg_mstruct
+<lib/driver/irminMain.{native,byte}>: pkg_nocrypto
 <lib/driver/irminMain.{native,byte}>: pkg_ocamlgraph
-<lib/driver/irminMain.{native,byte}>: pkg_re.pcre
-<lib/driver/irminMain.{native,byte}>: pkg_re.perl
 <lib/driver/irminMain.{native,byte}>: pkg_sexplib.syntax
-<lib/driver/irminMain.{native,byte}>: pkg_sha
 <lib/driver/irminMain.{native,byte}>: pkg_uri
 <lib/driver/irminMain.{native,byte}>: use_irmin
 <lib/driver/irminMain.{native,byte}>: use_irmin-backend
@@ -124,11 +134,9 @@
 <lib/driver/*.ml{,i}>: pkg_lwt
 <lib/driver/*.ml{,i}>: pkg_lwt.unix
 <lib/driver/*.ml{,i}>: pkg_mstruct
+<lib/driver/*.ml{,i}>: pkg_nocrypto
 <lib/driver/*.ml{,i}>: pkg_ocamlgraph
-<lib/driver/*.ml{,i}>: pkg_re.pcre
-<lib/driver/*.ml{,i}>: pkg_re.perl
 <lib/driver/*.ml{,i}>: pkg_sexplib.syntax
-<lib/driver/*.ml{,i}>: pkg_sha
 <lib/driver/*.ml{,i}>: pkg_uri
 <lib/driver/*.ml{,i}>: use_irmin
 <lib/driver/*.ml{,i}>: use_irmin-backend
@@ -149,11 +157,9 @@
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_lwt.unix
 <lib_test/test.{native,byte}>: pkg_mstruct
+<lib_test/test.{native,byte}>: pkg_nocrypto
 <lib_test/test.{native,byte}>: pkg_ocamlgraph
-<lib_test/test.{native,byte}>: pkg_re.pcre
-<lib_test/test.{native,byte}>: pkg_re.perl
 <lib_test/test.{native,byte}>: pkg_sexplib.syntax
-<lib_test/test.{native,byte}>: pkg_sha
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: use_irmin
 <lib_test/test.{native,byte}>: use_irmin-backend
@@ -173,11 +179,9 @@
 <lib_test/*.ml{,i}>: pkg_lwt
 <lib_test/*.ml{,i}>: pkg_lwt.unix
 <lib_test/*.ml{,i}>: pkg_mstruct
+<lib_test/*.ml{,i}>: pkg_nocrypto
 <lib_test/*.ml{,i}>: pkg_ocamlgraph
-<lib_test/*.ml{,i}>: pkg_re.pcre
-<lib_test/*.ml{,i}>: pkg_re.perl
 <lib_test/*.ml{,i}>: pkg_sexplib.syntax
-<lib_test/*.ml{,i}>: pkg_sha
 <lib_test/*.ml{,i}>: pkg_uri
 <lib_test/*.ml{,i}>: use_irmin
 <lib_test/*.ml{,i}>: use_irmin-backend
@@ -196,11 +200,9 @@
 <examples/git_store.{native,byte}>: pkg_lwt
 <examples/git_store.{native,byte}>: pkg_lwt.unix
 <examples/git_store.{native,byte}>: pkg_mstruct
+<examples/git_store.{native,byte}>: pkg_nocrypto
 <examples/git_store.{native,byte}>: pkg_ocamlgraph
-<examples/git_store.{native,byte}>: pkg_re.pcre
-<examples/git_store.{native,byte}>: pkg_re.perl
 <examples/git_store.{native,byte}>: pkg_sexplib.syntax
-<examples/git_store.{native,byte}>: pkg_sha
 <examples/git_store.{native,byte}>: pkg_uri
 <examples/git_store.{native,byte}>: use_irmin
 <examples/git_store.{native,byte}>: use_irmin-backend
@@ -219,11 +221,9 @@
 <examples/custom_merge.{native,byte}>: pkg_lwt
 <examples/custom_merge.{native,byte}>: pkg_lwt.unix
 <examples/custom_merge.{native,byte}>: pkg_mstruct
+<examples/custom_merge.{native,byte}>: pkg_nocrypto
 <examples/custom_merge.{native,byte}>: pkg_ocamlgraph
-<examples/custom_merge.{native,byte}>: pkg_re.pcre
-<examples/custom_merge.{native,byte}>: pkg_re.perl
 <examples/custom_merge.{native,byte}>: pkg_sexplib.syntax
-<examples/custom_merge.{native,byte}>: pkg_sha
 <examples/custom_merge.{native,byte}>: pkg_uri
 <examples/custom_merge.{native,byte}>: use_irmin
 <examples/custom_merge.{native,byte}>: use_irmin-backend
@@ -242,11 +242,9 @@
 <examples/views.{native,byte}>: pkg_lwt
 <examples/views.{native,byte}>: pkg_lwt.unix
 <examples/views.{native,byte}>: pkg_mstruct
+<examples/views.{native,byte}>: pkg_nocrypto
 <examples/views.{native,byte}>: pkg_ocamlgraph
-<examples/views.{native,byte}>: pkg_re.pcre
-<examples/views.{native,byte}>: pkg_re.perl
 <examples/views.{native,byte}>: pkg_sexplib.syntax
-<examples/views.{native,byte}>: pkg_sha
 <examples/views.{native,byte}>: pkg_uri
 <examples/views.{native,byte}>: use_irmin
 <examples/views.{native,byte}>: use_irmin-backend
@@ -265,11 +263,9 @@
 <examples/contacts.{native,byte}>: pkg_lwt
 <examples/contacts.{native,byte}>: pkg_lwt.unix
 <examples/contacts.{native,byte}>: pkg_mstruct
+<examples/contacts.{native,byte}>: pkg_nocrypto
 <examples/contacts.{native,byte}>: pkg_ocamlgraph
-<examples/contacts.{native,byte}>: pkg_re.pcre
-<examples/contacts.{native,byte}>: pkg_re.perl
 <examples/contacts.{native,byte}>: pkg_sexplib.syntax
-<examples/contacts.{native,byte}>: pkg_sha
 <examples/contacts.{native,byte}>: pkg_uri
 <examples/contacts.{native,byte}>: use_irmin
 <examples/contacts.{native,byte}>: use_irmin-backend
@@ -288,11 +284,9 @@
 <examples/intrusion.{native,byte}>: pkg_lwt
 <examples/intrusion.{native,byte}>: pkg_lwt.unix
 <examples/intrusion.{native,byte}>: pkg_mstruct
+<examples/intrusion.{native,byte}>: pkg_nocrypto
 <examples/intrusion.{native,byte}>: pkg_ocamlgraph
-<examples/intrusion.{native,byte}>: pkg_re.pcre
-<examples/intrusion.{native,byte}>: pkg_re.perl
 <examples/intrusion.{native,byte}>: pkg_sexplib.syntax
-<examples/intrusion.{native,byte}>: pkg_sha
 <examples/intrusion.{native,byte}>: pkg_uri
 <examples/intrusion.{native,byte}>: use_irmin
 <examples/intrusion.{native,byte}>: use_irmin-backend
@@ -311,11 +305,9 @@
 <examples/process.{native,byte}>: pkg_lwt
 <examples/process.{native,byte}>: pkg_lwt.unix
 <examples/process.{native,byte}>: pkg_mstruct
+<examples/process.{native,byte}>: pkg_nocrypto
 <examples/process.{native,byte}>: pkg_ocamlgraph
-<examples/process.{native,byte}>: pkg_re.pcre
-<examples/process.{native,byte}>: pkg_re.perl
 <examples/process.{native,byte}>: pkg_sexplib.syntax
-<examples/process.{native,byte}>: pkg_sha
 <examples/process.{native,byte}>: pkg_uri
 <examples/process.{native,byte}>: use_irmin
 <examples/process.{native,byte}>: use_irmin-backend
@@ -333,11 +325,9 @@
 <examples/*.ml{,i}>: pkg_lwt
 <examples/*.ml{,i}>: pkg_lwt.unix
 <examples/*.ml{,i}>: pkg_mstruct
+<examples/*.ml{,i}>: pkg_nocrypto
 <examples/*.ml{,i}>: pkg_ocamlgraph
-<examples/*.ml{,i}>: pkg_re.pcre
-<examples/*.ml{,i}>: pkg_re.perl
 <examples/*.ml{,i}>: pkg_sexplib.syntax
-<examples/*.ml{,i}>: pkg_sha
 <examples/*.ml{,i}>: pkg_uri
 <examples/*.ml{,i}>: use_irmin
 <examples/*.ml{,i}>: use_irmin-backend

@@ -14,31 +14,37 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Provenance tracking. *)
+(** Implementation of keys *)
 
-include IrminCore.I0
-(** Provenance values. *)
+exception Invalid of string
+(** Exception raised when a key is not valid. *)
 
-val set_date: (unit -> int64) -> unit
-(** How to compute the commit dates. By default, increment a counter. *)
+exception Unknown of string
+(** Exception raised when no value is associated to a key. *)
 
-val set_id: (unit -> string) -> unit
-(** How to compute the commit origins. By default, return a random number. *)
+module type S = sig
 
-val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
-(** Create a new provenance message. *)
+  (** Signature for database keys. *)
 
-val date: t -> int64
-(** Get the origin date. *)
+  include Misc.I0
 
-val id: t -> string
-(** Get the origin ID. *)
+  val pretty: t -> string
+  (** Pretty-print the key. *)
 
-val message: t -> string
-(** Get the origin message. *)
+  val of_raw: string -> t
+  (** Cast a raw string into a key. Check that the format of the raw
+      string is valid. Raise [Invalid 'key'] if that's not the case. *)
 
-val set_string_of_date: (int64 -> string) -> unit
-(** Hook for printing dates. *)
+  val to_raw: t -> string
+  (** Return the raw key. *)
 
-val string_of_date: int64 -> string
-(** Use the registered hook to print a date. *)
+  val compute_from_cstruct: Cstruct.t -> t
+  (** Compute a (deterministic) key from a bigstring. *)
+
+  val compute_from_string: string -> t
+  (** Compute a (deterministic) key from a sequence of bytes. *)
+
+end
+
+module SHA1: S
+(** SHA1 keys *)

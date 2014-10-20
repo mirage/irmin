@@ -16,22 +16,18 @@
 
 (** API entry point *)
 
-open IrminCore
-
 module type S = sig
 
-  (** Main signature for Irminsule stores. *)
+  (** Main signature for Irmin stores. *)
 
-  include IrminBranch.STORE with type key = IrminPath.t
-  (* include IrminStore.S with type key = IrminPath.t
-                        and type origin = IrminOrigin.t *)
+  include Branch.STORE with type key = Path.t
 
-  module Dump: IrminDump.S with type t = t
-  module Snapshot: IrminSnapshot.STORE with type db = t
-  module View: IrminView.STORE with type db    = t
-                                and type node  = Block.key
-                                and type value = value
-  module Sync: IrminSync.STORE with type db  = t
+  module Dump: Dump.S with type t = t
+  module Snapshot: Snapshot.STORE with type db = t
+  module View: View.STORE with type db    = t
+                           and type node  = Block.key
+                           and type value = value
+  module Sync: Sync.STORE with type db  = t
 end
 
 type ('key, 'contents, 'tag) t =
@@ -42,8 +38,8 @@ type ('key, 'contents, 'tag) t =
 val cast: ('a, 'b, 'c) t -> (module S)
 
 module Make
-    (Block   : IrminBlock.STORE)
-    (Tag     : IrminTag.STORE with type value = Block.key)
+    (Block   : Block.STORE)
+    (Tag     : Tag.STORE with type value = Block.key)
   : S with type Block.key = Block.key
        and type value     = Block.contents
        and type branch    = Tag.key
@@ -52,27 +48,24 @@ module Make
 (** {2 Backends} *)
 
 module type RO_MAKER =
-  functor (K: IrminKey.S)   ->
-  functor (V: I0) ->
-    IrminStore.RO with type key   = K.t
-                   and type value = V.t
+  functor (K: Key.S)   ->
+  functor (V: Misc.I0) ->
+    S.RO with type key = K.t and type value = V.t
 
 module type AO_MAKER =
-  functor (K: IrminKey.S)   ->
-  functor (V: I0) ->
-    IrminStore.AO with type key   = K.t
-                   and type value = V.t
+  functor (K: Key.S)   ->
+  functor (V: Misc.I0) ->
+    S.AO with type key = K.t and type value = V.t
 
 module type RW_MAKER =
-  functor (K: IrminKey.S) ->
-  functor (V: IrminKey.S) ->
-    IrminStore.RW with type key   = K.t
-                   and type value = V.t
+  functor (K: Key.S) ->
+  functor (V: Key.S) ->
+    S.RW with type key = K.t and type value = V.t
 
 module type S_MAKER =
-  functor (K: IrminKey.S)      ->
-  functor (C: IrminContents.S) ->
-  functor (T: IrminTag.S)      ->
+  functor (K: Key.S)      ->
+  functor (C: Contents.S) ->
+  functor (T: Tag.S)      ->
     S with type Block.key = K.t
        and type value     = C.t
        and type branch    = T.t
@@ -93,14 +86,14 @@ module Rec (AO: AO_MAKER) (S: S): S with type value = S.Block.key
 
 (** {2 Binary stores} *)
 
-module RO_BINARY (S: IrminStore.RO_BINARY): RO_MAKER
-module AO_BINARY (S: IrminStore.AO_BINARY): AO_MAKER
-module RW_BINARY (S: IrminStore.RW_BINARY): RW_MAKER
+module RO_BINARY (S: S.RO_BINARY): RO_MAKER
+module AO_BINARY (S: S.AO_BINARY): AO_MAKER
+module RW_BINARY (S: S.RW_BINARY): RW_MAKER
 
 module Binary
-    (AO: IrminStore.AO_BINARY)
-    (RW: IrminStore.RW_BINARY)
-    (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S)
+    (AO: S.AO_BINARY)
+    (RW: S.RW_BINARY)
+    (K: Key.S) (C: Contents.S) (T: Tag.S)
   : S with type Block.key = K.t
        and type value     = C.t
        and type branch    = T.t

@@ -23,8 +23,6 @@
     node to another following a path in the graph. Every node of the
     graph might carry some optional contents. *)
 
-open IrminCore
-
 type 'key t = {
   contents: 'key option;
   succ    : 'key Map.Make(String).t;
@@ -38,7 +36,7 @@ val equal: ('key -> 'key -> bool) -> 'key t -> 'key t -> bool
 val contents_exn: 'key t -> 'key
 (** Get the contents key, raise [Not_found] if None. *)
 
-val edges: 'a t -> ('a, 'b) IrminGraph.vertex list
+val edges: 'a t -> ('a, 'b) Digraph.vertex list
 (** Return the list of successor vertices. *)
 
 val empty: 'key t
@@ -62,7 +60,7 @@ module type S = sig
 
   type nonrec t = key t
 
-  include IrminContents.S with type t := t
+  include Contents.S with type t := t
 
 end
 
@@ -77,12 +75,12 @@ module type STORE = sig
   type value = key t
   (** Node values. *)
 
-  include IrminStore.AO with type key := key and type value := value
+  include S.AO with type key := key and type value := value
 
   type contents
   (** Node contents. *)
 
-  type path = IrminPath.t
+  type path = Path.t
   (** Paths to go from one node to an other. *)
 
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
@@ -120,10 +118,10 @@ module type STORE = sig
   val valid: t -> value -> path -> bool Lwt.t
   (** Is a path valid. *)
 
-  val merge: t -> key IrminMerge.t
+  val merge: t -> key Merge.t
   (** Merge two nodes together. *)
 
-  module Key: IrminKey.S with type t = key
+  module Key: Key.S with type t = key
   (** Base functions for keys. *)
 
   module Value: S with type key = key
@@ -131,23 +129,23 @@ module type STORE = sig
 
 end
 
-module S (K: IrminKey.S): S with type key = K.t
-(** Base functions for nodes. *)
-
-module SHA1: S with type key = IrminKey.SHA1.t
+module SHA1: S with type key = Key.SHA1.t
 (** Simple node implementation, where keys are SHA1s. *)
 
 module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (Contents: IrminContents.STORE with type key = K.t and type value = C.t)
-    (Node    : IrminStore.AO       with type key = K.t and type value = K.t t)
+    (K: Key.S)
+    (C: Contents.S)
+    (Contents: Contents.STORE with type key = K.t and type value = C.t)
+    (Node    : S.AO with type key = K.t and type value = K.t t)
   : STORE with type t = Contents.t * Node.t
            and type key = K.t
            and type contents = C.t
-           and type path = IrminPath.t
+           and type path = Path.t
 (** Create a node store from an append-only database. *)
 
-module Rec (S: STORE): IrminContents.S with type t = S.key
+module Rec (S: STORE): Contents.S with type t = S.key
 (** Convert a node store objects into storable keys, with the expected
     merge function. *)
+
+module S (K: Key.S): S with type key = K.t
+(** Base functions for nodes. *)

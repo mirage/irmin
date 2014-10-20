@@ -16,8 +16,6 @@
 
 (** Watches *)
 
-open IrminCore
-
 module type S = sig
 
   (** Collection of listeners. *)
@@ -55,7 +53,7 @@ module type S = sig
 
 end
 
-module Make(K: IrminKey.S) (V: sig type t end):
+module Make(K: Key.S) (V: sig type t end):
   S with type key = K.t
      and type value = V.t
 

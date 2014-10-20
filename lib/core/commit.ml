@@ -17,13 +17,12 @@
 module Log = Log.Make(struct let section = "COMMIT" end)
 
 open Lwt
-open IrminCore
-open IrminMerge.OP
+open Merge.OP
 open Printf
 open Sexplib.Std
 open Bin_prot.Std
 
-type origin = IrminOrigin.t
+type origin = Origin.t
 
 module T_ = struct
   type ('origin, 'key) t = {
@@ -44,47 +43,47 @@ let edges t =
 
 module type S = sig
   type key
-  include IrminContents.S with type t = (origin, key) t
+  include Contents.S with type t = (origin, key) t
 end
 
-module S (K: IrminKey.S) = struct
+module S (K: Key.S) = struct
   type key = K.t
-  module S = App2(T)(IrminOrigin)(K)
+  module S = App2(T)(Origin)(K)
   include S
-  let merge = IrminMerge.default (module S)
+  let merge = Merge.default (module S)
 end
 
-module SHA1 = S(IrminKey.SHA1)
+module SHA1 = S(Key.SHA1)
 
 module type STORE = sig
   type key
   type value = (origin, key) t
-  include IrminStore.AO with type key := key
-                         and type value := value
-  type node = key IrminNode.t
-  val commit: t -> origin -> ?node:key IrminNode.t -> parents:value list -> (key * value) Lwt.t
-  val node: t -> value -> key IrminNode.t Lwt.t option
+  include S.AO with type key := key
+                and type value := value
+  type node = key Node.t
+  val commit: t -> origin -> ?node:key Node.t -> parents:value list -> (key * value) Lwt.t
+  val node: t -> value -> key Node.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
-  val merge: t -> key IrminMerge.t
+  val merge: t -> key Merge.t
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
   val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
   val list: t -> ?depth:int -> key list -> key list Lwt.t
-  module Key: IrminKey.S with type t = key
+  module Key: Key.S with type t = key
   module Value: S with type key = key
 end
 
 module Make
-    (K     : IrminKey.S)
-    (Node  : IrminNode.STORE with type key   = K.t
-                              and type value = K.t IrminNode.t)
-    (Commit: IrminStore.AO   with type key   = K.t
-                              and type value = (origin, K.t) t)
+    (K     : Key.S)
+    (Node  : Node.STORE with type key   = K.t
+                         and type value = K.t Node.t)
+    (Commit: S.AO   with type key   = K.t
+                     and type value = (origin, K.t) t)
 = struct
 
   type key = K.t
   type value = (origin, key) t
   type t = Node.t * Commit.t
-  type node = key IrminNode.t
+  type node = key Node.t
 
   module Key = K
   module Value = S(K)
@@ -126,36 +125,36 @@ module Make
   let parents t c =
     List.map ~f:(read_exn t) c.parents
 
-  module Graph = IrminGraph.Make(K)(IrminTag.String)
+  module Graph = Digraph.Make(K)(Tag.String)
 
   let list t ?depth keys =
     Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
       | `Commit k -> read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
-    let max = IrminGraph.of_commits keys in
+    let max = Digraph.of_commits keys in
     Graph.closure ?depth max ~pred >>= fun g ->
-    let keys = IrminGraph.to_commits (Graph.vertex g) in
+    let keys = Digraph.to_commits (Graph.vertex g) in
     return keys
 
   let dump (_, t) =
     Commit.dump t
 
   let merge_node n =
-    IrminMerge.some (Node.merge n)
+    Merge.some (Node.merge n)
 
   let merge (n, _ as t) =
     let merge ~origin ~old k1 k2 =
       read_exn t old >>= fun vold ->
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
-      IrminMerge.merge (merge_node n) ~origin ~old:vold.node v1.node v2.node >>| fun node ->
+      Merge.merge (merge_node n) ~origin ~old:vold.node v1.node v2.node >>| fun node ->
       let parents = [k1; k2] in
       let commit = { node; parents; origin } in
       add t commit >>= fun key ->
       ok key
     in
-    IrminMerge.create' (module K) merge
+    Merge.create' (module K) merge
 
   module KSet = Set.Make(K)
 
@@ -198,7 +197,7 @@ module Rec (S: STORE) = struct
   let merge =
     let merge ~origin ~old k1 k2 =
       S.create ()  >>= fun t  ->
-      IrminMerge.merge (S.merge t) ~origin ~old k1 k2
+      Merge.merge (S.merge t) ~origin ~old k1 k2
     in
-    IrminMerge.create' (module S.Key) merge
+    Merge.create' (module S.Key) merge
 end

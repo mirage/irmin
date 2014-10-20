@@ -24,11 +24,9 @@
     have explicit type-class everywhere.
 *)
 
-open IrminCore
+module type S = Misc.I0
 
-module type S = I0
-
-type origin = IrminOrigin.t
+type origin = Origin.t
 
 type 'a t
 (** Abstract merge function for values of type ['a]. *)

@@ -96,8 +96,8 @@ val force: out_channel -> string Lazy.t -> unit
 val show: (module I0 with type t = 'a) -> 'a -> string Lazy.t
 val shows: (module I0 with type t = 'a) -> 'a list -> string Lazy.t
 
-val read_all: (module I0 with type t = 'a) -> Cstruct.buffer -> 'a option
-val write_all: (module I0 with type t = 'a) -> 'a -> Cstruct.buffer
+val read_all: (module I0 with type t = 'a) -> Cstruct.t -> 'a option
+val write_all: (module I0 with type t = 'a) -> 'a -> Cstruct.t
 
 val read_string: (module I0 with type t = 'a) -> string -> 'a option
 val write_string: (module I0 with type t = 'a) -> 'a -> string
@@ -188,247 +188,37 @@ module I3 (S: sig type ('a, 'b, 'c) t with sexp, compare, bin_io end):
 (** Monorphize a type with three parameters. *)
 module App3(F: I3)(X: I0)(Y: I0)(Z: I0): I0 with type t = (X.t, Y.t, Z.t) F.t
 
-(** List-like data-structures. *)
-module type ListLike0 = sig
-  type t
-  module K: I0
-  val to_list: t -> K.t list
-  val of_list: K.t list -> t
-end
-module ListLike0 (L: ListLike0): sig
-  include I0 with type t = L.t
-  include ListLike0 with type t := t
-end
-
-(** List-like data-structures with polymorphic elements. *)
-module type ListLike1 = sig
-  type 'a t
-  val to_list: 'a t -> 'a list
-  val of_list: 'a list -> 'a t
-end
-module ListLike1 (L: ListLike1): sig
-  include I1 with type 'a t = 'a L.t
-  include ListLike1 with type 'a t := 'a t
-end
-
-(** Association list-like data-structures, with polymorphic values. *)
-module type AListLike1 = sig
-  type 'a t
-  module K: I0
-  val to_alist: 'a t -> (K.t * 'a) list
-  val of_alist: (K.t * 'a) list -> [`Ok of 'a t | `Duplicate_key of K.t]
-  val of_alist_exn: (K.t * 'a) list -> 'a t
-end
-module AListLike1 (L: AListLike1): sig
-  include I1 with type 'a t = 'a L.t
-  include AListLike1 with type 'a t := 'a t
-end
-
-(** Dictionaries with polymorphic values. *)
-module type Dictionary = sig
-  include I1
-  type key
-
-  (** Constructors *)
-  val to_alist: 'a t -> (key * 'a) list
-  val of_alist: (key * 'a) list -> [`Ok of 'a t | `Duplicate_key of key]
-  val of_alist_exn: (key * 'a) list -> 'a t
-  val keys: 'a t -> key list
-
-  (** Queries *)
-  val is_empty: 'a t -> bool
-  val mem: 'a t -> key -> bool
-  val find: 'a t -> key -> 'a option
-
-  (** Iterators *)
-  val fold: 'a t -> init:'b -> f:(key:key -> data:'a -> 'b -> 'b) -> 'b
-  val map: 'a t -> f:('a -> 'b) -> 'b t
-  val iter: 'a t -> f:(key:key -> data:'a -> unit) -> unit
-  val filter: 'a t -> f:(key:key -> data:'a -> bool) -> 'a t
-end
-
-(** Hash Tables. *)
-module Hashtbl: sig
-  module type S = sig
-    include Dictionary
-    val create: ?size:int -> unit -> 'a t
-    val clear: 'a t -> unit
-    val of_alist_add: (key * 'a) list -> 'a t
-    val replace: 'a t -> key:key -> data:'a -> unit
-    val add: 'a t -> key:key -> data:'a -> [`Ok | `Duplicate]
-    val add_exn: 'a t -> key:key -> data:'a -> unit
-    val add_multi: 'a list t -> key:key -> data:'a -> unit
-    val remove: 'a t -> key -> unit
-  end
-  val hash: 'a -> int
-  module Make (K: I0): S with type key = K.t
-end
-
 (** Persistent Maps. *)
-module Map: sig
-  module type S = sig
-    include Dictionary
-    val empty: 'a t
-    val add: 'a t -> key:key -> data:'a -> 'a t
-    val remove: 'a t -> key -> 'a t
-    val keys: 'a t -> key list
-    val max_elt: 'a t -> (key * 'a) option
-    module Lwt: sig
-      val merge: 'v1 t ->'v2 t ->
-        f:(key:key -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> 'v3 option Lwt.t) ->
-        'v3 t Lwt.t
-      val iter2: 'v1 t -> 'v2 t ->
-        f:(key:key ->data:[ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] -> unit Lwt.t) ->
-        unit Lwt.t
-    end
-  end
-  module Make (K: I0): S with type key = K.t
+module type MAP = sig
+  include Map.S
+  include I1 with type 'a t := 'a t
+  val to_alist: 'a t -> (key * 'a) list
+  val of_alist: (key * 'a) list -> 'a t
+  val keys: 'a t -> key list
+  val add_multi: key -> 'a -> 'a list t -> 'a list t
 end
+module Map (S: I0): MAP with type key = S.t
 
 (** Persistent Sets. *)
-module Set: sig
-  module type S = sig
-    include I0
-    type elt
-    val empty: t
-    val singleton: elt -> t
-    val is_empty: t -> bool
-    val union: t -> t -> t
-    val inter: t -> t -> t
-    val diff: t -> t -> t
-    val of_list: elt list -> t
-    val to_list: t -> elt list
-  end
-  module Make (K: I0): S with type elt = K.t
+module type SET = sig
+  include Set.S
+  include I0 with type t := t
+  val of_list: elt list -> t
+  val to_list: t -> elt list
 end
+module Set (K: I0): SET with type elt = K.t
 
-(** Strings. *)
-module String: sig
-  include I0 with type t = string
-  val create: int -> t
-  val make: int -> char -> t
-  val get: t -> int -> char
-  val set: t -> int -> char -> unit
-  val is_empty: t -> bool
-  val length: t -> int
-  val sub: t -> pos:int -> len:int -> t
-  val split: t -> on:char -> t list
-  val blit: t -> int -> t -> int -> int -> unit
-  val concat: t list -> sep:t -> t
-  val escaped: t -> t
-  val chop_prefix: t -> prefix:t -> t option
+module Hex: sig
 
-  val replace: pattern:t -> (t -> t) -> t -> t
-  (** Replace a pattern in a string. *)
+  val encode: string -> string
+  (** Encode a binary string to hexa *)
 
-  module Hex: sig
-
-    val encode: string -> string
-    (** Encode a binary string to hexa *)
-
-    val decode: string -> string
-    (** Decode an hexa string to binary *)
-
-  end
+  val decode: string -> string
+  (** Decode an hexa string to binary *)
 
 end
 
-(** Characters. *)
-module Char: sig
-  include I0 with type t = char
-  val to_int: char -> int
-  val of_int: int -> char option
-  val of_int_exn: int -> char
-end
-
-(** Polymorphic Containers. *)
-module Option: sig
-  include I1 with type 'a t = 'a option
-end
-
-(** Pairs *)
-module Pair: sig
-  include I2 with type ('a, 'b) t = 'a * 'b
-end
-
-(** Strings allocated in the C heap. *)
-module Bigstring: sig
-  open Bigarray
-  include I0 with type t = (char, int8_unsigned_elt, c_layout) Array1.t
-  val to_string: t -> string
-  val of_string: string -> t
-end
-
-(** Polymorphic Lists. *)
-module List: sig
-  include I1 with type 'a t = 'a list
-  val fold_left: 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
-  val dedup: ?compare:'a compare -> 'a t -> 'a t
-  val sort: ?compare:'a compare -> 'a t -> 'a t
-  val mem: 'a t -> 'a -> bool
-  val length: 'a t -> int
-  val rev: 'a t -> 'a t
-  val iter: 'a t -> f:('a -> unit) -> unit
-  val map: 'a t -> f:('a -> 'b) -> 'b t
-  val rev_map: 'a t -> f:('a -> 'b) -> 'b t
-  val exists: 'a t -> f:('a -> bool) -> bool
-  val filter: 'a t -> f:('a -> bool) -> 'a t
-  val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
-  val partition_map : 'a t -> f:('a -> [ `Fst of 'b | `Snd of 'c ]) -> 'b t * 'c t
-  val partition_tf : 'a t -> f:('a -> bool) -> 'a t * 'a t
-  module Assoc : sig
-    include I2 with type ('a, 'b) t = ('a * 'b) list
-    val find: ('a, 'b) t -> ?equal:'a equal -> 'a -> 'b option
-    val find_exn: ('a, 'b) t -> ?equal:'a equal -> 'a -> 'b
-  end
-
-  val pretty: ('a -> string) -> 'a t -> string
-  (** Pretty-print a list. *)
-
-end
-
-(** Polymorphic Stacks. *)
-module Stack: sig
-  include I1
-  val create: unit -> 'a t
-  val to_list: 'a t -> 'a list
-  val of_list: 'a list -> 'a t
-  val push: 'a t -> 'a -> unit
-  val pop: 'a t -> 'a option
-  val pop_exn: 'a t -> 'a
-end
-
-(** Integers. *)
-module Int: sig
-  include I0 with type t = int
-  val max_value: t
-end
-
-(** 64-bits Integers. *)
-module Int64: sig
-  include I0 with type t = int64
-  val (+): t -> t -> t
-  val to_string: t -> string
-  val of_string: string -> t
-end
-
-(** Polymorphic mutable queues. *)
-module Queue: sig
-  include I1
-  val create: unit -> 'a t
-  val enqueue: 'a t -> 'a -> unit
-  val dequeue: 'a t -> 'a option
-end
-
-module Unit: sig
-  include I0 with type t = unit
-end
-
-module Out_channel: sig
-  type t = out_channel
-  val create: string -> t
-  val close: t -> unit
-end
+val list_partition_map : 'a list -> f:('a -> [ `Fst of 'b | `Snd of 'c ]) -> 'b list * 'c list
 
 module Reader: sig
   val to_bin_prot: 'a reader -> 'a Bin_prot.Read.reader

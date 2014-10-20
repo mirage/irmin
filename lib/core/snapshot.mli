@@ -16,15 +16,13 @@
 
 (** Manage snapshot/revert capabilities. *)
 
-open IrminCore
-
-type origin = IrminOrigin.t
+type origin = Origin.t
 
 module type STORE = sig
 
   (** Snapshots are read-only checkpoints of the dabase. *)
 
-  include IrminStore.RO with type key = IrminPath.t
+  include S.RO with type key = Path.t
 
   type db
   (** Database handler. *)
@@ -35,7 +33,7 @@ module type STORE = sig
   val revert: db -> t -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
-  val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
+  val merge: db -> ?origin:origin -> t -> unit Merge.result Lwt.t
   (** Merge the given snasphot into the current branch of the
       database. *)
 
@@ -57,10 +55,10 @@ module type STORE = sig
   val to_state: t -> state
   (** Get the snapshot state. *)
 
-  include I0 with type t := state
+  include Misc.I0 with type t := state
 
 end
 
-module Make (S: IrminBranch.STORE): STORE with type db = S.t
-                                           and type state = S.Block.key
+module Make (S: Branch.STORE): STORE with type db = S.t
+                                      and type state = S.Block.key
 (** Add snapshot capabilities to a branch-consistent store. *)

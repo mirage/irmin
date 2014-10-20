@@ -26,7 +26,7 @@ module type S = sig
   val pretty: t -> string
   val of_raw: string -> t
   val to_raw: t -> string
-  val compute_from_bigstring: Bigstring.t -> t
+  val compute_from_cstruct: Cstruct.t -> t
   val compute_from_string: string -> t
 end
 
@@ -65,16 +65,10 @@ module SHA1 = struct
   let to_raw str =
     str
 
+  let compute_from_cstruct buf =
+    Cstruct.to_string (Nocrypto.Hash.SHA1.digest buf)
+
   let compute_from_string str =
-    Log.debug (lazy "of_bytes'");
-    Sha1.(to_bin (string str))
-
-  external update_buffer: Sha1.ctx -> Bigstring.t -> unit = "stub_sha1_update_bigarray"
-
-  let compute_from_bigstring buf =
-    Log.debug (lazy "of_bytes");
-    let ctx = Sha1.init () in
-    update_buffer ctx buf;
-    Sha1.(to_bin (finalize ctx))
+    compute_from_cstruct (Cstruct.of_string str)
 
 end

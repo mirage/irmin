@@ -47,7 +47,7 @@ module Make (Config: Config) = struct
       Git.SHA.of_string (K.to_raw key)
 
     let key_of_git key =
-      K.of_raw (Git.SHA.to_string key)
+      K.of_raw (Git.SHA.to_raw key)
 
     module type V = sig
       type t
@@ -125,13 +125,13 @@ module Make (Config: Config) = struct
 
         let of_git k b =
           match b with
-          | Git.Value.Blob b -> read_string (module C) (Git.Blob.to_string b)
+          | Git.Value.Blob b -> read_string (module C) (Git.Blob.to_raw b)
           | Git.Value.Tag _  -> None (* XXX: deal with tag objects *)
           | _                -> None
 
         let to_git _ b =
           let value =
-            Git.Value.Blob (Git.Blob.of_string (write_string (module C) b))
+            Git.Value.Blob (Git.Blob.of_raw (write_string (module C) b))
           in
           `Value (return value)
 
@@ -271,7 +271,7 @@ module Make (Config: Config) = struct
       Git.SHA.of_string (K.to_raw key)
 
     let key_of_git key =
-      K.of_raw (Git.SHA.to_string key)
+      K.of_raw (Git.SHA.to_raw key)
 
     module W = IrminWatch.Make(T)(K)
 
@@ -287,14 +287,14 @@ module Make (Config: Config) = struct
     type value = K.t
 
     let ref_of_git r =
-      let str = Git.Reference.to_string r in
+      let str = Git.Reference.to_raw r in
       match String.chop_prefix ~prefix:"refs/heads/" str with
       | None   -> None
       | Some r -> read_string (module T) r
 
     let git_of_ref r =
       let str = write_string (module T) r in
-      Git.Reference.of_string ("refs/heads" / str)
+      Git.Reference.of_raw ("refs/heads" / str)
 
     let mem { t } r =
       G.mem_reference t (git_of_ref r)
@@ -383,7 +383,7 @@ module Make (Config: Config) = struct
       type key = S.Block.key
 
       let key_of_git key =
-        S.Block.Key.of_raw (Git.SHA.Commit.to_string key)
+        S.Block.Key.of_raw (Git.SHA.Commit.to_raw key)
 
       let o_key_of_git = function
         | None   -> return_none
@@ -399,16 +399,17 @@ module Make (Config: Config) = struct
             | Some _ as h -> h
             | None        ->
               let max () =
-                match StringMap.max_elt r.Git.Sync.Result.references with
-                | None        -> None
-                | Some (_, k) -> Some k in
+                match Git.Reference.Map.to_alist r.Git.Sync.Result.references with
+                | []          -> None
+                | (_, k) :: _ -> Some k in
               match S.branch t with
               | None        -> max ()
               | Some branch ->
-                let branch = Git.Reference.of_string ("refs/heads/" ^ S.Branch.to_string branch) in
-                match Map.find r.Git.Sync.Result.references branch with
-                | Some _ as h -> h
-                | None        -> max () in
+                let branch = Git.Reference.of_raw ("refs/heads/" ^ S.Branch.to_raw branch) in
+                try Some (Git.Reference.Map.find branch
+                            r.Git.Sync.Result.references)
+                with Not_found -> max ()
+          in
           o_key_of_git key in
         Config.Sync.fetch (S.contents_t t) ?deepen gri >>=
         result
@@ -418,7 +419,7 @@ module Make (Config: Config) = struct
         match S.branch t with
         | None        -> return_none
         | Some branch ->
-          let branch = Git.Reference.of_string (S.Branch.to_string branch) in
+          let branch = Git.Reference.of_raw (S.Branch.to_raw branch) in
           let gri = Git.Gri.of_string uri in
           let result { Git.Sync.Result.result } = match result with
             | `Ok      -> S.head t

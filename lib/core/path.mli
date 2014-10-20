@@ -14,26 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
-open Sexplib.Std
-open Bin_prot.Std
+(** Tree path handling. *)
 
-module T = I0(struct
-  type t = string list with bin_io, compare, sexp
-  end)
-
-include T
-
-let to_string t =
-  "/" ^ (String.concat ~sep:"/" t)
-
-let of_string str =
-  List.filter
-    ~f:(fun s -> not (String.is_empty s))
-    (String.split str ~on:'/')
-
-let pretty = to_string
-let of_raw = of_string
-let to_raw = to_string
-let compute_from_string t = of_string t
-let compute_from_bigstring s = of_string (Bigstring.to_string s)
+include Key.S with type t = string list
+(** Type of paths, to address nodes from the tree root. *)

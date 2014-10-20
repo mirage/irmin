@@ -16,8 +16,6 @@
 
 (** Signatures. *)
 
-open IrminCore
-
 module type RO = sig
 
   (** Read-only store. *)
@@ -55,7 +53,7 @@ module type RO = sig
 
 end
 
-module type RO_BINARY = RO with type key = string and type value = Bigstring.t
+module type RO_BINARY = RO with type key = string and type value = Cstruct.t
 (** Read-only store which associate strings to bigstrings. *)
 
 module type AO = sig
@@ -71,7 +69,7 @@ module type AO = sig
 
 end
 
-module type AO_BINARY = AO with type key = string and type value = Bigstring.t
+module type AO_BINARY = AO with type key = string and type value = Cstruct.t
 (** Append-only store which associate strings to big arrays. *)
 
 module type RW = sig
@@ -92,10 +90,10 @@ module type RW = sig
 
 end
 
-module type RW_BINARY = RW with type key = string and type value = Bigstring.t
+module type RW_BINARY = RW with type key = string and type value = Cstruct.t
 (** read-write store which associate strings to big arrays. *)
 
-module type S = sig
+module type BC = sig
 
   (** A branch-consistent store is a mutable store which supports
       fork/join operations. *)
@@ -147,7 +145,7 @@ module type S = sig
   (** Switch the database contents the be same as the contents of the
       given branch. The two branches are still independant. *)
 
-  val merge: t -> ?origin:origin -> branch -> unit IrminMerge.result Lwt.t
+  val merge: t -> ?origin:origin -> branch -> unit Merge.result Lwt.t
   (** [merge db t] merges the branch [t] into the current database
       branch. The two branches are still independant. *)
 

@@ -18,32 +18,34 @@ Flag examples
   Default: false
 
 Library irmin
+  Pack: true
   Path: lib/core
   Findlibname: irmin
-  Modules: IrminCore, Irmin, IrminGraph, IrminKey, IrminSnapshot,
-           IrminCommit, IrminStore, IrminBlock,
-           IrminTag, IrminContents, IrminNode, IrminVersion,
-           IrminDump, IrminPath, IrminWatch, IrminMerge, IrminView,
-           IrminOrigin, IrminBranch, IrminSync
-  BuildDepends: ezjsonm, ocamlgraph, lwt, sha,
-                re.pcre, re.perl, dolog, cstruct, mstruct, uri,
+  Modules: Misc, S, Digraph, Key, Snapshot,
+           Commit, Store, Block,
+           Tag, Contents, Node, Version,
+           Dump, Path, Watch, Merge, View,
+           Origin, Branch, Sync
+  BuildDepends: ezjsonm, ocamlgraph, lwt, nocrypto,
+                dolog, cstruct, mstruct, uri,
                 bin_prot.syntax, comparelib.syntax, sexplib.syntax
-  XMETARequires: ezjsonm, ocamlgraph, lwt, sha,
-                 re.pcre, re.perl, dolog, mstruct, uri
+  XMETARequires: ezjsonm, ocamlgraph, lwt, nocrypto,
+                 dolog, cstruct, mstruct, uri,
+                 bint_prot, comparelib, sexplib
 
 Library "irmin-backend"
   Path: lib/backend
   Findlibname: backend
   FindlibParent: irmin
   BuildDepends: irmin, cohttp.lwt, ezjsonm.lwt, git
-  Modules: IrminCRUD, IrminMemory, IrminGit, IrminFS
+  Modules: Irmin_CRUD, Irmin_memory, Irmin_git, Irmin_FS
 
 Library "irmin-server"
   Path: lib/server
   Findlibname: server
   FindlibParent: irmin
   BuildDepends: cohttp.lwt, irmin
-  Modules: IrminHTTP, IrminHTTPStatic
+  Modules: Irmin_HTTP, Irmin_HTTP_static
 
 Library "irmin-unix"
   Build$: flag(unix)

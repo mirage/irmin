@@ -15,50 +15,49 @@
  *)
 
 open Lwt
-open IrminCore
-open IrminMerge.OP
+open Merge.OP
 
 module Log = Log.Make(struct let section = "VALUE" end)
 
 module T3 = struct
   type ('origin, 'key, 'contents) t =
     | Contents of 'contents
-    | Node of 'key IrminNode.t
-    | Commit of ('origin, 'key) IrminCommit.t
+    | Node of 'key Node.t
+    | Commit of ('origin, 'key) Commit.t
   with bin_io, compare, sexp
 end
 include T3
 module T = I3(T3)
 
-type origin = IrminOrigin.t
+type origin = Origin.t
 
 module type S = sig
   type key
   type contents
-  include IrminContents.S with type t = (origin, key, contents) t
+  include Contents.S with type t = (origin, key, contents) t
 end
 
-module S (K: IrminKey.S) (C: IrminContents.S) = struct
+module S (K: Key.S) (C: Contents.S) = struct
   type key = K.t
   type contents = C.t
-  module S = App3(T)(IrminOrigin)(K)(C)
+  module S = App3(T)(Origin)(K)(C)
   include S
   module Key = K
   module Contents = C
-  module Node = IrminNode.S(K)
-  module Commit = IrminCommit.S(K)
-  let merge = IrminMerge.default (module S)
+  module Node = Node.S(K)
+  module Commit = Commit.S(K)
+  let merge = Merge.default (module S)
 end
 
-module String = S(IrminKey.SHA1)(IrminContents.String)
+module String = S(Key.SHA1)(Contents.String)
 
-module JSON = S(IrminKey.SHA1)(IrminContents.JSON)
+module JSON = S(Key.SHA1)(Contents.JSON)
 
 module Unit = struct
   include Unit
   let master = ()
   let compute_from_string _ = ()
-  let compute_from_bigstring _ = ()
+  let compute_from_cstruct _ = ()
   let to_raw () = ""
   let of_raw _ = ()
   let pretty () = ""
@@ -67,42 +66,37 @@ end
 module type STORE = sig
   type key
   type contents
-  type node = key IrminNode.t
-  type commit = (origin, key) IrminCommit.t
-  include IrminStore.AO with type key := key
-                         and type value = (origin, key, contents) t
+  type node = key Node.t
+  type commit = (origin, key) Commit.t
+  include S.AO with type key := key and type value = (origin, key, contents) t
   val list: t -> ?depth:int -> key list -> key list Lwt.t
-  module Contents: IrminContents.STORE with type key = key and type value = contents
-  module Node: IrminNode.STORE with type key = key
-                                and type contents = contents
-  module Commit: IrminCommit.STORE with type key = key
+  module Contents: Contents.STORE with type key = key and type value = contents
+  module Node: Node.STORE with type key = key and type contents = contents
+  module Commit: Commit.STORE with type key = key
   val contents_t: t -> Contents.t
   val node_t: t -> Node.t
   val commit_t: t -> Commit.t
-  val merge: t -> key IrminMerge.t
-  module Key: IrminKey.S with type t = key
+  val merge: t -> key Merge.t
+  module Key: Key.S with type t = key
   module Value: S with type key = key and type contents = contents
-  module Graph: IrminGraph.S with type V.t = (key, unit) IrminGraph.vertex
+  module Graph: Graph.S with type V.t = (key, unit) Graph.vertex
 end
 
 module Mux
-  (K: IrminKey.S)
-  (C: IrminContents.S)
-  (XContents: IrminStore.AO with type key   = K.t
-                             and type value = C.t)
-  (XNode    : IrminStore.AO with type key   = K.t
-                             and type value = K.t IrminNode.t)
-  (XCommit  : IrminStore.AO with type key   = K.t
-                             and type value = (origin, K.t) IrminCommit.t)
+  (K: Key.S)
+  (C: Contents.S)
+  (XContents: S.AO with type key = K.t and type value = C.t)
+  (XNode    : S.AO with type key = K.t and type value = K.t Node.t)
+  (XCommit  : S.AO with type key = K.t and type value = (origin, K.t) Commit.t)
 = struct
 
   type contents = C.t
   type key = K.t
   type value = (origin, K.t, C.t) t
   module Key = K
-  module Contents = IrminContents.Make(K)(C)(XContents)
-  module Node = IrminNode.Make(K)(C)(Contents)(XNode)
-  module Commit = IrminCommit.Make(K)(Node)(XCommit)
+  module Contents = Contents.Make(K)(C)(XContents)
+  module Node = Node.Make(K)(C)(Contents)(XNode)
+  module Commit = Commit.Make(K)(Node)(XCommit)
   module Value = S(K)(C)
   type commit = Commit.value
   type node = Node.value
@@ -149,7 +143,7 @@ module Mux
     | Node tr    -> Node.add t.node tr
     | Commit c   -> Commit.add t.commit c
 
-  module Graph = IrminGraph.Make(K)(Unit)
+  module Graph = Digraph.Make(K)(Unit)
 
   let dump t =
     Log.debugf "dump";
@@ -165,8 +159,8 @@ module Mux
   (* XXX: code repetition ... *)
 
   let merge t =
-    IrminMerge.seq [
-      IrminMerge.default (module Key);
+    Merge.seq [
+      Merge.default (module Key);
       Contents.merge     (contents_t t);
       Node.merge         (node_t t);
       Commit.merge       (commit_t t);
@@ -179,24 +173,24 @@ module Mux
       | `Commit k ->
         begin Commit.read t.commit k >>= function
           | None   -> return_nil
-          | Some c -> return (IrminCommit.edges c)
+          | Some c -> return (Commit.edges c)
         end
       | _ -> return_nil in
-    let max = IrminGraph.of_commits keys in
+    let max = Digraph.of_commits keys in
     Graph.closure ?depth ~pred max >>= fun g ->
-    let keys = IrminGraph.to_commits (Graph.vertex g) in
+    let keys = Digraph.to_commits (Graph.vertex g) in
     (* then load the rest *)
     let pred = function
-      | `Commit k -> failwith "IrminBlock.list: commit"
+      | `Commit k -> failwith "Irmin.Block.list: commit"
       | `Node k   ->
         begin Node.read t.node k >>= function
           | None   -> return_nil
-          | Some n -> return (IrminNode.edges n)
+          | Some n -> return (Node.edges n)
         end
       | _ -> return_nil  in
-    let max = IrminGraph.of_commits keys in
+    let max = Graph.of_commits keys in
     Graph.closure ~pred max >>= fun g ->
-    let keys = IrminGraph.to_keys (Graph.vertex g) in
+    let keys = Digraph.to_keys (Graph.vertex g) in
     return keys
 
 end
@@ -208,7 +202,7 @@ module type CASTABLE = sig
   val inj: cast -> t
 end
 
-module Cast (S: IrminStore.AO) (C: CASTABLE with type t = S.value) = struct
+module Cast (S: S.AO) (C: CASTABLE with type t = S.value) = struct
 
   open Lwt
 
@@ -253,10 +247,9 @@ module Cast (S: IrminStore.AO) (C: CASTABLE with type t = S.value) = struct
 end
 
 module Make
-  (K: IrminKey.S)
-  (C: IrminContents.S)
-  (Store: IrminStore.AO with type key = K.t
-                         and type value = (origin, K.t, C.t) t)
+  (K: Key.S)
+  (C: Contents.S)
+  (Store: S.AO with type key = K.t and type value = (origin, K.t, C.t) t)
 = struct
 
   module BS = Cast(Store)(struct
@@ -270,7 +263,7 @@ module Make
 
   module TS = Cast(Store)(struct
       type t = Store.value
-      type cast = K.t IrminNode.t
+      type cast = K.t Node.t
       let proj = function
         | Node t -> Some t
         | _      -> None
@@ -279,16 +272,16 @@ module Make
 
   module CS = Cast(Store)(struct
       type t = Store.value
-      type cast = (origin, K.t) IrminCommit.t
+      type cast = (origin, K.t) Commit.t
       let proj = function
         | Commit c -> Some c
         | _        -> None
       let inj c = Commit c
     end)
 
-  module Contents = IrminContents.Make(K)(C)(BS)
-  module Node = IrminNode.Make(K)(C)(Contents)(TS)
-  module Commit = IrminCommit.Make(K)(Node)(CS)
+  module Contents = Contents.Make(K)(C)(BS)
+  module Node = Node.Make(K)(C)(Contents)(TS)
+  module Commit = Commit.Make(K)(Node)(CS)
 
   type commit = Commit.value
   type node = Node.value
@@ -298,7 +291,7 @@ module Make
   module Key = K
   module Value = S(K)(C)
 
-  module Graph = IrminGraph.Make(K)(Unit)
+  module Graph = Digraph.Make(K)(Unit)
 
   let contents_t t = t
   let node_t t = (t, t)
@@ -307,11 +300,11 @@ module Make
   (* XXX: code repetition ... *)
 
   let merge t =
-    IrminMerge.seq [
-      IrminMerge.default (module Key);
-      Contents.merge     (contents_t t);
-      Node.merge         (node_t t);
-      Commit.merge       (commit_t t);
+    Merge.seq [
+      Merge.default (module Key);
+      Contents.merge (contents_t t);
+      Node.merge (node_t t);
+      Commit.merge (commit_t t);
     ]
 
   let list t ?depth keys =
@@ -321,24 +314,24 @@ module Make
       | `Commit k ->
         begin Commit.read (commit_t t) k >>= function
           | None   -> return_nil
-          | Some c -> return (IrminCommit.edges c)
+          | Some c -> return (Commit.edges c)
         end
       | _ -> return_nil in
-    let max = IrminGraph.of_commits keys in
+    let max = Digraph.of_commits keys in
     Graph.closure ?depth ~pred max >>= fun g ->
-    let keys = IrminGraph.to_commits (Graph.vertex g) in
+    let keys = Digraph.to_commits (Graph.vertex g) in
     (* then load the rest *)
     let pred = function
-      | `Commit k -> failwith "IrminBlock.list: commit"
+      | `Commit k -> failwith "Irmin.Block.list: commit"
       | `Node k   ->
         begin Node.read (node_t t) k >>= function
           | None   -> return_nil
-          | Some n -> return (IrminNode.edges n)
+          | Some n -> return (Node.edges n)
         end
       | _ -> return_nil  in
-    let max = IrminGraph.of_commits keys in
+    let max = Digraph.of_commits keys in
     Graph.closure ~pred max >>= fun g ->
-    let keys = IrminGraph.to_keys (Graph.vertex g) in
+    let keys = Digraph.to_keys (Graph.vertex g) in
     return keys
 
 end
@@ -348,7 +341,7 @@ module Rec (S: STORE) = struct
   let merge =
     let merge ~origin ~old k1 k2 =
       S.create ()  >>= fun t  ->
-      IrminMerge.merge (S.merge t) ~origin ~old k1 k2
+      Merge.merge (S.merge t) ~origin ~old k1 k2
     in
-    IrminMerge.create' (module S.Key) merge
+    Merge.create' (module S.Key) merge
 end

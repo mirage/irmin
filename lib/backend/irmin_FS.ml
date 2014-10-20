@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open IrminCore
 open Lwt
 
 module Log = Log.Make(struct let section = "FS" end)
@@ -42,9 +42,9 @@ end
 
 module type IO = sig
   val check_dir: string -> unit Lwt.t
-  val with_file_in: string -> (Bigstring.t -> 'a Lwt.t) -> 'a Lwt.t
+  val with_file_in: string -> (Cstruct.t -> 'a Lwt.t) -> 'a Lwt.t
   val rec_files: string -> string list
-  val with_file_out: string -> Bigstring.t -> unit Lwt.t
+  val with_file_out: string -> Cstruct.t -> unit Lwt.t
   val remove_file: string -> unit Lwt.t
 end
 
@@ -54,7 +54,7 @@ module RO (IO: IO) (S: Config') (K: IrminKey.S) = struct
 
   type value = Cstruct.buffer
 
-  module W = IrminWatch.Make(K)(Bigstring)
+  module W = IrminWatch.Make(K)(Cstruct)
 
   type t = {
     t: string;
@@ -62,7 +62,7 @@ module RO (IO: IO) (S: Config') (K: IrminKey.S) = struct
   }
 
   let pretty_key k =
-    K.to_string (K.of_raw k)
+    K.to_raw (K.of_raw k)
 
   let unknown k =
     fail (IrminKey.Unknown (pretty_key k))
@@ -116,7 +116,7 @@ module AO (IO: IO) (S: Config') (K: IrminKey.S) = struct
   let add { t } value =
     Log.debugf "add";
     IO.check_dir t >>= fun () ->
-    let key = K.to_raw (K.of_bytes value) in
+    let key = K.to_raw (K.compute_from_cstruct value) in
     let file = S.file_of_key key in
     begin if Sys.file_exists file then
         return_unit

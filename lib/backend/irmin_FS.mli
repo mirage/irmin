@@ -16,8 +16,6 @@
 
 (** Disk persistence. *)
 
-open Core_kernel.Std
-
 (** {2 Simple configuration} *)
 
 module type Config = sig
@@ -57,13 +55,13 @@ module type IO = sig
   (** Check than a given dirname exists and is indeed a directory
       name. *)
 
-  val with_file_in: string -> (Bigstring.t -> 'a Lwt.t) -> 'a Lwt.t
+  val with_file_in: string -> (Cstruct.t -> 'a Lwt.t) -> 'a Lwt.t
   (** Run a function on the contents of a file. *)
 
   val rec_files: string -> string list
   (** Get all the files in a sub-tree. *)
 
-  val with_file_out: string -> Bigstring.t -> unit Lwt.t
+  val with_file_out: string -> Cstruct.t -> unit Lwt.t
   (** Write a new file with the given contents. *)
 
   val remove_file: string -> unit Lwt.t

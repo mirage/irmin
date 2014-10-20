@@ -16,8 +16,6 @@
 
 (** Store dumps. *)
 
-open IrminCore
-
 module type S = sig
 
   (** Store with import/export capabilities. *)
@@ -39,6 +37,6 @@ module type S = sig
 
 end
 
-module Make (S: IrminBranch.STORE): S with type t = S.t
+module Make (S: Branch.STORE): S with type t = S.t
 (** Extend a branch consistent store with import/export
     capabilities. *)

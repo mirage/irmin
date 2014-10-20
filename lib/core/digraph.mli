@@ -16,8 +16,6 @@
 
 (** Graphs. *)
 
-open IrminCore
-
 module type S = sig
 
 (** Main signature. *)
@@ -73,7 +71,7 @@ module type S = sig
   val import: dump -> t
   (** Import a graph. *)
 
-  module Dump: I0 with type t = dump
+  module Dump: Misc.I0 with type t = dump
   (** The base functions over graph internals. *)
 
 end
@@ -99,4 +97,4 @@ val to_contents: ('a, 'b) vertex list -> 'a list
 val to_keys: ('a, 'b) vertex list -> 'a list
 
 (** Build a graph. *)
-module Make(K: IrminKey.S)(R: IrminTag.S): S with type V.t = (K.t, R.t) vertex
+module Make(K: Key.S)(R: Tag.S): S with type V.t = (K.t, R.t) vertex

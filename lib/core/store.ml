@@ -14,20 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
 open Lwt
-open IrminMerge.OP
+open Merge.OP
 
 module type S = sig
-  include IrminBranch.STORE with type key = IrminPath.t
-  (*  include IrminStore.S with type key = IrminPath.t
-                            and type origin = OrminOrigin.t*)
-  module Dump: IrminDump.S with type t = t
-  module Snapshot: IrminSnapshot.STORE with type db = t
-  module View: IrminView.STORE with type db    = t
-                                and type node  = Block.key
-                                and type value = value
-  module Sync: IrminSync.STORE with type db  = t
+  include Branch.STORE with type key = Path.t
+  module Dump: Dump.S with type t = t
+  module Snapshot: Snapshot.STORE with type db = t
+  module View: View.STORE with type db    = t
+                           and type node  = Block.key
+                           and type value = value
+  module Sync: Sync.STORE with type db  = t
 end
 
 type ('key, 'contents, 'tag) t =
@@ -39,17 +36,17 @@ let cast (type a) (type b) (type c) (t: (a, b, c) t) =
   let module M = (val t) in
   (module M: S)
 
-module Make (Block: IrminBlock.STORE) (Tag: IrminTag.STORE with type value = Block.key) =
+module Make (Block: Block.STORE) (Tag: Tag.STORE with type value = Block.key) =
 struct
-  module S = IrminBranch.Make(Block)(Tag)
-  module Snapshot = IrminSnapshot.Make(S)
-  module Dump = IrminDump.Make(S)
-  module View = IrminView.Store(S)
-  module Sync = IrminSync.Slow(S)
+  module S = Branch.Make(Block)(Tag)
+  module Snapshot = Snapshot.Make(S)
+  module Dump = Dump.Make(S)
+  module View = View.Store(S)
+  module Sync = Sync.Slow(S)
   include S
 end
 
-module RO_BINARY  (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: I0) = struct
+module RO_BINARY  (S: S.RO_BINARY) (K: Key.S) (V: I0) = struct
 
   module L = Log.Make(struct let section = "RO" end)
 
@@ -70,7 +67,7 @@ module RO_BINARY  (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: I0) = struct
   let read_exn t key =
     read t key >>= function
     | Some v -> return v
-    | None   -> fail (IrminKey.Unknown (K.pretty key))
+    | None   -> fail (Key.Unknown (K.pretty key))
 
   let mem t key =
     S.mem t (K.to_raw key)
@@ -91,7 +88,7 @@ module RO_BINARY  (S: IrminStore.RO_BINARY) (K: IrminKey.S) (V: I0) = struct
 
 end
 
-module AO_BINARY (S: IrminStore.AO_BINARY)  (K: IrminKey.S) (V: I0) = struct
+module AO_BINARY (S: S.AO_BINARY)  (K: Key.S) (V: I0) = struct
 
   include RO_BINARY(S)(K)(V)
 
@@ -106,7 +103,7 @@ module AO_BINARY (S: IrminStore.AO_BINARY)  (K: IrminKey.S) (V: I0) = struct
 
 end
 
-module RW_BINARY (S: IrminStore.RW_BINARY) (K: IrminKey.S) (V: I0) = struct
+module RW_BINARY (S: S.RW_BINARY) (K: Key.S) (V: I0) = struct
 
   include RO_BINARY(S)(K)(V)
 
@@ -129,42 +126,39 @@ module RW_BINARY (S: IrminStore.RW_BINARY) (K: IrminKey.S) (V: I0) = struct
 end
 
 module Binary
-    (AO: IrminStore.AO_BINARY)
-    (RW: IrminStore.RW_BINARY)
-    (K : IrminKey.S)
-    (C : IrminContents.S)
-    (T : IrminTag.S) =
+    (AO: S.AO_BINARY)
+    (RW: S.RW_BINARY)
+    (K : Key.S)
+    (C : Contents.S)
+    (T : Tag.S) =
 struct
-  module V = IrminBlock.S(K)(C)
-  module B = IrminBlock.S(K)(C)
-  module XBlock = IrminBlock.Make(K)(C)(AO_BINARY(AO)(K)(B))
-  module XTag = IrminTag.Make(T)(K)(RW_BINARY(RW)(T)(K))
+  module V = Block.S(K)(C)
+  module B = Block.S(K)(C)
+  module XBlock = Block.Make(K)(C)(AO_BINARY(AO)(K)(B))
+  module XTag = Tag.Make(T)(K)(RW_BINARY(RW)(T)(K))
   include Make(XBlock)(XTag)
 end
 
 
 module type RO_MAKER =
-  functor (K: IrminKey.S)   ->
-  functor (V: I0) ->
-    IrminStore.RO with type key   = K.t
-                   and type value = V.t
+  functor (K: Key.S)   ->
+  functor (V: Misc.I0) ->
+    S.RO with type key = K.t and type value = V.t
 
 module type AO_MAKER =
-  functor (K: IrminKey.S)   ->
-  functor (V: I0) ->
-    IrminStore.AO with type key   = K.t
-                   and type value = V.t
+  functor (K: Key.S)   ->
+  functor (V: Misc.I0) ->
+    S.AO with type key = K.t and type value = V.t
 
 module type RW_MAKER =
-  functor (K: IrminKey.S) ->
-  functor (V: IrminKey.S) ->
-    IrminStore.RW with type key   = K.t
-                   and type value = V.t
+  functor (K: Key.S) ->
+  functor (V: Key.S) ->
+    S.RW with type key = K.t and type value = V.t
 
 module type S_MAKER =
-  functor (K: IrminKey.S)      ->
-  functor (C: IrminContents.S) ->
-  functor (T: IrminTag.S)      ->
+  functor (K: Key.S)      ->
+  functor (C: Contents.S) ->
+  functor (T: Tag.S)      ->
     S with type Block.key = K.t
        and type value     = C.t
        and type branch    = T.t
@@ -178,9 +172,9 @@ end
 
 module Rec (AO: AO_MAKER) (S: S) = struct
   module K = S.Block.Key
-  module C = IrminBlock.Rec(S.Block)
-  module B = IrminBlock.S(K)(C)
+  module C = Block.Rec(S.Block)
+  module B = Block.S(K)(C)
   module AO = AO(K)(B)
-  module XBlock = IrminBlock.Make(K)(C)(AO)
+  module XBlock = Block.Make(K)(C)(AO)
   include Make(XBlock)(S.Tag)
 end

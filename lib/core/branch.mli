@@ -21,15 +21,26 @@ module type STORE = sig
   (** A branch-consistent store is a mutable store which supports
       fork/join operations. *)
 
-  include IrminStore.S with type key = IrminPath.t
-                        and type origin = IrminOrigin.t
+  include S.BC with type key = Path.t and type origin = Origin.t
 
-  module Block: IrminBlock.STORE with type contents = value
+  module Key: Key.S with type t = key
+  (** Base functions over keys. *)
+
+  module Value: Contents.S with type t = value
+  (** Base functions over values. *)
+
+  module Branch: Tag.S with type t = branch
+  (** Base functions over branches. *)
+
+  module Block: Block.STORE with type contents = value
   (** Append-only persistent block store where leafs are user-defined
        contents. *)
 
-  module Tag: IrminTag.STORE with type key = branch and type value = Block.key
+  module Tag: Tag.STORE with type key = branch and type value = Block.key
   (** Read/write store for branch pointers. *)
+
+  module Graph: Digraph.S with type V.t = (Block.key, Tag.key) Digraph.vertex
+  (** Object graph. *)
 
   val block_t: t -> Block.t
   (** Return an handler to the internal store. *)
@@ -72,20 +83,8 @@ module type STORE = sig
   val update_commit: t -> Block.key -> unit Lwt.t
   (** Set the current branch to point to the given commit. *)
 
-  val merge_commit: t -> ?origin:origin -> Block.key -> unit IrminMerge.result Lwt.t
+  val merge_commit: t -> ?origin:origin -> Block.key -> unit Merge.result Lwt.t
   (** Merge a commit in the current branch. *)
-
-  module Key: IrminKey.S with type t = key
-  (** Base functions over keys. *)
-
-  module Value: IrminContents.S with type t = value
-  (** Base functions over values. *)
-
-  module Branch: IrminTag.S with type t = branch
-  (** Base functions over branches. *)
-
-  module Graph: IrminGraph.S with type V.t = (Block.key, Tag.key) IrminGraph.vertex
-  (** Object graph. *)
 
 end
 
@@ -94,8 +93,8 @@ type ('key, 'contents, 'tag) t = (module STORE with type Block.key = 'key
                                                 and type branch    = 'tag)
 
 module Make
-    (Block: IrminBlock.STORE)
-    (Tag  : IrminTag.STORE with type value = Block.key)
+    (Block: Block.STORE)
+    (Tag  : Tag.STORE with type value = Block.key)
   : STORE with type value   = Block.contents
            and module Block = Block
            and type branch  = Tag.key

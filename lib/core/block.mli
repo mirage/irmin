@@ -18,13 +18,13 @@
 
 type ('origin, 'key, 'contents) t =
   | Contents of 'contents
-  | Node of 'key IrminNode.t
-  | Commit of ('origin, 'key) IrminCommit.t
+  | Node of 'key Node.t
+  | Commit of ('origin, 'key) Commit.t
 with bin_io, compare, sexp
 (** The different kinds of values which can be stored in the
     database. *)
 
-type origin = IrminOrigin.t
+type origin = Origin.t
 
 module type S = sig
 
@@ -36,20 +36,17 @@ module type S = sig
   type contents
   (** Contents. *)
 
-  include IrminContents.S with type t = (origin, key, contents) t
+  include Contents.S with type t = (origin, key, contents) t
   (** Base functions over structured values. *)
 
 end
 
-module S (K: IrminKey.S) (C: IrminContents.S): S with type key = K.t
-                                                  and type contents = C.t
-
-module String: S with type key = IrminKey.SHA1.t
-                  and type contents = IrminContents.String.t
+module String: S with type key = Key.SHA1.t
+                  and type contents = Contents.String.t
 (** String contents, with SHA1 keys. *)
 
-module JSON: S with type key = IrminKey.SHA1.t
-                and type contents = IrminContents.JSON.t
+module JSON: S with type key = Key.SHA1.t
+                and type contents = Contents.JSON.t
 (** JSON contents, with SHA1 keys. *)
 
 
@@ -67,24 +64,22 @@ module type STORE = sig
   type value =  (origin, key, contents) t
   (** Block values. *)
 
-  type node = key IrminNode.t
+  type node = key Node.t
   (** Node values. *)
 
-  type commit = (origin, key) IrminCommit.t
+  type commit = (origin, key) Commit.t
   (** Commit values. *)
 
-  include IrminStore.AO with type key := key and type value := value
+  include S.AO with type key := key and type value := value
 
   val list: t -> ?depth:int -> key list -> key list Lwt.t
   (** Return the related blocks, with an history depth limit. *)
 
-  module Contents: IrminContents.STORE with type key = key
-                                        and type value = contents
+  module Contents: Contents.STORE with type key = key and type value = contents
 
-  module Node: IrminNode.STORE with type key = key
-                                and type contents = contents
+  module Node: Node.STORE with type key = key and type contents = contents
 
-  module Commit: IrminCommit.STORE with type key = key
+  module Commit: Commit.STORE with type key = key
 
   val contents_t: t -> Contents.t
   (** The handler for the contents database. *)
@@ -95,23 +90,23 @@ module type STORE = sig
   val commit_t: t -> Commit.t
   (** The handler for the commit database. *)
 
-  val merge: t -> key IrminMerge.t
+  val merge: t -> key Merge.t
   (** Merge keys of the store together. *)
 
-  module Key: IrminKey.S with type t = key
+  module Key: Key.S with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key and type contents = contents
   (** Base functions over values. *)
 
-  module Graph: IrminGraph.S with type V.t = (key, unit) IrminGraph.vertex
+  module Graph: Digraph.S with type V.t = (key, unit) Digraph.vertex
 
 end
 
 module Make
-  (K: IrminKey.S)
-  (C: IrminContents.S)
-  (S: IrminStore.AO with type key = K.t and type value = (origin, K.t, C.t) t)
+  (K: Key.S)
+  (C: Contents.S)
+  (S: S.AO with type key = K.t and type value = (origin, K.t, C.t) t)
   : STORE with type key = K.t
            and type contents   = C.t
            and type Contents.t = S.t
@@ -120,12 +115,11 @@ module Make
 (** Create a store for structured values. *)
 
 module Mux
-  (K: IrminKey.S)
-  (C: IrminContents.S)
-  (Contents: IrminStore.AO with type key = K.t and type value = C.t)
-  (Node    : IrminStore.AO with type key = K.t and type value = K.t IrminNode.t)
-  (Commit  : IrminStore.AO with type key = K.t
-                            and type value = (origin, K.t) IrminCommit.t)
+  (K: Key.S)
+  (C: Contents.S)
+  (Contents: S.AO with type key = K.t and type value = C.t)
+  (Node    : S.AO with type key = K.t and type value = K.t Node.t)
+  (Commit  : S.AO with type key = K.t and type value = (origin, K.t) Commit.t)
   : STORE with type key = K.t
            and type contents   = C.t
            and type Contents.t = Contents.t
@@ -135,5 +129,7 @@ module Mux
     values. XXX: discuss about the cost model, ie. the difference
     between Mux and Make. *)
 
-module Rec (S: STORE): IrminContents.S with type t = S.key
+module Rec (S: STORE): Contents.S with type t = S.key
 (** Interpret the blocks in a block store as storable objects. *)
+
+module S (K: Key.S) (C: Contents.S): S with type key = K.t and type contents = C.t

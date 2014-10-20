@@ -26,7 +26,7 @@ end
 
 module String = struct
   include String
-  let compute_from_bigstring b = Bigstring.to_string b
+  let compute_from_cstruct b = Cstruct.to_string b
   let compute_from_string r = r
   let pretty t = t
   let of_raw s = s

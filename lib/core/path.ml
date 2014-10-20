@@ -14,39 +14,26 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
-
 open IrminCore
+open Sexplib.Std
+open Bin_prot.Std
 
-exception Invalid of string
-(** Exception raised when a key is not valid. *)
+module T = I0(struct
+  type t = string list with bin_io, compare, sexp
+  end)
 
-exception Unknown of string
-(** Exception raised when no value is associated to a key. *)
+include T
 
-module type S = sig
+let to_string t =
+  "/" ^ (String.concat ~sep:"/" t)
 
-  (** Signature for database keys. *)
+let of_string str =
+  List.filter
+    ~f:(fun s -> not (String.is_empty s))
+    (String.split str ~on:'/')
 
-  include I0
-
-  val pretty: t -> string
-  (** Pretty-print the key. *)
-
-  val of_raw: string -> t
-  (** Cast a raw string into a key. Check that the format of the raw
-      string is valid. Raise [Invalid 'key'] if that's not the case. *)
-
-  val to_raw: t -> string
-  (** Return the raw key. *)
-
-  val compute_from_bigstring: Bigstring.t -> t
-  (** Compute a (deterministic) key from a bigstring. *)
-
-  val compute_from_string: string -> t
-  (** Compute a (deterministic) key from a sequence of bytes. *)
-
-end
-
-module SHA1: S
-(** SHA1 keys *)
+let pretty = to_string
+let of_raw = of_string
+let to_raw = to_string
+let compute_from_string t = of_string t
+let compute_from_cstruct s = of_string (Cstruct.to_string s)

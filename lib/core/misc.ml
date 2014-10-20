@@ -324,7 +324,7 @@ module String = struct
   let chop_prefix t ~prefix =
     let lt = String.length t in
     let lp = String.length prefix in
-    if lt > lp then None else
+    if lt < lp then None else
       let p = String.sub t 0 lp in
       if String.compare p prefix <> 0 then None
       else Some (String.sub t lp (lt - lp))
@@ -362,45 +362,7 @@ module Int = struct
   let max_value = max_int
 end
 
-module Bigstring = struct
-  open Bigarray
-  module M = struct
-    include Bin_prot.Std
-    include Sexplib.Conv
-    type t = bigstring with bin_io
-    let sexp_of_t = Sexplib.Conv.sexp_of_bigstring
-    let t_of_sexp = Sexplib.Conv.bigstring_of_sexp
-    let compare = Pervasives.compare (* FIXME *)
-    (* XXX: compare adresses instead ? *)
-  end
-  include I0(M)
-  let create len = Array1.create char c_layout len
-  let length t = Array1.dim t
-
-  external unsafe_blit_bigstring_to_string:
-    t -> int -> string -> int -> int -> unit = "caml_blit_bigstring_to_string"
-      "noalloc"
-
-  external unsafe_blit_string_to_bigstring:
-    string -> int -> t -> int -> int -> unit = "caml_blit_string_to_bigstring"
-      "noalloc"
-
-  let to_string t =
-    let len = length t in
-    let str = String.create len in
-    unsafe_blit_bigstring_to_string t 0 str 0 len;
-    str
-
-  let of_string str =
-    let len = String.length str in
-    let t = create len in
-    unsafe_blit_string_to_bigstring str 0 t 0 len;
-    t
-
-end
-
-let read_all (type t) (module S: I0 with type t = t) ba =
-  let buf = Cstruct.of_bigarray ba in
+let read_all (type t) (module S: I0 with type t = t) buf =
   match S.read buf with
   | None -> None
   | Some (_, t) ->
@@ -411,11 +373,11 @@ let write_all (type t) (module S: I0 with type t = t) t =
   let buf = Cstruct.create (S.size_of t) in
   let buf = S.write t buf in
   (* FIXME: assert len=off *)
-  buf.Cstruct.buffer
+  buf
 
 (* XXX: review performance *)
-let read_string m str = read_all m (Bigstring.of_string str)
-let write_string m t = Bigstring.to_string (write_all m t)
+let read_string m str = read_all m (Cstruct.of_string str)
+let write_string m t = Cstruct.to_string (write_all m t)
 
 module Unit = I0(struct type t = unit with sexp, bin_io, compare end)
 
@@ -680,591 +642,61 @@ module I3 (S: sig type ('a, 'b, 'c) t with sexp, compare, bin_io end):
 
 end
 
-module Out_channel = struct
-  type t = out_channel
-  let create = open_out
-  let close = close_out
-end
+let list_partition_map t ~f =
+  let rec aux fst snd = function
+    | []   -> List.rev fst, List.rev snd
+    | h::t ->
+      match f h with
+      | `Fst x -> aux (x :: fst) snd t
+      | `Snd x -> aux fst (x :: snd) t
+  in
+  aux [] [] t
 
-module Option = struct
-  include I1(struct type 'a t = 'a option with sexp, bin_io, compare end)
-end
+let list_pretty f = function
+  | [] -> "{}"
+  | l  ->
+    let buf = Buffer.create 1024 in
+    let len = ref (List.length l - 1) in
+    Buffer.add_string buf "{ ";
+    List.iter (fun e ->
+        Buffer.add_string buf (f e);
+        if !len > 0 then Buffer.add_string buf ", ";
+        decr len
+      ) l;
+    Buffer.add_string buf " }";
+    Buffer.contents buf
 
-module Pair = struct
-  include I2(struct type ('a, 'b) t = 'a * 'b with sexp, bin_io, compare end)
-end
-
-module List = struct
-  include I1(struct type 'a t = 'a list with sexp, compare, bin_io end)
-  let length = List.length
-  let iter t ~f = List.iter f t
-  let rev = List.rev
-  let sort t ~cmp = List.sort cmp t
-  let for_all2 t ~f = List.for_all2 f t
-  let fold_left t ~init ~f = List.fold_left f init t
-  let mem t x = List.mem x t
-  let map t ~f = List.map f t
-  let rev_map t ~f = List.rev_map f t
-  let filter t ~f = List.filter f t
-  let exists t ~f = List.exists f t
-  let partition_tf t ~f = List.partition f t
-  let sort ?(compare=Pervasives.compare) t = List.sort compare t
-
-  let partition_map t ~f =
-    let rec aux fst snd = function
-      | []   -> List.rev fst, List.rev snd
-      | h::t ->
-        match f h with
-        | `Fst x -> aux (x :: fst) snd t
-        | `Snd x -> aux fst (x :: snd) t
-    in
-    aux [] [] t
-
-  let filter_map t ~f =
-    let rec aux acc = function
-      | []   -> List.rev acc
-      | h::t ->
-        match f h with
-        | None   -> aux acc t
-        | Some x -> aux (x::acc) t
-    in
-    aux [] t
-
-  let dedup ?(compare=Pervasives.compare) t =
-    let t = List.sort compare t in
-    let rec aux acc = function
-      | []      -> List.rev acc
-      | [x]     -> aux (x :: acc) []
-      | x::(y::t as tl) ->
-        match compare x y with
-        | 0 -> aux acc tl
-        | _ -> aux (x :: acc) tl
-    in
-    aux [] t
-
-  module Assoc = struct
-
-    include I2(struct
-        type ('a, 'b) t = ('a * 'b) list with sexp, compare, bin_io
-      end)
-
-    let find_exn t ?(equal=(=)) a =
-      let fn (k, _) = equal k a in
-      snd (List.find fn t)
-
-    let find t ?equal a =
-      try Some (find_exn t ?equal a)
-      with Not_found -> None
-
-  end
-
-  let pretty f = function
-    | [] -> "{}"
-    | l  ->
-      let buf = Buffer.create 1024 in
-      let len = ref (List.length l - 1) in
-      Buffer.add_string buf "{ ";
-      iter ~f:(fun e ->
-          Buffer.add_string buf (f e);
-          if !len > 0 then Buffer.add_string buf ", ";
-          decr len
-        ) l;
-      Buffer.add_string buf " }";
-      Buffer.contents buf
-
-end
-
-module type ListLike0 = sig
-  type t
-  module K: I0
-  val to_list: t -> K.t list
-  val of_list: K.t list -> t
-end
-
-module ListLike0 (S: ListLike0) = struct
-  include S
-  let equal t1 t2 = List.equal S.K.equal (S.to_list t1) (S.to_list t2)
-  let compare t1 t2 = List.compare S.K.compare (S.to_list t1) (S.to_list t2)
-  let hash = Hashtbl.hash
-  let to_sexp t = List.to_sexp S.K.to_sexp (S.to_list t)
-  let to_json t = List.to_json S.K.to_json (S.to_list t)
-  let of_json j = S.of_list (List.of_json S.K.of_json j)
-  let size_of t = List.size_of S.K.size_of (S.to_list t)
-  let write t = List.write S.K.write (S.to_list t)
-  let read buf = Reader.map S.of_list (List.read S.K.read buf)
-end
-
-module type ListLike1 = sig
-  type 'a t
-  val to_list: 'a t -> 'a list
-  val of_list: 'a list -> 'a t
-end
-
-module ListLike1 (S: ListLike1) = struct
-  include S
-  let equal equal_a t1 t2 = List.equal equal_a (S.to_list t1) (S.to_list t2)
-  let compare compare_a t1 t2 = List.compare compare_a (S.to_list t1) (S.to_list t2)
-  let hash _ = Hashtbl.hash
-  let to_sexp to_sexp_a t = List.to_sexp to_sexp_a (S.to_list t)
-  let to_json to_json_a t = List.to_json to_json_a (S.to_list t)
-  let of_json of_json_a j = S.of_list (List.of_json of_json_a j)
-  let size_of size_of_a t = List.size_of size_of_a (S.to_list t)
-  let write write_a t = List.write write_a (S.to_list t)
-  let read read_a buf = Reader.map S.of_list (List.read read_a buf)
-end
-
-module type AListLike1 = sig
-  type 'a t
-  module K: I0
-  val to_alist: 'a t -> (K.t * 'a) list
-  val of_alist: (K.t * 'a) list -> [`Ok of 'a t | `Duplicate_key of K.t]
-  val of_alist_exn: (K.t * 'a) list -> 'a t
-end
-
-module AListLike1 (L: AListLike1) = struct
-
-  include L
-
-  let hash _ = Hashtbl.hash
-
-  let to_sexp sexp_of_a t =
-    let l = L.to_alist t in
-    List.to_sexp (Sexplib.Conv.sexp_of_pair L.K.to_sexp sexp_of_a) l
-
-  let to_json json_of_a t =
-    let l = L.to_alist t in
-    Ezjsonm.(list (pair L.K.to_json json_of_a) l)
-
-  let of_json a_of_json json =
-    let l = Ezjsonm.(get_list (get_pair L.K.of_json a_of_json) json) in
-    L.of_alist_exn l
-
-  let size_of size_of_a t =
-    let size_of_pair = Bin_prot.Size.bin_size_pair L.K.size_of size_of_a in
-    List.size_of size_of_pair (L.to_alist t)
-
-  let read read_a buf =
-    match List.read (Reader.pair L.K.read read_a) buf with
-    | None          -> None
-    | Some (buf, l) ->
-      match L.of_alist l with
-      | `Ok l -> Some (buf, l)
-      | `Duplicate_key _ -> None
-
-  let write write_a t =
-    let bin_write_k = Writer.to_bin_prot L.K.write in
-    let bin_write_a = Writer.to_bin_prot write_a in
-    let bindings =
-      let bin = Bin_prot.Write.bin_write_pair bin_write_k bin_write_a in
-      Writer.of_bin_prot bin
-    in
-    List.write bindings (L.to_alist t)
-
-  let compare_bindings compare_a (k1, v1) (k2, v2) =
-    match L.K.compare k1 k2 with
-    | 0 -> compare_a v1 v2
-    | x -> x
-
-  let compare compare_a m1 m2 =
-    let compare = compare_bindings compare_a in
-    let l1 = List.sort ~compare (L.to_alist m1) in
-    let l2 = List.sort ~compare (L.to_alist m2) in
-    let rec aux t1 t2 = match t1, t2 with
-      | [], [] -> 0
-      | [], _  -> -1
-      | _ , [] -> 1
-      | h1::t1, h2::t2 ->
-        match compare h1 h2 with
-        | 0 -> aux t1 t2
-        | x -> x
-    in
-    aux l1 l2
-
-  let equal equal_a t1 t2 =
-    let compare = compare_bindings (fun _ _ -> 0) in
-    let l1 = List.sort ~compare (L.to_alist t1) in
-    let l2 = List.sort ~compare (L.to_alist t2) in
-    let f (k1, v1) (k2, v2) = L.K.equal k1 k2 && equal_a v1 v2 in
-    List.for_all2 ~f l1 l2
-
-end
-
-
-module Queue = struct
-  let create = Queue.create
-  let enqueue t x = Queue.push x t
-  let dequeue_exn t = Queue.pop t
-  let dequeue t =
-    try Some (dequeue_exn t)
-    with Queue.Empty -> None
-  module L = struct
-    type 'a t = 'a Queue.t
-    let to_list t =
-      let l = ref [] in
-      Queue.iter (fun x -> l := x :: !l) t;
-      !l
-    let of_list l =
-      let t = Queue.create () in
-      List.iter ~f:(enqueue t) l;
-      t
-  end
-  include ListLike1(L)
-end
-
-module Stack = struct
-  let create = Stack.create
-  let push t x = Stack.push x t
-  let pop_exn = Stack.pop
-  let pop t =
-    try Some (pop_exn t)
-    with Stack.Empty -> None
-  module L = struct
-    type 'a t = 'a Stack.t
-    let to_list t =
-      let l = ref [] in
-      Stack.iter (fun e -> l := e :: !l) t;
-      List.rev !l
-    let of_list l =
-      let t = Stack.create () in
-      List.iter ~f:(push t) (List.rev l);
-      t
-  end
-  include ListLike1(L)
-end
-
-module Set = struct
-  module type S = sig
-    include I0
-    type elt
-    val empty: t
-    val singleton: elt -> t
-    val is_empty: t -> bool
-    val union: t -> t -> t
-    val inter: t -> t -> t
-    val diff: t -> t -> t
-    val of_list: elt list -> t
-    val to_list: t -> elt list
-  end
-  module Make (K: I0) = struct
-    module Set = Set.Make(K)
-    module L = struct
-      module K = K
-      type t = Set.t
-      let to_list t =
-        let l = ref [] in
-        Set.iter (fun k -> l := k :: !l) t;
-        List.rev !l
-      let of_list l =
-        let t = ref Set.empty in
-        List.iter ~f:(fun k -> t := Set.add k !t) l;
-        !t
-    end
-    include ListLike0(L)
-    type elt = K.t
-    let empty = Set.empty
-    let singleton = Set.singleton
-    let is_empty = Set.is_empty
-    let union = Set.union
-    let inter = Set.inter
-    let diff = Set.diff
-  end
-end
-
-module type Dictionary = sig
-  include I1
-  type key
+(** Persistent Maps. *)
+module type MAP = sig
+  include Map.S
+  include I1 with type 'a t := 'a t
   val to_alist: 'a t -> (key * 'a) list
-  val of_alist: (key * 'a) list -> [`Ok of 'a t | `Duplicate_key of key]
-  val of_alist_exn: (key * 'a) list -> 'a t
+  val of_alist: (key * 'a) list -> 'a t
   val keys: 'a t -> key list
-  val is_empty: 'a t -> bool
-  val mem: 'a t -> key -> bool
-  val find: 'a t -> key -> 'a option
-  val fold: 'a t -> init:'b -> f:(key:key -> data:'a -> 'b -> 'b) -> 'b
-  val map: 'a t -> f:('a -> 'b) -> 'b t
-  val iter: 'a t -> f:(key:key -> data:'a -> unit) -> unit
-  val filter: 'a t -> f:(key:key -> data:'a -> bool) -> 'a t
+  val add_multi: key -> 'a -> 'a list t -> 'a list t
 end
-
-module Hashtbl = struct
-  module type S = sig
-    include Dictionary
-    val create: ?size:int -> unit -> 'a t
-    val clear: 'a t -> unit
-    val of_alist_add: (key * 'a) list -> 'a t
-    val replace: 'a t -> key:key -> data:'a -> unit
-    val add: 'a t -> key:key -> data:'a -> [`Ok | `Duplicate]
-    val add_exn: 'a t -> key:key -> data:'a -> unit
-    val add_multi: 'a list t -> key:key -> data:'a -> unit
-    val remove: 'a t -> key -> unit
-  end
-
-  let hash = Hashtbl.hash
-
-  module Make (K: I0) = struct
-
-    type 'a t = (K.t, 'a) Hashtbl.t
-    type key = K.t
-    let hash _ = Hashtbl.hash
-    let to_sexp sexp_of_a = Sexplib.Conv.sexp_of_hashtbl K.to_sexp sexp_of_a
-
-    let of_alist_add l =
-      let acc = Hashtbl.create (List.length l) in
-      List.iter ~f:(fun (k, v) ->
-          Hashtbl.add acc k v
-        ) l;
-      acc
-
-    exception D of K.t
-
-    let of_alist l =
-      let acc = Hashtbl.create (List.length l) in
-      try
-        List.iter ~f:(fun (k, v) ->
-            if Hashtbl.mem acc k then raise (D k)
-            else Hashtbl.add acc k v
-          ) l;
-        `Ok acc
-      with D k ->
-        `Duplicate_key k
-
-    let of_alist_exn l =
-      match of_alist l with
-      | `Ok acc -> acc
-      | `Duplicate_key k ->
-        raise (invalid_argf "Duplicate key: %s"
-                 (Lazy.force (show (module K) k)))
-
-    let to_alist t =
-      let acc = ref [] in
-      Hashtbl.iter (fun k v ->
-          acc := (k, v) :: !acc
-        ) t;
-      List.rev !acc
-
-    let of_json a_of_json json =
-      let dict = Ezjsonm.get_list (Ezjsonm.get_pair K.of_json a_of_json) json in
-      of_alist_add dict
-
-    let to_json json_of_a t =
-      let dict = to_alist t in
-      Ezjsonm.list (Ezjsonm.pair K.to_json json_of_a) dict
-
-    let size_of size_of_a = Bin_prot.Size.bin_size_hashtbl K.size_of size_of_a
-
-    let read read_a =
-      let bin_read_k = Reader.to_bin_prot K.read in
-      let bin_read_a = Reader.to_bin_prot read_a in
-      let bin_t = Bin_prot.Read.bin_read_hashtbl bin_read_k bin_read_a in
-      Reader.of_bin_prot bin_t
-
-    let write write_a =
-      let bin_write_k = Writer.to_bin_prot K.write in
-      let bin_write_a = Writer.to_bin_prot write_a in
-      let bin_t = Bin_prot.Write.bin_write_hashtbl bin_write_k bin_write_a in
-      Writer.of_bin_prot bin_t
-
-    let compare compare_a t1 t2 =
-      let compare = Compare.pair K.compare compare_a in
-      let l1 = List.sort ~compare (to_alist t1) in
-      let l2 = List.sort ~compare (to_alist t2) in
-      Compare.list compare l1 l2
-
-    let equal equal_a t1 t2 =
-      let compare = Compare.pair K.compare (fun _ _ -> 0) in
-      let l1 = List.sort ~compare (to_alist t1) in
-      let l2 = List.sort ~compare (to_alist t2) in
-      Equal.list (Equal.pair K.equal equal_a) l1 l2
-
-    let remove = Hashtbl.remove
-    let mem = Hashtbl.mem
-    let clear = Hashtbl.clear
-    let create ?(size=128) () = Hashtbl.create (if size < 1 then 128 else size)
-    let replace t ~key ~data = Hashtbl.replace t key data
-    let iter t ~f = Hashtbl.iter (fun key data -> f ~key ~data) t
-    let is_empty t = Hashtbl.length t = 0
-
-    let add t ~key ~data =
-      if Hashtbl.mem t key then `Duplicate
-      else (
-        Hashtbl.add t key data;
-        `Ok
-      )
-
-    let add_exn t ~key ~data =
-      match add t ~key ~data with
-      | `Ok -> ()
-      | `Duplicate ->
-        raise (invalid_argf "Duplicate key: %s"
-                 (Lazy.force (show (module K) key)))
-
-    let keys t =
-      let acc = ref [] in
-      Hashtbl.iter (fun k _ ->
-          acc := k :: !acc
-        ) t;
-      List.rev !acc
-
-    let map t ~f =
-      let acc = create ~size:(Hashtbl.length t) () in
-      Hashtbl.iter (fun k v ->
-          Hashtbl.add acc k (f v)
-        ) t;
-      acc
-
-    let fold t ~init ~f =
-      let acc = ref init in
-      Hashtbl.iter (fun key data ->
-          acc := f ~key ~data !acc
-        ) t;
-      !acc
-
-    let filter t ~f =
-      let acc = create ~size:(Hashtbl.length t) () in
-      Hashtbl.iter (fun key data ->
-          if f ~key ~data then Hashtbl.add acc key data
-        ) t;
-      acc
-
-    let find t key =
-      try Some (Hashtbl.find t key)
-      with Not_found -> None
-
-    let add_multi t ~key ~data =
-      match find t key with
-      | None -> replace t ~key ~data:[data]
-      | Some l -> replace t ~key ~data:(data :: l)
-
-  end
+module Map (S: I0) = struct
 
 end
 
-module Map = struct
-  module type S = sig
-    include Dictionary
-    val empty: 'a t
-    val add: 'a t -> key:key -> data:'a -> 'a t
-    val remove: 'a t -> key -> 'a t
-    val keys: 'a t -> key list
-    val max_elt: 'a t -> (key * 'a) option
-    module Lwt: sig
-      val merge: 'v1 t ->'v2 t ->
-        f:(key:key -> [ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ]
-           -> 'v3 option Lwt.t) -> 'v3 t Lwt.t
-      val iter2: 'v1 t -> 'v2 t ->
-        f:(key:key ->data:[ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ]
-           -> unit Lwt.t) -> unit Lwt.t
-    end
-  end
-  module Make (K: I0) = struct
 
-    module Map = Map.Make(K)
-
-    let mem t k = Map.mem k t
-    let add t ~key ~data = Map.add key data t
-    let remove t k = Map.remove k t
-    let empty = Map.empty
-    let filter t ~f = Map.filter (fun key data -> f ~key ~data) t
-    let map t ~f = Map.map f t
-    let is_empty = Map.is_empty
-    let keys t = List.map ~f:fst (Map.bindings t)
-    let iter t ~f = Map.iter (fun key data -> f ~key ~data) t
-    let max_elt t = try Some (Map.max_binding t) with Not_found -> None
-
-    let find t k =
-      try Some (Map.find k t)
-      with Not_found -> None
-
-    let fold t ~init ~f =
-      let acc = ref init in
-      Map.iter (fun key data ->
-          acc := f ~key ~data !acc
-        ) t;
-      !acc
-
-    let iter2 ~f t1 t2 =
-      let rec aux l1 l2 = match l1, l2 with
-        | [], t -> List.iter ~f:(fun (key, v) -> f ~key ~data:(`Right v)) t
-        | t, [] -> List.iter ~f:(fun (key, v) -> f ~key ~data:(`Left v)) t
-        | (k1,v1)::t1, (k2,v2)::t2 ->
-          match K.compare k1 k2 with
-          | 0 ->
-            f ~key:k1 ~data:(`Both (v1, v2));
-            aux t1 t2
-          | x -> if x < 0 then (
-              f ~key:k1 ~data:(`Left v1);
-              aux t1 l2
-            ) else (
-              f ~key:k2 ~data:(`Right v2);
-              aux l1 t2
-            )
-      in
-      aux (Map.bindings t1) (Map.bindings t2)
-
-    module L = struct
-
-      type 'a t = 'a Map.t
-      module K = K
-
-      let to_alist t =
-        let acc = ref [] in
-        Map.iter (fun k v ->
-            acc := (k, v) :: !acc
-          ) t;
-        List.rev !acc
-
-      let of_alist alist =
-        let result = ref None in
-        try
-          let map = List.fold_left ~f:(fun t (key,data) ->
-              if mem t key then (
-                result := Some (`Duplicate_key key);
-                raise Exit
-              ) else add t ~key ~data
-            ) ~init:Map.empty alist
-          in
-          `Ok map
-        with Exit ->
-          match !result with
-          | Some x -> x
-          | None   -> assert false
-
-      let of_alist_exn alist =
-        match of_alist alist with
-        | `Ok x -> x
-        | `Duplicate_key k -> raise (
-            invalid_argf "Map.of_alist_exn: duplicate key %s"
-              (Sexplib.Sexp.to_string (K.to_sexp k))
-          )
-
-    end
-
-    include AListLike1(L)
-    type key = Map.key
-
-    module Lwt = struct
-      open Lwt
-      let iter2 m1 m2 ~f =
-        let m3 = ref [] in
-        iter2 ~f:(fun ~key ~data ->
-            m3 := f ~key ~data :: !m3
-          ) m1 m2;
-        Lwt_list.iter_p
-          (fun b -> b >>= fun () -> return_unit) (List.rev !m3)
-
-      let merge m1 m2 ~f =
-        let l3 = ref [] in
-        let f ~key ~data =
-          f ~key data >>= function
-          | None   -> return_unit
-          | Some v -> l3 := (key, v) :: !l3; return_unit
-        in
-        iter2 m1 m2 ~f >>= fun () ->
-        let m3 = L.of_alist_exn !l3 in
-        return m3
-
-    end
-  end
+(** Persistent Sets. *)
+module type SET = sig
+  include Set.S
+  include I0 with type t := t
+  val of_list: elt list -> t
+  val to_list: t -> elt list
+end
+module Set (K: I0) = struct
+  module Set = Set.Make(K)
+  let to_list t =
+    let l = ref [] in
+    Set.iter (fun k -> l := k :: !l) t;
+    List.rev !l
+  let of_list l =
+    let t = ref Set.empty in
+    List.iter (fun k -> t := Set.add k !t) l;
+    !t
 end
 
 module Lwt_stream = struct

@@ -16,8 +16,6 @@
 
 (** Values. *)
 
-open IrminCore
-
 exception Invalid of string
 (** Invalid parsing. *)
 
@@ -25,10 +23,10 @@ module type S = sig
 
   (** Signature for store contents. *)
 
-  include I0
+  include Misc.I0
   (** Base types. *)
 
-  val merge: t IrminMerge.t
+  val merge: t Merge.t
   (** Merge function. Raise [Conflict] if the values cannot be merged
       properly. *)
 
@@ -49,24 +47,24 @@ module type STORE = sig
 
   (** Store user-defined contents. *)
 
-  include IrminStore.AO
+  include S.AO
   (** Contents stores are append-only. *)
 
-  val merge: t -> key IrminMerge.t
+  val merge: t -> key Merge.t
   (** Store merge function. Lift [S.merge] to keys. *)
-
-  module Key: IrminKey.S with type t = key
-  (** Base functions for foreign keys. *)
 
   module Value: S with type t = value
   (** Base functions for values. *)
 
+  module Key: Key.S with type t = key
+  (** Base functions for foreign keys. *)
+
 end
 
 module Make
-    (K: IrminKey.S)
+    (K: Key.S)
     (C: S)
-    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
+    (Contents: S.AO with type key = K.t and type value = C.t)
   : STORE with type t = Contents.t
            and type key = K.t
            and type value = C.t

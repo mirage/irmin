@@ -16,15 +16,13 @@
 
 (** Common URI resolver. *)
 
-open IrminCore
-
 type ('key, 'contents) remote
 (** Remote store hanlders. *)
 
 type ('key, 'contents, 'branch) store =
-  (module IrminBranch.STORE with type Block.key = 'key
-                             and type value = 'contents
-                             and type branch = 'branch)
+  (module Branch.STORE with type Block.key = 'key
+                        and type value = 'contents
+                        and type branch = 'branch)
 (** A pair (store implementation * branch name). *)
 
 val store: ('a, 'b, 'c) store -> 'c -> ('a, 'b) remote
@@ -76,13 +74,13 @@ module type STORE = sig
       database. This replace the current branch with the imported
       contents.  *)
 
-  val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
+  val merge: db -> ?origin:origin -> t -> unit Merge.result Lwt.t
   (** Same as [update] but merge with the current branch. *)
 
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   (** Same as [merge] but merge raise an exception in case of conflict. *)
 
-  include I0 with type t := t
+  include Misc.I0 with type t := t
   (** Base functions over database dumps. *)
 
 end
@@ -103,14 +101,14 @@ module type REMOTE = sig
 
 end
 
-module Slow (S: IrminBranch.STORE):
+module Slow (S: Branch.STORE):
   STORE with type db = S.t
          and type key = S.Block.key
          and type contents = S.value
 (** Only local (and slow) synchronisation. *)
 
 module Fast
-    (S: IrminBranch.STORE)
+    (S: Branch.STORE)
     (R: REMOTE with type t = S.t and type key = S.Block.key):
   STORE with type db = S.t
          and type key = S.Block.key

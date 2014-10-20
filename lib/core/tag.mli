@@ -23,7 +23,7 @@ module type S = sig
 
   (** Signature for mutable tags. *)
 
-  include IrminKey.S
+  include Key.S
 
   val master: t
   (** The master branch. *)
@@ -45,20 +45,20 @@ module type STORE = sig
       keys in the tag store, are this store is not supposed to be
       really efficient.  *)
 
-  include IrminStore.RW
+  include S.RW
+
+  module Value: Key.S with type t = value
+  (** Base functions over values. *)
 
   module Key: S with type t = key
   (** Base functions over keys. *)
-
-  module Value: IrminKey.S with type t = value
-  (** Base functions over values. *)
 
 end
 
 module Make
     (K: S)
-    (V: IrminKey.S)
-    (S: IrminStore.RW with type key = K.t and type value = V.t)
+    (V: Key.S)
+    (S: S.RW with type key = K.t and type value = V.t)
   : STORE with type t = S.t
            and type key = K.t
            and type value = V.t

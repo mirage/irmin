@@ -16,7 +16,7 @@
 
 (** Manage the database history. *)
 
-type origin = IrminOrigin.t
+type origin = Origin.t
 
 type ('origin, 'key) t = {
   node   : 'key option;
@@ -25,7 +25,7 @@ type ('origin, 'key) t = {
 } with bin_io, compare, sexp
 (** Type of concrete revisions. *)
 
-val edges: (origin, 'a) t -> ('a, 'b) IrminGraph.vertex list
+val edges: (origin, 'a) t -> ('a, 'b) Digraph.vertex list
 (** The graph edges. *)
 
 module type S = sig
@@ -35,14 +35,12 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include IrminContents.S with type t = (origin, key) t
+  include Contents.S with type t = (origin, key) t
   (** Base functions over commit objects. *)
 
 end
 
-module S (K: IrminKey.S): S with type key = K.t
-
-module SHA1: S with type key = IrminKey.SHA1.t
+module SHA1: S with type key = Key.SHA1.t
 (** Simple implementation where keys are SHA1s. *)
 
 module type STORE = sig
@@ -55,9 +53,9 @@ module type STORE = sig
   type value = (origin, key) t
   (** Commit values. *)
 
-  include IrminStore.AO with type key := key and type value := value
+  include S.AO with type key := key and type value := value
 
-  type node = key IrminNode.t
+  type node = key Node.t
   (** Node values. *)
 
   val commit: t -> origin -> ?node:node -> parents:value list -> (key * value) Lwt.t
@@ -69,7 +67,7 @@ module type STORE = sig
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val merge: t -> key IrminMerge.t
+  val merge: t -> key Merge.t
   (** Lift [S.merge] to the store keys. *)
 
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
@@ -83,7 +81,7 @@ module type STORE = sig
   (** Return all previous commit hashes, with an (optional) limit on
       the history depth. *)
 
-  module Key: IrminKey.S with type t = key
+  module Key: Key.S with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key
@@ -92,15 +90,17 @@ module type STORE = sig
 end
 
 module Make
-    (K     : IrminKey.S)
-    (Node  : IrminNode.STORE with type key = K.t
-                              and type value = K.t IrminNode.t)
-    (Commit: IrminStore.AO   with type key = K.t
-                              and type value = (origin, K.t) t)
+    (K     : Key.S)
+    (Node  : Node.STORE with type key = K.t
+                         and type value = K.t Node.t)
+    (Commit: S.AO   with type key = K.t
+                     and type value = (origin, K.t) t)
   : STORE with type t = Node.t * Commit.t
            and type key = K.t
 (** Create a revision store. *)
 
-module Rec (S: STORE): IrminContents.S with type t = S.key
+module Rec (S: STORE): Contents.S with type t = S.key
 (** Convert a commit store objects into storable keys, with the
     expected merge functions. *)
+
+module S (K: Key.S): S with type key = K.t

@@ -15,9 +15,8 @@
  *)
 
 open Lwt
-open IrminCore
-open Sexplib.Std
 open Bin_prot.Std
+open Sexplib.Std
 
 module Log = Log.Make(struct let section = "GRAPH" end)
 
@@ -45,7 +44,7 @@ module type S = sig
   type dump = vertex list * (vertex * vertex) list
   val export: t -> dump
   val import: dump -> t
-  module Dump: I0 with type t = dump
+  module Dump: Misc.I0 with type t = dump
 end
 
 type ('a, 'b) vertex =
@@ -56,28 +55,33 @@ type ('a, 'b) vertex =
 with bin_io, compare, sexp
 
 module V =
-  I2(struct type ('a, 'b) t = ('a, 'b) vertex with bin_io, compare, sexp end)
+  Misc.I2(struct type ('a, 'b) t = ('a, 'b) vertex with bin_io, compare, sexp end)
 
-let of_tags     x = List.map ~f:(fun k -> `Tag k) x
-let of_contents x = List.map ~f:(fun k -> `Contents k) x
-let of_nodes    x = List.map ~f:(fun k -> `Node k) x
-let of_commits  x = List.map ~f:(fun k -> `Commit k) x
+let of_tags     x = List.map (fun k -> `Tag k) x
+let of_contents x = List.map (fun k -> `Contents k) x
+let of_nodes    x = List.map (fun k -> `Node k) x
+let of_commits  x = List.map (fun k -> `Commit k) x
 
-let to_tags     = List.filter_map ~f:(function `Tag k -> Some k | _ -> None)
-let to_contents = List.filter_map ~f:(function `Contents k -> Some k | _ -> None)
-let to_nodes    = List.filter_map ~f:(function `Node k -> Some k | _ -> None)
-let to_commits  = List.filter_map ~f:(function `Commit k -> Some k | _ -> None)
-let to_keys     = List.filter_map ~f:(function `Commit k
-                                             | `Node k
-                                             | `Contents k -> Some k
-                                             | `Tag _      -> None)
+let filter_map f = List.fold_left (fun acc x -> match f x with
+    | None -> acc
+    | Some y -> y :: acc
+  )
 
-module Make (K: IrminKey.S) (R: IrminTag.S) = struct
+let to_tags     = filter_map (function `Tag k -> Some k | _ -> None)
+let to_contents = filter_map (function `Contents k -> Some k | _ -> None)
+let to_nodes    = filter_map (function `Node k -> Some k | _ -> None)
+let to_commits  = filter_map (function `Commit k -> Some k | _ -> None)
+let to_keys     = filter_map (function `Commit k
+                                     | `Node k
+                                     | `Contents k -> Some k
+                                     | `Tag _      -> None)
+
+module Make (K: Key.S) (R: Tag.S) = struct
 
   type v = (K.t, R.t) vertex
 
   module X = struct
-    include App2(V)(K)(R)
+    include Misc.App2(V)(K)(R)
     let pretty = function
       | `Contents x -> "B" ^ K.pretty x
       | `Node     x -> "N" ^ K.pretty x
@@ -88,7 +92,7 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)
   module GO = Graph.Oper.I(G)
   module Topological = Graph.Topological.Make(G)
-  module Table = IrminCore.Hashtbl.Make(X)
+  module Table = Misc.Hashtbl.Make(X)
 
   include G
   include GO
@@ -101,31 +105,32 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
   let edges g =
     G.fold_edges (fun k1 k2 list -> (k1,k2) :: list) g []
 
-  let closure ?(depth=Int.max_value) ?(min=[]) ~pred max =
+  let closure ?(depth=max_int) ?(min=[]) ~pred max =
     Log.debugf "closure depth=%d (%d elements)" depth (List.length max);
     let g = G.create ~size:1024 () in
     let marks = Table.create () in
     let mark key level = Table.add_exn marks key level in
     let has_mark key = Table.mem marks key in
-    List.iter ~f:(fun k -> mark k Int.max_value) min;
-    List.iter ~f:(G.add_vertex g) max;
+    List.iter (fun k -> mark k max_int) min;
+    List.iter (G.add_vertex g) max;
     let todo = Queue.create () in
-    List.iter ~f:(fun k -> Queue.enqueue todo (k,0)) max;
+    List.iter (fun k -> Queue.push (k,0) todo) max;
     let rec add () =
-      match Queue.dequeue todo with
-      | None              -> return_unit
-      | Some (key, level) ->
-        if Int.(level >= depth) then add ()
+      try
+        let (key, level) = Queue.pop todo in
+        if level >= depth then add ()
         else if has_mark key then add ()
         else (
           mark key level;
-          Log.debugf "ADD %a %d" force (show (module X) key) level;
+          Log.debugf "ADD %a %d" Misc.force (Misc.show (module X) key) level;
           if not (G.mem_vertex g key) then G.add_vertex g key;
           pred key >>= fun keys ->
-          List.iter ~f:(fun k -> G.add_edge g k key) keys;
-          List.iter ~f:(fun k -> Queue.enqueue todo (k, level+1)) keys;
+          List.iter (fun k -> G.add_edge g k key) keys;
+          List.iter (fun k -> Queue.push (k, level+1) todo) keys;
           add ()
-      ) in
+        )
+      with Not_found -> return_unit
+    in
     add () >>= fun () ->
     Lwt.return g
 
@@ -160,10 +165,10 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
 
 
   module Dump = struct
-    module D = I1(struct
+    module D = Misc.I1(struct
         type 'a t = 'a list * ('a * 'a) list with bin_io, compare, sexp
       end)
-    include App1(D)(X)
+    include Misc.App1(D)(X)
   end
 
   let export t =
@@ -171,25 +176,25 @@ module Make (K: IrminKey.S) (R: IrminTag.S) = struct
 
   let import (vs, es) =
     let g = G.create ~size:(List.length vs) () in
-    List.iter ~f:(G.add_vertex g) vs;
-    List.iter ~f:(fun (v1, v2) -> G.add_edge g v1 v2) es;
+    List.iter (G.add_vertex g) vs;
+    List.iter (fun (v1, v2) -> G.add_edge g v1 v2) es;
     g
 
   let output ppf vertex edges name =
     Log.debugf "output %s" name;
     let g = G.create ~size:(List.length vertex) () in
-    List.iter ~f:(fun (v,_) -> G.add_vertex g v) vertex;
-    List.iter ~f:(fun (v1,_,v2) -> G.add_edge g v1 v2) edges;
+    List.iter (fun (v,_) -> G.add_vertex g v) vertex;
+    List.iter (fun (v1,_,v2) -> G.add_edge g v1 v2) edges;
     let eattrs (v1, v2) =
       try
-        let l = List.filter ~f:(fun (x,_,y) -> x=v1 && y=v2) edges in
-        let l = List.fold_left ~f:(fun acc (_,l,_) -> l @ acc) ~init:[] l in
+        let l = List.filter (fun (x,_,y) -> x=v1 && y=v2) edges in
+        let l = List.fold_left (fun acc (_,l,_) -> l @ acc) [] l in
         let labels, others =
-          List.partition_map ~f:(function `Label l -> `Fst l | x -> `Snd x) l in
+          List.partition (function `Label l -> `Fst l | x -> `Snd x) l in
         match labels with
         | []  -> others
         | [l] -> `Label l :: others
-        | _   -> `Label (String.concat ~sep:"," labels) :: others
+        | _   -> `Label (String.concat "," labels) :: others
       with Not_found -> [] in
     let vattrs v =
       try List.Assoc.find_exn vertex v

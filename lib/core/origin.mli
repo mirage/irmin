@@ -14,7 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Tree path handling. *)
+(** Provenance tracking. *)
 
-include IrminKey.S with type t = string list
-(** Type of paths, to address nodes from the tree root. *)
+include Misc.I0
+(** Provenance values. *)
+
+val set_date: (unit -> int64) -> unit
+(** How to compute the commit dates. By default, increment a counter. *)
+
+val set_id: (unit -> string) -> unit
+(** How to compute the commit origins. By default, return a random number. *)
+
+val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
+(** Create a new provenance message. *)
+
+val date: t -> int64
+(** Get the origin date. *)
+
+val id: t -> string
+(** Get the origin ID. *)
+
+val message: t -> string
+(** Get the origin message. *)
+
+val set_string_of_date: (int64 -> string) -> unit
+(** Hook for printing dates. *)
+
+val string_of_date: int64 -> string
+(** Use the registered hook to print a date. *)
