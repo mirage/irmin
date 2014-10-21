@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
 open Sexplib.Std
 open Bin_prot.Std
 
@@ -22,7 +21,7 @@ exception Invalid of string
 exception Unknown of string
 
 module type S = sig
-  include I0
+  include Misc.I0
   val pretty: t -> string
   val of_raw: string -> t
   val to_raw: t -> string
@@ -35,7 +34,7 @@ module SHA1 = struct
   module Log = Log.Make(struct let section = "SHA1" end)
 
   let to_hex t =
-    String.Hex.encode t
+    Misc.Hex.encode t
 
   let pretty = to_hex
 
@@ -44,11 +43,11 @@ module SHA1 = struct
 
   let of_hex hex =
     if String.length hex = hex_len then
-      String.Hex.decode hex
+      Misc.Hex.decode hex
     else
       raise (Invalid hex)
 
-  module M = I0(struct
+  module M = Misc.I0(struct
       type t = string with bin_io, compare
       let sexp_of_t t =
         Sexplib.Sexp.Atom (to_hex t)
@@ -59,7 +58,7 @@ module SHA1 = struct
   include M
 
   let of_raw str =
-    if Int.(String.length str = len) then str
+    if String.length str = len then str
     else raise (Invalid str)
 
   let to_raw str =

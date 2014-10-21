@@ -50,17 +50,17 @@ module Make
 module type RO_MAKER =
   functor (K: Key.S)   ->
   functor (V: Misc.I0) ->
-    S.RO with type key = K.t and type value = V.t
+    Sig.RO with type key = K.t and type value = V.t
 
 module type AO_MAKER =
   functor (K: Key.S)   ->
   functor (V: Misc.I0) ->
-    S.AO with type key = K.t and type value = V.t
+    Sig.AO with type key = K.t and type value = V.t
 
 module type RW_MAKER =
   functor (K: Key.S) ->
   functor (V: Key.S) ->
-    S.RW with type key = K.t and type value = V.t
+    Sig.RW with type key = K.t and type value = V.t
 
 module type S_MAKER =
   functor (K: Key.S)      ->
@@ -86,13 +86,13 @@ module Rec (AO: AO_MAKER) (S: S): S with type value = S.Block.key
 
 (** {2 Binary stores} *)
 
-module RO_BINARY (S: S.RO_BINARY): RO_MAKER
-module AO_BINARY (S: S.AO_BINARY): AO_MAKER
-module RW_BINARY (S: S.RW_BINARY): RW_MAKER
+module RO_BINARY (S: Sig.RO_BINARY): RO_MAKER
+module AO_BINARY (S: Sig.AO_BINARY): AO_MAKER
+module RW_BINARY (S: Sig.RW_BINARY): RW_MAKER
 
 module Binary
-    (AO: S.AO_BINARY)
-    (RW: S.RW_BINARY)
+    (AO: Sig.AO_BINARY)
+    (RW: Sig.RW_BINARY)
     (K: Key.S) (C: Contents.S) (T: Tag.S)
   : S with type Block.key = K.t
        and type value     = C.t

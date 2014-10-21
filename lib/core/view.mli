@@ -51,7 +51,7 @@ module type S = sig
   type node
   (** Internal nodes. *)
 
-  include S.RW
+  include Sig.RW
     with type t = (node, value) t
      and type value := value
      and type key = path

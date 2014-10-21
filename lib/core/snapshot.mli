@@ -22,7 +22,7 @@ module type STORE = sig
 
   (** Snapshots are read-only checkpoints of the dabase. *)
 
-  include S.RO with type key = Path.t
+  include Sig.RO with type key = Path.t
 
   type db
   (** Database handler. *)

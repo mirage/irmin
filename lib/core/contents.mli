@@ -42,12 +42,11 @@ module JSON: S with type t = Ezjsonm.t
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-
 module type STORE = sig
 
   (** Store user-defined contents. *)
 
-  include S.AO
+  include Sig.AO
   (** Contents stores are append-only. *)
 
   val merge: t -> key Merge.t
@@ -64,7 +63,7 @@ end
 module Make
     (K: Key.S)
     (C: S)
-    (Contents: S.AO with type key = K.t and type value = C.t)
+    (Contents: Sig.AO with type key = K.t and type value = C.t)
   : STORE with type t = Contents.t
            and type key = K.t
            and type value = C.t

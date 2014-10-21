@@ -62,19 +62,25 @@ let of_contents x = List.map (fun k -> `Contents k) x
 let of_nodes    x = List.map (fun k -> `Node k) x
 let of_commits  x = List.map (fun k -> `Commit k) x
 
-let filter_map f = List.fold_left (fun acc x -> match f x with
-    | None -> acc
-    | Some y -> y :: acc
-  )
+let to_tags l =
+  Misc.list_filter_map (function `Tag k -> Some k | _ -> None) l
 
-let to_tags     = filter_map (function `Tag k -> Some k | _ -> None)
-let to_contents = filter_map (function `Contents k -> Some k | _ -> None)
-let to_nodes    = filter_map (function `Node k -> Some k | _ -> None)
-let to_commits  = filter_map (function `Commit k -> Some k | _ -> None)
-let to_keys     = filter_map (function `Commit k
-                                     | `Node k
-                                     | `Contents k -> Some k
-                                     | `Tag _      -> None)
+let to_contents l =
+  Misc.list_filter_map (function `Contents k -> Some k | _ -> None) l
+
+let to_nodes l =
+  Misc.list_filter_map (function `Node k -> Some k | _ -> None) l
+
+let to_commits l =
+  Misc.list_filter_map (function `Commit k -> Some k | _ -> None) l
+
+let to_keys l =
+  Misc.list_filter_map (function
+    | `Commit k
+    | `Node k
+    | `Contents k -> Some k
+    | `Tag _      -> None
+    ) l
 
 module Make (K: Key.S) (R: Tag.S) = struct
 
@@ -92,7 +98,7 @@ module Make (K: Key.S) (R: Tag.S) = struct
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)
   module GO = Graph.Oper.I(G)
   module Topological = Graph.Topological.Make(G)
-  module Table = Misc.Hashtbl.Make(X)
+  module Table = Hashtbl.Make(X)
 
   include G
   include GO
@@ -108,8 +114,8 @@ module Make (K: Key.S) (R: Tag.S) = struct
   let closure ?(depth=max_int) ?(min=[]) ~pred max =
     Log.debugf "closure depth=%d (%d elements)" depth (List.length max);
     let g = G.create ~size:1024 () in
-    let marks = Table.create () in
-    let mark key level = Table.add_exn marks key level in
+    let marks = Table.create 1024 in
+    let mark key level = Table.add marks key level in
     let has_mark key = Table.mem marks key in
     List.iter (fun k -> mark k max_int) min;
     List.iter (G.add_vertex g) max;
@@ -190,14 +196,14 @@ module Make (K: Key.S) (R: Tag.S) = struct
         let l = List.filter (fun (x,_,y) -> x=v1 && y=v2) edges in
         let l = List.fold_left (fun acc (_,l,_) -> l @ acc) [] l in
         let labels, others =
-          List.partition (function `Label l -> `Fst l | x -> `Snd x) l in
+          Misc.list_partition_map (function `Label l -> `Fst l | x -> `Snd x) l in
         match labels with
         | []  -> others
         | [l] -> `Label l :: others
         | _   -> `Label (String.concat "," labels) :: others
       with Not_found -> [] in
     let vattrs v =
-      try List.Assoc.find_exn vertex v
+      try List.assoc v vertex
       with Not_found -> [] in
     vertex_attributes := vattrs;
     edge_attributes := eattrs;

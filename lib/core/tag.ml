@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open IrminCore
 
 module Log = Log.Make(struct let section = "TAG" end)
 

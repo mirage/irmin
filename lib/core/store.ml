@@ -46,7 +46,7 @@ struct
   include S
 end
 
-module RO_BINARY  (S: S.RO_BINARY) (K: Key.S) (V: I0) = struct
+module RO_BINARY  (S: Sig.RO_BINARY) (K: Key.S) (V: Misc.I0) = struct
 
   module L = Log.Make(struct let section = "RO" end)
 
@@ -62,7 +62,7 @@ module RO_BINARY  (S: S.RO_BINARY) (K: Key.S) (V: I0) = struct
   let read t key =
     S.read t (K.to_raw key) >>= function
     | None    -> return_none
-    | Some ba -> return (read_all (module V) ba)
+    | Some ba -> return (Some (Misc.read_cstruct (module V) ba))
 
   let read_exn t key =
     read t key >>= function
@@ -73,22 +73,21 @@ module RO_BINARY  (S: S.RO_BINARY) (K: Key.S) (V: I0) = struct
     S.mem t (K.to_raw key)
 
   let list t keys =
-    let keys = List.map ~f:K.to_raw keys in
+    let keys = List.map K.to_raw keys in
     S.list t keys >>= fun ks ->
-    let ks = List.map ~f:K.of_raw ks in
+    let ks = List.map K.of_raw ks in
     return ks
 
   let dump t =
     S.dump t >>= fun l ->
     Lwt_list.fold_left_s (fun acc (s, ba) ->
-        match read_all (module V) ba with
-        | None   -> return acc
-        | Some v -> return ((K.of_raw s, v) :: acc)
+        let v = Misc.read_cstruct (module V) ba in
+        return ((K.of_raw s, v) :: acc)
       ) [] l
 
 end
 
-module AO_BINARY (S: S.AO_BINARY)  (K: Key.S) (V: I0) = struct
+module AO_BINARY (S: Sig.AO_BINARY)  (K: Key.S) (V: Misc.I0) = struct
 
   include RO_BINARY(S)(K)(V)
 
@@ -96,38 +95,34 @@ module AO_BINARY (S: S.AO_BINARY)  (K: Key.S) (V: I0) = struct
 
   let add t value =
     LA.debugf "add";
-    S.add t (write_all (module V) value) >>= fun key ->
+    S.add t (Misc.write_cstruct (module V) value) >>= fun key ->
     let key = K.of_raw key in
-    LA.debugf "<-- added: %a" force (show (module K) key);
+    LA.debugf "<-- added: %a" Misc.force (Misc.show (module K) key);
     return key
 
 end
 
-module RW_BINARY (S: S.RW_BINARY) (K: Key.S) (V: I0) = struct
+module RW_BINARY (S: Sig.RW_BINARY) (K: Key.S) (V: Misc.I0) = struct
 
   include RO_BINARY(S)(K)(V)
 
   module LM = Log.Make(struct let section = "RW" end)
 
   let update t key value =
-    LM.debugf "update %a" force (show (module K) key);
-    S.update t (K.to_raw key) (write_all (module V) value)
+    LM.debugf "update %a" Misc.force (Misc.show (module K) key);
+    S.update t (K.to_raw key) (Misc.write_cstruct (module V) value)
 
   let remove t key =
     S.remove t (K.to_raw key)
 
   let watch t key =
-    Lwt_stream.map (fun v ->
-        match read_all (module V) v with
-        | None   -> failwith "watch"
-        | Some v -> v
-      ) (S.watch t (K.to_raw key))
+    Lwt_stream.map (Misc.read_cstruct (module V)) (S.watch t (K.to_raw key))
 
 end
 
 module Binary
-    (AO: S.AO_BINARY)
-    (RW: S.RW_BINARY)
+    (AO: Sig.AO_BINARY)
+    (RW: Sig.RW_BINARY)
     (K : Key.S)
     (C : Contents.S)
     (T : Tag.S) =
@@ -143,17 +138,17 @@ end
 module type RO_MAKER =
   functor (K: Key.S)   ->
   functor (V: Misc.I0) ->
-    S.RO with type key = K.t and type value = V.t
+    Sig.RO with type key = K.t and type value = V.t
 
 module type AO_MAKER =
   functor (K: Key.S)   ->
   functor (V: Misc.I0) ->
-    S.AO with type key = K.t and type value = V.t
+    Sig.AO with type key = K.t and type value = V.t
 
 module type RW_MAKER =
   functor (K: Key.S) ->
   functor (V: Key.S) ->
-    S.RW with type key = K.t and type value = V.t
+    Sig.RW with type key = K.t and type value = V.t
 
 module type S_MAKER =
   functor (K: Key.S)      ->

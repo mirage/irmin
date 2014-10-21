@@ -70,7 +70,7 @@ module type STORE = sig
   type commit = (origin, key) Commit.t
   (** Commit values. *)
 
-  include S.AO with type key := key and type value := value
+  include Sig.AO with type key := key and type value := value
 
   val list: t -> ?depth:int -> key list -> key list Lwt.t
   (** Return the related blocks, with an history depth limit. *)
@@ -106,25 +106,25 @@ end
 module Make
   (K: Key.S)
   (C: Contents.S)
-  (S: S.AO with type key = K.t and type value = (origin, K.t, C.t) t)
+  (S: Sig.AO with type key = K.t and type value = (origin, K.t, C.t) t)
   : STORE with type key = K.t
-           and type contents   = C.t
+           and type contents = C.t
            and type Contents.t = S.t
-           and type Node.t     = S.t * S.t
-           and type Commit.t   = (S.t * S.t) * S.t
+           and type Node.t = S.t * S.t
+           and type Commit.t = (S.t * S.t) * S.t
 (** Create a store for structured values. *)
 
 module Mux
   (K: Key.S)
   (C: Contents.S)
-  (Contents: S.AO with type key = K.t and type value = C.t)
-  (Node    : S.AO with type key = K.t and type value = K.t Node.t)
-  (Commit  : S.AO with type key = K.t and type value = (origin, K.t) Commit.t)
+  (Contents: Sig.AO with type key = K.t and type value = C.t)
+  (Node: Sig.AO with type key = K.t and type value = K.t Node.t)
+  (Commit: Sig.AO with type key = K.t and type value = (origin, K.t) Commit.t)
   : STORE with type key = K.t
-           and type contents   = C.t
+           and type contents = C.t
            and type Contents.t = Contents.t
-           and type Node.t     = Contents.t * Node.t
-           and type Commit.t   = (Contents.t * Node.t) * Commit.t
+           and type Node.t = Contents.t * Node.t
+           and type Commit.t = (Contents.t * Node.t) * Commit.t
 (** Combine multiple stores to create a global store for structured
     values. XXX: discuss about the cost model, ie. the difference
     between Mux and Make. *)

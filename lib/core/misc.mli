@@ -213,7 +213,12 @@ module type SET = sig
 end
 module Set (K: I0): SET with type elt = K.t
 
-val list_partition_map : 'a list -> f:('a -> [ `Fst of 'b | `Snd of 'c ]) -> 'b list * 'c list
+val list_partition_map: ('a -> [ `Fst of 'b | `Snd of 'c ]) ->
+  'a list -> 'b list * 'c list
+
+val list_pretty: ('a -> string) -> 'a list -> string
+
+val list_filter_map: ('a -> 'b option) -> 'a list -> 'b list
 
 module Hex: sig
 
@@ -233,3 +238,8 @@ module Lwt_stream: sig
   (** Lift a stream out of the monad. *)
 
 end
+
+module S: I0 with type t = string
+module StringMap: MAP with type key = string
+
+module U: I0 with type t = unit

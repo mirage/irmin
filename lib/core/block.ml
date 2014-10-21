@@ -27,7 +27,7 @@ module T3 = struct
   with bin_io, compare, sexp
 end
 include T3
-module T = I3(T3)
+module T = Misc.I3(T3)
 
 type origin = Origin.t
 
@@ -40,7 +40,7 @@ end
 module S (K: Key.S) (C: Contents.S) = struct
   type key = K.t
   type contents = C.t
-  module S = App3(T)(Origin)(K)(C)
+  module S = Misc.App3(T)(Origin)(K)(C)
   include S
   module Key = K
   module Contents = C
@@ -54,7 +54,7 @@ module String = S(Key.SHA1)(Contents.String)
 module JSON = S(Key.SHA1)(Contents.JSON)
 
 module Unit = struct
-  include Unit
+  include Misc.U
   let master = ()
   let compute_from_string _ = ()
   let compute_from_cstruct _ = ()
@@ -68,7 +68,7 @@ module type STORE = sig
   type contents
   type node = key Node.t
   type commit = (origin, key) Commit.t
-  include S.AO with type key := key and type value = (origin, key, contents) t
+  include Sig.AO with type key := key and type value = (origin, key, contents) t
   val list: t -> ?depth:int -> key list -> key list Lwt.t
   module Contents: Contents.STORE with type key = key and type value = contents
   module Node: Node.STORE with type key = key and type contents = contents
@@ -79,31 +79,31 @@ module type STORE = sig
   val merge: t -> key Merge.t
   module Key: Key.S with type t = key
   module Value: S with type key = key and type contents = contents
-  module Graph: Graph.S with type V.t = (key, unit) Graph.vertex
+  module Graph: Digraph.S with type V.t = (key, unit) Digraph.vertex
 end
 
 module Mux
   (K: Key.S)
-  (C: Contents.S)
-  (XContents: S.AO with type key = K.t and type value = C.t)
-  (XNode    : S.AO with type key = K.t and type value = K.t Node.t)
-  (XCommit  : S.AO with type key = K.t and type value = (origin, K.t) Commit.t)
+  (XC: Contents.S)
+  (XContents: Sig.AO with type key = K.t and type value = XC.t)
+  (XNode: Sig.AO with type key = K.t and type value = K.t Node.t)
+  (XCommit: Sig.AO with type key = K.t and type value = (origin, K.t) Commit.t)
 = struct
 
-  type contents = C.t
+  type contents = XC.t
   type key = K.t
-  type value = (origin, K.t, C.t) t
+  type value = (origin, K.t, XC.t) t
   module Key = K
-  module Contents = Contents.Make(K)(C)(XContents)
-  module Node = Node.Make(K)(C)(Contents)(XNode)
-  module Commit = Commit.Make(K)(Node)(XCommit)
-  module Value = S(K)(C)
-  type commit = Commit.value
-  type node = Node.value
+  module C = Contents.Make(K)(XC)(XContents)
+  module N = Node.Make(K)(XC)(C)(XNode)
+  module R = Commit.Make(K)(N)(XCommit)
+  module V = S(K)(XC)
+  type commit = R.value
+  type node = N.value
   type t = {
-    contents : Contents.t;
-    node     : Node.t;
-    commit   : Commit.t;
+    contents : C.t;
+    node     : N.t;
+    commit   : R.t;
   }
 
   let contents_t t = t.contents
@@ -111,24 +111,24 @@ module Mux
   let commit_t t = t.commit
 
   let create () =
-    Commit.create () >>= fun  ((contents, _ as node), _ as commit) ->
+    R.create () >>= fun  ((contents, _ as node), _ as commit) ->
     return { contents; node; commit }
 
   (* XXX: ugly and slow *)
   let read t key =
-    Log.debugf "read %a" force (show (module K) key);
-    Contents.read t.contents key >>= function
+    Log.debugf "read %a" Misc.force (Misc.show (module K) key);
+    C.read t.contents key >>= function
     | Some b -> return (Some (Contents b))
     | None   ->
-      Node.read t.node key >>= function
+      N.read t.node key >>= function
       | Some t -> return (Some (Node t))
       | None   ->
-        Commit.read t.commit key >>= function
+        R.read t.commit key >>= function
         | Some c -> return (Some (Commit c))
         | None   -> return_none
 
   let read_exn t key =
-    Log.debugf "read_exn %a" force (show (module K) key);
+    Log.debugf "read_exn %a" Misc.force (Misc.show (module K) key);
     read t key >>= function
     | Some v -> return v
     | None   -> fail Not_found
@@ -139,21 +139,21 @@ module Mux
     | Some _ -> return true
 
   let add t = function
-    | Contents b -> Contents.add t.contents b
-    | Node tr    -> Node.add t.node tr
-    | Commit c   -> Commit.add t.commit c
+    | Contents b -> C.add t.contents b
+    | Node tr    -> N.add t.node tr
+    | Commit c   -> R.add t.commit c
 
   module Graph = Digraph.Make(K)(Unit)
 
   let dump t =
     Log.debugf "dump";
-    Contents.dump t.contents >>= fun contents ->
-    Node.dump t.node         >>= fun nodes ->
-    Commit.dump t.commit     >>= fun commits ->
+    C.dump t.contents >>= fun contents ->
+    N.dump t.node     >>= fun nodes ->
+    R.dump t.commit   >>= fun commits ->
     let all =
-      List.map contents ~f:(fun (k, b) -> k, Contents b)
-      @ List.map nodes ~f:(fun (k, t) -> k, Node t)
-      @ List.map commits ~f:(fun (k, c) -> k, Commit c) in
+      List.map (fun (k, b) -> k, Contents b) contents
+      @ List.map (fun (k, t) -> k, Node t) nodes
+      @ List.map (fun (k, c) -> k, Commit c) commits in
     return all
 
   (* XXX: code repetition ... *)
@@ -161,17 +161,17 @@ module Mux
   let merge t =
     Merge.seq [
       Merge.default (module Key);
-      Contents.merge     (contents_t t);
-      Node.merge         (node_t t);
-      Commit.merge       (commit_t t);
+      C.merge (contents_t t);
+      N.merge (node_t t);
+      R.merge (commit_t t);
     ]
 
   let list t ?depth keys =
-    Log.debugf "list %a" force (shows (module K) keys);
+    Log.debugf "list %a" Misc.force (Misc.shows (module K) keys);
     (* start by loading the bounded history. *)
     let pred = function
       | `Commit k ->
-        begin Commit.read t.commit k >>= function
+        begin R.read t.commit k >>= function
           | None   -> return_nil
           | Some c -> return (Commit.edges c)
         end
@@ -183,15 +183,20 @@ module Mux
     let pred = function
       | `Commit k -> failwith "Irmin.Block.list: commit"
       | `Node k   ->
-        begin Node.read t.node k >>= function
+        begin N.read t.node k >>= function
           | None   -> return_nil
           | Some n -> return (Node.edges n)
         end
       | _ -> return_nil  in
-    let max = Graph.of_commits keys in
+    let max = Digraph.of_commits keys in
     Graph.closure ~pred max >>= fun g ->
     let keys = Digraph.to_keys (Graph.vertex g) in
     return keys
+
+  module Node = N
+  module Commit = R
+  module Contents = C
+  module Value = V
 
 end
 
@@ -202,7 +207,7 @@ module type CASTABLE = sig
   val inj: cast -> t
 end
 
-module Cast (S: S.AO) (C: CASTABLE with type t = S.value) = struct
+module Cast (S: Sig.AO) (C: CASTABLE with type t = S.value) = struct
 
   open Lwt
 
@@ -234,11 +239,11 @@ module Cast (S: S.AO) (C: CASTABLE with type t = S.value) = struct
 
   let dump t =
     S.dump t >>= fun cs ->
-    let cs = List.filter_map cs ~f:(fun (k,v) ->
+    let cs = Misc.list_filter_map (fun (k,v) ->
         match C.proj v with
         | Some x -> Some (k, x)
         | None   -> None
-      ) in
+      ) cs in
     return cs
 
   let add t x =
@@ -248,13 +253,13 @@ end
 
 module Make
   (K: Key.S)
-  (C: Contents.S)
-  (Store: S.AO with type key = K.t and type value = (origin, K.t, C.t) t)
+  (XC: Contents.S)
+  (Store: Sig.AO with type key = K.t and type value = (origin, K.t, XC.t) t)
 = struct
 
   module BS = Cast(Store)(struct
       type t = Store.value
-      type cast = C.t
+      type cast = XC.t
       let proj = function
         | Contents b -> Some b
         | _          -> None
@@ -279,17 +284,17 @@ module Make
       let inj c = Commit c
     end)
 
-  module Contents = Contents.Make(K)(C)(BS)
-  module Node = Node.Make(K)(C)(Contents)(TS)
-  module Commit = Commit.Make(K)(Node)(CS)
+  module C = Contents.Make(K)(XC)(BS)
+  module N = Node.Make(K)(XC)(C)(TS)
+  module R = Commit.Make(K)(N)(CS)
 
-  type commit = Commit.value
-  type node = Node.value
+  type commit = R.value
+  type node = N.value
 
   include Store
-  type contents = Contents.value
+  type contents = C.value
   module Key = K
-  module Value = S(K)(C)
+  module Value = S(K)(XC)
 
   module Graph = Digraph.Make(K)(Unit)
 
@@ -302,17 +307,17 @@ module Make
   let merge t =
     Merge.seq [
       Merge.default (module Key);
-      Contents.merge (contents_t t);
-      Node.merge (node_t t);
-      Commit.merge (commit_t t);
+      C.merge (contents_t t);
+      N.merge (node_t t);
+      R.merge (commit_t t);
     ]
 
   let list t ?depth keys =
-    Log.debugf "list %a" force (shows (module K) keys);
+    Log.debugf "list %a" Misc.force (Misc.shows (module K) keys);
     (* start by loading the bounded history. *)
     let pred = function
       | `Commit k ->
-        begin Commit.read (commit_t t) k >>= function
+        begin R.read (commit_t t) k >>= function
           | None   -> return_nil
           | Some c -> return (Commit.edges c)
         end
@@ -324,7 +329,7 @@ module Make
     let pred = function
       | `Commit k -> failwith "Irmin.Block.list: commit"
       | `Node k   ->
-        begin Node.read (node_t t) k >>= function
+        begin N.read (node_t t) k >>= function
           | None   -> return_nil
           | Some n -> return (Node.edges n)
         end
@@ -333,6 +338,10 @@ module Make
     Graph.closure ~pred max >>= fun g ->
     let keys = Digraph.to_keys (Graph.vertex g) in
     return keys
+
+  module Node = N
+  module Commit = R
+  module Contents = C
 
 end
 

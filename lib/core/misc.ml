@@ -700,7 +700,7 @@ struct
 
 end
 
-let list_partition_map t ~f =
+let list_partition_map f t =
   let rec aux fst snd = function
     | []   -> List.rev fst, List.rev snd
     | h::t ->
@@ -724,7 +724,12 @@ let list_pretty f = function
     Buffer.add_string buf " }";
     Buffer.contents buf
 
-(** Persistent Maps. *)
+let list_filter_map f l =
+  List.fold_left (fun acc x -> match f x with
+      | None -> acc
+      | Some y -> y :: acc
+    ) [] l
+
 module type MAP = sig
   include Map.S
   include I1 with type 'a t := 'a t
@@ -785,6 +790,11 @@ module Set (K: I0) = struct
       let of_list = of_list
     end)
 end
+
+module S = I0(struct type t = string with compare, sexp, bin_io end)
+module StringMap = Map(S)
+
+module U = I0(struct type t = unit with compare, sexp, bin_io end)
 
 module Lwt_stream = struct
 

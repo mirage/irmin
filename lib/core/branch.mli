@@ -21,7 +21,7 @@ module type STORE = sig
   (** A branch-consistent store is a mutable store which supports
       fork/join operations. *)
 
-  include S.BC with type key = Path.t and type origin = Origin.t
+  include Sig.BC with type key = Path.t and type origin = Origin.t
 
   module Key: Key.S with type t = key
   (** Base functions over keys. *)

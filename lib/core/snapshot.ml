@@ -14,36 +14,34 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
 open Lwt
-open IrminMerge.OP
+open Merge.OP
 
-type origin = IrminOrigin.t
+type origin = Origin.t
 
 module Log = Log.Make(struct let section = "SNAPSHOT" end)
 
-module StringMap = Map.Make(String)
-module PathSet = Set.Make(IrminPath)
+module PathSet = Misc.Set(Path)
 
 module type STORE = sig
-  include IrminStore.RO with type key = IrminPath.t
+  include Sig.RO with type key = Path.t
   type db
   val create: db -> t Lwt.t
   val revert: db -> t -> unit Lwt.t
-  val merge: db -> ?origin:IrminOrigin.t -> t -> unit IrminMerge.result Lwt.t
-  val merge_exn: db -> ?origin:IrminOrigin.t -> t -> unit Lwt.t
+  val merge: db -> ?origin:Origin.t -> t -> unit Merge.result Lwt.t
+  val merge_exn: db -> ?origin:Origin.t -> t -> unit Lwt.t
   val watch: db -> key -> (key * t) Lwt_stream.t
   type state
   val of_state: db -> state -> t
   val to_state: t -> state
-  include I0 with type t := state
+  include Misc.I0 with type t := state
 end
 
-module Make (S: IrminBranch.STORE) = struct
+module Make (S: Branch.STORE) = struct
 
-  module Tag = S.Tag
-  module Node = S.Block.Node
-  module Commit = S.Block.Commit
+  module T = S.Tag
+  module N = S.Block.Node
+  module C = S.Block.Commit
 
   module K = S.Block.Key
 
@@ -59,11 +57,11 @@ module Make (S: IrminBranch.STORE) = struct
     | Some k -> return (t, k)
 
   let root_node (t, c) =
-    Commit.read (S.commit_t t) c >>= function
-    | None   -> return IrminNode.empty
+    C.read (S.commit_t t) c >>= function
+    | None   -> return Node.empty
     | Some c ->
-      match Commit.node (S.commit_t t) c with
-      | None   -> return IrminNode.empty
+      match C.node (S.commit_t t) c with
+      | None   -> return Node.empty
       | Some n -> n
 
   let map (t, c) path ~f =
@@ -71,7 +69,7 @@ module Make (S: IrminBranch.STORE) = struct
     f (S.node_t t) node path
 
   let read (t:t) path =
-    map t path ~f:Node.find
+    map t path ~f:N.find
 
   let read_exn t path =
     read t path >>= function
@@ -79,19 +77,19 @@ module Make (S: IrminBranch.STORE) = struct
     | Some x -> return x
 
   let mem t path =
-    map t path ~f:Node.valid
+    map t path ~f:N.valid
 
-  (* XXX: code duplication with IrminBranch.list *)
+  (* XXX: code duplication with Branch.list *)
   let list (t, c) paths =
     Log.debugf "list";
     let one path =
       root_node (t, c) >>= fun n ->
-      Node.sub (S.node_t t) n path >>= function
+      N.sub (S.node_t t) n path >>= function
       | None      -> return_nil
       | Some node ->
-        let c = Node.succ (S.node_t t) node in
-        let c = StringMap.keys c in
-        let paths = List.map ~f:(fun c -> path @ [c]) c in
+        let c = N.succ (S.node_t t) node in
+        let c = Misc.StringMap.keys c in
+        let paths = List.map (fun c -> path @ [c]) c in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
         one p >>= fun paths ->
@@ -105,21 +103,21 @@ module Make (S: IrminBranch.STORE) = struct
     failwith "TODO"
 
   let revert t (_, c) =
-    Log.debugf "revert %a" force (show (module K) c);
+    Log.debugf "revert %a" Misc.force (Misc.show (module K) c);
     match S.branch t with
     | None     -> S.set_head t c; return_unit
-    | Some tag -> Tag.update (S.tag_t t) tag c
+    | Some tag -> T.update (S.tag_t t) tag c
 
   let merge t ?origin (_, c) =
-    Log.debugf "merge %a" force (show (module K) c);
+    Log.debugf "merge %a" Misc.force (Misc.show (module K) c);
     let origin = match origin with
-      | None   -> IrminOrigin.create "Merge snapshot %s" (K.pretty c)
+      | None   -> Origin.create "Merge snapshot %s" (K.pretty c)
       | Some o -> o in
     S.merge_commit t ~origin c
 
   let merge_exn t ?origin c =
     merge t ?origin c >>=
-    IrminMerge.exn
+    Merge.exn
 
   let watch db path =
     let stream = S.watch_node db path in
@@ -131,6 +129,6 @@ module Make (S: IrminBranch.STORE) = struct
 
   let to_state (_, s) = s
 
-  include (S.Block.Key: I0 with type t := state)
+  include (S.Block.Key: Misc.I0 with type t := state)
 
 end

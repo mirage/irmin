@@ -75,7 +75,7 @@ module type STORE = sig
   type value = key t
   (** Node values. *)
 
-  include S.AO with type key := key and type value := value
+  include Sig.AO with type key := key and type value := value
 
   type contents
   (** Node contents. *)
@@ -90,7 +90,7 @@ module type STORE = sig
   val contents: t -> value -> contents Lwt.t option
   (** Return the node contents. *)
 
-  val succ: t -> value -> value Lwt.t Map.Make(String).t
+  val succ: t -> value -> value Lwt.t Misc.StringMap.t
   (** Return the node successors. *)
 
   val sub: t -> value -> path -> value option Lwt.t
@@ -136,7 +136,7 @@ module Make
     (K: Key.S)
     (C: Contents.S)
     (Contents: Contents.STORE with type key = K.t and type value = C.t)
-    (Node    : S.AO with type key = K.t and type value = K.t t)
+    (Node: Sig.AO with type key = K.t and type value = K.t t)
   : STORE with type t = Contents.t * Node.t
            and type key = K.t
            and type contents = C.t

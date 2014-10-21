@@ -45,7 +45,7 @@ module type STORE = sig
       keys in the tag store, are this store is not supposed to be
       really efficient.  *)
 
-  include S.RW
+  include Sig.RW
 
   module Value: Key.S with type t = value
   (** Base functions over values. *)
@@ -58,7 +58,7 @@ end
 module Make
     (K: S)
     (V: Key.S)
-    (S: S.RW with type key = K.t and type value = V.t)
+    (S: Sig.RW with type key = K.t and type value = V.t)
   : STORE with type t = S.t
            and type key = K.t
            and type value = V.t
