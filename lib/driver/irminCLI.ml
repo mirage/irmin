@@ -21,7 +21,7 @@ open Irmin_unix
 
 let () =
   let origin =
-    sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
+    sprintf "Irmin (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
   IrminOrigin.set_date (fun () -> Int64.of_float (Unix.time ()));
   IrminOrigin.set_id (fun () -> origin);
   IrminOrigin.set_string_of_date (fun d ->
@@ -125,12 +125,12 @@ let init = {
   man  = [];
   term =
     let daemon =
-      let doc = Arg.info ~doc:"Start an Irminsule server." ["d";"daemon"] in
+      let doc = Arg.info ~doc:"Start an Irmin server." ["d";"daemon"] in
       Arg.(value & flag & doc) in
     let uri =
       let doc =
         Arg.info ~docv:"URI" ["a";"address"]
-          ~doc:"Start the Irminsule server on the given socket address \
+          ~doc:"Start the Irmin server on the given socket address \
                 (to use with --daemon)." in
       Arg.(value & opt string "http://localhost:8080" & doc) in
     let init (module S: Irmin.S) daemon uri =
@@ -413,7 +413,7 @@ let dump = {
 (* HELP *)
 let help = {
   name = "help";
-  doc  = "Display help about Irminsule and Irminsule commands.";
+  doc  = "Display help about Irmin and Irmin commands.";
   man = [
     `P "Use `$(mname) help topics' to get the full list of help topics.";
   ];
@@ -435,10 +435,10 @@ let help = {
 }
 
 let default =
-  let doc = "Irminsule, the database that never forgets." in
+  let doc = "Irmin, the database that never forgets." in
   let man = [
     `S "DESCRIPTION";
-    `P "Irminsule is a distributed database with built-in snapshot, branch \
+    `P "Irmin is a distributed database with built-in snapshot, branch \
         and revert mechanisms. It is designed to use a large variety of backends, \
         although it is optimized for append-only ones.";
     `P "Use either $(b,$(mname) <command> --help) or $(b,$(mname) help <command>) \

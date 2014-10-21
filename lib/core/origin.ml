@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
 open Printf
 open Sexplib.Std
 open Bin_prot.Std
@@ -27,11 +26,11 @@ module M = struct
   } with bin_io, compare, sexp
 end
 
-include I0(M)
+include Misc.I0(M)
 
 let date_hook =
   let c = ref 0L in
-  ref (fun () -> c := Int64.(!c + 1L); !c)
+  ref (fun () -> c := Int64.add !c 1L; !c)
 
 let set_date f =
   date_hook := f

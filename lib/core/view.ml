@@ -15,18 +15,16 @@
  *)
 
 open Lwt
-open IrminCore
-open IrminMerge.OP
+open Merge.OP
 open Printf
 open Sexplib.Std
 open Bin_prot.Std
 
-type origin = IrminOrigin.t
-type path = IrminPath.t
+type origin = Origin.t
+type path = Path.t
 
 module Log = Log.Make(struct let section = "view" end)
-module StringMap = Map.Make(String)
-module PathSet = Set.Make(IrminPath)
+module PathSet = Misc.Set(Path)
 
 type ('path, 'a) action =
   | Read of 'path * 'a option
@@ -36,7 +34,7 @@ with bin_io, compare, sexp
 
 module Action = struct
 
-  include I2(struct
+  include Misc.I2(struct
     type ('a, 'b) t = ('a, 'b) action with bin_io, compare, sexp
     end)
 
@@ -44,7 +42,7 @@ module Action = struct
     | None   -> "<none>"
     | Some x -> f x
 
-  let l f = List.pretty f
+  let l f = Misc.list_pretty f
 
   let pretty pretty_path pretty_a = function
     | Read (p,x) -> sprintf "read %s -> %s" (pretty_path p) (o pretty_a x)
@@ -53,7 +51,7 @@ module Action = struct
 
 end
 
-module Contents = struct
+module XContents = struct
 
   type ('k, 'c) contents_or_key =
     | Key of 'k
@@ -61,7 +59,7 @@ module Contents = struct
     | Both of 'k * 'c
 
   type ('k, 'c) t = ('k, 'c) contents_or_key ref
-  (* Same as [IrminContents.t] but can either be a raw contents or a
+  (* Same as [Contents.t] but can either be a raw contents or a
      key that will be fetched lazily. *)
 
   let create c =
@@ -89,11 +87,11 @@ module Contents = struct
 
 end
 
-module Node = struct
+module XNode = struct
 
   type ('k, 'c) node = {
-    contents: ('k, 'c) Contents.t option;
-    succ    : ('k, 'c) t StringMap.t;
+    contents: ('k, 'c) XContents.t option;
+    succ    : ('k, 'c) t Misc.StringMap.t;
   }
 
   and ('k, 'c) node_or_key  =
@@ -102,7 +100,7 @@ module Node = struct
     | Both of 'k * ('k, 'c) node
 
   and ('k, 'c) t = ('k, 'c) node_or_key ref
-  (* Similir to [IrminNode.t] but using where all of the values can
+  (* Similir to [Node.t] but using where all of the values can
      just be keys. *)
 
   let create' contents succ =
@@ -115,19 +113,19 @@ module Node = struct
     ref (Key k)
 
   let empty () =
-    create None StringMap.empty
+    create None Misc.StringMap.empty
 
   let is_empty n =
     match !n with
     | Key _  -> false
     | Both (_, n)
-    | Node n -> n.contents = None && StringMap.is_empty n.succ
+    | Node n -> n.contents = None && Misc.StringMap.is_empty n.succ
 
   let import n =
-    let contents = match n.IrminNode.contents with
+    let contents = match n.Node.contents with
       | None   -> None
-      | Some k -> Some (Contents.key k) in
-    let succ = StringMap.map ~f:key n.IrminNode.succ in
+      | Some k -> Some (XContents.key k) in
+    let succ = Misc.StringMap.map key n.Node.succ in
     { contents; succ }
 
   let export n =
@@ -139,9 +137,9 @@ module Node = struct
   let export_node n =
     let contents = match n.contents with
       | None   -> None
-      | Some c -> Some (Contents.export c) in
-    let succ = StringMap.map ~f:export n.succ in
-    { IrminNode.contents; succ }
+      | Some c -> Some (XContents.export c) in
+    let succ = Misc.StringMap.map export n.succ in
+    { Node.contents; succ }
 
   let read ~node t =
     match !t with
@@ -160,7 +158,7 @@ module Node = struct
     | Some c ->
       match c.contents with
       | None   -> return_none
-      | Some c -> Contents.read contents c
+      | Some c -> XContents.read contents c
 
   let update_contents ~node t v =
     read node t >>= function
@@ -168,14 +166,14 @@ module Node = struct
     | Some n ->
       let new_n = match v with
         | None   -> { n with contents = None }
-        | Some c -> { n with contents = Some (Contents.create c) } in
+        | Some c -> { n with contents = Some (XContents.create c) } in
       t := Node new_n;
       return_unit
 
   let update_succ ~node t succ =
     read node t >>= function
     | None   ->
-      if StringMap.is_empty succ then return_unit else
+      if Misc.StringMap.is_empty succ then return_unit else
         fail Not_found (* XXX ? *)
     | Some n ->
       let new_n = { n with succ } in
@@ -185,27 +183,27 @@ module Node = struct
 end
 
 type ('k, 'c) t = {
-  node    : 'k -> ('k, 'c) Node.node option Lwt.t;
+  node    : 'k -> ('k, 'c) XNode.node option Lwt.t;
   contents: 'k -> 'c option Lwt.t;
-  view    : ('k, 'c) Node.t;
+  view    : ('k, 'c) XNode.t;
   mutable ops: (path, 'c) Action.t list;
   mutable parents: 'k list;
 }
 
-module Make (K: IrminKey.S) (C: IrminContents.S) = struct
+module Make (K: Key.S) (C: Contents.S) = struct
 
   type node = K.t
   type nonrec t = (K.t, C.t) t
   type key = path
   type value = C.t
 
-  module A = App2(Action)(IrminPath)(C)
+  module A = Misc.App2(Action)(Path)(C)
 
   let create () =
     Log.debugf "create";
     let node _ = return_none in
     let contents _ = return_none in
-    let view = Node.empty () in
+    let view = XNode.empty () in
     let ops = [] in
     let parents = [] in
     return { parents; node; contents; view; ops }
@@ -214,18 +212,21 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     let rec aux node = function
       | []   -> return (Some node)
       | h::p ->
-        Node.read t.node node >>= function
+        XNode.read t.node node >>= function
         | None               -> return_none
-        | Some { Node.succ } ->
-          match StringMap.find succ h with
-          | None   -> return_none
-          | Some v -> aux v p in
+        | Some { XNode.succ } ->
+          try
+            let v =  Misc.StringMap.find h succ in
+            aux v p
+          with Not_found ->
+            return_none
+    in
     aux t.view path
 
   let read (t:t) path =
     sub t path >>= function
     | None   -> return_none
-    | Some n -> Node.contents ~node:t.node ~contents:t.contents n
+    | Some n -> XNode.contents ~node:t.node ~contents:t.contents n
 
   let read t k =
     read t k >>= fun v ->
@@ -247,10 +248,10 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
       sub t path >>= function
       | None   -> return acc
       | Some n ->
-        Node.read t.node n >>= function
+        XNode.read t.node n >>= function
         | None               -> return acc
-        | Some { Node.succ } ->
-          let paths = List.map ~f:(fun p -> path @ [p]) (StringMap.keys succ) in
+        | Some { XNode.succ } ->
+          let paths = List.map (fun p -> path @ [p]) (Misc.StringMap.keys succ) in
           let paths = PathSet.of_list paths in
           return (PathSet.union acc paths) in
     Lwt_list.fold_left_s aux PathSet.empty paths >>= fun paths ->
@@ -266,30 +267,31 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
 
   let with_cleanup t view fn =
     fn () >>= fun () ->
-    Node.read t.node view >>= function
+    XNode.read t.node view >>= function
     | None   -> return_unit
     | Some n ->
-      let succ = StringMap.filter
-          ~f:(fun ~key:_ ~data:n -> not (Node.is_empty n)) n.Node.succ in
-      Node.update_succ t.node view succ
+      let succ =
+        Misc.StringMap.filter (fun _ n -> not (XNode.is_empty n)) n.XNode.succ
+      in
+      XNode.update_succ t.node view succ
 
   let update' t k v =
     let rec aux view = function
-      | []   -> Node.update_contents t.node view v
+      | []   -> XNode.update_contents t.node view v
       | h::p ->
-        Node.read t.node view >>= function
+        XNode.read t.node view >>= function
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
-          match StringMap.find n.Node.succ h with
-          | Some child ->
+          try
+            let child = Misc.StringMap.find h n.XNode.succ in
             if v = None then with_cleanup t view (fun () -> aux child p)
             else aux child p
-          | None      ->
+          with Not_found ->
             if v = None then return_unit
             else
-              let child = Node.empty () in
-              let succ = StringMap.add n.Node.succ h child in
-              Node.update_succ t.node view succ >>= fun () ->
+              let child = XNode.empty () in
+              let succ = Misc.StringMap.add h child n.XNode.succ in
+              XNode.update_succ t.node view succ >>= fun () ->
               aux child p in
     aux t.view k
 
@@ -307,36 +309,36 @@ module Make (K: IrminKey.S) (C: IrminContents.S) = struct
     failwith "TODO"
 
   let apply t a =
-    Log.debugf "apply %a" force (show (module A) a);
+    Log.debugf "apply %a" Misc.force (Misc.show (module A) a);
     match a with
     | Write (k, v) -> update' t k v >>= ok
     | Read (k, v)  ->
       read t k >>= fun v' ->
-      if Option.equal C.equal v v' then ok ()
+      if Misc.O.equal C.equal v v' then ok ()
       else
         let str = function
           | None   -> "<none>"
-          | Some c -> Lazy.force (show (module C) c) in
+          | Some c -> Lazy.force (Misc.show (module C) c) in
         conflict "read %s: got %S, expecting %S"
-          (IrminPath.pretty k) (str v') (str v)
+          (Path.pretty k) (str v') (str v)
     | List (l,r) ->
       list t l >>= fun r' ->
-      if List.equal IrminPath.equal r r' then ok ()
+      if Misc.L.equal Path.equal r r' then ok ()
       else
-        let str = List.pretty IrminPath.pretty in
+        let str = Misc.list_pretty Path.pretty in
         conflict "list %s: got %s, expecting %s" (str l) (str r') (str r)
 
   let actions t =
     List.rev t.ops
 
   let merge t1 ~into =
-    IrminMerge.iter (apply into) (List.rev t1.ops) >>| fun () ->
-    into.parents <- List.dedup (t1.parents @ into.parents);
+    Merge.iter (apply into) (List.rev t1.ops) >>| fun () ->
+    into.parents <- Misc.list_dedup (t1.parents @ into.parents);
     ok ()
 
 end
 
-module Store (S: IrminBranch.STORE) = struct
+module Store (S: Branch.STORE) = struct
 
   module K = S.Block.Key
   module C = S.Value
@@ -347,64 +349,69 @@ module Store (S: IrminBranch.STORE) = struct
   type path = S.key
 
   let import ~parents ~contents ~node key =
-    Log.debugf "import %a" force (show (module K) key);
+    Log.debugf "import %a" Misc.force (Misc.show (module K) key);
     node key >>= function
     | None   -> fail Not_found
     | Some n ->
       let node k =
         node k >>= function
         | None   -> return_none
-        | Some n -> return (Some (Node.import n)) in
-      let view = Node.key key in
+        | Some n -> return (Some (XNode.import n)) in
+      let view = XNode.key key in
       let ops = [] in
       return { parents; node; contents; view; ops }
   let export ~contents ~node t =
     Log.debugf "export";
     let node n =
-      node (Node.export_node n) in
+      node (XNode.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match !n with
-      | Node.Both _
-      | Node.Key _  -> ()
-      | Node.Node x ->
+      | XNode.Both _
+      | XNode.Key _  -> ()
+      | XNode.Node x ->
         (* 1. we push the current node job on the stack. *)
-        Stack.push todo (fun () ->
+        Stack.push (fun () ->
             node x >>= fun k ->
-            n := Node.Key k;
+            n := XNode.Key k;
             return_unit
-          );
+          ) todo;
         (* 2. we push the contents job on the stack. *)
-        Stack.push todo (fun () ->
-            match x.Node.contents with
+        Stack.push (fun () ->
+            match x.XNode.contents with
             | None   -> return_unit
             | Some c ->
               match !c with
-              | Contents.Both _
-              | Contents.Key _       -> return_unit
-              | Contents.Contents x  ->
+              | XContents.Both _
+              | XContents.Key _       -> return_unit
+              | XContents.Contents x  ->
                 contents x >>= fun k ->
-                c := Contents.Key k;
+                c := XContents.Key k;
                 return_unit
-          );
+          ) todo;
         (* 3. we push the children jobs on the stack. *)
-        StringMap.iter ~f:(fun ~key:_ ~data:n ->
-            Stack.push todo (fun () -> add_to_todo n; return_unit)
-          ) x.Node.succ;
+        Misc.StringMap.iter (fun _ n ->
+            Stack.push (fun () -> add_to_todo n; return_unit) todo
+          ) x.XNode.succ;
     in
     let rec loop () =
-      match Stack.pop todo with
-      | None      -> return_unit
-      | Some task -> task () >>= loop in
+      let task =
+        try Some (Stack.pop todo)
+        with Not_found -> None
+      in
+      match task with
+      | None   -> return_unit
+      | Some t -> t () >>= loop
+    in
     add_to_todo t.view;
     loop () >>= fun () ->
-    return (Node.export t.view)
+    return (XNode.export t.view)
 
   module Contents = S.Block.Contents
   module Node = S.Block.Node
 
   let of_path t path =
-    Log.debugf "read_view %a" force (show (module IrminPath) path);
+    Log.debugf "read_view %a" Misc.force (Misc.show (module Path) path);
     let contents = Contents.read (S.contents_t t) in
     let node = Node.read (S.node_t t) in
     let parents =
@@ -425,9 +432,9 @@ module Store (S: IrminBranch.STORE) = struct
     Node.read_exn (S.node_t t) key
 
   let update_path ?origin t path view =
-    Log.debugf "update_view %a" force (show (module IrminPath) path);
+    Log.debugf "update_view %a" Misc.force (Misc.show (module Path) path);
     let origin = match origin with
-      | None   -> IrminOrigin.create "Update view to %s" (IrminPath.pretty path)
+      | None   -> Origin.create "Update view to %s" (Path.pretty path)
       | Some o -> o in
     node_of_view t view >>= fun node ->
     S.update_node t origin path node
@@ -436,16 +443,16 @@ module Store (S: IrminBranch.STORE) = struct
     match origin with
     | None ->
       let buf = Buffer.create 1024 in
-      let string_of_action = Action.pretty IrminPath.pretty (fun x -> "") in
-      List.iter ~f:(fun a ->
+      let string_of_action = Action.pretty Path.pretty (fun x -> "") in
+      List.iter (fun a ->
           bprintf buf "- %s\n" (string_of_action a)
         ) actions;
-      IrminOrigin.create "Actions:\n%s\n" (Buffer.contents buf)
+      Origin.create "Actions:\n%s\n" (Buffer.contents buf)
     | Some o -> o
 
   let rebase_path ?origin t path view =
-    Log.debugf "merge_view %a" force (show (module IrminPath) path);
-    S.read_node t []           >>= function
+    Log.debugf "merge_view %a" Misc.force (Misc.show (module Path) path);
+    S.read_node t [] >>= function
     | None           -> fail Not_found
     | Some head_node ->
       of_path t path                       >>= fun head_view ->
@@ -456,11 +463,11 @@ module Store (S: IrminBranch.STORE) = struct
 
   let rebase_path_exn ?origin t path view =
     rebase_path ?origin t path view >>=
-    IrminMerge.exn
+    Merge.exn
 
   let merge_path ?origin t path view =
-    Log.debugf "merge_view %a" force (show (module IrminPath) path);
-    S.read_node t []           >>= function
+    Log.debugf "merge_view %a" Misc.force (Misc.show (module Path) path);
+    S.read_node t [] >>= function
     | None           -> fail Not_found
     | Some head_node ->
       (* First, we check than we can rebase the view on the current
@@ -486,39 +493,37 @@ module Store (S: IrminBranch.STORE) = struct
         (* The store is empty, create a fresh commit. *)
         S.update_commit t k >>= ok
       | Some head ->
-        if List.mem view.parents head then
+        if List.mem head view.parents then
           S.update_commit t k >>= ok
         else
-          let origin =
-            IrminOrigin.create "Merge view to %s\n"
-              (IrminPath.pretty path) in
+          let origin = Origin.create "Merge view to %s\n" (Path.pretty path) in
           S.merge_commit t ~origin k
 
   let merge_path_exn ?origin t path view =
     merge_path ?origin t path view >>=
-    IrminMerge.exn
+    Merge.exn
 
 end
 
 module type S = sig
   type value
   type node
-  include IrminStore.RW
+  include Sig.RW
     with type t = (node, value) t
      and type value := value
      and type key = path
   val actions: t -> (path, value) Action.t list
-  val merge: t -> into:t -> unit IrminMerge.result Lwt.t
+  val merge: t -> into:t -> unit Merge.result Lwt.t
 end
 
 module type STORE = sig
   include S
   type db
-  type path = IrminPath.t
+  type path = Path.t
   val of_path: db -> path -> t Lwt.t
   val update_path: ?origin:origin -> db -> path -> t -> unit Lwt.t
-  val rebase_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
+  val rebase_path: ?origin:origin -> db -> path -> t -> unit Merge.result Lwt.t
   val rebase_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
-  val merge_path: ?origin:origin -> db -> path -> t -> unit IrminMerge.result Lwt.t
+  val merge_path: ?origin:origin -> db -> path -> t -> unit Merge.result Lwt.t
   val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
 end

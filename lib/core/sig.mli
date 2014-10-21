@@ -154,3 +154,5 @@ module type BC = sig
       conflict. *)
 
 end
+
+type t = int

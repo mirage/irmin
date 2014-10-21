@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: c80671cf89e0091ec9c254cbf82d55ba) *)
+(* DO NOT EDIT (digest: 3b7149d77f60203d6b12d09c4601e221) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -597,7 +597,7 @@ let package_default =
   {
      MyOCamlbuildBase.lib_ocaml =
        [
-          ("irmin", ["lib/core"], ["Sig"]);
+          ("irmin", ["lib/core"], []);
           ("irmin-backend", ["lib/backend"], []);
           ("irmin-server", ["lib/server"], []);
           ("irmin-unix", ["lib/unix"], [])

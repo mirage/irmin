@@ -55,7 +55,7 @@ module type STORE = sig
   val to_state: t -> state
   (** Get the snapshot state. *)
 
-  include Misc.I0 with type t := state
+  include Tc.I0 with type t := state
 
 end
 

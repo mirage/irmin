@@ -14,23 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
 open Sexplib.Std
 open Bin_prot.Std
 
-module T = I0(struct
+module T = Misc.I0(struct
   type t = string list with bin_io, compare, sexp
   end)
 
 include T
 
 let to_string t =
-  "/" ^ (String.concat ~sep:"/" t)
+  "/" ^ (String.concat "/" t)
 
 let of_string str =
-  List.filter
-    ~f:(fun s -> not (String.is_empty s))
-    (String.split str ~on:'/')
+  List.filter ((<>) "") (Stringext.split str ~on:'/')
 
 let pretty = to_string
 let of_raw = of_string

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e5f006fa6275b35cb2f272ad1c5a084b)
+# DO NOT EDIT (digest: 2dbc621f19ee59505cfa73452e68cb01)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -17,6 +17,7 @@
 "lib/core/irmin.cmxs": use_irmin
 "lib/core/misc.cmx": for-pack(Irmin)
 "lib/core/sig.cmx": for-pack(Irmin)
+"lib/core/tc.cmx": for-pack(Irmin)
 "lib/core/digraph.cmx": for-pack(Irmin)
 "lib/core/key.cmx": for-pack(Irmin)
 "lib/core/snapshot.cmx": for-pack(Irmin)
@@ -35,8 +36,8 @@
 "lib/core/origin.cmx": for-pack(Irmin)
 "lib/core/branch.cmx": for-pack(Irmin)
 "lib/core/sync.cmx": for-pack(Irmin)
-<lib/core/*.ml{,i}>: pkg_bin_prot.syntax
-<lib/core/*.ml{,i}>: pkg_comparelib.syntax
+<lib/core/*.ml{,i}>: pkg_bin_prot
+<lib/core/*.ml{,i}>: pkg_comparelib
 <lib/core/*.ml{,i}>: pkg_cstruct
 <lib/core/*.ml{,i}>: pkg_dolog
 <lib/core/*.ml{,i}>: pkg_ezjsonm
@@ -44,13 +45,14 @@
 <lib/core/*.ml{,i}>: pkg_mstruct
 <lib/core/*.ml{,i}>: pkg_nocrypto
 <lib/core/*.ml{,i}>: pkg_ocamlgraph
-<lib/core/*.ml{,i}>: pkg_sexplib.syntax
+<lib/core/*.ml{,i}>: pkg_sexplib
+<lib/core/*.ml{,i}>: pkg_stringext
 <lib/core/*.ml{,i}>: pkg_uri
 # Library irmin-backend
 "lib/backend/irmin-backend.cmxs": use_irmin-backend
-<lib/backend/*.ml{,i}>: pkg_bin_prot.syntax
+<lib/backend/*.ml{,i}>: pkg_bin_prot
 <lib/backend/*.ml{,i}>: pkg_cohttp.lwt
-<lib/backend/*.ml{,i}>: pkg_comparelib.syntax
+<lib/backend/*.ml{,i}>: pkg_comparelib
 <lib/backend/*.ml{,i}>: pkg_cstruct
 <lib/backend/*.ml{,i}>: pkg_dolog
 <lib/backend/*.ml{,i}>: pkg_ezjsonm
@@ -60,14 +62,15 @@
 <lib/backend/*.ml{,i}>: pkg_mstruct
 <lib/backend/*.ml{,i}>: pkg_nocrypto
 <lib/backend/*.ml{,i}>: pkg_ocamlgraph
-<lib/backend/*.ml{,i}>: pkg_sexplib.syntax
+<lib/backend/*.ml{,i}>: pkg_sexplib
+<lib/backend/*.ml{,i}>: pkg_stringext
 <lib/backend/*.ml{,i}>: pkg_uri
 <lib/backend/*.ml{,i}>: use_irmin
 # Library irmin-server
 "lib/server/irmin-server.cmxs": use_irmin-server
-<lib/server/*.ml{,i}>: pkg_bin_prot.syntax
+<lib/server/*.ml{,i}>: pkg_bin_prot
 <lib/server/*.ml{,i}>: pkg_cohttp.lwt
-<lib/server/*.ml{,i}>: pkg_comparelib.syntax
+<lib/server/*.ml{,i}>: pkg_comparelib
 <lib/server/*.ml{,i}>: pkg_cstruct
 <lib/server/*.ml{,i}>: pkg_dolog
 <lib/server/*.ml{,i}>: pkg_ezjsonm
@@ -75,14 +78,15 @@
 <lib/server/*.ml{,i}>: pkg_mstruct
 <lib/server/*.ml{,i}>: pkg_nocrypto
 <lib/server/*.ml{,i}>: pkg_ocamlgraph
-<lib/server/*.ml{,i}>: pkg_sexplib.syntax
+<lib/server/*.ml{,i}>: pkg_sexplib
+<lib/server/*.ml{,i}>: pkg_stringext
 <lib/server/*.ml{,i}>: pkg_uri
 <lib/server/*.ml{,i}>: use_irmin
 # Library irmin-unix
 "lib/unix/irmin-unix.cmxs": use_irmin-unix
-<lib/unix/*.ml{,i}>: pkg_bin_prot.syntax
+<lib/unix/*.ml{,i}>: pkg_bin_prot
 <lib/unix/*.ml{,i}>: pkg_cohttp.lwt
-<lib/unix/*.ml{,i}>: pkg_comparelib.syntax
+<lib/unix/*.ml{,i}>: pkg_comparelib
 <lib/unix/*.ml{,i}>: pkg_cstruct
 <lib/unix/*.ml{,i}>: pkg_dolog
 <lib/unix/*.ml{,i}>: pkg_ezjsonm
@@ -94,16 +98,17 @@
 <lib/unix/*.ml{,i}>: pkg_mstruct
 <lib/unix/*.ml{,i}>: pkg_nocrypto
 <lib/unix/*.ml{,i}>: pkg_ocamlgraph
-<lib/unix/*.ml{,i}>: pkg_sexplib.syntax
+<lib/unix/*.ml{,i}>: pkg_sexplib
+<lib/unix/*.ml{,i}>: pkg_stringext
 <lib/unix/*.ml{,i}>: pkg_uri
 <lib/unix/*.ml{,i}>: use_irmin
 <lib/unix/*.ml{,i}>: use_irmin-backend
 <lib/unix/*.ml{,i}>: use_irmin-server
 # Executable irmin
-<lib/driver/irminMain.{native,byte}>: pkg_bin_prot.syntax
+<lib/driver/irminMain.{native,byte}>: pkg_bin_prot
 <lib/driver/irminMain.{native,byte}>: pkg_cmdliner
 <lib/driver/irminMain.{native,byte}>: pkg_cohttp.lwt
-<lib/driver/irminMain.{native,byte}>: pkg_comparelib.syntax
+<lib/driver/irminMain.{native,byte}>: pkg_comparelib
 <lib/driver/irminMain.{native,byte}>: pkg_cstruct
 <lib/driver/irminMain.{native,byte}>: pkg_dolog
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm
@@ -115,16 +120,17 @@
 <lib/driver/irminMain.{native,byte}>: pkg_mstruct
 <lib/driver/irminMain.{native,byte}>: pkg_nocrypto
 <lib/driver/irminMain.{native,byte}>: pkg_ocamlgraph
-<lib/driver/irminMain.{native,byte}>: pkg_sexplib.syntax
+<lib/driver/irminMain.{native,byte}>: pkg_sexplib
+<lib/driver/irminMain.{native,byte}>: pkg_stringext
 <lib/driver/irminMain.{native,byte}>: pkg_uri
 <lib/driver/irminMain.{native,byte}>: use_irmin
 <lib/driver/irminMain.{native,byte}>: use_irmin-backend
 <lib/driver/irminMain.{native,byte}>: use_irmin-server
 <lib/driver/irminMain.{native,byte}>: use_irmin-unix
-<lib/driver/*.ml{,i}>: pkg_bin_prot.syntax
+<lib/driver/*.ml{,i}>: pkg_bin_prot
 <lib/driver/*.ml{,i}>: pkg_cmdliner
 <lib/driver/*.ml{,i}>: pkg_cohttp.lwt
-<lib/driver/*.ml{,i}>: pkg_comparelib.syntax
+<lib/driver/*.ml{,i}>: pkg_comparelib
 <lib/driver/*.ml{,i}>: pkg_cstruct
 <lib/driver/*.ml{,i}>: pkg_dolog
 <lib/driver/*.ml{,i}>: pkg_ezjsonm
@@ -136,7 +142,8 @@
 <lib/driver/*.ml{,i}>: pkg_mstruct
 <lib/driver/*.ml{,i}>: pkg_nocrypto
 <lib/driver/*.ml{,i}>: pkg_ocamlgraph
-<lib/driver/*.ml{,i}>: pkg_sexplib.syntax
+<lib/driver/*.ml{,i}>: pkg_sexplib
+<lib/driver/*.ml{,i}>: pkg_stringext
 <lib/driver/*.ml{,i}>: pkg_uri
 <lib/driver/*.ml{,i}>: use_irmin
 <lib/driver/*.ml{,i}>: use_irmin-backend
@@ -144,9 +151,9 @@
 <lib/driver/*.ml{,i}>: use_irmin-unix
 # Executable test_irmin
 <lib_test/test.{native,byte}>: pkg_alcotest
-<lib_test/test.{native,byte}>: pkg_bin_prot.syntax
+<lib_test/test.{native,byte}>: pkg_bin_prot
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt
-<lib_test/test.{native,byte}>: pkg_comparelib.syntax
+<lib_test/test.{native,byte}>: pkg_comparelib
 <lib_test/test.{native,byte}>: pkg_cryptokit
 <lib_test/test.{native,byte}>: pkg_cstruct
 <lib_test/test.{native,byte}>: pkg_dolog
@@ -159,16 +166,17 @@
 <lib_test/test.{native,byte}>: pkg_mstruct
 <lib_test/test.{native,byte}>: pkg_nocrypto
 <lib_test/test.{native,byte}>: pkg_ocamlgraph
-<lib_test/test.{native,byte}>: pkg_sexplib.syntax
+<lib_test/test.{native,byte}>: pkg_sexplib
+<lib_test/test.{native,byte}>: pkg_stringext
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: use_irmin
 <lib_test/test.{native,byte}>: use_irmin-backend
 <lib_test/test.{native,byte}>: use_irmin-server
 <lib_test/test.{native,byte}>: use_irmin-unix
 <lib_test/*.ml{,i}>: pkg_alcotest
-<lib_test/*.ml{,i}>: pkg_bin_prot.syntax
+<lib_test/*.ml{,i}>: pkg_bin_prot
 <lib_test/*.ml{,i}>: pkg_cohttp.lwt
-<lib_test/*.ml{,i}>: pkg_comparelib.syntax
+<lib_test/*.ml{,i}>: pkg_comparelib
 <lib_test/*.ml{,i}>: pkg_cryptokit
 <lib_test/*.ml{,i}>: pkg_cstruct
 <lib_test/*.ml{,i}>: pkg_dolog
@@ -181,16 +189,17 @@
 <lib_test/*.ml{,i}>: pkg_mstruct
 <lib_test/*.ml{,i}>: pkg_nocrypto
 <lib_test/*.ml{,i}>: pkg_ocamlgraph
-<lib_test/*.ml{,i}>: pkg_sexplib.syntax
+<lib_test/*.ml{,i}>: pkg_sexplib
+<lib_test/*.ml{,i}>: pkg_stringext
 <lib_test/*.ml{,i}>: pkg_uri
 <lib_test/*.ml{,i}>: use_irmin
 <lib_test/*.ml{,i}>: use_irmin-backend
 <lib_test/*.ml{,i}>: use_irmin-server
 <lib_test/*.ml{,i}>: use_irmin-unix
 # Executable test_git_store
-<examples/git_store.{native,byte}>: pkg_bin_prot.syntax
+<examples/git_store.{native,byte}>: pkg_bin_prot
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
-<examples/git_store.{native,byte}>: pkg_comparelib.syntax
+<examples/git_store.{native,byte}>: pkg_comparelib
 <examples/git_store.{native,byte}>: pkg_cstruct
 <examples/git_store.{native,byte}>: pkg_dolog
 <examples/git_store.{native,byte}>: pkg_ezjsonm
@@ -202,16 +211,17 @@
 <examples/git_store.{native,byte}>: pkg_mstruct
 <examples/git_store.{native,byte}>: pkg_nocrypto
 <examples/git_store.{native,byte}>: pkg_ocamlgraph
-<examples/git_store.{native,byte}>: pkg_sexplib.syntax
+<examples/git_store.{native,byte}>: pkg_sexplib
+<examples/git_store.{native,byte}>: pkg_stringext
 <examples/git_store.{native,byte}>: pkg_uri
 <examples/git_store.{native,byte}>: use_irmin
 <examples/git_store.{native,byte}>: use_irmin-backend
 <examples/git_store.{native,byte}>: use_irmin-server
 <examples/git_store.{native,byte}>: use_irmin-unix
 # Executable test_custom_merge
-<examples/custom_merge.{native,byte}>: pkg_bin_prot.syntax
+<examples/custom_merge.{native,byte}>: pkg_bin_prot
 <examples/custom_merge.{native,byte}>: pkg_cohttp.lwt
-<examples/custom_merge.{native,byte}>: pkg_comparelib.syntax
+<examples/custom_merge.{native,byte}>: pkg_comparelib
 <examples/custom_merge.{native,byte}>: pkg_cstruct
 <examples/custom_merge.{native,byte}>: pkg_dolog
 <examples/custom_merge.{native,byte}>: pkg_ezjsonm
@@ -223,16 +233,17 @@
 <examples/custom_merge.{native,byte}>: pkg_mstruct
 <examples/custom_merge.{native,byte}>: pkg_nocrypto
 <examples/custom_merge.{native,byte}>: pkg_ocamlgraph
-<examples/custom_merge.{native,byte}>: pkg_sexplib.syntax
+<examples/custom_merge.{native,byte}>: pkg_sexplib
+<examples/custom_merge.{native,byte}>: pkg_stringext
 <examples/custom_merge.{native,byte}>: pkg_uri
 <examples/custom_merge.{native,byte}>: use_irmin
 <examples/custom_merge.{native,byte}>: use_irmin-backend
 <examples/custom_merge.{native,byte}>: use_irmin-server
 <examples/custom_merge.{native,byte}>: use_irmin-unix
 # Executable test_views
-<examples/views.{native,byte}>: pkg_bin_prot.syntax
+<examples/views.{native,byte}>: pkg_bin_prot
 <examples/views.{native,byte}>: pkg_cohttp.lwt
-<examples/views.{native,byte}>: pkg_comparelib.syntax
+<examples/views.{native,byte}>: pkg_comparelib
 <examples/views.{native,byte}>: pkg_cstruct
 <examples/views.{native,byte}>: pkg_dolog
 <examples/views.{native,byte}>: pkg_ezjsonm
@@ -244,16 +255,17 @@
 <examples/views.{native,byte}>: pkg_mstruct
 <examples/views.{native,byte}>: pkg_nocrypto
 <examples/views.{native,byte}>: pkg_ocamlgraph
-<examples/views.{native,byte}>: pkg_sexplib.syntax
+<examples/views.{native,byte}>: pkg_sexplib
+<examples/views.{native,byte}>: pkg_stringext
 <examples/views.{native,byte}>: pkg_uri
 <examples/views.{native,byte}>: use_irmin
 <examples/views.{native,byte}>: use_irmin-backend
 <examples/views.{native,byte}>: use_irmin-server
 <examples/views.{native,byte}>: use_irmin-unix
 # Executable test_contatcs
-<examples/contacts.{native,byte}>: pkg_bin_prot.syntax
+<examples/contacts.{native,byte}>: pkg_bin_prot
 <examples/contacts.{native,byte}>: pkg_cohttp.lwt
-<examples/contacts.{native,byte}>: pkg_comparelib.syntax
+<examples/contacts.{native,byte}>: pkg_comparelib
 <examples/contacts.{native,byte}>: pkg_cstruct
 <examples/contacts.{native,byte}>: pkg_dolog
 <examples/contacts.{native,byte}>: pkg_ezjsonm
@@ -265,16 +277,17 @@
 <examples/contacts.{native,byte}>: pkg_mstruct
 <examples/contacts.{native,byte}>: pkg_nocrypto
 <examples/contacts.{native,byte}>: pkg_ocamlgraph
-<examples/contacts.{native,byte}>: pkg_sexplib.syntax
+<examples/contacts.{native,byte}>: pkg_sexplib
+<examples/contacts.{native,byte}>: pkg_stringext
 <examples/contacts.{native,byte}>: pkg_uri
 <examples/contacts.{native,byte}>: use_irmin
 <examples/contacts.{native,byte}>: use_irmin-backend
 <examples/contacts.{native,byte}>: use_irmin-server
 <examples/contacts.{native,byte}>: use_irmin-unix
 # Executable test_intrusion
-<examples/intrusion.{native,byte}>: pkg_bin_prot.syntax
+<examples/intrusion.{native,byte}>: pkg_bin_prot
 <examples/intrusion.{native,byte}>: pkg_cohttp.lwt
-<examples/intrusion.{native,byte}>: pkg_comparelib.syntax
+<examples/intrusion.{native,byte}>: pkg_comparelib
 <examples/intrusion.{native,byte}>: pkg_cstruct
 <examples/intrusion.{native,byte}>: pkg_dolog
 <examples/intrusion.{native,byte}>: pkg_ezjsonm
@@ -286,16 +299,17 @@
 <examples/intrusion.{native,byte}>: pkg_mstruct
 <examples/intrusion.{native,byte}>: pkg_nocrypto
 <examples/intrusion.{native,byte}>: pkg_ocamlgraph
-<examples/intrusion.{native,byte}>: pkg_sexplib.syntax
+<examples/intrusion.{native,byte}>: pkg_sexplib
+<examples/intrusion.{native,byte}>: pkg_stringext
 <examples/intrusion.{native,byte}>: pkg_uri
 <examples/intrusion.{native,byte}>: use_irmin
 <examples/intrusion.{native,byte}>: use_irmin-backend
 <examples/intrusion.{native,byte}>: use_irmin-server
 <examples/intrusion.{native,byte}>: use_irmin-unix
 # Executable test_process
-<examples/process.{native,byte}>: pkg_bin_prot.syntax
+<examples/process.{native,byte}>: pkg_bin_prot
 <examples/process.{native,byte}>: pkg_cohttp.lwt
-<examples/process.{native,byte}>: pkg_comparelib.syntax
+<examples/process.{native,byte}>: pkg_comparelib
 <examples/process.{native,byte}>: pkg_cstruct
 <examples/process.{native,byte}>: pkg_dolog
 <examples/process.{native,byte}>: pkg_ezjsonm
@@ -307,15 +321,16 @@
 <examples/process.{native,byte}>: pkg_mstruct
 <examples/process.{native,byte}>: pkg_nocrypto
 <examples/process.{native,byte}>: pkg_ocamlgraph
-<examples/process.{native,byte}>: pkg_sexplib.syntax
+<examples/process.{native,byte}>: pkg_sexplib
+<examples/process.{native,byte}>: pkg_stringext
 <examples/process.{native,byte}>: pkg_uri
 <examples/process.{native,byte}>: use_irmin
 <examples/process.{native,byte}>: use_irmin-backend
 <examples/process.{native,byte}>: use_irmin-server
 <examples/process.{native,byte}>: use_irmin-unix
-<examples/*.ml{,i}>: pkg_bin_prot.syntax
+<examples/*.ml{,i}>: pkg_bin_prot
 <examples/*.ml{,i}>: pkg_cohttp.lwt
-<examples/*.ml{,i}>: pkg_comparelib.syntax
+<examples/*.ml{,i}>: pkg_comparelib
 <examples/*.ml{,i}>: pkg_cstruct
 <examples/*.ml{,i}>: pkg_dolog
 <examples/*.ml{,i}>: pkg_ezjsonm
@@ -327,7 +342,8 @@
 <examples/*.ml{,i}>: pkg_mstruct
 <examples/*.ml{,i}>: pkg_nocrypto
 <examples/*.ml{,i}>: pkg_ocamlgraph
-<examples/*.ml{,i}>: pkg_sexplib.syntax
+<examples/*.ml{,i}>: pkg_sexplib
+<examples/*.ml{,i}>: pkg_stringext
 <examples/*.ml{,i}>: pkg_uri
 <examples/*.ml{,i}>: use_irmin
 <examples/*.ml{,i}>: use_irmin-backend
@@ -335,3 +351,16 @@
 <examples/*.ml{,i}>: use_irmin-unix
 # OASIS_STOP
 true: bin_annot, annot, debug
+<lib/core/tc.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/misc.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/digraph.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/key.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/block.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/commit.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/node.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/contents.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/path.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/merge.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/view.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/origin.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/branch.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax

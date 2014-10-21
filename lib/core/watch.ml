@@ -16,7 +16,6 @@
 
 module Log = Log.Make(struct let section = "WATCH" end)
 
-open IrminCore
 open Lwt
 
 module type S = sig
@@ -39,55 +38,56 @@ let listen_dir_hook =
 let set_listen_dir_hook fn =
   listen_dir_hook := fn
 
-module Make (K: IrminKey.S) (V: sig type t end) = struct
+module Make (K: Key.S) (V: sig type t end) = struct
 
   type key = K.t
   type value = V.t
 
-  module KTable = Hashtbl.Make(K)
-
-  type t = (int * value option * (value option -> unit)) list KTable.t
+  type t = (K.t, (int * value option * (value option -> unit)) list) Hashtbl.t
 
   let create () =
-    KTable.create ()
+    Hashtbl.create 42
 
   let clear t =
-    KTable.clear t
+    Hashtbl.clear t
 
   let unwatch t key id =
-    let ws = match KTable.find t key with
-      | None    -> []
-      | Some ws -> ws in
-    let ws = List.filter ~f:(fun (x,_,_) -> x <> id) ws in
+    let ws =
+      try Hashtbl.find t key
+      with Not_found -> []
+    in
+    let ws = List.filter (fun (x,_,_) -> x <> id) ws in
     match ws with
-    | [] -> KTable.remove t key
-    | ws -> KTable.replace t ~key ~data:ws
+    | [] -> Hashtbl.remove t key
+    | ws -> Hashtbl.replace t key ws
 
   let notify t key value =
-    Log.debugf "notify %a" force (show (module K) key);
-    match KTable.find t key with
-    | None    -> ()
-    | Some ws ->
-      let ws = List.map ws ~f:(fun (id, old_value, f as w) ->
+    Log.debugf "notify %a" Misc.force (Misc.show (module K) key);
+    try
+      let ws = Hashtbl.find t key in
+      let ws = List.map (fun (id, old_value, f as w) ->
           if old_value <> value then (
-            Log.debugf "firing watch %a:%d" force (show (module K) key) id;
+            Log.debugf "firing watch %a:%d" Misc.force (Misc.show (module K) key) id;
             try f value; (id, value, f)
             with e ->
               unwatch t key id;
               raise e
           ) else w
-        ) in
-      KTable.replace t ~key ~data:ws
+        ) ws
+      in
+      Hashtbl.replace t key ws
+    with Not_found ->
+      ()
 
   let id =
     let c = ref 0 in
     fun () -> incr c; !c
 
-  let watch t key value =
-    Log.debugf "watch %a" force (show (module K) key);
+  let watch (t:t) key value =
+    Log.debugf "watch %a" Misc.force (Misc.show (module K) key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
-    KTable.add_multi t ~key ~data:(id, value, push);
+    Misc.hashtbl_add_multi t key (id, value, push);
     stream
 
   let listen_dir t dir ~key ~value =

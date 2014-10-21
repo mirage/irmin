@@ -49,12 +49,12 @@ module Make
 
 module type RO_MAKER =
   functor (K: Key.S)   ->
-  functor (V: Misc.I0) ->
+  functor (V: Tc.I0) ->
     Sig.RO with type key = K.t and type value = V.t
 
 module type AO_MAKER =
   functor (K: Key.S)   ->
-  functor (V: Misc.I0) ->
+  functor (V: Tc.I0) ->
     Sig.AO with type key = K.t and type value = V.t
 
 module type RW_MAKER =

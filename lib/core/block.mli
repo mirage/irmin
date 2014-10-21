@@ -20,7 +20,6 @@ type ('origin, 'key, 'contents) t =
   | Contents of 'contents
   | Node of 'key Node.t
   | Commit of ('origin, 'key) Commit.t
-with bin_io, compare, sexp
 (** The different kinds of values which can be stored in the
     database. *)
 

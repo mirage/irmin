@@ -7,8 +7,6 @@ License:     ISC
 Plugins:     META (0.4), DevFiles (0.4)
 BuildTools:  ocamlbuild
 
-AlphaFeatures: pure_interface
-
 Flag unix
   Description: build the Unix library
   Default: true
@@ -18,59 +16,40 @@ Flag examples
   Default: false
 
 Library irmin
-  Pack: true
-  Path: lib/core
-  Findlibname: irmin
-  Modules: Misc, Sig, Digraph, Key, Snapshot,
-           Commit, Store, Block,
-           Tag, Contents, Node, Version,
-           Dump, Path, Watch, Merge, View,
-           Origin, Branch, Sync
-  BuildDepends: ezjsonm, ocamlgraph, lwt, nocrypto,
-                dolog, cstruct, mstruct, uri,
-                bin_prot.syntax, comparelib.syntax, sexplib.syntax
-  XMETARequires: ezjsonm, ocamlgraph, lwt, nocrypto,
+  Pack:          true
+  Path:          lib/core
+  Findlibname:   irmin
+  Modules:       Misc, Sig, Tc, Digraph, Key, Snapshot,
+                 Commit, Store, Block,
+                 Tag, Contents, Node, Version,
+                 Dump, Path, Watch, Merge, View,
+                 Origin, Branch, Sync
+  BuildDepends:  ezjsonm, ocamlgraph, lwt, nocrypto,
                  dolog, cstruct, mstruct, uri,
-                 bint_prot, comparelib, sexplib
+                 bin_prot, comparelib, sexplib, stringext
 
 Library "irmin-backend"
-  Path: lib/backend
-  Findlibname: backend
+  Path:          lib/backend
+  Findlibname:   backend
   FindlibParent: irmin
-  BuildDepends: irmin, cohttp.lwt, ezjsonm.lwt, git
-  Modules: Irmin_CRUD, Irmin_memory, Irmin_git, Irmin_FS
+  BuildDepends:  irmin, cohttp.lwt, ezjsonm.lwt, git
+  Modules:       Irmin_CRUD, Irmin_memory, Irmin_git, Irmin_FS
 
 Library "irmin-server"
-  Path: lib/server
-  Findlibname: server
+  Path:          lib/server
+  Findlibname:   server
   FindlibParent: irmin
-  BuildDepends: cohttp.lwt, irmin
-  Modules: Irmin_HTTP, Irmin_HTTP_static
+  BuildDepends:  cohttp.lwt, irmin
+  Modules:       Irmin_HTTP, Irmin_HTTP_static
 
 Library "irmin-unix"
-  Build$: flag(unix)
-  Install$: flag(unix)
-  Path: lib/unix
-  Findlibname: unix
+  Build$:        flag(unix)
+  Install$:      flag(unix)
+  Path:          lib/unix
+  Findlibname:   unix
   FindlibParent: irmin
-  BuildDepends: irmin, lwt.unix, irmin.backend, irmin.server, git.unix
-  Modules: Irmin_unix
-
-Document irmin
-  Title:                Irmin docs
-  Type:                 OCamlbuild (0.4)
-  BuildTools+:          ocamldoc
-  Install:              true
-  XOCamlbuildPath:      lib/core
-  XOCamlbuildLibraries: irmin
-
-Document backend
-  Title:                Irmin backends docs
-  Type:                 OCamlbuild (0.4)
-  BuildTools+:          ocamldoc
-  Install:              true
-  XOCamlbuildPath:      lib/backend
-  XOCamlbuildLibraries: irmin.backend
+  BuildDepends:  irmin, lwt.unix, irmin.backend, irmin.server, git.unix
+  Modules:       Irmin_unix
 
 Executable irmin
   Path:               lib/driver
@@ -140,3 +119,19 @@ Executable test_process
   CompiledObject:     best
   Install:            false
   BuildDepends:       irmin, irmin.unix
+
+Document irmin
+  Title:                Irmin docs
+  Type:                 OCamlbuild (0.4)
+  BuildTools+:          ocamldoc
+  Install:              true
+  XOCamlbuildPath:      lib/core
+  XOCamlbuildLibraries: irmin
+
+Document backend
+  Title:                Irmin backends docs
+  Type:                 OCamlbuild (0.4)
+  BuildTools+:          ocamldoc
+  Install:              true
+  XOCamlbuildPath:      lib/backend
+  XOCamlbuildLibraries: irmin.backend

@@ -80,7 +80,7 @@ module type STORE = sig
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   (** Same as [merge] but merge raise an exception in case of conflict. *)
 
-  include Misc.I0 with type t := t
+  include Tc.I0 with type t := t
   (** Base functions over database dumps. *)
 
 end

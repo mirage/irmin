@@ -23,7 +23,7 @@ module type S = sig
 
   (** Signature for store contents. *)
 
-  include Misc.I0
+  include Tc.I0
   (** Base types. *)
 
   val merge: t Merge.t
@@ -52,11 +52,11 @@ module type STORE = sig
   val merge: t -> key Merge.t
   (** Store merge function. Lift [S.merge] to keys. *)
 
-  module Value: S with type t = value
-  (** Base functions for values. *)
-
   module Key: Key.S with type t = key
   (** Base functions for foreign keys. *)
+
+  module Value: S with type t = value
+  (** Base functions for values. *)
 
 end
 

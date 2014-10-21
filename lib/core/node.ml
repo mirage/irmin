@@ -16,21 +16,20 @@
  *)
 
 open Lwt
-open IrminCore
 open Sexplib.Std
 open Bin_prot.Std
 
 module Log = Log.Make(struct let section = "NODE" end)
 
 module StringMap = struct
-  include Map.Make(String)
+  include Misc.StringMap
   let t_of_sexp fn s =
     let fn' = Sexplib.Conv.(pair_of_sexp string_of_sexp fn) in
-    of_alist_exn (Sexplib.Conv.list_of_sexp fn' s)
+    of_alist (Sexplib.Conv.list_of_sexp fn' s)
   let sexp_of_t = to_sexp
   let bin_size_t = size_of
-  let bin_write_t fn = Writer.(to_bin_prot (write (of_bin_prot fn)))
-  let bin_read_t fn = Reader.(to_bin_prot (read (of_bin_prot fn)))
+  let bin_write_t fn = Misc.Writer.(to_bin_prot (write (of_bin_prot fn)))
+  let bin_read_t fn = Misc.Reader.(to_bin_prot (read (of_bin_prot fn)))
 end
 
 module T_ = struct
@@ -40,7 +39,7 @@ module T_ = struct
   } with bin_io, compare, sexp
 end
 include T_
-module T = I1(T_)
+module T = Misc.I1(T_)
 
 let equal key_equal t1 t2 =
   begin match t1.contents, t2.contents with
@@ -56,8 +55,9 @@ let edges t =
     | None   -> []
     | Some k -> [`Contents k]
   end
-  @ StringMap.fold t.succ ~init:[]
-    ~f:(fun ~key:_ ~data:k acc -> `Node k :: acc)
+  @ StringMap.fold
+    (fun _ k acc -> `Node k :: acc)
+    t.succ []
 
 let empty =
   { contents = None;
@@ -81,47 +81,46 @@ let contents_exn e =
 module type S = sig
   type key
   type nonrec t = key t
-  include IrminContents.S with type t := t
+  include Contents.S with type t := t
 end
 
 module type STORE = sig
   type key
   type contents
-  type path = IrminPath.t
+  type path = Path.t
   type value = key t
-  include IrminStore.AO with type key := key
-                         and type value := value
+  include Sig.AO with type key := key and type value := value
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
     unit -> (key * value) Lwt.t
   val contents: t -> value -> contents Lwt.t option
   val succ: t -> value -> value Lwt.t StringMap.t
-  val sub: t -> value -> IrminPath.t -> value option Lwt.t
-  val sub_exn: t -> value -> IrminPath.t -> value Lwt.t
-  val map: t -> value -> IrminPath.t -> (value -> value) -> value Lwt.t
-  val update: t -> value -> IrminPath.t -> contents -> value Lwt.t
-  val find: t -> value -> IrminPath.t -> contents option Lwt.t
-  val find_exn: t -> value -> IrminPath.t -> contents Lwt.t
-  val remove: t -> value -> IrminPath.t -> value Lwt.t
-  val valid: t -> value -> IrminPath.t -> bool Lwt.t
-  val merge: t -> key IrminMerge.t
-  module Key: IrminKey.S with type t = key
+  val sub: t -> value -> path -> value option Lwt.t
+  val sub_exn: t -> value -> path -> value Lwt.t
+  val map: t -> value -> path -> (value -> value) -> value Lwt.t
+  val update: t -> value -> path -> contents -> value Lwt.t
+  val find: t -> value -> path -> contents option Lwt.t
+  val find_exn: t -> value -> path -> contents Lwt.t
+  val remove: t -> value -> path -> value Lwt.t
+  val valid: t -> value -> path -> bool Lwt.t
+  val merge: t -> key Merge.t
+  module Key: Key.S with type t = key
   module Value: S with type key = key
 end
 
-module S (K: IrminKey.S) = struct
+module S (K: Key.S) = struct
   type key = K.t
-  module S = App1(T)(K)
+  module S = Misc.App1(T)(K)
   include S
-  let merge = IrminMerge.default (module S)
+  let merge = Merge.default (module S)
 end
 
-module SHA1 = S(IrminKey.SHA1)
+module SHA1 = S(Key.SHA1)
 
 module Make
-    (K: IrminKey.S)
-    (C: IrminContents.S)
-    (Contents: IrminContents.STORE with type key = K.t and type value = C.t)
-    (Node    : IrminStore.AO       with type key = K.t and type value = K.t t) =
+    (K: Key.S)
+    (C: Contents.S)
+    (Contents: Contents.STORE with type key = K.t and type value = C.t)
+    (Node    : Sig.AO with type key = K.t and type value = K.t t) =
  struct
 
   module Key = K
@@ -132,7 +131,7 @@ module Make
 
   type contents = C.t
 
-  type path = IrminPath.t
+  type path = Path.t
 
   type value = K.t t
 
@@ -163,7 +162,7 @@ module Make
   let read_exn t key =
     read t key >>= function
     | None   ->
-      Log.debugf "Not_found: %a" force (show (module K) key);
+      Log.debugf "Not_found: %a" Misc.force (Misc.show (module K) key);
       fail Not_found
     | Some v -> return v
 
@@ -172,16 +171,16 @@ module Make
     | false -> Contents.mem c key
     | true  -> return true
 
-  module Graph = IrminGraph.Make(K)(IrminTag.String)
+  module Graph = Digraph.Make(K)(Tag.String)
 
   let list t keys =
-    Log.debugf "list %a" force (shows (module K) keys);
+    Log.debugf "list %a" Misc.force (Misc.shows (module K) keys);
     let pred = function
       | `Node k -> read_exn t k >>= fun node -> return (edges node)
       | _       -> return_nil in
-    let max = IrminGraph.of_nodes keys in
+    let max = Digraph.of_nodes keys in
     Graph.closure ~pred max >>= fun g ->
-    let keys = IrminGraph.to_nodes (Graph.vertex g) in
+    let keys = Digraph.to_nodes (Graph.vertex g) in
     return keys
 
   let dump (_, t) =
@@ -200,29 +199,29 @@ module Make
           return (l, k)
         ) succ
     end >>= fun succ ->
-    let succ = StringMap.of_alist_exn succ in
+    let succ = StringMap.of_alist succ in
     let node = { contents; succ } in
     add t node >>= fun key ->
     return (key, node)
 
   (* Merge the contents values together. *)
   let merge_contents c =
-    IrminMerge.some (Contents.merge c)
+    Merge.some (Contents.merge c)
 
   let merge_value (c, _) merge_key =
     let explode n = (n.contents, n.succ) in
     let implode (contents, succ) = { contents; succ } in
-    let merge_pair = IrminMerge.pair
+    let merge_pair = Merge.pair
         (merge_contents c)
-        (IrminMerge.string_map merge_key)
+        (Merge.string_map merge_key)
     in
-    IrminMerge.biject (module Value) merge_pair implode explode
+    Merge.biject (module Value) merge_pair implode explode
 
   let merge (c, _ as t) =
     let rec merge_key () =
       Log.debugf "merge";
-      let merge = merge_value t (IrminMerge.apply (module K) merge_key ()) in
-      IrminMerge.biject' (module K) merge (add t) (read_exn t) in
+      let merge = merge_value t (Merge.apply (module K) merge_key ()) in
+      Merge.biject' (module K) merge (add t) (read_exn t) in
     merge_key ()
 
   let contents (c, _) n =
@@ -231,12 +230,11 @@ module Make
     | Some k -> Some (Contents.read_exn c k)
 
   let succ t node =
-    StringMap.map ~f:(fun k -> read_exn t k) node.succ
+    StringMap.map (fun k -> read_exn t k) node.succ
 
   let next t node label =
-    match StringMap.find node.succ label with
-    | None   -> return_none
-    | Some k -> read t k
+    try read t (StringMap.find label node.succ)
+    with Not_found -> return_none
 
   let sub_exn t node path =
     let rec aux node path =
@@ -256,7 +254,7 @@ module Make
       (function Not_found -> return_none | e -> fail e)
 
   let find_exn t node path =
-    Log.debugf "find_exn %a" force (show (module IrminPath) path);
+    Log.debugf "find_exn %a" Misc.force (Misc.show (module Path) path);
     sub t node path >>= function
     | None      ->
       Log.debugf "subpath not found";
@@ -269,7 +267,7 @@ module Make
       | Some b -> b
 
   let find t node path =
-    Log.debugf "find %a" force (show (module IrminPath) path);
+    Log.debugf "find %a" Misc.force (Misc.show (module Path) path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -278,7 +276,7 @@ module Make
       | Some b -> b >>= fun b -> return (Some b)
 
   let valid t node path =
-    Log.debugf "valid %a" force (show (module IrminPath) path);
+    Log.debugf "valid %a" Misc.force (Misc.show (module Path) path);
     sub t node path >>= function
     | None      -> return false
     | Some node ->
@@ -288,7 +286,9 @@ module Make
 
   let map_children t children f label =
     Log.debugf "map_children %s" label;
-    let old_key = StringMap.find children label in
+    let old_key =
+      try Some (StringMap.find label children)
+      with Not_found -> None in
     begin match old_key with
       | None   -> return empty
       | Some k -> read_exn t k
@@ -305,12 +305,11 @@ module Make
       end >>= fun key ->
       let children = match old_key, key with
         | None  , None     -> children
-        | Some _, None     -> StringMap.remove children label
-        | None  , Some k   -> StringMap.add children label k
+        | Some _, None     -> StringMap.remove label children
+        | None  , Some k   -> StringMap.add label k children
         | Some k1, Some k2 ->
           if K.equal k1 k2 then children
-          else
-            StringMap.add children label k2 in
+          else StringMap.add label k2 children in
       return children
     )
 
@@ -323,11 +322,11 @@ module Make
     aux node path
 
   let remove t node path =
-    Log.debugf "remove %a" force (show (module IrminPath) path);
+    Log.debugf "remove %a" Misc.force (Misc.show (module Path) path);
     map t node path (fun node -> empty)
 
   let update (c, _ as t) node path value =
-    Log.debugf "update %a" force (show (module IrminPath) path);
+    Log.debugf "update %a" Misc.force (Misc.show (module Path) path);
     Contents.add c value >>= fun k  ->
     map t node path (fun node -> { node with contents = Some k }) >>= fun n ->
     return n
@@ -339,7 +338,7 @@ module Rec (S: STORE) = struct
   let merge =
     let merge ~origin ~old k1 k2 =
       S.create ()  >>= fun t  ->
-      IrminMerge.merge (S.merge t) ~origin ~old k1 k2
+      Merge.merge (S.merge t) ~origin ~old k1 k2
     in
-    IrminMerge.create' (module S.Key) merge
+    Merge.create' (module S.Key) merge
 end

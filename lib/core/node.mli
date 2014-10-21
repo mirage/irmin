@@ -25,7 +25,7 @@
 
 type 'key t = {
   contents: 'key option;
-  succ    : 'key Map.Make(String).t;
+  succ    : 'key Misc.StringMap.t;
 } with bin_io, compare, sexp
 (** Node values. They might contain a pointer to an optional contents,
     and pointers to its successors.*)

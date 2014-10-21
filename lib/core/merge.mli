@@ -24,7 +24,7 @@
     have explicit type-class everywhere.
 *)
 
-module type S = Misc.I0
+module type S = Tc.I0
 
 type origin = Origin.t
 
@@ -123,7 +123,7 @@ val some: 'a t -> 'a option t
     the provided values are inhabited, then call the provided merge
     function, otherwise use the same behavior as [create]. *)
 
-val string_map: 'a t -> 'a Map.Make(String).t t
+val string_map: 'a t -> 'a Misc.StringMap.t t
 (** Lift to hash-tables. *)
 
 val pair: 'a t -> 'b t -> ('a * 'b) t

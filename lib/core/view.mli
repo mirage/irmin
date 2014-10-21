@@ -34,7 +34,7 @@ module Action: sig
 
   (** Actions performed on a view. *)
 
-  include Misc.I2 with type ('a, 'b) t = ('a, 'b) action
+  include Tc.I2 with type ('a, 'b) t = ('a, 'b) action
 
   val pretty: ('a -> string) -> ('b -> string) -> ('a, 'b) t -> string
   (** Pretty-print an action. *)

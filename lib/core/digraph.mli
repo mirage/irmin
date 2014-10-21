@@ -71,7 +71,7 @@ module type S = sig
   val import: dump -> t
   (** Import a graph. *)
 
-  module Dump: Misc.I0 with type t = dump
+  module Dump: Tc.I0 with type t = dump
   (** The base functions over graph internals. *)
 
 end

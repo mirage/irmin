@@ -19,12 +19,12 @@ open Lwt
 module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
-  include IrminKey.S
+  include Key.S
   val master: t
 end
 
 module String = struct
-  include String
+  include Misc.S
   let compute_from_cstruct b = Cstruct.to_string b
   let compute_from_string r = r
   let pretty t = t
@@ -33,12 +33,10 @@ module String = struct
   let master = "master"
 
   let implode ts =
-    String.concat ~sep:"/" ts
+    String.concat "/" ts
 
   let explode t =
-    List.filter
-      ~f:(fun s -> not (String.is_empty s))
-      (String.split t ~on:'/')
+    List.filter ((<>)"") (Stringext.split t ~on:'/')
 
   let to_json t =
     Ezjsonm.list Ezjsonm.string (explode t)
@@ -49,15 +47,15 @@ module String = struct
 end
 
 module type STORE = sig
-  include IrminStore.RW
+  include Sig.RW
+  module Value: Key.S with type t = value
   module Key: S with type t = key
-  module Value: IrminKey.S with type t = value
 end
 
 module Make
     (K: S)
-    (V: IrminKey.S)
-    (S: IrminStore.RW with type key = K.t and type value = V.t)
+    (V: Key.S)
+    (S: Sig.RW with type key = K.t and type value = V.t)
 = struct
 
   module Key = K
@@ -68,6 +66,6 @@ module Make
 
   let list t _ =
     dump t >>= fun l ->
-    return (List.map ~f:fst l)
+    return (List.map fst l)
 
 end

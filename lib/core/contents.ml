@@ -14,10 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
-
 open Lwt
-open IrminMerge.OP
+open Merge.OP
 open Sexplib.Std
 open Bin_prot.Std
 
@@ -26,18 +24,18 @@ module Log = Log.Make(struct let section = "CONTENTS" end)
 exception Invalid of string
 
 module type S = sig
-  include I0
-  val merge: t IrminMerge.t
+  include Misc.I0
+  val merge: t Merge.t
 end
 
 module String  = struct
 
-  module S = String
+  module S = Misc.S
 
   include S
 
   let merge =
-    IrminMerge.default (module S)
+    Merge.default (module S)
 
 end
 
@@ -48,9 +46,9 @@ module JSON = struct
     | `Null
     | `Bool _
     | `Float _  -> t
-    | `String s -> JSON.encode_string s
-    | `A l      -> `A (List.rev_map ~f:encode l)
-    | `O l      -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
+    | `String s -> Misc.JSON.encode_string s
+    | `A l      -> `A (List.rev_map encode l)
+    | `O l      -> `O (List.rev_map (fun (k,v) -> k, encode v) l)
 
   let rec decode t: Ezjsonm.t =
     match t with
@@ -58,13 +56,13 @@ module JSON = struct
     | `Bool _
     | `Float _
     | `String _ -> t
-    | `A l      -> `A (List.rev_map ~f:decode l)
+    | `A l      -> `A (List.rev_map decode l)
     | `O l      ->
-      match JSON.decode_string t with
+      match Misc.JSON.decode_string t with
       | Some s -> `String s
-      | None   -> `O (List.rev_map ~f:(fun (k,v) -> k, encode v) l)
+      | None   -> `O (List.rev_map (fun (k,v) -> k, encode v) l)
 
-  module S = I0(struct
+  module S = Misc.I0(struct
       type t =
         [ `Null
         | `Bool of bool
@@ -89,21 +87,21 @@ module JSON = struct
 
   (* XXX: replace by a clever merge function *)
   let merge =
-    IrminMerge.(biject (module S) string of_string to_string)
+    Merge.(biject (module S) string of_string to_string)
 
 end
 
 module type STORE = sig
-  include IrminStore.AO
-  val merge: t -> key IrminMerge.t
-  module Key: IrminKey.S with type t = key
+  include Sig.AO
+  val merge: t -> key Merge.t
+  module Key: Key.S with type t = key
   module Value: S with type t = value
 end
 
 module Make
-    (K: IrminKey.S)
+    (K: Key.S)
     (C: S)
-    (Contents: IrminStore.AO with type key = K.t and type value = C.t)
+    (Contents: Sig.AO with type key = K.t and type value = C.t)
 = struct
 
   include Contents
@@ -111,7 +109,7 @@ module Make
   module Value = C
 
   let merge t =
-    IrminMerge.biject' (module K) C.merge (add t) (read_exn t)
+    Merge.biject' (module K) C.merge (add t) (read_exn t)
 
 end
 
@@ -120,7 +118,7 @@ module Rec (S: STORE) = struct
   let merge =
     let merge ~origin ~old k1 k2 =
       S.create ()  >>= fun t  ->
-      IrminMerge.merge (S.merge t) ~origin ~old k1 k2
+      Merge.merge (S.merge t) ~origin ~old k1 k2
     in
-    IrminMerge.create' (module S.Key) merge
+    Merge.create' (module S.Key) merge
 end

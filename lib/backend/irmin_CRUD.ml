@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open IrminCore
 
 module type Config = sig
 
@@ -34,7 +33,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
 
   let uri t path = match Uri.path t :: path with
     | []   -> t
-    | path -> Uri.with_path t (IrminPath.to_raw path)
+    | path -> Uri.with_path t (Irmin.Path.to_raw path)
 
   type ('a, 'b) response =
     (Ezjsonm.t -> 'a) -> (Cohttp.Response.t * Cohttp_lwt_body.t) -> 'b
@@ -48,7 +47,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
       with Not_found -> None in
     match error, result with
     | None  , None   -> raise (Error "result_of_json")
-    | Some e, None   -> raise (Error (JSON.decode_string_exn e))
+    | Some e, None   -> raise (Error (Irmin.Misc.JSON.decode_string_exn e))
     | None  , Some r -> r
     | Some _, Some _ -> raise (Error "result_of_json")
 
@@ -100,7 +99,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
     Cohttp_lwt_unix.Client.post ~body (uri t path) >>=
     map_string_response fn
 
-  module RO (U: Config) (K: IrminKey.S) (V: I0) = struct
+  module RO (U: Config) (K: Irmin.Key.S) (V: Irmin.Misc.I0) = struct
 
     module Log = XLog.Make(struct let section = "CRUD" ^ Uri.path U.uri end)
 
@@ -117,23 +116,23 @@ module XMake (Client: Cohttp_lwt.Client) = struct
       return U.uri
 
     let read t key =
-      Log.debugf "read %a" force (show (module K) key);
+      Log.debugf "read %a" Irmin.Misc.force (Irmin.Misc.show (module K) key);
       catch
         (fun () -> get t ["read"; K.pretty key] (some V.of_json))
         (fun _  -> return_none)
 
     let read_exn t key =
-      Log.debugf "read_exn %a" force (show (module K) key);
+      Log.debugf "read_exn %a" Irmin.Misc.force (Irmin.Misc.show (module K) key);
       get t ["read"; K.pretty key] V.of_json
 
     let mem t key =
-      Log.debugf "mem %a" force (show (module K) key);
+      Log.debugf "mem %a" Irmin.Misc.force (Irmin.Misc.show (module K) key);
       get t ["mem"; K.pretty key] Ezjsonm.get_bool
 
 
     let list t keys =
-      Log.debugf "list %a" force (shows (module K) keys);
-      get t ("list" :: List.map ~f:K.pretty keys) (Ezjsonm.get_list K.of_json)
+      Log.debugf "list %a" Irmin.Misc.force (Irmin.Misc.shows (module K) keys);
+      get t ("list" :: List.map K.pretty keys) (Ezjsonm.get_list K.of_json)
 
     let dump t =
       Log.debugf "dump";
@@ -141,7 +140,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module AO (U: Config) (K: IrminKey.S) (V: I0) = struct
+  module AO (U: Config) (K: Irmin.Key.S) (V: Irmin.Sig.I0) = struct
 
     include RO(U)(K)(V)
 
@@ -156,11 +155,11 @@ module XMake (Client: Cohttp_lwt.Client) = struct
     include RO(U)(K)(V)
 
     let update t key value =
-      Log.debugf "update %a" force (show (module K) key);
+      Log.debugf "update %a" Irmin.Misc.force (Irmin.Misc.show (module K) key);
       post t ["update"; K.pretty key] (V.to_json value) Ezjsonm.get_unit
 
     let remove t key =
-      Log.debugf "remove %a" force (show (module K) key);
+      Log.debugf "remove %a" Irmin.Misc.force (Irmin.Misc.show (module K) key);
       delete t ["remove"; K.pretty key] Ezjsonm.get_unit
 
     let watch t path =

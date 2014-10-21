@@ -14,19 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
 open Lwt
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
 type ('key, 'contents, 'branch) store =
-  (module IrminBranch.STORE with type Block.key = 'key
-                             and type value = 'contents
-                             and type branch = 'branch)
+  (module Branch.STORE with type Block.key = 'key
+                        and type value = 'contents
+                        and type branch = 'branch)
 
 type ('key, 'contents) remote =
-  | Store: ('key, 'contents, 'branch) store * 'branch
-    -> ('key, 'contents) remote
+  | Store: ('key, 'contents, 'branch) store * 'branch -> ('key, 'contents) remote
   | URI of string
 
 let store m b = Store (m, b)
@@ -44,9 +42,9 @@ module type STORE = sig
   val push: db -> ?depth:int -> (key, contents) remote -> t option Lwt.t
   val push_exn: db -> ?depth:int -> (key, contents) remote -> t Lwt.t
   val update: db -> t -> unit Lwt.t
-  val merge: db -> ?origin:origin -> t -> unit IrminMerge.result Lwt.t
+  val merge: db -> ?origin:origin -> t -> unit Merge.result Lwt.t
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
-  include I0 with type t := t
+  include Misc.I0 with type t := t
 end
 
 module type REMOTE = sig
@@ -57,7 +55,7 @@ module type REMOTE = sig
 end
 
 module Fast
-    (S: IrminBranch.STORE)
+    (S: Branch.STORE)
     (R: REMOTE with type t = S.t and type key = S.Block.key)  =
 struct
 
@@ -71,7 +69,7 @@ struct
   module Node = Block.Node
   module Contents = Block.Contents
 
-  type origin = IrminOrigin.t
+  type origin = Origin.t
 
   type db = S.t
   type key = S.Block.key
@@ -80,14 +78,14 @@ struct
   include K
 
   let sync ?depth (type k) (type v) (type l) (type r)
-      (module L: IrminBranch.STORE with type t = l and type Block.key = k
-                                                   and type value = v)
+      (module L: Branch.STORE with type t = l and type Block.key = k
+                                              and type value = v)
       (l:l)
-      (module R: IrminBranch.STORE with type t = r and type Block.key = k
-                                                   and type value = v)
+      (module R: Branch.STORE with type t = r and type Block.key = k
+                                              and type value = v)
       (r:r)
     =
-    let module RBlockKeySet = Set.Make(R.Block.Key) in
+    let module RBlockKeySet = Misc.Set(R.Block.Key) in
     R.head r >>= function
     | None             -> return_none
     | Some remote_head ->
@@ -100,7 +98,7 @@ struct
       R.Block.Commit.list (R.commit_t r) ?depth [remote_head]
       >>= fun remote_keys ->
       let keys = RBlockKeySet.(to_list (diff (of_list remote_keys) (of_list local_keys))) in
-      Log.debugf "sync keys=%a" force (shows (module R.Block.Key) keys);
+      Log.debugf "sync keys=%a" Misc.force (Misc.shows (module R.Block.Key) keys);
       Lwt_list.iter_p (fun key ->
           R.Block.read (R.block_t r) key >>= function
           | None   -> return_unit
@@ -146,17 +144,17 @@ struct
 
   let merge t ?origin dump =
     let origin = match origin with
-      | None   -> IrminOrigin.create "Merge pulled state."
+      | None   -> Origin.create "Merge pulled state."
       | Some o -> o in
     S.merge_commit t ~origin dump
 
   let merge_exn t ?origin dump =
     merge t ?origin dump >>=
-    IrminMerge.exn
+    Merge.exn
 
 end
 
-module Slow (S: IrminBranch.STORE) = struct
+module Slow (S: Branch.STORE) = struct
   module B = struct
 
     type t = S.t

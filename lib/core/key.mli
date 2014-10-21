@@ -26,7 +26,7 @@ module type S = sig
 
   (** Signature for database keys. *)
 
-  include Misc.I0
+  include Tc.I0
 
   val pretty: t -> string
   (** Pretty-print the key. *)

@@ -41,7 +41,7 @@ module type STORE = sig
       created by users (and/or global names created by convention) and
       values are keys from the block store.
 
-      A typical Irminsule application should have a very low number of
+      A typical Irmin application should have a very low number of
       keys in the tag store, are this store is not supposed to be
       really efficient.  *)
 
