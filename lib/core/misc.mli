@@ -28,13 +28,14 @@ type 'a hash = 'a -> int
 (** Pretty-printing. *)
 type 'a to_sexp = 'a -> Sexplib.Sexp.t
 
-(** Cstruct readers. *)
-type 'a reader = Cstruct.t -> (Cstruct.t * 'a) option
+(** Mstruct reader. *)
+type 'a reader = Mstruct.t -> 'a
+exception Read_error
 
 (** Pre-compute the size of the written objects. *)
 type 'a size_of = 'a -> int
 
-(** Cstruct writers. *)
+(** Cstruct writer. *)
 type 'a writer = 'a -> Cstruct.t -> Cstruct.t
 
 (** JSON converters. *)
@@ -91,20 +92,24 @@ val size_of: (module I0 with type t = 'a) -> 'a size_of
 val write: (module I0 with type t = 'a) -> 'a writer
 val read: (module I0 with type t = 'a) -> 'a reader
 
-(** derived type-classes for debugging*)
+(** Derived type-classes for debugging *)
+
 val force: out_channel -> string Lazy.t -> unit
 val show: (module I0 with type t = 'a) -> 'a -> string Lazy.t
 val shows: (module I0 with type t = 'a) -> 'a list -> string Lazy.t
 
-val read_all: (module I0 with type t = 'a) -> Cstruct.t -> 'a option
-val write_all: (module I0 with type t = 'a) -> 'a -> Cstruct.t
+(** Derived type-classes for reading *)
 
-val read_string: (module I0 with type t = 'a) -> string -> 'a option
+val read_string: (module I0 with type t = 'a) -> string -> 'a
+val read_cstruct: (module I0 with type t = 'a) -> Cstruct.t -> 'a
+
+(** Derived type-classes for writing *)
+
 val write_string: (module I0 with type t = 'a) -> 'a -> string
+val write_cstruct: (module I0 with type t = 'a) -> 'a -> Cstruct.t
 
 (** Build abstract identifiers. *)
-module I0 (S: sig type t with sexp, bin_io, compare end):
-  I0 with type t = S.t
+module I0 (S: sig type t with sexp, bin_io, compare end): I0 with type t = S.t
 
 (** Abstract identifiers with one polymorphic parameter. *)
 module type I1 = sig
@@ -208,6 +213,8 @@ module type SET = sig
 end
 module Set (K: I0): SET with type elt = K.t
 
+val list_partition_map : 'a list -> f:('a -> [ `Fst of 'b | `Snd of 'c ]) -> 'b list * 'c list
+
 module Hex: sig
 
   val encode: string -> string
@@ -216,18 +223,6 @@ module Hex: sig
   val decode: string -> string
   (** Decode an hexa string to binary *)
 
-end
-
-val list_partition_map : 'a list -> f:('a -> [ `Fst of 'b | `Snd of 'c ]) -> 'b list * 'c list
-
-module Reader: sig
-  val to_bin_prot: 'a reader -> 'a Bin_prot.Read.reader
-  val of_bin_prot: 'a Bin_prot.Read.reader -> 'a reader
-end
-
-module Writer: sig
-  val to_bin_prot: 'a writer -> 'a Bin_prot.Write.writer
-  val of_bin_prot: 'a Bin_prot.Write.writer -> 'a writer
 end
 
 module Lwt_stream: sig

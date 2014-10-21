@@ -26,7 +26,9 @@ type 'a to_json = 'a -> Ezjsonm.t
 type 'a of_json = Ezjsonm.t -> 'a
 type 'a size_of = 'a -> int
 type 'a writer = 'a -> Cstruct.t -> Cstruct.t
-type 'a reader = Cstruct.t -> (Cstruct.t * 'a) option
+type 'a reader = Mstruct.t -> 'a
+
+exception Read_error
 
 module type I0 = sig
   type t
@@ -92,28 +94,24 @@ end
 
 module Reader = struct
 
-  let to_bin_prot read_t =
-    let raise_err pos =
-      Bin_prot.Common.(raise_read_error (ReadError.Silly_type "?") pos)
-    in
+  let to_bin_prot (read_t:'a reader): 'a Bin_prot.Read.reader =
     fun buf ~pos_ref ->
       let off = !pos_ref in
-      let b = Cstruct.of_bigarray ~off buf in
-      match read_t b with
-      | None -> raise_err off
-      | Some (b, a) ->
-        pos_ref := b.Cstruct.off;
-        a
+      let b = Mstruct.of_bigarray ~off buf in
+      let a = read_t b in
+      pos_ref := Mstruct.offset b;
+      a
 
-  let of_bin_prot bin_read_t =
-    fun ({ Cstruct.buffer; off; _ } as buf) ->
+  let of_bin_prot (bin_read_t: 'a Bin_prot.Read.reader): 'a reader =
+    fun (buf: Mstruct.t) ->
       try
-        let pos_ref = ref off in
+        let buffer = Mstruct.to_bigarray buf in
+        let pos_ref = ref 0 in
         let t = bin_read_t buffer ~pos_ref in
-        let buf = Cstruct.shift buf (!pos_ref - off) in
-        Some (buf, t)
+        Mstruct.shift buf !pos_ref;
+        t
       with Bin_prot.Common.Read_error _ ->
-        None
+        raise Read_error
 
   let pair a b =
     of_bin_prot (Bin_prot.Read.bin_read_pair (to_bin_prot a) (to_bin_prot b))
@@ -129,13 +127,13 @@ end
 
 module Writer = struct
 
-  let to_bin_prot write =
+  let to_bin_prot (write:'a writer): 'a Bin_prot.Write.writer =
     fun buf ~pos t ->
       let b = Cstruct.of_bigarray ~off:pos buf in
       let b = write t b in
       b.Cstruct.off
 
-  let of_bin_prot bin_write_t =
+  let of_bin_prot (bin_write_t: 'a Bin_prot.Write.writer): 'a writer =
     fun t ({ Cstruct.buffer; off; _ } as buf) ->
       let pos = bin_write_t buffer ~pos:off t in
       Cstruct.shift buf (pos - off)
@@ -282,14 +280,15 @@ module I0 (S: sig type t with sexp, bin_io, compare end) = struct
 
   let size_of = bin_size_t
 
-  let read ({ Cstruct.buffer; off; _ } as buf) =
+  let read buf =
     try
-      let pos_ref = ref off in
+      let pos_ref = ref 0 in
+      let buffer = Mstruct.to_bigarray buf in
       let t = bin_t.reader.read ~pos_ref buffer in
-      let buf = Cstruct.shift buf (!pos_ref - off) in
-      Some (buf, t)
+      Mstruct.shift buf !pos_ref;
+      t
     with Bin_prot.Common.Read_error _ ->
-      None
+      raise Read_error
 
   let write t ({ Cstruct.buffer; off; _ } as buf) =
     let k = bin_t.writer.write buffer ~pos:off t in
@@ -297,96 +296,18 @@ module I0 (S: sig type t with sexp, bin_io, compare end) = struct
 
 end
 
-module Char = struct
-  include I0(struct type t = char with sexp, compare, bin_io end)
-  let to_int = Char.code
-  let of_int i = if i >= 0 && i <= 255 then Some (Char.chr i) else None
-  let of_int_exn i = match of_int i with
-    | None   -> raise (invalid_argf "Char.of_int_exn: %d is out of range." i)
-    | Some c -> c
-end
+let read_cstruct (type t) (module S: I0 with type t = t) buf =
+  S.read (Mstruct.of_cstruct buf)
 
-module String = struct
-  include I0(struct type t = string with sexp, compare, bin_io end)
-  let of_json = JSON.decode_string_exn
-  let to_json = JSON.encode_string
-  let create = String.create
-  let make = String.make
-  let get = String.get
-  let set = String.set
-  let blit = String.blit
-  let is_empty t = t = ""
-  let sub str ~pos ~len = String.sub str pos len
-  let length = String.length
-  let concat ts ~sep = String.concat sep ts
-  let escaped = String.escaped
-
-  let chop_prefix t ~prefix =
-    let lt = String.length t in
-    let lp = String.length prefix in
-    if lt < lp then None else
-      let p = String.sub t 0 lp in
-      if String.compare p prefix <> 0 then None
-      else Some (String.sub t lp (lt - lp))
-
-  let split str ~on =
-    let len = String.length str in
-    let rec loop acc i =
-      if i < 0 then acc else (
-        Printf.printf "i=%d\n%!" i;
-        let j =
-          try String.rindex_from str i on
-          with Not_found -> -42
-        in
-        match j with
-        | -42 -> String.sub str 0 i :: acc
-        | _  ->
-          let sub = String.sub str (j + 1) (i - j) in
-          loop (sub :: acc) (j - 1)
-      )
-    in
-    loop [] (len - 1)
-
-  let replace ~pattern subst str =
-    let rex = Re_perl.compile_pat pattern in
-    Re_pcre.substitute ~rex ~subst str
-
-  module Hex = Hex
-
-end
-
-module Int = struct
-  include I0(struct type t = int with sexp, compare, bin_io end)
-  let of_json = Ezjsonm.get_int
-  let to_json = Ezjsonm.int
-  let max_value = max_int
-end
-
-let read_all (type t) (module S: I0 with type t = t) buf =
-  match S.read buf with
-  | None -> None
-  | Some (_, t) ->
-    (* FIXME: assert that the buffer is empty? *)
-    Some t
-
-let write_all (type t) (module S: I0 with type t = t) t =
+let write_cstruct (type t) (module S: I0 with type t = t) t =
   let buf = Cstruct.create (S.size_of t) in
   let buf = S.write t buf in
   (* FIXME: assert len=off *)
   buf
 
 (* XXX: review performance *)
-let read_string m str = read_all m (Cstruct.of_string str)
-let write_string m t = Cstruct.to_string (write_all m t)
-
-module Unit = I0(struct type t = unit with sexp, bin_io, compare end)
-
-module Int64 = struct
-  include I0(struct type t = int64 with sexp, bin_io, compare end)
-  let (+) = Int64.add
-  let to_string = Int64.to_string
-  let of_string = Int64.of_string
-end
+let read_string m str = read_cstruct m (Cstruct.of_string str)
+let write_string m t = Cstruct.to_string (write_cstruct m t)
 
 module App1(F: I1)(X: I0) = struct
   type t = X.t F.t
@@ -425,7 +346,7 @@ module I1 (S: sig type 'a t with sexp, compare, bin_io end):
       | List l -> Ezjsonm.list json_of_sexp l
       | Atom x ->
         try json_of_a (List.assq x !sexprs)
-        with Not_found -> String.to_json x
+        with Not_found -> JSON.encode_string x
     in
     json_of_sexp (S.sexp_of_t sexp_of_a t)
 
@@ -514,7 +435,7 @@ module I2 (S: sig type ('a, 'b) t with sexp, compare, bin_io end):
         try json_of_a (List.assq x !sexprs_a)
         with Not_found ->
           try json_of_b (List.assq x !sexprs_b)
-          with Not_found -> String.to_json x
+          with Not_found -> JSON.encode_string x
     in
     json_of_sexp (S.sexp_of_t sexp_of_a sexp_of_b t)
 
@@ -618,7 +539,7 @@ module I3 (S: sig type ('a, 'b, 'c) t with sexp, compare, bin_io end):
           try json_of_b (List.assq x !sexprs_b)
           with Not_found ->
             try json_of_c (List.assq x !sexprs_c)
-            with Not_found -> String.to_json x
+            with Not_found -> JSON.encode_string x
     in
     json_of_sexp (S.sexp_of_t sexp_of_a sexp_of_b sexp_of_c t)
 
@@ -639,6 +560,143 @@ module I3 (S: sig type ('a, 'b, 'c) t with sexp, compare, bin_io end):
     let b_of_sexp e = b_of_json (List.assq e !sexprs) in
     let c_of_sexp e = c_of_json (List.assq e !sexprs) in
     S.t_of_sexp a_of_sexp b_of_sexp c_of_sexp (sexp_of_json t)
+
+end
+
+module L0 (S: sig
+            type t
+            module K: I0
+            val to_list: t -> K.t list
+            val of_list: K.t list -> t
+          end) =
+struct
+
+  let compare t1 t2 =
+    let rec aux t1 t2 = match t1, t2 with
+      | [], [] -> 0
+      | _ , [] -> 1
+      | [], _  -> -1
+      | h1::t1, h2::t2 -> match S.K.compare h1 h2 with
+        | 0 -> aux t1 t2
+        | i -> i
+    in
+    aux (S.to_list t1) (S.to_list t2)
+
+  let equal t1 t2 = List.for_all2 S.K.equal (S.to_list t1) (S.to_list t2)
+  let hash = Hashtbl.hash
+  let to_sexp t = Sexplib.Conv.sexp_of_list S.K.to_sexp (S.to_list t)
+  let to_json t = Ezjsonm.list S.K.to_json (S.to_list t)
+  let of_json j = S.of_list (Ezjsonm.get_list S.K.of_json j)
+  let size_of t = Bin_prot.Size.bin_size_list S.K.size_of (S.to_list t)
+
+  let write t =
+    Writer.list S.K.write (S.to_list t)
+
+  let read buf =
+    let x = Reader.list S.K.read buf in
+    S.of_list x
+
+end
+
+module L1 (S: sig
+            type 'a t
+            val to_list: 'a t -> 'a list
+            val of_list: 'a list -> 'a t
+          end) =
+struct
+
+  let compare compare_a t1 t2 =
+    let rec aux t1 t2 = match t1, t2 with
+      | [], [] -> 0
+      | _ , [] -> 1
+      | [], _  -> -1
+      | h1::t1, h2::t2 -> match compare_a h1 h2 with
+        | 0 -> aux t1 t2
+        | i -> i
+    in
+    aux (S.to_list t1) (S.to_list t2)
+
+  let equal equal_a t1 t2 = List.for_all2 equal_a (S.to_list t1) (S.to_list t2)
+  let hash _ = Hashtbl.hash
+  let to_sexp to_sexp_a t = Sexplib.Conv.sexp_of_list to_sexp_a (S.to_list t)
+  let to_json to_json_a t = Ezjsonm.list to_json_a (S.to_list t)
+  let of_json of_json_a j = S.of_list (Ezjsonm.get_list of_json_a j)
+  let size_of size_of_a t = Bin_prot.Size.bin_size_list size_of_a (S.to_list t)
+
+  let write write_a t =
+    Writer.list write_a (S.to_list t)
+
+  let read read_a buf =
+    let x = Reader.list read_a buf in
+    S.of_list x
+
+end
+
+module AL (L: sig
+    type 'a t
+    module K: I0
+    val to_alist: 'a t -> (K.t * 'a) list
+    val of_alist: (K.t * 'a) list -> 'a t
+  end) =
+struct
+
+  let hash _ = Hashtbl.hash
+
+  let to_sexp sexp_of_a t =
+    let l = L.to_alist t in
+    Sexplib.Conv.sexp_of_list (Sexplib.Conv.sexp_of_pair L.K.to_sexp sexp_of_a) l
+
+  let to_json json_of_a t =
+    let l = L.to_alist t in
+    Ezjsonm.(list (pair L.K.to_json json_of_a) l)
+
+  let of_json a_of_json json =
+    let l = Ezjsonm.(get_list (get_pair L.K.of_json a_of_json) json) in
+    L.of_alist l
+
+  let size_of size_of_a t =
+    let size_of_pair = Bin_prot.Size.bin_size_pair L.K.size_of size_of_a in
+    Bin_prot.Size.bin_size_list size_of_pair (L.to_alist t)
+
+  let read read_a buf =
+    let l = Reader.list (Reader.pair L.K.read read_a) buf in
+    L.of_alist l
+
+  let write write_a t =
+    let bin_write_k = Writer.to_bin_prot L.K.write in
+    let bin_write_a = Writer.to_bin_prot write_a in
+    let bindings =
+      let bin = Bin_prot.Write.bin_write_pair bin_write_k bin_write_a in
+      Writer.of_bin_prot bin
+    in
+    Writer.list bindings (L.to_alist t)
+
+  let compare_bindings compare_a (k1, v1) (k2, v2) =
+    match L.K.compare k1 k2 with
+    | 0 -> compare_a v1 v2
+    | x -> x
+
+  let compare compare_a m1 m2 =
+    let compare = compare_bindings compare_a in
+    let l1 = List.sort compare (L.to_alist m1) in
+    let l2 = List.sort compare (L.to_alist m2) in
+    let rec aux t1 t2 = match t1, t2 with
+      | [], [] -> 0
+      | [], _  -> -1
+      | _ , [] -> 1
+      | h1::t1, h2::t2 ->
+        match compare h1 h2 with
+        | 0 -> aux t1 t2
+        | x -> x
+    in
+    aux l1 l2
+
+  let equal equal_a t1 t2 =
+    let compare = compare_bindings (fun _ _ -> 0) in
+    let l1 = List.sort compare (L.to_alist t1) in
+    let l2 = List.sort compare (L.to_alist t2) in
+    let f (k1, v1) (k2, v2) = L.K.equal k1 k2 && equal_a v1 v2 in
+    List.for_all2 f l1 l2
 
 end
 
@@ -675,10 +733,33 @@ module type MAP = sig
   val keys: 'a t -> key list
   val add_multi: key -> 'a -> 'a list t -> 'a list t
 end
-module Map (S: I0) = struct
+module Map (K: I0) = struct
 
+  include Map.Make(K)
+
+  let keys m =
+    List.map fst (bindings m)
+
+  let of_alist l =
+    List.fold_left (fun map (k, v)  -> add k v map) empty l
+
+  let to_alist = bindings
+
+  let add_multi key data t =
+    try
+      let l = find key t in
+      add key (data :: l) t
+    with Not_found ->
+      add key [data] t
+
+  include AL(struct
+      type 'a r = 'a t
+      type 'a t = 'a r
+      module K = K
+      let of_alist = of_alist
+      let to_alist = to_alist
+    end)
 end
-
 
 (** Persistent Sets. *)
 module type SET = sig
@@ -688,15 +769,21 @@ module type SET = sig
   val to_list: t -> elt list
 end
 module Set (K: I0) = struct
-  module Set = Set.Make(K)
-  let to_list t =
-    let l = ref [] in
-    Set.iter (fun k -> l := k :: !l) t;
-    List.rev !l
+
+  include Set.Make(K)
+
   let of_list l =
-    let t = ref Set.empty in
-    List.iter (fun k -> t := Set.add k !t) l;
-    !t
+    List.fold_left (fun set elt -> add elt set) empty l
+
+  let to_list = elements
+
+  include L0(struct
+      type r = t
+      type t = r
+      module K = K
+      let to_list = to_list
+      let of_list = of_list
+    end)
 end
 
 module Lwt_stream = struct
