@@ -18,6 +18,7 @@ module Log = Log.Make(struct let section = "COMMIT" end)
 
 open Lwt
 open Merge.OP
+open Misc.OP
 open Printf
 open Sexplib.Std
 open Bin_prot.Std
@@ -32,7 +33,7 @@ module T_ = struct
   } with bin_io, compare, sexp
 end
 include T_
-module T = Misc.I2(T_)
+module T = Tc.I2(T_)
 
 let edges t =
   begin match t.node with
@@ -64,7 +65,7 @@ end
 
 module S (K: Key.S) = struct
   type key = K.t
-  module S = Misc.App2(T)(Origin)(K)
+  module S = Tc.App2(T)(Origin)(K)
   include S
   let merge = Merge.default (module S)
 end
@@ -123,7 +124,7 @@ module Make
   module Graph = Digraph.Make(K)(Tag.String)
 
   let list t ?depth keys =
-    Log.debugf "list %a" Misc.force (Misc.shows (module K) keys);
+    Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
       | `Commit k -> read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in

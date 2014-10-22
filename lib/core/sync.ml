@@ -15,6 +15,7 @@
  *)
 
 open Lwt
+open Misc.OP
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
@@ -44,7 +45,7 @@ module type STORE = sig
   val update: db -> t -> unit Lwt.t
   val merge: db -> ?origin:origin -> t -> unit Merge.result Lwt.t
   val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
-  include Misc.I0 with type t := t
+  include Tc.I0 with type t := t
 end
 
 module type REMOTE = sig
@@ -98,7 +99,7 @@ struct
       R.Block.Commit.list (R.commit_t r) ?depth [remote_head]
       >>= fun remote_keys ->
       let keys = RBlockKeySet.(to_list (diff (of_list remote_keys) (of_list local_keys))) in
-      Log.debugf "sync keys=%a" Misc.force (Misc.shows (module R.Block.Key) keys);
+      Log.debugf "sync keys=%a" force (shows (module R.Block.Key) keys);
       Lwt_list.iter_p (fun key ->
           R.Block.read (R.block_t r) key >>= function
           | None   -> return_unit

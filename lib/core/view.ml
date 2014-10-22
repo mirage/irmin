@@ -16,6 +16,7 @@
 
 open Lwt
 open Merge.OP
+open Misc.OP
 open Printf
 open Sexplib.Std
 open Bin_prot.Std
@@ -34,7 +35,7 @@ with bin_io, compare, sexp
 
 module Action = struct
 
-  include Misc.I2(struct
+  include Tc.I2(struct
     type ('a, 'b) t = ('a, 'b) action with bin_io, compare, sexp
     end)
 
@@ -197,7 +198,7 @@ module Make (K: Key.S) (C: Contents.S) = struct
   type key = path
   type value = C.t
 
-  module A = Misc.App2(Action)(Path)(C)
+  module A = Tc.App2(Action)(Path)(C)
 
   let create () =
     Log.debugf "create";
@@ -309,21 +310,21 @@ module Make (K: Key.S) (C: Contents.S) = struct
     failwith "TODO"
 
   let apply t a =
-    Log.debugf "apply %a" Misc.force (Misc.show (module A) a);
+    Log.debugf "apply %a" force (show (module A) a);
     match a with
     | Write (k, v) -> update' t k v >>= ok
     | Read (k, v)  ->
       read t k >>= fun v' ->
-      if Misc.O.equal C.equal v v' then ok ()
+      if Tc.O.equal C.equal v v' then ok ()
       else
         let str = function
           | None   -> "<none>"
-          | Some c -> Lazy.force (Misc.show (module C) c) in
+          | Some c -> Tc.show (module C) c in
         conflict "read %s: got %S, expecting %S"
           (Path.pretty k) (str v') (str v)
     | List (l,r) ->
       list t l >>= fun r' ->
-      if Misc.L.equal Path.equal r r' then ok ()
+      if Tc.L.equal Path.equal r r' then ok ()
       else
         let str = Misc.list_pretty Path.pretty in
         conflict "list %s: got %s, expecting %s" (str l) (str r') (str r)
@@ -349,7 +350,7 @@ module Store (S: Branch.STORE) = struct
   type path = S.key
 
   let import ~parents ~contents ~node key =
-    Log.debugf "import %a" Misc.force (Misc.show (module K) key);
+    Log.debugf "import %a" force (show (module K) key);
     node key >>= function
     | None   -> fail Not_found
     | Some n ->
@@ -411,7 +412,7 @@ module Store (S: Branch.STORE) = struct
   module Node = S.Block.Node
 
   let of_path t path =
-    Log.debugf "read_view %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "read_view %a" force (show (module Path) path);
     let contents = Contents.read (S.contents_t t) in
     let node = Node.read (S.node_t t) in
     let parents =
@@ -432,7 +433,7 @@ module Store (S: Branch.STORE) = struct
     Node.read_exn (S.node_t t) key
 
   let update_path ?origin t path view =
-    Log.debugf "update_view %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "update_view %a" force (show (module Path) path);
     let origin = match origin with
       | None   -> Origin.create "Update view to %s" (Path.pretty path)
       | Some o -> o in
@@ -451,7 +452,7 @@ module Store (S: Branch.STORE) = struct
     | Some o -> o
 
   let rebase_path ?origin t path view =
-    Log.debugf "merge_view %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "merge_view %a" force (show (module Path) path);
     S.read_node t [] >>= function
     | None           -> fail Not_found
     | Some head_node ->
@@ -466,7 +467,7 @@ module Store (S: Branch.STORE) = struct
     Merge.exn
 
   let merge_path ?origin t path view =
-    Log.debugf "merge_view %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "merge_view %a" force (show (module Path) path);
     S.read_node t [] >>= function
     | None           -> fail Not_found
     | Some head_node ->

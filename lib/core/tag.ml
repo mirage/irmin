@@ -24,7 +24,7 @@ module type S = sig
 end
 
 module String = struct
-  include Misc.S
+  include Tc.S
   let compute_from_cstruct b = Cstruct.to_string b
   let compute_from_string r = r
   let pretty t = t

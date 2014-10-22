@@ -16,6 +16,7 @@
 
 open Lwt
 open Merge.OP
+open Misc.OP
 
 module Log = Log.Make(struct let section = "BRANCH" end)
 module StringMap = Map.Make(String)
@@ -50,7 +51,7 @@ type ('key, 'contents, 'tag) t =
                  and type value     = 'contents
                  and type branch    = 'tag)
 
-module TK2 = Misc.I2(struct
+module TK2 = Tc.I2(struct
     type ('a, 'b) t =
       [ `Tag of 'a
       | `Key of 'b ]
@@ -90,7 +91,7 @@ struct
   type branch = Branch.t
 
   module TK = struct
-    include Misc.App2(TK2)(T)(K)
+    include Tc.App2(TK2)(T)(K)
     let pretty = function
       | `Tag t -> T.pretty t
       | `Key k -> K.pretty k
@@ -155,10 +156,10 @@ struct
   let read_head_commit t =
     match t.branch with
     | `Key key ->
-      Log.debugf "read detached head: %a" Misc.force (Misc.show (module K) key);
+      Log.debugf "read detached head: %a" force (show (module K) key);
       XCommit.read (commit_t t) key
     | `Tag tag ->
-      Log.debugf "read head: %a" Misc.force (Misc.show (module T) tag);
+      Log.debugf "read head: %a" force (show (module T) tag);
       Tag.read t.tag tag >>= function
       | None   -> return_none
       | Some k -> XCommit.read (commit_t t) k
@@ -217,7 +218,7 @@ struct
     let origin = match origin with
       | None   -> Origin.create "Update %s." (Path.pretty path)
       | Some o -> o in
-    Log.debugf "update %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "update %a" force (show (module Path) path);
     apply t origin ~f:(fun node ->
         XNode.update (node_t t) node path contents
       )
@@ -231,7 +232,7 @@ struct
       )
 
   let read_exn t path =
-    Log.debugf "read_exn %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "read_exn %a" force (show (module Path) path);
     map t path ~f:XNode.find_exn
 
   let mem t path =
@@ -280,8 +281,8 @@ struct
      - Perform a 3-way merge *)
   let three_way_merge t ?origin c1 c2 =
     Log.debugf "3-way merge between %a and %a"
-      Misc.force (Misc.show (module K) c1)
-      Misc.force (Misc.show (module K) c2);
+      force (show (module K) c1)
+      force (show (module K) c2);
     XCommit.find_common_ancestor (commit_t t) c1 c2 >>= function
     | None     -> conflict "no common ancestor"
     | Some old ->
@@ -299,7 +300,7 @@ struct
     | `Key _   -> t.branch <- `Key c; return_unit
 
   let switch t branch =
-    Log.debugf "switch %a" Misc.force (Misc.show (module Branch) branch);
+    Log.debugf "switch %a" force (show (module Branch) branch);
     Tag.read t.tag branch >>= function
     | Some c -> update_commit t c
     | None   -> fail Not_found
@@ -317,7 +318,7 @@ struct
       | Some c2 -> aux c2
 
   let clone_force t branch =
-    Log.debugf "clone %a" Misc.force (Misc.show (module Branch) branch);
+    Log.debugf "clone %a" force (show (module Branch) branch);
     begin match t.branch with
       | `Key c -> Tag.update t.tag branch c
       | `Tag tag ->
@@ -333,7 +334,7 @@ struct
     | false -> clone_force t branch >>= fun t -> return (Some t)
 
   let merge t ?origin branch =
-    Log.debugf "merge %a" Misc.force (Misc.show (module Branch) branch);
+    Log.debugf "merge %a" force (show (module Branch) branch);
     let origin = match origin with
       | Some o -> o
       | None   -> Origin.create "Merge branch %s." (TK.pretty t.branch) in
@@ -345,7 +346,7 @@ struct
     Merge.exn
 
   let watch_node t path =
-    Log.infof "Adding a watch on %a" Misc.force (Misc.show (module Path) path);
+    Log.infof "Adding a watch on %a" force (show (module Path) path);
     match t.branch with
     | `Key _   -> Lwt_stream.of_list []
     | `Tag tag ->
@@ -354,7 +355,7 @@ struct
         read_node t path >>= fun node ->
         let old_node = ref node in
         let stream = Lwt_stream.filter_map_s (fun key ->
-            Log.debugf "watch: %a" Misc.force (Misc.show (module Block.Key) key);
+            Log.debugf "watch: %a" force (show (module Block.Key) key);
             XCommit.read_exn (commit_t t) key >>= fun commit ->
             begin match XCommit.node (commit_t t) commit with
               | None      -> return Node.empty

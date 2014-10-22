@@ -26,7 +26,7 @@ module M = struct
   } with bin_io, compare, sexp
 end
 
-include Misc.I0(M)
+include Tc.I0(M)
 
 let date_hook =
   let c = ref 0L in

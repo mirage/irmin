@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Bin_prot.Std
+open Sexplib.Std
+
 exception Read_error
 
 type 'a equal = 'a -> 'a -> bool
@@ -90,15 +93,11 @@ let write (type t) (module S: I0 with type t = t) = S.write
 let read (type t) (module S: I0 with type t = t) = S.read
 
 let show (type t) (module S: I0 with type t = t) t =
-  lazy (
-    Sexplib.Sexp.to_string_hum (S.to_sexp t)
-  )
+  Sexplib.Sexp.to_string_hum (S.to_sexp t)
 
 let shows (type t) (module S: I0 with type t = t) xs =
-  lazy (
-    List.map S.to_sexp xs
-    |> fun l -> Sexplib.Sexp.to_string_hum (Sexplib.Sexp.List l)
-  )
+  List.map S.to_sexp xs
+  |> fun l -> Sexplib.Sexp.to_string_hum (Sexplib.Sexp.List l)
 
 let read_cstruct (type t) (module S: I0 with type t = t) buf =
   S.read (Mstruct.of_cstruct buf)
@@ -207,8 +206,8 @@ module I0 (S: sig type t with sexp, bin_io, compare end) = struct
   let equal x y = compare x y = 0
   let hash = Hashtbl.hash
   let to_sexp = S.sexp_of_t
-  let to_json t = JSON.of_sexp (S.sexp_of_t t)
-  let of_json t = S.t_of_sexp (JSON.to_sexp t)
+  let to_json t = Json.of_sexp (S.sexp_of_t t)
+  let of_json t = S.t_of_sexp (Json.to_sexp t)
 
   open Bin_prot.Type_class
 
@@ -267,7 +266,7 @@ module I1 (S: sig type 'a t with sexp, compare, bin_io end):
       | List l -> Ezjsonm.list json_of_sexp l
       | Atom x ->
         try json_of_a (List.assq x !sexprs)
-        with Not_found -> JSON.encode_string x
+        with Not_found -> Json.encode_string x
     in
     json_of_sexp (S.sexp_of_t sexp_of_a t)
 
@@ -275,7 +274,7 @@ module I1 (S: sig type 'a t with sexp, compare, bin_io end):
     let open Sexplib.Type in
     let sexprs = ref [] in
     let rec sexp_of_json json =
-      let e = match JSON.decode_string json with
+      let e = match Json.decode_string json with
         | Some s -> Atom s
         | None   -> match json with
           | `A l -> List (List.map sexp_of_json l)
@@ -356,7 +355,7 @@ module I2 (S: sig type ('a, 'b) t with sexp, compare, bin_io end):
         try json_of_a (List.assq x !sexprs_a)
         with Not_found ->
           try json_of_b (List.assq x !sexprs_b)
-          with Not_found -> JSON.encode_string x
+          with Not_found -> Json.encode_string x
     in
     json_of_sexp (S.sexp_of_t sexp_of_a sexp_of_b t)
 
@@ -364,7 +363,7 @@ module I2 (S: sig type ('a, 'b) t with sexp, compare, bin_io end):
     let open Sexplib.Type in
     let sexprs = ref [] in
     let rec sexp_of_json json =
-      let e = match JSON.decode_string json with
+      let e = match Json.decode_string json with
         | Some s -> Atom s
         | None   -> match json with
           | `A l -> List (List.map sexp_of_json l)
@@ -378,20 +377,6 @@ module I2 (S: sig type ('a, 'b) t with sexp, compare, bin_io end):
     S.t_of_sexp a_of_sexp b_of_sexp (sexp_of_json t)
 
 end
-
-module type I3 = sig
-  type ('a, 'b, 'c) t
-  val equal: 'a equal -> 'b equal -> 'c equal -> ('a, 'b, 'c) t equal
-  val compare: 'a compare -> 'b compare -> 'c compare -> ('a, 'b, 'c) t compare
-  val hash: 'a hash -> 'b hash -> 'c hash -> ('a, 'b, 'c) t hash
-  val to_sexp: 'a to_sexp -> 'b to_sexp -> 'c to_sexp -> ('a, 'b, 'c) t to_sexp
-  val to_json: 'a to_json -> 'b to_json -> 'c to_json -> ('a, 'b, 'c) t to_json
-  val of_json: 'a of_json -> 'b of_json -> 'c of_json -> ('a, 'b, 'c) t of_json
-  val size_of: 'a size_of -> 'b size_of -> 'c size_of -> ('a, 'b, 'c) t size_of
-  val write: 'a writer -> 'b writer -> 'c writer -> ('a, 'b, 'c) t writer
-  val read: 'a reader -> 'b reader -> 'c reader -> ('a, 'b, 'c) t reader
-end
-
 
 module App3(F: I3)(X: I0)(Y: I0)(Z: I0) = struct
   type t = (X.t, Y.t, Z.t) F.t
@@ -460,7 +445,7 @@ module I3 (S: sig type ('a, 'b, 'c) t with sexp, compare, bin_io end):
           try json_of_b (List.assq x !sexprs_b)
           with Not_found ->
             try json_of_c (List.assq x !sexprs_c)
-            with Not_found -> JSON.encode_string x
+            with Not_found -> Json.encode_string x
     in
     json_of_sexp (S.sexp_of_t sexp_of_a sexp_of_b sexp_of_c t)
 
@@ -468,7 +453,7 @@ module I3 (S: sig type ('a, 'b, 'c) t with sexp, compare, bin_io end):
     let open Sexplib.Type in
     let sexprs = ref [] in
     let rec sexp_of_json json =
-      let e = match JSON.decode_string json with
+      let e = match Json.decode_string json with
         | Some s -> Atom s
         | None   -> match json with
           | `A l -> List (List.map sexp_of_json l)
@@ -620,3 +605,10 @@ struct
     List.for_all2 f l1 l2
 
 end
+
+module S = I0(struct type t = string with compare, sexp, bin_io end)
+module U = I0(struct type t = unit with compare, sexp, bin_io end)
+module O = I1(struct type 'a t = 'a option with compare, sexp, bin_io end)
+module P = I2(struct type ('a, 'b) t = 'a * 'b with compare, sexp, bin_io end)
+module I = I0(struct type t = int with compare, sexp, bin_io end)
+module L = I1(struct type 'a t = 'a list with sexp, compare, bin_io end)

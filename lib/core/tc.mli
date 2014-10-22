@@ -133,8 +133,8 @@ val to_json: (module I0 with type t = 'a) -> 'a to_json
 val size_of: (module I0 with type t = 'a) -> 'a size_of
 val write: (module I0 with type t = 'a) -> 'a writer
 val read: (module I0 with type t = 'a) -> 'a reader
-val show: (module I0 with type t = 'a) -> 'a -> string Lazy.t
-val shows: (module I0 with type t = 'a) -> 'a list -> string Lazy.t
+val show: (module I0 with type t = 'a) -> 'a -> string
+val shows: (module I0 with type t = 'a) -> 'a list -> string
 val read_string: (module I0 with type t = 'a) -> string -> 'a
 val read_cstruct: (module I0 with type t = 'a) -> Cstruct.t -> 'a
 val write_string: (module I0 with type t = 'a) -> 'a -> string
@@ -181,7 +181,7 @@ module L0
      module K: I0
      val to_list: t -> K.t list
      val of_list: K.t list -> t
-   end): I0 with type t = S.t
+   end): I0 with type t := S.t
 (** Manorphic list -like. *)
 
 module L1
@@ -189,7 +189,7 @@ module L1
        type 'a t
        val to_list: 'a t -> 'a list
        val of_list: 'a list -> 'a t
-     end): I1 with type 'a t = 'a S.t
+     end): I1 with type 'a t := 'a S.t
 (** Polymorphic list -like. *)
 
 module AL
@@ -198,7 +198,7 @@ module AL
        module K: I0
        val to_alist: 'a t -> (K.t * 'a) list
        val of_alist: (K.t * 'a) list -> 'a t
-     end): I1 with type 'a t = 'a S.t
+     end): I1 with type 'a t := 'a S.t
 (** Association list -like. *)
 
 (** {2 Helpers} *)

@@ -14,23 +14,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Sexplib.Std
-open Bin_prot.Std
+(** Json helpers. *)
 
-module T = Tc.I0(struct
-  type t = string list with bin_io, compare, sexp
-  end)
+val is_valid_utf8: string -> bool
+(** Check whether a string is valid UTF8 encoded. *)
 
-include T
+val encode_string: string -> Ezjsonm.t
+(** Convert a (possibly non-valid UTF8) string to a JSON object.*)
 
-let to_string t =
-  "/" ^ (String.concat "/" t)
+val decode_string: Ezjsonm.t -> string option
+(** Convert a JSON object to a (possibly non-valid UTF8)
+    string. Return [None] if the JSON object is not a valid string. *)
 
-let of_string str =
-  List.filter ((<>) "") (Stringext.split str ~on:'/')
+val decode_string_exn: Ezjsonm.t -> string
+(** Convert a JSON object to a (possibly non-valid UTF8) string. *)
 
-let pretty = to_string
-let of_raw = of_string
-let to_raw = to_string
-let compute_from_string t = of_string t
-let compute_from_cstruct s = of_string (Cstruct.to_string s)
+val to_sexp: Ezjsonm.t -> Sexplib.Type.t
+(** Convert a JSON object to an S-expression. *)
+
+val of_sexp: Sexplib.Type.t -> Ezjsonm.t
+(** Convert an S-expression to a JSON object. *)

@@ -16,6 +16,7 @@
 
 open Lwt
 open Merge.OP
+open Misc.OP
 
 module type S = sig
   include Branch.STORE with type key = Path.t
@@ -46,7 +47,7 @@ struct
   include S
 end
 
-module RO_BINARY  (S: Sig.RO_BINARY) (K: Key.S) (V: Misc.I0) = struct
+module RO_BINARY  (S: Sig.RO_BINARY) (K: Key.S) (V: Tc.I0) = struct
 
   module L = Log.Make(struct let section = "RO" end)
 
@@ -62,7 +63,7 @@ module RO_BINARY  (S: Sig.RO_BINARY) (K: Key.S) (V: Misc.I0) = struct
   let read t key =
     S.read t (K.to_raw key) >>= function
     | None    -> return_none
-    | Some ba -> return (Some (Misc.read_cstruct (module V) ba))
+    | Some ba -> return (Some (Tc.read_cstruct (module V) ba))
 
   let read_exn t key =
     read t key >>= function
@@ -81,13 +82,13 @@ module RO_BINARY  (S: Sig.RO_BINARY) (K: Key.S) (V: Misc.I0) = struct
   let dump t =
     S.dump t >>= fun l ->
     Lwt_list.fold_left_s (fun acc (s, ba) ->
-        let v = Misc.read_cstruct (module V) ba in
+        let v = Tc.read_cstruct (module V) ba in
         return ((K.of_raw s, v) :: acc)
       ) [] l
 
 end
 
-module AO_BINARY (S: Sig.AO_BINARY)  (K: Key.S) (V: Misc.I0) = struct
+module AO_BINARY (S: Sig.AO_BINARY)  (K: Key.S) (V: Tc.I0) = struct
 
   include RO_BINARY(S)(K)(V)
 
@@ -95,28 +96,28 @@ module AO_BINARY (S: Sig.AO_BINARY)  (K: Key.S) (V: Misc.I0) = struct
 
   let add t value =
     LA.debugf "add";
-    S.add t (Misc.write_cstruct (module V) value) >>= fun key ->
+    S.add t (Tc.write_cstruct (module V) value) >>= fun key ->
     let key = K.of_raw key in
-    LA.debugf "<-- added: %a" Misc.force (Misc.show (module K) key);
+    LA.debugf "<-- added: %a" force (show (module K) key);
     return key
 
 end
 
-module RW_BINARY (S: Sig.RW_BINARY) (K: Key.S) (V: Misc.I0) = struct
+module RW_BINARY (S: Sig.RW_BINARY) (K: Key.S) (V: Tc.I0) = struct
 
   include RO_BINARY(S)(K)(V)
 
   module LM = Log.Make(struct let section = "RW" end)
 
   let update t key value =
-    LM.debugf "update %a" Misc.force (Misc.show (module K) key);
-    S.update t (K.to_raw key) (Misc.write_cstruct (module V) value)
+    LM.debugf "update %a" force (show (module K) key);
+    S.update t (K.to_raw key) (Tc.write_cstruct (module V) value)
 
   let remove t key =
     S.remove t (K.to_raw key)
 
   let watch t key =
-    Lwt_stream.map (Misc.read_cstruct (module V)) (S.watch t (K.to_raw key))
+    Lwt_stream.map (Tc.read_cstruct (module V)) (S.watch t (K.to_raw key))
 
 end
 
@@ -137,12 +138,12 @@ end
 
 module type RO_MAKER =
   functor (K: Key.S)   ->
-  functor (V: Misc.I0) ->
+  functor (V: Tc.I0) ->
     Sig.RO with type key = K.t and type value = V.t
 
 module type AO_MAKER =
   functor (K: Key.S)   ->
-  functor (V: Misc.I0) ->
+  functor (V: Tc.I0) ->
     Sig.AO with type key = K.t and type value = V.t
 
 module type RW_MAKER =

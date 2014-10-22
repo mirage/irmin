@@ -16,6 +16,7 @@
 
 open Lwt
 open Merge.OP
+open Misc.OP
 
 module Log = Log.Make(struct let section = "VALUE" end)
 
@@ -27,7 +28,7 @@ module T3 = struct
   with bin_io, compare, sexp
 end
 include T3
-module T = Misc.I3(T3)
+module T = Tc.I3(T3)
 
 type origin = Origin.t
 
@@ -40,7 +41,7 @@ end
 module S (K: Key.S) (C: Contents.S) = struct
   type key = K.t
   type contents = C.t
-  module S = Misc.App3(T)(Origin)(K)(C)
+  module S = Tc.App3(T)(Origin)(K)(C)
   include S
   module Key = K
   module Contents = C
@@ -54,7 +55,7 @@ module String = S(Key.SHA1)(Contents.String)
 module JSON = S(Key.SHA1)(Contents.JSON)
 
 module Unit = struct
-  include Misc.U
+  include Tc.U
   let master = ()
   let compute_from_string _ = ()
   let compute_from_cstruct _ = ()
@@ -116,7 +117,7 @@ module Mux
 
   (* XXX: ugly and slow *)
   let read t key =
-    Log.debugf "read %a" Misc.force (Misc.show (module K) key);
+    Log.debugf "read %a" force (show (module K) key);
     C.read t.contents key >>= function
     | Some b -> return (Some (Contents b))
     | None   ->
@@ -128,7 +129,7 @@ module Mux
         | None   -> return_none
 
   let read_exn t key =
-    Log.debugf "read_exn %a" Misc.force (Misc.show (module K) key);
+    Log.debugf "read_exn %a" force (show (module K) key);
     read t key >>= function
     | Some v -> return v
     | None   -> fail Not_found
@@ -167,7 +168,7 @@ module Mux
     ]
 
   let list t ?depth keys =
-    Log.debugf "list %a" Misc.force (Misc.shows (module K) keys);
+    Log.debugf "list %a" force (shows (module K) keys);
     (* start by loading the bounded history. *)
     let pred = function
       | `Commit k ->
@@ -313,7 +314,7 @@ module Make
     ]
 
   let list t ?depth keys =
-    Log.debugf "list %a" Misc.force (Misc.shows (module K) keys);
+    Log.debugf "list %a" force (shows (module K) keys);
     (* start by loading the bounded history. *)
     let pred = function
       | `Commit k ->

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2dbc621f19ee59505cfa73452e68cb01)
+# DO NOT EDIT (digest: c3432231710e9c54bb8751ef3787c3ad)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -17,6 +17,8 @@
 "lib/core/irmin.cmxs": use_irmin
 "lib/core/misc.cmx": for-pack(Irmin)
 "lib/core/sig.cmx": for-pack(Irmin)
+"lib/core/json.cmx": for-pack(Irmin)
+"lib/core/hex.cmx": for-pack(Irmin)
 "lib/core/tc.cmx": for-pack(Irmin)
 "lib/core/digraph.cmx": for-pack(Irmin)
 "lib/core/key.cmx": for-pack(Irmin)

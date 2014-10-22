@@ -16,6 +16,7 @@
 
 open Lwt
 open Merge.OP
+open Misc.OP
 
 type origin = Origin.t
 
@@ -34,7 +35,7 @@ module type STORE = sig
   type state
   val of_state: db -> state -> t
   val to_state: t -> state
-  include Misc.I0 with type t := state
+  include Tc.I0 with type t := state
 end
 
 module Make (S: Branch.STORE) = struct
@@ -103,13 +104,13 @@ module Make (S: Branch.STORE) = struct
     failwith "TODO"
 
   let revert t (_, c) =
-    Log.debugf "revert %a" Misc.force (Misc.show (module K) c);
+    Log.debugf "revert %a" force (show (module K) c);
     match S.branch t with
     | None     -> S.set_head t c; return_unit
     | Some tag -> T.update (S.tag_t t) tag c
 
   let merge t ?origin (_, c) =
-    Log.debugf "merge %a" Misc.force (Misc.show (module K) c);
+    Log.debugf "merge %a" force (show (module K) c);
     let origin = match origin with
       | None   -> Origin.create "Merge snapshot %s" (K.pretty c)
       | Some o -> o in
@@ -129,6 +130,6 @@ module Make (S: Branch.STORE) = struct
 
   let to_state (_, s) = s
 
-  include (S.Block.Key: Misc.I0 with type t := state)
+  include (S.Block.Key: Tc.I0 with type t := state)
 
 end

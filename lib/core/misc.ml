@@ -19,89 +19,10 @@ open Bin_prot.Std
 open Sexplib.Std
 
 module OP = struct
-
-  let (!!) oc s = output_string oc (Lazy.force s)
-
-end
-
-module Hex = struct
-
-  (* From OCaml's stdlib. See [Digest.to_hex] *)
-  let encode s =
-    let n = String.length s in
-    let result = String.create (n*2) in
-    for i = 0 to n-1 do
-      String.blit (Printf.sprintf "%02x" (int_of_char s.[i])) 0 result (2*i) 2;
-    done;
-    result
-
-  (* From OCaml's stdlib. See [Digest.from_hex] *)
-  let decode h =
-    let n = String.length h in
-    if n mod 2 <> 0 then (
-      let msg =
-        Printf.sprintf "hex_decode: wrong string size for %S (%d)" h (String.length h) in
-      raise (Invalid_argument msg)
-    );
-    let digit c =
-      match c with
-      | '0'..'9' -> Char.code c - Char.code '0'
-      | 'A'..'F' -> Char.code c - Char.code 'A' + 10
-      | 'a'..'f' -> Char.code c - Char.code 'a' + 10
-      | c ->
-        let msg = Printf.sprintf "hex_decode: %S is invalid" (String.make 1 c) in
-        raise (Invalid_argument msg) in
-    let byte i = digit h.[i] lsl 4 + digit h.[i+1] in
-    let result = String.create (n / 2) in
-    for i = 0 to n/2 - 1 do
-      result.[i] <- Char.chr (byte (2 * i));
-    done;
-    result
-
-end
-
-module JSON = struct
-
-  let is_valid_utf8 str =
-    try
-      Uutf.String.fold_utf_8 (fun _ _ -> function
-          | `Malformed _ -> raise (Failure "utf8")
-          | _ -> ()
-        ) () str;
-      true
-    with Failure "utf8" -> false
-
-  let encode_string str =
-    if is_valid_utf8 str
-    then Ezjsonm.string str
-    else `O [ "hex", Ezjsonm.string (Hex.encode str) ]
-
-  let decode_string = function
-    | `String str               -> Some str
-    | `O [ "hex", `String str ] -> Some (Hex.decode str)
-    | j                         -> None
-
-  let decode_string_exn j =
-    match decode_string j with
-    | Some s -> s
-    | None   ->
-      failwith (
-        Printf.sprintf "%s is not a valid UT8-encoded JSON string"
-          (Ezjsonm.to_string j)
-      )
-
-  let rec of_sexp = function
-    | Sexplib.Type.Atom x -> encode_string x
-    | Sexplib.Type.List l -> Ezjsonm.list of_sexp l
-
-  let rec to_sexp json =
-    match decode_string json with
-    | Some s -> Sexplib.Type.Atom s
-    | None   ->
-      match json with
-      | `A l -> Sexplib.Type.List (List.map to_sexp l)
-      | _    -> failwith (sprintf "sexp_of_json: %s" (Ezjsonm.to_string json))
-
+  let force oc s = output_string oc (Lazy.force s)
+  let (!!) = force
+  let show m t = Lazy.from_fun (fun () -> Tc.show m t)
+  let shows m ts = Lazy.from_fun (fun () -> Tc.shows m ts)
 end
 
 let invalid_argf fmt =
@@ -251,11 +172,11 @@ let hashtbl_add_multi t k v =
 (** Persistent Sets. *)
 module type SET = sig
   include Set.S
-  include I0 with type t := t
+  include Tc.I0 with type t := t
   val of_list: elt list -> t
   val to_list: t -> elt list
 end
-module Set (K: I0) = struct
+module Set (K: Tc.I0) = struct
 
   include Set.Make(K)
 
@@ -264,23 +185,15 @@ module Set (K: I0) = struct
 
   let to_list = elements
 
-  include L0(struct
-      type r = t
-      type t = r
+  include Tc.L0(struct
+      type nonrec t = t
       module K = K
       let to_list = to_list
       let of_list = of_list
     end)
 end
 
-module S = I0(struct type t = string with compare, sexp, bin_io end)
-module U = I0(struct type t = unit with compare, sexp, bin_io end)
-module O = I1(struct type 'a t = 'a option with compare, sexp, bin_io end)
-module P = I2(struct type ('a, 'b) t = 'a * 'b with compare, sexp, bin_io end)
-module I = I0(struct type t = int with compare, sexp, bin_io end)
-module L = I1(struct type 'a t = 'a list with sexp, compare, bin_io end)
-
-module StringMap = Map(S)
+module StringMap = Map(Tc.S)
 
 module Lwt_stream = struct
 

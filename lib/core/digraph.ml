@@ -17,6 +17,7 @@
 open Lwt
 open Bin_prot.Std
 open Sexplib.Std
+open Misc.OP
 
 module Log = Log.Make(struct let section = "GRAPH" end)
 
@@ -44,7 +45,7 @@ module type S = sig
   type dump = vertex list * (vertex * vertex) list
   val export: t -> dump
   val import: dump -> t
-  module Dump: Misc.I0 with type t = dump
+  module Dump: Tc.I0 with type t = dump
 end
 
 type ('a, 'b) vertex =
@@ -55,7 +56,7 @@ type ('a, 'b) vertex =
 with bin_io, compare, sexp
 
 module V =
-  Misc.I2(struct type ('a, 'b) t = ('a, 'b) vertex with bin_io, compare, sexp end)
+  Tc.I2(struct type ('a, 'b) t = ('a, 'b) vertex with bin_io, compare, sexp end)
 
 let of_tags     x = List.map (fun k -> `Tag k) x
 let of_contents x = List.map (fun k -> `Contents k) x
@@ -87,7 +88,7 @@ module Make (K: Key.S) (R: Tag.S) = struct
   type v = (K.t, R.t) vertex
 
   module X = struct
-    include Misc.App2(V)(K)(R)
+    include Tc.App2(V)(K)(R)
     let pretty = function
       | `Contents x -> "B" ^ K.pretty x
       | `Node     x -> "N" ^ K.pretty x
@@ -128,7 +129,7 @@ module Make (K: Key.S) (R: Tag.S) = struct
         else if has_mark key then add ()
         else (
           mark key level;
-          Log.debugf "ADD %a %d" Misc.force (Misc.show (module X) key) level;
+          Log.debugf "ADD %a %d" force (show (module X) key) level;
           if not (G.mem_vertex g key) then G.add_vertex g key;
           pred key >>= fun keys ->
           List.iter (fun k -> G.add_edge g k key) keys;
@@ -171,10 +172,10 @@ module Make (K: Key.S) (R: Tag.S) = struct
 
 
   module Dump = struct
-    module D = Misc.I1(struct
+    module D = Tc.I1(struct
         type 'a t = 'a list * ('a * 'a) list with bin_io, compare, sexp
       end)
-    include Misc.App1(D)(X)
+    include Tc.App1(D)(X)
   end
 
   let export t =

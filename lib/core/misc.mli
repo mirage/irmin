@@ -17,27 +17,10 @@
 (** Misc functions and signatures. *)
 
 module OP: sig
-  val (!!): out_channel -> string Lazy.t -> unit
-end
-
-module JSON: sig
-
-  val is_valid_utf8: string -> bool
-  (** Check whether a string is valid UTF8 encoded. *)
-
-  val encode_string: string -> Ezjsonm.t
-  (** Convert a (possibly non-valid UTF8) string to a JSON object.*)
-
-  val decode_string: Ezjsonm.t -> string option
-  (** Convert a JSON object to a (possibly non-valid UTF8)
-      string. Return [None] if the JSON object is not a valid string. *)
-
-  val decode_string_exn: Ezjsonm.t -> string
-  (** Convert a JSON object to a (possibly non-valid UTF8) string. *)
-
-  val to_sexp: Ezjsonm.t -> Sexplib.Type.t
-  val of_sexp: Sexplib.Type.t -> Ezjsonm.t
-
+  val force: out_channel -> string Lazy.t -> unit
+  val (!!):  out_channel -> string Lazy.t -> unit
+  val show: (module Tc.I0 with type t = 'a) -> 'a -> string Lazy.t
+  val shows: (module Tc.I0 with type t = 'a) -> 'a list -> string Lazy.t
 end
 
 (** Persistent Maps. *)
@@ -81,16 +64,6 @@ val list_filter_map: ('a -> 'b option) -> 'a list -> 'b list
 val list_dedup: ?compare:'a Tc.compare -> 'a list -> 'a list
 
 val hashtbl_add_multi: ('a, 'b list) Hashtbl.t -> 'a -> 'b -> unit
-
-module Hex: sig
-
-  val encode: string -> string
-  (** Encode a binary string to hexa *)
-
-  val decode: string -> string
-  (** Decode an hexa string to binary *)
-
-end
 
 module Lwt_stream: sig
 

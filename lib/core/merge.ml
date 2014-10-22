@@ -18,10 +18,11 @@ open Lwt
 open Printf
 open Sexplib.Std
 open Bin_prot.Std
+open Misc.OP
 
 module Log = Log.Make(struct let section = "MERGE" end)
 
-module type S = Misc.I0
+module type S = Tc.I0
 
 module R_ = struct
   type 'a t =
@@ -30,7 +31,7 @@ module R_ = struct
   with bin_io, compare, sexp
 end
 type 'a result = 'a R_.t
-module R = Misc.I1(R_)
+module R = Tc.I1(R_)
 
 exception Conflict of string
 
@@ -38,9 +39,9 @@ let exn = function
   | `Ok x       -> return x
   | `Conflict x -> fail (Conflict x)
 
-module Result (A: S) = Misc.App1(R)(A)
+module Result (A: S) = Tc.App1(R)(A)
 
-module UnitResult = Result(Misc.U)
+module UnitResult = Result(Tc.U)
 
 type origin = Origin.t
 
@@ -97,9 +98,9 @@ let default (type a) (module A: S with type t = a) =
   let equal a b = return (A.equal a b) in
   let merge ~origin ~old t1 t2 =
     Log.debugf "default %a | %a | %a"
-      Misc.force (Misc.show (module A) old)
-      Misc.force (Misc.show (module A) t1)
-      Misc.force (Misc.show (module A) t2);
+      force (show (module A) old)
+      force (show (module A) t1)
+      force (show (module A) t2);
     if A.equal t1 t2 then ok t1
     else if A.equal old t1 then ok t2
     else if A.equal old t2 then ok t1
@@ -111,9 +112,9 @@ let default' (type a) (module A: S with type t = a) equal =
   let default = default (module A) in
   let merge' ~old t1 t2 =
     Log.debugf "default' %a | %a | %a"
-      Misc.force (Misc.show (module A) old)
-      Misc.force (Misc.show (module A) t1)
-      Misc.force (Misc.show (module A) t2);
+      force (show (module A) old)
+      force (show (module A) t1)
+      force (show (module A) t2);
     equal t1 t2 >>= fun b1 ->
     if b1 then ok t1
     else
@@ -148,7 +149,7 @@ let seq = function
 
 let some (type a) t =
   let module T = (val t.m: S with type t = a) in
-  let module S = Misc.App1(Misc.O)(T) in
+  let module S = Tc.App1(Tc.O)(T) in
   let equal v1 v2 = match v1, v2 with
     | None  , None   -> return true
     | Some _, None
@@ -156,9 +157,9 @@ let some (type a) t =
     | Some a, Some b -> t.equal a b in
   let merge ~origin ~old t1 t2 =
     Log.debugf "some %a | %a | %a"
-      Misc.force (Misc.show (module S) old)
-      Misc.force (Misc.show (module S) t1)
-      Misc.force (Misc.show (module S) t2);
+      force (show (module S) old)
+      force (show (module S) t1)
+      force (show (module S) t2);
     merge (default' (module S) equal) ~origin ~old t1 t2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
@@ -171,7 +172,7 @@ let some (type a) t =
 let pair (type a) (type b) a b =
   let module A = (val a.m: S with type t = a) in
   let module B = (val b.m: S with type t = b) in
-  let module S = Misc.App2(Misc.P)(A)(B) in
+  let module S = Tc.App2(Tc.P)(A)(B) in
   let equal (a1, b1) (a2, b2) =
     a.equal a1 a2 >>= fun a3 ->
     if a3 then b.equal b1 b2
@@ -179,9 +180,9 @@ let pair (type a) (type b) a b =
   in
   let merge ~origin ~old x y =
     Log.debugf "pair %a | %a | %a"
-      Misc.force (Misc.show (module S) old)
-      Misc.force (Misc.show (module S) x)
-      Misc.force (Misc.show (module S) y);
+      force (show (module S) old)
+      force (show (module S) x)
+      force (show (module S) y);
     let (o1, o2), (a1, b1), (a2, b2) = old, x, y in
     a.merge ~origin ~old:o1 a1 a2 >>| fun a3 ->
     b.merge ~origin ~old:o2 b1 b2 >>| fun b3 ->
@@ -193,7 +194,7 @@ exception C of string
 
 let string_map (type a) t =
   let module A = (val t.m: S with type t = a) in
-  let module S = Misc.App1(Misc.StringMap)(A) in
+  let module S = Tc.App1(Misc.StringMap)(A) in
   let equal m1 m2 =
     let equal = ref true in
     Misc.StringMap.Lwt.iter2 (fun key data ->
@@ -208,9 +209,9 @@ let string_map (type a) t =
   in
   let merge ~origin ~old m1 m2 =
     Log.debugf "assoc %a | %a | %a"
-      Misc.force (Misc.show (module S) old)
-      Misc.force (Misc.show (module S) m1)
-      Misc.force (Misc.show (module S) m2);
+      force (show (module S) old)
+      force (show (module S) m1)
+      force (show (module S) m2);
     merge (default' (module S) equal) ~origin ~old m1 m2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
@@ -257,9 +258,9 @@ let biject (type b) (module B: S with type t = b) t a_to_b b_to_a =
       t.equal a1 a2 in
   let merge' ~origin ~old b1 b2 =
     Log.debugf "map %a | %a | %a"
-      Misc.force (Misc.show (module B) old)
-      Misc.force (Misc.show (module B) b1)
-      Misc.force (Misc.show (module B) b2);
+      force (show (module B) old)
+      force (show (module B) b1)
+      force (show (module B) b2);
     try
       let a1 = b_to_a b1 in
       let a2 = b_to_a b2 in
@@ -286,9 +287,9 @@ let biject' (type b) (module B: S with type t = b) t a_to_b b_to_a =
       t.equal a1 a2 in
   let merge' ~origin ~old b1 b2 =
     Log.debugf "map' %a | %a | %a"
-      Misc.force (Misc.show (module B) old)
-      Misc.force (Misc.show (module B) b1)
-      Misc.force (Misc.show (module B) b2);
+      force (show (module B) old)
+      force (show (module B) b1)
+      force (show (module B) b2);
     try
       b_to_a b1  >>= fun a1 ->
       b_to_a b2  >>= fun a2 ->
@@ -312,9 +313,9 @@ let apply m f x =
   { m; equal; merge }
 
 let string =
-  default (module Misc.S)
+  default (module Tc.S)
 
 let counter =
   let equal x y = return (x = y) in
   let merge ~origin ~old x y = ok (x + y - old) in
-  { m = (module Misc.I); equal; merge }
+  { m = (module Tc.I); equal; merge }

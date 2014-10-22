@@ -18,6 +18,7 @@
 open Lwt
 open Sexplib.Std
 open Bin_prot.Std
+open Misc.OP
 
 module Log = Log.Make(struct let section = "NODE" end)
 
@@ -28,8 +29,8 @@ module StringMap = struct
     of_alist (Sexplib.Conv.list_of_sexp fn' s)
   let sexp_of_t = to_sexp
   let bin_size_t = size_of
-  let bin_write_t fn = Misc.Writer.(to_bin_prot (write (of_bin_prot fn)))
-  let bin_read_t fn = Misc.Reader.(to_bin_prot (read (of_bin_prot fn)))
+  let bin_write_t fn = Tc.Writer.(to_bin_prot (write (of_bin_prot fn)))
+  let bin_read_t fn = Tc.Reader.(to_bin_prot (read (of_bin_prot fn)))
 end
 
 module T_ = struct
@@ -39,7 +40,7 @@ module T_ = struct
   } with bin_io, compare, sexp
 end
 include T_
-module T = Misc.I1(T_)
+module T = Tc.I1(T_)
 
 let equal key_equal t1 t2 =
   begin match t1.contents, t2.contents with
@@ -109,7 +110,7 @@ end
 
 module S (K: Key.S) = struct
   type key = K.t
-  module S = Misc.App1(T)(K)
+  module S = Tc.App1(T)(K)
   include S
   let merge = Merge.default (module S)
 end
@@ -120,7 +121,7 @@ module Make
     (K: Key.S)
     (C: Contents.S)
     (Contents: Contents.STORE with type key = K.t and type value = C.t)
-    (Node    : Sig.AO with type key = K.t and type value = K.t t) =
+    (Node: Sig.AO with type key = K.t and type value = K.t t) =
  struct
 
   module Key = K
@@ -162,7 +163,7 @@ module Make
   let read_exn t key =
     read t key >>= function
     | None   ->
-      Log.debugf "Not_found: %a" Misc.force (Misc.show (module K) key);
+      Log.debugf "Not_found: %a" force (show (module K) key);
       fail Not_found
     | Some v -> return v
 
@@ -174,7 +175,7 @@ module Make
   module Graph = Digraph.Make(K)(Tag.String)
 
   let list t keys =
-    Log.debugf "list %a" Misc.force (Misc.shows (module K) keys);
+    Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
       | `Node k -> read_exn t k >>= fun node -> return (edges node)
       | _       -> return_nil in
@@ -254,7 +255,7 @@ module Make
       (function Not_found -> return_none | e -> fail e)
 
   let find_exn t node path =
-    Log.debugf "find_exn %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "find_exn %a" force (show (module Path) path);
     sub t node path >>= function
     | None      ->
       Log.debugf "subpath not found";
@@ -267,7 +268,7 @@ module Make
       | Some b -> b
 
   let find t node path =
-    Log.debugf "find %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "find %a" force (show (module Path) path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -276,7 +277,7 @@ module Make
       | Some b -> b >>= fun b -> return (Some b)
 
   let valid t node path =
-    Log.debugf "valid %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "valid %a" force (show (module Path) path);
     sub t node path >>= function
     | None      -> return false
     | Some node ->
@@ -322,11 +323,11 @@ module Make
     aux node path
 
   let remove t node path =
-    Log.debugf "remove %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "remove %a" force (show (module Path) path);
     map t node path (fun node -> empty)
 
   let update (c, _ as t) node path value =
-    Log.debugf "update %a" Misc.force (Misc.show (module Path) path);
+    Log.debugf "update %a" force (show (module Path) path);
     Contents.add c value >>= fun k  ->
     map t node path (fun node -> { node with contents = Some k }) >>= fun n ->
     return n

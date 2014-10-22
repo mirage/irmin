@@ -109,8 +109,8 @@ module Make (Store: Branch.STORE) = struct
         if String.length s <= 10 then s
         else String.sub s 0 10 in
       let s =
-        if Misc.JSON.is_valid_utf8 s then s
-        else Misc.Hex.encode s in
+        if Json.is_valid_utf8 s then s
+        else Hex.encode s in
       s in
     let label_of_node k _ =
       let s =
@@ -157,7 +157,7 @@ module Make (Store: Branch.STORE) = struct
                    </div>"
             k (Ezjsonm.to_string (C.to_json v))
         else
-           let v = string_of_contents (Lazy.force (Misc.show (module C) v)) in
+           let v = string_of_contents (Tc.show (module C) v) in
            sprintf "%s | %s" k (String.escaped v) in
       `Label s in
     let label_of_tag t =
@@ -165,7 +165,7 @@ module Make (Store: Branch.STORE) = struct
         if html then
           sprintf "<div class='tag'>%s</div>" (Ezjsonm.to_string (T.to_json t))
         else
-          Lazy.force (Misc.show (module T) t)
+          Tc.show (module T) t
       in
       `Label s in
     let leafs = List.map (fun (k,_) -> k, Node.leaf k) contents in

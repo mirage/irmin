@@ -21,7 +21,7 @@ exception Invalid of string
 exception Unknown of string
 
 module type S = sig
-  include Misc.I0
+  include Tc.I0
   val pretty: t -> string
   val of_raw: string -> t
   val to_raw: t -> string
@@ -34,7 +34,7 @@ module SHA1 = struct
   module Log = Log.Make(struct let section = "SHA1" end)
 
   let to_hex t =
-    Misc.Hex.encode t
+    Hex.encode t
 
   let pretty = to_hex
 
@@ -43,11 +43,11 @@ module SHA1 = struct
 
   let of_hex hex =
     if String.length hex = hex_len then
-      Misc.Hex.decode hex
+      Hex.decode hex
     else
       raise (Invalid hex)
 
-  module M = Misc.I0(struct
+  module M = Tc.I0(struct
       type t = string with bin_io, compare
       let sexp_of_t t =
         Sexplib.Sexp.Atom (to_hex t)

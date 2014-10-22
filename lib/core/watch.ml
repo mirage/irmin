@@ -16,6 +16,7 @@
 
 module Log = Log.Make(struct let section = "WATCH" end)
 
+open Misc.OP
 open Lwt
 
 module type S = sig
@@ -62,12 +63,12 @@ module Make (K: Key.S) (V: sig type t end) = struct
     | ws -> Hashtbl.replace t key ws
 
   let notify t key value =
-    Log.debugf "notify %a" Misc.force (Misc.show (module K) key);
+    Log.debugf "notify %a" force (show (module K) key);
     try
       let ws = Hashtbl.find t key in
       let ws = List.map (fun (id, old_value, f as w) ->
           if old_value <> value then (
-            Log.debugf "firing watch %a:%d" Misc.force (Misc.show (module K) key) id;
+            Log.debugf "firing watch %a:%d" force (show (module K) key) id;
             try f value; (id, value, f)
             with e ->
               unwatch t key id;
@@ -84,7 +85,7 @@ module Make (K: Key.S) (V: sig type t end) = struct
     fun () -> incr c; !c
 
   let watch (t:t) key value =
-    Log.debugf "watch %a" Misc.force (Misc.show (module K) key);
+    Log.debugf "watch %a" force (show (module K) key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
     Misc.hashtbl_add_multi t key (id, value, push);

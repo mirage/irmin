@@ -15,15 +15,14 @@
  *)
 
 open Lwt
-open IrminCore
 
 module Log = Log.Make(struct let section = "MEMORY" end)
 
 module Fresh (C: sig end) = struct
 
-module RO (K: IrminKey.S) (V: I0) = struct
+module RO (K: Irmin.Key.S) (V: Irmin.Tc.I0) = struct
 
-  module W = IrminWatch.Make(K)(V)
+  module W = Irmin.Watch.Make(K)(V)
 
   type key = K.t
 
@@ -37,7 +36,7 @@ module RO (K: IrminKey.S) (V: I0) = struct
   }
 
   let unknown k =
-    fail (IrminKey.Unknown (K.pretty k))
+    fail (Irmin.Key.Unknown (K.pretty k))
 
   let table = KTable.create ()
   let watches = W.create ()

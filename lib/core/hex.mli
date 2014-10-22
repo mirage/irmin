@@ -14,23 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Sexplib.Std
-open Bin_prot.Std
+(** Hexadecimal encoding. *)
 
-module T = Tc.I0(struct
-  type t = string list with bin_io, compare, sexp
-  end)
+val encode: string -> string
+(** Encode a binary string to hexa *)
 
-include T
-
-let to_string t =
-  "/" ^ (String.concat "/" t)
-
-let of_string str =
-  List.filter ((<>) "") (Stringext.split str ~on:'/')
-
-let pretty = to_string
-let of_raw = of_string
-let to_raw = to_string
-let compute_from_string t = of_string t
-let compute_from_cstruct s = of_string (Cstruct.to_string s)
+val decode: string -> string
+(** Decode an hexa string to binary *)

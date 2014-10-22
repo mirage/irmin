@@ -19,14 +19,11 @@ Library irmin
   Pack:          true
   Path:          lib/core
   Findlibname:   irmin
-  Modules:       Misc, Sig, Tc, Digraph, Key, Snapshot,
-                 Commit, Store, Block,
-                 Tag, Contents, Node, Version,
-                 Dump, Path, Watch, Merge, View,
-                 Origin, Branch, Sync
-  BuildDepends:  ezjsonm, ocamlgraph, lwt, nocrypto,
-                 dolog, cstruct, mstruct, uri,
-                 bin_prot, comparelib, sexplib, stringext
+  Modules:       Misc, Sig, Json, Hex, Tc, Digraph, Key, Snapshot,
+                 Commit, Store, Block, Tag, Contents, Node, Version,
+                 Dump, Path, Watch, Merge, View, Origin, Branch, Sync
+  BuildDepends:  ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct,
+                 mstruct, uri, bin_prot, comparelib, sexplib, stringext
 
 Library "irmin-backend"
   Path:          lib/backend
