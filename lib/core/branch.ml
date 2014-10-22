@@ -24,9 +24,9 @@ module PathSet = Misc.Set(Path)
 
 module type STORE = sig
   include Sig.BC with type key = Path.t and type origin = Origin.t
-  module Key: Key.S with type t = key
-  module Value: Contents.S with type t = value
-  module Branch: Tag.S with type t = branch
+  module Key: Sig.Uid with type t = key
+  module Value: Sig.Contents with type t = value
+  module Branch: Sig.Tag with type t = branch
   module Block: Block.STORE with type contents = value
   module Tag: Tag.STORE with type key = branch and type value = Block.key
   module Graph: Digraph.S with type V.t = (Block.key, Tag.key) Digraph.vertex
@@ -58,9 +58,7 @@ module TK2 = Tc.I2(struct
     with sexp, bin_io, compare
   end)
 
-module Make
-    (Block: Block.STORE)
-    (Tag  : Tag.STORE with type value = Block.key) =
+module Make (Block: Block.STORE) (Tag: Tag.STORE with type value = Block.key) =
 struct
 
   module Block = Block

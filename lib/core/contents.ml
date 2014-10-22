@@ -94,12 +94,12 @@ end
 module type STORE = sig
   include Sig.AO
   val merge: t -> key Merge.t
-  module Key: Key.S with type t = key
+  module Key: Sig.Uid with type t = key
   module Value: S with type t = value
 end
 
 module Make
-    (K: Key.S)
+    (K: Sig.Uid)
     (C: S)
     (Contents: Sig.AO with type key = K.t and type value = C.t)
 = struct

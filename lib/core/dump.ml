@@ -25,45 +25,37 @@ module type S = sig
   val output_buffer: t -> ?depth:int -> ?full:bool -> Buffer.t -> unit Lwt.t
 end
 
-module Make (Store: Branch.STORE) = struct
+module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
 
-  module K = Store.Block.Key
-  module C = Store.Value
-  module T = Store.Tag.Key
+  module S = Branch.Make(B)(T)
 
-  module Tag = Store.Tag
-  module XBlock = Store.Block
-  module XCommit = XBlock.Commit
-  module XNode = XBlock.Node
-  module XContents = XBlock.Contents
-
-  type t = Store.t
+  type t = S.t
 
   let get_contents t ?(full=false) = function
     | None  ->
-      Tag.dump (Store.tag_t t)           >>= fun tags     ->
-      XCommit.dump (Store.commit_t t)     >>= fun commits  ->
+      T.dump (S.tag_t t)           >>= fun tags     ->
+      B.Commit.dump (S.commit_t t) >>= fun commits  ->
       if not full then
         return ([], [], commits, tags)
       else
-        XContents.dump (Store.contents_t t) >>= fun contents ->
-        XNode.dump (Store.node_t t)         >>= fun nodes    ->
+        B.Contents.dump (S.contents_t t) >>= fun contents ->
+        B.Node.dump (S.node_t t)         >>= fun nodes    ->
         return (contents, nodes, commits, tags)
     | Some depth ->
       Log.debugf "get_contents depth=%d full=%b" depth full;
-      Tag.dump (Store.tag_t t) >>= fun tags ->
+      T.dump (S.tag_t t) >>= fun tags ->
       let max = List.map (fun (_,k) -> `Commit k) tags in
       let pred = function
         | `Commit k ->
-          begin XCommit.read (Store.commit_t t) k >>= function
+          begin B.Commit.read (S.commit_t t) k >>= function
             | None   -> return_nil
             | Some c -> return (Digraph.of_commits c.Commit.parents)
           end
         | _ -> return_nil in
-      Store.Graph.closure ~depth ~pred max >>= fun g ->
-      let keys = Digraph.to_commits (Store.Graph.vertex g) in
+      S.Graph.closure ~depth ~pred max >>= fun g ->
+      let keys = Digraph.to_commits (S.Graph.vertex g) in
       Lwt_list.map_p (fun k ->
-          XCommit.read_exn (Store.commit_t t) k >>= fun c ->
+          B.Commit.read_exn (S.commit_t t) k >>= fun c ->
           return (k, c)
         ) keys
       >>= fun commits ->
@@ -71,17 +63,17 @@ module Make (Store: Branch.STORE) = struct
         return ([], [], commits, tags)
       else
         let root_nodes = Misc.list_filter_map (fun (_,c) -> c.Commit.node) commits in
-        XNode.list (Store.node_t t) root_nodes >>= fun nodes ->
+        B.Node.list (S.node_t t) root_nodes >>= fun nodes ->
         Lwt_list.map_p (fun k ->
-            XNode.read (Store.node_t t) k >>= function
+            B.Node.read (S.node_t t) k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) nodes >>= fun nodes ->
         let nodes = Misc.list_filter_map (fun x -> x) nodes in
         let root_contents = Misc.list_filter_map (fun (_,n) -> n.Node.contents) nodes in
-        XContents.list (Store.contents_t t) root_contents >>= fun contents ->
+        B.Contents.list (S.contents_t t) root_contents >>= fun contents ->
         Lwt_list.map_p (fun k ->
-            XContents.read (Store.contents_t t) k >>= function
+            B.Contents.read (S.contents_t t) k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) contents >>= fun contents ->
@@ -94,7 +86,7 @@ module Make (Store: Branch.STORE) = struct
       html
       (match full with None -> "<none>" | Some b -> string_of_bool b);
     get_contents t ?full depth >>= fun (contents, nodes, commits, tags) ->
-    let exists k l = List.exists (fun (kk,_) -> K.(kk=k)) l in
+    let exists k l = List.exists (fun (kk,_) -> kk=k) l in
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
@@ -102,7 +94,7 @@ module Make (Store: Branch.STORE) = struct
     let add_edge v1 l v2 =
       edges := (v1, l, v2) :: !edges in
     let string_of_key k =
-      let s = K.pretty k in
+      let s = B.Key.pretty k in
       if String.length s <= 8 then s else String.sub s 0 8 in
     let string_of_contents s =
       let s =
@@ -155,17 +147,18 @@ module Make (Store: Branch.STORE) = struct
                   \  <div class='sha1'>%s</div>\n\
                   \  <div class='blob'><pre>%s</pre></div>\n\
                    </div>"
-            k (Ezjsonm.to_string (C.to_json v))
+            k (Ezjsonm.to_string (B.Contents.Value.to_json v))
         else
-           let v = string_of_contents (Tc.show (module C) v) in
+           let v = string_of_contents (Tc.show (module B.Contents.Value) v) in
            sprintf "%s | %s" k (String.escaped v) in
       `Label s in
     let label_of_tag t =
       let s =
         if html then
-          sprintf "<div class='tag'>%s</div>" (Ezjsonm.to_string (T.to_json t))
+          sprintf "<div class='tag'>%s</div>"
+            (Ezjsonm.to_string (T.Key.to_json t))
         else
-          Tc.show (module T) t
+          Tc.show (module T.Key) t
       in
       `Label s in
     let leafs = List.map (fun (k,_) -> k, Node.leaf k) contents in
@@ -205,7 +198,7 @@ module Make (Store: Branch.STORE) = struct
         if exists k nodes then
           add_edge (`Tag r) [`Style `Bold] (`Node k);
       ) tags;
-    return (fun ppf -> Store.Graph.output ppf !vertex !edges name)
+    return (fun ppf -> S.Graph.output ppf !vertex !edges name)
 
   let output_buffer t ?depth ?full buf =
     fprintf t ?depth ?full ~html:true "graph" >>= fun fprintf ->

@@ -60,7 +60,7 @@ module type S = sig
 
   type nonrec t = key t
 
-  include Contents.S with type t := t
+  include Sig.Contents with type t := t
 
 end
 
@@ -121,7 +121,7 @@ module type STORE = sig
   val merge: t -> key Merge.t
   (** Merge two nodes together. *)
 
-  module Key: Key.S with type t = key
+  module Key: Sig.Uid with type t = key
   (** Base functions for keys. *)
 
   module Value: S with type key = key
@@ -129,12 +129,12 @@ module type STORE = sig
 
 end
 
-module SHA1: S with type key = Key.SHA1.t
+module SHA1: S with type key = Uid.SHA1.t
 (** Simple node implementation, where keys are SHA1s. *)
 
 module Make
-    (K: Key.S)
-    (C: Contents.S)
+    (K: Sig.Uid)
+    (C: Sig.Contents)
     (Contents: Contents.STORE with type key = K.t and type value = C.t)
     (Node: Sig.AO with type key = K.t and type value = K.t t)
   : STORE with type t = Contents.t * Node.t
@@ -143,9 +143,9 @@ module Make
            and type path = Path.t
 (** Create a node store from an append-only database. *)
 
-module Rec (S: STORE): Contents.S with type t = S.key
+module Rec (S: STORE): Sig.Contents with type t = S.key
 (** Convert a node store objects into storable keys, with the expected
     merge function. *)
 
-module S (K: Key.S): S with type key = K.t
+module S (K: Sig.Uid): S with type key = K.t
 (** Base functions for nodes. *)

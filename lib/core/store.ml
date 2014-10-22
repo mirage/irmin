@@ -18,36 +18,10 @@ open Lwt
 open Merge.OP
 open Misc.OP
 
-module type S = sig
-  include Branch.STORE with type key = Path.t
-  module Dump: Dump.S with type t = t
-  module Snapshot: Snapshot.STORE with type db = t
-  module View: View.STORE with type db    = t
-                           and type node  = Block.key
-                           and type value = value
-  module Sync: Sync.STORE with type db  = t
-end
+module BC (B: Block.STORE) (T: Tag.STORE with type value = B.key) =
+  Branch.Make(B)(T)
 
-type ('key, 'contents, 'tag) t =
-  (module S with type Block.key = 'key
-             and type value     = 'contents
-             and type branch    = 'tag)
-
-let cast (type a) (type b) (type c) (t: (a, b, c) t) =
-  let module M = (val t) in
-  (module M: S)
-
-module Make (Block: Block.STORE) (Tag: Tag.STORE with type value = Block.key) =
-struct
-  module S = Branch.Make(Block)(Tag)
-  module Snapshot = Snapshot.Make(S)
-  module Dump = Dump.Make(S)
-  module View = View.Store(S)
-  module Sync = Sync.Slow(S)
-  include S
-end
-
-module RO_BINARY  (S: Sig.RO_BINARY) (K: Key.S) (V: Tc.I0) = struct
+module RO_BINARY  (S: Sig.RO_BINARY) (K: Sig.Uid) (V: Tc.I0) = struct
 
   module L = Log.Make(struct let section = "RO" end)
 
@@ -68,7 +42,7 @@ module RO_BINARY  (S: Sig.RO_BINARY) (K: Key.S) (V: Tc.I0) = struct
   let read_exn t key =
     read t key >>= function
     | Some v -> return v
-    | None   -> fail (Key.Unknown (K.pretty key))
+    | None   -> fail (Uid.Unknown (K.pretty key))
 
   let mem t key =
     S.mem t (K.to_raw key)
@@ -88,7 +62,7 @@ module RO_BINARY  (S: Sig.RO_BINARY) (K: Key.S) (V: Tc.I0) = struct
 
 end
 
-module AO_BINARY (S: Sig.AO_BINARY)  (K: Key.S) (V: Tc.I0) = struct
+module AO_BINARY (S: Sig.AO_BINARY)  (K: Sig.Uid) (V: Tc.I0) = struct
 
   include RO_BINARY(S)(K)(V)
 
@@ -103,7 +77,7 @@ module AO_BINARY (S: Sig.AO_BINARY)  (K: Key.S) (V: Tc.I0) = struct
 
 end
 
-module RW_BINARY (S: Sig.RW_BINARY) (K: Key.S) (V: Tc.I0) = struct
+module RW_BINARY (S: Sig.RW_BINARY) (K: Sig.Uid) (V: Tc.I0) = struct
 
   include RO_BINARY(S)(K)(V)
 
@@ -124,53 +98,13 @@ end
 module Binary
     (AO: Sig.AO_BINARY)
     (RW: Sig.RW_BINARY)
-    (K : Key.S)
-    (C : Contents.S)
-    (T : Tag.S) =
+    (K : Sig.Uid)
+    (C : Sig.Contents)
+    (T : Sig.Tag) =
 struct
   module V = Block.S(K)(C)
   module B = Block.S(K)(C)
   module XBlock = Block.Make(K)(C)(AO_BINARY(AO)(K)(B))
   module XTag = Tag.Make(T)(K)(RW_BINARY(RW)(T)(K))
-  include Make(XBlock)(XTag)
-end
-
-
-module type RO_MAKER =
-  functor (K: Key.S)   ->
-  functor (V: Tc.I0) ->
-    Sig.RO with type key = K.t and type value = V.t
-
-module type AO_MAKER =
-  functor (K: Key.S)   ->
-  functor (V: Tc.I0) ->
-    Sig.AO with type key = K.t and type value = V.t
-
-module type RW_MAKER =
-  functor (K: Key.S) ->
-  functor (V: Key.S) ->
-    Sig.RW with type key = K.t and type value = V.t
-
-module type S_MAKER =
-  functor (K: Key.S)      ->
-  functor (C: Contents.S) ->
-  functor (T: Tag.S)      ->
-    S with type Block.key = K.t
-       and type value     = C.t
-       and type branch    = T.t
-
-module type BACKEND = sig
-  module RO: RO_MAKER
-  module AO: AO_MAKER
-  module RW: RW_MAKER
-  module Make: S_MAKER
-end
-
-module Rec (AO: AO_MAKER) (S: S) = struct
-  module K = S.Block.Key
-  module C = Block.Rec(S.Block)
-  module B = Block.S(K)(C)
-  module AO = AO(K)(B)
-  module XBlock = Block.Make(K)(C)(AO)
-  include Make(XBlock)(S.Tag)
+  include BC(XBlock)(XTag)
 end

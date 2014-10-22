@@ -162,6 +162,11 @@ module Map (K: Tc.I0) = struct
     end)
 end
 
+let hashtbl_to_alist t =
+  let l = ref [] in
+  Hashtbl.iter (fun k v -> l := (k, v) :: !l) t;
+  !l
+
 let hashtbl_add_multi t k v =
   let vs =
     try Hashtbl.find t k
@@ -169,13 +174,21 @@ let hashtbl_add_multi t k v =
   in
   Hashtbl.replace t k (v::vs)
 
-(** Persistent Sets. *)
+let string_chop_prefix t ~prefix =
+  let lt = String.length t in
+  let lp = String.length prefix in
+  if lt < lp then None else
+    let p = String.sub t 0 lp in
+    if String.compare p prefix <> 0 then None
+    else Some (String.sub t lp (lt - lp))
+
 module type SET = sig
   include Set.S
   include Tc.I0 with type t := t
   val of_list: elt list -> t
   val to_list: t -> elt list
 end
+
 module Set (K: Tc.I0) = struct
 
   include Set.Make(K)

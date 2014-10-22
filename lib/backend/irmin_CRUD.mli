@@ -23,6 +23,6 @@ module type Config = sig
 
 end
 
-module Make (C: Cohttp_lwt.Client) (C: Config): Irmin.Store.BACKEND
+module Make (C: Cohttp_lwt.Client) (C: Config): Irmin.Sig.BACKEND
 (** Build a CRUD client using the given cohttp client
     implementation. *)

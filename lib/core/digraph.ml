@@ -83,7 +83,7 @@ let to_keys l =
     | `Tag _      -> None
     ) l
 
-module Make (K: Key.S) (R: Tag.S) = struct
+module Make (K: Sig.Uid) (R: Sig.Tag) = struct
 
   type v = (K.t, R.t) vertex
 

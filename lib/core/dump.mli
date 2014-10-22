@@ -31,6 +31,6 @@ module type S = sig
 
 end
 
-module Make (S: Branch.STORE): S with type t = S.t
+module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key): S
 (** Extend a branch consistent store with import/export
     capabilities. *)

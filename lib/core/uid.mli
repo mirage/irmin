@@ -22,29 +22,5 @@ exception Invalid of string
 exception Unknown of string
 (** Exception raised when no value is associated to a key. *)
 
-module type S = sig
-
-  (** Signature for database keys. *)
-
-  include Tc.I0
-
-  val pretty: t -> string
-  (** Pretty-print the key. *)
-
-  val of_raw: string -> t
-  (** Cast a raw string into a key. Check that the format of the raw
-      string is valid. Raise [Invalid 'key'] if that's not the case. *)
-
-  val to_raw: t -> string
-  (** Return the raw key. *)
-
-  val compute_from_cstruct: Cstruct.t -> t
-  (** Compute a (deterministic) key from a bigstring. *)
-
-  val compute_from_string: string -> t
-  (** Compute a (deterministic) key from a sequence of bytes. *)
-
-end
-
-module SHA1: S
+module SHA1: Sig.Uid
 (** SHA1 keys *)

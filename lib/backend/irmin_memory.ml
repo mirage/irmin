@@ -15,12 +15,13 @@
  *)
 
 open Lwt
+open Irmin.Misc.OP
 
 module Log = Log.Make(struct let section = "MEMORY" end)
 
 module Fresh (C: sig end) = struct
 
-module RO (K: Irmin.Key.S) (V: Irmin.Tc.I0) = struct
+module RO (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
 
   module W = Irmin.Watch.Make(K)(V)
 
@@ -28,17 +29,15 @@ module RO (K: Irmin.Key.S) (V: Irmin.Tc.I0) = struct
 
   type value = V.t
 
-  module KTable = Hashtbl.Make(K)
-
   type t = {
-    t: value KTable.t;
+    t: (K.t, value) Hashtbl.t;
     w: W.t;
   }
 
   let unknown k =
-    fail (Irmin.Key.Unknown (K.pretty k))
+    fail (Irmin.Uid.Unknown (K.pretty k))
 
-  let table = KTable.create ()
+  let table = Hashtbl.create 23
   let watches = W.create ()
 
   let create () =
@@ -49,77 +48,78 @@ module RO (K: Irmin.Key.S) (V: Irmin.Tc.I0) = struct
     return t
 
   let clear () =
-    KTable.clear table;
+    Hashtbl.clear table;
     W.clear watches
 
   let read { t } key =
     Log.debugf "read %a" force (show (module K) key);
-    return (KTable.find t key)
+    try return (Some (Hashtbl.find t key))
+    with Not_found -> return_none
 
   let read_exn { t } key =
     Log.debugf "read_exn %a" force (show (module K) key);
-    match KTable.find t key with
-    | Some d -> return d
-    | None   -> unknown key
+    try return (Hashtbl.find t key)
+    with Not_found -> unknown key
 
   let mem { t } key =
     Log.debugf "mem %a" force (show (module K) key);
-    return (KTable.mem t key)
+    return (Hashtbl.mem t key)
 
   let list { t } k =
     return k
 
   let dump { t } =
     Log.debugf "dump";
-    return (KTable.to_alist t)
+    return (Irmin.Misc.hashtbl_to_alist t)
 
 end
 
-module AO (K: IrminKey.S) (V: I0) = struct
+module AO (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
 
   include RO(K)(V)
 
   let add { t } value =
     (* XXX: hook to choose the serialization format / key generator
        ? *)
-    let key = K.compute_from_bigstring (write_all (module V) value) in
-    match KTable.add t key value with
-    | `Ok | `Duplicate -> return key
+    let key = K.compute_from_cstruct (Irmin.Tc.write_cstruct (module V) value) in
+    Hashtbl.add t key value;
+    return key
 
 end
 
-module RW (K: IrminKey.S) (V: IrminKey.S) = struct
+module RW (K: Irmin.Sig.Uid) (V: Irmin.Sig.Uid) = struct
 
   include RO(K)(V)
 
   let update t key value =
     Log.debugf "update %a" force (show (module K) key);
-    KTable.replace t.t key value;
+    Hashtbl.replace t.t key value;
     W.notify t.w key (Some value);
     return_unit
 
   let remove t key =
     Log.debugf "remove %a" force (show (module K) key);
-    KTable.remove t.t key;
+    Hashtbl.remove t.t key;
     W.notify t.w key None;
     return_unit
 
   let watch t key =
     Log.debugf "watch %a" force (show (module K) key);
-    Lwt_stream.lift (
+    Irmin.Misc.Lwt_stream.lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)
     )
 
 end
 
-module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
-  module V = IrminBlock.S(K)(C)
+module BC (K: Irmin.Sig.Uid) (C: Irmin.Sig.Contents) (T: Irmin.Sig.Tag) =
+struct
+  module V = Irmin.Block.S(K)(C)
   module AO_K_V = AO(K)(V)
   module RW_T_K = RW(T)(K)
-  module XBlock = IrminBlock.Make(K)(C)(AO_K_V)
-  module XTag = IrminTag.Make(T)(K)(RW_T_K)
-  include Irmin.Make(XBlock)(XTag)
+  module XBlock = Irmin.Block.Make(K)(C)(AO_K_V)
+  module XTag = Irmin.Tag.Make(T)(K)(RW_T_K)
+  include Irmin.Store.BC(XBlock)(XTag)
   let clear () =
     AO_K_V.clear ();
     RW_T_K.clear ()
@@ -129,22 +129,20 @@ end
 
 include Fresh(struct end)
 
-
-module type S_MAKER =
-  functor (K: IrminKey.S)      ->
-  functor (C: IrminContents.S) ->
-  functor (T: IrminTag.S)      ->
-    sig
-      include Irmin.S with type Block.key = K.t
-                       and type value     = C.t
-                       and type branch    = T.t
-      val clear: unit -> unit
-      (** Clear the store. *)
-    end
+module type BC_MAKER =
+  functor (K: Irmin.Sig.Uid)      ->
+  functor (C: Irmin.Sig.Contents) ->
+  functor (T: Irmin.Sig.Tag)      ->
+  sig
+    include Irmin.Sig.BC with type value     = C.t
+                          and type branch    = T.t
+    val clear: unit -> unit
+    (** Clear the store. *)
+  end
 
 module type BACKEND = sig
-  module RO  : Irmin.RO_MAKER
-  module AO  : Irmin.AO_MAKER
-  module RW  : Irmin.RW_MAKER
-  module Make: S_MAKER
+  module RO: Irmin.Sig.RO_MAKER
+  module AO: Irmin.Sig.AO_MAKER
+  module RW: Irmin.Sig.RW_MAKER
+  module BC: BC_MAKER
 end

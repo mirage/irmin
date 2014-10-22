@@ -38,13 +38,12 @@ module type STORE = sig
   include Tc.I0 with type t := state
 end
 
-module Make (S: Branch.STORE) = struct
+module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
 
-  module T = S.Tag
-  module N = S.Block.Node
-  module C = S.Block.Commit
-
-  module K = S.Block.Key
+  module N = B.Node
+  module C = B.Commit
+  module K = B.Key
+  module S = Branch.Make(B)(T)
 
   type db = S.t
 
@@ -105,7 +104,7 @@ module Make (S: Branch.STORE) = struct
 
   let revert t (_, c) =
     Log.debugf "revert %a" force (show (module K) c);
-    match S.branch t with
+    match S.tag t with
     | None     -> S.set_head t c; return_unit
     | Some tag -> T.update (S.tag_t t) tag c
 

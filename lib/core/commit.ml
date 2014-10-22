@@ -44,7 +44,7 @@ let edges t =
 
 module type S = sig
   type key
-  include Contents.S with type t = (origin, key) t
+  include Sig.Contents with type t = (origin, key) t
 end
 
 module type STORE = sig
@@ -59,11 +59,11 @@ module type STORE = sig
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
   val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
   val list: t -> ?depth:int -> key list -> key list Lwt.t
-  module Key: Key.S with type t = key
+  module Key: Sig.Uid with type t = key
   module Value: S with type key = key
 end
 
-module S (K: Key.S) = struct
+module S (K: Sig.Uid) = struct
   type key = K.t
   module S = Tc.App2(T)(Origin)(K)
   include S
@@ -71,7 +71,7 @@ module S (K: Key.S) = struct
 end
 
 module Make
-    (K: Key.S)
+    (K: Sig.Uid)
     (N: Node.STORE with type key = K.t and type value = K.t Node.t)
     (C: Sig.AO with type key = K.t and type value = (origin, K.t) t)
 = struct
@@ -198,4 +198,4 @@ module Rec (S: STORE) = struct
     Merge.create' (module S.Key) merge
 end
 
-module SHA1 = S(Key.SHA1)
+module SHA1 = S(Uid.SHA1)

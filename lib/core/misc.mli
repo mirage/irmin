@@ -63,7 +63,11 @@ val list_filter_map: ('a -> 'b option) -> 'a list -> 'b list
 
 val list_dedup: ?compare:'a Tc.compare -> 'a list -> 'a list
 
+val hashtbl_to_alist: ('a, 'b) Hashtbl.t -> ('a * 'b) list
+
 val hashtbl_add_multi: ('a, 'b list) Hashtbl.t -> 'a -> 'b -> unit
+
+val string_chop_prefix: string -> prefix:string -> string option
 
 module Lwt_stream: sig
 

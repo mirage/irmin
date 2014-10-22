@@ -19,7 +19,7 @@ open Lwt
 module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
-  include Key.S
+  include Sig.Uid
   val master: t
 end
 
@@ -48,13 +48,13 @@ end
 
 module type STORE = sig
   include Sig.RW
-  module Value: Key.S with type t = value
   module Key: S with type t = key
+  module Value: Sig.Uid with type t = value
 end
 
 module Make
     (K: S)
-    (V: Key.S)
+    (V: Sig.Uid)
     (S: Sig.RW with type key = K.t and type value = V.t)
 = struct
 

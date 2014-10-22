@@ -15,12 +15,12 @@
  *)
 
 open Lwt
-open IrminCore
+open Irmin.Misc.OP
 
 module Log = Log.Make(struct let section = "GIT" end)
-module StringMap = Map.Make(String)
+module StringMap = Irmin.Misc.StringMap
 
-type origin = IrminOrigin.t
+type origin = Irmin.Origin.t
 
 module type Config = sig
   val root: string option
@@ -41,7 +41,7 @@ module Make (Config: Config) = struct
     | false -> fn t k
     | true  -> Lwt_pool.use files (fun () -> fn t k)
 
-  module Stores (K: IrminKey.S) (C: I0) = struct
+  module Stores (K: Irmin.Sig.Uid) (C: Irmin.Tc.I0) = struct
 
     let git_of_key key =
       Git.SHA.of_string (K.to_raw key)
@@ -125,13 +125,15 @@ module Make (Config: Config) = struct
 
         let of_git k b =
           match b with
-          | Git.Value.Blob b -> read_string (module C) (Git.Blob.to_raw b)
+          | Git.Value.Blob b ->
+            Some (Irmin.Tc.read_string (module C) (Git.Blob.to_raw b))
           | Git.Value.Tag _  -> None (* XXX: deal with tag objects *)
           | _                -> None
 
         let to_git _ b =
           let value =
-            Git.Value.Blob (Git.Blob.of_raw (write_string (module C) b))
+            Git.Value.Blob
+              (Git.Blob.of_raw (Irmin.Tc.write_string (module C) b))
           in
           `Value (return value)
 
@@ -139,9 +141,9 @@ module Make (Config: Config) = struct
 
     module Node = AO (struct
 
-        type t = K.t IrminNode.t
+        type t = K.t Irmin.Node.t
 
-        module X = IrminNode.S(K)
+        module X = Irmin.Node.S(K)
 
         let type_eq = function
           | Git.Object_type.Blob
@@ -156,16 +158,20 @@ module Make (Config: Config) = struct
           | Git.Value.Blob _ ->
             (* Create a dummy leaf node to hold contents. *)
             let key = key_of_git k in
-            Some (IrminNode.leaf key)
+            Some (Irmin.Node.leaf key)
           | Git.Value.Tree t ->
-            let t = List.map ~f:(fun e -> Git.Tree.(e.name, key_of_git e.node)) t in
-            let contents, succ = List.partition_tf ~f:(fun (n,_) -> n = contents_child) t in
+            let t =
+              List.map (fun e -> Git.Tree.(e.name, key_of_git e.node)) t
+            in
+            let contents, succ =
+              List.partition (fun (n,_) -> n = contents_child) t
+            in
             let contents = match contents with
               | []       -> None
               | [(_, k)] -> Some k
               |  _  -> assert false in
-            let succ = StringMap.of_alist_exn succ in
-            Some { IrminNode.contents; succ }
+            let succ = StringMap.of_alist succ in
+            Some { Irmin.Node.contents; succ }
           | _ -> None
 
         let to_git t node =
@@ -191,23 +197,23 @@ module Make (Config: Config) = struct
                 ) entries >>= fun entries ->
               return (Git.Value.Tree entries)
             ) in
-          if IrminNode.is_leaf node then (
+          if Irmin.Node.is_leaf node then (
             (* This is a dummy leaf node. Do nothing. *)
             Log.debugf "Skiping %a" force (show (module X) node);
-            `Key (git_of_key (IrminNode.contents_exn node))
-          ) else match node.IrminNode.contents with
-            | None     -> mktree node.IrminNode.succ
+            `Key (git_of_key (Irmin.Node.contents_exn node))
+          ) else match node.Irmin.Node.contents with
+            | None     -> mktree node.Irmin.Node.succ
             | Some key ->
               (* This is an extended node (ie. with child and contents).
                  Store the node contents in a dummy `.contents` file. *)
-              mktree (StringMap.add node.IrminNode.succ contents_child key)
+              mktree (StringMap.add contents_child key node.Irmin.Node.succ )
       end)
 
     module Commit = AO(struct
 
-        type t = (origin, K.t) IrminCommit.t
+        type t = (origin, K.t) Irmin.Commit.t
 
-        module X = IrminCommit.S(K)
+        module X = Irmin.Commit.S(K)
 
         let type_eq = function
           | Git.Object_type.Commit -> true
@@ -218,32 +224,32 @@ module Make (Config: Config) = struct
           | Git.Value.Commit { Git.Commit.tree; parents; author; message } ->
             let commit_key_of_git k = key_of_git (Git.SHA.of_commit k) in
             let node_key_of_git k = key_of_git (Git.SHA.of_tree k) in
-            let parents = List.map ~f:commit_key_of_git parents in
+            let parents = List.map commit_key_of_git parents in
             let node = Some (node_key_of_git tree) in
             let id = author.Git.User.name in
-            let date = match String.split ~on:' ' author.Git.User.date with
+            let date = match Stringext.split ~on:' ' author.Git.User.date with
               | [date;_] -> Int64.of_string date
               | _        -> 0L in
-            let origin = IrminOrigin.create ~date ~id "%s" message in
-            Some { IrminCommit.node; parents; origin }
+            let origin = Irmin.Origin.create ~date ~id "%s" message in
+            Some { Irmin.Commit.node; parents; origin }
           | _ -> None
 
         let to_git _ c =
-          let { IrminCommit.node; parents; origin } = c in
+          let { Irmin.Commit.node; parents; origin } = c in
           match node with
           | None      -> failwith "Commit.to_git: not supported"
           | Some node ->
             let git_of_commit_key k = Git.SHA.to_commit (git_of_key k) in
             let git_of_node_key k = Git.SHA.to_tree (git_of_key k) in
             let tree = git_of_node_key node in
-            let parents = List.map ~f:git_of_commit_key parents in
-            let date = Int64.to_string (IrminOrigin.date origin) ^ " +0000" in
+            let parents = List.map git_of_commit_key parents in
+            let date = Int64.to_string (Irmin.Origin.date origin) ^ " +0000" in
             let author =
-              Git.User.({ name  = IrminOrigin.id origin;
-                          email = "irminsule@openmirage.org";
+              Git.User.({ name  = Irmin.Origin.id origin;
+                          email = "irmin@openmirage.org";
                           date;
                         }) in
-            let message = IrminOrigin.message origin in
+            let message = Irmin.Origin.message origin in
             let commit = {
               Git.Commit.tree; parents;
               author; committer = author;
@@ -255,17 +261,17 @@ module Make (Config: Config) = struct
 
   end
 
-  module RO (K: IrminKey.S) (V: I0) = struct
+  module RO (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
     module S = Stores(K)(V)
     include S.Contents
   end
 
-  module AO (K: IrminKey.S) (V: I0) = struct
+  module AO (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
     module S = Stores(K)(V)
     include S.Contents
   end
 
-  module RW (T: IrminKey.S) (K: IrminKey.S) = struct
+  module RW (T: Irmin.Sig.Uid) (K: Irmin.Sig.Uid) = struct
 
     let git_of_key key =
       Git.SHA.of_string (K.to_raw key)
@@ -273,7 +279,7 @@ module Make (Config: Config) = struct
     let key_of_git key =
       K.of_raw (Git.SHA.to_raw key)
 
-    module W = IrminWatch.Make(T)(K)
+    module W = Irmin.Watch.Make(T)(K)
 
     type t = {
       t: G.t;
@@ -288,12 +294,12 @@ module Make (Config: Config) = struct
 
     let ref_of_git r =
       let str = Git.Reference.to_raw r in
-      match String.chop_prefix ~prefix:"refs/heads/" str with
+      match Irmin.Misc.string_chop_prefix ~prefix:"refs/heads/" str with
       | None   -> None
-      | Some r -> read_string (module T) r
+      | Some r -> Some (Irmin.Tc.read_string (module T) r)
 
     let git_of_ref r =
-      let str = write_string (module T) r in
+      let str = Irmin.Tc.write_string (module T) r in
       Git.Reference.of_raw ("refs/heads" / str)
 
     let mem { t } r =
@@ -306,17 +312,20 @@ module Make (Config: Config) = struct
       | None   -> return_none
       | Some k -> return (Some (key_of_git k))
 
-  let create () =
-    G.create ?root:Config.root () >>= fun t ->
-    let git_root = G.root t / ".git" in
-    let ref_of_file file =
-      match String.chop_prefix ~prefix:(git_root / "refs/heads/") file with
-      | None   -> None
-      | Some r -> Some (T.of_raw r) in
-    let w = W.create () in
-    let t = { t; w } in
-    if Config.disk then W.listen_dir w (git_root / "refs/heads") ref_of_file (read t);
-    return t
+    let create () =
+      G.create ?root:Config.root () >>= fun t ->
+      let git_root = G.root t / ".git" in
+      let ref_of_file file =
+        match
+          Irmin.Misc.string_chop_prefix ~prefix:(git_root / "refs/heads/") file
+        with
+        | None   -> None
+        | Some r -> Some (T.of_raw r) in
+      let w = W.create () in
+      let t = { t; w } in
+      if Config.disk then
+        W.listen_dir w (git_root / "refs/heads") ref_of_file (read t);
+      return t
 
     let read_exn { t } r =
       Log.debugf "read_exn %a" force (show (module T) r);
@@ -326,7 +335,7 @@ module Make (Config: Config) = struct
     let list { t } _ =
       Log.debugf "list";
       G.references t >>= fun refs ->
-      return (List.filter_map ~f:ref_of_git refs)
+      return (Irmin.Misc.list_filter_map ref_of_git refs)
 
     let dump { t } =
       Log.debugf "dump";
@@ -338,7 +347,7 @@ module Make (Config: Config) = struct
             G.read_reference_exn t r >>= fun k ->
             return (Some (ref, key_of_git k))
         ) refs >>= fun l ->
-      List.filter_map ~f:(fun x -> x) l |> return
+      Irmin.Misc.list_filter_map (fun x -> x) l |> return
 
     let git_of_key k = Git.SHA.to_commit (git_of_key k)
 
@@ -360,76 +369,20 @@ module Make (Config: Config) = struct
 
     let watch t (r:key): value Lwt_stream.t =
       Log.debugf "watch %a" force (show (module T) r);
-      Lwt_stream.lift (
+      Irmin.Misc.Lwt_stream.lift (
         read t r >>= fun k ->
         return (W.watch t.w r k)
       )
 
   end
 
-  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
+  module BC (K: Irmin.Sig.Uid) (C: Irmin.Sig.Contents) (T: Irmin.Sig.Tag) =
+  struct
     module AO = Stores(K)(C)
-    module XBlock = IrminBlock.Mux(K)(C)(AO.Contents)(AO.Node)(AO.Commit)
+    module B = Irmin.Block.Mux(K)(C)(AO.Contents)(AO.Node)(AO.Commit)
     module RW = RW(T)(K)
-    module XTag = IrminTag.Make(T)(K)(RW)
-    module S = IrminBranch.Make(XBlock)(XTag)
-    module Snapshot = IrminSnapshot.Make(S)
-    module Dump = IrminDump.Make(S)
-    module View = IrminView.Store(S)
-    module XSync = struct
-
-      type t = S.t
-
-      type key = S.Block.key
-
-      let key_of_git key =
-        S.Block.Key.of_raw (Git.SHA.Commit.to_raw key)
-
-      let o_key_of_git = function
-        | None   -> return_none
-        | Some k -> return (Some (key_of_git k))
-
-      let fetch t ?depth uri =
-        Log.debugf "fetch %s" uri;
-        let gri = Git.Gri.of_string uri in
-        let deepen = depth in
-        let result r =
-          Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
-          let key = match r.Git.Sync.Result.head with
-            | Some _ as h -> h
-            | None        ->
-              let max () =
-                match Git.Reference.Map.to_alist r.Git.Sync.Result.references with
-                | []          -> None
-                | (_, k) :: _ -> Some k in
-              match S.branch t with
-              | None        -> max ()
-              | Some branch ->
-                let branch = Git.Reference.of_raw ("refs/heads/" ^ S.Branch.to_raw branch) in
-                try Some (Git.Reference.Map.find branch
-                            r.Git.Sync.Result.references)
-                with Not_found -> max ()
-          in
-          o_key_of_git key in
-        Config.Sync.fetch (S.contents_t t) ?deepen gri >>=
-        result
-
-      let push t ?depth uri =
-        Log.debugf "push %s" uri;
-        match S.branch t with
-        | None        -> return_none
-        | Some branch ->
-          let branch = Git.Reference.of_raw (S.Branch.to_raw branch) in
-          let gri = Git.Gri.of_string uri in
-          let result { Git.Sync.Result.result } = match result with
-            | `Ok      -> S.head t
-            | `Error _ -> return_none in
-          Config.Sync.push (S.contents_t t) ~branch gri >>=
-          result
-
-    end
-    module Sync = IrminSync.Fast(S)(XSync)
-    include S
+    module T = Irmin.Tag.Make(T)(K)(RW)
+    include Irmin.Branch.Make(B)(T)
   end
 
 end
@@ -462,6 +415,58 @@ module NoSync = struct
   let fetch t ?deepen ?unpack uri =
     Log.debugf "no fetch";
     return empty_fetch
+
+end
+
+module Sync (K: Irmin.Sig.Uid) (C: Irmin.Sig.Contents) (T: Irmin.Sig.Tag) =
+struct
+
+  type key = K.t
+
+  let key_of_git key =
+    Irmin.Tc.read_string (module K) (Git.SHA.Commit.to_raw key)
+
+  let o_key_of_git = function
+    | None   -> return_none
+    | Some k -> return (Some (key_of_git k))
+
+  let fetch t ?depth uri =
+    Log.debugf "fetch %s" uri;
+    let gri = Git.Gri.of_string uri in
+    let deepen = depth in
+    let result r =
+      Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
+      let key = match r.Git.Sync.Result.head with
+        | Some _ as h -> h
+        | None        ->
+          let max () =
+            match Git.Reference.Map.to_alist r.Git.Sync.Result.references with
+            | []          -> None
+            | (_, k) :: _ -> Some k in
+          match S.branch t with
+          | None        -> max ()
+          | Some branch ->
+            let branch = Git.Reference.of_raw ("refs/heads/" ^ S.Branch.to_raw branch) in
+            try Some (Git.Reference.Map.find branch
+                        r.Git.Sync.Result.references)
+            with Not_found -> max ()
+      in
+      o_key_of_git key in
+    Config.Sync.fetch (S.contents_t t) ?deepen gri >>=
+    result
+
+  let push t ?depth uri =
+    Log.debugf "push %s" uri;
+    match S.branch t with
+    | None        -> return_none
+    | Some branch ->
+      let branch = Git.Reference.of_raw (S.Branch.to_raw branch) in
+      let gri = Git.Gri.of_string uri in
+      let result { Git.Sync.Result.result } = match result with
+        | `Ok      -> S.head t
+        | `Error _ -> return_none in
+      Config.Sync.push (S.contents_t t) ~branch gri >>=
+      result
 
 end
 

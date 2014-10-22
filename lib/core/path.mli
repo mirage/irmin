@@ -16,5 +16,5 @@
 
 (** Tree path handling. *)
 
-include Key.S with type t = string list
+include Sig.Uid with type t = string list
 (** Type of paths, to address nodes from the tree root. *)

@@ -16,6 +16,44 @@
 
 (** Signatures. *)
 
+(** {2 Components} *)
+
+module type Uid = sig
+
+  (** Signature for unique identifiers. *)
+
+  include Tc.I0
+
+  val create: Cstruct.t -> t
+  (** Compute a (deterministic) key from a cstruct. *)
+
+end
+
+module type Contents = sig
+
+  (** Signature for store contents. *)
+
+  include Tc.I0
+
+  val merge: t Merge.t
+  (** Merge function. Raise [Conflict] if the values cannot be merged
+      properly. *)
+
+end
+
+module type Tag = sig
+
+  (** Signature for tags (i.e. branch names). *)
+
+  include Tc.I0
+
+  val master: t
+  (** The master branch. *)
+
+end
+
+(** {2 Stores} *)
+
 module type RO = sig
 
   (** Read-only store. *)
@@ -56,6 +94,9 @@ end
 module type RO_BINARY = RO with type key = string and type value = Cstruct.t
 (** Read-only store which associate strings to bigstrings. *)
 
+module type RO_MAKER = functor (K: Tc.I0) -> functor (V: Tc.I0) ->
+  RO with type key = K.t and type value = V.t
+
 module type AO = sig
 
   (** {2 Append-only Stores} *)
@@ -71,6 +112,9 @@ end
 
 module type AO_BINARY = AO with type key = string and type value = Cstruct.t
 (** Append-only store which associate strings to big arrays. *)
+
+module type AO_MAKER = functor (K: Uid) -> functor (V: Tc.I0) ->
+  AO with type key = K.t and type value = V.t
 
 module type RW = sig
 
@@ -93,6 +137,9 @@ end
 module type RW_BINARY = RW with type key = string and type value = Cstruct.t
 (** read-write store which associate strings to big arrays. *)
 
+module type RW_MAKER = functor (K: Tc.I0) -> functor (V: Tc.I0) ->
+  RW with type key = K.t and type value = V.t
+
 module type BC = sig
 
   (** A branch-consistent store is a mutable store which supports
@@ -100,59 +147,69 @@ module type BC = sig
 
   include RW
 
-  type branch
-  (** Branch can be either a tag name or a commit hash. In the later
-      case, the branch is said to be in a 'detached' state. *)
+  type tag
+  (** Type of branch names. *)
 
   type origin
-  (** Provenance trackers. *)
+  (** Type of values keeping track of provenance. *)
 
-  val create: ?branch:branch -> unit -> t Lwt.t
+  val create: ?tag:tag -> unit -> t Lwt.t
   (** Create a store handle. The default branch, if not set, is
-      [Tag.master]. *)
+      the [master] tag. *)
 
   val detach: t -> unit Lwt.t
   (** Detach the current branch (ie. it is not assiaciated to a tag
       name anymore). *)
 
-  val branch: t -> branch option
+  val tag: t -> tag option
   (** Return the branch of the given store handle. *)
 
-  val branch_exn: t -> branch
-  (** Same as [branch] but raise [Not_found] in case of a detached
+  val tag_exn: t -> tag
+  (** Same as [tag] but raise [Not_found] in case of a detached
       head. *)
 
-  val set_branch: t -> branch -> unit
-  (** Update the current branch name. *)
+  val set_tag: t -> tag -> unit
+  (** Update the current tag name. *)
 
   val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
-  (** Same as [RW.update] but with an optional [origin]
-      argument to keep track of provenance. *)
+  (** Same as [RW.update] but with an optional [origin] argument to
+      keep track of provenance. *)
 
   val remove: t -> ?origin:origin -> key -> unit Lwt.t
-  (** Same as [RW.remove] but with an optional [origin]
-      argument to keep track of provenance. *)
+  (** Same as [RW.remove] but with an optional [origin] argument to
+      keep track of provenance. *)
 
-  val clone: t -> branch -> t option Lwt.t
-  (** Fork the store, using the given branch name. Return [None] if the
-      branch already exists. *)
+  val clone: t -> tag -> t option Lwt.t
+  (** Fork the store, using the given branch name. Return [None] if
+      the branch already exists. *)
 
-  val clone_force: t -> branch -> t Lwt.t
+  val clone_force: t -> tag -> t Lwt.t
   (** Same as [clone] but delete and update the existing branch if a
       branch with the same name already exists. *)
 
-  val switch: t -> branch -> unit Lwt.t
+  val switch: t -> tag -> unit Lwt.t
   (** Switch the database contents the be same as the contents of the
-      given branch. The two branches are still independant. *)
+      given branch name. The two branches are still independant. *)
 
-  val merge: t -> ?origin:origin -> branch -> unit Merge.result Lwt.t
+  val merge: t -> ?origin:origin -> tag -> unit Merge.result Lwt.t
   (** [merge db t] merges the branch [t] into the current database
       branch. The two branches are still independant. *)
 
-  val merge_exn: t -> ?origin:origin -> branch -> unit Lwt.t
+  val merge_exn: t -> ?origin:origin -> tag -> unit Lwt.t
   (** Same as [merge] but raise [Conflict "<msg>"] in case of a
       conflict. *)
 
 end
 
-type t = int
+module type BC_MAKER =
+  functor (K: Uid) -> functor (C: Contents) -> functor (T: Tag) ->
+    BC with type value = C.t and type tag  = T.t
+
+(** {2 Backends} *)
+
+module type BACKEND = sig
+  module RO: RO_MAKER
+  module AO: AO_MAKER
+  module RW: RW_MAKER
+  module BC: BC_MAKER
+end

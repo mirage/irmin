@@ -67,7 +67,7 @@ module type S = sig
 
 end
 
-module Make (K: Key.S) (C: Contents.S):
+module Make (K: Sig.Uid) (C: Sig.Contents):
   S with type value = C.t and type node = K.t
 (** Create a view implementation independant of any underlying
     store. *)

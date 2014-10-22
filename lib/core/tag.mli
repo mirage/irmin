@@ -19,18 +19,7 @@
 (** Tags are branch pointers: they associad branch names to keys in
     the block store. *)
 
-module type S = sig
-
-  (** Signature for mutable tags. *)
-
-  include Key.S
-
-  val master: t
-  (** The master branch. *)
-
-end
-
-module String: S with type t = string
+module String: Sig.Tag with type t = string
 (** Simple string tags. *)
 
 (** {2 Store} *)
@@ -47,17 +36,17 @@ module type STORE = sig
 
   include Sig.RW
 
-  module Value: Key.S with type t = value
-  (** Base functions over values. *)
-
-  module Key: S with type t = key
+  module Key: Sig.Tag with type t = key
   (** Base functions over keys. *)
+
+  module Value: Sig.Uid with type t = value
+  (** Base functions over values. *)
 
 end
 
 module Make
-    (K: S)
-    (V: Key.S)
+    (K: Sig.Tag)
+    (V: Sig.Uid)
     (S: Sig.RW with type key = K.t and type value = V.t)
   : STORE with type t = S.t
            and type key = K.t

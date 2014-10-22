@@ -37,11 +37,15 @@ module type Config = sig
 
 end
 
-module Memory: Irmin.Store.BACKEND
+module Memory: Irmin.Sig.BACKEND
 (** In-memory Git store (using [Git.Memory]). *)
 
-module Memory' (C: sig val root: string end): Irmin.Store.BACKEND
+module Memory' (C: sig val root: string end): Irmin.Sig.BACKEND
 (** Create a in-memory store with a given root path -- stores with
     different roots will not share their contents. *)
 
-module Make (C: Config): Irmin.Store.BACKEND
+module Make (C: Config): Irmin.Sig.BACKEND
+(** Git backend. *)
+
+module Sync (B: Irmin.Sig.BACKEND): Irmin.Sync.STORE
+(** Fast synchronisation using the Git protocol. *)

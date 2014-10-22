@@ -16,23 +16,22 @@
 
 (** In-memory store *)
 
-module type S_MAKER =
-  functor (K: Irmin.Key.S)      ->
-  functor (C: Irmin.Contents.S) ->
-  functor (T: Irmin.Tag.S)      ->
-    sig
-      include Irmin.Store.S with type Block.key = K.t
-                             and type value     = C.t
-                             and type branch    = T.t
-      val clear: unit -> unit
-      (** Clear the store. *)
-    end
+module type BC_MAKER =
+  functor (K: Irmin.Sig.Uid)      ->
+  functor (C: Irmin.Sig.Contents) ->
+  functor (T: Irmin.Sig.Tag)      ->
+  sig
+    include Irmin.Sig.BC with type value     = C.t
+                          and type branch    = T.t
+    val clear: unit -> unit
+    (** Clear the store. *)
+  end
 
 module type BACKEND = sig
-  module RO  : Irmin.Store.RO_MAKER
-  module AO  : Irmin.Store.AO_MAKER
-  module RW  : Irmin.Store.RW_MAKER
-  module Make: S_MAKER
+  module RO: Irmin.Sig.RO_MAKER
+  module AO: Irmin.Sig.AO_MAKER
+  module RW: Irmin.Sig.RW_MAKER
+  module BC: BC_MAKER
 end
 
 include BACKEND

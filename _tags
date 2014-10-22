@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: c3432231710e9c54bb8751ef3787c3ad)
+# DO NOT EDIT (digest: 49529b641993eda10af10b08e9279db7)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -21,7 +21,7 @@
 "lib/core/hex.cmx": for-pack(Irmin)
 "lib/core/tc.cmx": for-pack(Irmin)
 "lib/core/digraph.cmx": for-pack(Irmin)
-"lib/core/key.cmx": for-pack(Irmin)
+"lib/core/uid.cmx": for-pack(Irmin)
 "lib/core/snapshot.cmx": for-pack(Irmin)
 "lib/core/commit.cmx": for-pack(Irmin)
 "lib/core/store.cmx": for-pack(Irmin)
@@ -356,7 +356,7 @@ true: bin_annot, annot, debug
 <lib/core/tc.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/misc.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/digraph.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/key.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/uid.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/block.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/commit.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/node.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax

@@ -35,14 +35,14 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include Contents.S with type t = (origin, key) t
+  include Sig.Contents with type t = (origin, key) t
   (** Base functions over commit objects. *)
 
 end
 
-module S (K: Key.S): S with type key = K.t
+module S (K: Sig.Uid): S with type key = K.t
 
-module SHA1: S with type key = Key.SHA1.t
+module SHA1: S with type key = Uid.SHA1.t
 (** Simple implementation where keys are SHA1s. *)
 
 module type STORE = sig
@@ -83,7 +83,7 @@ module type STORE = sig
   (** Return all previous commit hashes, with an (optional) limit on
       the history depth. *)
 
-  module Key: Key.S with type t = key
+  module Key: Sig.Uid with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key
@@ -92,12 +92,12 @@ module type STORE = sig
 end
 
 module Make
-    (K: Key.S)
+    (K: Sig.Uid)
     (Node: Node.STORE with type key = K.t and type value = K.t Node.t)
     (Commit: Sig.AO with type key = K.t and type value = (origin, K.t) t)
   : STORE with type t = Node.t * Commit.t and type key = K.t
-(** Create a revision store. *)
+(** Create a commit store. *)
 
-module Rec (S: STORE): Contents.S with type t = S.key
+module Rec (S: STORE): Sig.Contents with type t = S.key
 (** Convert a commit store objects into storable keys, with the
     expected merge functions. *)

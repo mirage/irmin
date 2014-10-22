@@ -82,7 +82,7 @@ let contents_exn e =
 module type S = sig
   type key
   type nonrec t = key t
-  include Contents.S with type t := t
+  include Sig.Contents with type t := t
 end
 
 module type STORE = sig
@@ -104,22 +104,22 @@ module type STORE = sig
   val remove: t -> value -> path -> value Lwt.t
   val valid: t -> value -> path -> bool Lwt.t
   val merge: t -> key Merge.t
-  module Key: Key.S with type t = key
+  module Key: Sig.Uid with type t = key
   module Value: S with type key = key
 end
 
-module S (K: Key.S) = struct
+module S (K: Sig.Uid) = struct
   type key = K.t
   module S = Tc.App1(T)(K)
   include S
   let merge = Merge.default (module S)
 end
 
-module SHA1 = S(Key.SHA1)
+module SHA1 = S(Uid.SHA1)
 
 module Make
-    (K: Key.S)
-    (C: Contents.S)
+    (K: Sig.Uid)
+    (C: Sig.Contents)
     (Contents: Contents.STORE with type key = K.t and type value = C.t)
     (Node: Sig.AO with type key = K.t and type value = K.t t) =
  struct

@@ -35,10 +35,10 @@ type origin = Origin.t
 module type S = sig
   type key
   type contents
-  include Contents.S with type t = (origin, key, contents) t
+  include Sig.Contents with type t = (origin, key, contents) t
 end
 
-module S (K: Key.S) (C: Contents.S) = struct
+module S (K: Sig.Uid) (C: Sig.Contents) = struct
   type key = K.t
   type contents = C.t
   module S = Tc.App3(T)(Origin)(K)(C)
@@ -50,9 +50,9 @@ module S (K: Key.S) (C: Contents.S) = struct
   let merge = Merge.default (module S)
 end
 
-module String = S(Key.SHA1)(Contents.String)
+module String = S(Uid.SHA1)(Contents.String)
 
-module JSON = S(Key.SHA1)(Contents.JSON)
+module JSON = S(Uid.SHA1)(Contents.JSON)
 
 module Unit = struct
   include Tc.U
@@ -78,14 +78,14 @@ module type STORE = sig
   val node_t: t -> Node.t
   val commit_t: t -> Commit.t
   val merge: t -> key Merge.t
-  module Key: Key.S with type t = key
+  module Key: Sig.Uid with type t = key
   module Value: S with type key = key and type contents = contents
   module Graph: Digraph.S with type V.t = (key, unit) Digraph.vertex
 end
 
 module Mux
-  (K: Key.S)
-  (XC: Contents.S)
+  (K: Sig.Uid)
+  (XC: Sig.Contents)
   (XContents: Sig.AO with type key = K.t and type value = XC.t)
   (XNode: Sig.AO with type key = K.t and type value = K.t Node.t)
   (XCommit: Sig.AO with type key = K.t and type value = (origin, K.t) Commit.t)
@@ -253,8 +253,8 @@ module Cast (S: Sig.AO) (C: CASTABLE with type t = S.value) = struct
 end
 
 module Make
-  (K: Key.S)
-  (XC: Contents.S)
+  (K: Sig.Uid)
+  (XC: Sig.Contents)
   (Store: Sig.AO with type key = K.t and type value = (origin, K.t, XC.t) t)
 = struct
 

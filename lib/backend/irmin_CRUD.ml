@@ -100,7 +100,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
     Cohttp_lwt_unix.Client.post ~body (uri t path) >>=
     map_string_response fn
 
-  module RO (U: Config) (K: Irmin.Key.S) (V: Irmin.Tc.I0) = struct
+  module RO (U: Config) (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
 
     module Log = XLog.Make(struct let section = "CRUD" ^ Uri.path U.uri end)
 
@@ -141,7 +141,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module AO (U: Config) (K: Irmin.Key.S) (V: Irmin.Tc.I0) = struct
+  module AO (U: Config) (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
 
     include RO(U)(K)(V)
 
@@ -151,7 +151,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module RW (U: Config) (K: Irmin.Key.S) (V: Irmin.Tc.I0) = struct
+  module RW (U: Config) (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
 
     include RO(U)(K)(V)
 
@@ -169,7 +169,9 @@ module XMake (Client: Cohttp_lwt.Client) = struct
 
   end
 
-  module Make (U: Config) (K: Irmin.Key.S) (B: Irmin.Contents.S) (T: Irmin.Tag.S) = struct
+  module BC (U: Config)
+      (K: Irmin.Sig.Uid) (B: Irmin.Sig.Contents) (T: Irmin.Sig.Tag) =
+  struct
 
     module N = Irmin.Node.S(K)
     module C = Irmin.Commit.S(K)
@@ -193,7 +195,7 @@ module XMake (Client: Cohttp_lwt.Client) = struct
     module XXBlock = Irmin.Block.Mux(K)(B)(XContents)(XNode)(XCommit)
     module XXTag = Irmin.Tag.Make(T)(K)(XTag)
 
-    include Irmin.Store.Make(XXBlock)(XXTag)
+    include Irmin.Store.BC(XXBlock)(XXTag)
 
   end
 
@@ -204,5 +206,5 @@ module Make (C: Cohttp_lwt.Client) (U: Config) = struct
   module RO = M.RO(U)
   module AO = M.AO(U)
   module RW = M.RW(U)
-  module Make = M.Make(U)
+  module BC = M.BC(U)
 end

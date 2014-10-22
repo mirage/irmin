@@ -191,7 +191,7 @@ type ('k, 'c) t = {
   mutable parents: 'k list;
 }
 
-module Make (K: Key.S) (C: Contents.S) = struct
+module Make (K: Sig.Uid) (C: Sig.Contents) = struct
 
   type node = K.t
   type nonrec t = (K.t, C.t) t

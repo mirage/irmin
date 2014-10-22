@@ -39,7 +39,7 @@ let listen_dir_hook =
 let set_listen_dir_hook fn =
   listen_dir_hook := fn
 
-module Make (K: Key.S) (V: sig type t end) = struct
+module Make (K: Sig.Uid) (V: sig type t end) = struct
 
   type key = K.t
   type value = V.t

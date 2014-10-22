@@ -35,16 +35,16 @@ module type S = sig
   type contents
   (** Contents. *)
 
-  include Contents.S with type t = (origin, key, contents) t
+  include Sig.Contents with type t = (origin, key, contents) t
   (** Base functions over structured values. *)
 
 end
 
-module String: S with type key = Key.SHA1.t
+module String: S with type key = Uid.SHA1.t
                   and type contents = Contents.String.t
 (** String contents, with SHA1 keys. *)
 
-module JSON: S with type key = Key.SHA1.t
+module JSON: S with type key = Uid.SHA1.t
                 and type contents = Contents.JSON.t
 (** JSON contents, with SHA1 keys. *)
 
@@ -92,7 +92,7 @@ module type STORE = sig
   val merge: t -> key Merge.t
   (** Merge keys of the store together. *)
 
-  module Key: Key.S with type t = key
+  module Key: Sig.Uid with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key and type contents = contents
@@ -103,8 +103,8 @@ module type STORE = sig
 end
 
 module Make
-  (K: Key.S)
-  (C: Contents.S)
+  (K: Sig.Uid)
+  (C: Sig.Contents)
   (S: Sig.AO with type key = K.t and type value = (origin, K.t, C.t) t)
   : STORE with type key = K.t
            and type contents = C.t
@@ -114,8 +114,8 @@ module Make
 (** Create a store for structured values. *)
 
 module Mux
-  (K: Key.S)
-  (C: Contents.S)
+  (K: Sig.Uid)
+  (C: Sig.Contents)
   (Contents: Sig.AO with type key = K.t and type value = C.t)
   (Node: Sig.AO with type key = K.t and type value = K.t Node.t)
   (Commit: Sig.AO with type key = K.t and type value = (origin, K.t) Commit.t)
@@ -128,7 +128,7 @@ module Mux
     values. XXX: discuss about the cost model, ie. the difference
     between Mux and Make. *)
 
-module Rec (S: STORE): Contents.S with type t = S.key
+module Rec (S: STORE): Sig.Contents with type t = S.key
 (** Interpret the blocks in a block store as storable objects. *)
 
-module S (K: Key.S) (C: Contents.S): S with type key = K.t and type contents = C.t
+module S (K: Sig.Uid) (C: Sig.Contents): S with type key = K.t and type contents = C.t

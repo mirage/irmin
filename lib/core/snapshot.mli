@@ -59,6 +59,6 @@ module type STORE = sig
 
 end
 
-module Make (S: Branch.STORE): STORE with type db = S.t
-                                      and type state = S.Block.key
+module Make (Block: Block.STORE) (Tag: Tag.STORE with type value = Block.key)
+  : STORE with type state = Block.key
 (** Add snapshot capabilities to a branch-consistent store. *)

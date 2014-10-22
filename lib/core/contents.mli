@@ -19,25 +19,12 @@
 exception Invalid of string
 (** Invalid parsing. *)
 
-module type S = sig
-
-  (** Signature for store contents. *)
-
-  include Tc.I0
-  (** Base types. *)
-
-  val merge: t Merge.t
-  (** Merge function. Raise [Conflict] if the values cannot be merged
-      properly. *)
-
-end
-
-module String: S with type t = string
+module String: Sig.Contents with type t = string
 (** String values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-module JSON: S with type t = Ezjsonm.t
+module JSON: Sig.Contents with type t = Ezjsonm.t
 (** JSON values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
@@ -52,24 +39,24 @@ module type STORE = sig
   val merge: t -> key Merge.t
   (** Store merge function. Lift [S.merge] to keys. *)
 
-  module Key: Key.S with type t = key
+  module Key: Sig.Uid with type t = key
   (** Base functions for foreign keys. *)
 
-  module Value: S with type t = value
+  module Value: Sig.Contents with type t = value
   (** Base functions for values. *)
 
 end
 
 module Make
-    (K: Key.S)
-    (C: S)
+    (K: Sig.Uid)
+    (C: Sig.Contents)
     (Contents: Sig.AO with type key = K.t and type value = C.t)
   : STORE with type t = Contents.t
            and type key = K.t
            and type value = C.t
 (** Build a contents store. *)
 
-module Rec (S: STORE): S with type t = S.key
+module Rec (S: STORE): Sig.Contents with type t = S.key
 (** Convert a contents store objects into storable keys, with the
     expected merge function (eg. read the contents, merge them and
     write back the restult to get the final key). *)

@@ -69,5 +69,5 @@ module type IO = sig
 
 end
 
-module Make (IO: IO) (C: Config) : Irmin.Store.BACKEND
-module Make'(IO: IO) (C: Config'): Irmin.Store.BACKEND
+module Make (IO: IO) (C: Config) : Irmin.Sig.BACKEND
+module Make'(IO: IO) (C: Config'): Irmin.Sig.BACKEND

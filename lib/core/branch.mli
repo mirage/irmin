@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Branch consistent stores: support fork/merge operations. *)
+(** Low-level branch consistent stores: support fork/merge operations. *)
 
 module type STORE = sig
 
@@ -23,20 +23,20 @@ module type STORE = sig
 
   include Sig.BC with type key = Path.t and type origin = Origin.t
 
-  module Key: Key.S with type t = key
+  module Key: Tc.I0 with type t = key
   (** Base functions over keys. *)
 
-  module Value: Contents.S with type t = value
+  module Val: Sig.Contents with type t = value
   (** Base functions over values. *)
 
-  module Branch: Tag.S with type t = branch
+  module Branch: Sig.Tag with type t = tag
   (** Base functions over branches. *)
 
   module Block: Block.STORE with type contents = value
   (** Append-only persistent block store where leafs are user-defined
        contents. *)
 
-  module Tag: Tag.STORE with type key = branch and type value = Block.key
+  module Tag: Tag.STORE with type key = tag and type value = Block.key
   (** Read/write store for branch pointers. *)
 
   module Graph: Digraph.S with type V.t = (Block.key, Tag.key) Digraph.vertex
@@ -88,15 +88,10 @@ module type STORE = sig
 
 end
 
-type ('key, 'contents, 'tag) t = (module STORE with type Block.key = 'key
-                                                and type value     = 'contents
-                                                and type branch    = 'tag)
-
-module Make
-    (Block: Block.STORE)
-    (Tag  : Tag.STORE with type value = Block.key)
-  : STORE with type value   = Block.contents
+module Make (Block: Block.STORE) (Tag: Tag.STORE with type value = Block.key)
+  : STORE with type value = Block.contents
+           and type tag = Tag.key
            and module Block = Block
-           and type branch  = Tag.key
+           and module Tag = Tag
 (** Build a branch consistent store from custom [Block] and [Tag] store
     implementations. *)
