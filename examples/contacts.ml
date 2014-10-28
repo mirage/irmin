@@ -103,7 +103,7 @@ module ContactStore (Store: S) = struct
 
   let add t contact =
     Contact.view_of_t contact >>= fun view ->
-    Store.View.merge_path_exn t ["contacts"] view
+    Store.View.update_path t ["contacts"] view
 
   let add_phone contact phone =
     let phones = String.Set.add contact.phones phone in
