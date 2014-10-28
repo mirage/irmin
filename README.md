@@ -27,11 +27,12 @@ To get the full capabilites of Irmin, use the API:
 ```ocaml
 $ ledit ocaml
 # #require "irmin.backend";;
-# module G = IrminGit.Make(IrminGit.Memory);;
+# module G = IrminGit.Memory;;
 # module S = G.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String);;
-# let () =
+# let prog =
     S.create () >>= fun t ->
-    S.update t ["foo"; "bar"] "hi!"
+    S.update t ["foo"; "bar"] "hi!";;
+# let () = Lwt_main.run prog;;
 ```
 
 ### Tutorial
