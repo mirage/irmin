@@ -19,12 +19,24 @@
 exception Invalid of string
 (** Invalid parsing. *)
 
-module String: Sig.Contents with type t = string
+module type S = sig
+
+  (** Signature for store contents. *)
+
+  include Tc.I0
+
+  val merge: t Ir_merge.t
+  (** Merge function. Raise [Conflict] if the values cannot be merged
+      properly. *)
+
+end
+
+module String: S with type t = string
 (** String values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-module JSON: Sig.Contents with type t = Ezjsonm.t
+module JSON: S with type t = Ezjsonm.t
 (** JSON values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
@@ -33,30 +45,30 @@ module type STORE = sig
 
   (** Store user-defined contents. *)
 
-  include Sig.AO
+  include Ir_ao.S
   (** Contents stores are append-only. *)
 
-  val merge: t -> key Merge.t
+  val merge: t -> key Ir_merge.t
   (** Store merge function. Lift [S.merge] to keys. *)
 
-  module Key: Sig.Uid with type t = key
+  module Key: Ir_uid.S with type t = key
   (** Base functions for foreign keys. *)
 
-  module Value: Sig.Contents with type t = value
+  module Value: S with type t = value
   (** Base functions for values. *)
 
 end
 
 module Make
-    (K: Sig.Uid)
-    (C: Sig.Contents)
-    (Contents: Sig.AO with type key = K.t and type value = C.t)
+    (K: Ir_uid.S)
+    (C: S)
+    (Contents: Ir_ao.S with type key = K.t and type value = C.t)
   : STORE with type t = Contents.t
            and type key = K.t
            and type value = C.t
 (** Build a contents store. *)
 
-module Rec (S: STORE): Sig.Contents with type t = S.key
+module Rec (S: STORE): S with type t = S.key
 (** Convert a contents store objects into storable keys, with the
     expected merge function (eg. read the contents, merge them and
     write back the restult to get the final key). *)

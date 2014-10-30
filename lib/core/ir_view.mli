@@ -16,10 +16,7 @@
 
 (** In-memory partial views of the database, with lazy fetching. *)
 
-type origin = Origin.t
-type path = Path.t
-
-type ('key, 'contents) t
+type ('uid, 'contents) t
 (** Views over keys of types ['key] and contents of type
     ['contents]. *)
 
@@ -48,11 +45,14 @@ module type S = sig
   type value
   (** Contents value. *)
 
-  type node
-  (** Internal nodes. *)
+  type uid
+  (** Internal unique identifiers. *)
 
-  include Sig.RW
-    with type t = (node, value) t
+  type path
+  (** Paths to address values. *)
+
+  include Ir_rw.S
+    with type t = (uid, value) t
      and type value := value
      and type key = path
 
@@ -60,15 +60,15 @@ module type S = sig
   (** Return the list of actions performed on this view since its
       creation. *)
 
-  val merge: t -> into:t -> unit Merge.result Lwt.t
+  val merge: t -> into:t -> unit Ir_merge.result Lwt.t
   (** Merge the actions done on one view into an other one. If a read
       operation doesn't return the same result, return
       [Conflict]. Only the [into] view is updated. *)
 
 end
 
-module Make (K: Sig.Uid) (C: Sig.Contents):
-  S with type value = C.t and type node = K.t
+module Make (U: Ir_uid.S) (C: Ir_contents.S):
+  S with type value = C.t and type uid = U.t and type path = Ir_path.t
 (** Create a view implementation independant of any underlying
     store. *)
 
@@ -82,8 +82,8 @@ module type STORE = sig
   type db
   (** Database handler. *)
 
-  type path = Path.t
-  (** Database path. *)
+  type origin
+  (** Value origins. *)
 
   val of_path: db -> path -> t Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,
@@ -96,14 +96,14 @@ module type STORE = sig
       manually (by creating a new branch, or rebasing before
       commiting). [origin] helps keeping track of provenance. *)
 
-  val rebase_path: ?origin:origin -> db -> path -> t -> unit Merge.result Lwt.t
+  val rebase_path: ?origin:origin -> db -> path -> t -> unit Ir_merge.result Lwt.t
   (** Rebase the view to the tip of the store. *)
 
   val rebase_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
   (** Same as [rebase_path] but raise [Conflict] in case of
       conflict. *)
 
-  val merge_path: ?origin:origin -> db -> path -> t -> unit Merge.result Lwt.t
+  val merge_path: ?origin:origin -> db -> path -> t -> unit Ir_merge.result Lwt.t
   (** Same as [update_path] but *merges* with the current subtree. *)
 
   val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
@@ -112,7 +112,8 @@ module type STORE = sig
 
 end
 
-module Store (S: Branch.STORE): STORE with type db    = S.t
-                                       and type value = S.value
-                                       and type node  = S.Block.key
+module Store (S: Ir_bc.S):
+  STORE with type db = S.t
+         and type value = S.value
+         and type origin = Ir_origin.t
 (** Create a view implementation tied to a the store [S]. *)

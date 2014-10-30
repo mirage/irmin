@@ -53,7 +53,7 @@ module type S = sig
 
 end
 
-module Make(K: Sig.Uid) (V: sig type t end):
+module Make(K: Ir_uid.S) (V: sig type t end):
   S with type key = K.t
      and type value = V.t
 

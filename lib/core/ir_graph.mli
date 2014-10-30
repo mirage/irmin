@@ -97,4 +97,4 @@ val to_contents: ('a, 'b) vertex list -> 'a list
 val to_keys: ('a, 'b) vertex list -> 'a list
 
 (** Build a graph. *)
-module Make(K: Sig.Uid)(R: Sig.Tag): S with type V.t = (K.t, R.t) vertex
+module Make(K: Ir_uid.S)(R: Ir_tag.S): S with type V.t = (K.t, R.t) vertex

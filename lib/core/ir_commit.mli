@@ -16,8 +16,6 @@
 
 (** Manage the database history. *)
 
-type origin = Origin.t
-
 type ('origin, 'key) t = {
   node   : 'key option;
   parents: 'key list;
@@ -25,7 +23,7 @@ type ('origin, 'key) t = {
 } with bin_io, compare, sexp
 (** Type of concrete revisions. *)
 
-val edges: (origin, 'a) t -> ('a, 'b) Digraph.vertex list
+val edges: ('origin, 'a) t -> ('a, 'b) Ir_graph.vertex list
 (** The graph edges. *)
 
 module type S = sig
@@ -35,14 +33,17 @@ module type S = sig
   type key
   (** Keys. *)
 
-  include Sig.Contents with type t = (origin, key) t
+  type origin
+  (** Origin. *)
+
+  include Ir_contents.S with type t = (origin, key) t
   (** Base functions over commit objects. *)
 
 end
 
-module S (K: Sig.Uid): S with type key = K.t
+module S (K: Ir_uid.S): S with type key = K.t
 
-module SHA1: S with type key = Uid.SHA1.t
+module SHA1: S with type key = Ir_uid.SHA1.t
 (** Simple implementation where keys are SHA1s. *)
 
 module type STORE = sig
@@ -52,12 +53,15 @@ module type STORE = sig
   type key
   (** Database keys. *)
 
+  type origin
+  (** Origin of values. *)
+
   type value = (origin, key) t
   (** Commit values. *)
 
-  include Sig.AO with type key := key and type value := value
+  include Ir_ao.S with type key := key and type value := value
 
-  type node = key Node.t
+  type node = key Ir_node.t
   (** Node values. *)
 
   val commit: t -> origin -> ?node:node -> parents:value list -> (key * value) Lwt.t
@@ -69,7 +73,7 @@ module type STORE = sig
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val merge: t -> key Merge.t
+  val merge: t -> key Ir_merge.t
   (** Lift [S.merge] to the store keys. *)
 
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
@@ -83,7 +87,7 @@ module type STORE = sig
   (** Return all previous commit hashes, with an (optional) limit on
       the history depth. *)
 
-  module Key: Sig.Uid with type t = key
+  module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key
@@ -92,12 +96,14 @@ module type STORE = sig
 end
 
 module Make
-    (K: Sig.Uid)
-    (Node: Node.STORE with type key = K.t and type value = K.t Node.t)
-    (Commit: Sig.AO with type key = K.t and type value = (origin, K.t) t)
-  : STORE with type t = Node.t * Commit.t and type key = K.t
+    (K: Ir_uid.S)
+    (Node: Ir_node.STORE with type key = K.t and type value = K.t Ir_node.t)
+    (Commit: Ir_ao.S with type key = K.t and type value = (Ir_origin.t, K.t) t)
+  : STORE with type t = Node.t * Commit.t
+           and type key = K.t
+           and type origin = Ir_origin.t
 (** Create a commit store. *)
 
-module Rec (S: STORE): Sig.Contents with type t = S.key
+module Rec (S: STORE): Ir_contents.S with type t = S.key
 (** Convert a commit store objects into storable keys, with the
     expected merge functions. *)

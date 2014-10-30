@@ -14,10 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Hexadecimal encoding. *)
+(** Tree path handling. *)
 
-val encode: string -> string
-(** Encode a binary string to hexa *)
-
-val decode: string -> string
-(** Decode an hexa string to binary *)
+include Ir_uid.S with type t = string list
+(** Type of paths, to address nodes from the tree root. *)

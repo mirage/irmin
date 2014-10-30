@@ -18,34 +18,37 @@
 
 type ('origin, 'key, 'contents) t =
   | Contents of 'contents
-  | Node of 'key Node.t
-  | Commit of ('origin, 'key) Commit.t
+  | Node of 'key Ir_node.t
+  | Commit of ('origin, 'key) Ir_commit.t
 (** The different kinds of values which can be stored in the
     database. *)
-
-type origin = Origin.t
 
 module type S = sig
 
   (** Signature for structured values. *)
 
   type key
-  (** Keys. *)
+  (** Type for keys. *)
 
   type contents
-  (** Contents. *)
+  (** Type for contents. *)
 
-  include Sig.Contents with type t = (origin, key, contents) t
+  type origin
+  (** Type for tracking provenance. *)
+
+  include Ir_contents.S with type t = (origin, key, contents) t
   (** Base functions over structured values. *)
 
 end
 
-module String: S with type key = Uid.SHA1.t
-                  and type contents = Contents.String.t
+module String: S with type key = Ir_uid.SHA1.t
+                  and type contents = Ir_contents.String.t
+                  and type origin = Ir_origin.t
 (** String contents, with SHA1 keys. *)
 
-module JSON: S with type key = Uid.SHA1.t
-                and type contents = Contents.JSON.t
+module JSON: S with type key = Ir_uid.SHA1.t
+                and type contents = Ir_contents.JSON.t
+                and type origin = Ir_origin.t
 (** JSON contents, with SHA1 keys. *)
 
 
@@ -60,25 +63,28 @@ module type STORE = sig
   type contents
   (** Contents values. *)
 
+  type origin
+  (** Type for the origin of values. *)
+
   type value =  (origin, key, contents) t
   (** Block values. *)
 
-  type node = key Node.t
+  type node = key Ir_node.t
   (** Node values. *)
 
-  type commit = (origin, key) Commit.t
+  type commit = (origin, key) Ir_commit.t
   (** Commit values. *)
 
-  include Sig.AO with type key := key and type value := value
+  include Ir_ao.S with type key := key and type value := value
 
   val list: t -> ?depth:int -> key list -> key list Lwt.t
   (** Return the related blocks, with an history depth limit. *)
 
-  module Contents: Contents.STORE with type key = key and type value = contents
+  module Contents: Ir_contents.STORE with type key = key and type value = contents
 
-  module Node: Node.STORE with type key = key and type contents = contents
+  module Node: Ir_node.STORE with type key = key and type contents = contents
 
-  module Commit: Commit.STORE with type key = key
+  module Commit: Ir_commit.STORE with type key = key
 
   val contents_t: t -> Contents.t
   (** The handler for the contents database. *)
@@ -89,38 +95,40 @@ module type STORE = sig
   val commit_t: t -> Commit.t
   (** The handler for the commit database. *)
 
-  val merge: t -> key Merge.t
+  val merge: t -> key Ir_merge.t
   (** Merge keys of the store together. *)
 
-  module Key: Sig.Uid with type t = key
+  module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type key = key and type contents = contents
   (** Base functions over values. *)
 
-  module Graph: Digraph.S with type V.t = (key, unit) Digraph.vertex
+  module Graph: Ir_graph.S with type V.t = (key, unit) Ir_graph.vertex
 
 end
 
 module Make
-  (K: Sig.Uid)
-  (C: Sig.Contents)
-  (S: Sig.AO with type key = K.t and type value = (origin, K.t, C.t) t)
+  (K: Ir_uid.S)
+  (C: Ir_contents.S)
+  (S: Ir_ao.S with type key = K.t and type value = (Ir_origin.t, K.t, C.t) t)
   : STORE with type key = K.t
            and type contents = C.t
+           and type origin = Ir_origin.t
            and type Contents.t = S.t
            and type Node.t = S.t * S.t
            and type Commit.t = (S.t * S.t) * S.t
 (** Create a store for structured values. *)
 
 module Mux
-  (K: Sig.Uid)
-  (C: Sig.Contents)
-  (Contents: Sig.AO with type key = K.t and type value = C.t)
-  (Node: Sig.AO with type key = K.t and type value = K.t Node.t)
-  (Commit: Sig.AO with type key = K.t and type value = (origin, K.t) Commit.t)
+  (K: Ir_uid.S)
+  (C: Ir_contents.S)
+  (Contents: Ir_ao.S with type key = K.t and type value = C.t)
+  (Node: Ir_ao.S with type key = K.t and type value = K.t Ir_node.t)
+  (Commit: Ir_ao.S with type key = K.t and type value = (Ir_origin.t, K.t) Ir_commit.t)
   : STORE with type key = K.t
            and type contents = C.t
+           and type origin = Ir_origin.t
            and type Contents.t = Contents.t
            and type Node.t = Contents.t * Node.t
            and type Commit.t = (Contents.t * Node.t) * Commit.t
@@ -128,7 +136,8 @@ module Mux
     values. XXX: discuss about the cost model, ie. the difference
     between Mux and Make. *)
 
-module Rec (S: STORE): Sig.Contents with type t = S.key
+module Rec (S: STORE): Ir_contents.S with type t = S.key
 (** Interpret the blocks in a block store as storable objects. *)
 
-module S (K: Sig.Uid) (C: Sig.Contents): S with type key = K.t and type contents = C.t
+module S (K: Ir_uid.S) (C: Ir_contents.S):
+  S with type key = K.t and type contents = C.t

@@ -17,13 +17,11 @@
 module Log = Log.Make(struct let section = "COMMIT" end)
 
 open Lwt
-open Merge.OP
-open Misc.OP
+open Ir_merge.OP
+open Ir_misc.OP
 open Printf
 open Sexplib.Std
 open Bin_prot.Std
-
-type origin = Origin.t
 
 module T_ = struct
   type ('origin, 'key) t = {
@@ -44,42 +42,46 @@ let edges t =
 
 module type S = sig
   type key
-  include Sig.Contents with type t = (origin, key) t
+  type origin
+  include Ir_contents.S with type t = (origin, key) t
 end
 
 module type STORE = sig
   type key
+  type origin
   type value = (origin, key) t
-  include Sig.AO with type key := key and type value := value
-  type node = key Node.t
-  val commit: t -> origin -> ?node:key Node.t -> parents:value list -> (key * value) Lwt.t
-  val node: t -> value -> key Node.t Lwt.t option
+  include Ir_ao.S with type key := key and type value := value
+  type node = key Ir_node.t
+  val commit: t -> origin -> ?node:key Ir_node.t -> parents:value list -> (key * value) Lwt.t
+  val node: t -> value -> key Ir_node.t Lwt.t option
   val parents: t -> value -> value Lwt.t list
-  val merge: t -> key Merge.t
+  val merge: t -> key Ir_merge.t
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
   val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
   val list: t -> ?depth:int -> key list -> key list Lwt.t
-  module Key: Sig.Uid with type t = key
+  module Key: Ir_uid.S with type t = key
   module Value: S with type key = key
 end
 
-module S (K: Sig.Uid) = struct
+module S (K: Ir_uid.S) = struct
   type key = K.t
-  module S = Tc.App2(T)(Origin)(K)
+  type origin = Ir_origin.t
+  module S = Tc.App2(T)(Ir_origin)(K)
   include S
-  let merge = Merge.default (module S)
+  let merge = Ir_merge.default (module S)
 end
 
 module Make
-    (K: Sig.Uid)
-    (N: Node.STORE with type key = K.t and type value = K.t Node.t)
-    (C: Sig.AO with type key = K.t and type value = (origin, K.t) t)
+    (K: Ir_uid.S)
+    (N: Ir_node.STORE with type key = K.t and type value = K.t Ir_node.t)
+    (C: Ir_ao.S with type key = K.t and type value = (Ir_origin.t, K.t) t)
 = struct
 
   type key = K.t
+  type origin = Ir_origin.t
   type value = (origin, key) t
   type t = N.t * C.t
-  type node = key Node.t
+  type node = key Ir_node.t
 
   module Key = K
   module Value = S(K)
@@ -121,38 +123,38 @@ module Make
   let parents t c =
     List.map (read_exn t) c.parents
 
-  module Graph = Digraph.Make(K)(Tag.String)
+  module Graph = Ir_graph.Make(K)(Ir_tag.String)
 
   let list t ?depth keys =
     Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
       | `Commit k -> read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
-    let max = Digraph.of_commits keys in
+    let max = Ir_graph.of_commits keys in
     Graph.closure ?depth max ~pred >>= fun g ->
-    let keys = Digraph.to_commits (Graph.vertex g) in
+    let keys = Ir_graph.to_commits (Graph.vertex g) in
     return keys
 
   let dump (_, t) =
     C.dump t
 
   let merge_node n =
-    Merge.some (N.merge n)
+    Ir_merge.some (N.merge n)
 
   let merge (n, _ as t) =
     let merge ~origin ~old k1 k2 =
       read_exn t old >>= fun vold ->
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
-      Merge.merge (merge_node n) ~origin ~old:vold.node v1.node v2.node >>| fun node ->
+      Ir_merge.merge (merge_node n) ~origin ~old:vold.node v1.node v2.node >>| fun node ->
       let parents = [k1; k2] in
       let commit = { node; parents; origin } in
       add t commit >>= fun key ->
       ok key
     in
-    Merge.create' (module K) merge
+    Ir_merge.create' (module K) merge
 
-  module KSet = Misc.Set(K)
+  module KSet = Ir_misc.Set(K)
 
   let find_common_ancestor t c1 c2 =
     let rec aux (seen1, todo1) (seen2, todo2) =
@@ -176,7 +178,7 @@ module Make
           aux (seen1', todo1') (seen2', todo2')
         | [r] -> return (Some r)
         | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
-                                  (Misc.list_pretty K.pretty rs))) in
+                                  (Tc.shows (module K) rs))) in
     aux
       (KSet.empty, KSet.singleton c1)
       (KSet.empty, KSet.singleton c2)
@@ -193,9 +195,9 @@ module Rec (S: STORE) = struct
   let merge =
     let merge ~origin ~old k1 k2 =
       S.create ()  >>= fun t  ->
-      Merge.merge (S.merge t) ~origin ~old k1 k2
+      Ir_merge.merge (S.merge t) ~origin ~old k1 k2
     in
-    Merge.create' (module S.Key) merge
+    Ir_merge.create' (module S.Key) merge
 end
 
-module SHA1 = S(Uid.SHA1)
+module SHA1 = S(Ir_uid.SHA1)

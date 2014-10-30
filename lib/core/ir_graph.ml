@@ -17,7 +17,7 @@
 open Lwt
 open Bin_prot.Std
 open Sexplib.Std
-open Misc.OP
+open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "GRAPH" end)
 
@@ -64,37 +64,30 @@ let of_nodes    x = List.map (fun k -> `Node k) x
 let of_commits  x = List.map (fun k -> `Commit k) x
 
 let to_tags l =
-  Misc.list_filter_map (function `Tag k -> Some k | _ -> None) l
+  Ir_misc.list_filter_map (function `Tag k -> Some k | _ -> None) l
 
 let to_contents l =
-  Misc.list_filter_map (function `Contents k -> Some k | _ -> None) l
+  Ir_misc.list_filter_map (function `Contents k -> Some k | _ -> None) l
 
 let to_nodes l =
-  Misc.list_filter_map (function `Node k -> Some k | _ -> None) l
+  Ir_misc.list_filter_map (function `Node k -> Some k | _ -> None) l
 
 let to_commits l =
-  Misc.list_filter_map (function `Commit k -> Some k | _ -> None) l
+  Ir_misc.list_filter_map (function `Commit k -> Some k | _ -> None) l
 
 let to_keys l =
-  Misc.list_filter_map (function
+  Ir_misc.list_filter_map (function
     | `Commit k
     | `Node k
     | `Contents k -> Some k
     | `Tag _      -> None
     ) l
 
-module Make (K: Sig.Uid) (R: Sig.Tag) = struct
+module Make (K: Ir_uid.S) (R: Ir_tag.S) = struct
 
   type v = (K.t, R.t) vertex
 
-  module X = struct
-    include Tc.App2(V)(K)(R)
-    let pretty = function
-      | `Contents x -> "B" ^ K.pretty x
-      | `Node     x -> "N" ^ K.pretty x
-      | `Commit   x -> "C" ^ K.pretty x
-      | `Tag      x -> "R" ^ R.pretty x
-  end
+  module X = Tc.App2(V)(K)(R)
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)
   module GO = Graph.Oper.I(G)
@@ -160,7 +153,7 @@ module Make (K: Sig.Uid) (R: Sig.Tag) = struct
       include G
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
-      let vertex_name k = Printf.sprintf "%S" (X.pretty k)
+      let vertex_name k = Printf.sprintf "%S" (Tc.show (module X) k)
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None
@@ -197,7 +190,7 @@ module Make (K: Sig.Uid) (R: Sig.Tag) = struct
         let l = List.filter (fun (x,_,y) -> x=v1 && y=v2) edges in
         let l = List.fold_left (fun acc (_,l,_) -> l @ acc) [] l in
         let labels, others =
-          Misc.list_partition_map (function `Label l -> `Fst l | x -> `Snd x) l in
+          Ir_misc.list_partition_map (function `Label l -> `Fst l | x -> `Snd x) l in
         match labels with
         | []  -> others
         | [l] -> `Label l :: others

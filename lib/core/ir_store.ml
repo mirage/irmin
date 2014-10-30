@@ -14,23 +14,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Store dumps. *)
+open Lwt
+open Merge.OP
+open Misc.OP
 
-module type S = sig
+module BC (B: Block.STORE) (T: Tag.STORE with type value = B.key) =
+  Branch.Make(B)(T)
 
-  (** Store with import/export capabilities. *)
-
-  type t
-  (** Local database handlers. *)
-
-  val output_buffer: t -> ?depth:int -> ?full:bool -> Buffer.t -> unit Lwt.t
-  (** [output_buffer name] creates a Graphviz file [name.dot]
-      representing the store state. If [full] is set (it is not by
-      default), the full graph, included the filesystem and blobs is
-      exported, otherwise it is the history graph only.  *)
-
+module Binary
+    (AO: Sig.AO_BINARY)
+    (RW: Sig.RW_BINARY)
+    (K : Sig.Uid)
+    (C : Sig.Contents)
+    (T : Sig.Tag) =
+struct
+  module V = Block.S(K)(C)
+  module B = Block.S(K)(C)
+  module XBlock = Block.Make(K)(C)(AO_BINARY(AO)(K)(B))
+  module XTag = Tag.Make(T)(K)(RW_BINARY(RW)(T)(K))
+  include BC(XBlock)(XTag)
 end
-
-module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key): S
-(** Extend a branch consistent store with import/export
-    capabilities. *)

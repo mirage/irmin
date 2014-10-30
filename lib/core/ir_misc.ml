@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Printf
-open Bin_prot.Std
 open Sexplib.Std
 
 module OP = struct
@@ -24,11 +22,6 @@ module OP = struct
   let show m t = Lazy.from_fun (fun () -> Tc.show m t)
   let shows m ts = Lazy.from_fun (fun () -> Tc.shows m ts)
 end
-
-let invalid_argf fmt =
-  ksprintf (fun str ->
-      Invalid_argument str
-    ) fmt
 
 let list_partition_map f t =
   let rec aux fst snd = function
@@ -59,7 +52,7 @@ let list_dedup ?(compare=Pervasives.compare) t =
   let rec aux acc = function
     | []      -> List.rev acc
     | [x]     -> aux (x :: acc) []
-    | x::(y::t as tl) ->
+    | x::(y::_ as tl) ->
       match compare x y with
       | 0 -> aux acc tl
       | _ -> aux (x :: acc) tl

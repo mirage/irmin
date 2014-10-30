@@ -16,10 +16,21 @@
 
 (** Tags handling. *)
 
-(** Tags are branch pointers: they associad branch names to keys in
-    the block store. *)
+(** Tags are branch names: they associate branches to keys in the
+    block store. *)
 
-module String: Sig.Tag with type t = string
+module type S = sig
+
+  (** Signature for tags (i.e. branch names). *)
+
+  include Tc.I0
+
+  val master: t
+  (** The master branch. *)
+
+end
+
+module String: S with type t = string
 (** Simple string tags. *)
 
 (** {2 Store} *)
@@ -34,20 +45,20 @@ module type STORE = sig
       keys in the tag store, are this store is not supposed to be
       really efficient.  *)
 
-  include Sig.RW
+  include Ir_rw.S
 
-  module Key: Sig.Tag with type t = key
+  module Key: S with type t = key
   (** Base functions over keys. *)
 
-  module Value: Sig.Uid with type t = value
+  module Value: Ir_uid.S with type t = value
   (** Base functions over values. *)
 
 end
 
 module Make
-    (K: Sig.Tag)
-    (V: Sig.Uid)
-    (S: Sig.RW with type key = K.t and type value = V.t)
+    (K: S)
+    (V: Ir_uid.S)
+    (S: Ir_rw.S with type key = K.t and type value = V.t)
   : STORE with type t = S.t
            and type key = K.t
            and type value = V.t

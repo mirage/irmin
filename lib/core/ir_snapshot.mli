@@ -16,16 +16,17 @@
 
 (** Manage snapshot/revert capabilities. *)
 
-type origin = Origin.t
-
 module type STORE = sig
 
   (** Snapshots are read-only checkpoints of the dabase. *)
 
-  include Sig.RO with type key = Path.t
+  include Ir_ro.S
 
   type db
-  (** Database handler. *)
+  (** Type for database handler. *)
+
+  type origin
+  (** Type for tracking provenance. *)
 
   val create: db -> t Lwt.t
   (** Snapshot the current state of the store. *)
@@ -33,7 +34,7 @@ module type STORE = sig
   val revert: db -> t -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
-  val merge: db -> ?origin:origin -> t -> unit Merge.result Lwt.t
+  val merge: db -> ?origin:origin -> t -> unit Ir_merge.result Lwt.t
   (** Merge the given snasphot into the current branch of the
       database. *)
 
@@ -59,6 +60,6 @@ module type STORE = sig
 
 end
 
-module Make (Block: Block.STORE) (Tag: Tag.STORE with type value = Block.key)
+module Make (Block: Ir_block.STORE) (Tag: Ir_tag.STORE with type value = Block.key)
   : STORE with type state = Block.key
 (** Add snapshot capabilities to a branch-consistent store. *)

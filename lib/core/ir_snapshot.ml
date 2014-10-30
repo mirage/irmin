@@ -15,22 +15,23 @@
  *)
 
 open Lwt
-open Merge.OP
-open Misc.OP
+open Ir_merge.OP
+open Ir_misc.OP
 
-type origin = Origin.t
+type origin = Ir_origin.t
 
 module Log = Log.Make(struct let section = "SNAPSHOT" end)
 
-module PathSet = Misc.Set(Path)
+module PathSet = Ir_misc.Set(Ir_path)
 
 module type STORE = sig
-  include Sig.RO with type key = Path.t
+  include Ir_ro.S
   type db
+  type origin
   val create: db -> t Lwt.t
   val revert: db -> t -> unit Lwt.t
-  val merge: db -> ?origin:Origin.t -> t -> unit Merge.result Lwt.t
-  val merge_exn: db -> ?origin:Origin.t -> t -> unit Lwt.t
+  val merge: db -> ?origin:origin -> t -> unit Ir_merge.result Lwt.t
+  val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
   val watch: db -> key -> (key * t) Lwt_stream.t
   type state
   val of_state: db -> state -> t
@@ -38,16 +39,17 @@ module type STORE = sig
   include Tc.I0 with type t := state
 end
 
-module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
+module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.key) = struct
 
   module N = B.Node
   module C = B.Commit
   module K = B.Key
-  module S = Branch.Make(B)(T)
+  module S = Ir_bc.Make(B)(T)
 
   type db = S.t
+  type origin = Ir_origin.t
 
-  type t = (S.t * S.Block.key)
+  type t = (S.t * B.key)
   type key = S.key
   type value = S.value
 
@@ -58,10 +60,10 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
 
   let root_node (t, c) =
     C.read (S.commit_t t) c >>= function
-    | None   -> return Node.empty
+    | None   -> return Ir_node.empty
     | Some c ->
       match C.node (S.commit_t t) c with
-      | None   -> return Node.empty
+      | None   -> return Ir_node.empty
       | Some n -> n
 
   let map (t, c) path ~f =
@@ -88,7 +90,7 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
       | None      -> return_nil
       | Some node ->
         let c = N.succ (S.node_t t) node in
-        let c = Misc.StringMap.keys c in
+        let c = Ir_misc.StringMap.keys c in
         let paths = List.map (fun c -> path @ [c]) c in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
@@ -111,13 +113,13 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
   let merge t ?origin (_, c) =
     Log.debugf "merge %a" force (show (module K) c);
     let origin = match origin with
-      | None   -> Origin.create "Merge snapshot %s" (K.pretty c)
+      | None   -> Ir_origin.create "Merge snapshot %s" (Tc.show (module K) c)
       | Some o -> o in
-    S.merge_commit t ~origin c
+    S.merge_head t ~origin c
 
   let merge_exn t ?origin c =
     merge t ?origin c >>=
-    Merge.exn
+    Ir_merge.exn
 
   let watch db path =
     let stream = S.watch_node db path in

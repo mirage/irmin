@@ -14,7 +14,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Tree path handling. *)
+(** Store dumps. *)
 
-include Sig.Uid with type t = string list
-(** Type of paths, to address nodes from the tree root. *)
+module type S = sig
+
+  (** Store with import/export capabilities. *)
+
+  type t
+  (** Local database handlers. *)
+
+  val output_buffer: t -> ?depth:int -> ?full:bool -> Buffer.t -> unit Lwt.t
+  (** [output_buffer name] creates a Graphviz file [name.dot]
+      representing the store state. If [full] is set (it is not by
+      default), the full graph, included the filesystem and blobs is
+      exported, otherwise it is the history graph only.  *)
+
+end
+
+module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.key): S
+(** Extend a branch consistent store with import/export
+    capabilities. *)

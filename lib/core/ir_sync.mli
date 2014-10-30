@@ -19,10 +19,10 @@
 type ('contents, 'tag) remote
 (** Remote store hanlders. *)
 
-type ('key, 'contents, 'tag) store =
-  (module Branch.STORE with type Block.key = 'key
-                        and type value = 'contents
-                        and type tag = 'tag)
+type ('uid, 'contents, 'tag) store =
+  (module Ir_bc.STORE with type uid = 'uid
+                       and type value = 'contents
+                       and type tag = 'tag)
 (** A pair (store implementation * branch name). *)
 
 val store: ('a, 'b, 'c) store -> 'c -> ('a, 'b) remote
@@ -73,13 +73,11 @@ module type STORE = sig
   (** [update t f] imports the contents of [f] in the database. This
       replace the current branch with the imported contents.  *)
 
-  val merge: t -> ?origin:origin -> uid -> unit Merge.result Lwt.t
+  val merge: t -> ?origin:origin -> uid -> unit Ir_merge.result Lwt.t
   (** Same as [update] but merge with the current branch. *)
 
   val merge_exn: t -> ?origin:origin -> uid -> unit Lwt.t
   (** Same as [merge] but merge raise an exception in case of conflict. *)
-
-  module Uid: Sig.Uid
 
 end
 
@@ -96,13 +94,13 @@ module type REMOTE = sig
 
 end
 
-module Slow (B: Block.STORE) (T: Tag.STORE):
+module Slow (B: Ir_block.STORE) (T: Ir_tag.STORE):
   STORE with type contents = B.value and type tag = T.key
 (** This functor copies iterate through *all* the k/v pairs in the
     database so it is *very* slow. Use the [Fast] one when
     possible. *)
 
-module Fast (B: Block.STORE) (T: Tag.STORE) (R: REMOTE with type uid = B.key):
+module Fast (B: Ir_block.STORE) (T: Ir_tag.STORE) (R: REMOTE with type uid = B.key):
   STORE with type uid = B.key and type contents = B.value and type tag = T.key
 (** Use [R] to synchronize stores using some native (and usually fast)
     backend-specific protocols. *)

@@ -25,7 +25,7 @@ exception Invalid of string
 
 module type S = sig
   include Tc.I0
-  val merge: t Merge.t
+  val merge: t Ir_merge.t
 end
 
 module String  = struct
@@ -35,7 +35,7 @@ module String  = struct
   include S
 
   let merge =
-    Merge.default (module S)
+    Ir_merge.default (module S)
 
 end
 
@@ -46,7 +46,7 @@ module JSON = struct
     | `Null
     | `Bool _
     | `Float _  -> t
-    | `String s -> Json.encode_string s
+    | `String s -> Ezjsonm.encode_string s
     | `A l      -> `A (List.rev_map encode l)
     | `O l      -> `O (List.rev_map (fun (k,v) -> k, encode v) l)
 
@@ -58,7 +58,7 @@ module JSON = struct
     | `String _ -> t
     | `A l      -> `A (List.rev_map decode l)
     | `O l      ->
-      match Json.decode_string t with
+      match Ezjsonm.decode_string t with
       | Some s -> `String s
       | None   -> `O (List.rev_map (fun (k,v) -> k, encode v) l)
 

@@ -15,41 +15,40 @@
  *)
 
 open Lwt
-open Merge.OP
-open Misc.OP
+open Ir_merge.OP
+open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "BRANCH" end)
 module StringMap = Map.Make(String)
-module PathSet = Misc.Set(Path)
+module PathSet = Misc.Set(Ir_path)
 
-module type STORE = sig
-  include Sig.BC with type key = Path.t and type origin = Origin.t
-  module Key: Sig.Uid with type t = key
-  module Value: Sig.Contents with type t = value
-  module Branch: Sig.Tag with type t = branch
-  module Block: Block.STORE with type contents = value
-  module Tag: Tag.STORE with type key = branch and type value = Block.key
-  module Graph: Digraph.S with type V.t = (Block.key, Tag.key) Digraph.vertex
-  val block_t: t -> Block.t
-  val contents_t: t -> Block.Contents.t
-  val node_t: t -> Block.Node.t
-  val commit_t: t -> Block.Commit.t
-  val tag_t: t -> Tag.t
-  val create_head: Block.key -> t Lwt.t
-  val head: t -> Block.key option Lwt.t
-  val head_exn: t -> Block.key Lwt.t
-  val set_head: t -> Block.key -> unit
-  val read_node: t -> key -> Block.node option Lwt.t
-  val update_node: t -> origin -> key -> Block.node -> unit Lwt.t
-  val watch_node: t -> key -> (key * Block.key) Lwt_stream.t
-  val update_commit: t -> Block.key -> unit Lwt.t
-  val merge_commit: t -> ?origin:origin -> Block.key -> unit Merge.result Lwt.t
+module type S = sig
+  include Ir_rw.S
+  type tag
+  type origin
+  val create: ?tag:tag -> unit -> t Lwt.t
+  val detach: t -> unit Lwt.t
+  val tag: t -> tag option
+  val tag_exn: t -> tag
+  val set_tag: t -> tag -> unit
+  val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
+  val remove: t -> ?origin:origin -> key -> unit Lwt.t
+  val clone: t -> tag -> t option Lwt.t
+  val clone_force: t -> tag -> t Lwt.t
+  val switch: t -> tag -> unit Lwt.t
+  val merge: t -> ?origin:origin -> tag -> unit Ir_merge.result Lwt.t
+  val merge_exn: t -> ?origin:origin -> tag -> unit Lwt.t
 end
 
-type ('key, 'contents, 'tag) t =
-  (module STORE with type Block.key = 'key
-                 and type value     = 'contents
-                 and type branch    = 'tag)
+module type MAKER =
+  functor (U: Ir_uid.S) -> functor (C: Ir_contents.S) -> functor (T: Ir_tag.S) ->
+    S with type key = Ir_path.t
+       and type value = C.t
+       and type origin = Ir_origin.t
+       and type tag = T.t
+       and type commit = U.t
+       and type node = U.t Ir_node.t
+(** Signature of functors to create branch-consistent stores. *)
 
 module TK2 = Tc.I2(struct
     type ('a, 'b) t =
@@ -58,17 +57,17 @@ module TK2 = Tc.I2(struct
     with sexp, bin_io, compare
   end)
 
-module Make (Block: Block.STORE) (Tag: Tag.STORE with type value = Block.key) =
+module Make (Block: Ir_block.STORE) (Tag: Ir_tag.STORE with type value = Block.key) =
 struct
 
   module Block = Block
 
-  type origin = Origin.t
+  type origin = Ir_origin.t
 
   module Tag = Tag
   module T = Tag.Key
 
-  module Key = Path
+  module Key = Ir_path
   module K = Block.Key
 
   module Value = Block.Contents.Value

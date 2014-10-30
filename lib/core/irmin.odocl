@@ -1,26 +1,26 @@
 # OASIS_START
-# DO NOT EDIT (digest: b17a0122e9a41fc091c941a94a701255)
-Misc
-Sig
-Json
-Hex
-Tc
-Digraph
-Uid
-Snapshot
-Commit
-Store
-Block
-Tag
-Contents
-Node
-Version
-Dump
-Path
-Watch
-Merge
-View
-Origin
-Branch
-Sync
+# DO NOT EDIT (digest: 7c185ad8a687a4a8be4cad68ac70b9c0)
+Ir_misc
+Ir_graph
+Ir_uid
+Ir_snapshot
+Ir_ro
+Ir_ao
+Ir_rw
+Ir_commit
+Ir_block
+Ir_tag
+Ir_contents
+Ir_backend
+Ir_node
+Ir_version
+Ir_dump
+Ir_path
+Ir_watch
+Ir_merge
+Ir_view
+Ir_origin
+Ir_bc
+Ir_sync
+Irmin
 # OASIS_STOP

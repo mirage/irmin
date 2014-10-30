@@ -14,23 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Json helpers. *)
+(** Implementation of keys *)
 
-val is_valid_utf8: string -> bool
-(** Check whether a string is valid UTF8 encoded. *)
+module type S = sig
 
-val encode_string: string -> Ezjsonm.t
-(** Convert a (possibly non-valid UTF8) string to a JSON object.*)
+  (** Signature for unique identifiers. *)
 
-val decode_string: Ezjsonm.t -> string option
-(** Convert a JSON object to a (possibly non-valid UTF8)
-    string. Return [None] if the JSON object is not a valid string. *)
+  include Tc.I0
 
-val decode_string_exn: Ezjsonm.t -> string
-(** Convert a JSON object to a (possibly non-valid UTF8) string. *)
+  val create: Cstruct.t -> t
+  (** Compute a (deterministic) key from a cstruct. *)
 
-val to_sexp: Ezjsonm.t -> Sexplib.Type.t
-(** Convert a JSON object to an S-expression. *)
+end
 
-val of_sexp: Sexplib.Type.t -> Ezjsonm.t
-(** Convert an S-expression to a JSON object. *)
+
+exception Invalid of string
+(** Exception raised when a key is not valid. *)
+
+exception Unknown of string
+(** Exception raised when no value is associated to a key. *)
+
+module SHA1: S
+(** SHA1 keys *)

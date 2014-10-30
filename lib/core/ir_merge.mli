@@ -26,7 +26,7 @@
 
 module type S = Tc.I0
 
-type origin = Origin.t
+type origin = Ir_origin.t
 
 type 'a t
 (** Abstract merge function for values of type ['a]. *)
@@ -123,7 +123,7 @@ val some: 'a t -> 'a option t
     the provided values are inhabited, then call the provided merge
     function, otherwise use the same behavior as [create]. *)
 
-val string_map: 'a t -> 'a Misc.StringMap.t t
+val string_map: 'a t -> 'a Ir_misc.StringMap.t t
 (** Lift to hash-tables. *)
 
 val pair: 'a t -> 'b t -> ('a * 'b) t

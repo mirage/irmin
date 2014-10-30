@@ -22,52 +22,48 @@ exception Unknown of string
 
 module type S = sig
   include Tc.I0
-  val pretty: t -> string
-  val of_raw: string -> t
-  val to_raw: t -> string
-  val compute_from_cstruct: Cstruct.t -> t
-  val compute_from_string: string -> t
+  val create: Cstruct.t -> t
 end
 
 module SHA1 = struct
 
   module Log = Log.Make(struct let section = "SHA1" end)
 
-  let to_hex t =
-    Hex.encode t
+  type t = Cstruct.t
 
-  let pretty = to_hex
+  let to_hex t =
+    let `Hex h = Hex.of_string (Cstruct.to_string t) in
+    h
 
   let len = 20
+
   let hex_len = 40
 
   let of_hex hex =
     if String.length hex = hex_len then
-      Hex.decode hex
+      Hex.to_string (`Hex hex)
     else
       raise (Invalid hex)
 
-  module M = Tc.I0(struct
-      type t = string with bin_io, compare
-      let sexp_of_t t =
-        Sexplib.Sexp.Atom (to_hex t)
-      let t_of_sexp s =
-        of_hex (Sexplib.Conv.string_of_sexp s)
-    end)
+  let to_sexp t = Sexplib.Sexp.Atom (to_hex t)
+  let of_sexp s = of_hex (Sexplib.Conv.string_of_sexp s)
+  let to_json x = Ezjsonm.of_sexp (to_sexp x)
+  let of_json x = Cstruct.of_string (of_sexp (Ezjsonm.to_sexp x))
 
-  include M
+  let size_of buf = Cstruct.len buf
+  let write t buf =
+    let len = Cstruct.len t in
+    Cstruct.blit t 0 buf 0 len;
+    Cstruct.shift buf len
 
-  let of_raw str =
-    if String.length str = len then str
-    else raise (Invalid str)
+  let read buf =
+    if Mstruct.length buf = len then Mstruct.to_cstruct buf
+    else raise (Invalid (Mstruct.to_string buf))
 
-  let to_raw str =
-    str
+  let hash = Hashtbl.hash
+  let equal = (=)
+  let compare = Pervasives.compare
 
-  let compute_from_cstruct buf =
-    Cstruct.to_string (Nocrypto.Hash.SHA1.digest buf)
-
-  let compute_from_string str =
-    compute_from_cstruct (Cstruct.of_string str)
+  let create buf = Nocrypto.Hash.SHA1.digest buf
 
 end

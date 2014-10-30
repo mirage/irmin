@@ -1,2 +1,3 @@
-PKG lwt sexplib comparelib dolog ezjsonm bin_prot cstruct re uri git
+PKG lwt sexplib comparelib dolog ezjsonm bin_prot cstruct re uri git tc hex
+PKG nocrypto
 B _build/**

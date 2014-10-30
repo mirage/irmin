@@ -25,7 +25,7 @@
 
 type 'key t = {
   contents: 'key option;
-  succ    : 'key Misc.StringMap.t;
+  succ    : 'key Ir_misc.StringMap.t;
 } with bin_io, compare, sexp
 (** Node values. They might contain a pointer to an optional contents,
     and pointers to its successors.*)
@@ -36,7 +36,7 @@ val equal: ('key -> 'key -> bool) -> 'key t -> 'key t -> bool
 val contents_exn: 'key t -> 'key
 (** Get the contents key, raise [Not_found] if None. *)
 
-val edges: 'a t -> ('a, 'b) Digraph.vertex list
+val edges: 'a t -> ('a, 'b) Ir_graph.vertex list
 (** Return the list of successor vertices. *)
 
 val empty: 'key t
@@ -60,7 +60,7 @@ module type S = sig
 
   type nonrec t = key t
 
-  include Sig.Contents with type t := t
+  include Ir_contents.S with type t := t
 
 end
 
@@ -75,12 +75,12 @@ module type STORE = sig
   type value = key t
   (** Node values. *)
 
-  include Sig.AO with type key := key and type value := value
+  include Ir_ao.S with type key := key and type value := value
 
   type contents
   (** Node contents. *)
 
-  type path = Path.t
+  type path = Ir_path.t
   (** Paths to go from one node to an other. *)
 
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
@@ -90,7 +90,7 @@ module type STORE = sig
   val contents: t -> value -> contents Lwt.t option
   (** Return the node contents. *)
 
-  val succ: t -> value -> value Lwt.t Misc.StringMap.t
+  val succ: t -> value -> value Lwt.t Ir_misc.StringMap.t
   (** Return the node successors. *)
 
   val sub: t -> value -> path -> value option Lwt.t
@@ -118,10 +118,10 @@ module type STORE = sig
   val valid: t -> value -> path -> bool Lwt.t
   (** Is a path valid. *)
 
-  val merge: t -> key Merge.t
+  val merge: t -> key Ir_merge.t
   (** Merge two nodes together. *)
 
-  module Key: Sig.Uid with type t = key
+  module Key: Ir_uid.S with type t = key
   (** Base functions for keys. *)
 
   module Value: S with type key = key
@@ -129,23 +129,23 @@ module type STORE = sig
 
 end
 
-module SHA1: S with type key = Uid.SHA1.t
+module SHA1: S with type key = Ir_uid.SHA1.t
 (** Simple node implementation, where keys are SHA1s. *)
 
 module Make
-    (K: Sig.Uid)
-    (C: Sig.Contents)
-    (Contents: Contents.STORE with type key = K.t and type value = C.t)
-    (Node: Sig.AO with type key = K.t and type value = K.t t)
+    (K: Ir_uid.S)
+    (C: Ir_contents.S)
+    (Contents: Ir_contents.STORE with type key = K.t and type value = C.t)
+    (Node: Ir_ao.S with type key = K.t and type value = K.t t)
   : STORE with type t = Contents.t * Node.t
            and type key = K.t
            and type contents = C.t
-           and type path = Path.t
+           and type path = Ir_path.t
 (** Create a node store from an append-only database. *)
 
-module Rec (S: STORE): Sig.Contents with type t = S.key
+module Rec (S: STORE): Ir_contents.S with type t = S.key
 (** Convert a node store objects into storable keys, with the expected
     merge function. *)
 
-module S (K: Sig.Uid): S with type key = K.t
+module S (K: Ir_uid.S): S with type key = K.t
 (** Base functions for nodes. *)

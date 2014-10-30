@@ -19,17 +19,14 @@ open Lwt
 module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
-  include Sig.Uid
+  include Ir_uid.S
   val master: t
 end
 
 module String = struct
   include Tc.S
-  let compute_from_cstruct b = Cstruct.to_string b
-  let compute_from_string r = r
+  let create b = Cstruct.to_string b
   let pretty t = t
-  let of_raw s = s
-  let to_raw s = s
   let master = "master"
 
   let implode ts =
@@ -47,15 +44,15 @@ module String = struct
 end
 
 module type STORE = sig
-  include Sig.RW
+  include Ir_rw.S
   module Key: S with type t = key
-  module Value: Sig.Uid with type t = value
+  module Value: Ir_uid.S with type t = value
 end
 
 module Make
     (K: S)
-    (V: Sig.Uid)
-    (S: Sig.RW with type key = K.t and type value = V.t)
+    (V: Ir_uid.S)
+    (S: Ir_rw.S with type key = K.t and type value = V.t)
 = struct
 
   module Key = K
