@@ -40,14 +40,36 @@ module type S = sig
   val merge_exn: t -> ?origin:origin -> tag -> unit Lwt.t
 end
 
+module type STORE = sig
+  include S
+  type uid
+  module Block: Ir_block.STORE with type key = uid and type contents = value
+  module Tag: Ir_tag.STORE with type key = tag and type value = uid
+  val block_t: t -> Block.t
+  val commit_t: t -> Block.Commit.t
+  val node_t: t -> Block.Node.t
+  val contents_t: t -> Block.Contents.t
+  val tag_t: t -> Tag.t
+  val create_head: Block.Commit.key -> t Lwt.t
+  val head: t -> Block.Commit.key option Lwt.t
+  val head_exn: t -> Block.Commit.key Lwt.t
+  val set_head: t -> Block.Commit.key -> unit
+  val update_head: t -> Block.Commit.key -> unit Lwt.t
+  val merge_head: t -> ?origin:origin -> Block.Commit.key -> unit Ir_merge.result Lwt.t
+  val read_node: t -> key -> Block.Node.value option Lwt.t
+  val update_node: t -> origin -> key -> Block.Node.value -> unit Lwt.t
+  val watch_node: t -> key -> (key * Block.Node.key) Lwt_stream.t
+  module Graph: Ir_graph.S with type V.t = (Block.key, Tag.key) Ir_graph.vertex
+end
+
 module type MAKER =
   functor (U: Ir_uid.S) -> functor (C: Ir_contents.S) -> functor (T: Ir_tag.S) ->
-    S with type key = Ir_path.t
-       and type value = C.t
-       and type origin = Ir_origin.t
-       and type tag = T.t
-       and type commit = U.t
-       and type node = U.t Ir_node.t
+    STORE with type key = Ir_path.t
+           and type value = C.t
+           and type origin = Ir_origin.t
+           and type tag = T.t
+           and type commit = U.t
+           and type node = U.t Ir_node.t
 (** Signature of functors to create branch-consistent stores. *)
 
 module TK2 = Tc.I2(struct

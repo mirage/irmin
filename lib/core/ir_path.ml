@@ -15,22 +15,43 @@
  *)
 
 open Sexplib.Std
-open Bin_prot.Std
 
-module T = Tc.I0(struct
-  type t = string list with bin_io, compare, sexp
-  end)
+module type S = sig
+  include Tc.I0
+  type elt
+  val hd: t -> elt option
+  val tl: t -> t option
+  val cons: elt -> t -> t
+  val append: t -> t -> t
+end
 
-include T
+type t = string list
 
-let to_string t =
-  "/" ^ (String.concat "/" t)
+let hash = Hashtbl.hash
+let equal = (=)
+let compare = Pervasives.compare
 
-let of_string str =
-  List.filter ((<>) "") (Stringext.split str ~on:'/')
+let to_sexp t = Sexplib.Conv.(sexp_of_list sexp_of_string t)
+let to_json t = Ezjsonm.(list encode_string t)
+let of_json j = Ezjsonm.(get_list decode_string_exn j)
 
-let pretty = to_string
-let of_raw = of_string
-let to_raw = to_string
-let compute_from_string t = of_string t
-let compute_from_cstruct s = of_string (Cstruct.to_string s)
+
+let implode t = "/" ^ (String.concat "/" t)
+let explode str =  List.filter ((<>) "") (Stringext.split str ~on:'/')
+
+let size_of t =
+  (max 1 (List.length t))
+  + List.fold_left (fun acc e -> String.length e + acc) 0 t
+
+let write t buf =
+  let str = implode t in
+  let len = String.length str in
+  Cstruct.blit_from_string str 0 buf 0 len;
+  Cstruct.shift buf len
+
+let read buf =
+  let str = match Mstruct.get_string_delim buf '\000' with
+    | None   -> Mstruct.get_string buf (Mstruct.length buf)
+    | Some s -> s
+  in
+  explode str

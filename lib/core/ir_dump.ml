@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open Ir_merge.OP
 open Printf
 
 module Log = Log.Make(struct let section ="DUMP" end)

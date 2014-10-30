@@ -16,7 +16,7 @@
 
 module Log = Log.Make(struct let section = "WATCH" end)
 
-open Misc.OP
+open Ir_misc.OP
 open Lwt
 
 module type S = sig
@@ -39,7 +39,7 @@ let listen_dir_hook =
 let set_listen_dir_hook fn =
   listen_dir_hook := fn
 
-module Make (K: Sig.Uid) (V: sig type t end) = struct
+module Make (K: Ir_uid.S) (V: sig type t end) = struct
 
   type key = K.t
   type value = V.t
@@ -88,7 +88,7 @@ module Make (K: Sig.Uid) (V: sig type t end) = struct
     Log.debugf "watch %a" force (show (module K) key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
-    Misc.hashtbl_add_multi t key (id, value, push);
+    Ir_misc.hashtbl_add_multi t key (id, value, push);
     stream
 
   let listen_dir t dir ~key ~value =

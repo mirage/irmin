@@ -16,28 +16,33 @@
 
 (** Manage the database history. *)
 
-type ('origin, 'key) t = {
-  node   : 'key option;
-  parents: 'key list;
-  origin : 'origin;
-} with bin_io, compare, sexp
-(** Type of concrete revisions. *)
-
-val edges: ('origin, 'a) t -> ('a, 'b) Ir_graph.vertex list
-(** The graph edges. *)
-
 module type S = sig
 
   (** Signature for commit objects. *)
 
-  type key
-  (** Keys. *)
+  include Ir_contents.S
+  (** Base functions over commit objects. *)
+
+  type commit_key
+  (** Type for commit Keys. *)
+
+  type node_key
+  (** Type for node keys. *)
 
   type origin
   (** Origin. *)
 
-  include Ir_contents.S with type t = (origin, key) t
-  (** Base functions over commit objects. *)
+  val node: t -> node_key option
+  (** The underlying node. *)
+
+  val parents: t -> commit_key list
+  (** The commit parents. *)
+
+  val origin: t -> origin
+  (** The commit provenance. *)
+
+  val edges: t -> (key, 'b) Ir_graph.vertex list
+  (** The graph edges. *)
 
 end
 
@@ -50,18 +55,12 @@ module type STORE = sig
 
   (** Store the history as a partial-order of revisions. *)
 
-  type key
-  (** Database keys. *)
+  include Ir_ao.S
 
   type origin
   (** Origin of values. *)
 
-  type value = (origin, key) t
-  (** Commit values. *)
-
-  include Ir_ao.S with type key := key and type value := value
-
-  type node = key Ir_node.t
+  type node
   (** Node values. *)
 
   val commit: t -> origin -> ?node:node -> parents:value list -> (key * value) Lwt.t
@@ -90,17 +89,21 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)
 
-  module Value: S with type key = key
+  module Value: S with type t = value and type origin = origin
   (** Base functions over values. *)
+
+  module Node: Ir_node.S with type t = node
+  (** Base functions over nodes. *)
+
+  module Origin: Ir_origin.S with type t = origin
+  (** Base functions over origins. *)
 
 end
 
-module Make
-    (K: Ir_uid.S)
-    (Node: Ir_node.STORE with type key = K.t and type value = K.t Ir_node.t)
-    (Commit: Ir_ao.S with type key = K.t and type value = (Ir_origin.t, K.t) t)
+module Make (V: S) (Node: Ir_node.STORE) (Commit: Ir_ao.S with type value = V.t)
   : STORE with type t = Node.t * Commit.t
-           and type key = K.t
+           and type key = Commit.key
+           and type value = Commit.value
            and type origin = Ir_origin.t
 (** Create a commit store. *)
 

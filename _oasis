@@ -37,7 +37,7 @@ Library "irmin-server"
   Findlibname:   server
   FindlibParent: irmin
   BuildDepends:  cohttp.lwt, irmin
-  Modules:       Irmin_HTTP, Irmin_HTTP_static
+  Modules:       Irmin_HTTP, Ir_HTTP_static
 
 Library "irmin-unix"
   Build$:        flag(unix)

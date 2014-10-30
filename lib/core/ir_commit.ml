@@ -71,12 +71,10 @@ module S (K: Ir_uid.S) = struct
   let merge = Ir_merge.default (module S)
 end
 
-module Make
-    (K: Ir_uid.S)
-    (N: Ir_node.STORE with type key = K.t and type value = K.t Ir_node.t)
-    (C: Ir_ao.S with type key = K.t and type value = (Ir_origin.t, K.t) t)
+module Make (N: Ir_node.STORE) (C: Ir_ao.S with type key = N.key)
 = struct
 
+  module K = N.Key
   type key = K.t
   type origin = Ir_origin.t
   type value = (origin, key) t

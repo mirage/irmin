@@ -75,8 +75,8 @@ module type STORE = sig
   val merge: t -> key Ir_merge.t
   module Key: Ir_uid.S with type t = key
   module Value: S with type key = key and type contents = contents
-  module Graph: Ir_graph.S with type V.t = (key, unit) Ir_graph.vertex
   module Origin: Ir_origin.S with type t = origin
+  module Graph: Ir_graph.S with type V.t = (key, unit) Ir_graph.vertex
 end
 
 module Mux

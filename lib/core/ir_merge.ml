@@ -18,7 +18,7 @@ open Lwt
 open Printf
 open Sexplib.Std
 open Bin_prot.Std
-open Misc.OP
+open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "MERGE" end)
 
@@ -43,7 +43,7 @@ module Result (A: S) = Tc.App1(R)(A)
 
 module UnitResult = Result(Tc.U)
 
-type origin = Origin.t
+type origin = Ir_origin.t
 
 type 'a merge = origin:origin -> old:'a -> 'a -> 'a -> 'a result
 
@@ -96,7 +96,7 @@ let rec iter f = function
 
 let default (type a) (module A: S with type t = a) =
   let equal a b = return (A.equal a b) in
-  let merge ~origin ~old t1 t2 =
+  let merge ~origin:_ ~old t1 t2 =
     Log.debugf "default %a | %a | %a"
       force (show (module A) old)
       force (show (module A) t1)
@@ -194,10 +194,10 @@ exception C of string
 
 let string_map (type a) t =
   let module A = (val t.m: S with type t = a) in
-  let module S = Tc.App1(Misc.StringMap)(A) in
+  let module S = Tc.App1(Ir_misc.StringMap)(A) in
   let equal m1 m2 =
     let equal = ref true in
-    Misc.StringMap.Lwt.iter2 (fun key data ->
+    Ir_misc.StringMap.Lwt.iter2 (fun _key data ->
         match data with
         | `Left _ | `Right _ -> equal := false; return_unit
         | `Both (a, b)       ->
@@ -216,11 +216,11 @@ let string_map (type a) t =
     | `Ok x       -> ok x
     | `Conflict _ ->
       Lwt.catch (fun () ->
-          Misc.StringMap.Lwt.merge (fun key -> function
+          Ir_misc.StringMap.Lwt.merge (fun key -> function
               | `Left v | `Right v ->
                 begin
                   try
-                    let ov = Misc.StringMap.find key old in
+                    let ov = Ir_misc.StringMap.find key old in
                     t.equal v ov >>= fun b ->
                     (* the value has been removed in one branch *)
                     if b then return_none
@@ -235,7 +235,7 @@ let string_map (type a) t =
                 (* no modification. *)
                 if b then return (Some v1)
                 else try
-                    let ov = Misc.StringMap.find key old in
+                    let ov = Ir_misc.StringMap.find key old in
                     t.merge ~origin ~old:ov v1 v2 >>= function
                     | `Conflict msg -> fail (C msg)
                     | `Ok x         -> return (Some x)
@@ -317,5 +317,5 @@ let string =
 
 let counter =
   let equal x y = return (x = y) in
-  let merge ~origin ~old x y = ok (x + y - old) in
+  let merge ~origin:_ ~old x y = ok (x + y - old) in
   { m = (module Tc.I); equal; merge }

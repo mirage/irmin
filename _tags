@@ -348,12 +348,10 @@ true: annot, bin_annot
 true: bin_annot, annot, debug
 <lib/core/ir_misc.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_graph.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_uid.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_block.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_commit.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_node.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/core/ir_node.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_contents.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_path.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_merge.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_view.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_origin.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax

@@ -59,13 +59,10 @@ module type STORE = sig
 
 end
 
-module Make
-    (K: Ir_uid.S)
-    (C: S)
-    (Contents: Ir_ao.S with type key = K.t and type value = C.t)
+module Make (S: S) (Contents: Ir_ao.S with type value = S.t)
   : STORE with type t = Contents.t
-           and type key = K.t
-           and type value = C.t
+           and type key = Contents.key
+           and type value = Contents.value
 (** Build a contents store. *)
 
 module Rec (S: STORE): S with type t = S.key

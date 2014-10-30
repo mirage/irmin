@@ -19,8 +19,6 @@ open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "SNAPSHOT" end)
 
-module PathSet = Ir_misc.Set(Ir_path)
-
 module type STORE = sig
   include Ir_ro.S
   type db
@@ -38,13 +36,18 @@ end
 
 module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.key) = struct
 
+
   module N = B.Node
   module C = B.Commit
   module K = B.Key
   module S = Ir_bc.Make(B)(T)
 
   type db = S.t
-  type origin = Ir_origin.t
+  type origin = B.Origin.t
+  module Origin = B.Origin
+
+  module Path = S.Key
+  module PathSet = Ir_misc.Set(Path)
 
   type t = (S.t * B.key)
   type key = S.key
@@ -88,7 +91,7 @@ module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.key) = stru
       | Some node ->
         let c = N.succ (S.node_t t) node in
         let c = Ir_misc.StringMap.keys c in
-        let paths = List.map (fun c -> path @ [c]) c in
+        let paths = List.map (fun c -> Path.append path [c]) c in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
         one p >>= fun paths ->
@@ -110,7 +113,7 @@ module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.key) = stru
   let merge t ?origin (_, c) =
     Log.debugf "merge %a" force (show (module K) c);
     let origin = match origin with
-      | None   -> Ir_origin.create "Merge snapshot %s" (Tc.show (module K) c)
+      | None   -> Origin.create "Merge snapshot %s" (Tc.show (module K) c)
       | Some o -> o in
     S.merge_head t ~origin c
 

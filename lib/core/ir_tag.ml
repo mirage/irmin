@@ -24,25 +24,29 @@ module type S = sig
 end
 
 module String = struct
-  include Tc.S
+  type t = string
 
+  let hash = Hashtbl.hash
+  let equal = (=)
+  let compare = Pervasives.compare
+
+  let implode ts = String.concat "/" ts
+  let explode t = List.filter ((<>)"") (Stringext.split t ~on:'/')
+  let to_json t = Ezjsonm.(list encode_string (explode t))
+  let of_json j = implode (Ezjsonm.get_list Ezjsonm.decode_string_exn j)
+  let to_sexp t = Sexplib.Conv.(sexp_of_list sexp_of_string (explode t))
+  let size_of = String.length
   let master = "master"
 
-  let implode ts =
-    String.concat "/" ts
+  let write t buf =
+    let len = String.length t in
+    Cstruct.blit_from_string t 0 buf 0 len;
+    Cstruct.shift buf len
 
-  let explode t =
-    List.filter ((<>)"") (Stringext.split t ~on:'/')
-
-  let to_json t =
-    Ezjsonm.list Ezjsonm.string (explode t)
-
-  let of_json j =
-    implode (Ezjsonm.get_list Ezjsonm.get_string j)
-
-  let to_sexp t =
-    Sexplib.Conv.(sexp_of_list sexp_of_string (explode t))
-
+  let read buf =
+    match Mstruct.get_string_delim buf '\000' with
+    | None   -> Mstruct.get_string buf (Mstruct.length buf)
+    | Some s -> s
 end
 
 module type STORE = sig
@@ -56,15 +60,12 @@ module Make
     (V: Ir_uid.S)
     (S: Ir_rw.S with type key = K.t and type value = V.t)
 = struct
-
   module Key = K
-
   module Value = V
-
   include S
 
+  (* XXX: here, all the tags are public, is it what we want? *)
   let list t _ =
     dump t >>= fun l ->
     return (List.map fst l)
-
 end

@@ -88,11 +88,21 @@ module type STORE = sig
   type uid
   (** The type for internal identifiers. *)
 
-  module Block: Ir_block.STORE with type key = uid and type contents = value
+  module Block: Ir_block.STORE
+    with type key = uid and type contents = value and type origin = origin
   (** The internal block store. *)
 
   module Tag: Ir_tag.STORE with type key = tag and type value = uid
   (** The internal tag store. *)
+
+  module Key: Ir_path.S with type t = key
+  (** Base functions over keys. *)
+
+  module Value: Ir_contents.S with type t = value
+  (** Base functions over values. *)
+
+  module Origin: Ir_origin.S with type t = origin
+  (** Base functions over origins. *)
 
   val block_t: t -> Block.t
   (** Get the block store handler. *)
@@ -143,26 +153,24 @@ module type STORE = sig
   (** Watch commit changes. Return the stream of commit
       identifiers. *)
 
-  module Graph: Ir_graph.S with type V.t = (Block.key, unit) Ir_graph.vertex
+  module Graph: Ir_graph.S with type V.t = (Block.key, Tag.key) Ir_graph.vertex
   (** Graph of blocks. *)
 
 end
 
 module type MAKER =
   functor (U: Ir_uid.S) -> functor (C: Ir_contents.S) -> functor (T: Ir_tag.S) ->
-    STORE with type key = Ir_path.t
-           and type value = C.t
+    STORE with type value = C.t
            and type origin = Ir_origin.t
            and type tag = T.t
            and type uid = U.t
 (** Signature of functors to create branch-consistent stores. *)
 
 module Make (Block: Ir_block.STORE) (Tag: Ir_tag.STORE with type value = Block.key)
-  : STORE with type key = Ir_path.t
-           and type value = Block.contents
-           and type origin = Ir_origin.t
+  : STORE with type value = Block.contents
            and type tag = Tag.key
            and type uid = Block.key
+           and type origin = Block.origin
            and module Block = Block
            and module Tag = Tag
 (** Build a branch consistent store from custom [Block] and [Tag]

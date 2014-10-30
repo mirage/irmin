@@ -68,7 +68,7 @@ module type S = sig
 end
 
 module Make (U: Ir_uid.S) (C: Ir_contents.S):
-  S with type value = C.t and type uid = U.t and type path = Ir_path.t
+  S with type value = C.t and type uid = U.t and type path = Ir_path.String.t
 (** Create a view implementation independant of any underlying
     store. *)
 

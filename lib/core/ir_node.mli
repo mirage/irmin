@@ -23,44 +23,34 @@
     node to another following a path in the graph. Every node of the
     graph might carry some optional contents. *)
 
-type 'key t = {
-  contents: 'key option;
-  succ    : 'key Ir_misc.StringMap.t;
-} with bin_io, compare, sexp
-(** Node values. They might contain a pointer to an optional contents,
-    and pointers to its successors.*)
-
-val equal: ('key -> 'key -> bool) -> 'key t -> 'key t -> bool
-(** Compare two nodes. *)
-
-val contents_exn: 'key t -> 'key
-(** Get the contents key, raise [Not_found] if None. *)
-
-val edges: 'a t -> ('a, 'b) Ir_graph.vertex list
-(** Return the list of successor vertices. *)
-
-val empty: 'key t
-(** The empty node. *)
-
-val leaf: 'key -> 'key t
-(** Create a leaf node (with some contents and no successors). *)
-
-val is_empty: 'key t -> bool
-(** Is the node empty. *)
-
-val is_leaf: 'key t -> bool
-(** Is it a leaf node (see [leaf]) ? *)
-
 module type S = sig
 
   (** Node values. *)
 
+  include Ir_contents.S
+
   type key
   (** Foreign keys. *)
 
-  type nonrec t = key t
+  val contents: t -> key option
 
-  include Ir_contents.S with type t := t
+  val contents_exn: t -> 'key
+  (** Get the contents key, raise [Not_found] if None. *)
+
+  val edges: t -> (key, 'b) Ir_graph.vertex list
+  (** Return the list of successor vertices. *)
+
+  val empty: t
+  (** The empty node. *)
+
+  val leaf: key -> t
+  (** Create a leaf node (with some contents and no successors). *)
+
+  val is_empty: t -> bool
+  (** Is the node empty. *)
+
+  val is_leaf: t -> bool
+  (** Is it a leaf node (see [leaf]) ? *)
 
 end
 
@@ -69,18 +59,12 @@ module type STORE = sig
   (** The node store encodes a labeled DAG where every node might hold
       some contents. *)
 
-  type key
-  (** Database keys. *)
-
-  type value = key t
-  (** Node values. *)
-
-  include Ir_ao.S with type key := key and type value := value
+  include Ir_ao.S
 
   type contents
   (** Node contents. *)
 
-  type path = Ir_path.t
+  type path
   (** Paths to go from one node to an other. *)
 
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
@@ -124,7 +108,7 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   (** Base functions for keys. *)
 
-  module Value: S with type key = key
+  module Value: S with type t = value
   (** Base functions for values. *)
 
 end
@@ -132,15 +116,13 @@ end
 module SHA1: S with type key = Ir_uid.SHA1.t
 (** Simple node implementation, where keys are SHA1s. *)
 
-module Make
-    (K: Ir_uid.S)
-    (C: Ir_contents.S)
-    (Contents: Ir_contents.STORE with type key = K.t and type value = C.t)
-    (Node: Ir_ao.S with type key = K.t and type value = K.t t)
+module Make (S: S)
+    (Contents: Ir_contents.STORE) (Node: Ir_ao.S with type value = S.t)
   : STORE with type t = Contents.t * Node.t
-           and type key = K.t
-           and type contents = C.t
-           and type path = Ir_path.t
+           and type key = Node.key
+           and type value = Node.value
+           and type contents = Contents.value
+           and type path = Ir_path.String.t
 (** Create a node store from an append-only database. *)
 
 module Rec (S: STORE): Ir_contents.S with type t = S.key

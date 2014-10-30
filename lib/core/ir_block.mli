@@ -16,75 +16,63 @@
 
 (** Store structured values: contents, node and commits. *)
 
-type ('origin, 'key, 'contents) t =
-  | Contents of 'contents
-  | Node of 'key Ir_node.t
-  | Commit of ('origin, 'key) Ir_commit.t
-(** The different kinds of values which can be stored in the
-    database. *)
-
 module type S = sig
 
   (** Signature for structured values. *)
 
-  type key
-  (** Type for keys. *)
+  include Ir_contents.S
 
   type contents
   (** Type for contents. *)
 
-  type origin
-  (** Type for tracking provenance. *)
+  type node
+  (** Type for nodes. *)
 
-  include Ir_contents.S with type t = (origin, key, contents) t
-  (** Base functions over structured values. *)
+  type commit
+  (** Type for commits. *)
 
+  val contents: contents -> t
+  val node: node -> t
+  val commit: commit -> t
+
+  val eq_contents: t -> contents option
+  val eq_node: t -> node option
+  val eq_commit: t -> commit option
 end
 
-module String: S with type key = Ir_uid.SHA1.t
-                  and type contents = Ir_contents.String.t
-                  and type origin = Ir_origin.t
-(** String contents, with SHA1 keys. *)
+module String: S with type contents = string
+(** String contents. *)
 
-module JSON: S with type key = Ir_uid.SHA1.t
-                and type contents = Ir_contents.JSON.t
-                and type origin = Ir_origin.t
-(** JSON contents, with SHA1 keys. *)
-
+module JSON: S with type contents = Ezjsonm.t
+(** JSON contents. *)
 
 module type STORE = sig
 
   (** The block store holds the representation of all the immutable
       values of the system. *)
 
-  type key
-  (** Database keys. *)
+  include Ir_ao.S
 
   type contents
   (** Contents values. *)
 
-  type origin
-  (** Type for the origin of values. *)
-
-  type value =  (origin, key, contents) t
-  (** Block values. *)
-
-  type node = key Ir_node.t
+  type node
   (** Node values. *)
 
-  type commit = (origin, key) Ir_commit.t
+  type commit
   (** Commit values. *)
-
-  include Ir_ao.S with type key := key and type value := value
 
   val list: t -> ?depth:int -> key list -> key list Lwt.t
   (** Return the related blocks, with an history depth limit. *)
 
-  module Contents: Ir_contents.STORE with type key = key and type value = contents
+  module Contents: Ir_contents.STORE
+    with type key = key and type value = contents
 
-  module Node: Ir_node.STORE with type key = key and type contents = contents
+  module Node: Ir_node.STORE
+    with type key = key and type value = node and type contents = contents
 
-  module Commit: Ir_commit.STORE with type key = key and type origin = origin
+  module Commit: Ir_commit.STORE
+    with type key = key and type value = commit
 
   val contents_t: t -> Contents.t
   (** The handler for the contents database. *)
@@ -101,21 +89,19 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)
 
-  module Value: S with type key = key and type contents = contents
+  module Value: S
+    with type contents = contents and type node = node and type commit = commit
   (** Base functions over values. *)
 
   module Graph: Ir_graph.S with type V.t = (key, unit) Ir_graph.vertex
-
-  module Origin: Ir_origin.S with type t = origin
+  (** Graphs of blocks. *)
 
 end
 
-module Make
-  (K: Ir_uid.S)
-  (C: Ir_contents.S)
-  (S: Ir_ao.S with type key = K.t and type value = (Ir_origin.t, K.t, C.t) t)
-  : STORE with type key = K.t
-           and type contents = C.t
+module Make (V: S)
+    (Commit: Ir_commit.STORE) (Block: Ir_ao.S with type value = V.t)
+  : STORE with type key = Block.t
+           and type contents = Commit.Node.contents
            and type origin = Ir_origin.t
            and type Contents.t = S.t
            and type Node.t = S.t * S.t
