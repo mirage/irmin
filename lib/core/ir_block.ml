@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open Ir_merge.OP
 open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "VALUE" end)
@@ -57,11 +56,6 @@ module JSON = S(Ir_uid.SHA1)(Ir_contents.JSON)
 module Unit = struct
   include Tc.U
   let master = ()
-  let compute_from_string _ = ()
-  let compute_from_cstruct _ = ()
-  let to_raw () = ""
-  let of_raw _ = ()
-  let pretty () = ""
 end
 
 module type STORE = sig
@@ -74,7 +68,7 @@ module type STORE = sig
   val list: t -> ?depth:int -> key list -> key list Lwt.t
   module Contents: Ir_contents.STORE with type key = key and type value = contents
   module Node: Ir_node.STORE with type key = key and type contents = contents
-  module Commit: Ir_commit.STORE with type key = key
+  module Commit: Ir_commit.STORE with type key = key and type origin = origin
   val contents_t: t -> Contents.t
   val node_t: t -> Node.t
   val commit_t: t -> Commit.t
@@ -82,6 +76,7 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   module Value: S with type key = key and type contents = contents
   module Graph: Ir_graph.S with type V.t = (key, unit) Ir_graph.vertex
+  module Origin: Ir_origin.S with type t = origin
 end
 
 module Mux
@@ -147,6 +142,7 @@ module Mux
     | Commit c   -> R.add t.commit c
 
   module Graph = Ir_graph.Make(K)(Unit)
+  module Origin = Ir_origin
 
   let dump t =
     Log.debugf "dump";
@@ -184,7 +180,7 @@ module Mux
     let keys = Ir_graph.to_commits (Graph.vertex g) in
     (* then load the rest *)
     let pred = function
-      | `Commit k -> failwith "Irmin.Block.list: commit"
+      | `Commit _ -> failwith "Irmin.Block.list: commit"
       | `Node k   ->
         begin N.read t.node k >>= function
           | None   -> return_nil
@@ -211,8 +207,6 @@ module type CASTABLE = sig
 end
 
 module Cast (S: Ir_ao.S) (C: CASTABLE with type t = S.value) = struct
-
-  open Lwt
 
   type t = S.t
   type key = S.key
@@ -331,7 +325,7 @@ module Make
     let keys = Ir_graph.to_commits (Graph.vertex g) in
     (* then load the rest *)
     let pred = function
-      | `Commit k -> failwith "Irmin.Block.list: commit"
+      | `Commit _ -> failwith "Irmin.Block.list: commit"
       | `Node k   ->
         begin N.read (node_t t) k >>= function
           | None   -> return_nil
@@ -346,7 +340,7 @@ module Make
   module Node = N
   module Commit = R
   module Contents = C
-
+  module Origin = Ir_origin
 end
 
 module Rec (S: STORE) = struct

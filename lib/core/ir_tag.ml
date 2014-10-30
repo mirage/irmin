@@ -19,14 +19,13 @@ open Lwt
 module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
-  include Ir_uid.S
+  include Tc.I0
   val master: t
 end
 
 module String = struct
   include Tc.S
-  let create b = Cstruct.to_string b
-  let pretty t = t
+
   let master = "master"
 
   let implode ts =
@@ -40,6 +39,9 @@ module String = struct
 
   let of_json j =
     implode (Ezjsonm.get_list Ezjsonm.get_string j)
+
+  let to_sexp t =
+    Sexplib.Conv.(sexp_of_list sexp_of_string (explode t))
 
 end
 

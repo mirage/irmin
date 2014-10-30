@@ -14,37 +14,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Provenance tracking. *)
+open Ir_misc.OP
+open Lwt
+
+module Log = Log.Make(struct let section = "AO" end)
 
 module type S = sig
-
-  include Tc.I0
-  (** Provenance values. *)
-
-  val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
-  (** Create a new provenance message. *)
-
-  val date: t -> int64
-  (** Get the origin date. *)
-
-  val id: t -> string
-  (** Get the origin ID. *)
-
-  val message: t -> string
-  (** Get the origin message. *)
-
-  val string_of_date: int64 -> string
-  (** Use the registered hook to print a date. *)
-
+  include Ir_ro.S
+  val add: t -> value -> key Lwt.t
 end
 
-val set_date: (unit -> int64) -> unit
-(** How to compute the commit dates. By default, increment a counter. *)
+module type BINARY = S with type key = Cstruct.t and type value = Cstruct.t
 
-val set_id: (unit -> string) -> unit
-(** How to compute the commit origins. By default, return a random number. *)
+module type MAKER = functor (K: Ir_uid.S) -> functor (V: Tc.I0) ->
+  S with type key = K.t and type value = V.t
 
-val set_string_of_date: (int64 -> string) -> unit
-(** Hook for printing dates. *)
+module Binary (S: BINARY)  (K: Ir_uid.S) (V: Tc.I0) = struct
 
-include S
+  include Ir_ro.Binary(S)(K)(V)
+
+  let of_raw = Tc.read_cstruct (module K)
+
+  let add (t:t) (value:value) =
+    Log.debugf "add";
+    S.add t (Tc.write_cstruct (module V) value) >>= fun key ->
+    let key = of_raw key in
+    Log.debugf "added: %a" force (show (module K) key);
+    return key
+
+end

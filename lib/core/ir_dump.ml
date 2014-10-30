@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-open Merge.OP
+open Ir_merge.OP
 open Printf
 
 module Log = Log.Make(struct let section ="DUMP" end)
@@ -25,9 +25,9 @@ module type S = sig
   val output_buffer: t -> ?depth:int -> ?full:bool -> Buffer.t -> unit Lwt.t
 end
 
-module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
+module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.key) = struct
 
-  module S = Branch.Make(B)(T)
+  module S = Ir_bc.Make(B)(T)
 
   type t = S.t
 
@@ -49,11 +49,11 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
         | `Commit k ->
           begin B.Commit.read (S.commit_t t) k >>= function
             | None   -> return_nil
-            | Some c -> return (Digraph.of_commits c.Commit.parents)
+            | Some c -> return (Ir_graph.of_commits c.Ir_commit.parents)
           end
         | _ -> return_nil in
       S.Graph.closure ~depth ~pred max >>= fun g ->
-      let keys = Digraph.to_commits (S.Graph.vertex g) in
+      let keys = Ir_graph.to_commits (S.Graph.vertex g) in
       Lwt_list.map_p (fun k ->
           B.Commit.read_exn (S.commit_t t) k >>= fun c ->
           return (k, c)
@@ -62,22 +62,22 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
       if not full then
         return ([], [], commits, tags)
       else
-        let root_nodes = Misc.list_filter_map (fun (_,c) -> c.Commit.node) commits in
+        let root_nodes = Ir_misc.list_filter_map (fun (_,c) -> c.Ir_commit.node) commits in
         B.Node.list (S.node_t t) root_nodes >>= fun nodes ->
         Lwt_list.map_p (fun k ->
             B.Node.read (S.node_t t) k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) nodes >>= fun nodes ->
-        let nodes = Misc.list_filter_map (fun x -> x) nodes in
-        let root_contents = Misc.list_filter_map (fun (_,n) -> n.Node.contents) nodes in
+        let nodes = Ir_misc.list_filter_map (fun x -> x) nodes in
+        let root_contents = Ir_misc.list_filter_map (fun (_,n) -> n.Ir_node.contents) nodes in
         B.Contents.list (S.contents_t t) root_contents >>= fun contents ->
         Lwt_list.map_p (fun k ->
             B.Contents.read (S.contents_t t) k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) contents >>= fun contents ->
-        let contents = Misc.list_filter_map (fun x -> x) contents in
+        let contents = Ir_misc.list_filter_map (fun x -> x) contents in
         return (contents, nodes, commits, tags)
 
   let fprintf t ?depth ?(html=false) ?full name =
@@ -94,15 +94,15 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
     let add_edge v1 l v2 =
       edges := (v1, l, v2) :: !edges in
     let string_of_key k =
-      let s = B.Key.pretty k in
+      let s = Tc.show (module B.Key) k in
       if String.length s <= 8 then s else String.sub s 0 8 in
     let string_of_contents s =
       let s =
         if String.length s <= 10 then s
         else String.sub s 0 10 in
       let s =
-        if Json.is_valid_utf8 s then s
-        else Hex.encode s in
+        if Ir_misc.is_valid_utf8 s then s
+        else (let `Hex s = Hex.of_string s in s) in
       s in
     let label_of_node k _ =
       let s =
@@ -122,7 +122,7 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
       `Label s in
     let label_of_commit k c =
       let k = string_of_key k in
-      let o = c.Commit.origin in
+      let o = c.Ir_commit.origin in
       let s =
         (if html then
           sprintf
@@ -135,9 +135,9 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
         else
           sprintf "%s | %s | %s | %s")
           k
-          (Origin.id o)
-          (Origin.(string_of_date (date o)))
-          (Origin.message o) in
+          (B.Origin.id o)
+          (B.Origin.(string_of_date (date o)))
+          (B.Origin.message o) in
       `Label s in
     let label_of_contents k v =
       let k = string_of_key k in
@@ -161,31 +161,31 @@ module Make (B: Block.STORE) (T: Tag.STORE with type value = B.key) = struct
           Tc.show (module T.Key) t
       in
       `Label s in
-    let leafs = List.map (fun (k,_) -> k, Node.leaf k) contents in
+    let leafs = List.map (fun (k,_) -> k, Ir_node.leaf k) contents in
     let nodes = leafs @ nodes in
     List.iter (fun (k, b) ->
         add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
       ) contents;
     List.iter (fun (k, t) ->
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
-        begin match t.Node.contents with
+        begin match t.Ir_node.contents with
           | None    -> ()
           | Some v  ->
             if exists v contents then
               add_edge (`Node k) [`Style `Dotted] (`Contents v)
         end;
-        Misc.StringMap.iter (fun l n ->
+        Ir_misc.StringMap.iter (fun l n ->
             if exists n nodes then
               add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node n)
-          ) t.Node.succ
+          ) t.Ir_node.succ
       ) nodes;
     List.iter (fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
         List.iter (fun c ->
             if exists c commits then
               add_edge (`Commit k) [`Style `Bold] (`Commit c)
-          ) r.Commit.parents;
-        match r.Commit.node with
+          ) r.Ir_commit.parents;
+        match r.Ir_commit.node with
         | None      -> ()
         | Some node ->
           if exists node nodes then

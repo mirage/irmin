@@ -1,5 +1,5 @@
-lib/core/version.ml
-lib/server/irmin_HTTP_static.ml
+lib/core/ir_version.ml
+lib/server/ir_HTTP_static.ml
 _build/
 irmin
 *~

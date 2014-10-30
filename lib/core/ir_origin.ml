@@ -18,6 +18,15 @@ open Printf
 open Sexplib.Std
 open Bin_prot.Std
 
+module type S = sig
+  include Tc.I0
+  val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
+  val date: t -> int64
+  val id: t -> string
+  val message: t -> string
+  val string_of_date: int64 -> string
+end
+
 module M = struct
   type t = {
     date: int64;

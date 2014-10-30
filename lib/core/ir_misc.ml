@@ -220,3 +220,12 @@ module Lwt_stream = struct
     Lwt_stream.from get
 
 end
+
+let is_valid_utf8 str =
+  try
+    Uutf.String.fold_utf_8 (fun _ _ -> function
+        | `Malformed _ -> raise (Failure "utf8")
+        | _ -> ()
+      ) () str;
+    true
+  with Failure "utf8" -> false

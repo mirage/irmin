@@ -358,4 +358,4 @@ true: bin_annot, annot, debug
 <lib/core/ir_view.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_origin.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/core/ir_bc.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-true: warn_error_A, warn_A
+true: warn_error_A, warn(A-4-41-44)

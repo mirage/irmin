@@ -79,3 +79,5 @@ module Lwt_stream: sig
 end
 
 module StringMap: MAP with type key = string
+
+val is_valid_utf8: string -> bool

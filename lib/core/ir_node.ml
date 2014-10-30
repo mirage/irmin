@@ -18,12 +18,12 @@
 open Lwt
 open Sexplib.Std
 open Bin_prot.Std
-open Misc.OP
+open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "NODE" end)
 
 module StringMap = struct
-  include Misc.StringMap
+  include Ir_misc.StringMap
   let t_of_sexp fn s =
     let fn' = Sexplib.Conv.(pair_of_sexp string_of_sexp fn) in
     of_alist (Sexplib.Conv.list_of_sexp fn' s)
@@ -82,15 +82,15 @@ let contents_exn e =
 module type S = sig
   type key
   type nonrec t = key t
-  include Sig.Contents with type t := t
+  include Ir_contents.S with type t := t
 end
 
 module type STORE = sig
   type key
   type contents
-  type path = Path.t
+  type path = Ir_path.t
   type value = key t
-  include Sig.AO with type key := key and type value := value
+  include Ir_ao.S with type key := key and type value := value
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
     unit -> (key * value) Lwt.t
   val contents: t -> value -> contents Lwt.t option
@@ -103,25 +103,25 @@ module type STORE = sig
   val find_exn: t -> value -> path -> contents Lwt.t
   val remove: t -> value -> path -> value Lwt.t
   val valid: t -> value -> path -> bool Lwt.t
-  val merge: t -> key Merge.t
-  module Key: Sig.Uid with type t = key
+  val merge: t -> key Ir_merge.t
+  module Key: Ir_uid.S with type t = key
   module Value: S with type key = key
 end
 
-module S (K: Sig.Uid) = struct
+module S (K: Ir_uid.S) = struct
   type key = K.t
   module S = Tc.App1(T)(K)
   include S
-  let merge = Merge.default (module S)
+  let merge = Ir_merge.default (module S)
 end
 
-module SHA1 = S(Uid.SHA1)
+module SHA1 = S(Ir_uid.SHA1)
 
 module Make
-    (K: Sig.Uid)
-    (C: Sig.Contents)
-    (Contents: Contents.STORE with type key = K.t and type value = C.t)
-    (Node: Sig.AO with type key = K.t and type value = K.t t) =
+    (K: Ir_uid.S)
+    (C: Ir_contents.S)
+    (Contents: Ir_contents.STORE with type key = K.t and type value = C.t)
+    (Node: Ir_ao.S with type key = K.t and type value = K.t t) =
  struct
 
   module Key = K
@@ -132,7 +132,7 @@ module Make
 
   type contents = C.t
 
-  type path = Path.t
+  type path = Ir_path.t
 
   type value = K.t t
 
@@ -144,7 +144,7 @@ module Make
     return (c, t)
 
   let add (_, t) n = match n with
-    | { contents = Some k } ->
+    | { contents = Some k; _ } ->
       if StringMap.is_empty n.succ then return k else Node.add t n
     | _                     -> Node.add t n
 
@@ -172,16 +172,16 @@ module Make
     | false -> Contents.mem c key
     | true  -> return true
 
-  module Graph = Digraph.Make(K)(Tag.String)
+  module Graph = Ir_graph.Make(K)(Ir_tag.String)
 
   let list t keys =
     Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
       | `Node k -> read_exn t k >>= fun node -> return (edges node)
       | _       -> return_nil in
-    let max = Digraph.of_nodes keys in
+    let max = Ir_graph.of_nodes keys in
     Graph.closure ~pred max >>= fun g ->
-    let keys = Digraph.to_nodes (Graph.vertex g) in
+    let keys = Ir_graph.to_nodes (Graph.vertex g) in
     return keys
 
   let dump (_, t) =
@@ -205,24 +205,24 @@ module Make
     add t node >>= fun key ->
     return (key, node)
 
-  (* Merge the contents values together. *)
+  (* Ir_merge the contents values together. *)
   let merge_contents c =
-    Merge.some (Contents.merge c)
+    Ir_merge.some (Contents.merge c)
 
   let merge_value (c, _) merge_key =
     let explode n = (n.contents, n.succ) in
     let implode (contents, succ) = { contents; succ } in
-    let merge_pair = Merge.pair
+    let merge_pair = Ir_merge.pair
         (merge_contents c)
-        (Merge.string_map merge_key)
+        (Ir_merge.string_map merge_key)
     in
-    Merge.biject (module Value) merge_pair implode explode
+    Ir_merge.biject (module Value) merge_pair implode explode
 
-  let merge (c, _ as t) =
+  let merge t =
     let rec merge_key () =
       Log.debugf "merge";
-      let merge = merge_value t (Merge.apply (module K) merge_key ()) in
-      Merge.biject' (module K) merge (add t) (read_exn t) in
+      let merge = merge_value t (Ir_merge.apply (module K) merge_key ()) in
+      Ir_merge.biject' (module K) merge (add t) (read_exn t) in
     merge_key ()
 
   let contents (c, _) n =
@@ -255,7 +255,7 @@ module Make
       (function Not_found -> return_none | e -> fail e)
 
   let find_exn t node path =
-    Log.debugf "find_exn %a" force (show (module Path) path);
+    Log.debugf "find_exn %a" force (show (module Ir_path) path);
     sub t node path >>= function
     | None      ->
       Log.debugf "subpath not found";
@@ -268,7 +268,7 @@ module Make
       | Some b -> b
 
   let find t node path =
-    Log.debugf "find %a" force (show (module Path) path);
+    Log.debugf "find %a" force (show (module Ir_path) path);
     sub t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -277,7 +277,7 @@ module Make
       | Some b -> b >>= fun b -> return (Some b)
 
   let valid t node path =
-    Log.debugf "valid %a" force (show (module Path) path);
+    Log.debugf "valid %a" force (show (module Ir_path) path);
     sub t node path >>= function
     | None      -> return false
     | Some node ->
@@ -323,11 +323,11 @@ module Make
     aux node path
 
   let remove t node path =
-    Log.debugf "remove %a" force (show (module Path) path);
-    map t node path (fun node -> empty)
+    Log.debugf "remove %a" force (show (module Ir_path) path);
+    map t node path (fun _ -> empty)
 
   let update (c, _ as t) node path value =
-    Log.debugf "update %a" force (show (module Path) path);
+    Log.debugf "update %a" force (show (module Ir_path) path);
     Contents.add c value >>= fun k  ->
     map t node path (fun node -> { node with contents = Some k }) >>= fun n ->
     return n
@@ -339,7 +339,7 @@ module Rec (S: STORE) = struct
   let merge =
     let merge ~origin ~old k1 k2 =
       S.create ()  >>= fun t  ->
-      Merge.merge (S.merge t) ~origin ~old k1 k2
+      Ir_merge.merge (S.merge t) ~origin ~old k1 k2
     in
-    Merge.create' (module S.Key) merge
+    Ir_merge.create' (module S.Key) merge
 end

@@ -143,6 +143,9 @@ module type STORE = sig
   (** Watch commit changes. Return the stream of commit
       identifiers. *)
 
+  module Graph: Ir_graph.S with type V.t = (Block.key, unit) Ir_graph.vertex
+  (** Graph of blocks. *)
+
 end
 
 module type MAKER =

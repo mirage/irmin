@@ -15,10 +15,7 @@
  *)
 
 open Lwt
-open Ir_merge.OP
 open Ir_misc.OP
-
-type origin = Ir_origin.t
 
 module Log = Log.Make(struct let section = "SNAPSHOT" end)
 
@@ -101,7 +98,7 @@ module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.key) = stru
     >>= fun paths ->
     return (PathSet.to_list paths)
 
-  let dump (t, c) =
+  let dump (_, _) =
     failwith "TODO"
 
   let revert t (_, c) =

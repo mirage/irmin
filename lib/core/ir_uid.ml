@@ -15,7 +15,6 @@
  *)
 
 open Sexplib.Std
-open Bin_prot.Std
 
 exception Invalid of string
 exception Unknown of string

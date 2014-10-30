@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open Merge.OP
 open Sexplib.Std
 open Bin_prot.Std
 
@@ -87,21 +86,21 @@ module JSON = struct
 
   (* XXX: replace by a clever merge function *)
   let merge =
-    Merge.(biject (module S) string of_string to_string)
+    Ir_merge.(biject (module S) string of_string to_string)
 
 end
 
 module type STORE = sig
-  include Sig.AO
-  val merge: t -> key Merge.t
-  module Key: Sig.Uid with type t = key
+  include Ir_ao.S
+  val merge: t -> key Ir_merge.t
+  module Key: Ir_uid.S with type t = key
   module Value: S with type t = value
 end
 
 module Make
-    (K: Sig.Uid)
+    (K: Ir_uid.S)
     (C: S)
-    (Contents: Sig.AO with type key = K.t and type value = C.t)
+    (Contents: Ir_ao.S with type key = K.t and type value = C.t)
 = struct
 
   include Contents
@@ -109,7 +108,7 @@ module Make
   module Value = C
 
   let merge t =
-    Merge.biject' (module K) C.merge (add t) (read_exn t)
+    Ir_merge.biject' (module K) C.merge (add t) (read_exn t)
 
 end
 
@@ -118,7 +117,7 @@ module Rec (S: STORE) = struct
   let merge =
     let merge ~origin ~old k1 k2 =
       S.create ()  >>= fun t  ->
-      Merge.merge (S.merge t) ~origin ~old k1 k2
+      Ir_merge.merge (S.merge t) ~origin ~old k1 k2
     in
-    Merge.create' (module S.Key) merge
+    Ir_merge.create' (module S.Key) merge
 end

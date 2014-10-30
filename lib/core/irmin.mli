@@ -13,38 +13,3 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-
-(** Provenance tracking. *)
-
-module type S = sig
-
-  include Tc.I0
-  (** Provenance values. *)
-
-  val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
-  (** Create a new provenance message. *)
-
-  val date: t -> int64
-  (** Get the origin date. *)
-
-  val id: t -> string
-  (** Get the origin ID. *)
-
-  val message: t -> string
-  (** Get the origin message. *)
-
-  val string_of_date: int64 -> string
-  (** Use the registered hook to print a date. *)
-
-end
-
-val set_date: (unit -> int64) -> unit
-(** How to compute the commit dates. By default, increment a counter. *)
-
-val set_id: (unit -> string) -> unit
-(** How to compute the commit origins. By default, return a random number. *)
-
-val set_string_of_date: (int64 -> string) -> unit
-(** Hook for printing dates. *)
-
-include S

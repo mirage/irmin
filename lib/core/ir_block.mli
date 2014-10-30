@@ -84,7 +84,7 @@ module type STORE = sig
 
   module Node: Ir_node.STORE with type key = key and type contents = contents
 
-  module Commit: Ir_commit.STORE with type key = key
+  module Commit: Ir_commit.STORE with type key = key and type origin = origin
 
   val contents_t: t -> Contents.t
   (** The handler for the contents database. *)
@@ -105,6 +105,8 @@ module type STORE = sig
   (** Base functions over values. *)
 
   module Graph: Ir_graph.S with type V.t = (key, unit) Ir_graph.vertex
+
+  module Origin: Ir_origin.S with type t = origin
 
 end
 
