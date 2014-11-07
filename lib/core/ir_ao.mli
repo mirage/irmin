@@ -16,11 +16,11 @@
 
 (** Append-only stores. *)
 
-module type S = sig
+module type STORE = sig
 
   (** Signature for append-only stores. *)
 
-  include Ir_ro.S
+  include Ir_ro.STORE
 
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. That's the
@@ -29,13 +29,18 @@ module type S = sig
 
 end
 
-module type BINARY = S with type key = Cstruct.t and type value = Cstruct.t
+module type BINARY = STORE with type key = Cstruct.t and type value = Cstruct.t
 (** Binary append-only store. Keys and values are cstruct buffers. *)
 
+module type JSON = STORE with type key = Ezjsonm.t and type value = Ezjsonm.t
+(** JSON append-only store. Keys and values are JSON objects. *)
+
 module type MAKER = functor (K: Ir_uid.S) -> functor (V: Tc.I0) ->
-  S with type key = K.t and type value = V.t
+  STORE with type key = K.t and type value = V.t
 (** Signature of functor creating append-only stores. *)
 
-module Binary (S: BINARY) (K: Ir_uid.S) (V: Tc.I0):
-  S with type t = S.t and type key = K.t and type value = V.t
+module Binary (S: BINARY) (K: Ir_uid.S) (V: Tc.I0): MAKER
 (** Create a typed append-only store from a binary one. *)
+
+module Json (S: JSON) (K: Ir_uid.S) (V: Tc.I0): MAKER
+(** Create a typed append-only store from a JSON one. *)

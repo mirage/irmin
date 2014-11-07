@@ -20,7 +20,7 @@ type ('contents, 'tag) remote
 (** Remote store hanlders. *)
 
 type ('uid, 'contents, 'tag) store =
-  (module Ir_bc.STORE with type uid = 'uid
+  (module Ir_bc.STORE with type Block.Commit.key = 'uid
                        and type value = 'contents
                        and type tag = 'tag)
 (** A pair (store implementation * branch name). *)

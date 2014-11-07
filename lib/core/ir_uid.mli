@@ -22,7 +22,7 @@ module type S = sig
 
   include Tc.I0
 
-  val create: Cstruct.t -> t
+  val digest: Cstruct.t -> t
   (** Compute a (deterministic) key from a cstruct. *)
 
 end

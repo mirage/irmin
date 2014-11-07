@@ -16,50 +16,65 @@
 
 (** Read-only stores. *)
 
-module type S = sig
+module type STORE = sig
 
   (** Read-only store. *)
 
   type t
-  (** Type a store. *)
+  (** Type for stores. *)
 
   type key
-  (** Type of keys. *)
+  (** Type for keys. *)
 
   type value
-  (** Type of values. *)
+  (** Type for values. *)
+
+  type origin
+  (** Type for keep track of the provenance of operations. *)
 
   val create: unit -> t Lwt.t
   (** Create a store handle. The operation can be used multiple times
       as it is supposed to be very cheap (and usually
       non-blocking). *)
 
-  val read: t -> key -> value option Lwt.t
+  val read: t -> origin -> key -> value option Lwt.t
   (** Read a value from the store. *)
 
-  val read_exn: t -> key -> value Lwt.t
+  val read_exn: t -> origin -> key -> value Lwt.t
   (** Read a value from the store. Raise [Unknown k] if [k] does not
       have an associated value. *)
 
-  val mem: t -> key -> bool Lwt.t
+  val mem: t -> origin -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
-  val list: t -> key list -> key list Lwt.t
+  val list: t -> origin -> key list -> key list Lwt.t
   (** Return all the keys that are allowed to access, knowing a given
       collection of keys (which might be seen as a passwords). *)
 
-  val dump: t -> (key * value) list Lwt.t
+  val dump: t -> origin -> (key * value) list Lwt.t
   (** Return the store contents. *)
 
 end
 
-module type BINARY = S with type key = Cstruct.t and type value = Cstruct.t
-(** Binary read-only stores. Keys and values are cstruct buffers. *)
-
-module type MAKER = functor (K: Tc.I0) -> functor (V: Tc.I0) ->
-  S with type key = K.t and type value = V.t
+module type MAKER =
+  functor (K: Tc.I0) ->
+  functor (V: Tc.I0) ->
+  functor (O: Ir_origin.S) ->
+    STORE with type key = K.t and type value = V.t and type origin = O.t
 (** Signature for functor creating read-only stores. *)
 
-module Binary (S: BINARY) (K: Tc.I0) (V: Tc.I0):
-  S with type t = S.t and type key = K.t and type value = V.t
+module type BINARY = STORE with
+  type key = Cstruct.t and type value = Cstruct.t and type origin = Cstruct.t
+(** Binary read-only stores. Keys, values and origin are cstruct
+    buffers. *)
+
+module Binary (S: BINARY) (K: Tc.I0) (V: Tc.I0): MAKER
 (** Create a typed read-only store from a binary one. *)
+
+module type JSON = STORE with
+  type key = Ezjsonm.t and type value = Ezjsonm.t and type origin = Ezjsonm.t
+(** Binary read-only stores. Keys, values and origin are cstruct
+    buffers. *)
+
+module Json (S: JSON) (K: Tc.I0) (V: Tc.I0): MAKER
+(** Create a typed read-only store from a JSON one. *)

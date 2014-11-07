@@ -25,14 +25,11 @@ module PathSet = Misc.Set(Ir_path)
 module type S = sig
   include Ir_rw.S
   type tag
-  type origin
   val create: ?tag:tag -> unit -> t Lwt.t
   val detach: t -> unit Lwt.t
   val tag: t -> tag option
   val tag_exn: t -> tag
-  val set_tag: t -> tag -> unit
-  val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
-  val remove: t -> ?origin:origin -> key -> unit Lwt.t
+  val retag: t -> tag -> unit
   val clone: t -> tag -> t option Lwt.t
   val clone_force: t -> tag -> t Lwt.t
   val switch: t -> tag -> unit Lwt.t

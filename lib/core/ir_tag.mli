@@ -45,7 +45,7 @@ module type STORE = sig
       keys in the tag store, are this store is not supposed to be
       really efficient.  *)
 
-  include Ir_rw.S
+  include Ir_rw.STORE
 
   module Key: S with type t = key
   (** Base functions over keys. *)
@@ -55,11 +55,8 @@ module type STORE = sig
 
 end
 
-module Make
-    (K: S)
-    (V: Ir_uid.S)
-    (S: Ir_rw.S with type key = K.t and type value = V.t)
-  : STORE with type t = S.t
-           and type key = K.t
-           and type value = V.t
+module type MAKER = functor (K: S) -> functor (V: Ir_uid.S) ->
+  STORE with type key = K.t and type value = V.t
+
+module Make (S: Ir_rw.MAKER): MAKER
 (** Build a tag store. *)

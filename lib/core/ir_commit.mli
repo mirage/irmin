@@ -23,42 +23,34 @@ module type S = sig
   include Ir_contents.S
   (** Base functions over commit objects. *)
 
-  type commit_key
+  type commit
   (** Type for commit Keys. *)
 
-  type node_key
+  type node
   (** Type for node keys. *)
 
   type origin
   (** Origin. *)
 
-  val node: t -> node_key option
+  val node: t -> node option
   (** The underlying node. *)
 
-  val parents: t -> commit_key list
+  val parents: t -> commit list
   (** The commit parents. *)
 
   val origin: t -> origin
   (** The commit provenance. *)
 
-  val edges: t -> (key, 'b) Ir_graph.vertex list
+  val edges: t -> (_, node, commit, _) Ir_graph.vertex list
   (** The graph edges. *)
 
 end
-
-module S (K: Ir_uid.S): S with type key = K.t
-
-module SHA1: S with type key = Ir_uid.SHA1.t
-(** Simple implementation where keys are SHA1s. *)
 
 module type STORE = sig
 
   (** Store the history as a partial-order of revisions. *)
 
-  include Ir_ao.S
-
-  type origin
-  (** Origin of values. *)
+  include Ir_ao.STORE
 
   type node
   (** Node values. *)
@@ -86,27 +78,35 @@ module type STORE = sig
   (** Return all previous commit hashes, with an (optional) limit on
       the history depth. *)
 
+  module Node: Ir_node.STORE with type value = node
+  (** Base functions over nodes. *)
+
+  val node_t: t -> Node.t
+  (** The underlying handler of the node store. *)
+
+  module Origin: Ir_origin.S with type t = origin
+  (** Base functions over origins. *)
+
   module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)
 
   module Value: S with type t = value and type origin = origin
   (** Base functions over values. *)
 
-  module Node: Ir_node.S with type t = node
-  (** Base functions over nodes. *)
-
-  module Origin: Ir_origin.S with type t = origin
-  (** Base functions over origins. *)
-
 end
 
-module Make (V: S) (Node: Ir_node.STORE) (Commit: Ir_ao.S with type value = V.t)
-  : STORE with type t = Node.t * Commit.t
-           and type key = Commit.key
-           and type value = Commit.value
-           and type origin = Ir_origin.t
+module type MAKER =
+  functor (K: Ir_uid.S) ->
+  functor (O: Ir_origin.S) ->
+  functor (P: Ir_path.S) ->
+  functor (C: Ir_contents.S) ->
+    STORE with type origin = O.t
+           and type Node.path = P.t
+           and type Node.contents = C.t
+
+module Make (Contents: Ir_ao.MAKER) (Node: Ir_ao.MAKER) (Commit: Ir_ao.MAKER):
+  MAKER
 (** Create a commit store. *)
 
 module Rec (S: STORE): Ir_contents.S with type t = S.key
-(** Convert a commit store objects into storable keys, with the
-    expected merge functions. *)
+(** Same as [Ir_contents.Rec] but for commit stores. *)

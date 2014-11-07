@@ -31,6 +31,7 @@ module type S = sig
 
 end
 
-module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.key): S
+module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.Commit.key):
+  S
 (** Extend a branch consistent store with import/export
     capabilities. *)

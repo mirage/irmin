@@ -45,7 +45,7 @@ module type STORE = sig
 
   (** Store user-defined contents. *)
 
-  include Ir_ao.S
+  include Ir_ao.STORE
   (** Contents stores are append-only. *)
 
   val merge: t -> key Ir_merge.t
@@ -59,13 +59,16 @@ module type STORE = sig
 
 end
 
-module Make (S: S) (Contents: Ir_ao.S with type value = S.t)
-  : STORE with type t = Contents.t
-           and type key = Contents.key
-           and type value = Contents.value
+module type MAKER = functor (K: Ir_uid.S) -> functor (V: S) ->
+  STORE with type key = K.t and type value = V.t
+
+module Make (Contents: Ir_ao.MAKER): MAKER
 (** Build a contents store. *)
 
 module Rec (S: STORE): S with type t = S.key
-(** Convert a contents store objects into storable keys, with the
-    expected merge function (eg. read the contents, merge them and
-    write back the restult to get the final key). *)
+(** Consider objects in a contents store as stand-alone and mergeable
+    objects, identified by unique keys. The merge function of these
+    stand-alone objects is the following: (i) read the contents
+    associated to the keys you want to merge (ii) merge the contents
+    (iii) write the result back in the store and get a new key (iv)
+    retun that key. *)

@@ -76,25 +76,25 @@ module type S = sig
 
 end
 
-type ('a, 'b) vertex =
-  [ `Contents of 'a
-  | `Node of 'a
-  | `Commit of 'a
-  | `Tag of 'b ]
+type ('contents, 'node, 'commit, 'tag) vertex =
+  [ `Contents of 'contents
+  | `Node of 'node
+  | `Commit of 'commit
+  | `Tag of 'tag ]
+(** The type for graph vertices. *)
 
-val of_tags: 'b list -> ('a, 'b) vertex list
-val to_tags: ('a, 'b) vertex list -> 'b list
+val of_contents: 'a list -> ('a, _, _, _) vertex list
+val to_contents: ('a, _, _, _) vertex list -> 'a list
 
-val of_commits: 'a list -> ('a, 'b) vertex list
-val to_commits: ('a, 'b) vertex list -> 'a list
+val of_nodes: 'a list -> (_, 'a, _, _) vertex list
+val to_nodes: (_, 'a, _, _) vertex list -> 'a list
 
-val of_nodes: 'a list -> ('a, 'b) vertex list
-val to_nodes: ('a, 'b) vertex list -> 'a list
+val of_commits: 'a list -> (_, _, 'a, _) vertex list
+val to_commits: (_, _, 'a, _) vertex list -> 'a list
 
-val of_contents: 'a list -> ('a, 'b) vertex list
-val to_contents: ('a, 'b) vertex list -> 'a list
-
-val to_keys: ('a, 'b) vertex list -> 'a list
+val of_tags: 'b list -> (_, _, _, 'b) vertex list
+val to_tags: (_, _, _, 'b) vertex list -> 'b list
 
 (** Build a graph. *)
-module Make(K: Ir_uid.S)(R: Ir_tag.S): S with type V.t = (K.t, R.t) vertex
+module Make (Contents: Tc.I0) (Node: Tc.I0) (Commit: Tc.I0) (Tag: Tc.I0)
+  : S with type V.t = (Contents.t, Node.t, Commit.t, Tag.t) vertex

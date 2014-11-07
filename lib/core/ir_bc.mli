@@ -17,18 +17,15 @@
 (** Branch-consistent stores: read-write store with support fork/merge
     operations. *)
 
-module type S = sig
+module type STORE = sig
 
   (** A branch-consistent store is a mutable store which supports
       fork/join operations. *)
 
-  include Ir_rw.S
+  include Ir_rw.STORE
 
   type tag
   (** Type of branch tags. *)
-
-  type origin
-  (** Type of values keeping track of provenance. *)
 
   val create: ?tag:tag -> unit -> t Lwt.t
   (** Create a store handle. The default branch, if not set, is
@@ -47,14 +44,6 @@ module type S = sig
 
   val set_tag: t -> tag -> unit
   (** Update the current tag name. *)
-
-  val update: t -> ?origin:origin -> key -> value -> unit Lwt.t
-  (** Same as [RW.update] but with an optional [origin] argument to
-      keep track of provenance. *)
-
-  val remove: t -> ?origin:origin -> key -> unit Lwt.t
-  (** Same as [RW.remove] but with an optional [origin] argument to
-      keep track of provenance. *)
 
   val clone: t -> tag -> t option Lwt.t
   (** Fork the store, using the given branch name. Return [None] if
@@ -78,21 +67,34 @@ module type S = sig
 
 end
 
-module type STORE = sig
+module type MAKER =
+  functor (P: Ir_path.S) ->
+  functor (O: Ir_origin.S) ->
+  functor (C: Ir_contents.S) ->
+  functor (T: Ir_tag.S) ->
+    STORE with type key = P.t
+           and type value = C.t
+           and type origin = O.t
+           and type tag = T.t
+(** Signature of functors to create branch-consistent stores. *)
+
+module Make (Block: Ir_block.MAKER) (Tag: Ir_tag.MAKER): MAKER
+(** Build a branch consistent store from custom [Block] and [Tag]
+    store implementations. *)
+
+module type STORE_EXT = sig
 
   (** Same as [S] but also expose the store internals. Useful to build
       derived store functionalities. *)
 
-  include S
-
-  type uid
-  (** The type for internal identifiers. *)
+  include STORE
 
   module Block: Ir_block.STORE
-    with type key = uid and type contents = value and type origin = origin
+    with type contents = value and type Commit.origin = origin
   (** The internal block store. *)
 
-  module Tag: Ir_tag.STORE with type key = tag and type value = uid
+  module Tag: Ir_tag.STORE
+    with type key = tag and type value = Block.Commit.key
   (** The internal tag store. *)
 
   module Key: Ir_path.S with type t = key
@@ -103,9 +105,6 @@ module type STORE = sig
 
   module Origin: Ir_origin.S with type t = origin
   (** Base functions over origins. *)
-
-  val block_t: t -> Block.t
-  (** Get the block store handler. *)
 
   val commit_t: t -> Block.Commit.t
   (** Get the commit store handler. *)
@@ -153,25 +152,31 @@ module type STORE = sig
   (** Watch commit changes. Return the stream of commit
       identifiers. *)
 
-  module Graph: Ir_graph.S with type V.t = (Block.key, Tag.key) Ir_graph.vertex
+  module Graph: Ir_graph.S
+    with type V.t = (Block.Contents.key,
+                     Block.Node.key,
+                     Block.Commit.key,
+                     Tag.key) Ir_graph.vertex
   (** Graph of blocks. *)
 
 end
 
-module type MAKER =
-  functor (U: Ir_uid.S) -> functor (C: Ir_contents.S) -> functor (T: Ir_tag.S) ->
-    STORE with type value = C.t
-           and type origin = Ir_origin.t
-           and type tag = T.t
-           and type uid = U.t
-(** Signature of functors to create branch-consistent stores. *)
+module type MAKER_EXT =
+  functor (U: Ir_uid.S) ->
+  functor (P: Ir_path.S) ->
+  functor (O: Ir_origin.S) ->
+  functor (C: Ir_contents.S) ->
+  functor (T: Ir_tag.S) ->
+    STORE_EXT with type key = P.t
+               and type value = C.t
+               and type origin = O.t
+               and type tag = T.t
+               and type Block.Commit.key = U.t
+               and type Block.Node.key = U.t
+               and type Block.Commit.key = U.t
+(** Signature of functors to create extended branch-consistent
+    stores. *)
 
-module Make (Block: Ir_block.STORE) (Tag: Ir_tag.STORE with type value = Block.key)
-  : STORE with type value = Block.contents
-           and type tag = Tag.key
-           and type uid = Block.key
-           and type origin = Block.origin
-           and module Block = Block
-           and module Tag = Tag
-(** Build a branch consistent store from custom [Block] and [Tag]
-    store implementations. *)
+module Make_ext (Block: Ir_block.MAKER) (Tag: Ir_tag.MAKER) (U: Ir_uid.S): MAKER
+(** Build an extended branch consistent store from custom [Block] and
+    [Tag] store implementations. *)

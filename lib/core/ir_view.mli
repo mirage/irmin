@@ -51,7 +51,7 @@ module type S = sig
   type path
   (** Paths to address values. *)
 
-  include Ir_rw.S
+  include Ir_rw.STORE
     with type t = (uid, value) t
      and type value := value
      and type key = path
@@ -81,9 +81,6 @@ module type STORE = sig
 
   type db
   (** Database handler. *)
-
-  type origin
-  (** Value origins. *)
 
   val of_path: db -> path -> t Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,

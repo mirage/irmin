@@ -21,7 +21,7 @@ exception Unknown of string
 
 module type S = sig
   include Tc.I0
-  val create: Cstruct.t -> t
+  val digest: Cstruct.t -> t
 end
 
 module SHA1 = struct
@@ -63,6 +63,6 @@ module SHA1 = struct
   let equal = (=)
   let compare = Pervasives.compare
 
-  let create buf = Nocrypto.Hash.SHA1.digest buf
+  let digest buf = Nocrypto.Hash.SHA1.digest buf
 
 end

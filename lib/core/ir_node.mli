@@ -29,22 +29,30 @@ module type S = sig
 
   include Ir_contents.S
 
-  type key
-  (** Foreign keys. *)
+  type contents
+  (** Type for contents. *)
 
-  val contents: t -> key option
+  type node
+  (** Type for nodes. *)
 
-  val contents_exn: t -> 'key
-  (** Get the contents key, raise [Not_found] if None. *)
+  val contents: t -> contents option
+  (** [contents t] is the (optional) key of the node contents. *)
 
-  val edges: t -> (key, 'b) Ir_graph.vertex list
+  val contents_exn: t -> contents
+  (** Same as [contents], but raise [Not_found] if it is [None]. *)
+
+  val edges: t -> (contents, node, _, _) Ir_graph.vertex list
   (** Return the list of successor vertices. *)
 
   val empty: t
   (** The empty node. *)
 
-  val leaf: key -> t
-  (** Create a leaf node (with some contents and no successors). *)
+  val leaf: contents -> t
+  (** Create a leaf node, with some contents and no successors. *)
+
+  val create: ?contents:contents -> node list -> t
+  (** [create ~contents succ] is the node with contents [contents] and
+      successors [succs]. *)
 
   val is_empty: t -> bool
   (** Is the node empty. *)
@@ -54,12 +62,19 @@ module type S = sig
 
 end
 
+module SHA1: S with type contents = Ir_uid.SHA1.t and type node = Ir_uid.SHA1.t
+(** Simple node implementation, where all unique identifiers are
+    SHA1s. *)
+
+module S (C: Tc.I0) (N: Tc.I0): S with type contents = C.t and type node = N.t
+(** Base functions for nodes. *)
+
 module type STORE = sig
 
   (** The node store encodes a labeled DAG where every node might hold
       some contents. *)
 
-  include Ir_ao.S
+  include Ir_ao.STORE
 
   type contents
   (** Node contents. *)
@@ -105,29 +120,33 @@ module type STORE = sig
   val merge: t -> key Ir_merge.t
   (** Merge two nodes together. *)
 
+  module Contents: Ir_contents.STORE with type value = contents
+  (** The contents store. *)
+
+  val contents_t: t -> Contents.t
+  (** [contents_t t] is the hanlder of the underlying contents store
+      of [t]. *)
+
+  module Path: Ir_path.S with type t = path
+  (** Base functions for paths. *)
+
   module Key: Ir_uid.S with type t = key
   (** Base functions for keys. *)
 
-  module Value: S with type t = value
+  module Value:
+    S with type t = value and type node = key and type contents = Contents.key
   (** Base functions for values. *)
 
 end
 
-module SHA1: S with type key = Ir_uid.SHA1.t
-(** Simple node implementation, where keys are SHA1s. *)
+module type MAKER =
+  functor (K: Ir_uid.S) ->
+  functor (P: Ir_path.S) ->
+  functor (C: Ir_contents.S) ->
+    STORE with type contents = C.t and type path = P.t
 
-module Make (S: S)
-    (Contents: Ir_contents.STORE) (Node: Ir_ao.S with type value = S.t)
-  : STORE with type t = Contents.t * Node.t
-           and type key = Node.key
-           and type value = Node.value
-           and type contents = Contents.value
-           and type path = Ir_path.String.t
+module Make (Contents: Ir_ao.MAKER) (Node: Ir_ao.MAKER): MAKER
 (** Create a node store from an append-only database. *)
 
 module Rec (S: STORE): Ir_contents.S with type t = S.key
-(** Convert a node store objects into storable keys, with the expected
-    merge function. *)
-
-module S (K: Ir_uid.S): S with type key = K.t
-(** Base functions for nodes. *)
+(** Same as [Ir_contents.Rec] but for node stores. *)

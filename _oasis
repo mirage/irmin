@@ -18,8 +18,9 @@ Flag examples
 Library irmin
   Path:          lib/core
   Findlibname:   irmin
-  Modules:       Ir_misc, Ir_graph, Ir_uid, Ir_snapshot, Ir_ro, Ir_ao, Ir_rw,
-                 Ir_commit, Ir_block, Ir_tag, Ir_contents, Ir_backend,
+  Modules:       Ir_misc, Ir_graph, Ir_uid, Ir_snapshot, Ir_block,
+                 Ir_ro, Ir_ao, Ir_rw,
+                 Ir_commit, Ir_tag, Ir_contents, Ir_backend,
                  Ir_node, Ir_version, Ir_dump, Ir_path, Ir_watch,
                  Ir_merge, Ir_view, Ir_origin, Ir_bc, Ir_sync, Irmin
   BuildDepends:  ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct, tc,

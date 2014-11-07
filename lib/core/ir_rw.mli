@@ -16,31 +16,41 @@
 
 (** Read-write stores. *)
 
-module type S = sig
+module type STORE = sig
 
   (** Mutable store. *)
 
-  include Ir_ro.S
+  include Ir_ro.STORE
 
-  val update: t -> key -> value -> unit Lwt.t
+  val update: t -> origin -> key -> value -> unit Lwt.t
   (** Replace the contents of [key] by [value] if [key] is already
       defined and create it otherwise. *)
 
-  val remove: t -> key -> unit Lwt.t
+  val remove: t -> origin -> key -> unit Lwt.t
   (** Remove the given key. *)
 
-  val watch: t -> key -> value Lwt_stream.t
+  val watch: t -> origin -> key -> value Lwt_stream.t
   (** Watch a given key. *)
 
 end
 
-module type BINARY = S with type key = Cstruct.t and type value = Cstruct.t
-(** Binary read-write store. Keys and values are cstruct buffers. *)
-
-module type MAKER = functor (K: Tc.I0) -> functor (V: Tc.I0) ->
-  S with type key = K.t and type value = V.t
+module type MAKER =
+  functor (K: Tc.I0) ->
+  functor (V: Tc.I0) ->
+  functor (O: Tc.I0) ->
+  STORE with type key = K.t and type value = V.t and type origin = O.t
 (** Signature of functors creating read-write stores. *)
 
-module Binary (S: BINARY) (K: Tc.I0) (V: Tc.I0):
-  S with type t = S.t and type key = K.t and type value = V.t
+module type BINARY = STORE with
+  type key = Cstruct.t and type value = Cstruct.t and type origin = Cstruct.t
+(** Binary read-write store. Keys, values and origins are cstruct buffers. *)
+
+module type JSON = STORE with
+  type key = Ezjsonm.t and type value = Ezjsonm.t and type origin = Ezjsonm.t
+(** JSON read-write store. Keys, values and origins are JSON objects. *)
+
+module Binary (S: BINARY) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0): MAKER
 (** Create a typed read-write store from a binary one. *)
+
+module JSON (S: BINARY) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0): MAKER
+(** Create a typed read-write store from a JSON one. *)
