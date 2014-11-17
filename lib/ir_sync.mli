@@ -19,14 +19,14 @@
 type ('contents, 'tag) remote
 (** Remote store hanlders. *)
 
-type ('uid, 'contents, 'tag) store =
-  (module Ir_bc.STORE with type Block.Commit.key = 'uid
+type ('head, 'contents, 'tag) store =
+  (module Ir_bc.STORE with type head = 'head
                        and type value = 'contents
                        and type tag = 'tag)
 (** A pair (store implementation * branch name). *)
 
 val store: ('a, 'b, 'c) store -> 'c -> ('a, 'b) remote
-(** Remote stores. *)
+(** local stores. *)
 
 val uri: string -> ('a, 'b) remote
 (** Remote URI. *)
@@ -38,8 +38,8 @@ module type STORE = sig
   type t
   (** Type for database handlers. *)
 
-  type uid
-  (** Type for unique identifiers. *)
+  type head
+  (** Type for head values. *)
 
   type contents
   (** Type for database contents. *)
@@ -50,34 +50,24 @@ module type STORE = sig
   type origin
   (** Type for values tracking provenance. *)
 
-  val fetch: t -> ?depth:int -> (contents, tag) remote -> uid option Lwt.t
+  val fetch: t -> ?depth:int -> (contents, tag) remote -> head option Lwt.t
   (** [create t last] fetch an object in the local database. The local
       database can then be either [merged], or [updated] to the new
       contents. The [depth] parameter limits the history depth.*)
 
-  val fetch_exn: t -> ?depth:int -> (contents, tag) remote -> uid Lwt.t
+  val fetch_exn: t -> ?depth:int -> (contents, tag) remote -> head Lwt.t
   (** Same as [create] but raise [Failure] is the fetch operation
       fails. *)
 
-  val push: t -> ?depth:int -> (contents, tag) remote -> uid option Lwt.t
+  val push: t -> ?depth:int -> (contents, tag) remote -> head option Lwt.t
   (** [push t f] push the contents of the currnet branch of the
       database to the remote database -- also update the remote branch
       with the same name as the local one to points to the new
       state. *)
 
-  val push_exn: t -> ?depth:int -> (contents, tag) remote -> uid Lwt.t
+  val push_exn: t -> ?depth:int -> (contents, tag) remote -> head Lwt.t
   (** Same as [push] but raise [Failure] is the push operation
       fails. *)
-
-  val update: t -> uid -> unit Lwt.t
-  (** [update t f] imports the contents of [f] in the database. This
-      replace the current branch with the imported contents.  *)
-
-  val merge: t -> ?origin:origin -> uid -> unit Ir_merge.result Lwt.t
-  (** Same as [update] but merge with the current branch. *)
-
-  val merge_exn: t -> ?origin:origin -> uid -> unit Lwt.t
-  (** Same as [merge] but merge raise an exception in case of conflict. *)
 
 end
 
@@ -94,13 +84,15 @@ module type REMOTE = sig
 
 end
 
-module Slow (B: Ir_block.STORE) (T: Ir_tag.STORE):
-  STORE with type contents = B.value and type tag = T.key
-(** This functor copies iterate through *all* the k/v pairs in the
-    database so it is *very* slow. Use the [Fast] one when
-    possible. *)
+module Slow (B: Ir_bc.STORE): STORE with type head = B.head
+                                     and type contents = B.value
+                                     and type tag = B.tag
+(** This functor iterate through *all* the k/v pairs in the database
+    so it is *very* slow. Use the [Fast] one when possible. *)
 
-module Fast (B: Ir_block.STORE) (T: Ir_tag.STORE) (R: REMOTE with type uid = B.key):
-  STORE with type uid = B.key and type contents = B.value and type tag = T.key
+module Fast (B: Ir_bc.STORE) (R: REMOTE with type uid = B.head):
+  STORE with type head = B.head
+         and type contents = B.value
+         and type tag = B.tag
 (** Use [R] to synchronize stores using some native (and usually fast)
     backend-specific protocols. *)

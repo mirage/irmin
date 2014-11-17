@@ -16,14 +16,12 @@
 
 (** In-memory partial views of the database, with lazy fetching. *)
 
-type ('uid, 'contents) t
-(** Views over keys of types ['key] and contents of type
-    ['contents]. *)
+type path = string list
 
-type ('path, 'contents) action =
-  | Read of 'path * 'contents option
-  | Write of 'path * 'contents option
-  | List of 'path list * 'path list
+type 'contents action =
+  [ `Read of path * 'contents option
+  | `Write of path * 'contents option
+  | `List of path list * path list ]
 (** Operations on view. We record the result of reads to be able to
     replay them on merge. *)
 
@@ -31,9 +29,9 @@ module Action: sig
 
   (** Actions performed on a view. *)
 
-  include Tc.I2 with type ('a, 'b) t = ('a, 'b) action
+  include Tc.I1 with type 'a t = 'a action
 
-  val pretty: ('a -> string) -> ('b -> string) -> ('a, 'b) t -> string
+  val pretty: ('a -> string) -> 'a t -> string
   (** Pretty-print an action. *)
 
 end
@@ -42,21 +40,9 @@ module type S = sig
 
   (** Signature for views independant of any database substrate. *)
 
-  type value
-  (** Contents value. *)
+  include Ir_rw.STORE with type key = path
 
-  type uid
-  (** Internal unique identifiers. *)
-
-  type path
-  (** Paths to address values. *)
-
-  include Ir_rw.STORE
-    with type t = (uid, value) t
-     and type value := value
-     and type key = path
-
-  val actions: t -> (path, value) action list
+  val actions: t -> value action list
   (** Return the list of actions performed on this view since its
       creation. *)
 
@@ -67,12 +53,11 @@ module type S = sig
 
 end
 
-module Make (U: Ir_uid.S) (C: Ir_contents.S):
-  S with type value = C.t and type uid = U.t and type path = Ir_path.String.t
+module Make(C: Ir_contents.S): S with type value = C.t
 (** Create a view implementation independant of any underlying
     store. *)
 
-module type STORE = sig
+module type OF_STORE = sig
 
   (** Signature for views which are sub-tree of a given database
       implementation. *)
@@ -109,8 +94,8 @@ module type STORE = sig
 
 end
 
-module Store (S: Ir_bc.S):
-  STORE with type db = S.t
+module Of_store (S: Ir_bc.STORE):
+  OF_STORE with type db = S.t
          and type value = S.value
          and type origin = Ir_origin.t
 (** Create a view implementation tied to a the store [S]. *)

@@ -16,7 +16,7 @@ Flag examples
   Default: false
 
 Library irmin
-  Path:          lib/core
+  Path:          lib/
   Findlibname:   irmin
   Modules:       Ir_misc, Ir_graph, Ir_uid, Ir_snapshot, Ir_block,
                  Ir_ro, Ir_ao, Ir_rw,
@@ -123,7 +123,7 @@ Document irmin
   Type:                 OCamlbuild (0.4)
   BuildTools+:          ocamldoc
   Install:              true
-  XOCamlbuildPath:      lib/core
+  XOCamlbuildPath:      lib/
   XOCamlbuildLibraries: irmin
 
 Document backend

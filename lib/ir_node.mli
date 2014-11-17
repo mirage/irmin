@@ -41,7 +41,7 @@ module type S = sig
   val contents_exn: t -> contents
   (** Same as [contents], but raise [Not_found] if it is [None]. *)
 
-  val edges: t -> (contents, node, _, _) Ir_graph.vertex list
+  val edges: t -> [`Contents of contents | `Node of node] list
   (** Return the list of successor vertices. *)
 
   val empty: t
@@ -79,8 +79,13 @@ module type STORE = sig
   type contents
   (** Node contents. *)
 
-  type path
-  (** Paths to go from one node to an other. *)
+  type step
+  module Step: Tc.I0 with type t = step
+  (** A step is used to pass from one node to an other. A list of
+      steps forms a path. *)
+
+  val empty: value
+  (** The empty node. *)
 
   val node: t -> ?contents:contents -> ?succ:(string * value) list ->
     unit -> (key * value) Lwt.t
@@ -89,32 +94,32 @@ module type STORE = sig
   val contents: t -> value -> contents Lwt.t option
   (** Return the node contents. *)
 
-  val succ: t -> value -> value Lwt.t Ir_misc.StringMap.t
+  val succ: t -> value -> value Lwt.t Map.Make(Step).t
   (** Return the node successors. *)
 
-  val sub: t -> value -> path -> value option Lwt.t
+  val sub: t -> value -> step list -> value option Lwt.t
   (** Find a subvalue. *)
 
-  val sub_exn: t -> value -> path -> value Lwt.t
+  val sub_exn: t -> value -> step list -> value Lwt.t
   (** Find a subvalue. Raise [Not_found] if it does not exist. *)
 
-  val map: t -> value -> path -> (value -> value) -> value Lwt.t
+  val map: t -> value -> step list -> (value -> value) -> value Lwt.t
   (** Modify a subtree. *)
 
-  val update: t -> value -> path -> contents -> value Lwt.t
+  val update: t -> value -> step list -> contents -> value Lwt.t
   (** Add a value by recusively saving subvalues into the
       corresponding stores. *)
 
-  val find: t -> value -> path -> contents option Lwt.t
+  val find: t -> value -> step list -> contents option Lwt.t
   (** Find a value. *)
 
-  val find_exn: t -> value -> path -> contents Lwt.t
+  val find_exn: t -> value -> step list -> contents Lwt.t
   (** Find a value. Raise [Not_found] is [path] is not defined. *)
 
-  val remove: t -> value -> path -> value Lwt.t
+  val remove: t -> value -> step list -> value Lwt.t
   (** Remove a value. *)
 
-  val valid: t -> value -> path -> bool Lwt.t
+  val valid: t -> value -> step list -> bool Lwt.t
   (** Is a path valid. *)
 
   val merge: t -> key Ir_merge.t
@@ -127,25 +132,27 @@ module type STORE = sig
   (** [contents_t t] is the hanlder of the underlying contents store
       of [t]. *)
 
-  module Path: Ir_path.S with type t = path
-  (** Base functions for paths. *)
-
   module Key: Ir_uid.S with type t = key
   (** Base functions for keys. *)
 
-  module Value:
-    S with type t = value and type node = key and type contents = Contents.key
+  module Value: S
+    with type t = value
+     and type node = key
+     and type contents = Contents.key
   (** Base functions for values. *)
 
 end
 
 module type MAKER =
   functor (K: Ir_uid.S) ->
-  functor (P: Ir_path.S) ->
-  functor (C: Ir_contents.S) ->
-    STORE with type contents = C.t and type path = P.t
+  functor (S: Ir_path.STEP) ->
+  functor (C: Ir_contents.STORE) ->
+    STORE with type key = K.t
+           and type step = S.t
+           and type contents = C.value
+           and module Contents = C
 
-module Make (Contents: Ir_ao.MAKER) (Node: Ir_ao.MAKER): MAKER
+module Make (Contents: Ir_ao.MAKER): MAKER
 (** Create a node store from an append-only database. *)
 
 module Rec (S: STORE): Ir_contents.S with type t = S.key

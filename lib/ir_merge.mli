@@ -16,21 +16,6 @@
 
 (** Merge operators. *)
 
-(* FIXME: review the API
-
-  - we should maybe return the graph of changes.
-  - we should deal better with multiple BCAs
-  - we should simplify the API: merge ['a t] and ['a merge] and
-    have explicit type-class everywhere.
-*)
-
-module type S = Tc.I0
-
-type origin = Ir_origin.t
-
-type 'a t
-(** Abstract merge function for values of type ['a]. *)
-
 (** {2 Merge resuls} *)
 
 type 'a result =
@@ -38,10 +23,10 @@ type 'a result =
   | `Conflict of string ]
 (** Merge results. *)
 
-module Result (A: S): S with type t = A.t result
+module Result (A: Tc.I0): Tc.I0 with type t = A.t result
 (** Base function over [A.t result]s.. *)
 
-module UnitResult: S with type t = unit result
+module UnitResult: Tc.I0 with type t = unit result
 (** Base functions overs [unit result]s. *)
 
 exception Conflict of string
@@ -52,14 +37,8 @@ val exn: 'a result -> 'a Lwt.t
 
 (** {2 Merge functions} *)
 
-type 'a merge = origin:origin -> old:'a -> 'a -> 'a -> 'a result
-(** Signature of a merge function. *)
-
-type 'a merge' = origin:origin -> old:'a -> 'a -> 'a -> 'a result Lwt.t
-(** Signature of a blocking merge function. *)
-
-val merge: 'a t -> 'a merge'
-(** Get the merge functions.
+type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
+(** Signature of a merge function.
 
             /----> t1 ----\
     ----> old              |--> result
@@ -74,7 +53,7 @@ val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
 val iter: ('a -> unit result Lwt.t) -> 'a list -> unit result Lwt.t
 (** Monadic iterations over results. *)
 
-module OP: sig
+module Infix: sig
 
   val ok: 'a -> 'a result Lwt.t
   (** Return [`Ok x]. *)
@@ -89,13 +68,7 @@ end
 
 (** {2 Combinators} *)
 
-val create: (module S with type t = 'a) -> 'a merge -> 'a t
-(** Create a custom merge operator. *)
-
-val create': (module S with type t = 'a) -> 'a merge' -> 'a t
-(** Create a custom merge operator which might block. *)
-
-val default: (module S with type t = 'a) -> 'a t
+val default: (module Tc.I0 with type t = 'a) -> 'a t
 (** Create a default merge function. This is a simple merge
     functions which support changes in one branch at the time:
 
@@ -105,7 +78,8 @@ val default: (module S with type t = 'a) -> 'a t
     - otherwise raise [Conflict].
 *)
 
-val default': (module S with type t = 'a) -> ('a -> 'a -> bool Lwt.t) -> 'a t
+val default':
+  (module Tc.I0 with type t = 'a) -> ('a -> 'a -> bool Lwt.t) -> 'a t
 (** Same as [default] but for blocking equality functions. *)
 
 val string: string t
@@ -124,20 +98,22 @@ val some: 'a t -> 'a option t
     function, otherwise use the same behavior as [create]. *)
 
 val string_map: 'a t -> 'a Ir_misc.StringMap.t t
-(** Lift to hash-tables. *)
+(** Lift to string maps. *)
 
 val pair: 'a t -> 'b t -> ('a * 'b) t
 (** Lift to pairs. *)
 
-val apply: (module S with type t = 'b) -> ('a -> 'b t ) -> 'a -> 'b t
+val apply: (module Tc.I0 with type t = 'b) -> ('a -> 'b t ) -> 'a -> 'b t
 (** Apply operator. Use this operator to break recursive loops. *)
 
-val biject: (module S with type t = 'b) -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
+val biject: (module Tc.I0 with type t = 'b) ->
+  'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
 (** Use the merge function defined in another domain. If the
     functions given in argument are partial (ie. returning
     [Not_found] on some entries), the exception is catched and
     [Conflict] is returned instead. *)
 
-val biject': (module S with type t = 'b) -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
+val biject': (module Tc.I0 with type t = 'b) ->
+  'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
 (** Same as [map] but with potentially blocking converting
     functions. *)

@@ -16,27 +16,9 @@
 
 (** Tree path handling. *)
 
-module type S = sig
+module type STEP = Tc.I0
 
-  include Tc.I0
-  (** Type of paths, to address nodes from the tree root. *)
+module String: STEP with type t = string
+(** A path step where elements are strings. *)
 
-  type elt
-  (** The type of elements in the path. *)
-
-  val hd: t -> elt option
-  (** [hd t] is the head of the path. *)
-
-  val tl: t -> t option
-  (** [tl t] is tail of the path. *)
-
-  val cons: elt -> t -> t
-  (** [cons hd tl] is path with [hd] as head and [tl] as tail. *)
-
-  val append: t -> t -> t
-  (** [append a b] is the concatenation of [a] and [b]. *)
-
-end
-
-module String: S with type elt = string and type t = string list
-(** A path where elements are strings. *)
+module Make (S: STEP): Tc.I0 with type t = S.t list

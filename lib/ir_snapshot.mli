@@ -16,46 +16,48 @@
 
 (** Manage snapshot/revert capabilities. *)
 
-module type S = sig
+module type OF_STORE = sig
 
   (** Snapshots are read-only checkpoints of the dabase. *)
 
-  include Ir_rw.STORE
+  include Ir_ro.STORE
 
   type db
   (** Type for database handler. *)
 
-  val create: db -> t Lwt.t
+  val create: db -> origin -> t Lwt.t
   (** Snapshot the current state of the store. *)
 
-  val revert: db -> t -> unit Lwt.t
+  val revert: db -> origin -> t -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
-  val merge: db -> ?origin:origin -> t -> unit Ir_merge.result Lwt.t
+  val merge: db -> origin -> t -> unit Ir_merge.result Lwt.t
   (** Merge the given snasphot into the current branch of the
       database. *)
 
-  val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
+  val merge_exn: db -> origin -> t -> unit Lwt.t
   (** Same as [merge_snapshot] but raise a [Conflict] exception in
       case of conflict. *)
 
-  val watch: db -> key -> (key * t) Lwt_stream.t
+  val watch: db -> origin -> key -> (key * t) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
       given path. Takes and returns a new snapshot every time a
       sub-path is modified. *)
 
   type state
-  (** Snapshot state. *)
+  (** Type for snapshot stats. *)
 
   val of_state: db -> state -> t
-  (** Create a snapshot from a state. *)
+  (** Create a snapshot from a database state. *)
 
   val to_state: t -> state
-  (** Get the snapshot state. *)
-
-  include Tc.I0 with type t := state
+  (** Get the databae state. *)
 
 end
 
-module Make (S: Ir_bc.MAKER_EXT): STORE with type state = Block.key
+module Of_store (S: Ir_bc.STORE_EXT):
+  OF_STORE with type db = S.t
+            and type state = S.Block.Node.key
+            and type origin = S.origin
+            and type key = S.key
 (** Add snapshot capabilities to a branch-consistent store. *)

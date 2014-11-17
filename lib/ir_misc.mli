@@ -43,7 +43,12 @@ module type MAP = sig
       -> 'a t ->'b t -> unit Lwt.t
   end
 end
-module Map (S: Tc.I0): MAP with type key = S.t
+
+module StringMap: MAP with
+  type key = string and type 'a t = 'a Map.Make(Tc.S).t
+
+module Map (S: Tc.I0): MAP with
+  type key = S.t and type 'a t = 'a Map.Make(S).t
 
 (** Persistent Sets. *)
 module type SET = sig
@@ -52,7 +57,9 @@ module type SET = sig
   val of_list: elt list -> t
   val to_list: t -> elt list
 end
-module Set (K: Tc.I0): SET with type elt = K.t
+
+module Set (K: Tc.I0): SET with
+  type elt = K.t and type t = Set.Make(K).t
 
 val list_partition_map: ('a -> [ `Fst of 'b | `Snd of 'c ]) ->
   'a list -> 'b list * 'c list
@@ -77,7 +84,5 @@ module Lwt_stream: sig
   (** Lift a stream out of the monad. *)
 
 end
-
-module StringMap: MAP with type key = string
 
 val is_valid_utf8: string -> bool

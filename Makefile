@@ -3,7 +3,7 @@ PREFIX ?= /usr/local
 
 VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
 SETUP   = ocaml setup.ml
-VFILE   = lib/core/ir_version.ml
+VFILE   = lib/ir_version.ml
 SFILE   = lib/server/ir_HTTP_static.ml
 SFILES  = $(wildcard lib/server/static/*.js) \
 	  $(wildcard lib/server/static/*.html) \

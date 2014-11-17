@@ -1,4 +1,4 @@
-lib/core/ir_version.ml
+lib/ir_version.ml
 lib/server/ir_HTTP_static.ml
 _build/
 irmin

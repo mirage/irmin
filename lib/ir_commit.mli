@@ -24,13 +24,16 @@ module type S = sig
   (** Base functions over commit objects. *)
 
   type commit
-  (** Type for commit Keys. *)
+  (** Type for commit keys. *)
 
   type node
   (** Type for node keys. *)
 
   type origin
   (** Origin. *)
+
+  val create: origin -> ?node:node -> parents:commit list -> t
+  (** Create a commit. *)
 
   val node: t -> node option
   (** The underlying node. *)
@@ -41,7 +44,7 @@ module type S = sig
   val origin: t -> origin
   (** The commit provenance. *)
 
-  val edges: t -> (_, node, commit, _) Ir_graph.vertex list
+  val edges: t -> [`Node of node | `Commit of commit] list
   (** The graph edges. *)
 
 end
@@ -90,7 +93,11 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)
 
-  module Value: S with type t = value and type origin = origin
+  module Value: S
+    with type t = value
+     and type commit = key
+     and type origin = origin
+     and type node = Node.key
   (** Base functions over values. *)
 
 end
@@ -98,14 +105,13 @@ end
 module type MAKER =
   functor (K: Ir_uid.S) ->
   functor (O: Ir_origin.S) ->
-  functor (P: Ir_path.S) ->
-  functor (C: Ir_contents.S) ->
-    STORE with type origin = O.t
-           and type Node.path = P.t
-           and type Node.contents = C.t
+  functor (N: Ir_node.STORE) ->
+    STORE with type key = K.t
+           and type origin = O.t
+           and type node = N.value
+           and module Node = N
 
-module Make (Contents: Ir_ao.MAKER) (Node: Ir_ao.MAKER) (Commit: Ir_ao.MAKER):
-  MAKER
+module Make (S: Ir_ao.MAKER): MAKER
 (** Create a commit store. *)
 
 module Rec (S: STORE): Ir_contents.S with type t = S.key

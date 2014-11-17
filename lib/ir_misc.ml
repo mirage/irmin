@@ -192,7 +192,8 @@ module Set (K: Tc.I0) = struct
   let to_list = elements
 
   include Tc.L0(struct
-      type nonrec t = t
+      type u = t
+      type t = u
       module K = K
       let to_list = to_list
       let of_list = of_list

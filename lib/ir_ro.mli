@@ -17,43 +17,16 @@
 (** Read-only stores. *)
 
 module type STORE = sig
-
-  (** Read-only store. *)
-
   type t
-  (** Type for stores. *)
-
   type key
-  (** Type for keys. *)
-
   type value
-  (** Type for values. *)
-
   type origin
-  (** Type for keep track of the provenance of operations. *)
-
   val create: unit -> t Lwt.t
-  (** Create a store handle. The operation can be used multiple times
-      as it is supposed to be very cheap (and usually
-      non-blocking). *)
-
   val read: t -> origin -> key -> value option Lwt.t
-  (** Read a value from the store. *)
-
   val read_exn: t -> origin -> key -> value Lwt.t
-  (** Read a value from the store. Raise [Unknown k] if [k] does not
-      have an associated value. *)
-
   val mem: t -> origin -> key -> bool Lwt.t
-  (** Check if a key exists. *)
-
   val list: t -> origin -> key list -> key list Lwt.t
-  (** Return all the keys that are allowed to access, knowing a given
-      collection of keys (which might be seen as a passwords). *)
-
   val dump: t -> origin -> (key * value) list Lwt.t
-  (** Return the store contents. *)
-
 end
 
 module type MAKER =

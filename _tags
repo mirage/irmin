@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2a503a7b3dcf7d0920f800dea6133c4d)
+# DO NOT EDIT (digest: dec85a4ebf44e4c410659f447e3da5b9)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -15,20 +15,20 @@ true: annot, bin_annot
 "_darcs": -traverse
 "_darcs": not_hygienic
 # Library irmin
-"lib/core/irmin.cmxs": use_irmin
-<lib/core/*.ml{,i,y}>: pkg_bin_prot
-<lib/core/*.ml{,i,y}>: pkg_comparelib
-<lib/core/*.ml{,i,y}>: pkg_cstruct
-<lib/core/*.ml{,i,y}>: pkg_dolog
-<lib/core/*.ml{,i,y}>: pkg_ezjsonm
-<lib/core/*.ml{,i,y}>: pkg_lwt
-<lib/core/*.ml{,i,y}>: pkg_mstruct
-<lib/core/*.ml{,i,y}>: pkg_nocrypto
-<lib/core/*.ml{,i,y}>: pkg_ocamlgraph
-<lib/core/*.ml{,i,y}>: pkg_sexplib
-<lib/core/*.ml{,i,y}>: pkg_stringext
-<lib/core/*.ml{,i,y}>: pkg_tc
-<lib/core/*.ml{,i,y}>: pkg_uri
+"lib/irmin.cmxs": use_irmin
+<lib/*.ml{,i,y}>: pkg_bin_prot
+<lib/*.ml{,i,y}>: pkg_comparelib
+<lib/*.ml{,i,y}>: pkg_cstruct
+<lib/*.ml{,i,y}>: pkg_dolog
+<lib/*.ml{,i,y}>: pkg_ezjsonm
+<lib/*.ml{,i,y}>: pkg_lwt
+<lib/*.ml{,i,y}>: pkg_mstruct
+<lib/*.ml{,i,y}>: pkg_nocrypto
+<lib/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/*.ml{,i,y}>: pkg_sexplib
+<lib/*.ml{,i,y}>: pkg_stringext
+<lib/*.ml{,i,y}>: pkg_tc
+<lib/*.ml{,i,y}>: pkg_uri
 # Library irmin-backend
 "lib/backend/irmin-backend.cmxs": use_irmin-backend
 <lib/backend/*.ml{,i,y}>: pkg_bin_prot
@@ -345,15 +345,12 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: use_irmin-server
 <examples/*.ml{,i,y}>: use_irmin-unix
 # OASIS_STOP
+<lib/ir_commit.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/ir_contents.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/ir_node.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/ir_merge.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/ir_view.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/ir_origin.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
+<lib/ir_bc.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 true: bin_annot, annot, debug
-<lib/core/ir_misc.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_graph.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_block.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_commit.ml{,i}>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_node.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_contents.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_merge.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_view.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_origin.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/core/ir_bc.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 true: warn_error_A, warn(A-4-41-44)

@@ -23,15 +23,11 @@ open Printf
 open Sexplib.Std
 open Bin_prot.Std
 
-module T_ = struct
-  type ('origin, 'key) t = {
-    node   : 'key option;
-    parents: 'key list;
-    origin : 'origin;
-  } with bin_io, compare, sexp
-end
-include T_
-module T = Tc.I2(T_)
+type ('origin, 'key) t = {
+  node   : 'key option;
+  parents: 'key list;
+  origin : 'origin;
+}
 
 let edges t =
   begin match t.node with

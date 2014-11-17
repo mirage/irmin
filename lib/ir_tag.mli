@@ -55,7 +55,9 @@ module type STORE = sig
 
 end
 
-module type MAKER = functor (K: S) -> functor (V: Ir_uid.S) ->
+module type MAKER =
+  functor (K: S) ->
+  functor (V: Ir_uid.S) ->
   STORE with type key = K.t and type value = V.t
 
 module Make (S: Ir_rw.MAKER): MAKER

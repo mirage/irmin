@@ -19,64 +19,54 @@ open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "VALUE" end)
 
-module T3 = struct
-  type ('origin, 'key, 'contents) t =
-    | Contents of 'contents
-    | Node of 'key Ir_node.t
-    | Commit of ('origin, 'key) Ir_commit.t
-  with bin_io, compare, sexp
-end
-include T3
-module T = Tc.I3(T3)
-
-module type S = sig
-  type key
-  type contents
-  type origin
-  include Ir_contents.S with type t = (origin, key, contents) t
-end
-
-module S (K: Ir_uid.S) (C: Ir_contents.S) = struct
-  type key = K.t
-  type contents = C.t
-  type origin = Ir_origin.t
-  module S = Tc.App3(T)(Ir_origin)(K)(C)
-  include S
-  module Key = K
-  module Contents = C
-  module Node = Ir_node.S(K)
-  module Commit = Ir_commit.S(K)
-  let merge = Ir_merge.default (module S)
-end
-
-module String = S(Ir_uid.SHA1)(Ir_contents.String)
-
-module JSON = S(Ir_uid.SHA1)(Ir_contents.JSON)
-
 module Unit = struct
   include Tc.U
   let master = ()
 end
 
 module type STORE = sig
-  type key
-  type contents
+
   type origin
-  type node = key Ir_node.t
-  type commit = (origin, key) Ir_commit.t
-  include Ir_ao.S with type key := key and type value = (origin, key, contents) t
-  val list: t -> ?depth:int -> key list -> key list Lwt.t
-  module Contents: Ir_contents.STORE with type key = key and type value = contents
-  module Node: Ir_node.STORE with type key = key and type contents = contents
-  module Commit: Ir_commit.STORE with type key = key and type origin = origin
-  val contents_t: t -> Contents.t
-  val node_t: t -> Node.t
-  val commit_t: t -> Commit.t
-  val merge: t -> key Ir_merge.t
-  module Key: Ir_uid.S with type t = key
-  module Value: S with type key = key and type contents = contents
-  module Origin: Ir_origin.S with type t = origin
-  module Graph: Ir_graph.S with type V.t = (key, unit) Ir_graph.vertex
+  type step
+  type contents
+  type node
+  type commit
+  type head
+
+  module Contents: Ir_contents.STORE
+    with type value = contents
+     and type origin = origin
+
+  module Node: Ir_node.STORE
+    with type value = node
+     and type contents = contents
+     and type step = step
+     and type origin = origin
+     and module Contents = Contents
+
+  module Commit: Ir_commit.STORE
+    with type key = head
+     and type value = commit
+     and type node = node
+     and type origin = origin
+     and module Node = Node
+
+end
+
+module type MAKER =
+  functor (K: Ir_uid.S) ->
+  functor (S: Ir_path.STEP) ->
+  functor (O: Ir_origin.S) ->
+  functor (C: Ir_contents.S) ->
+    STORE with type contents = C.t
+           and type origin = O.t
+           and type step = S.t
+
+module Make
+    (Contents: Ir_ao.MAKER)
+    (Node: Ir_ao.MAKER)
+    (Commit: Ir_ao.MAKER)
+
 end
 
 module Mux

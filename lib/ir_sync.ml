@@ -19,13 +19,13 @@ open Misc.OP
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
-type ('key, 'contents, 'branch) store =
-  (module Branch.STORE with type Block.key = 'key
-                        and type value = 'contents
-                        and type branch = 'branch)
+type ('head, 'contents, 'tag) store =
+  (module Ir_bc.STORE with type head = 'key
+                       and type value = 'contents
+                       and type branch = 'branch)
 
 type ('key, 'contents) remote =
-  | Store: ('key, 'contents, 'branch) store * 'branch -> ('key, 'contents) remote
+  | Store: ('key, 'contents, 'branch) store * 'branch -> ('contents, 'tag) remote
   | URI of string
 
 let store m b = Store (m, b)
@@ -139,19 +139,6 @@ struct
     push t ?depth remote >>= function
     | None   -> fail (Failure "push")
     | Some d -> return d
-
-  let update =
-    S.update_commit
-
-  let merge t ?origin dump =
-    let origin = match origin with
-      | None   -> Origin.create "Merge pulled state."
-      | Some o -> o in
-    S.merge_commit t ~origin dump
-
-  let merge_exn t ?origin dump =
-    merge t ?origin dump >>=
-    Merge.exn
 
 end
 

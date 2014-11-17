@@ -17,21 +17,10 @@
 (** Read-write stores. *)
 
 module type STORE = sig
-
-  (** Mutable store. *)
-
   include Ir_ro.STORE
-
   val update: t -> origin -> key -> value -> unit Lwt.t
-  (** Replace the contents of [key] by [value] if [key] is already
-      defined and create it otherwise. *)
-
   val remove: t -> origin -> key -> unit Lwt.t
-  (** Remove the given key. *)
-
   val watch: t -> origin -> key -> value Lwt_stream.t
-  (** Watch a given key. *)
-
 end
 
 module type MAKER =

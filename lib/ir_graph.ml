@@ -15,8 +15,6 @@
  *)
 
 open Lwt
-open Bin_prot.Std
-open Sexplib.Std
 open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "GRAPH" end)
@@ -48,46 +46,79 @@ module type S = sig
   module Dump: Tc.I0 with type t = dump
 end
 
-type ('a, 'b) vertex =
-  [ `Contents of 'a
-  | `Node of 'a
-  | `Commit of 'a
-  | `Tag of 'b ]
-with bin_io, compare, sexp
+module Make (S: Ir_bc.STORE_EXT) = struct
 
-module V =
-  Tc.I2(struct type ('a, 'b) t = ('a, 'b) vertex with bin_io, compare, sexp end)
+  module X: Tc.I0 = struct
 
-let of_tags     x = List.map (fun k -> `Tag k) x
-let of_contents x = List.map (fun k -> `Contents k) x
-let of_nodes    x = List.map (fun k -> `Node k) x
-let of_commits  x = List.map (fun k -> `Commit k) x
+    type t =
+      [ `Contents of S.Block.Contents.key
+      | `Node of S.Block.Node.key
+      | `Commit of S.Block.Commit.key
+      | `Tag of S.Tag.key ]
 
-let to_tags l =
-  Ir_misc.list_filter_map (function `Tag k -> Some k | _ -> None) l
+    let hash = Hashtbl.hash
 
-let to_contents l =
-  Ir_misc.list_filter_map (function `Contents k -> Some k | _ -> None) l
+    let compare x y = match x, y with
+      | `Contents x, `Contents y -> S.Block.Contents.Key.compare x y
+      | `Node x, `Node y -> S.Block.Node.Key.compare x y
+      | `Commit x, `Commit y -> S.Block.Commit.Key.compare x y
+      | `Tag x, `Tag y -> S.Tag.Key.compare x y
+      | `Contents _, _ -> 1
+      | _, `Contents _ -> -1
+      | `Node _, _ -> 1
+      | _, `Node _ -> -1
+      | `Commit _, _ -> 1
+      | _, `Commit _ -> -1
 
-let to_nodes l =
-  Ir_misc.list_filter_map (function `Node k -> Some k | _ -> None) l
+    let equal x y = match x, y with
+      | `Contents x, `Contents y -> S.Block.Contents.Key.equal x y
+      | `Node x, `Node y -> S.Block.Node.Key.equal x y
+      | `Commit x, `Commit y -> S.Block.Commit.Key.equal x y
+      | `Tag x, `Tag y -> S.Tag.Key.equal x y
+      | _ -> false
 
-let to_commits l =
-  Ir_misc.list_filter_map (function `Commit k -> Some k | _ -> None) l
+    let to_sexp = function
+      | `Contents x -> S.Block.Contents.Key.to_sexp x
+      | `Node x -> S.Block.Node.Key.to_sexp x
+      | `Commit x -> S.Block.Commit.Key.to_sexp x
+      | `Tag x -> S.Tag.Key.to_sexp x
 
-let to_keys l =
-  Ir_misc.list_filter_map (function
-    | `Commit k
-    | `Node k
-    | `Contents k -> Some k
-    | `Tag _      -> None
-    ) l
+    let to_json = function
+      | `Contents x -> `O [ "contents", S.Block.Contents.Key.to_json x ]
+      | `Node x -> `O [ "node", S.Block.Node.Key.to_json x ]
+      | `Commit x -> `O [ "commit", S.Block.Commit.Key.to_json x ]
+      | `Tag x -> `O [ "tag", S.Tag.Key.to_json x ]
 
-module Make (K: Ir_uid.S) (R: Ir_tag.S) = struct
+    let of_json = function
+      | `O [ "contents", x ] -> `Contents (S.Block.Contents.Key.of_json x)
+      | `O [ "node", x ] -> `Node (S.Block.Node.Key.of_json x)
+      | `O [ "commit", x ] -> `Commit (S.Block.Commit.Key.of_json x)
+      | `O [ "tag", x ] -> `Tag (S.Tag.Key.of_json x)
+      | j -> failwith ("Vertex.of_json parse error: " ^ Ezjsonm.to_string j)
 
-  type v = (K.t, R.t) vertex
+    let tag buf i =
+      Cstruct.set_uint8 buf 0 i;
+      Cstruct.shift buf 1
 
-  module X = Tc.App2(V)(K)(R)
+    let write t buf = match t with
+      | `Contents x -> S.Block.Contents.Key.write x (tag buf 0)
+      | `Node x -> S.Block.Node.Key.write x (tag buf 1)
+      | `Commit x -> S.Block.Commit.Key.write x (tag buf 2)
+      | `Tag x -> S.Tag.Key.write x (tag buf 3)
+
+    let size_of t = 1 + match t with
+      | `Contents x -> S.Block.Contents.Key.size_of x
+      | `Node x -> S.Block.Node.Key.size_of x
+      | `Commit x -> S.Block.Commit.Key.size_of x
+      | `Tag x -> S.Tag.Key.size_of x
+
+    let read buf = match Mstruct.get_uint8 buf with
+      | 0 -> `Contents (S.Block.Contents.Key.read buf)
+      | 1 -> `Node (S.Block.Node.Key.read buf)
+      | 2 -> `Commit (S.Block.Commit.Key.read buf)
+      | 3 -> `Tag (S.Tag.Key.read buf)
+      | n -> failwith ("Vertex.read parse error: " ^ string_of_int n)
+  end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)
   module GO = Graph.Oper.I(G)
@@ -97,7 +128,12 @@ module Make (K: Ir_uid.S) (R: Ir_tag.S) = struct
   include G
   include GO
 
-  type dump = v list * (v * v) list
+  type dump = vertex list * (vertex * vertex) list
+
+  (* XXX: for the binary format, we can use offsets in the vertex list
+     to save space. *)
+  module Dump =
+    Tc.App2(Tc.P)( Tc.App1(Tc.L)(X) )( Tc.App1(Tc.L)(Tc.App2(Tc.P)(X)(X)))
 
   let vertex g =
     G.fold_vertex (fun k set -> k :: set) g []
@@ -162,14 +198,6 @@ module Make (K: Ir_uid.S) (R: Ir_tag.S) = struct
         | None   -> []
         | Some n -> [`Label n]
     end)
-
-
-  module Dump = struct
-    module D = Tc.I1(struct
-        type 'a t = 'a list * ('a * 'a) list with bin_io, compare, sexp
-      end)
-    include Tc.App1(D)(X)
-  end
 
   let export t =
     vertex t, edges t

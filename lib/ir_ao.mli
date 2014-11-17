@@ -17,16 +17,8 @@
 (** Append-only stores. *)
 
 module type STORE = sig
-
-  (** Signature for append-only stores. *)
-
   include Ir_ro.STORE
-
-  val add: t -> value -> key Lwt.t
-  (** Write the contents of a value to the store. That's the
-      responsibility of the append-only store to generate a consistent
-      key. *)
-
+  val add: t -> origin -> value -> key Lwt.t
 end
 
 module type BINARY = STORE with type key = Cstruct.t and type value = Cstruct.t

@@ -59,8 +59,10 @@ module type STORE = sig
 
 end
 
-module type MAKER = functor (K: Ir_uid.S) -> functor (V: S) ->
-  STORE with type key = K.t and type value = V.t
+module type MAKER =
+  functor (K: Ir_uid.S) ->
+  functor (V: S) ->
+    STORE with type key = K.t and type value = V.t
 
 module Make (Contents: Ir_ao.MAKER): MAKER
 (** Build a contents store. *)
