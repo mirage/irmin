@@ -25,7 +25,6 @@ module type OF_STORE = sig
   val create: db -> origin -> t Lwt.t
   val revert: db -> origin -> t -> unit Lwt.t
   val merge: db -> origin -> t -> unit Ir_merge.result Lwt.t
-  val merge_exn: db -> origin -> t -> unit Lwt.t
   val watch: db -> origin -> key -> (key * t) Lwt_stream.t
   type state
   val of_state: db -> state -> t
@@ -126,10 +125,6 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
     Log.debugf "merge %a" force (show (module N.Key) (state s));
     pre_revert t origin s >>= fun k ->
     S.merge_head t origin k
-
-  let merge_exn t origin c =
-    merge t origin c >>=
-    Ir_merge.exn
 
   let watch db origin path =
     let stream = S.watch_node db origin path in

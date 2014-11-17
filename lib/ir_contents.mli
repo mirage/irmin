@@ -25,18 +25,21 @@ module type S = sig
 
   include Tc.I0
 
-  val merge: t Ir_merge.t
+  type origin
+  (** Type for origin of merges. *)
+
+  val merge: (t, origin) Ir_merge.t
   (** Merge function. Raise [Conflict] if the values cannot be merged
       properly. *)
 
 end
 
-module String: S with type t = string
+module String: S with type t = string and type origin = unit
 (** String values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-module JSON: S with type t = Ezjsonm.t
+module JSON: S with type t = Ezjsonm.t and type origin = unit
 (** JSON values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
@@ -48,7 +51,7 @@ module type STORE = sig
   include Ir_ao.STORE
   (** Contents stores are append-only. *)
 
-  val merge: t -> key Ir_merge.t
+  val merge: t -> (key, origin) Ir_merge.t
   (** Store merge function. Lift [S.merge] to keys. *)
 
   module Key: Ir_uid.S with type t = key

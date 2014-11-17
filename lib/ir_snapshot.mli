@@ -35,10 +35,6 @@ module type OF_STORE = sig
   (** Merge the given snasphot into the current branch of the
       database. *)
 
-  val merge_exn: db -> origin -> t -> unit Lwt.t
-  (** Same as [merge_snapshot] but raise a [Conflict] exception in
-      case of conflict. *)
-
   val watch: db -> origin -> key -> (key * t) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
       given path. Takes and returns a new snapshot every time a

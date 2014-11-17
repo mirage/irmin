@@ -29,9 +29,6 @@ module type S = sig
   type node
   (** Type for node keys. *)
 
-  type origin
-  (** Origin. *)
-
   val create: origin -> ?node:node -> parents:commit list -> t
   (** Create a commit. *)
 
@@ -67,7 +64,7 @@ module type STORE = sig
   val parents: t -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
-  val merge: t -> key Ir_merge.t
+  val merge: t -> (key, origin) Ir_merge.t
   (** Lift [S.merge] to the store keys. *)
 
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
@@ -81,7 +78,9 @@ module type STORE = sig
   (** Return all previous commit hashes, with an (optional) limit on
       the history depth. *)
 
-  module Node: Ir_node.STORE with type value = node
+  module Node: Ir_node.STORE
+    with type value = node
+     and type origin = origin
   (** Base functions over nodes. *)
 
   val node_t: t -> Node.t
@@ -104,10 +103,9 @@ end
 
 module type MAKER =
   functor (K: Ir_uid.S) ->
-  functor (O: Ir_origin.S) ->
   functor (N: Ir_node.STORE) ->
     STORE with type key = K.t
-           and type origin = O.t
+           and type origin = N.origin
            and type node = N.value
            and module Node = N
 

@@ -16,12 +16,18 @@
 
 (** Merge operators. *)
 
-(** {2 Merge resuls} *)
+(** {2 The result monad} *)
 
 type 'a result =
   [ `Ok of 'a
   | `Conflict of string ]
 (** Merge results. *)
+
+val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
+(** Monadic bind over Result. *)
+
+val iter: ('a -> unit result Lwt.t) -> 'a list -> unit result Lwt.t
+(** Monadic iterations over results. *)
 
 module Result (A: Tc.I0): Tc.I0 with type t = A.t result
 (** Base function over [A.t result]s.. *)
@@ -35,25 +41,7 @@ exception Conflict of string
 val exn: 'a result -> 'a Lwt.t
 (** Convert [Conflict] values to [Conflict] exceptions. *)
 
-(** {2 Merge functions} *)
-
-type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
-(** Signature of a merge function.
-
-            /----> t1 ----\
-    ----> old              |--> result
-            \----> t2 ----/
-*)
-
-(** {2 Base combinators} *)
-
-val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
-(** Monadic bind over Result. *)
-
-val iter: ('a -> unit result Lwt.t) -> 'a list -> unit result Lwt.t
-(** Monadic iterations over results. *)
-
-module Infix: sig
+module OP: sig
 
   val ok: 'a -> 'a result Lwt.t
   (** Return [`Ok x]. *)
@@ -66,9 +54,20 @@ module Infix: sig
 
 end
 
-(** {2 Combinators} *)
+(** {2 Merge functions} *)
 
-val default: (module Tc.I0 with type t = 'a) -> 'a t
+type ('elt, 'origin) t =
+  'origin -> old:'elt -> 'elt -> 'elt -> 'elt result Lwt.t
+(** Signature of a merge function.
+
+            /----> t1 ----\
+    ----> old              |--> result
+            \----> t2 ----/
+*)
+
+type 'a elt = (module Tc.I0 with type t = 'a)
+
+val default: 'a elt -> ('a, 'o) t
 (** Create a default merge function. This is a simple merge
     functions which support changes in one branch at the time:
 
@@ -78,42 +77,40 @@ val default: (module Tc.I0 with type t = 'a) -> 'a t
     - otherwise raise [Conflict].
 *)
 
-val default':
-  (module Tc.I0 with type t = 'a) -> ('a -> 'a -> bool Lwt.t) -> 'a t
+val default': 'a elt -> 'o elt -> ('a -> 'a -> bool Lwt.t) -> ('a, 'o) t
 (** Same as [default] but for blocking equality functions. *)
 
-val string: string t
+val string: (string, 'o) t
 (** The default string merge function. Do not anything clever, just
     compare the strings using the [default] merge function. *)
 
-val counter: int t
+val counter: (int, 'o) t
 (** Mergeable counters. *)
 
-val seq: 'a t list -> 'a t
+val seq: ('a, 'o) t list -> ('a, 'o) t
 (** Try the merge operations in sequence. *)
 
-val some: 'a t -> 'a option t
+val some: ('a, 'o) t -> ('a option, 'o) t
 (** Lift a merge function to optional values of the same type. If all
     the provided values are inhabited, then call the provided merge
     function, otherwise use the same behavior as [create]. *)
 
-val string_map: 'a t -> 'a Ir_misc.StringMap.t t
+val string_map: ('a, 'o) t -> ('a Map.Make(Tc.S).t, 'o) t
 (** Lift to string maps. *)
 
-val pair: 'a t -> 'b t -> ('a * 'b) t
+val pair: ('a, 'o) t -> ('b, 'o) t -> ('a * 'b, 'o) t
 (** Lift to pairs. *)
 
-val apply: (module Tc.I0 with type t = 'b) -> ('a -> 'b t ) -> 'a -> 'b t
+val apply: 'b elt -> ('a -> ('b, 'o) t) -> 'a -> ('b, 'o) t
 (** Apply operator. Use this operator to break recursive loops. *)
 
-val biject: (module Tc.I0 with type t = 'b) ->
-  'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
+val biject: 'b elt -> ('a, 'o) t -> ('a -> 'b) -> ('b -> 'a) -> ('b, 'o) t
 (** Use the merge function defined in another domain. If the
     functions given in argument are partial (ie. returning
     [Not_found] on some entries), the exception is catched and
     [Conflict] is returned instead. *)
 
-val biject': (module Tc.I0 with type t = 'b) ->
-  'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
+val biject':
+  'b elt -> ('a, 'o) t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> ('b, 'o) t
 (** Same as [map] but with potentially blocking converting
     functions. *)

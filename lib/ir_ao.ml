@@ -19,26 +19,52 @@ open Lwt
 
 module Log = Log.Make(struct let section = "AO" end)
 
-module type S = sig
-  include Ir_ro.S
-  val add: t -> value -> key Lwt.t
+module type STORE = sig
+  include Ir_ro.STORE
+  val add: t -> origin -> value -> key Lwt.t
 end
 
-module type BINARY = S with type key = Cstruct.t and type value = Cstruct.t
+module type BINARY = STORE
+  with type key = Cstruct.t
+   and type value = Cstruct.t
+   and type origin = Cstruct.t
 
-module type MAKER = functor (K: Ir_uid.S) -> functor (V: Tc.I0) ->
-  S with type key = K.t and type value = V.t
+module type JSON = STORE
+  with type key = Ezjsonm.t
+   and type value = Ezjsonm.t
+   and type origin = Ezjsonm.t
 
-module Binary (S: BINARY)  (K: Ir_uid.S) (V: Tc.I0) = struct
+module type MAKER =
+  functor (K: Ir_uid.S) ->
+  functor (V: Tc.I0) ->
+  functor (O: Tc.I0) ->
+    STORE with type key = K.t and type value = V.t and type origin = O.t
 
-  include Ir_ro.Binary(S)(K)(V)
+module Binary (S: BINARY) (K: Ir_uid.S) (V: Tc.I0) (O: Tc.I0) = struct
 
-  let of_raw = Tc.read_cstruct (module K)
+  include Ir_ro.Binary(S)(K)(V)(O)
 
-  let add (t:t) (value:value) =
+  let add t origin value =
     Log.debugf "add";
-    S.add t (Tc.write_cstruct (module V) value) >>= fun key ->
-    let key = of_raw key in
+    let value = Tc.write_cstruct (module V) value in
+    let origin = Tc.write_cstruct (module O) origin in
+    S.add t origin value >>= fun key ->
+    let key = Tc.read_cstruct (module K) key in
+    Log.debugf "added: %a" force (show (module K) key);
+    return key
+
+end
+
+module Json (S: JSON)  (K: Ir_uid.S) (V: Tc.I0) (O: Tc.I0) = struct
+
+  include Ir_ro.Json(S)(K)(V)(O)
+
+  let add t origin value =
+    Log.debugf "add";
+    let origin = Tc.to_json (module O) origin in
+    let value = Tc.to_json (module V) value in
+    S.add t origin value >>= fun key ->
+    let key = Tc.of_json (module K) key in
     Log.debugf "added: %a" force (show (module K) key);
     return key
 

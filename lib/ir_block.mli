@@ -46,16 +46,18 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (K: Ir_uid.S) ->
-  functor (S: Ir_path.STEP) ->
-  functor (O: Ir_origin.S) ->
-  functor (C: Ir_contents.S) ->
-    STORE with type contents = C.t
-           and type origin = O.t
-           and type step = S.t
+  functor (C: Ir_commit.STORE) ->
+    STORE with type origin = C.origin
+           and type step = C.Node.step
+           and type contents = C.Node.contents
+           and type node = C.node
+           and type commit = C.value
+           and type head = C.key
+           and module Contents = C.Node.Contents
+           and module Node = C.Node
+           and module Commit = C
 
-module Make (Contents: Ir_ao.MAKER) (Node: Ir_ao.MAKER) (Commit: Ir_ao.MAKER):
-  MAKER
+module Make: MAKER
 
-module Rec (S: STORE): Ir_contents.S with type t = S.Commit.key
+module Rec (S: STORE): Ir_contents.S with type t = S.head
 (** Same as [Ir_contents.Rec] but for block stores. *)

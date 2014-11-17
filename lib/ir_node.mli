@@ -122,10 +122,12 @@ module type STORE = sig
   val valid: t -> value -> step list -> bool Lwt.t
   (** Is a path valid. *)
 
-  val merge: t -> key Ir_merge.t
+  val merge: t -> (key, origin) Ir_merge.t
   (** Merge two nodes together. *)
 
-  module Contents: Ir_contents.STORE with type value = contents
+  module Contents: Ir_contents.STORE
+    with type value = contents
+     and type origin = origin
   (** The contents store. *)
 
   val contents_t: t -> Contents.t
@@ -150,6 +152,7 @@ module type MAKER =
     STORE with type key = K.t
            and type step = S.t
            and type contents = C.value
+           and type origin = C.origin
            and module Contents = C
 
 module Make (Contents: Ir_ao.MAKER): MAKER

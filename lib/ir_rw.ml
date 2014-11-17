@@ -17,34 +17,71 @@
 open Ir_misc.OP
 module Log = Log.Make(struct let section = "RW" end)
 
-module type S = sig
-  include Ir_ro.S
-  val update: t -> key -> value -> unit Lwt.t
-  val remove: t -> key -> unit Lwt.t
-  val watch: t -> key -> value Lwt_stream.t
+module type STORE = sig
+  include Ir_ro.STORE
+  val update: t -> origin -> key -> value -> unit Lwt.t
+  val remove: t -> origin -> key -> unit Lwt.t
+  val watch: t -> origin -> key -> value Lwt_stream.t
 end
 
-module type BINARY = S with type key = Cstruct.t and type value = Cstruct.t
+module type MAKER =
+  functor (K: Tc.I0) ->
+  functor (V: Tc.I0) ->
+  functor (O: Tc.I0) ->
+  STORE with type key = K.t and type value = V.t and type origin = O.t
 
-module type MAKER = functor (K: Tc.I0) -> functor (V: Tc.I0) ->
-  S with type key = K.t and type value = V.t
+module type BINARY = STORE
+  with type key = Cstruct.t
+   and type value = Cstruct.t
+   and type origin = Cstruct.t
 
-module Binary (S: BINARY) (K: Tc.I0) (V: Tc.I0) = struct
+module type JSON = STORE
+  with type key = Ezjsonm.t
+   and type value = Ezjsonm.t
+   and type origin = Ezjsonm.t
 
-  include Ir_ro.Binary(S)(K)(V)
+module Binary (S: BINARY) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
 
-  let to_raw = Tc.write_cstruct (module K)
+  include Ir_ro.Binary(S)(K)(V)(O)
 
-  let update t key value =
+  let k_to_raw = Tc.write_cstruct (module K)
+  let o_to_raw = Tc.write_cstruct (module O)
+  let v_to_raw = Tc.write_cstruct (module V)
+  let v_of_raw = Tc.read_cstruct (module V)
+
+  let update t origin key value =
     Log.debugf "update %a" force (show (module K) key);
-    S.update t (to_raw key) (Tc.write_cstruct (module V) value)
+    S.update t (o_to_raw origin) (k_to_raw key) (v_to_raw value)
 
-  let remove t key =
+  let remove t origin key =
     Log.debugf "remove %a" force (show (module K) key);
-    S.remove t (to_raw key)
+    S.remove t (o_to_raw origin) (k_to_raw key)
 
-  let watch t key =
+  let watch t origin key =
     Log.debugf "watch %a" force (show (module K) key);
-    Lwt_stream.map (Tc.read_cstruct (module V)) (S.watch t (to_raw key))
+    Lwt_stream.map v_of_raw (S.watch t (o_to_raw origin) (k_to_raw key))
+
+end
+
+module Json (S: JSON) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
+
+  include Ir_ro.Json(S)(K)(V)(O)
+
+  let k_to_json = Tc.to_json (module K)
+  let o_to_json = Tc.to_json (module O)
+  let v_to_json = Tc.to_json (module V)
+  let v_of_json = Tc.of_json (module V)
+
+  let update t origin key value =
+    Log.debugf "update %a" force (show (module K) key);
+    S.update t (o_to_json origin) (k_to_json key) (v_to_json value)
+
+  let remove t origin key =
+    Log.debugf "remove %a" force (show (module K) key);
+    S.remove t (o_to_json origin) (k_to_json key)
+
+  let watch t origin key =
+    Log.debugf "watch %a" force (show (module K) key);
+    Lwt_stream.map v_of_json (S.watch t (o_to_json origin) (k_to_json key))
 
 end
