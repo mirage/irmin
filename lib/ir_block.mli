@@ -25,6 +25,9 @@ module type STORE = sig
   type commit
   type head
 
+  module Origin: Ir_origin.S
+    with type t = origin
+
   module Contents: Ir_contents.STORE
     with type value = contents
      and type origin = origin
@@ -53,6 +56,7 @@ module type MAKER =
            and type node = C.node
            and type commit = C.value
            and type head = C.key
+           and module Origin = C.Node.Contents.Origin
            and module Contents = C.Node.Contents
            and module Node = C.Node
            and module Commit = C

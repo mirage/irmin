@@ -58,23 +58,23 @@ module type STORE = sig
   val commit: t -> origin -> ?node:node -> parents:value list -> (key * value) Lwt.t
   (** Create a new commit. *)
 
-  val node: t -> value -> node Lwt.t option
+  val node: t -> origin -> value -> node Lwt.t option
   (** Get the commit node. *)
 
-  val parents: t -> value -> value Lwt.t list
+  val parents: t -> origin -> value -> value Lwt.t list
   (** Get the immmediate precessors. *)
 
   val merge: t -> (key, origin) Ir_merge.t
   (** Lift [S.merge] to the store keys. *)
 
-  val find_common_ancestor: t -> key -> key -> key option Lwt.t
+  val find_common_ancestor: t -> origin -> key -> key -> key option Lwt.t
   (** Find the common ancestor of two commits. *)
 
-  val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
+  val find_common_ancestor_exn: t -> origin -> key -> key -> key Lwt.t
   (** Same as [find_common_ancestor] but raises [Not_found] if the two
       commits share no common ancestor. *)
 
-  val list: t -> ?depth:int -> key list -> key list Lwt.t
+  val list: t -> origin -> ?depth:int -> key list -> key list Lwt.t
   (** Return all previous commit hashes, with an (optional) limit on
       the history depth. *)
 
@@ -85,9 +85,6 @@ module type STORE = sig
 
   val node_t: t -> Node.t
   (** The underlying handler of the node store. *)
-
-  module Origin: Ir_origin.S with type t = origin
-  (** Base functions over origins. *)
 
   module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)

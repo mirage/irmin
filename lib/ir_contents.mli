@@ -60,12 +60,16 @@ module type STORE = sig
   module Value: S with type t = value
   (** Base functions for values. *)
 
+  module Origin: Ir_origin.S with type t = origin
+  (** Base functions for origins. *)
+
 end
 
 module type MAKER =
   functor (K: Ir_uid.S) ->
   functor (V: S) ->
-    STORE with type key = K.t and type value = V.t
+  functor (O: Ir_origin.S) ->
+    STORE with type key = K.t and type value = V.t and type origin = O.t
 
 module Make (Contents: Ir_ao.MAKER): MAKER
 (** Build a contents store. *)

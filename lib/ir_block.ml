@@ -25,6 +25,9 @@ module type STORE = sig
   type commit
   type head
 
+  module Origin: Ir_origin.S
+    with type t = origin
+
   module Contents: Ir_contents.STORE
     with type value = contents
      and type origin = origin
@@ -66,6 +69,7 @@ module Make (C: Ir_commit.STORE) = struct
   type commit = C.value
   type head = C.key
 
+  module Origin = C.Node.Contents.Origin
   module Contents = C.Node.Contents
   module Node = C.Node
   module Commit = C

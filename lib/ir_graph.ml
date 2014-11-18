@@ -46,23 +46,27 @@ module type S = sig
   module Dump: Tc.I0 with type t = dump
 end
 
-module Make (S: Ir_bc.STORE_EXT) = struct
+module Make
+    (Contents: Tc.I0)
+    (Node: Tc.I0)
+    (Commit: Tc.I0)
+    (Tag: Tc.I0)
+= struct
 
-  module X: Tc.I0 = struct
+  module X = struct
 
     type t =
-      [ `Contents of S.Block.Contents.key
-      | `Node of S.Block.Node.key
-      | `Commit of S.Block.Commit.key
-      | `Tag of S.Tag.key ]
-
+      [ `Contents of Contents.t
+      | `Node of Node.t
+      | `Commit of Commit.t
+      | `Tag of Tag.t ]
     let hash = Hashtbl.hash
 
     let compare x y = match x, y with
-      | `Contents x, `Contents y -> S.Block.Contents.Key.compare x y
-      | `Node x, `Node y -> S.Block.Node.Key.compare x y
-      | `Commit x, `Commit y -> S.Block.Commit.Key.compare x y
-      | `Tag x, `Tag y -> S.Tag.Key.compare x y
+      | `Contents x, `Contents y -> Contents.compare x y
+      | `Node x, `Node y -> Node.compare x y
+      | `Commit x, `Commit y -> Commit.compare x y
+      | `Tag x, `Tag y -> Tag.compare x y
       | `Contents _, _ -> 1
       | _, `Contents _ -> -1
       | `Node _, _ -> 1
@@ -71,29 +75,29 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       | _, `Commit _ -> -1
 
     let equal x y = match x, y with
-      | `Contents x, `Contents y -> S.Block.Contents.Key.equal x y
-      | `Node x, `Node y -> S.Block.Node.Key.equal x y
-      | `Commit x, `Commit y -> S.Block.Commit.Key.equal x y
-      | `Tag x, `Tag y -> S.Tag.Key.equal x y
+      | `Contents x, `Contents y -> Contents.equal x y
+      | `Node x, `Node y -> Node.equal x y
+      | `Commit x, `Commit y -> Commit.equal x y
+      | `Tag x, `Tag y -> Tag.equal x y
       | _ -> false
 
     let to_sexp = function
-      | `Contents x -> S.Block.Contents.Key.to_sexp x
-      | `Node x -> S.Block.Node.Key.to_sexp x
-      | `Commit x -> S.Block.Commit.Key.to_sexp x
-      | `Tag x -> S.Tag.Key.to_sexp x
+      | `Contents x -> Contents.to_sexp x
+      | `Node x -> Node.to_sexp x
+      | `Commit x -> Commit.to_sexp x
+      | `Tag x -> Tag.to_sexp x
 
     let to_json = function
-      | `Contents x -> `O [ "contents", S.Block.Contents.Key.to_json x ]
-      | `Node x -> `O [ "node", S.Block.Node.Key.to_json x ]
-      | `Commit x -> `O [ "commit", S.Block.Commit.Key.to_json x ]
-      | `Tag x -> `O [ "tag", S.Tag.Key.to_json x ]
+      | `Contents x -> `O [ "contents", Contents.to_json x ]
+      | `Node x -> `O [ "node", Node.to_json x ]
+      | `Commit x -> `O [ "commit", Commit.to_json x ]
+      | `Tag x -> `O [ "tag", Tag.to_json x ]
 
     let of_json = function
-      | `O [ "contents", x ] -> `Contents (S.Block.Contents.Key.of_json x)
-      | `O [ "node", x ] -> `Node (S.Block.Node.Key.of_json x)
-      | `O [ "commit", x ] -> `Commit (S.Block.Commit.Key.of_json x)
-      | `O [ "tag", x ] -> `Tag (S.Tag.Key.of_json x)
+      | `O [ "contents", x ] -> `Contents (Contents.of_json x)
+      | `O [ "node", x ] -> `Node (Node.of_json x)
+      | `O [ "commit", x ] -> `Commit (Commit.of_json x)
+      | `O [ "tag", x ] -> `Tag (Tag.of_json x)
       | j -> failwith ("Vertex.of_json parse error: " ^ Ezjsonm.to_string j)
 
     let tag buf i =
@@ -101,22 +105,22 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       Cstruct.shift buf 1
 
     let write t buf = match t with
-      | `Contents x -> S.Block.Contents.Key.write x (tag buf 0)
-      | `Node x -> S.Block.Node.Key.write x (tag buf 1)
-      | `Commit x -> S.Block.Commit.Key.write x (tag buf 2)
-      | `Tag x -> S.Tag.Key.write x (tag buf 3)
+      | `Contents x -> Contents.write x (tag buf 0)
+      | `Node x -> Node.write x (tag buf 1)
+      | `Commit x -> Commit.write x (tag buf 2)
+      | `Tag x -> Tag.write x (tag buf 3)
 
     let size_of t = 1 + match t with
-      | `Contents x -> S.Block.Contents.Key.size_of x
-      | `Node x -> S.Block.Node.Key.size_of x
-      | `Commit x -> S.Block.Commit.Key.size_of x
-      | `Tag x -> S.Tag.Key.size_of x
+      | `Contents x -> Contents.size_of x
+      | `Node x -> Node.size_of x
+      | `Commit x -> Commit.size_of x
+      | `Tag x -> Tag.size_of x
 
     let read buf = match Mstruct.get_uint8 buf with
-      | 0 -> `Contents (S.Block.Contents.Key.read buf)
-      | 1 -> `Node (S.Block.Node.Key.read buf)
-      | 2 -> `Commit (S.Block.Commit.Key.read buf)
-      | 3 -> `Tag (S.Tag.Key.read buf)
+      | 0 -> `Contents (Contents.read buf)
+      | 1 -> `Node (Node.read buf)
+      | 2 -> `Commit (Commit.read buf)
+      | 3 -> `Tag (Tag.read buf)
       | n -> failwith ("Vertex.read parse error: " ^ string_of_int n)
   end
 

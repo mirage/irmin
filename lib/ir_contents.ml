@@ -24,7 +24,16 @@ exception Invalid of string
 
 module type S = sig
   include Tc.I0
-  val merge: t Ir_merge.t
+  type origin
+  val merge: (t, origin) Ir_merge.t
+end
+
+module type STORE = sig
+  include Ir_ao.STORE
+  val merge: t -> (key, origin) Ir_merge.t
+  module Key: Ir_uid.S with type t = key
+  module Value: S with type t = value
+  module Origin: S with type t = origin
 end
 
 module String  = struct
@@ -90,22 +99,12 @@ module JSON = struct
 
 end
 
-module type STORE = sig
-  include Ir_ao.S
-  val merge: t -> key Ir_merge.t
-  module Key: Ir_uid.S with type t = key
-  module Value: S with type t = value
-end
-
-module Make
-    (K: Ir_uid.S)
-    (C: S)
-    (Contents: Ir_ao.S with type key = K.t and type value = C.t)
-= struct
+module Make (S: Ir_ao.STORE) (K: Ir_uid.S) (V: S) (O: Ir_origin.S) = struct
 
   include Contents
   module Key  = K
   module Value = C
+  module Origin = O
 
   let merge t =
     Ir_merge.biject' (module K) C.merge (add t) (read_exn t)

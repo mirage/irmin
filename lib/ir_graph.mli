@@ -77,4 +77,13 @@ module type S = sig
 end
 
 (** Build a graph. *)
-module Make (S: Ir_bc.STORE_EXT): S
+module Make
+    (Contents: Tc.I0)
+    (Node: Tc.I0)
+    (Commit: Tc.I0)
+    (Tag: Tc.I0):
+  S with type V.t =
+  [ `Contents of Contents.t
+  | `Node of Node.t
+  | `Commit of Commit.t
+  | `Tag of Tag.t ]
