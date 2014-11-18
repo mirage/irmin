@@ -97,5 +97,5 @@ end
 module Of_store (S: Ir_bc.STORE):
   OF_STORE with type db = S.t
          and type value = S.value
-         and type origin = Ir_origin.t
+         and type origin = S.origin
 (** Create a view implementation tied to a the store [S]. *)

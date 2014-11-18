@@ -25,6 +25,7 @@ exception Invalid of string
 module type S = sig
   include Tc.I0
   type origin
+  module Origin: Ir_origin.S with type t = origin
   val merge: (t, origin) Ir_merge.t
 end
 
@@ -32,22 +33,19 @@ module type STORE = sig
   include Ir_ao.STORE
   val merge: t -> (key, origin) Ir_merge.t
   module Key: Ir_uid.S with type t = key
-  module Value: S with type t = value
-  module Origin: S with type t = origin
+  module Value: S with type t = value and type origin = origin
 end
 
-module String  = struct
-
-  module S = Tc.S
-
-  include S
-
-  let merge =
-    Ir_merge.default (module S)
-
+module String (O: Ir_origin.S) = struct
+  include Tc.S
+  module Origin = O
+  type origin = O.t
+  let merge = Ir_merge.default (module Tc.S)
 end
 
-module JSON = struct
+module JSON (O: Ir_origin.S) = struct
+
+  module Origin = O
 
   let rec encode t: Ezjsonm.t =
     match t with
@@ -93,30 +91,37 @@ module JSON = struct
   let of_string s =
     of_json (Ezjsonm.from_string s)
 
+  type origin = Origin.t
+
   (* XXX: replace by a clever merge function *)
   let merge =
     Ir_merge.(biject (module S) string of_string to_string)
 
 end
 
-module Make (S: Ir_ao.STORE) (K: Ir_uid.S) (V: S) (O: Ir_origin.S) = struct
+module type MAKER =
+  functor (K: Ir_uid.S) ->
+  functor (V: S) ->
+    STORE with type key = K.t and type value = V.t and type origin = V.origin
 
-  include Contents
+module Make (S: Ir_ao.MAKER) (K: Ir_uid.S) (V: S) = struct
+
+  include S(K)(V)(V.Origin)
+
   module Key  = K
-  module Value = C
-  module Origin = O
+  module Value = V
 
-  let merge t =
-    Ir_merge.biject' (module K) C.merge (add t) (read_exn t)
+  let merge t origin =
+    Ir_merge.biject' (module K) V.merge (add t origin) (read_exn t origin)
+      origin
 
 end
 
 module Rec (S: STORE) = struct
   include S.Key
-  let merge =
-    let merge ~origin ~old k1 k2 =
-      S.create ()  >>= fun t  ->
-      Ir_merge.merge (S.merge t) ~origin ~old k1 k2
-    in
-    Ir_merge.create' (module S.Key) merge
+  module Origin = S.Value.Origin
+  type origin = S.origin
+  let merge origin ~old k1 k2 =
+    S.create ()  >>= fun t  ->
+    S.merge t origin ~old k1 k2
 end

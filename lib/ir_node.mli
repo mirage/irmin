@@ -35,11 +35,17 @@ module type S = sig
   type node
   (** Type for nodes. *)
 
+  type step
+  (** Type for node steps. *)
+
   val contents: t -> contents option
   (** [contents t] is the (optional) key of the node contents. *)
 
   val contents_exn: t -> contents
   (** Same as [contents], but raise [Not_found] if it is [None]. *)
+
+  val succ: t -> (step * node) list
+  (** Extract the successors of a node. *)
 
   val edges: t -> [`Contents of contents | `Node of node] list
   (** Return the list of successor vertices. *)
@@ -50,7 +56,7 @@ module type S = sig
   val leaf: contents -> t
   (** Create a leaf node, with some contents and no successors. *)
 
-  val create: ?contents:contents -> node list -> t
+  val create: ?contents:contents -> (step * node) list -> t
   (** [create ~contents succ] is the node with contents [contents] and
       successors [succs]. *)
 
@@ -61,13 +67,6 @@ module type S = sig
   (** Is it a leaf node (see [leaf]) ? *)
 
 end
-
-module SHA1: S with type contents = Ir_uid.SHA1.t and type node = Ir_uid.SHA1.t
-(** Simple node implementation, where all unique identifiers are
-    SHA1s. *)
-
-module S (C: Tc.I0) (N: Tc.I0): S with type contents = C.t and type node = N.t
-(** Base functions for nodes. *)
 
 module type STORE = sig
 
@@ -80,46 +79,48 @@ module type STORE = sig
   (** Node contents. *)
 
   type step
-  module Step: Tc.I0 with type t = step
   (** A step is used to pass from one node to an other. A list of
       steps forms a path. *)
+
+  module Step: Tc.I0 with type t = step
+  (** Base functions over steps. *)
 
   val empty: value
   (** The empty node. *)
 
-  val node: t -> ?contents:contents -> ?succ:(string * value) list ->
+  val node: t -> origin -> ?contents:contents -> ?succ:(step * value) list ->
     unit -> (key * value) Lwt.t
   (** Create a new node. *)
 
-  val contents: t -> value -> contents Lwt.t option
+  val contents: t -> origin -> value -> contents Lwt.t option
   (** Return the node contents. *)
 
-  val succ: t -> value -> value Lwt.t Map.Make(Step).t
+  val succ: t -> origin -> value -> value Lwt.t Map.Make(Step).t
   (** Return the node successors. *)
 
-  val sub: t -> value -> step list -> value option Lwt.t
+  val sub: t -> origin -> value -> step list -> value option Lwt.t
   (** Find a subvalue. *)
 
-  val sub_exn: t -> value -> step list -> value Lwt.t
+  val sub_exn: t -> origin -> value -> step list -> value Lwt.t
   (** Find a subvalue. Raise [Not_found] if it does not exist. *)
 
-  val map: t -> value -> step list -> (value -> value) -> value Lwt.t
+  val map: t -> origin -> value -> step list -> (value -> value) -> value Lwt.t
   (** Modify a subtree. *)
 
-  val update: t -> value -> step list -> contents -> value Lwt.t
+  val update: t -> origin -> value -> step list -> contents -> value Lwt.t
   (** Add a value by recusively saving subvalues into the
       corresponding stores. *)
 
-  val find: t -> value -> step list -> contents option Lwt.t
+  val find: t -> origin -> value -> step list -> contents option Lwt.t
   (** Find a value. *)
 
-  val find_exn: t -> value -> step list -> contents Lwt.t
+  val find_exn: t -> origin -> value -> step list -> contents Lwt.t
   (** Find a value. Raise [Not_found] is [path] is not defined. *)
 
-  val remove: t -> value -> step list -> value Lwt.t
+  val remove: t -> origin -> value -> step list -> value Lwt.t
   (** Remove a value. *)
 
-  val valid: t -> value -> step list -> bool Lwt.t
+  val valid: t -> origin -> value -> step list -> bool Lwt.t
   (** Is a path valid. *)
 
   val merge: t -> (key, origin) Ir_merge.t
@@ -141,6 +142,7 @@ module type STORE = sig
     with type t = value
      and type node = key
      and type contents = Contents.key
+     and type step = step
   (** Base functions for values. *)
 
 end
@@ -155,7 +157,7 @@ module type MAKER =
            and type origin = C.origin
            and module Contents = C
 
-module Make (Contents: Ir_ao.MAKER): MAKER
+module Make (Node: Ir_ao.MAKER): MAKER
 (** Create a node store from an append-only database. *)
 
 module Rec (S: STORE): Ir_contents.S with type t = S.key

@@ -28,18 +28,21 @@ module type S = sig
   type origin
   (** Type for origin of merges. *)
 
+  module Origin: Ir_origin.S with type t = origin
+  (** Base functions for origins. *)
+
   val merge: (t, origin) Ir_merge.t
-  (** Merge function. Raise [Conflict] if the values cannot be merged
-      properly. *)
+  (** Merge function. Evaluates to [`Conflict] if the values cannot be
+      merged properly. *)
 
 end
 
-module String: S with type t = string and type origin = unit
+module String (O: Ir_origin.S): S with type t = string and type origin = O.t
 (** String values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
 
-module JSON: S with type t = Ezjsonm.t and type origin = unit
+module JSON (O: Ir_origin.S): S with type t = Ezjsonm.t and type origin = O.t
 (** JSON values where only the last modified value is kept on
     merge. If the value has been modified concurrently, the [merge]
     function raises [Conflict]. *)
@@ -57,19 +60,15 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   (** Base functions for foreign keys. *)
 
-  module Value: S with type t = value
+  module Value: S with type t = value and type origin = origin
   (** Base functions for values. *)
-
-  module Origin: Ir_origin.S with type t = origin
-  (** Base functions for origins. *)
 
 end
 
 module type MAKER =
   functor (K: Ir_uid.S) ->
   functor (V: S) ->
-  functor (O: Ir_origin.S) ->
-    STORE with type key = K.t and type value = V.t and type origin = O.t
+    STORE with type key = K.t and type value = V.t and type origin = V.origin
 
 module Make (Contents: Ir_ao.MAKER): MAKER
 (** Build a contents store. *)

@@ -69,7 +69,7 @@ module Make (C: Ir_commit.STORE) = struct
   type commit = C.value
   type head = C.key
 
-  module Origin = C.Node.Contents.Origin
+  module Origin = C.Node.Contents.Value.Origin
   module Contents = C.Node.Contents
   module Node = C.Node
   module Commit = C
@@ -77,13 +77,10 @@ module Make (C: Ir_commit.STORE) = struct
 end
 
 module Rec (S: STORE) = struct
-
   include S.Commit.Key
-
+  module Origin = S.Origin
   type origin = S.origin
-
   let merge origin ~old k1 k2 =
     S.Commit.create ()  >>= fun t  ->
     S.Commit.merge t origin ~old k1 k2
-
 end

@@ -66,7 +66,7 @@ module type MAKER =
 
 module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
 
-  module O = N.Contents.Origin
+  module O = N.Contents.Value.Origin
   module KN = N.Key
 
   module Value = struct
@@ -79,6 +79,7 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
 
     let compare = Pervasives.compare
 
+    module Origin = O
     type origin = O.t
     type node = KN.t
     type commit = K.t
@@ -116,10 +117,13 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
 
     let of_json j =
       let node =
-        try Some (Ezjsonm.find j ["node"] |> KN.of_json)
+        try Ezjsonm.find j ["node"] |> Ezjsonm.get_option KN.of_json
         with Not_found -> None
       in
-      let parents = Ezjsonm.(find j ["parents"] |> get_list K.of_json) in
+      let parents =
+        try Ezjsonm.(find j ["parents"] |> get_list K.of_json)
+        with Not_found -> []
+      in
       let origin = Ezjsonm.find j ["origin"] |> O.of_json in
       { node; parents; origin }
 
@@ -212,7 +216,7 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
   let parents t origin c =
     List.map (read_exn t origin) c.Value.parents
 
-  module Graph = Ir_graph.Make(N.Contents.Key)(KN)(K)(Ir_tag.String)
+  module Graph = Ir_graph.Make(N.Contents.Key)(KN)(K)(Tc.U)
 
   let list t origin ?depth keys =
     Log.debugf "list %a" force (shows (module K) keys);
@@ -284,13 +288,10 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
 end
 
 module Rec (S: STORE) = struct
-
   include S.Key
-
+  module Origin = S.Node.Contents.Value.Origin
   type origin = S.origin
-
   let merge origin ~old k1 k2 =
     S.create () >>= fun t  ->
     S.merge t origin ~old k1 k2
-
 end

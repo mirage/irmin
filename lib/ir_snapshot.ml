@@ -72,7 +72,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
 
   let map t origin path ~f =
     root_node t origin >>= fun node ->
-    f (S.node_t (db t)) node path
+    f (S.node_t (db t)) origin node path
 
   let read t origin path =
     map t origin path ~f:N.find
@@ -90,10 +90,10 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
     Log.debugf "list";
     let one path =
       root_node (t, c) origin >>= fun n ->
-      N.sub (S.node_t t) n path >>= function
+      N.sub (S.node_t t) origin n path >>= function
       | None      -> return_nil
       | Some node ->
-        let c = N.succ (S.node_t t) node in
+        let c = N.succ (S.node_t t) origin node in
         let c = StepMap.keys c in
         let paths = List.map (fun c -> path @ [c]) c in
         return paths in

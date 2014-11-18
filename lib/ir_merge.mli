@@ -95,7 +95,9 @@ val some: ('a, 'o) t -> ('a option, 'o) t
     the provided values are inhabited, then call the provided merge
     function, otherwise use the same behavior as [create]. *)
 
-val string_map: ('a, 'o) t -> ('a Map.Make(Tc.S).t, 'o) t
+module Map (X: Tc.I0): sig
+  val merge: ('a, 'o) t -> ('a Map.Make(X).t, 'o) t
+end
 (** Lift to string maps. *)
 
 val pair: ('a, 'o) t -> ('b, 'o) t -> ('a * 'b, 'o) t

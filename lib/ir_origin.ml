@@ -24,54 +24,53 @@ module type S = sig
   val date: t -> int64
   val id: t -> string
   val message: t -> string
+end
+
+module type P = sig
+  val date: unit -> int64
+  val id: unit -> string
   val string_of_date: int64 -> string
 end
 
-module M = struct
-  type t = {
-    date: int64;
-    id  : string;
-    msg : string;
-  } with bin_io, compare, sexp
+module Make (P: P) = struct
+
+  module M = struct
+    type t = {
+      date: int64;
+      id  : string;
+      msg : string;
+    } with bin_io, compare, sexp
+  end
+
+  include Tc.I0(M)
+
+  let create ?date ? id fmt =
+    let date = match date with
+      | None   -> !date_hook ()
+      | Some d -> d in
+    let id = match id with
+      | None   -> !id_hook ()
+      | Some i -> i in
+    ksprintf (fun msg ->
+        { M.date; id; msg }
+      ) fmt
+
+  let date t = t.date
+  let id t = t.id
+  let message t = t.msg
+
 end
 
-include Tc.I0(M)
+module Default = Make (struct
 
-let date_hook =
-  let c = ref 0L in
-  ref (fun () -> c := Int64.add !c 1L; !c)
+  let date =
+    let c = ref 0L in
+    fun () -> c := Int64.add !c 1L; !c
 
-let set_date f =
-  date_hook := f
+  let id =
+    let r = string_of_int (Random.int 1024) in
+    fun () -> r
 
-let id_hook =
-  let r = string_of_int (Random.int 1024) in
-  ref (fun () -> r)
+  let string_of_date = Int64.to_string
 
-let set_id f =
-  id_hook := f
-
-open M
-
-let create ?date ? id fmt =
-  let date = match date with
-    | None   -> !date_hook ()
-    | Some d -> d in
-  let id = match id with
-    | None   -> !id_hook ()
-    | Some i -> i in
-  ksprintf (fun msg ->
-      { M.date; id; msg }
-    ) fmt
-
-let date t = t.date
-let id t = t.id
-let message t = t.msg
-
-let string_of_date_hook = ref Int64.to_string
-
-let string_of_date d =
-  !string_of_date_hook d
-
-let set_string_of_date fn =
-  string_of_date_hook := fn
+  end)

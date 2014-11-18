@@ -58,7 +58,8 @@ end
 module type MAKER =
   functor (K: S) ->
   functor (V: Ir_uid.S) ->
-  STORE with type key = K.t and type value = V.t
+  functor (O: Ir_origin.S) ->
+    STORE with type key = K.t and type value = V.t and type origin = O.t
 
 module Make (S: Ir_rw.MAKER): MAKER
 (** Build a tag store. *)

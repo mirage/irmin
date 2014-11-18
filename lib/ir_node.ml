@@ -17,329 +17,377 @@
 
 open Lwt
 open Sexplib.Std
-open Bin_prot.Std
 open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "NODE" end)
 
-module StringMap = struct
-  include Ir_misc.StringMap
-  let t_of_sexp fn s =
-    let fn' = Sexplib.Conv.(pair_of_sexp string_of_sexp fn) in
-    of_alist (Sexplib.Conv.list_of_sexp fn' s)
-  let sexp_of_t = to_sexp
-  let bin_size_t = size_of
-  let bin_write_t fn = Tc.Writer.(to_bin_prot (write (of_bin_prot fn)))
-  let bin_read_t fn = Tc.Reader.(to_bin_prot (read (of_bin_prot fn)))
-end
-
-module T_ = struct
-  type 'key t = {
-    contents: 'key option;
-    succ    : 'key StringMap.t;
-  } with bin_io, compare, sexp
-end
-include T_
-module T = Tc.I1(T_)
-
-let equal key_equal t1 t2 =
-  begin match t1.contents, t2.contents with
-    | Some _ , None
-    | None   , Some _  -> false
-    | Some k1, Some k2 -> key_equal k1 k2
-    | None   , None    -> true
-  end
-  && StringMap.equal key_equal t1.succ t2.succ
-
-let edges t =
-  begin match t.contents with
-    | None   -> []
-    | Some k -> [`Contents k]
-  end
-  @ StringMap.fold
-    (fun _ k acc -> `Node k :: acc)
-    t.succ []
-
-let empty =
-  { contents = None;
-    succ = StringMap.empty }
-
-let is_empty e =
-  e.contents = None && StringMap.is_empty e.succ
-
-let leaf e =
-  { contents = Some e;
-    succ = StringMap.empty }
-
-let is_leaf e =
-  e.contents <> None && StringMap.is_empty e.succ
-
-let contents_exn e =
-  match e.contents with
-  | None   -> raise Not_found
-  | Some c -> c
-
 module type S = sig
-  type key
-  type nonrec t = key t
-  include Ir_contents.S with type t := t
+  include Ir_contents.S
+  type contents
+  type node
+  type step
+  val contents: t -> contents option
+  val contents_exn: t -> contents
+  val succ: t -> (step * node) list
+  val edges: t -> [`Contents of contents | `Node of node] list
+  val empty: t
+  val leaf: contents -> t
+  val create: ?contents:contents -> (step * node) list -> t
+  val is_empty: t -> bool
+  val is_leaf: t -> bool
 end
 
 module type STORE = sig
-  type key
+  include Ir_ao.STORE
   type contents
-  type path = Ir_path.t
-  type value = key t
-  include Ir_ao.S with type key := key and type value := value
-  val node: t -> ?contents:contents -> ?succ:(string * value) list ->
+  type step
+  module Step: Tc.I0 with type t = step
+  val empty: value
+  val node: t -> origin -> ?contents:contents -> ?succ:(step * value) list ->
     unit -> (key * value) Lwt.t
-  val contents: t -> value -> contents Lwt.t option
-  val succ: t -> value -> value Lwt.t StringMap.t
-  val sub: t -> value -> path -> value option Lwt.t
-  val sub_exn: t -> value -> path -> value Lwt.t
-  val map: t -> value -> path -> (value -> value) -> value Lwt.t
-  val update: t -> value -> path -> contents -> value Lwt.t
-  val find: t -> value -> path -> contents option Lwt.t
-  val find_exn: t -> value -> path -> contents Lwt.t
-  val remove: t -> value -> path -> value Lwt.t
-  val valid: t -> value -> path -> bool Lwt.t
-  val merge: t -> key Ir_merge.t
+  val contents: t -> origin -> value -> contents Lwt.t option
+  val succ: t -> origin -> value -> value Lwt.t Map.Make(Step).t
+  val sub: t -> origin -> value -> step list -> value option Lwt.t
+  val sub_exn: t -> origin -> value -> step list -> value Lwt.t
+  val map: t -> origin -> value -> step list -> (value -> value) -> value Lwt.t
+  val update: t -> origin -> value -> step list -> contents -> value Lwt.t
+  val find: t -> origin -> value -> step list -> contents option Lwt.t
+  val find_exn: t -> origin -> value -> step list -> contents Lwt.t
+  val remove: t -> origin -> value -> step list -> value Lwt.t
+  val valid: t -> origin -> value -> step list -> bool Lwt.t
+  val merge: t -> (key, origin) Ir_merge.t
+  module Contents: Ir_contents.STORE
+    with type value = contents
+     and type origin = origin
+  val contents_t: t -> Contents.t
   module Key: Ir_uid.S with type t = key
-  module Value: S with type key = key
+  module Value: S
+    with type t = value
+     and type node = key
+     and type contents = Contents.key
+     and type step = step
 end
 
-module S (K: Ir_uid.S) = struct
-  type key = K.t
-  module S = Tc.App1(T)(K)
-  include S
-  let merge = Ir_merge.default (module S)
-end
-
-module SHA1 = S(Ir_uid.SHA1)
+module type MAKER =
+  functor (K: Ir_uid.S) ->
+  functor (S: Ir_path.STEP) ->
+  functor (C: Ir_contents.STORE) ->
+    STORE with type key = K.t
+           and type step = S.t
+           and type contents = C.value
+           and type origin = C.origin
+           and module Contents = C
 
 module Make
-    (K: Ir_uid.S)
-    (C: Ir_contents.S)
-    (Contents: Ir_contents.STORE with type key = K.t and type value = C.t)
-    (Node: Ir_ao.S with type key = K.t and type value = K.t t) =
- struct
+    (Node: Ir_ao.MAKER)
+    (K: Ir_uid.S) (S: Ir_path.STEP)  (C: Ir_contents.STORE)
+= struct
+
+  module Contents = C
+  module Step = S
+  module StepMap = Ir_misc.Map(Step)
+
+  module Value = struct
+
+    module Origin = C.Value.Origin
+    type origin = Origin.t
+    type contents = C.key
+    type node = K.t
+    type step = S.t
+
+    type t = {
+      contents: contents option;
+      succ    : node StepMap.t;
+    }
+
+    let create ?contents succ = { contents; succ = StepMap.of_alist succ }
+    let hash = Hashtbl.hash
+    let compare = Pervasives.compare
+    let contents t = t.contents
+    let succ t = StepMap.to_alist t.succ
+
+    let equal t1 t2 =
+      begin match t1.contents, t2.contents with
+        | Some _ , None
+        | None   , Some _  -> false
+        | Some k1, Some k2 -> C.Key.equal k1 k2
+        | None   , None    -> true
+      end
+      && StepMap.equal K.equal t1.succ t2.succ
+
+    let to_sexp t =
+      let open Sexplib.Type in
+      let open Sexplib.Conv in
+      List [
+        List [ Atom "contents"; sexp_of_option C.Key.to_sexp t.contents ];
+        List [ Atom "succ"    ; StepMap.to_sexp K.to_sexp t.succ ];
+      ]
+
+    let to_json t =
+      `O [
+        ("contents", Ezjsonm.option C.Key.to_json t.contents);
+        ("succ"    , StepMap.to_json K.to_json t.succ);
+      ]
+
+    let of_json j =
+      let contents =
+        try Ezjsonm.find j ["contents"] |> Ezjsonm.get_option C.Key.of_json
+        with Not_found -> None
+      in
+      let succ =
+        try Ezjsonm.find j ["succ"] |> StepMap.of_json K.of_json
+        with Not_found -> StepMap.empty
+      in
+      { contents; succ }
+
+    module P = Tc.App2(Tc.P)( Tc.App1(Tc.O)(C.Key) )( Tc.App1(StepMap)(K) )
+
+    let write t = P.write (t.contents, t.succ)
+    let size_of t = P.size_of (t.contents, t.succ)
+    let read b = let contents, succ = P.read b in { contents; succ }
+
+    let edges t =
+      begin match t.contents with
+        | None   -> []
+        | Some k -> [`Contents k]
+      end
+      @ StepMap.fold
+        (fun _ k acc -> `Node k :: acc)
+        t.succ []
+
+    let empty =
+      { contents = None;
+        succ = StepMap.empty }
+
+    let is_empty e =
+      e.contents = None && StepMap.is_empty e.succ
+
+    let leaf e =
+      { contents = Some e;
+        succ = StepMap.empty }
+
+    let is_leaf e =
+      e.contents <> None && StepMap.is_empty e.succ
+
+    let contents_exn e =
+      match e.contents with
+      | None   -> raise Not_found
+      | Some c -> c
+
+    let merge _ ~old:_ _ _ = Ir_merge.OP.conflict "node"
+
+  end
+
+  module N = Node(K)(Value)(Value.Origin)
 
   module Key = K
 
-  module Value = S(K)
+  type origin = N.origin
+  type step = S.t
 
   type key = K.t
+  type contents = C.value
+  type value = Value.t
+  type t = C.t * N.t
 
-  type contents = C.t
+  let contents_t (t:t) = fst t
 
-  type path = Ir_path.t
-
-  type value = K.t t
-
-  type t = Contents.t * Node.t
+  let empty = Value.empty
 
   let create () =
-    Contents.create () >>= fun c ->
-    Node.create ()     >>= fun t ->
+    C.create () >>= fun c ->
+    N.create ()     >>= fun t ->
     return (c, t)
 
-  let add (_, t) n = match n with
-    | { contents = Some k; _ } ->
-      if StringMap.is_empty n.succ then return k else Node.add t n
-    | _                     -> Node.add t n
+  let add (_, t) origin n =
+    N.add t origin n
 
-  (* "leaf" nodes (ie. with no succ and some contents) are not
-     duplicated: they are isomorphic to the contents itself and so:
-     they live in the contents store and have the same key than their
-     contents. *)
- let read (c, t) key =
-    Node.read t key >>= function
-    | Some _ as x -> return x
-    | None        ->
-      Contents.mem c key >>= function
-      | true  -> return (Some (leaf key))
-      | false -> return_none
+ let read (_, t) origin key =
+    N.read t origin key
 
-  let read_exn t key =
-    read t key >>= function
+  let read_exn t origin key =
+    read t origin key >>= function
     | None   ->
       Log.debugf "Not_found: %a" force (show (module K) key);
       fail Not_found
     | Some v -> return v
 
-  let mem (c, t) key =
-    Node.mem t key >>= function
-    | false -> Contents.mem c key
-    | true  -> return true
+  let mem (_, t) origin key =
+    N.mem t origin key
 
-  module Graph = Ir_graph.Make(K)(Ir_tag.String)
+  module Graph = Ir_graph.Make(C.Key)(K)(Tc.U)(Tc.U)
 
-  let list t keys =
+  let list t origin keys =
     Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
-      | `Node k -> read_exn t k >>= fun node -> return (edges node)
+      | `Node k -> read_exn t origin k >>= fun node -> return (Value.edges node)
       | _       -> return_nil in
-    let max = Ir_graph.of_nodes keys in
+    let max = List.map (fun x -> `Node x) keys in
     Graph.closure ~pred max >>= fun g ->
-    let keys = Ir_graph.to_nodes (Graph.vertex g) in
+    let keys =
+      Ir_misc.list_filter_map
+        (function `Node x -> Some x | _ -> None)
+        (Graph.vertex g)
+    in
     return keys
 
-  let dump (_, t) =
-    Node.dump t
+  let dump (_, t) origin =
+    N.dump t origin
 
-  let node (c, _ as t) ?contents ?(succ=[]) () =
+  let node (c, _ as t) origin ?contents ?(succ=[]) () =
     begin match contents with
       | None          -> return_none
       | Some contents ->
-        Contents.add c contents >>= fun k ->
+        C.add c origin contents >>= fun k ->
         return (Some k)
     end >>= fun contents ->
     begin
       Lwt_list.map_p (fun (l, node) ->
-          add t node >>= fun k ->
+          add t origin node >>= fun k ->
           return (l, k)
         ) succ
     end >>= fun succ ->
-    let succ = StringMap.of_alist succ in
-    let node = { contents; succ } in
-    add t node >>= fun key ->
+    let succ = StepMap.of_alist succ in
+    let node = { Value.contents; succ } in
+    add t origin node >>= fun key ->
     return (key, node)
 
   (* Ir_merge the contents values together. *)
   let merge_contents c =
-    Ir_merge.some (Contents.merge c)
+    Ir_merge.some (C.merge c)
+
+  module MMap = Ir_merge.Map(Step)
 
   let merge_value (c, _) merge_key =
-    let explode n = (n.contents, n.succ) in
-    let implode (contents, succ) = { contents; succ } in
+    let explode { Value.contents; succ } = (contents, succ) in
+    let implode (contents, succ) = { Value.contents; succ } in
     let merge_pair = Ir_merge.pair
         (merge_contents c)
-        (Ir_merge.string_map merge_key)
+        (MMap.merge merge_key)
     in
     Ir_merge.biject (module Value) merge_pair implode explode
 
-  let merge t =
+  let merge t origin ~old x y =
     let rec merge_key () =
       Log.debugf "merge";
       let merge = merge_value t (Ir_merge.apply (module K) merge_key ()) in
-      Ir_merge.biject' (module K) merge (add t) (read_exn t) in
-    merge_key ()
+      Ir_merge.biject' (module K) merge (add t origin) (read_exn t origin) in
+    merge_key () origin ~old x y
 
-  let contents (c, _) n =
-    match n.contents with
+  let contents (c, _) origin n =
+    match n.Value.contents with
     | None   -> None
-    | Some k -> Some (Contents.read_exn c k)
+    | Some k -> Some (C.read_exn c origin k)
 
-  let succ t node =
-    StringMap.map (fun k -> read_exn t k) node.succ
+  let succ t origin node =
+    StepMap.map (read_exn t origin) node.Value.succ
 
-  let next t node label =
-    try read t (StringMap.find label node.succ)
+  let next t origin node label =
+    try read t origin (StepMap.find label node.Value.succ)
     with Not_found -> return_none
 
-  let sub_exn t node path =
+  let sub_exn t origin node path =
     let rec aux node path =
       match path with
       | []    -> return node
       | h::tl ->
-        next t node h >>= function
+        next t origin node h >>= function
         | None      -> fail Not_found
         | Some node -> aux node tl in
     aux node path
 
-  let sub t node path =
+  let sub t origin node path =
     catch
       (fun () ->
-         sub_exn t node path >>= fun node ->
+         sub_exn t origin node path >>= fun node ->
          return (Some node))
       (function Not_found -> return_none | e -> fail e)
 
-  let find_exn t node path =
-    Log.debugf "find_exn %a" force (show (module Ir_path) path);
-    sub t node path >>= function
+  let find_exn t origin node path =
+    Log.debugf "find_exn %a" force (shows (module S) path);
+    sub t origin node path >>= function
     | None      ->
       Log.debugf "subpath not found";
       fail Not_found
     | Some node ->
-      match contents t node with
+      match contents t origin node with
       | None   ->
         Log.debugf "contents not found";
         fail Not_found
       | Some b -> b
 
-  let find t node path =
-    Log.debugf "find %a" force (show (module Ir_path) path);
-    sub t node path >>= function
+  let find t origin node path =
+    Log.debugf "find %a" force (shows (module S) path);
+    sub t origin node path >>= function
     | None      -> return_none
     | Some node ->
-      match contents t node with
+      match contents t origin node with
       | None   -> return_none
       | Some b -> b >>= fun b -> return (Some b)
 
-  let valid t node path =
-    Log.debugf "valid %a" force (show (module Ir_path) path);
-    sub t node path >>= function
+  let valid t origin node path =
+    Log.debugf "valid %a" force (shows (module S) path);
+    sub t origin node path >>= function
     | None      -> return false
     | Some node ->
-      match contents t node with
+      match contents t origin node with
       | None   -> return false
       | Some _ -> return true
 
-  let map_children t children f label =
-    Log.debugf "map_children %s" label;
+  let map_children t origin children f label =
+    Log.debugf "map_children %a" force (show (module S) label);
     let old_key =
-      try Some (StringMap.find label children)
+      try Some (StepMap.find label children)
       with Not_found -> None in
     begin match old_key with
-      | None   -> return empty
-      | Some k -> read_exn t k
+      | None   -> return Value.empty
+      | Some k -> read_exn t origin k
     end >>= fun old_node ->
     f old_node >>= fun node ->
-    if equal K.equal old_node node then
+    if Value.equal old_node node then
       return children
     else (
       begin
-        if is_empty node then return_none
+        if Value.is_empty node then return_none
         else
-          add t node >>= fun k ->
+          add t origin node >>= fun k ->
           return (Some k)
       end >>= fun key ->
       let children = match old_key, key with
         | None  , None     -> children
-        | Some _, None     -> StringMap.remove label children
-        | None  , Some k   -> StringMap.add label k children
+        | Some _, None     -> StepMap.remove label children
+        | None  , Some k   -> StepMap.add label k children
         | Some k1, Some k2 ->
           if K.equal k1 k2 then children
-          else StringMap.add label k2 children in
+          else StepMap.add label k2 children in
       return children
     )
 
-  let map t node path f =
+  let map t origin node path f =
     let rec aux node = function
       | []      -> return (f node)
       | h :: tl ->
-        map_children t node.succ (fun node -> aux node tl) h >>= fun succ ->
-        return { node with succ } in
+        map_children t origin node.Value.succ (fun node -> aux node tl) h
+        >>= fun succ ->
+        return { node with Value.succ } in
     aux node path
 
-  let remove t node path =
-    Log.debugf "remove %a" force (show (module Ir_path) path);
-    map t node path (fun _ -> empty)
+  let remove t origin node path =
+    Log.debugf "remove %a" force (shows (module S) path);
+    map t origin node path (fun _ -> Value.empty)
 
-  let update (c, _ as t) node path value =
-    Log.debugf "update %a" force (show (module Ir_path) path);
-    Contents.add c value >>= fun k  ->
-    map t node path (fun node -> { node with contents = Some k }) >>= fun n ->
-    return n
+  let update (c, _ as t) origin node path value =
+    Log.debugf "update %a" force (shows (module S) path);
+    C.add c origin value >>= fun k  ->
+    map t origin node path (fun node -> { node with Value.contents = Some k })
 
 end
 
 module Rec (S: STORE) = struct
   include S.Key
-  let merge =
-    let merge ~origin ~old k1 k2 =
-      S.create ()  >>= fun t  ->
-      Ir_merge.merge (S.merge t) ~origin ~old k1 k2
-    in
-    Ir_merge.create' (module S.Key) merge
+  module Origin = S.Contents.Value.Origin
+  type origin = Origin.t
+  let merge origin ~old k1 k2 =
+    S.create ()  >>= fun t  ->
+    S.merge t origin ~old k1 k2
 end

@@ -49,23 +49,28 @@ module String = struct
     | Some s -> s
 end
 
+
 module type STORE = sig
-  include Ir_rw.S
+  include Ir_rw.STORE
   module Key: S with type t = key
   module Value: Ir_uid.S with type t = value
 end
 
-module Make
-    (K: S)
-    (V: Ir_uid.S)
-    (S: Ir_rw.S with type key = K.t and type value = V.t)
-= struct
+
+module type MAKER =
+  functor (K: S) ->
+  functor (V: Ir_uid.S) ->
+  functor (O: Ir_origin.S) ->
+    STORE with type key = K.t and type value = V.t and type origin = O.t
+
+module Make (S: Ir_rw.MAKER) (K: S) (V: Ir_uid.S) (O: Ir_origin.S) = struct
+
   module Key = K
   module Value = V
-  include S
+  include S(K)(V)(O)
 
   (* XXX: here, all the tags are public, is it what we want? *)
-  let list t _ =
-    dump t >>= fun l ->
+  let list t origin _ =
+    dump t origin >>= fun l ->
     return (List.map fst l)
 end
