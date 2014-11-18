@@ -345,7 +345,6 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: use_irmin-server
 <examples/*.ml{,i,y}>: use_irmin-unix
 # OASIS_STOP
-<lib/ir_commit.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/ir_contents.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/ir_node.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 <lib/ir_merge.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax

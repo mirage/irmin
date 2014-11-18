@@ -75,7 +75,9 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
       node   : KN.t option;
       parents: K.t list;
       origin : O.t;
-    } with compare
+    }
+
+    let compare = Pervasives.compare
 
     type origin = O.t
     type node = KN.t
