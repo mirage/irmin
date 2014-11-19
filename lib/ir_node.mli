@@ -138,7 +138,7 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   (** Base functions for keys. *)
 
-  module Value: S
+  module Val: S
     with type t = value
      and type node = key
      and type contents = Contents.key
@@ -149,7 +149,7 @@ end
 
 module type MAKER =
   functor (K: Ir_uid.S) ->
-  functor (S: Ir_path.STEP) ->
+  functor (S: Ir_step.S) ->
   functor (C: Ir_contents.STORE) ->
     STORE with type key = K.t
            and type step = S.t

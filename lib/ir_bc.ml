@@ -56,7 +56,11 @@ module type STORE = sig
   val read_node: t -> key -> Block.Node.value option Lwt.t
   val update_node: t -> origin -> key -> Block.Node.value -> unit Lwt.t
   val watch_node: t -> key -> (key * Block.Node.key) Lwt_stream.t
-  module Graph: Ir_graph.S with type V.t = (Block.key, Tag.key) Ir_graph.vertex
+  module Graph: Ir_graph.S with type V.t =
+    [ `Contents of Block.Contents.key
+    | `Node of Block.Node.key
+    | `Commit of Block.Commit.key
+    | `Tag of Tag.key ]
 end
 
 module type MAKER =

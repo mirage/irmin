@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4b1d4c74b64b8759b6f149e902443fbe)
+# DO NOT EDIT (digest: 4007ebf32502b631681142d3d7da914d)
 Ir_misc
 Ir_graph
 Ir_uid
@@ -15,7 +15,7 @@ Ir_backend
 Ir_node
 Ir_version
 Ir_dump
-Ir_path
+Ir_step
 Ir_watch
 Ir_merge
 Ir_view

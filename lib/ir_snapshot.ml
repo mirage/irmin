@@ -43,7 +43,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
   type db = S.t
   type state = N.key
 
-  module Path = Ir_path.Make(N.Step)
+  module Path = Ir_step.Path(N.Step)
   module PathSet = Ir_misc.Set(Path)
   module StepMap = Ir_misc.Map(N.Step)
 
@@ -61,7 +61,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
     | Some c ->
       C.read (S.commit_t db) origin c >>= function
       | None   -> fail Not_found
-      | Some c -> match C.Value.node c with
+      | Some c -> match C.Val.node c with
         | None   -> fail Not_found
         | Some k -> return (db, (k: state))
 
@@ -113,7 +113,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
       | None   -> return_nil
       | Some h -> return [h]
     end >>= fun parents ->
-    let c = C.Value.create origin ~node:(state s) ~parents in
+    let c = C.Val.create origin ~node:(state s) ~parents in
     C.add (S.commit_t t) origin c
 
   let revert t origin s =

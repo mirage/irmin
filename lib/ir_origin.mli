@@ -22,6 +22,7 @@ module type S = sig
   val date: t -> int64
   val id: t -> string
   val message: t -> string
+  val string_date: t -> string
 end
 
 module type P = sig

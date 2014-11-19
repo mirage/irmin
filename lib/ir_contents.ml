@@ -33,7 +33,7 @@ module type STORE = sig
   include Ir_ao.STORE
   val merge: t -> (key, origin) Ir_merge.t
   module Key: Ir_uid.S with type t = key
-  module Value: S with type t = value and type origin = origin
+  module Val: S with type t = value and type origin = origin
 end
 
 module String (O: Ir_origin.S) = struct
@@ -95,7 +95,7 @@ module JSON (O: Ir_origin.S) = struct
 
   (* XXX: replace by a clever merge function *)
   let merge =
-    Ir_merge.(biject (module S) string of_string to_string)
+    Ir_merge.(biject (module Tc.S) (module S) string of_string to_string)
 
 end
 
@@ -109,17 +109,18 @@ module Make (S: Ir_ao.MAKER) (K: Ir_uid.S) (V: S) = struct
   include S(K)(V)(V.Origin)
 
   module Key  = K
-  module Value = V
+  module Val = V
 
   let merge t origin =
-    Ir_merge.biject' (module K) V.merge (add t origin) (read_exn t origin)
+    Ir_merge.biject'
+      (module V) (module K) V.merge (add t origin) (read_exn t origin)
       origin
 
 end
 
 module Rec (S: STORE) = struct
   include S.Key
-  module Origin = S.Value.Origin
+  module Origin = S.Val.Origin
   type origin = S.origin
   let merge origin ~old k1 k2 =
     S.create ()  >>= fun t  ->

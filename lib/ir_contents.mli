@@ -60,7 +60,7 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   (** Base functions for foreign keys. *)
 
-  module Value: S with type t = value and type origin = origin
+  module Val: S with type t = value and type origin = origin
   (** Base functions for values. *)
 
 end

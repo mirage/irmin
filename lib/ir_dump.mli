@@ -23,15 +23,26 @@ module type S = sig
   type t
   (** Local database handlers. *)
 
-  val output_buffer: t -> ?depth:int -> ?full:bool -> Buffer.t -> unit Lwt.t
-  (** [output_buffer name] creates a Graphviz file [name.dot]
-      representing the store state. If [full] is set (it is not by
-      default), the full graph, included the filesystem and blobs is
-      exported, otherwise it is the history graph only.  *)
+  type origin
+  (** Type for tracking operation provenance. *)
+
+  val output_buffer:
+    t -> origin -> ?html:bool -> ?depth:int -> ?full:bool ->
+    Buffer.t -> unit Lwt.t
+  (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
+      representation of [t] in the buffer [buf].
+
+      [html] (default is false) enables HTML labels.
+
+      [depth] is used to limit the depth of the commit history. [None]
+      here means no limitation.
+
+      If [full] is set (default is not) the full graph, including the
+      commits, nodes and contents, is exported, otherwise it is the
+      commit history graph only. *)
 
 end
 
-module Make (B: Ir_block.STORE) (T: Ir_tag.STORE with type value = B.Commit.key):
-  S
+module Make (S: Ir_bc.STORE_EXT): S
 (** Extend a branch consistent store with import/export
     capabilities. *)

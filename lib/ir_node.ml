@@ -61,7 +61,7 @@ module type STORE = sig
      and type origin = origin
   val contents_t: t -> Contents.t
   module Key: Ir_uid.S with type t = key
-  module Value: S
+  module Val: S
     with type t = value
      and type node = key
      and type contents = Contents.key
@@ -70,7 +70,7 @@ end
 
 module type MAKER =
   functor (K: Ir_uid.S) ->
-  functor (S: Ir_path.STEP) ->
+  functor (S: Ir_step.S) ->
   functor (C: Ir_contents.STORE) ->
     STORE with type key = K.t
            and type step = S.t
@@ -80,16 +80,16 @@ module type MAKER =
 
 module Make
     (Node: Ir_ao.MAKER)
-    (K: Ir_uid.S) (S: Ir_path.STEP)  (C: Ir_contents.STORE)
+    (K: Ir_uid.S) (S: Ir_step.S)  (C: Ir_contents.STORE)
 = struct
 
   module Contents = C
   module Step = S
   module StepMap = Ir_misc.Map(Step)
 
-  module Value = struct
+  module Val = struct
 
-    module Origin = C.Value.Origin
+    module Origin = C.Val.Origin
     type origin = Origin.t
     type contents = C.key
     type node = K.t
@@ -140,7 +140,9 @@ module Make
       in
       { contents; succ }
 
-    module P = Tc.App2(Tc.P)( Tc.App1(Tc.O)(C.Key) )( Tc.App1(StepMap)(K) )
+    module Contents = Tc.App1(Tc.O)(C.Key)
+    module Parents = Tc.App1(StepMap)(K)
+    module P = Tc.App2(Tc.P)(Contents)(Parents)
 
     let write t = P.write (t.contents, t.succ)
     let size_of t = P.size_of (t.contents, t.succ)
@@ -178,7 +180,7 @@ module Make
 
   end
 
-  module N = Node(K)(Value)(Value.Origin)
+  module N = Node(K)(Val)(Val.Origin)
 
   module Key = K
 
@@ -187,12 +189,12 @@ module Make
 
   type key = K.t
   type contents = C.value
-  type value = Value.t
+  type value = Val.t
   type t = C.t * N.t
 
   let contents_t (t:t) = fst t
 
-  let empty = Value.empty
+  let empty = Val.empty
 
   let create () =
     C.create () >>= fun c ->
@@ -220,7 +222,7 @@ module Make
   let list t origin keys =
     Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
-      | `Node k -> read_exn t origin k >>= fun node -> return (Value.edges node)
+      | `Node k -> read_exn t origin k >>= fun node -> return (Val.edges node)
       | _       -> return_nil in
     let max = List.map (fun x -> `Node x) keys in
     Graph.closure ~pred max >>= fun g ->
@@ -248,42 +250,45 @@ module Make
         ) succ
     end >>= fun succ ->
     let succ = StepMap.of_alist succ in
-    let node = { Value.contents; succ } in
+    let node = { Val.contents; succ } in
     add t origin node >>= fun key ->
     return (key, node)
 
   (* Ir_merge the contents values together. *)
   let merge_contents c =
-    Ir_merge.some (C.merge c)
+    Ir_merge.some (module C.Key) (C.merge c)
 
   module MMap = Ir_merge.Map(Step)
 
   let merge_value (c, _) merge_key =
-    let explode { Value.contents; succ } = (contents, succ) in
-    let implode (contents, succ) = { Value.contents; succ } in
-    let merge_pair = Ir_merge.pair
+    let explode { Val.contents; succ } = (contents, succ) in
+    let implode (contents, succ) = { Val.contents; succ } in
+    let merge_pair =
+      Ir_merge.pair (module Val.Contents) (module Val.Parents)
         (merge_contents c)
-        (MMap.merge merge_key)
+        (MMap.merge (module K) merge_key)
     in
-    Ir_merge.biject (module Value) merge_pair implode explode
+    Ir_merge.biject (module Val.P) (module Val) merge_pair implode explode
 
   let merge t origin ~old x y =
     let rec merge_key () =
       Log.debugf "merge";
-      let merge = merge_value t (Ir_merge.apply (module K) merge_key ()) in
-      Ir_merge.biject' (module K) merge (add t origin) (read_exn t origin) in
+      let merge = merge_value t (Ir_merge.apply merge_key ()) in
+      Ir_merge.biject'
+        (module Val) (module K) merge (add t origin) (read_exn t origin)
+    in
     merge_key () origin ~old x y
 
   let contents (c, _) origin n =
-    match n.Value.contents with
+    match n.Val.contents with
     | None   -> None
     | Some k -> Some (C.read_exn c origin k)
 
   let succ t origin node =
-    StepMap.map (read_exn t origin) node.Value.succ
+    StepMap.map (read_exn t origin) node.Val.succ
 
   let next t origin node label =
-    try read t origin (StepMap.find label node.Value.succ)
+    try read t origin (StepMap.find label node.Val.succ)
     with Not_found -> return_none
 
   let sub_exn t origin node path =
@@ -340,15 +345,15 @@ module Make
       try Some (StepMap.find label children)
       with Not_found -> None in
     begin match old_key with
-      | None   -> return Value.empty
+      | None   -> return Val.empty
       | Some k -> read_exn t origin k
     end >>= fun old_node ->
     f old_node >>= fun node ->
-    if Value.equal old_node node then
+    if Val.equal old_node node then
       return children
     else (
       begin
-        if Value.is_empty node then return_none
+        if Val.is_empty node then return_none
         else
           add t origin node >>= fun k ->
           return (Some k)
@@ -367,25 +372,25 @@ module Make
     let rec aux node = function
       | []      -> return (f node)
       | h :: tl ->
-        map_children t origin node.Value.succ (fun node -> aux node tl) h
+        map_children t origin node.Val.succ (fun node -> aux node tl) h
         >>= fun succ ->
-        return { node with Value.succ } in
+        return { node with Val.succ } in
     aux node path
 
   let remove t origin node path =
     Log.debugf "remove %a" force (shows (module S) path);
-    map t origin node path (fun _ -> Value.empty)
+    map t origin node path (fun _ -> Val.empty)
 
   let update (c, _ as t) origin node path value =
     Log.debugf "update %a" force (shows (module S) path);
     C.add c origin value >>= fun k  ->
-    map t origin node path (fun node -> { node with Value.contents = Some k })
+    map t origin node path (fun node -> { node with Val.contents = Some k })
 
 end
 
 module Rec (S: STORE) = struct
   include S.Key
-  module Origin = S.Contents.Value.Origin
+  module Origin = S.Contents.Val.Origin
   type origin = Origin.t
   let merge origin ~old k1 k2 =
     S.create ()  >>= fun t  ->

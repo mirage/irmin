@@ -48,7 +48,7 @@ module type STORE = sig
      and type origin = origin
   val node_t: t -> Node.t
   module Key: Ir_uid.S with type t = key
-  module Value: S
+  module Val: S
     with type t = value
      and type commit = key
      and type origin = origin
@@ -66,10 +66,10 @@ module type MAKER =
 
 module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
 
-  module O = N.Contents.Value.Origin
+  module O = N.Contents.Val.Origin
   module KN = N.Key
 
-  module Value = struct
+  module Val = struct
 
     type t = {
       node   : KN.t option;
@@ -167,11 +167,11 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
 
   end
 
-  module C = C(K)(Value)(O)
+  module C = C(K)(Val)(O)
 
   type key = K.t
   type origin = N.origin
-  type value = Value.t
+  type value = Val.t
   type t = N.t * C.t
   type node = N.value
 
@@ -197,7 +197,7 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
     C.mem t origin c
 
   let node (n, _) origin c =
-    match c.Value.node with
+    match c.Val.node with
     | None   -> None
     | Some k -> Some (N.read_exn n origin k)
 
@@ -209,19 +209,19 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
     >>= fun node ->
     Lwt_list.map_p (C.add c origin) parents
     >>= fun parents ->
-    let commit = { Value.node; parents; origin } in
+    let commit = { Val.node; parents; origin } in
     C.add c origin commit >>= fun key ->
     return (key, commit)
 
   let parents t origin c =
-    List.map (read_exn t origin) c.Value.parents
+    List.map (read_exn t origin) c.Val.parents
 
   module Graph = Ir_graph.Make(N.Contents.Key)(KN)(K)(Tc.U)
 
   let list t origin ?depth keys =
     Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
-      | `Commit k -> read_exn t origin k >>= fun r -> return (Value.edges r)
+      | `Commit k -> read_exn t origin k >>= fun r -> return (Val.edges r)
       | _         -> return_nil in
     let max = List.map (fun k -> `Commit k) keys in
     Graph.closure ?depth max ~pred >>= fun g ->
@@ -236,16 +236,16 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
     C.dump t
 
   let merge_node n =
-    Ir_merge.some (N.merge n)
+    Ir_merge.some (module KN) (N.merge n)
 
   let merge (n, _ as t) origin ~old k1 k2 =
     read_exn t origin old >>= fun vold ->
     read_exn t origin k1  >>= fun v1   ->
     read_exn t origin k2  >>= fun v2   ->
-    merge_node n origin ~old:vold.Value.node v1.Value.node v2.Value.node >>|
+    merge_node n origin ~old:vold.Val.node v1.Val.node v2.Val.node >>|
     fun node ->
     let parents = [k1; k2] in
-    let commit = { Value.node; parents; origin } in
+    let commit = { Val.node; parents; origin } in
     add t origin commit >>= fun key ->
     ok key
 
@@ -264,7 +264,7 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
           let parents todo =
             let parents_of_commit seen c =
               read_exn t origin c >>= fun v ->
-              let parents = KSet.of_list v.Value.parents in
+              let parents = KSet.of_list v.Val.parents in
               return (KSet.diff parents seen) in
             Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
           in
@@ -289,7 +289,7 @@ end
 
 module Rec (S: STORE) = struct
   include S.Key
-  module Origin = S.Node.Contents.Value.Origin
+  module Origin = S.Node.Contents.Val.Origin
   type origin = S.origin
   let merge origin ~old k1 k2 =
     S.create () >>= fun t  ->

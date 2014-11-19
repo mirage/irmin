@@ -44,16 +44,15 @@ module String = struct
     Cstruct.shift buf len
 
   let read buf =
-    match Mstruct.get_string_delim buf '\000' with
-    | None   -> Mstruct.get_string buf (Mstruct.length buf)
-    | Some s -> s
+    Mstruct.get_string buf (Mstruct.length buf)
+
 end
 
 
 module type STORE = sig
   include Ir_rw.STORE
   module Key: S with type t = key
-  module Value: Ir_uid.S with type t = value
+  module Val: Ir_uid.S with type t = value
 end
 
 
@@ -66,7 +65,7 @@ module type MAKER =
 module Make (S: Ir_rw.MAKER) (K: S) (V: Ir_uid.S) (O: Ir_origin.S) = struct
 
   module Key = K
-  module Value = V
+  module Val = V
   include S(K)(V)(O)
 
   (* XXX: here, all the tags are public, is it what we want? *)

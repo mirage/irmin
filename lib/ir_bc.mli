@@ -160,6 +160,13 @@ module type STORE_EXT = sig
   (** Watch commit changes. Return the stream of commit
       identifiers. *)
 
+  module Graph: Ir_graph.S with type V.t =
+    [ `Contents of Block.Contents.key
+    | `Node of Block.Node.key
+    | `Commit of Block.Commit.key
+    | `Tag of Tag.key ]
+  (** The global graph of internal objects. *)
+
 end
 
 module type MAKER_EXT =

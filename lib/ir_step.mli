@@ -16,9 +16,9 @@
 
 (** Tree path handling. *)
 
-module type STEP = Tc.I0
+module type S = Tc.I0
 
-module String: STEP with type t = string
+module String: S with type t = string
 (** A path step where elements are strings. *)
 
-module Make (S: STEP): Tc.I0 with type t = S.t list
+module Path (S: S): Tc.I0 with type t = S.t list

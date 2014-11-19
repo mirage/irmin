@@ -89,7 +89,7 @@ module type STORE = sig
   module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)
 
-  module Value: S
+  module Val: S
     with type t = value
      and type commit = key
      and type origin = origin

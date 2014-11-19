@@ -50,7 +50,7 @@ module type STORE = sig
   module Key: S with type t = key
   (** Base functions over keys. *)
 
-  module Value: Ir_uid.S with type t = value
+  module Val: Ir_uid.S with type t = value
   (** Base functions over values. *)
 
 end
