@@ -100,15 +100,11 @@ module Make
       | `O [ "tag", x ] -> `Tag (Tag.of_json x)
       | j -> failwith ("Vertex.of_json parse error: " ^ Ezjsonm.to_string j)
 
-    let tag buf i =
-      Cstruct.set_uint8 buf 0 i;
-      Cstruct.shift buf 1
-
     let write t buf = match t with
-      | `Contents x -> Contents.write x (tag buf 0)
-      | `Node x -> Node.write x (tag buf 1)
-      | `Commit x -> Commit.write x (tag buf 2)
-      | `Tag x -> Tag.write x (tag buf 3)
+      | `Contents x -> Contents.write x (Ir_misc.tag buf 0)
+      | `Node x -> Node.write x (Ir_misc.tag buf 1)
+      | `Commit x -> Commit.write x (Ir_misc.tag buf 2)
+      | `Tag x -> Tag.write x (Ir_misc.tag buf 3)
 
     let size_of t = 1 + match t with
       | `Contents x -> Contents.size_of x
@@ -116,7 +112,7 @@ module Make
       | `Commit x -> Commit.size_of x
       | `Tag x -> Tag.size_of x
 
-    let read buf = match Mstruct.get_uint8 buf with
+    let read buf = match Ir_misc.untag buf with
       | 0 -> `Contents (Contents.read buf)
       | 1 -> `Node (Node.read buf)
       | 2 -> `Commit (Commit.read buf)

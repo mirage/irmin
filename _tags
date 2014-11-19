@@ -345,11 +345,5 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: use_irmin-server
 <examples/*.ml{,i,y}>: use_irmin-unix
 # OASIS_STOP
-<lib/ir_contents.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/ir_node.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/ir_merge.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/ir_view.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/ir_origin.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
-<lib/ir_bc.ml>: pkg_comparelib.syntax, pkg_sexplib.syntax, pkg_bin_prot.syntax
 true: bin_annot, annot, debug
 true: warn_error_A, warn(A-4-41-44)

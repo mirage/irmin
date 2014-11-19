@@ -24,14 +24,52 @@ module Log = Log.Make(struct let section = "MERGE" end)
 
 module type S = Tc.I0
 
-module R_ = struct
-  type 'a t =
-    [ `Ok of 'a
-    | `Conflict of string ]
-  with bin_io, compare, sexp
+type 'a result =
+  [ `Ok of 'a
+  | `Conflict of string ]
+
+module R = struct
+
+  type 'a t = 'a result
+
+  let equal equal_a x y = match x, y with
+    | `Ok x, `Ok y -> equal_a x y
+    | `Conflict x, `Conflict y -> x = y
+    | _ -> false
+
+  let compare _ = Pervasives.compare
+  let hash _ = Hashtbl.hash
+
+  let to_sexp a_to_sexp t =
+    let open Sexplib.Type in
+    match t with
+    | `Ok a       -> List [ Atom "ok"; a_to_sexp a ]
+    | `Conflict s -> List [ Atom "conflict"; Atom s ]
+
+  let to_json a_to_json = function
+    | `Ok a       -> `O [ "ok", a_to_json a ]
+    | `Conflict s -> `O [ "conflict", Ezjsonm.encode_string s ]
+
+  let of_json a_of_json = function
+    | `O [ "ok", j ] -> `Ok (a_of_json j)
+    | `O [ "conflict", j ] -> `Conflict (Ezjsonm.decode_string_exn j)
+    | j -> failwith ("Merge.Result: parse error:\n" ^ Ezjsonm.to_string j)
+
+  let write a_write t buf = match t with
+    | `Ok a -> a_write a (Ir_misc.tag buf 0)
+    | `Conflict s -> Tc.write (module Tc.S) s (Ir_misc.tag buf 1)
+
+  let read a_read buf =
+    match Ir_misc.untag buf with
+    | 0 -> `Ok (a_read buf)
+    | 1 -> `Conflict (Tc.read (module Tc.S) buf)
+    | n -> failwith ("Merge.Result: parse_error: " ^ string_of_int n)
+
+  let size_of size_of_a t = 1 + match t with
+    | `Ok a -> size_of_a a
+    | `Conflict s -> Tc.size_of (module Tc.S) s
+
 end
-type 'a result = 'a R_.t
-module R = Tc.I1(R_)
 
 exception Conflict of string
 
@@ -131,6 +169,51 @@ let pair
 
 exception C of string
 
+let merge_elt (type a) (module V: S with type t = a) merge_v origin old key vs =
+  match vs with
+  | `Left v | `Right v ->
+    begin
+      try
+        let ov = old key in
+        if V.equal v ov then
+          (* the value has been removed in one branch *)
+          return_none
+        else
+          (* the value has been both created and removed. *)
+          fail (C "remove/add")
+      with Not_found ->
+        (* the value has been created in one branch *)
+        return (Some v)
+    end
+  | `Both (v1, v2) ->
+    if V.equal v1 v2 then
+      (* no modification. *)
+      return (Some v1)
+    else try
+        let ov = old key in
+        merge_v origin ~old:ov v1 v2 >>= function
+        | `Conflict msg -> fail (C msg)
+        | `Ok x         -> return (Some x)
+      with Not_found ->
+        (* two different values have been added *)
+        raise (C "add/add")
+
+let alist
+  (type a) (module A: S with type t = a)
+  (type b) (module B: S with type t = b)
+  merge_b origin ~old x y =
+  let module P = Tc.App2(Tc.P)(A)(B) in
+  let sort = List.sort P.compare in
+  let x = sort x in
+  let y = sort y in
+  let old k = try Some (List.assoc k old) with Not_found -> None in
+  Lwt.catch (fun () ->
+      Ir_misc.alist_merge (merge_elt (module B) merge_b old) x y
+      >>= ok)
+    (function
+      | C msg -> conflict "%s" msg
+      | e     -> fail e)
+
 module Map (S: S) = struct
 
   let merge (type a) (module A: S with type t = a) t =
@@ -145,34 +228,8 @@ module Map (S: S) = struct
       | `Ok x       -> ok x
       | `Conflict _ ->
         Lwt.catch (fun () ->
-            SM.Lwt.merge (fun key -> function
-                | `Left v | `Right v ->
-                  begin
-                    try
-                      let ov = SM.find key old in
-                      if A.equal v ov then
-                        (* the value has been removed in one branch *)
-                        return_none
-                      else
-                        (* the value has been both created and removed. *)
-                        fail (C "remove/add")
-                    with Not_found ->
-                      (* the value has been created in one branch *)
-                      return (Some v)
-                end
-              | `Both (v1, v2) ->
-                if A.equal v1 v2 then
-                  (* no modification. *)
-                  return (Some v1)
-                else try
-                    let ov = SM.find key old in
-                    t origin ~old:ov v1 v2 >>= function
-                    | `Conflict msg -> fail (C msg)
-                    | `Ok x         -> return (Some x)
-                  with Not_found ->
-                    (* two different values have been added *)
-                    fail (C "add/add")
-              ) m1 m2
+            let old key = SM.find key old in
+            SM.Lwt.merge (merge_elt (module A) t origin old) m1 m2
             >>= ok)
           (function
             | C msg -> conflict "%s" msg

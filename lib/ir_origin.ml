@@ -35,25 +35,65 @@ end
 
 module Make (P: P) = struct
 
-  module M = struct
-    type t = {
-      date: int64;
-      id  : string;
-      msg : string;
-    } with bin_io, compare, sexp
-  end
+  type t = {
+    date: int64;
+    id  : string;
+    msg : string;
+  }
 
-  include Tc.I0(M)
+  let hash = Hashtbl.hash
+  let compare = Pervasives.compare
+  let equal = (=)
+
+  let to_sexp t =
+    let open Sexplib.Type in
+    List [
+      List [ Atom "date"; Atom (Int64.to_string t.date) ];
+      List [ Atom "id"  ; Atom t.id ];
+      List [ Atom "msg" ; Atom t.msg ];
+    ]
+
+  let to_json t =
+    `O [
+      ("date", `String (Int64.to_string t.date));
+      ("id"  , Ezjsonm.encode_string t.id);
+      ("msg" , Ezjsonm.encode_string t.msg);
+    ]
+
+  let of_json j =
+    let date = Ezjsonm.find ["date"] j |> Int64.of_string in
+    let id = Ezjsonm.find ["id"] j |> Ezjsonm.decode_string_exn in
+    let msg = Ezjsonm.find ["msg"] j |> Ezjsonm.decode_string_exn in
+    { date; id; msg }
+
+  let write t buf =
+    let open Bin_prot.Write in
+    Tc.Writer.of_bin_prot
+      (bin_write_triple bin_write_network64_int64 bin_write_string bin_write_string)
+      (t.date, t.id, t.msg)
+
+  let read buf =
+    let open Bin_prot.Read in
+    let date, id, msg =
+      Tc.Reader.of_bin_prot
+        (bin_read_triple bin_read_network64_int64 bin_read_string bin_read_string)
+        buf in
+    { date; id; msg }
+
+  let size_of t =
+    let open Bin_prot.Size in
+    bin_size_triple bin_size_network64_int64 bin_size_string bin_size_string
+      (t.date, t.id, t.msg)
 
   let create ?date ? id fmt =
     let date = match date with
-      | None   -> !date_hook ()
+      | None   -> P.date ()
       | Some d -> d in
     let id = match id with
-      | None   -> !id_hook ()
+      | None   -> P.id ()
       | Some i -> i in
     ksprintf (fun msg ->
-        { M.date; id; msg }
+        { date; id; msg }
       ) fmt
 
   let date t = t.date

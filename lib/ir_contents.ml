@@ -36,13 +36,6 @@ module type STORE = sig
   module Val: S with type t = value and type origin = origin
 end
 
-module String (O: Ir_origin.S) = struct
-  include Tc.S
-  module Origin = O
-  type origin = O.t
-  let merge = Ir_merge.default (module Tc.S)
-end
-
 module JSON (O: Ir_origin.S) = struct
 
   module Origin = O
@@ -68,18 +61,25 @@ module JSON (O: Ir_origin.S) = struct
       | Some s -> `String s
       | None   -> `O (List.rev_map (fun (k,v) -> k, encode v) l)
 
-  module S = Tc.I0(struct
-      type t =
-        [ `Null
-        | `Bool of bool
-        | `Float of float
-        | `String of string
-        | `A of t list
-        | `O of (string * t) list ]
-      with compare, sexp, bin_io
-    end)
+  type t =
+    [ `Null
+    | `Bool of bool
+    | `Float of float
+    | `String of string
+    | `A of t list
+    | `O of (string * t) list ]
 
-  include S
+  let rec to_sexp t =
+    let open Sexplib.Type in
+    match t with
+    | `Null -> List []
+    | `Book b -> Atom (string_of_bool b)
+    | `Float f -> Atom (string_of_float f)
+    | `String s -> Atom s
+    | `A tl -> List (List.map to_sexp tl)
+    | `O dl ->
+      let aux (k, v) = List [ Atom k; to_sexp v ] in
+      List (List.map aux dl)
 
   let to_json = encode
 
@@ -91,12 +91,29 @@ module JSON (O: Ir_origin.S) = struct
   let of_string s =
     of_json (Ezjsonm.from_string s)
 
+  let write t buf =
+    let str = to_string t in
+    let len = String.length str in
+    Cstruct.blit_from_string str 0 buf 0 len;
+    Cstruct.shift buf len
+
+  let read buf =
+    Mstruct.get_string buf (Mstruct.length buf)
+    |> of_string
+
   type origin = Origin.t
 
   (* XXX: replace by a clever merge function *)
   let merge =
     Ir_merge.(biject (module Tc.S) (module S) string of_string to_string)
 
+end
+
+module String (O: Ir_origin.S) = struct
+  include Tc.S
+  module Origin = O
+  type origin = O.t
+  let merge = Ir_merge.default (module Tc.S)
 end
 
 module type MAKER =

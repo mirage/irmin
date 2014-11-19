@@ -97,6 +97,9 @@ val some: 'a elt -> ('a, 'o) t -> ('a option, 'o) t
     the provided values are inhabited, then call the provided merge
     function, otherwise use the same behavior as [create]. *)
 
+val alist: 'a elt -> 'b elt -> ('b, 'o) t -> ( ('a * 'b) list, 'o) t
+(** List to association lists. *)
+
 module Map (X: S): sig
   val merge: ('a elt) -> ('a, 'o) t -> ('a Map.Make(X).t, 'o) t
 end

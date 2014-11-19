@@ -22,34 +22,85 @@ open Sexplib.Std
 open Bin_prot.Std
 
 module Log = Log.Make(struct let section = "view" end)
-module PathSet = Ir_misc.Set(Ir_path)
 
-type ('path, 'a) action =
-  | Read of 'path * 'a option
-  | Write of 'path * 'a option
-  | List of 'path list * 'path list
-with bin_io, compare, sexp
 
-module Action = struct
+module Make (K: Tc.I0) (V: Ir_contents.S) = struct
 
-  include Tc.I2(struct
-    type ('a, 'b) t = ('a, 'b) action with bin_io, compare, sexp
-    end)
+  module Action: Tc.I0 = struct
 
-  let o f = function
-    | None   -> "<none>"
-    | Some x -> f x
+    type path = K.t
+    type contents = V.t
 
-  let l f = Ir_misc.list_pretty f
+    type t =
+      [ `Read of (path * contents option)
+      | `Write of (path * contents option)
+      | `List of  (path list * path list) ]
 
-  let pretty pretty_path pretty_a = function
-    | Read (p,x) -> sprintf "read %s -> %s" (pretty_path p) (o pretty_a x)
-    | Write (p,x) ->sprintf "write %s %s" (pretty_path p) (o pretty_a x)
-    | List (i,o) -> sprintf "list %s -> %s" (l pretty_path i) (l pretty_path o)
+    module KV = Tc.App2(Tc.P)( K )( Tc.App1(Tc.O)(V) )
+
+    module VV = Tc.App2(Tc.P)( Tc.App1(Tc.L)(V) )( Tc.App1(Tc.L)(V) )
+
+    let compare = Pervasives.compare
+    let hash = Hashtbl.hash
+
+    let equal (x:t) (y:t) = match x, y with
+      | `Read x , `Read y
+      | `Write x, `Write y -> KV.equal x y
+      | `List x , `List y  -> VV.equal x y
+      | _ -> false
+
+    let to_sexp (t:t) =
+      let open Sexplib.Type in
+      match t with
+      | `Read x  -> List [ Atom "read" ; KV.to_sexp x ]
+      | `Write x -> List [ Atom "write"; KV.to_sexp x ]
+      | `List x  -> List [ Atom "list" ; VV.to_sexp x ]
+
+    let to_json = function
+      | `Read x  -> `O [ "read" , KV.to_json x ]
+      | `Write x -> `O [ "write", KV.to_json x ]
+      | `List x  -> `O [ "list" , VV.to_json x ]
+
+    let of_json = function
+      | `O [ "read" , x ] -> `Read (KV.of_json x)
+      | `O [ "write", x ] -> `Write (KV.of_json x)
+      | `O [ "list" , x ] -> `List (VV.of_json x)
+      | j -> failwith ("View.Action.of_json: parse error:\n" ^ Ezjsonm.to_string j)
+
+    let write t buf = match t with
+      | `Read x  -> KV.write x (Ir_misc.tag buf 0)
+      | `Write x -> KV.write x (Ir_misc.tag buf 1)
+      | `List x  -> VV.write x (Ir_misc.tag buf 2)
+
+    let read buf = match Ir_misc.untag buf with
+      | 0 -> `Read (KV.read buf)
+      | 1 -> `Write (KV.read buf)
+      | 2 -> `List (VV.read buf)
+      | n -> failwith ("View.Action.read parse error: " ^ string_of_int n)
+
+    let size_of t = 1 + match t with
+      | `Read x -> KV.size_of x
+      | `Write x -> KV.size_of x
+      | `List x -> VV.size_of x
+
+    let pretty t =
+      let pretty_key = Tc.show (module K) in
+      let pretty_val = Tc.show (module V) in
+      let pretty_keys l = String.concat ", " (List.map pretty_key l) in
+      let pretty_valo = function
+        | None   -> "<none>"
+        | Some x -> pretty_val x
+      in
+      match t with
+      | Read (p,x) -> sprintf "read  %s -> %s" (pretty_key p) (pretty_valo x)
+      | Write (p,x) ->sprintf "write %s <- %s" (pretty_key p) (pretty_valo x)
+      | List (i,o) -> sprintf "list  %s -> %s" (pretty_keys i) (pretty_keys o)
+
+  end
 
 end
 
-module XContents = struct
+module Contents = struct
 
   type ('k, 'c) contents_or_key =
     | Key of 'k
@@ -85,7 +136,7 @@ module XContents = struct
 
 end
 
-module XNode = struct
+module Node = struct
 
   type ('k, 'c) node = {
     contents: ('k, 'c) XContents.t option;
@@ -120,7 +171,7 @@ module XNode = struct
     | Node n -> n.contents = None && Ir_misc.StringMap.is_empty n.succ
 
   let import n =
-    let contents = match n.Ir_node.contents with
+    let contents = match N.Val.contents n with
       | None   -> None
       | Some k -> Some (XContents.key k) in
     let succ = Ir_misc.StringMap.map key n.Ir_node.succ in
@@ -180,18 +231,19 @@ module XNode = struct
 
 end
 
-type ('k, 'c) t = {
-  node    : 'k -> ('k, 'c) XNode.node option Lwt.t;
-  contents: 'k -> 'c option Lwt.t;
-  view    : ('k, 'c) XNode.t;
-  mutable ops: (Ir_path.t, 'c) Action.t list;
-  mutable parents: 'k list;
-}
+module Make (S: Ir_bc.STORE_EXT) = struct
 
-module Make (K: Ir_uid.S) (C: Ir_contents.S) = struct
+  module N = S.Block.Node
+  module C = S.Block.Node.Contents
 
-  type node = K.t
-  type nonrec t = (K.t, C.t) t
+  type node = N.Key.t
+  type t = {
+    node    : N.Key.t -> (N.Key.t, C.Val.t) XNode.node option Lwt.t;
+    contents: C.Key.t -> C.Val.t option Lwt.t;
+    view    : (N.Key.t, C.Val.t) XNode.t;
+    mutable ops: (N.step list, C.Val.t) action list;
+    mutable parents: 'k list;
+  }
   type key = Ir_path.t
   type value = C.t
 
@@ -510,28 +562,4 @@ module Store (S: Ir_bc.STORE) = struct
     merge_path ?origin t path view >>=
     Ir_merge.exn
 
-end
-
-module type S = sig
-  type value
-  type node
-  type path
-  include Ir_rw.S
-    with type t = (node, value) t
-     and type value := value
-     and type key = path
-  val actions: t -> (path, value) Action.t list
-  val merge: t -> into:t -> unit Ir_merge.result Lwt.t
-end
-
-module type STORE = sig
-  include S
-  type db
-  type path = Path.t
-  val of_path: db -> path -> t Lwt.t
-  val update_path: ?origin:origin -> db -> path -> t -> unit Lwt.t
-  val rebase_path: ?origin:origin -> db -> path -> t -> unit Merge.result Lwt.t
-  val rebase_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
-  val merge_path: ?origin:origin -> db -> path -> t -> unit Merge.result Lwt.t
-  val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
 end

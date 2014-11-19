@@ -84,6 +84,46 @@ module type MAP = sig
       -> 'a t -> 'b t -> unit Lwt.t
   end
 end
+
+let sorted_alist_iter2 f compare l1 l2 =
+  let rec aux l1 l2 = match l1, l2 with
+    | [], t -> List.iter (fun (key, v) -> f key (`Right v)) t
+    | t, [] -> List.iter (fun (key, v) -> f key (`Left v)) t
+    | (k1,v1)::t1, (k2,v2)::t2 ->
+      match compare k1 k2 with
+      | 0 ->
+        f k1 (`Both (v1, v2));
+        aux t1 t2
+      | x -> if x < 0 then (
+          f k1 (`Left v1);
+          aux t1 l2
+        ) else (
+          f k2 (`Right v2);
+          aux l1 t2
+        )
+  in
+  aux l1 l2
+
+let list_iter2_lwt f l1 l2 =
+  let open Lwt in
+  let l3 = ref [] in
+  List.iter2 (fun key data ->
+      l3 := f key data :: !l3
+    ) l1 l2;
+  Lwt_list.iter_p
+    (fun b -> b >>= fun () -> return_unit) (List.rev !l3)
+
+let alist_merge_lwt f l1 l2 =
+  let open Lwt in
+  let l3 = ref [] in
+  let f key data =
+    f key data >>= function
+    | None   -> return_unit
+    | Some v -> l3 := (key, v) :: !l3; return_unit
+  in
+  list_iter2_lwt f l1 l2 >>= fun () ->
+  return !l3
+
 module Map (K: Tc.I0) = struct
 
   include Map.Make(K)
@@ -104,23 +144,7 @@ module Map (K: Tc.I0) = struct
       add key [data] t
 
   let iter2 f t1 t2 =
-    let rec aux l1 l2 = match l1, l2 with
-      | [], t -> List.iter (fun (key, v) -> f key (`Right v)) t
-      | t, [] -> List.iter (fun (key, v) -> f key (`Left v)) t
-      | (k1,v1)::t1, (k2,v2)::t2 ->
-        match K.compare k1 k2 with
-        | 0 ->
-          f k1 (`Both (v1, v2));
-          aux t1 t2
-        | x -> if x < 0 then (
-            f k1 (`Left v1);
-            aux t1 l2
-          ) else (
-            f k2 (`Right v2);
-            aux l1 t2
-          )
-    in
-    aux (bindings t1) (bindings t2)
+    sorted_alist_iter2 f K.compare (bindings t1) (bindings t2)
 
   module Lwt = struct
     open Lwt
@@ -230,3 +254,11 @@ let is_valid_utf8 str =
       ) () str;
     true
   with Failure "utf8" -> false
+
+
+let tag buf i =
+  Cstruct.set_uint8 buf 0 i;
+  Cstruct.shift buf 1
+
+let untag buf =
+  Mstruct.get_uint8 buf

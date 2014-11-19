@@ -73,12 +73,9 @@ module type MAKER =
            and type node = U.t Ir_node.t
 (** Signature of functors to create branch-consistent stores. *)
 
-module TK2 = Tc.I2(struct
-    type ('a, 'b) t =
-      [ `Tag of 'a
-      | `Key of 'b ]
-    with sexp, bin_io, compare
-  end)
+type ('a, 'b) t =
+  [ `Tag of 'a
+  | `Key of 'b ]
 
 module Make (Block: Ir_block.STORE) (Tag: Ir_tag.STORE with type value = Block.key) =
 struct

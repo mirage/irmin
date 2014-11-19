@@ -16,33 +16,32 @@
 
 (** In-memory partial views of the database, with lazy fetching. *)
 
-type path = string list
+module type ACTION = sig
+  type path
+  type contents
+  type t =
+    [ `Read of (path * contents option)
+    | `Write of (path * contents option)
+    | `List of (path list * path list) ]
+  (** Operations on view. We record the result of reads to be able to
+      replay them on merge. *)
 
-type 'contents action =
-  [ `Read of path * 'contents option
-  | `Write of path * 'contents option
-  | `List of path list * path list ]
-(** Operations on view. We record the result of reads to be able to
-    replay them on merge. *)
+  include Tc.I0 with type t := t
 
-module Action: sig
-
-  (** Actions performed on a view. *)
-
-  include Tc.I1 with type 'a t = 'a action
-
-  val pretty: ('a -> string) -> 'a t -> string
+  val pretty: t -> string
   (** Pretty-print an action. *)
-
 end
 
 module type S = sig
 
   (** Signature for views independant of any database substrate. *)
 
-  include Ir_rw.STORE with type key = path
+  include Ir_rw.STORE
 
-  val actions: t -> value action list
+  type action
+  (** The type for actions. *)
+
+  val actions: t -> action list
   (** Return the list of actions performed on this view since its
       creation. *)
 
@@ -51,9 +50,16 @@ module type S = sig
       operation doesn't return the same result, return
       [Conflict]. Only the [into] view is updated. *)
 
+  module Actions: ACTION
+    with type path = key
+     and type contents = value
+  (** Base functions over actions. *)
+
 end
 
-module Make(C: Ir_contents.S): S with type value = C.t
+module Make (K: Tc.I0) (V: Ir_contents.S): S
+  with type key = K.t
+   and type value = V.t
 (** Create a view implementation independant of any underlying
     store. *)
 
@@ -67,34 +73,34 @@ module type OF_STORE = sig
   type db
   (** Database handler. *)
 
-  val of_path: db -> path -> t Lwt.t
+  val of_path: db -> key -> t Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,
       all the real reads operation will be done on-demand when the
       view is used. *)
 
-  val update_path: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  val update_path: ?origin:origin -> db -> key -> t -> unit Lwt.t
   (** Commit a view to the store. The view *replaces* the current
       subtree, so if you want to do a merge, you have to do it
       manually (by creating a new branch, or rebasing before
       commiting). [origin] helps keeping track of provenance. *)
 
-  val rebase_path: ?origin:origin -> db -> path -> t -> unit Ir_merge.result Lwt.t
+  val rebase_path: ?origin:origin -> db -> key -> t -> unit Ir_merge.result Lwt.t
   (** Rebase the view to the tip of the store. *)
 
-  val rebase_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  val rebase_path_exn: ?origin:origin -> db -> key -> t -> unit Lwt.t
   (** Same as [rebase_path] but raise [Conflict] in case of
       conflict. *)
 
-  val merge_path: ?origin:origin -> db -> path -> t -> unit Ir_merge.result Lwt.t
+  val merge_path: ?origin:origin -> db -> key -> t -> unit Ir_merge.result Lwt.t
   (** Same as [update_path] but *merges* with the current subtree. *)
 
-  val merge_path_exn: ?origin:origin -> db -> path -> t -> unit Lwt.t
+  val merge_path_exn: ?origin:origin -> db -> key -> t -> unit Lwt.t
   (** Same as [merge_path] but throw [Conflict "msg"] in case of
       conflict. *)
 
 end
 
-module Of_store (S: Ir_bc.STORE):
+module Of_store (S: Ir_bc.STORE_EXT):
   OF_STORE with type db = S.t
          and type value = S.value
          and type origin = S.origin
