@@ -15,8 +15,6 @@
  *)
 
 open Printf
-open Sexplib.Std
-open Bin_prot.Std
 
 module type S = sig
   include Tc.I0
@@ -61,9 +59,9 @@ module Make (P: P) = struct
     ]
 
   let of_json j =
-    let date = Ezjsonm.find ["date"] j |> Int64.of_string in
-    let id = Ezjsonm.find ["id"] j |> Ezjsonm.decode_string_exn in
-    let msg = Ezjsonm.find ["msg"] j |> Ezjsonm.decode_string_exn in
+    let date = Ezjsonm.find j ["date"] |> Ezjsonm.get_string |> Int64.of_string in
+    let id   = Ezjsonm.find j ["id"]   |> Ezjsonm.decode_string_exn in
+    let msg  = Ezjsonm.find j ["msg"]  |> Ezjsonm.decode_string_exn in
     { date; id; msg }
 
   let write t buf =
@@ -71,6 +69,7 @@ module Make (P: P) = struct
     Tc.Writer.of_bin_prot
       (bin_write_triple bin_write_network64_int64 bin_write_string bin_write_string)
       (t.date, t.id, t.msg)
+      buf
 
   let read buf =
     let open Bin_prot.Read in
