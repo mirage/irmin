@@ -29,19 +29,24 @@ module type STORE = sig
   type tag
   (** Type of branch tags. *)
 
-  val of_tag: tag -> t Lwt.t
+  val of_tag: tag -> t
   (** Create a store handle. Similar to [create], but use any tag name
       instead of the [master] tag. *)
 
-  val tag: t -> origin -> tag option Lwt.t
+  val tag: t -> tag option
   (** Return the branch of the given store handle. *)
 
-  val tag_exn: t -> origin -> tag Lwt.t
+  val tag_exn: t -> tag
   (** Same as [tag] but raise [Not_found] in case of a detached
       head. *)
 
-  val update_tag: t -> origin -> tag -> unit Lwt.t
-  (** Update the current tag name. *)
+  val update_tag: t -> origin -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+  (** Change the current tag name. Fail if a tag with the same name
+      already exists. The head is unchanged. *)
+
+  val update_tag_force: t -> origin -> tag -> unit Lwt.t
+  (** Same as [update_tag] but delete and update the tag if it already
+      exists. *)
 
   val detach: t -> origin -> unit Lwt.t
   (** Detach the current branch (ie. it is not assiaciated to a tag
@@ -52,12 +57,13 @@ module type STORE = sig
   type head
   (** Type for head values. *)
 
-  val of_head: head -> t Lwt.t
-  (** Create a temporary branch, which will not have an associated tag
-      name. *)
+  val of_head: head -> t
+  (** Create a temporary detached branch, which will not persist in
+      the database as it has no associated persistent tag name. *)
 
   val head: t -> origin -> head option Lwt.t
-  (** Return the head commit. *)
+  (** Return the head commit. Might block if the branch is persistent
+      as it needs to lookup some tag contents. *)
 
   val head_exn: t -> origin -> head Lwt.t
   (** Same as [read_head] but raise [Not_found] if the commit does not
@@ -71,7 +77,7 @@ module type STORE = sig
 
   (** {2 Functions over stores} *)
 
-  val clone: t -> origin -> tag -> t option Lwt.t
+  val clone: t -> origin -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
   (** Fork the store, using the given branch name. Return [None] if
       the branch already exists. *)
 
@@ -87,9 +93,8 @@ module type STORE = sig
   (** [merge db t] merges the branch [t] into the current database
       branch. The two branches are still independant. *)
 
-  val merge_exn: t -> origin -> tag -> unit Lwt.t
-  (** Same as [merge] but raise [Conflict "<msg>"] in case of a
-      conflict. *)
+  module T: Tc.I0 with type t = t
+  (** Base functions over values of type [t]. *)
 
 end
 
@@ -136,18 +141,6 @@ module type STORE_EXT = sig
   module Origin: Ir_origin.S with type t = origin
   (** Base functions over origins. *)
 
-  val commit_t: t -> Block.Commit.t
-  (** Get the commit store handler. *)
-
-  val node_t: t -> Block.Node.t
-  (** Get the node store handler. *)
-
-  val contents_t: t -> Block.Contents.t
-  (** Get the contents store handler. *)
-
-  val tag_t: t -> Tag.t
-  (** Get the tag store handler. *)
-
   (** {2 Nodes} *)
 
   val read_node: t -> origin -> key -> Block.Node.value option Lwt.t
@@ -185,6 +178,6 @@ module type MAKER_EXT =
 (** Signature of functors to create extended branch-consistent
     stores. *)
 
-module Make_ext (Block: Ir_block.MAKER) (Tag: Ir_tag.MAKER) (U: Ir_uid.S): MAKER
+module Make_ext: MAKER
 (** Build an extended branch consistent store from custom [Block] and
     [Tag] store implementations. *)

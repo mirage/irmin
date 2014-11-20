@@ -51,7 +51,7 @@ module R = struct
   let of_json a_of_json = function
     | `O [ "ok", j ] -> `Ok (a_of_json j)
     | `O [ "conflict", j ] -> `Conflict (Ezjsonm.decode_string_exn j)
-    | j -> failwith ("Merge.Result: parse error:\n" ^ Ezjsonm.to_string j)
+    | j -> Ezjsonm.parse_error j "Merge.Result"
 
   let write a_write t buf = match t with
     | `Ok a -> a_write a (Ir_misc.tag buf 0)
@@ -61,7 +61,7 @@ module R = struct
     match Ir_misc.untag buf with
     | 0 -> `Ok (a_read buf)
     | 1 -> `Conflict (Tc.read (module Tc.S) buf)
-    | n -> failwith ("Merge.Result: parse_error: " ^ string_of_int n)
+    | n -> Tc.Reader.error "Merge.Result (tag=%d)" n
 
   let size_of size_of_a t = 1 + match t with
     | `Ok a -> size_of_a a

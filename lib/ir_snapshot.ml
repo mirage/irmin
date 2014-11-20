@@ -26,9 +26,6 @@ module type OF_STORE = sig
   val revert: db -> origin -> t -> unit Lwt.t
   val merge: db -> origin -> t -> unit Ir_merge.result Lwt.t
   val watch: db -> origin -> key -> (key * t) Lwt_stream.t
-  type state
-  val of_state: db -> state -> t
-  val to_state: t -> state
 end
 
 module Of_store (S: Ir_bc.STORE_EXT) = struct
@@ -48,31 +45,28 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
   module StepMap = Ir_misc.Map(N.Step)
 
   (* XXX: add a path in the tuple to handle snapshot of sub-trees. *)
-  type t = (db * state)
   type key = S.key
   type value = S.value
-
-  let db: t -> db = function (db, _) -> db
-  let state: t -> state = function (_,key) -> key
+  type t = B.Node.key
 
   let create db origin =
     S.head db origin >>= function
     | None   -> fail Not_found
     | Some c ->
-      C.read (S.commit_t db) origin c >>= function
+      C.read (C.create ()) origin c >>= function
       | None   -> fail Not_found
       | Some c -> match C.Val.node c with
         | None   -> fail Not_found
-        | Some k -> return (db, (k: state))
+        | Some k -> return (k: state)
 
-  let root_node (db, n) origin =
-    N.read (S.node_t db) origin n >>= function
+  let root_node n origin =
+    N.read (N.create ()) origin n >>= function
     | None   -> return N.empty
     | Some n -> return n
 
   let map t origin path ~f =
     root_node t origin >>= fun node ->
-    f (S.node_t (db t)) origin node path
+    f (N.create ()) origin node path
 
   let read t origin path =
     map t origin path ~f:N.find
@@ -86,14 +80,15 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
     map t origin path ~f:N.valid
 
   (* XXX: code duplication with Branch.list *)
-  let list (t, c) origin paths =
+  let list c origin paths =
     Log.debugf "list";
     let one path =
-      root_node (t, c) origin >>= fun n ->
-      N.sub (S.node_t t) origin n path >>= function
+      root_node c origin >>= fun n ->
+      let t_n = N.create () in
+      N.sub t_n origin n path >>= function
       | None      -> return_nil
       | Some node ->
-        let c = N.succ (S.node_t t) origin node in
+        let c = N.succ t_n origin node in
         let c = StepMap.keys c in
         let paths = List.map (fun c -> path @ [c]) c in
         return paths in
@@ -105,7 +100,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
     >>= fun paths ->
     return (PathSet.to_list paths)
 
-  let dump (_, _) =
+  let dump _ =
     failwith "TODO"
 
   let pre_revert t origin s =
@@ -113,25 +108,20 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
       | None   -> return_nil
       | Some h -> return [h]
     end >>= fun parents ->
-    let c = C.Val.create origin ~node:(state s) ~parents in
-    C.add (S.commit_t t) origin c
+    let c = C.Val.create origin ~node:s ~parents in
+    C.add (C.create ()) origin c
 
   let revert t origin s =
-    Log.debugf "revert %a" force (show (module N.Key) (state s));
+    Log.debugf "revert %a" force (show (module N.Key) s);
     pre_revert t origin s >>= fun k ->
     S.update_head t origin k
 
   let merge t origin s =
-    Log.debugf "merge %a" force (show (module N.Key) (state s));
+    Log.debugf "merge %a" force (show (module N.Key) s);
     pre_revert t origin s >>= fun k ->
     S.merge_head t origin k
 
   let watch db origin path =
-    let stream = S.watch_node db origin path in
-    Lwt_stream.map (fun (path, n) -> path, (db ,n)) stream
-
-  let of_state t s = (t, s)
-
-  let to_state s = state s
+    S.watch_node db origin path
 
 end

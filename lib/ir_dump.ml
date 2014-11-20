@@ -35,23 +35,25 @@ module Make (S: Ir_bc.STORE_EXT) = struct
   module B = S.Block
   module StepMap = Ir_misc.Map(B.Node.Step)
 
-  let get_contents t origin ?(full=false) = function
+  let get_contents _t origin ?(full=false) = function
     | None  ->
-      T.dump (S.tag_t t) origin           >>= fun tags     ->
-      B.Commit.dump (S.commit_t t) origin >>= fun commits  ->
+      T.dump (T.create ()) origin >>= fun tags ->
+      B.Commit.dump (B.Commit.create ()) origin >>= fun commits ->
       if not full then
         return ([], [], commits, tags)
       else
-        B.Contents.dump (S.contents_t t) origin >>= fun contents ->
-        B.Node.dump (S.node_t t)         origin >>= fun nodes    ->
+        B.Contents.dump (B.Contents.create ()) origin >>= fun contents ->
+        B.Node.dump (B.Node.create ()) origin >>= fun nodes ->
         return (contents, nodes, commits, tags)
     | Some depth ->
       Log.debugf "get_contents depth=%d full=%b" depth full;
-      T.dump (S.tag_t t) origin >>= fun tags ->
+      T.dump (T.create ()) origin >>= fun tags ->
       let max = List.map (fun (_,k) -> `Commit k) tags in
+      let t_c = B.Commit.create () in
       let pred = function
         | `Commit k ->
-          begin B.Commit.read (S.commit_t t) origin k >>= function
+          begin
+            B.Commit.read t_c origin k >>= function
             | None   -> return_nil
             | Some c -> return (List.map (fun x -> `Commit x) (B.Commit.Val.parents c))
           end
@@ -63,7 +65,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
           (S.Graph.vertex g)
       in
       Lwt_list.map_p (fun k ->
-          B.Commit.read_exn (S.commit_t t) origin k >>= fun c ->
+          B.Commit.read_exn t_c origin k >>= fun c ->
           return (k, c)
         ) keys
       >>= fun commits ->
@@ -73,9 +75,10 @@ module Make (S: Ir_bc.STORE_EXT) = struct
         let root_nodes =
           Ir_misc.list_filter_map (fun (_,c) -> B.Commit.Val.node c) commits
         in
-        B.Node.list (S.node_t t) origin root_nodes >>= fun nodes ->
+        let t_n = B.Node.create () in
+        B.Node.list t_n origin root_nodes >>= fun nodes ->
         Lwt_list.map_p (fun k ->
-            B.Node.read (S.node_t t) origin k >>= function
+            B.Node.read t_n origin k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) nodes >>= fun nodes ->
@@ -83,9 +86,10 @@ module Make (S: Ir_bc.STORE_EXT) = struct
         let root_contents =
           Ir_misc.list_filter_map (fun (_,n) -> B.Node.Val.contents n) nodes
         in
-        B.Contents.list (S.contents_t t) origin root_contents >>= fun contents ->
+        let t_c = B.Contents.create () in
+        B.Contents.list t_c origin root_contents >>= fun contents ->
         Lwt_list.map_p (fun k ->
-            B.Contents.read (S.contents_t t) origin k >>= function
+            B.Contents.read t_c origin k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) contents >>= fun contents ->

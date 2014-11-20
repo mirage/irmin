@@ -35,8 +35,8 @@ module Path (S: S) = struct
       | i -> i
 
   let to_sexp t = Sexplib.Conv.(sexp_of_list S.to_sexp t)
-  let to_json t = Ezjsonm.(list S.to_json t)
-  let of_json j = Ezjsonm.(get_list S.of_json j)
+  let to_json t = Ezjsonm.list S.to_json t
+  let of_json j = Ezjsonm.get_list S.of_json j
 
   let size_of t =
     (max 1 (List.length t))
@@ -61,7 +61,7 @@ module Path (S: S) = struct
     in
     match Mstruct.get_char buf with
     | '/' -> aux []
-    | c   -> failwith ("Step.read: the step starts by" ^ String.make 1 c)
+    | c   -> Tc.Reader.error "Step.read: the step starts by %c" c
 
 end
 

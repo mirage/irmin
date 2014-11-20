@@ -78,7 +78,7 @@ module Action (P: Tc.I0) (C: Tc.I0) = struct
     | `O [ "read" , x ] -> `Read  (R.of_json x)
     | `O [ "write", x ] -> `Write (W.of_json x)
     | `O [ "list" , x ] -> `List  (L.of_json x)
-    | j -> failwith ("View.Action.of_json: parse error:\n" ^ Ezjsonm.to_string j)
+    | j -> Ezjsonm.parse_error j "View.Action.of_json"
 
   let write t buf = match t with
     | `Read x  -> R.write x (Ir_misc.tag buf 0)
@@ -89,7 +89,7 @@ module Action (P: Tc.I0) (C: Tc.I0) = struct
     | 0 -> `Read  (R.read buf)
     | 1 -> `Write (W.read buf)
     | 2 -> `List  (L.read buf)
-    | n -> failwith ("View.Action.read parse error: " ^ string_of_int n)
+    | n -> Tc.Reader.error "View.Action.read (tag=%d)" n
 
   let size_of t = 1 + match t with
     | `Read x  -> R.size_of x
@@ -178,7 +178,7 @@ module Internal (Node: NODE) = struct
     let view = Node.empty () in
     let ops = [] in
     let parents = [] in
-    return { parents; view; ops }
+    { parents; view; ops }
 
   let sub t origin path =
     let rec aux node = function
@@ -387,8 +387,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
       | Both (_, c)
       | Contents c -> return (Some c)
       | Key k      ->
-        B.Contents.create ()       >>= fun c ->
-        B.Contents.read c origin k >>= function
+        B.Contents.read (B.Contents.create ()) origin k >>= function
         | None   -> return_none
         | Some c ->
           t := Both (k, c);
@@ -466,8 +465,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
       | Both (_, n)
       | Node n   -> return (Some n)
       | Key k    ->
-        B.Node.create ()       >>= fun n ->
-        B.Node.read n origin k >>= function
+        B.Node.read (B.Node.create ()) origin k >>= function
         | None   -> return_none
         | Some n ->
           let n = import n in
@@ -520,8 +518,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
 
   let import ~parents key origin =
     Log.debugf "import %a" force (show (module B.Node.Key) key);
-    B.Node.create () >>= fun t ->
-    B.Node.read t origin key >>= function
+    B.Node.read (B.Node.create ()) origin key >>= function
     | None   -> fail Not_found
     | Some n ->
       let view = Node.both key (Node.import n) in
@@ -531,9 +528,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
 
   let export t origin =
     Log.debugf "export";
-    let node n =
-      B.Node.create () >>= fun t ->
-      B.Node.add t origin (Node.export_node n) in
+    let node n = B.Node.add (B.Node.create ()) origin (Node.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match !n with
@@ -555,8 +550,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
               | Contents.Both _
               | Contents.Key _       -> return_unit
               | Contents.Contents x  ->
-                B.Contents.create () >>= fun t ->
-                B.Contents.add t origin x >>= fun k ->
+                B.Contents.add (B.Contents.create ()) origin x >>= fun k ->
                 c := Contents.Key k;
                 return_unit
           ) todo;
@@ -585,15 +579,15 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
       | None   -> return_nil
       | Some h -> return [h] in
     S.read_node t origin path >>= function
-    | None   -> create ()
+    | None   -> return (create ())
     | Some n ->
-      B.Node.add (S.node_t t) origin n >>= fun k ->
+      B.Node.add (B.Node.create ()) origin n >>= fun k ->
       parents >>= fun parents ->
       import ~parents k origin
 
-  let node_of_view t origin view =
+  let node_of_view _t origin view =
     export view origin >>= fun key ->
-    B.Node.read_exn (S.node_t t) origin key
+    B.Node.read_exn (B.Node.create ()) origin key
 
   let update_path t origin path view =
     Log.debugf "update_view %a" force (show (module Path) path);
@@ -631,12 +625,13 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
          on a branch, and we merge the branch back into the store. *)
       node_of_view t origin view >>= fun view_node ->
       (* Create a commit with the contents of the view *)
-      B.Node.map (S.node_t t) origin head_node path (fun _ -> view_node)
+      B.Node.map (B.Node.create ()) origin head_node path (fun _ -> view_node)
       >>= fun new_head_node ->
       let parents = parents_of_univ view.parents in
-      Lwt_list.map_p (B.Commit.read_exn (S.commit_t t) origin) parents
+      let t_c = B.Commit.create () in
+      Lwt_list.map_p (B.Commit.read_exn t_c origin) parents
       >>= fun parents ->
-      B.Commit.commit (S.commit_t t) origin ~node:new_head_node ~parents
+      B.Commit.commit t_c origin ~node:new_head_node ~parents
       >>= fun (k, _) ->
       (* We want to avoid to create a merge commit when the HEAD has
          not been updated since the view has been created. *)

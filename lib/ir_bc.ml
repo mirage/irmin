@@ -19,44 +19,58 @@ open Ir_merge.OP
 open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "BRANCH" end)
-module StringMap = Map.Make(String)
-module PathSet = Misc.Set(Ir_path)
 
-module type S = sig
-  include Ir_rw.S
-  type tag
-  val create: ?tag:tag -> unit -> t Lwt.t
-  val detach: t -> unit Lwt.t
-  val tag: t -> tag option
-  val tag_exn: t -> tag
-  val retag: t -> tag -> unit
-  val clone: t -> tag -> t option Lwt.t
-  val clone_force: t -> tag -> t Lwt.t
-  val switch: t -> tag -> unit Lwt.t
-  val merge: t -> ?origin:origin -> tag -> unit Ir_merge.result Lwt.t
-  val merge_exn: t -> ?origin:origin -> tag -> unit Lwt.t
-end
+module StringMap = Map.Make(String)
 
 module type STORE = sig
-  include S
-  type uid
-  module Block: Ir_block.STORE with type key = uid and type contents = value
-  module Tag: Ir_tag.STORE with type key = tag and type value = uid
-  val block_t: t -> Block.t
-  val commit_t: t -> Block.Commit.t
-  val node_t: t -> Block.Node.t
-  val contents_t: t -> Block.Contents.t
-  val tag_t: t -> Tag.t
-  val create_head: Block.Commit.key -> t Lwt.t
-  val head: t -> Block.Commit.key option Lwt.t
-  val head_exn: t -> Block.Commit.key Lwt.t
-  val set_head: t -> Block.Commit.key -> unit
-  val update_head: t -> Block.Commit.key -> unit Lwt.t
-  val merge_head: t -> ?origin:origin -> Block.Commit.key -> unit Ir_merge.result Lwt.t
-  val read_node: t -> key -> Block.Node.value option Lwt.t
-  val mem_node: t -> key -> bool Lwt.t
+  include Ir_rw.STORE
+  type tag
+  val of_tag: tag -> t
+  val tag: t -> tag option
+  val tag_exn: t -> tag
+  val update_tag: t -> origin -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+  val update_tag_force: t -> origin -> tag -> unit Lwt.t
+  val detach: t -> origin -> unit Lwt.t
+  type head
+  val of_head: head -> t
+  val head: t -> origin -> head option Lwt.t
+  val head_exn: t -> origin -> head Lwt.t
+  val update_head: t -> origin -> head -> unit Lwt.t
+  val merge_head: t -> origin -> head -> unit Ir_merge.result Lwt.t
+  val clone: t -> origin -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
+  val clone_force: t -> origin -> tag -> t Lwt.t
+  val switch: t -> origin -> tag -> unit Lwt.t
+  val merge: t -> origin -> tag -> unit Ir_merge.result Lwt.t
+  module T: Tc.I0 with type t = t
+end
+
+module type MAKER =
+  functor (B: Ir_block.STORE) ->
+  functor (T: Ir_tag.STORE with type value = B.head and type origin = B.origin)
+    -> STORE with type key = B.step list
+              and type value = B.contents
+              and type origin = B.origin
+              and type tag = T.key
+              and type head = B.head
+
+
+module type STORE_EXT = sig
+  type step
+  include STORE with type key = step list
+  module Block: Ir_block.STORE
+    with type step = step
+     and type contents = value
+     and type origin = origin
+     and type head = head
+  module Tag: Ir_tag.STORE
+    with type key = tag and type value = head and type origin = origin
+  module Key: Tc.I0 with type t = Block.step list
+  module Value: Ir_contents.S with type t = value
+  module Origin: Ir_origin.S with type t = origin
+  val read_node: t -> origin -> key -> Block.Node.value option Lwt.t
+  val mem_node: t -> origin -> key -> bool Lwt.t
   val update_node: t -> origin -> key -> Block.Node.value -> unit Lwt.t
-  val watch_node: t -> key -> (key * Block.Node.key) Lwt_stream.t
+  val watch_node: t -> origin -> key -> (key * Block.Node.key) Lwt_stream.t
   module Graph: Ir_graph.S with type V.t =
     [ `Contents of Block.Contents.key
     | `Node of Block.Node.key
@@ -64,212 +78,217 @@ module type STORE = sig
     | `Tag of Tag.key ]
 end
 
-module type MAKER =
-  functor (U: Ir_uid.S) -> functor (C: Ir_contents.S) -> functor (T: Ir_tag.S) ->
-    STORE with type key = Ir_path.t
-           and type value = C.t
-           and type origin = Ir_origin.t
-           and type tag = T.t
-           and type commit = U.t
-           and type node = U.t Ir_node.t
-(** Signature of functors to create branch-consistent stores. *)
+module type MAKER_EXT =
+  functor (B: Ir_block.STORE) ->
+  functor (T: Ir_tag.STORE with type value = B.head and type origin = B.origin)
+    -> STORE_EXT with type step = B.step
+                  and type value = B.contents
+                  and type origin = B.origin
+                  and type tag = T.key
+                  and type head = B.head
+                  and module Block = B
+                  and module Tag = T
 
-type ('a, 'b) t =
-  [ `Tag of 'a
-  | `Key of 'b ]
+module Make_ext
+    (B: Ir_block.STORE)
+    (T: Ir_tag.STORE with type value = B.head and type origin = B.origin)
+= struct
 
-module Make (Block: Ir_block.STORE) (Tag: Ir_tag.STORE with type value = Block.key) =
-struct
+  module Block = B
 
-  module Block = Block
+  module Origin = B.Origin
+  type origin = Origin.t
 
-  type origin = Ir_origin.t
+  module Tag = T
+  type tag = T.key
 
-  module Tag = Tag
-  module T = Tag.Key
+  module Key = Ir_step.Path(Block.Step)
+  type key = Key.t
 
-  module Key = Ir_path
-  module K = Block.Key
+  module Val = Block.Contents.Val
+  type value = Val.t
 
-  module Value = Block.Contents.Value
-  module XContents = Block.Contents
-  module C = Value
+  module Path = Ir_step.Path(B.Step)
+  module PathSet = Ir_misc.Set(Path)
 
-  module XNode = Block.Node
-  module N = XNode.Value
+  module StepMap = Ir_misc.Map(B.Node.Step)
 
-  module XCommit = Block.Commit
-
-  type key = Path.t
-
-  type value = C.t
-
-  module Branch = T
-
-  type branch = Branch.t
+  module Head = B.Commit.Key
+  type head = Head.t
 
   module TK = struct
-    include Tc.App2(TK2)(T)(K)
-    let pretty = function
-      | `Tag t -> T.pretty t
-      | `Key k -> K.pretty k
+
+    type t = [ `Tag of tag | `Key of B.Commit.key ]
+
+    module T = T.Key
+    module K = Head
+
+    let hash = Hashtbl.hash
+    let compare = Pervasives.compare
+
+    let equal x y = match x, y with
+      | `Tag x, `Tag y -> T.equal x y
+      | `Key x, `Key y -> K.equal x y
+      | _ -> false
+
+    let to_sexp t =
+      let open Sexplib.Type in
+      match t with
+      | `Tag t -> List [ Atom "tag"; T.to_sexp t ]
+      | `Key k -> List [ Atom "key"; K.to_sexp k ]
+
+    let to_json = function
+      | `Tag t -> `O [ "tag", T.to_json t ]
+      | `Key k -> `O [ "key", K.to_json k ]
+
+    let of_json = function
+      | `O [ "tag", j ] -> `Tag (T.of_json j)
+      | `O [ "key", j ] -> `Key (K.of_json j)
+      | j -> Ezjsonm.parse_error j "BC.TagKey.of_json"
+
+    let write t buf =
+      match t with
+      | `Tag t -> T.write t (Ir_misc.tag buf 0)
+      | `Key k -> K.write k (Ir_misc.tag buf 1)
+
+    let read buf =
+      match Ir_misc.untag buf with
+      | 0 -> `Tag (T.read buf)
+      | 1 -> `Key (K.read buf)
+      | n -> Tc.Reader.error "BC.TagKey.read (tag=%d)" n
+
+    let size_of t = 1 + match t with
+      | `Tag t -> T.size_of t
+      | `Key k -> K.size_of k
+
   end
 
-  module Graph = Digraph.Make(K)(T)
+  module Graph = Ir_graph.Make(B.Contents.Val)(B.Node.Val)(B.Commit.Val)(T.Key)
 
-  type t = {
-    block : Block.t;
-    tag   : Tag.t;
-    mutable branch: TK.t;
-  }
+  type t = { mutable branch: TK.t }
 
-  let branch t = match t.branch with
+  let tag t = match t.branch with
     | `Tag t -> Some t
     | `Key _ -> None
 
-  let branch_exn t = match t.branch with
+  let tag_exn t = match t.branch with
     | `Tag t -> t
     | `Key _ -> raise Not_found
 
-  let set_branch t branch =
-    t.branch <- `Tag branch
+  let set_tag t tag =
+    t.branch <- `Tag tag
 
-  let head t = match t.branch with
+  let head t origin = match t.branch with
     | `Key key -> return (Some key)
-    | `Tag tag -> Tag.read t.tag tag
+    | `Tag tag -> T.read (T.create ()) origin tag
 
-  let head_exn t =
-    head t >>= function
+  let head_exn t origin =
+    head t origin >>= function
     | None   -> fail Not_found
     | Some k -> return k
 
-  let set_head t key =
-    t.branch <- `Key key
-
-  let detach t =
+  let detach t origin =
     match t.branch with
     | `Key _   -> return_unit
     | `Tag tag ->
-      Tag.read_exn t.tag tag >>= fun key ->
+      T.read_exn (T.create ()) origin tag >>= fun key ->
       t.branch <- `Key key;
       return_unit
 
-  let block_t    t = t.block
-  let tag_t      t = t.tag
-  let commit_t   t = Block.commit_t t.block
-  let node_t     t = Block.node_t t.block
-  let contents_t t = Block.contents_t t.block
+  let of_tag tag =
+    { branch = `Tag tag }
 
-  let create ?(branch=Branch.master) () =
-    Block.create () >>= fun block ->
-    Tag.create ()   >>= fun tag ->
-    let branch = `Tag branch in
-    return { block; tag; branch }
+  let create () =
+    of_tag T.Key.master
 
-  let create_head key =
-    create () >>= fun t ->
-    set_head t key;
-    return t
+  let of_head key =
+    { branch = `Key key }
 
-  let read_head_commit t =
+  let read_head_commit t origin =
     match t.branch with
     | `Key key ->
-      Log.debugf "read detached head: %a" force (show (module K) key);
-      XCommit.read (commit_t t) key
+      Log.debugf "read detached head: %a" force (show (module Head) key);
+      B.Commit.read (B.Commit.create ()) origin key
     | `Tag tag ->
-      Log.debugf "read head: %a" force (show (module T) tag);
-      Tag.read t.tag tag >>= function
+      Log.debugf "read head: %a" force (show (module T.Key) tag);
+      T.read (T.create ()) origin tag >>= function
       | None   -> return_none
-      | Some k -> XCommit.read (commit_t t) k
+      | Some k -> B.Commit.read (B.Commit.create ()) origin k
 
-  let node_of_commit t c =
-    match XCommit.node (commit_t t) c with
-    | None   -> return Node.empty
+  let node_of_commit _t origin c =
+    match B.Commit.node (B.Commit.create ()) origin c with
+    | None   -> return B.Node.empty
     | Some n -> n
 
-  let node_of_opt_commit t = function
-    | None   -> return Node.empty
-    | Some c -> node_of_commit t c
+  let node_of_opt_commit t origin = function
+    | None   -> return B.Node.empty
+    | Some c -> node_of_commit t origin c
 
-  let read_head_node t =
+  let read_head_node t origin =
     Log.debug (lazy "read_head_node");
-    read_head_commit t >>=
-    node_of_opt_commit t
+    read_head_commit t origin >>=
+    node_of_opt_commit t origin
 
   let parents_of_commit = function
     | None   -> []
     | Some r -> [r]
 
-  let read_node t path =
-    read_head_commit t          >>= fun commit ->
-    node_of_opt_commit t commit >>= fun node ->
-    XNode.sub (node_t t) node path
-
-  let mem_node t path =
-    read_node t path >>= function
-    | None   -> return false
-    | Some _ -> return true
+  let read_node t origin path =
+    read_head_commit t origin >>= fun commit ->
+    node_of_opt_commit t origin commit >>= fun node ->
+    B.Node.sub (B.Node.create ()) origin node path
 
   let apply t origin ~f =
-    read_head_commit t          >>= fun commit ->
-    node_of_opt_commit t commit >>= fun old_node ->
-    f old_node                  >>= fun node ->
-    if N.equal node old_node then return_unit
+    read_head_commit t origin >>= fun commit ->
+    node_of_opt_commit t origin commit >>= fun old_node ->
+    f old_node >>= fun node ->
+    if B.Node.Val.equal node old_node then return_unit
     else (
       let parents = parents_of_commit commit in
-      XCommit.commit (commit_t t) origin ~node ~parents >>= fun (key, _) ->
+      B.Commit.commit (B.Commit.create ()) origin ~node ~parents
+      >>= fun (key, _) ->
       (* XXX: the head might have changed since we started the operation *)
       match t.branch with
-      | `Tag tag -> Tag.update t.tag tag key
       | `Key _   -> t.branch <- `Key key; return_unit
+      | `Tag tag -> T.update (T.create ()) origin tag key
     )
 
-  let update_node t origin path node =
-    apply t origin ~f:(fun head ->
-        XNode.map (node_t t) head path (fun _ -> node)
-      )
-
-  let map t path ~f =
-    read_head_node t >>= fun node ->
-    f (node_t t) node path
+  let map t origin path ~f =
+    read_head_node t origin >>= fun node ->
+    f (B.Node.create ()) origin node path
 
   let read t path =
-    map t path ~f:XNode.find
+    map t path ~f:B.Node.find
 
-  let update t ?origin path contents =
-    let origin = match origin with
-      | None   -> Origin.create "Update %s." (Path.pretty path)
-      | Some o -> o in
+  let update t origin path contents =
     Log.debugf "update %a" force (show (module Path) path);
     apply t origin ~f:(fun node ->
-        XNode.update (node_t t) node path contents
+        B.Node.update (B.Node.create ()) origin node path contents
       )
 
-  let remove t ?origin path =
-    let origin = match origin with
-      | None   -> Origin.create "Remove %s." (Path.pretty path)
-      | Some o -> o in
+  let remove t origin path =
     apply t origin ~f:(fun node ->
-        XNode.remove (node_t t) node path
+        B.Node.remove (B.Node.create ()) origin node path
       )
 
-  let read_exn t path =
+  let read_exn t origin path =
     Log.debugf "read_exn %a" force (show (module Path) path);
-    map t path ~f:XNode.find_exn
+    map t origin path ~f:B.Node.find_exn
 
-  let mem t path =
-    map t path ~f:XNode.valid
+  let mem t origin path =
+    map t origin path ~f:B.Node.valid
 
   (* Return the subpaths. *)
-  let list t paths =
+  let list t origin paths =
     Log.debugf "list";
+    let t_n = B.Node.create () in
     let one path =
-      read_head_node t >>= fun n ->
-      XNode.sub (node_t t) n path >>= function
+      read_head_node t origin >>= fun n ->
+      B.Node.sub t_n origin n path >>= function
       | None      -> return_nil
       | Some node ->
-        let c = XNode.succ (node_t t) node in
-        let c = Misc.StringMap.keys c in
+        let c = B.Node.succ t_n origin node in
+        let c = StepMap.keys c in
         let paths = List.map (fun c -> path @ [c]) c in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
@@ -280,110 +299,114 @@ struct
     >>= fun paths ->
     return (PathSet.to_list paths)
 
-  let dump t =
+  let dump t origin =
     Log.debugf "dump";
-    read_head_node t >>= fun node ->
+    read_head_node t origin >>= fun node ->
+    let t_n = B.Node.create () in
+    begin B.Node.find t_n origin node [] >>= function
+      | None   -> return_nil
+      | Some v -> return [ ([], v) ]
+    end >>= fun init ->
     let rec aux seen = function
       | []       -> return (List.sort Pervasives.compare seen)
       | path::tl ->
-        list t [path] >>= fun childs ->
+        list t origin [path] >>= fun childs ->
         let todo = childs @ tl in
-        XNode.find (node_t t) node path >>= function
+        B.Node.find t_n origin node path >>= function
         | None   -> aux seen todo
-        | Some v -> aux ((path, v) :: seen) todo in
-    begin XNode.find (node_t t) node [] >>= function
-      | None   -> return_nil
-      | Some v -> return [ ([], v) ]
-    end
-    >>= fun init ->
-    list t [[]] >>= aux init
+        | Some v -> aux ((path, v) :: seen) todo
+    in
+    list t origin [[]] >>= aux init
 
   (* Merge two commits:
      - Search for a common ancestor
      - Perform a 3-way merge *)
-  let three_way_merge t ?origin c1 c2 =
+  let three_way_merge _t origin c1 c2 =
     Log.debugf "3-way merge between %a and %a"
-      force (show (module K) c1)
-      force (show (module K) c2);
-    XCommit.find_common_ancestor (commit_t t) c1 c2 >>= function
+      force (show (module Head) c1)
+      force (show (module Head) c2);
+    let t_c = B.Commit.create () in
+    B.Commit.find_common_ancestor t_c origin c1 c2 >>= function
     | None     -> conflict "no common ancestor"
-    | Some old ->
-      let origin = match origin with
-        | None   -> Origin.create "Merge commits %s and %s.\n\n\
-                                   The common ancestor was %s."
-                      (K.pretty c1) (K.pretty c2) (K.pretty old)
-        | Some o -> o in
-      let m = XCommit.merge (commit_t t) in
-      Merge.merge m ~origin ~old c1 c2
+    | Some old -> B.Commit.merge t_c origin ~old c1 c2
 
-  let update_commit t c =
+  let update_head t origin c =
     match t.branch with
-    | `Tag tag -> Tag.update t.tag tag c
     | `Key _   -> t.branch <- `Key c; return_unit
+    | `Tag tag -> Tag.update (T.create ()) origin tag c
 
-  let switch t branch =
-    Log.debugf "switch %a" force (show (module Branch) branch);
-    Tag.read t.tag branch >>= function
-    | Some c -> update_commit t c
+  let update_tag_force t origin tag =
+    begin head t origin >>= function
+      | None   -> return_unit
+      | Some k -> T.update (T.create ()) origin tag k
+    end >>= fun () ->
+    set_tag t tag;
+    return_unit
+
+  let update_tag t origin tag =
+    let t_t = T.create () in
+    T.mem t_t origin tag >>= function
+    | true -> return `Duplicated_tag
+    | false -> update_tag_force t origin tag >>= fun () -> return `Ok
+
+  let switch t origin branch =
+    Log.debugf "switch %a" force (show (module T.Key) branch);
+    T.read (T.create ()) origin branch >>= function
+    | Some c -> update_head t origin c
     | None   -> fail Not_found
 
-  let merge_commit t ?origin c1 =
+  let merge_head t origin c1 =
     let aux c2 =
-      three_way_merge t ?origin c1 c2 >>| fun c3 ->
-      update_commit t c3 >>= ok
+      three_way_merge t origin c1 c2 >>| fun c3 ->
+      update_head t origin c3 >>= ok
     in
     match t.branch with
     | `Key c2  -> aux c2
     | `Tag tag ->
-      Tag.read t.tag tag >>= function
-      | None    -> update_commit t c1 >>= ok
+      T.read (T.create ()) origin tag >>= function
+      | None    -> update_head t origin c1 >>= ok
       | Some c2 -> aux c2
 
-  let clone_force t branch =
-    Log.debugf "clone %a" force (show (module Branch) branch);
+  let clone_force t origin branch =
+    Log.debugf "clone %a" force (show (module T.Key) branch);
+    let t_t = T.create () in
     begin match t.branch with
-      | `Key c -> Tag.update t.tag branch c
+      | `Key c -> T.update t_t origin branch c
       | `Tag tag ->
-        Tag.read t.tag tag >>= function
+        T.read t_t origin tag >>= function
         | None   -> fail Not_found
-        | Some c -> Tag.update t.tag branch c
+        | Some c -> Tag.update t_t origin branch c
     end  >>= fun () ->
-    return { t with branch = `Tag branch }
+    return { branch = `Tag branch }
 
-  let clone t branch =
-    Tag.mem t.tag branch >>= function
-    | true  -> return_none
-    | false -> clone_force t branch >>= fun t -> return (Some t)
+  let clone t origin branch =
+    T.mem (T.create ()) origin branch >>= function
+    | true  -> return `Duplicated_tag
+    | false -> clone_force t origin branch >>= fun t -> return (`Ok t)
 
-  let merge t ?origin branch =
-    Log.debugf "merge %a" force (show (module Branch) branch);
-    let origin = match origin with
-      | Some o -> o
-      | None   -> Origin.create "Merge branch %s." (TK.pretty t.branch) in
-    Tag.read_exn t.tag branch >>= fun c ->
-    merge_commit t ~origin c
+  let merge t origin branch =
+    Log.debugf "merge %a" force (show (module T.Key) branch);
+    T.read_exn (T.create ()) origin branch >>= fun c ->
+    merge_head t origin c
 
-  let merge_exn t ?origin tag =
-    merge t ?origin tag >>=
-    Merge.exn
-
-  let watch_node t path =
+  let watch_node t origin path =
     Log.infof "Adding a watch on %a" force (show (module Path) path);
     match t.branch with
     | `Key _   -> Lwt_stream.of_list []
     | `Tag tag ->
-      let stream = Tag.watch t.tag tag in
-      Misc.Lwt_stream.lift (
-        read_node t path >>= fun node ->
+      let t_t = T.create () in
+      let stream = Tag.watch t_t origin tag in
+      Ir_misc.Lwt_stream.lift (
+        read_node t origin path >>= fun node ->
         let old_node = ref node in
         let stream = Lwt_stream.filter_map_s (fun key ->
-            Log.debugf "watch: %a" force (show (module Block.Key) key);
-            XCommit.read_exn (commit_t t) key >>= fun commit ->
-            begin match XCommit.node (commit_t t) commit with
-              | None      -> return Node.empty
+            Log.debugf "watch: %a" force (show (module Head) key);
+            B.Commit.read_exn (B.Commit.create ()) origin key >>= fun commit ->
+            begin match B.Commit.node (B.Commit.create ()) origin commit with
+              | None      -> return B.Node.empty
               | Some node -> node
             end >>= fun node ->
-            XNode.sub (node_t t) node path >>= fun node ->
+            B.Node.sub (B.Node.create ()) origin node path >>= fun node ->
             if node = !old_node then return_none
             else (
               old_node := node;
@@ -394,17 +417,38 @@ struct
       )
 
   (* watch contents changes. *)
-  let watch t path =
-    let stream = watch_node t path in
+  let watch t origin path =
+    let stream = watch_node t origin path in
     Lwt_stream.filter_map_s (fun (p, k) ->
-        if Path.(p = path) then
-          XCommit.read (commit_t t) k >>= function
+        if Path.equal p path then
+          B.Commit.read (B.Commit.create ()) origin k >>= function
           | None   -> return_none
           | Some c ->
-            node_of_commit t c >>= fun n ->
-            XNode.find (node_t t) n p
+            node_of_commit t origin c >>= fun n ->
+            B.Node.find (B.Node.create ()) origin n p
         else
           return_none
       ) stream
 
+  module T = struct
+    type r = t
+    type t = r
+    let hash t = TK.hash t.branch
+    let compare x y = TK.compare x.branch y.branch
+    let equal x y = TK.equal x.branch y.branch
+    let to_sexp t = TK.to_sexp t.branch
+    let to_json t = TK.to_json t.branch
+    let of_json j = { branch = TK.of_json j }
+    let write t = TK.write t.branch
+    let read b = { branch = TK.read b }
+    let size_of t = TK.size_of t.branch
+  end
+
+end
+
+module Make
+    (B: Ir_block.STORE)
+    (T: Ir_tag.STORE with type value = B.head and type origin = B.origin)
+= struct
+  include Make_ext(B)(T)
 end

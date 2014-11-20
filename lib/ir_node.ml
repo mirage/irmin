@@ -194,9 +194,7 @@ module Make
   let empty = Val.empty
 
   let create () =
-    C.create () >>= fun c ->
-    N.create () >>= fun t ->
-    return (c, t)
+    C.create (), N.create ()
 
   let add (_, t) origin n =
     N.add t origin n
@@ -389,7 +387,5 @@ module Rec (S: STORE) = struct
   include S.Key
   module Origin = S.Contents.Val.Origin
   type origin = Origin.t
-  let merge origin ~old k1 k2 =
-    S.create ()  >>= fun t  ->
-    S.merge t origin ~old k1 k2
+  let merge = S.merge (S.create ())
 end

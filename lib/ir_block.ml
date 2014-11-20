@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-
 module type STORE = sig
 
   type origin
@@ -86,7 +84,5 @@ module Rec (S: STORE) = struct
   include S.Commit.Key
   module Origin = S.Origin
   type origin = S.origin
-  let merge origin ~old k1 k2 =
-    S.Commit.create ()  >>= fun t  ->
-    S.Commit.merge t origin ~old k1 k2
+  let merge = S.Commit.merge (S.Commit.create ())
 end

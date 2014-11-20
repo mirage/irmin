@@ -98,7 +98,7 @@ module Make
       | `O [ "node", x ] -> `Node (Node.of_json x)
       | `O [ "commit", x ] -> `Commit (Commit.of_json x)
       | `O [ "tag", x ] -> `Tag (Tag.of_json x)
-      | j -> failwith ("Vertex.of_json parse error: " ^ Ezjsonm.to_string j)
+      | j -> Ezjsonm.parse_error j "Vertex.of_json"
 
     let write t buf = match t with
       | `Contents x -> Contents.write x (Ir_misc.tag buf 0)
@@ -117,7 +117,7 @@ module Make
       | 1 -> `Node (Node.read buf)
       | 2 -> `Commit (Commit.read buf)
       | 3 -> `Tag (Tag.read buf)
-      | n -> failwith ("Vertex.read parse error: " ^ string_of_int n)
+      | n -> Tc.Reader.error "Vertex.read parse error (tag=%d)" n
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)

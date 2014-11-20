@@ -40,20 +40,11 @@ module type OF_STORE = sig
       given path. Takes and returns a new snapshot every time a
       sub-path is modified. *)
 
-  type state
-  (** Type for snapshot stats. *)
-
-  val of_state: db -> state -> t
-  (** Create a snapshot from a database state. *)
-
-  val to_state: t -> state
-  (** Get the databae state. *)
-
 end
 
 module Of_store (S: Ir_bc.STORE_EXT):
   OF_STORE with type db = S.t
-            and type state = S.Block.Node.key
+            and type t = S.Block.Node.key
             and type origin = S.origin
             and type key = S.key
 (** Add snapshot capabilities to a branch-consistent store. *)

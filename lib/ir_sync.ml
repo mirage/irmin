@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-open Misc.OP
+open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "SYNC" end)
 

@@ -177,9 +177,7 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
   module Key = K
 
   let create () =
-    N.create () >>= fun n ->
-    C.create () >>= fun c ->
-    return (n, c)
+    N.create (), C.create ()
 
   let add (_, t) origin c =
     C.add t origin c
@@ -288,7 +286,5 @@ module Rec (S: STORE) = struct
   include S.Key
   module Origin = S.Node.Contents.Val.Origin
   type origin = S.origin
-  let merge origin ~old k1 k2 =
-    S.create () >>= fun t  ->
-    S.merge t origin ~old k1 k2
+  let merge = S.merge (S.create ())
 end

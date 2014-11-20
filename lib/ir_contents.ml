@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Ir_merge.OP
 
 module Log = Log.Make(struct let section = "CONTENTS" end)
@@ -154,7 +153,5 @@ module Rec (S: STORE) = struct
   include S.Key
   module Origin = S.Val.Origin
   type origin = S.origin
-  let merge origin ~old k1 k2 =
-    S.create ()  >>= fun t  ->
-    S.merge t origin ~old k1 k2
+  let merge = S.merge (S.create ())
 end

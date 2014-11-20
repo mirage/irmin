@@ -23,7 +23,7 @@ module type STORE = sig
   type key
   type value
   type origin
-  val create: unit -> t Lwt.t
+  val create: unit -> t
   val read: t -> origin -> key -> value option Lwt.t
   val read_exn: t -> origin -> key -> value Lwt.t
   val mem: t -> origin -> key -> bool Lwt.t
