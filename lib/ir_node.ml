@@ -59,7 +59,6 @@ module type STORE = sig
   module Contents: Ir_contents.STORE
     with type value = contents
      and type origin = origin
-  val contents_t: t -> Contents.t
   module Key: Ir_uid.S with type t = key
   module Val: S
     with type t = value
@@ -192,13 +191,11 @@ module Make
   type value = Val.t
   type t = C.t * N.t
 
-  let contents_t (t:t) = fst t
-
   let empty = Val.empty
 
   let create () =
     C.create () >>= fun c ->
-    N.create ()     >>= fun t ->
+    N.create () >>= fun t ->
     return (c, t)
 
   let add (_, t) origin n =

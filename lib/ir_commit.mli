@@ -83,9 +83,6 @@ module type STORE = sig
      and type origin = origin
   (** Base functions over nodes. *)
 
-  val node_t: t -> Node.t
-  (** The underlying handler of the node store. *)
-
   module Key: Ir_uid.S with type t = key
   (** Base functions over keys. *)
 

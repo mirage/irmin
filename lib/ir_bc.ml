@@ -54,6 +54,7 @@ module type STORE = sig
   val update_head: t -> Block.Commit.key -> unit Lwt.t
   val merge_head: t -> ?origin:origin -> Block.Commit.key -> unit Ir_merge.result Lwt.t
   val read_node: t -> key -> Block.Node.value option Lwt.t
+  val mem_node: t -> key -> bool Lwt.t
   val update_node: t -> origin -> key -> Block.Node.value -> unit Lwt.t
   val watch_node: t -> key -> (key * Block.Node.key) Lwt_stream.t
   module Graph: Ir_graph.S with type V.t =
@@ -181,7 +182,6 @@ struct
       | None   -> return_none
       | Some k -> XCommit.read (commit_t t) k
 
-
   let node_of_commit t c =
     match XCommit.node (commit_t t) c with
     | None   -> return Node.empty
@@ -204,6 +204,11 @@ struct
     read_head_commit t          >>= fun commit ->
     node_of_opt_commit t commit >>= fun node ->
     XNode.sub (node_t t) node path
+
+  let mem_node t path =
+    read_node t path >>= function
+    | None   -> return false
+    | Some _ -> return true
 
   let apply t origin ~f =
     read_head_commit t          >>= fun commit ->

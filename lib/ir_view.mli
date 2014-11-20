@@ -76,30 +76,25 @@ module type OF_STORE = sig
   type db
   (** Database handler. *)
 
-  val of_path: db -> key -> t Lwt.t
+  val origin_of_actions: t -> origin
+  (** Create an origin using the list of actions as message. *)
+
+  val of_path: db -> origin -> key -> t Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,
       all the real reads operation will be done on-demand when the
       view is used. *)
 
-  val update_path: ?origin:origin -> db -> key -> t -> unit Lwt.t
+  val update_path: db -> origin -> key -> t -> unit Lwt.t
   (** Commit a view to the store. The view *replaces* the current
       subtree, so if you want to do a merge, you have to do it
       manually (by creating a new branch, or rebasing before
       commiting). [origin] helps keeping track of provenance. *)
 
-  val rebase_path: ?origin:origin -> db -> key -> t -> unit Ir_merge.result Lwt.t
+  val rebase_path: db -> origin -> key -> t -> unit Ir_merge.result Lwt.t
   (** Rebase the view to the tip of the store. *)
 
-  val rebase_path_exn: ?origin:origin -> db -> key -> t -> unit Lwt.t
-  (** Same as [rebase_path] but raise [Conflict] in case of
-      conflict. *)
-
-  val merge_path: ?origin:origin -> db -> key -> t -> unit Ir_merge.result Lwt.t
+  val merge_path: db -> origin -> key -> t -> unit Ir_merge.result Lwt.t
   (** Same as [update_path] but *merges* with the current subtree. *)
-
-  val merge_path_exn: ?origin:origin -> db -> key -> t -> unit Lwt.t
-  (** Same as [merge_path] but throw [Conflict "msg"] in case of
-      conflict. *)
 
 end
 

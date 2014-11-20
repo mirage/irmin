@@ -46,7 +46,6 @@ module type STORE = sig
   module Node: Ir_node.STORE
     with type value = node
      and type origin = origin
-  val node_t: t -> Node.t
   module Key: Ir_uid.S with type t = key
   module Val: S
     with type t = value
@@ -174,8 +173,6 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
   type value = Val.t
   type t = N.t * C.t
   type node = N.value
-
-  let node_t (t:t) = fst t
 
   module Key = K
 

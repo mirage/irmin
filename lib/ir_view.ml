@@ -18,8 +18,6 @@ open Lwt
 open Ir_merge.OP
 open Ir_misc.OP
 open Printf
-open Sexplib.Std
-open Bin_prot.Std
 
 module Log = Log.Make(struct let section = "view" end)
 
@@ -115,27 +113,21 @@ end
 
 (***** views *)
 
-module type CONTENTS = sig
-  type t
-  module Origin: Tc.I0
-  module Raw: Tc.I0
-  val create: Raw.t -> t
-  val read: t -> Origin.t -> Raw.t option Lwt.t
-end
-
 module type NODE = sig
   type t
   type node
-  module Contents: CONTENTS
+  type contents
+  module Origin: Tc.I0
+  module Contents: Tc.I0 with type t = contents
   module Step: Ir_step.S
   module StepMap: Ir_misc.MAP with type key = Step.t
   val empty: unit -> t
   val is_empty: t -> bool
-  val read: t -> Contents.Origin.t -> t option Lwt.t
-  val succ: t -> t StepMap.t
-  val contents: t -> Contents.Raw.t option Lwt.t
-  val update_succ: t -> Contents.Origin.t -> t StepMap.t -> unit Lwt.t
-  val update_contents: t -> Contents.Origin.t -> Contents.Raw.t option -> unit Lwt.t
+  val read: t -> Origin.t -> node option Lwt.t
+  val succ: node -> t StepMap.t
+  val contents: t -> Origin.t -> contents option Lwt.t
+  val update_succ: t -> Origin.t -> t StepMap.t -> unit Lwt.t
+  val update_contents: t -> Origin.t -> contents option -> unit Lwt.t
 end
 
 module type S = sig
@@ -154,24 +146,31 @@ module Internal (Node: NODE) = struct
   module Step = Node.Step
   module StepMap = Node.StepMap
 
-  type origin = Node.Contents.Origin.t
+  type origin = Node.Origin.t
   type step = Step.t
   type key = step list
-  type value = Node.Contents.Raw.t
+  type value = Node.contents
 
   module Path = Ir_step.Path(Step)
   module PathSet = Ir_misc.Set(Path)
 
-  module Action = Action(Path)(Node.Contents.Raw)
+  module Action = Action(Path)(Node.Contents)
   type action = Action.t
+
+  module Univ = struct
+    type t = exn
+    let create (type s) () =
+      let module M = struct exception E of s option end in
+      (fun x -> M.E (Some x)), (function M.E x -> x | _ -> None)
+  end
 
   type t = {
     view: Node.t;
     mutable ops: action list;
-    mutable parents: int list (* B.Commit.key list; *)
+    mutable parents: Univ.t list;
   }
 
-  module CO = Tc.App1(Tc.O)(Node.Contents.Raw)
+  module CO = Tc.App1(Tc.O)(Node.Contents)
   module PL = Tc.App1(Tc.L)(Path)
 
   let create () =
@@ -200,7 +199,7 @@ module Internal (Node: NODE) = struct
   let read_aux t origin path =
     sub t origin path >>= function
     | None   -> return_none
-    | Some n -> Node.contents n
+    | Some n -> Node.contents n origin
 
   let read t origin k =
     read_aux t origin k >>= fun v ->
@@ -237,10 +236,10 @@ module Internal (Node: NODE) = struct
     t.ops <- `List (paths, result) :: t.ops;
     return result
 
-  let dump t origin =
+  let dump _t _origin =
     failwith "TODO"
 
-  let with_cleanup t origin view fn =
+  let with_cleanup _t origin view fn =
     fn () >>= fun () ->
     Node.read view origin >>= function
     | None   -> return_unit
@@ -293,7 +292,7 @@ module Internal (Node: NODE) = struct
       else
         let str = function
           | None   -> "<none>"
-          | Some c -> Tc.show (module Node.Contents.Raw) c in
+          | Some c -> Tc.show (module Node.Contents) c in
         conflict "read %s: got %S, expecting %S"
           (Tc.show (module Path) k) (str v') (str v)
     | `List (l, r) ->
@@ -319,18 +318,13 @@ end
 
 module Make (S: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
 
-  module Contents = struct
-    type t = V.t
-    module Origin = O
-    module Raw = V
-    let create x = x
-    let read x _ = return (Some x)
-  end
-
   module Node = struct
-    module Contents = Contents
+    module Contents = V
+    module Origin = O
     module Step = S
     module StepMap = Ir_misc.Map(S)
+
+    type contents = V.t
 
     type node = {
       contents: Contents.t option;
@@ -338,18 +332,27 @@ module Make (S: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
     }
     and t = node ref
 
-    type contents = V.t
     let empty () = ref { contents = None; succ = StepMap.empty }
     let is_empty t = !t.contents = None && StepMap.is_empty !t.succ
-    let read t _ = return (Some t)
-    let succ t = !t.succ
-    let contents t = return !t.contents
+    let read t _ = return (Some !t)
+    let succ t = t.succ
+    let contents t _ = return !t.contents
     let update_succ t _ succ = t := { !t with succ }; return_unit
     let update_contents t _ contents = t := { !t with contents }; return_unit
   end
 
   include Internal(Node)
 
+end
+
+module type OF_STORE = sig
+  include S
+  type db
+  val origin_of_actions: t -> origin
+  val of_path: db -> origin -> key -> t Lwt.t
+  val update_path: db -> origin -> key -> t -> unit Lwt.t
+  val rebase_path: db -> origin -> key -> t -> unit Ir_merge.result Lwt.t
+  val merge_path: db -> origin -> key -> t -> unit Ir_merge.result Lwt.t
 end
 
 module Of_store (S: Ir_bc.STORE_EXT) = struct
@@ -384,21 +387,22 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
       | Both (_, c)
       | Contents c -> return (Some c)
       | Key k      ->
-        B.Contents.create ()       >>= fun t ->
-        B.Contents.read t origin k >>= function
+        B.Contents.create ()       >>= fun c ->
+        B.Contents.read c origin k >>= function
         | None   -> return_none
         | Some c ->
-          t := Contents c;
+          t := Both (k, c);
           return (Some c)
 
   end
 
-
-  module Path = Ir_step.Path(S.Block.Step)
-  module PathSet = Ir_misc.Set(Path)
-  module StepMap = Ir_misc.Map(B.Node.Step)
-
   module Node = struct
+
+    module Origin = B.Origin
+    module Step = B.Node.Step
+    module StepMap = Ir_misc.Map(B.Node.Step)
+
+    type contents = B.contents
 
     type node = {
       contents: Contents.t option;
@@ -414,6 +418,8 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
     (* Similir to [Node.t] but using where all of the values can just
        be keys. *)
 
+    let succ t = t.succ
+
     let create' contents succ =
       Node { contents; succ }
 
@@ -422,6 +428,9 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
 
     let key k =
       ref (Key k)
+
+    let both k v =
+      ref (Both (k, v))
 
     let empty () =
       create None StepMap.empty
@@ -452,27 +461,29 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
       let succ = StepMap.map export n.succ in
       B.Node.Val.create ?contents succ
 
-    let read ~node t =
+    let read t origin =
       match !t with
       | Both (_, n)
       | Node n   -> return (Some n)
       | Key k    ->
-        node k >>= function
+        B.Node.create ()       >>= fun n ->
+        B.Node.read n origin k >>= function
         | None   -> return_none
         | Some n ->
-          t := Node n;
+          let n = import n in
+          t := Both (k, n);
           return (Some n)
 
-    let contents ~node ~contents t =
-      read ~node t >>= function
+    let contents t origin =
+      read t origin >>= function
       | None   -> return_none
       | Some c ->
         match c.contents with
         | None   -> return_none
-        | Some c -> Contents.read ~contents c
+        | Some c -> Contents.read c origin
 
-    let update_contents ~node t v =
-      read ~node t >>= function
+    let update_contents t origin v =
+      read t origin >>= function
       | None   -> if v = None then return_unit else fail Not_found (* XXX ? *)
       | Some n ->
         let new_n = match v with
@@ -481,8 +492,8 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
         t := Node new_n;
         return_unit
 
-    let update_succ ~node t succ =
-      read ~node t >>= function
+    let update_succ t origin succ =
+      read t origin >>= function
       | None   ->
         if StepMap.is_empty succ then return_unit else
           fail Not_found (* XXX ? *)
@@ -491,68 +502,68 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
         t := Node new_n;
         return_unit
 
+    module Contents = B.Contents.Val
+
   end
 
-end
-
-
-module Store (S: Ir_bc.STORE) = struct
-
-  module K = S.Block.Key
-  module C = S.Value
-  module Path = S.Key
-  module Origin = S.Origin
-
-  include Make(K)(C)
+  include Internal(Node)
 
   type db = S.t
-  type path = S.key
 
-  let import ~parents ~contents ~node key =
-    Log.debugf "import %a" force (show (module K) key);
-    node key >>= function
+  let to_univ, of_univ = Univ.create ()
+
+  let univ_of_parents (t:S.head list) =
+    List.map to_univ t
+
+  let parents_of_univ l: S.head list =
+    Ir_misc.list_filter_map (fun x -> x) (List.map of_univ l)
+
+  let import ~parents key origin =
+    Log.debugf "import %a" force (show (module B.Node.Key) key);
+    B.Node.create () >>= fun t ->
+    B.Node.read t origin key >>= function
     | None   -> fail Not_found
     | Some n ->
-      let node k =
-        node k >>= function
-        | None   -> return_none
-        | Some n -> return (Some (XNode.import n)) in
-      let view = XNode.key key in
+      let view = Node.both key (Node.import n) in
       let ops = [] in
-      return { parents; node; contents; view; ops }
-  let export ~contents ~node t =
+      let parents = univ_of_parents parents in
+      return { parents; view; ops }
+
+  let export t origin =
     Log.debugf "export";
     let node n =
-      node (XNode.export_node n) in
+      B.Node.create () >>= fun t ->
+      B.Node.add t origin (Node.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match !n with
-      | XNode.Both _
-      | XNode.Key _  -> ()
-      | XNode.Node x ->
+      | Node.Both _
+      | Node.Key _  -> ()
+      | Node.Node x ->
         (* 1. we push the current node job on the stack. *)
         Stack.push (fun () ->
             node x >>= fun k ->
-            n := XNode.Key k;
+            n := Node.Key k;
             return_unit
           ) todo;
         (* 2. we push the contents job on the stack. *)
         Stack.push (fun () ->
-            match x.XNode.contents with
+            match x.Node.contents with
             | None   -> return_unit
             | Some c ->
               match !c with
-              | XContents.Both _
-              | XContents.Key _       -> return_unit
-              | XContents.Contents x  ->
-                contents x >>= fun k ->
-                c := XContents.Key k;
+              | Contents.Both _
+              | Contents.Key _       -> return_unit
+              | Contents.Contents x  ->
+                B.Contents.create () >>= fun t ->
+                B.Contents.add t origin x >>= fun k ->
+                c := Contents.Key k;
                 return_unit
           ) todo;
         (* 3. we push the children jobs on the stack. *)
-        Ir_misc.StringMap.iter (fun _ n ->
+        StepMap.iter (fun _ n ->
             Stack.push (fun () -> add_to_todo n; return_unit) todo
-          ) x.XNode.succ;
+          ) (Node.succ x);
     in
     let rec loop () =
       let task =
@@ -565,106 +576,79 @@ module Store (S: Ir_bc.STORE) = struct
     in
     add_to_todo t.view;
     loop () >>= fun () ->
-    return (XNode.export t.view)
+    return (Node.export t.view)
 
-  module Contents = S.Block.Contents
-  module Node = S.Block.Node
-
-  let of_path t path =
+  let of_path t origin path =
     Log.debugf "read_view %a" force (show (module Path) path);
-    let contents = Contents.read (S.contents_t t) in
-    let node = Node.read (S.node_t t) in
     let parents =
-      S.head t >>= function
+      S.head t origin >>= function
       | None   -> return_nil
       | Some h -> return [h] in
-    S.read_node t path >>= function
+    S.read_node t origin path >>= function
     | None   -> create ()
     | Some n ->
-      Node.add (S.node_t t) n >>= fun k ->
+      B.Node.add (S.node_t t) origin n >>= fun k ->
       parents >>= fun parents ->
-      import ~parents ~contents ~node k
+      import ~parents k origin
 
-  let node_of_view t view =
-    let contents = Contents.add (S.contents_t t) in
-    let node = Node.add (S.node_t t) in
-    export ~node ~contents view >>= fun key ->
-    Node.read_exn (S.node_t t) key
+  let node_of_view t origin view =
+    export view origin >>= fun key ->
+    B.Node.read_exn (S.node_t t) origin key
 
-  let update_path ?origin t path view =
+  let update_path t origin path view =
     Log.debugf "update_view %a" force (show (module Path) path);
-    let origin = match origin with
-      | None   -> Origin.create "Update view to %s" (Tc.show (module Path) path)
-      | Some o -> o in
-    node_of_view t view >>= fun node ->
+    node_of_view t origin view >>= fun node ->
     S.update_node t origin path node
 
-  let origin_of_actions ?origin actions =
-    match origin with
-    | None ->
-      let buf = Buffer.create 1024 in
-      let string_of_action =
-        Action.pretty (Tc.show (module Path)) (fun x -> "")
-      in
-      List.iter (fun a ->
-          bprintf buf "- %s\n" (string_of_action a)
-        ) actions;
-      Origin.create "Actions:\n%s\n" (Buffer.contents buf)
-    | Some o -> o
+  let origin_of_actions t =
+    let buf = Buffer.create 1024 in
+    List.iter (fun a ->
+        bprintf buf "- %s\n" (Action.pretty a)
+      ) t.ops;
+    B.Origin.create "Actions:\n%s\n" (Buffer.contents buf)
 
-  let rebase_path ?origin t path view =
+  let rebase_path t origin path view =
     Log.debugf "merge_view %a" force (show (module Path) path);
-    S.read_node t [] >>= function
-    | None           -> fail Not_found
-    | Some head_node ->
-      of_path t path                       >>= fun head_view ->
-      merge view ~into:head_view           >>| fun () ->
-      let origin = origin_of_actions ?origin (actions view) in
-      update_path ~origin t path head_view >>= fun () ->
+    S.mem_node t origin [] >>= function
+    | false -> fail Not_found
+    | true  ->
+      of_path t origin path >>= fun head_view ->
+      merge view origin ~into:head_view >>| fun () ->
+      update_path t origin path head_view >>= fun () ->
       ok ()
 
-  let rebase_path_exn ?origin t path view =
-    rebase_path ?origin t path view >>=
-    Ir_merge.exn
-
-  let merge_path ?origin t path view =
+  let merge_path t origin path view =
     Log.debugf "merge_view %a" force (show (module Path) path);
-    S.read_node t [] >>= function
+    S.read_node t origin [] >>= function
     | None           -> fail Not_found
     | Some head_node ->
       (* First, we check than we can rebase the view on the current
          HEAD. *)
-      of_path t path             >>= fun head_view ->
-      merge view ~into:head_view >>| fun () ->
+      of_path t origin path >>= fun head_view ->
+      merge view origin ~into:head_view >>| fun () ->
       (* Now that we know that rebasing is possible, we discard the
          result and proceed as a normal merge, ie. we apply the view
          on a branch, and we merge the branch back into the store. *)
-      node_of_view t view        >>= fun view_node ->
+      node_of_view t origin view >>= fun view_node ->
       (* Create a commit with the contents of the view *)
-      S.Block.Node.map (S.node_t t) head_node path (fun _ -> view_node)
+      B.Node.map (S.node_t t) origin head_node path (fun _ -> view_node)
       >>= fun new_head_node ->
-      Lwt_list.map_p (S.Block.Commit.read_exn (S.commit_t t)) view.parents
+      let parents = parents_of_univ view.parents in
+      Lwt_list.map_p (B.Commit.read_exn (S.commit_t t) origin) parents
       >>= fun parents ->
-      let origin = origin_of_actions ?origin (actions view) in
-      S.Block.Commit.commit (S.commit_t t) origin ~node:new_head_node ~parents
+      B.Commit.commit (S.commit_t t) origin ~node:new_head_node ~parents
       >>= fun (k, _) ->
       (* We want to avoid to create a merge commit when the HEAD has
          not been updated since the view has been created. *)
-      S.head t >>= function
+      S.head t origin >>= function
       | None ->
         (* The store is empty, create a fresh commit. *)
-        S.update_head t k >>= ok
+        S.update_head t origin k >>= ok
       | Some head ->
-        if List.mem head view.parents then
-          S.update_head t k >>= ok
+        let parents = parents_of_univ view.parents in
+        if List.mem head parents then
+          S.update_head t origin k >>= ok
         else
-          let origin =
-            Origin.create "Merge view to %s\n" (Tc. show (module Path) path)
-          in
-          S.merge_head t ~origin k
-
-  let merge_path_exn ?origin t path view =
-    merge_path ?origin t path view >>=
-    Ir_merge.exn
+          S.merge_head t origin k
 
 end

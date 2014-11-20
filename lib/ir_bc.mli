@@ -153,6 +153,9 @@ module type STORE_EXT = sig
   val read_node: t -> origin -> key -> Block.Node.value option Lwt.t
   (** Read a node. *)
 
+  val mem_node: t -> origin -> key -> bool Lwt.t
+  (** Check whether a node exists. *)
+
   val update_node: t -> origin -> key -> Block.Node.value -> unit Lwt.t
   (** Update a node. *)
 

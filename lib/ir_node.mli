@@ -131,10 +131,6 @@ module type STORE = sig
      and type origin = origin
   (** The contents store. *)
 
-  val contents_t: t -> Contents.t
-  (** [contents_t t] is the hanlder of the underlying contents store
-      of [t]. *)
-
   module Key: Ir_uid.S with type t = key
   (** Base functions for keys. *)
 
