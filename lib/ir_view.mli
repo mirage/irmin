@@ -36,7 +36,9 @@ module type S = sig
 
   (** Signature for views independant of any database substrate. *)
 
-  include Ir_rw.STORE
+  type step
+
+  include Ir_rw.STORE with type key = step list
 
   type action
   (** The type for actions. *)
@@ -45,21 +47,22 @@ module type S = sig
   (** Return the list of actions performed on this view since its
       creation. *)
 
-  val merge: t -> into:t -> unit Ir_merge.result Lwt.t
+  val merge: t -> origin -> into:t -> unit Ir_merge.result Lwt.t
   (** Merge the actions done on one view into an other one. If a read
       operation doesn't return the same result, return
       [Conflict]. Only the [into] view is updated. *)
 
-  module Actions: ACTION
+  module Action: ACTION
     with type path = key
      and type contents = value
   (** Base functions over actions. *)
 
 end
 
-module Make (K: Tc.I0) (V: Ir_contents.S): S
-  with type key = K.t
+module Make (S: Tc.I0) (V: Tc.I0) (O: Tc.I0): S
+  with type step = S.t
    and type value = V.t
+   and type origin = O.t
 (** Create a view implementation independant of any underlying
     store. *)
 

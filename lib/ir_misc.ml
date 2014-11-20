@@ -85,12 +85,13 @@ module type MAP = sig
   end
 end
 
-let sorted_alist_iter2 f compare l1 l2 =
+(* assume l1 and l2 are key-sorted *)
+let alist_iter2 compare_k f l1 l2 =
   let rec aux l1 l2 = match l1, l2 with
     | [], t -> List.iter (fun (key, v) -> f key (`Right v)) t
     | t, [] -> List.iter (fun (key, v) -> f key (`Left v)) t
     | (k1,v1)::t1, (k2,v2)::t2 ->
-      match compare k1 k2 with
+      match compare_k k1 k2 with
       | 0 ->
         f k1 (`Both (v1, v2));
         aux t1 t2
@@ -104,24 +105,29 @@ let sorted_alist_iter2 f compare l1 l2 =
   in
   aux l1 l2
 
-let list_iter2_lwt f l1 l2 =
+(* assume l1 and l2 are key-sorted *)
+let alist_iter2_lwt compare_k f l1 l2 =
   let open Lwt in
   let l3 = ref [] in
-  List.iter2 (fun key data ->
-      l3 := f key data :: !l3
+  alist_iter2 compare_k (fun left right ->
+      l3 := f left right :: !l3
     ) l1 l2;
   Lwt_list.iter_p
     (fun b -> b >>= fun () -> return_unit) (List.rev !l3)
 
-let alist_merge_lwt f l1 l2 =
+(* DO NOT assume l1 and l2 are key-sorted *)
+let alist_merge_lwt compare_k f l1 l2 =
   let open Lwt in
   let l3 = ref [] in
+  let sort l = List.sort (fun (x,_) (y,_) -> compare_k x y) l in
+  let l1 = sort l1 in
+  let l2 = sort l2 in
   let f key data =
     f key data >>= function
     | None   -> return_unit
     | Some v -> l3 := (key, v) :: !l3; return_unit
   in
-  list_iter2_lwt f l1 l2 >>= fun () ->
+  alist_iter2_lwt compare_k f l1 l2 >>= fun () ->
   return !l3
 
 module Map (K: Tc.I0) = struct
@@ -144,7 +150,7 @@ module Map (K: Tc.I0) = struct
       add key [data] t
 
   let iter2 f t1 t2 =
-    sorted_alist_iter2 f K.compare (bindings t1) (bindings t2)
+    alist_iter2 K.compare f (bindings t1) (bindings t2)
 
   module Lwt = struct
     open Lwt

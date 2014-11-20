@@ -41,6 +41,7 @@ module type STORE = sig
      and type step = step
      and type origin = origin
      and module Contents = Contents
+     and module Step = Step
 
   module Commit: Ir_commit.STORE
     with type key = head

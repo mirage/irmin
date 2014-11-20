@@ -35,8 +35,8 @@ module type S = sig
   type node
   (** Type for nodes. *)
 
-  type step
-  (** Type for node steps. *)
+  type 'a step_map
+  (** A map of steps. *)
 
   val contents: t -> contents option
   (** [contents t] is the (optional) key of the node contents. *)
@@ -44,7 +44,7 @@ module type S = sig
   val contents_exn: t -> contents
   (** Same as [contents], but raise [Not_found] if it is [None]. *)
 
-  val succ: t -> (step * node) list
+  val succ: t -> node step_map
   (** Extract the successors of a node. *)
 
   val edges: t -> [`Contents of contents | `Node of node] list
@@ -56,7 +56,7 @@ module type S = sig
   val leaf: contents -> t
   (** Create a leaf node, with some contents and no successors. *)
 
-  val create: ?contents:contents -> (step * node) list -> t
+  val create: ?contents:contents -> node step_map -> t
   (** [create ~contents succ] is the node with contents [contents] and
       successors [succs]. *)
 
@@ -142,7 +142,7 @@ module type STORE = sig
     with type t = value
      and type node = key
      and type contents = Contents.key
-     and type step = step
+     and type 'a step_map = 'a Map.Make(Step).t
   (** Base functions for values. *)
 
 end

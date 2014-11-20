@@ -23,373 +23,478 @@ open Bin_prot.Std
 
 module Log = Log.Make(struct let section = "view" end)
 
+(***** Actions *)
 
-module Make (K: Tc.I0) (V: Ir_contents.S) = struct
+module type ACTION = sig
+  type path
+  type contents
+  type t =
+    [ `Read of (path * contents option)
+    | `Write of (path * contents option)
+    | `List of (path list * path list) ]
+  (** Operations on view. We record the result of reads to be able to
+      replay them on merge. *)
 
-  module Action: Tc.I0 = struct
+  include Tc.I0 with type t := t
 
-    type path = K.t
-    type contents = V.t
+  val pretty: t -> string
+  (** Pretty-print an action. *)
+end
 
-    type t =
-      [ `Read of (path * contents option)
-      | `Write of (path * contents option)
-      | `List of  (path list * path list) ]
+module Action (P: Tc.I0) (C: Tc.I0) = struct
 
-    module KV = Tc.App2(Tc.P)( K )( Tc.App1(Tc.O)(V) )
+  type path = P.t
+  type contents = C.t
 
-    module VV = Tc.App2(Tc.P)( Tc.App1(Tc.L)(V) )( Tc.App1(Tc.L)(V) )
+  type t =
+    [ `Read of (path * contents option)
+    | `Write of (path * contents option)
+    | `List of  (path list * path list) ]
 
-    let compare = Pervasives.compare
-    let hash = Hashtbl.hash
+  module R = Tc.App2(Tc.P)( P )( Tc.App1(Tc.O)(C) )
+  module W = R
+  module L = Tc.App2(Tc.P)( Tc.App1(Tc.L)(P) )( Tc.App1(Tc.L)(P) )
 
-    let equal (x:t) (y:t) = match x, y with
-      | `Read x , `Read y
-      | `Write x, `Write y -> KV.equal x y
-      | `List x , `List y  -> VV.equal x y
-      | _ -> false
+  let compare = Pervasives.compare
+  let hash = Hashtbl.hash
 
-    let to_sexp (t:t) =
-      let open Sexplib.Type in
-      match t with
-      | `Read x  -> List [ Atom "read" ; KV.to_sexp x ]
-      | `Write x -> List [ Atom "write"; KV.to_sexp x ]
-      | `List x  -> List [ Atom "list" ; VV.to_sexp x ]
+  let equal x y = match x, y with
+    | `Read x , `Read y  -> R.equal x y
+    | `Write x, `Write y -> W.equal x y
+    | `List x , `List y  -> L.equal x y
+    | _ -> false
 
-    let to_json = function
-      | `Read x  -> `O [ "read" , KV.to_json x ]
-      | `Write x -> `O [ "write", KV.to_json x ]
-      | `List x  -> `O [ "list" , VV.to_json x ]
+  let to_sexp t =
+    let open Sexplib.Type in
+    match t with
+    | `Read x  -> List [ Atom "read" ; R.to_sexp x ]
+    | `Write x -> List [ Atom "write"; W.to_sexp x ]
+    | `List x  -> List [ Atom "list" ; L.to_sexp x ]
 
-    let of_json = function
-      | `O [ "read" , x ] -> `Read (KV.of_json x)
-      | `O [ "write", x ] -> `Write (KV.of_json x)
-      | `O [ "list" , x ] -> `List (VV.of_json x)
-      | j -> failwith ("View.Action.of_json: parse error:\n" ^ Ezjsonm.to_string j)
+  let to_json = function
+    | `Read x  -> `O [ "read" , R.to_json x ]
+    | `Write x -> `O [ "write", W.to_json x ]
+    | `List x  -> `O [ "list" , L.to_json x ]
 
-    let write t buf = match t with
-      | `Read x  -> KV.write x (Ir_misc.tag buf 0)
-      | `Write x -> KV.write x (Ir_misc.tag buf 1)
-      | `List x  -> VV.write x (Ir_misc.tag buf 2)
+  let of_json = function
+    | `O [ "read" , x ] -> `Read  (R.of_json x)
+    | `O [ "write", x ] -> `Write (W.of_json x)
+    | `O [ "list" , x ] -> `List  (L.of_json x)
+    | j -> failwith ("View.Action.of_json: parse error:\n" ^ Ezjsonm.to_string j)
 
-    let read buf = match Ir_misc.untag buf with
-      | 0 -> `Read (KV.read buf)
-      | 1 -> `Write (KV.read buf)
-      | 2 -> `List (VV.read buf)
-      | n -> failwith ("View.Action.read parse error: " ^ string_of_int n)
+  let write t buf = match t with
+    | `Read x  -> R.write x (Ir_misc.tag buf 0)
+    | `Write x -> W.write x (Ir_misc.tag buf 1)
+    | `List x  -> L.write x (Ir_misc.tag buf 2)
 
-    let size_of t = 1 + match t with
-      | `Read x -> KV.size_of x
-      | `Write x -> KV.size_of x
-      | `List x -> VV.size_of x
+  let read buf = match Ir_misc.untag buf with
+    | 0 -> `Read  (R.read buf)
+    | 1 -> `Write (W.read buf)
+    | 2 -> `List  (L.read buf)
+    | n -> failwith ("View.Action.read parse error: " ^ string_of_int n)
 
-    let pretty t =
-      let pretty_key = Tc.show (module K) in
-      let pretty_val = Tc.show (module V) in
-      let pretty_keys l = String.concat ", " (List.map pretty_key l) in
-      let pretty_valo = function
-        | None   -> "<none>"
-        | Some x -> pretty_val x
-      in
-      match t with
-      | Read (p,x) -> sprintf "read  %s -> %s" (pretty_key p) (pretty_valo x)
-      | Write (p,x) ->sprintf "write %s <- %s" (pretty_key p) (pretty_valo x)
-      | List (i,o) -> sprintf "list  %s -> %s" (pretty_keys i) (pretty_keys o)
+  let size_of t = 1 + match t with
+    | `Read x  -> R.size_of x
+    | `Write x -> W.size_of x
+    | `List x  -> L.size_of x
 
-  end
+  let pretty t =
+    let pretty_key = Tc.show (module P) in
+    let pretty_val = Tc.show (module C) in
+    let pretty_keys l = String.concat ", " (List.map pretty_key l) in
+    let pretty_valo = function
+      | None   -> "<none>"
+      | Some x -> pretty_val x
+    in
+    match t with
+    | `Read (p,x) -> sprintf "read  %s -> %s" (pretty_key p) (pretty_valo x)
+    | `Write (p,x) ->sprintf "write %s <- %s" (pretty_key p) (pretty_valo x)
+    | `List (i,o) -> sprintf "list  %s -> %s" (pretty_keys i) (pretty_keys o)
 
 end
 
-module Contents = struct
+(***** views *)
 
-  type ('k, 'c) contents_or_key =
-    | Key of 'k
-    | Contents of 'c
-    | Both of 'k * 'c
-
-  type ('k, 'c) t = ('k, 'c) contents_or_key ref
-  (* Same as [Contents.t] but can either be a raw contents or a
-     key that will be fetched lazily. *)
-
-  let create c =
-    ref (Contents c)
-
-  let export c =
-    match !c with
-    | Both (k, _)
-    | Key k      -> k
-    | Contents _ -> failwith "Contents.export"
-
-  let key k =
-    ref (Key k)
-
-  let read ~contents t =
-    match !t with
-    | Both (_, c)
-    | Contents c -> return (Some c)
-    | Key k      ->
-      contents k >>= function
-      | None   -> return_none
-      | Some c ->
-        t := Contents c;
-        return (Some c)
-
+module type CONTENTS = sig
+  type t
+  module Origin: Tc.I0
+  module Raw: Tc.I0
+  val create: Raw.t -> t
+  val read: t -> Origin.t -> Raw.t option Lwt.t
 end
 
-module Node = struct
-
-  type ('k, 'c) node = {
-    contents: ('k, 'c) XContents.t option;
-    succ    : ('k, 'c) t Ir_misc.StringMap.t;
-  }
-
-  and ('k, 'c) node_or_key  =
-    | Key of 'k
-    | Node of ('k, 'c) node
-    | Both of 'k * ('k, 'c) node
-
-  and ('k, 'c) t = ('k, 'c) node_or_key ref
-  (* Similir to [Node.t] but using where all of the values can
-     just be keys. *)
-
-  let create' contents succ =
-    Node { contents; succ }
-
-  let create contents succ =
-    ref (create' contents succ)
-
-  let key k =
-    ref (Key k)
-
-  let empty () =
-    create None Ir_misc.StringMap.empty
-
-  let is_empty n =
-    match !n with
-    | Key _  -> false
-    | Both (_, n)
-    | Node n -> n.contents = None && Ir_misc.StringMap.is_empty n.succ
-
-  let import n =
-    let contents = match N.Val.contents n with
-      | None   -> None
-      | Some k -> Some (XContents.key k) in
-    let succ = Ir_misc.StringMap.map key n.Ir_node.succ in
-    { contents; succ }
-
-  let export n =
-    match !n with
-    | Both (k, _)
-    | Key k  -> k
-    | Node _ -> failwith "Node.export"
-
-  let export_node n =
-    let contents = match n.contents with
-      | None   -> None
-      | Some c -> Some (XContents.export c) in
-    let succ = Ir_misc.StringMap.map export n.succ in
-    { Ir_node.contents; succ }
-
-  let read ~node t =
-    match !t with
-    | Both (_, n)
-    | Node n   -> return (Some n)
-    | Key k    ->
-      node k >>= function
-      | None   -> return_none
-      | Some n ->
-        t := Node n;
-        return (Some n)
-
-  let contents ~node ~contents t =
-    read ~node t >>= function
-    | None   -> return_none
-    | Some c ->
-      match c.contents with
-      | None   -> return_none
-      | Some c -> XContents.read ~contents c
-
-  let update_contents ~node t v =
-    read ~node t >>= function
-    | None   -> if v = None then return_unit else fail Not_found (* XXX ? *)
-    | Some n ->
-      let new_n = match v with
-        | None   -> { n with contents = None }
-        | Some c -> { n with contents = Some (XContents.create c) } in
-      t := Node new_n;
-      return_unit
-
-  let update_succ ~node t succ =
-    read ~node t >>= function
-    | None   ->
-      if Ir_misc.StringMap.is_empty succ then return_unit else
-        fail Not_found (* XXX ? *)
-    | Some n ->
-      let new_n = { n with succ } in
-      t := Node new_n;
-      return_unit
-
+module type NODE = sig
+  type t
+  type node
+  module Contents: CONTENTS
+  module Step: Ir_step.S
+  module StepMap: Ir_misc.MAP with type key = Step.t
+  val empty: unit -> t
+  val is_empty: t -> bool
+  val read: t -> Contents.Origin.t -> t option Lwt.t
+  val succ: t -> t StepMap.t
+  val contents: t -> Contents.Raw.t option Lwt.t
+  val update_succ: t -> Contents.Origin.t -> t StepMap.t -> unit Lwt.t
+  val update_contents: t -> Contents.Origin.t -> Contents.Raw.t option -> unit Lwt.t
 end
 
-module Make (S: Ir_bc.STORE_EXT) = struct
+module type S = sig
+  type step
+  include Ir_rw.STORE with type key = step list
+  type action
+  val actions: t -> action list
+  val merge: t -> origin -> into:t -> unit Ir_merge.result Lwt.t
+  module Action: ACTION
+    with type path = key
+     and type contents = value
+end
 
-  module N = S.Block.Node
-  module C = S.Block.Node.Contents
+module Internal (Node: NODE) = struct
 
-  type node = N.Key.t
+  module Step = Node.Step
+  module StepMap = Node.StepMap
+
+  type origin = Node.Contents.Origin.t
+  type step = Step.t
+  type key = step list
+  type value = Node.Contents.Raw.t
+
+  module Path = Ir_step.Path(Step)
+  module PathSet = Ir_misc.Set(Path)
+
+  module Action = Action(Path)(Node.Contents.Raw)
+  type action = Action.t
+
   type t = {
-    node    : N.Key.t -> (N.Key.t, C.Val.t) XNode.node option Lwt.t;
-    contents: C.Key.t -> C.Val.t option Lwt.t;
-    view    : (N.Key.t, C.Val.t) XNode.t;
-    mutable ops: (N.step list, C.Val.t) action list;
-    mutable parents: 'k list;
+    view: Node.t;
+    mutable ops: action list;
+    mutable parents: int list (* B.Commit.key list; *)
   }
-  type key = Ir_path.t
-  type value = C.t
 
-  module CO = Tc.App1(Tc.O)(C)
-  module PL = Tc.App1(Tc.L)(Ir_path)
-
-  module A = Tc.App2(Action)(Ir_path)(C)
+  module CO = Tc.App1(Tc.O)(Node.Contents.Raw)
+  module PL = Tc.App1(Tc.L)(Path)
 
   let create () =
     Log.debugf "create";
-    let node _ = return_none in
-    let contents _ = return_none in
-    let view = XNode.empty () in
+    let view = Node.empty () in
     let ops = [] in
     let parents = [] in
-    return { parents; node; contents; view; ops }
+    return { parents; view; ops }
 
-  let sub t path =
+  let sub t origin path =
     let rec aux node = function
       | []   -> return (Some node)
       | h::p ->
-        XNode.read ~node:t.node node >>= function
+        Node.read node origin >>= function
         | None -> return_none
-        | Some { XNode.succ; _ } ->
+        | Some t ->
+          let succ = Node.succ t in
           try
-            let v =  Ir_misc.StringMap.find h succ in
+            let v = StepMap.find h succ in
             aux v p
           with Not_found ->
             return_none
     in
     aux t.view path
 
-  let read (t:t) path =
-    sub t path >>= function
+  let read_aux t origin path =
+    sub t origin path >>= function
     | None   -> return_none
-    | Some n -> XNode.contents ~node:t.node ~contents:t.contents n
+    | Some n -> Node.contents n
 
-  let read t k =
-    read t k >>= fun v ->
-    t.ops <- Read (k, v) :: t.ops;
+  let read t origin k =
+    read_aux t origin k >>= fun v ->
+    t.ops <- `Read (k, v) :: t.ops;
     return v
 
-  let read_exn t k =
-    read t k >>= function
+  let read_exn t origin k =
+    read t origin k >>= function
     | None   -> fail Not_found
     | Some v -> return v
 
-  let mem t k =
-    read t k >>= function
+  let mem t origin k =
+    read t origin k >>= function
     | None  -> return false
     | _     -> return true
 
-  let list t paths =
+  let list_aux t origin paths =
     let aux acc path =
-      sub t path >>= function
+      sub t origin path >>= function
       | None   -> return acc
       | Some n ->
-        XNode.read ~node:t.node n >>= function
+        Node.read n origin >>= function
         | None -> return acc
-        | Some { XNode.succ; _ } ->
-          let paths = List.map (fun p -> path @ [p]) (Ir_misc.StringMap.keys succ) in
+        | Some t ->
+          let succ = Node.succ t in
+          let paths = List.map (fun p -> path @ [p]) (StepMap.keys succ) in
           let paths = PathSet.of_list paths in
           return (PathSet.union acc paths) in
     Lwt_list.fold_left_s aux PathSet.empty paths >>= fun paths ->
     return (PathSet.to_list paths)
 
-  let list t paths =
-    list t paths >>= fun result ->
-    t.ops <- List (paths, result) :: t.ops;
+  let list t origin paths =
+    list_aux t origin paths >>= fun result ->
+    t.ops <- `List (paths, result) :: t.ops;
     return result
 
-  let dump t =
+  let dump t origin =
     failwith "TODO"
 
-  let with_cleanup t view fn =
+  let with_cleanup t origin view fn =
     fn () >>= fun () ->
-    XNode.read ~node:t.node view >>= function
+    Node.read view origin >>= function
     | None   -> return_unit
     | Some n ->
       let succ =
-        Ir_misc.StringMap.filter (fun _ n -> not (XNode.is_empty n)) n.XNode.succ
+        StepMap.filter (fun _ n -> not (Node.is_empty n)) (Node.succ n)
       in
-      XNode.update_succ ~node:t.node view succ
+      Node.update_succ view origin succ
 
-  let update' t k v =
+  let update_opt_aux t origin k v =
     let rec aux view = function
-      | []   -> XNode.update_contents ~node:t.node view v
+      | []   -> Node.update_contents view origin v
       | h::p ->
-        XNode.read ~node:t.node view >>= function
+        Node.read view origin >>= function
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
           try
-            let child = Ir_misc.StringMap.find h n.XNode.succ in
-            if v = None then with_cleanup t view (fun () -> aux child p)
+            let child = StepMap.find h (Node.succ n) in
+            if v = None then with_cleanup t origin view (fun () -> aux child p)
             else aux child p
           with Not_found ->
             if v = None then return_unit
             else
-              let child = XNode.empty () in
-              let succ = Ir_misc.StringMap.add h child n.XNode.succ in
-              XNode.update_succ ~node:t.node view succ >>= fun () ->
+              let child = Node.empty () in
+              let succ = StepMap.add h child (Node.succ n) in
+              Node.update_succ view origin succ >>= fun () ->
               aux child p in
     aux t.view k
 
-  let update' t k v =
-    t.ops <- Write (k, v) :: t.ops;
-    update' t k v
+  let update_opt t origin k v =
+    t.ops <- `Write (k, v) :: t.ops;
+    update_opt_aux t origin k v
 
-  let update t k v =
-    update' t k (Some v)
+  let update t origin k v =
+    update_opt t origin k (Some v)
 
-  let remove t k =
-    update' t k None
+  let remove t origin k =
+    update_opt t origin k None
 
   let watch _ =
     failwith "TODO"
 
-  let apply t a =
-    Log.debugf "apply %a" force (show (module A) a);
+  let apply t origin a =
+    Log.debugf "apply %a" force (show (module Action) a);
     match a with
-    | Write (k, v) -> update' t k v >>= ok
-    | Read (k, v)  ->
-      read t k >>= fun v' ->
+    | `Write (k, v) -> update_opt t origin k v >>= ok
+    | `Read (k, v)  ->
+      read t origin k >>= fun v' ->
       if Tc.equal (module CO) v v' then ok ()
       else
         let str = function
           | None   -> "<none>"
-          | Some c -> Tc.show (module C) c in
+          | Some c -> Tc.show (module Node.Contents.Raw) c in
         conflict "read %s: got %S, expecting %S"
-          (Tc.show (module Ir_path) k) (str v') (str v)
-    | List (l, r) ->
-      list t l >>= fun r' ->
+          (Tc.show (module Path) k) (str v') (str v)
+    | `List (l, r) ->
+      list t origin l >>= fun r' ->
       if Tc.equal (module PL) r r' then ok ()
       else
-        let str = Ir_misc.list_pretty (Tc.show (module Ir_path)) in
+        let str = Ir_misc.list_pretty (Tc.show (module Path)) in
         conflict "list %s: got %s, expecting %s" (str l) (str r') (str r)
 
   let actions t =
     List.rev t.ops
 
-  let merge t1 ~into =
-    Ir_merge.iter (apply into) (List.rev t1.ops) >>| fun () ->
+  let merge t1 origin ~into =
+    Ir_merge.iter (apply into origin) (List.rev t1.ops) >>| fun () ->
     into.parents <- Ir_misc.list_dedup (t1.parents @ into.parents);
     ok ()
 
 end
+
+(*** Simple views stored in memory. No database access. Used to build
+     a view programmatically and independently of any underlying
+     database. *)
+
+module Make (S: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
+
+  module Contents = struct
+    type t = V.t
+    module Origin = O
+    module Raw = V
+    let create x = x
+    let read x _ = return (Some x)
+  end
+
+  module Node = struct
+    module Contents = Contents
+    module Step = S
+    module StepMap = Ir_misc.Map(S)
+
+    type node = {
+      contents: Contents.t option;
+      succ    : t StepMap.t;
+    }
+    and t = node ref
+
+    type contents = V.t
+    let empty () = ref { contents = None; succ = StepMap.empty }
+    let is_empty t = !t.contents = None && StepMap.is_empty !t.succ
+    let read t _ = return (Some t)
+    let succ t = !t.succ
+    let contents t = return !t.contents
+    let update_succ t _ succ = t := { !t with succ }; return_unit
+    let update_contents t _ contents = t := { !t with contents }; return_unit
+  end
+
+  include Internal(Node)
+
+end
+
+module Of_store (S: Ir_bc.STORE_EXT) = struct
+
+  module B = S.Block
+
+  module Contents = struct
+
+    type contents_or_key =
+      | Key of B.Contents.key
+      | Contents of B.contents
+      | Both of B.Contents.key * B.contents
+
+    type t = contents_or_key ref
+    (* Same as [Contents.t] but can either be a raw contents or a key
+       that will be fetched lazily. *)
+
+    let create c =
+      ref (Contents c)
+
+    let export c =
+      match !c with
+      | Both (k, _)
+      | Key k -> k
+      | Contents _ -> failwith "Contents.export"
+
+    let key k =
+      ref (Key k)
+
+    let read t origin =
+      match !t with
+      | Both (_, c)
+      | Contents c -> return (Some c)
+      | Key k      ->
+        B.Contents.create ()       >>= fun t ->
+        B.Contents.read t origin k >>= function
+        | None   -> return_none
+        | Some c ->
+          t := Contents c;
+          return (Some c)
+
+  end
+
+
+  module Path = Ir_step.Path(S.Block.Step)
+  module PathSet = Ir_misc.Set(Path)
+  module StepMap = Ir_misc.Map(B.Node.Step)
+
+  module Node = struct
+
+    type node = {
+      contents: Contents.t option;
+      succ    : t StepMap.t;
+    }
+
+    and node_or_key  =
+      | Key of B.Node.key
+      | Node of node
+      | Both of B.Node.key * node
+
+    and t = node_or_key ref
+    (* Similir to [Node.t] but using where all of the values can just
+       be keys. *)
+
+    let create' contents succ =
+      Node { contents; succ }
+
+    let create contents succ =
+      ref (create' contents succ)
+
+    let key k =
+      ref (Key k)
+
+    let empty () =
+      create None StepMap.empty
+
+    let is_empty n =
+      match !n with
+      | Key _  -> false
+      | Both (_, n)
+      | Node n -> n.contents = None && StepMap.is_empty n.succ
+
+    let import n =
+      let contents = match B.Node.Val.contents n with
+        | None   -> None
+        | Some k -> Some (Contents.key k) in
+      let succ = StepMap.map key (B.Node.Val.succ n) in
+      { contents; succ }
+
+    let export n =
+      match !n with
+      | Both (k, _)
+      | Key k  -> k
+      | Node _ -> failwith "Node.export"
+
+    let export_node n =
+      let contents = match n.contents with
+        | None   -> None
+        | Some c -> Some (Contents.export c) in
+      let succ = StepMap.map export n.succ in
+      B.Node.Val.create ?contents succ
+
+    let read ~node t =
+      match !t with
+      | Both (_, n)
+      | Node n   -> return (Some n)
+      | Key k    ->
+        node k >>= function
+        | None   -> return_none
+        | Some n ->
+          t := Node n;
+          return (Some n)
+
+    let contents ~node ~contents t =
+      read ~node t >>= function
+      | None   -> return_none
+      | Some c ->
+        match c.contents with
+        | None   -> return_none
+        | Some c -> Contents.read ~contents c
+
+    let update_contents ~node t v =
+      read ~node t >>= function
+      | None   -> if v = None then return_unit else fail Not_found (* XXX ? *)
+      | Some n ->
+        let new_n = match v with
+          | None   -> { n with contents = None }
+          | Some c -> { n with contents = Some (Contents.create c) } in
+        t := Node new_n;
+        return_unit
+
+    let update_succ ~node t succ =
+      read ~node t >>= function
+      | None   ->
+        if StepMap.is_empty succ then return_unit else
+          fail Not_found (* XXX ? *)
+      | Some n ->
+        let new_n = { n with succ } in
+        t := Node new_n;
+        return_unit
+
+  end
+
+end
+
 
 module Store (S: Ir_bc.STORE) = struct
 

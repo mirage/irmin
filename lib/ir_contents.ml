@@ -15,8 +15,7 @@
  *)
 
 open Lwt
-open Sexplib.Std
-open Bin_prot.Std
+open Ir_merge.OP
 
 module Log = Log.Make(struct let section = "CONTENTS" end)
 
@@ -61,51 +60,67 @@ module JSON (O: Ir_origin.S) = struct
       | Some s -> `String s
       | None   -> `O (List.rev_map (fun (k,v) -> k, encode v) l)
 
-  type t =
-    [ `Null
-    | `Bool of bool
-    | `Float of float
-    | `String of string
-    | `A of t list
-    | `O of (string * t) list ]
+  module S = struct
 
-  let rec to_sexp t =
-    let open Sexplib.Type in
-    match t with
-    | `Null -> List []
-    | `Book b -> Atom (string_of_bool b)
-    | `Float f -> Atom (string_of_float f)
-    | `String s -> Atom s
-    | `A tl -> List (List.map to_sexp tl)
-    | `O dl ->
-      let aux (k, v) = List [ Atom k; to_sexp v ] in
-      List (List.map aux dl)
+    type t =
+      [ `Null
+      | `Bool of bool
+      | `Float of float
+      | `String of string
+      | `A of t list
+      | `O of (string * t) list ]
 
-  let to_json = encode
+    let hash = Hashtbl.hash
+    let compare = Pervasives.compare
+    let equal = (=)
 
-  let of_json = decode
+    let rec to_sexp t =
+      let open Sexplib.Type in
+      match t with
+      | `Null -> List []
+      | `Bool b -> Atom (string_of_bool b)
+      | `Float f -> Atom (string_of_float f)
+      | `String s -> Atom s
+      | `A tl -> List (List.map to_sexp tl)
+      | `O dl ->
+        let aux (k, v) = List [ Atom k; to_sexp v ] in
+        List (List.map aux dl)
 
-  let to_string t =
-    Ezjsonm.to_string (to_json t)
+    let to_json = encode
 
-  let of_string s =
-    of_json (Ezjsonm.from_string s)
+    let of_json = decode
 
-  let write t buf =
-    let str = to_string t in
-    let len = String.length str in
-    Cstruct.blit_from_string str 0 buf 0 len;
-    Cstruct.shift buf len
+    let to_string t =
+      Ezjsonm.to_string (to_json t)
 
-  let read buf =
-    Mstruct.get_string buf (Mstruct.length buf)
-    |> of_string
+    let of_string s =
+      of_json (Ezjsonm.from_string s)
 
+    let write t buf =
+      let str = to_string t in
+      let len = String.length str in
+      Cstruct.blit_from_string str 0 buf 0 len;
+      Cstruct.shift buf len
+
+    let read buf =
+      Mstruct.get_string buf (Mstruct.length buf)
+      |> of_string
+
+    let size_of t =
+      let str = to_string t in
+      String.length str
+
+  end
+
+  include S
   type origin = Origin.t
 
-  (* XXX: replace by a clever merge function *)
-  let merge =
-    Ir_merge.(biject (module Tc.S) (module S) string of_string to_string)
+  let rec merge origin ~old x y =
+    match old, x, y with
+    | `O old, `O x, `O y ->
+      Ir_merge.alist (module Tc.S) (module S) merge origin ~old x y >>| fun x ->
+      ok (`O x)
+    | _ -> conflict "JSON"
 
 end
 

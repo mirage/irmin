@@ -25,14 +25,14 @@ module type S = sig
   include Ir_contents.S
   type contents
   type node
-  type step
+  type 'a step_map
   val contents: t -> contents option
   val contents_exn: t -> contents
-  val succ: t -> (step * node) list
+  val succ: t -> node step_map
   val edges: t -> [`Contents of contents | `Node of node] list
   val empty: t
   val leaf: contents -> t
-  val create: ?contents:contents -> (step * node) list -> t
+  val create: ?contents:contents -> node step_map -> t
   val is_empty: t -> bool
   val is_leaf: t -> bool
 end
@@ -65,7 +65,7 @@ module type STORE = sig
     with type t = value
      and type node = key
      and type contents = Contents.key
-     and type step = step
+     and type 'a step_map = 'a Map.Make(Step).t
 end
 
 module type MAKER =
@@ -93,18 +93,18 @@ module Make
     type origin = Origin.t
     type contents = C.key
     type node = K.t
-    type step = S.t
+    type 'a step_map = 'a StepMap.t
 
     type t = {
       contents: contents option;
       succ    : node StepMap.t;
     }
 
-    let create ?contents succ = { contents; succ = StepMap.of_alist succ }
+    let create ?contents succ = { contents; succ = succ }
     let hash = Hashtbl.hash
     let compare = Pervasives.compare
     let contents t = t.contents
-    let succ t = StepMap.to_alist t.succ
+    let succ t = t.succ
 
     let equal t1 t2 =
       begin match t1.contents, t2.contents with

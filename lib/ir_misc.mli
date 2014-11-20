@@ -69,8 +69,9 @@ val list_filter_map: ('a -> 'b option) -> 'a list -> 'b list
 val list_dedup: ?compare:'a Tc.compare -> 'a list -> 'a list
 
 val alist_merge_lwt:
-  ('key -> [ `Both of 'a * 'b | `Left of 'a | `Right of 'b ] -> 'c option Lwt.t)
-  -> ('key * 'a) list -> ('key * 'b) list -> ('key * 'c) list Lwt.t
+  ('key -> 'key -> int) ->
+  ('key -> [ `Both of 'a * 'b | `Left of 'a | `Right of 'b ] -> 'c option Lwt.t) ->
+  ('key * 'a) list -> ('key * 'b) list -> ('key * 'c) list Lwt.t
 
 val hashtbl_to_alist: ('a, 'b) Hashtbl.t -> ('a * 'b) list
 val hashtbl_add_multi: ('a, 'b list) Hashtbl.t -> 'a -> 'b -> unit

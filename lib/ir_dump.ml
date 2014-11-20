@@ -33,6 +33,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   module T = S.Tag
   module B = S.Block
+  module StepMap = Ir_misc.Map(B.Node.Step)
 
   let get_contents t origin ?(full=false) = function
     | None  ->
@@ -185,7 +186,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
             if exists v contents then
               add_edge (`Node k) [`Style `Dotted] (`Contents v)
         end;
-        List.iter (fun (l, n) ->
+        StepMap.iter (fun l n ->
             if exists n nodes then
               add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node n)
           ) (B.Node.Val.succ t)

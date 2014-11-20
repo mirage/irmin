@@ -24,7 +24,7 @@ Library irmin
                  Ir_node, Ir_version, Ir_dump, Ir_step, Ir_watch,
                  Ir_merge, Ir_view, Ir_origin, Ir_bc, Ir_sync, Irmin
   BuildDepends:  ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct, tc,
-                 mstruct, uri, bin_prot, comparelib, sexplib, stringext
+                 mstruct, uri, bin_prot, sexplib, stringext
 
 Library "irmin-backend"
   Path:          lib/backend

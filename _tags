@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: dec85a4ebf44e4c410659f447e3da5b9)
+# DO NOT EDIT (digest: 5a1d2318c0c2a9195fd53369c1435dff)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -17,7 +17,6 @@ true: annot, bin_annot
 # Library irmin
 "lib/irmin.cmxs": use_irmin
 <lib/*.ml{,i,y}>: pkg_bin_prot
-<lib/*.ml{,i,y}>: pkg_comparelib
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_dolog
 <lib/*.ml{,i,y}>: pkg_ezjsonm
@@ -33,7 +32,6 @@ true: annot, bin_annot
 "lib/backend/irmin-backend.cmxs": use_irmin-backend
 <lib/backend/*.ml{,i,y}>: pkg_bin_prot
 <lib/backend/*.ml{,i,y}>: pkg_cohttp.lwt
-<lib/backend/*.ml{,i,y}>: pkg_comparelib
 <lib/backend/*.ml{,i,y}>: pkg_cstruct
 <lib/backend/*.ml{,i,y}>: pkg_dolog
 <lib/backend/*.ml{,i,y}>: pkg_ezjsonm
@@ -52,7 +50,6 @@ true: annot, bin_annot
 "lib/server/irmin-server.cmxs": use_irmin-server
 <lib/server/*.ml{,i,y}>: pkg_bin_prot
 <lib/server/*.ml{,i,y}>: pkg_cohttp.lwt
-<lib/server/*.ml{,i,y}>: pkg_comparelib
 <lib/server/*.ml{,i,y}>: pkg_cstruct
 <lib/server/*.ml{,i,y}>: pkg_dolog
 <lib/server/*.ml{,i,y}>: pkg_ezjsonm
@@ -69,7 +66,6 @@ true: annot, bin_annot
 "lib/unix/irmin-unix.cmxs": use_irmin-unix
 <lib/unix/*.ml{,i,y}>: pkg_bin_prot
 <lib/unix/*.ml{,i,y}>: pkg_cohttp.lwt
-<lib/unix/*.ml{,i,y}>: pkg_comparelib
 <lib/unix/*.ml{,i,y}>: pkg_cstruct
 <lib/unix/*.ml{,i,y}>: pkg_dolog
 <lib/unix/*.ml{,i,y}>: pkg_ezjsonm
@@ -92,7 +88,6 @@ true: annot, bin_annot
 <lib/driver/irminMain.{native,byte}>: pkg_bin_prot
 <lib/driver/irminMain.{native,byte}>: pkg_cmdliner
 <lib/driver/irminMain.{native,byte}>: pkg_cohttp.lwt
-<lib/driver/irminMain.{native,byte}>: pkg_comparelib
 <lib/driver/irminMain.{native,byte}>: pkg_cstruct
 <lib/driver/irminMain.{native,byte}>: pkg_dolog
 <lib/driver/irminMain.{native,byte}>: pkg_ezjsonm
@@ -115,7 +110,6 @@ true: annot, bin_annot
 <lib/driver/*.ml{,i,y}>: pkg_bin_prot
 <lib/driver/*.ml{,i,y}>: pkg_cmdliner
 <lib/driver/*.ml{,i,y}>: pkg_cohttp.lwt
-<lib/driver/*.ml{,i,y}>: pkg_comparelib
 <lib/driver/*.ml{,i,y}>: pkg_cstruct
 <lib/driver/*.ml{,i,y}>: pkg_dolog
 <lib/driver/*.ml{,i,y}>: pkg_ezjsonm
@@ -139,7 +133,6 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_alcotest
 <lib_test/test.{native,byte}>: pkg_bin_prot
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt
-<lib_test/test.{native,byte}>: pkg_comparelib
 <lib_test/test.{native,byte}>: pkg_cryptokit
 <lib_test/test.{native,byte}>: pkg_cstruct
 <lib_test/test.{native,byte}>: pkg_dolog
@@ -163,7 +156,6 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_alcotest
 <lib_test/*.ml{,i,y}>: pkg_bin_prot
 <lib_test/*.ml{,i,y}>: pkg_cohttp.lwt
-<lib_test/*.ml{,i,y}>: pkg_comparelib
 <lib_test/*.ml{,i,y}>: pkg_cryptokit
 <lib_test/*.ml{,i,y}>: pkg_cstruct
 <lib_test/*.ml{,i,y}>: pkg_dolog
@@ -187,7 +179,6 @@ true: annot, bin_annot
 # Executable test_git_store
 <examples/git_store.{native,byte}>: pkg_bin_prot
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
-<examples/git_store.{native,byte}>: pkg_comparelib
 <examples/git_store.{native,byte}>: pkg_cstruct
 <examples/git_store.{native,byte}>: pkg_dolog
 <examples/git_store.{native,byte}>: pkg_ezjsonm
@@ -210,7 +201,6 @@ true: annot, bin_annot
 # Executable test_custom_merge
 <examples/custom_merge.{native,byte}>: pkg_bin_prot
 <examples/custom_merge.{native,byte}>: pkg_cohttp.lwt
-<examples/custom_merge.{native,byte}>: pkg_comparelib
 <examples/custom_merge.{native,byte}>: pkg_cstruct
 <examples/custom_merge.{native,byte}>: pkg_dolog
 <examples/custom_merge.{native,byte}>: pkg_ezjsonm
@@ -233,7 +223,6 @@ true: annot, bin_annot
 # Executable test_views
 <examples/views.{native,byte}>: pkg_bin_prot
 <examples/views.{native,byte}>: pkg_cohttp.lwt
-<examples/views.{native,byte}>: pkg_comparelib
 <examples/views.{native,byte}>: pkg_cstruct
 <examples/views.{native,byte}>: pkg_dolog
 <examples/views.{native,byte}>: pkg_ezjsonm
@@ -256,7 +245,6 @@ true: annot, bin_annot
 # Executable test_contatcs
 <examples/contacts.{native,byte}>: pkg_bin_prot
 <examples/contacts.{native,byte}>: pkg_cohttp.lwt
-<examples/contacts.{native,byte}>: pkg_comparelib
 <examples/contacts.{native,byte}>: pkg_cstruct
 <examples/contacts.{native,byte}>: pkg_dolog
 <examples/contacts.{native,byte}>: pkg_ezjsonm
@@ -279,7 +267,6 @@ true: annot, bin_annot
 # Executable test_intrusion
 <examples/intrusion.{native,byte}>: pkg_bin_prot
 <examples/intrusion.{native,byte}>: pkg_cohttp.lwt
-<examples/intrusion.{native,byte}>: pkg_comparelib
 <examples/intrusion.{native,byte}>: pkg_cstruct
 <examples/intrusion.{native,byte}>: pkg_dolog
 <examples/intrusion.{native,byte}>: pkg_ezjsonm
@@ -302,7 +289,6 @@ true: annot, bin_annot
 # Executable test_process
 <examples/process.{native,byte}>: pkg_bin_prot
 <examples/process.{native,byte}>: pkg_cohttp.lwt
-<examples/process.{native,byte}>: pkg_comparelib
 <examples/process.{native,byte}>: pkg_cstruct
 <examples/process.{native,byte}>: pkg_dolog
 <examples/process.{native,byte}>: pkg_ezjsonm
@@ -324,7 +310,6 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: use_irmin-unix
 <examples/*.ml{,i,y}>: pkg_bin_prot
 <examples/*.ml{,i,y}>: pkg_cohttp.lwt
-<examples/*.ml{,i,y}>: pkg_comparelib
 <examples/*.ml{,i,y}>: pkg_cstruct
 <examples/*.ml{,i,y}>: pkg_dolog
 <examples/*.ml{,i,y}>: pkg_ezjsonm

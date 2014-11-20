@@ -16,8 +16,6 @@
 
 open Lwt
 open Printf
-open Sexplib.Std
-open Bin_prot.Std
 open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "MERGE" end)
@@ -173,15 +171,15 @@ let merge_elt (type a) (module V: S with type t = a) merge_v origin old key vs =
   match vs with
   | `Left v | `Right v ->
     begin
-      try
-        let ov = old key in
+      match old key with
+      | Some ov ->
         if V.equal v ov then
           (* the value has been removed in one branch *)
           return_none
         else
           (* the value has been both created and removed. *)
           fail (C "remove/add")
-      with Not_found ->
+      | None ->
         (* the value has been created in one branch *)
         return (Some v)
     end
@@ -189,12 +187,13 @@ let merge_elt (type a) (module V: S with type t = a) merge_v origin old key vs =
     if V.equal v1 v2 then
       (* no modification. *)
       return (Some v1)
-    else try
-        let ov = old key in
-        merge_v origin ~old:ov v1 v2 >>= function
-        | `Conflict msg -> fail (C msg)
-        | `Ok x         -> return (Some x)
-      with Not_found ->
+    else match old key with
+      | Some ov -> begin
+          merge_v origin ~old:ov v1 v2 >>= function
+          | `Conflict msg -> fail (C msg)
+          | `Ok x         -> return (Some x)
+        end
+      | None ->
         (* two different values have been added *)
         raise (C "add/add")
 
@@ -208,7 +207,7 @@ let alist
   let y = sort y in
   let old k = try Some (List.assoc k old) with Not_found -> None in
   Lwt.catch (fun () ->
-      Ir_misc.alist_merge (merge_elt (module B) merge_b old) x y
+      Ir_misc.alist_merge_lwt A.compare (merge_elt (module B) merge_b origin old) x y
       >>= ok)
     (function
       | C msg -> conflict "%s" msg
@@ -228,7 +227,7 @@ module Map (S: S) = struct
       | `Ok x       -> ok x
       | `Conflict _ ->
         Lwt.catch (fun () ->
-            let old key = SM.find key old in
+            let old key = try Some (SM.find key old) with Not_found -> None in
             SM.Lwt.merge (merge_elt (module A) t origin old) m1 m2
             >>= ok)
           (function
