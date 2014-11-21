@@ -27,6 +27,14 @@ Library irmin
   BuildDepends:    ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct, tc,
                    mstruct, uri, bin_prot, sexplib, stringext
 
+Document irmin
+  Title:                Irmin docs
+  Type:                 OCamlbuild (0.4)
+  BuildTools+:          ocamldoc
+  Install:              true
+  XOCamlbuildPath:      lib/
+  XOCamlbuildLibraries: irmin
+
 Library "irmin-backend"
   Path:          lib/backend
   Findlibname:   backend
@@ -118,14 +126,6 @@ Executable test_process
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix
-
-Document irmin
-  Title:                Irmin docs
-  Type:                 OCamlbuild (0.4)
-  BuildTools+:          ocamldoc
-  Install:              true
-  XOCamlbuildPath:      lib/
-  XOCamlbuildLibraries: irmin
 
 Document backend
   Title:                Irmin backends docs

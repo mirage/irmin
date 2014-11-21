@@ -257,7 +257,7 @@ module Hash: sig
 
 end
 
-(** {2 Store Signatures} *)
+(** {1 Store Signatures} *)
 
 module Store: sig
 
