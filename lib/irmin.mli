@@ -235,7 +235,7 @@ module Contents: sig
 
 end
 
-(** {2 User-defined unique identifiers (digests)} *)
+(** {1 Hashable Identifiers} *)
 
 module Hash: sig
 
@@ -246,10 +246,9 @@ module Hash: sig
     include Tc.I0
 
     val digest: Cstruct.t -> t
-    (** Compute a (deterministic) key from a cstruct and an [origin]
-        information. *)
+    (** Compute a deterministic database key from a cstruct value. *)
 
-    (** FIXME: add hmac: key:origin -> Cstuct.t -> Cstruct.t ? *)
+    (** FIXME: add hmac: [key:origin -> Cstuct.t -> Cstruct.t] *)
 
   end
 
@@ -258,7 +257,7 @@ module Hash: sig
 
 end
 
-(** {2 Stores} *)
+(** {2 Store Signatures} *)
 
 module Store: sig
 
@@ -304,7 +303,7 @@ module Store: sig
 
   end
 
-  (** {2 Append-only store} *)
+  (** {1 Append-only store} *)
 
   module type AO = sig
 
@@ -319,7 +318,7 @@ module Store: sig
 
   end
 
-  (** {2 Mutable store} *)
+  (** {1 Mutable store} *)
 
   module type RW = sig
 
@@ -339,7 +338,7 @@ module Store: sig
 
   end
 
-  (** {2 Branch-consistent store} *)
+  (** {1 Branch-consistent store} *)
 
   module type BC = sig
 
@@ -348,7 +347,7 @@ module Store: sig
 
     include RW
 
-    (** {2 Tags} *)
+    (** {1 Tags} *)
 
     type tag
     (** Type of branch tags. *)
@@ -376,7 +375,7 @@ module Store: sig
     (** Detach the current branch (ie. it is not assiaciated to a tag
         anymore). *)
 
-    (** {2 Heads} *)
+    (** {1 Heads} *)
 
     type head
     (** Type for head values. *)
@@ -406,7 +405,7 @@ module Store: sig
     (** Watch changes for given key and the one it has recursive access.
         Return the stream of heads of the modified keys. *)
 
-    (** {2 Functions over stores} *)
+    (** {1 Functions over stores} *)
 
     val clone: t -> origin -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
     (** Fork the store, using the given branch name. Return [None] if
@@ -427,7 +426,7 @@ module Store: sig
     module T: Tc.I0 with type t = t
     (** Base functions over values of type [t]. *)
 
-    (** {2 Slices} *)
+    (** {1 Slices} *)
 
     type slice
     (** Type for database slices. *)
@@ -463,7 +462,7 @@ module Store: sig
 
 end
 
-(** {2 Views} *)
+(** {1 Views} *)
 
 (** Views are in-memory partial views of the database, with lazy reads
     and delayed write.
