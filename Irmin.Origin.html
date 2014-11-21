@@ -1,0 +1,37 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Merge.html">
+<link rel="next" href="Irmin.Contents.html">
+<link rel="Up" href="Irmin.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Origin</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Merge.html" title="Irmin.Merge">Previous</a>
+&nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
+&nbsp;<a class="post" href="Irmin.Contents.html" title="Irmin.Contents">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.Origin.html">Irmin.Origin</a></h1>
+
+<pre><span class="keyword">module</span> Origin: <code class="code">sig</code> <a href="Irmin.Origin.html">..</a> <code class="code">end</code></pre><hr width="100%">
+
+<pre><span class="keyword">module type</span> <a href="Irmin.Origin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Origin.S.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin.Origin.P.html">P</a> = <code class="code">sig</code> <a href="Irmin.Origin.P.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Origin.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">P</code><code class="code"> : </code><code class="type"><a href="Irmin.Origin.P.html">P</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Origin.S.html">S</a></code><code class="type"> </code></div></pre><div class="info">
+Build an implementation of origin values from a an
+      implementation of origin parameters.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Origin.Default.html">Default</a>: <code class="type"><a href="Irmin.Origin.S.html">S</a></code><code class="type"> </code></pre><div class="info">
+The default origin, where <code class="code">date</code> is an incremented counter and
+      <code class="code">id</code> is a random number.
+</div>
+</body></html>

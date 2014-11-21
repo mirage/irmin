@@ -8,301 +8,118 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html">
-<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
-<link title="IrminKey" rel="Chapter" href="IrminKey.html">
-<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
-<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
-<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
-<link title="IrminStore" rel="Chapter" href="IrminStore.html">
-<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
-<link title="IrminTag" rel="Chapter" href="IrminTag.html">
-<link title="IrminContents" rel="Chapter" href="IrminContents.html">
-<link title="IrminNode" rel="Chapter" href="IrminNode.html">
-<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
-<link title="IrminDump" rel="Chapter" href="IrminDump.html">
-<link title="IrminPath" rel="Chapter" href="IrminPath.html">
-<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
-<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
-<link title="IrminView" rel="Chapter" href="IrminView.html">
-<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
-<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
-<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
-<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>Index of types</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Index of types</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
 &nbsp;</div>
 <h1>Index of types</h1>
 <table>
-<tr><td align="left"><br>B</td></tr>
-<tr><td><a href="IrminStore.S.html#TYPEbranch">branch</a> [<a href="IrminStore.S.html">IrminStore.S</a>]</td>
+<tr><td align="left"><br>A</td></tr>
+<tr><td><a href="Irmin.View.S.html#TYPEaction">action</a> [<a href="Irmin.View.S.html">Irmin.View.S</a>]</td>
 <td><div class="info">
-Branch can be either a tag name or a commit hash.
+The type for actions.
 </div>
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
-<tr><td><a href="IrminBlock.STORE.html#TYPEcommit">commit</a> [<a href="IrminBlock.STORE.html">IrminBlock.STORE</a>]</td>
-<td><div class="info">
-Commit values.
-</div>
-</td></tr>
-<tr><td><a href="IrminNode.STORE.html#TYPEcontents">contents</a> [<a href="IrminNode.STORE.html">IrminNode.STORE</a>]</td>
-<td><div class="info">
-Node contents.
-</div>
-</td></tr>
-<tr><td><a href="IrminBlock.STORE.html#TYPEcontents">contents</a> [<a href="IrminBlock.STORE.html">IrminBlock.STORE</a>]</td>
-<td><div class="info">
-Contents values.
-</div>
-</td></tr>
-<tr><td><a href="IrminBlock.S.html#TYPEcontents">contents</a> [<a href="IrminBlock.S.html">IrminBlock.S</a>]</td>
-<td><div class="info">
-Contents.
-</div>
-</td></tr>
+<tr><td><a href="Irmin.View.ACTION.html#TYPEcontents">contents</a> [<a href="Irmin.View.ACTION.html">Irmin.View.ACTION</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>D</td></tr>
-<tr><td><a href="IrminSync.STORE.html#TYPEdb">db</a> [<a href="IrminSync.STORE.html">IrminSync.STORE</a>]</td>
+<tr><td><a href="Irmin.S.Dump.html#TYPEdb">db</a> [<a href="Irmin.S.Dump.html">Irmin.S.Dump</a>]</td>
 <td><div class="info">
-Local database handlers.
+The type for databse handler.
 </div>
 </td></tr>
-<tr><td><a href="IrminView.STORE.html#TYPEdb">db</a> [<a href="IrminView.STORE.html">IrminView.STORE</a>]</td>
+<tr><td><a href="Irmin.S.Snapshot.html#TYPEdb">db</a> [<a href="Irmin.S.Snapshot.html">Irmin.S.Snapshot</a>]</td>
+<td><div class="info">
+Type for database handler.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.View.html#TYPEdb">db</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
 <td><div class="info">
 Database handler.
 </div>
 </td></tr>
-<tr><td><a href="IrminSnapshot.STORE.html#TYPEdb">db</a> [<a href="IrminSnapshot.STORE.html">IrminSnapshot.STORE</a>]</td>
+<tr><td align="left"><br>E</td></tr>
+<tr><td><a href="Irmin.Merge.html#TYPEelt">elt</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-Database handler.
+The type for mergeable contents of type <code class="code">'a</code>.
 </div>
 </td></tr>
-<tr><td><a href="IrminGraph.S.html#TYPEdump">dump</a> [<a href="IrminGraph.S.html">IrminGraph.S</a>]</td>
+<tr><td align="left"><br>H</td></tr>
+<tr><td><a href="Irmin.Store.BC.html#TYPEhead">head</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Expose the graph internals.
+Type for head values.
 </div>
 </td></tr>
 <tr><td align="left"><br>K</td></tr>
-<tr><td><a href="IrminSync.BACKEND.html#TYPEkey">key</a> [<a href="IrminSync.BACKEND.html">IrminSync.BACKEND</a>]</td>
+<tr><td><a href="Irmin.Store.RO.html#TYPEkey">key</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
 <td><div class="info">
-Key values.
+Type for keys.
 </div>
 </td></tr>
-<tr><td><a href="IrminWatch.S.html#TYPEkey">key</a> [<a href="IrminWatch.S.html">IrminWatch.S</a>]</td>
+<tr><td align="left"><br>O</td></tr>
+<tr><td><a href="Irmin.S.Dump.html#TYPEorigin">origin</a> [<a href="Irmin.S.Dump.html">Irmin.S.Dump</a>]</td>
 <td><div class="info">
-Keys.
+The type to track origins.
 </div>
 </td></tr>
-<tr><td><a href="IrminNode.S.html#TYPEkey">key</a> [<a href="IrminNode.S.html">IrminNode.S</a>]</td>
+<tr><td><a href="Irmin.Store.RO.html#TYPEorigin">origin</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
 <td><div class="info">
-Foreign keys.
+Type for origin tracking.
 </div>
 </td></tr>
-<tr><td><a href="IrminNode.STORE.html#TYPEkey">key</a> [<a href="IrminNode.STORE.html">IrminNode.STORE</a>]</td>
+<tr><td><a href="Irmin.Contents.S.html#TYPEorigin">origin</a> [<a href="Irmin.Contents.S.html">Irmin.Contents.S</a>]</td>
 <td><div class="info">
-Database keys.
+Type for origin of merges.
 </div>
 </td></tr>
-<tr><td><a href="IrminBlock.STORE.html#TYPEkey">key</a> [<a href="IrminBlock.STORE.html">IrminBlock.STORE</a>]</td>
+<tr><td align="left"><br>P</td></tr>
+<tr><td><a href="Irmin.View.ACTION.html#TYPEpath">path</a> [<a href="Irmin.View.ACTION.html">Irmin.View.ACTION</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>R</td></tr>
+<tr><td><a href="Irmin.Merge.html#TYPEresult">result</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-Database keys.
+Type for merge results.
 </div>
 </td></tr>
-<tr><td><a href="IrminBlock.S.html#TYPEkey">key</a> [<a href="IrminBlock.S.html">IrminBlock.S</a>]</td>
+<tr><td align="left"><br>S</td></tr>
+<tr><td><a href="Irmin.Store.BC.html#TYPEslice">slice</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Keys.
+Type for database slices.
 </div>
 </td></tr>
-<tr><td><a href="IrminCommit.STORE.html#TYPEkey">key</a> [<a href="IrminCommit.STORE.html">IrminCommit.STORE</a>]</td>
+<tr><td><a href="Irmin.S.html#TYPEstep">step</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.View.S.html#TYPEstep">step</a> [<a href="Irmin.View.S.html">Irmin.View.S</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>T</td></tr>
+<tr><td><a href="Irmin.View.ACTION.html#TYPEt">t</a> [<a href="Irmin.View.ACTION.html">Irmin.View.ACTION</a>]</td>
 <td><div class="info">
-Database keys.
+Operations on view.
 </div>
 </td></tr>
-<tr><td><a href="IrminCommit.S.html#TYPEkey">key</a> [<a href="IrminCommit.S.html">IrminCommit.S</a>]</td>
+<tr><td><a href="Irmin.Store.RO.html#TYPEt">t</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
 <td><div class="info">
-Keys.
+Type for stores.
 </div>
 </td></tr>
-<tr><td><a href="IrminStore.RO.html#TYPEkey">key</a> [<a href="IrminStore.RO.html">IrminStore.RO</a>]</td>
-<td><div class="info">
-Type of keys.
-</div>
-</td></tr>
-<tr><td align="left"><br>M</td></tr>
-<tr><td><a href="IrminMerge.html#TYPEmerge">merge</a> [<a href="IrminMerge.html">IrminMerge</a>]</td>
+<tr><td><a href="Irmin.Merge.html#TYPEt">t</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Signature of a merge function.
 </div>
 </td></tr>
-<tr><td><a href="IrminMerge.html#TYPEmerge'">merge'</a> [<a href="IrminMerge.html">IrminMerge</a>]</td>
+<tr><td><a href="Irmin.Store.BC.html#TYPEtag">tag</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Signature of a blocking merge function.
+Type of branch tags.
 </div>
 </td></tr>
-<tr><td align="left"><br>N</td></tr>
-<tr><td><a href="IrminView.S.html#TYPEnode">node</a> [<a href="IrminView.S.html">IrminView.S</a>]</td>
-<td><div class="info">
-Internal nodes.
-</div>
-</td></tr>
-<tr><td><a href="IrminBlock.STORE.html#TYPEnode">node</a> [<a href="IrminBlock.STORE.html">IrminBlock.STORE</a>]</td>
-<td><div class="info">
-Node values.
-</div>
-</td></tr>
-<tr><td><a href="IrminCommit.STORE.html#TYPEnode">node</a> [<a href="IrminCommit.STORE.html">IrminCommit.STORE</a>]</td>
-<td><div class="info">
-Node values.
-</div>
-</td></tr>
-<tr><td align="left"><br>O</td></tr>
-<tr><td><a href="IrminView.html#TYPEorigin">origin</a> [<a href="IrminView.html">IrminView</a>]</td>
-<td></td></tr>
-<tr><td><a href="IrminMerge.html#TYPEorigin">origin</a> [<a href="IrminMerge.html">IrminMerge</a>]</td>
-<td></td></tr>
-<tr><td><a href="IrminBlock.html#TYPEorigin">origin</a> [<a href="IrminBlock.html">IrminBlock</a>]</td>
-<td></td></tr>
-<tr><td><a href="IrminStore.S.html#TYPEorigin">origin</a> [<a href="IrminStore.S.html">IrminStore.S</a>]</td>
-<td><div class="info">
-Provenance trackers.
-</div>
-</td></tr>
-<tr><td><a href="IrminCommit.html#TYPEorigin">origin</a> [<a href="IrminCommit.html">IrminCommit</a>]</td>
-<td></td></tr>
-<tr><td><a href="IrminSnapshot.html#TYPEorigin">origin</a> [<a href="IrminSnapshot.html">IrminSnapshot</a>]</td>
-<td></td></tr>
-<tr><td><a href="IrminSync.STORE.html#TYPEorigin">origin</a> [<a href="IrminSync.STORE.html">IrminSync.STORE</a>]</td>
-<td><div class="info">
-Provenance tracker.
-</div>
-</td></tr>
-<tr><td align="left"><br>P</td></tr>
-<tr><td><a href="IrminView.html#TYPEpath">path</a> [<a href="IrminView.html">IrminView</a>]</td>
-<td></td></tr>
-<tr><td><a href="IrminNode.STORE.html#TYPEpath">path</a> [<a href="IrminNode.STORE.html">IrminNode.STORE</a>]</td>
-<td><div class="info">
-Paths to go from one node to an other.
-</div>
-</td></tr>
-<tr><td><a href="IrminView.STORE.html#TYPEpath">path</a> [<a href="IrminView.STORE.html">IrminView.STORE</a>]</td>
-<td><div class="info">
-Database path.
-</div>
-</td></tr>
-<tr><td align="left"><br>R</td></tr>
-<tr><td><a href="IrminSync.html#TYPEremote">remote</a> [<a href="IrminSync.html">IrminSync</a>]</td>
-<td><div class="info">
-Remote store hanlders.
-</div>
-</td></tr>
-<tr><td><a href="IrminMerge.html#TYPEresult">result</a> [<a href="IrminMerge.html">IrminMerge</a>]</td>
-<td><div class="info">
-Merge results.
-</div>
-</td></tr>
-<tr><td align="left"><br>S</td></tr>
-<tr><td><a href="IrminSnapshot.STORE.html#TYPEstate">state</a> [<a href="IrminSnapshot.STORE.html">IrminSnapshot.STORE</a>]</td>
-<td><div class="info">
-Snapshot state.
-</div>
-</td></tr>
-<tr><td><a href="IrminSync.html#TYPEstore">store</a> [<a href="IrminSync.html">IrminSync</a>]</td>
-<td><div class="info">
-A tuple store implementation / branch name.
-</div>
-</td></tr>
-<tr><td align="left"><br>T</td></tr>
-<tr><td><a href="IrminSync.BACKEND.html#TYPEt">t</a> [<a href="IrminSync.BACKEND.html">IrminSync.BACKEND</a>]</td>
-<td><div class="info">
-Database handler.
-</div>
-</td></tr>
-<tr><td><a href="IrminBranch.html#TYPEt">t</a> [<a href="IrminBranch.html">IrminBranch</a>]</td>
-<td></td></tr>
-<tr><td><a href="IrminView.Action.html#TYPEt">t</a> [<a href="IrminView.Action.html">IrminView.Action</a>]</td>
-<td><div class="info">
-Actions performed on a view.
-</div>
-</td></tr>
-<tr><td><a href="IrminView.html#TYPEt">t</a> [<a href="IrminView.html">IrminView</a>]</td>
-<td><div class="info">
-Views over keys of types <code class="code">'key</code> and contents of type
-    <code class="code">'contents</code>.
-</div>
-</td></tr>
-<tr><td><a href="IrminMerge.html#TYPEt">t</a> [<a href="IrminMerge.html">IrminMerge</a>]</td>
-<td><div class="info">
-Abstract merge function for values of type <code class="code">'a</code>.
-</div>
-</td></tr>
-<tr><td><a href="IrminWatch.S.html#TYPEt">t</a> [<a href="IrminWatch.S.html">IrminWatch.S</a>]</td>
-<td><div class="info">
-Listeners state.
-</div>
-</td></tr>
-<tr><td><a href="IrminNode.html#TYPEt">t</a> [<a href="IrminNode.html">IrminNode</a>]</td>
-<td><div class="info">
-Node values.
-</div>
-</td></tr>
-<tr><td><a href="IrminBlock.html#TYPEt">t</a> [<a href="IrminBlock.html">IrminBlock</a>]</td>
-<td></td></tr>
-<tr><td><a href="IrminCommit.html#TYPEt">t</a> [<a href="IrminCommit.html">IrminCommit</a>]</td>
-<td><div class="info">
-Type of concrete revisions.
-</div>
-</td></tr>
-<tr><td><a href="IrminStore.RO.html#TYPEt">t</a> [<a href="IrminStore.RO.html">IrminStore.RO</a>]</td>
-<td><div class="info">
-Type a store.
-</div>
-</td></tr>
-<tr><td><a href="IrminSync.STORE.html#TYPEt">t</a> [<a href="IrminSync.STORE.html">IrminSync.STORE</a>]</td>
-<td><div class="info">
-Local dump handler.
-</div>
-</td></tr>
-<tr><td><a href="IrminDump.S.html#TYPEt">t</a> [<a href="IrminDump.S.html">IrminDump.S</a>]</td>
-<td><div class="info">
-Local database handlers.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#TYPEt">t</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td></td></tr>
 <tr><td align="left"><br>V</td></tr>
-<tr><td><a href="IrminView.S.html#TYPEvalue">value</a> [<a href="IrminView.S.html">IrminView.S</a>]</td>
+<tr><td><a href="Irmin.Store.RO.html#TYPEvalue">value</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
 <td><div class="info">
-Contents value.
+Type for values.
 </div>
 </td></tr>
-<tr><td><a href="IrminWatch.S.html#TYPEvalue">value</a> [<a href="IrminWatch.S.html">IrminWatch.S</a>]</td>
-<td><div class="info">
-Values.
-</div>
-</td></tr>
-<tr><td><a href="IrminNode.STORE.html#TYPEvalue">value</a> [<a href="IrminNode.STORE.html">IrminNode.STORE</a>]</td>
-<td><div class="info">
-Node values.
-</div>
-</td></tr>
-<tr><td><a href="IrminBlock.STORE.html#TYPEvalue">value</a> [<a href="IrminBlock.STORE.html">IrminBlock.STORE</a>]</td>
-<td><div class="info">
-Block values.
-</div>
-</td></tr>
-<tr><td><a href="IrminCommit.STORE.html#TYPEvalue">value</a> [<a href="IrminCommit.STORE.html">IrminCommit.STORE</a>]</td>
-<td><div class="info">
-Commit values.
-</div>
-</td></tr>
-<tr><td><a href="IrminStore.RO.html#TYPEvalue">value</a> [<a href="IrminStore.RO.html">IrminStore.RO</a>]</td>
-<td><div class="info">
-Type of values.
-</div>
-</td></tr>
-<tr><td><a href="IrminGraph.html#TYPEvertex">vertex</a> [<a href="IrminGraph.html">IrminGraph</a>]</td>
-<td></td></tr>
 </table>
 </body>
 </html>

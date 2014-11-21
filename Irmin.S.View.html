@@ -4,92 +4,57 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.S.Snapshot.html">
-<link rel="next" href="Irmin.S.Sync.html">
+<link rel="next" href="Irmin.S.Snapshot.html">
 <link rel="Up" href="Irmin.S.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html">
-<link title="IrminGraph" rel="Chapter" href="IrminGraph.html">
-<link title="IrminKey" rel="Chapter" href="IrminKey.html">
-<link title="IrminSnapshot" rel="Chapter" href="IrminSnapshot.html">
-<link title="IrminMisc" rel="Chapter" href="IrminMisc.html">
-<link title="IrminCommit" rel="Chapter" href="IrminCommit.html">
-<link title="IrminStore" rel="Chapter" href="IrminStore.html">
-<link title="IrminBlock" rel="Chapter" href="IrminBlock.html">
-<link title="IrminTag" rel="Chapter" href="IrminTag.html">
-<link title="IrminContents" rel="Chapter" href="IrminContents.html">
-<link title="IrminNode" rel="Chapter" href="IrminNode.html">
-<link title="IrminVersion" rel="Chapter" href="IrminVersion.html">
-<link title="IrminDump" rel="Chapter" href="IrminDump.html">
-<link title="IrminPath" rel="Chapter" href="IrminPath.html">
-<link title="IrminWatch" rel="Chapter" href="IrminWatch.html">
-<link title="IrminMerge" rel="Chapter" href="IrminMerge.html">
-<link title="IrminView" rel="Chapter" href="IrminView.html">
-<link title="IrminOrigin" rel="Chapter" href="IrminOrigin.html">
-<link title="IrminIdent" rel="Chapter" href="IrminIdent.html">
-<link title="IrminBranch" rel="Chapter" href="IrminBranch.html">
-<link title="IrminSync" rel="Chapter" href="IrminSync.html"><title>Irmin.S.View</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.S.View</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.S.Snapshot.html" title="Irmin.S.Snapshot">Previous</a>
-&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
-&nbsp;<a class="post" href="Irmin.S.Sync.html" title="Irmin.S.Sync">Next</a>
+<div class="navbar">&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
+&nbsp;<a class="post" href="Irmin.S.Snapshot.html" title="Irmin.S.Snapshot">Next</a>
 </div>
 <h1>Module <a href="type_Irmin.S.View.html">Irmin.S.View</a></h1>
 
-<pre><span class="keyword">module</span> View: <code class="type"><a href="IrminView.STORE.html">IrminView.STORE</a></code><code class="type">  with type db    = t
-                                and type node  = Block.key
-                                and type value = value</code></pre><hr width="100%">
+<pre><span class="keyword">module</span> View: <code class="code">sig</code> <a href="Irmin.S.View.html">..</a> <code class="code">end</code></pre><hr width="100%">
 <br>
-Signature for views which are sub-tree of a given database
-      implementation.<br>
+Database temporary and in-memory views. Similar to <code class="code">View.S</code>
+        but can lazily be created from a path in the database, and
+        later commited back.<br>
 
-<pre><span class="keyword">include</span> <a href="IrminView.S.html">IrminView.S</a></pre>
-
-<pre><span id="TYPEdb"><span class="keyword">type</span> <code class="type"></code>db</span> </pre>
+<pre><span id="TYPEdb"><span class="keyword">type</span> <code class="type"></code>db</span> = <code class="type">t</code> </pre>
 <div class="info ">
 Database handler.<br>
 </div>
 
 
-<pre><span id="TYPEpath"><span class="keyword">type</span> <code class="type"></code>path</span> = <code class="type">IrminPath.t</code> </pre>
-<div class="info ">
-Database path.<br>
+<pre><span class="keyword">include</span> <a href="Irmin.View.S.html">Irmin.View.S</a></pre>
+
+<pre><span id="VALorigin_of_actions"><span class="keyword">val</span> origin_of_actions</span> : <code class="type">t -> origin</code></pre><div class="info ">
+Create an origin using the list of actions as message.<br>
 </div>
 
-
-<pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type"><a href="IrminView.STORE.html#TYPEdb">db</a> -> <a href="IrminView.STORE.html#TYPEpath">path</a> -> <a href="IrminView.html#TYPEt">IrminView.t</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> origin -> key -> t Lwt.t</code></pre><div class="info ">
 Read a view from a path in the store. This is a cheap operation,
-      all the real reads operation will be done on-demand when the
-      view is used.<br>
+        all the real reads operation will be done on-demand when the
+        view is used.<br>
 </div>
 
-<pre><span id="VALupdate_path"><span class="keyword">val</span> update_path</span> : <code class="type">?origin:<a href="IrminView.html#TYPEorigin">IrminView.origin</a> -><br>       <a href="IrminView.STORE.html#TYPEdb">db</a> -> <a href="IrminView.STORE.html#TYPEpath">path</a> -> <a href="IrminView.html#TYPEt">IrminView.t</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALupdate_path"><span class="keyword">val</span> update_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> origin -> key -> t -> unit Lwt.t</code></pre><div class="info ">
 Commit a view to the store. The view *replaces* the current
-      subtree, so if you want to do a merge, you have to do it
-      manually (by creating a new branch, or rebasing before
-      commiting). <code class="code">origin</code> helps keeping track of provenance.<br>
+        subtree, so if you want to do a merge, you have to do it
+        manually (by creating a new branch, or rebasing before
+        commiting). <code class="code">origin</code> helps keeping track of provenance.<br>
 </div>
 
-<pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type">?origin:<a href="IrminView.html#TYPEorigin">IrminView.origin</a> -><br>       <a href="IrminView.STORE.html#TYPEdb">db</a> -><br>       <a href="IrminView.STORE.html#TYPEpath">path</a> -> <a href="IrminView.html#TYPEt">IrminView.t</a> -> unit <a href="IrminMerge.html#TYPEresult">IrminMerge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> origin -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Rebase the view to the tip of the store.<br>
 </div>
 
-<pre><span id="VALrebase_path_exn"><span class="keyword">val</span> rebase_path_exn</span> : <code class="type">?origin:<a href="IrminView.html#TYPEorigin">IrminView.origin</a> -><br>       <a href="IrminView.STORE.html#TYPEdb">db</a> -> <a href="IrminView.STORE.html#TYPEpath">path</a> -> <a href="IrminView.html#TYPEt">IrminView.t</a> -> unit Lwt.t</code></pre><div class="info ">
-Same as <code class="code">rebase_path</code> but raise <code class="code">Conflict</code> in case of
-      conflict.<br>
-</div>
-
-<pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type">?origin:<a href="IrminView.html#TYPEorigin">IrminView.origin</a> -><br>       <a href="IrminView.STORE.html#TYPEdb">db</a> -><br>       <a href="IrminView.STORE.html#TYPEpath">path</a> -> <a href="IrminView.html#TYPEt">IrminView.t</a> -> unit <a href="IrminMerge.html#TYPEresult">IrminMerge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> origin -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Same as <code class="code">update_path</code> but *merges* with the current subtree.<br>
-</div>
-
-<pre><span id="VALmerge_path_exn"><span class="keyword">val</span> merge_path_exn</span> : <code class="type">?origin:<a href="IrminView.html#TYPEorigin">IrminView.origin</a> -><br>       <a href="IrminView.STORE.html#TYPEdb">db</a> -> <a href="IrminView.STORE.html#TYPEpath">path</a> -> <a href="IrminView.html#TYPEt">IrminView.t</a> -> unit Lwt.t</code></pre><div class="info ">
-Same as <code class="code">merge_path</code> but throw <code class="code">Conflict "msg"</code> in case of
-      conflict.<br>
 </div>
 </body></html>
