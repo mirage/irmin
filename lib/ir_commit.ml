@@ -42,7 +42,6 @@ module type STORE = sig
   val merge: t -> (key, origin) Ir_merge.t
   val find_common_ancestor: t -> origin -> key -> key -> key option Lwt.t
   val find_common_ancestor_exn: t -> origin -> key -> key -> key Lwt.t
-  val list: t -> origin -> ?depth:int -> key list -> key list Lwt.t
   module Node: Ir_node.STORE
     with type value = node
      and type origin = origin
@@ -213,13 +212,13 @@ module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
 
   module Graph = Ir_graph.Make(N.Contents.Key)(KN)(K)(Tc.U)
 
-  let list t origin ?depth keys =
+  let list t origin keys =
     Log.debugf "list %a" force (shows (module K) keys);
     let pred = function
       | `Commit k -> read_exn t origin k >>= fun r -> return (Val.edges r)
       | _         -> return_nil in
     let max = List.map (fun k -> `Commit k) keys in
-    Graph.closure ?depth max ~pred >>= fun g ->
+    Graph.closure max ~pred >>= fun g ->
     let keys =
       Ir_misc.list_filter_map
         (function `Commit k -> Some k | _ -> None)

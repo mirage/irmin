@@ -44,5 +44,4 @@ module type S = sig
 end
 
 module Make (S: Ir_bc.STORE_EXT): S
-(** Extend a branch consistent store with import/export
-    capabilities. *)
+(** Dump a branch consistent as a Graphviz dot buffer. *)

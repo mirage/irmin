@@ -38,7 +38,6 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
 
   type origin = S.origin
   type db = S.t
-  type state = N.key
 
   module Path = Ir_step.Path(N.Step)
   module PathSet = Ir_misc.Set(Path)
@@ -49,15 +48,17 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
   type value = S.value
   type t = B.Node.key
 
+  let of_head _db origin c =
+    C.read (C.create ()) origin c >>= function
+    | None   -> fail Not_found
+    | Some c -> match C.Val.node c with
+      | None   -> fail Not_found
+      | Some k -> return k
+
   let create db origin =
     S.head db origin >>= function
     | None   -> fail Not_found
-    | Some c ->
-      C.read (C.create ()) origin c >>= function
-      | None   -> fail Not_found
-      | Some c -> match C.Val.node c with
-        | None   -> fail Not_found
-        | Some k -> return (k: state)
+    | Some c -> of_head db origin c
 
   let root_node n origin =
     N.read (N.create ()) origin n >>= function
@@ -122,6 +123,10 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
     S.merge_head t origin k
 
   let watch db origin path =
-    S.watch_node db origin path
+    let stream = S.watch_head db origin path in
+    Lwt_stream.map_s (fun (path, h) ->
+        of_head db origin h >>= fun n ->
+        return (path, n)
+      ) stream
 
 end

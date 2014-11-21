@@ -69,11 +69,18 @@ module type STORE = sig
   (** Same as [read_head] but raise [Not_found] if the commit does not
       exist. *)
 
+  val heads: t -> origin -> head list Lwt.t
+  (** The list of all the databse heads. *)
+
   val update_head: t -> origin -> head -> unit Lwt.t
   (** Set the commit head. *)
 
   val merge_head: t -> origin -> head -> unit Ir_merge.result Lwt.t
   (** Merge a commit with the current branch. *)
+
+  val watch_head: t -> origin -> key -> (key * head) Lwt_stream.t
+  (** Watch changes for given key and the one it has recursive access.
+      Return the stream of heads of the modified keys. *)
 
   (** {2 Functions over stores} *)
 
@@ -95,6 +102,38 @@ module type STORE = sig
 
   module T: Tc.I0 with type t = t
   (** Base functions over values of type [t]. *)
+
+  (** {2 Slices} *)
+
+  type slice
+  (** Type for database slices. *)
+
+  module Slice: Tc.I0 with type t = slice
+  (** Base functions over slices. *)
+
+  val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
+    t -> origin -> slice Lwt.t
+  (** [export t origin ~depth ~min ~max] exports the database slice
+      between [min] and [max], using at most [depth] history depth
+      (starting from the max).
+
+      If [max] is not specified, use the current [heads]. If [min] is
+      not specified, use an unbound past (but can be still limited by
+      [depth]).
+
+      [depth] is used to limit the depth of the commit history. [None]
+      here means no limitation.
+
+      If [full] is set (default is true) the full graph, including the
+      commits, nodes and contents, is exported, otherwise it is the
+      commit history graph only. *)
+
+  val import: t -> origin -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
+  (** Import a database slide. Do not modify existing tags. *)
+
+  val import_force: t -> origin -> slice -> unit Lwt.t
+  (** Same as [import] but delete and update the tags they already
+      exist in the database. *)
 
 end
 
@@ -135,7 +174,7 @@ module type STORE_EXT = sig
   module Key: Tc.I0 with type t = Block.step list
   (** Base functions over keys. *)
 
-  module Value: Ir_contents.S with type t = value
+  module Val: Ir_contents.S with type t = value
   (** Base functions over values. *)
 
   module Origin: Ir_origin.S with type t = origin
@@ -152,15 +191,19 @@ module type STORE_EXT = sig
   val update_node: t -> origin -> key -> Block.Node.value -> unit Lwt.t
   (** Update a node. *)
 
-  val watch_node: t -> origin -> key -> (key * Block.Node.key) Lwt_stream.t
-  (** Watch commit changes. Return the stream of commit
-      identifiers. *)
+  (** {2 More Slices} *)
 
-  module Graph: Ir_graph.S with type V.t =
-    [ `Contents of Block.Contents.key
-    | `Node of Block.Node.key
-    | `Commit of Block.Commit.key
-    | `Tag of Tag.key ]
+  val slice_contents: slice -> (Block.Contents.key * Block.contents) list
+  val slice_nodes: slice -> (Block.Node.key * Block.node) list
+  val slice_commits: slice -> (Block.Commit.key * Block.commit) list
+  val slice_tags: slice -> (Tag.key * Tag.value) list
+
+  module Graph: Ir_graph.S
+    with type V.t =
+      [ `Contents of Block.Contents.key
+      | `Node of Block.Node.key
+      | `Commit of Block.Commit.key
+      | `Tag of Tag.key ]
   (** The global graph of internal objects. *)
 
 end
@@ -178,6 +221,6 @@ module type MAKER_EXT =
 (** Signature of functors to create extended branch-consistent
     stores. *)
 
-module Make_ext: MAKER
+module Make_ext: MAKER_EXT
 (** Build an extended branch consistent store from custom [Block] and
     [Tag] store implementations. *)

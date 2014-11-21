@@ -19,13 +19,15 @@ open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
-type ('head, 'contents, 'tag) store =
-  (module Ir_bc.STORE with type head = 'key
-                       and type value = 'contents
-                       and type branch = 'branch)
+type ('head, 'tag, 'origin, 'slice) store =
+  (module Ir_bc.STORE with type head = 'head
+                       and type origin = 'origin
+                       and type tag = 'tag
+                       and type slice = 'slice)
 
-type ('key, 'contents) remote =
-  | Store: ('key, 'contents, 'branch) store * 'branch -> ('contents, 'tag) remote
+type ('head, 'origin, 'slice) remote =
+  | Store: ('head, 'tag, 'origin', 'slice) store * 'tag
+    -> ('head, 'origin, 'slice) remote
   | URI of string
 
 let store m b = Store (m, b)
@@ -34,83 +36,52 @@ let uri s = URI s
 
 module type STORE = sig
   type t
-  type db
-  type key
-  type contents
+  type head
   type origin
-  val fetch: db -> ?depth:int -> (key, contents) remote -> t option Lwt.t
-  val fetch_exn: db -> ?depth:int -> (key, contents) remote -> t Lwt.t
-  val push: db -> ?depth:int -> (key, contents) remote -> t option Lwt.t
-  val push_exn: db -> ?depth:int -> (key, contents) remote -> t Lwt.t
-  val update: db -> t -> unit Lwt.t
-  val merge: db -> ?origin:origin -> t -> unit Merge.result Lwt.t
-  val merge_exn: db -> ?origin:origin -> t -> unit Lwt.t
-  include Tc.I0 with type t := t
+  type slice
+  val fetch: t -> ?depth:int -> (head, origin, slice) remote -> head option Lwt.t
+  val fetch_exn: t -> ?depth:int -> (head, origin, slice) remote -> head Lwt.t
+  val push: t -> ?depth:int -> (head, origin, slice) remote -> head option Lwt.t
+  val push_exn: t -> ?depth:int -> (head, origin, slice) remote -> head Lwt.t
 end
 
 module type REMOTE = sig
-  type t
-  type key
-  val fetch: t -> ?depth:int -> string -> key option Lwt.t
-  val push : t -> ?depth:int -> string -> key option Lwt.t
+  type head
+  val fetch: ?depth:int -> string -> head option Lwt.t
+  val push : ?depth:int -> string -> head option Lwt.t
 end
 
-module Fast
-    (S: Branch.STORE)
-    (R: REMOTE with type t = S.t and type key = S.Block.key)  =
-struct
+module Fast (S: Ir_bc.STORE) (R: REMOTE with type head = S.head) = struct
 
-  module K = S.Block.Key
-  module C = S.Value
-  module T = S.Tag.Key
-
-  module Tag = S.Tag
-  module Block = S.Block
-  module Commit = Block.Commit
-  module Node = Block.Node
-  module Contents = Block.Contents
-
-  type origin = Origin.t
-
-  type db = S.t
-  type key = S.Block.key
+  type t = S.t
+  type head = S.head
   type contents = S.value
+  type origin = S.origin
 
-  include K
-
-  let sync ?depth (type k) (type v) (type l) (type r)
-      (module L: Branch.STORE with type t = l and type Block.key = k
-                                              and type value = v)
+  let sync (type l) (type r) (type h) (type o) (type s)
+      ?depth
+      (module L: Ir_bc.STORE with type t = l
+                              and type head = h
+                              and type origin = o
+                              and type slice = c)
       (l:l)
-      (module R: Branch.STORE with type t = r and type Block.key = k
-                                              and type value = v)
+      (module R: Ir_bc.STORE with type t = r
+                              and type head = h
+                              and type origin = o
+                              and type slice = c)
       (r:r)
+      origin
     =
-    let module RBlockKeySet = Misc.Set(R.Block.Key) in
-    R.head r >>= function
+    R.head r origin >>= function
     | None             -> return_none
     | Some remote_head ->
-      begin
-        L.head l >>= function
-        | None     -> return_nil
-        | Some key -> L.Block.Commit.list (L.commit_t l) ?depth [key]
-      end
-      >>= fun local_keys ->
-      R.Block.Commit.list (R.commit_t r) ?depth [remote_head]
-      >>= fun remote_keys ->
-      let keys = RBlockKeySet.(to_list (diff (of_list remote_keys) (of_list local_keys))) in
-      Log.debugf "sync keys=%a" force (shows (module R.Block.Key) keys);
-      Lwt_list.iter_p (fun key ->
-          R.Block.read (R.block_t r) key >>= function
-          | None   -> return_unit
-          | Some v -> L.Block.add (L.block_t l) v >>= fun _ -> return_unit
-        ) keys
-      >>= fun () ->
+      L.export l origin ?depth ~max:[remote_head] >>= fun slice ->
+      R.import r origin slice >>= fun () ->
       return (Some remote_head)
 
-  let fetch t ?depth (remote: (K.t, C.t) remote) =
+  let fetch t ?depth (remote: (S.head, S.origin, S.slice) remote) =
     match remote with
-    | URI uri                          ->
+    | URI uri ->
       Log.debugf "fetch URI %s" uri;
       R.fetch t ?depth uri
     | Store ((module R), branch) ->

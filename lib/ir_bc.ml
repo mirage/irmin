@@ -35,13 +35,21 @@ module type STORE = sig
   val of_head: head -> t
   val head: t -> origin -> head option Lwt.t
   val head_exn: t -> origin -> head Lwt.t
+  val heads: t -> origin -> head list Lwt.t
   val update_head: t -> origin -> head -> unit Lwt.t
   val merge_head: t -> origin -> head -> unit Ir_merge.result Lwt.t
+  val watch_head: t -> origin -> key -> (key * head) Lwt_stream.t
   val clone: t -> origin -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
   val clone_force: t -> origin -> tag -> t Lwt.t
   val switch: t -> origin -> tag -> unit Lwt.t
   val merge: t -> origin -> tag -> unit Ir_merge.result Lwt.t
   module T: Tc.I0 with type t = t
+  type slice
+  module Slice: Tc.I0 with type t = slice
+  val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
+    t -> origin -> slice Lwt.t
+  val import: t -> origin -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
+  val import_force: t -> origin -> slice -> unit Lwt.t
 end
 
 module type MAKER =
@@ -65,12 +73,15 @@ module type STORE_EXT = sig
   module Tag: Ir_tag.STORE
     with type key = tag and type value = head and type origin = origin
   module Key: Tc.I0 with type t = Block.step list
-  module Value: Ir_contents.S with type t = value
+  module Val: Ir_contents.S with type t = value
   module Origin: Ir_origin.S with type t = origin
   val read_node: t -> origin -> key -> Block.Node.value option Lwt.t
   val mem_node: t -> origin -> key -> bool Lwt.t
   val update_node: t -> origin -> key -> Block.Node.value -> unit Lwt.t
-  val watch_node: t -> origin -> key -> (key * Block.Node.key) Lwt_stream.t
+  val slice_contents: slice -> (Block.Contents.key * Block.contents) list
+  val slice_nodes: slice -> (Block.Node.key * Block.node) list
+  val slice_commits: slice -> (Block.Commit.key * Block.commit) list
+  val slice_tags: slice -> (Tag.key * Tag.value) list
   module Graph: Ir_graph.S with type V.t =
     [ `Contents of Block.Contents.key
     | `Node of Block.Node.key
@@ -112,6 +123,7 @@ module Make_ext
   module PathSet = Ir_misc.Set(Path)
 
   module StepMap = Ir_misc.Map(B.Node.Step)
+  type step = B.step
 
   module Head = B.Commit.Key
   type head = Head.t
@@ -163,7 +175,7 @@ module Make_ext
 
   end
 
-  module Graph = Ir_graph.Make(B.Contents.Val)(B.Node.Val)(B.Commit.Val)(T.Key)
+  module Graph = Ir_graph.Make(B.Contents.Key)(B.Node.Key)(B.Commit.Key)(T.Key)
 
   type t = { mutable branch: TK.t }
 
@@ -181,6 +193,13 @@ module Make_ext
   let head t origin = match t.branch with
     | `Key key -> return (Some key)
     | `Tag tag -> T.read (T.create ()) origin tag
+
+  let heads t origin =
+    T.dump (T.create ()) origin >>= fun tags ->
+    let heads = List.map snd tags in
+    head t origin >>= function
+    | None   -> return heads
+    | Some h -> return (h :: List.filter ((<>) h) heads)
 
   let head_exn t origin =
     head t origin >>= function
@@ -238,6 +257,11 @@ module Make_ext
     node_of_opt_commit t origin commit >>= fun node ->
     B.Node.sub (B.Node.create ()) origin node path
 
+  let mem_node t origin path =
+    read_node t origin path >>= function
+    | None   -> return false
+    | Some _ -> return true
+
   let apply t origin ~f =
     read_head_commit t origin >>= fun commit ->
     node_of_opt_commit t origin commit >>= fun old_node ->
@@ -252,6 +276,11 @@ module Make_ext
       | `Key _   -> t.branch <- `Key key; return_unit
       | `Tag tag -> T.update (T.create ()) origin tag key
     )
+
+ let update_node t origin path node =
+    apply t origin ~f:(fun head ->
+        B.Node.map (B.Node.create ()) origin head path (fun _ -> node)
+      )
 
   let map t origin path ~f =
     read_head_node t origin >>= fun node ->
@@ -389,7 +418,7 @@ module Make_ext
     T.read_exn (T.create ()) origin branch >>= fun c ->
     merge_head t origin c
 
-  let watch_node t origin path =
+  let watch_head t origin path =
     Log.infof "Adding a watch on %a" force (show (module Path) path);
     match t.branch with
     | `Key _   -> Lwt_stream.of_list []
@@ -418,7 +447,7 @@ module Make_ext
 
   (* watch contents changes. *)
   let watch t origin path =
-    let stream = watch_node t origin path in
+    let stream = watch_head t origin path in
     Lwt_stream.filter_map_s (fun (p, k) ->
         if Path.equal p path then
           B.Commit.read (B.Commit.create ()) origin k >>= function
@@ -429,6 +458,167 @@ module Make_ext
         else
           return_none
       ) stream
+
+  module Slice = struct
+
+    type t = {
+      contents: (B.Contents.key * B.Contents.value) list;
+      nodes   : (B.Node.key * B.Node.value) list;
+      commits : (B.Commit.key * B.Commit.value) list;
+      tags    : (T.key * T.value) list;
+    }
+
+    let create ?(contents=[]) ?(nodes=[]) ?(commits=[]) ?(tags=[]) () =
+      { contents; nodes; commits; tags }
+
+    module M (K: Tc.I0)(V: Tc.I0) = Tc.App1 (Tc.L)( Tc.App2(Tc.P)(K)(V) )
+    module Ct = M(B.Contents.Key)(B.Contents.Val)
+    module No = M(B.Node.Key)(B.Node.Val)
+    module Cm = M(B.Commit.Key)(B.Commit.Val)
+    module Ta = M(T.Key)(T.Val)
+    module T = Tc.App2 (Tc.P)( Tc.App2(Tc.P)(Ct)(No) )( Tc.App2(Tc.P)(Cm)(Ta) )
+
+    let explode t = (t.contents, t.nodes), (t.commits, t.tags)
+    let implode ((contents, nodes), (commits, tags)) =
+      { contents; nodes; commits; tags }
+
+    let compare x y = T.compare (explode x) (explode y)
+    let equal x y = T.equal (explode x) (explode y)
+    let hash = Hashtbl.hash
+    let write t buf = T.write (explode t) buf
+    let read b = implode (T.read b)
+    let size_of t = T.size_of (explode t)
+
+    let to_sexp t =
+      let open Sexplib.Type in
+      List [
+        List [ Atom "contents"; Ct.to_sexp t.contents ];
+        List [ Atom "nodes"   ; No.to_sexp t.nodes ];
+        List [ Atom "commmits"; Cm.to_sexp t.commits ];
+        List [ Atom "tags"    ; Ta.to_sexp t.tags ];
+      ]
+
+    let to_json t =
+      `O [
+        ("contents", Ct.to_json t.contents);
+        ("nodes"   , No.to_json t.nodes);
+        ("commits" , Cm.to_json t.commits);
+        ("tags"    , Ta.to_json t.tags);
+      ]
+
+    let of_json j =
+      let contents = Ezjsonm.find j ["contents"] |> Ct.of_json in
+      let nodes = Ezjsonm.find j ["nodes"] |> No.of_json in
+      let commits = Ezjsonm.find j ["commits"] |> Cm.of_json in
+      let tags = Ezjsonm.find j ["tags"] |> Ta.of_json in
+      { contents; nodes; commits; tags }
+
+  end
+
+  type slice = Slice.t
+
+  let slice_contents t = t.Slice.contents
+  let slice_nodes t = t.Slice.nodes
+  let slice_commits t = t.Slice.commits
+  let slice_tags t = t.Slice.tags
+
+  let export ?(full=true) ?depth ?(min=[]) ?max t origin =
+    Log.debugf "export depth=%s full=%b min=%d max=%s"
+      (match depth with None -> "<none>" | Some d -> string_of_int d)
+      full (List.length min)
+      (match max with None -> "<none>" | Some l -> string_of_int (List.length l));
+    begin match max with
+      | Some m -> return m
+      | None   -> heads t origin
+    end >>= fun max ->
+    T.dump (T.create ()) origin >>= fun tags ->
+    let tags = List.filter (fun (_, k) -> List.mem k max) tags in
+    let max = List.map (fun x -> `Commit x) max in
+    let min = List.map (fun x -> `Commit x) min in
+    let t_c = B.Commit.create () in
+    let pred = function
+        | `Commit k ->
+          begin
+            B.Commit.read t_c origin k >>= function
+            | None   -> return_nil
+            | Some c ->
+              return (List.map (fun x -> `Commit x) (B.Commit.Val.parents c))
+          end
+        | _ -> return_nil in
+      Graph.closure ?depth ~pred ~min max >>= fun g ->
+      let keys =
+        Ir_misc.list_filter_map
+          (function `Commit c -> Some c | _ -> None)
+          (Graph.vertex g)
+      in
+      Lwt_list.map_p (fun k ->
+          B.Commit.read_exn t_c origin k >>= fun c ->
+          return (k, c)
+        ) keys
+      >>= fun commits ->
+      if not full then
+        return (Slice.create ~commits ~tags ())
+      else
+        let root_nodes =
+          Ir_misc.list_filter_map (fun (_,c) -> B.Commit.Val.node c) commits
+        in
+        let t_n = B.Node.create () in
+        B.Node.list t_n origin root_nodes >>= fun nodes ->
+        Lwt_list.map_p (fun k ->
+            B.Node.read t_n origin k >>= function
+            | None   -> return_none
+            | Some v -> return (Some (k, v))
+          ) nodes >>= fun nodes ->
+        let nodes = Ir_misc.list_filter_map (fun x -> x) nodes in
+        let root_contents =
+          Ir_misc.list_filter_map (fun (_,n) -> B.Node.Val.contents n) nodes
+        in
+        let t_c = B.Contents.create () in
+        B.Contents.list t_c origin root_contents >>= fun contents ->
+        Lwt_list.map_p (fun k ->
+            B.Contents.read t_c origin k >>= function
+            | None   -> return_none
+            | Some v -> return (Some (k, v))
+          ) contents >>= fun contents ->
+        let contents = Ir_misc.list_filter_map (fun x -> x) contents in
+        return (Slice.create ~contents ~nodes ~commits ~tags ())
+
+  let import_force _t origin s =
+    let aux (type k) (type v)
+        name
+        (module S: Ir_ao.STORE with type key = k
+                                and type value = v
+                                and type origin = origin)
+        (module K: Tc.I0 with type t = k)
+        elts
+      =
+      let t = S.create () in
+      Lwt_list.iter_p (fun (k, v) ->
+          S.add t origin v >>= fun k' ->
+          if not (K.equal k k') then
+            Log.warnf "%s import error: expected %a, got %a"
+              name force (show (module K) k) force (show (module K) k');
+          return_unit
+        ) elts
+    in
+    aux "Contents" (module B.Contents) (module B.Contents.Key) s.Slice.contents
+    >>= fun () ->
+    aux "Node" (module B.Node) (module B.Node.Key) s.Slice.nodes
+    >>= fun () ->
+    aux "Commit" (module B.Commit) (module B.Commit.Key) s.Slice.commits
+    >>= fun () ->
+    let t_t = T.create () in
+    Lwt_list.iter_p (fun (k, v) -> T.update t_t origin k v) s.Slice.tags
+
+  let import t origin s =
+    Lwt_list.partition_p
+      (fun (t, _) -> T.mem (T.create ()) origin t)
+      s.Slice.tags
+    >>= fun (tags, duplicated_tags) ->
+    import_force t origin { s with Slice.tags } >>= fun () ->
+    match duplicated_tags with
+    | [] -> return `Ok
+    | l  -> return (`Duplicated_tags (List.map fst l))
 
   module T = struct
     type r = t

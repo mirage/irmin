@@ -74,10 +74,6 @@ module type STORE = sig
   (** Same as [find_common_ancestor] but raises [Not_found] if the two
       commits share no common ancestor. *)
 
-  val list: t -> origin -> ?depth:int -> key list -> key list Lwt.t
-  (** Return all previous commit hashes, with an (optional) limit on
-      the history depth. *)
-
   module Node: Ir_node.STORE
     with type value = node
      and type origin = origin

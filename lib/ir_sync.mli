@@ -73,24 +73,25 @@ end
 
 module type REMOTE = sig
 
-  type uid
+  type head
   (** Type for unique identifiers. *)
 
-  val fetch: ?depth:int -> string -> uid option Lwt.t
+  val fetch: ?depth:int -> string -> head option Lwt.t
   (** How to fetch a given URI. *)
 
-  val push : ?depth:int -> string -> uid option Lwt.t
+  val push : ?depth:int -> string -> head option Lwt.t
   (** How to push to a given URI. *)
 
 end
 
-module Slow (B: Ir_bc.STORE): STORE with type head = B.head
-                                     and type contents = B.value
-                                     and type tag = B.tag
+module Slow (B: Ir_bc.STORE):
+  STORE with type head = B.head
+         and type contents = B.value
+         and type tag = B.tag
 (** This functor iterate through *all* the k/v pairs in the database
     so it is *very* slow. Use the [Fast] one when possible. *)
 
-module Fast (B: Ir_bc.STORE) (R: REMOTE with type uid = B.head):
+module Fast (B: Ir_bc.STORE) (R: REMOTE with type head = B.head):
   STORE with type head = B.head
          and type contents = B.value
          and type tag = B.tag
