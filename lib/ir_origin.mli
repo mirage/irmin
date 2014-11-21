@@ -20,31 +20,16 @@ module type S = sig
   include Tc.I0
   val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
   val date: t -> int64
+  val pretty_date: t -> string
   val id: t -> string
   val message: t -> string
-  val string_date: t -> string
 end
 
 module type P = sig
-
-  (** Origin parameters. *)
-
-  (* XXX: add a way to access private/public keys and thread it to the
-     read/write functions. *)
-
   val date: unit -> int64
-  (** How to compute the commit dates. *)
-
   val id: unit -> string
-  (** How to compute the commit origins. *)
-
   val string_of_date: int64 -> string
-  (** Pretty-print dates. *)
 end
 
 module Default: S
-(** The default origin, where [date] is an incremented counter and
-    [id] is a random number. *)
-
 module Make (M: P): S
-(** Default origin. *)

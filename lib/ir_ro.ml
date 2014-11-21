@@ -37,13 +37,13 @@ module type MAKER =
   functor (O: Tc.I0) ->
     STORE with type key = K.t and type value = V.t and type origin = O.t
 
-module type BINARY = STORE with
+module type CSTRUCT = STORE with
   type key = Cstruct.t and type value = Cstruct.t and type origin = Cstruct.t
 
 module type JSON = STORE with
   type key = Ezjsonm.t and type value = Ezjsonm.t and type origin = Ezjsonm.t
 
-module Binary  (S: BINARY) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
+module Cstruct  (S: CSTRUCT) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
 
   type t = S.t
 
@@ -68,7 +68,7 @@ module Binary  (S: BINARY) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
   let read_exn t origin key =
     read t origin key >>= function
     | Some v -> return v
-    | None   -> fail (Ir_uid.Unknown (Tc.show (module K) key))
+    | None   -> fail (Ir_hash.Unknown (Tc.show (module K) key))
 
   let mem t origin key =
     S.mem t (o_to_raw origin) (k_to_raw key)
@@ -113,7 +113,7 @@ module Json  (S: JSON) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
   let read_exn t origin key =
     read t origin key >>= function
     | Some v -> return v
-    | None   -> fail (Ir_uid.Unknown (Tc.show (module K) key))
+    | None   -> fail (Ir_hash.Unknown (Tc.show (module K) key))
 
   let mem t origin key =
     S.mem t (o_to_json origin) (k_to_json key)

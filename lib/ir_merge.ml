@@ -26,7 +26,7 @@ type 'a result =
   [ `Ok of 'a
   | `Conflict of string ]
 
-module R = struct
+module Result = struct
 
   type 'a t = 'a result
 
@@ -75,9 +75,7 @@ let exn = function
   | `Ok x       -> return x
   | `Conflict x -> fail (Conflict x)
 
-module Result (A: S) = Tc.App1(R)(A)
-
-module UnitResult = Result(Tc.U)
+module R (A: S) = Tc.App1(Result)(A)
 
 type ('a, 'o) t = 'o -> old:'a -> 'a -> 'a -> 'a result Lwt.t
 

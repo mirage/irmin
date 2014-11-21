@@ -21,7 +21,7 @@ module type STORE = sig
   val add: t -> origin -> value -> key Lwt.t
 end
 
-module type BINARY = STORE
+module type CSTRUCT = STORE
   with type key = Cstruct.t
    and type value = Cstruct.t
    and type origin = Cstruct.t
@@ -34,20 +34,20 @@ module type JSON = STORE
 (** JSON append-only store. Keys and values are JSON objects. *)
 
 module type MAKER =
-  functor (K: Ir_uid.S) ->
+  functor (K: Ir_hash.S) ->
   functor (V: Tc.I0) ->
   functor (O: Tc.I0) ->
     STORE with type key = K.t and type value = V.t and type origin = O.t
 (** Signature of functor creating append-only stores. *)
 
-module Binary (S: BINARY) (K: Ir_uid.S) (V: Tc.I0) (O: Tc.I0):
+module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.I0) (O: Tc.I0):
   STORE with type t = S.t
          and type key = K.t
          and type value = V.t
          and type origin = O.t
 (** Create a typed append-only store from a binary one. *)
 
-module Json (S: JSON) (K: Ir_uid.S) (V: Tc.I0) (O: Tc.I0):
+module Json (S: JSON) (K: Ir_hash.S) (V: Tc.I0) (O: Tc.I0):
   STORE with type t = S.t
          and type key = K.t
          and type value = V.t

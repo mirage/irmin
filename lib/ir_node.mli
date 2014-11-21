@@ -131,7 +131,7 @@ module type STORE = sig
      and type origin = origin
   (** The contents store. *)
 
-  module Key: Ir_uid.S with type t = key
+  module Key: Ir_hash.S with type t = key
   (** Base functions for keys. *)
 
   module Val: S
@@ -144,7 +144,7 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (K: Ir_uid.S) ->
+  functor (K: Ir_hash.S) ->
   functor (S: Ir_step.S) ->
   functor (C: Ir_contents.STORE) ->
     STORE with type key = K.t

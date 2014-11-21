@@ -24,7 +24,7 @@ module type STORE = sig
   val add: t -> origin -> value -> key Lwt.t
 end
 
-module type BINARY = STORE
+module type CSTRUCT = STORE
   with type key = Cstruct.t
    and type value = Cstruct.t
    and type origin = Cstruct.t
@@ -35,14 +35,14 @@ module type JSON = STORE
    and type origin = Ezjsonm.t
 
 module type MAKER =
-  functor (K: Ir_uid.S) ->
+  functor (K: Ir_hash.S) ->
   functor (V: Tc.I0) ->
   functor (O: Tc.I0) ->
     STORE with type key = K.t and type value = V.t and type origin = O.t
 
-module Binary (S: BINARY) (K: Ir_uid.S) (V: Tc.I0) (O: Tc.I0) = struct
+module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.I0) (O: Tc.I0) = struct
 
-  include Ir_ro.Binary(S)(K)(V)(O)
+  include Ir_ro.Cstruct(S)(K)(V)(O)
 
   let add t origin value =
     Log.debugf "add";
@@ -55,7 +55,7 @@ module Binary (S: BINARY) (K: Ir_uid.S) (V: Tc.I0) (O: Tc.I0) = struct
 
 end
 
-module Json (S: JSON)  (K: Ir_uid.S) (V: Tc.I0) (O: Tc.I0) = struct
+module Json (S: JSON)  (K: Ir_hash.S) (V: Tc.I0) (O: Tc.I0) = struct
 
   include Ir_ro.Json(S)(K)(V)(O)
 

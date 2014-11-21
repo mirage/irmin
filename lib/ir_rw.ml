@@ -30,7 +30,7 @@ module type MAKER =
   functor (O: Tc.I0) ->
   STORE with type key = K.t and type value = V.t and type origin = O.t
 
-module type BINARY = STORE
+module type CSTRUCT = STORE
   with type key = Cstruct.t
    and type value = Cstruct.t
    and type origin = Cstruct.t
@@ -40,9 +40,9 @@ module type JSON = STORE
    and type value = Ezjsonm.t
    and type origin = Ezjsonm.t
 
-module Binary (S: BINARY) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
+module Cstruct (S: CSTRUCT) (K: Tc.I0) (V: Tc.I0) (O: Tc.I0) = struct
 
-  include Ir_ro.Binary(S)(K)(V)(O)
+  include Ir_ro.Cstruct(S)(K)(V)(O)
 
   let k_to_raw = Tc.write_cstruct (module K)
   let o_to_raw = Tc.write_cstruct (module O)

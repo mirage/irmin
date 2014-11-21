@@ -17,29 +17,12 @@
 (** Manage snapshot/revert capabilities. *)
 
 module type OF_STORE = sig
-
-  (** Snapshots are read-only checkpoints of the dabase. *)
-
   include Ir_ro.STORE
-
   type db
-  (** Type for database handler. *)
-
   val create: db -> origin -> t Lwt.t
-  (** Snapshot the current state of the store. *)
-
   val revert: db -> origin -> t -> unit Lwt.t
-  (** Revert the store to a previous state. *)
-
   val merge: db -> origin -> t -> unit Ir_merge.result Lwt.t
-  (** Merge the given snasphot into the current branch of the
-      database. *)
-
   val watch: db -> origin -> key -> (key * t) Lwt_stream.t
-  (** Subscribe to the stream of modification events attached to a
-      given path. Takes and returns a new snapshot every time a
-      sub-path is modified. *)
-
 end
 
 module Of_store (S: Ir_bc.STORE_EXT):
@@ -47,4 +30,5 @@ module Of_store (S: Ir_bc.STORE_EXT):
             and type t = S.Block.Node.key
             and type origin = S.origin
             and type key = S.key
+            and type value = S.value
 (** Add snapshot capabilities to a branch-consistent store. *)

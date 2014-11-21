@@ -23,22 +23,22 @@
     run everywhere, from Linux to Xen unikernels -- and can be be
     compiled to JavaScipt to run in a browser.
 
-    Irmin uses a set of {{!Store}store signatures} describing what
-    {{!RO}read-only}, {{!AO}append-only}, {{!RW}read-write} stores are
-    and {{!Backend}backend functor} generating these signature,
-    providing the proper store contents.
-
+    FIXME
 *)
+
+(** {1 Merge operators} *)
 
 module Merge: sig
 
-  (** Merge API. *)
+  (** 3-way merge combinators.*)
+
+  (** {1 Merge Results} *)
 
   type 'a result = [ `Ok of 'a | `Conflict of string ]
   (** Type for merge results. *)
 
-  type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
-  (** User-defined nerge functions. *)
+  module Result: Tc.I1 with type 'a t = 'a result
+  (** Base functions over results. *)
 
   val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
   (** Monadic bind over Result. *)
@@ -49,7 +49,79 @@ module Merge: sig
   val exn: 'a result -> 'a Lwt.t
   (** Convert [`Conflict] results to [Conflict] exceptions. *)
 
-  module Infix: sig
+  (** {1 Merge Combinators} *)
+
+  type ('a, 'o) t = 'o -> old:'a -> 'a -> 'a -> 'a result Lwt.t
+  (** Signature of a merge function. ['o] denotes the type for
+      tracking change origins.
+
+              /----> t1 ----\
+      ----> old              |--> result
+              \----> t2 ----/
+  *)
+
+  module type S = Tc.I0
+
+  type 'a elt = (module S with type t = 'a)
+  (** The type for mergeable contents of type ['a]. *)
+
+  val default: 'a elt -> ('a, 'o) t
+  (** Create a default merge function. This is a simple merge
+      functions which support changes in one branch at the time:
+
+      - if t1=t2  then return t1
+      - if t1=old then return t2
+      - if t2=old then return t1
+      - otherwise raise [Conflict].
+  *)
+
+  val string: (string, 'o) t
+  (** The default string merge function. Do not anything clever, just
+      compare the strings using the [default] merge function. *)
+
+  val counter: (int, 'o) t
+  (** Mergeable counters. *)
+
+  val seq: ('a, 'o) t list -> ('a, 'o) t
+  (** Try the merge operations in sequence. *)
+
+  val some: 'a elt -> ('a, 'o) t -> ('a option, 'o) t
+  (** Lift a merge function to optional values of the same type. If all
+      the provided values are inhabited, then call the provided merge
+      function, otherwise use the same behavior as [create]. *)
+
+  val alist: 'a elt -> 'b elt -> ('b, 'o) t -> ( ('a * 'b) list, 'o) t
+  (** List to association lists. *)
+
+  module Map (X: S): sig
+    val merge: ('a elt) -> ('a, 'o) t -> ('a Map.Make(X).t, 'o) t
+  end
+  (** Lift to string maps. *)
+
+  val pair: 'a elt -> 'b elt -> ('a, 'o) t -> ('b, 'o) t -> ('a * 'b, 'o) t
+  (** Lift to pairs. *)
+
+  val biject: 'a elt -> 'b elt ->
+    ('a, 'o) t -> ('a -> 'b) -> ('b -> 'a) -> ('b, 'o) t
+  (** Use the merge function defined in another domain. If the
+      functions given in argument are partial (ie. returning
+      [Not_found] on some entries), the exception is catched and
+      [Conflict] is returned instead. *)
+
+  val biject': 'a elt -> 'b elt ->
+    ('a, 'o) t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> ('b, 'o) t
+  (** Same as [map] but with potentially blocking converting
+      functions. *)
+
+  val apply: ('a -> ('b, 'o) t) -> 'a -> ('b, 'o) t
+  (** [apply] combinator. Usefull to untie recursive loops. *)
+
+  module OP: sig
+
+    (** Default operators. *)
+
+    (** Use [open Irmin.Merge.OP] at the top of your file to use
+        them. *)
 
     val ok: 'a -> 'a result Lwt.t
     (** Return [`Ok x]. *)
@@ -64,82 +136,127 @@ module Merge: sig
 
 end
 
-(** {2 Track read and write origins} *)
+(** {1 Track read and write origins} *)
 
 module Origin: sig
 
-  (** Simple origin tracking, where every operations has a date, a
-      text message and an name identifying the entity performing the
-      operation. *)
+  module type S = sig
 
-  type t
-  (** Provenance values. *)
+    (** Value keeping track of database accesses and
+        updates. *)
 
-  val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
-  (** Create a new provenance message. *)
+    include Tc.I0
+    (** The type for origin values. Every operation origin has a date,
+        a text message and an name identifying the entity performing
+        that operation. Origins are threaded from high-level calls to
+        all low-level database operations, so they can use for
+        encryption and access-control. FIXME *)
 
-  val date: t -> int64
-  (** Get the origin date. *)
+    val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
+    (** Create a new provenance message. *)
 
-  val id: t -> string
-  (** Get the origin ID. *)
+    val date: t -> int64
+    (** Get the origin date. *)
 
-  val message: t -> string
-  (** Get the origin message. *)
+    val pretty_date: t -> string
+    (** Get the date as a pretty string. *)
+
+    val id: t -> string
+    (** Get the origin ID. *)
+
+    val message: t -> string
+    (** Get the origin message. *)
+
+  end
+
+  module type P = sig
+
+    (** Signature for building origin values. *)
+
+    val date: unit -> int64
+    (** [date ()] is the current date. *)
+
+    val id: unit -> string
+    (** [id ()] is a string identifying the current process. *)
+
+    val string_of_date: int64 -> string
+    (** [string_of_date d] is a nicely formatted string representation
+        of the date [d]. *)
+
+  end
+
+  module Make (P: P): S
+  (** Build an implementation of origin values from a an
+      implementation of origin parameters. *)
+
+  module Default: S
+  (** The default origin, where [date] is an incremented counter and
+      [id] is a random number. *)
 
 end
 
-type origin = Origin.t
-(** Type for tracking change provenance.
-    XXX: we might want to abstract that. *)
+(** {1 User-defined contents} *)
 
-type path = string list
-(** Type for database paths.
-    XXX: We might want to abstract that: [type step and path = step list]*)
+module Contents: sig
 
-(** {2 User-defined contents} *)
+  module type S = sig
 
-module type CONTENTS = sig
+    (** Signature for store contents. *)
 
-  (** Signature for store contents. *)
+    include Tc.I0
 
-  include Tc.I0
+    type origin
+    (** Type for origin of merges. *)
 
-  val merge: origin -> t Merge.t
-  (** Merge function for user-defined contents. *)
+    module Origin: Origin.S with type t = origin
+    (** Base functions for origins. *)
+
+    val merge: (t, origin) Merge.t
+    (** Merge function. Evaluates to [`Conflict] if the values cannot be
+        merged properly. *)
+
+  end
+
+  module String (O: Origin.S): S with type t = string and type origin = O.t
+  (** String values where only the last modified value is kept on
+      merge. If the value has been modified concurrently, the [merge]
+      function raises [Conflict]. *)
+
+  module Json (O: Origin.S): S with type t = Ezjsonm.t and type origin = O.t
+  (** JSON values where only the last modified value is kept on
+      merge. If the value has been modified concurrently, the [merge]
+      function raises [Conflict]. *)
+
+
+  module Cstruct (O: Origin.S): S with type t = Cstruct.t
+  (** Cstruct values where only the last modified value is kept on
+      merge. If the value has been modified concurrently, then this is a
+      conflict. *)
 
 end
-
-module String: CONTENTS with type t = string
-(** String values where only the last modified value is kept on
-    merge. If the value has been modified concurrently, then this is a
-    conflict. *)
-
-module Json: CONTENTS with type t = Ezjsonm.t
-(** JSON values where only the last modified value is kept on
-    merge. If the value has been modified concurrently, then this is a
-    conflict. *)
-
-module Cstruct: CONTENTS with type t = Cstruct.t
-(** Cstruct values where only the last modified value is kept on
-    merge. If the value has been modified concurrently, then this is a
-    conflict. *)
 
 (** {2 User-defined unique identifiers (digests)} *)
 
-module type UID = sig
+module Hash: sig
 
-  (** Signature for unique identifiers. *)
+  module type S = sig
 
-  include Tc.I0
+    (** Signature for unique identifiers. *)
 
-  val digest: Cstruct.t -> t
-  (** Compute a (deterministic) key from a cstruct. *)
+    include Tc.I0
+
+    val digest: Cstruct.t -> t
+    (** Compute a (deterministic) key from a cstruct and an [origin]
+        information. *)
+
+    (** FIXME: add hmac: key:origin -> Cstuct.t -> Cstruct.t ? *)
+
+  end
+
+  module SHA1: S
+  (** SHA1 digests *)
 
 end
-
-module SHA1: UID
-(** SHA1 digests *)
 
 (** {2 Stores} *)
 
@@ -160,13 +277,20 @@ module Store: sig
     type value
     (** Type for values. *)
 
-    val create: unit -> t Lwt.t
+    type origin
+    (** Type for origin tracking. *)
+
+    val create: unit -> t
     (** Create a store handle. The operation can be used multiple times
         as it is supposed to be very cheap (and usually
         non-blocking). *)
 
-    val read: t -> origin -> key -> [`Ok of value | `Not_found] Lwt.t
+    val read: t -> origin -> key -> value option Lwt.t
     (** Read a value from the store. *)
+
+    val read_exn: t -> origin -> key -> value Lwt.t
+    (** Same as [read] but raise [Not_found] if the key does not
+        exist. *)
 
     val mem: t -> origin -> key -> bool Lwt.t
     (** Check if a key exists. *)
@@ -188,7 +312,7 @@ module Store: sig
 
     include RO
 
-    val add: t -> value -> key Lwt.t
+    val add: t -> origin -> value -> key Lwt.t
     (** Write the contents of a value to the store. That's the
         responsibility of the append-only store to generate a
         consistent key. *)
@@ -220,71 +344,120 @@ module Store: sig
   module type BC = sig
 
     (** A branch-consistent store is a mutable store which supports
-        fork/join operations of branches. *)
+        fork/join operations. *)
 
     include RW
 
-    type branch
-    (** Type for branch names. *)
+    (** {2 Tags} *)
 
-    val of_branch: branch -> t Lwt.t
-    (** Create a store handle from a branch name. [create] is similar
-        but it uses the [master] branch. If the branch name does not
-        already exists, create an empty branch. *)
+    type tag
+    (** Type of branch tags. *)
 
-    val branch: t -> origin -> [`Ok of branch | `Detached] Lwt.t
-    (** Return the branch name of the given store handle. Return
-        [Detached] if the branch does not have a name. *)
+    val of_tag: tag -> t
+    (** Create a store handle. Similar to [create], but use any tag name
+        instead of the [master] tag. *)
 
-    val attach: t -> origin -> branch -> [`Ok | `Branch_in_use] Lwt.t
-    (** [attach t origin b] attaches the branch name [b] to the
-        current branch of [t]. *)
+    val tag: t -> tag option
+    (** Return the branch of the given store handle. *)
 
-    val attach_force: t -> origin -> branch -> unit Lwt.t
-    (** Same as [attach] but delete and update the the existing branch
-        if a branch with the same name already exists. *)
+    val tag_exn: t -> tag
+    (** Same as [tag] but raise [Not_found] in case of a detached
+        head. *)
+
+    val update_tag: t -> origin -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+    (** Change the current tag name. Fail if a tag with the same name
+        already exists. The head is unchanged. *)
+
+    val update_tag_force: t -> origin -> tag -> unit Lwt.t
+    (** Same as [update_tag] but delete and update the tag if it already
+        exists. *)
 
     val detach: t -> origin -> unit Lwt.t
-    (** Detach the current branch. It is not assiaciated with a branch
-        name anymore but it can continue to be used as a normal (but
-        anonymous) branch. Subsequent calls to [branch] will return
-        [`Detached]. *)
+    (** Detach the current branch (ie. it is not assiaciated to a tag
+        anymore). *)
 
-    val clone: t -> origin -> branch -> [`Ok of t | `Branch_in_use] Lwt.t
-    (** [clone t origin b] is a fork the store [t], with [b] as the
-        new store's current branch name. Return [Branch_in_use] if the
-        branch already exists. *)
-
-    val clone_force: t -> origin -> branch -> t Lwt.t
-    (** Same as [clone] but delete and update the existing branch if a
-        branch with the same name already exists. *)
-
-    val update_branch: t -> origin -> branch -> unit Lwt.t
-    (** [update_branch t o b] updates the current branch of [t] to
-        have the same contents as [b]. The two branches are still
-        independant. *)
-
-    val merge_branch: t -> origin -> branch -> unit Merge.result Lwt.t
-    (** [merge db t] merges the branch [t] into the current database
-        branch. The two branches are still independant. *)
-
-    (** {2 Anonymous branches} *)
+    (** {2 Heads} *)
 
     type head
     (** Type for head values. *)
 
-    val of_head: head -> t Lwt.t
-    (** Create a temporary anonymous branch, which will not have an
-        associated branch name. *)
+    val of_head: head -> t
+    (** Create a temporary detached branch, which will not persist in
+        the database as it has no associated persistent tag name. *)
 
-    val head: t -> origin -> [`Ok of head | `Not_found] Lwt.t
-    (** Return the name of the head commit. *)
+    val head: t -> origin -> head option Lwt.t
+    (** Return the head commit. Might block if the branch is persistent
+        as it needs to lookup some tag contents. *)
+
+    val head_exn: t -> origin -> head Lwt.t
+    (** Same as [read_head] but raise [Not_found] if the commit does not
+        exist. *)
+
+    val heads: t -> origin -> head list Lwt.t
+    (** The list of all the databse heads. *)
 
     val update_head: t -> origin -> head -> unit Lwt.t
     (** Set the commit head. *)
 
     val merge_head: t -> origin -> head -> unit Merge.result Lwt.t
     (** Merge a commit with the current branch. *)
+
+    val watch_head: t -> origin -> key -> (key * head) Lwt_stream.t
+    (** Watch changes for given key and the one it has recursive access.
+        Return the stream of heads of the modified keys. *)
+
+    (** {2 Functions over stores} *)
+
+    val clone: t -> origin -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
+    (** Fork the store, using the given branch name. Return [None] if
+        the branch already exists. *)
+
+    val clone_force: t -> origin -> tag -> t Lwt.t
+    (** Same as [clone] but delete and update the existing branch if a
+        branch with the same name already exists. *)
+
+    val switch: t -> origin -> tag -> unit Lwt.t
+    (** Switch the database contents the be same as the contents of the
+        given branch name. The two branches are still independant. *)
+
+    val merge: t -> origin -> tag -> unit Merge.result Lwt.t
+    (** [merge db t] merges the branch [t] into the current database
+        branch. The two branches are still independant. *)
+
+    module T: Tc.I0 with type t = t
+    (** Base functions over values of type [t]. *)
+
+    (** {2 Slices} *)
+
+    type slice
+    (** Type for database slices. *)
+
+    module Slice: Tc.I0 with type t = slice
+    (** Base functions over slices. *)
+
+    val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
+      t -> origin -> slice Lwt.t
+    (** [export t origin ~depth ~min ~max] exports the database slice
+        between [min] and [max], using at most [depth] history depth
+        (starting from the max).
+
+        If [max] is not specified, use the current [heads]. If [min] is
+        not specified, use an unbound past (but can be still limited by
+        [depth]).
+
+        [depth] is used to limit the depth of the commit history. [None]
+        here means no limitation.
+
+        If [full] is set (default is true) the full graph, including the
+        commits, nodes and contents, is exported, otherwise it is the
+        commit history graph only. *)
+
+    val import: t -> origin -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
+    (** Import a database slide. Do not modify existing tags. *)
+
+    val import_force: t -> origin -> slice -> unit Lwt.t
+    (** Same as [import] but delete and update the tags they already
+        exist in the database. *)
 
   end
 
@@ -310,110 +483,167 @@ end
 
 module View: sig
 
-  type 'a action =
-    [ `Read of path * 'a option
-    | `Write of path * 'a option
-    | `List of path list * path list ]
-  (** Operations on view. We record the result of reads to be able to
-      replay them on merge. *)
+  module type ACTION = sig
+    type path
+    type contents
+    type t =
+      [ `Read of (path * contents option)
+      | `Write of (path * contents option)
+      | `List of (path list * path list) ]
+    (** Operations on view. We record the result of reads to be able to
+        replay them on merge. *)
+
+    include Tc.I0 with type t := t
+
+    val pretty: t -> string
+    (** Pretty-print an action. *)
+  end
 
   module type S = sig
 
-    (** Signature for views independant of any database
-        implementation. View are tree-like datastructure: keys are
-        paths in the database and tree nodes can contains some
-        contents. *)
+    (** Signature for views independant of any database substrate. *)
 
-    include Store.RW with type key = path
+    type step
 
-    val actions: t -> value action list
+    include Store.RW with type key = step list
+
+    type action
+    (** The type for actions. *)
+
+    val actions: t -> action list
     (** Return the list of actions performed on this view since its
         creation. *)
 
-    val merge: t -> into:t -> unit Merge.result Lwt.t
-    (** Merge the actions done on one view into an other one. If a
-        read operation doesn't return the same result, return
+    val merge: t -> origin -> into:t -> unit Merge.result Lwt.t
+    (** Merge the actions done on one view into an other one. If a read
+        operation doesn't return the same result, return
         [Conflict]. Only the [into] view is updated. *)
+
+    module Action: ACTION
+      with type path = key
+       and type contents = value
+       (** Base functions over actions. *)
 
   end
 
-  module Make (C: CONTENTS): S with type value = C.t
+  module Make (S: Tc.I0) (V: Tc.I0) (O: Tc.I0): S
+    with type step = S.t
+     and type value = V.t
+     and type origin = O.t
   (** Create a view implementation independant of any underlying
       store. *)
 
 end
 
-module type VIEW = sig
-
-  (** Signature for views which are tied to a given database
-      implementation. *)
-
-    include View.S
-
-    type db
-    (** Database handler. *)
-
-    val of_path: db -> path -> t Lwt.t
-    (** Read a view from a path in the store. This is a cheap
-        operation, all the real reads operation will be done on-demand
-        when the view is used. *)
-
-    val update_path: db -> origin -> path -> t -> unit Lwt.t
-    (** Commit a view to the store. The view *replaces* the current
-        subtree. *)
-
-    val rebase_path: db -> origin -> path -> t -> unit Merge.result Lwt.t
-    (** [rebase t o p v] rebases the view [v] on top of the tip of the
-        store [t], at the path [p]. Rebasing means applying all
-        operations applied in [v]: all writes are replayed directly
-        and reads are checked for consistency. If a read returns a
-        different result than in the view, then the rebase is a
-        conflict. *)
-
-    val merge_path: db -> origin -> path -> t -> unit Merge.result Lwt.t
-    (** Same as [update_path] and [rebase_path] but *merges* the view
-        with the current subtree. All concurrently modified contents
-        will try to be merged using the user-provided merge
-        function. *)
-
-  end
-
-(** {2 Slices} *)
-
-  (** Slices are used to import/export part of a store. They are
-      abstract objects, which can be translated to and from a binary
-      format or JSON. *)
-
-module type SLICE = sig
-
-  include Tc.I0
-
-  type db
-  (** Databse handler. *)
-
-  type head
-  (** Type for head values. *)
-
-  val export: db -> min:head list -> max:head list -> t Lwt.t
-  (** Export a slice. *)
-
-  val import: db -> t -> unit Lwt.t
-  (** Import a slice. *)
-
-end
-
-(** {2 Irmin Stores} *)
+(** {1 Irmin Stores} *)
 
 module type S = sig
 
   (** TODO: doc *)
 
-  include Store.BC
-  module View: VIEW with type db = t
-  module Slice: SLICE with type db = t and type head = head
+  type step
+
+  include Store.BC with type key = step list
+
+  (** {1 Views} *)
+
+  module View: sig
+
+    (** Database temporary and in-memory views. Similar to [View.S]
+        but can lazily be created from a path in the database, and
+        later commited back. *)
+
+    type db = t
+    (** Database handler. *)
+
+    include View.S with type origin = origin
+                    and type step = step
+                    and type value = value
+
+    val origin_of_actions: t -> origin
+    (** Create an origin using the list of actions as message. *)
+
+    val of_path: db -> origin -> key -> t Lwt.t
+    (** Read a view from a path in the store. This is a cheap operation,
+        all the real reads operation will be done on-demand when the
+        view is used. *)
+
+    val update_path: db -> origin -> key -> t -> unit Lwt.t
+    (** Commit a view to the store. The view *replaces* the current
+        subtree, so if you want to do a merge, you have to do it
+        manually (by creating a new branch, or rebasing before
+        commiting). [origin] helps keeping track of provenance. *)
+
+    val rebase_path: db -> origin -> key -> t -> unit Merge.result Lwt.t
+    (** Rebase the view to the tip of the store. *)
+
+    val merge_path: db -> origin -> key -> t -> unit Merge.result Lwt.t
+  (** Same as [update_path] but *merges* with the current subtree. *)
+
+  end
+
+  (** {1 Snapshots} *)
+
+  module Snapshot: sig
+
+    (** Snapshots are read-only checkpoints of the dabase. *)
+
+    type db = t
+    (** Type for database handler. *)
+
+    include Store.RO with type origin = origin
+                      and type key = key
+                      and type value = value
+
+    val create: db -> origin -> t Lwt.t
+    (** Snapshot the current state of the store. *)
+
+    val revert: db -> origin -> t -> unit Lwt.t
+    (** Revert the store to a previous state. *)
+
+    val merge: db -> origin -> t -> unit Merge.result Lwt.t
+    (** Merge the given snasphot into the current branch of the
+        database. *)
+
+    val watch: db -> origin -> key -> (key * t) Lwt_stream.t
+    (** Subscribe to the stream of modification events attached to a
+        given path. Takes and returns a new snapshot every time a
+        sub-path is modified. *)
+
+  end
+
+  (** {1 Dumps} *)
+
+  module Dump: sig
+
+    (** Import/export capabilities. *)
+
+    type db = t
+    (** The type for databse handler. *)
+
+    type origin = View.origin
+    (** The type to track origins. *)
+
+    val output_buffer:
+      db -> origin -> ?html:bool -> ?depth:int -> ?full:bool ->
+      Buffer.t -> unit Lwt.t
+    (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
+        representation of [t] in the buffer [buf].
+
+        [html] (default is false) enables HTML labels.
+
+        [depth] is used to limit the depth of the commit history. [None]
+        here means no limitation.
+
+        If [full] is set (default is not) the full graph, including the
+        commits, nodes and contents, is exported, otherwise it is the
+        commit history graph only. *)
+
+  end
 
 end
 
+(*
 (** {2 Backends} *)
 
 module Backend: sig
@@ -457,3 +687,4 @@ module Backend: sig
   end
 
 end
+*)

@@ -52,17 +52,17 @@ end
 module type STORE = sig
   include Ir_rw.STORE
   module Key: S with type t = key
-  module Val: Ir_uid.S with type t = value
+  module Val: Ir_hash.S with type t = value
 end
 
 
 module type MAKER =
   functor (K: S) ->
-  functor (V: Ir_uid.S) ->
+  functor (V: Ir_hash.S) ->
   functor (O: Ir_origin.S) ->
     STORE with type key = K.t and type value = V.t and type origin = O.t
 
-module Make (S: Ir_rw.MAKER) (K: S) (V: Ir_uid.S) (O: Ir_origin.S) = struct
+module Make (S: Ir_rw.MAKER) (K: S) (V: Ir_hash.S) (O: Ir_origin.S) = struct
 
   module Key = K
   module Val = V

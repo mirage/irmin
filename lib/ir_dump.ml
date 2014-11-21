@@ -19,16 +19,16 @@ open Printf
 
 module Log = Log.Make(struct let section ="DUMP" end)
 
-module type S = sig
-  type t
+module type OF_STORE = sig
+  type db
   type origin
-  val output_buffer: t -> origin -> ?html:bool -> ?depth:int -> ?full:bool ->
+  val output_buffer: db -> origin -> ?html:bool -> ?depth:int -> ?full:bool ->
     Buffer.t -> unit Lwt.t
 end
 
 module Make (S: Ir_bc.STORE_EXT) = struct
 
-  type t = S.t
+  type db = S.t
   type origin = S.origin
 
   module T = S.Tag
@@ -96,7 +96,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
           sprintf "%s | %s | %s | %s")
           k
           (B.Origin.id o)
-          (B.Origin.string_date o)
+          (B.Origin.pretty_date o)
           (B.Origin.message o)
       in
       `Label s in

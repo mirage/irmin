@@ -59,7 +59,7 @@ module type STORE = sig
   module Contents: Ir_contents.STORE
     with type value = contents
      and type origin = origin
-  module Key: Ir_uid.S with type t = key
+  module Key: Ir_hash.S with type t = key
   module Val: S
     with type t = value
      and type node = key
@@ -68,7 +68,7 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (K: Ir_uid.S) ->
+  functor (K: Ir_hash.S) ->
   functor (S: Ir_step.S) ->
   functor (C: Ir_contents.STORE) ->
     STORE with type key = K.t
@@ -77,9 +77,8 @@ module type MAKER =
            and type origin = C.origin
            and module Contents = C
 
-module Make
-    (Node: Ir_ao.MAKER)
-    (K: Ir_uid.S) (S: Ir_step.S)  (C: Ir_contents.STORE)
+module Make (Node: Ir_ao.MAKER)
+    (K: Ir_hash.S) (S: Ir_step.S)  (C: Ir_contents.STORE)
 = struct
 
   module Contents = C

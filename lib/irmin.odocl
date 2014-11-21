@@ -1,26 +1,4 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4007ebf32502b631681142d3d7da914d)
-Ir_misc
-Ir_graph
-Ir_uid
-Ir_snapshot
-Ir_block
-Ir_ro
-Ir_ao
-Ir_rw
-Ir_commit
-Ir_tag
-Ir_contents
-Ir_backend
-Ir_node
-Ir_version
-Ir_dump
-Ir_step
-Ir_watch
-Ir_merge
-Ir_view
-Ir_origin
-Ir_bc
-Ir_sync
+# DO NOT EDIT (digest: c94207c106583fc9add5eece03dd2a97)
 Irmin
 # OASIS_STOP

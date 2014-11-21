@@ -18,8 +18,6 @@ open Ir_merge.OP
 
 module Log = Log.Make(struct let section = "CONTENTS" end)
 
-exception Invalid of string
-
 module type S = sig
   include Tc.I0
   type origin
@@ -30,11 +28,11 @@ end
 module type STORE = sig
   include Ir_ao.STORE
   val merge: t -> (key, origin) Ir_merge.t
-  module Key: Ir_uid.S with type t = key
+  module Key: Ir_hash.S with type t = key
   module Val: S with type t = value and type origin = origin
 end
 
-module JSON (O: Ir_origin.S) = struct
+module Json (O: Ir_origin.S) = struct
 
   module Origin = O
 
@@ -130,12 +128,43 @@ module String (O: Ir_origin.S) = struct
   let merge = Ir_merge.default (module Tc.S)
 end
 
+module Cstruct (O: Ir_origin.S) = struct
+  module S = struct
+    type t = Cstruct.t
+    module Origin = O
+    type origin = O.t
+
+    let to_hex t =
+      let buf = Buffer.create (Cstruct.len t) in
+      Cstruct.hexdump_to_buffer buf t;
+      Buffer.contents buf
+
+    let hash = Hashtbl.hash
+    let equal x y = Cstruct.to_bigarray x = Cstruct.to_bigarray y
+    let compare x y =
+      Pervasives.compare (Cstruct.to_bigarray x) (Cstruct.to_bigarray y)
+
+    let to_sexp t = Sexplib.Type.Atom (to_hex t)
+    let to_json t = Cstruct.to_string t |> Ezjsonm.encode_string
+    let of_json j = Ezjsonm.decode_string_exn j |> Cstruct.of_string
+    let size_of t = Cstruct.len t
+    let read b = Mstruct.to_cstruct b
+
+    let write t buf =
+      let len = Cstruct.len t in
+      Cstruct.blit t 0 buf 0 len;
+      Cstruct.shift buf len
+  end
+  include S
+  let merge = Ir_merge.default (module S)
+end
+
 module type MAKER =
-  functor (K: Ir_uid.S) ->
+  functor (K: Ir_hash.S) ->
   functor (V: S) ->
     STORE with type key = K.t and type value = V.t and type origin = V.origin
 
-module Make (S: Ir_ao.MAKER) (K: Ir_uid.S) (V: S) = struct
+module Make (S: Ir_ao.MAKER) (K: Ir_hash.S) (V: S) = struct
 
   include S(K)(V)(V.Origin)
 

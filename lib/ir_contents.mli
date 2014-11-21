@@ -16,67 +16,29 @@
 
 (** Values. *)
 
-exception Invalid of string
-(** Invalid parsing. *)
-
 module type S = sig
-
-  (** Signature for store contents. *)
-
   include Tc.I0
-
   type origin
-  (** Type for origin of merges. *)
-
   module Origin: Ir_origin.S with type t = origin
-  (** Base functions for origins. *)
-
   val merge: (t, origin) Ir_merge.t
-  (** Merge function. Evaluates to [`Conflict] if the values cannot be
-      merged properly. *)
-
 end
 
 module String (O: Ir_origin.S): S with type t = string and type origin = O.t
-(** String values where only the last modified value is kept on
-    merge. If the value has been modified concurrently, the [merge]
-    function raises [Conflict]. *)
-
-module JSON (O: Ir_origin.S): S with type t = Ezjsonm.t and type origin = O.t
-(** JSON values where only the last modified value is kept on
-    merge. If the value has been modified concurrently, the [merge]
-    function raises [Conflict]. *)
+module Json (O: Ir_origin.S): S with type t = Ezjsonm.t and type origin = O.t
+module Cstruct (O: Ir_origin.S): S with type t = Cstruct.t and type origin = O.t
 
 module type STORE = sig
-
-  (** Store user-defined contents. *)
-
   include Ir_ao.STORE
-  (** Contents stores are append-only. *)
-
   val merge: t -> (key, origin) Ir_merge.t
-  (** Store merge function. Lift [S.merge] to keys. *)
-
-  module Key: Ir_uid.S with type t = key
-  (** Base functions for foreign keys. *)
-
+  module Key: Ir_hash.S with type t = key
   module Val: S with type t = value and type origin = origin
-  (** Base functions for values. *)
-
 end
 
 module type MAKER =
-  functor (K: Ir_uid.S) ->
+  functor (K: Ir_hash.S) ->
   functor (V: S) ->
     STORE with type key = K.t and type value = V.t and type origin = V.origin
 
 module Make (Contents: Ir_ao.MAKER): MAKER
-(** Build a contents store. *)
 
 module Rec (S: STORE): S with type t = S.key
-(** Consider objects in a contents store as stand-alone and mergeable
-    objects, identified by unique keys. The merge function of these
-    stand-alone objects is the following: (i) read the contents
-    associated to the keys you want to merge (ii) merge the contents
-    (iii) write the result back in the store and get a new key (iv)
-    retun that key. *)

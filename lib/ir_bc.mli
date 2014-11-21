@@ -18,123 +18,33 @@
     operations. *)
 
 module type STORE = sig
-
-  (** A branch-consistent store is a mutable store which supports
-      fork/join operations. *)
-
   include Ir_rw.STORE
-
-  (** {2 Tags} *)
-
   type tag
-  (** Type of branch tags. *)
-
   val of_tag: tag -> t
-  (** Create a store handle. Similar to [create], but use any tag name
-      instead of the [master] tag. *)
-
   val tag: t -> tag option
-  (** Return the branch of the given store handle. *)
-
   val tag_exn: t -> tag
-  (** Same as [tag] but raise [Not_found] in case of a detached
-      head. *)
-
   val update_tag: t -> origin -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-  (** Change the current tag name. Fail if a tag with the same name
-      already exists. The head is unchanged. *)
-
   val update_tag_force: t -> origin -> tag -> unit Lwt.t
-  (** Same as [update_tag] but delete and update the tag if it already
-      exists. *)
-
   val detach: t -> origin -> unit Lwt.t
-  (** Detach the current branch (ie. it is not assiaciated to a tag
-      anymore). *)
-
-  (** {2 Heads} *)
-
   type head
-  (** Type for head values. *)
-
   val of_head: head -> t
-  (** Create a temporary detached branch, which will not persist in
-      the database as it has no associated persistent tag name. *)
-
   val head: t -> origin -> head option Lwt.t
-  (** Return the head commit. Might block if the branch is persistent
-      as it needs to lookup some tag contents. *)
-
   val head_exn: t -> origin -> head Lwt.t
-  (** Same as [read_head] but raise [Not_found] if the commit does not
-      exist. *)
-
   val heads: t -> origin -> head list Lwt.t
-  (** The list of all the databse heads. *)
-
   val update_head: t -> origin -> head -> unit Lwt.t
-  (** Set the commit head. *)
-
   val merge_head: t -> origin -> head -> unit Ir_merge.result Lwt.t
-  (** Merge a commit with the current branch. *)
-
   val watch_head: t -> origin -> key -> (key * head) Lwt_stream.t
-  (** Watch changes for given key and the one it has recursive access.
-      Return the stream of heads of the modified keys. *)
-
-  (** {2 Functions over stores} *)
-
   val clone: t -> origin -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
-  (** Fork the store, using the given branch name. Return [None] if
-      the branch already exists. *)
-
   val clone_force: t -> origin -> tag -> t Lwt.t
-  (** Same as [clone] but delete and update the existing branch if a
-      branch with the same name already exists. *)
-
   val switch: t -> origin -> tag -> unit Lwt.t
-  (** Switch the database contents the be same as the contents of the
-      given branch name. The two branches are still independant. *)
-
   val merge: t -> origin -> tag -> unit Ir_merge.result Lwt.t
-  (** [merge db t] merges the branch [t] into the current database
-      branch. The two branches are still independant. *)
-
   module T: Tc.I0 with type t = t
-  (** Base functions over values of type [t]. *)
-
-  (** {2 Slices} *)
-
   type slice
-  (** Type for database slices. *)
-
   module Slice: Tc.I0 with type t = slice
-  (** Base functions over slices. *)
-
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> origin -> slice Lwt.t
-  (** [export t origin ~depth ~min ~max] exports the database slice
-      between [min] and [max], using at most [depth] history depth
-      (starting from the max).
-
-      If [max] is not specified, use the current [heads]. If [min] is
-      not specified, use an unbound past (but can be still limited by
-      [depth]).
-
-      [depth] is used to limit the depth of the commit history. [None]
-      here means no limitation.
-
-      If [full] is set (default is true) the full graph, including the
-      commits, nodes and contents, is exported, otherwise it is the
-      commit history graph only. *)
-
   val import: t -> origin -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
-  (** Import a database slide. Do not modify existing tags. *)
-
   val import_force: t -> origin -> slice -> unit Lwt.t
-  (** Same as [import] but delete and update the tags they already
-      exist in the database. *)
-
 end
 
 module type MAKER =
@@ -145,11 +55,8 @@ module type MAKER =
               and type origin = B.origin
               and type tag = T.key
               and type head = B.head
-(** Signature of functors to create branch-consistent stores. *)
 
 module Make: MAKER
-(** Build a branch consistent store from custom [Block] and [Tag]
-    store implementations. *)
 
 module type STORE_EXT = sig
 
@@ -218,9 +125,5 @@ module type MAKER_EXT =
                   and type head = B.head
                   and module Block = B
                   and module Tag = T
-(** Signature of functors to create extended branch-consistent
-    stores. *)
 
 module Make_ext: MAKER_EXT
-(** Build an extended branch consistent store from custom [Block] and
-    [Tag] store implementations. *)

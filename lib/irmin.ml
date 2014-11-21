@@ -13,3 +13,33 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+
+module Merge = Ir_merge
+module Origin = Ir_origin
+module Contents = Ir_contents
+module Store = struct
+  module type RO = Ir_ro.STORE
+  module type AO = Ir_ao.STORE
+  module type RW = Ir_rw.STORE
+  module type BC = Ir_bc.STORE
+end
+module View = Ir_view
+module Hash = Ir_hash
+
+module type S = sig
+  type step
+  include Store.BC with type key = step list
+  module View: Ir_view.OF_STORE
+    with type db = t
+     and type origin = origin
+     and type step = step
+     and type value = value
+  module Snapshot: Ir_snapshot.OF_STORE
+    with type db = t
+     and type origin = origin
+     and type key = key
+     and type value = value
+  module Dump: Ir_dump.OF_STORE
+    with type db = t
+     and type origin = origin
+end

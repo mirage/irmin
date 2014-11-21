@@ -50,14 +50,14 @@ module type STORE = sig
   module Key: S with type t = key
   (** Base functions over keys. *)
 
-  module Val: Ir_uid.S with type t = value
+  module Val: Ir_hash.S with type t = value
   (** Base functions over values. *)
 
 end
 
 module type MAKER =
   functor (K: S) ->
-  functor (V: Ir_uid.S) ->
+  functor (V: Ir_hash.S) ->
   functor (O: Ir_origin.S) ->
     STORE with type key = K.t and type value = V.t and type origin = O.t
 

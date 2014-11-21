@@ -45,7 +45,7 @@ module type STORE = sig
   module Node: Ir_node.STORE
     with type value = node
      and type origin = origin
-  module Key: Ir_uid.S with type t = key
+  module Key: Ir_hash.S with type t = key
   module Val: S
     with type t = value
      and type commit = key
@@ -55,14 +55,14 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (K: Ir_uid.S) ->
+  functor (K: Ir_hash.S) ->
   functor (N: Ir_node.STORE) ->
     STORE with type key = K.t
            and type origin = N.origin
            and type node = N.value
            and module Node = N
 
-module Make (C: Ir_ao.MAKER) (K: Ir_uid.S) (N: Ir_node.STORE) = struct
+module Make (C: Ir_ao.MAKER) (K: Ir_hash.S) (N: Ir_node.STORE) = struct
 
   module O = N.Contents.Val.Origin
   module KN = N.Key

@@ -1,8 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4007ebf32502b631681142d3d7da914d)
+# DO NOT EDIT (digest: 728475edc139049928aa16fe9c006379)
+Irmin
 Ir_misc
 Ir_graph
-Ir_uid
+Ir_hash
 Ir_snapshot
 Ir_block
 Ir_ro
@@ -22,5 +23,4 @@ Ir_view
 Ir_origin
 Ir_bc
 Ir_sync
-Irmin
 # OASIS_STOP

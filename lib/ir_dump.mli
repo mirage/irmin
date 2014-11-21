@@ -16,32 +16,12 @@
 
 (** Store dumps. *)
 
-module type S = sig
-
-  (** Store with import/export capabilities. *)
-
-  type t
-  (** Local database handlers. *)
-
+module type OF_STORE = sig
+  type db
   type origin
-  (** Type for tracking operation provenance. *)
-
   val output_buffer:
-    t -> origin -> ?html:bool -> ?depth:int -> ?full:bool ->
+    db -> origin -> ?html:bool -> ?depth:int -> ?full:bool ->
     Buffer.t -> unit Lwt.t
-  (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
-      representation of [t] in the buffer [buf].
-
-      [html] (default is false) enables HTML labels.
-
-      [depth] is used to limit the depth of the commit history. [None]
-      here means no limitation.
-
-      If [full] is set (default is not) the full graph, including the
-      commits, nodes and contents, is exported, otherwise it is the
-      commit history graph only. *)
-
 end
 
-module Make (S: Ir_bc.STORE_EXT): S
-(** Dump a branch consistent as a Graphviz dot buffer. *)
+module Make (S: Ir_bc.STORE_EXT): OF_STORE

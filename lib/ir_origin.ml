@@ -20,9 +20,9 @@ module type S = sig
   include Tc.I0
   val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
   val date: t -> int64
+  val pretty_date: t -> string
   val id: t -> string
   val message: t -> string
-  val string_date: t -> string
 end
 
 module type P = sig
@@ -98,7 +98,7 @@ module Make (P: P) = struct
   let date t = t.date
   let id t = t.id
   let message t = t.msg
-  let string_date t = P.string_of_date t.date
+  let pretty_date t = P.string_of_date t.date
 end
 
 module Default = Make (struct
