@@ -11,10 +11,10 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Tags" rel="Section" href="#2_Tags">
-<link title="Heads" rel="Section" href="#2_Heads">
-<link title="Functions over stores" rel="Section" href="#2_Functionsoverstores">
-<link title="Slices" rel="Section" href="#2_Slices">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Tags" rel="Section" href="#1_Tags">
+<link title="Heads" rel="Section" href="#1_Heads">
+<link title="Functions over stores" rel="Section" href="#1_Functionsoverstores">
+<link title="Slices" rel="Section" href="#1_Slices">
 <title>Irmin.Store.BC</title>
 </head>
 <body>
@@ -30,7 +30,7 @@ A branch-consistent store is a mutable store which supports
 
 <pre><span class="keyword">include</span> <a href="Irmin.Store.RW.html">Irmin.Store.RW</a></pre>
 <br>
-<h2 id="2_Tags">Tags</h2><br>
+<h1 id="1_Tags">Tags</h1><br>
 
 <pre><span id="TYPEtag"><span class="keyword">type</span> <code class="type"></code>tag</span> </pre>
 <div class="info ">
@@ -67,7 +67,7 @@ Detach the current branch (ie. it is not assiaciated to a tag
         anymore).<br>
 </div>
 <br>
-<h2 id="2_Heads">Heads</h2><br>
+<h1 id="1_Heads">Heads</h1><br>
 
 <pre><span id="TYPEhead"><span class="keyword">type</span> <code class="type"></code>head</span> </pre>
 <div class="info ">
@@ -107,7 +107,7 @@ Watch changes for given key and the one it has recursive access.
         Return the stream of heads of the modified keys.<br>
 </div>
 <br>
-<h2 id="2_Functionsoverstores">Functions over stores</h2><br>
+<h1 id="1_Functionsoverstores">Functions over stores</h1><br>
 
 <pre><span id="VALclone"><span class="keyword">val</span> clone</span> : <code class="type">t -> origin -> <a href="Irmin.Store.BC.html#TYPEtag">tag</a> -> [ `Duplicated_tag | `Ok of t ] Lwt.t</code></pre><div class="info ">
 Fork the store, using the given branch name. Return <code class="code">None</code> if
@@ -133,7 +133,7 @@ Switch the database contents the be same as the contents of the
 Base functions over values of type <code class="code">t</code>.
 </div>
 <br>
-<h2 id="2_Slices">Slices</h2><br>
+<h1 id="1_Slices">Slices</h1><br>
 
 <pre><span id="TYPEslice"><span class="keyword">type</span> <code class="type"></code>slice</span> </pre>
 <div class="info ">
