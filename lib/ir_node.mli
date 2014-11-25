@@ -44,10 +44,16 @@ module type S = sig
   val contents_exn: t -> contents
   (** Same as [contents], but raise [Not_found] if it is [None]. *)
 
+  val with_contents: t -> contents option -> t
+  (** Replace the optional contents. *)
+
   val succ: t -> node step_map
   (** Extract the successors of a node. *)
 
-  val edges: t -> [`Contents of contents | `Node of node] list
+  val with_succ: t -> node step_map -> t
+  (** Replace the list of successors. *)
+
+  val edges: t -> [> `Contents of contents | `Node of node] list
   (** Return the list of successor vertices. *)
 
   val empty: t
@@ -68,68 +74,18 @@ module type S = sig
 
 end
 
-module type STORE = sig
+module Node (C: Tc.I0) (N: Tc.I0) (S: Ir_misc.MAP):
+  S with type contents = C.t and type node = N.t and type 'a step_map = 'a S.t
 
-  (** The node store encodes a labeled DAG where every node might hold
-      some contents. *)
+module type RAW_STORE = sig
 
   include Ir_ao.STORE
 
-  type contents
-  (** Node contents. *)
-
-  type step
-  (** A step is used to pass from one node to an other. A list of
-      steps forms a path. *)
-
-  module Step: Tc.I0 with type t = step
+  module Step: Tc.I0
   (** Base functions over steps. *)
 
-  val empty: value
-  (** The empty node. *)
-
-  val node: t -> origin -> ?contents:contents -> ?succ:(step * value) list ->
-    unit -> (key * value) Lwt.t
-  (** Create a new node. *)
-
-  val contents: t -> origin -> value -> contents Lwt.t option
-  (** Return the node contents. *)
-
-  val succ: t -> origin -> value -> value Lwt.t Map.Make(Step).t
-  (** Return the node successors. *)
-
-  val sub: t -> origin -> value -> step list -> value option Lwt.t
-  (** Find a subvalue. *)
-
-  val sub_exn: t -> origin -> value -> step list -> value Lwt.t
-  (** Find a subvalue. Raise [Not_found] if it does not exist. *)
-
-  val map: t -> origin -> value -> step list -> (value -> value) -> value Lwt.t
-  (** Modify a subtree. *)
-
-  val update: t -> origin -> value -> step list -> contents -> value Lwt.t
-  (** Add a value by recusively saving subvalues into the
-      corresponding stores. *)
-
-  val find: t -> origin -> value -> step list -> contents option Lwt.t
-  (** Find a value. *)
-
-  val find_exn: t -> origin -> value -> step list -> contents Lwt.t
-  (** Find a value. Raise [Not_found] is [path] is not defined. *)
-
-  val remove: t -> origin -> value -> step list -> value Lwt.t
-  (** Remove a value. *)
-
-  val valid: t -> origin -> value -> step list -> bool Lwt.t
-  (** Is a path valid. *)
-
-  val merge: t -> (key, origin) Ir_merge.t
-  (** Merge two nodes together. *)
-
-  module Contents: Ir_contents.STORE
-    with type value = contents
-     and type origin = origin
-  (** The contents store. *)
+  module StepMap: Map.S with type key = Step.t
+  (** Base functions over step maps. *)
 
   module Key: Ir_hash.S with type t = key
   (** Base functions for keys. *)
@@ -137,24 +93,83 @@ module type STORE = sig
   module Val: S
     with type t = value
      and type node = key
-     and type contents = Contents.key
-     and type 'a step_map = 'a Map.Make(Step).t
+     and type 'a step_map = 'a StepMap.t
   (** Base functions for values. *)
 
 end
 
-module type MAKER =
-  functor (K: Ir_hash.S) ->
-  functor (S: Ir_step.S) ->
-  functor (C: Ir_contents.STORE) ->
-    STORE with type key = K.t
-           and type step = S.t
-           and type contents = C.value
-           and type origin = C.origin
-           and module Contents = C
+module type STORE = sig
 
-module Make (Node: Ir_ao.MAKER): MAKER
+  (** The node store encodes a labeled DAG where every node might hold
+      some contents. *)
+
+  type step
+  (** A step is used to pass from one node to an other. A list of
+      steps forms a path. *)
+
+  module Contents: Ir_contents.STORE
+  (** The contents store. *)
+
+  include RAW_STORE
+    with type Step.t = step
+     and type Val.contents = Contents.key
+
+  type contents = Contents.value
+  (** Node contents. *)
+
+  val empty: value
+  (** The empty node. *)
+
+  val node: t -> ?contents:contents -> ?succ:(step * value) list ->
+    unit -> (key * value) Lwt.t
+  (** Create a new node. *)
+
+  val contents: t -> value -> contents Lwt.t option
+  (** Return the node contents. *)
+
+  val succ: t -> value -> value Lwt.t StepMap.t
+  (** Return the node successors. *)
+
+  val sub: t -> value -> step list -> value option Lwt.t
+  (** Find a subvalue. *)
+
+  val sub_exn: t -> value -> step list -> value Lwt.t
+  (** Find a subvalue. Raise [Not_found] if it does not exist. *)
+
+  val map: t -> value -> step list -> (value -> value) -> value Lwt.t
+  (** Modify a subtree. *)
+
+  val update: t -> value -> step list -> contents -> value Lwt.t
+  (** Add a value by recusively saving subvalues into the
+      corresponding stores. *)
+
+  val find: t -> value -> step list -> contents option Lwt.t
+  (** Find a value. *)
+
+  val find_exn: t -> value -> step list -> contents Lwt.t
+  (** Find a value. Raise [Not_found] is [path] is not defined. *)
+
+  val remove: t -> value -> step list -> value Lwt.t
+  (** Remove a value. *)
+
+  val valid: t -> value -> step list -> bool Lwt.t
+  (** Is a path valid. *)
+
+  val merge: t -> key Ir_merge.t
+  (** Merge two nodes together. *)
+
+  val contents_t: t -> Contents.t
+  (** An handler to the contents database. *)
+
+end
+
+module Make
+    (C: Ir_contents.RAW_STORE)
+    (S: RAW_STORE with type Val.contents = C.key)
+  : STORE with type t = C.t * S.t
+           and type key = S.key
+           and type value = S.value
+           and type step = S.Step.t
+           and module Step = S.Step
+           and module Contents = Ir_contents.Make(C)
 (** Create a node store from an append-only database. *)
-
-module Rec (S: STORE): Ir_contents.S with type t = S.key
-(** Same as [Ir_contents.Rec] but for node stores. *)

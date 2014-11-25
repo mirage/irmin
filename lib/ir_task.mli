@@ -14,14 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Store dumps. *)
+(** Provenance tracking. *)
 
-module type OF_STORE = sig
-  type db
-  type origin
-  val output_buffer:
-    db -> origin -> ?html:bool -> ?depth:int -> ?full:bool ->
-    Buffer.t -> unit Lwt.t
-end
+include Tc.I0
 
-module Make (S: Ir_bc.STORE_EXT): OF_STORE
+val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
+val date: t -> int64
+val uid: t -> int64
+val owner: t -> string
+val messages: t -> string list
+val fprintf: t -> ('a, unit, string, unit) format4 -> 'a

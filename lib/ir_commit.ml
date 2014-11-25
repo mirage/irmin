@@ -20,202 +20,174 @@ open Lwt
 open Ir_merge.OP
 open Ir_misc.OP
 open Printf
-open Sexplib.Std
 
 module type S = sig
   include Ir_contents.S
   type commit
   type node
-  val create: origin -> ?node:node -> parents:commit list -> t
+  val create: Ir_task.t -> ?node:node -> parents:commit list -> t
   val node: t -> node option
   val parents: t -> commit list
-  val origin: t -> origin
-  val edges: t -> [`Node of node | `Commit of commit] list
+  val task: t -> Ir_task.t
+  val edges: t -> [> `Node of node | `Commit of commit] list
 end
 
-module type STORE = sig
+module Commit (C: Tc.I0) (N: Tc.I0) = struct
+
+  module T = Ir_task
+  type node = N.t
+  type commit = C.t
+
+  type t = {
+    node   : N.t option;
+    parents: C.t list;
+    task : Ir_task.t;
+  }
+
+  let parents t = t.parents
+  let node t = t.node
+  let task t = t.task
+  let create task ?node ~parents = { node; parents; task }
+
+  let to_sexp t =
+    let open Sexplib.Type in
+    let open Sexplib.Conv in
+    List [
+      List [ Atom "node"   ; sexp_of_option N.to_sexp t.node ];
+      List [ Atom "parents"; sexp_of_list C.to_sexp t.parents ];
+      List [ Atom "task"   ; T.to_sexp t.task ]
+    ]
+
+  let to_json t =
+    `O [
+      ("node"   , Ezjsonm.option N.to_json t.node);
+      ("parents", Ezjsonm.list C.to_json t.parents);
+      ("task"   , T.to_json t.task);
+    ]
+
+  let of_json j =
+    let node    = Ezjsonm.find j ["node"]    |> Ezjsonm.get_option N.of_json in
+    let parents = Ezjsonm.find j ["parents"] |> Ezjsonm.get_list C.of_json in
+    let task    = Ezjsonm.find j ["task"]    |> T.of_json in
+    { node; parents; task }
+
+  let edges t =
+    begin match t.node with
+      | None   -> []
+      | Some k -> [`Node k]
+    end
+    @ List.map (fun k -> `Commit k) t.parents
+
+  module X = Tc.Triple(Tc.Option(N))(Tc.List(C))(T)
+
+  let explode t = t.node, t.parents, t.task
+  let implode (node, parents, task) = { node; parents; task }
+
+  let hash t = X.hash (explode t)
+  let compare x y = X.compare (explode x) (explode y)
+  let equal x y = X.equal (explode x) (explode y)
+  let size_of t = X.size_of (explode t)
+  let write t b = X.write (explode t) b
+  let read b = implode (X.read b)
+  let merge ~old:_ _ _ = conflict "commit"
+
+end
+
+module type RAW_STORE = sig
+
   include Ir_ao.STORE
-  type node
-  val commit: t -> origin -> ?node:node -> parents:value list -> (key * value) Lwt.t
-  val node: t -> origin -> value -> node Lwt.t option
-  val parents: t -> origin -> value -> value Lwt.t list
-  val merge: t -> (key, origin) Ir_merge.t
-  val find_common_ancestor: t -> origin -> key -> key -> key option Lwt.t
-  val find_common_ancestor_exn: t -> origin -> key -> key -> key Lwt.t
-  module Node: Ir_node.STORE
-    with type value = node
-     and type origin = origin
+
   module Key: Ir_hash.S with type t = key
+  (** Base functions over keys. *)
+
   module Val: S
     with type t = value
      and type commit = key
-     and type origin = origin
-     and type node = Node.key
+  (** Base functions over values. *)
 
 end
 
-module type MAKER =
-  functor (K: Ir_hash.S) ->
-  functor (N: Ir_node.STORE) ->
-    STORE with type key = K.t
-           and type origin = N.origin
-           and type node = N.value
-           and module Node = N
+module type STORE = sig
+  module Node: Ir_node.STORE
+  include RAW_STORE with type Val.node = Node.key
+  type node = Node.value
+  val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
+  val node: t -> value -> node Lwt.t option
+  val parents: t -> value -> value Lwt.t list
+  val merge: t -> key Ir_merge.t
+  val find_common_ancestor: t -> key -> key -> key option Lwt.t
+  val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
+  val node_t: t -> Node.t
+end
 
-module Make (C: Ir_ao.MAKER) (K: Ir_hash.S) (N: Ir_node.STORE) = struct
+module Make
+    (C: Ir_contents.RAW_STORE)
+    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
+    (S: RAW_STORE with type Val.node = N.key) =
+struct
 
-  module O = N.Contents.Val.Origin
-  module KN = N.Key
+  module Val = S.Val
+  module Key = S.Key
 
-  module Val = struct
-
-    type t = {
-      node   : KN.t option;
-      parents: K.t list;
-      origin : O.t;
-    }
-
-    let compare = Pervasives.compare
-
-    module Origin = O
-    type origin = O.t
-    type node = KN.t
-    type commit = K.t
-
-    let parents t = t.parents
-    let node t = t.node
-    let origin t = t.origin
-    let create origin ?node ~parents = { node; parents; origin }
-
-    let hash = Hashtbl.hash
-    let equal x y =
-      (match x.node, y.node with
-        | None, None -> true
-        | Some x, Some y -> KN.equal x y
-        | _ -> false)
-      && (try List.for_all2 K.equal x.parents y.parents
-          with Invalid_argument _ -> false)
-      && O.equal x.origin y.origin
-
-    let to_sexp t =
-      let open Sexplib.Type in
-      let open Sexplib.Conv in
-      List [
-        List [ Atom "node"   ; sexp_of_option KN.to_sexp t.node ];
-        List [ Atom "parents"; sexp_of_list K.to_sexp t.parents ];
-        List [ Atom "origin" ; O.to_sexp t.origin ]
-      ]
-
-    let to_json t =
-      `O [
-        ("node"   , Ezjsonm.option KN.to_json t.node);
-        ("parents", Ezjsonm.list K.to_json t.parents);
-        ("origin" , O.to_json t.origin);
-      ]
-
-    let of_json j =
-      let node =
-        try Ezjsonm.find j ["node"] |> Ezjsonm.get_option KN.of_json
-        with Not_found -> None
-      in
-      let parents =
-        try Ezjsonm.(find j ["parents"] |> get_list K.of_json)
-        with Not_found -> []
-      in
-      let origin = Ezjsonm.find j ["origin"] |> O.of_json in
-      { node; parents; origin }
-
-    let edges t =
-      begin match t.node with
-        | None   -> []
-        | Some k -> [`Node k]
-      end
-      @ List.map (fun k -> `Commit k) t.parents
-
-    let write t =
-      let open Bin_prot.Write in
-      let bin_write_k = Tc.Writer.to_bin_prot K.write in
-      let bin_write_kn = Tc.Writer.to_bin_prot KN.write in
-      let bin_write_o = Tc.Writer.to_bin_prot O.write in
-      Tc.Writer.of_bin_prot (
-        bin_write_triple
-          (bin_write_option bin_write_kn) (bin_write_list bin_write_k) bin_write_o
-      ) (t.node, t.parents, t.origin)
-
-    let read buf =
-      let open Bin_prot.Read in
-      let bin_read_k = Tc.Reader.to_bin_prot K.read in
-      let bin_read_kn = Tc.Reader.to_bin_prot KN.read in
-      let bin_read_o = Tc.Reader.to_bin_prot O.read in
-      let node, parents, origin =
-        Tc.Reader.of_bin_prot (
-          bin_read_triple
-            (bin_read_option bin_read_kn) (bin_read_list bin_read_k) bin_read_o
-        ) buf
-      in
-      { node; parents; origin }
-
-    let size_of t =
-      let open Bin_prot.Size in
-      bin_size_triple
-        (bin_size_option KN.size_of) (bin_size_list K.size_of) O.size_of
-        (t.node, t.parents, t.origin)
-
-    let merge _ ~old:_ _ _ = conflict "commit"
-
-  end
-
-  module C = C(K)(Val)(O)
-
-  type key = K.t
-  type origin = N.origin
+  type key = Key.t
   type value = Val.t
-  type t = N.t * C.t
+  type t = C.t * N.t * S.t
   type node = N.value
 
-  module Key = K
+  module Node = Ir_node.Make(C)(N)
 
-  let create () =
-    N.create (), C.create ()
+  let node_t: t -> Node.t = function (c, n, _) -> (c, n)
 
-  let add (_, t) origin c =
-    C.add t origin c
+  let create config task =
+    let c = C.create config task in
+    let n = N.create config task in
+    let s = S.create config task in
+    c, n, s
 
-  let read (_, t) origin c =
-    C.read t origin c
+  let task (_, _, t) =
+    S.task t
 
-  let read_exn (_, t) origin c =
-    C.read_exn t origin c
+  let config (_, _, t) =
+    S.config t
 
-  let mem (_, t) origin c =
-    C.mem t origin c
+  let add (_, _, t) c =
+    S.add t c
 
-  let node (n, _) origin c =
-    match c.Val.node with
+  let read (_, _, t) c =
+    S.read t c
+
+  let read_exn (_, _, t) c =
+    S.read_exn t c
+
+  let mem (_, _, t) c =
+    S.mem t c
+
+  let node (_, t, _) c =
+    match Val.node c with
     | None   -> None
-    | Some k -> Some (N.read_exn n origin k)
+    | Some k -> Some (N.read_exn t k)
 
-  let commit (n, c) origin ?node ~parents =
+  let commit (_, n, t) ?node ~parents =
     begin match node with
       | None      -> return_none
-      | Some node -> N.add n origin node >>= fun k -> return (Some k)
+      | Some node -> N.add n node >>= fun k -> return (Some k)
     end
     >>= fun node ->
-    Lwt_list.map_p (C.add c origin) parents
+    Lwt_list.map_p (S.add t) parents
     >>= fun parents ->
-    let commit = { Val.node; parents; origin } in
-    C.add c origin commit >>= fun key ->
+    let commit = Val.create ?node ~parents (S.task t) in
+    S.add t commit >>= fun key ->
     return (key, commit)
 
-  let parents t origin c =
-    List.map (read_exn t origin) c.Val.parents
+  let parents t c =
+    List.map (read_exn t) (Val.parents c)
 
-  module Graph = Ir_graph.Make(N.Contents.Key)(KN)(K)(Tc.U)
+  module Graph = Ir_graph.Make(C.Key)(N.Key)(Key)(Tc.Unit)
 
-  let list t origin keys =
-    Log.debugf "list %a" force (shows (module K) keys);
+  let list t keys =
+    Log.debugf "list %a" force (shows (module Key) keys);
     let pred = function
-      | `Commit k -> read_exn t origin k >>= fun r -> return (Val.edges r)
+      | `Commit k -> read_exn t k >>= fun r -> return (Val.edges r)
       | _         -> return_nil in
     let max = List.map (fun k -> `Commit k) keys in
     Graph.closure max ~pred >>= fun g ->
@@ -226,26 +198,26 @@ module Make (C: Ir_ao.MAKER) (K: Ir_hash.S) (N: Ir_node.STORE) = struct
     in
     return keys
 
-  let dump (_, t) =
-    C.dump t
+  let dump (_, _, t) =
+    S.dump t
 
-  let merge_node n =
-    Ir_merge.some (module KN) (N.merge n)
+  let merge_node t =
+    Ir_merge.some (module N.Key) (Node.merge (node_t t))
 
-  let merge (n, _ as t) origin ~old k1 k2 =
-    read_exn t origin old >>= fun vold ->
-    read_exn t origin k1  >>= fun v1   ->
-    read_exn t origin k2  >>= fun v2   ->
-    merge_node n origin ~old:vold.Val.node v1.Val.node v2.Val.node >>|
+  let merge t ~old k1 k2 =
+    read_exn t old >>= fun vold ->
+    read_exn t k1  >>= fun v1   ->
+    read_exn t k2  >>= fun v2   ->
+    merge_node t ~old:(Val.node vold) (Val.node v1) (Val.node v2) >>|
     fun node ->
     let parents = [k1; k2] in
-    let commit = { Val.node; parents; origin } in
-    add t origin commit >>= fun key ->
+    let commit = Val.create ?node ~parents (task t) in
+    add t commit >>= fun key ->
     ok key
 
-  module KSet = Ir_misc.Set(K)
+  module KSet = Ir_misc.Set(Key)
 
-  let find_common_ancestor t origin c1 c2 =
+  let find_common_ancestor t c1 c2 =
     let rec aux (seen1, todo1) (seen2, todo2) =
       if KSet.is_empty todo1 && KSet.is_empty todo2 then
         return_none
@@ -257,8 +229,8 @@ module Make (C: Ir_ao.MAKER) (K: Ir_hash.S) (N: Ir_node.STORE) = struct
           (* Compute the immediate parents *)
           let parents todo =
             let parents_of_commit seen c =
-              read_exn t origin c >>= fun v ->
-              let parents = KSet.of_list v.Val.parents in
+              read_exn t c >>= fun v ->
+              let parents = KSet.of_list (Val.parents v) in
               return (KSet.diff parents seen) in
             Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
           in
@@ -267,23 +239,14 @@ module Make (C: Ir_ao.MAKER) (K: Ir_hash.S) (N: Ir_node.STORE) = struct
           aux (seen1', todo1') (seen2', todo2')
         | [r] -> return (Some r)
         | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
-                                  (Tc.shows (module K) rs))) in
+                                  (Tc.shows (module Key) rs))) in
     aux
       (KSet.empty, KSet.singleton c1)
       (KSet.empty, KSet.singleton c2)
 
-  let find_common_ancestor_exn t origin c1 c2 =
-    find_common_ancestor t origin c1 c2 >>= function
+  let find_common_ancestor_exn t c1 c2 =
+    find_common_ancestor t c1 c2 >>= function
     | Some r -> return r
     | None   -> fail Not_found
 
-  module Node = N
-
-end
-
-module Rec (S: STORE) = struct
-  include S.Key
-  module Origin = S.Node.Contents.Val.Origin
-  type origin = S.origin
-  let merge = S.merge (S.create ())
 end

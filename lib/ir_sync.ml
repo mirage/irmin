@@ -18,113 +18,91 @@ open Lwt
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
-type ('head, 'tag, 'origin, 'slice) store =
-  (module Ir_bc.STORE with type head = 'head
-                       and type origin = 'origin
-                       and type tag = 'tag
-                       and type slice = 'slice)
-
-type ('head, 'origin, 'slice) remote =
-  | Store: ('head, 'tag, 'origin, 'slice) store * 'tag
-    -> ('head, 'origin, 'slice) remote
-  | URI of string
-
-let store m b = Store (m, b)
-
-let uri s = URI s
-
 module type STORE = sig
-  type t
+  type db
   type head
-  type origin
-  type slice
-  val fetch: t -> origin -> ?depth:int -> (head, origin, slice) remote -> head option Lwt.t
-  val fetch_exn: t -> origin -> ?depth:int -> (head, origin, slice) remote -> head Lwt.t
-  val push: t -> origin -> ?depth:int -> (head, origin, slice) remote -> head option Lwt.t
-  val push_exn: t -> origin -> ?depth:int -> (head, origin, slice) remote -> head Lwt.t
+  type remote
+  val uri: string -> remote
+  val store: db -> remote
+  val fetch: db -> ?depth:int -> remote -> head option Lwt.t
+  val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
+  val push: db -> ?depth:int -> remote -> head option Lwt.t
+  val push_exn: db -> ?depth:int -> remote -> head Lwt.t
 end
 
 module type REMOTE = sig
+  type db
   type head
-  val fetch: ?depth:int -> string -> head option Lwt.t
-  val push : ?depth:int -> string -> head option Lwt.t
+  val fetch: db -> ?depth:int -> string -> head option Lwt.t
+  val push : db -> ?depth:int -> string -> head option Lwt.t
 end
 
-module Fast (S: Ir_bc.STORE) (R: REMOTE with type head = S.head) = struct
+module Make
+    (S: Ir_bc.STORE)
+    (R: REMOTE with type db = S.t and type head = S.head) =
+ struct
 
-  type t = S.t
+  type db = S.t
   type head = S.head
-  type origin = S.origin
-  type slice = S.slice
 
-  let sync (type l) (type r) (type h) (type o) (type s)
-      ?depth
-      (module L: Ir_bc.STORE with type t = l
-                              and type head = h
-                              and type origin = o
-                              and type slice = s)
-      (l:l)
-      (module R: Ir_bc.STORE with type t = r
-                              and type head = h
-                              and type origin = o
-                              and type slice = s)
-      (r:r)
-      origin
-    =
-    R.head r origin >>= function
+  type remote =
+    | Store of db
+    | URI of string
+
+  let store db = Store db
+  let uri s = URI s
+
+  let sync ?depth l r =
+    S.head r >>= function
     | None             -> return_none
     | Some remote_head ->
-      L.export l origin ?depth ~max:[remote_head] >>= fun slice ->
-      R.import_force r origin slice >>= fun () ->
+      S.export l ?depth ~max:[remote_head] >>= fun slice ->
+      S.import_force r slice >>= fun () ->
       return (Some remote_head)
 
-  let fetch t origin ?depth (remote: (S.head, S.origin, S.slice) remote) =
+  let fetch t ?depth remote =
     match remote with
     | URI uri ->
       Log.debugf "fetch URI %s" uri;
-      R.fetch ?depth uri
-    | Store ((module R), tag) ->
+      R.fetch t ?depth uri
+    | Store r ->
       Log.debugf "fetch store";
-      let r = R.of_tag tag in
-      sync ?depth (module S) t (module R) r origin
+      sync ?depth t r
 
-  let fetch_exn t origin ?depth remote =
-    fetch t origin ?depth remote >>= function
+  let fetch_exn t ?depth remote =
+    fetch t ?depth remote >>= function
     | None   -> fail (Failure "fetch")
     | Some d -> return d
 
-  let push t origin ?depth (remote: (S.head, S.origin, S.slice) remote) =
+  let push t ?depth remote =
     Log.debugf "push";
     match remote with
-    | URI uri -> R.push ?depth uri
-    | Store ((module R), tag) ->
-      let r = R.of_tag tag in
-      sync ?depth (module R) r (module S) t origin >>= function
+    | URI uri -> R.push t ?depth uri
+    | Store r ->
+      sync ?depth r t >>= function
       | None   -> return_none
       | Some k ->
-        R.update_head r origin k >>= fun _ ->
+        S.update_head r k >>= fun _ ->
         return (Some k)
 
-  let push_exn t origin ?depth remote =
-    push t origin ?depth remote >>= function
+  let push_exn t ?depth remote =
+    push t ?depth remote >>= function
     | None   -> fail (Failure "push")
     | Some d -> return d
 
 end
 
-module Slow (S: Ir_bc.STORE) = struct
-  module B = struct
+module None (S: Ir_bc.STORE) = struct
 
-    type head = S.head
+  type db = S.t
+  type head = S.head
 
-    let fetch ?depth:_ _uri =
-      Log.debugf "slow fetch";
-      return_none
+  let fetch _t ?depth:_ _uri =
+    Log.debugf "slow fetch";
+    return_none
 
-    let push ?depth:_ _uri =
-      Log.debugf "slow push";
-      return_none
+  let push _t ?depth:_ _uri =
+    Log.debugf "slow push";
+    return_none
 
-  end
-  include Fast(S)(B)
 end

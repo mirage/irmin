@@ -59,17 +59,16 @@ end
 module type MAKER =
   functor (K: S) ->
   functor (V: Ir_hash.S) ->
-  functor (O: Ir_origin.S) ->
-    STORE with type key = K.t and type value = V.t and type origin = O.t
+    STORE with type t = Ir_task.t and type key = K.t and type value = V.t
 
-module Make (S: Ir_rw.MAKER) (K: S) (V: Ir_hash.S) (O: Ir_origin.S) = struct
+module Make (S: Ir_rw.MAKER) (K: S) (V: Ir_hash.S) = struct
 
   module Key = K
   module Val = V
-  include S(K)(V)(O)
+  include S(K)(V)
 
   (* XXX: here, all the tags are public, is it what we want? *)
-  let list t origin _ =
-    dump t origin >>= fun l ->
+  let list t _ =
+    dump t >>= fun l ->
     return (List.map fst l)
 end

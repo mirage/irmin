@@ -14,19 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Manage snapshot/revert capabilities. *)
+type t = exn
 
-module type OF_STORE = sig
-  include Ir_ro.STORE
-  type db
-  val create: db -> t Lwt.t
-  val revert: db -> t -> unit Lwt.t
-  val merge: db -> t -> unit Ir_merge.result Lwt.t
-  val watch: db -> key -> (key * t) Lwt_stream.t
-end
-
-module Of_store (S: Ir_bc.STORE_EXT):
-  OF_STORE with type db = S.t
-            and type key = S.key
-            and type value = S.value
-(** Add snapshot capabilities to a branch-consistent store. *)
+let create (type s) () =
+  let module M = struct exception E of s option end in
+  (fun x -> M.E (Some x)),
+  (function M.E x -> x | _ -> None)

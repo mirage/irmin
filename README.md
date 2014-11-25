@@ -1,12 +1,11 @@
 ## Irmin
 
-Irmin is a distributed database with built-in snapshot, branch and
-revert mechanisms. It is designed to use a large variety of backends,
-although it is optimized for append-only store.
-
-Irmin is written in pure OCaml. It can thus be compiled to Javascript
--- and run in the browsers; or into a Mirage unikernel -- and run directly
-on top of Xen.
+Irmin is a library for persistent stores with built-in snapshot,
+branching and reverting mechanisms. It is designed to use a large
+variety of backends. Irmin is written in pure OCaml and does not
+depend on external C stubs; it aims is to run everywhere, from Linux
+to Xen unikernels -- and can be be compiled to JavaScipt to run in a
+browser.
 
 [![Build Status](https://travis-ci.org/mirage/irmin.png?branch=master)](https://travis-ci.org/mirage/irmin)
 

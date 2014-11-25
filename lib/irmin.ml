@@ -15,7 +15,7 @@
  *)
 
 module Merge = Ir_merge
-module Origin = Ir_origin
+module Task = Ir_task
 module Contents = Ir_contents
 module Store = struct
   module type RO = Ir_ro.STORE
@@ -25,21 +25,24 @@ module Store = struct
 end
 module View = Ir_view
 module Hash = Ir_hash
-
+module Univ = Ir_univ
 module type S = sig
   type step
   include Store.BC with type key = step list
+  module Step: Tc.I0 with type t = step
+  module Key: Tc.I0 with type t = key
+  module Val: Contents.S with type t = value
   module View: Ir_view.OF_STORE
-    with type db = t
-     and type origin = origin
-     and type step = step
-     and type value = value
+      with type db = t
+       and type step := step
+       and type value = value
   module Snapshot: Ir_snapshot.OF_STORE
     with type db = t
-     and type origin = origin
      and type key = key
      and type value = value
-  module Dump: Ir_dump.OF_STORE
+  module Dot: Ir_dot.OF_STORE
     with type db = t
-     and type origin = origin
+  module Sync: Ir_sync.STORE
+    with type db = t
+     and type head := head
 end

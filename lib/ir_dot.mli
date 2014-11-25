@@ -14,29 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** In-memory partial views of the database, with lazy fetching. *)
+(** Store dumps. *)
 
 module type OF_STORE = sig
-  type step
-  include Ir_rw.STORE with type key = step list
-  val create: Ir_task.t -> t
-  val merge: t -> into:t -> unit Ir_merge.result Lwt.t
   type db
-  val of_path: db -> key -> t Lwt.t
-  val update_path: db -> key -> t -> unit Lwt.t
-  val rebase_path: db -> key -> t -> unit Ir_merge.result Lwt.t
-  val merge_path: db -> key -> t -> unit Ir_merge.result Lwt.t
-  module Action: sig
-    type t =
-      [ `Read of (key * value option)
-      | `Write of (key * value option)
-      | `List of (key list * key list) ]
-    include Tc.I0 with type t := t
-    val pretty: t -> string
-    val prettys: t list -> string
-  end
-  val actions: t -> Action.t list
+  val output_buffer:
+    db -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string)
+    -> Buffer.t -> unit Lwt.t
 end
 
-module Of_store (S: Ir_bc.STORE_EXT):
-  OF_STORE with type db = S.t and type value = S.value
+module Make (S: Ir_bc.STORE_EXT): OF_STORE

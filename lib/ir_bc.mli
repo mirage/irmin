@@ -20,39 +20,37 @@
 module type STORE = sig
   include Ir_rw.STORE
   type tag
-  val of_tag: tag -> t
+  val of_tag: (string * Ir_univ.t) list -> Ir_task.t -> tag -> t
   val tag: t -> tag option
   val tag_exn: t -> tag
-  val update_tag: t -> origin -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-  val update_tag_force: t -> origin -> tag -> unit Lwt.t
-  val detach: t -> origin -> unit Lwt.t
+  val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+  val update_tag_force: t -> tag -> unit Lwt.t
+  val detach: t -> unit Lwt.t
   type head
-  val of_head: head -> t
-  val head: t -> origin -> head option Lwt.t
-  val head_exn: t -> origin -> head Lwt.t
-  val heads: t -> origin -> head list Lwt.t
-  val update_head: t -> origin -> head -> unit Lwt.t
-  val merge_head: t -> origin -> head -> unit Ir_merge.result Lwt.t
-  val watch_head: t -> origin -> key -> (key * head) Lwt_stream.t
-  val clone: t -> origin -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
-  val clone_force: t -> origin -> tag -> t Lwt.t
-  val switch: t -> origin -> tag -> unit Lwt.t
-  val merge: t -> origin -> tag -> unit Ir_merge.result Lwt.t
-  module T: Tc.I0 with type t = t
+  val of_head: (string * Ir_univ.t) list -> Ir_task.t -> head -> t
+  val head: t -> head option Lwt.t
+  val head_exn: t -> head Lwt.t
+  val heads: t -> head list Lwt.t
+  val update_head: t -> head -> unit Lwt.t
+  val merge_head: t -> head -> unit Ir_merge.result Lwt.t
+  val watch_head: t -> key -> (key * head) Lwt_stream.t
+  val clone: t -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
+  val clone_force: t -> tag -> t Lwt.t
+  val switch: t -> tag -> unit Lwt.t
+  val merge: t -> tag -> unit Ir_merge.result Lwt.t
   type slice
   module Slice: Tc.I0 with type t = slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
-    t -> origin -> slice Lwt.t
-  val import: t -> origin -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
-  val import_force: t -> origin -> slice -> unit Lwt.t
+    t -> slice Lwt.t
+  val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
+  val import_force: t -> slice -> unit Lwt.t
 end
 
 module type MAKER =
   functor (B: Ir_block.STORE) ->
-  functor (T: Ir_tag.STORE with type value = B.head and type origin = B.origin)
+  functor (T: Ir_tag.STORE with type value = B.head)
     -> STORE with type key = B.step list
               and type value = B.contents
-              and type origin = B.origin
               and type tag = T.key
               and type head = B.head
 
@@ -70,13 +68,19 @@ module type STORE_EXT = sig
   module Block: Ir_block.STORE
     with type step = step
      and type contents = value
-     and type origin = origin
      and type head = head
   (** The internal block store. *)
 
+  val contents_t: t -> Block.Contents.t
+  val node_t: t -> Block.Node.t
+  val commit_t: t -> Block.Commit.t
+
   module Tag: Ir_tag.STORE
-    with type key = tag and type value = head and type origin = origin
+    with type key = tag
+     and type value = head
   (** The internal tag store. *)
+
+  val tag_t: t -> Tag.t
 
   module Key: Tc.I0 with type t = Block.step list
   (** Base functions over keys. *)
@@ -84,18 +88,15 @@ module type STORE_EXT = sig
   module Val: Ir_contents.S with type t = value
   (** Base functions over values. *)
 
-  module Origin: Ir_origin.S with type t = origin
-  (** Base functions over origins. *)
-
   (** {2 Nodes} *)
 
-  val read_node: t -> origin -> key -> Block.Node.value option Lwt.t
+  val read_node: t -> key -> Block.Node.value option Lwt.t
   (** Read a node. *)
 
-  val mem_node: t -> origin -> key -> bool Lwt.t
+  val mem_node: t -> key -> bool Lwt.t
   (** Check whether a node exists. *)
 
-  val update_node: t -> origin -> key -> Block.Node.value -> unit Lwt.t
+  val update_node: t -> key -> Block.Node.value -> unit Lwt.t
   (** Update a node. *)
 
   (** {2 More Slices} *)
@@ -117,10 +118,9 @@ end
 
 module type MAKER_EXT =
   functor (B: Ir_block.STORE) ->
-  functor (T: Ir_tag.STORE with type value = B.head and type origin = B.origin)
+  functor (T: Ir_tag.STORE with type value = B.head)
     -> STORE_EXT with type step = B.step
                   and type value = B.contents
-                  and type origin = B.origin
                   and type tag = T.key
                   and type head = B.head
                   and module Block = B

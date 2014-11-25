@@ -21,49 +21,46 @@ module Log = Log.Make(struct let section = "AO" end)
 
 module type STORE = sig
   include Ir_ro.STORE
-  val add: t -> origin -> value -> key Lwt.t
+  val add: t -> value -> key Lwt.t
 end
 
 module type CSTRUCT = STORE
-  with type key = Cstruct.t
+  with type t = Ir_task.t
+   and type key = Cstruct.t
    and type value = Cstruct.t
-   and type origin = Cstruct.t
 
 module type JSON = STORE
-  with type key = Ezjsonm.t
+  with type t = Ir_task.t
+   and type key = Ezjsonm.t
    and type value = Ezjsonm.t
-   and type origin = Ezjsonm.t
 
 module type MAKER =
   functor (K: Ir_hash.S) ->
   functor (V: Tc.I0) ->
-  functor (O: Tc.I0) ->
-    STORE with type key = K.t and type value = V.t and type origin = O.t
+    STORE with type t = Ir_task.t and type key = K.t and type value = V.t
 
-module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.I0) (O: Tc.I0) = struct
+module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.I0) = struct
 
-  include Ir_ro.Cstruct(S)(K)(V)(O)
+  include Ir_ro.Cstruct(S)(K)(V)
 
-  let add t origin value =
+  let add t value =
     Log.debugf "add";
     let value = Tc.write_cstruct (module V) value in
-    let origin = Tc.write_cstruct (module O) origin in
-    S.add t origin value >>= fun key ->
+    S.add t value >>= fun key ->
     let key = Tc.read_cstruct (module K) key in
     Log.debugf "added: %a" force (show (module K) key);
     return key
 
 end
 
-module Json (S: JSON)  (K: Ir_hash.S) (V: Tc.I0) (O: Tc.I0) = struct
+module Json (S: JSON) (K: Ir_hash.S) (V: Tc.I0) = struct
 
-  include Ir_ro.Json(S)(K)(V)(O)
+  include Ir_ro.Json(S)(K)(V)
 
-  let add t origin value =
+  let add t value =
     Log.debugf "add";
-    let origin = Tc.to_json (module O) origin in
     let value = Tc.to_json (module V) value in
-    S.add t origin value >>= fun key ->
+    S.add t value >>= fun key ->
     let key = Tc.of_json (module K) key in
     Log.debugf "added: %a" force (show (module K) key);
     return key

@@ -132,8 +132,7 @@ module Make
 
   (* XXX: for the binary format, we can use offsets in the vertex list
      to save space. *)
-  module Dump =
-    Tc.App2(Tc.P)( Tc.App1(Tc.L)(X) )( Tc.App1(Tc.L)(Tc.App2(Tc.P)(X)(X)))
+  module Dump = Tc.Pair( Tc.List(X) )( Tc.List(Tc.Pair(X)(X)) )
 
   let vertex g =
     G.fold_vertex (fun k set -> k :: set) g []

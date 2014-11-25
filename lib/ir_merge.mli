@@ -36,24 +36,22 @@ end
 
 (** {1 Merge functions} *)
 
-type ('a, 'o) t = 'o -> old:'a -> 'a -> 'a -> 'a result Lwt.t
+type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
 
 module type S = Tc.I0
 
 type 'a elt = (module S with type t = 'a)
 
-val default: 'a elt -> ('a, 'o) t
-val string: (string, 'o) t
-val counter: (int, 'o) t
-val seq: ('a, 'o) t list -> ('a, 'o) t
-val some: 'a elt -> ('a, 'o) t -> ('a option, 'o) t
-val alist: 'a elt -> 'b elt -> ('b, 'o) t -> ( ('a * 'b) list, 'o) t
-module Map (X: S): sig
-  val merge: ('a elt) -> ('a, 'o) t -> ('a Map.Make(X).t, 'o) t
+val default: 'a elt -> 'a t
+val string: string t
+val counter: int t
+val seq: 'a t list -> 'a t
+val some: 'a elt -> 'a t -> 'a option t
+val alist: 'a elt -> 'b elt -> 'b t -> ('a * 'b) list t
+module Map (M: Map.S) (K: S with type t = M.key): sig
+  val merge: ('a elt) -> 'a t -> 'a M.t t
 end
-val pair: 'a elt -> 'b elt -> ('a, 'o) t -> ('b, 'o) t -> ('a * 'b, 'o) t
-val biject: 'a elt -> 'b elt ->
-  ('a, 'o) t -> ('a -> 'b) -> ('b -> 'a) -> ('b, 'o) t
-val biject': 'a elt -> 'b elt ->
-  ('a, 'o) t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> ('b, 'o) t
-val apply: ('a -> ('b, 'o) t) -> 'a -> ('b, 'o) t
+val pair: 'a elt -> 'b elt -> 'a t -> 'b t -> ('a * 'b) t
+val biject: 'a elt -> 'b elt -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
+val biject': 'a elt -> 'b elt -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
+val apply: ('a -> 'b t) -> 'a -> 'b t

@@ -16,73 +16,60 @@
 
 module type STORE = sig
 
-  type origin
   type step
   type contents
   type node
   type commit
   type head
 
-  module Origin: Ir_origin.S
-    with type t = origin
-
   module Step: Ir_step.S
     with type t = step
 
+  module StepMap: Map.S
+    with type key = step
+
   module Contents: Ir_contents.STORE
     with type value = contents
-     and type origin = origin
 
   module Node: Ir_node.STORE
-    with type value = node
-     and type contents = contents
-     and type step = step
-     and type origin = origin
+    with type step = step
+     and type value = node
      and module Contents = Contents
+     and module Step = Step
+     and module StepMap = StepMap
 
   module Commit: Ir_commit.STORE
     with type key = head
      and type value = commit
-     and type node = node
-     and type origin = origin
      and module Node = Node
 
 end
 
 module type MAKER =
   functor (C: Ir_commit.STORE) ->
-    STORE with type origin = C.origin
-           and type step = C.Node.step
+    STORE with type step = C.Node.step
            and type contents = C.Node.contents
            and type node = C.node
            and type commit = C.value
            and type head = C.key
-           and module Origin = C.Node.Contents.Val.Origin
            and module Step = C.Node.Step
+           and module StepMap = C.Node.StepMap
            and module Contents = C.Node.Contents
            and module Node = C.Node
            and module Commit = C
 
 module Make (C: Ir_commit.STORE) = struct
 
-  type origin = C.origin
   type step = C.Node.step
   type contents = C.Node.contents
   type node = C.node
   type commit = C.value
   type head = C.key
 
-  module Origin = C.Node.Contents.Val.Origin
   module Step = C.Node.Step
+  module StepMap = C.Node.StepMap
   module Contents = C.Node.Contents
   module Node = C.Node
   module Commit = C
 
-end
-
-module Rec (S: STORE) = struct
-  include S.Commit.Key
-  module Origin = S.Origin
-  type origin = S.origin
-  let merge = S.Commit.merge (S.Commit.create ())
 end

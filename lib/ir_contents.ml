@@ -20,21 +20,21 @@ module Log = Log.Make(struct let section = "CONTENTS" end)
 
 module type S = sig
   include Tc.I0
-  type origin
-  module Origin: Ir_origin.S with type t = origin
-  val merge: (t, origin) Ir_merge.t
+  val merge: t Ir_merge.t
+end
+
+module type RAW_STORE = sig
+  include Ir_ao.STORE
+  module Key: Ir_hash.S with type t = key
+  module Val: S with type t = value
 end
 
 module type STORE = sig
-  include Ir_ao.STORE
-  val merge: t -> (key, origin) Ir_merge.t
-  module Key: Ir_hash.S with type t = key
-  module Val: S with type t = value and type origin = origin
+  include RAW_STORE
+  val merge: t -> key Ir_merge.t
 end
 
-module Json (O: Ir_origin.S) = struct
-
-  module Origin = O
+module Json = struct
 
   let rec encode t: Ezjsonm.t =
     match t with
@@ -110,29 +110,24 @@ module Json (O: Ir_origin.S) = struct
   end
 
   include S
-  type origin = Origin.t
 
-  let rec merge origin ~old x y =
+  let rec merge ~old x y =
     match old, x, y with
     | `O old, `O x, `O y ->
-      Ir_merge.alist (module Tc.S) (module S) merge origin ~old x y >>| fun x ->
+      Ir_merge.alist (module Tc.String) (module S) merge ~old x y >>| fun x ->
       ok (`O x)
     | _ -> conflict "JSON"
 
 end
 
-module String (O: Ir_origin.S) = struct
-  include Tc.S
-  module Origin = O
-  type origin = O.t
-  let merge = Ir_merge.default (module Tc.S)
+module String = struct
+  include Tc.String
+  let merge = Ir_merge.default (module Tc.String)
 end
 
-module Cstruct (O: Ir_origin.S) = struct
+module Cstruct = struct
   module S = struct
     type t = Cstruct.t
-    module Origin = O
-    type origin = O.t
 
     let to_hex t =
       let buf = Buffer.create (Cstruct.len t) in
@@ -159,28 +154,9 @@ module Cstruct (O: Ir_origin.S) = struct
   let merge = Ir_merge.default (module S)
 end
 
-module type MAKER =
-  functor (K: Ir_hash.S) ->
-  functor (V: S) ->
-    STORE with type key = K.t and type value = V.t and type origin = V.origin
-
-module Make (S: Ir_ao.MAKER) (K: Ir_hash.S) (V: S) = struct
-
-  include S(K)(V)(V.Origin)
-
-  module Key  = K
-  module Val = V
-
-  let merge t origin =
+module Make  (S: RAW_STORE) = struct
+  include S
+  let merge t =
     Ir_merge.biject'
-      (module V) (module K) V.merge (add t origin) (read_exn t origin)
-      origin
-
-end
-
-module Rec (S: STORE) = struct
-  include S.Key
-  module Origin = S.Val.Origin
-  type origin = S.origin
-  let merge = S.merge (S.create ())
+      (module S.Val) (module S.Key) S.Val.merge (add t) (read_exn t)
 end

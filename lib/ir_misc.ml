@@ -130,9 +130,9 @@ let alist_merge_lwt compare_k f l1 l2 =
   alist_iter2_lwt compare_k f l1 l2 >>= fun () ->
   return !l3
 
-module Map (K: Tc.I0) = struct
+module Map (M: Map.S) (K: Tc.I0 with type t = M.key)= struct
 
-  include Map.Make(K)
+  include M
 
   let keys m =
     List.map fst (bindings m)
@@ -176,7 +176,7 @@ module Map (K: Tc.I0) = struct
 
   end
 
-  include Tc.AL(struct
+  include Tc.As_AL1(struct
       type 'a r = 'a t
       type 'a t = 'a r
       module K = K
@@ -221,7 +221,7 @@ module Set (K: Tc.I0) = struct
 
   let to_list = elements
 
-  include Tc.L0(struct
+  include Tc.As_L0(struct
       type u = t
       type t = u
       module K = K
@@ -229,8 +229,6 @@ module Set (K: Tc.I0) = struct
       let of_list = of_list
     end)
 end
-
-module StringMap = Map(Tc.S)
 
 module Lwt_stream = struct
 

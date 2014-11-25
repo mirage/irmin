@@ -18,27 +18,25 @@
 
 module type S = sig
   include Tc.I0
-  type origin
-  module Origin: Ir_origin.S with type t = origin
-  val merge: (t, origin) Ir_merge.t
+  val merge: t Ir_merge.t
 end
 
-module String (O: Ir_origin.S): S with type t = string and type origin = O.t
-module Json (O: Ir_origin.S): S with type t = Ezjsonm.t and type origin = O.t
-module Cstruct (O: Ir_origin.S): S with type t = Cstruct.t and type origin = O.t
+module String: S with type t = string
+module Json: S with type t = Ezjsonm.t
+module Cstruct: S with type t = Cstruct.t
+
+module type RAW_STORE = sig
+  include Ir_ao.STORE
+  module Key: Ir_hash.S with type t = key
+  module Val: S with type t = value
+end
 
 module type STORE = sig
-  include Ir_ao.STORE
-  val merge: t -> (key, origin) Ir_merge.t
-  module Key: Ir_hash.S with type t = key
-  module Val: S with type t = value and type origin = origin
+  include RAW_STORE
+  val merge: t -> key Ir_merge.t
 end
 
-module type MAKER =
-  functor (K: Ir_hash.S) ->
-  functor (V: S) ->
-    STORE with type key = K.t and type value = V.t and type origin = V.origin
-
-module Make (Contents: Ir_ao.MAKER): MAKER
-
-module Rec (S: STORE): S with type t = S.key
+module Make (Contents: RAW_STORE):
+  STORE with type t = Contents.t
+         and type key = Contents.key
+         and type value = Contents.value

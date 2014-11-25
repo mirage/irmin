@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2014 Daniel C. Bünzli
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,22 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Provenance tracking. *)
 
-module type S = sig
-  include Tc.I0
-  val create: ?date:int64 -> ?id:string -> ('a, unit, string, t) format4 -> 'a
-  val date: t -> int64
-  val pretty_date: t -> string
-  val id: t -> string
-  val message: t -> string
-end
+(** Universal values. *)
 
-module type P = sig
-  val date: unit -> int64
-  val id: unit -> string
-  val string_of_date: int64 -> string
-end
-
-module Default: S
-module Make (M: P): S
+type t
+val create: unit -> ('a -> t) * (t -> 'a option)

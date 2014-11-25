@@ -18,38 +18,29 @@
 
 module type STORE = sig
   include Ir_ro.STORE
-  val add: t -> origin -> value -> key Lwt.t
+  val add: t -> value -> key Lwt.t
 end
 
 module type CSTRUCT = STORE
-  with type key = Cstruct.t
+  with type t = Ir_task.t
+   and type key = Cstruct.t
    and type value = Cstruct.t
-   and type origin = Cstruct.t
 (** Binary append-only store. Keys and values are cstruct buffers. *)
 
 module type JSON = STORE
-  with type key = Ezjsonm.t
+  with type t = Ir_task.t
+   and type key = Ezjsonm.t
    and type value = Ezjsonm.t
-   and type origin = Ezjsonm.t
 (** JSON append-only store. Keys and values are JSON objects. *)
 
 module type MAKER =
   functor (K: Ir_hash.S) ->
   functor (V: Tc.I0) ->
-  functor (O: Tc.I0) ->
-    STORE with type key = K.t and type value = V.t and type origin = O.t
+    STORE with type t = Ir_task.t and type key = K.t and type value = V.t
 (** Signature of functor creating append-only stores. *)
 
-module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.I0) (O: Tc.I0):
-  STORE with type t = S.t
-         and type key = K.t
-         and type value = V.t
-         and type origin = O.t
+module Cstruct (S: CSTRUCT): MAKER
 (** Create a typed append-only store from a binary one. *)
 
-module Json (S: JSON) (K: Ir_hash.S) (V: Tc.I0) (O: Tc.I0):
-  STORE with type t = S.t
-         and type key = K.t
-         and type value = V.t
-         and type origin = O.t
+module Json (S: JSON): MAKER
 (** Create a typed append-only store from a JSON one. *)

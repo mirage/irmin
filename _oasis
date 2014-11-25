@@ -19,10 +19,10 @@ Library irmin
   Path:            lib/
   Findlibname:     irmin
   InternalModules: Ir_misc, Ir_graph, Ir_hash, Ir_snapshot, Ir_block,
-                   Ir_ro, Ir_ao, Ir_rw,
+                   Ir_ro, Ir_ao, Ir_rw, Ir_univ,
                    Ir_commit, Ir_tag, Ir_contents, Ir_backend,
-                   Ir_node, Ir_version, Ir_dump, Ir_step, Ir_watch,
-                   Ir_merge, Ir_view, Ir_origin, Ir_bc, Ir_sync
+                   Ir_node, Ir_version, Ir_dot, Ir_step, Ir_watch,
+                   Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync
   Modules:         Irmin
   BuildDepends:    ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct, tc,
                    mstruct, uri, bin_prot, sexplib, stringext

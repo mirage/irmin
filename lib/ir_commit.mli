@@ -29,7 +29,7 @@ module type S = sig
   type node
   (** Type for node keys. *)
 
-  val create: origin -> ?node:node -> parents:commit list -> t
+  val create: Ir_task.t -> ?node:node -> parents:commit list -> t
   (** Create a commit. *)
 
   val node: t -> node option
@@ -38,46 +38,21 @@ module type S = sig
   val parents: t -> commit list
   (** The commit parents. *)
 
-  val origin: t -> origin
+  val task: t -> Ir_task.t
   (** The commit provenance. *)
 
-  val edges: t -> [`Node of node | `Commit of commit] list
+  val edges: t -> [> `Node of node | `Commit of commit] list
   (** The graph edges. *)
 
 end
 
-module type STORE = sig
+module Commit (C: Tc.I0) (N: Tc.I0):
+  S with type commit = C.t
+     and type node = N.t
 
-  (** Store the history as a partial-order of revisions. *)
+module type RAW_STORE = sig
 
   include Ir_ao.STORE
-
-  type node
-  (** Node values. *)
-
-  val commit: t -> origin -> ?node:node -> parents:value list -> (key * value) Lwt.t
-  (** Create a new commit. *)
-
-  val node: t -> origin -> value -> node Lwt.t option
-  (** Get the commit node. *)
-
-  val parents: t -> origin -> value -> value Lwt.t list
-  (** Get the immmediate precessors. *)
-
-  val merge: t -> (key, origin) Ir_merge.t
-  (** Lift [S.merge] to the store keys. *)
-
-  val find_common_ancestor: t -> origin -> key -> key -> key option Lwt.t
-  (** Find the common ancestor of two commits. *)
-
-  val find_common_ancestor_exn: t -> origin -> key -> key -> key Lwt.t
-  (** Same as [find_common_ancestor] but raises [Not_found] if the two
-      commits share no common ancestor. *)
-
-  module Node: Ir_node.STORE
-    with type value = node
-     and type origin = origin
-  (** Base functions over nodes. *)
 
   module Key: Ir_hash.S with type t = key
   (** Base functions over keys. *)
@@ -85,22 +60,52 @@ module type STORE = sig
   module Val: S
     with type t = value
      and type commit = key
-     and type origin = origin
-     and type node = Node.key
   (** Base functions over values. *)
 
 end
 
-module type MAKER =
-  functor (K: Ir_hash.S) ->
-  functor (N: Ir_node.STORE) ->
-    STORE with type key = K.t
-           and type origin = N.origin
-           and type node = N.value
-           and module Node = N
+module type STORE = sig
 
-module Make (S: Ir_ao.MAKER): MAKER
+  (** Store the history as a partial-order of revisions. *)
+
+  module Node: Ir_node.STORE
+  (** Base functions over nodes. *)
+
+  include RAW_STORE with type Val.node = Node.key
+
+  type node = Node.value
+  (** Node values. *)
+
+  val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
+  (** Create a new commit. *)
+
+  val node: t -> value -> node Lwt.t option
+  (** Get the commit node. *)
+
+  val parents: t -> value -> value Lwt.t list
+  (** Get the immmediate precessors. *)
+
+  val merge: t -> key Ir_merge.t
+  (** Lift [S.merge] to the store keys. *)
+
+  val find_common_ancestor: t -> key -> key -> key option Lwt.t
+  (** Find the common ancestor of two commits. *)
+
+  val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
+  (** Same as [find_common_ancestor] but raises [Not_found] if the two
+      commits share no common ancestor. *)
+
+  val node_t: t -> Node.t
+  (** An handler to the node database. *)
+
+end
+
+module Make
+    (C: Ir_contents.RAW_STORE)
+    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
+    (S: RAW_STORE with type Val.node = N.key):
+  STORE with type t = C.t * N.t * S.t
+         and type key = S.key
+         and type value = S.value
+         and module Node = Ir_node.Make(C)(N)
 (** Create a commit store. *)
-
-module Rec (S: STORE): Ir_contents.S with type t = S.key
-(** Same as [Ir_contents.Rec] but for commit stores. *)

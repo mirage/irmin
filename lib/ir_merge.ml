@@ -55,17 +55,17 @@ module Result = struct
 
   let write a_write t buf = match t with
     | `Ok a -> a_write a (Ir_misc.tag buf 0)
-    | `Conflict s -> Tc.write (module Tc.S) s (Ir_misc.tag buf 1)
+    | `Conflict s -> Tc.write (module Tc.String) s (Ir_misc.tag buf 1)
 
   let read a_read buf =
     match Ir_misc.untag buf with
     | 0 -> `Ok (a_read buf)
-    | 1 -> `Conflict (Tc.read (module Tc.S) buf)
+    | 1 -> `Conflict (Tc.read (module Tc.String) buf)
     | n -> Tc.Reader.error "Merge.Result (tag=%d)" n
 
   let size_of size_of_a t = 1 + match t with
     | `Ok a -> size_of_a a
-    | `Conflict s -> Tc.size_of (module Tc.S) s
+    | `Conflict s -> Tc.size_of (module Tc.String) s
 
 end
 
@@ -77,7 +77,7 @@ let exn = function
 
 module R (A: S) = Tc.App1(Result)(A)
 
-type ('a, 'o) t = 'o -> old:'a -> 'a -> 'a -> 'a result Lwt.t
+type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
 
 type 'a elt = (module S with type t = 'a)
 
@@ -112,7 +112,7 @@ let rec iter f = function
     | `Ok ()      -> iter f t
 
 let default (type a) (module A: S with type t = a) =
-  fun _origin ~old t1 t2 ->
+  fun ~old t1 t2 ->
     Log.debugf "default %a | %a | %a"
       force (show (module A) old)
       force (show (module A) t1)
@@ -123,28 +123,28 @@ let default (type a) (module A: S with type t = a) =
     else conflict "default"
 
 let seq = function
-  | []         -> fun _ ~old:_ _ _ -> conflict "nothing to merge"
+  | []         -> fun ~old:_ _ _ -> conflict "nothing to merge"
   | _::_ as ts ->
-    fun origin ~old v1 v2 ->
+    fun ~old v1 v2 ->
       Lwt_list.fold_left_s (fun acc merge ->
           match acc with
           | `Ok x       -> ok x
-          | `Conflict _ -> merge origin ~old v1 v2
+          | `Conflict _ -> merge ~old v1 v2
         ) (`Conflict "nothing to merge") ts
 
 let some (type a) (module T: S with type t = a) t =
-  let module S = Tc.App1(Tc.O)(T) in
-  fun origin ~old t1 t2 ->
+  let module S = Tc.Option(T) in
+  fun ~old t1 t2 ->
     Log.debugf "some %a | %a | %a"
       force (show (module S) old)
       force (show (module S) t1)
       force (show (module S) t2);
-    default (module S) origin ~old t1 t2 >>= function
+    default (module S) ~old t1 t2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
       match old, t1, t2 with
       | Some o, Some v1, Some v2 ->
-        t origin ~old:o v1 v2 >>| fun x ->
+        t ~old:o v1 v2 >>| fun x ->
         ok (Some x)
       | _ -> conflict "some"
 
@@ -152,20 +152,20 @@ let pair
     (type a) (module A: S with type t = a)
     (type b) (module B: S with type t = b)
     a b =
-  let module S = Tc.App2(Tc.P)(A)(B) in
-  fun origin ~old x y ->
+  let module S = Tc.Pair(A)(B) in
+  fun ~old x y ->
     Log.debugf "pair %a | %a | %a"
       force (show (module S) old)
       force (show (module S) x)
       force (show (module S) y);
     let (o1, o2), (a1, b1), (a2, b2) = old, x, y in
-    a origin ~old:o1 a1 a2 >>| fun a3 ->
-    b origin ~old:o2 b1 b2 >>| fun b3 ->
+    a ~old:o1 a1 a2 >>| fun a3 ->
+    b ~old:o2 b1 b2 >>| fun b3 ->
     ok (a3, b3)
 
 exception C of string
 
-let merge_elt (type a) (module V: S with type t = a) merge_v origin old key vs =
+let merge_elt (type a) (module V: S with type t = a) merge_v old key vs =
   match vs with
   | `Left v | `Right v ->
     begin
@@ -187,7 +187,7 @@ let merge_elt (type a) (module V: S with type t = a) merge_v origin old key vs =
       return (Some v1)
     else match old key with
       | Some ov -> begin
-          merge_v origin ~old:ov v1 v2 >>= function
+          merge_v ~old:ov v1 v2 >>= function
           | `Conflict msg -> fail (C msg)
           | `Ok x         -> return (Some x)
         end
@@ -198,35 +198,35 @@ let merge_elt (type a) (module V: S with type t = a) merge_v origin old key vs =
 let alist
   (type a) (module A: S with type t = a)
   (type b) (module B: S with type t = b)
-  merge_b origin ~old x y =
-  let module P = Tc.App2(Tc.P)(A)(B) in
+  merge_b ~old x y =
+  let module P = Tc.Pair(A)(B) in
   let sort = List.sort P.compare in
   let x = sort x in
   let y = sort y in
   let old k = try Some (List.assoc k old) with Not_found -> None in
   Lwt.catch (fun () ->
-      Ir_misc.alist_merge_lwt A.compare (merge_elt (module B) merge_b origin old) x y
+      Ir_misc.alist_merge_lwt A.compare (merge_elt (module B) merge_b old) x y
       >>= ok)
     (function
       | C msg -> conflict "%s" msg
       | e     -> fail e)
 
-module Map (S: S) = struct
+module Map (M: Map.S) (S: S with type t = M.key) = struct
 
   let merge (type a) (module A: S with type t = a) t =
-    let module SM = Ir_misc.Map(S) in
+    let module SM = Ir_misc.Map(M)(S) in
     let module S = Tc.App1(SM)(A) in
-    fun origin ~old m1 m2 ->
+    fun ~old m1 m2 ->
       Log.debugf "assoc %a | %a | %a"
         force (show (module S) old)
         force (show (module S) m1)
         force (show (module S) m2);
-      default (module S) origin ~old m1 m2 >>= function
+      default (module S) ~old m1 m2 >>= function
       | `Ok x       -> ok x
       | `Conflict _ ->
         Lwt.catch (fun () ->
             let old key = try Some (SM.find key old) with Not_found -> None in
-            SM.Lwt.merge (merge_elt (module A) t origin old) m1 m2
+            SM.Lwt.merge (merge_elt (module A) t old) m1 m2
             >>= ok)
           (function
             | C msg -> conflict "%s" msg
@@ -239,7 +239,7 @@ let biject
     (type b) (module B: S with type t = b)
     t a_to_b b_to_a =
   let default = default (module B) in
-  let merge' origin ~old b1 b2 =
+  let merge' ~old b1 b2 =
     Log.debugf "map %a | %a | %a"
       force (show (module B) old)
       force (show (module B) b1)
@@ -248,22 +248,22 @@ let biject
       let a1  = b_to_a b1 in
       let a2  = b_to_a b2 in
       let old = b_to_a old in
-      t origin ~old a1 a2 >>| fun a3 ->
+      t ~old a1 a2 >>| fun a3 ->
       ok (a_to_b a3)
     with Not_found ->
       conflict "biject"
   in
-  fun origin ~old b1 b2 ->
-    default origin ~old b1 b2 >>= function
+  fun ~old b1 b2 ->
+    default ~old b1 b2 >>= function
     | `Ok x       -> ok x
-    | `Conflict _ -> merge' origin ~old b1 b2
+    | `Conflict _ -> merge' ~old b1 b2
 
 let biject'
   (type a) (module A: S with type t = a)
   (type b) (module B: S with type t = b)
   t a_to_b b_to_a =
   let default = default (module B) in
-  let merge' origin ~old b1 b2 =
+  let merge' ~old b1 b2 =
     Log.debugf "map' %a | %a | %a"
       force (show (module B) old)
       force (show (module B) b1)
@@ -272,22 +272,22 @@ let biject'
       b_to_a b1  >>= fun a1 ->
       b_to_a b2  >>= fun a2 ->
       b_to_a old >>= fun old ->
-      t origin ~old a1 a2 >>| fun a3 ->
+      t ~old a1 a2 >>| fun a3 ->
       a_to_b a3 >>=
       ok
     with Not_found ->
       conflict "biject'"
   in
-  fun origin ~old b1 b2 ->
-    default origin ~old b1 b2 >>= function
+  fun ~old b1 b2 ->
+    default ~old b1 b2 >>= function
     | `Ok x       -> ok x
-    | `Conflict _ -> merge' origin ~old b1 b2
+    | `Conflict _ -> merge' ~old b1 b2
 
-let string origin ~old x y =
-  default (module Tc.S) origin ~old x y
+let string ~old x y =
+  default (module Tc.String) ~old x y
 
-let counter _ ~old x y =
+let counter ~old x y =
   ok (x + y - old)
 
-let apply f x origin ~old a b =
-  f x origin ~old a b
+let apply f x ~old a b =
+  f x ~old a b

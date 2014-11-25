@@ -21,26 +21,24 @@ module Log = Log.Make(struct let section ="DUMP" end)
 
 module type OF_STORE = sig
   type db
-  type origin
-  val output_buffer: db -> origin -> ?html:bool -> ?depth:int -> ?full:bool ->
+  val output_buffer:
+    db -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string) ->
     Buffer.t -> unit Lwt.t
 end
 
 module Make (S: Ir_bc.STORE_EXT) = struct
 
   type db = S.t
-  type origin = S.origin
 
   module T = S.Tag
   module B = S.Block
-  module StepMap = Ir_misc.Map(B.Node.Step)
 
-  let fprintf t origin ?depth ?(html=false) ?full name =
+  let fprintf t ?depth ?(html=false) ?full ~date name =
     Log.debugf "fprintf depth=%s html=%b full=%s"
       (match depth with None -> "<none>" | Some d -> string_of_int d)
       html
       (match full with None -> "<none>" | Some b -> string_of_bool b);
-    S.export ?full ?depth t origin >>= fun slice ->
+    S.export ?full ?depth t >>= fun slice ->
     let contents = S.slice_contents slice in
     let nodes = S.slice_nodes slice in
     let commits = S.slice_commits slice in
@@ -82,7 +80,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       `Label s in
     let label_of_commit k c =
       let k = string_of_key (module B.Commit.Key) k in
-      let o = B.Commit.Val.origin c in
+      let o = B.Commit.Val.task c in
       let s =
         (if html then
           sprintf
@@ -95,9 +93,9 @@ module Make (S: Ir_bc.STORE_EXT) = struct
         else
           sprintf "%s | %s | %s | %s")
           k
-          (B.Origin.id o)
-          (B.Origin.pretty_date o)
-          (B.Origin.message o)
+          (Ir_task.owner o)
+          (date (Ir_task.date o))
+          (String.concat "\n" (Ir_task.messages o))
       in
       `Label s in
     let label_of_contents k v =
@@ -133,7 +131,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
             if exists v contents then
               add_edge (`Node k) [`Style `Dotted] (`Contents v)
         end;
-        StepMap.iter (fun l n ->
+        B.StepMap.iter (fun l n ->
             if exists n nodes then
               add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node n)
           ) (B.Node.Val.succ t)
@@ -156,8 +154,8 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       ) tags;
     return (fun ppf -> S.Graph.output ppf !vertex !edges name)
 
-  let output_buffer t origin ?html ?depth ?full buf =
-    fprintf t origin ?depth ?full ?html "graph" >>= fun fprintf ->
+  let output_buffer t ?html ?depth ?full ~date buf =
+    fprintf t ?depth ?full ?html ~date "graph" >>= fun fprintf ->
     let ppf = Format.formatter_of_buffer buf in
     fprintf ppf;
     return_unit
