@@ -17,18 +17,16 @@
 module Merge = Ir_merge
 module Task = Ir_task
 module Contents = Ir_contents
-module Store = struct
-  module type RO = Ir_ro.STORE
-  module type AO = Ir_ao.STORE
-  module type RW = Ir_rw.STORE
-  module type BC = Ir_bc.STORE
-end
+module type RO = Ir_ro.STORE
+module type AO = Ir_ao.STORE
+module type RW = Ir_rw.STORE
+module type BC = Ir_bc.STORE
 module View = Ir_view
 module Hash = Ir_hash
 module Univ = Ir_univ
 module type S = sig
   type step
-  include Store.BC with type key = step list
+  include BC with type key = step list
   module Step: Tc.I0 with type t = step
   module Key: Tc.I0 with type t = key
   module Val: Contents.S with type t = value

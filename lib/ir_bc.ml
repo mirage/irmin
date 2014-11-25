@@ -30,6 +30,7 @@ module type STORE = sig
   val tag_exn: t -> tag
   val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag_force: t -> tag -> unit Lwt.t
+  val switch: t -> tag -> unit Lwt.t
   val detach: t -> unit Lwt.t
   type head
   val of_head: (string * Ir_univ.t) list -> Ir_task.t -> head -> t
@@ -41,7 +42,6 @@ module type STORE = sig
   val watch_head: t -> key -> (key * head) Lwt_stream.t
   val clone: t -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
   val clone_force: t -> tag -> t Lwt.t
-  val switch: t -> tag -> unit Lwt.t
   val merge: t -> tag -> unit Ir_merge.result Lwt.t
   type slice
   module Slice: Tc.I0 with type t = slice
@@ -382,7 +382,9 @@ module Make_ext
     T.read_exn (tag_t t) branch >>= fun c ->
     merge_head t c
 
-  let watch_head t path =
+  module ONode = Tc.Option(B.Node.Val)
+
+  let watch_node t path =
     Log.infof "Adding a watch on %a" force (show (module Path) path);
     match t.branch with
     | `Key _   -> Lwt_stream.of_list []
@@ -391,36 +393,73 @@ module Make_ext
       Ir_misc.Lwt_stream.lift (
         read_node t path >>= fun node ->
         let old_node = ref node in
-        let stream = Lwt_stream.filter_map_s (fun key ->
-            Log.debugf "watch: %a" force (show (module Head) key);
-            B.Commit.read_exn (commit_t t) key >>= fun commit ->
-            begin match B.Commit.node (commit_t t) commit with
-              | None      -> return B.Node.empty
-              | Some node -> node
-            end >>= fun node ->
-            B.Node.sub (node_t t) node path >>= fun node ->
-            if node = !old_node then return_none
-            else (
-              old_node := node;
-              return (Some (path, key))
-            )
+        let stream = Lwt_stream.filter_map_s (function
+            | None ->
+              if ONode.equal !old_node None then return_none
+              else (
+                old_node := None;
+                return (Some (path, None, None))
+              )
+            | Some head ->
+              Log.debugf "watch: %a" force (show (module Head) head);
+              B.Commit.read_exn (commit_t t) head >>= fun commit ->
+              begin match B.Commit.node (commit_t t) commit with
+                | None      -> return B.Node.empty
+                | Some node -> node
+              end >>= fun node ->
+              B.Node.sub (node_t t) node path >>= fun node ->
+              if ONode.equal !old_node node then return_none
+              else (
+                old_node := node;
+                return (Some (path, Some head, node))
+              )
           ) stream in
         return stream
       )
 
+  module OContents = Tc.Option(B.Contents.Val)
+
+  let watch_head t path =
+    Lwt_stream.filter_map (fun (k, h, _) ->
+        match h with
+        | None -> None
+        | Some h -> Some (k, h)
+      ) (watch_node t path)
+
   (* watch contents changes. *)
   let watch t path =
-    let stream = watch_head t path in
-    Lwt_stream.filter_map_s (fun (p, k) ->
-        if Path.equal p path then
-          B.Commit.read (commit_t t) k >>= function
-          | None   -> return_none
-          | Some c ->
-            node_of_commit t c >>= fun n ->
-            B.Node.find (node_t t) n p
-        else
-          return_none
-      ) stream
+    let get_contents n =
+      match B.Node.contents (node_t t) n with
+      | None   -> return_none
+      | Some v -> v >>= fun v -> return (Some v)
+    in
+    Ir_misc.Lwt_stream.lift (
+      begin
+        read_node t path >>= function
+        | None   -> return_none
+        | Some n -> get_contents n
+      end >>= fun contents ->
+      let old_contents = ref contents in
+      let stream = watch_node t path in
+      let stream = Lwt_stream.filter_map_s (fun (_, _, n) ->
+          match n with
+          | None ->
+            if OContents.equal !old_contents None then return_none
+            else (
+              old_contents := None;
+              return (Some None)
+            )
+          | Some n ->
+            get_contents n >>= fun contents ->
+            if OContents.equal !old_contents contents then return_none
+            else (
+              old_contents := contents;
+              return (Some contents)
+            )
+        ) stream
+      in
+      return stream
+    )
 
   module Slice = struct
 

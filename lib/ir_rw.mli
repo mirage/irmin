@@ -20,7 +20,7 @@ module type STORE = sig
   include Ir_ro.STORE
   val update: t -> key -> value -> unit Lwt.t
   val remove: t -> key -> unit Lwt.t
-  val watch: t -> key -> value Lwt_stream.t
+  val watch: t -> key -> value option Lwt_stream.t
 end
 
 module type CSTRUCT = STORE

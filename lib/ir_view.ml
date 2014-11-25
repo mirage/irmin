@@ -259,7 +259,7 @@ module Internal (Node: NODE) = struct
     update_opt t k None
 
   let watch _ =
-    failwith "TODO"
+    failwith "TODO: View.watch"
 
   let apply t a =
     Log.debugf "apply %a" force (show (module Action) a);

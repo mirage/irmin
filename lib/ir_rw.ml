@@ -21,7 +21,7 @@ module type STORE = sig
   include Ir_ro.STORE
   val update: t -> key -> value -> unit Lwt.t
   val remove: t -> key -> unit Lwt.t
-  val watch: t -> key -> value Lwt_stream.t
+  val watch: t -> key -> value option Lwt_stream.t
 end
 
 module type CSTRUCT = STORE
@@ -57,7 +57,9 @@ module Cstruct (S: CSTRUCT) (K: Tc.I0) (V: Tc.I0) = struct
 
   let watch t key =
     Log.debugf "watch %a" force (show (module K) key);
-    Lwt_stream.map v_of_raw (S.watch t (k_to_raw key))
+    Lwt_stream.map
+      (function None -> None | Some v -> Some (v_of_raw v))
+      (S.watch t (k_to_raw key))
 
 end
 
@@ -79,6 +81,8 @@ module Json (S: JSON) (K: Tc.I0) (V: Tc.I0) = struct
 
   let watch t key =
     Log.debugf "watch %a" force (show (module K) key);
-    Lwt_stream.map v_of_json (S.watch t (k_to_json key))
+    Lwt_stream.map
+      (function None -> None | Some v -> Some (v_of_json v))
+      (S.watch t (k_to_json key))
 
 end

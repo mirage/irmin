@@ -31,9 +31,10 @@
 (** {1 User-Defined Contents} *)
 
 (** Defining the {e contents} of the store and how {e merge} conflicts
-    between different version of the same contents should be resolved.
+    between different version of the same contents should be
+    resolved. *)
 
-    [Merge] provides functions to build custom 3-way merge operators
+(** [Merge] provides functions to build custom 3-way merge operators
     for various user-defined contents. *)
 module Merge: sig
 
@@ -101,10 +102,15 @@ module Merge: sig
   val alist: 'a elt -> 'b elt -> 'b t -> ('a * 'b) list t
   (** List to association lists. *)
 
+  (** Lift to maps. *)
   module Map (M: Map.S) (X: S with type t = M.key): sig
+
+    (** {1 Merging Maps} *)
+
     val merge: 'a elt -> 'a t -> 'a M.t t
+    (** Lift to [X.t] maps. *)
+
   end
-  (** Lift to string maps. *)
 
   val pair: 'a elt -> 'b elt -> 'a t -> 'b t -> ('a * 'b) t
   (** Lift to pairs. *)
@@ -144,7 +150,9 @@ module Merge: sig
 
 end
 
-(** User-defined contents need to be {e serializable} and {e mergeable}.
+(** [Contents] specifies how user-defined contents need to be {e
+    serializable} and {e mergeable}.
+
     The user need to provide:
 
     {ul
@@ -158,8 +166,8 @@ end
     versions of the same contents.}
     }
 
-    Default contents for {!Contents.String}[string],
-    {!Contents.Json}[JSON] and {!Contents.Cstruct}[C-buffers like]
+    Default contents for {{!Contents.String}string},
+    {{!Contents.Json}JSON} and {{!Contents.Cstruct}C-buffers like}
     values are provided. *)
 module Contents: sig
 
@@ -195,83 +203,68 @@ end
 
 (** {1 Stores} *)
 
-(** Irmin provides to the user a high-level {!S}[branch-consistent]
-    store, automatically built from a number of lower-level
-    stores. These low-level stores are provided by various
-    backends. *)
+(** Irmin provides to the user a high-level store, with few
+    interesting features:
 
-(** {2 Contents Hashing} *)
+    {ul
+    {- Support for fast {{!BC}clones}, branches and merges, in a
+    fashion very similar to Git.}
+    {- Efficient {{!S.View}staging areas} for fast, transient,
+    in-memory operations.}
+    {- Space efficient {{!S.Snapshot}snapshots} and fast and consistent
+    rollback operations.}
+    {- Fast {{!S.Sync}synchronisation} primitives between remote
+    stores, using native backend protocols (as the Git protocol) when
+    available.}
+    }
 
-(** [Hash] provides function to digest user-defined serialized
-    contents. Some backends might be parametrize by such a hash
-    functions, other might work with a fixed one (for instance, the
-    Git format use only SHA1).
-
-    An {!Hash.SHA1}[SHA1] implementation is available to pass to the
-    backends. *)
-module Hash: sig
-
-  (** {1 Contents Hashing} *)
-
-  module type S = sig
-
-    (** Signature for unique identifiers. *)
-
-    include Tc.I0
-
-    val digest: Cstruct.t -> t
-    (** Compute a deterministic store key from a cstruct value. *)
-
-  end
-
-  module SHA1: S
-  (** SHA1 digests *)
-
-end
-
-(** {2 Tasks} *)
+    An Irmin store is automatically built from a number of lower-level
+    stores, implementing fewer operations, such as {{!AO}append-only}
+    and {{!RW}read-write} stores. These low-level stores are provided
+    by various backends. *)
 
 (** Tasks are used to keep track of the origin of reads and writes in
     the store. Every high-level operation is expected to have its own
-    task, which is passed around to every low-level calls. *)
-
+    task, which is passed to every low-level calls. *)
 module Task: sig
 
   (** {1 Task} *)
 
-    include Tc.I0
-    (** The type for tasks. Every task has a date, a text message and
-        an name identifying the entity performing that
-        operation. Tasks are threaded from high-level calls to all
-        low-level store operations. A task might also contains some
-        secrets, which will never be serialized.  *)
+  type t
+  (** The type for tasks. Every task has a date, a text message and an
+      name identifying the entity performing that operation. Tasks are
+      threaded from high-level calls to all low-level store
+      operations. A task might also contains some secrets, which will
+      never be serialized.  *)
 
-    val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
-    (** Create a new task. *)
+  include Tc.I0 with type t := t
 
-    val fprintf: t ->  ('a, unit, string, unit) format4 -> 'a
-    (** Add a message to the task messages list. *)
+  val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
+  (** Create a new task. *)
 
-    val date: t -> int64
-    (** Get the task date. *)
+  val fprintf: t ->  ('a, unit, string, unit) format4 -> 'a
+  (** Add a message to the task messages list. *)
 
-    val uid: t -> int64
-    (** Get the task unique identifier. *)
+  val date: t -> int64
+  (** Get the task date. *)
 
-    val owner: t -> string
-    (** Get the task owner. *)
+  val uid: t -> int64
+  (** Get the task unique identifier. *)
 
-    val messages: t -> string list
+  val owner: t -> string
+  (** Get the task owner. *)
+
+  val messages: t -> string list
     (** Get the messages associated to the task. *)
 
 end
 
-(** {2 Universal values}.
+(** Universal values.
 
-    See http://mlton.org/UniversalType
+    See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
 
     Univeral values are used to carry around configuration values, see
-    {!Store.RO.create}[Store.RO.create]. *)
+    {{!RO.create}RO.create}. *)
 module Univ: sig
 
   (** {1 Universal value} *)
@@ -286,249 +279,246 @@ module Univ: sig
 
 end
 
-(** {1 Store Signatures} *)
+(** Read-only stores. *)
+module type RO = sig
 
-module Store: sig
+  (** {1 Read-only stores} *)
 
-  (** {2 Read-only Stores} *)
+  type t
+  (** Type for stores. *)
 
-  module type RO = sig
+  type key
+  (** Type for keys. *)
 
-    (** Read-only stores. *)
+  type value
+  (** Type for values. *)
 
-    type t
-    (** Type for stores. *)
+  val create: (string * Univ.t) list -> Task.t -> t
+  (** [create config task] is the store handle with the
+      configuration [config] and the task [task]. *)
 
-    type key
-    (** Type for keys. *)
+  val config: t -> (string * Univ.t) list
+  (** [config t] is the list of configurations keys for the store
+      handle [t]. *)
 
-    type value
-    (** Type for values. *)
+  val task: t -> Task.t
+  (** [task t] is the task associated to the store handle [t]. *)
 
-    val create: (string * Univ.t) list -> Task.t -> t
-    (** [create config task] is the store handle with the
-        configuration [config] and the task [task]. *)
+  val read: t -> key -> value option Lwt.t
+  (** Read a value from the store. *)
 
-    val config: t -> (string * Univ.t) list
-    (** [config t] is the list of configurations keys for the store
-        handle [t]. *)
+  val read_exn: t -> key -> value Lwt.t
+  (** Same as [read] but raise [Not_found] if the key does not
+      exist. *)
 
-    val task: t -> Task.t
-    (** [task t] is the task associated to the store handle [t]. *)
+  val mem: t -> key -> bool Lwt.t
+  (** Check if a key exists. *)
 
-    val read: t -> key -> value option Lwt.t
-    (** Read a value from the store. *)
+  val list: t -> key list -> key list Lwt.t
+  (** [list t keys] is the list of sub-keys that any of the keys in
+      [keys] are allowed to access. *)
 
-    val read_exn: t -> key -> value Lwt.t
-    (** Same as [read] but raise [Not_found] if the key does not
-        exist. *)
-
-    val mem: t -> key -> bool Lwt.t
-    (** Check if a key exists. *)
-
-    val list: t -> key list -> key list Lwt.t
-    (** [list t keys] is the list of sub-keys that any of the keys in
-        [keys] are allowed to access. *)
-
-    val dump: t -> (key * value) list Lwt.t
-    (** [dump t] is a dump of the store contents. *)
-
-  end
-
-  (** {1 Append-only store} *)
-
-  module type AO = sig
-
-    (** Signature for append-only stores. *)
-
-    include RO
-
-    val add: t -> value -> key Lwt.t
-    (** Write the contents of a value to the store. That's the
-        responsibility of the append-only store to generate a
-        consistent key. *)
-
-  end
-
-  (** {1 Mutable store} *)
-
-  module type RW = sig
-
-    (** Mutable store. *)
-
-    include RO
-
-    val update: t -> key -> value -> unit Lwt.t
-    (** Replace the contents of [key] by [value] if [key] is already
-        defined and create it otherwise. *)
-
-    val remove: t -> key -> unit Lwt.t
-    (** Remove the given key. *)
-
-    val watch: t -> key -> value Lwt_stream.t
-    (** Watch a given key. *)
-
-  end
-
-  (** {1 Branch-consistent store} *)
-
-  (** A branch-consistent store is a mutable store which supports
-      fork/merge operations. *)
-  module type BC = sig
-
-    (** {1 Branch-consistent Store}
-
-        They are two kinds of branch consistent stores: the persistent
-        ones and the temporary ones.
-
-        {2 Persistent Stores}
-
-        The persistent stores are associated to a branch name, or
-        {!tag}[tag]. The tag value is updated every time the store is
-        updated, so every handle connected or which will be connected
-        to the same tag will see the changes.
-
-        These stores can be created using the {!create}[create] and
-        {!of_tag}[of_tag] functions. *)
-
-    include RW
-    (** A branch-consistent store is read-write.
-
-        [create config task] is a persistent store handle on the
-        [master] branch. This operation is cheap, can be repeated
-        multiple times and is expected to be done for every new user
-        task. *)
-
-    type tag
-    (** Type for branch names, or tags. Tags usually share a common
-        global namespace and that's the user responsability to avoid
-        name-clashes. *)
-
-    val of_tag: (string * Univ.t) list -> Task.t -> tag -> t
-    (** [create t tag] is a persistent store handle. Similar to
-        [create], but use the [tag] branch instead of the [master]
-        one. *)
-
-    val tag: t -> tag option
-    (** [tag t] is the tag associated to the store handle [t]. [None]
-        means that the branch is not persistent. *)
-
-    val tag_exn: t -> tag
-    (** Same as [tag] but raise [Not_found] if the store hanlde is not
-        persistent. *)
-
-    val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-    (** Change the current tag name. Fail if a tag with the same name
-        already exists. The head is unchanged. *)
-
-    val update_tag_force: t -> tag -> unit Lwt.t
-    (** Same as [update_tag] but delete and update the tag if it already
-        exists. *)
-
-    val detach: t -> unit Lwt.t
-    (** Detach the current branch (ie. it is not assiaciated to a tag
-        anymore). *)
-
-    (** {2 Temporary Stores}
-
-        The temporary stores do not use global branch names. Instead,
-        the operations are relative to a given store revision: a
-        {!head}[head]. Every operation updates the store as a normal
-        persistent store, but the value of head is only kept into the
-        local store handle and it is not persisted into the store --
-        this means it cannot be easily shared by concurrent processes
-        or loaded back in the future. In the Git terminology, these
-        store handle are said to be {i detached heads}. *)
-
-    type head
-    (** Type for head values. *)
-
-    val of_head: (string * Univ.t) list -> Task.t -> head -> t
-    (** Create a temporary store handle, which will not persist as it
-        has no associated to any persistent tag name. *)
-
-    val head: t -> head option Lwt.t
-    (** Return the head commit. This works for both persistent and
-        temporary stores. In the case of a persistent store, this
-        involves looking into the value associated to the branch tag,
-        so this might blocks. In the case of a temporary store, it is
-        a simple (non-blocking) look-up in the store handle local
-        state. *)
-
-    val head_exn: t -> head Lwt.t
-    (** Same as [read_head] but raise [Not_found] if the commit does
-        not exist. *)
-
-    val heads: t -> head list Lwt.t
-    (** The list of all the databse heads. *)
-
-    val update_head: t -> head -> unit Lwt.t
-    (** Set the commit head. *)
-
-    val merge_head: t -> head -> unit Merge.result Lwt.t
-    (** Merge a commit with the current branch. *)
-
-    val watch_head: t -> key -> (key * head) Lwt_stream.t
-    (** Watch changes for given key and the one it has recursive access.
-        Return the stream of heads of the modified keys. *)
-
-    (** {1 Functions over stores} *)
-
-    val clone: t -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
-    (** Fork the store, using the given branch name. Return [None] if
-        the branch already exists. *)
-
-    val clone_force: t -> tag -> t Lwt.t
-    (** Same as [clone] but delete and update the existing branch if a
-        branch with the same name already exists. *)
-
-    val switch: t -> tag -> unit Lwt.t
-    (** Switch the store contents the be same as the contents of the
-        given branch name. The two branches are still independant. *)
-
-    val merge: t -> tag -> unit Merge.result Lwt.t
-    (** [merge db t] merges the branch [t] into the current store
-        branch. The two branches are still independant. *)
-
-    (** {2 Slices} *)
-
-    type slice
-    (** Type for store slices. *)
-
-    module Slice: Tc.I0 with type t = slice
-    (** Base functions over slices. *)
-
-    val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
-      t -> slice Lwt.t
-    (** [export t ~depth ~min ~max] exports the store slice between
-        [min] and [max], using at most [depth] history depth (starting
-        from the max).
-
-        If [max] is not specified, use the current [heads]. If [min] is
-        not specified, use an unbound past (but can be still limited by
-        [depth]).
-
-        [depth] is used to limit the depth of the commit history. [None]
-        here means no limitation.
-
-        If [full] is set (default is true) the full graph, including the
-        commits, nodes and contents, is exported, otherwise it is the
-        commit history graph only. *)
-
-    val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
-    (** Import a store slide. Do not modify existing tags. *)
-
-    val import_force: t -> slice -> unit Lwt.t
-    (** Same as [import] but delete and update the tags they already
-        exist in the store. *)
-
-  end
+  val dump: t -> (key * value) list Lwt.t
+  (** [dump t] is a dump of the store contents. *)
 
 end
 
-(** {1 Irmin Stores} *)
+(** Append-only store. *)
+module type AO = sig
 
-(** FIXME *)
+  (** {1 Append-only stores} *)
+
+  include RO
+
+  val add: t -> value -> key Lwt.t
+  (** Write the contents of a value to the store. That's the
+      responsibility of the append-only store to generate a
+      consistent key. *)
+
+end
+
+(** Read-write stores. *)
+module type RW = sig
+
+  (** {1 Read-write stores} *)
+
+  include RO
+
+  val update: t -> key -> value -> unit Lwt.t
+  (** Replace the contents of [key] by [value] if [key] is already
+      defined and create it otherwise. *)
+
+  val remove: t -> key -> unit Lwt.t
+  (** Remove the given key. *)
+
+  val watch: t -> key -> value option Lwt_stream.t
+  (** Watch the stream of values associated to a given key. Return
+      [None] if the value is removed. *)
+
+end
+
+(** Branch-consistent stores. *)
+module type BC = sig
+
+  (** {1 Branch-consistent Store}
+
+      They are two kinds of branch consistent stores: the
+      {{!persistent}persistent} and the {{!temporary}temporary} ones.
+
+      {2:persistent Persistent Stores}
+
+      The persistent stores are associated to a branch name, or
+      {{!BC.tag}tag}. The tag value is updated every time the
+      store is updated, so every handle connected or which will be
+      connected to the same tag will see the changes.
+
+      These stores can be created using the
+      {{!BC.of_tag}of_tag} functions. *)
+
+  include RW
+  (** A branch-consistent store is read-write.
+
+      [create config task] is a persistent store handle on the
+      [master] branch. This operation is cheap, can be repeated
+      multiple times and is expected to be done for every new user
+      task. *)
+
+  type tag
+  (** Type for branch names, or tags. Tags usually share a common
+      global namespace and that's the user responsability to avoid
+      name-clashes. *)
+
+  val of_tag: (string * Univ.t) list -> Task.t -> tag -> t
+  (** [create t tag] is a persistent store handle. Similar to
+      [create], but use the [tag] branch instead of the [master]
+      one. *)
+
+  val tag: t -> tag option
+  (** [tag t] is the tag associated to the store handle [t]. [None]
+      means that the branch is not persistent. *)
+
+  val tag_exn: t -> tag
+  (** Same as [tag] but raise [Not_found] if the store hanlde is not
+      persistent. *)
+
+  val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+  (** Change the current tag name. Fail if a tag with the same name
+      already exists. The head is unchanged. *)
+
+  val update_tag_force: t -> tag -> unit Lwt.t
+  (** Same as [update_tag] but delete and update the tag if it already
+      exists. *)
+
+  val switch: t -> tag -> unit Lwt.t
+  (** Switch the store contents the be same as the contents of the
+      given branch name. The two branches are still independant. *)
+
+  val detach: t -> unit Lwt.t
+  (** Detach the current branch (ie. it is not assiaciated to a tag
+      anymore). *)
+
+  (** {2:temporary Temporary Stores}
+
+      The temporary stores do not use global branch names. Instead,
+      the operations are relative to a given store revision: a
+      {{!BC.head}head}. Every operation updates the store as a
+      normal persistent store, but the value of head is only kept
+      into the local store handle and it is not persisted into the
+      store -- this means it cannot be easily shared by concurrent
+      processes or loaded back in the future. In the Git
+      terminology, these store handle are said to be {i detached
+      heads}. *)
+
+  type head
+  (** Type for head values. *)
+
+  val of_head: (string * Univ.t) list -> Task.t -> head -> t
+  (** Create a temporary store handle, which will not persist as it
+      has no associated to any persistent tag name. *)
+
+  val head: t -> head option Lwt.t
+  (** Return the head commit. This works for both persistent and
+      temporary stores. In the case of a persistent store, this
+      involves looking into the value associated to the branch tag,
+      so this might blocks. In the case of a temporary store, it is
+      a simple (non-blocking) look-up in the store handle local
+      state. *)
+
+  val head_exn: t -> head Lwt.t
+  (** Same as [read_head] but raise [Not_found] if the commit does
+      not exist. *)
+
+  val heads: t -> head list Lwt.t
+  (** The list of all the databse heads. *)
+
+  val update_head: t -> head -> unit Lwt.t
+  (** Set the commit head. *)
+
+  val merge_head: t -> head -> unit Merge.result Lwt.t
+  (** Merge a commit with the current branch. *)
+
+  val watch_head: t -> key -> (key * head) Lwt_stream.t
+  (** Watch changes for a given collection of keys and the ones they
+      have recursive access. Return the stream of heads corresponding
+      to the modified keys. *)
+
+  (** {2 Clones and Merges} *)
+
+  val clone: t -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
+  (** Fork the store, using the given branch name. Return [None] if
+      the branch already exists. *)
+
+  val clone_force: t -> tag -> t Lwt.t
+  (** Same as [clone] but delete and update the existing branch if a
+      branch with the same name already exists. *)
+
+  val merge: t -> tag -> unit Merge.result Lwt.t
+  (** [merge db t] merges the branch [t] into the current store
+      branch. The two branches are still independant. *)
+
+  (** {2 Slices} *)
+
+  type slice
+  (** Type for store slices. *)
+
+  module Slice: Tc.I0 with type t = slice
+  (** Base functions over slices. *)
+
+  val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
+    t -> slice Lwt.t
+  (** [export t ~depth ~min ~max] exports the store slice between
+      [min] and [max], using at most [depth] history depth (starting
+      from the max).
+
+      If [max] is not specified, use the current [heads]. If [min] is
+      not specified, use an unbound past (but can be still limited by
+      [depth]).
+
+      [depth] is used to limit the depth of the commit history. [None]
+      here means no limitation.
+
+      If [full] is set (default is true) the full graph, including the
+      commits, nodes and contents, is exported, otherwise it is the
+      commit history graph only. *)
+
+  val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
+  (** Import a store slide. Do not modify existing tags. *)
+
+  val import_force: t -> slice -> unit Lwt.t
+  (** Same as [import] but delete and update the tags they already
+      exist in the store. *)
+
+end
+
+(** Irmin high-level stores.
+
+    An irmin store is a branch-consistent store where keys are lists
+    of steps.
+
+    An example is a Git repository where keys are filenames, ie. list
+    of ['\']-separated strings. More complex examples are structured
+    values, where steps might contains first-class fields accessors
+    and array offsets. *)
 module type S = sig
 
   (** {1 Irmin Store} *)
@@ -536,28 +526,19 @@ module type S = sig
   type step
   (** The type for step values. *)
 
-  include Store.BC with type key = step list
-  (** An irmin store is a branch-consistent store where keys are lists
-      of steps.
-
-      An example is a Git repository where keys are filenames,
-      ie. list of ['\']-separated strings. More complex examples are
-      structured values, where steps might contains first-class fields
-      accessors and array offsets. *)
+  include BC with type key = step list
 
   module Step: Tc.I0 with type t = step
-  (** Base functions over steps. *)
+  (** [Step] provides base functions over steps. *)
 
   module Key: Tc.I0 with type t = key
-  (** Base functions over store keys, e.g. [step list]. *)
+  (** [Key] provides base functions over step lists. *)
 
   module Val: Contents.S with type t = value
-  (** Base functions over store values, e.g. user-defined mergeable
+  (** [Val] provides base functions over user-defined, mergeable
       contents. *)
 
-  (** {1 Views} *)
-
-  (** Views are in-memory partial representation of the store, with
+  (** [View] provides an in-memory partial mirror of the store, with
       lazy reads and delayed write.
 
       Views are like staging area in Git: they are temporary
@@ -577,7 +558,7 @@ module type S = sig
     type db = t
     (** The type for store handles. *)
 
-    include Store.RW with type key = Key.t and type value = Val.t
+    include RW with type key = Key.t and type value = Val.t
     (** A view is a read-write temporty store, mirroring the main
         store. *)
 
@@ -606,12 +587,17 @@ module type S = sig
     val merge_path: db -> key -> t -> unit Merge.result Lwt.t
     (** Same as [update_path] but *merges* with the current subtree. *)
 
+    (** [Action] provides information about operations performed on a
+        view.
+
+        Each view stores the list of {{!S.View.Action.t}actions} that
+        have already been performed on it. These actions are useful
+        when the view needs to be rebased: write operations are
+        replayed while read results are checked against the original
+        run. *)
     module Action: sig
 
-      (** A view stores the list of {!t}[actions] already performed on
-          it. These actions are used when the view needs to be
-          rebased: write operations are replayed while read results
-          are checked against the original run. *)
+      (** {1 Actions} *)
 
       type t =
          [ `Read of (key * value option)
@@ -631,6 +617,7 @@ module type S = sig
        (** Pretty-print a sequence of actions. *)
 
     end
+    (** Signature for actions performed on a view. *)
 
     val actions: t -> Action.t list
     (** Return the list of actions performed on this view since its
@@ -638,9 +625,9 @@ module type S = sig
 
   end
 
-  (** {1 Snapshots} *)
-
-  (** Snapshots are read-only checkpoints of store. *)
+  (** [Snapshot] provides read-only, space-efficient, checkpoints of a
+      store. It also provides functions to rollback to a previous
+      state. *)
   module Snapshot: sig
 
     (** {1 Snapshots} *)
@@ -648,7 +635,7 @@ module type S = sig
     type db = t
     (** Type for store handles. *)
 
-    include Store.RO with type key = Key.t and type value = Val.t
+    include RO with type key = Key.t and type value = Val.t
     (** A snapshot is a read-only store, mirroring the main store. *)
 
     val create: db -> t Lwt.t
@@ -668,9 +655,8 @@ module type S = sig
 
   end
 
-  (** {1 Dot Export} *)
-
-  (** Utilities to export the store using the Graphviz `dot` format. *)
+  (** [Dot] provides functions to export a store to the Graphviz `dot`
+      format. *)
   module Dot: sig
 
     (** {1 Dot Export} *)
@@ -695,12 +681,11 @@ module type S = sig
 
   end
 
-  (** {2 Synchronisation} *)
-
-  (** Syncronisation with local and remote stores. *)
+  (** [Sync] provides functions to syncronisation an Irmin store with
+      local and remote Irmin stores. *)
   module Sync: sig
 
-    (** {2 Synchronisation} *)
+    (** {1 Synchronisation} *)
 
     type db = t
     (** The type for store handlers. *)
@@ -716,7 +701,7 @@ module type S = sig
     val store: db -> remote
     (** [store t] is the remote corresponding to the local store
         [t]. Synchronisation is done by importing and exporting store
-        slices, so this is usually much slower than native
+        {{!BC.slice}slices}, so this is usually much slower than native
         synchronisation using [uri] remotes. *)
 
     val fetch: db -> ?depth:int -> remote -> head option Lwt.t
@@ -742,6 +727,38 @@ module type S = sig
 
 end
 
+(** {1 Backends} *)
+
+(** [Hash] provides function to digest user-defined serialized
+    contents. Some backends might be parametrize by such a hash
+    functions, other might work with a fixed one (for instance, the
+    Git format use only SHA1).
+
+    An {{!Hash.SHA1}SHA1} implementation is available to pass to the
+    backends. *)
+module Hash: sig
+
+  (** {1 Contents Hashing} *)
+
+  module type S = sig
+
+    (** Signature for unique identifiers. *)
+
+    include Tc.I0
+
+    val digest: Cstruct.t -> t
+    (** Compute a deterministic store key from a cstruct value. *)
+
+  end
+  (** Signature for hash values. *)
+
+  module SHA1: S
+  (** SHA1 digests *)
+
+end
+
+
+
 (*
 (** {2 Backends} *)
 
@@ -754,7 +771,7 @@ module Backend: sig
     module type RO =
       functor (K: Tc.I0) ->
       functor (V: Tc.I0) ->
-        Store.RO with type key = K.t and type value = V.t
+        RO with type key = K.t and type value = V.t
     (** Signature for functor creating read-only stores. *)
 
   end
@@ -763,7 +780,7 @@ module Backend: sig
 
   module Binary: sig
 
-    module type RO = Store.RO with type key = Cstruct.t and type value = Cstruct.t
+    module type RO = RO with type key = Cstruct.t and type value = Cstruct.t
     (** Binary read-only stores. Keys, values and origin are cstruct
         buffers. *)
 
@@ -776,7 +793,7 @@ module Backend: sig
 
   module Json: sig
 
-    module type RO = Store.RO with type key = Ezjsonm.t and type value = Ezjsonm.t
+    module type RO = RO with type key = Ezjsonm.t and type value = Ezjsonm.t
     (** Binary read-only stores. Keys, values and origin are cstruct
         buffers. *)
 

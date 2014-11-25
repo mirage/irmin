@@ -25,6 +25,7 @@ module type STORE = sig
   val tag_exn: t -> tag
   val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag_force: t -> tag -> unit Lwt.t
+  val switch: t -> tag -> unit Lwt.t
   val detach: t -> unit Lwt.t
   type head
   val of_head: (string * Ir_univ.t) list -> Ir_task.t -> head -> t
@@ -36,7 +37,6 @@ module type STORE = sig
   val watch_head: t -> key -> (key * head) Lwt_stream.t
   val clone: t -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
   val clone_force: t -> tag -> t Lwt.t
-  val switch: t -> tag -> unit Lwt.t
   val merge: t -> tag -> unit Ir_merge.result Lwt.t
   type slice
   module Slice: Tc.I0 with type t = slice
