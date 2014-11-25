@@ -17,44 +17,22 @@
 <div class="navbar"><a class="pre" href="Irmin.Contents.Json.html" title="Irmin.Contents.Json">Previous</a>
 &nbsp;<a class="up" href="Irmin.Contents.html" title="Irmin.Contents">Up</a>
 &nbsp;</div>
-<h1>Functor <a href="type_Irmin.Contents.Cstruct.html">Irmin.Contents.Cstruct</a></h1>
+<h1>Module <a href="type_Irmin.Contents.Cstruct.html">Irmin.Contents.Cstruct</a></h1>
 
-<pre><span class="keyword">module</span> Cstruct: <div class="sig_block"><code class="code">functor (</code><code class="code">O</code><code class="code"> : </code><code class="type"><a href="Irmin.Origin.S.html">Irmin.Origin.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = Cstruct.t</code></div></pre><div class="info module top">
+<pre><span class="keyword">module</span> Cstruct: <code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = Cstruct.t</code></pre><div class="info module top">
 Cstruct values where only the last modified value is kept on
       merge. If the value has been modified concurrently, then this is a
       conflict.<br>
 </div>
-<table border="0" cellpadding="3" width="100%">
-<tr>
-<td align="left" valign="top" width="1%%"><b>Parameters: </b></td>
-<td>
-<table class="paramstable">
-<tr>
-<td align="center" valign="top" width="15%">
-<code>O</code></td>
-<td align="center" valign="top">:</td>
-<td><code class="type"><a href="Irmin.Origin.S.html">Irmin.Origin.S</a></code>
-</table>
-</td>
-</tr>
-</table>
 <hr width="100%">
 <br>
 Signature for store contents.<br>
 
 <pre><span class="keyword">include</span> Tc.I0</pre>
+<br>
+Base functions over contents.<br>
 
-<pre><span id="TYPEorigin"><span class="keyword">type</span> <code class="type"></code>origin</span> </pre>
-<div class="info ">
-Type for origin of merges.<br>
-</div>
-
-
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.S.Origin.html">Origin</a>: <code class="type"><a href="Irmin.Origin.S.html">Irmin.Origin.S</a></code><code class="type">  with type t = origin</code></pre><div class="info">
-Base functions for origins.
-</div>
-
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">(t, <a href="Irmin.Contents.S.html#TYPEorigin">origin</a>) <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
 Merge function. Evaluates to <code class="code">`Conflict</code> if the values cannot be
         merged properly.<br>
 </div>

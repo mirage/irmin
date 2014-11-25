@@ -4,27 +4,26 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.Contents.String.html">
-<link rel="next" href="Irmin.Contents.Cstruct.html">
-<link rel="Up" href="Irmin.Contents.html">
+<link rel="previous" href="Irmin.S.Key.html">
+<link rel="next" href="Irmin.S.View.html">
+<link rel="Up" href="Irmin.S.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Contents.Json</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.S.Val</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.Contents.String.html" title="Irmin.Contents.String">Previous</a>
-&nbsp;<a class="up" href="Irmin.Contents.html" title="Irmin.Contents">Up</a>
-&nbsp;<a class="post" href="Irmin.Contents.Cstruct.html" title="Irmin.Contents.Cstruct">Next</a>
+<div class="navbar"><a class="pre" href="Irmin.S.Key.html" title="Irmin.S.Key">Previous</a>
+&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
+&nbsp;<a class="post" href="Irmin.S.View.html" title="Irmin.S.View">Next</a>
 </div>
-<h1>Module <a href="type_Irmin.Contents.Json.html">Irmin.Contents.Json</a></h1>
+<h1>Module <a href="type_Irmin.S.Val.html">Irmin.S.Val</a></h1>
 
-<pre><span class="keyword">module</span> Json: <code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = Ezjsonm.t</code></pre><div class="info module top">
-JSON values where only the last modified value is kept on
-      merge. If the value has been modified concurrently, the <code class="code">merge</code>
-      function raises <code class="code">Conflict</code>.<br>
+<pre><span class="keyword">module</span> Val: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info module top">
+Base functions over store values, e.g. user-defined mergeable
+      contents.<br>
 </div>
 <hr width="100%">
 <br>

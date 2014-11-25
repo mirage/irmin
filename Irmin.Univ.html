@@ -1,0 +1,50 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Task.html">
+<link rel="next" href="Irmin.Store.html">
+<link rel="Up" href="Irmin.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Universal value" rel="Section" href="#1_Universalvalue">
+<title>Irmin.Univ</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Task.html" title="Irmin.Task">Previous</a>
+&nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
+&nbsp;<a class="post" href="Irmin.Store.html" title="Irmin.Store">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.Univ.html">Irmin.Univ</a></h1>
+
+<pre><span class="keyword">module</span> Univ: <code class="code">sig</code> <a href="Irmin.Univ.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<h2 id="2_Universalvalues">Universal values</h2>.
+<p>
+
+    See http://mlton.org/UniversalType
+<p>
+
+    Univeral values are used to carry around configuration values, see
+    <a href="Irmin.Store.RO.html#VALcreate"><code class="code">Irmin.Store.RO.create</code></a><code class="code">Store.RO.create</code>.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Universalvalue">Universal value</h1><br>
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+Type type for universal values.<br>
+</div>
+
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> ('a -> <a href="Irmin.Univ.html#TYPEt">t</a>) * (<a href="Irmin.Univ.html#TYPEt">t</a> -> 'a option)</code></pre><div class="info ">
+<code class="code">create ()</code> returns a function to inject and a function to
+      project a value from a given type in to/from a universal
+      value.<br>
+</div>
+</body></html>

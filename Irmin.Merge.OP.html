@@ -11,7 +11,8 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Merge.OP</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Useful operators" rel="Section" href="#1_Usefuloperators">
+<title>Irmin.Merge.OP</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin.Merge.Map.html" title="Irmin.Merge.Map">Previous</a>
@@ -19,12 +20,16 @@
 &nbsp;</div>
 <h1>Module <a href="type_Irmin.Merge.OP.html">Irmin.Merge.OP</a></h1>
 
-<pre><span class="keyword">module</span> OP: <code class="code">sig</code> <a href="Irmin.Merge.OP.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<pre><span class="keyword">module</span> OP: <code class="code">sig</code> <a href="Irmin.Merge.OP.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Useful merge operators.
+<p>
+
+      Use <code class="code">open Irmin.Merge.OP</code> at the top of your file to use
+      them.<br>
+</div>
+<hr width="100%">
 <br>
-Default operators.<br>
-<br>
-Use <code class="code">open Irmin.Merge.OP</code> at the top of your file to use
-        them.<br>
+<h1 id="1_Usefuloperators">Useful operators</h1><br>
 
 <pre><span id="VALok"><span class="keyword">val</span> ok</span> : <code class="type">'a -> 'a <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Return <code class="code">`Ok x</code>.<br>

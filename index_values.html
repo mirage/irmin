@@ -22,7 +22,7 @@ Same as <code class="code">bind</code>.
 </div>
 </td></tr>
 <tr><td align="left"><br>A</td></tr>
-<tr><td><a href="Irmin.View.S.html#VALactions">actions</a> [<a href="Irmin.View.S.html">Irmin.View.S</a>]</td>
+<tr><td><a href="Irmin.S.View.html#VALactions">actions</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
 <td><div class="info">
 Return the list of actions performed on this view since its
         creation.
@@ -40,7 +40,7 @@ List to association lists.
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALapply">apply</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-<code class="code">apply</code> combinator.
+The <code class="code">apply</code> combinator is usefull to untie recursive loops.
 </div>
 </td></tr>
 <tr><td align="left"><br>B</td></tr>
@@ -72,6 +72,12 @@ Same as <code class="code">clone</code> but delete and update the existing branc
         branch with the same name already exists.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Store.RO.html#VALconfig">config</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
+<td><div class="info">
+<code class="code">config t</code> is the list of configurations keys for the store
+        handle <code class="code">t</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.OP.html#VALconflict">conflict</a> [<a href="Irmin.Merge.OP.html">Irmin.Merge.OP</a>]</td>
 <td><div class="info">
 Return <code class="code">`Conflict str</code>.
@@ -79,7 +85,7 @@ Return <code class="code">`Conflict str</code>.
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALcounter">counter</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-Mergeable counters.
+The merge function for mergeable counters.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Snapshot.html#VALcreate">create</a> [<a href="Irmin.S.Snapshot.html">Irmin.S.Snapshot</a>]</td>
@@ -87,25 +93,33 @@ Mergeable counters.
 Snapshot the current state of the store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Store.RO.html#VALcreate">create</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
+<tr><td><a href="Irmin.S.View.html#VALcreate">create</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
 <td><div class="info">
-Create a store handle.
+The empty view.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Origin.S.html#VALcreate">create</a> [<a href="Irmin.Origin.S.html">Irmin.Origin.S</a>]</td>
+<tr><td><a href="Irmin.Store.RO.html#VALcreate">create</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
 <td><div class="info">
-Create a new provenance message.
+<code class="code">create config task</code> is the store handle with the
+        configuration <code class="code">config</code> and the task <code class="code">task</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Univ.html#VALcreate">create</a> [<a href="Irmin.Univ.html">Irmin.Univ</a>]</td>
+<td><div class="info">
+<code class="code">create ()</code> returns a function to inject and a function to
+      project a value from a given type in to/from a universal
+      value.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Task.html#VALcreate">create</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
+<td><div class="info">
+Create a new task.
 </div>
 </td></tr>
 <tr><td align="left"><br>D</td></tr>
-<tr><td><a href="Irmin.Origin.P.html#VALdate">date</a> [<a href="Irmin.Origin.P.html">Irmin.Origin.P</a>]</td>
+<tr><td><a href="Irmin.Task.html#VALdate">date</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
 <td><div class="info">
-<code class="code">date ()</code> is the current date.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Origin.S.html#VALdate">date</a> [<a href="Irmin.Origin.S.html">Irmin.Origin.S</a>]</td>
-<td><div class="info">
-Get the origin date.
+Get the task date.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALdefault">default</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
@@ -120,12 +134,12 @@ Detach the current branch (ie.
 </td></tr>
 <tr><td><a href="Irmin.Hash.S.html#VALdigest">digest</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
 <td><div class="info">
-Compute a deterministic database key from a cstruct value.
+Compute a deterministic store key from a cstruct value.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Store.RO.html#VALdump">dump</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
 <td><div class="info">
-Return the store contents.
+<code class="code">dump t</code> is a dump of the store contents.
 </div>
 </td></tr>
 <tr><td align="left"><br>E</td></tr>
@@ -136,9 +150,26 @@ Convert <code class="code">`Conflict</code> results to <code class="code">Confli
 </td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALexport">export</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-<code class="code">export t origin ~depth ~min ~max</code> exports the database slice
-        between <code class="code">min</code> and <code class="code">max</code>, using at most <code class="code">depth</code> history depth
-        (starting from the max).
+<code class="code">export t ~depth ~min ~max</code> exports the store slice between
+        <code class="code">min</code> and <code class="code">max</code>, using at most <code class="code">depth</code> history depth (starting
+        from the max).
+</div>
+</td></tr>
+<tr><td align="left"><br>F</td></tr>
+<tr><td><a href="Irmin.S.Sync.html#VALfetch">fetch</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
+<td><div class="info">
+<code class="code">create t last</code> fetch an object in the local database.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Sync.html#VALfetch_exn">fetch_exn</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
+<td><div class="info">
+Same as <code class="code">create</code> but raise <code class="code">Failure</code> is the fetch operation
+        fails.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Task.html#VALfprintf">fprintf</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
+<td><div class="info">
+Add a message to the task messages list.
 </div>
 </td></tr>
 <tr><td align="left"><br>H</td></tr>
@@ -149,8 +180,8 @@ Return the head commit.
 </td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALhead_exn">head_exn</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Same as <code class="code">read_head</code> but raise <code class="code">Not_found</code> if the commit does not
-        exist.
+Same as <code class="code">read_head</code> but raise <code class="code">Not_found</code> if the commit does
+        not exist.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALheads">heads</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
@@ -159,32 +190,22 @@ The list of all the databse heads.
 </div>
 </td></tr>
 <tr><td align="left"><br>I</td></tr>
-<tr><td><a href="Irmin.Origin.P.html#VALid">id</a> [<a href="Irmin.Origin.P.html">Irmin.Origin.P</a>]</td>
-<td><div class="info">
-<code class="code">id ()</code> is a string identifying the current process.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Origin.S.html#VALid">id</a> [<a href="Irmin.Origin.S.html">Irmin.Origin.S</a>]</td>
-<td><div class="info">
-Get the origin ID.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALimport">import</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Import a database slide.
+Import a store slide.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALimport_force">import_force</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
 Same as <code class="code">import</code> but delete and update the tags they already
-        exist in the database.
+        exist in the store.
 </div>
 </td></tr>
 <tr><td align="left"><br>L</td></tr>
 <tr><td><a href="Irmin.Store.RO.html#VALlist">list</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
 <td><div class="info">
-Return all the keys that <code class="code">origin</code> are allowed to access,
-        knowing a given collection of <i>root</i> keys.
+<code class="code">list t keys</code> is the list of sub-keys that any of the keys in
+        <code class="code">keys</code> are allowed to access.
 </div>
 </td></tr>
 <tr><td align="left"><br>M</td></tr>
@@ -196,17 +217,17 @@ Check if a key exists.
 <tr><td><a href="Irmin.S.Snapshot.html#VALmerge">merge</a> [<a href="Irmin.S.Snapshot.html">Irmin.S.Snapshot</a>]</td>
 <td><div class="info">
 Merge the given snasphot into the current branch of the
-        database.
+        store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.View.S.html#VALmerge">merge</a> [<a href="Irmin.View.S.html">Irmin.View.S</a>]</td>
+<tr><td><a href="Irmin.S.View.html#VALmerge">merge</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
 <td><div class="info">
 Merge the actions done on one view into an other one.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALmerge">merge</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-<code class="code">merge db t</code> merges the branch <code class="code">t</code> into the current database
+<code class="code">merge db t</code> merges the branch <code class="code">t</code> into the current store
         branch.
 </div>
 </td></tr>
@@ -227,16 +248,16 @@ Merge a commit with the current branch.
 Same as <code class="code">update_path</code> but *merges* with the current subtree.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Origin.S.html#VALmessage">message</a> [<a href="Irmin.Origin.S.html">Irmin.Origin.S</a>]</td>
+<tr><td><a href="Irmin.Task.html#VALmessages">messages</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
 <td><div class="info">
-Get the origin message.
+Get the messages associated to the task.
 </div>
 </td></tr>
 <tr><td align="left"><br>O</td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALof_head">of_head</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Create a temporary detached branch, which will not persist in
-        the database as it has no associated persistent tag name.
+Create a temporary store handle, which will not persist as it
+        has no associated to any persistent tag name.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.View.html#VALof_path">of_path</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
@@ -246,7 +267,7 @@ Read a view from a path in the store.
 </td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALof_tag">of_tag</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Create a store handle.
+<code class="code">create t tag</code> is a persistent store handle.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.OP.html#VALok">ok</a> [<a href="Irmin.Merge.OP.html">Irmin.Merge.OP</a>]</td>
@@ -254,15 +275,15 @@ Create a store handle.
 Return <code class="code">`Ok x</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.S.View.html#VALorigin_of_actions">origin_of_actions</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
-<td><div class="info">
-Create an origin using the list of actions as message.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.S.Dump.html#VALoutput_buffer">output_buffer</a> [<a href="Irmin.S.Dump.html">Irmin.S.Dump</a>]</td>
+<tr><td><a href="Irmin.S.Dot.html#VALoutput_buffer">output_buffer</a> [<a href="Irmin.S.Dot.html">Irmin.S.Dot</a>]</td>
 <td><div class="info">
 <code class="code">output_buffer t ?html ?depth ?full buf</code> outputs the Graphviz
         representation of <code class="code">t</code> in the buffer <code class="code">buf</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Task.html#VALowner">owner</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
+<td><div class="info">
+Get the task owner.
 </div>
 </td></tr>
 <tr><td align="left"><br>P</td></tr>
@@ -271,14 +292,28 @@ Create an origin using the list of actions as message.
 Lift to pairs.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.View.ACTION.html#VALpretty">pretty</a> [<a href="Irmin.View.ACTION.html">Irmin.View.ACTION</a>]</td>
+<tr><td><a href="Irmin.S.View.Action.html#VALpretty">pretty</a> [<a href="Irmin.S.View.Action.html">Irmin.S.View.Action</a>]</td>
 <td><div class="info">
 Pretty-print an action.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Origin.S.html#VALpretty_date">pretty_date</a> [<a href="Irmin.Origin.S.html">Irmin.Origin.S</a>]</td>
+<tr><td><a href="Irmin.S.View.Action.html#VALprettys">prettys</a> [<a href="Irmin.S.View.Action.html">Irmin.S.View.Action</a>]</td>
 <td><div class="info">
-Get the date as a pretty string.
+Pretty-print a sequence of actions.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Sync.html#VALpush">push</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
+<td><div class="info">
+<code class="code">push t f</code> push the contents of the currnet branch of the
+        database to the remote database -- also update the remote branch
+        with the same name as the local one to points to the new
+        state.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Sync.html#VALpush_exn">push_exn</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
+<td><div class="info">
+Same as <code class="code">push</code> but raise <code class="code">Failure</code> is the push operation
+        fails.
 </div>
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
@@ -311,7 +346,7 @@ Revert the store to a previous state.
 <tr><td align="left"><br>S</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALseq">seq</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-Try the merge operations in sequence.
+Try the merge functions in sequence until one does not raise a conflict.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALsome">some</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
@@ -319,36 +354,46 @@ Try the merge operations in sequence.
 Lift a merge function to optional values of the same type.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.S.Sync.html#VALstore">store</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
+<td><div class="info">
+<code class="code">store t</code> is the remote corresponding to the local store
+        <code class="code">t</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALstring">string</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 The default string merge function.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Origin.P.html#VALstring_of_date">string_of_date</a> [<a href="Irmin.Origin.P.html">Irmin.Origin.P</a>]</td>
-<td><div class="info">
-<code class="code">string_of_date d</code> is a nicely formatted string representation
-        of the date <code class="code">d</code>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALswitch">switch</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Switch the database contents the be same as the contents of the
+Switch the store contents the be same as the contents of the
         given branch name.
 </div>
 </td></tr>
 <tr><td align="left"><br>T</td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALtag">tag</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Return the branch of the given store handle.
+<code class="code">tag t</code> is the tag associated to the store handle <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Store.BC.html#VALtag_exn">tag_exn</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Same as <code class="code">tag</code> but raise <code class="code">Not_found</code> in case of a detached
-        head.
+Same as <code class="code">tag</code> but raise <code class="code">Not_found</code> if the store hanlde is not
+        persistent.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Store.RO.html#VALtask">task</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
+<td><div class="info">
+<code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td align="left"><br>U</td></tr>
+<tr><td><a href="Irmin.Task.html#VALuid">uid</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
+<td><div class="info">
+Get the task unique identifier.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Store.RW.html#VALupdate">update</a> [<a href="Irmin.Store.RW.html">Irmin.Store.RW</a>]</td>
 <td><div class="info">
 Replace the contents of <code class="code">key</code> by <code class="code">value</code> if <code class="code">key</code> is already
@@ -374,6 +419,11 @@ Change the current tag name.
 <td><div class="info">
 Same as <code class="code">update_tag</code> but delete and update the tag if it already
         exists.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Sync.html#VALuri">uri</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
+<td><div class="info">
+<code class="code">uri s</code> is the remote store located at <code class="code">uri</code>.
 </div>
 </td></tr>
 <tr><td align="left"><br>W</td></tr>

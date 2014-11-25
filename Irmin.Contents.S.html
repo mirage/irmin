@@ -22,18 +22,10 @@
 Signature for store contents.<br>
 
 <pre><span class="keyword">include</span> Tc.I0</pre>
+<br>
+Base functions over contents.<br>
 
-<pre><span id="TYPEorigin"><span class="keyword">type</span> <code class="type"></code>origin</span> </pre>
-<div class="info ">
-Type for origin of merges.<br>
-</div>
-
-
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.S.Origin.html">Origin</a>: <code class="type"><a href="Irmin.Origin.S.html">Irmin.Origin.S</a></code><code class="type">  with type t = origin</code></pre><div class="info">
-Base functions for origins.
-</div>
-
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">(t, <a href="Irmin.Contents.S.html#TYPEorigin">origin</a>) <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
 Merge function. Evaluates to <code class="code">`Conflict</code> if the values cannot be
         merged properly.<br>
 </div>

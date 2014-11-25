@@ -27,7 +27,7 @@ Signature for append-only stores.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.Store.RO.html">Irmin.Store.RO</a></pre>
 
-<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type">t -> origin -> value -> key Lwt.t</code></pre><div class="info ">
+<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type">t -> value -> key Lwt.t</code></pre><div class="info ">
 Write the contents of a value to the store. That's the
         responsibility of the append-only store to generate a
         consistent key.<br>

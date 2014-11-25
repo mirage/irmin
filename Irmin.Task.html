@@ -1,0 +1,60 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Hash.html">
+<link rel="next" href="Irmin.Univ.html">
+<link rel="Up" href="Irmin.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Task" rel="Section" href="#1_Task">
+<title>Irmin.Task</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Hash.html" title="Irmin.Hash">Previous</a>
+&nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
+&nbsp;<a class="post" href="Irmin.Univ.html" title="Irmin.Univ">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.Task.html">Irmin.Task</a></h1>
+
+<pre><span class="keyword">module</span> Task: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<br>
+<h1 id="1_Task">Task</h1><br>
+
+<pre><span class="keyword">include</span> Tc.I0</pre>
+<br>
+The type for tasks. Every task has a date, a text message and
+        an name identifying the entity performing that
+        operation. Tasks are threaded from high-level calls to all
+        low-level store operations. A task might also contains some
+        secrets, which will never be serialized.<br>
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">date:int64 -> owner:string -> ('a, unit, string, t) Pervasives.format4 -> 'a</code></pre><div class="info ">
+Create a new task.<br>
+</div>
+
+<pre><span id="VALfprintf"><span class="keyword">val</span> fprintf</span> : <code class="type">t -> ('a, unit, string, unit) Pervasives.format4 -> 'a</code></pre><div class="info ">
+Add a message to the task messages list.<br>
+</div>
+
+<pre><span id="VALdate"><span class="keyword">val</span> date</span> : <code class="type">t -> int64</code></pre><div class="info ">
+Get the task date.<br>
+</div>
+
+<pre><span id="VALuid"><span class="keyword">val</span> uid</span> : <code class="type">t -> int64</code></pre><div class="info ">
+Get the task unique identifier.<br>
+</div>
+
+<pre><span id="VALowner"><span class="keyword">val</span> owner</span> : <code class="type">t -> string</code></pre><div class="info ">
+Get the task owner.<br>
+</div>
+
+<pre><span id="VALmessages"><span class="keyword">val</span> messages</span> : <code class="type">t -> string list</code></pre><div class="info ">
+Get the messages associated to the task.<br>
+</div>
+</body></html>

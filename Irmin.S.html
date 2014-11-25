@@ -10,9 +10,11 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Views" rel="Section" href="#1_Views">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Irmin Store" rel="Section" href="#1_IrminStore">
+<link title="Views" rel="Section" href="#1_Views">
 <link title="Snapshots" rel="Section" href="#1_Snapshots">
-<link title="Dumps" rel="Section" href="#1_Dumps">
+<link title="Dot Export" rel="Section" href="#1_DotExport">
+<link title="Synchronisation" rel="Subsection" href="#2_Synchronisation">
 <title>Irmin.S</title>
 </head>
 <body>
@@ -20,21 +22,64 @@
 &nbsp;</div>
 <h1>Module type <a href="type_Irmin.S.html">Irmin.S</a></h1>
 
-<pre><span class="keyword">module type</span> S = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<pre><span class="keyword">module type</span> S = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><div class="info modtype top">
+FIXME<br>
+</div>
+<hr width="100%">
 <br>
-TODO: doc<br>
+<h1 id="1_IrminStore">Irmin Store</h1><br>
 
 <pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
+<div class="info ">
+The type for step values.<br>
+</div>
 
 
 <pre><span class="keyword">include</span> <a href="Irmin.Store.BC.html">Irmin.Store.BC</a></pre>
 <br>
+An irmin store is a branch-consistent store where keys are lists
+      of steps.
+<p>
+
+      An example is a Git repository where keys are filenames,
+      ie. list of <code class="code">'\'</code>-separated strings. More complex examples are
+      structured values, where steps might contains first-class fields
+      accessors and array offsets.<br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Step.html">Step</a>: <code class="type">Tc.I0</code><code class="type">  with type t = step</code></pre><div class="info">
+Base functions over steps.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type">Tc.I0</code><code class="type">  with type t = key</code></pre><div class="info">
+Base functions over store keys, e.g.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
+Base functions over store values, e.g.
+</div>
+<br>
 <h1 id="1_Views">Views</h1><br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.View.html">View</a>: <code class="code">sig</code> <a href="Irmin.S.View.html">..</a> <code class="code">end</code></pre><br>
+<pre><span class="keyword">module</span> <a href="Irmin.S.View.html">View</a>: <code class="code">sig</code> <a href="Irmin.S.View.html">..</a> <code class="code">end</code></pre><div class="info">
+Views are in-memory partial representation of the store, with
+      lazy reads and delayed write.
+</div>
+<br>
 <h1 id="1_Snapshots">Snapshots</h1><br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Snapshot.html">Snapshot</a>: <code class="code">sig</code> <a href="Irmin.S.Snapshot.html">..</a> <code class="code">end</code></pre><br>
-<h1 id="1_Dumps">Dumps</h1><br>
+<pre><span class="keyword">module</span> <a href="Irmin.S.Snapshot.html">Snapshot</a>: <code class="code">sig</code> <a href="Irmin.S.Snapshot.html">..</a> <code class="code">end</code></pre><div class="info">
+Snapshots are read-only checkpoints of store.
+</div>
+<br>
+<h1 id="1_DotExport">Dot Export</h1><br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Dump.html">Dump</a>: <code class="code">sig</code> <a href="Irmin.S.Dump.html">..</a> <code class="code">end</code></pre></body></html>
+<pre><span class="keyword">module</span> <a href="Irmin.S.Dot.html">Dot</a>: <code class="code">sig</code> <a href="Irmin.S.Dot.html">..</a> <code class="code">end</code></pre><div class="info">
+Utilities to export the store using the Graphviz `dot` format.
+</div>
+<br>
+<h2 id="2_Synchronisation">Synchronisation</h2><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.Sync.html">Sync</a>: <code class="code">sig</code> <a href="Irmin.S.Sync.html">..</a> <code class="code">end</code></pre><div class="info">
+Syncronisation with local and remote stores.
+</div>
+</body></html>

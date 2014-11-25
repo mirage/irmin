@@ -15,29 +15,25 @@
 &nbsp;</div>
 <h1>Index of types</h1>
 <table>
-<tr><td align="left"><br>A</td></tr>
-<tr><td><a href="Irmin.View.S.html#TYPEaction">action</a> [<a href="Irmin.View.S.html">Irmin.View.S</a>]</td>
+<tr><td align="left"><br>D</td></tr>
+<tr><td><a href="Irmin.S.Sync.html#TYPEdb">db</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
 <td><div class="info">
-The type for actions.
+The type for store handlers.
 </div>
 </td></tr>
-<tr><td align="left"><br>C</td></tr>
-<tr><td><a href="Irmin.View.ACTION.html#TYPEcontents">contents</a> [<a href="Irmin.View.ACTION.html">Irmin.View.ACTION</a>]</td>
-<td></td></tr>
-<tr><td align="left"><br>D</td></tr>
-<tr><td><a href="Irmin.S.Dump.html#TYPEdb">db</a> [<a href="Irmin.S.Dump.html">Irmin.S.Dump</a>]</td>
+<tr><td><a href="Irmin.S.Dot.html#TYPEdb">db</a> [<a href="Irmin.S.Dot.html">Irmin.S.Dot</a>]</td>
 <td><div class="info">
-The type for databse handler.
+The type for store handles.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Snapshot.html#TYPEdb">db</a> [<a href="Irmin.S.Snapshot.html">Irmin.S.Snapshot</a>]</td>
 <td><div class="info">
-Type for database handler.
+Type for store handles.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.View.html#TYPEdb">db</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
 <td><div class="info">
-Database handler.
+The type for store handles.
 </div>
 </td></tr>
 <tr><td align="left"><br>E</td></tr>
@@ -58,26 +54,12 @@ Type for head values.
 Type for keys.
 </div>
 </td></tr>
-<tr><td align="left"><br>O</td></tr>
-<tr><td><a href="Irmin.S.Dump.html#TYPEorigin">origin</a> [<a href="Irmin.S.Dump.html">Irmin.S.Dump</a>]</td>
-<td><div class="info">
-The type to track origins.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Store.RO.html#TYPEorigin">origin</a> [<a href="Irmin.Store.RO.html">Irmin.Store.RO</a>]</td>
-<td><div class="info">
-Type for origin tracking.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Contents.S.html#TYPEorigin">origin</a> [<a href="Irmin.Contents.S.html">Irmin.Contents.S</a>]</td>
-<td><div class="info">
-Type for origin of merges.
-</div>
-</td></tr>
-<tr><td align="left"><br>P</td></tr>
-<tr><td><a href="Irmin.View.ACTION.html#TYPEpath">path</a> [<a href="Irmin.View.ACTION.html">Irmin.View.ACTION</a>]</td>
-<td></td></tr>
 <tr><td align="left"><br>R</td></tr>
+<tr><td><a href="Irmin.S.Sync.html#TYPEremote">remote</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
+<td><div class="info">
+The type for remote stores.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#TYPEresult">result</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Type for merge results.
@@ -86,15 +68,16 @@ Type for merge results.
 <tr><td align="left"><br>S</td></tr>
 <tr><td><a href="Irmin.Store.BC.html#TYPEslice">slice</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Type for database slices.
+Type for store slices.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.html#TYPEstep">step</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin.View.S.html#TYPEstep">step</a> [<a href="Irmin.View.S.html">Irmin.View.S</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The type for step values.
+</div>
+</td></tr>
 <tr><td align="left"><br>T</td></tr>
-<tr><td><a href="Irmin.View.ACTION.html#TYPEt">t</a> [<a href="Irmin.View.ACTION.html">Irmin.View.ACTION</a>]</td>
+<tr><td><a href="Irmin.S.View.Action.html#TYPEt">t</a> [<a href="Irmin.S.View.Action.html">Irmin.S.View.Action</a>]</td>
 <td><div class="info">
 Operations on view.
 </div>
@@ -104,6 +87,11 @@ Operations on view.
 Type for stores.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Univ.html#TYPEt">t</a> [<a href="Irmin.Univ.html">Irmin.Univ</a>]</td>
+<td><div class="info">
+Type type for universal values.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#TYPEt">t</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Signature of a merge function.
@@ -111,7 +99,7 @@ Signature of a merge function.
 </td></tr>
 <tr><td><a href="Irmin.Store.BC.html#TYPEtag">tag</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
 <td><div class="info">
-Type of branch tags.
+Type for branch names, or tags.
 </div>
 </td></tr>
 <tr><td align="left"><br>V</td></tr>

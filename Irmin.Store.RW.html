@@ -27,16 +27,16 @@ Mutable store.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.Store.RO.html">Irmin.Store.RO</a></pre>
 
-<pre><span id="VALupdate"><span class="keyword">val</span> update</span> : <code class="type">t -> origin -> key -> value -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALupdate"><span class="keyword">val</span> update</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
 Replace the contents of <code class="code">key</code> by <code class="code">value</code> if <code class="code">key</code> is already
         defined and create it otherwise.<br>
 </div>
 
-<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">t -> origin -> key -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">t -> key -> unit Lwt.t</code></pre><div class="info ">
 Remove the given key.<br>
 </div>
 
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -> origin -> key -> value Lwt_stream.t</code></pre><div class="info ">
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -> key -> value Lwt_stream.t</code></pre><div class="info ">
 Watch a given key.<br>
 </div>
 </body></html>

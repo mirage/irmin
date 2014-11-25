@@ -16,14 +16,14 @@
 <h1>Index of modules</h1>
 <table>
 <tr><td align="left"><br>A</td></tr>
-<tr><td><a href="Irmin.View.S.Action.html">Action</a> [<a href="Irmin.View.S.html">Irmin.View.S</a>]</td>
-<td><div class="info">
-Base functions over actions.
-</div>
-</td></tr>
+<tr><td><a href="Irmin.S.View.Action.html">Action</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Irmin.Contents.html">Contents</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td></td></tr>
+<td><div class="info">
+User-defined contents need to be <em>serializable</em> and <em>mergeable</em>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Contents.Cstruct.html">Cstruct</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
 <td><div class="info">
 Cstruct values where only the last modified value is kept on
@@ -31,21 +31,23 @@ Cstruct values where only the last modified value is kept on
 </div>
 </td></tr>
 <tr><td align="left"><br>D</td></tr>
-<tr><td><a href="Irmin.Origin.Default.html">Default</a> [<a href="Irmin.Origin.html">Irmin.Origin</a>]</td>
+<tr><td><a href="Irmin.S.Dot.html">Dot</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-The default origin, where <code class="code">date</code> is an incremented counter and
-      <code class="code">id</code> is a random number.
+Utilities to export the store using the Graphviz `dot` format.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.S.Dump.html">Dump</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
-<td></td></tr>
 <tr><td align="left"><br>H</td></tr>
 <tr><td><a href="Irmin.Hash.html">Hash</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">Hash</code> provides function to digest user-defined serialized
+    contents.
+</div>
+</td></tr>
 <tr><td align="left"><br>I</td></tr>
 <tr><td><a href="Irmin.html">Irmin</a> </td>
 <td><div class="info">
-A library database following the same design principle as Git.
+A library for persistent stores following the same design
+    principle as Git.
 </div>
 </td></tr>
 <tr><td align="left"><br>J</td></tr>
@@ -55,36 +57,30 @@ JSON values where only the last modified value is kept on
       merge.
 </div>
 </td></tr>
+<tr><td align="left"><br>K</td></tr>
+<tr><td><a href="Irmin.S.Key.html">Key</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+Base functions over store keys, e.g.
+</div>
+</td></tr>
 <tr><td align="left"><br>M</td></tr>
-<tr><td><a href="Irmin.View.Make.html">Make</a> [<a href="Irmin.View.html">Irmin.View</a>]</td>
-<td><div class="info">
-Create a view implementation independant of any underlying
-      store.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Origin.Make.html">Make</a> [<a href="Irmin.Origin.html">Irmin.Origin</a>]</td>
-<td><div class="info">
-Build an implementation of origin values from a an
-      implementation of origin parameters.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Merge.Map.html">Map</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Lift to string maps.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html">Merge</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td></td></tr>
-<tr><td align="left"><br>O</td></tr>
-<tr><td><a href="Irmin.Merge.OP.html">OP</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin.Contents.S.Origin.html">Origin</a> [<a href="Irmin.Contents.S.html">Irmin.Contents.S</a>]</td>
 <td><div class="info">
-Base functions for origins.
+Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
+    between different version of the same contents should be resolved.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Origin.html">Origin</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td></td></tr>
+<tr><td align="left"><br>O</td></tr>
+<tr><td><a href="Irmin.Merge.OP.html">OP</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
+<td><div class="info">
+Useful merge operators.
+</div>
+</td></tr>
 <tr><td align="left"><br>R</td></tr>
 <tr><td><a href="Irmin.Merge.Result.html">Result</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
@@ -103,7 +99,15 @@ Base functions over slices.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Snapshot.html">Snapshot</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Snapshots are read-only checkpoints of store.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Step.html">Step</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+Base functions over steps.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Store.html">Store</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Contents.String.html">String</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
@@ -112,17 +116,32 @@ String values where only the last modified value is kept on
       merge.
 </div>
 </td></tr>
-<tr><td align="left"><br>T</td></tr>
-<tr><td><a href="Irmin.Store.BC.T.html">T</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
+<tr><td><a href="Irmin.S.Sync.html">Sync</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Base functions over values of type <code class="code">t</code>.
+Syncronisation with local and remote stores.
+</div>
+</td></tr>
+<tr><td align="left"><br>T</td></tr>
+<tr><td><a href="Irmin.Task.html">Task</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>U</td></tr>
+<tr><td><a href="Irmin.Univ.html">Univ</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+Universal values.
 </div>
 </td></tr>
 <tr><td align="left"><br>V</td></tr>
+<tr><td><a href="Irmin.S.Val.html">Val</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
+<td><div class="info">
+Base functions over store values, e.g.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.S.View.html">View</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin.View.html">View</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Views are in-memory partial representation of the store, with
+      lazy reads and delayed write.
+</div>
+</td></tr>
 </table>
 </body>
 </html>

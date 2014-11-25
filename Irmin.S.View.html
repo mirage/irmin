@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.S.Val.html">
 <link rel="next" href="Irmin.S.Snapshot.html">
 <link rel="Up" href="Irmin.S.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -11,50 +12,81 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.S.View</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Views" rel="Section" href="#1_Views">
+<title>Irmin.S.View</title>
 </head>
 <body>
-<div class="navbar">&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
+<div class="navbar"><a class="pre" href="Irmin.S.Val.html" title="Irmin.S.Val">Previous</a>
+&nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
 &nbsp;<a class="post" href="Irmin.S.Snapshot.html" title="Irmin.S.Snapshot">Next</a>
 </div>
 <h1>Module <a href="type_Irmin.S.View.html">Irmin.S.View</a></h1>
 
-<pre><span class="keyword">module</span> View: <code class="code">sig</code> <a href="Irmin.S.View.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<pre><span class="keyword">module</span> View: <code class="code">sig</code> <a href="Irmin.S.View.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Views are in-memory partial representation of the store, with
+      lazy reads and delayed write.
+<p>
+
+      Views are like staging area in Git: they are temporary
+      non-persistent areas (they disapear if the host crash), hold in
+      memory for efficiency, where reads are done lazily and writes are
+      done only when needed on commit: if if you modify a key twice,
+      only the last change will be written to the store when you
+      commit. Views also hold a list of operations, which are checked
+      for conflicts on commits and are used to replay/rebase the view if
+      needed. The most important feature of views is that they keep
+      track of reads: ie. you can have a conflict if a view reads a key
+      which has been modified concurrently by someone else.<br>
+</div>
+<hr width="100%">
 <br>
-Database temporary and in-memory views. Similar to <code class="code">View.S</code>
-        but can lazily be created from a path in the database, and
-        later commited back.<br>
+<h1 id="1_Views">Views</h1><br>
 
 <pre><span id="TYPEdb"><span class="keyword">type</span> <code class="type"></code>db</span> = <code class="type">t</code> </pre>
 <div class="info ">
-Database handler.<br>
+The type for store handles.<br>
 </div>
 
 
-<pre><span class="keyword">include</span> <a href="Irmin.View.S.html">Irmin.View.S</a></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.Store.RW.html">Irmin.Store.RW</a></pre>
+<br>
+A view is a read-write temporty store, mirroring the main
+        store.<br>
 
-<pre><span id="VALorigin_of_actions"><span class="keyword">val</span> origin_of_actions</span> : <code class="type">t -> origin</code></pre><div class="info ">
-Create an origin using the list of actions as message.<br>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">Irmin.Task.t -> t</code></pre><div class="info ">
+The empty view.<br>
 </div>
 
-<pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> origin -> key -> t Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> into:t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+Merge the actions done on one view into an other one. If a read
+        operation doesn't return the same result, return
+        <code class="code">Conflict</code>. Only the <code class="code">into</code> view is updated.<br>
+</div>
+
+<pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> key -> t Lwt.t</code></pre><div class="info ">
 Read a view from a path in the store. This is a cheap operation,
         all the real reads operation will be done on-demand when the
         view is used.<br>
 </div>
 
-<pre><span id="VALupdate_path"><span class="keyword">val</span> update_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> origin -> key -> t -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALupdate_path"><span class="keyword">val</span> update_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
 Commit a view to the store. The view *replaces* the current
         subtree, so if you want to do a merge, you have to do it
         manually (by creating a new branch, or rebasing before
-        commiting). <code class="code">origin</code> helps keeping track of provenance.<br>
+        commiting).<br>
 </div>
 
-<pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> origin -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Rebase the view to the tip of the store.<br>
 </div>
 
-<pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> origin -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Same as <code class="code">update_path</code> but *merges* with the current subtree.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.S.View.Action.html">Action</a>: <code class="code">sig</code> <a href="Irmin.S.View.Action.html">..</a> <code class="code">end</code></pre>
+<pre><span id="VALactions"><span class="keyword">val</span> actions</span> : <code class="type">t -> <a href="Irmin.S.View.Action.html#TYPEt">Action.t</a> list</code></pre><div class="info ">
+Return the list of actions performed on this view since its
+        creation.<br>
 </div>
 </body></html>

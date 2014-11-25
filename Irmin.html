@@ -10,13 +10,12 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Merge operators" rel="Section" href="#1_Mergeoperators">
-<link title="Track read and write origins" rel="Section" href="#1_Trackreadandwriteorigins">
-<link title="User-defined contents" rel="Section" href="#1_Userdefinedcontents">
-<link title="Hashable Identifiers" rel="Section" href="#1_HashableIdentifiers">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
+<link title="Stores" rel="Section" href="#1_Stores">
 <link title="Store Signatures" rel="Section" href="#1_StoreSignatures">
-<link title="Views" rel="Section" href="#1_Views">
 <link title="Irmin Stores" rel="Section" href="#1_IrminStores">
+<link title="Contents Hashing" rel="Subsection" href="#2_ContentsHashing">
+<link title="Tasks" rel="Subsection" href="#2_Tasks">
 <title>Irmin</title>
 </head>
 <body>
@@ -25,54 +24,65 @@
 <h1>Module <a href="type_Irmin.html">Irmin</a></h1>
 
 <pre><span class="keyword">module</span> Irmin: <code class="code">sig</code> <a href="Irmin.html">..</a> <code class="code">end</code></pre><div class="info module top">
-A library database following the same design principle as Git.
+A library for persistent stores following the same design
+    principle as Git.
 <p>
 
-    Irmin is a distributed and history-preserving library database
-    with built-in snapshot, branch and revert mechanisms. It is
-    designed to use a large variety of backends. Irmin is written in
-    pure OCaml and does not depend on external C stubs; it aims is to
-    run everywhere, from Linux to Xen unikernels -- and can be be
-    compiled to JavaScipt to run in a browser.
+    Irmin is a distributed and history-preserving library for
+    persistent stores with built-in snapshot, branching and reverting
+    mechanisms. It is designed to use a large variety of
+    backends. Irmin is written in pure OCaml and does not depend on
+    external C stubs; it aims is to run everywhere, from Linux to Xen
+    unikernels -- and can be be compiled to JavaScipt to run in a
+    browser.
 <p>
 
     FIXME<br>
 </div>
 <hr width="100%">
 <br>
-<h1 id="1_Mergeoperators">Merge operators</h1><br>
+<h1 id="1_UserDefinedContents">User-Defined Contents</h1><br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Merge.html">Merge</a>: <code class="code">sig</code> <a href="Irmin.Merge.html">..</a> <code class="code">end</code></pre><br>
-<h1 id="1_Trackreadandwriteorigins">Track read and write origins</h1><br>
+<pre><span class="keyword">module</span> <a href="Irmin.Merge.html">Merge</a>: <code class="code">sig</code> <a href="Irmin.Merge.html">..</a> <code class="code">end</code></pre><div class="info">
+Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
+    between different version of the same contents should be resolved.
+</div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Origin.html">Origin</a>: <code class="code">sig</code> <a href="Irmin.Origin.html">..</a> <code class="code">end</code></pre><br>
-<h1 id="1_Userdefinedcontents">User-defined contents</h1><br>
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.html">Contents</a>: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><div class="info">
+User-defined contents need to be <em>serializable</em> and <em>mergeable</em>.
+</div>
+<br>
+<h1 id="1_Stores">Stores</h1><br>
+<br>
+Irmin provides to the user a high-level <a href="Irmin.S.html"><code class="code">Irmin.S</code></a><code class="code">branch-consistent</code>
+    store, automatically built from a number of lower-level
+    stores. These low-level stores are provided by various
+    backends.<br>
+<br>
+<h2 id="2_ContentsHashing">Contents Hashing</h2><br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.html">Contents</a>: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><br>
-<h1 id="1_HashableIdentifiers">Hashable Identifiers</h1><br>
+<pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Hash</code> provides function to digest user-defined serialized
+    contents.
+</div>
+<br>
+<h2 id="2_Tasks">Tasks</h2><br>
+<br>
+Tasks are used to keep track of the origin of reads and writes in
+    the store. Every high-level operation is expected to have its own
+    task, which is passed around to every low-level calls.<br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><br>
+<pre><span class="keyword">module</span> <a href="Irmin.Task.html">Task</a>: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Univ.html">Univ</a>: <code class="code">sig</code> <a href="Irmin.Univ.html">..</a> <code class="code">end</code></pre><div class="info">
+Universal values.
+</div>
+<br>
 <h1 id="1_StoreSignatures">Store Signatures</h1><br>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Store.html">Store</a>: <code class="code">sig</code> <a href="Irmin.Store.html">..</a> <code class="code">end</code></pre><br>
-<h1 id="1_Views">Views</h1><br>
-<br>
-Views are in-memory partial views of the database, with lazy reads
-    and delayed write.
-<p>
-
-    Views are like staging area in Git: they are temporary
-    non-persistent areas (they disapear if the host crash), hold in
-    memory for efficiency, where reads are done lazily and writes are
-    done only when needed on commit: if if you modify a key twice,
-    only the last change will be written to the database when you
-    commit. Views also hold a list of operations, which are checked
-    for conflicts on commits and are used to replay/rebase the view if
-    needed. The most important feature of views is that they keep
-    track of reads: ie. you can have a conflict if a view reads a key
-    which has been modified concurrently by someone else.<br>
-
-<pre><span class="keyword">module</span> <a href="Irmin.View.html">View</a>: <code class="code">sig</code> <a href="Irmin.View.html">..</a> <code class="code">end</code></pre><br>
 <h1 id="1_IrminStores">Irmin Stores</h1><br>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre></body></html>
+<pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><div class="info">
+FIXME
+</div>
+</body></html>

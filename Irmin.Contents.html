@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.Origin.html">
+<link rel="previous" href="Irmin.Merge.html">
 <link rel="next" href="Irmin.Hash.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -15,26 +15,48 @@
 <link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Contents</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.Origin.html" title="Irmin.Origin">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.Merge.html" title="Irmin.Merge">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
 &nbsp;<a class="post" href="Irmin.Hash.html" title="Irmin.Hash">Next</a>
 </div>
 <h1>Module <a href="type_Irmin.Contents.html">Irmin.Contents</a></h1>
 
-<pre><span class="keyword">module</span> Contents: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<pre><span class="keyword">module</span> Contents: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><div class="info module top">
+User-defined contents need to be <em>serializable</em> and <em>mergeable</em>.
+    The user need to provide:
+<p>
+
+    <ul>
+<li>a <code class="code">to_sexp</code> function for debugging purposes (that might expose
+      the internal state of abstract values)</li>
+<li>a pair of <code class="code">to_json</code> and <code class="code">of_json</code> functions, to be used by the
+    REST interface.</li>
+<li>a triple of <code class="code">size_of</code>, <code class="code">write</code> and <code class="code">read</code> functions, to
+    serialize data on disk or to send it over the network.</li>
+<li>a 3-way <code class="code">merge</code> function, to handle conflicts between multiple
+    versions of the same contents.</li>
+</ul>
+
+<p>
+
+    Default contents for <a href="Irmin.Contents.String.html"><code class="code">Irmin.Contents.String</code></a><code class="code">string</code>,
+    <a href="Irmin.Contents.Json.html"><code class="code">Irmin.Contents.Json</code></a><code class="code">JSON</code> and <a href="Irmin.Contents.Cstruct.html"><code class="code">Irmin.Contents.Cstruct</code></a><code class="code">C-buffers like</code>
+    values are provided.<br>
+</div>
+<hr width="100%">
 
 <pre><span class="keyword">module type</span> <a href="Irmin.Contents.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Contents.S.html">..</a> <code class="code">end</code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.String.html">String</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">O</code><code class="code"> : </code><code class="type"><a href="Irmin.Origin.S.html">Irmin.Origin.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = string and type origin = O.t</code></div></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.String.html">String</a>: <code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = string</code></pre><div class="info">
 String values where only the last modified value is kept on
       merge.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.Json.html">Json</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">O</code><code class="code"> : </code><code class="type"><a href="Irmin.Origin.S.html">Irmin.Origin.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = Ezjsonm.t and type origin = O.t</code></div></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.Json.html">Json</a>: <code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = Ezjsonm.t</code></pre><div class="info">
 JSON values where only the last modified value is kept on
       merge.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.Cstruct.html">Cstruct</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">O</code><code class="code"> : </code><code class="type"><a href="Irmin.Origin.S.html">Irmin.Origin.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = Cstruct.t</code></div></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.Cstruct.html">Cstruct</a>: <code class="type"><a href="Irmin.Contents.S.html">S</a></code><code class="type">  with type t = Cstruct.t</code></pre><div class="info">
 Cstruct values where only the last modified value is kept on
       merge.
 </div>
