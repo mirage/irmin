@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="Up" href="Irmin.S.View.html">
@@ -10,19 +10,30 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.S.View.Action</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Actions" rel="Section" href="#1_Actions">
+<title>Irmin.S.View.Action</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="Irmin.S.View.html" title="Irmin.S.View">Up</a>
 &nbsp;</div>
 <h1>Module <a href="type_Irmin.S.View.Action.html">Irmin.S.View.Action</a></h1>
 
-<pre><span class="keyword">module</span> Action: <code class="code">sig</code> <a href="Irmin.S.View.Action.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<pre><span class="keyword">module</span> Action: <code class="code">sig</code> <a href="Irmin.S.View.Action.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<code class="code">Action</code> provides information about operations performed on a
+        view.
+<p>
+
+        Each view stores the list of <a href="Irmin.S.View.Action.html#TYPEt">actions</a> that
+        have already been performed on it. These actions are useful
+        when the view needs to be rebased: write operations are
+        replayed while read results are checked against the original
+        run.
+<p>
+Signature for actions performed on a view.<br>
+</div>
+<hr width="100%">
 <br>
-A view stores the list of <a href="Irmin.S.View.Action.html#TYPEt"><code class="code">Irmin.S.View.Action.t</code></a><code class="code">actions</code> already performed on
-          it. These actions are used when the view needs to be
-          rebased: write operations are replayed while read results
-          are checked against the original run.<br>
+<h1 id="1_Actions">Actions</h1><br>
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type">[ `List of key list * key list<br>       | `Read of key * value option<br>       | `Write of key * value option ]</code> </pre>
 <div class="info ">

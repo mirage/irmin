@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.S.Dot.html">
@@ -11,7 +11,7 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Synchronisation" rel="Section" href="#2_Synchronisation">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Synchronisation" rel="Section" href="#1_Synchronisation">
 <title>Irmin.S.Sync</title>
 </head>
 <body>
@@ -21,11 +21,12 @@
 <h1>Module <a href="type_Irmin.S.Sync.html">Irmin.S.Sync</a></h1>
 
 <pre><span class="keyword">module</span> Sync: <code class="code">sig</code> <a href="Irmin.S.Sync.html">..</a> <code class="code">end</code></pre><div class="info module top">
-Syncronisation with local and remote stores.<br>
+<code class="code">Sync</code> provides functions to syncronisation an Irmin store with
+      local and remote Irmin stores.<br>
 </div>
 <hr width="100%">
 <br>
-<h2 id="2_Synchronisation">Synchronisation</h2><br>
+<h1 id="1_Synchronisation">Synchronisation</h1><br>
 
 <pre><span id="TYPEdb"><span class="keyword">type</span> <code class="type"></code>db</span> = <code class="type">t</code> </pre>
 <div class="info ">
@@ -48,7 +49,7 @@ The type for remote stores.<br>
 <pre><span id="VALstore"><span class="keyword">val</span> store</span> : <code class="type"><a href="Irmin.S.Sync.html#TYPEdb">db</a> -> <a href="Irmin.S.Sync.html#TYPEremote">remote</a></code></pre><div class="info ">
 <code class="code">store t</code> is the remote corresponding to the local store
         <code class="code">t</code>. Synchronisation is done by importing and exporting store
-        slices, so this is usually much slower than native
+        <a href="Irmin.BC.html#TYPEslice">slices</a>, so this is usually much slower than native
         synchronisation using <code class="code">uri</code> remotes.<br>
 </div>
 

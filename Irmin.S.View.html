@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.S.Val.html">
@@ -23,7 +23,7 @@
 <h1>Module <a href="type_Irmin.S.View.html">Irmin.S.View</a></h1>
 
 <pre><span class="keyword">module</span> View: <code class="code">sig</code> <a href="Irmin.S.View.html">..</a> <code class="code">end</code></pre><div class="info module top">
-Views are in-memory partial representation of the store, with
+<code class="code">View</code> provides an in-memory partial mirror of the store, with
       lazy reads and delayed write.
 <p>
 
@@ -48,12 +48,12 @@ The type for store handles.<br>
 </div>
 
 
-<pre><span class="keyword">include</span> <a href="Irmin.Store.RW.html">Irmin.Store.RW</a></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
 <br>
 A view is a read-write temporty store, mirroring the main
         store.<br>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">Irmin.Task.t -> t</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.Task.html#TYPEt">Irmin.Task.t</a> -> t</code></pre><div class="info ">
 The empty view.<br>
 </div>
 
@@ -84,7 +84,11 @@ Rebase the view to the tip of the store.<br>
 Same as <code class="code">update_path</code> but *merges* with the current subtree.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.View.Action.html">Action</a>: <code class="code">sig</code> <a href="Irmin.S.View.Action.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.S.View.Action.html">Action</a>: <code class="code">sig</code> <a href="Irmin.S.View.Action.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Action</code> provides information about operations performed on a
+        view.
+</div>
+
 <pre><span id="VALactions"><span class="keyword">val</span> actions</span> : <code class="type">t -> <a href="Irmin.S.View.Action.html#TYPEt">Action.t</a> list</code></pre><div class="info ">
 Return the list of actions performed on this view since its
         creation.<br>

@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Merge.Result.html">
@@ -12,7 +12,8 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Merge.Map</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Merging Maps" rel="Section" href="#1_MergingMaps">
+<title>Irmin.Merge.Map</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin.Merge.Result.html" title="Irmin.Merge.Result">Previous</a>
@@ -22,7 +23,7 @@
 <h1>Functor <a href="type_Irmin.Merge.Map.html">Irmin.Merge.Map</a></h1>
 
 <pre><span class="keyword">module</span> Map: <div class="sig_block"><code class="code">functor (</code><code class="code">M</code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">X</code><code class="code"> : </code><code class="type"><a href="Irmin.Merge.S.html">S</a></code><code class="type">  with type t = M.key</code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Merge.Map.html">..</a> <code class="code">end</code></div></div></pre><div class="info module top">
-Lift to string maps.<br>
+Lift to maps.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -44,5 +45,10 @@ Lift to string maps.<br>
 </tr>
 </table>
 <hr width="100%">
+<br>
+<h1 id="1_MergingMaps">Merging Maps</h1><br>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">'a <a href="Irmin.Merge.html#TYPEelt">Irmin.Merge.elt</a> -> 'a <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a> -> 'a M.t <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre></body></html>
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">'a <a href="Irmin.Merge.html#TYPEelt">Irmin.Merge.elt</a> -> 'a <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a> -> 'a M.t <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+Lift to <code class="code">X.t</code> maps.<br>
+</div>
+</body></html>

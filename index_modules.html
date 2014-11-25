@@ -1,6 +1,6 @@
 <html>
 <head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -17,11 +17,15 @@
 <table>
 <tr><td align="left"><br>A</td></tr>
 <tr><td><a href="Irmin.S.View.Action.html">Action</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">Action</code> provides information about operations performed on a
+        view.
+</div>
+</td></tr>
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Irmin.Contents.html">Contents</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-User-defined contents need to be <em>serializable</em> and <em>mergeable</em>.
+<code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Contents.Cstruct.html">Cstruct</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
@@ -33,7 +37,8 @@ Cstruct values where only the last modified value is kept on
 <tr><td align="left"><br>D</td></tr>
 <tr><td><a href="Irmin.S.Dot.html">Dot</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Utilities to export the store using the Graphviz `dot` format.
+<code class="code">Dot</code> provides functions to export a store to the Graphviz `dot`
+      format.
 </div>
 </td></tr>
 <tr><td align="left"><br>H</td></tr>
@@ -60,19 +65,19 @@ JSON values where only the last modified value is kept on
 <tr><td align="left"><br>K</td></tr>
 <tr><td><a href="Irmin.S.Key.html">Key</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Base functions over store keys, e.g.
+<code class="code">Key</code> provides base functions over step lists.
 </div>
 </td></tr>
 <tr><td align="left"><br>M</td></tr>
 <tr><td><a href="Irmin.Merge.Map.html">Map</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
-Lift to string maps.
+Lift to maps.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html">Merge</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
-    between different version of the same contents should be resolved.
+<code class="code">Merge</code> provides functions to build custom 3-way merge operators
+    for various user-defined contents.
 </div>
 </td></tr>
 <tr><td align="left"><br>O</td></tr>
@@ -93,23 +98,22 @@ Base functions over results.
 SHA1 digests
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Store.BC.Slice.html">Slice</a> [<a href="Irmin.Store.BC.html">Irmin.Store.BC</a>]</td>
+<tr><td><a href="Irmin.BC.Slice.html">Slice</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Base functions over slices.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Snapshot.html">Snapshot</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Snapshots are read-only checkpoints of store.
+<code class="code">Snapshot</code> provides read-only, space-efficient, checkpoints of a
+      store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Step.html">Step</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Base functions over steps.
+<code class="code">Step</code> provides base functions over steps.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Store.html">Store</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td></td></tr>
 <tr><td><a href="Irmin.Contents.String.html">String</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
 <td><div class="info">
 String values where only the last modified value is kept on
@@ -118,12 +122,17 @@ String values where only the last modified value is kept on
 </td></tr>
 <tr><td><a href="Irmin.S.Sync.html">Sync</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Syncronisation with local and remote stores.
+<code class="code">Sync</code> provides functions to syncronisation an Irmin store with
+      local and remote Irmin stores.
 </div>
 </td></tr>
 <tr><td align="left"><br>T</td></tr>
 <tr><td><a href="Irmin.Task.html">Task</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Tasks are used to keep track of the origin of reads and writes in
+    the store.
+</div>
+</td></tr>
 <tr><td align="left"><br>U</td></tr>
 <tr><td><a href="Irmin.Univ.html">Univ</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
@@ -133,12 +142,13 @@ Universal values.
 <tr><td align="left"><br>V</td></tr>
 <tr><td><a href="Irmin.S.Val.html">Val</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Base functions over store values, e.g.
+<code class="code">Val</code> provides base functions over user-defined, mergeable
+      contents.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.View.html">View</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
-Views are in-memory partial representation of the store, with
+<code class="code">View</code> provides an in-memory partial mirror of the store, with
       lazy reads and delayed write.
 </div>
 </td></tr>

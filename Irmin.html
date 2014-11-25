@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="Up" href="index.html">
@@ -12,10 +12,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html"><link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
 <link title="Stores" rel="Section" href="#1_Stores">
-<link title="Store Signatures" rel="Section" href="#1_StoreSignatures">
-<link title="Irmin Stores" rel="Section" href="#1_IrminStores">
-<link title="Contents Hashing" rel="Subsection" href="#2_ContentsHashing">
-<link title="Tasks" rel="Subsection" href="#2_Tasks">
+<link title="Backends" rel="Section" href="#1_Backends">
 <title>Irmin</title>
 </head>
 <body>
@@ -42,47 +39,78 @@ A library for persistent stores following the same design
 <hr width="100%">
 <br>
 <h1 id="1_UserDefinedContents">User-Defined Contents</h1><br>
+<br>
+Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
+    between different version of the same contents should be
+    resolved.<br>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Merge.html">Merge</a>: <code class="code">sig</code> <a href="Irmin.Merge.html">..</a> <code class="code">end</code></pre><div class="info">
-Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
-    between different version of the same contents should be resolved.
+<code class="code">Merge</code> provides functions to build custom 3-way merge operators
+    for various user-defined contents.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Contents.html">Contents</a>: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><div class="info">
-User-defined contents need to be <em>serializable</em> and <em>mergeable</em>.
+<code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
 </div>
 <br>
 <h1 id="1_Stores">Stores</h1><br>
 <br>
-Irmin provides to the user a high-level <a href="Irmin.S.html"><code class="code">Irmin.S</code></a><code class="code">branch-consistent</code>
-    store, automatically built from a number of lower-level
-    stores. These low-level stores are provided by various
-    backends.<br>
+Irmin provides to the user a high-level store, with few
+    interesting features:
+<p>
+
+    <ul>
+<li>Support for fast <a href="Irmin.BC.html">clones</a>, branches and merges, in a
+    fashion very similar to Git.</li>
+<li>Efficient <a href="Irmin.S.View.html">staging areas</a> for fast, transient,
+    in-memory operations.</li>
+<li>Space efficient <a href="Irmin.S.Snapshot.html">snapshots</a> and fast and consistent
+    rollback operations.</li>
+<li>Fast <a href="Irmin.S.Sync.html">synchronisation</a> primitives between remote
+    stores, using native backend protocols (as the Git protocol) when
+    available.</li>
+</ul>
+
+<p>
+
+    An Irmin store is automatically built from a number of lower-level
+    stores, implementing fewer operations, such as <a href="Irmin.AO.html">append-only</a>
+    and <a href="Irmin.RW.html">read-write</a> stores. These low-level stores are provided
+    by various backends.<br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Task.html">Task</a>: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre><div class="info">
+Tasks are used to keep track of the origin of reads and writes in
+    the store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Univ.html">Univ</a>: <code class="code">sig</code> <a href="Irmin.Univ.html">..</a> <code class="code">end</code></pre><div class="info">
+Universal values.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.RO.html">RO</a> = <code class="code">sig</code> <a href="Irmin.RO.html">..</a> <code class="code">end</code></pre><div class="info">
+Read-only stores.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.AO.html">AO</a> = <code class="code">sig</code> <a href="Irmin.AO.html">..</a> <code class="code">end</code></pre><div class="info">
+Append-only store.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.RW.html">RW</a> = <code class="code">sig</code> <a href="Irmin.RW.html">..</a> <code class="code">end</code></pre><div class="info">
+Read-write stores.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.BC.html">BC</a> = <code class="code">sig</code> <a href="Irmin.BC.html">..</a> <code class="code">end</code></pre><div class="info">
+Branch-consistent stores.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><div class="info">
+Irmin high-level stores.
+</div>
 <br>
-<h2 id="2_ContentsHashing">Contents Hashing</h2><br>
+<h1 id="1_Backends">Backends</h1><br>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info">
 <code class="code">Hash</code> provides function to digest user-defined serialized
     contents.
-</div>
-<br>
-<h2 id="2_Tasks">Tasks</h2><br>
-<br>
-Tasks are used to keep track of the origin of reads and writes in
-    the store. Every high-level operation is expected to have its own
-    task, which is passed around to every low-level calls.<br>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Task.html">Task</a>: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin.Univ.html">Univ</a>: <code class="code">sig</code> <a href="Irmin.Univ.html">..</a> <code class="code">end</code></pre><div class="info">
-Universal values.
-</div>
-<br>
-<h1 id="1_StoreSignatures">Store Signatures</h1><br>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Store.html">Store</a>: <code class="code">sig</code> <a href="Irmin.Store.html">..</a> <code class="code">end</code></pre><br>
-<h1 id="1_IrminStores">Irmin Stores</h1><br>
-
-<pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><div class="info">
-FIXME
 </div>
 </body></html>

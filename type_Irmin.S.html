@@ -1,5 +1,5 @@
 <html><head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -25,13 +25,14 @@
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;dump&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(key&nbsp;*&nbsp;value)&nbsp;list&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;update&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;remove&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;watch&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;value&nbsp;<span class="constructor">Lwt_stream</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;watch&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;value&nbsp;option&nbsp;<span class="constructor">Lwt_stream</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;tag<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_tag&nbsp;:&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Univ</span>.t)&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Task</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;tag&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;option<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;tag_exn&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;update_tag&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Duplicated_tag</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;]&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;update_tag_force&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;switch&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;detach&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;head<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_head&nbsp;:&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Univ</span>.t)&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Task</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;head&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t<br>
@@ -43,7 +44,6 @@
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;watch_head&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(key&nbsp;*&nbsp;head)&nbsp;<span class="constructor">Lwt_stream</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;clone&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Duplicated_tag</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;<span class="keyword">of</span>&nbsp;t&nbsp;]&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;clone_force&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;switch&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;merge&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Merge</span>.result&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;slice<br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Slice</span>&nbsp;:<br>
@@ -119,7 +119,7 @@
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;dump&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(key&nbsp;*&nbsp;value)&nbsp;list&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;update&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;remove&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;watch&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;value&nbsp;<span class="constructor">Lwt_stream</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;watch&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;value&nbsp;option&nbsp;<span class="constructor">Lwt_stream</span>.t<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Task</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;merge&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;into:t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.result&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_path&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.<span class="constructor">View</span>.db&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t&nbsp;<span class="constructor">Lwt</span>.t<br>

@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="next" href="Irmin.Contents.html">
@@ -22,11 +22,7 @@
 <h1>Module <a href="type_Irmin.Merge.html">Irmin.Merge</a></h1>
 
 <pre><span class="keyword">module</span> Merge: <code class="code">sig</code> <a href="Irmin.Merge.html">..</a> <code class="code">end</code></pre><div class="info module top">
-Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
-    between different version of the same contents should be resolved.
-<p>
-
-    <code class="code">Merge</code> provides functions to build custom 3-way merge operators
+<code class="code">Merge</code> provides functions to build custom 3-way merge operators
     for various user-defined contents.<br>
 </div>
 <hr width="100%">
@@ -115,7 +111,7 @@ List to association lists.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Merge.Map.html">Map</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">M</code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">X</code><code class="code"> : </code><code class="type"><a href="Irmin.Merge.S.html">S</a></code><code class="type">  with type t = M.key</code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Merge.Map.html">..</a> <code class="code">end</code></div></div></pre><div class="info">
-Lift to string maps.
+Lift to maps.
 </div>
 
 <pre><span id="VALpair"><span class="keyword">val</span> pair</span> : <code class="type">'a <a href="Irmin.Merge.html#TYPEelt">elt</a> -><br>       'b <a href="Irmin.Merge.html#TYPEelt">elt</a> -><br>       'a <a href="Irmin.Merge.html#TYPEt">t</a> -> 'b <a href="Irmin.Merge.html#TYPEt">t</a> -> ('a * 'b) <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">

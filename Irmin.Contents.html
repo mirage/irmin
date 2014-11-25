@@ -1,11 +1,11 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-<link rel="stylesheet" href="style.css" type="text/css">
+<link rel="stylesheet" href="../doc/html/style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Merge.html">
-<link rel="next" href="Irmin.Hash.html">
+<link rel="next" href="Irmin.Task.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -17,12 +17,14 @@
 <body>
 <div class="navbar"><a class="pre" href="Irmin.Merge.html" title="Irmin.Merge">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
-&nbsp;<a class="post" href="Irmin.Hash.html" title="Irmin.Hash">Next</a>
+&nbsp;<a class="post" href="Irmin.Task.html" title="Irmin.Task">Next</a>
 </div>
 <h1>Module <a href="type_Irmin.Contents.html">Irmin.Contents</a></h1>
 
 <pre><span class="keyword">module</span> Contents: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><div class="info module top">
-User-defined contents need to be <em>serializable</em> and <em>mergeable</em>.
+<code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
+<p>
+
     The user need to provide:
 <p>
 
@@ -39,8 +41,8 @@ User-defined contents need to be <em>serializable</em> and <em>mergeable</em>.
 
 <p>
 
-    Default contents for <a href="Irmin.Contents.String.html"><code class="code">Irmin.Contents.String</code></a><code class="code">string</code>,
-    <a href="Irmin.Contents.Json.html"><code class="code">Irmin.Contents.Json</code></a><code class="code">JSON</code> and <a href="Irmin.Contents.Cstruct.html"><code class="code">Irmin.Contents.Cstruct</code></a><code class="code">C-buffers like</code>
+    Default contents for <a href="Irmin.Contents.String.html">string</a>,
+    <a href="Irmin.Contents.Json.html">JSON</a> and <a href="Irmin.Contents.Cstruct.html">C-buffers like</a>
     values are provided.<br>
 </div>
 <hr width="100%">
