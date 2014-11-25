@@ -144,23 +144,18 @@ module Merge: sig
 
 end
 
-(** User-defined contents need to be {e serializable} and {e
-    mergeable}. The user need to provide:
+(** User-defined contents need to be {e serializable} and {e mergeable}.
+    The user need to provide:
 
     {ul
-
     {- a [to_sexp] function for debugging purposes (that might expose
       the internal state of abstract values)}
-
     {- a pair of [to_json] and [of_json] functions, to be used by the
     REST interface.}
-
     {- a triple of [size_of], [write] and [read] functions, to
     serialize data on disk or to send it over the network.}
-
     {- a 3-way [merge] function, to handle conflicts between multiple
     versions of the same contents.}
-
     }
 
     Default contents for {!Contents.String}[string],
@@ -271,7 +266,7 @@ module Task: sig
 
 end
 
-(** {2 Universal values.
+(** {2 Universal values}.
 
     See http://mlton.org/UniversalType
 
