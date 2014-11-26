@@ -1,0 +1,18 @@
+<html><head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Backend.REMOTE</title>
+</head>
+<body>
+<code class="code"><span class="keyword">functor</span>&nbsp;(<span class="constructor">S</span>&nbsp;:&nbsp;<span class="constructor">Ir_bc</span>.<span class="constructor">STORE</span>)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;<span class="keyword">sig</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;fetch&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?depth:int&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.head&nbsp;option&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;push&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?depth:int&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S</span>.head&nbsp;option&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">end</span></code></body></html>

@@ -1,0 +1,59 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Backend.COMMIT.Key.html">
+<link rel="Up" href="Irmin.Backend.COMMIT.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Commit values" rel="Section" href="#1_Commitvalues">
+<title>Irmin.Backend.COMMIT.Val</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Backend.COMMIT.Key.html" title="Irmin.Backend.COMMIT.Key">Previous</a>
+&nbsp;<a class="up" href="Irmin.Backend.COMMIT.html" title="Irmin.Backend.COMMIT">Up</a>
+&nbsp;</div>
+<h1>Module <a href="type_Irmin.Backend.COMMIT.Val.html">Irmin.Backend.COMMIT.Val</a></h1>
+
+<pre><span class="keyword">module</span> Val: <code class="code">sig</code> <a href="Irmin.Backend.COMMIT.Val.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<code class="code">Val</code> provides function for commit values.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Commitvalues">Commit values</h1><br>
+
+<pre><span class="keyword">include</span> <a href="Irmin.Contents.S.html">Irmin.Contents.S</a></pre>
+<br>
+Base functions over commit values.<br>
+
+<pre><span id="TYPEnode"><span class="keyword">type</span> <code class="type"></code>node</span> </pre>
+<div class="info ">
+Type for node keys.<br>
+</div>
+
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">Ir_task.t -> ?node:<a href="Irmin.Backend.COMMIT.Val.html#TYPEnode">node</a> -> parents:key list -> t</code></pre><div class="info ">
+Create a commit.<br>
+</div>
+
+<pre><span id="VALnode"><span class="keyword">val</span> node</span> : <code class="type">t -> <a href="Irmin.Backend.COMMIT.Val.html#TYPEnode">node</a> option</code></pre><div class="info ">
+The underlying node.<br>
+</div>
+
+<pre><span id="VALparents"><span class="keyword">val</span> parents</span> : <code class="type">t -> key list</code></pre><div class="info ">
+The commit parents.<br>
+</div>
+
+<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type">t -> Irmin.Task.t</code></pre><div class="info ">
+The commit provenance.<br>
+</div>
+
+<pre><span id="VALedges"><span class="keyword">val</span> edges</span> : <code class="type">t -> [> `Commit of key | `Node of <a href="Irmin.Backend.COMMIT.Val.html#TYPEnode">node</a> ] list</code></pre><div class="info ">
+The graph edges.<br>
+</div>
+</body></html>

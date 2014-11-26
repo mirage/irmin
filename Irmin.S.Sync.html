@@ -30,7 +30,7 @@
 
 <pre><span id="TYPEdb"><span class="keyword">type</span> <code class="type"></code>db</span> = <code class="type">t</code> </pre>
 <div class="info ">
-The type for store handlers.<br>
+The type for store handles.<br>
 </div>
 
 
@@ -54,8 +54,8 @@ The type for remote stores.<br>
 </div>
 
 <pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type"><a href="Irmin.S.Sync.html#TYPEdb">db</a> -> ?depth:int -> <a href="Irmin.S.Sync.html#TYPEremote">remote</a> -> head option Lwt.t</code></pre><div class="info ">
-<code class="code">create t last</code> fetch an object in the local database. The local
-        database can then be either <code class="code">merged</code>, or <code class="code">updated</code> to the new
+<code class="code">create t last</code> fetch an object in the local store. The local
+        store can then be either <code class="code">merged</code>, or <code class="code">updated</code> to the new
         contents. The <code class="code">depth</code> parameter limits the history depth.<br>
 </div>
 
@@ -66,7 +66,7 @@ Same as <code class="code">create</code> but raise <code class="code">Failure</c
 
 <pre><span id="VALpush"><span class="keyword">val</span> push</span> : <code class="type"><a href="Irmin.S.Sync.html#TYPEdb">db</a> -> ?depth:int -> <a href="Irmin.S.Sync.html#TYPEremote">remote</a> -> head option Lwt.t</code></pre><div class="info ">
 <code class="code">push t f</code> push the contents of the current branch of the
-        database to the remote database -- also update the remote branch
+        store to the remote store -- also update the remote branch
         with the same name as the local one to points to the new
         state.<br>
 </div>

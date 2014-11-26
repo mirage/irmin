@@ -52,6 +52,10 @@ Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
 <pre><span class="keyword">module</span> <a href="Irmin.Contents.html">Contents</a>: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><div class="info">
 <code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
 </div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Tag.html">Tag</a>: <code class="code">sig</code> <a href="Irmin.Tag.html">..</a> <code class="code">end</code></pre><div class="info">
+User-defined tags.
+</div>
 <br>
 <h1 id="1_Stores">Stores</h1><br>
 <br>
@@ -112,5 +116,9 @@ Irmin high-level stores.
 <pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info">
 <code class="code">Hash</code> provides function to digest user-defined serialized
     contents.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Backend.html">Backend</a>: <code class="code">sig</code> <a href="Irmin.Backend.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Backend</code> provides the signatures that every backend should satisfy.
 </div>
 </body></html>

@@ -1,0 +1,33 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Irmin.Backend.NODE.html">
+<link rel="Up" href="Irmin.Backend.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Backend.CONTENTS</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Irmin.Backend.html" title="Irmin.Backend">Up</a>
+&nbsp;<a class="post" href="Irmin.Backend.NODE.html" title="Irmin.Backend.NODE">Next</a>
+</div>
+<h1>Module type <a href="type_Irmin.Backend.CONTENTS.html">Irmin.Backend.CONTENTS</a></h1>
+
+<pre><span class="keyword">module type</span> CONTENTS = <code class="code">sig</code> <a href="Irmin.Backend.CONTENTS.html">..</a> <code class="code">end</code></pre><hr width="100%">
+
+<pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Backend.CONTENTS.Key.html">Key</a>: <code class="type">Ir_hash.S</code><code class="type">  with type t = key</code></pre><div class="info">
+<code class="code">Key</code> provides base functions for user-defined contents keys.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Backend.CONTENTS.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
+<code class="code">Val</code> provides base function for user-defined contents values.
+</div>
+</body></html>
