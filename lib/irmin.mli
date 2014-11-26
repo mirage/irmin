@@ -117,8 +117,8 @@ module Merge: sig
 
   val biject: 'a elt -> 'b elt -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
   (** Use the merge function defined in another domain. If the
-      functions given in argument are partial (ie. returning
-      [Not_found] on some entries), the exception is catched and
+      functions given in argument are partial (i.e. returning
+      [Not_found] on some entries), the exception is caught and
       [Conflict] is returned instead. *)
 
   val biject':
@@ -127,7 +127,7 @@ module Merge: sig
       functions. *)
 
   val apply: ('a -> 'b t) -> 'a -> 'b t
-  (** The [apply] combinator is usefull to untie recursive loops. *)
+  (** The [apply] combinator is useful to untie recursive loops. *)
 
   (** Useful merge operators.
 
@@ -213,7 +213,7 @@ end
     in-memory operations.}
     {- Space efficient {{!S.Snapshot}snapshots} and fast and consistent
     rollback operations.}
-    {- Fast {{!S.Sync}synchronisation} primitives between remote
+    {- Fast {{!S.Sync}synchronization} primitives between remote
     stores, using native backend protocols (as the Git protocol) when
     available.}
     }
@@ -263,7 +263,7 @@ end
 
     See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
 
-    Univeral values are used to carry around configuration values, see
+    Universal values are used to carry around configuration values, see
     {{!RO.create}RO.create}. *)
 module Univ: sig
 
@@ -385,7 +385,7 @@ module type BC = sig
 
   type tag
   (** Type for branch names, or tags. Tags usually share a common
-      global namespace and that's the user responsability to avoid
+      global namespace and that's the user responsibility to avoid
       name-clashes. *)
 
   val of_tag: (string * Univ.t) list -> Task.t -> tag -> t
@@ -398,7 +398,7 @@ module type BC = sig
       means that the branch is not persistent. *)
 
   val tag_exn: t -> tag
-  (** Same as [tag] but raise [Not_found] if the store hanlde is not
+  (** Same as [tag] but raise [Not_found] if the store handle is not
       persistent. *)
 
   val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
@@ -411,10 +411,10 @@ module type BC = sig
 
   val switch: t -> tag -> unit Lwt.t
   (** Switch the store contents the be same as the contents of the
-      given branch name. The two branches are still independant. *)
+      given branch name. The two branches are still independent. *)
 
   val detach: t -> unit Lwt.t
-  (** Detach the current branch (ie. it is not assiaciated to a tag
+  (** Detach the current branch (i.e. it is not associated to a tag
       anymore). *)
 
   (** {2:temporary Temporary Stores}
@@ -449,7 +449,7 @@ module type BC = sig
       not exist. *)
 
   val heads: t -> head list Lwt.t
-  (** The list of all the databse heads. *)
+  (** The list of all the database heads. *)
 
   val update_head: t -> head -> unit Lwt.t
   (** Set the commit head. *)
@@ -474,7 +474,7 @@ module type BC = sig
 
   val merge: t -> tag -> unit Merge.result Lwt.t
   (** [merge db t] merges the branch [t] into the current store
-      branch. The two branches are still independant. *)
+      branch. The two branches are still independent. *)
 
   (** {2 Slices} *)
 
@@ -515,7 +515,7 @@ end
     An irmin store is a branch-consistent store where keys are lists
     of steps.
 
-    An example is a Git repository where keys are filenames, ie. list
+    An example is a Git repository where keys are filenames, i.e. list
     of ['\']-separated strings. More complex examples are structured
     values, where steps might contains first-class fields accessors
     and array offsets. *)
@@ -542,15 +542,16 @@ module type S = sig
       lazy reads and delayed write.
 
       Views are like staging area in Git: they are temporary
-      non-persistent areas (they disapear if the host crash), hold in
-      memory for efficiency, where reads are done lazily and writes are
-      done only when needed on commit: if if you modify a key twice,
-      only the last change will be written to the store when you
-      commit. Views also hold a list of operations, which are checked
-      for conflicts on commits and are used to replay/rebase the view if
-      needed. The most important feature of views is that they keep
-      track of reads: ie. you can have a conflict if a view reads a key
-      which has been modified concurrently by someone else.  *)
+      non-persistent areas (they disappear if the host crash), hold in
+      memory for efficiency, where reads are done lazily and writes
+      are done only when needed on commit: if if you modify a key
+      twice, only the last change will be written to the store when
+      you commit. Views also hold a list of operations, which are
+      checked for conflicts on commits and are used to replay/rebase
+      the view if needed. The most important feature of views is that
+      they keep track of reads: i.e. you can have a conflict if a view
+      reads a key which has been modified concurrently by someone
+      else.  *)
   module View: sig
 
     (** {1 Views} *)
@@ -559,7 +560,7 @@ module type S = sig
     (** The type for store handles. *)
 
     include RW with type key = Key.t and type value = Val.t
-    (** A view is a read-write temporty store, mirroring the main
+    (** A view is a read-write temporary store, mirroring the main
         store. *)
 
     val create: Task.t -> t
@@ -579,7 +580,7 @@ module type S = sig
     (** Commit a view to the store. The view *replaces* the current
         subtree, so if you want to do a merge, you have to do it
         manually (by creating a new branch, or rebasing before
-        commiting). *)
+        committing). *)
 
     val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
     (** Rebase the view to the tip of the store. *)
@@ -603,7 +604,7 @@ module type S = sig
          [ `Read of (key * value option)
          | `Write of (key * value option)
          | `List of (key list * key list) ]
-       (** Operations on view. The read results are kepts to be able
+       (** Operations on view. The read results are kept to be able
            to replay them on merge and to check for possible conflict:
            this happens if the result read is different from the one
            recorded. *)
@@ -645,7 +646,7 @@ module type S = sig
     (** Revert the store to a previous state. *)
 
     val merge: db -> t -> unit Merge.result Lwt.t
-    (** Merge the given snasphot into the current branch of the
+    (** Merge the given snapshot into the current branch of the
         store. *)
 
     val watch: db -> key -> (key * t) Lwt_stream.t
@@ -681,11 +682,11 @@ module type S = sig
 
   end
 
-  (** [Sync] provides functions to syncronisation an Irmin store with
+  (** [Sync] provides functions to synchronization an Irmin store with
       local and remote Irmin stores. *)
   module Sync: sig
 
-    (** {1 Synchronisation} *)
+    (** {1 Synchronization} *)
 
     type db = t
     (** The type for store handlers. *)
@@ -695,14 +696,14 @@ module type S = sig
 
     val uri: string -> remote
     (** [uri s] is the remote store located at [uri]. Use the
-        optimized native synchronisation protocol when available for the
+        optimized native synchronization protocol when available for the
         given backend. *)
 
     val store: db -> remote
     (** [store t] is the remote corresponding to the local store
-        [t]. Synchronisation is done by importing and exporting store
+        [t]. Synchronization is done by importing and exporting store
         {{!BC.slice}slices}, so this is usually much slower than native
-        synchronisation using [uri] remotes. *)
+        synchronization using [uri] remotes. *)
 
     val fetch: db -> ?depth:int -> remote -> head option Lwt.t
     (** [create t last] fetch an object in the local database. The local
@@ -714,7 +715,7 @@ module type S = sig
         fails. *)
 
     val push: db -> ?depth:int -> remote -> head option Lwt.t
-    (** [push t f] push the contents of the currnet branch of the
+    (** [push t f] push the contents of the current branch of the
         database to the remote database -- also update the remote branch
         with the same name as the local one to points to the new
         state. *)
@@ -730,7 +731,7 @@ end
 (** {1 Backends} *)
 
 (** [Hash] provides function to digest user-defined serialized
-    contents. Some backends might be parametrize by such a hash
+    contents. Some backends might be parameterize by such a hash
     functions, other might work with a fixed one (for instance, the
     Git format use only SHA1).
 
