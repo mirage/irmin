@@ -37,7 +37,7 @@ Signature for actions performed on a view.<br>
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type">[ `List of key list * key list<br>       | `Read of key * value option<br>       | `Write of key * value option ]</code> </pre>
 <div class="info ">
-Operations on view. The read results are kepts to be able
+Operations on view. The read results are kept to be able
            to replay them on merge and to check for possible conflict:
            this happens if the result read is different from the one
            recorded.<br>

@@ -11,7 +11,7 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Synchronisation" rel="Section" href="#1_Synchronisation">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Synchronization" rel="Section" href="#1_Synchronization">
 <title>Irmin.S.Sync</title>
 </head>
 <body>
@@ -21,12 +21,12 @@
 <h1>Module <a href="type_Irmin.S.Sync.html">Irmin.S.Sync</a></h1>
 
 <pre><span class="keyword">module</span> Sync: <code class="code">sig</code> <a href="Irmin.S.Sync.html">..</a> <code class="code">end</code></pre><div class="info module top">
-<code class="code">Sync</code> provides functions to syncronisation an Irmin store with
+<code class="code">Sync</code> provides functions to synchronization an Irmin store with
       local and remote Irmin stores.<br>
 </div>
 <hr width="100%">
 <br>
-<h1 id="1_Synchronisation">Synchronisation</h1><br>
+<h1 id="1_Synchronization">Synchronization</h1><br>
 
 <pre><span id="TYPEdb"><span class="keyword">type</span> <code class="type"></code>db</span> = <code class="type">t</code> </pre>
 <div class="info ">
@@ -42,15 +42,15 @@ The type for remote stores.<br>
 
 <pre><span id="VALuri"><span class="keyword">val</span> uri</span> : <code class="type">string -> <a href="Irmin.S.Sync.html#TYPEremote">remote</a></code></pre><div class="info ">
 <code class="code">uri s</code> is the remote store located at <code class="code">uri</code>. Use the
-        optimized native synchronisation protocol when available for the
+        optimized native synchronization protocol when available for the
         given backend.<br>
 </div>
 
 <pre><span id="VALstore"><span class="keyword">val</span> store</span> : <code class="type"><a href="Irmin.S.Sync.html#TYPEdb">db</a> -> <a href="Irmin.S.Sync.html#TYPEremote">remote</a></code></pre><div class="info ">
 <code class="code">store t</code> is the remote corresponding to the local store
-        <code class="code">t</code>. Synchronisation is done by importing and exporting store
+        <code class="code">t</code>. Synchronization is done by importing and exporting store
         <a href="Irmin.BC.html#TYPEslice">slices</a>, so this is usually much slower than native
-        synchronisation using <code class="code">uri</code> remotes.<br>
+        synchronization using <code class="code">uri</code> remotes.<br>
 </div>
 
 <pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type"><a href="Irmin.S.Sync.html#TYPEdb">db</a> -> ?depth:int -> <a href="Irmin.S.Sync.html#TYPEremote">remote</a> -> head option Lwt.t</code></pre><div class="info ">
@@ -65,7 +65,7 @@ Same as <code class="code">create</code> but raise <code class="code">Failure</c
 </div>
 
 <pre><span id="VALpush"><span class="keyword">val</span> push</span> : <code class="type"><a href="Irmin.S.Sync.html#TYPEdb">db</a> -> ?depth:int -> <a href="Irmin.S.Sync.html#TYPEremote">remote</a> -> head option Lwt.t</code></pre><div class="info ">
-<code class="code">push t f</code> push the contents of the currnet branch of the
+<code class="code">push t f</code> push the contents of the current branch of the
         database to the remote database -- also update the remote branch
         with the same name as the local one to points to the new
         state.<br>

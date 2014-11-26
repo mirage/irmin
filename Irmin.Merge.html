@@ -120,8 +120,8 @@ Lift to pairs.<br>
 
 <pre><span id="VALbiject"><span class="keyword">val</span> biject</span> : <code class="type">'a <a href="Irmin.Merge.html#TYPEelt">elt</a> -><br>       'b <a href="Irmin.Merge.html#TYPEelt">elt</a> -><br>       'a <a href="Irmin.Merge.html#TYPEt">t</a> -> ('a -> 'b) -> ('b -> 'a) -> 'b <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
 Use the merge function defined in another domain. If the
-      functions given in argument are partial (ie. returning
-      <code class="code">Not_found</code> on some entries), the exception is catched and
+      functions given in argument are partial (i.e. returning
+      <code class="code">Not_found</code> on some entries), the exception is caught and
       <code class="code">Conflict</code> is returned instead.<br>
 </div>
 
@@ -131,7 +131,7 @@ Same as <code class="code">map</code> but with potentially blocking converting
 </div>
 
 <pre><span id="VALapply"><span class="keyword">val</span> apply</span> : <code class="type">('a -> 'b <a href="Irmin.Merge.html#TYPEt">t</a>) -> 'a -> 'b <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
-The <code class="code">apply</code> combinator is usefull to untie recursive loops.<br>
+The <code class="code">apply</code> combinator is useful to untie recursive loops.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Merge.OP.html">OP</a>: <code class="code">sig</code> <a href="Irmin.Merge.OP.html">..</a> <code class="code">end</code></pre><div class="info">

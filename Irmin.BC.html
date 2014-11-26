@@ -63,7 +63,7 @@ A branch-consistent store is read-write.
 <pre><span id="TYPEtag"><span class="keyword">type</span> <code class="type"></code>tag</span> </pre>
 <div class="info ">
 Type for branch names, or tags. Tags usually share a common
-      global namespace and that's the user responsability to avoid
+      global namespace and that's the user responsibility to avoid
       name-clashes.<br>
 </div>
 
@@ -80,7 +80,7 @@ Type for branch names, or tags. Tags usually share a common
 </div>
 
 <pre><span id="VALtag_exn"><span class="keyword">val</span> tag_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a></code></pre><div class="info ">
-Same as <code class="code">tag</code> but raise <code class="code">Not_found</code> if the store hanlde is not
+Same as <code class="code">tag</code> but raise <code class="code">Not_found</code> if the store handle is not
       persistent.<br>
 </div>
 
@@ -96,11 +96,11 @@ Same as <code class="code">update_tag</code> but delete and update the tag if it
 
 <pre><span id="VALswitch"><span class="keyword">val</span> switch</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
 Switch the store contents the be same as the contents of the
-      given branch name. The two branches are still independant.<br>
+      given branch name. The two branches are still independent.<br>
 </div>
 
 <pre><span id="VALdetach"><span class="keyword">val</span> detach</span> : <code class="type">t -> unit Lwt.t</code></pre><div class="info ">
-Detach the current branch (ie. it is not assiaciated to a tag
+Detach the current branch (i.e. it is not associated to a tag
       anymore).<br>
 </div>
 <br>
@@ -143,7 +143,7 @@ Same as <code class="code">read_head</code> but raise <code class="code">Not_fou
 </div>
 
 <pre><span id="VALheads"><span class="keyword">val</span> heads</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> list Lwt.t</code></pre><div class="info ">
-The list of all the databse heads.<br>
+The list of all the database heads.<br>
 </div>
 
 <pre><span id="VALupdate_head"><span class="keyword">val</span> update_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
@@ -174,7 +174,7 @@ Same as <code class="code">clone</code> but delete and update the existing branc
 
 <pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 <code class="code">merge db t</code> merges the branch <code class="code">t</code> into the current store
-      branch. The two branches are still independant.<br>
+      branch. The two branches are still independent.<br>
 </div>
 <br>
 <h2 id="2_Slices">Slices</h2><br>

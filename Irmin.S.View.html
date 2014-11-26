@@ -28,15 +28,16 @@
 <p>
 
       Views are like staging area in Git: they are temporary
-      non-persistent areas (they disapear if the host crash), hold in
-      memory for efficiency, where reads are done lazily and writes are
-      done only when needed on commit: if if you modify a key twice,
-      only the last change will be written to the store when you
-      commit. Views also hold a list of operations, which are checked
-      for conflicts on commits and are used to replay/rebase the view if
-      needed. The most important feature of views is that they keep
-      track of reads: ie. you can have a conflict if a view reads a key
-      which has been modified concurrently by someone else.<br>
+      non-persistent areas (they disappear if the host crash), hold in
+      memory for efficiency, where reads are done lazily and writes
+      are done only when needed on commit: if if you modify a key
+      twice, only the last change will be written to the store when
+      you commit. Views also hold a list of operations, which are
+      checked for conflicts on commits and are used to replay/rebase
+      the view if needed. The most important feature of views is that
+      they keep track of reads: i.e. you can have a conflict if a view
+      reads a key which has been modified concurrently by someone
+      else.<br>
 </div>
 <hr width="100%">
 <br>
@@ -50,7 +51,7 @@ The type for store handles.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
 <br>
-A view is a read-write temporty store, mirroring the main
+A view is a read-write temporary store, mirroring the main
         store.<br>
 
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.Task.html#TYPEt">Irmin.Task.t</a> -> t</code></pre><div class="info ">
@@ -73,7 +74,7 @@ Read a view from a path in the store. This is a cheap operation,
 Commit a view to the store. The view *replaces* the current
         subtree, so if you want to do a merge, you have to do it
         manually (by creating a new branch, or rebasing before
-        commiting).<br>
+        committing).<br>
 </div>
 
 <pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type"><a href="Irmin.S.View.html#TYPEdb">db</a> -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
