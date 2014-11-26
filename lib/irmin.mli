@@ -225,46 +225,50 @@ module Task: sig
 
   (** {1 Task} *)
 
-  type t
-  (** The type for tasks. Every task has:
-
-      {ul
-      {- a date, whose computation is left to the user. When
-      available, [Unix.gettimeofday ()] is a good date value. On more
-      esoteric platforms, an monotonic counter is fine as well. For
-      the Git backeand, the date will be translated into the commit {e
-      Date} field.}
-      {- a text message, which can be appended later on already
-      created tasks, using the [fprintf] function. On the Git backend,
-      this will be translated to the commit body.}
-      {- an owner identifying the entity performing that operation. On
-      the Git backend, this will be translated into the {e Author}
-      field.}
-      {- a unique identifer. The user does not have control over it,
-      it is useful for debugging purposes and might appear in the
-      commit body on the Git backend.}
-      }
-  *)
-
-  include Tc.S0 with type t := t
+  include Tc.S0
 
   val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
   (** Create a new task. *)
 
-  val fprintf: t ->  ('a, unit, string, unit) format4 -> 'a
-  (** Add a message to the task messages list. *)
-
   val date: t -> int64
-  (** Get the task date. *)
+  (** Get the task date.
 
-  val uid: t -> int64
-  (** Get the task unique identifier. *)
+      The date is computed by the user user when calling the
+      {{!Task.create}create} function. When available,
+      [Unix.gettimeofday ()] is a good value for such date. On more
+      esoteric platforms, any monotonic counter is a fine value as
+      well. On the Git backend, the date will be translated into the
+      commit {e Date} field. *)
 
   val owner: t -> string
-  (** Get the task owner. *)
+  (** Get the task owner.
+
+      The owner identifies the entity (human, unikernel, process,
+      thread, etc) performing an operation. For the Git backend, this
+      will be directly translated into the {e Author} field. *)
+
+  val uid: t -> int64
+  (** Get the task unique identifier.
+
+      The user does not have control over the generation of that
+      unique identifier. That identifier is useful for debugging
+      purposes, for instance to relate debug lines to the tasks which
+      cause them, and might appear in one line of the commit message
+      for the Git backend. *)
 
   val messages: t -> string list
-    (** Get the messages associated to the task. *)
+  (** Get the messages associated to the task.
+
+      Text messages can be added to a task either at creation time,
+      using {{!Task.create}create}, or can be appended on already
+      created tasks using the {{!Task.fprintf}fprintf} function. For
+      the Git backend, this will be translated to the commit
+      message.  *)
+
+
+  val fprintf: t ->  ('a, unit, string, unit) format4 -> 'a
+  (** Add a message to the task messages list. See
+      {{!Task.messages}messages} for more details. *)
 
 end
 
@@ -282,7 +286,7 @@ module Univ: sig
   (** Type type for universal values. *)
 
   val create: 'a Tc.t -> ('a -> t) * (t -> 'a option) * t Tc.t
-  (** [create ()] returns:
+  (** Creation of universal values. [create tc] returns:
 
       {ul
       {- a function to inject a value from a given type in to a universal value;}
