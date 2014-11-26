@@ -41,12 +41,12 @@ Create a new task.<br>
 Get the task date.
 <p>
 
-      The computation of the date if left to the user when calling the
+      The date is computed by the user user when calling the
       <a href="Irmin.Task.html#VALcreate">create</a> function. When available,
-      <code class="code">Unix.gettimeofday ()</code> is a good date value. On more esoteric
-      platforms, an monotonic counter is fine as well. For the Git
-      backeand, the date will be translated into the commit <em>Date</em>
-      field.<br>
+      <code class="code">Unix.gettimeofday ()</code> is a good value for such date. On more
+      esoteric platforms, any monotonic counter is a fine value as
+      well. On the Git backend, the date will be translated into the
+      commit <em>Date</em> field.<br>
 </div>
 
 <pre><span id="VALowner"><span class="keyword">val</span> owner</span> : <code class="type">t -> string</code></pre><div class="info ">
