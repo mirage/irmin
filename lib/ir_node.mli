@@ -74,14 +74,14 @@ module type S = sig
 
 end
 
-module Node (C: Tc.I0) (N: Tc.I0) (S: Ir_misc.MAP):
+module Node (C: Tc.S0) (N: Tc.S0) (S: Ir_misc.MAP):
   S with type contents = C.t and type node = N.t and type 'a step_map = 'a S.t
 
 module type RAW_STORE = sig
 
   include Ir_ao.STORE
 
-  module Step: Tc.I0
+  module Step: Tc.S0
   (** Base functions over steps. *)
 
   module StepMap: Map.S with type key = Step.t

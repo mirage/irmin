@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2014 Daniel C. Bünzli
+ * Copyright (c) 2014 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,4 +18,4 @@
 (** Universal values. *)
 
 type t
-val create: unit -> ('a -> t) * (t -> 'a option)
+val create: 'a Tc.t -> ('a -> t) * (t -> 'a option) * t Tc.t

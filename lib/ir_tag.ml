@@ -19,7 +19,7 @@ open Lwt
 module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
-  include Tc.I0
+  include Tc.S0
   val master: t
 end
 

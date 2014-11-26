@@ -16,9 +16,9 @@
 
 (** Tree path handling. *)
 
-module type S = Tc.I0
+module type S = Tc.S0
 
 module String: S with type t = string
 (** A path step where elements are strings. *)
 
-module Path (S: S): Tc.I0 with type t = S.t list
+module Path (S: S): Tc.S0 with type t = S.t list

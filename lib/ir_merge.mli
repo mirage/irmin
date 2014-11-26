@@ -20,7 +20,7 @@
 
 type 'a result = [ `Ok of 'a | `Conflict of string ]
 
-module Result: Tc.I1 with type 'a t = 'a result
+module Result: Tc.S1 with type 'a t = 'a result
 
 val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
 val iter: ('a -> unit result Lwt.t) -> 'a list -> unit result Lwt.t
@@ -38,20 +38,16 @@ end
 
 type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
 
-module type S = Tc.I0
-
-type 'a elt = (module S with type t = 'a)
-
-val default: 'a elt -> 'a t
+val default: 'a Tc.t -> 'a t
 val string: string t
 val counter: int t
 val seq: 'a t list -> 'a t
-val some: 'a elt -> 'a t -> 'a option t
-val alist: 'a elt -> 'b elt -> 'b t -> ('a * 'b) list t
-module Map (M: Map.S) (K: S with type t = M.key): sig
-  val merge: ('a elt) -> 'a t -> 'a M.t t
+val some: 'a Tc.t -> 'a t -> 'a option t
+val alist: 'a Tc.t -> 'b Tc.t -> 'b t -> ('a * 'b) list t
+module Map (M: Map.S) (K: Tc.S0 with type t = M.key): sig
+  val merge: 'a Tc.t -> 'a t -> 'a M.t t
 end
-val pair: 'a elt -> 'b elt -> 'a t -> 'b t -> ('a * 'b) t
-val biject: 'a elt -> 'b elt -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
-val biject': 'a elt -> 'b elt -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
+val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t
+val biject: 'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
+val biject': 'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
 val apply: ('a -> 'b t) -> 'a -> 'b t

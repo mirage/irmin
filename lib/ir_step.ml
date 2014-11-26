@@ -16,7 +16,7 @@
 
 open Sexplib.Std
 
-module type S = Tc.I0
+module type S = Tc.S0
 
 module Path (S: S) = struct
 

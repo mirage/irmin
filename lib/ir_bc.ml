@@ -44,7 +44,7 @@ module type STORE = sig
   val clone_force: t -> tag -> t Lwt.t
   val merge: t -> tag -> unit Ir_merge.result Lwt.t
   type slice
-  module Slice: Tc.I0 with type t = slice
+  module Slice: Tc.S0 with type t = slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
   val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
@@ -74,7 +74,7 @@ module type STORE_EXT = sig
     with type key = tag
      and type value = head
   val tag_t: t -> Tag.t
-  module Key: Tc.I0 with type t = Block.step list
+  module Key: Tc.S0 with type t = Block.step list
   module Val: Ir_contents.S with type t = value
   val read_node: t -> key -> Block.Node.value option Lwt.t
   val mem_node: t -> key -> bool Lwt.t
@@ -473,7 +473,7 @@ module Make_ext
     let create ?(contents=[]) ?(nodes=[]) ?(commits=[]) ?(tags=[]) () =
       { contents; nodes; commits; tags }
 
-    module M (K: Tc.I0)(V: Tc.I0) = Tc.List( Tc.Pair(K)(V) )
+    module M (K: Tc.S0)(V: Tc.S0) = Tc.List( Tc.Pair(K)(V) )
     module Ct = M(B.Contents.Key)(B.Contents.Val)
     module No = M(B.Node.Key)(B.Node.Val)
     module Cm = M(B.Commit.Key)(B.Commit.Val)
@@ -587,7 +587,7 @@ module Make_ext
         name
         (type s)
         (module S: Ir_ao.STORE with type t = s and type key = k and type value = v)
-        (module K: Tc.I0 with type t = k)
+        (module K: Tc.S0 with type t = k)
         (s:t -> s)
         elts
       =

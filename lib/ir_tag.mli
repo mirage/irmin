@@ -23,7 +23,7 @@ module type S = sig
 
   (** Signature for tags (i.e. branch names). *)
 
-  include Tc.I0
+  include Tc.S0
 
   val master: t
   (** The master branch. *)

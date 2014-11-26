@@ -39,7 +39,7 @@ module type STORE = sig
   val clone_force: t -> tag -> t Lwt.t
   val merge: t -> tag -> unit Ir_merge.result Lwt.t
   type slice
-  module Slice: Tc.I0 with type t = slice
+  module Slice: Tc.S0 with type t = slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
   val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
@@ -82,7 +82,7 @@ module type STORE_EXT = sig
 
   val tag_t: t -> Tag.t
 
-  module Key: Tc.I0 with type t = Block.step list
+  module Key: Tc.S0 with type t = Block.step list
   (** Base functions over keys. *)
 
   module Val: Ir_contents.S with type t = value

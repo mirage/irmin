@@ -35,11 +35,11 @@ module type JSON = STORE
    and type value = Ezjsonm.t
 
 module type MAKER =
-  functor (K: Tc.I0) ->
-  functor (V: Tc.I0) ->
+  functor (K: Tc.S0) ->
+  functor (V: Tc.S0) ->
   STORE with type t = Ir_task.t and type key = K.t and type value = V.t
 
-module Cstruct (S: CSTRUCT) (K: Tc.I0) (V: Tc.I0) = struct
+module Cstruct (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0) = struct
 
   include Ir_ro.Cstruct(S)(K)(V)
 
@@ -63,7 +63,7 @@ module Cstruct (S: CSTRUCT) (K: Tc.I0) (V: Tc.I0) = struct
 
 end
 
-module Json (S: JSON) (K: Tc.I0) (V: Tc.I0) = struct
+module Json (S: JSON) (K: Tc.S0) (V: Tc.S0) = struct
 
   include Ir_ro.Json(S)(K)(V)
 

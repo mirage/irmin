@@ -36,8 +36,8 @@ module type JSON = STORE
 (** JSON read-write store. Keys, values and origins are JSON objects. *)
 
 module type MAKER =
-  functor (K: Tc.I0) ->
-  functor (V: Tc.I0) ->
+  functor (K: Tc.S0) ->
+  functor (V: Tc.S0) ->
   STORE with type t = Ir_task.t and type key = K.t and type value = V.t
 (** Signature of functors creating read-write stores. *)
 

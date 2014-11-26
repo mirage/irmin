@@ -27,8 +27,8 @@ module Univ = Ir_univ
 module type S = sig
   type step
   include BC with type key = step list
-  module Step: Tc.I0 with type t = step
-  module Key: Tc.I0 with type t = key
+  module Step: Tc.S0 with type t = step
+  module Key: Tc.S0 with type t = key
   module Val: Contents.S with type t = value
   module View: Ir_view.OF_STORE
       with type db = t

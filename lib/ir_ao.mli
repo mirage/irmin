@@ -35,7 +35,7 @@ module type JSON = STORE
 
 module type MAKER =
   functor (K: Ir_hash.S) ->
-  functor (V: Tc.I0) ->
+  functor (V: Tc.S0) ->
     STORE with type t = Ir_task.t and type key = K.t and type value = V.t
 (** Signature of functor creating append-only stores. *)
 

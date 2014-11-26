@@ -20,7 +20,7 @@ module type S = sig
 
   (** Signature for unique identifiers. *)
 
-  include Tc.I0
+  include Tc.S0
 
   val digest: Cstruct.t -> t
   (** Compute a (deterministic) key from a cstruct. *)

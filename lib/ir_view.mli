@@ -31,7 +31,7 @@ module type OF_STORE = sig
       [ `Read of (key * value option)
       | `Write of (key * value option)
       | `List of (key list * key list) ]
-    include Tc.I0 with type t := t
+    include Tc.S0 with type t := t
     val pretty: t -> string
     val prettys: t list -> string
   end

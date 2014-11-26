@@ -71,17 +71,17 @@ module type S = sig
   val import: dump -> t
   (** Import a graph. *)
 
-  module Dump: Tc.I0 with type t = dump
+  module Dump: Tc.S0 with type t = dump
   (** The base functions over graph internals. *)
 
 end
 
 (** Build a graph. *)
 module Make
-    (Contents: Tc.I0)
-    (Node: Tc.I0)
-    (Commit: Tc.I0)
-    (Tag: Tc.I0):
+    (Contents: Tc.S0)
+    (Node: Tc.S0)
+    (Commit: Tc.S0)
+    (Tag: Tc.S0):
   S with type V.t =
   [ `Contents of Contents.t
   | `Node of Node.t

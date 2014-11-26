@@ -23,7 +23,7 @@ module Log = Log.Make(struct let section = "view" end)
 
 (***** Actions *)
 
-module Action (P: Tc.I0) (C: Tc.I0) = struct
+module Action (P: Tc.S0) (C: Tc.S0) = struct
 
   type path = P.t
   type contents = C.t
@@ -109,7 +109,7 @@ module type NODE = sig
   type t
   type node
   type contents
-  module Contents: Tc.I0 with type t = contents
+  module Contents: Tc.S0 with type t = contents
   module Step: Ir_step.S
   module StepMap: Ir_misc.MAP with type key = Step.t
   val empty: unit -> t
@@ -447,7 +447,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
 
   type db = S.t
 
-  let to_univ, of_univ = Ir_univ.create ()
+  let to_univ, of_univ, _ = Ir_univ.create (module B.Commit.Key)
 
   let univ_of_parents (t:S.head list) =
     List.map to_univ t
@@ -596,7 +596,7 @@ module type OF_STORE = sig
       [ `Read of (key * value option)
       | `Write of (key * value option)
       | `List of (key list * key list) ]
-    include Tc.I0 with type t := t
+    include Tc.S0 with type t := t
     val pretty: t -> string
     val prettys: t list -> string
   end

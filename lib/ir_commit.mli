@@ -46,7 +46,7 @@ module type S = sig
 
 end
 
-module Commit (C: Tc.I0) (N: Tc.I0):
+module Commit (C: Tc.S0) (N: Tc.S0):
   S with type commit = C.t
      and type node = N.t
 

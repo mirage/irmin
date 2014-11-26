@@ -43,7 +43,7 @@ module Merge: sig
   type 'a result = [ `Ok of 'a | `Conflict of string ]
   (** Type for merge results. *)
 
-  module Result: Tc.I1 with type 'a t = 'a result
+  module Result: Tc.S1 with type 'a t = 'a result
   (** Base functions over results. *)
 
   val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
@@ -67,12 +67,7 @@ module Merge: sig
       v}
   *)
 
-  module type S = Tc.I0
-
-  type 'a elt = (module S with type t = 'a)
-  (** The type for mergeable contents of type ['a]. *)
-
-  val default: 'a elt -> 'a t
+  val default: 'a Tc.t -> 'a t
   (** Create a default merge function. This is a simple merge
       functions which support changes in one branch at the time:
 
@@ -94,35 +89,35 @@ module Merge: sig
   val seq: 'a t list -> 'a t
   (** Try the merge functions in sequence until one does not raise a conflict. *)
 
-  val some: 'a elt -> 'a t -> 'a option t
+  val some: 'a Tc.t -> 'a t -> 'a option t
   (** Lift a merge function to optional values of the same type. If all
       the provided values are inhabited, then call the provided merge
       function, otherwise use the same behavior as [create]. *)
 
-  val alist: 'a elt -> 'b elt -> 'b t -> ('a * 'b) list t
+  val alist: 'a Tc.t -> 'b Tc.t -> 'b t -> ('a * 'b) list t
   (** List to association lists. *)
 
   (** Lift to maps. *)
-  module Map (M: Map.S) (X: S with type t = M.key): sig
+  module Map (M: Map.S) (X: Tc.S0 with type t = M.key): sig
 
     (** {1 Merging Maps} *)
 
-    val merge: 'a elt -> 'a t -> 'a M.t t
+    val merge: 'a Tc.t -> 'a t -> 'a M.t t
     (** Lift to [X.t] maps. *)
 
   end
 
-  val pair: 'a elt -> 'b elt -> 'a t -> 'b t -> ('a * 'b) t
+  val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t
   (** Lift to pairs. *)
 
-  val biject: 'a elt -> 'b elt -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
+  val biject: 'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
   (** Use the merge function defined in another domain. If the
       functions given in argument are partial (i.e. returning
       [Not_found] on some entries), the exception is caught and
       [Conflict] is returned instead. *)
 
   val biject':
-    'a elt -> 'b elt -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
+    'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
   (** Same as [map] but with potentially blocking converting
       functions. *)
 
@@ -175,7 +170,7 @@ module Contents: sig
 
     (** Signature for store contents. *)
 
-    include Tc.I0
+    include Tc.S0
     (** Base functions over contents. *)
 
     val merge: t Merge.t
@@ -231,13 +226,27 @@ module Task: sig
   (** {1 Task} *)
 
   type t
-  (** The type for tasks. Every task has a date, a text message and an
-      name identifying the entity performing that operation. Tasks are
-      threaded from high-level calls to all low-level store
-      operations. A task might also contains some secrets, which will
-      never be serialized.  *)
+  (** The type for tasks. Every task has:
 
-  include Tc.I0 with type t := t
+      {ul
+      {- a date, whose computation is left to the user. When
+      available, [Unix.gettimeofday ()] is a good date value. On more
+      esoteric platforms, an monotonic counter is fine as well. For
+      the Git backeand, the date will be translated into the commit {e
+      Date} field.}
+      {- a text message, which can be appended later on already
+      created tasks, using the [fprintf] function. On the Git backend,
+      this will be translated to the commit body.}
+      {- an owner identifying the entity performing that operation. On
+      the Git backend, this will be translated into the {e Author}
+      field.}
+      {- a unique identifer. The user does not have control over it,
+      it is useful for debugging purposes and might appear in the
+      commit body on the Git backend.}
+      }
+  *)
+
+  include Tc.S0 with type t := t
 
   val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
   (** Create a new task. *)
@@ -272,10 +281,14 @@ module Univ: sig
   type t
   (** Type type for universal values. *)
 
-  val create: unit -> ('a -> t) * (t -> 'a option)
-  (** [create ()] returns a function to inject and a function to
-      project a value from a given type in to/from a universal
-      value. *)
+  val create: 'a Tc.t -> ('a -> t) * (t -> 'a option) * t Tc.t
+  (** [create ()] returns:
+
+      {ul
+      {- a function to inject a value from a given type in to a universal value;}
+      {- a function to project from a universal value to a value of a given type;}
+      {- a type-class to show and serialize universal values.}
+      } *)
 
 end
 
@@ -481,7 +494,7 @@ module type BC = sig
   type slice
   (** Type for store slices. *)
 
-  module Slice: Tc.I0 with type t = slice
+  module Slice: Tc.S0 with type t = slice
   (** Base functions over slices. *)
 
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
@@ -528,10 +541,10 @@ module type S = sig
 
   include BC with type key = step list
 
-  module Step: Tc.I0 with type t = step
+  module Step: Tc.S0 with type t = step
   (** [Step] provides base functions over steps. *)
 
-  module Key: Tc.I0 with type t = key
+  module Key: Tc.S0 with type t = key
   (** [Key] provides base functions over step lists. *)
 
   module Val: Contents.S with type t = value
@@ -609,7 +622,7 @@ module type S = sig
            this happens if the result read is different from the one
            recorded. *)
 
-       include Tc.I0 with type t := t
+       include Tc.S0 with type t := t
 
        val pretty: t -> string
        (** Pretty-print an action. *)
@@ -745,7 +758,7 @@ module Hash: sig
 
     (** Signature for unique identifiers. *)
 
-    include Tc.I0
+    include Tc.S0
 
     val digest: Cstruct.t -> t
     (** Compute a deterministic store key from a cstruct value. *)

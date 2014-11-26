@@ -67,7 +67,7 @@ let list_filter_map f l =
 
 module type MAP = sig
   include Map.S
-  include Tc.I1 with type 'a t := 'a t
+  include Tc.S1 with type 'a t := 'a t
   val to_alist: 'a t -> (key * 'a) list
   val of_alist: (key * 'a) list -> 'a t
   val keys: 'a t -> key list
@@ -130,7 +130,7 @@ let alist_merge_lwt compare_k f l1 l2 =
   alist_iter2_lwt compare_k f l1 l2 >>= fun () ->
   return !l3
 
-module Map (M: Map.S) (K: Tc.I0 with type t = M.key)= struct
+module Map (M: Map.S) (K: Tc.S0 with type t = M.key)= struct
 
   include M
 
@@ -207,12 +207,12 @@ let string_chop_prefix t ~prefix =
 
 module type SET = sig
   include Set.S
-  include Tc.I0 with type t := t
+  include Tc.S0 with type t := t
   val of_list: elt list -> t
   val to_list: t -> elt list
 end
 
-module Set (K: Tc.I0) = struct
+module Set (K: Tc.S0) = struct
 
   include Set.Make(K)
 

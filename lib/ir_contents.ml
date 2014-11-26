@@ -19,7 +19,7 @@ open Ir_merge.OP
 module Log = Log.Make(struct let section = "CONTENTS" end)
 
 module type S = sig
-  include Tc.I0
+  include Tc.S0
   val merge: t Ir_merge.t
 end
 

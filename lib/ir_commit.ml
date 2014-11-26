@@ -32,7 +32,7 @@ module type S = sig
   val edges: t -> [> `Node of node | `Commit of commit] list
 end
 
-module Commit (C: Tc.I0) (N: Tc.I0) = struct
+module Commit (C: Tc.S0) (N: Tc.S0) = struct
 
   module T = Ir_task
   type node = N.t

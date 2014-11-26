@@ -43,14 +43,14 @@ module type S = sig
   type dump = vertex list * (vertex * vertex) list
   val export: t -> dump
   val import: dump -> t
-  module Dump: Tc.I0 with type t = dump
+  module Dump: Tc.S0 with type t = dump
 end
 
 module Make
-    (Contents: Tc.I0)
-    (Node: Tc.I0)
-    (Commit: Tc.I0)
-    (Tag: Tc.I0)
+    (Contents: Tc.S0)
+    (Node: Tc.S0)
+    (Commit: Tc.S0)
+    (Tag: Tc.S0)
 = struct
 
   module X = struct

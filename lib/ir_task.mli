@@ -16,8 +16,7 @@
 
 (** Provenance tracking. *)
 
-include Tc.I0
-
+include Tc.S0
 val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
 val date: t -> int64
 val uid: t -> int64

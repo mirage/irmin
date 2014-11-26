@@ -20,7 +20,7 @@ exception Invalid of string
 exception Unknown of string
 
 module type S = sig
-  include Tc.I0
+  include Tc.S0
   val digest: Cstruct.t -> t
 end
 

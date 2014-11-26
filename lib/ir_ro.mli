@@ -43,19 +43,19 @@ module type JSON = STORE
     buffers. *)
 
 module type MAKER =
-  functor (K: Tc.I0) ->
-  functor (V: Tc.I0) ->
+  functor (K: Tc.S0) ->
+  functor (V: Tc.S0) ->
     STORE with type key = K.t
            and type value = V.t
 (** Signature for functor creating read-only stores. *)
 
-module Cstruct (S: CSTRUCT) (K: Tc.I0) (V: Tc.I0):
+module Cstruct (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0):
   STORE with type t = S.t
          and type key = K.t
          and type value = V.t
 (** Create a typed read-only store from a binary one. *)
 
-module Json (S: JSON) (K: Tc.I0) (V: Tc.I0):
+module Json (S: JSON) (K: Tc.S0) (V: Tc.S0):
   STORE with type t = S.t
          and type key = K.t
          and type value = V.t

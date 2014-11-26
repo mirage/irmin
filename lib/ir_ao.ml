@@ -36,10 +36,10 @@ module type JSON = STORE
 
 module type MAKER =
   functor (K: Ir_hash.S) ->
-  functor (V: Tc.I0) ->
+  functor (V: Tc.S0) ->
     STORE with type t = Ir_task.t and type key = K.t and type value = V.t
 
-module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.I0) = struct
+module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.S0) = struct
 
   include Ir_ro.Cstruct(S)(K)(V)
 
@@ -53,7 +53,7 @@ module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.I0) = struct
 
 end
 
-module Json (S: JSON) (K: Ir_hash.S) (V: Tc.I0) = struct
+module Json (S: JSON) (K: Ir_hash.S) (V: Tc.S0) = struct
 
   include Ir_ro.Json(S)(K)(V)
 

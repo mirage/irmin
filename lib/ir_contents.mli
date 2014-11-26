@@ -17,7 +17,7 @@
 (** Values. *)
 
 module type S = sig
-  include Tc.I0
+  include Tc.S0
   val merge: t Ir_merge.t
 end
 

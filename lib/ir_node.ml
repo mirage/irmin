@@ -38,7 +38,7 @@ module type S = sig
   val is_leaf: t -> bool
 end
 
-module Node (K_c: Tc.I0) (K_n: Tc.I0) (StepMap: Ir_misc.MAP) = struct
+module Node (K_c: Tc.S0) (K_n: Tc.S0) (StepMap: Ir_misc.MAP) = struct
 
   type contents = K_c.t
   type node = K_n.t
@@ -130,7 +130,7 @@ end
 
 module type RAW_STORE = sig
   include Ir_ao.STORE
-  module Step: Tc.I0
+  module Step: Tc.S0
   module StepMap: Map.S with type key = Step.t
   module Key: Ir_hash.S with type t = key
   module Val: S

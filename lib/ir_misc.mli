@@ -19,14 +19,14 @@
 module OP: sig
   val force: out_channel -> string Lazy.t -> unit
   val (!!):  out_channel -> string Lazy.t -> unit
-  val show: (module Tc.I0 with type t = 'a) -> 'a -> string Lazy.t
-  val shows: (module Tc.I0 with type t = 'a) -> 'a list -> string Lazy.t
+  val show: 'a Tc.t -> 'a -> string Lazy.t
+  val shows: 'a Tc.t -> 'a list -> string Lazy.t
 end
 
 (** Persistent Maps. *)
 module type MAP = sig
   include Map.S
-  include Tc.I1 with type 'a t := 'a t
+  include Tc.S1 with type 'a t := 'a t
   val to_alist: 'a t -> (key * 'a) list
   val of_alist: (key * 'a) list -> 'a t
   val keys: 'a t -> key list
@@ -44,18 +44,18 @@ module type MAP = sig
   end
 end
 
-module Map (M: Map.S) (S: Tc.I0 with type t = M.key): MAP
+module Map (M: Map.S) (S: Tc.S0 with type t = M.key): MAP
   with type key = S.t and type 'a t = 'a M.t
 
 (** Persistent Sets. *)
 module type SET = sig
   include Set.S
-  include Tc.I0 with type t := t
+  include Tc.S0 with type t := t
   val of_list: elt list -> t
   val to_list: t -> elt list
 end
 
-module Set (K: Tc.I0): SET with
+module Set (K: Tc.S0): SET with
   type elt = K.t and type t = Set.Make(K).t
 
 val list_partition_map: ('a -> [ `Fst of 'b | `Snd of 'c ]) ->

@@ -20,8 +20,6 @@ open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "MERGE" end)
 
-module type S = Tc.I0
-
 type 'a result =
   [ `Ok of 'a
   | `Conflict of string ]
@@ -75,11 +73,9 @@ let exn = function
   | `Ok x       -> return x
   | `Conflict x -> fail (Conflict x)
 
-module R (A: S) = Tc.App1(Result)(A)
+module R (A: Tc.S0) = Tc.App1(Result)(A)
 
 type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
-
-type 'a elt = (module S with type t = 'a)
 
 let conflict fmt =
   ksprintf (fun msg ->
@@ -111,7 +107,7 @@ let rec iter f = function
     | `Conflict x -> conflict "%s" x
     | `Ok ()      -> iter f t
 
-let default (type a) (module A: S with type t = a) =
+let default (type a) (module A: Tc.S0 with type t = a) =
   fun ~old t1 t2 ->
     Log.debugf "default %a | %a | %a"
       force (show (module A) old)
@@ -132,7 +128,7 @@ let seq = function
           | `Conflict _ -> merge ~old v1 v2
         ) (`Conflict "nothing to merge") ts
 
-let some (type a) (module T: S with type t = a) t =
+let some (type a) (module T: Tc.S0 with type t = a) t =
   let module S = Tc.Option(T) in
   fun ~old t1 t2 ->
     Log.debugf "some %a | %a | %a"
@@ -149,8 +145,8 @@ let some (type a) (module T: S with type t = a) t =
       | _ -> conflict "some"
 
 let pair
-    (type a) (module A: S with type t = a)
-    (type b) (module B: S with type t = b)
+    (type a) (module A: Tc.S0 with type t = a)
+    (type b) (module B: Tc.S0 with type t = b)
     a b =
   let module S = Tc.Pair(A)(B) in
   fun ~old x y ->
@@ -165,7 +161,7 @@ let pair
 
 exception C of string
 
-let merge_elt (type a) (module V: S with type t = a) merge_v old key vs =
+let merge_elt (type a) (module V: Tc.S0 with type t = a) merge_v old key vs =
   match vs with
   | `Left v | `Right v ->
     begin
@@ -196,8 +192,8 @@ let merge_elt (type a) (module V: S with type t = a) merge_v old key vs =
         raise (C "add/add")
 
 let alist
-  (type a) (module A: S with type t = a)
-  (type b) (module B: S with type t = b)
+  (type a) (module A: Tc.S0 with type t = a)
+  (type b) (module B: Tc.S0 with type t = b)
   merge_b ~old x y =
   let module P = Tc.Pair(A)(B) in
   let sort = List.sort P.compare in
@@ -211,9 +207,9 @@ let alist
       | C msg -> conflict "%s" msg
       | e     -> fail e)
 
-module Map (M: Map.S) (S: S with type t = M.key) = struct
+module Map (M: Map.S) (S: Tc.S0 with type t = M.key) = struct
 
-  let merge (type a) (module A: S with type t = a) t =
+  let merge (type a) (module A: Tc.S0 with type t = a) t =
     let module SM = Ir_misc.Map(M)(S) in
     let module S = Tc.App1(SM)(A) in
     fun ~old m1 m2 ->
@@ -235,8 +231,8 @@ module Map (M: Map.S) (S: S with type t = M.key) = struct
 end
 
 let biject
-    (type a) (module A: S with type t = a)
-    (type b) (module B: S with type t = b)
+    (type a) (module A: Tc.S0 with type t = a)
+    (type b) (module B: Tc.S0 with type t = b)
     t a_to_b b_to_a =
   let default = default (module B) in
   let merge' ~old b1 b2 =
@@ -259,8 +255,8 @@ let biject
     | `Conflict _ -> merge' ~old b1 b2
 
 let biject'
-  (type a) (module A: S with type t = a)
-  (type b) (module B: S with type t = b)
+  (type a) (module A: Tc.S0 with type t = a)
+  (type b) (module B: Tc.S0 with type t = b)
   t a_to_b b_to_a =
   let default = default (module B) in
   let merge' ~old b1 b2 =
