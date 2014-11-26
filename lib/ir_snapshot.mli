@@ -16,7 +16,7 @@
 
 (** Manage snapshot/revert capabilities. *)
 
-module type OF_STORE = sig
+module type S = sig
   include Ir_ro.STORE
   type db
   val create: db -> t Lwt.t
@@ -25,8 +25,8 @@ module type OF_STORE = sig
   val watch: db -> key -> (key * t) Lwt_stream.t
 end
 
-module Of_store (S: Ir_bc.STORE_EXT):
-  OF_STORE with type db = S.t
+module Make (S: Ir_bc.STORE_EXT):
+  S with type db = S.t
             and type key = S.key
             and type value = S.value
 (** Add snapshot capabilities to a branch-consistent store. *)

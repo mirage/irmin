@@ -16,7 +16,7 @@
 
 (** In-memory partial views of the database, with lazy fetching. *)
 
-module type OF_STORE = sig
+module type S = sig
   type step
   include Ir_rw.STORE with type key = step list
   val create: Ir_task.t -> t
@@ -38,5 +38,7 @@ module type OF_STORE = sig
   val actions: t -> Action.t list
 end
 
-module Of_store (S: Ir_bc.STORE_EXT):
-  OF_STORE with type db = S.t and type value = S.value
+module Make (S: Ir_bc.STORE_EXT):
+  S with type db = S.t
+     and type step = S.step
+     and type value = S.value

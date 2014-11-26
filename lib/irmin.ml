@@ -15,32 +15,22 @@
  *)
 
 module Merge = Ir_merge
-module Task = Ir_task
 module Contents = Ir_contents
+module Tag = Ir_tag
+module Task = Ir_task
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
 module type RW = Ir_rw.STORE
 module type BC = Ir_bc.STORE
 module View = Ir_view
-module Hash = Ir_hash
 module Univ = Ir_univ
-module type S = sig
-  type step
-  include BC with type key = step list
-  module Step: Tc.S0 with type t = step
-  module Key: Tc.S0 with type t = key
-  module Val: Contents.S with type t = value
-  module View: Ir_view.OF_STORE
-      with type db = t
-       and type step := step
-       and type value = value
-  module Snapshot: Ir_snapshot.OF_STORE
-    with type db = t
-     and type key = key
-     and type value = value
-  module Dot: Ir_dot.OF_STORE
-    with type db = t
-  module Sync: Ir_sync.STORE
-    with type db = t
-     and type head := head
+module type S = Ir_s.STORE
+module Hash = Ir_hash
+module Backend = struct
+  module type CONTENTS = Ir_contents.RAW_STORE
+  module type NODE = Ir_node.RAW_STORE
+  module type COMMIT = Ir_commit.RAW_STORE
+  module type TAG = Ir_tag.STORE
+  module type REMOTE = Ir_sync.REMOTE
+  module Make = Ir_s.Make
 end

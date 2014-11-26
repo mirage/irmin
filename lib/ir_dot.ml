@@ -19,7 +19,7 @@ open Printf
 
 module Log = Log.Make(struct let section ="DUMP" end)
 
-module type OF_STORE = sig
+module type S = sig
   type db
   val output_buffer:
     db -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string) ->

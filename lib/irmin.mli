@@ -168,7 +168,7 @@ module Contents: sig
 
   module type S = sig
 
-    (** Signature for store contents. *)
+    (** {1 Signature for store contents} *)
 
     include Tc.S0
     (** Base functions over contents. *)
@@ -193,6 +193,34 @@ module Contents: sig
   (** Cstruct values where only the last modified value is kept on
       merge. If the value has been modified concurrently, then this is a
       conflict. *)
+
+end
+
+(** User-defined tags. Tags are used to specify branch names in an
+    Irmin store. *)
+module Tag: sig
+
+  (** {1 Tags} *)
+
+  (** A tag implementations specifies base functions over abstract
+      tags and define a default value for denoting the
+      {{!Tag.S.master}master} branch name. *)
+  module type S = sig
+
+    (** {1 Signature for tags implementations} *)
+
+    (** Signature for tags (i.e. branch names). *)
+
+    include Tc.S0
+
+    val master: t
+    (** The name of the master branch. *)
+
+  end
+
+  module String: S with type t = string
+  (** [String] is an implementation of {{!Tag.S}S} where tags are
+      simple strings. *)
 
 end
 
@@ -466,7 +494,7 @@ module type BC = sig
       not exist. *)
 
   val heads: t -> head list Lwt.t
-  (** The list of all the database heads. *)
+  (** The list of all the heads of the store. *)
 
   val update_head: t -> head -> unit Lwt.t
   (** Set the commit head. *)
@@ -706,7 +734,7 @@ module type S = sig
     (** {1 Synchronization} *)
 
     type db = t
-    (** The type for store handlers. *)
+    (** The type for store handles. *)
 
     type remote
     (** The type for remote stores. *)
@@ -723,8 +751,8 @@ module type S = sig
         synchronization using [uri] remotes. *)
 
     val fetch: db -> ?depth:int -> remote -> head option Lwt.t
-    (** [create t last] fetch an object in the local database. The local
-        database can then be either [merged], or [updated] to the new
+    (** [create t last] fetch an object in the local store. The local
+        store can then be either [merged], or [updated] to the new
         contents. The [depth] parameter limits the history depth.*)
 
     val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
@@ -733,7 +761,7 @@ module type S = sig
 
     val push: db -> ?depth:int -> remote -> head option Lwt.t
     (** [push t f] push the contents of the current branch of the
-        database to the remote database -- also update the remote branch
+        store to the remote store -- also update the remote branch
         with the same name as the local one to points to the new
         state. *)
 
@@ -775,6 +803,189 @@ module Hash: sig
 
 end
 
+(** [Backend] provides the signatures that every backend should satisfy. *)
+module Backend: sig
+
+  module type CONTENTS = sig
+
+    include AO
+
+    module Key: Ir_hash.S with type t = key
+    (** [Key] provides base functions for user-defined contents keys. *)
+
+    module Val: Contents.S with type t = value
+    (** [Val] provides base function for user-defined contents values. *)
+
+  end
+
+  (** [Node] provides functions to describe the graph-like structured
+      values.
+
+      The node blocks form a labeled directed acyclic graph, labaled
+      by {{!Backend.NODE.Step}steps}: a list of steps defines a unique
+      path from one node to an other.
+
+      Every node can contain some optional key, corresponding to
+      user-defined {{!Backend.NODE.Val.contents}contents} values. *)
+  module type NODE = sig
+
+    include AO
+
+    module Step: Tc.S0
+    (** [Step] provides base functions over node steps. *)
+
+    module StepMap: Map.S with type key = Step.t
+    (** [StepMap] provides base funtions over node paths. *)
+
+    module Key: Hash.S with type t = key
+    (** [Key] provides base functions for node keys. *)
+
+    (** [Val] provides base functions for node values. *)
+    module Val: sig
+
+      (** {1 Node values} *)
+
+      include Contents.S with type t = value
+
+      type contents
+      (** The type for contents keys. *)
+
+      val contents: t -> contents option
+      (** [contents t] is the (optional) key of the node contents. *)
+
+      val with_contents: t -> contents option -> t
+      (** Replace the optional contents. *)
+
+      val succ: t -> key StepMap.t
+      (** Extract the successors of a node. *)
+
+      val with_succ: t -> key StepMap.t -> t
+      (** Replace the list of successors. *)
+
+      val edges: t -> [> `Contents of contents | `Node of key] list
+      (** Return the list of successor vertices. *)
+
+      val empty: t
+      (** The empty node. *)
+
+      val leaf: contents -> t
+      (** Create a leaf node, with some contents and no successors. *)
+
+      val create: ?contents:contents -> key StepMap.t -> t
+      (** [create ~contents succ] is the node with contents [contents] and
+          successors [succs]. *)
+
+      val is_empty: t -> bool
+      (** Is the node empty. *)
+
+      val is_leaf: t -> bool
+      (** Is it a leaf node (see {{!leaf}Backend.NODE.leaf}) ? *)
+
+    end
+  end
+
+  (** Commit values represent the store history.
+
+      Every commit contains a list of predecessor commits, and the
+      collection of commits form an acyclic directed graph.
+
+      Every commit also can contain an optional key, poiting to a
+      {{!Backend.COMMIT.Val.node}node} value. See the
+      {{!Backend.NODE}NODE} signature for more details on node
+      values. *)
+  module type COMMIT = sig
+
+    include AO
+
+    module Key: Hash.S with type t = key
+    (** [Key] provides base functions for commit keys. *)
+
+    (** [Val] provides function for commit values. *)
+    module Val: sig
+
+      (** {1 Commit values} *)
+
+      include Contents.S with type t = value
+      (** Base functions over commit values. *)
+
+      type node
+      (** Type for node keys. *)
+
+      val create: Ir_task.t -> ?node:node -> parents:key list -> t
+      (** Create a commit. *)
+
+      val node: t -> node option
+      (** The underlying node. *)
+
+      val parents: t -> key list
+      (** The commit parents. *)
+
+      val task: t -> Task.t
+      (** The commit provenance. *)
+
+      val edges: t -> [> `Node of node | `Commit of key] list
+      (** The graph edges. *)
+
+    end
+  end
+
+  (** Tags defines branch names.
+
+      A *tag store* is a key / value store, where keys are names
+      created by users (and/or global names created by convention) and
+      values are keys from the block store.
+
+      A typical Irmin application should have a very low number of
+      keys in the tag store. *)
+  module type TAG = sig
+
+    (** {1 The tag store} *)
+
+    include RW
+
+    module Key: Tag.S with type t = key
+    (** Base functions over keys. *)
+
+    module Val: Hash.S with type t = value
+    (** Base functions over values. *)
+
+  end
+
+  module type REMOTE = functor (S: Ir_bc.STORE) -> sig
+
+    val fetch: S.t -> ?depth:int -> string -> S.head option Lwt.t
+    (** [fetch t uri] fetches the contents of the remote store located
+        at [uri] into the local store [t]. Return [None] if the remote
+        store is empty, otherwise, return the head of [uri]. *)
+
+    val push : S.t -> ?depth:int -> string -> S.head option Lwt.t
+    (** [push t uri] pushes the contents of the local store [t] into the
+        remote store located at [uri]. Return [None] is the local store
+        is empty, otherwise, return the head of [t]. *)
+
+  end
+
+  (** [Make] builds a new Irmin implementation using 4 user-provided stores.
+
+      {ul
+      {- [C] is an append-only store where user-defined contents is stored.}
+      {- [N] is an append-only store where the prefix-tree storing user-defined paths is stored.}
+      {- [H] is an append-only store where history commits are stored.}
+      {- [T] is a read-write store where branch names are stored.}
+      }
+  *)
+  module Make
+      (C: CONTENTS)
+      (N: NODE with type Val.contents = C.key)
+      (H: COMMIT with type Val.node = N.key)
+      (T: TAG with type value = H.key)
+      (R: REMOTE):
+    S with type step = N.Step.t
+       and type value = C.value
+       and type tag = T.key
+       and type head = H.key
+
+end
 
 
 (*

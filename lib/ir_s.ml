@@ -14,55 +14,40 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+
 module type STORE = sig
-
   type step
-  type contents
-  type node
-  type commit
-  type head
-
-  module Step: Ir_step.S
-    with type t = step
-
-  module StepMap: Map.S
-    with type key = step
-
-  module Contents: Ir_contents.STORE
-    with type value = contents
-
-  module Node: Ir_node.STORE
-    with type step = step
-     and type value = node
-     and module Contents = Contents
-     and module Step = Step
-     and module StepMap = StepMap
-
-  module Commit: Ir_commit.STORE
-    with type key = head
-     and type value = commit
-     and module Node = Node
-
+  include Ir_bc.STORE with type key = step list
+  module Step: Tc.S0 with type t = step
+  module Key: Tc.S0 with type t = key
+  module Val: Ir_contents.S with type t = value
+  module View: Ir_view.S
+      with type db = t
+       and type step := step
+       and type value = value
+  module Snapshot: Ir_snapshot.S
+    with type db = t
+     and type key = key
+     and type value = value
+  module Dot: Ir_dot.S
+    with type db = t
+  module Sync: Ir_sync.S
+    with type db = t
+     and type head := head
 end
 
 module Make
     (C: Ir_contents.RAW_STORE)
     (N: Ir_node.RAW_STORE with type Val.contents = C.key)
-    (S: Ir_commit.RAW_STORE with type Val.node = N.key) =
+    (S: Ir_commit.RAW_STORE with type Val.node = N.key)
+    (T: Ir_tag.STORE with type value = S.key)
+    (R: Ir_sync.REMOTE) =
 struct
-
-  module C = Ir_commit.Make(C)(N)(S)
-
-  type step = C.Node.step
-  type contents = C.Node.contents
-  type node = C.node
-  type commit = C.value
-  type head = C.key
-
-  module Step = C.Node.Step
-  module StepMap = C.Node.StepMap
-  module Contents = C.Node.Contents
-  module Node = C.Node
-  module Commit = C
-
+  module B = Ir_bc.Make_ext(C)(N)(S)(T)
+  include B
+  module Step = B.Block.Step
+  module View = Ir_view.Make(B)
+  module Snapshot = Ir_snapshot.Make(B)
+  module Dot = Ir_dot.Make(B)
+  module Sync = Ir_sync.Make(B)(R)
 end

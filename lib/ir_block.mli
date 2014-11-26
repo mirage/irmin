@@ -47,17 +47,17 @@ module type STORE = sig
 
 end
 
-module type MAKER =
-  functor (C: Ir_commit.STORE) ->
-    STORE with type step = C.Node.step
-           and type contents = C.Node.contents
-           and type node = C.node
-           and type commit = C.value
-           and type head = C.key
-           and module Step = C.Node.Step
-           and module StepMap = C.Node.StepMap
-           and module Contents = C.Node.Contents
-           and module Node = C.Node
-           and module Commit = C
-
-module Make: MAKER
+module Make
+    (C: Ir_contents.RAW_STORE)
+    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
+    (S: Ir_commit.RAW_STORE with type Val.node = N.key):
+  STORE with type step = N.Step.t
+         and type contents = C.value
+         and type node = N.value
+         and type commit = S.value
+         and type head = S.key
+         and module Step = N.Step
+         and module StepMap = Ir_commit.Make(C)(N)(S).Node.StepMap
+         and module Contents = Ir_commit.Make(C)(N)(S).Node.Contents
+         and module Node = Ir_commit.Make(C)(N)(S).Node
+         and module Commit = Ir_commit.Make(C)(N)(S)

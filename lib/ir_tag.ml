@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-
 module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
@@ -48,27 +46,8 @@ module String = struct
 
 end
 
-
 module type STORE = sig
   include Ir_rw.STORE
   module Key: S with type t = key
   module Val: Ir_hash.S with type t = value
-end
-
-
-module type MAKER =
-  functor (K: S) ->
-  functor (V: Ir_hash.S) ->
-    STORE with type t = Ir_task.t and type key = K.t and type value = V.t
-
-module Make (S: Ir_rw.MAKER) (K: S) (V: Ir_hash.S) = struct
-
-  module Key = K
-  module Val = V
-  include S(K)(V)
-
-  (* XXX: here, all the tags are public, is it what we want? *)
-  let list t _ =
-    dump t >>= fun l ->
-    return (List.map fst l)
 end

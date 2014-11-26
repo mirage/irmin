@@ -26,7 +26,6 @@ module type S = sig
   type node
   type 'a step_map
   val contents: t -> contents option
-  val contents_exn: t -> contents
   val with_contents: t -> contents option -> t
   val succ: t -> node step_map
   val with_succ: t -> node step_map -> t
@@ -115,11 +114,6 @@ module Node (K_c: Tc.S0) (K_n: Tc.S0) (StepMap: Ir_misc.MAP) = struct
   let is_leaf e =
     e.contents <> None && StepMap.is_empty e.succ
 
-  let contents_exn e =
-    match e.contents with
-    | None   -> raise Not_found
-    | Some c -> c
-
   let with_contents node contents = { node with contents }
 
   let with_succ node succ = { node with succ }
@@ -135,8 +129,8 @@ module type RAW_STORE = sig
   module Key: Ir_hash.S with type t = key
   module Val: S
     with type t = value
-     and type node = key
-     and type 'a step_map = 'a StepMap.t
+     and type node := key
+     and type 'a step_map := 'a StepMap.t
 end
 
 module type STORE = sig

@@ -102,7 +102,7 @@ module type RAW_STORE = sig
 
   module Val: S
     with type t = value
-     and type commit = key
+     and type commit := key
   (** Base functions over values. *)
 
 end

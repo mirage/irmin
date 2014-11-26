@@ -291,7 +291,7 @@ module Internal (Node: NODE) = struct
 
 end
 
-module Of_store (S: Ir_bc.STORE_EXT) = struct
+module Make (S: Ir_bc.STORE_EXT) = struct
 
   module B = S.Block
 
@@ -581,7 +581,7 @@ module Of_store (S: Ir_bc.STORE_EXT) = struct
 
 end
 
-module type OF_STORE = sig
+module type S = sig
   type step
   include Ir_rw.STORE with type key = step list
   val create: Ir_task.t -> t

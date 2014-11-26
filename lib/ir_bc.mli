@@ -47,14 +47,25 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (B: Ir_block.STORE) ->
-  functor (T: Ir_tag.STORE with type value = B.head)
-    -> STORE with type key = B.step list
-              and type value = B.contents
-              and type tag = T.key
-              and type head = B.head
+  functor (K: Tc.S0) ->
+  functor (V: Tc.S0) ->
+  functor (T: Tc.S0) ->
+  functor (H: Tc.S0) ->
+  functor (S: Tc.S0) ->
+    STORE with type key = K.t
+           and type value = V.t
+           and type head = H.t
+           and type slice = S.t
 
-module Make: MAKER
+module Make
+    (C: Ir_contents.RAW_STORE)
+    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
+    (S: Ir_commit.RAW_STORE with type Val.node = N.key)
+    (T: Ir_tag.STORE with type value = S.key):
+  STORE with type key = N.Step.t list
+         and type value = C.value
+         and type tag = T.key
+         and type head = S.key
 
 module type STORE_EXT = sig
 
@@ -116,14 +127,14 @@ module type STORE_EXT = sig
 
 end
 
-module type MAKER_EXT =
-  functor (B: Ir_block.STORE) ->
-  functor (T: Ir_tag.STORE with type value = B.head)
-    -> STORE_EXT with type step = B.step
-                  and type value = B.contents
-                  and type tag = T.key
-                  and type head = B.head
-                  and module Block = B
-                  and module Tag = T
-
-module Make_ext: MAKER_EXT
+module Make_ext
+    (C: Ir_contents.RAW_STORE)
+    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
+    (H: Ir_commit.RAW_STORE with type Val.node = N.key)
+    (T: Ir_tag.STORE with type value = H.key):
+  STORE_EXT with type step = N.Step.t
+             and type value = C.value
+             and type tag = T.key
+             and type head = H.key
+             and module Block = Ir_block.Make(C)(N)(H)
+             and module Tag = T

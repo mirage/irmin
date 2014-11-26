@@ -16,11 +16,11 @@
 
 (** Store dumps. *)
 
-module type OF_STORE = sig
+module type S = sig
   type db
   val output_buffer:
     db -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string)
     -> Buffer.t -> unit Lwt.t
 end
 
-module Make (S: Ir_bc.STORE_EXT): OF_STORE
+module Make (S: Ir_bc.STORE_EXT): S with type db = S.t

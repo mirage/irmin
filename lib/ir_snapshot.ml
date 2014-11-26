@@ -19,7 +19,7 @@ open Ir_misc.OP
 
 module Log = Log.Make(struct let section = "SNAPSHOT" end)
 
-module type OF_STORE = sig
+module type S = sig
   include Ir_ro.STORE
   type db
   val create: db -> t Lwt.t
@@ -28,7 +28,7 @@ module type OF_STORE = sig
   val watch: db -> key -> (key * t) Lwt_stream.t
 end
 
-module Of_store (S: Ir_bc.STORE_EXT) = struct
+module Make (S: Ir_bc.STORE_EXT) = struct
 
   module B = S.Block
   module N = B.Node

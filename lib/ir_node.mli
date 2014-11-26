@@ -18,60 +18,21 @@
 (** Nodes represent structured values serialized in the block
     store. *)
 
-(** The blocks form a labeled directed acyclic graph (DAG). For
-    instance, using the following API it is possible to go from one
-    node to another following a path in the graph. Every node of the
-    graph might carry some optional contents. *)
-
 module type S = sig
-
-  (** Node values. *)
-
   include Ir_contents.S
-
   type contents
-  (** Type for contents. *)
-
   type node
-  (** Type for nodes. *)
-
   type 'a step_map
-  (** A map of steps. *)
-
   val contents: t -> contents option
-  (** [contents t] is the (optional) key of the node contents. *)
-
-  val contents_exn: t -> contents
-  (** Same as [contents], but raise [Not_found] if it is [None]. *)
-
   val with_contents: t -> contents option -> t
-  (** Replace the optional contents. *)
-
   val succ: t -> node step_map
-  (** Extract the successors of a node. *)
-
   val with_succ: t -> node step_map -> t
-  (** Replace the list of successors. *)
-
   val edges: t -> [> `Contents of contents | `Node of node] list
-  (** Return the list of successor vertices. *)
-
   val empty: t
-  (** The empty node. *)
-
   val leaf: contents -> t
-  (** Create a leaf node, with some contents and no successors. *)
-
   val create: ?contents:contents -> node step_map -> t
-  (** [create ~contents succ] is the node with contents [contents] and
-      successors [succs]. *)
-
   val is_empty: t -> bool
-  (** Is the node empty. *)
-
   val is_leaf: t -> bool
-  (** Is it a leaf node (see [leaf]) ? *)
-
 end
 
 module Node (C: Tc.S0) (N: Tc.S0) (S: Ir_misc.MAP):
@@ -92,8 +53,8 @@ module type RAW_STORE = sig
 
   module Val: S
     with type t = value
-     and type node = key
-     and type 'a step_map = 'a StepMap.t
+     and type node := key
+     and type 'a step_map := 'a StepMap.t
   (** Base functions for values. *)
 
 end

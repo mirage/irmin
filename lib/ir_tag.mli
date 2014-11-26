@@ -54,13 +54,3 @@ module type STORE = sig
   (** Base functions over values. *)
 
 end
-
-module type MAKER =
-  functor (K: S) ->
-  functor (V: Ir_hash.S) ->
-    STORE with type t = Ir_task.t
-           and type key = K.t
-           and type value = V.t
-
-module Make (S: Ir_rw.MAKER): MAKER
-(** Build a tag store. *)

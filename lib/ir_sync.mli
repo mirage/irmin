@@ -16,7 +16,7 @@
 
 (** Store Synchronisation. *)
 
-module type STORE = sig
+module type S = sig
   type db
   type head
   type remote
@@ -28,34 +28,16 @@ module type STORE = sig
   val push_exn: db -> ?depth:int -> remote -> head Lwt.t
 end
 
-module type REMOTE = sig
-
-  type db
-  (** The type for store handles. *)
-
-  type head
-  (** The type for store heads. *)
-
-  val fetch: db -> ?depth:int -> string -> head option Lwt.t
-  (** [fetch t uri] fetches the contents of the remote store located
-      at [uri] into the local store [t]. Return [None] if the remote
-      store is empty, otherwise, return the head of [uri]. *)
-
-  val push : db -> ?depth:int -> string -> head option Lwt.t
-  (** [push t uri] pushes the contents of the local store [t] into the
-      remote store located at [uri]. Return [None] is the local store
-      is empty, otherwise, return the head of [t]. *)
-
+module type REMOTE = functor (S: Ir_bc.STORE) -> sig
+  val fetch: S.t -> ?depth:int -> string -> S.head option Lwt.t
+  val push : S.t -> ?depth:int -> string -> S.head option Lwt.t
 end
 
-module None (S: Ir_bc.STORE):
-  REMOTE with type db = S.t and type head = S.head
+module None: REMOTE
 (** An implementation of remote synchronisation which does nothing,
     i.e. it always return [None] on [fetch] and [push]. *)
 
-module Make
-    (S: Ir_bc.STORE)
-    (R: REMOTE with type db = S.t and type head = S.head):
-  STORE with type db = S.t and type head = S.head
+module Make (S: Ir_bc.STORE) (R: REMOTE):
+  S with type db = S.t and type head = S.head
 (** Use [R] to synchronize stores using some native (and usually fast)
     backend-specific protocols. *)

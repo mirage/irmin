@@ -18,7 +18,7 @@ open Lwt
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
-module type STORE = sig
+module type S = sig
   type db
   type head
   type remote
@@ -30,18 +30,14 @@ module type STORE = sig
   val push_exn: db -> ?depth:int -> remote -> head Lwt.t
 end
 
-module type REMOTE = sig
-  type db
-  type head
-  val fetch: db -> ?depth:int -> string -> head option Lwt.t
-  val push : db -> ?depth:int -> string -> head option Lwt.t
+module type REMOTE = functor (S: Ir_bc.STORE) -> sig
+  val fetch: S.t -> ?depth:int -> string -> S.head option Lwt.t
+  val push : S.t -> ?depth:int -> string -> S.head option Lwt.t
 end
 
-module Make
-    (S: Ir_bc.STORE)
-    (R: REMOTE with type db = S.t and type head = S.head) =
- struct
+module Make (S: Ir_bc.STORE) (R: REMOTE) = struct
 
+  module R = R(S)
   type db = S.t
   type head = S.head
 
@@ -93,9 +89,6 @@ module Make
 end
 
 module None (S: Ir_bc.STORE) = struct
-
-  type db = S.t
-  type head = S.head
 
   let fetch _t ?depth:_ _uri =
     Log.debugf "slow fetch";

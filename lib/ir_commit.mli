@@ -17,33 +17,14 @@
 (** Manage the database history. *)
 
 module type S = sig
-
-  (** Signature for commit objects. *)
-
   include Ir_contents.S
-  (** Base functions over commit objects. *)
-
   type commit
-  (** Type for commit keys. *)
-
   type node
-  (** Type for node keys. *)
-
   val create: Ir_task.t -> ?node:node -> parents:commit list -> t
-  (** Create a commit. *)
-
   val node: t -> node option
-  (** The underlying node. *)
-
   val parents: t -> commit list
-  (** The commit parents. *)
-
   val task: t -> Ir_task.t
-  (** The commit provenance. *)
-
   val edges: t -> [> `Node of node | `Commit of commit] list
-  (** The graph edges. *)
-
 end
 
 module Commit (C: Tc.S0) (N: Tc.S0):
@@ -59,7 +40,7 @@ module type RAW_STORE = sig
 
   module Val: S
     with type t = value
-     and type commit = key
+     and type commit := key
   (** Base functions over values. *)
 
 end
