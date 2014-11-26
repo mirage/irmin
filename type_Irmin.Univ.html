@@ -12,5 +12,7 @@
 <body>
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:&nbsp;unit&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="keywordsign">'</span>a&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Univ</span>.t)&nbsp;*&nbsp;(<span class="constructor">Irmin</span>.<span class="constructor">Univ</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;option)<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">'</span>a&nbsp;<span class="constructor">Tc</span>.t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="keywordsign">'</span>a&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Univ</span>.t)&nbsp;*&nbsp;(<span class="constructor">Irmin</span>.<span class="constructor">Univ</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;option)&nbsp;*&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Univ</span>.t&nbsp;<span class="constructor">Tc</span>.t<br>
 <span class="keyword">end</span></code></body></html>

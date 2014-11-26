@@ -42,9 +42,15 @@ Type type for universal values.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> ('a -> <a href="Irmin.Univ.html#TYPEt">t</a>) * (<a href="Irmin.Univ.html#TYPEt">t</a> -> 'a option)</code></pre><div class="info ">
-<code class="code">create ()</code> returns a function to inject and a function to
-      project a value from a given type in to/from a universal
-      value.<br>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">'a Tc.t -><br>       ('a -> <a href="Irmin.Univ.html#TYPEt">t</a>) * (<a href="Irmin.Univ.html#TYPEt">t</a> -> 'a option) * <a href="Irmin.Univ.html#TYPEt">t</a> Tc.t</code></pre><div class="info ">
+<code class="code">create ()</code> returns:
+<p>
+
+      <ul>
+<li>a function to inject a value from a given type in to a universal value;</li>
+<li>a function to project from a universal value to a value of a given type;</li>
+<li>a type-class to show and serialize universal values.</li>
+</ul>
+<br>
 </div>
 </body></html>

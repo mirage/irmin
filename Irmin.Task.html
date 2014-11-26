@@ -33,15 +33,29 @@ Tasks are used to keep track of the origin of reads and writes in
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
 <div class="info ">
-The type for tasks. Every task has a date, a text message and an
-      name identifying the entity performing that operation. Tasks are
-      threaded from high-level calls to all low-level store
-      operations. A task might also contains some secrets, which will
-      never be serialized.<br>
+The type for tasks. Every task has:
+<p>
+
+      <ul>
+<li>a date, whose computation is left to the user. When
+      available, <code class="code">Unix.gettimeofday ()</code> is a good date value. On more
+      esoteric platforms, an monotonic counter is fine as well. For
+      the Git backeand, the date will be translated into the commit <em>      Date</em> field.</li>
+<li>a text message, which can be appended later on already
+      created tasks, using the <code class="code">fprintf</code> function. On the Git backend,
+      this will be translated to the commit body.</li>
+<li>an owner identifying the entity performing that operation. On
+      the Git backend, this will be translated into the <em>Author</em>
+      field.</li>
+<li>a unique identifer. The user does not have control over it,
+      it is useful for debugging purposes and might appear in the
+      commit body on the Git backend.</li>
+</ul>
+<br>
 </div>
 
 
-<pre><span class="keyword">include</span> Tc.I0</pre>
+<pre><span class="keyword">include</span> Tc.S0</pre>
 
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">date:int64 -><br>       owner:string -> ('a, unit, string, <a href="Irmin.Task.html#TYPEt">t</a>) Pervasives.format4 -> 'a</code></pre><div class="info ">
 Create a new task.<br>
