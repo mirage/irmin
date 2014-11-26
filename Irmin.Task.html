@@ -31,53 +31,57 @@ Tasks are used to keep track of the origin of reads and writes in
 <br>
 <h1 id="1_Task">Task</h1><br>
 
-<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
-<div class="info ">
-The type for tasks. Every task has:
-<p>
-
-      <ul>
-<li>a date, whose computation is left to the user. When
-      available, <code class="code">Unix.gettimeofday ()</code> is a good date value. On more
-      esoteric platforms, an monotonic counter is fine as well. For
-      the Git backeand, the date will be translated into the commit <em>      Date</em> field.</li>
-<li>a text message, which can be appended later on already
-      created tasks, using the <code class="code">fprintf</code> function. On the Git backend,
-      this will be translated to the commit body.</li>
-<li>an owner identifying the entity performing that operation. On
-      the Git backend, this will be translated into the <em>Author</em>
-      field.</li>
-<li>a unique identifer. The user does not have control over it,
-      it is useful for debugging purposes and might appear in the
-      commit body on the Git backend.</li>
-</ul>
-<br>
-</div>
-
-
 <pre><span class="keyword">include</span> Tc.S0</pre>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">date:int64 -><br>       owner:string -> ('a, unit, string, <a href="Irmin.Task.html#TYPEt">t</a>) Pervasives.format4 -> 'a</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">date:int64 -> owner:string -> ('a, unit, string, t) Pervasives.format4 -> 'a</code></pre><div class="info ">
 Create a new task.<br>
 </div>
 
-<pre><span id="VALfprintf"><span class="keyword">val</span> fprintf</span> : <code class="type"><a href="Irmin.Task.html#TYPEt">t</a> -> ('a, unit, string, unit) Pervasives.format4 -> 'a</code></pre><div class="info ">
-Add a message to the task messages list.<br>
+<pre><span id="VALdate"><span class="keyword">val</span> date</span> : <code class="type">t -> int64</code></pre><div class="info ">
+Get the task date.
+<p>
+
+      The computation of the date if left to the user when calling the
+      <a href="Irmin.Task.html#VALcreate">create</a> function. When available,
+      <code class="code">Unix.gettimeofday ()</code> is a good date value. On more esoteric
+      platforms, an monotonic counter is fine as well. For the Git
+      backeand, the date will be translated into the commit <em>Date</em>
+      field.<br>
 </div>
 
-<pre><span id="VALdate"><span class="keyword">val</span> date</span> : <code class="type"><a href="Irmin.Task.html#TYPEt">t</a> -> int64</code></pre><div class="info ">
-Get the task date.<br>
+<pre><span id="VALowner"><span class="keyword">val</span> owner</span> : <code class="type">t -> string</code></pre><div class="info ">
+Get the task owner.
+<p>
+
+      The owner identifies the entity (human, unikernel, process,
+      thread, etc) performing an operation. For the Git backend, this
+      will be directly translated into the <em>Author</em> field.<br>
 </div>
 
-<pre><span id="VALuid"><span class="keyword">val</span> uid</span> : <code class="type"><a href="Irmin.Task.html#TYPEt">t</a> -> int64</code></pre><div class="info ">
-Get the task unique identifier.<br>
+<pre><span id="VALuid"><span class="keyword">val</span> uid</span> : <code class="type">t -> int64</code></pre><div class="info ">
+Get the task unique identifier.
+<p>
+
+      The user does not have control over the generation of that
+      unique identifier. That identifier is useful for debugging
+      purposes, for instance to relate debug lines to the tasks which
+      cause them, and might appear in one line of the commit message
+      for the Git backend.<br>
 </div>
 
-<pre><span id="VALowner"><span class="keyword">val</span> owner</span> : <code class="type"><a href="Irmin.Task.html#TYPEt">t</a> -> string</code></pre><div class="info ">
-Get the task owner.<br>
+<pre><span id="VALmessages"><span class="keyword">val</span> messages</span> : <code class="type">t -> string list</code></pre><div class="info ">
+Get the messages associated to the task.
+<p>
+
+      Text messages can be added to a task either at creation time,
+      using <a href="Irmin.Task.html#VALcreate">create</a>, or can be appended on already
+      created tasks using the <a href="Irmin.Task.html#VALfprintf">fprintf</a> function. For
+      the Git backend, this will be translated to the commit
+      message.<br>
 </div>
 
-<pre><span id="VALmessages"><span class="keyword">val</span> messages</span> : <code class="type"><a href="Irmin.Task.html#TYPEt">t</a> -> string list</code></pre><div class="info ">
-Get the messages associated to the task.<br>
+<pre><span id="VALfprintf"><span class="keyword">val</span> fprintf</span> : <code class="type">t -> ('a, unit, string, unit) Pervasives.format4 -> 'a</code></pre><div class="info ">
+Add a message to the task messages list. See
+      <a href="Irmin.Task.html#VALmessages">messages</a> for more details.<br>
 </div>
 </body></html>

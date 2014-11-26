@@ -68,7 +68,7 @@ Type for branch names, or tags. Tags usually share a common
 </div>
 
 
-<pre><span id="VALof_tag"><span class="keyword">val</span> of_tag</span> : <code class="type">(string * <a href="Irmin.Univ.html#TYPEt">Irmin.Univ.t</a>) list -> <a href="Irmin.Task.html#TYPEt">Irmin.Task.t</a> -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> t</code></pre><div class="info ">
+<pre><span id="VALof_tag"><span class="keyword">val</span> of_tag</span> : <code class="type">(string * <a href="Irmin.Univ.html#TYPEt">Irmin.Univ.t</a>) list -> Irmin.Task.t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> t</code></pre><div class="info ">
 <code class="code">create t tag</code> is a persistent store handle. Similar to
       <code class="code">create</code>, but use the <code class="code">tag</code> branch instead of the <code class="code">master</code>
       one.<br>
@@ -123,7 +123,7 @@ Type for head values.<br>
 </div>
 
 
-<pre><span id="VALof_head"><span class="keyword">val</span> of_head</span> : <code class="type">(string * <a href="Irmin.Univ.html#TYPEt">Irmin.Univ.t</a>) list -> <a href="Irmin.Task.html#TYPEt">Irmin.Task.t</a> -> <a href="Irmin.BC.html#TYPEhead">head</a> -> t</code></pre><div class="info ">
+<pre><span id="VALof_head"><span class="keyword">val</span> of_head</span> : <code class="type">(string * <a href="Irmin.Univ.html#TYPEt">Irmin.Univ.t</a>) list -> Irmin.Task.t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> t</code></pre><div class="info ">
 Create a temporary store handle, which will not persist as it
       has no associated to any persistent tag name.<br>
 </div>
