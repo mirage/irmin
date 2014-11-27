@@ -28,17 +28,17 @@ module type STORE = sig
   module StepMap: Map.S
     with type key = step
 
-  module Contents: Ir_contents.STORE
+  module Contents: Ir_contents.STORE_EXT
     with type value = contents
 
-  module Node: Ir_node.STORE
+  module Node: Ir_node.STORE_EXT
     with type step = step
      and type value = node
      and module Contents = Contents
      and module Step = Step
      and module StepMap = StepMap
 
-  module Commit: Ir_commit.STORE
+  module Commit: Ir_commit.STORE_EXT
     with type key = head
      and type value = commit
      and module Node = Node
@@ -46,12 +46,12 @@ module type STORE = sig
 end
 
 module Make
-    (C: Ir_contents.RAW_STORE)
-    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
-    (S: Ir_commit.RAW_STORE with type Val.node = N.key) =
+    (C: Ir_contents.STORE)
+    (N: Ir_node.STORE with type Val.contents = C.key)
+    (S: Ir_commit.STORE with type Val.node = N.key) =
 struct
 
-  module C = Ir_commit.Make(C)(N)(S)
+  module C = Ir_commit.Store(C)(N)(S)
 
   type step = C.Node.step
   type contents = C.Node.contents

@@ -20,8 +20,8 @@ module type STORE = sig
   type t
   type key
   type value
-  val create: (string * Ir_univ.t) list -> Ir_task.t -> t
-  val config: t -> (string * Ir_univ.t) list
+  val create: Ir_config.t -> Ir_task.t -> t Lwt.t
+  val config: t -> Ir_config.t
   val task: t -> Ir_task.t
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t

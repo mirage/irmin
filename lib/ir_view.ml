@@ -107,6 +107,7 @@ end
 
 module type NODE = sig
   type t
+  type commit
   type node
   type contents
   module Contents: Tc.S0 with type t = contents
@@ -116,9 +117,9 @@ module type NODE = sig
   val is_empty: t -> bool
   val read: t -> node option Lwt.t
   val succ: node -> t StepMap.t
-  val contents: t -> contents option Lwt.t
+  val contents: t -> contents StepMap.t Lwt.t
   val update_succ: t -> t StepMap.t -> unit Lwt.t
-  val update_contents: t -> contents option -> unit Lwt.t
+  val update_contents: t -> contents StepMap.t -> unit Lwt.t
 end
 
 module Internal (Node: NODE) = struct
@@ -137,27 +138,28 @@ module Internal (Node: NODE) = struct
   type action = Action.t
 
   type t = {
+    config: Ir_config.t;
     task: Ir_task.t;
     view: Node.t;
     mutable ops: action list;
-    mutable parents: Ir_univ.t list;
+    mutable parents: Node.commit list;
   }
 
   module CO = Tc.Option(Node.Contents)
   module PL = Tc.List(Path)
 
-  let create task =
+  let create config task =
     Log.debugf "create";
     let view = Node.empty () in
     let ops = [] in
     let parents = [] in
-    { task; parents; view; ops }
+    return { config; task; parents; view; ops }
 
   let task t =
     Ir_task.fprintf t.task "%s" (Action.prettys t.ops);
     t.task
 
-  let config _t = []
+  let config t = t.config
 
   let sub t path =
     let rec aux node = function
@@ -176,9 +178,13 @@ module Internal (Node: NODE) = struct
     aux t.view path
 
   let read_aux t path =
+    let path, file = Ir_misc.list_end path in
     sub t path >>= function
     | None   -> return_none
-    | Some n -> Node.contents n
+    | Some n ->
+      Node.contents n >>= fun m ->
+      try return (Some (StepMap.find file m))
+      with Not_found -> return_none
 
   let read t k =
     read_aux t k >>= fun v ->
@@ -230,8 +236,15 @@ module Internal (Node: NODE) = struct
 
   let update_opt_aux t k v =
     let rec aux view = function
-      | []   -> Node.update_contents view v
-      | h::p ->
+      | []     -> failwith "empty path"
+      | [file] ->
+        Node.contents view >>= fun contents ->
+        let contents = match v with
+          | None   -> StepMap.remove file contents
+          | Some v -> StepMap.add file v contents
+        in
+        Node.update_contents view contents
+      | h::p   ->
         Node.read view >>= function
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
@@ -339,11 +352,11 @@ module Make (S: Ir_bc.STORE_EXT) = struct
     module StepMap = Ir_misc.Map(B.StepMap)(Step)
 
     type contents = B.contents
-
+    type commit = S.head
     type key = S.t * B.Node.key
 
     type node = {
-      contents: Contents.t option;
+      contents: Contents.t StepMap.t;
       succ    : t StepMap.t;
     }
 
@@ -371,18 +384,16 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       ref (Both ((db, k), v))
 
     let empty () =
-      create None StepMap.empty
+      create StepMap.empty StepMap.empty
 
     let is_empty n =
       match !n with
       | Key _  -> false
       | Both (_, n)
-      | Node n -> n.contents = None && StepMap.is_empty n.succ
+      | Node n -> StepMap.is_empty n.contents && StepMap.is_empty n.succ
 
     let import t n =
-      let contents = match B.Node.Val.contents n with
-        | None   -> None
-        | Some k -> Some (Contents.key t k) in
+      let contents = StepMap.map (Contents.key t) (B.Node.Val.contents n) in
       let succ = StepMap.map (key t) (B.Node.Val.succ n) in
       { contents; succ }
 
@@ -393,11 +404,9 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       | Node _ -> failwith "Node.export"
 
     let export_node n =
-      let contents = match n.contents with
-        | None   -> None
-        | Some c -> Some (Contents.export c) in
+      let contents = StepMap.map Contents.export n.contents in
       let succ = StepMap.map export n.succ in
-      B.Node.Val.create ?contents succ
+      B.Node.Val.create contents succ
 
     let read t =
       match !t with
@@ -413,27 +422,28 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
     let contents t =
       read t >>= function
-      | None   -> return_none
+      | None   -> return StepMap.empty
       | Some c ->
-        match c.contents with
-        | None   -> return_none
-        | Some c -> Contents.read c
+        StepMap.fold (fun l k acc ->
+            Contents.read k >>= function
+            | None   -> acc
+            | Some c -> acc >>= fun m -> return (StepMap.add l c m)
+          ) c.contents (return StepMap.empty)
 
-    let update_contents t v =
+    let update_contents t contents =
       read t >>= function
-      | None   -> if v = None then return_unit else fail Not_found (* XXX ? *)
+      | None -> if
+        StepMap.is_empty contents then return_unit else fail Not_found (* ? *)
       | Some n ->
-        let new_n = match v with
-          | None   -> { n with contents = None }
-          | Some c -> { n with contents = Some (Contents.create c) } in
+        let contents = StepMap.map Contents.create contents in
+        let new_n = { n with contents } in
         t := Node new_n;
         return_unit
 
     let update_succ t succ =
       read t >>= function
-      | None   ->
-        if StepMap.is_empty succ then return_unit else
-          fail Not_found (* XXX ? *)
+      | None ->
+        if StepMap.is_empty succ then return_unit else fail Not_found (* ? *)
       | Some n ->
         let new_n = { n with succ } in
         t := Node new_n;
@@ -447,14 +457,6 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   type db = S.t
 
-  let to_univ, of_univ, _ = Ir_univ.create (module B.Commit.Key)
-
-  let univ_of_parents (t:S.head list) =
-    List.map to_univ t
-
-  let parents_of_univ l: S.head list =
-    Ir_misc.list_filter_map (fun x -> x) (List.map of_univ l)
-
   let import db ~parents key =
     Log.debugf "import %a" force (show (module B.Node.Key) key);
     B.Node.read (S.node_t db) key >>= function
@@ -462,9 +464,9 @@ module Make (S: Ir_bc.STORE_EXT) = struct
     | Some n ->
       let view = Node.both db key (Node.import db n) in
       let ops = [] in
-      let parents = univ_of_parents parents in
       let task = S.task db in
-      return { task; parents; view; ops }
+      let config = S.config db in
+      return { config; task; parents; view; ops }
 
   let export db t =
     Log.debugf "export";
@@ -482,22 +484,21 @@ module Make (S: Ir_bc.STORE_EXT) = struct
             return_unit
           ) todo;
         (* 2. we push the contents job on the stack. *)
-        Stack.push (fun () ->
-            match x.Node.contents with
-            | None   -> return_unit
-            | Some c ->
-              match !c with
-              | Contents.Both _
-              | Contents.Key _       -> return_unit
-              | Contents.Contents x  ->
-                B.Contents.add (S.contents_t db) x >>= fun k ->
-                c := Contents.Key (db, k);
-                return_unit
-          ) todo;
+        StepMap.iter (fun _ c ->
+            match !c with
+            | Contents.Both _
+            | Contents.Key _       -> ()
+            | Contents.Contents x  ->
+              Stack.push (fun () ->
+                  B.Contents.add (S.contents_t db) x >>= fun k ->
+                  c := Contents.Key (db, k);
+                  return_unit
+                ) todo
+          ) x.Node.contents;
         (* 3. we push the children jobs on the stack. *)
         StepMap.iter (fun _ n ->
             Stack.push (fun () -> add_to_todo n; return_unit) todo
-          ) (Node.succ x);
+          ) x.Node.succ;
     in
     let rec loop () =
       let task =
@@ -519,7 +520,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       | None   -> return_nil
       | Some h -> return [h] in
     S.read_node db path >>= function
-    | None   -> return (create (S.task db))
+    | None   -> create (S.config db) (S.task db)
     | Some n ->
       B.Node.add (S.node_t db) n >>= fun k ->
       parents >>= fun parents ->
@@ -560,9 +561,8 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       (* Create a commit with the contents of the view *)
       B.Node.map (S.node_t db) head_node path (fun _ -> view_node)
       >>= fun new_head_node ->
-      let parents = parents_of_univ view.parents in
       let t_c = S.commit_t db in
-      Lwt_list.map_p (B.Commit.read_exn t_c) parents
+      Lwt_list.map_p (B.Commit.read_exn t_c) view.parents
       >>= fun parents ->
       B.Commit.commit t_c ~node:new_head_node ~parents
       >>= fun (k, _) ->
@@ -573,8 +573,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
         (* The store is empty, create a fresh commit. *)
         S.update_head db k >>= ok
       | Some head ->
-        let parents = parents_of_univ view.parents in
-        if List.mem head parents then
+        if List.mem head view.parents then
           S.update_head db k >>= ok
         else
           S.merge_head db k
@@ -584,7 +583,6 @@ end
 module type S = sig
   type step
   include Ir_rw.STORE with type key = step list
-  val create: Ir_task.t -> t
   val merge: t -> into:t -> unit Ir_merge.result Lwt.t
   type db
   val of_path: db -> key -> t Lwt.t

@@ -32,11 +32,10 @@ module type S = sig
   val edges: t -> [> `Node of node | `Commit of commit] list
 end
 
-module Commit (C: Tc.S0) (N: Tc.S0) = struct
+module Make (C: Tc.S0) (N: Tc.S0) = struct
 
   module T = Ir_task
   type node = N.t
-  type commit = C.t
 
   type t = {
     node   : N.t option;
@@ -93,7 +92,7 @@ module Commit (C: Tc.S0) (N: Tc.S0) = struct
 
 end
 
-module type RAW_STORE = sig
+module type STORE = sig
 
   include Ir_ao.STORE
 
@@ -107,9 +106,9 @@ module type RAW_STORE = sig
 
 end
 
-module type STORE = sig
-  module Node: Ir_node.STORE
-  include RAW_STORE with type Val.node = Node.key
+module type STORE_EXT = sig
+  module Node: Ir_node.STORE_EXT
+  include STORE with type Val.node = Node.key
   type node = Node.value
   val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
   val node: t -> value -> node Lwt.t option
@@ -120,10 +119,10 @@ module type STORE = sig
   val node_t: t -> Node.t
 end
 
-module Make
-    (C: Ir_contents.RAW_STORE)
-    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
-    (S: RAW_STORE with type Val.node = N.key) =
+module Store
+    (C: Ir_contents.STORE)
+    (N: Ir_node.STORE with type Val.contents = C.key)
+    (S: STORE with type Val.node = N.key) =
 struct
 
   module Val = S.Val
@@ -134,15 +133,15 @@ struct
   type t = C.t * N.t * S.t
   type node = N.value
 
-  module Node = Ir_node.Make(C)(N)
+  module Node = Ir_node.Store(C)(N)
 
   let node_t: t -> Node.t = function (c, n, _) -> (c, n)
 
   let create config task =
-    let c = C.create config task in
-    let n = N.create config task in
-    let s = S.create config task in
-    c, n, s
+    C.create config task >>= fun c ->
+    N.create config task >>= fun n ->
+    S.create config task >>= fun s ->
+    return (c, n, s)
 
   let task (_, _, t) =
     S.task t

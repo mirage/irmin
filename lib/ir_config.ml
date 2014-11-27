@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t = {
+type univ = {
   v      : exn;
   to_sexp: unit Tc.to_sexp;
   to_json: unit Tc.to_json;
@@ -26,7 +26,7 @@ type t = {
   equal  : exn -> bool;
 }
 
-let create (type s) (module M: Tc.S0 with type t = s) =
+let univ (type s) (module M: Tc.S0 with type t = s) =
   let module E = struct exception E of s end in
   let create t = {
     v = E.E t;
@@ -43,8 +43,7 @@ let create (type s) (module M: Tc.S0 with type t = s) =
         | _     -> false);
   } in
   let module T = struct
-    type r = t
-    type t = r
+    type t = univ
     let hash t = t.hash ()
     let to_sexp t = t.to_sexp ()
     let to_json t = t.to_json ()
@@ -57,4 +56,9 @@ let create (type s) (module M: Tc.S0 with type t = s) =
   end in
   (fun x -> create x),
   (function { v = E.E x; _ } -> Some x | _ -> None),
-  (module T: Tc.S0 with type t = t)
+  (module T: Tc.S0 with type t = univ)
+
+type t = (string * univ) list
+
+let to_dict x = x
+let of_dict x = x

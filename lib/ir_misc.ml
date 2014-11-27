@@ -197,14 +197,6 @@ let hashtbl_add_multi t k v =
   in
   Hashtbl.replace t k (v::vs)
 
-let string_chop_prefix t ~prefix =
-  let lt = String.length t in
-  let lp = String.length prefix in
-  if lt < lp then None else
-    let p = String.sub t 0 lp in
-    if String.compare p prefix <> 0 then None
-    else Some (String.sub t lp (lt - lp))
-
 module type SET = sig
   include Set.S
   include Tc.S0 with type t := t
@@ -259,10 +251,14 @@ let is_valid_utf8 str =
     true
   with Failure "utf8" -> false
 
-
 let tag buf i =
   Cstruct.set_uint8 buf 0 i;
   Cstruct.shift buf 1
 
 let untag buf =
   Mstruct.get_uint8 buf
+
+let list_end l =
+  match List.rev l with
+  | []   -> raise Not_found
+  | h::t -> List.rev t, h

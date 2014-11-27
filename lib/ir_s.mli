@@ -38,9 +38,9 @@ module type STORE = sig
 end
 
 module Make
-    (C: Ir_contents.RAW_STORE)
-    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
-    (S: Ir_commit.RAW_STORE with type Val.node = N.key)
+    (C: Ir_contents.STORE)
+    (N: Ir_node.STORE with type Val.contents = C.key)
+    (S: Ir_commit.STORE with type Val.node = N.key)
     (T: Ir_tag.STORE with type value = S.key)
     (R: Ir_sync.REMOTE):
   STORE with type step = N.Step.t

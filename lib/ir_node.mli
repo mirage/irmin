@@ -22,44 +22,35 @@ module type S = sig
   include Ir_contents.S
   type contents
   type node
+  type step
   type 'a step_map
-  val contents: t -> contents option
-  val with_contents: t -> contents option -> t
+  val contents: t -> step -> contents
+  val with_contents: t -> contents step_map -> t
   val succ: t -> node step_map
   val with_succ: t -> node step_map -> t
   val edges: t -> [> `Contents of contents | `Node of node] list
   val empty: t
-  val leaf: contents -> t
-  val create: ?contents:contents -> node step_map -> t
+  val create: contents step_map -> node step_map -> t
   val is_empty: t -> bool
-  val is_leaf: t -> bool
 end
 
-module Node (C: Tc.S0) (N: Tc.S0) (S: Ir_misc.MAP):
-  S with type contents = C.t and type node = N.t and type 'a step_map = 'a S.t
+module Make (C: Tc.S0) (N: Tc.S0) (S: Tc.S0):
+  S with type contents = C.t
+     and type node := N.t
+     and type 'a step_map := 'a Map.Make(S).t
 
-module type RAW_STORE = sig
-
+module type STORE = sig
   include Ir_ao.STORE
-
   module Step: Tc.S0
-  (** Base functions over steps. *)
-
   module StepMap: Map.S with type key = Step.t
-  (** Base functions over step maps. *)
-
   module Key: Ir_hash.S with type t = key
-  (** Base functions for keys. *)
-
   module Val: S
     with type t = value
      and type node := key
      and type 'a step_map := 'a StepMap.t
-  (** Base functions for values. *)
-
 end
 
-module type STORE = sig
+module type STORE_EXT = sig
 
   (** The node store encodes a labeled DAG where every node might hold
       some contents. *)
@@ -68,10 +59,10 @@ module type STORE = sig
   (** A step is used to pass from one node to an other. A list of
       steps forms a path. *)
 
-  module Contents: Ir_contents.STORE
+  module Contents: Ir_contents.STORE_EXT
   (** The contents store. *)
 
-  include RAW_STORE
+  include STORE
     with type Step.t = step
      and type Val.contents = Contents.key
 
@@ -81,15 +72,14 @@ module type STORE = sig
   val empty: value
   (** The empty node. *)
 
-  val node: t -> ?contents:contents -> ?succ:(step * value) list ->
+  val node: t ->
+    ?contents:(step * contents) list ->
+    ?succ:(step * value) list ->
     unit -> (key * value) Lwt.t
   (** Create a new node. *)
 
-  val contents: t -> value -> contents Lwt.t option
+  val contents: t -> value -> step -> contents Lwt.t
   (** Return the node contents. *)
-
-  val succ: t -> value -> value Lwt.t StepMap.t
-  (** Return the node successors. *)
 
   val sub: t -> value -> step list -> value option Lwt.t
   (** Find a subvalue. *)
@@ -124,13 +114,13 @@ module type STORE = sig
 
 end
 
-module Make
-    (C: Ir_contents.RAW_STORE)
-    (S: RAW_STORE with type Val.contents = C.key)
-  : STORE with type t = C.t * S.t
-           and type key = S.key
-           and type value = S.value
-           and type step = S.Step.t
-           and module Step = S.Step
-           and module Contents = Ir_contents.Make(C)
+module Store
+    (C: Ir_contents.STORE)
+    (S: STORE with type Val.contents = C.key)
+  : STORE_EXT with type t = C.t * S.t
+               and type key = S.key
+               and type value = S.value
+               and type step = S.Step.t
+               and module Step = S.Step
+               and module Contents = Ir_contents.Store(C)
 (** Create a node store from an append-only database. *)

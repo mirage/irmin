@@ -27,11 +27,11 @@ module type S = sig
   val edges: t -> [> `Node of node | `Commit of commit] list
 end
 
-module Commit (C: Tc.S0) (N: Tc.S0):
-  S with type commit = C.t
+module Make (C: Tc.S0) (N: Tc.S0):
+  S with type commit := C.t
      and type node = N.t
 
-module type RAW_STORE = sig
+module type STORE = sig
 
   include Ir_ao.STORE
 
@@ -45,14 +45,14 @@ module type RAW_STORE = sig
 
 end
 
-module type STORE = sig
+module type STORE_EXT = sig
 
   (** Store the history as a partial-order of revisions. *)
 
-  module Node: Ir_node.STORE
-  (** Base functions over nodes. *)
+  module Node: Ir_node.STORE_EXT
+  (** Store of nodes. *)
 
-  include RAW_STORE with type Val.node = Node.key
+  include STORE with type Val.node = Node.key
 
   type node = Node.value
   (** Node values. *)
@@ -81,12 +81,12 @@ module type STORE = sig
 
 end
 
-module Make
-    (C: Ir_contents.RAW_STORE)
-    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
-    (S: RAW_STORE with type Val.node = N.key):
-  STORE with type t = C.t * N.t * S.t
-         and type key = S.key
-         and type value = S.value
-         and module Node = Ir_node.Make(C)(N)
+module Store
+    (C: Ir_contents.STORE)
+    (N: Ir_node.STORE with type Val.contents = C.key)
+    (S: STORE with type Val.node = N.key):
+  STORE_EXT with type t = C.t * N.t * S.t
+             and type key = S.key
+             and type value = S.value
+             and module Node = Ir_node.Store(C)(N)
 (** Create a commit store. *)

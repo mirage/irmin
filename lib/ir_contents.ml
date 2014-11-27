@@ -23,14 +23,14 @@ module type S = sig
   val merge: t Ir_merge.t
 end
 
-module type RAW_STORE = sig
+module type STORE = sig
   include Ir_ao.STORE
   module Key: Ir_hash.S with type t = key
   module Val: S with type t = value
 end
 
-module type STORE = sig
-  include RAW_STORE
+module type STORE_EXT = sig
+  include STORE
   val merge: t -> key Ir_merge.t
 end
 
@@ -154,7 +154,7 @@ module Cstruct = struct
   let merge = Ir_merge.default (module S)
 end
 
-module Make  (S: RAW_STORE) = struct
+module Store (S: STORE) = struct
   include S
   let merge t =
     Ir_merge.biject'

@@ -30,8 +30,8 @@ module type S = sig
   (** Listeners state. *)
 
   val notify: t -> key -> value option -> unit
-  (** Notifity all listeners that a key havs been changed. If the
-      argument is [None], this means the key has been removed. *)
+  (** Notifity all listeners that a key has changed. If the argument
+      is [None], this means the key has been removed. *)
 
   val create: unit -> t
   (** Create in-memory notifications. *)
@@ -39,7 +39,7 @@ module type S = sig
   val clear: t -> unit
   (** Clear all watches. *)
 
-  val watch: t -> key -> value option -> value Lwt_stream.t
+  val watch: t -> key -> value option -> value option Lwt_stream.t
   (** Create a stream of event notifications. Need to provide the
       initial value (or [None] if the key does not have associated
       contents yet).  *)
@@ -53,9 +53,7 @@ module type S = sig
 
 end
 
-module Make(K: Ir_hash.S) (V: sig type t end):
-  S with type key = K.t
-     and type value = V.t
+module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
 val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
 (** Register a function which looks for file changes in a

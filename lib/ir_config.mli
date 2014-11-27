@@ -17,5 +17,8 @@
 
 (** Universal values. *)
 
+type univ
+val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
 type t
-val create: 'a Tc.t -> ('a -> t) * (t -> 'a option) * t Tc.t
+val to_dict: t -> (string * univ) list
+val of_dict: (string * univ) list -> t

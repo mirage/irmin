@@ -226,6 +226,14 @@ end
 
 (** {1 Stores} *)
 
+type task
+(** The type for user-defined tasks. See {{!Task}Task}. *)
+
+type config
+(** The type for backend-specific configuration values. Every backend
+    has different configuration options, which are kept abstract to
+    the user. *)
+
 (** Irmin provides to the user a high-level store, with few
     interesting features:
 
@@ -253,7 +261,7 @@ module Task: sig
 
   (** {1 Task} *)
 
-  include Tc.S0
+  include Tc.S0 with type t = task
 
   val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
   (** Create a new task. *)
@@ -300,30 +308,6 @@ module Task: sig
 
 end
 
-(** Universal values.
-
-    See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
-
-    Universal values are used to carry around configuration values, see
-    {{!RO.create}RO.create}. *)
-module Univ: sig
-
-  (** {1 Universal value} *)
-
-  type t
-  (** Type type for universal values. *)
-
-  val create: 'a Tc.t -> ('a -> t) * (t -> 'a option) * t Tc.t
-  (** Creation of universal values. [create tc] returns:
-
-      {ul
-      {- a function to inject a value from a given type in to a universal value;}
-      {- a function to project from a universal value to a value of a given type;}
-      {- a type-class to show and serialize universal values.}
-      } *)
-
-end
-
 (** Read-only stores. *)
 module type RO = sig
 
@@ -338,15 +322,16 @@ module type RO = sig
   type value
   (** Type for values. *)
 
-  val create: (string * Univ.t) list -> Task.t -> t
-  (** [create config task] is the store handle with the
-      configuration [config] and the task [task]. *)
+  val create: config -> task -> t Lwt.t
+  (** [create config task] is the store handle with the configuration
+      [config] and the task [task]. [config] is provided by the
+      backend and [task] is the provided by the user. *)
 
-  val config: t -> (string * Univ.t) list
+  val config: t -> config
   (** [config t] is the list of configurations keys for the store
       handle [t]. *)
 
-  val task: t -> Task.t
+  val task: t -> task
   (** [task t] is the task associated to the store handle [t]. *)
 
   val read: t -> key -> value option Lwt.t
@@ -433,7 +418,7 @@ module type BC = sig
       global namespace and that's the user responsibility to avoid
       name-clashes. *)
 
-  val of_tag: (string * Univ.t) list -> Task.t -> tag -> t
+  val of_tag: config -> task -> tag -> t Lwt.t
   (** [create t tag] is a persistent store handle. Similar to
       [create], but use the [tag] branch instead of the [master]
       one. *)
@@ -477,7 +462,7 @@ module type BC = sig
   type head
   (** Type for head values. *)
 
-  val of_head: (string * Univ.t) list -> Task.t -> head -> t
+  val of_head: config -> task -> head -> t Lwt.t
   (** Create a temporary store handle, which will not persist as it
       has no associated to any persistent tag name. *)
 
@@ -607,9 +592,6 @@ module type S = sig
     include RW with type key = Key.t and type value = Val.t
     (** A view is a read-write temporary store, mirroring the main
         store. *)
-
-    val create: Task.t -> t
-    (** The empty view. *)
 
     val merge: t -> into:t -> unit Merge.result Lwt.t
     (** Merge the actions done on one view into an other one. If a read
@@ -803,85 +785,175 @@ module Hash: sig
 
 end
 
-(** [Backend] provides the signatures that every backend should satisfy. *)
-module Backend: sig
+(** Backend-specific configuration values. *)
+module Config: sig
 
-  module type CONTENTS = sig
+  (** {1 Configuration value} *)
 
-    include AO
+  type t = config
+  (** The type for backend-specific configuration values. *)
 
-    module Key: Ir_hash.S with type t = key
-    (** [Key] provides base functions for user-defined contents keys. *)
+  type univ
+  (** Type type for universal values.
 
-    module Val: Contents.S with type t = value
-    (** [Val] provides base function for user-defined contents values. *)
+      See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
+
+      Universal values are used to carry around configuration values, see
+      {{!RO.create}RO.create}. *)
+
+  val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
+  (** Creation of universal values. [univ tc] returns:
+
+      {ul
+      {- a function to inject a value from a given type in to a universal value;}
+      {- a function to project from a universal value to a value of a given type;}
+      {- a type-class to show and serialize universal values.}
+      } *)
+
+  val of_dict: (string * univ) list -> config
+  (** Convert a dictionary of universal values into an abstract store
+      config. *)
+
+  val to_dict: config -> (string * univ) list
+  (** Convert a configuration value into a dictionary of universal
+      values. *)
+
+end
+
+(** [Watch] provides helpers to register key watchers. *)
+module Watch: sig
+
+  (** {1 Watch Helpers} *)
+
+  (** The signature for watch helpers. *)
+  module type S = sig
+
+    (** {1 Watch Helpers} *)
+
+    type key
+    (** The type for store keys. *)
+
+    type value
+    (** The type for store values. *)
+
+    type t
+    (** The type for watch state. *)
+
+    val notify: t -> key -> value option -> unit
+    (** Notify all listeners in the given watch state that a key has
+        changed, with the new value associated to this key. If the
+        argument is [None], this means the key has been removed. *)
+
+    val create: unit -> t
+    (** Create a watch state. *)
+
+    val clear: t -> unit
+    (** Clear all register listeners in the given watch state. *)
+
+    val watch: t -> key -> value option -> value option Lwt_stream.t
+    (** Create a stream of value notifications. Need to provide the
+        initial value, or [None] if the key does not have associated
+        contents yet.  *)
+
+    val listen_dir: t -> string
+      -> key:(string -> key option)
+      -> value:(key -> value option Lwt.t)
+      -> unit
+    (** Register a fsevents/inotify thread to look for changes in
+        the given directory. *)
 
   end
+
+  val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
+  (** Register a function which looks for file changes in a
+      directory. Could use [inotify] when available, or use an active
+      stats file polling.*)
+
+  (** [Make] builds an implementation of watch helpers. *)
+  module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
+
+end
+
+(** [Backend] provides the signatures that every backend should satisfy. *)
+module Backend: sig
 
   (** [Node] provides functions to describe the graph-like structured
       values.
 
-      The node blocks form a labeled directed acyclic graph, labaled
+      The node blocks form a labeled directed acyclic graph, labeled
       by {{!Backend.NODE.Step}steps}: a list of steps defines a unique
       path from one node to an other.
 
       Every node can contain some optional key, corresponding to
       user-defined {{!Backend.NODE.Val.contents}contents} values. *)
-  module type NODE = sig
+  module Node: sig
 
-    include AO
-
-    module Step: Tc.S0
-    (** [Step] provides base functions over node steps. *)
-
-    module StepMap: Map.S with type key = Step.t
-    (** [StepMap] provides base funtions over node paths. *)
-
-    module Key: Hash.S with type t = key
-    (** [Key] provides base functions for node keys. *)
-
-    (** [Val] provides base functions for node values. *)
-    module Val: sig
+    module type S = sig
 
       (** {1 Node values} *)
 
-      include Contents.S with type t = value
+      include Contents.S
 
       type contents
       (** The type for contents keys. *)
 
-      val contents: t -> contents option
-      (** [contents t] is the (optional) key of the node contents. *)
+      type node
+      (** The type for node keys. *)
 
-      val with_contents: t -> contents option -> t
+      type 'a step_map
+      (** The type for step maps. *)
+
+      val contents: t -> contents step_map
+      (** [contents t] are the (optional) keys of the node contents. *)
+
+      val with_contents: t -> contents step_map -> t
       (** Replace the optional contents. *)
 
-      val succ: t -> key StepMap.t
+      val succ: t -> node step_map
       (** Extract the successors of a node. *)
 
-      val with_succ: t -> key StepMap.t -> t
+      val with_succ: t -> node step_map -> t
       (** Replace the list of successors. *)
 
-      val edges: t -> [> `Contents of contents | `Node of key] list
+      val edges: t -> [> `Contents of contents | `Node of node] list
       (** Return the list of successor vertices. *)
 
       val empty: t
       (** The empty node. *)
 
-      val leaf: contents -> t
-      (** Create a leaf node, with some contents and no successors. *)
-
-      val create: ?contents:contents -> key StepMap.t -> t
-      (** [create ~contents succ] is the node with contents [contents] and
-          successors [succs]. *)
+      val create: contents step_map -> node step_map -> t
+      (** [create ~contents succ] is the node with contents [contents]
+          and successors [succs]. *)
 
       val is_empty: t -> bool
       (** Is the node empty. *)
+    end
 
-      val is_leaf: t -> bool
-      (** Is it a leaf node (see {{!leaf}Backend.NODE.leaf}) ? *)
+    module type STORE = sig
+
+      include AO
+
+      module Step: Tc.S0
+      (** [Step] provides base functions over node steps. *)
+
+      module StepMap: Map.S with type key = Step.t
+      (** [StepMap] provides base functions over node paths. *)
+
+      module Key: Hash.S with type t = key
+      (** [Key] provides base functions for node keys. *)
+
+      (** [Val] provides base functions for node values. *)
+      module Val: S with type t = value
+                     and type node := key
+                     and type 'a step_map := 'a StepMap.t
 
     end
+
+    module Make (C: Tc.S0) (N: Tc.S0) (S: Tc.S0):
+      S with type contents = C.t
+         and type node := N.t
+         and type 'a step_map := 'a Map.Make(S).t
+
   end
 
   (** Commit values represent the store history.
@@ -889,44 +961,74 @@ module Backend: sig
       Every commit contains a list of predecessor commits, and the
       collection of commits form an acyclic directed graph.
 
-      Every commit also can contain an optional key, poiting to a
+      Every commit also can contain an optional key, pointing to a
       {{!Backend.COMMIT.Val.node}node} value. See the
       {{!Backend.NODE}NODE} signature for more details on node
       values. *)
-  module type COMMIT = sig
+  module Commit: sig
 
-    include AO
-
-    module Key: Hash.S with type t = key
-    (** [Key] provides base functions for commit keys. *)
-
-    (** [Val] provides function for commit values. *)
-    module Val: sig
+    module type S = sig
 
       (** {1 Commit values} *)
 
-      include Contents.S with type t = value
+      include Contents.S
       (** Base functions over commit values. *)
+
+      type commit
+      (** Type for commit keys. *)
 
       type node
       (** Type for node keys. *)
 
-      val create: Ir_task.t -> ?node:node -> parents:key list -> t
+      val create: task -> ?node:node -> parents:commit list -> t
       (** Create a commit. *)
 
       val node: t -> node option
       (** The underlying node. *)
 
-      val parents: t -> key list
+      val parents: t -> commit list
       (** The commit parents. *)
 
-      val task: t -> Task.t
+      val task: t -> task
       (** The commit provenance. *)
 
-      val edges: t -> [> `Node of node | `Commit of key] list
+      val edges: t -> [> `Node of node | `Commit of commit] list
       (** The graph edges. *)
 
     end
+
+    module type STORE = sig
+
+      include AO
+
+      module Key: Hash.S with type t = key
+      (** [Key] provides base functions for commit keys. *)
+
+      (** [Val] provides function for commit values. *)
+      module Val: S with type t = value and type commit := key
+
+    end
+
+    module Make (C: Tc.S0) (N: Tc.S0):
+      S with type commit := C.t
+         and type node = N.t
+
+  end
+
+  module Contents: sig
+
+    module type STORE = sig
+
+      include AO
+
+      module Key: Hash.S with type t = key
+      (** [Key] provides base functions for user-defined contents keys. *)
+
+      module Val: Contents.S with type t = value
+      (** [Val] provides base function for user-defined contents values. *)
+
+    end
+
   end
 
   (** Tags defines branch names.
@@ -937,21 +1039,25 @@ module Backend: sig
 
       A typical Irmin application should have a very low number of
       keys in the tag store. *)
-  module type TAG = sig
+  module Tag: sig
 
-    (** {1 The tag store} *)
+    module type STORE = sig
 
-    include RW
+      (** {1 The tag store} *)
 
-    module Key: Tag.S with type t = key
-    (** Base functions over keys. *)
+      include RW
 
-    module Val: Hash.S with type t = value
-    (** Base functions over values. *)
+      module Key: Tag.S with type t = key
+      (** Base functions over keys. *)
+
+      module Val: Hash.S with type t = value
+      (** Base functions over values. *)
+
+    end
 
   end
 
-  module type REMOTE = functor (S: Ir_bc.STORE) -> sig
+  module type REMOTE = functor (S: BC) -> sig
 
     val fetch: S.t -> ?depth:int -> string -> S.head option Lwt.t
     (** [fetch t uri] fetches the contents of the remote store located
@@ -975,10 +1081,10 @@ module Backend: sig
       }
   *)
   module Make
-      (C: CONTENTS)
-      (N: NODE with type Val.contents = C.key)
-      (H: COMMIT with type Val.node = N.key)
-      (T: TAG with type value = H.key)
+      (C: Contents.STORE)
+      (N: Node.STORE with type Val.contents = C.key)
+      (H: Commit.STORE with type Val.node = N.key)
+      (T: Tag.STORE with type value = H.key)
       (R: REMOTE):
     S with type step = N.Step.t
        and type value = C.value
@@ -986,7 +1092,6 @@ module Backend: sig
        and type head = H.key
 
 end
-
 
 (*
 (** {2 Backends} *)

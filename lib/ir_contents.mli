@@ -25,18 +25,18 @@ module String: S with type t = string
 module Json: S with type t = Ezjsonm.t
 module Cstruct: S with type t = Cstruct.t
 
-module type RAW_STORE = sig
+module type STORE = sig
   include Ir_ao.STORE
   module Key: Ir_hash.S with type t = key
   module Val: S with type t = value
 end
 
-module type STORE = sig
-  include RAW_STORE
+module type STORE_EXT = sig
+  include STORE
   val merge: t -> key Ir_merge.t
 end
 
-module Make (Contents: RAW_STORE):
-  STORE with type t = Contents.t
-         and type key = Contents.key
-         and type value = Contents.value
+module Store (Contents: STORE):
+  STORE_EXT with type t = Contents.t
+             and type key = Contents.key
+             and type value = Contents.value

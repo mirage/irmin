@@ -25,7 +25,7 @@ module StringMap = Map.Make(String)
 module type STORE = sig
   include Ir_rw.STORE
   type tag
-  val of_tag: (string * Ir_univ.t) list -> Ir_task.t -> tag -> t
+  val of_tag: Ir_config.t -> Ir_task.t -> tag -> t Lwt.t
   val tag: t -> tag option
   val tag_exn: t -> tag
   val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
@@ -33,7 +33,7 @@ module type STORE = sig
   val switch: t -> tag -> unit Lwt.t
   val detach: t -> unit Lwt.t
   type head
-  val of_head: (string * Ir_univ.t) list -> Ir_task.t -> head -> t
+  val of_head: Ir_config.t -> Ir_task.t -> head -> t Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
   val heads: t -> head list Lwt.t
@@ -82,9 +82,9 @@ module type STORE_EXT = sig
 end
 
 module Make_ext
-    (C: Ir_contents.RAW_STORE)
-    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
-    (H: Ir_commit.RAW_STORE with type Val.node = N.key)
+    (C: Ir_contents.STORE)
+    (N: Ir_node.STORE with type Val.contents = C.key)
+    (H: Ir_commit.STORE with type Val.node = N.key)
     (T: Ir_tag.STORE with type value = H.key)
 = struct
 
@@ -161,9 +161,9 @@ module Make_ext
       return_unit
 
   let of_tag config task t =
-    let block = B.Commit.create config task in
-    let tag = T.create config task in
-    { block; tag; task; branch = `Tag t }
+    B.Commit.create config task >>= fun block ->
+    T.create config task >>= fun tag ->
+    return { block; tag; task; branch = `Tag t }
 
   let task t = B.Commit.task t.block
   let config t = B.Commit.config t.block
@@ -172,9 +172,9 @@ module Make_ext
     of_tag config task T.Key.master
 
   let of_head config task key =
-    let block = B.Commit.create config task in
-    let tag = T.create config task in
-    { block; tag; task; branch = `Key key }
+    B.Commit.create config task >>= fun block ->
+    T.create config task >>= fun tag ->
+    return { block; tag; task; branch = `Key key }
 
   let read_head_commit t =
     match t.branch with
@@ -412,10 +412,11 @@ module Make_ext
 
   (* watch contents changes. *)
   let watch t path =
+    let path, file = Ir_misc.list_end path in
     let get_contents n =
-      match B.Node.contents (node_t t) n with
-      | None   -> return_none
-      | Some v -> v >>= fun v -> return (Some v)
+      let m = B.Node.contents (node_t t) n in
+      try StepMap.find file m >>= fun v -> return (Some v)
+      with Not_found -> return_none
     in
     Ir_misc.Lwt_stream.lift (
       begin
@@ -555,7 +556,11 @@ module Make_ext
           ) nodes >>= fun nodes ->
         let nodes = Ir_misc.list_filter_map (fun x -> x) nodes in
         let root_contents =
-          Ir_misc.list_filter_map (fun (_,n) -> B.Node.Val.contents n) nodes
+          List.fold_left (fun acc (_, n) ->
+              let m = B.Node.Val.contents n in
+              (* XXX: use sets *)
+              List.map snd (StepMap.bindings m) @ acc
+            ) [] nodes
         in
         B.Contents.list (contents_t t) root_contents >>= fun contents ->
         Lwt_list.map_p (fun k ->
@@ -606,9 +611,9 @@ module Make_ext
 end
 
 module Make
-    (C: Ir_contents.RAW_STORE)
-    (N: Ir_node.RAW_STORE with type Val.contents = C.key)
-    (S: Ir_commit.RAW_STORE with type Val.node = N.key)
+    (C: Ir_contents.STORE)
+    (N: Ir_node.STORE with type Val.contents = C.key)
+    (S: Ir_commit.STORE with type Val.node = N.key)
     (T: Ir_tag.STORE with type value = S.key)
   = Make_ext(C)(N)(S)(T)
 

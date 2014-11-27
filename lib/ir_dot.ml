@@ -125,12 +125,10 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       ) contents;
     List.iter (fun (k, t) ->
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
-        begin match B.Node.Val.contents t with
-          | None    -> ()
-          | Some v  ->
+        B.StepMap.iter (fun l v ->
             if exists v contents then
-              add_edge (`Node k) [`Style `Dotted] (`Contents v)
-        end;
+              add_edge (`Node k) [`Style `Dotted; label_of_path l] (`Contents v)
+          ) (B.Node.Val.contents t);
         B.StepMap.iter (fun l n ->
             if exists n nodes then
               add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node n)

@@ -26,7 +26,7 @@ module type S = sig
   val notify: t -> key -> value option -> unit
   val create: unit -> t
   val clear: t -> unit
-  val watch: t -> key -> value option -> value Lwt_stream.t
+  val watch: t -> key -> value option -> value option Lwt_stream.t
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
@@ -39,12 +39,13 @@ let listen_dir_hook =
 let set_listen_dir_hook fn =
   listen_dir_hook := fn
 
-module Make (K: Ir_hash.S) (V: sig type t end) = struct
+module Make (K: Tc.S0) (V: Tc.S0) = struct
 
   type key = K.t
   type value = V.t
+  module OV = Tc.Option(V)
 
-  type t = (K.t, (int * value option * (value option -> unit)) list) Hashtbl.t
+  type t = (K.t, (int * value option * (value option option -> unit)) list) Hashtbl.t
 
   let create () =
     Hashtbl.create 42
@@ -58,6 +59,8 @@ module Make (K: Ir_hash.S) (V: sig type t end) = struct
       with Not_found -> []
     in
     let ws = List.filter (fun (x,_,_) -> x <> id) ws in
+    (* close the clients *)
+    List.iter (fun (_, _, f) -> f None) ws;
     match ws with
     | [] -> Hashtbl.remove t key
     | ws -> Hashtbl.replace t key ws
@@ -67,9 +70,9 @@ module Make (K: Ir_hash.S) (V: sig type t end) = struct
     try
       let ws = Hashtbl.find t key in
       let ws = List.map (fun (id, old_value, f as w) ->
-          if old_value <> value then (
+          if not (OV.equal old_value value) then (
             Log.debugf "firing watch %a:%d" force (show (module K) key) id;
-            try f value; (id, value, f)
+            try f (Some value); (id, value, f)
             with e ->
               unwatch t key id;
               raise e

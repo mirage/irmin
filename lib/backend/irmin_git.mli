@@ -14,38 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Serialize the irminsule objects to a local Git store. *)
+(** Git backend *)
 
-module type Config = sig
-
-  val root: string option
-  (** Database root. *)
-
-  module Store: Git.Store.S
-  (** Git database implementation. Can be [Git_fs] or [Git_memory]. *)
-
-  module Sync: Git.Sync.S with type t = Store.t
-  (** Synchronisation engine. *)
-
-  val bare: bool
-  (** Should we extend the filesystem *)
-
-  val disk: bool
-  (** Enable disk operations such as installing watches and limiting
-      concurrent open files. Should be consistent with the [Store]
-      implementation. *)
-
+module Memory (S: Git.Sync.S) (C: Irmin.Contents.S): sig
+  include Irmin.S with type step = string
+                   and type tag = string
+                   and type value = C.t
+  val create: ?root:string -> Irmin.Task.t -> t
+  val of_tag: ?root:string -> Irmin.Task.t -> tag -> t
+  val of_head: ?root:string -> Irmin.Task.t -> head -> t
 end
 
-module Memory: Irmin.Sig.BACKEND
-(** In-memory Git store (using [Git.Memory]). *)
-
-module Memory' (C: sig val root: string end): Irmin.Sig.BACKEND
-(** Create a in-memory store with a given root path -- stores with
-    different roots will not share their contents. *)
-
-module Make (C: Config): Irmin.Sig.BACKEND
-(** Git backend. *)
-
-module Sync (B: Irmin.Sig.BACKEND): Irmin.Sync.STORE
-(** Fast synchronisation using the Git protocol. *)
+module Make (G: Git.Store.S) (S: Git.Sync.S) (C: Irmin.Contents.S): sig
+  include Irmin.S with type step = string
+                   and type tag = string
+                   and type value = C.t
+  val create: ?root:string -> ?bare:bool -> Irmin.Task.t -> t
+  val of_tag: ?root:string -> ?bare:bool -> tag -> Irmin.Task.t -> t
+  val of_head: ?root:string -> ?bare:bool -> head -> Irmin.Task.t -> t
+end

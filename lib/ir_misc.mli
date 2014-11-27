@@ -64,6 +64,7 @@ val list_partition_map: ('a -> [ `Fst of 'b | `Snd of 'c ]) ->
 val list_pretty: ('a -> string) -> 'a list -> string
 val list_filter_map: ('a -> 'b option) -> 'a list -> 'b list
 val list_dedup: ?compare:'a Tc.compare -> 'a list -> 'a list
+val list_end: 'a list -> 'a list * 'a
 
 val alist_merge_lwt:
   ('key -> 'key -> int) ->
@@ -72,8 +73,6 @@ val alist_merge_lwt:
 
 val hashtbl_to_alist: ('a, 'b) Hashtbl.t -> ('a * 'b) list
 val hashtbl_add_multi: ('a, 'b list) Hashtbl.t -> 'a -> 'b -> unit
-
-val string_chop_prefix: string -> prefix:string -> string option
 
 module Lwt_stream: sig
 
