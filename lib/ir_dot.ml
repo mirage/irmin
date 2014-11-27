@@ -125,14 +125,14 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       ) contents;
     List.iter (fun (k, t) ->
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
-        B.StepMap.iter (fun l v ->
+        List.iter (fun (l, v) ->
             if exists v contents then
               add_edge (`Node k) [`Style `Dotted; label_of_path l] (`Contents v)
-          ) (B.Node.Val.contents t);
-        B.StepMap.iter (fun l n ->
+          ) (B.Node.Val.all_contents t);
+        List.iter (fun (l, n) ->
             if exists n nodes then
               add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node n)
-          ) (B.Node.Val.succ t)
+          ) (B.Node.Val.all_succ t)
       ) nodes;
     List.iter (fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];

@@ -21,20 +21,20 @@ open Ir_misc.OP
 module Log = Log.Make(struct let section = "NODE" end)
 
 module type S = sig
-  include Ir_contents.S
+  include Tc.S0
   type contents
   type node
   type step
-  type 'a step_map
-  val contents: t -> contents step_map
-  val find_contents: t -> step -> contents option
-  val with_contents: t -> contents step_map -> t
-  val succ: t -> node step_map
-  val find_succ: t -> step -> node option
-  val with_succ: t -> node step_map -> t
+  val contents: t -> step -> contents option
+  val all_contents: t -> (step * contents) list
+  val with_contents: t -> step -> contents option -> t
+  val succ: t -> step -> node option
+  val all_succ: t -> (step * node) list
+  val with_succ: t -> step -> node option -> t
+  val steps: t -> step list
   val edges: t -> [> `Contents of contents | `Node of node] list
   val empty: t
-  val create: contents step_map -> node step_map -> t
+  val create: contents:(step * contents) list -> succ:(step * node) list -> t
   val is_empty: t -> bool
 end
 
@@ -42,16 +42,31 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (Step: Tc.S0) = struct
 
   type contents = K_c.t
   type node = K_n.t
-  module StepMap = Ir_misc.Map(Map.Make(Step))(Step)
+  type step = Step.t
+
+  module StepMap = Ir_misc.Map(Step)
+  module StepSet = Ir_misc.Set(Step)
 
   type t = {
     contents: contents StepMap.t;
     succ    : node StepMap.t;
   }
 
-  let create contents succ = { contents; succ }
-  let contents t = t.contents
-  let succ t = t.succ
+  let create ~contents ~succ =
+    let contents = StepMap.of_alist contents in
+    let succ = StepMap.of_alist succ in
+    { contents; succ }
+
+  let all_contents t = StepMap.to_alist t.contents
+  let all_succ t = StepMap.to_alist t.succ
+
+  let contents t l =
+    try Some (StepMap.find l t.contents)
+    with Not_found -> None
+
+  let succ t l =
+    try Some (StepMap.find l t.succ)
+    with Not_found -> None
 
   let to_sexp t =
     let open Sexplib.Type in
@@ -90,6 +105,13 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (Step: Tc.S0) = struct
   let compare x y = P.compare (explode x) (explode y)
   let equal x y = P.equal (explode x) (explode y)
 
+  let steps t =
+    let add m acc =
+      StepMap.fold (fun l _ acc -> StepSet.add l acc) m acc
+    in
+    add t.succ (add t.contents StepSet.empty)
+    |> StepSet.to_list
+
   let edges t =
     (StepMap.fold
        (fun _ k acc -> `Contents k :: acc)
@@ -106,23 +128,30 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (Step: Tc.S0) = struct
   let is_empty e =
     StepMap.is_empty e.contents && StepMap.is_empty e.succ
 
-  let with_contents node contents = { node with contents }
+  let with_contents t step contents =
+    let contents = match contents with
+      | None   -> StepMap.remove step t.contents
+      | Some c -> StepMap.add step c t.contents
+    in
+    { t with contents }
 
-  let with_succ node succ = { node with succ }
-
-  let merge ~old:_ _ _ = Ir_merge.OP.conflict "node"
+  let with_succ t step succ =
+    let succ = match succ with
+      | None   -> StepMap.remove step t.succ
+      | Some s -> StepMap.add step s t.succ
+    in
+    { t with succ }
 
 end
 
 module type STORE = sig
   include Ir_ao.STORE
   module Step: Tc.S0
-  module StepMap: Map.S with type key = Step.t
   module Key: Ir_hash.S with type t = key
   module Val: S
     with type t = value
-     and type node := key
-     and type 'a step_map := 'a StepMap.t
+     and type node = key
+     and type step = Step.t
 end
 
 module type STORE_EXT = sig
@@ -137,8 +166,8 @@ module type STORE_EXT = sig
     ?contents:(step * contents) list ->
     ?succ:(step * value) list ->
     unit -> (key * value) Lwt.t
-  val contents: t -> value -> contents Lwt.t StepMap.t
-  val succ: t -> value -> value Lwt.t StepMap.t
+  val contents: t -> value -> step -> contents Lwt.t option
+  val succ: t -> value -> step -> value Lwt.t option
   val sub: t -> value -> step list -> value option Lwt.t
   val sub_exn: t -> value -> step list -> value Lwt.t
   val map: t -> value -> step list -> (value -> value) -> value Lwt.t
@@ -159,7 +188,7 @@ module Store
   module Contents = Ir_contents.Store(C)
 
   module Step = S.Step
-  module StepMap = Ir_misc.Map(S.StepMap)(Step)
+  module StepMap = Ir_misc.Map(Step)
 
   module Val = S.Val
   module Key = S.Key
@@ -232,24 +261,21 @@ module Store
           return (l, k)
         ) succ
     end >>= fun succ ->
-    let succ = StepMap.of_alist succ in
-    let contents = StepMap.of_alist contents in
-    let node = Val.create contents succ in
+    let node = Val.create ~contents ~succ in
     add t node >>= fun key ->
     return (key, node)
 
-  module XMap = Ir_merge.Map(StepMap)(S.Step)
-  module XContents = Tc.App1(StepMap)(C.Key)
-  module XParents = Tc.App1(StepMap)(Key)
+  module XContents = Tc.List(Tc.Pair(Step)(C.Key))
+  module XParents = Tc.List(Tc.Pair(Step)(Key))
   module XP = Tc.Pair(XContents)(XParents)
 
   let merge_value (c, _) merge_key =
-    let explode t = Val.contents t, Val.succ t in
-    let implode (contents, succ) = Val.create contents succ in
+    let explode t = Val.all_contents t, Val.all_succ t in
+    let implode (contents, succ) = Val.create ~contents ~succ in
     let merge_pair =
       Ir_merge.pair (module XContents) (module XParents)
-        (XMap.merge (module C.Key) (Contents.merge c))
-        (XMap.merge (module Key) merge_key)
+        (Ir_merge.alist (module Step) (module C.Key) (Contents.merge c))
+        (Ir_merge.alist (module Step) (module Key) merge_key)
     in
     Ir_merge.biject (module XP) (module Val) merge_pair implode explode
 
@@ -262,30 +288,24 @@ module Store
     in
     merge_key () ~old x y
 
-  let contents (c, _) node =
-    StepMap.map (C.read_exn c) (Val.contents node)
+  let contents (c, _) node step =
+    match Val.contents node step with
+    | None   -> None
+    | Some k -> Some (C.read_exn c k)
 
-  let find_contents (c, _) node file =
-    match Val.find_contents node file with
-    | None   -> return_none
-    | Some k -> C.read c k
-
-  let succ t node =
-    StepMap.map (read_exn t) (Val.succ node)
-
-  let next t node label =
-    Val.find_succ node label >>= function
-    | None   -> return_none
-    | Some n -> read t n
+  let succ t node step =
+    match Val.succ node step with
+    | None   -> None
+    | Some k -> Some (read_exn t k)
 
   let sub_exn t node path =
     let rec aux node path =
       match path with
       | []    -> return node
       | h::tl ->
-        next t node h >>= function
+        match succ t node h with
         | None      -> fail Not_found
-        | Some node -> aux node tl in
+        | Some node -> node >>= fun node -> aux node tl in
     aux node path
 
   let sub t node path =
@@ -303,36 +323,40 @@ module Store
       Log.debugf "subpath not found";
       fail Not_found
     | Some node ->
-      find_contents t node file >>= function
+      match contents t node file with
       | None   -> fail Not_found
-      | Some c -> return c
+      | Some c -> c
 
   let find t node path =
     Log.debugf "find %a" force (shows (module Step) path);
     let path, file = Ir_misc.list_end path in
     sub t node path >>= function
     | None      -> return_none
-    | Some node -> find_contents t node file
+    | Some node ->
+      match contents t node file with
+      | None   -> return_none
+      | Some c -> c >>= fun c -> return (Some c)
 
   let valid t node path =
     Log.debugf "valid %a" force (shows (module Step) path);
     let path, file = Ir_misc.list_end path in
     sub t node path >>= function
     | None      -> return false
-    | Some node -> return (StepMap.mem file (contents t node))
+    | Some node ->
+      match Val.contents node file with
+      | None   -> return false
+      | Some _ -> return true
 
-  let map_children t children f label =
-    Log.debugf "map_children %a" force (show (module Step) label);
-    let old_key =
-      try Some (StepMap.find label children)
-      with Not_found -> None in
+  let map_one t node f label =
+    Log.debugf "map_one %a" force (show (module Step) label);
+    let old_key = Val.succ node label in
     begin match old_key with
       | None   -> return Val.empty
       | Some k -> read_exn t k
     end >>= fun old_node ->
     f old_node >>= fun node ->
     if Val.equal old_node node then
-      return children
+      return node
     else (
       begin
         if Val.is_empty node then return_none
@@ -340,23 +364,21 @@ module Store
           add t node >>= fun k ->
           return (Some k)
       end >>= fun key ->
-      let children = match old_key, key with
-        | None  , None     -> children
-        | Some _, None     -> StepMap.remove label children
-        | None  , Some k   -> StepMap.add label k children
+      let node = match old_key, key with
+        | None  , None     -> node
+        | Some _, None     -> Val.with_succ node label None
+        | None  , Some k   -> Val.with_succ node label (Some k)
         | Some k1, Some k2 ->
-          if Key.equal k1 k2 then children
-          else StepMap.add label k2 children in
-      return children
+          if Key.equal k1 k2 then node
+          else Val.with_succ node label (Some k2) in
+      return node
     )
 
   let map t node path f =
     let rec aux node = function
       | []      -> return (f node)
-      | h :: tl ->
-        map_children t (Val.succ node) (fun node -> aux node tl) h
-        >>= fun succ ->
-        return (Val.with_succ node succ) in
+      | h :: tl -> map_one t node (fun node -> aux node tl) h
+    in
     aux node path
 
   let remove t node path =
@@ -367,9 +389,6 @@ module Store
     Log.debugf "update %a" force (shows (module Step) path);
     C.add c value >>= fun k  ->
     let path, file = Ir_misc.list_end path in
-    map t node path (fun node ->
-        let contents = Val.contents node in
-        let contents = StepMap.add file k contents in
-        Val.with_contents node contents)
+    map t node path (fun node -> Val.with_contents node file (Some k))
 
 end

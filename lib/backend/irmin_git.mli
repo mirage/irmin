@@ -16,7 +16,7 @@
 
 (** Git backend *)
 
-module Memory (S: Git.Sync.S) (C: Irmin.Contents.S): sig
+module Memory (IO: Git.Sync.IO) (C: Irmin.Contents.S): sig
   include Irmin.S with type step = string
                    and type tag = string
                    and type value = C.t
@@ -25,7 +25,7 @@ module Memory (S: Git.Sync.S) (C: Irmin.Contents.S): sig
   val of_head: ?root:string -> Irmin.Task.t -> head -> t
 end
 
-module Make (G: Git.Store.S) (S: Git.Sync.S) (C: Irmin.Contents.S): sig
+module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: Irmin.Contents.S): sig
   include Irmin.S with type step = string
                    and type tag = string
                    and type value = C.t

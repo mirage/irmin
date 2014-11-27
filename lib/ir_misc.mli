@@ -44,8 +44,8 @@ module type MAP = sig
   end
 end
 
-module Map (M: Map.S) (S: Tc.S0 with type t = M.key): MAP
-  with type key = S.t and type 'a t = 'a M.t
+module Map_ext (M: Map.S) (S: Tc.S0 with type t = M.key): MAP with type key = S.t and type 'a t = 'a M.t
+module Map (S: Tc.S0): MAP with type key = S.t and type 'a t = 'a Map.Make(S).t
 
 (** Persistent Sets. *)
 module type SET = sig

@@ -17,7 +17,7 @@
 (** Manage the database history. *)
 
 module type S = sig
-  include Ir_contents.S
+  include Tc.S0
   type commit
   type node
   val create: Ir_task.t -> ?node:node -> parents:commit list -> t

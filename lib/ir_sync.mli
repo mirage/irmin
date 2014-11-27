@@ -28,16 +28,16 @@ module type S = sig
   val push_exn: db -> ?depth:int -> remote -> head Lwt.t
 end
 
-module type REMOTE = functor (S: Ir_bc.STORE) -> sig
-  val fetch: S.t -> ?depth:int -> string -> S.head option Lwt.t
-  val push : S.t -> ?depth:int -> string -> S.head option Lwt.t
+module type REMOTE = sig
+  val fetch: Ir_config.t -> ?depth:int -> string -> [`Head of string] option Lwt.t
+  val push : Ir_config.t -> ?depth:int -> string -> [`Head of string] option Lwt.t
 end
 
 module None: REMOTE
 (** An implementation of remote synchronisation which does nothing,
     i.e. it always return [None] on [fetch] and [push]. *)
 
-module Make (S: Ir_bc.STORE) (R: REMOTE):
+module Make (S: Ir_bc.STORE) (H: Tc.S0 with type t = S.head) (R: REMOTE):
   S with type db = S.t and type head = S.head
 (** Use [R] to synchronize stores using some native (and usually fast)
     backend-specific protocols. *)

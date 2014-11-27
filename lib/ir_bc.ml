@@ -103,7 +103,7 @@ module Make_ext
   module Path = Ir_step.Path(B.Step)
   module PathSet = Ir_misc.Set(Path)
 
-  module StepMap = Ir_misc.Map(B.StepMap)(B.Step)
+  module StepMap = Ir_misc.Map(B.Step)
   type step = B.step
 
   module Head = B.Commit.Key
@@ -268,9 +268,8 @@ module Make_ext
       B.Node.sub (node_t t) n path >>= function
       | None      -> return_nil
       | Some node ->
-        let c = B.Node.succ (node_t t) node in
-        let c = StepMap.keys c in
-        let paths = List.map (fun c -> path @ [c]) c in
+        let steps = B.Node.Val.steps node in
+        let paths = List.map (fun c -> path @ [c]) steps in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
         one p >>= fun paths ->
@@ -414,9 +413,9 @@ module Make_ext
   let watch t path =
     let path, file = Ir_misc.list_end path in
     let get_contents n =
-      let m = B.Node.contents (node_t t) n in
-      try StepMap.find file m >>= fun v -> return (Some v)
-      with Not_found -> return_none
+      match B.Node.contents (node_t t) n file with
+      | None   -> return_none
+      | Some c -> c >>= fun c -> return (Some c)
     in
     Ir_misc.Lwt_stream.lift (
       begin
@@ -556,11 +555,13 @@ module Make_ext
           ) nodes >>= fun nodes ->
         let nodes = Ir_misc.list_filter_map (fun x -> x) nodes in
         let root_contents =
+          let module KSet = Ir_misc.Set(B.Contents.Key) in
           List.fold_left (fun acc (_, n) ->
-              let m = B.Node.Val.contents n in
-              (* XXX: use sets *)
-              List.map snd (StepMap.bindings m) @ acc
-            ) [] nodes
+              KSet.union
+                (KSet.of_list (List.map snd (B.Node.Val.all_contents n)))
+                acc
+            ) KSet.empty nodes
+          |> KSet.to_list
         in
         B.Contents.list (contents_t t) root_contents >>= fun contents ->
         Lwt_list.map_p (fun k ->

@@ -27,9 +27,6 @@ module type STORE = sig
   module Step: Ir_step.S
     with type t = step
 
-  module StepMap: Map.S
-    with type key = step
-
   module Contents: Ir_contents.STORE_EXT
     with type value = contents
 
@@ -38,7 +35,6 @@ module type STORE = sig
      and type value = node
      and module Contents = Contents
      and module Step = Step
-     and module StepMap = StepMap
 
   module Commit: Ir_commit.STORE_EXT
     with type key = head
@@ -57,7 +53,6 @@ module Make
          and type commit = S.value
          and type head = S.key
          and module Step = N.Step
-         and module StepMap = Ir_commit.Store(C)(N)(S).Node.StepMap
          and module Contents = Ir_commit.Store(C)(N)(S).Node.Contents
          and module Node = Ir_commit.Store(C)(N)(S).Node
          and module Commit = Ir_commit.Store(C)(N)(S)

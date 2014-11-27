@@ -49,5 +49,5 @@ struct
   module View = Ir_view.Make(B)
   module Snapshot = Ir_snapshot.Make(B)
   module Dot = Ir_dot.Make(B)
-  module Sync = Ir_sync.Make(B)(R)
+  module Sync = Ir_sync.Make(B)(S.Key)(R)
 end

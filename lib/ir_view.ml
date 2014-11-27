@@ -349,7 +349,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
   module Node = struct
 
     module Step = B.Step
-    module StepMap = Ir_misc.Map(B.StepMap)(Step)
+    module StepMap = Ir_misc.Map(Step)
 
     type contents = B.contents
     type commit = S.head
@@ -393,8 +393,16 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       | Node n -> StepMap.is_empty n.contents && StepMap.is_empty n.succ
 
     let import t n =
-      let contents = StepMap.map (Contents.key t) (B.Node.Val.contents n) in
-      let succ = StepMap.map (key t) (B.Node.Val.succ n) in
+      let contents =
+        B.Node.Val.all_contents n
+        |> StepMap.of_alist
+        |> StepMap.map (Contents.key t)
+      in
+      let succ =
+        B.Node.Val.all_succ n
+        |> StepMap.of_alist
+        |> StepMap.map (key t)
+      in
       { contents; succ }
 
     let export n =
@@ -404,9 +412,15 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       | Node _ -> failwith "Node.export"
 
     let export_node n =
-      let contents = StepMap.map Contents.export n.contents in
-      let succ = StepMap.map export n.succ in
-      B.Node.Val.create contents succ
+      let contents =
+        StepMap.map Contents.export n.contents
+        |> StepMap.to_alist
+      in
+      let succ =
+        StepMap.map export n.succ
+        |> StepMap.to_alist
+      in
+      B.Node.Val.create ~contents ~succ
 
     let read t =
       match !t with

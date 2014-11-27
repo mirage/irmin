@@ -22,9 +22,6 @@ module Log = Log.Make(struct let section = "GIT" end)
 
 module StringMap = Map.Make(Tc.String)
 
-let string_map_of_alist l =
-  List.fold_left (fun map (k, v)  -> StringMap.add k v map) StringMap.empty l
-
 let string_chop_prefix t ~prefix =
   let lt = String.length t in
   let lp = String.length prefix in
@@ -51,6 +48,11 @@ let lwt_stream_lift s =
   in
   Lwt_stream.from get
 
+let write_string str b =
+  let len = String.length str in
+  Cstruct.blit_from_string str 0 b 0 len;
+  Cstruct.shift b len
+
 let of_root, to_root, root = I.Config.univ Tc.string
 let of_bare, to_bare, bare = I.Config.univ Tc.bool
 let of_disk, to_disk, disk = I.Config.univ Tc.bool
@@ -73,7 +75,7 @@ let key_bool k f d config =
 let bare_key = key_bool bare_k to_bare true
 let disk_key = key_bool disk_k to_disk false
 
-module Make (G: Git.Store.S) (S: Git.Sync.S) (C: I.Contents.S) = struct
+module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
   module K = struct
     type t = Git.SHA.t
@@ -97,8 +99,8 @@ module Make (G: Git.Store.S) (S: Git.Sync.S) (C: I.Contents.S) = struct
   module type V = sig
     type t
     val type_eq: Git.Object_type.t -> bool
-    val to_git: G.t -> t -> [`Value of Git.Value.t Lwt.t | `Key of Git.SHA.t]
-    val of_git: Git.SHA.t -> Git.Value.t -> t option
+    val to_git: t -> Git.Value.t
+    val of_git: Git.Value.t -> t option
   end
 
   module AO (V: V): I.AO with type key = K.t and type value = V.t = struct
@@ -132,7 +134,7 @@ module Make (G: Git.Store.S) (S: Git.Sync.S) (C: I.Contents.S) = struct
     let read { t; _ } key =
       G.read t key >>= function
       | None   -> return_none
-      | Some v -> return (V.of_git key v)
+      | Some v -> return (V.of_git v)
 
     let read_exn t key =
       read t key >>= function
@@ -146,39 +148,29 @@ module Make (G: Git.Store.S) (S: Git.Sync.S) (C: I.Contents.S) = struct
       G.list t >>= fun keys ->
       Lwt_list.fold_left_s (fun acc k ->
           G.read_exn t k >>= fun v ->
-          match V.of_git k v with
+          match V.of_git v with
           | None   -> return acc
           | Some v -> return ((k, v) :: acc)
         ) [] keys
 
     let add { t; _ } v =
-      match V.to_git t v with
-      | `Key k   -> return k
-      | `Value v -> v >>=  G.write t
+      G.write t (V.to_git v)
 
   end
 
   module Contents: IB.Contents.STORE = struct
-
     include AO (struct
-
         type t = C.t
-
         let type_eq = function
-          | Git.Object_type.Blob
+          | Git.Object_type.Blob -> true
           | _ -> false
-
-        let of_git k b =
-          match b with
+        let of_git = function
           | Git.Value.Blob b -> Some (Tc.read_string c (Git.Blob.to_raw b))
           | _                -> None
-
-        let to_git _ b =
-          let value = Git.Value.Blob (Git.Blob.of_raw (Tc.write_string c b)) in
-          `Value (return value)
+        let to_git b =
+          Git.Value.Blob (Git.Blob.of_raw (Tc.write_string c b))
 
       end)
-
       module Val = C
       module Key = K
     end
@@ -186,160 +178,200 @@ module Make (G: Git.Store.S) (S: Git.Sync.S) (C: I.Contents.S) = struct
   module Node: IB.Node.STORE = struct
     module Key = K
     module Step = Tc.String
-    module StepMap = Map.Make(Tc.String)
     module Val = struct
 
       type t = Git.Tree.t
+      type contents = K.t
+      type node = K.t
+      type step = string
 
       let compare = Git.Tree.compare
       let equal = Git.Tree.equal
       let hash = Git.Tree.hash
       let to_sexp = Git.Tree.sexp_of_t
-      let write t b =
+      let read = Git.Tree.input
+
+      let to_string t =
         let buf = Buffer.create 1024 in
         Git.Tree.add buf t;
-        let str = Buffer.contents buf in
-        let len = String.length str in
-        Cstruct.blit_from_string str 0 b 0 len;
-        Cstruct.shift b len
+        Buffer.contents buf
 
-  let read buf =
-    Mstruct.get_string buf (Mstruct.length buf)
+      let write t b =
+        write_string (to_string t) b
 
+      let size_of t =
+        (* XXX: eeerk: this will cause wwrite duplication!!  *)
+        String.length (to_string t)
 
+      let of_git { Git.Tree.name; node; _ } = (name, node)
+      let to_git perm (name, node) = { Git.Tree.perm; name; node }
 
+      let all_contents t =
+        List.filter (fun { Git.Tree.perm; _ } -> perm <> `Dir) t
+        |> List.map of_git
+
+      let all_succ t =
+        List.filter (fun { Git.Tree.perm; _ } -> perm <> `Dir) t
+        |> List.map of_git
+
+      let find t p s =
+        try
+          List.find (fun { Git.Tree.perm; name; _ } -> p perm && name = s) t
+          |> fun v -> Some v.Git.Tree.node
+        with Not_found ->
+          None
+
+      let remove t p s =
+        List.filter (fun { Git.Tree.perm; name; _ } -> not (p perm & name = s)) t
+
+      let with_succ t name node =
+        let t = remove t (function `Dir -> true | _ -> false) name in
+        match node with
+        | None      -> t
+        | Some node -> to_git `Dir (name, node) :: t
+
+      let with_contents t name node =
+        let t = remove t (function `Dir -> false | _ -> true) name in
+        match node with
+        | None      -> t
+        | Some node -> to_git `Normal (name, node) :: t
+
+      let succ t s = find t (function `Dir -> true | _ -> false) s
+      let contents t s = find t (function `Dir -> false | _ -> true) s
+      let steps t = List.map (fun { Git.Tree.name; _ } -> name) t
+      let empty = []
+      let create ~contents ~succ =
+        List.map (to_git `Normal) contents @ List.map (to_git `Dir) succ
+
+      let is_empty = function
+        | [] -> true
+        | _  -> false
+
+      let edges t =
+        List.map (function
+            | { Git.Tree.perm = `Dir; node; _ } -> `Node node
+            | { Git.Tree.node; _ } -> `Contents node
+          ) t
 
       module N = IB.Node.Make (K)(K)(Tc.String)
 
-      (* Name of the file containing the node contents. *)
-      let to_attribute name = name ^ "#"
-      let of_attribute name =
-        if name.[String.length name - 1] = '#' then
-          String.sub name 0 (String.length name - 1)
-        else
-          name
-
-      (* FIXME: handler executable files *)
+      (* FIXME: handle executable files *)
       let to_n t =
-        let contents, succ =
-          List.partition (fun { Git.Tree.perm; _ } -> perm <> `Dir) t
-        in
-        let succ = string_map_of_alist
-          (List.map (fun { Git.Tree.name; node; _ } -> (name, node)) succ)
-        in
-        let contents = string_map_of_alist
-          (List.map (fun { Git.Tree.name; node; _ } ->
-                if StringMap.mem name succ then (to_attribute name, node)
-                else (name, node)
-              ) contents)
-        in
-        N.create contents succ
+        let succ = all_succ t in
+        let contents = all_contents t in
+        N.create ~contents ~succ
 
-      let of_n n =
-        if N.is_leaf n then
-          match N.contents n with
-          | None   -> failwith "Node.Val.to_git"
-          | Some k -> Leaf k
-        else
-          let mktree entries =
-            let entries = StringMap.bindings entries in
-            let file node = { Git.Tree.perm = `Normal; name; node } in
-            let dir node  = { Git.Tree.perm = `Dir   ; name; node } in
-            Node (
-              (match N.contents n with
-               | None   -> []
-               | Some k -> file k)
-              @
-              List.map (fun (name, node) ->
-                  (* XXX: handle exec files. *)
+      let of_n n = create ~contents:(N.all_contents n) ~succ:(N.all_succ n)
 
-                    (fun () -> G.read t node)
-                      (function Zlib.Error _ -> return_none | e -> fail e)
-                    >>= function
-                    | None   -> dir () (* on import, the children nodes migh not
-                                          have been loaded properly yet. *)
-                    | Some v ->
-                      match Git.Value.type_of v with
-                      | Git.Object_type.Blob -> file ()
-                      | Git.Object_type.Tree -> dir ()
-                      | _                    -> fail (Failure "Node.to_git")
-                  ) entries >>= fun entries ->
-                return entries
-              ) in
-          match Val.contents node with
-          | None     -> mktree (Val.succ node)
-          | Some key ->
-            (* This is an extended node (ie. with child and contents).
-               Store the node contents in a dummy `.contents` file. *)
-            mktree (StringMap.add contents_child key (Val.succ node))
-
+      let to_json t = N.to_json (to_n t)
+      let of_json j = of_n (N.of_json j)
     end
 
     include AO (struct
-
         type t = Val.t
-
         let type_eq = function
-          | Git.Object_type.Blob
           | Git.Object_type.Tree -> true
           | _ -> false
-
-
-
+        let to_git t = Git.Value.Tree t
+        let of_git = function
+          | Git.Value.Tree t -> Some t
+          | _ -> None
       end)
   end
 
   module Commit: IB.Commit.STORE = struct
-    module Val = IB.Commit.Make(K)(K)
+    module Val = struct
+      type t = Git.Commit.t
+      type commit = K.t
+      type node = K.t
+
+      let to_sexp = Git.Commit.sexp_of_t
+      let compare = Git.Commit.compare
+      let equal = Git.Commit.equal
+      let hash = Git.Commit.hash
+      let read = Git.Commit.input
+
+      let to_string t =
+        let buf = Buffer.create 1024 in
+        Git.Commit.add buf t;
+        Buffer.contents buf
+
+      let write t b = write_string (to_string t) b
+      let size_of t =
+        (* XXX: yiiik *)
+        String.length (to_string t)
+
+      let commit_key_of_git k = Git.SHA.of_commit k
+      let node_key_of_git k = Git.SHA.of_tree k
+
+      let task_of_git author message =
+        let id = author.Git.User.name in
+        let date = match Stringext.split ~on:' ' author.Git.User.date with
+          | [date;_] -> Int64.of_string date
+          | _        -> 0L in
+        I.Task.create ~date ~owner:id "%s" message
+
+      let of_git { Git.Commit.tree; parents; author; message; _ } =
+        let parents = List.map commit_key_of_git parents in
+        let node = Some (node_key_of_git tree) in
+        let task = task_of_git author message in
+        (task, node, parents)
+
+      let to_git task node parents =
+        let git_of_commit_key k = Git.SHA.to_commit k in
+        let git_of_node_key k = Git.SHA.to_tree k in
+        let tree = match node with
+          | None   ->
+            failwith
+              "Irmin.Git.Commit: a commit with an empty filesystem... \
+               this is not supported by Git!"
+          | Some n -> git_of_node_key n
+        in
+        let parents = List.map git_of_commit_key parents in
+        let date = Int64.to_string (I.Task.date task) ^ " +0000" in
+        let author =
+          Git.User.({ name  = I.Task.owner task;
+                      email = "irmin@openmirage.org";
+                      date;
+                    }) in
+        let message = String.concat "\n" (I.Task.messages task) in
+        { Git.Commit.tree; parents; author; committer = author; message }
+
+      let create task ?node ~parents = to_git task node parents
+      let xnode { Git.Commit.tree; _ } = node_key_of_git tree
+      let node t = Some (xnode t)
+      let parents { Git.Commit.parents; _ } = List.map commit_key_of_git parents
+      let task { Git.Commit.author; message; _ } = task_of_git author message
+
+      let edges t =
+        let node = xnode t in
+        let parents = parents t in
+        `Node node :: List.map (fun k -> `Commit k) parents
+
+      module C = IB.Commit.Make(K)(K)
+
+      let of_c c =
+        to_git (C.task c) (C.node c) (C.parents c)
+
+      let to_c t =
+        let task, node, parents = of_git t in
+        C.create task ?node ~parents
+
+      let to_json t = C.to_json (to_c t)
+      let of_json j = of_c (C.of_json j)
+
+    end
+
     module Key = K
     include AO(struct
-
         type t = Val.t
-
         let type_eq = function
           | Git.Object_type.Commit -> true
           | _ -> false
-
-        let of_git k v =
-          match v with
-          | Git.Value.Commit { Git.Commit.tree; parents; author; message; _ } ->
-            let commit_key_of_git k = Git.SHA.of_commit k in
-            let node_key_of_git k = Git.SHA.of_tree k in
-            let parents = List.map commit_key_of_git parents in
-            let node = Some (node_key_of_git tree) in
-            let id = author.Git.User.name in
-            let date = match Stringext.split ~on:' ' author.Git.User.date with
-              | [date;_] -> Int64.of_string date
-              | _        -> 0L in
-            let task = I.Task.create ~date ~owner:id "%s" message in
-            Some (Val.create task ?node ~parents)
+        let of_git = function
+          | Git.Value.Commit c -> Some c
           | _ -> None
-
-        let to_git _ c =
-          let node = Val.node c in
-          let parents = Val.parents c in
-          let task = Val.task c in
-          match node with
-          | None      -> failwith "Commit.to_git: not supported"
-          | Some node ->
-            let git_of_commit_key k = Git.SHA.to_commit k in
-            let git_of_node_key k = Git.SHA.to_tree k in
-            let tree = git_of_node_key node in
-            let parents = List.map git_of_commit_key parents in
-            let date = Int64.to_string (I.Task.date task) ^ " +0000" in
-            let author =
-              Git.User.({ name  = I.Task.owner task;
-                          email = "irmin@openmirage.org";
-                          date;
-                        }) in
-            let message = String.concat "\n" (I.Task.messages task) in
-            let commit = {
-              Git.Commit.tree; parents;
-              author; committer = author;
-              message } in
-            let value = Git.Value.Commit commit in
-            `Value (return value)
-
+        let to_git c = Git.Value.Commit c
       end)
 
   end
@@ -450,9 +482,9 @@ module Make (G: Git.Store.S) (S: Git.Sync.S) (C: I.Contents.S) = struct
 
   end
 
-  module Remote = functor (S: I.BC) -> struct
+  module Remote = struct
 
-    type key = K.t
+    module Sync = Git.Sync.Make(IO)(G)
 
     let key_of_git key = Git.SHA.of_commit key
 
@@ -476,18 +508,19 @@ module Make (G: Git.Store.S) (S: Git.Sync.S) (C: I.Contents.S) = struct
             match S.tag t with
             | None        -> max ()
             | Some branch ->
-              let branch = Git.Reference.of_raw ("refs/heads/" ^ S.Branch.to_raw branch) in
+              let raw_branch = Tc.write_string (module Tag.Val) branch in
+              let branch = Git.Reference.of_raw ("refs/heads/" ^ branch) in
               try Some (Git.Reference.Map.find branch
                           r.Git.Sync.Result.references)
               with Not_found -> max ()
         in
         o_key_of_git key in
-      Config.Sync.fetch (S.contents_t t) ?deepen gri >>=
+      Sync.fetch g ?deepen gri >>=
       result
 
     let push t ?depth uri =
       Log.debugf "push %s" uri;
-      match S.branch t with
+      match S.tag t with
       | None        -> return_none
       | Some branch ->
         let branch = Git.Reference.of_raw (S.Branch.to_raw branch) in
@@ -495,7 +528,7 @@ module Make (G: Git.Store.S) (S: Git.Sync.S) (C: I.Contents.S) = struct
         let result { Git.Sync.Result.result } = match result with
           | `Ok      -> S.head t
           | `Error _ -> return_none in
-        Config.Sync.push (S.contents_t t) ~branch gri >>=
+        Sync.push (S.contents_t t) ~branch gri >>=
         result
 
   end

@@ -40,7 +40,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   module Path = Ir_step.Path(N.Step)
   module PathSet = Ir_misc.Set(Path)
-  module StepMap = Ir_misc.Map(B.StepMap)(B.Step)
+  module StepMap = Ir_misc.Map(B.Step)
 
   (* XXX: add a path in the tuple to handle snapshot of sub-trees. *)
   type key = S.key
@@ -87,15 +87,14 @@ module Make (S: Ir_bc.STORE_EXT) = struct
   (* XXX: code duplication with Branch.list *)
   let list t paths =
     Log.debugf "list";
-    let task = S.node_t (db t) in
+    let t_n = S.node_t (db t) in
     let one path =
       root_node t >>= fun n ->
-      N.sub task n path >>= function
+      N.sub t_n n path >>= function
       | None      -> return_nil
       | Some node ->
-        let c = N.succ task node in
-        let c = StepMap.keys c in
-        let paths = List.map (fun c -> path @ [c]) c in
+        let steps = N.Val.steps node in
+        let paths = List.map (fun c -> path @ [c]) steps in
         return paths in
     Lwt_list.fold_left_s (fun set p ->
         one p >>= fun paths ->

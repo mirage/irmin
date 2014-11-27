@@ -209,8 +209,9 @@ let alist
 
 module Map (M: Map.S) (S: Tc.S0 with type t = M.key) = struct
 
+  module SM = Ir_misc.Map_ext(M)(S)
+
   let merge (type a) (module A: Tc.S0 with type t = a) t =
-    let module SM = Ir_misc.Map(M)(S) in
     let module S = Tc.App1(SM)(A) in
     fun ~old m1 m2 ->
       Log.debugf "assoc %a | %a | %a"

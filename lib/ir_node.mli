@@ -19,35 +19,36 @@
     store. *)
 
 module type S = sig
-  include Ir_contents.S
+  include Tc.S0
   type contents
   type node
   type step
-  type 'a step_map
-  val contents: t -> step -> contents
-  val with_contents: t -> contents step_map -> t
-  val succ: t -> node step_map
-  val with_succ: t -> node step_map -> t
+  val contents: t -> step -> contents option
+  val all_contents: t -> (step * contents) list
+  val with_contents: t -> step -> contents option -> t
+  val succ: t -> step -> node option
+  val all_succ: t -> (step * node) list
+  val with_succ: t -> step -> node option -> t
+  val steps: t -> step list
   val edges: t -> [> `Contents of contents | `Node of node] list
   val empty: t
-  val create: contents step_map -> node step_map -> t
+  val create: contents:(step * contents) list -> succ:(step * node) list -> t
   val is_empty: t -> bool
 end
 
 module Make (C: Tc.S0) (N: Tc.S0) (S: Tc.S0):
   S with type contents = C.t
-     and type node := N.t
-     and type 'a step_map := 'a Map.Make(S).t
+     and type node = N.t
+     and type step = S.t
 
 module type STORE = sig
   include Ir_ao.STORE
   module Step: Tc.S0
-  module StepMap: Map.S with type key = Step.t
   module Key: Ir_hash.S with type t = key
   module Val: S
     with type t = value
-     and type node := key
-     and type 'a step_map := 'a StepMap.t
+     and type node = key
+     and type step = Step.t
 end
 
 module type STORE_EXT = sig
@@ -78,8 +79,11 @@ module type STORE_EXT = sig
     unit -> (key * value) Lwt.t
   (** Create a new node. *)
 
-  val contents: t -> value -> step -> contents Lwt.t
+  val contents: t -> value -> step -> contents Lwt.t option
   (** Return the node contents. *)
+
+  val succ: t -> value -> step -> value Lwt.t option
+  (** Return the node successors. *)
 
   val sub: t -> value -> step list -> value option Lwt.t
   (** Find a subvalue. *)
@@ -101,7 +105,7 @@ module type STORE_EXT = sig
   (** Find a value. Raise [Not_found] is [path] is not defined. *)
 
   val remove: t -> value -> step list -> value Lwt.t
-  (** Remove a value. *)
+  (** Remove the contents. *)
 
   val valid: t -> value -> step list -> bool Lwt.t
   (** Is a path valid. *)

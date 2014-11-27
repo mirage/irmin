@@ -30,16 +30,19 @@ module type S = sig
   val push_exn: db -> ?depth:int -> remote -> head Lwt.t
 end
 
-module type REMOTE = functor (S: Ir_bc.STORE) -> sig
-  val fetch: S.t -> ?depth:int -> string -> S.head option Lwt.t
-  val push : S.t -> ?depth:int -> string -> S.head option Lwt.t
+module type REMOTE = sig
+  val fetch: Ir_config.t -> ?depth:int -> string -> [`Head of string] option Lwt.t
+  val push : Ir_config.t -> ?depth:int -> string -> [`Head of string] option Lwt.t
 end
 
-module Make (S: Ir_bc.STORE) (R: REMOTE) = struct
+module Make (S: Ir_bc.STORE) (H: Tc.S0 with type t = S.head) (R: REMOTE) =
+struct
 
-  module R = R(S)
   type db = S.t
   type head = S.head
+
+  let return_head (`Head h) =
+    return (Some (Tc.read_string (module H) h))
 
   type remote =
     | Store of db
@@ -58,12 +61,14 @@ module Make (S: Ir_bc.STORE) (R: REMOTE) = struct
 
   let fetch t ?depth remote =
     match remote with
-    | URI uri ->
-      Log.debugf "fetch URI %s" uri;
-      R.fetch t ?depth uri
     | Store r ->
       Log.debugf "fetch store";
       sync ?depth t r
+    | URI uri ->
+      Log.debugf "fetch URI %s" uri;
+      R.fetch (S.config t) ?depth uri >>= function
+      | None   -> return_none
+      | Some h -> return_head h
 
   let fetch_exn t ?depth remote =
     fetch t ?depth remote >>= function
@@ -73,7 +78,12 @@ module Make (S: Ir_bc.STORE) (R: REMOTE) = struct
   let push t ?depth remote =
     Log.debugf "push";
     match remote with
-    | URI uri -> R.push t ?depth uri
+    | URI uri ->
+      begin
+        R.push (S.config t) ?depth uri >>= function
+        | None   -> return_none
+        | Some h -> return_head h
+      end
     | Store r ->
       sync ?depth r t >>= function
       | None   -> return_none
@@ -88,7 +98,7 @@ module Make (S: Ir_bc.STORE) (R: REMOTE) = struct
 
 end
 
-module None (S: Ir_bc.STORE) = struct
+module None = struct
 
   let fetch _t ?depth:_ _uri =
     Log.debugf "slow fetch";

@@ -22,7 +22,7 @@ open Ir_misc.OP
 open Printf
 
 module type S = sig
-  include Ir_contents.S
+  include Tc.S0
   type commit
   type node
   val create: Ir_task.t -> ?node:node -> parents:commit list -> t
@@ -88,7 +88,6 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
   let size_of t = X.size_of (explode t)
   let write t b = X.write (explode t) b
   let read b = implode (X.read b)
-  let merge ~old:_ _ _ = conflict "commit"
 
 end
 

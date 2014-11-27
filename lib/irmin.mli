@@ -877,6 +877,22 @@ end
 (** [Backend] provides the signatures that every backend should satisfy. *)
 module Backend: sig
 
+  module Contents: sig
+
+    module type STORE = sig
+
+      include AO
+
+      module Key: Hash.S with type t = key
+      (** [Key] provides base functions for user-defined contents keys. *)
+
+      module Val: Contents.S with type t = value
+      (** [Val] provides base function for user-defined contents values. *)
+
+    end
+
+  end
+
   (** [Node] provides functions to describe the graph-like structured
       values.
 
@@ -892,7 +908,7 @@ module Backend: sig
 
       (** {1 Node values} *)
 
-      include Contents.S
+      include Tc.S0
 
       type contents
       (** The type for contents keys. *)
@@ -900,20 +916,30 @@ module Backend: sig
       type node
       (** The type for node keys. *)
 
-      type 'a step_map
-      (** The type for step maps. *)
+      type step
+      (** The type for steps between nodes. *)
 
-      val contents: t -> contents step_map
-      (** [contents t] are the (optional) keys of the node contents. *)
+      val contents: t -> step -> contents option
+      (** [contents t s] are the (optional) keys of the node contents
+          for the step [s]. *)
 
-      val with_contents: t -> contents step_map -> t
-      (** Replace the optional contents. *)
+      val all_contents: t -> (step * contents) list
+      (** List all the contents (slow). *)
 
-      val succ: t -> node step_map
+      val with_contents: t -> step -> contents option -> t
+      (** Replace the contents. *)
+
+      val succ: t -> step -> node option
       (** Extract the successors of a node. *)
 
-      val with_succ: t -> node step_map -> t
-      (** Replace the list of successors. *)
+      val all_succ: t -> (step * node) list
+      (** List all the nodes (slow). *)
+
+      val with_succ: t -> step -> node option -> t
+      (** Replace the successors. *)
+
+      val steps: t -> step list
+      (** The list of available steps to visit a successor. *)
 
       val edges: t -> [> `Contents of contents | `Node of node] list
       (** Return the list of successor vertices. *)
@@ -921,8 +947,8 @@ module Backend: sig
       val empty: t
       (** The empty node. *)
 
-      val create: contents step_map -> node step_map -> t
-      (** [create ~contents succ] is the node with contents [contents]
+      val create: contents:(step * contents) list -> succ:(step * node) list -> t
+      (** [create contents succ] is the node with contents [contents]
           and successors [succs]. *)
 
       val is_empty: t -> bool
@@ -936,23 +962,20 @@ module Backend: sig
       module Step: Tc.S0
       (** [Step] provides base functions over node steps. *)
 
-      module StepMap: Map.S with type key = Step.t
-      (** [StepMap] provides base functions over node paths. *)
-
       module Key: Hash.S with type t = key
       (** [Key] provides base functions for node keys. *)
 
       (** [Val] provides base functions for node values. *)
       module Val: S with type t = value
-                     and type node := key
-                     and type 'a step_map := 'a StepMap.t
+                     and type node = key
+                     and type step = Step.t
 
     end
 
     module Make (C: Tc.S0) (N: Tc.S0) (S: Tc.S0):
       S with type contents = C.t
-         and type node := N.t
-         and type 'a step_map := 'a Map.Make(S).t
+         and type node = N.t
+         and type step = S.t
 
   end
 
@@ -971,7 +994,7 @@ module Backend: sig
 
       (** {1 Commit values} *)
 
-      include Contents.S
+      include Tc.S0
       (** Base functions over commit values. *)
 
       type commit
@@ -1015,22 +1038,6 @@ module Backend: sig
 
   end
 
-  module Contents: sig
-
-    module type STORE = sig
-
-      include AO
-
-      module Key: Hash.S with type t = key
-      (** [Key] provides base functions for user-defined contents keys. *)
-
-      module Val: Contents.S with type t = value
-      (** [Val] provides base function for user-defined contents values. *)
-
-    end
-
-  end
-
   (** Tags defines branch names.
 
       A *tag store* is a key / value store, where keys are names
@@ -1057,14 +1064,14 @@ module Backend: sig
 
   end
 
-  module type REMOTE = functor (S: BC) -> sig
+  module type REMOTE = sig
 
-    val fetch: S.t -> ?depth:int -> string -> S.head option Lwt.t
+    val fetch: config -> ?depth:int -> string -> [`Head of string] option Lwt.t
     (** [fetch t uri] fetches the contents of the remote store located
         at [uri] into the local store [t]. Return [None] if the remote
         store is empty, otherwise, return the head of [uri]. *)
 
-    val push : S.t -> ?depth:int -> string -> S.head option Lwt.t
+    val push : config -> ?depth:int -> string -> [`Head of string] option Lwt.t
     (** [push t uri] pushes the contents of the local store [t] into the
         remote store located at [uri]. Return [None] is the local store
         is empty, otherwise, return the head of [t]. *)
