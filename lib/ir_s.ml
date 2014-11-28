@@ -31,7 +31,7 @@ module type STORE = sig
      and type value = value
   module Dot: Ir_dot.S
     with type db = t
-  module Sync: Ir_sync.S
+  module Sync: Ir_sync.STORE
     with type db = t
      and type head := head
 end
@@ -41,7 +41,7 @@ module Make
     (N: Ir_node.STORE with type Val.contents = C.key)
     (S: Ir_commit.STORE with type Val.node = N.key)
     (T: Ir_tag.STORE with type value = S.key)
-    (R: Ir_sync.REMOTE) =
+    (R: Ir_sync.S with type head = S.key and type tag = T.key) =
 struct
   module B = Ir_bc.Make_ext(C)(N)(S)(T)
   include B
@@ -49,5 +49,5 @@ struct
   module View = Ir_view.Make(B)
   module Snapshot = Ir_snapshot.Make(B)
   module Dot = Ir_dot.Make(B)
-  module Sync = Ir_sync.Make(B)(S.Key)(R)
+  module Sync = Ir_sync.Make(B)(R)
 end

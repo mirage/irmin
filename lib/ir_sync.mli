@@ -17,27 +17,29 @@
 (** Store Synchronisation. *)
 
 module type S = sig
+  type t
+  type head
+  type tag
+  val create: Ir_config.t -> t Lwt.t
+  val fetch: t -> ?depth:int -> uri:string -> tag -> [`Local of head] option Lwt.t
+  val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+end
+
+module type STORE = sig
   type db
   type head
   type remote
   val uri: string -> remote
   val store: db -> remote
-  val fetch: db -> ?depth:int -> remote -> head option Lwt.t
-  val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
-  val push: db -> ?depth:int -> remote -> head option Lwt.t
-  val push_exn: db -> ?depth:int -> remote -> head Lwt.t
+  val fetch: db -> ?depth:int -> remote -> [`Local of head] option Lwt.t
+  val pull: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Ir_merge.result Lwt.t
+  val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
 end
 
-module type REMOTE = sig
-  val fetch: Ir_config.t -> ?depth:int -> string -> [`Head of string] option Lwt.t
-  val push : Ir_config.t -> ?depth:int -> string -> [`Head of string] option Lwt.t
-end
+module None (H: Tc.S0) (T: Tc.S0):
+  S with type head = H.t and type tag = T.t
 
-module None: REMOTE
-(** An implementation of remote synchronisation which does nothing,
-    i.e. it always return [None] on [fetch] and [push]. *)
-
-module Make (S: Ir_bc.STORE) (H: Tc.S0 with type t = S.head) (R: REMOTE):
-  S with type db = S.t and type head = S.head
-(** Use [R] to synchronize stores using some native (and usually fast)
-    backend-specific protocols. *)
+module Make
+    (S: Ir_bc.STORE)
+    (R: S with type head = S.head and type tag = S.tag):
+  STORE with type db = S.t and type head = S.head

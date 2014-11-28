@@ -596,8 +596,6 @@ module Make_ext
     >>= fun () ->
     aux "Commit"
       (module B.Commit) (module B.Commit.Key) commit_t s.Slice.commits
-    >>= fun () ->
-    Lwt_list.iter_p (fun (k, v) -> T.update (tag_t t) k v) s.Slice.tags
 
   let import t s =
     Lwt_list.partition_p

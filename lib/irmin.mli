@@ -532,7 +532,7 @@ module type BC = sig
       commit history graph only. *)
 
   val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
-  (** Import a store slide. Do not modify existing tags. *)
+  (** Import a store slide. Do not modify existing tags. FIXME: do not modify tags at all. *)
 
   val import_force: t -> slice -> unit Lwt.t
   (** Same as [import] but delete and update the tags they already
@@ -732,24 +732,25 @@ module type S = sig
         {{!BC.slice}slices}, so this is usually much slower than native
         synchronization using [uri] remotes. *)
 
-    val fetch: db -> ?depth:int -> remote -> head option Lwt.t
+    val fetch: db -> ?depth:int -> remote -> [`Local of head] option Lwt.t
     (** [create t last] fetch an object in the local store. The local
         store can then be either [merged], or [updated] to the new
-        contents. The [depth] parameter limits the history depth.*)
+        contents. The [depth] parameter limits the history
+        depth. Return the new [head] in the local store corresponding
+        to the current branch -- [fetch] does not update the local
+        branches, use {{S.Sync.pull}pull} instead. *)
 
-    val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
-    (** Same as [create] but raise [Failure] is the fetch operation
-        fails. *)
+    val pull: db -> ?depth:int -> remote -> [`Merge | `Update] ->
+      unit Merge.result Lwt.t
+    (** Same as {{!S.Sync.fetch}fetch} but also update the current
+        branch. Either [merge] or force [update] with the fetched
+        head. *)
 
-    val push: db -> ?depth:int -> remote -> head option Lwt.t
+    val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
     (** [push t f] push the contents of the current branch of the
         store to the remote store -- also update the remote branch
         with the same name as the local one to points to the new
         state. *)
-
-    val push_exn: db -> ?depth:int -> remote -> head Lwt.t
-    (** Same as [push] but raise [Failure] is the push operation
-        fails. *)
 
   end
 
@@ -757,125 +758,127 @@ end
 
 (** {1 Backends} *)
 
-(** [Hash] provides function to digest user-defined serialized
+(** [Backend] provides the signatures that every backend should satisfy. *)
+module Backend: sig
+
+  (** [Hash] provides function to digest user-defined serialized
     contents. Some backends might be parameterize by such a hash
     functions, other might work with a fixed one (for instance, the
     Git format use only SHA1).
 
     An {{!Hash.SHA1}SHA1} implementation is available to pass to the
     backends. *)
-module Hash: sig
+  module Hash: sig
 
-  (** {1 Contents Hashing} *)
+    (** {1 Contents Hashing} *)
 
-  module type S = sig
+    module type S = sig
 
-    (** Signature for unique identifiers. *)
+      (** Signature for unique identifiers. *)
 
-    include Tc.S0
+      include Tc.S0
 
-    val digest: Cstruct.t -> t
-    (** Compute a deterministic store key from a cstruct value. *)
+      val digest: Cstruct.t -> t
+      (** Compute a deterministic store key from a cstruct value. *)
+
+    end
+    (** Signature for hash values. *)
+
+    module SHA1: S
+    (** SHA1 digests *)
 
   end
-  (** Signature for hash values. *)
 
-  module SHA1: S
-  (** SHA1 digests *)
+  (** FIXME: add a [Simple] functor *)
 
-end
+  (** Backend-specific configuration values. *)
+  module Config: sig
 
-(** Backend-specific configuration values. *)
-module Config: sig
+    (** {1 Configuration value} *)
 
-  (** {1 Configuration value} *)
+    type t = config
+    (** The type for backend-specific configuration values. *)
 
-  type t = config
-  (** The type for backend-specific configuration values. *)
+    type univ
+    (** Type type for universal values.
 
-  type univ
-  (** Type type for universal values.
+        See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
 
-      See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
+        Universal values are used to carry around configuration values, see
+        {{!RO.create}RO.create}. *)
 
-      Universal values are used to carry around configuration values, see
-      {{!RO.create}RO.create}. *)
+    val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
+    (** Creation of universal values. [univ tc] returns:
 
-  val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
-  (** Creation of universal values. [univ tc] returns:
+        {ul
+        {- a function to inject a value from a given type in to a universal value;}
+        {- a function to project from a universal value to a value of a given type;}
+        {- a type-class to show and serialize universal values.}
+        } *)
 
-      {ul
-      {- a function to inject a value from a given type in to a universal value;}
-      {- a function to project from a universal value to a value of a given type;}
-      {- a type-class to show and serialize universal values.}
-      } *)
+    val of_dict: (string * univ) list -> config
+    (** Convert a dictionary of universal values into an abstract store
+        config. *)
 
-  val of_dict: (string * univ) list -> config
-  (** Convert a dictionary of universal values into an abstract store
-      config. *)
+    val to_dict: config -> (string * univ) list
+    (** Convert a configuration value into a dictionary of universal
+        values. *)
 
-  val to_dict: config -> (string * univ) list
-  (** Convert a configuration value into a dictionary of universal
-      values. *)
+  end
 
-end
-
-(** [Watch] provides helpers to register key watchers. *)
-module Watch: sig
-
-  (** {1 Watch Helpers} *)
-
-  (** The signature for watch helpers. *)
-  module type S = sig
+  (** [Watch] provides helpers to register key watchers. *)
+  module Watch: sig
 
     (** {1 Watch Helpers} *)
 
-    type key
-    (** The type for store keys. *)
+    (** The signature for watch helpers. *)
+    module type S = sig
 
-    type value
-    (** The type for store values. *)
+      (** {1 Watch Helpers} *)
 
-    type t
-    (** The type for watch state. *)
+      type key
+      (** The type for store keys. *)
 
-    val notify: t -> key -> value option -> unit
-    (** Notify all listeners in the given watch state that a key has
-        changed, with the new value associated to this key. If the
-        argument is [None], this means the key has been removed. *)
+      type value
+      (** The type for store values. *)
 
-    val create: unit -> t
-    (** Create a watch state. *)
+      type t
+      (** The type for watch state. *)
 
-    val clear: t -> unit
-    (** Clear all register listeners in the given watch state. *)
+      val notify: t -> key -> value option -> unit
+      (** Notify all listeners in the given watch state that a key has
+          changed, with the new value associated to this key. If the
+          argument is [None], this means the key has been removed. *)
 
-    val watch: t -> key -> value option -> value option Lwt_stream.t
-    (** Create a stream of value notifications. Need to provide the
-        initial value, or [None] if the key does not have associated
-        contents yet.  *)
+      val create: unit -> t
+      (** Create a watch state. *)
 
-    val listen_dir: t -> string
-      -> key:(string -> key option)
-      -> value:(key -> value option Lwt.t)
-      -> unit
-    (** Register a fsevents/inotify thread to look for changes in
-        the given directory. *)
+      val clear: t -> unit
+      (** Clear all register listeners in the given watch state. *)
+
+      val watch: t -> key -> value option -> value option Lwt_stream.t
+      (** Create a stream of value notifications. Need to provide the
+          initial value, or [None] if the key does not have associated
+          contents yet.  *)
+
+      val listen_dir: t -> string
+        -> key:(string -> key option)
+        -> value:(key -> value option Lwt.t)
+        -> unit
+        (** Register a fsevents/inotify thread to look for changes in
+            the given directory. *)
+
+    end
+
+    val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
+    (** Register a function which looks for file changes in a
+        directory. Could use [inotify] when available, or use an active
+        stats file polling.*)
+
+    (** [Make] builds an implementation of watch helpers. *)
+    module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
   end
-
-  val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
-  (** Register a function which looks for file changes in a
-      directory. Could use [inotify] when available, or use an active
-      stats file polling.*)
-
-  (** [Make] builds an implementation of watch helpers. *)
-  module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
-
-end
-
-(** [Backend] provides the signatures that every backend should satisfy. *)
-module Backend: sig
 
   module Contents: sig
 
@@ -1064,21 +1067,44 @@ module Backend: sig
 
   end
 
-  module type REMOTE = sig
+  module Sync: sig
 
-    val fetch: config -> ?depth:int -> string -> [`Head of string] option Lwt.t
-    (** [fetch t uri] fetches the contents of the remote store located
-        at [uri] into the local store [t]. Return [None] if the remote
-        store is empty, otherwise, return the head of [uri]. *)
+    module type S = sig
 
-    val push : config -> ?depth:int -> string -> [`Head of string] option Lwt.t
-    (** [push t uri] pushes the contents of the local store [t] into the
-        remote store located at [uri]. Return [None] is the local store
-        is empty, otherwise, return the head of [t]. *)
+      (** {1 Remote synchronization} *)
+
+      type t
+      (** The type for store handles. *)
+
+      type head
+      (** The type for store heads. *)
+
+      type tag
+      (** The type for store tags. *)
+
+      val create: config -> t Lwt.t
+      (** Create a remote store handle. *)
+
+      val fetch: t -> ?depth:int -> uri:string -> tag -> [`Local of head] option Lwt.t
+      (** [fetch t uri] fetches the contents of the remote store
+          located at [uri] into the local store [t]. Return the head
+          of the remote branch with the same name, which is now in the
+          local store. [None] is no such branch exists. *)
+
+      val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+      (** [push t uri] pushes the contents of the local store [t] into
+          the remote store located at [uri]. *)
+
+    end
+
+    (** [None] is an implementation of {{!Backend.Remote.S}S} which
+        does nothing. *)
+    module None (H: Tc.S0) (T: Tc.S0): S with type head = H.t and type tag = T.t
 
   end
 
-  (** [Make] builds a new Irmin implementation using 4 user-provided stores.
+  (** [BC] builds an high-level branch-consistent store using
+      lower-level user-provided stores.
 
       {ul
       {- [C] is an append-only store where user-defined contents is stored.}
@@ -1087,12 +1113,25 @@ module Backend: sig
       {- [T] is a read-write store where branch names are stored.}
       }
   *)
+  module BC
+      (C: Contents.STORE)
+      (N: Node.STORE with type Val.contents = C.key)
+      (H: Commit.STORE with type Val.node = N.key)
+      (T: Tag.STORE with type value = H.key):
+    BC with type key = N.Step.t list
+       and type value = C.value
+       and type tag = T.key
+       and type head = H.key
+
+  (** [Make] builds an high-level Irmin store using lower-level
+      user-provided store and a native synchronisation
+      implementation. See {{!Backend.BC}BC} for details. *)
   module Make
       (C: Contents.STORE)
       (N: Node.STORE with type Val.contents = C.key)
       (H: Commit.STORE with type Val.node = N.key)
       (T: Tag.STORE with type value = H.key)
-      (R: REMOTE):
+      (S: Sync.S with type head = H.key and type tag = T.key):
     S with type step = N.Step.t
        and type value = C.value
        and type tag = T.key

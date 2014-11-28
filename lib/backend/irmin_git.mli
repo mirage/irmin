@@ -16,20 +16,15 @@
 
 (** Git backend *)
 
-module Memory (IO: Git.Sync.IO) (C: Irmin.Contents.S): sig
-  include Irmin.S with type step = string
-                   and type tag = string
-                   and type value = C.t
-  val create: ?root:string -> Irmin.Task.t -> t
-  val of_tag: ?root:string -> Irmin.Task.t -> tag -> t
-  val of_head: ?root:string -> Irmin.Task.t -> head -> t
+module type S = sig
+  include Irmin.S with type step = string and type tag = string
+  val create: ?root:string -> ?bare:bool -> Irmin.Task.t -> t Lwt.t
+  val of_tag: ?root:string -> ?bare:bool -> Irmin.Task.t -> tag -> t Lwt.t
+  val of_head: ?root:string -> ?bare:bool -> Irmin.Task.t -> head -> t Lwt.t
 end
 
-module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: Irmin.Contents.S): sig
-  include Irmin.S with type step = string
-                   and type tag = string
-                   and type value = C.t
-  val create: ?root:string -> ?bare:bool -> Irmin.Task.t -> t
-  val of_tag: ?root:string -> ?bare:bool -> tag -> Irmin.Task.t -> t
-  val of_head: ?root:string -> ?bare:bool -> head -> Irmin.Task.t -> t
-end
+module Memory (IO: Git.Sync.IO) (C: Irmin.Contents.S):
+  S with type value = C.t
+
+module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: Irmin.Contents.S):
+  S with type value = C.t

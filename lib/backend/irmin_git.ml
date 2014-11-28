@@ -20,6 +20,13 @@ module I = Irmin
 module IB = Irmin.Backend
 module Log = Log.Make(struct let section = "GIT" end)
 
+module type S = sig
+  include Irmin.S with type step = string and type tag = string
+  val create: ?root:string -> ?bare:bool -> Irmin.Task.t -> t Lwt.t
+  val of_tag: ?root:string -> ?bare:bool -> Irmin.Task.t -> tag -> t Lwt.t
+  val of_head: ?root:string -> ?bare:bool -> Irmin.Task.t -> head -> t Lwt.t
+end
+
 module StringMap = Map.Make(Tc.String)
 
 let string_chop_prefix t ~prefix =
@@ -53,27 +60,29 @@ let write_string str b =
   Cstruct.blit_from_string str 0 b 0 len;
   Cstruct.shift b len
 
-let of_root, to_root, root = I.Config.univ Tc.string
-let of_bare, to_bare, bare = I.Config.univ Tc.bool
-let of_disk, to_disk, disk = I.Config.univ Tc.bool
-
-let root_k = "git:root"
-let bare_k = "git:bare"
-let disk_k = "git:disk"
-
 let key k f config =
-  try f (List.assoc k (I.Config.to_dict config))
+  try f (List.assoc k (IB.Config.to_dict config))
   with Not_found -> None
-
-let root_key = key root_k to_root
 
 let key_bool k f d config =
   match key k f config with
   | None   -> d
   | Some b -> b
 
-let bare_key = key_bool bare_k to_bare true
+(* ~root *)
+let of_root, to_root, _root = IB.Config.univ Tc.string
+let root_k = "git:root"
+let root_key = key root_k to_root
+
+(* ~disk *)
+let of_disk, to_disk, _disk = IB.Config.univ Tc.bool
+let disk_k = "git:disk"
 let disk_key = key_bool disk_k to_disk false
+
+(* ~bare *)
+let of_bare, to_bare, _bare = IB.Config.univ Tc.bool
+let bare_k = "git:bare"
+let bare_key = key_bool bare_k to_bare true
 
 module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
@@ -93,9 +102,6 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
     let digest = Git.SHA.of_cstruct
   end
 
-  let k: K.t Tc.t = (module K)
-  let c: C.t Tc.t = (module C)
-
   module type V = sig
     type t
     val type_eq: Git.Object_type.t -> bool
@@ -103,12 +109,12 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
     val of_git: Git.Value.t -> t option
   end
 
-  module AO (V: V): I.AO with type key = K.t and type value = V.t = struct
+  module AO (V: V) = struct
 
     type t = {
       t: G.t;
-      task: I.Task.t;
-      config: I.Config.t;
+      task: I.task;
+      config: I.config;
     }
 
     type key = K.t
@@ -141,7 +147,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
       | None   -> fail Not_found
       | Some v -> return v
 
-    let list { t; _ } k =
+    let list _ k =
       return k
 
     let dump { t; _ } =
@@ -158,9 +164,10 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
   end
 
-  module Contents: IB.Contents.STORE = struct
+  module XContents = struct
     include AO (struct
         type t = C.t
+        let c: t Tc.t = (module C)
         let type_eq = function
           | Git.Object_type.Blob -> true
           | _ -> false
@@ -169,13 +176,12 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
           | _                -> None
         let to_git b =
           Git.Value.Blob (Git.Blob.of_raw (Tc.write_string c b))
-
       end)
       module Val = C
       module Key = K
     end
 
-  module Node: IB.Node.STORE = struct
+  module XNode = struct
     module Key = K
     module Step = Tc.String
     module Val = struct
@@ -199,9 +205,10 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
       let write t b =
         write_string (to_string t) b
 
-      let size_of t =
-        (* XXX: eeerk: this will cause wwrite duplication!!  *)
-        String.length (to_string t)
+      let size_of _t =
+        failwith "Git.Tree.size_of"
+        (* XXX: eeerk: might cause wwrite duplication!!  *)
+        (* String.length (to_string t) *)
 
       let of_git { Git.Tree.name; node; _ } = (name, node)
       let to_git perm (name, node) = { Git.Tree.perm; name; node }
@@ -222,7 +229,9 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
           None
 
       let remove t p s =
-        List.filter (fun { Git.Tree.perm; name; _ } -> not (p perm & name = s)) t
+        List.filter
+          (fun { Git.Tree.perm; name; _ } -> not (p perm && name = s))
+          t
 
       let with_succ t name node =
         let t = remove t (function `Dir -> true | _ -> false) name in
@@ -279,10 +288,9 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
       end)
   end
 
-  module Commit: IB.Commit.STORE = struct
+  module XCommit = struct
     module Val = struct
       type t = Git.Commit.t
-      type commit = K.t
       type node = K.t
 
       let to_sexp = Git.Commit.sexp_of_t
@@ -297,9 +305,10 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
         Buffer.contents buf
 
       let write t b = write_string (to_string t) b
-      let size_of t =
+      let size_of _t =
+        failwith "Git.Commit.size_of"
         (* XXX: yiiik *)
-        String.length (to_string t)
+        (* String.length (to_string t) *)
 
       let commit_key_of_git k = Git.SHA.of_commit k
       let node_key_of_git k = Git.SHA.of_tree k
@@ -363,6 +372,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
     end
 
     module Key = K
+
     include AO(struct
         type t = Val.t
         let type_eq = function
@@ -376,7 +386,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
   end
 
-  module Tag: IB.Tag.STORE = struct
+  module XTag = struct
 
     module T = I.Tag.String
     module Key = T
@@ -384,7 +394,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
     let t: T.t Tc.t = (module T)
 
-    module W = I.Watch.Make(T)(K)
+    module W = IB.Watch.Make(T)(K)
 
     type t = {
       task: I.task;
@@ -482,77 +492,77 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
   end
 
-  module Remote = struct
+  module XSync = struct
 
     module Sync = Git.Sync.Make(IO)(G)
+    module S = IB.BC (XContents)(XNode)(XCommit)(XTag)
+
+    type t = G.t
+    type head = S.head
+    type tag = S.tag
 
     let key_of_git key = Git.SHA.of_commit key
 
     let o_key_of_git = function
       | None   -> return_none
-      | Some k -> return (Some (key_of_git k))
+      | Some k -> return (Some (`Local (key_of_git k)))
 
-    let fetch t ?depth uri =
+    let create config =
+      let root = root_key config in
+      G.create ?root ()
+
+    let fetch t ?depth ~uri tag =
       Log.debugf "fetch %s" uri;
       let gri = Git.Gri.of_string uri in
       let deepen = depth in
       let result r =
         Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
-        let key = match r.Git.Sync.Result.head with
-          | Some _ as h -> h
-          | None        ->
-            let max () =
-              match Git.Reference.Map.to_alist r.Git.Sync.Result.references with
-              | []          -> None
-              | (_, k) :: _ -> Some k in
-            match S.tag t with
-            | None        -> max ()
-            | Some branch ->
-              let raw_branch = Tc.write_string (module Tag.Val) branch in
-              let branch = Git.Reference.of_raw ("refs/heads/" ^ branch) in
-              try Some (Git.Reference.Map.find branch
-                          r.Git.Sync.Result.references)
-              with Not_found -> max ()
+        let tag = XTag.git_of_ref tag in
+        let key =
+          let refs = r.Git.Sync.Result.references in
+          try Some (Git.Reference.Map.find tag refs)
+          with Not_found -> None
         in
-        o_key_of_git key in
-      Sync.fetch g ?deepen gri >>=
+        o_key_of_git key
+      in
+      Sync.fetch t ?deepen gri >>=
       result
 
-    let push t ?depth uri =
+    let push t ?depth:_ ~uri tag =
       Log.debugf "push %s" uri;
-      match S.tag t with
-      | None        -> return_none
-      | Some branch ->
-        let branch = Git.Reference.of_raw (S.Branch.to_raw branch) in
-        let gri = Git.Gri.of_string uri in
-        let result { Git.Sync.Result.result } = match result with
-          | `Ok      -> S.head t
-          | `Error _ -> return_none in
-        Sync.push (S.contents_t t) ~branch gri >>=
-        result
+      let branch = XTag.git_of_ref tag in
+      let gri = Git.Gri.of_string uri in
+      let result r =
+        Log.debugf "push result: %s" (Git.Sync.Result.pretty_push r);
+        match r.Git.Sync.Result.result with
+        | `Ok      -> return `Ok
+        | `Error _ -> return `Error in
+      Sync.push t ~branch gri >>=
+      result
 
   end
 
+  include IB.Make(XContents)(XNode)(XCommit)(XTag)(XSync)
+
+  let mk root bare =
+    let root = match root with
+      | None   -> []
+      | Some r -> [ root_k, of_root r ]
+    in
+    let disk = match (* FIXME: G.backend_type *) `Disk with
+      | `Memory -> [ disk_k, of_disk false ]
+      | `Disk   -> [ disk_k, of_disk true ]
+    in
+    let bare = match bare with
+      | None   -> [ bare_k, of_bare true ]
+      | Some b -> [ bare_k, of_bare b ]
+    in
+    IB.Config.of_dict (root @ disk @ bare)
+
+  let create ?root ?bare task = create (mk root bare) task
+  let of_tag ?root ?bare task tag = of_tag (mk root bare) task tag
+  let of_head ?root ?bare task head = of_head (mk root bare) task head
+
 end
 
-module Memory = Make(struct
-    let root = None
-    module Store = Git.Memory
-    module Sync = struct
-      type t = Store.t
-      include NoSync
-    end
-    let bare = true
-    let disk = false
-  end)
-
-module Memory' (C: sig val root: string end) = Make(struct
-    let root = Some C.root
-    module Store = Git.Memory
-    module Sync = struct
-      type t = Store.t
-      include NoSync
-    end
-    let bare = true
-    let disk = false
-  end)
+module Memory (IO: Git.Sync.IO) (C: I.Contents.S) = Make (Git.Memory)(IO)(C)

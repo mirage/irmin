@@ -18,22 +18,25 @@ module Merge = Ir_merge
 module Contents = Ir_contents
 module Tag = Ir_tag
 module Task = Ir_task
+module View = Ir_view
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
 module type RW = Ir_rw.STORE
 module type BC = Ir_bc.STORE
-module View = Ir_view
-module Config = Ir_config
 module type S = Ir_s.STORE
-module Hash = Ir_hash
-module Watch = Ir_watch
+
 module Backend = struct
+  module Config = Ir_config
+  module Hash = Ir_hash
+  module Watch = Ir_watch
   module Node = Ir_node
   module Commit = Ir_commit
   module Contents = Ir_contents
   module Tag = Ir_tag
-  module type REMOTE = Ir_sync.REMOTE
+  module Sync = Ir_sync
+  module BC = Ir_bc.Make
   module Make = Ir_s.Make
 end
-type config = Config.t
+
+type config = Backend.Config.t
 type task = Task.t
