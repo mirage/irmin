@@ -23,6 +23,11 @@ module type STORE = sig
   val watch: t -> key -> value option Lwt_stream.t
 end
 
+module type MAKER =
+  functor (K: Tc.S0) ->
+  functor (V: Tc.S0) ->
+    STORE with type key = K.t and type value = V.t
+
 module type CSTRUCT = STORE
   with type t = Ir_task.t
    and type key = Cstruct.t
@@ -35,14 +40,10 @@ module type JSON = STORE
    and type value = Ezjsonm.t
 (** JSON read-write store. Keys, values and origins are JSON objects. *)
 
-module type MAKER =
-  functor (K: Tc.S0) ->
-  functor (V: Tc.S0) ->
-  STORE with type t = Ir_task.t and type key = K.t and type value = V.t
-(** Signature of functors creating read-write stores. *)
-
-module Cstruct (S: CSTRUCT): MAKER
+module Cstruct (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0):
+  STORE with type t = S.t and type key = K.t and type value = V.t
 (** Create a typed read-write store from a binary one. *)
 
-module Json (S: JSON): MAKER
+module Json (S: JSON) (K: Tc.S0) (V: Tc.S0):
+  STORE with type t = S.t and type key = K.t and type value = V.t
 (** Create a typed read-write store from a JSON one. *)

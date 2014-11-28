@@ -36,11 +36,12 @@ module type JSON = STORE
 module type MAKER =
   functor (K: Ir_hash.S) ->
   functor (V: Tc.S0) ->
-    STORE with type t = Ir_task.t and type key = K.t and type value = V.t
-(** Signature of functor creating append-only stores. *)
+    STORE with type key = K.t and type value = V.t
 
-module Cstruct (S: CSTRUCT): MAKER
+module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.S0):
+  STORE with type t = S.t and type key = K.t and type value = V.t
 (** Create a typed append-only store from a binary one. *)
 
-module Json (S: JSON): MAKER
+module Json (S: JSON) (K: Ir_hash.S) (V: Tc.S0):
+  STORE with type t = S.t and type key = K.t and type value = V.t
 (** Create a typed append-only store from a JSON one. *)

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 0f8616f61802358165d6f72d73469421)
+# DO NOT EDIT (digest: 276d92fcdf2a3bdae27069ef29d8382a)
 version = "0.8.3"
 description = "A Distributed Version Control Database"
 requires =
@@ -9,6 +9,17 @@ archive(byte, plugin) = "irmin.cma"
 archive(native) = "irmin.cmxa"
 archive(native, plugin) = "irmin.cmxs"
 exists_if = "irmin.cma"
+package "unix" (
+ version = "0.8.3"
+ description = "A Distributed Version Control Database"
+ requires = "irmin lwt.unix irmin.backend irmin.server git.unix"
+ archive(byte) = "irmin-unix.cma"
+ archive(byte, plugin) = "irmin-unix.cma"
+ archive(native) = "irmin-unix.cmxa"
+ archive(native, plugin) = "irmin-unix.cmxs"
+ exists_if = "irmin-unix.cma"
+)
+
 package "backend" (
  version = "0.8.3"
  description = "A Distributed Version Control Database"

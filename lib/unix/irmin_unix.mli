@@ -14,39 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module IrminFS: sig
-  (** Create custom filesystem. *)
-  module Make (C: IrminFS.Config ): Irmin.BACKEND
-  module Make'(C: IrminFS.Config'): Irmin.BACKEND
-end
-
-module IrminGit: sig
+module Irmin_git: sig
 
   (** Same as [IrminGit] but extended with local Git filesystem
       constructors. *)
 
-  module Memory: Irmin.BACKEND
-  (** In-memory database, with synchronisation primitives using
+  module type S = Irmin_git.S
+  (** Same as {{!Irmin_git.S}Irmin_git.S}. *)
+
+  module Memory (C: Irmin.Contents.S): S with type value = C.t
+  (** In-memory Git database, with synchronisation primitives using
       [Lwt_unix]. *)
 
-  module Memory' (C: sig val root: string end): Irmin.BACKEND
-  (** Create a in-memory store with a given root path -- stores with
-      different roots will not share their contents. *)
-
-  module type Config = sig
-
-    val root: string option
-    (** Database root. *)
-
-    val bare: bool
-    (** Should we extend the filesystem *)
-  end
-
-  module FS (C: Config): Irmin.BACKEND
-  (** Local store, using $(pwd) as database root. *)
+  module Make (C: Irmin.Contents.S): S with type value = C.t
+  (** On-disk Git repository, with synchronisation primitives and file
+      access using [Lwt_unix] . *)
 
 end
 
+(*
 module IrminHTTP: sig
 
   (** Create an HTTP server. *)
@@ -54,6 +40,7 @@ module IrminHTTP: sig
   module Make (S: Irmin.S): IrminHTTP.S with type t = S.t
 
 end
+*)
 
 val install_dir_polling_listener: float -> unit
 (** Install the directory listener using active polling. The parameter

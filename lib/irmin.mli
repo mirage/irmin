@@ -789,7 +789,30 @@ module Backend: sig
 
   end
 
-  (** FIXME: add a [Simple] functor *)
+  module AO: sig
+    module type MAKER = functor (K: Hash.S) -> functor (V: Tc.S0) ->
+      AO with type key = K.t and type value = V.t
+    (** Signature of functor creating append-only stores. *)
+  end
+
+  module RW: sig
+    module type MAKER = functor (K: Tc.S0) -> functor (V: Tc.S0) ->
+      RW with type key = K.t and type value = V.t
+    (** Signature of functors creating read-write stores. *)
+  end
+
+  (** A simple backend, with no native synchronisation. *)
+  module Simple
+      (K: Hash.S)
+      (S: Tc.S0)
+      (C: Contents.S)
+      (T: Tag.S)
+      (AO: AO.MAKER)
+      (RW: RW.MAKER):
+    S with type step = S.t
+       and type value = C.t
+       and type tag = T.t
+       and type head = K.t
 
   (** Backend-specific configuration values. *)
   module Config: sig

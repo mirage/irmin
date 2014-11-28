@@ -549,7 +549,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
       | None   -> []
       | Some r -> [ root_k, of_root r ]
     in
-    let disk = match (* FIXME: G.backend_type *) `Disk with
+    let disk = match G.kind with
       | `Memory -> [ disk_k, of_disk false ]
       | `Disk   -> [ disk_k, of_disk true ]
     in
@@ -565,4 +565,4 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
 end
 
-module Memory (IO: Git.Sync.IO) (C: I.Contents.S) = Make (Git.Memory)(IO)(C)
+module Memory = Make (Git.Memory)

@@ -15,15 +15,30 @@
  *)
 
 open Lwt
-open Irmin.Misc.OP
+module IB = Irmin.Backend
 
 module Log = Log.Make(struct let section = "MEMORY" end)
 
-module Fresh (C: sig end) = struct
+let hashtbl_to_alist t =
+  let l = ref [] in
+  Hashtbl.iter (fun k v -> l := (k, v) :: !l) t;
+  !l
 
-module RO (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
+let lwt_stream_lift s =
+  let (stream: 'a Lwt_stream.t option ref) = ref None in
+  let rec get () =
+    match !stream with
+    | Some s -> Lwt_stream.get s
+    | None   ->
+      s >>= fun s ->
+      stream := Some s;
+      get ()
+  in
+  Lwt_stream.from get
 
-  module W = Irmin.Watch.Make(K)(V)
+module RO (K: Tc.S0) (V: Tc.S0) = struct
+
+  module W = IB.Watch.Make(K)(V)
 
   type key = K.t
 
@@ -32,117 +47,86 @@ module RO (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
   type t = {
     t: (K.t, value) Hashtbl.t;
     w: W.t;
+    task: Irmin.task;
+    config: Irmin.config;
   }
 
-  let unknown k =
-    fail (Irmin.Uid.Unknown (K.pretty k))
-
+  let task t = t.task
+  let config t = t.config
   let table = Hashtbl.create 23
   let watches = W.create ()
 
-  let create () =
+  let create config task =
     let t = {
       t = table;
       w = watches;
+      task; config
     } in
     return t
 
-  let clear () =
-    Hashtbl.clear table;
-    W.clear watches
-
-  let read { t } key =
-    Log.debugf "read %a" force (show (module K) key);
+  let read { t; _ } key =
     try return (Some (Hashtbl.find t key))
     with Not_found -> return_none
 
-  let read_exn { t } key =
-    Log.debugf "read_exn %a" force (show (module K) key);
+  let read_exn { t; _ } key =
     try return (Hashtbl.find t key)
-    with Not_found -> unknown key
+    with Not_found -> fail Not_found
 
-  let mem { t } key =
-    Log.debugf "mem %a" force (show (module K) key);
+  let mem { t; _ } key =
     return (Hashtbl.mem t key)
 
-  let list { t } k =
+  let list _ k =
     return k
 
-  let dump { t } =
-    Log.debugf "dump";
-    return (Irmin.Misc.hashtbl_to_alist t)
+  let dump { t; _ } =
+    return (hashtbl_to_alist t)
 
 end
 
-module AO (K: Irmin.Sig.Uid) (V: Irmin.Tc.I0) = struct
+module AO (K: IB.Hash.S) (V: Tc.S0) = struct
 
   include RO(K)(V)
 
-  let add { t } value =
+  let add { t; _ } value =
     (* XXX: hook to choose the serialization format / key generator
        ? *)
-    let key = K.compute_from_cstruct (Irmin.Tc.write_cstruct (module V) value) in
+    let key = K.digest (Tc.write_cstruct (module V) value) in
     Hashtbl.add t key value;
     return key
 
 end
 
-module RW (K: Irmin.Sig.Uid) (V: Irmin.Sig.Uid) = struct
+module RW (K: Tc.S0) (V: Tc.S0) = struct
 
   include RO(K)(V)
 
   let update t key value =
-    Log.debugf "update %a" force (show (module K) key);
     Hashtbl.replace t.t key value;
     W.notify t.w key (Some value);
     return_unit
 
   let remove t key =
-    Log.debugf "remove %a" force (show (module K) key);
     Hashtbl.remove t.t key;
     W.notify t.w key None;
     return_unit
 
   let watch t key =
-    Log.debugf "watch %a" force (show (module K) key);
-    Irmin.Misc.Lwt_stream.lift (
+    lwt_stream_lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)
     )
 
 end
 
-module BC (K: Irmin.Sig.Uid) (C: Irmin.Sig.Contents) (T: Irmin.Sig.Tag) =
-struct
-  module V = Irmin.Block.S(K)(C)
-  module AO_K_V = AO(K)(V)
-  module RW_T_K = RW(T)(K)
-  module XBlock = Irmin.Block.Make(K)(C)(AO_K_V)
-  module XTag = Irmin.Tag.Make(T)(K)(RW_T_K)
-  include Irmin.Store.BC(XBlock)(XTag)
-  let clear () =
-    AO_K_V.clear ();
-    RW_T_K.clear ()
-end
-
-end
-
-include Fresh(struct end)
-
-module type BC_MAKER =
-  functor (K: Irmin.Sig.Uid)      ->
-  functor (C: Irmin.Sig.Contents) ->
-  functor (T: Irmin.Sig.Tag)      ->
-  sig
-    include Irmin.Sig.BC with type value     = C.t
-                          and type branch    = T.t
-    val clear: unit -> unit
-    (** Clear the store. *)
-  end
-
-module type BACKEND = sig
-  module RO: Irmin.Sig.RO_MAKER
-  module AO: Irmin.Sig.AO_MAKER
-  module RW: Irmin.Sig.RW_MAKER
-  module BC: BC_MAKER
+module Make
+    (K: IB.Hash.S)
+    (S: Tc.S0)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S)
+ = struct
+  include IB.Simple(K)(S)(C)(T)(AO)(RW)
+  let mk = IB.Config.of_dict []
+  let create = create mk
+  let of_tag = of_tag mk
+  let of_head = of_head mk
 end

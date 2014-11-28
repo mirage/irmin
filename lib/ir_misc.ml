@@ -185,11 +185,6 @@ module Map_ext (M: Map.S) (K: Tc.S0 with type t = M.key)= struct
     end)
 end
 
-let hashtbl_to_alist t =
-  let l = ref [] in
-  Hashtbl.iter (fun k v -> l := (k, v) :: !l) t;
-  !l
-
 let hashtbl_add_multi t k v =
   let vs =
     try Hashtbl.find t k

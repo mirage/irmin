@@ -71,7 +71,6 @@ val alist_merge_lwt:
   ('key -> [ `Both of 'a * 'b | `Left of 'a | `Right of 'b ] -> 'c option Lwt.t) ->
   ('key * 'a) list -> ('key * 'b) list -> ('key * 'c) list Lwt.t
 
-val hashtbl_to_alist: ('a, 'b) Hashtbl.t -> ('a * 'b) list
 val hashtbl_add_multi: ('a, 'b list) Hashtbl.t -> 'a -> 'b -> unit
 
 module Lwt_stream: sig

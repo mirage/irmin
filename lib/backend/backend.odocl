@@ -1,7 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6ea2f87ddfb953243bf6f103638aa918)
-Irmin_CRUD
-Irmin_memory
+# DO NOT EDIT (digest: d0745d0ce9d777164ccb8d7acf0de015)
 Irmin_git
-Irmin_FS
+Irmin_memory
 # OASIS_STOP

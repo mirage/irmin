@@ -40,15 +40,15 @@ Library "irmin-backend"
   Findlibname:   backend
   FindlibParent: irmin
   BuildDepends:  irmin, cohttp.lwt, ezjsonm.lwt, git
-  Modules: Irmin_git
-(*  Modules:       Irmin_CRUD, Irmin_memory, Irmin_git (*, Irmin_FS*)
+  Modules:       Irmin_git, Irmin_memory
+#  Modules:       Irmin_CRUD, Irmin_FS
 
-Library "irmin-server"
-  Path:          lib/server
-  Findlibname:   server
-  FindlibParent: irmin
-  BuildDepends:  cohttp.lwt, irmin
-  Modules:       Irmin_HTTP, Ir_HTTP_static
+# Library "irmin-server"
+#  Path:          lib/server
+#  Findlibname:   server
+#  FindlibParent: irmin
+#  BuildDepends:  cohttp.lwt, irmin
+#  Modules:       Irmin_HTTP, Ir_HTTP_static
 
 Library "irmin-unix"
   Build$:        flag(unix)

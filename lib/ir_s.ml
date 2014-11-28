@@ -51,3 +51,38 @@ struct
   module Dot = Ir_dot.Make(B)
   module Sync = Ir_sync.Make(B)(R)
 end
+
+module Simple
+    (K: Ir_hash.S)
+    (S: Tc.S0)
+    (C: Ir_contents.S)
+    (T: Ir_tag.S)
+    (AO: Ir_ao.MAKER)
+    (RW: Ir_rw.MAKER) =
+struct
+  module XContents = struct
+    module Key = K
+    module Val = C
+    include AO (Key)(Val)
+  end
+  module XNode = struct
+    module Key = K
+    module Val = Ir_node.Make (K)(K)(S)
+    module Step = S
+    include AO (Key)(Val)
+  end
+  module XCommit = struct
+    module Key = K
+    module Val = Ir_commit.Make (K)(K)
+    include AO (Key)(Val)
+  end
+  module XTag = struct
+    module Key = T
+    module Val = K
+    include RW (Key)(Val)
+  end
+  module XSync = Ir_sync.None(K)(T)
+
+  include Make(XContents)(XNode)(XCommit)(XTag)(XSync)
+
+end

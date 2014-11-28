@@ -37,7 +37,7 @@ module type JSON = STORE
 module type MAKER =
   functor (K: Tc.S0) ->
   functor (V: Tc.S0) ->
-  STORE with type t = Ir_task.t and type key = K.t and type value = V.t
+  STORE with type key = K.t and type value = V.t
 
 module Cstruct (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0) = struct
 

@@ -36,6 +36,9 @@ module Backend = struct
   module Sync = Ir_sync
   module BC = Ir_bc.Make
   module Make = Ir_s.Make
+  module Simple = Ir_s.Simple
+  module AO = Ir_ao
+  module RW = Ir_rw
 end
 
 type config = Backend.Config.t

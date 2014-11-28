@@ -16,24 +16,18 @@
 
 (** In-memory store *)
 
-module type BC_MAKER =
-  functor (K: Irmin.Sig.Uid)      ->
-  functor (C: Irmin.Sig.Contents) ->
-  functor (T: Irmin.Sig.Tag)      ->
-  sig
-    include Irmin.Sig.BC with type value     = C.t
-                          and type branch    = T.t
-    val clear: unit -> unit
-    (** Clear the store. *)
-  end
+open Irmin.Backend
 
-module type BACKEND = sig
-  module RO: Irmin.Sig.RO_MAKER
-  module AO: Irmin.Sig.AO_MAKER
-  module RW: Irmin.Sig.RW_MAKER
-  module BC: BC_MAKER
+module AO (K: Hash.S) (V: Tc.S0): Irmin.AO
+module RW (K: Tc.S0) (V: Tc.S0): Irmin.RW
+module Make
+    (K: Hash.S)
+    (S: Tc.S0)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S):
+sig
+  include Irmin.S
+  val create: Irmin.task -> t Lwt.t
+  val of_tag: Irmin.task -> tag -> t Lwt.t
+  val of_head: Irmin.task -> head -> t Lwt.t
 end
-
-include BACKEND
-
-module Fresh (X: sig end): BACKEND

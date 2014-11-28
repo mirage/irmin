@@ -14,14 +14,41 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
 open Lwt
-open Git_unix
+module IB = Irmin.Backend
 
 module Log = Log.Make(struct let section = "UNIX" end)
 
+let string_chop_prefix t ~prefix =
+  let lt = String.length t in
+  let lp = String.length prefix in
+  if lt < lp then None else
+    let p = String.sub t 0 lp in
+    if String.compare p prefix <> 0 then None
+    else Some (String.sub t lp (lt - lp))
+
+let string_chop_prefix_exn t ~prefix =
+  match string_chop_prefix t ~prefix with
+  | None   -> failwith ("String.chop_prefix_exn: prefix=" ^ prefix ^ " " ^ t)
+  | Some s -> s
+
+module S = struct
+  module X = struct
+    include Set.Make(struct
+        type t = string * string
+        let compare = Tc.Compare.pair String.compare String.compare
+      end)
+    let of_list l = List.fold_left (fun set elt -> add elt set) empty l
+    let to_list = elements
+    module K = Tc.Pair(Tc.String)(Tc.String)
+  end
+  include X
+  include Tc.As_L0 (X)
+end
+
 let (/) = Filename.concat
 
+(*
 exception Error of string
 
 let error fmt =
@@ -29,8 +56,9 @@ let error fmt =
       Printf.eprintf "fatal: %s\n%!" str;
       fail (Error str)
     ) fmt
+*)
 
-module IO: IrminFS.IO = struct
+module IO = struct
 
   let in_dir dir fn =
     let reset_cwd =
@@ -55,8 +83,8 @@ module IO: IrminFS.IO = struct
       in_dir dir (fun () ->
           let d = Sys.readdir (Sys.getcwd ()) in
           let d = Array.to_list d in
-          let l = List.filter ~f:kind d in
-          List.sort ~cmp:compare (List.rev_map ~f:(Filename.concat dir) l)
+          let l = List.filter kind d in
+          List.sort compare (List.rev_map (Filename.concat dir) l)
         )
     else
       []
@@ -71,12 +99,12 @@ module IO: IrminFS.IO = struct
     let rec aux accu dir =
       let d = directories_with_links dir in
       let f = files_with_links dir in
-      List.fold_left ~f:aux ~init:(f @ accu) d in
+      List.fold_left aux (f @ accu) d in
     let files = aux [] root in
     let prefix = root / "" in
-    List.map ~f:(String.chop_prefix_exn ~prefix) files
+    List.map (string_chop_prefix_exn ~prefix) files
 
-  let mkdir dir =
+(*  let mkdir dir =
     let safe_mkdir dir =
       if not (Sys.file_exists dir) then
         try Unix.mkdir dir 0o755
@@ -155,31 +183,26 @@ module IO: IrminFS.IO = struct
     if Sys.file_exists file then
       Unix.unlink file;
     return_unit
-
+*)
 end
 
 let install_dir_polling_listener delay =
 
-  IrminWatch.set_listen_dir_hook (fun dir fn ->
+  IB.Watch.set_listen_dir_hook (fun dir fn ->
 
       let read_files () =
         let new_files = IO.rec_files dir in
-        let new_files = List.map ~f:(fun f -> let f = dir / f in f , Digest.file f) new_files in
-        String.Map.of_alist_exn new_files in
+        let new_files = List.map (fun f -> let f = dir / f in f, Digest.file f) new_files in
+        S.of_list new_files in
 
-      let to_string set =
-        Sexp.to_string_hum (String.Map.sexp_of_t String.sexp_of_t set) in
+      let to_string set = Tc.show (module S) set in
 
       let rec loop files =
         let new_files = read_files () in
-        let diff = Map.merge files new_files (fun ~key -> function
-            | `Both (s1, s2)     -> if s1 = s2 then None else Some s1
-            | `Left s | `Right s -> Some s
-          ) in
-
-        if not (Map.is_empty diff) then
+        let diff = S.diff files new_files in
+        if not (S.is_empty diff) then
           Log.debugf "polling %s: diff:%s" dir (to_string diff);
-        Lwt_list.iter_p (fun (f, _) -> fn f) (String.Map.to_alist diff) >>= fun () ->
+        Lwt_list.iter_p (fun (f, _) -> fn f) (S.to_list diff) >>= fun () ->
         Lwt_unix.sleep delay >>= fun () ->
         loop new_files in
 
@@ -189,44 +212,13 @@ let install_dir_polling_listener delay =
       Lwt.async t
     )
 
-module IrminGit = struct
-
-  module Memory = IrminGit.Make(struct
-      let root = None
-      module Store = Git.Memory
-      module Sync = Git_unix.Sync.Make(Store)
-      let bare = true
-      let disk = false
-    end)
-
-  module Memory' (C: sig val root: string end) = IrminGit.Make(struct
-      let root = Some C.root
-      module Store = Git.Memory
-      module Sync = Git_unix.Sync.Make(Store)
-      let bare = true
-      let disk = false
-    end)
-
-  module type Config = sig
-    val root: string option
-    val bare: bool
-  end
-
-  module FS (C: Config) = IrminGit.Make(struct
-      let root = C.root
-      module Store = Git_unix.FS
-      module Sync = Git_unix.Sync.Make(Store)
-      let bare = C.bare
-      let disk = true
-    end)
-
+module Irmin_git = struct
+  module type S = Irmin_git.S
+  module Memory = Irmin_git.Memory (Git_unix.Sync.IO)
+  module Make = Irmin_git.Make (Git_unix.FS) (Git_unix.Sync.IO)
 end
 
-module IrminFS = struct
-  module Make  = IrminFS.Make (IO)
-  module Make' = IrminFS.Make'(IO)
-end
-
+(*
 module Server = struct
 
   include Cohttp_lwt_unix.Server
@@ -245,3 +237,5 @@ module IrminHTTP = struct
   module Make = IrminHTTP.Make (Server)
 
 end
+
+*)

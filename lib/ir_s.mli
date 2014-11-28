@@ -47,3 +47,15 @@ module Make
          and type value = C.value
          and type tag = T.key
          and type head = S.key
+
+module Simple
+    (K: Ir_hash.S)
+    (S: Tc.S0)
+    (C: Ir_contents.S)
+    (T: Ir_tag.S)
+    (AO: Ir_ao.MAKER)
+    (RW: Ir_rw.MAKER):
+  STORE with type step = S.t
+         and type value = C.t
+         and type tag = T.t
+         and type head = K.t
