@@ -831,7 +831,7 @@ module type RW_MAKER =
     the implementation of store tags and [H] is the implementation of
     store heads. *)
 module type S_MAKER =
-  functor (S: Tc.S0) ->
+  functor (S: Step.S) ->
   functor (C: Contents.S) ->
   functor (T: Tag.S) ->
   functor (H: Hash.S) ->
