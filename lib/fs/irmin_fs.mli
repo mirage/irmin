@@ -46,14 +46,14 @@ module type IO = sig
 end
 
 module Make (IO: IO)
-    (K: Hash.S)
     (S: Tc.S0)
     (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S):
+    (T: Irmin.Tag.S)
+    (H: Irmin.Hash.S):
   S with type step = S.t
      and type value = C.t
      and type tag = T.t
-     and type head = K.t
+     and type head = H.t
 
 (** {2 Advanced configuration} *)
 
@@ -71,10 +71,10 @@ module type Config = sig
 end
 
 module Make'(IO: IO)
-    (K: Hash.S)
     (S: Tc.S0)
     (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S):
+    (T: Irmin.Tag.S)
+    (K: Irmin.Hash.S):
   S with type step = S.t
      and type value = C.t
      and type tag = T.t

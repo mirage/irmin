@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open IrminCore
 open Lwt
 
 module Log = Log.Make(struct let section = "FS" end)

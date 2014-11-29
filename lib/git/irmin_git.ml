@@ -17,7 +17,7 @@
 open Lwt
 
 module I = Irmin
-module IB = Irmin.Backend
+module IB = Irmin.Private
 module Log = Log.Make(struct let section = "GIT" end)
 
 module type S = sig
@@ -542,7 +542,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
   end
 
-  include IB.Make(XContents)(XNode)(XCommit)(XTag)(XSync)
+  include IB.Make_ext(XContents)(XNode)(XCommit)(XTag)(XSync)
 
   let mk root bare =
     let root = match root with

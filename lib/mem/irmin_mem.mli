@@ -16,8 +16,6 @@
 
 (** In-memory store *)
 
-open Irmin.Backend
-
 module type S = sig
   include Irmin.S
   val create: Irmin.task -> t Lwt.t
@@ -26,7 +24,7 @@ module type S = sig
 end
 
 module Make
-    (K: Hash.S)
+    (K: Irmin.Hash.S)
     (S: Tc.S0)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S):

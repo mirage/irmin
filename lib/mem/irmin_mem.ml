@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-module IB = Irmin.Backend
+module IB = Irmin.Private
 
 module Log = Log.Make(struct let section = "MEMORY" end)
 
@@ -35,6 +35,13 @@ let lwt_stream_lift s =
       get ()
   in
   Lwt_stream.from get
+
+module type S = sig
+  include Irmin.S
+  val create: Irmin.task -> t Lwt.t
+  val of_tag: Irmin.task -> tag -> t Lwt.t
+  val of_head: Irmin.task -> head -> t Lwt.t
+end
 
 module RO (K: Tc.S0) (V: Tc.S0) = struct
 
@@ -83,7 +90,7 @@ module RO (K: Tc.S0) (V: Tc.S0) = struct
 
 end
 
-module AO (K: IB.Hash.S) (V: Tc.S0) = struct
+module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
   include RO(K)(V)
 
@@ -119,12 +126,12 @@ module RW (K: Tc.S0) (V: Tc.S0) = struct
 end
 
 module Make
-    (K: IB.Hash.S)
+    (K: Irmin.Hash.S)
     (S: Tc.S0)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
  = struct
-  include IB.Simple(K)(S)(C)(T)(AO)(RW)
+  include IB.Make(AO)(RW)(S)(C)(T)(K)
   let mk = IB.Config.of_dict []
   let create = create mk
   let of_tag = of_tag mk
