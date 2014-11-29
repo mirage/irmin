@@ -20,12 +20,7 @@ module I = Irmin
 module IB = Irmin.Private
 module Log = Log.Make(struct let section = "GIT" end)
 
-module type S = sig
-  include Irmin.S with type step = string and type tag = string
-  val create: ?root:string -> ?bare:bool -> Irmin.Task.t -> t Lwt.t
-  val of_tag: ?root:string -> ?bare:bool -> Irmin.Task.t -> tag -> t Lwt.t
-  val of_head: ?root:string -> ?bare:bool -> Irmin.Task.t -> head -> t Lwt.t
-end
+module type S = Irmin.S with type step = string and type tag = string list
 
 module StringMap = Map.Make(Tc.String)
 
@@ -43,48 +38,42 @@ let list_filter_map f l =
       | Some y -> y :: acc
     ) [] l
 
-let lwt_stream_lift s =
-  let (stream: 'a Lwt_stream.t option ref) = ref None in
-  let rec get () =
-    match !stream with
-    | Some s -> Lwt_stream.get s
-    | None   ->
-      s >>= fun s ->
-      stream := Some s;
-      get ()
-  in
-  Lwt_stream.from get
-
 let write_string str b =
   let len = String.length str in
   Cstruct.blit_from_string str 0 b 0 len;
   Cstruct.shift b len
 
-let key k f config =
-  try f (List.assoc k (IB.Config.to_dict config))
-  with Not_found -> None
-
-let key_bool k f d config =
-  match key k f config with
-  | None   -> d
-  | Some b -> b
-
 (* ~root *)
 let of_root, to_root, _root = IB.Config.univ Tc.string
 let root_k = "git:root"
-let root_key = key root_k to_root
+let root_key t = IB.Config.find t root_k to_root
 
 (* ~disk *)
 let of_disk, to_disk, _disk = IB.Config.univ Tc.bool
 let disk_k = "git:disk"
-let disk_key = key_bool disk_k to_disk false
+let disk_key t = IB.Config.find_bool t disk_k to_disk ~default:false
 
 (* ~bare *)
 let of_bare, to_bare, _bare = IB.Config.univ Tc.bool
 let bare_k = "git:bare"
-let bare_key = key_bool bare_k to_bare true
+let bare_key t = IB.Config.find_bool t bare_k to_bare ~default:true
 
-module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
+let config ?root ?bare (module G: Git.Store.S) =
+  let root = match root with
+    | None   -> []
+    | Some r -> [ root_k, of_root r ]
+  in
+  let disk = match G.kind with
+    | `Memory -> [ disk_k, of_disk false ]
+    | `Disk   -> [ disk_k, of_disk true ]
+  in
+  let bare = match bare with
+    | None   -> [ bare_k, of_bare true ]
+    | Some b -> [ bare_k, of_bare b ]
+  in
+  IB.Config.of_dict (root @ disk @ bare)
+
+module XMake (G: Git.Store.S) (C: I.Contents.S) = struct
 
   module K = struct
     type t = Git.SHA.t
@@ -95,11 +84,11 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
     let to_json t = Ezjsonm.string (Git.SHA.to_hex t)
     let of_json j = Git.SHA.of_hex (Ezjsonm.get_string j)
     let size_of _ = 20
-    let read buf = Git.SHA.of_raw (Mstruct.get_string buf 20)
-    let write t buf =
-      Cstruct.blit_from_string (Git.SHA.to_raw t) 0 buf 0 20;
-      Cstruct.shift buf 20
+    let write t = Tc.String.write (Git.SHA.to_raw t)
+    let read b = Git.SHA.of_raw (Tc.String.read b)
     let digest = Git.SHA.of_cstruct
+    let to_hum = Git.SHA.to_hex
+    let of_hum = Git.SHA.of_hex
   end
 
   module type V = sig
@@ -183,7 +172,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
   module XNode = struct
     module Key = K
-    module Step = Tc.String
+    module Path = Irmin.Path.String
     module Val = struct
 
       type t = Git.Tree.t
@@ -262,7 +251,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
             | { Git.Tree.node; _ } -> `Contents node
           ) t
 
-      module N = IB.Node.Make (K)(K)(Tc.String)
+      module N = IB.Node.Make (K)(K)(Irmin.Path.String)
 
       (* FIXME: handle executable files *)
       let to_n t =
@@ -388,11 +377,9 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
   module XTag = struct
 
-    module T = I.Tag.String
+    module T = I.Tag.Path
     module Key = T
     module Val = K
-
-    let t: T.t Tc.t = (module T)
 
     module W = IB.Watch.Make(T)(K)
 
@@ -415,10 +402,10 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
       let str = Git.Reference.to_raw r in
       match string_chop_prefix ~prefix:"refs/heads/" str with
       | None   -> None
-      | Some r -> Some (Tc.read_string t r)
+      | Some r -> Some (Key.of_hum r)
 
     let git_of_ref r =
-      let str = Tc.write_string t r in
+      let str = Key.to_hum r in
       Git.Reference.of_raw ("refs/heads" / str)
 
     let mem { t; _ } r =
@@ -438,7 +425,7 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
       let ref_of_file file =
         match string_chop_prefix ~prefix:(git_root / "refs/heads/") file with
         | None   -> None
-        | Some r -> Some r in
+        | Some r -> Some [r] in
       let w = W.create () in
       let t = { task; config; t; w } in
       if disk_key config then
@@ -485,12 +472,18 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
       return_unit
 
     let watch t (r:key): value option Lwt_stream.t =
-      lwt_stream_lift (
+      IB.Watch.lwt_stream_lift (
         read t r >>= fun k ->
         return (W.watch t.w r k)
       )
 
   end
+
+end
+
+module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: Irmin.Contents.S) = struct
+
+  include XMake(G)(C)
 
   module XSync = struct
 
@@ -544,25 +537,16 @@ module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: I.Contents.S) = struct
 
   include IB.Make_ext(XContents)(XNode)(XCommit)(XTag)(XSync)
 
-  let mk root bare =
-    let root = match root with
-      | None   -> []
-      | Some r -> [ root_k, of_root r ]
-    in
-    let disk = match G.kind with
-      | `Memory -> [ disk_k, of_disk false ]
-      | `Disk   -> [ disk_k, of_disk true ]
-    in
-    let bare = match bare with
-      | None   -> [ bare_k, of_bare true ]
-      | Some b -> [ bare_k, of_bare b ]
-    in
-    IB.Config.of_dict (root @ disk @ bare)
-
-  let create ?root ?bare task = create (mk root bare) task
-  let of_tag ?root ?bare task tag = of_tag (mk root bare) task tag
-  let of_head ?root ?bare task head = of_head (mk root bare) task head
-
 end
 
 module Memory = Make (Git.Memory)
+
+module AO (G: Git.Store.S) = struct
+  module M = XMake (G)(Irmin.Contents.Cstruct)
+  include M.XContents
+end
+
+module RW (G: Git.Store.S) = struct
+  module M = XMake (G)(Irmin.Contents.Cstruct)
+  include M.XTag
+end

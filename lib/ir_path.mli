@@ -14,17 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Git backend *)
+(** Tree path handling. *)
 
-val config: ?root:string -> ?bare:bool -> (module Git.Store.S) -> Irmin.config
+module type STEP = Ir_hum.S
 
-module AO (G: Git.Store.S): Irmin.AO with type value = Cstruct.t
-module RW (G: Git.Store.S): Irmin.RW with type key = string list
+module type S = sig
+  type step
+  module Step: STEP with type t = step
+  include Tc.S0 with type t = step list
+  val to_hum: t -> string
+  val of_hum: string -> t
+end
 
-module type S = Irmin.S with type step = string and type tag = string list
+module Make (S: STEP): S with type step = S.t
 
-module Memory (IO: Git.Sync.IO) (C: Irmin.Contents.S):
-  S with type value = C.t
-
-module Make (G: Git.Store.S) (IO: Git.Sync.IO) (C: Irmin.Contents.S):
-  S with type value = C.t
+module String: S with type step = string

@@ -73,15 +73,6 @@ val alist_merge_lwt:
 
 val hashtbl_add_multi: ('a, 'b list) Hashtbl.t -> 'a -> 'b -> unit
 
-module Lwt_stream: sig
-
-  include (module type of Lwt_stream with type 'a t = 'a Lwt_stream.t)
-
-  val lift: 'a t Lwt.t -> 'a t
-  (** Lift a stream out of the monad. *)
-
-end
-
 val is_valid_utf8: string -> bool
 
 val tag: Cstruct.t -> int -> Cstruct.t

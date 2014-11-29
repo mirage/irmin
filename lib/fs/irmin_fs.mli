@@ -16,44 +16,37 @@
 
 (** Disk persistence. *)
 
-module type S = sig
-  include Irmin.S
-  val create: path:string -> Irmin.task -> t Lwt.t
-  val of_tag: path:string -> Irmin.task -> tag -> t Lwt.t
-  val of_head: path:string -> Irmin.task -> head -> t Lwt.t
-end
+val config: path:string -> Irmin.config
 
 module type IO = sig
 
   (** File-system abstraction. *)
 
-  val check_dir: string -> unit Lwt.t
-  (** Check than a given dirname exists and is indeed a directory
-      name. *)
+  val getcwd: unit -> string
+  (** Return the current directory. *)
 
-  val with_file_in: string -> (Cstruct.t -> 'a Lwt.t) -> 'a Lwt.t
-  (** Run a function on the contents of a file. *)
+  val mkdir: string -> unit Lwt.t
+  (** Create a directory. *)
+
+  val remove: string -> unit Lwt.t
+  (** Remove a file or directory (even if non-empty). *)
 
   val rec_files: string -> string list
-  (** Get all the files in a sub-tree. *)
+  (** [rec_files dir] is the list of files recursively present in
+      [dir] and all of its sub-directories. Return filenames prefixed
+      by [dir].  *)
 
-  val with_file_out: string -> Cstruct.t -> unit Lwt.t
-  (** Write a new file with the given contents. *)
+  val read_file: string -> Cstruct.t Lwt.t
+  (** Read the contents of a file using mmap. *)
 
-  val remove_file: string -> unit Lwt.t
-  (** Remove a file. *)
+  val write_file: string -> Cstruct.t -> unit Lwt.t
+  (** Write some contents to a new file. *)
 
 end
 
-module Make (IO: IO)
-    (S: Tc.S0)
-    (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S)
-    (H: Irmin.Hash.S):
-  S with type step = S.t
-     and type value = C.t
-     and type tag = T.t
-     and type head = H.t
+module AO (IO: IO): Irmin.AO_MAKER
+module RW (IO: IO): Irmin.RW_MAKER
+module Make (IO: IO): Irmin.S_MAKER
 
 (** {2 Advanced configuration} *)
 
@@ -70,12 +63,6 @@ module type Config = sig
 
 end
 
-module Make'(IO: IO)
-    (S: Tc.S0)
-    (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S)
-    (K: Irmin.Hash.S):
-  S with type step = S.t
-     and type value = C.t
-     and type tag = T.t
-     and type head = K.t
+module AO_ext (C: Config) (IO: IO): Irmin.AO_MAKER
+module RW_ext (C: Config) (IO: IO): Irmin.RW_MAKER
+module Make_ext (Obj: Config) (Ref: Config) (IO: IO): Irmin.S_MAKER

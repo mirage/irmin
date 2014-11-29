@@ -62,3 +62,12 @@ type t = (string * univ) list
 
 let to_dict x = x
 let of_dict x = x
+
+let find config k f =
+  try f (List.assoc k (to_dict config))
+  with Not_found -> None
+
+let find_bool config k f ~default =
+  match find config k f with
+  | None   -> default
+  | Some b -> b

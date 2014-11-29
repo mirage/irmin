@@ -41,7 +41,7 @@ module type JSON = STORE
    and type value = Ezjsonm.t
 
 module type MAKER =
-  functor (K: Tc.S0) ->
+  functor (K: Ir_hum.S) ->
   functor (V: Tc.S0) ->
     STORE with type key = K.t
            and type value = V.t
@@ -69,7 +69,7 @@ module Cstruct  (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0) = struct
   let read_exn t key =
     read t key >>= function
     | Some v -> return v
-    | None   -> fail (Ir_hash.Unknown (Tc.show (module K) key))
+    | None   -> fail Not_found
 
   let mem t key =
     S.mem t (k_to_raw key)
@@ -112,7 +112,7 @@ module Json  (S: JSON) (K: Tc.S0) (V: Tc.S0) = struct
   let read_exn t key =
     read t key >>= function
     | Some v -> return v
-    | None   -> fail (Ir_hash.Unknown (Tc.show (module K) key))
+    | None   -> fail Not_found
 
   let mem t key =
     S.mem t (k_to_json key)

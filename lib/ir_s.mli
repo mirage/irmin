@@ -19,8 +19,7 @@
 module type STORE = sig
   type step
   include Ir_bc.STORE with type key = step list
-  module Step: Tc.S0 with type t = step
-  module Key: Tc.S0 with type t = key
+  module Key: Ir_path.S with type step = step
   module Val: Ir_contents.S with type t = value
   module View: Ir_view.S
       with type db = t
@@ -38,11 +37,11 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (S: Tc.S0) ->
+  functor (P: Ir_path.S) ->
   functor (C: Ir_contents.S) ->
   functor (T: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
-    STORE with type step = S.t
+    STORE with type step = P.step
            and type value = C.t
            and type tag = T.t
            and type head = H.t
@@ -55,7 +54,7 @@ module Make_ext
     (S: Ir_commit.STORE with type Val.node = N.key)
     (T: Ir_tag.STORE with type value = S.key)
     (R: Ir_sync.S with type head = S.key and type tag = T.key):
-  STORE with type step = N.Step.t
+  STORE with type step = N.Path.step
          and type value = C.value
          and type tag = T.key
          and type head = S.key

@@ -14,11 +14,39 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Tree path handling. *)
+module type STEP = Ir_hum.S
 
-module type S = Tc.S0
+module type S = sig
+  type step
+  module Step: STEP with type t = step
+  include Tc.S0 with type t = Step.t list
+  val to_hum: t -> string
+  val of_hum: string -> t
+end
 
-module String: S with type t = string
-(** A path step where elements are strings. *)
+module Make (S: STEP) = struct
+  module Step = S
+  include Tc.List(S)
+  type step = S.t
 
-module Path (S: S): Tc.S0 with type t = S.t list
+  let to_hum t =
+    let len = List.fold_left (fun acc s -> 1 + acc + S.size_of s) 1 t in
+    let buf = Buffer.create len in
+    List.iter (fun s ->
+        Buffer.add_char buf '/';
+        Buffer.add_string buf (S.to_hum s)
+      ) t;
+    Buffer.contents buf
+
+  (* XXX: slow *)
+  let of_hum s =
+    List.filter ((<>)"") (Stringext.split s ~on:'/')
+    |> List.map S.of_hum
+
+end
+
+module String = Make(struct
+    include Tc.String
+    let to_hum s = s
+    let of_hum s = s
+  end)

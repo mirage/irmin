@@ -17,10 +17,9 @@
 open Sexplib.Std
 
 exception Invalid of string
-exception Unknown of string
 
 module type S = sig
-  include Tc.S0
+  include Ir_hum.S
   val digest: Cstruct.t -> t
 end
 
@@ -40,29 +39,35 @@ module SHA1 = struct
 
   let of_hex hex =
     if String.length hex = hex_len then
-      Hex.to_string (`Hex hex)
+      Cstruct.of_string (Hex.to_string (`Hex hex))
     else
       raise (Invalid hex)
 
   let to_sexp t = Sexplib.Sexp.Atom (to_hex t)
   let of_sexp s = of_hex (Sexplib.Conv.string_of_sexp s)
   let to_json x = Ezjsonm.of_sexp (to_sexp x)
-  let of_json x = Cstruct.of_string (of_sexp (Ezjsonm.to_sexp x))
+  let of_json x = of_sexp (Ezjsonm.to_sexp x)
 
-  let size_of buf = Cstruct.len buf
-  let write t buf =
-    let len = Cstruct.len t in
-    Cstruct.blit t 0 buf 0 len;
-    Cstruct.shift buf len
+  let size_of t = Bin_prot.Size.bin_size_bigstring (Cstruct.to_bigarray t)
+
+  let write t =
+    Tc.Writer.of_bin_prot
+      Bin_prot.Write.bin_write_bigstring
+      (Cstruct.to_bigarray t)
 
   let read buf =
-    if Mstruct.length buf = len then Mstruct.to_cstruct buf
-    else raise (Invalid (Mstruct.to_string buf))
+    let t =
+      Tc.Reader.of_bin_prot Bin_prot.Read.bin_read_bigstring buf
+      |> Cstruct.of_bigarray
+    in
+    if Cstruct.len t <> len then raise (Invalid (Cstruct.to_string t))
+    else t
 
   let hash = Hashtbl.hash
   let equal = (=)
   let compare = Pervasives.compare
 
   let digest buf = Nocrypto.Hash.SHA1.digest buf
-
+  let to_hum = to_hex
+  let of_hum = of_hex
 end

@@ -25,13 +25,11 @@ module type STORE = sig
 end
 
 module type CSTRUCT = STORE
-  with type t = Ir_task.t
-   and type key = Cstruct.t
+  with type key = Cstruct.t
    and type value = Cstruct.t
 
 module type JSON = STORE
-  with type t = Ir_task.t
-   and type key = Ezjsonm.t
+  with type key = Ezjsonm.t
    and type value = Ezjsonm.t
 
 module type MAKER =
@@ -39,7 +37,7 @@ module type MAKER =
   functor (V: Tc.S0) ->
     STORE with type key = K.t and type value = V.t
 
-module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.S0) = struct
+module Cstruct (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0) = struct
 
   include Ir_ro.Cstruct(S)(K)(V)
 
@@ -53,7 +51,7 @@ module Cstruct (S: CSTRUCT) (K: Ir_hash.S) (V: Tc.S0) = struct
 
 end
 
-module Json (S: JSON) (K: Ir_hash.S) (V: Tc.S0) = struct
+module Json (S: JSON) (K: Tc.S0) (V: Tc.S0) = struct
 
   include Ir_ro.Json(S)(K)(V)
 

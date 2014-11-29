@@ -62,7 +62,7 @@ module Make
     (N: Ir_node.STORE with type Val.contents = C.key)
     (S: Ir_commit.STORE with type Val.node = N.key)
     (T: Ir_tag.STORE with type value = S.key):
-  STORE with type key = N.Step.t list
+  STORE with type key = N.Path.t
          and type value = C.value
          and type tag = T.key
          and type head = S.key
@@ -93,7 +93,7 @@ module type STORE_EXT = sig
 
   val tag_t: t -> Tag.t
 
-  module Key: Tc.S0 with type t = Block.step list
+  module Key: Ir_path.S with type step = Block.step
   (** Base functions over keys. *)
 
   module Val: Ir_contents.S with type t = value
@@ -132,7 +132,7 @@ module Make_ext
     (N: Ir_node.STORE with type Val.contents = C.key)
     (H: Ir_commit.STORE with type Val.node = N.key)
     (T: Ir_tag.STORE with type value = H.key):
-  STORE_EXT with type step = N.Step.t
+  STORE_EXT with type step = N.Path.step
              and type value = C.value
              and type tag = T.key
              and type head = H.key

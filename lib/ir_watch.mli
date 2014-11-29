@@ -56,5 +56,5 @@ end
 module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
 val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
-(** Register a function which looks for file changes in a
-    directory. *)
+
+val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t

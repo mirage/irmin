@@ -16,41 +16,15 @@
 
 (** Tags handling. *)
 
-(** Tags are branch names: they associate branches to keys in the
-    block store. *)
-
 module type S = sig
-
-  (** Signature for tags (i.e. branch names). *)
-
-  include Tc.S0
-
+  include Ir_hum.S
   val master: t
-  (** The master branch. *)
-
 end
 
-module String: S with type t = string
-(** Simple string tags. *)
-
-(** {2 Store} *)
+module Path: S with type t = string list
 
 module type STORE = sig
-
-  (** The *tag store* is a key / value store, where keys are names
-      created by users (and/or global names created by convention) and
-      values are keys from the block store.
-
-      A typical Irmin application should have a very low number of
-      keys in the tag store, are this store is not supposed to be
-      really efficient.  *)
-
   include Ir_rw.STORE
-
   module Key: S with type t = key
-  (** Base functions over keys. *)
-
   module Val: Ir_hash.S with type t = value
-  (** Base functions over values. *)
-
 end

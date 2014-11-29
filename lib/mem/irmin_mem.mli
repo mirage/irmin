@@ -16,19 +16,8 @@
 
 (** In-memory store *)
 
-module type S = sig
-  include Irmin.S
-  val create: Irmin.task -> t Lwt.t
-  val of_tag: Irmin.task -> tag -> t Lwt.t
-  val of_head: Irmin.task -> head -> t Lwt.t
-end
+val config: unit -> Irmin.config
 
-module Make
-    (K: Irmin.Hash.S)
-    (S: Tc.S0)
-    (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S):
-  S with type step = S.t
-     and type value = C.t
-     and type tag = T.t
-     and type head = K.t
+module AO: Irmin.AO_MAKER
+module RW: Irmin.RW_MAKER
+module Make: Irmin.S_MAKER

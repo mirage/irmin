@@ -36,19 +36,19 @@ module type S = sig
   val is_empty: t -> bool
 end
 
-module Make (C: Tc.S0) (N: Tc.S0) (S: Tc.S0):
+module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_path.S):
   S with type contents = C.t
      and type node = N.t
-     and type step = S.t
+     and type step = P.step
 
 module type STORE = sig
   include Ir_ao.STORE
-  module Step: Tc.S0
+  module Path: Ir_path.S
   module Key: Ir_hash.S with type t = key
   module Val: S
     with type t = value
      and type node = key
-     and type step = Step.t
+     and type step = Path.step
 end
 
 module type STORE_EXT = sig
@@ -64,7 +64,7 @@ module type STORE_EXT = sig
   (** The contents store. *)
 
   include STORE
-    with type Step.t = step
+    with type Path.step = step
      and type Val.contents = Contents.key
 
   type contents = Contents.value
@@ -124,7 +124,7 @@ module Store
   : STORE_EXT with type t = C.t * S.t
                and type key = S.key
                and type value = S.value
-               and type step = S.Step.t
-               and module Step = S.Step
+               and type step = S.Path.step
+               and module Path = S.Path
                and module Contents = Ir_contents.Store(C)
 (** Create a node store from an append-only database. *)

@@ -65,7 +65,7 @@ module type STORE_EXT = sig
     with type key = tag
      and type value = head
   val tag_t: t -> Tag.t
-  module Key: Tc.S0 with type t = Block.step list
+  module Key: Ir_path.S with type step = Block.step
   module Val: Ir_contents.S with type t = value
   val read_node: t -> key -> Block.Node.value option Lwt.t
   val mem_node: t -> key -> bool Lwt.t
@@ -94,16 +94,13 @@ module Make_ext
   module Tag = T
   type tag = T.key
 
-  module Key = Ir_step.Path(Block.Step)
+  module Key = Block.Path
+  module KeySet = Ir_misc.Set(Key)
   type key = Key.t
 
   module Val = Block.Contents.Val
   type value = Val.t
 
-  module Path = Ir_step.Path(B.Step)
-  module PathSet = Ir_misc.Set(Path)
-
-  module StepMap = Ir_misc.Map(B.Step)
   type step = B.step
 
   module Head = B.Commit.Key
@@ -243,7 +240,7 @@ module Make_ext
     map t path ~f:B.Node.find
 
   let update t path contents =
-    Log.debugf "update %a" force (show (module Path) path);
+    Log.debugf "update %a" force (show (module Key) path);
     apply t ~f:(fun node ->
         B.Node.update (node_t t) node path contents
       )
@@ -254,7 +251,7 @@ module Make_ext
       )
 
   let read_exn t path =
-    Log.debugf "read_exn %a" force (show (module Path) path);
+    Log.debugf "read_exn %a" force (show (module Key) path);
     map t path ~f:B.Node.find_exn
 
   let mem t path =
@@ -273,11 +270,11 @@ module Make_ext
         return paths in
     Lwt_list.fold_left_s (fun set p ->
         one p >>= fun paths ->
-        let paths = PathSet.of_list paths in
-        return (PathSet.union set paths)
-      ) PathSet.empty paths
+        let paths = KeySet.of_list paths in
+        return (KeySet.union set paths)
+      ) KeySet.empty paths
     >>= fun paths ->
-    return (PathSet.to_list paths)
+    return (KeySet.to_list paths)
 
   let dump t =
     Log.debugf "dump";
@@ -368,12 +365,12 @@ module Make_ext
   module ONode = Tc.Option(B.Node.Val)
 
   let watch_node t path =
-    Log.infof "Adding a watch on %a" force (show (module Path) path);
+    Log.infof "Adding a watch on %a" force (show (module Key) path);
     match t.branch with
     | `Key _   -> Lwt_stream.of_list []
     | `Tag tag ->
       let stream = Tag.watch (tag_t t) tag in
-      Ir_misc.Lwt_stream.lift (
+      Ir_watch.lwt_stream_lift (
         read_node t path >>= fun node ->
         let old_node = ref node in
         let stream = Lwt_stream.filter_map_s (function
@@ -417,7 +414,7 @@ module Make_ext
       | None   -> return_none
       | Some c -> c >>= fun c -> return (Some c)
     in
-    Ir_misc.Lwt_stream.lift (
+    Ir_watch.lwt_stream_lift (
       begin
         read_node t path >>= function
         | None   -> return_none

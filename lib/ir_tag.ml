@@ -17,33 +17,15 @@
 module Log = Log.Make(struct let section = "TAG" end)
 
 module type S = sig
-  include Tc.S0
+  include Ir_hum.S
   val master: t
 end
 
-module String = struct
-  type t = string
-
-  let hash = Hashtbl.hash
-  let equal = (=)
-  let compare = Pervasives.compare
-
-  let implode ts = String.concat "/" ts
-  let explode t = List.filter ((<>)"") (Stringext.split t ~on:'/')
-  let to_json t = Ezjsonm.(list encode_string (explode t))
-  let of_json j = implode (Ezjsonm.get_list Ezjsonm.decode_string_exn j)
-  let to_sexp t = Sexplib.Conv.(sexp_of_list sexp_of_string (explode t))
-  let size_of = String.length
-  let master = "master"
-
-  let write t buf =
-    let len = String.length t in
-    Cstruct.blit_from_string t 0 buf 0 len;
-    Cstruct.shift buf len
-
-  let read buf =
-    Mstruct.get_string buf (Mstruct.length buf)
-
+module Path = struct
+  include Tc.List(Tc.String)
+  let master = ["master"]
+  let to_hum t = String.concat "/" t
+  let of_hum s = List.filter ((<>)"") (Stringext.split s ~on:'/')
 end
 
 module type STORE = sig

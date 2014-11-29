@@ -24,8 +24,8 @@ module type STORE = sig
   type commit
   type head
 
-  module Step: Ir_step.S
-    with type t = step
+  module Path: Ir_path.S
+    with type step = step
 
   module Contents: Ir_contents.STORE_EXT
     with type value = contents
@@ -34,7 +34,7 @@ module type STORE = sig
     with type step = step
      and type value = node
      and module Contents = Contents
-     and module Step = Step
+     and module Path = Path
 
   module Commit: Ir_commit.STORE_EXT
     with type key = head
@@ -47,12 +47,12 @@ module Make
     (C: Ir_contents.STORE)
     (N: Ir_node.STORE with type Val.contents = C.key)
     (S: Ir_commit.STORE with type Val.node = N.key):
-  STORE with type step = N.Step.t
+  STORE with type step = N.Path.step
          and type contents = C.value
          and type node = N.value
          and type commit = S.value
          and type head = S.key
-         and module Step = N.Step
+         and module Path = N.Path
          and module Contents = Ir_commit.Store(C)(N)(S).Node.Contents
          and module Node = Ir_commit.Store(C)(N)(S).Node
          and module Commit = Ir_commit.Store(C)(N)(S)

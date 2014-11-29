@@ -22,3 +22,5 @@ val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
 type t
 val to_dict: t -> (string * univ) list
 val of_dict: (string * univ) list -> t
+val find: t -> string -> (univ -> 'a option) -> 'a option
+val find_bool: t -> string -> (univ -> bool option) -> default:bool -> bool

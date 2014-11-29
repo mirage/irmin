@@ -24,19 +24,17 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (K: Tc.S0) ->
+  functor (K: Ir_hum.S) ->
   functor (V: Tc.S0) ->
     STORE with type key = K.t and type value = V.t
 
 module type CSTRUCT = STORE
-  with type t = Ir_task.t
-   and type key = Cstruct.t
+  with type key = Cstruct.t
    and type value = Cstruct.t
 (** Binary read-write store. Keys, values and origins are cstruct buffers. *)
 
 module type JSON = STORE
-  with type t = Ir_task.t
-   and type key = Ezjsonm.t
+  with type key = Ezjsonm.t
    and type value = Ezjsonm.t
 (** JSON read-write store. Keys, values and origins are JSON objects. *)
 

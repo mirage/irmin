@@ -196,6 +196,27 @@ module Contents: sig
 
 end
 
+(** Serializable data with reversible human-readable
+    representations. *)
+module type HUM = sig
+
+  (** {1 Serializable values with inversible human-readable
+      representations} *)
+
+  include Tc.S0
+
+  val to_hum: t -> string
+  (** Display a value using its human readable representation. *)
+
+  val of_hum: string -> t
+  (** Convert an human readable representation of a value into its
+      abstract value.
+
+      @raise [Invalid_argument] if the string does not represent
+      anything meaningful. *)
+
+end
+
 (** User-defined tags. Tags are used to specify branch names in an
     Irmin store. *)
 module Tag: sig
@@ -211,35 +232,54 @@ module Tag: sig
 
     (** Signature for tags (i.e. branch names). *)
 
-    include Tc.S0
+    include HUM
 
     val master: t
     (** The name of the master branch. *)
 
   end
 
-  module String: S with type t = string
-  (** [String] is an implementation of {{!Tag.S}S} where tags are
-      simple strings. *)
+  module Path: S with type t = string list
+  (** [Path] is an implementation of {{!Tag.S}S} where tags are lists
+      of strings.
+
+      The [master] tag is [["master"]] and the human-representation of
+      [["x"];["y"]] is ["x/y"]. *)
 
 end
 
-(** Keys in an {{!Irmin.S}stores} are lists of steps. The [Step]
-    module provides functions to manipulate such steps. FIXME add
-    examples.*)
-module Step: sig
+(** A key in an {{!Irmin.S}stores} is a path of basic elements. We
+    call these elements {e steps}, and the following [Path] module
+    provides functions to manipulate steps and paths. *)
+module Path: sig
 
-  (** {1 Path steps} *)
+  (** {1 Path} *)
 
-  module type S = Tc.S0
+  (** Signature for path steps. *)
+  module type STEP = HUM
 
-  module Path (S: S): Tc.S0 with type t = S.t list
+  (** Signature for path implementations.*)
+  module type S = sig
+
+    (** {1 Path} *)
+
+    type step
+    (** Type type for basic steps. *)
+
+    type t = step list
+    (** The type for path values. *)
+
+    module Step: STEP with type t = step
+
+    include HUM with type t := t
+
+  end
+
+  module Make (S: STEP): S with type step = S.t
   (** A list of steps, representing keys in an Irmin store. *)
 
-  module String: S with type t = string
-  (** An implementation of steps using strings. Better looking than
-      raw [Tc.S0] as serialization is identity (instead of appending
-      the string size) *)
+  module String: S with type step = string
+  (** An implementation of paths using strings as steps. *)
 
 end
 
@@ -254,11 +294,15 @@ module Hash: sig
 
   (** {1 Contents Hashing} *)
 
+  exception Invalid of string
+  (** Exception raised when parsing a human-readable representation of
+      a hash. *)
+
   module type S = sig
 
     (** Signature for unique identifiers. *)
 
-    include Tc.S0
+    include HUM
 
     val digest: Cstruct.t -> t
     (** Compute a deterministic store key from a cstruct value. *)
@@ -589,7 +633,7 @@ end
 
 (** Irmin high-level stores.
 
-    An irmin store is a branch-consistent store where keys are lists
+    An Irmin store is a branch-consistent store where keys are lists
     of steps.
 
     An example is a Git repository where keys are filenames, i.e. list
@@ -605,10 +649,7 @@ module type S = sig
 
   include BC with type key = step list
 
-  module Step: Step.S with type t = step
-  (** [Step] provides base functions over steps. *)
-
-  module Key: Tc.S0 with type t = key
+  module Key: Path.S with type step = step
   (** [Key] provides base functions over step lists. *)
 
   module Val: Contents.S with type t = value
@@ -821,7 +862,7 @@ module type AO_MAKER =
     read-write stores. [K] is the implementation of keys and [V] is
     the implementation of values.*)
 module type RW_MAKER =
-  functor (K: Tc.S0) ->
+  functor (K: HUM) ->
   functor (V: Tc.S0) ->
     RW with type key = K.t and type value = V.t
 
@@ -831,17 +872,17 @@ module type RW_MAKER =
     the implementation of store tags and [H] is the implementation of
     store heads. *)
 module type S_MAKER =
-  functor (S: Step.S) ->
+  functor (P: Path.S) ->
   functor (C: Contents.S) ->
   functor (T: Tag.S) ->
   functor (H: Hash.S) ->
-    S with type step = S.t
+    S with type step = P.step
        and type value = C.t
        and type tag = T.t
        and type head = H.t
 
-(** [Private] defines functions only useful for creting new
-    backends. If you are just using the library (and not developping a
+(** [Private] defines functions only useful for creating new
+    backends. If you are just using the library (and not developing a
     new backend), you should not use this module. *)
 module Private: sig
 
@@ -854,12 +895,12 @@ module Private: sig
       same store, using the same internal keys format and a custom
       binary format based on
       {{:https://github.com/janestreet/bin_prot}bin_prot}, with no
-      native synchronisation primitives: it is usually what is needed
+      native synchronization primitives: it is usually what is needed
       to quickly create a new backend.
 
       {!Make_ext} creates a store with a {e deep} embedding of each of
       the internal stores into separate store, with a total control over
-      the binary format and using the native synchronisation protocols
+      the binary format and using the native synchronization protocols
       when available. This is mainly used by the Git backend, but could
       be used for other similar backends as well in the future.
 
@@ -867,7 +908,7 @@ module Private: sig
 
   (** [Make] is an helper to generate {e simple} implementation
       satisfying the {!Irmin.S} signature, with no native
-      synchronisation primitives. *)
+      synchronization primitives. *)
   module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 
   (** Backend-specific configuration values. *)
@@ -902,6 +943,12 @@ module Private: sig
     val to_dict: t -> (string * univ) list
     (** Convert a configuration value into a dictionary of universal
         values. *)
+
+    val find: t -> string -> (univ -> 'a option) -> 'a option
+    (** Find a the value associated to a key in a config value. *)
+
+    val find_bool: t -> string -> (univ -> bool option) -> default:bool -> bool
+    (** Find a boolean value associated to a key in a config value. *)
 
   end
 
@@ -983,16 +1030,16 @@ module Private: sig
       (** Is the node empty. *)
     end
 
-    module Make (C: Tc.S0) (N: Tc.S0) (S: Tc.S0):
+    module Make (C: Tc.S0) (N: Tc.S0) (P: Path.S):
       S with type contents = C.t
          and type node = N.t
-         and type step = S.t
+         and type step = P.step
 
     module type STORE = sig
 
       include AO
 
-      module Step: Step.S
+      module Path: Path.S
       (** [Step] provides base functions over node steps. *)
 
       module Key: Hash.S with type t = key
@@ -1001,7 +1048,7 @@ module Private: sig
       (** [Val] provides base functions for node values. *)
       module Val: S with type t = value
                      and type node = key
-                     and type step = Step.t
+                     and type step = Path.step
     end
 
   end
@@ -1142,13 +1189,13 @@ module Private: sig
       (N: Node.STORE with type Val.contents = C.key)
       (H: Commit.STORE with type Val.node = N.key)
       (T: Tag.STORE with type value = H.key):
-    BC with type key = N.Step.t list
+    BC with type key = N.Path.t
         and type value = C.value
         and type tag = T.key
         and type head = H.key
 
   (** [Make] builds an high-level Irmin store using lower-level
-      user-provided store and a native synchronisation
+      user-provided store and a native synchronization
       implementation. See {{!Private.BC}BC} for details. *)
   module Make_ext
       (C: Contents.STORE)
@@ -1156,7 +1203,7 @@ module Private: sig
       (H: Commit.STORE with type Val.node = N.key)
       (T: Tag.STORE with type value = H.key)
       (S: Sync.S with type head = H.key and type tag = T.key):
-    S with type step = N.Step.t
+    S with type step = N.Path.step
        and type value = C.value
        and type tag = T.key
        and type head = H.key
@@ -1211,6 +1258,9 @@ module Private: sig
     (** Register a function which looks for file changes in a
         directory. Could use [inotify] when available, or use an active
         stats file polling.*)
+
+    val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
+    (** Lift a stream out of the monad. *)
 
     (** [Make] builds an implementation of watch helpers. *)
     module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t

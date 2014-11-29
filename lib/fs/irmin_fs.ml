@@ -17,89 +17,98 @@
 open Lwt
 
 module Log = Log.Make(struct let section = "FS" end)
-
-exception Error of string
-
-let error fmt =
-  Printf.ksprintf (fun str ->
-      Printf.eprintf "fatal: %s\n%!" str;
-      fail (Error str)
-    ) fmt
-
-let warning fmt =
-  Printf.ksprintf (fun str ->
-      Printf.eprintf "%s\n%!" str
-    ) fmt
+module IB = Irmin.Private
 
 let (/) = Filename.concat
 
-module type Config' = sig
-  val path: string
+module type Config = sig
   val file_of_key: string -> string
   val key_of_file: string -> string
 end
 
 module type IO = sig
-  val check_dir: string -> unit Lwt.t
-  val with_file_in: string -> (Cstruct.t -> 'a Lwt.t) -> 'a Lwt.t
+  val getcwd: unit -> string
+  val mkdir: string -> unit Lwt.t
+  val remove: string -> unit Lwt.t
   val rec_files: string -> string list
-  val with_file_out: string -> Cstruct.t -> unit Lwt.t
-  val remove_file: string -> unit Lwt.t
+  val read_file: string -> Cstruct.t Lwt.t
+  val write_file: string -> Cstruct.t -> unit Lwt.t
 end
 
-module RO (IO: IO) (S: Config') (K: IrminKey.S) = struct
+(* ~path *)
+let of_path, to_path, _path = IB.Config.univ Tc.string
+let path_k = "fs:path"
+let path_key t = IB.Config.find t path_k to_path
 
-  type key = string
+let config ~path =
+  let path = [ path_k, of_path path ] in
+  IB.Config.of_dict path
 
-  type value = Cstruct.buffer
+module RO_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
 
-  module W = IrminWatch.Make(K)(Cstruct)
+  type key = K.t
+
+  type value = V.t
+
+  module W = IB.Watch.Make(K)(V)
 
   type t = {
-    t: string;
+    path: string;
     w: W.t;
+    config: Irmin.config;
+    task: Irmin.task;
   }
 
-  let pretty_key k =
-    K.to_raw (K.of_raw k)
+  let task t = t.task
+  let config t = t.config
 
-  let unknown k =
-    fail (IrminKey.Unknown (pretty_key k))
-
-  let create () =
-    let t = S.path in
+  let create config task =
     let w = W.create () in
-    return { t; w }
+    let path = match path_key config with
+      | None   -> IO.getcwd ()
+      | Some p -> p
+    in
+    IO.mkdir path >>= fun () ->
+    return { path; w; config; task; }
 
-  let mem { t } key =
-    IO.check_dir t >>= fun () ->
-    let file = S.file_of_key key in
+  let file_of_key { path; _ } key =
+    path / S.file_of_key (K.to_hum key)
+
+  let mk_value x =
+    Tc.read_cstruct (module V) x
+
+  let mem t key =
+    let file = file_of_key t key in
     Log.debugf "file=%s" file;
     return (Sys.file_exists file)
 
   let read_exn t key =
-    Log.debugf "read_exn %s" (pretty_key key);
     mem t key >>= function
-    | true  -> IO.with_file_in (S.file_of_key key) (fun x -> return x)
-    | false -> unknown key
+    | false -> fail Not_found
+    | true  -> IO.read_file (file_of_key t key) >>= fun x -> return (mk_value x)
 
   let read t key =
-    Log.debugf "read %s" (pretty_key key);
     mem t key >>= function
-    | true  -> IO.with_file_in (S.file_of_key key) (fun x -> return (Some x))
     | false -> return_none
+    | true  ->
+      IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
 
-  let list { t } k =
+  let list _ k =
     return k
 
-  let keys_of_dir root =
-    let files = IO.rec_files root in
-    List.map ~f:S.key_of_file files
+  let keys_of_dir t =
+    let files = IO.rec_files t.path in
+    let files  =
+      let p = String.length t.path in
+      List.map (fun file ->
+          let n = String.length file in
+          if n <= p + 1 then "" else String.sub file (p+1) (n - p - 1)
+        ) files
+    in
+    List.map (fun file -> K.of_hum (S.key_of_file file)) files
 
-  let dump ({ t = root } as t) =
-    Log.debugf "dump %s" root;
-    IO.check_dir t.t >>= fun () ->
-    let l = keys_of_dir root in
+  let dump t =
+    let l = keys_of_dir t in
     Lwt_list.fold_left_s (fun acc x ->
         read t x >>= function
         | None   -> return acc
@@ -108,119 +117,103 @@ module RO (IO: IO) (S: Config') (K: IrminKey.S) = struct
 
 end
 
-module AO (IO: IO) (S: Config') (K: IrminKey.S) = struct
+module AO_ext (S: Config) (IO: IO) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
-  include RO(IO)(S)(K)
+  include RO_ext(S)(IO)(K)(V)
 
-  let add { t } value =
-    Log.debugf "add";
-    IO.check_dir t >>= fun () ->
-    let key = K.to_raw (K.compute_from_cstruct value) in
-    let file = S.file_of_key key in
+  let add t value =
+    let value = Tc.write_cstruct (module V) value in
+    let key = K.digest value in
+    let file = file_of_key t key in
     begin if Sys.file_exists file then
         return_unit
       else
-        IO.with_file_out file value
+        IO.write_file file value
     end >>= fun () ->
     return key
 
 end
 
-module RW (IO: IO) (S: Config') (K: IrminKey.S) = struct
+module RW_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
 
-  include RO(IO)(S)(K)
+  include RO_ext(S)(IO)(K)(V)
 
-  let read_key t key =
-    read t (K.to_raw key)
-
-  let create () =
-    let key_of_file file =
-      Some (K.of_string (S.key_of_file file)) in
-    let t = S.path in
+  let create config task =
     let w = W.create () in
-    let t = { t; w } in
-    W.listen_dir w S.path key_of_file (read_key t);
+    let path = match path_key config with
+      | None   -> IO.getcwd ()
+      | Some p -> p
+    in
+    let key_of_file file = Some (K.of_hum (S.key_of_file file)) in
+    IO.mkdir path >>= fun () ->
+    let t = { path; w; config; task; } in
+    W.listen_dir w path ~key:key_of_file ~value:(read t);
     return t
 
-  let remove { t } key =
-    Log.debugf "remove %s" (pretty_key key);
-    let file = S.file_of_key key in
-    IO.remove_file file
+  let remove t key =
+    let file = file_of_key t key in
+    IO.remove file
 
   let update t key value =
-    Log.debugf "update %s" (pretty_key key);
-    IO.check_dir t.t >>= fun () ->
     remove t key >>= fun () ->
-    IO.with_file_out (S.file_of_key key) value >>= fun () ->
-    W.notify t.w (K.of_raw key) (Some value);
+    IO.write_file (file_of_key t key) (Tc.write_cstruct (module V) value)
+    >>= fun () ->
+    W.notify t.w key (Some value);
     return_unit
 
-  let remote t key =
+  let remove t key =
     remove t key >>= fun () ->
-    W.notify t.w (K.of_raw key) None;
+    W.notify t.w key None;
     return_unit
 
   let watch t key =
-    Log.debugf "watch %S" (pretty_key key);
-    IrminMisc.lift_stream (
+    IB.Watch.lwt_stream_lift (
       read t key >>= fun value ->
-      return (W.watch t.w (K.of_raw key) value)
+      return (W.watch t.w key value)
     )
 
 end
 
-module type Config = sig
-  val path: string
+module Make_ext (Obj: Config) (Ref: Config) (IO: IO)
+    (P: Ir_path.S)
+    (C: Ir_contents.S)
+    (T: Ir_tag.S)
+    (H: Ir_hash.S)
+= struct
+  module AO = AO_ext(Obj)(IO)
+  module RW = RW_ext(Ref)(IO)
+  include IB.Make(AO)(RW)(P)(C)(T)(H)
 end
 
-module REIO (S: Config) = struct
 
-  let path = S.path / "refs"
+let string_chop_prefix ~prefix str =
+  let len = String.length prefix in
+  if String.length str <= len then ""
+  else String.sub str len (String.length str - len)
 
-  let file_of_key key =
-    path / key
-
+module Ref = struct
+  let file_of_key key = "refs" / key
   let key_of_file file =
-    Log.debugf "key_of_file %s" file;
-    file
-
+    string_chop_prefix ~prefix:("refs" / "") file
 end
 
-module OBJECTS (S: Config) (K: IrminKey.S) = struct
-
-  let path = S.path / "objects"
+module Obj = struct
 
   let file_of_key k =
-    let key = K.to_string (K.of_raw k) in
-    let len = String.length key in
-    let pre = String.sub key 0 2 in
-    let suf = String.sub key 2 (len - 2) in
-    path / pre / suf
+    let len = String.length k in
+    let pre = String.sub k 0 2 in
+    let suf = String.sub k 2 (len - 2) in
+    "objects" / pre / suf
 
   let key_of_file path =
     Log.debugf "key_of_file %s" path;
-    let path = IrminPath.of_string path in
-    let path = String.concat ~sep:"" path in
-    K.to_raw (K.of_string path)
+    let path = string_chop_prefix ~prefix:("objects" / "") path in
+    let path = Irmin.Path.String.of_hum path in
+    let path = String.concat "" path in
+    path
 
 end
 
-module Make (IO: IO) (X: Config) = struct
-  module Y = OBJECTS(X)
-  module Z = REIO(X)
-  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
-    include Irmin.Binary(AO(IO)(Y(K))(K))(RW(IO)(Z)(T))(K)(C)(T)
-  end
-  module RO(K: IrminKey.S) = Irmin.RO_BINARY(RO(IO)(Y(K))(K))(K)
-  module AO(K: IrminKey.S) = Irmin.AO_BINARY(AO(IO)(Y(K))(K))(K)
-  module RW(K: IrminKey.S) = Irmin.RW_BINARY(RW(IO)(Z)(K))(K)
-end
-
-module Make' (IO: IO) (X: Config') = struct
-  module Make (K: IrminKey.S) (C: IrminContents.S) (T: IrminTag.S) = struct
-    include Irmin.Binary(AO(IO)(X)(K))(RW(IO)(X)(T))(K)(C)(T)
-  end
-  module RO(K: IrminKey.S) = Irmin.RO_BINARY(RO(IO)(X)(K))(K)
-  module AO(K: IrminKey.S) = Irmin.AO_BINARY(AO(IO)(X)(K))(K)
-  module RW(K: IrminKey.S) = Irmin.RW_BINARY(RW(IO)(X)(K))(K)
-end
+module AO = AO_ext (Obj)
+module RW = RW_ext (Ref)
+module Make = Make_ext(Obj)(Ref)

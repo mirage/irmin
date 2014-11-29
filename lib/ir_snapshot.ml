@@ -38,9 +38,9 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   type db = S.t
 
-  module Path = Ir_step.Path(N.Step)
+  module Path = N.Path
   module PathSet = Ir_misc.Set(Path)
-  module StepMap = Ir_misc.Map(B.Step)
+  module StepMap = Ir_misc.Map(B.Path.Step)
 
   (* XXX: add a path in the tuple to handle snapshot of sub-trees. *)
   type key = S.key

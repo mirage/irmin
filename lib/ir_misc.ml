@@ -219,26 +219,6 @@ end
 
 module Map (S: Tc.S0) = Map_ext (Map.Make(S))(S)
 
-module Lwt_stream = struct
-
-  include Lwt_stream
-
-  open Lwt
-
-  let lift s =
-    let (stream: 'a Lwt_stream.t option ref) = ref None in
-    let rec get () =
-      match !stream with
-      | Some s -> Lwt_stream.get s
-      | None   ->
-        s >>= fun s ->
-        stream := Some s;
-        get ()
-    in
-    Lwt_stream.from get
-
-end
-
 let is_valid_utf8 str =
   try
     Uutf.String.fold_utf_8 (fun _ _ -> function

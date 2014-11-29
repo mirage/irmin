@@ -104,4 +104,17 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
           notify t key value;
           return_unit
       )
+
 end
+
+let lwt_stream_lift s =
+  let (stream: 'a Lwt_stream.t option ref) = ref None in
+  let rec get () =
+    match !stream with
+    | Some s -> Lwt_stream.get s
+    | None   ->
+      s >>= fun s ->
+      stream := Some s;
+      get ()
+  in
+  Lwt_stream.from get

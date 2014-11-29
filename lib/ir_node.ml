@@ -38,14 +38,15 @@ module type S = sig
   val is_empty: t -> bool
 end
 
-module Make (K_c: Tc.S0) (K_n: Tc.S0) (Step: Tc.S0) = struct
+module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_path.S) = struct
 
   type contents = K_c.t
   type node = K_n.t
-  type step = Step.t
+  type step = P.step
 
-  module StepMap = Ir_misc.Map(Step)
-  module StepSet = Ir_misc.Set(Step)
+  module Path = P
+  module StepMap = Ir_misc.Map(P.Step)
+  module StepSet = Ir_misc.Set(P.Step)
 
   type t = {
     contents: contents StepMap.t;
@@ -146,19 +147,19 @@ end
 
 module type STORE = sig
   include Ir_ao.STORE
-  module Step: Tc.S0
+  module Path: Ir_path.S
   module Key: Ir_hash.S with type t = key
   module Val: S
     with type t = value
      and type node = key
-     and type step = Step.t
+     and type step = Path.step
 end
 
 module type STORE_EXT = sig
   type step
   module Contents: Ir_contents.STORE_EXT
   include STORE
-    with type Step.t = step
+    with type Path.step = step
      and type Val.contents = Contents.key
   type contents = Contents.value
   val empty: value
@@ -187,13 +188,15 @@ module Store
 
   module Contents = Ir_contents.Store(C)
 
-  module Step = S.Step
+  module Path = S.Path
+
+  module Step = Path.Step
   module StepMap = Ir_misc.Map(Step)
 
   module Val = S.Val
   module Key = S.Key
 
-  type step = Step.t
+  type step = Path.step
   type key = Key.t
   type value = Val.t
   type contents = C.value

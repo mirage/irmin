@@ -20,13 +20,14 @@ module Tag = Ir_tag
 module Task = Ir_task
 module View = Ir_view
 module Hash = Ir_hash
-module Step = Ir_step
+module Path = Ir_path
 
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
 module type RW = Ir_rw.STORE
 module type BC = Ir_bc.STORE
 module type S = Ir_s.STORE
+module type HUM = Ir_hum.S
 
 type task = Task.t
 type config = Ir_config.t

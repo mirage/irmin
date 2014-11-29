@@ -70,7 +70,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
           (string_of_key (module B.Node.Key) k) in
       `Label s in
     let label_of_path l =
-      let l = Tc.write_string (module B.Step) l in
+      let l = Tc.write_string (module B.Path.Step) l in
       let s =
         (if html then
           sprintf "<div class='path'>%s</div>"

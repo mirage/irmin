@@ -18,8 +18,7 @@
 module type STORE = sig
   type step
   include Ir_bc.STORE with type key = step list
-  module Step: Tc.S0 with type t = step
-  module Key: Tc.S0 with type t = key
+  module Key: Ir_path.S with type step = step
   module Val: Ir_contents.S with type t = value
   module View: Ir_view.S
       with type db = t
@@ -45,7 +44,6 @@ module Make_ext
 struct
   module B = Ir_bc.Make_ext(C)(N)(S)(T)
   include B
-  module Step = B.Block.Step
   module View = Ir_view.Make(B)
   module Snapshot = Ir_snapshot.Make(B)
   module Dot = Ir_dot.Make(B)
@@ -53,11 +51,11 @@ struct
 end
 
 module type MAKER =
-  functor (S: Tc.S0) ->
+  functor (P: Ir_path.S) ->
   functor (C: Ir_contents.S) ->
   functor (T: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
-    STORE with type step = S.t
+    STORE with type step = P.step
            and type value = C.t
            and type tag = T.t
            and type head = H.t
@@ -65,33 +63,33 @@ module type MAKER =
 module Make
     (AO: Ir_ao.MAKER)
     (RW: Ir_rw.MAKER)
-    (S: Tc.S0)
+    (P: Ir_path.S)
     (C: Ir_contents.S)
     (T: Ir_tag.S)
-    (K: Ir_hash.S) =
+    (H: Ir_hash.S) =
 struct
   module XContents = struct
-    module Key = K
+    module Key = H
     module Val = C
     include AO (Key)(Val)
   end
   module XNode = struct
-    module Key = K
-    module Val = Ir_node.Make (K)(K)(S)
-    module Step = S
+    module Key = H
+    module Val = Ir_node.Make (H)(H)(P)
+    module Path = P
     include AO (Key)(Val)
   end
   module XCommit = struct
-    module Key = K
-    module Val = Ir_commit.Make (K)(K)
+    module Key = H
+    module Val = Ir_commit.Make (H)(H)
     include AO (Key)(Val)
   end
   module XTag = struct
     module Key = T
-    module Val = K
+    module Val = H
     include RW (Key)(Val)
   end
-  module XSync = Ir_sync.None(K)(T)
+  module XSync = Ir_sync.None(H)(T)
 
   include Make_ext(XContents)(XNode)(XCommit)(XTag)(XSync)
 

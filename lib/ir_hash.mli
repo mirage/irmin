@@ -17,22 +17,10 @@
 (** Implementation of keys *)
 
 module type S = sig
-
-  (** Signature for unique identifiers. *)
-
-  include Tc.S0
-
+  include Ir_hum.S
   val digest: Cstruct.t -> t
-  (** Compute a (deterministic) key from a cstruct. *)
-
 end
 
-
 exception Invalid of string
-(** Exception raised when a key is not valid. *)
-
-exception Unknown of string
-(** Exception raised when no value is associated to a key. *)
 
 module SHA1: S
-(** SHA1 keys *)

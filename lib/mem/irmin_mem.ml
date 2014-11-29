@@ -17,33 +17,12 @@
 open Lwt
 module IB = Irmin.Private
 
-module Log = Log.Make(struct let section = "MEMORY" end)
-
 let hashtbl_to_alist t =
   let l = ref [] in
   Hashtbl.iter (fun k v -> l := (k, v) :: !l) t;
   !l
 
-let lwt_stream_lift s =
-  let (stream: 'a Lwt_stream.t option ref) = ref None in
-  let rec get () =
-    match !stream with
-    | Some s -> Lwt_stream.get s
-    | None   ->
-      s >>= fun s ->
-      stream := Some s;
-      get ()
-  in
-  Lwt_stream.from get
-
-module type S = sig
-  include Irmin.S
-  val create: Irmin.task -> t Lwt.t
-  val of_tag: Irmin.task -> tag -> t Lwt.t
-  val of_head: Irmin.task -> head -> t Lwt.t
-end
-
-module RO (K: Tc.S0) (V: Tc.S0) = struct
+module RO (K: Irmin.HUM) (V: Tc.S0) = struct
 
   module W = IB.Watch.Make(K)(V)
 
@@ -103,7 +82,7 @@ module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
 end
 
-module RW (K: Tc.S0) (V: Tc.S0) = struct
+module RW (K: Irmin.HUM) (V: Tc.S0) = struct
 
   include RO(K)(V)
 
@@ -118,22 +97,19 @@ module RW (K: Tc.S0) (V: Tc.S0) = struct
     return_unit
 
   let watch t key =
-    lwt_stream_lift (
+    IB.Watch.lwt_stream_lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)
     )
 
 end
 
+let config () = IB.Config.of_dict []
+
 module Make
-    (K: Irmin.Hash.S)
-    (S: Tc.S0)
+    (P: Irmin.Path.S)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
- = struct
-  include IB.Make(AO)(RW)(S)(C)(T)(K)
-  let mk = IB.Config.of_dict []
-  let create = create mk
-  let of_tag = of_tag mk
-  let of_head = of_head mk
-end
+    (H: Irmin.Hash.S)
+  =
+  IB.Make(AO)(RW)(P)(C)(T)(H)

@@ -111,8 +111,8 @@ module type NODE = sig
   type node
   type contents
   module Contents: Tc.S0 with type t = contents
-  module Step: Ir_step.S
-  module StepMap: Ir_misc.MAP with type key = Step.t
+  module Path: Ir_path.S
+  module StepMap: Ir_misc.MAP with type key = Path.step
   val empty: unit -> t
   val is_empty: t -> bool
   val read: t -> node option Lwt.t
@@ -124,15 +124,14 @@ end
 
 module Internal (Node: NODE) = struct
 
-  module Step = Node.Step
+  module Path = Node.Path
+  module PathSet = Ir_misc.Set(Path)
+
   module StepMap = Node.StepMap
 
-  type step = Step.t
+  type step = Path.step
   type key = step list
   type value = Node.contents
-
-  module Path = Ir_step.Path(Step)
-  module PathSet = Ir_misc.Set(Path)
 
   module Action = Action(Path)(Node.Contents)
   type action = Action.t
@@ -348,8 +347,8 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   module Node = struct
 
-    module Step = B.Step
-    module StepMap = Ir_misc.Map(Step)
+    module Path = B.Path
+    module StepMap = Ir_misc.Map(Path.Step)
 
     type contents = B.contents
     type commit = S.head
