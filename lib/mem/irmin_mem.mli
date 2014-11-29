@@ -14,9 +14,23 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** In-memory store *)
+
+open Irmin.Backend
+
 module type S = sig
-  module RO: Ir_ro.MAKER
-  module AO: Ir_ao.MAKER
-  module RW: Ir_rw.MAKER
-  module BC: Ir_bc.MAKER
+  include Irmin.S
+  val create: Irmin.task -> t Lwt.t
+  val of_tag: Irmin.task -> tag -> t Lwt.t
+  val of_head: Irmin.task -> head -> t Lwt.t
 end
+
+module Make
+    (K: Hash.S)
+    (S: Tc.S0)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S):
+  S with type step = S.t
+     and type value = C.t
+     and type tag = T.t
+     and type head = K.t

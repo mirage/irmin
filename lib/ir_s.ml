@@ -36,7 +36,7 @@ module type STORE = sig
      and type head := head
 end
 
-module Make
+module Make_ext
     (C: Ir_contents.STORE)
     (N: Ir_node.STORE with type Val.contents = C.key)
     (S: Ir_commit.STORE with type Val.node = N.key)
@@ -52,13 +52,23 @@ struct
   module Sync = Ir_sync.Make(B)(R)
 end
 
-module Simple
-    (K: Ir_hash.S)
+module type MAKER =
+  functor (S: Tc.S0) ->
+  functor (C: Ir_contents.S) ->
+  functor (T: Ir_tag.S) ->
+  functor (H: Ir_hash.S) ->
+    STORE with type step = S.t
+           and type value = C.t
+           and type tag = T.t
+           and type head = H.t
+
+module Make
+    (AO: Ir_ao.MAKER)
+    (RW: Ir_rw.MAKER)
     (S: Tc.S0)
     (C: Ir_contents.S)
     (T: Ir_tag.S)
-    (AO: Ir_ao.MAKER)
-    (RW: Ir_rw.MAKER) =
+    (K: Ir_hash.S) =
 struct
   module XContents = struct
     module Key = K
@@ -83,6 +93,6 @@ struct
   end
   module XSync = Ir_sync.None(K)(T)
 
-  include Make(XContents)(XNode)(XCommit)(XTag)(XSync)
+  include Make_ext(XContents)(XNode)(XCommit)(XTag)(XSync)
 
 end

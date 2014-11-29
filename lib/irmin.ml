@@ -19,15 +19,24 @@ module Contents = Ir_contents
 module Tag = Ir_tag
 module Task = Ir_task
 module View = Ir_view
+module Hash = Ir_hash
+module Step = Ir_step
+
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
 module type RW = Ir_rw.STORE
 module type BC = Ir_bc.STORE
 module type S = Ir_s.STORE
 
-module Backend = struct
+type task = Task.t
+type config = Ir_config.t
+
+module type AO_MAKER = Ir_ao.MAKER
+module type RW_MAKER = Ir_rw.MAKER
+module type S_MAKER = Ir_s.MAKER
+
+module Private = struct
   module Config = Ir_config
-  module Hash = Ir_hash
   module Watch = Ir_watch
   module Node = Ir_node
   module Commit = Ir_commit
@@ -36,10 +45,5 @@ module Backend = struct
   module Sync = Ir_sync
   module BC = Ir_bc.Make
   module Make = Ir_s.Make
-  module Simple = Ir_s.Simple
-  module AO = Ir_ao
-  module RW = Ir_rw
+  module Make_ext = Ir_s.Make_ext
 end
-
-type config = Backend.Config.t
-type task = Task.t

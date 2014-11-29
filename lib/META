@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 276d92fcdf2a3bdae27069ef29d8382a)
+# DO NOT EDIT (digest: f6c0fcc45136652e06f1a48608f97e51)
 version = "0.8.3"
 description = "A Distributed Version Control Database"
 requires =
@@ -12,7 +12,7 @@ exists_if = "irmin.cma"
 package "unix" (
  version = "0.8.3"
  description = "A Distributed Version Control Database"
- requires = "irmin lwt.unix irmin.backend irmin.server git.unix"
+ requires = "irmin irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
  archive(byte) = "irmin-unix.cma"
  archive(byte, plugin) = "irmin-unix.cma"
  archive(native) = "irmin-unix.cmxa"
@@ -20,15 +20,48 @@ package "unix" (
  exists_if = "irmin-unix.cma"
 )
 
-package "backend" (
+package "mem" (
  version = "0.8.3"
  description = "A Distributed Version Control Database"
- requires = "irmin cohttp.lwt ezjsonm.lwt git"
- archive(byte) = "irmin-backend.cma"
- archive(byte, plugin) = "irmin-backend.cma"
- archive(native) = "irmin-backend.cmxa"
- archive(native, plugin) = "irmin-backend.cmxs"
- exists_if = "irmin-backend.cma"
+ requires = "irmin"
+ archive(byte) = "irmin-mem.cma"
+ archive(byte, plugin) = "irmin-mem.cma"
+ archive(native) = "irmin-mem.cmxa"
+ archive(native, plugin) = "irmin-mem.cmxs"
+ exists_if = "irmin-mem.cma"
+)
+
+package "http" (
+ version = "0.8.3"
+ description = "A Distributed Version Control Database"
+ requires = "irmin cohttp.lwt-core ezjsonm.lwt"
+ archive(byte) = "irmin-http.cma"
+ archive(byte, plugin) = "irmin-http.cma"
+ archive(native) = "irmin-http.cmxa"
+ archive(native, plugin) = "irmin-http.cmxs"
+ exists_if = "irmin-http.cma"
+)
+
+package "git" (
+ version = "0.8.3"
+ description = "A Distributed Version Control Database"
+ requires = "irmin git"
+ archive(byte) = "irmin-git.cma"
+ archive(byte, plugin) = "irmin-git.cma"
+ archive(native) = "irmin-git.cmxa"
+ archive(native, plugin) = "irmin-git.cmxs"
+ exists_if = "irmin-git.cma"
+)
+
+package "fs" (
+ version = "0.8.3"
+ description = "A Distributed Version Control Database"
+ requires = "irmin"
+ archive(byte) = "irmin-fs.cma"
+ archive(byte, plugin) = "irmin-fs.cma"
+ archive(native) = "irmin-fs.cmxa"
+ archive(native, plugin) = "irmin-fs.cmxs"
+ exists_if = "irmin-fs.cma"
 )
 # OASIS_STOP
 

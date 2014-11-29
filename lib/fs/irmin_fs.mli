@@ -16,36 +16,12 @@
 
 (** Disk persistence. *)
 
-(** {2 Simple configuration} *)
-
-module type Config = sig
-
-  (** Simple configuration containing the store location on the
-      filesystem. *)
-
-  val path: string
-
+module type S = sig
+  include Irmin.S
+  val create: path:string -> Irmin.task -> t Lwt.t
+  val of_tag: path:string -> Irmin.task -> tag -> t Lwt.t
+  val of_head: path:string -> Irmin.task -> head -> t Lwt.t
 end
-
-(** {2 Advanced configuration} *)
-
-module type Config' = sig
-
-  (** Same as [Config] but gives more control on the file
-      hierarchy. *)
-
-  val path: string
-  (** The database root. *)
-
-  val file_of_key: string -> string
-  (** Convert a key to a filename. *)
-
-  val key_of_file: string -> string
-    (** Convert a filename to a key. *)
-
-end
-
-(** {2 Constructors} *)
 
 module type IO = sig
 
@@ -69,5 +45,37 @@ module type IO = sig
 
 end
 
-module Make (IO: IO) (C: Config) : Irmin.Sig.BACKEND
-module Make'(IO: IO) (C: Config'): Irmin.Sig.BACKEND
+module Make (IO: IO)
+    (K: Hash.S)
+    (S: Tc.S0)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S):
+  S with type step = S.t
+     and type value = C.t
+     and type tag = T.t
+     and type head = K.t
+
+(** {2 Advanced configuration} *)
+
+module type Config = sig
+
+  (** Same as [Config] but gives more control on the file
+      hierarchy. *)
+
+  val file_of_key: string -> string
+  (** Convert a key to a filename. *)
+
+  val key_of_file: string -> string
+    (** Convert a filename to a key. *)
+
+end
+
+module Make'(IO: IO)
+    (K: Hash.S)
+    (S: Tc.S0)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S):
+  S with type step = S.t
+     and type value = C.t
+     and type tag = T.t
+     and type head = K.t

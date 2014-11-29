@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 220421b32a115af2b6410f8cf52e8a8f) *)
+(* DO NOT EDIT (digest: ce9f087a86b4d8e10a9fa9ec4705abc8) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -610,7 +610,10 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml =
        [
           ("irmin", ["lib"], []);
-          ("irmin-backend", ["lib/backend"], []);
+          ("irmin-mem", ["lib/mem"], []);
+          ("irmin-git", ["lib/git"], []);
+          ("irmin-fs", ["lib/fs"], []);
+          ("irmin-http", ["lib/http"], []);
           ("irmin-unix", ["lib/unix"], [])
        ];
      lib_c = [];
@@ -618,9 +621,12 @@ let package_default =
      includes =
        [
           ("lib_test", ["lib"; "lib/unix"]);
-          ("lib/unix", ["lib"; "lib/backend"]);
+          ("lib/unix", ["lib"; "lib/fs"; "lib/git"; "lib/http"]);
+          ("lib/mem", ["lib"]);
+          ("lib/http", ["lib"]);
+          ("lib/git", ["lib"]);
+          ("lib/fs", ["lib"]);
           ("lib/driver", ["lib"; "lib/unix"]);
-          ("lib/backend", ["lib"]);
           ("examples", ["lib"; "lib/unix"])
        ]
   }
@@ -630,6 +636,6 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 634 "myocamlbuild.ml"
+# 640 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;

@@ -224,6 +224,53 @@ module Tag: sig
 
 end
 
+(** [Step] provides functions to manipulate keys: Irmin
+    {{!Irmin.S}stores} use list of steps as keys. FIXME add
+    examples.*)
+module Step: sig
+
+  (** {1 Path steps} *)
+
+  module type S = Tc.S0
+
+  module Path (S: S): Tc.S0 with type t = S.t list
+  (** A list of steps, representing keys in an Irmin store. *)
+
+  module String: S with type t = string
+  (** An implementation of steps using strings. Better looking than
+      raw [Tc.S0] as serialization is identity (instead of appending
+      the string size) *)
+
+end
+
+(** [Hash] provides user-defined hash function to digest serialized
+    contents. Some {{!Backend}backends} might be parameterize by such
+    a hash functions, other might work with a fixed one (for instance,
+    the Git format use only SHA1).
+
+    An {{!Hash.SHA1}SHA1} implementation is available to pass to the
+    backends. *)
+module Hash: sig
+
+  (** {1 Contents Hashing} *)
+
+  module type S = sig
+
+    (** Signature for unique identifiers. *)
+
+    include Tc.S0
+
+    val digest: Cstruct.t -> t
+    (** Compute a deterministic store key from a cstruct value. *)
+
+  end
+  (** Signature for hash values. *)
+
+  module SHA1: S
+  (** SHA1 digests *)
+
+end
+
 (** {1 Stores} *)
 
 type task
@@ -628,21 +675,21 @@ module type S = sig
       (** {1 Actions} *)
 
       type t =
-         [ `Read of (key * value option)
-         | `Write of (key * value option)
-         | `List of (key list * key list) ]
-       (** Operations on view. The read results are kept to be able
-           to replay them on merge and to check for possible conflict:
-           this happens if the result read is different from the one
-           recorded. *)
+        [ `Read of (key * value option)
+        | `Write of (key * value option)
+        | `List of (key list * key list) ]
+      (** Operations on view. The read results are kept to be able
+          to replay them on merge and to check for possible conflict:
+          this happens if the result read is different from the one
+          recorded. *)
 
-       include Tc.S0 with type t := t
+      include Tc.S0 with type t := t
 
-       val pretty: t -> string
-       (** Pretty-print an action. *)
+      val pretty: t -> string
+      (** Pretty-print an action. *)
 
-       val prettys: t list -> string
-       (** Pretty-print a sequence of actions. *)
+      val prettys: t list -> string
+      (** Pretty-print a sequence of actions. *)
 
     end
     (** Signature for actions performed on a view. *)
@@ -695,17 +742,17 @@ module type S = sig
     val output_buffer:
       db -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string) ->
       Buffer.t -> unit Lwt.t
-    (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
-        representation of [t] in the buffer [buf].
+      (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
+          representation of [t] in the buffer [buf].
 
-        [html] (default is false) enables HTML labels.
+          [html] (default is false) enables HTML labels.
 
-        [depth] is used to limit the depth of the commit history. [None]
-        here means no limitation.
+          [depth] is used to limit the depth of the commit history. [None]
+          here means no limitation.
 
-        If [full] is set (default is not) the full graph, including the
-        commits, nodes and contents, is exported, otherwise it is the
-        commit history graph only. *)
+          If [full] is set (default is not) the full graph, including the
+          commits, nodes and contents, is exported, otherwise it is the
+          commit history graph only. *)
 
   end
 
@@ -738,7 +785,7 @@ module type S = sig
         contents. The [depth] parameter limits the history
         depth. Return the new [head] in the local store corresponding
         to the current branch -- [fetch] does not update the local
-        branches, use {{S.Sync.pull}pull} instead. *)
+        branches, use {{!S.Sync.pull}pull} instead. *)
 
     val pull: db -> ?depth:int -> remote -> [`Merge | `Update] ->
       unit Merge.result Lwt.t
@@ -758,61 +805,69 @@ end
 
 (** {1 Backends} *)
 
-(** [Backend] provides the signatures that every backend should satisfy. *)
-module Backend: sig
+(** A backend is an implementation exposing either a concrete
+    implementation of {!S} or a functor providing {!S} once
+    applied. *)
 
-  (** [Hash] provides function to digest user-defined serialized
-    contents. Some backends might be parameterize by such a hash
-    functions, other might work with a fixed one (for instance, the
-    Git format use only SHA1).
+(** [AO_MAKER] is the signature exposed by any backend providing
+    append-only stores. [K] is the implementation of keys and [V] is
+    the implementation of values. *)
+module type AO_MAKER =
+  functor (K: Hash.S) ->
+  functor (V: Tc.S0) ->
+    AO with type key = K.t and type value = V.t
 
-    An {{!Hash.SHA1}SHA1} implementation is available to pass to the
-    backends. *)
-  module Hash: sig
+(** [RW_MAKER] is the signature exposed by any backend providing
+    read-write stores. [K] is the implementation of keys and [V] is
+    the implementation of values.*)
+module type RW_MAKER =
+  functor (K: Tc.S0) ->
+  functor (V: Tc.S0) ->
+    RW with type key = K.t and type value = V.t
 
-    (** {1 Contents Hashing} *)
-
-    module type S = sig
-
-      (** Signature for unique identifiers. *)
-
-      include Tc.S0
-
-      val digest: Cstruct.t -> t
-      (** Compute a deterministic store key from a cstruct value. *)
-
-    end
-    (** Signature for hash values. *)
-
-    module SHA1: S
-    (** SHA1 digests *)
-
-  end
-
-  module AO: sig
-    module type MAKER = functor (K: Hash.S) -> functor (V: Tc.S0) ->
-      AO with type key = K.t and type value = V.t
-    (** Signature of functor creating append-only stores. *)
-  end
-
-  module RW: sig
-    module type MAKER = functor (K: Tc.S0) -> functor (V: Tc.S0) ->
-      RW with type key = K.t and type value = V.t
-    (** Signature of functors creating read-write stores. *)
-  end
-
-  (** A simple backend, with no native synchronisation. *)
-  module Simple
-      (K: Hash.S)
-      (S: Tc.S0)
-      (C: Contents.S)
-      (T: Tag.S)
-      (AO: AO.MAKER)
-      (RW: RW.MAKER):
+(** [S_MAKER] is the signature exposed by any backend providing {!S}
+    implementations. [S] is the type of steps (a key is list of
+    steps), [C] is the implementation of user-defined contents, [T] is
+    the implementation of store tags and [H] is the implementation of
+    store heads. *)
+module type S_MAKER =
+  functor (S: Tc.S0) ->
+  functor (C: Contents.S) ->
+  functor (T: Tag.S) ->
+  functor (H: Hash.S) ->
     S with type step = S.t
        and type value = C.t
        and type tag = T.t
-       and type head = K.t
+       and type head = H.t
+
+(** [Private] defines functions only useful for creting new
+    backends. If you are just using the library (and not developping a
+    new backend), you should not use this module. *)
+module Private: sig
+
+
+  (** API to create new Irmin backends.
+
+      There are two ways to create a concrete {!Irmin.S} implementation.
+
+      {!Make} creates a store where all the objects are stored in the
+      same store, using the same internal keys format and a custom
+      binary format based on {:https://github.com/janestreet/bin_prot},
+      with no native synchronisation primitives: it is usually what is
+      needed to quickly create a new backend.
+
+      {!Make_ext} creates a store with a {e deep} embedding of each of
+      the internal stores into separate store, with a total control over
+      the binary format and using the native synchronisation protocols
+      when available. This is mainly used by the Git backend, but could
+      be used for other similar backends as well in the future.
+
+  *)
+
+  (** [Make] is an helper to generate {e simple} implementation
+      satisfying the {!Irmin.S} signature, with no native
+      synchronisation primitives. *)
+  module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 
   (** Backend-specific configuration values. *)
   module Config: sig
@@ -839,67 +894,13 @@ module Backend: sig
         {- a type-class to show and serialize universal values.}
         } *)
 
-    val of_dict: (string * univ) list -> config
+    val of_dict: (string * univ) list -> t
     (** Convert a dictionary of universal values into an abstract store
         config. *)
 
-    val to_dict: config -> (string * univ) list
+    val to_dict: t -> (string * univ) list
     (** Convert a configuration value into a dictionary of universal
         values. *)
-
-  end
-
-  (** [Watch] provides helpers to register key watchers. *)
-  module Watch: sig
-
-    (** {1 Watch Helpers} *)
-
-    (** The signature for watch helpers. *)
-    module type S = sig
-
-      (** {1 Watch Helpers} *)
-
-      type key
-      (** The type for store keys. *)
-
-      type value
-      (** The type for store values. *)
-
-      type t
-      (** The type for watch state. *)
-
-      val notify: t -> key -> value option -> unit
-      (** Notify all listeners in the given watch state that a key has
-          changed, with the new value associated to this key. If the
-          argument is [None], this means the key has been removed. *)
-
-      val create: unit -> t
-      (** Create a watch state. *)
-
-      val clear: t -> unit
-      (** Clear all register listeners in the given watch state. *)
-
-      val watch: t -> key -> value option -> value option Lwt_stream.t
-      (** Create a stream of value notifications. Need to provide the
-          initial value, or [None] if the key does not have associated
-          contents yet.  *)
-
-      val listen_dir: t -> string
-        -> key:(string -> key option)
-        -> value:(key -> value option Lwt.t)
-        -> unit
-        (** Register a fsevents/inotify thread to look for changes in
-            the given directory. *)
-
-    end
-
-    val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
-    (** Register a function which looks for file changes in a
-        directory. Could use [inotify] when available, or use an active
-        stats file polling.*)
-
-    (** [Make] builds an implementation of watch helpers. *)
-    module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
   end
 
@@ -981,6 +982,11 @@ module Backend: sig
       (** Is the node empty. *)
     end
 
+    module Make (C: Tc.S0) (N: Tc.S0) (S: Tc.S0):
+      S with type contents = C.t
+         and type node = N.t
+         and type step = S.t
+
     module type STORE = sig
 
       include AO
@@ -995,13 +1001,7 @@ module Backend: sig
       module Val: S with type t = value
                      and type node = key
                      and type step = Step.t
-
     end
-
-    module Make (C: Tc.S0) (N: Tc.S0) (S: Tc.S0):
-      S with type contents = C.t
-         and type node = N.t
-         and type step = S.t
 
   end
 
@@ -1046,6 +1046,10 @@ module Backend: sig
 
     end
 
+    module Make (C: Tc.S0) (N: Tc.S0):
+      S with type commit := C.t
+         and type node = N.t
+
     module type STORE = sig
 
       include AO
@@ -1057,10 +1061,6 @@ module Backend: sig
       module Val: S with type t = value and type commit := key
 
     end
-
-    module Make (C: Tc.S0) (N: Tc.S0):
-      S with type commit := C.t
-         and type node = N.t
 
   end
 
@@ -1126,8 +1126,8 @@ module Backend: sig
 
   end
 
-  (** [BC] builds an high-level branch-consistent store using
-      lower-level user-provided stores.
+  (** [BC] builds an helper to build an high-level branch-consistent
+      store using a collection of lower-level user-provided stores.
 
       {ul
       {- [C] is an append-only store where user-defined contents is stored.}
@@ -1142,14 +1142,14 @@ module Backend: sig
       (H: Commit.STORE with type Val.node = N.key)
       (T: Tag.STORE with type value = H.key):
     BC with type key = N.Step.t list
-       and type value = C.value
-       and type tag = T.key
-       and type head = H.key
+        and type value = C.value
+        and type tag = T.key
+        and type head = H.key
 
   (** [Make] builds an high-level Irmin store using lower-level
       user-provided store and a native synchronisation
       implementation. See {{!Backend.BC}BC} for details. *)
-  module Make
+  module Make_ext
       (C: Contents.STORE)
       (N: Node.STORE with type Val.contents = C.key)
       (H: Commit.STORE with type Val.node = N.key)
@@ -1160,50 +1160,60 @@ module Backend: sig
        and type tag = T.key
        and type head = H.key
 
+
+  (** [Watch] provides helpers to register event notifications on
+      read-write stores. *)
+  module Watch: sig
+
+    (** {1 Watch Helpers} *)
+
+    (** The signature for watch helpers. *)
+    module type S = sig
+
+      (** {1 Watch Helpers} *)
+
+      type key
+      (** The type for store keys. *)
+
+      type value
+      (** The type for store values. *)
+
+      type t
+      (** The type for watch state. *)
+
+      val notify: t -> key -> value option -> unit
+      (** Notify all listeners in the given watch state that a key has
+          changed, with the new value associated to this key. If the
+          argument is [None], this means the key has been removed. *)
+
+      val create: unit -> t
+      (** Create a watch state. *)
+
+      val clear: t -> unit
+      (** Clear all register listeners in the given watch state. *)
+
+      val watch: t -> key -> value option -> value option Lwt_stream.t
+      (** Create a stream of value notifications. Need to provide the
+          initial value, or [None] if the key does not have associated
+          contents yet.  *)
+
+      val listen_dir: t -> string
+        -> key:(string -> key option)
+        -> value:(key -> value option Lwt.t)
+        -> unit
+        (** Register a fsevents/inotify thread to look for changes in
+            the given directory. *)
+
+    end
+
+    val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
+    (** Register a function which looks for file changes in a
+        directory. Could use [inotify] when available, or use an active
+        stats file polling.*)
+
+    (** [Make] builds an implementation of watch helpers. *)
+    module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
+
+  end
+
 end
-
-(*
-(** {2 Backends} *)
-
-module Backend: sig
-
-  (** {2 Basic Store Makers} *)
-
-  module Maker: sig
-
-    module type RO =
-      functor (K: Tc.I0) ->
-      functor (V: Tc.I0) ->
-        RO with type key = K.t and type value = V.t
-    (** Signature for functor creating read-only stores. *)
-
-  end
-
-  (** {2 Binary stores} *)
-
-  module Binary: sig
-
-    module type RO = RO with type key = Cstruct.t and type value = Cstruct.t
-    (** Binary read-only stores. Keys, values and origin are cstruct
-        buffers. *)
-
-    module RO (S: RO) (K: Tc.I0) (V: Tc.I0): Maker.RO
-    (** Create a typed read-only store from a binary one. *)
-
-  end
-
-  (** {2 JSON stores} *)
-
-  module Json: sig
-
-    module type RO = RO with type key = Ezjsonm.t and type value = Ezjsonm.t
-    (** Binary read-only stores. Keys, values and origin are cstruct
-        buffers. *)
-
-    module RO (S: RO) (K: Tc.I0) (V: Tc.I0): Maker.RO
-    (** Create a typed read-only store from a JSON one. *)
-
-  end
-
-end
-*)

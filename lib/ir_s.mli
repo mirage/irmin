@@ -37,7 +37,19 @@ module type STORE = sig
      and type head := head
 end
 
-module Make
+module type MAKER =
+  functor (S: Tc.S0) ->
+  functor (C: Ir_contents.S) ->
+  functor (T: Ir_tag.S) ->
+  functor (H: Ir_hash.S) ->
+    STORE with type step = S.t
+           and type value = C.t
+           and type tag = T.t
+           and type head = H.t
+
+module Make (AO: Ir_ao.MAKER) (RW: Ir_rw.MAKER): MAKER
+
+module Make_ext
     (C: Ir_contents.STORE)
     (N: Ir_node.STORE with type Val.contents = C.key)
     (S: Ir_commit.STORE with type Val.node = N.key)
@@ -47,15 +59,3 @@ module Make
          and type value = C.value
          and type tag = T.key
          and type head = S.key
-
-module Simple
-    (K: Ir_hash.S)
-    (S: Tc.S0)
-    (C: Ir_contents.S)
-    (T: Ir_tag.S)
-    (AO: Ir_ao.MAKER)
-    (RW: Ir_rw.MAKER):
-  STORE with type step = S.t
-         and type value = C.t
-         and type tag = T.t
-         and type head = K.t

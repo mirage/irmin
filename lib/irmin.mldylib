@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 616a807229b55454948c1f2e53b98509)
+# DO NOT EDIT (digest: 0973173d76c0bcae2aacfe8a11e4ccae)
 Irmin
 Ir_misc
 Ir_graph
@@ -14,7 +14,6 @@ Ir_s
 Ir_commit
 Ir_tag
 Ir_contents
-Ir_backend
 Ir_node
 Ir_version
 Ir_dot

@@ -8,7 +8,15 @@ Plugins:     META (0.4), DevFiles (0.4)
 BuildTools:  ocamlbuild
 
 Flag unix
-  Description: build the Unix library
+  Description: build the unix libraries
+  Default: true
+
+Flag http
+  Description: build the http libraries
+  Default: true
+
+Flag git
+  Description: build the git libraries
   Default: true
 
 Flag examples
@@ -20,7 +28,7 @@ Library irmin
   Findlibname:     irmin
   InternalModules: Ir_misc, Ir_graph, Ir_hash, Ir_snapshot, Ir_block,
                    Ir_ro, Ir_ao, Ir_rw, Ir_config, Ir_s,
-                   Ir_commit, Ir_tag, Ir_contents, Ir_backend,
+                   Ir_commit, Ir_tag, Ir_contents,
                    Ir_node, Ir_version, Ir_dot, Ir_step, Ir_watch,
                    Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync
   Modules:         Irmin
@@ -35,55 +43,81 @@ Document irmin
   XOCamlbuildPath:      lib/
   XOCamlbuildLibraries: irmin
 
-Library "irmin-backend"
-  Path:          lib/backend
-  Findlibname:   backend
+Library "irmin-mem"
+  Path:          lib/mem
+  Findlibname:   mem
   FindlibParent: irmin
-  BuildDepends:  irmin, cohttp.lwt, ezjsonm.lwt, git
-  Modules:       Irmin_git, Irmin_memory
-#  Modules:       Irmin_CRUD, Irmin_FS
+  BuildDepends:  irmin
+  Modules:       Irmin_mem
 
-# Library "irmin-server"
-#  Path:          lib/server
-#  Findlibname:   server
-#  FindlibParent: irmin
-#  BuildDepends:  cohttp.lwt, irmin
-#  Modules:       Irmin_HTTP, Ir_HTTP_static
+Library "irmin-git"
+  Build$:        flag(git)
+  Install$:      flag(git)
+  Path:          lib/git
+  Findlibname:   git
+  FindlibParent: irmin
+  BuildDepends:  irmin, git
+  Modules:       Irmin_git
+
+Library "irmin-fs"
+  Path:          lib/fs
+  Findlibname:   fs
+  FindlibParent: irmin
+  BuildDepends:  irmin
+  Modules:       Irmin_fs
+
+Library "irmin-http"
+  Build$:          flag(http)
+  Install$:        flag(http)
+  Path:            lib/http
+  Findlibname:     http
+  FindlibParent:   irmin
+  BuildDepends:    irmin, cohttp.lwt-core, ezjsonm.lwt
+  InternalModules: Irmin_http_static
+  Modules:         Irmin_http, Irmin_http_server
 
 Library "irmin-unix"
-  Build$:        flag(unix)
-  Install$:      flag(unix)
+  Build$:        flag(unix) && flag(http) && flag(git)
+  Install$:      flag(unix) && flag(http) && flag(git)
   Path:          lib/unix
   Findlibname:   unix
   FindlibParent: irmin
-  BuildDepends:  irmin, lwt.unix, irmin.backend, irmin.server, git.unix
+  BuildDepends:  irmin, irmin.git, irmin.fs, irmin.http, git.unix, cohttp.lwt
   Modules:       Irmin_unix
 
+Document backend
+  Title:                Irmin backends docs
+  Type:                 OCamlbuild (0.4)
+  BuildTools+:          ocamldoc
+  Install:              true
+  XOCamlbuildPath:      lib/
+  XOCamlbuildLibraries: irmin.mem, irmin.git, irmin.fs, irmin.http, irmin.unix
+
 Executable irmin
+  Build$:         flag(unix) && flag(http) && flag(git)
+  Install$:       flag(unix) && flag(http) && flag(git)
   Path:           lib/driver
-  MainIs:         irminMain.ml
-  Build$:         flag(unix)
+  MainIs:         main.ml
   CompiledObject: best
-  Install:        true
   BuildDepends:   cmdliner, irmin, irmin.unix
 
 Executable test_irmin
   Path:           lib_test
   MainIs:         test.ml
-  Build$:         flag(tests) && flag(unix)
+  Build$:         flag(tests) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix, alcotest, cryptokit
 
 Test test_irmin
-  Run$:             flag(tests) && flag(unix)
+  Run$:             flag(tests) && flag(unix) && flag(http) && flag(git)
   Command:          $test_irmin -q
   WorkingDirectory: lib_test
 
 Executable test_git_store
   Path:           examples/
   MainIs:         git_store.ml
-  Build$:         flag(unix) & flag(examples)
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix
@@ -91,7 +125,7 @@ Executable test_git_store
 Executable test_custom_merge
   Path:           examples/
   MainIs:         custom_merge.ml
-  Build$:         flag(unix) & flag(examples)
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix
@@ -99,7 +133,7 @@ Executable test_custom_merge
 Executable test_views
   Path:           examples/
   MainIs:         views.ml
-  Build$:         flag(unix) & flag(examples)
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix
@@ -107,7 +141,7 @@ Executable test_views
 Executable test_contatcs
   Path:           examples/
   MainIs:         contacts.ml
-  Build$:         flag(unix) & flag(examples)
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix
@@ -115,7 +149,7 @@ Executable test_contatcs
 Executable test_intrusion
   Path:           examples/
   MainIs:         intrusion.ml
-  Build$:         flag(unix) & flag(examples)
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix
@@ -123,15 +157,7 @@ Executable test_intrusion
 Executable test_process
   Path:           examples/
   MainIs:         process.ml
-  Build$:         flag(unix) & flag(examples)
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix
-
-Document backend
-  Title:                Irmin backends docs
-  Type:                 OCamlbuild (0.4)
-  BuildTools+:          ocamldoc
-  Install:              true
-  XOCamlbuildPath:      lib/backend
-  XOCamlbuildLibraries: irmin.backend

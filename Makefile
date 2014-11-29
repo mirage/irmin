@@ -4,10 +4,10 @@ PREFIX ?= /usr/local
 VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
 SETUP   = ocaml setup.ml
 VFILE   = lib/ir_version.ml
-SFILE   = lib/server/ir_HTTP_static.ml
-SFILES  = $(wildcard lib/server/static/*.js) \
-	  $(wildcard lib/server/static/*.html) \
-	  $(wildcard lib/server/static/*.css)
+SFILE   = lib/http/irmin_http_static.ml
+SFILES  = $(wildcard lib/http/static/*.js) \
+	  $(wildcard lib/http/*.html) \
+	  $(wildcard lib/http/static/*.css)
 
 build: setup.data $(VFILE) $(SFILE)
 	$(SETUP) -build $(BUILDFLAGS)
@@ -47,4 +47,4 @@ $(VFILE): _oasis
 	echo "let current = \"$(VERSION)\"" > $@
 
 $(SFILE): $(SFILES)
-	cd lib/server/ && ./make_static.sh
+	cd lib/http/ && ./make_static.sh
