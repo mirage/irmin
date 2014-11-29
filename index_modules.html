@@ -23,12 +23,25 @@
 </div>
 </td></tr>
 <tr><td align="left"><br>B</td></tr>
-<tr><td><a href="Irmin.Backend.html">Backend</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin.Private.BC.html">BC</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
 <td><div class="info">
-<code class="code">Backend</code> provides the signatures that every backend should satisfy.
+<code class="code">BC</code> builds an helper to build an high-level branch-consistent
+      store using a collection of lower-level user-provided stores.
 </div>
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
+<tr><td><a href="Irmin.Private.Commit.html">Commit</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td><div class="info">
+Commit values represent the store history.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Config.html">Config</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td><div class="info">
+Backend-specific configuration values.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Contents.html">Contents</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Contents.html">Contents</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
@@ -50,7 +63,7 @@ Cstruct values where only the last modified value is kept on
 <tr><td align="left"><br>H</td></tr>
 <tr><td><a href="Irmin.Hash.html">Hash</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-<code class="code">Hash</code> provides function to digest user-defined serialized
+<code class="code">Hash</code> provides user-defined hash function to digest serialized
     contents.
 </div>
 </td></tr>
@@ -69,22 +82,22 @@ JSON values where only the last modified value is kept on
 </div>
 </td></tr>
 <tr><td align="left"><br>K</td></tr>
-<tr><td><a href="Irmin.Backend.TAG.Key.html">Key</a> [<a href="Irmin.Backend.TAG.html">Irmin.Backend.TAG</a>]</td>
+<tr><td><a href="Irmin.Private.Tag.STORE.Key.html">Key</a> [<a href="Irmin.Private.Tag.STORE.html">Irmin.Private.Tag.STORE</a>]</td>
 <td><div class="info">
 Base functions over keys.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.COMMIT.Key.html">Key</a> [<a href="Irmin.Backend.COMMIT.html">Irmin.Backend.COMMIT</a>]</td>
+<tr><td><a href="Irmin.Private.Commit.STORE.Key.html">Key</a> [<a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a>]</td>
 <td><div class="info">
 <code class="code">Key</code> provides base functions for commit keys.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Key.html">Key</a> [<a href="Irmin.Backend.NODE.html">Irmin.Backend.NODE</a>]</td>
+<tr><td><a href="Irmin.Private.Node.STORE.Key.html">Key</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
 <td><div class="info">
 <code class="code">Key</code> provides base functions for node keys.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.CONTENTS.Key.html">Key</a> [<a href="Irmin.Backend.CONTENTS.html">Irmin.Backend.CONTENTS</a>]</td>
+<tr><td><a href="Irmin.Private.Contents.STORE.Key.html">Key</a> [<a href="Irmin.Private.Contents.STORE.html">Irmin.Private.Contents.STORE</a>]</td>
 <td><div class="info">
 <code class="code">Key</code> provides base functions for user-defined contents keys.
 </div>
@@ -95,9 +108,27 @@ Base functions over keys.
 </div>
 </td></tr>
 <tr><td align="left"><br>M</td></tr>
-<tr><td><a href="Irmin.Backend.Make.html">Make</a> [<a href="Irmin.Backend.html">Irmin.Backend</a>]</td>
+<tr><td><a href="Irmin.Private.Watch.Make.html">Make</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
 <td><div class="info">
-<code class="code">Make</code> builds a new Irmin implementation using 4 user-provided stores.
+<code class="code">Make</code> builds an implementation of watch helpers.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Commit.Make.html">Make</a> [<a href="Irmin.Private.Commit.html">Irmin.Private.Commit</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Node.Make.html">Make</a> [<a href="Irmin.Private.Node.html">Irmin.Private.Node</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Make.html">Make</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td><div class="info">
+<code class="code">Make</code> is an helper to generate <em>simple</em> implementation
+      satisfying the <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> signature, with no native
+      synchronisation primitives.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Make_ext.html">Make_ext</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td><div class="info">
+<code class="code">Make</code> builds an high-level Irmin store using lower-level
+      user-provided store and a native synchronisation
+      implementation.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.Map.html">Map</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
@@ -111,10 +142,35 @@ Lift to maps.
     for various user-defined contents.
 </div>
 </td></tr>
+<tr><td align="left"><br>N</td></tr>
+<tr><td><a href="Irmin.Private.Node.html">Node</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td><div class="info">
+<code class="code">Node</code> provides functions to describe the graph-like structured
+      values.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Sync.None.html">None</a> [<a href="Irmin.Private.Sync.html">Irmin.Private.Sync</a>]</td>
+<td><div class="info">
+<code class="code">None</code> is an implementation of <a href="Irmin.Private.Sync.S.html">S</a> which
+        does nothing.
+</div>
+</td></tr>
 <tr><td align="left"><br>O</td></tr>
 <tr><td><a href="Irmin.Merge.OP.html">OP</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Useful merge operators.
+</div>
+</td></tr>
+<tr><td align="left"><br>P</td></tr>
+<tr><td><a href="Irmin.Step.Path.html">Path</a> [<a href="Irmin.Step.html">Irmin.Step</a>]</td>
+<td><div class="info">
+A list of steps, representing keys in an Irmin store.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.html">Private</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code">Private</code> defines functions only useful for creting new
+    backends.
 </div>
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
@@ -140,7 +196,7 @@ Base functions over slices.
       store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Step.html">Step</a> [<a href="Irmin.Backend.NODE.html">Irmin.Backend.NODE</a>]</td>
+<tr><td><a href="Irmin.Private.Node.STORE.Step.html">Step</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
 <td><div class="info">
 <code class="code">Step</code> provides base functions over node steps.
 </div>
@@ -150,9 +206,15 @@ Base functions over slices.
 <code class="code">Step</code> provides base functions over steps.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.StepMap.html">StepMap</a> [<a href="Irmin.Backend.NODE.html">Irmin.Backend.NODE</a>]</td>
+<tr><td><a href="Irmin.Step.html">Step</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-<code class="code">StepMap</code> provides base funtions over node paths.
+<code class="code">Step</code> provides functions to manipulate keys: Irmin
+    <a href="Irmin.S.html">stores</a> use list of steps as keys.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Step.String.html">String</a> [<a href="Irmin.Step.html">Irmin.Step</a>]</td>
+<td><div class="info">
+An implementation of steps using strings.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Tag.String.html">String</a> [<a href="Irmin.Tag.html">Irmin.Tag</a>]</td>
@@ -167,6 +229,8 @@ String values where only the last modified value is kept on
       merge.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Sync.html">Sync</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.S.Sync.html">Sync</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
 <code class="code">Sync</code> provides functions to synchronization an Irmin store with
@@ -174,6 +238,11 @@ String values where only the last modified value is kept on
 </div>
 </td></tr>
 <tr><td align="left"><br>T</td></tr>
+<tr><td><a href="Irmin.Private.Tag.html">Tag</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td><div class="info">
+Tags defines branch names.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Tag.html">Tag</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 User-defined tags.
@@ -185,29 +254,23 @@ Tasks are used to keep track of the origin of reads and writes in
     the store.
 </div>
 </td></tr>
-<tr><td align="left"><br>U</td></tr>
-<tr><td><a href="Irmin.Univ.html">Univ</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-Universal values.
-</div>
-</td></tr>
 <tr><td align="left"><br>V</td></tr>
-<tr><td><a href="Irmin.Backend.TAG.Val.html">Val</a> [<a href="Irmin.Backend.TAG.html">Irmin.Backend.TAG</a>]</td>
+<tr><td><a href="Irmin.Private.Tag.STORE.Val.html">Val</a> [<a href="Irmin.Private.Tag.STORE.html">Irmin.Private.Tag.STORE</a>]</td>
 <td><div class="info">
 Base functions over values.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.COMMIT.Val.html">Val</a> [<a href="Irmin.Backend.COMMIT.html">Irmin.Backend.COMMIT</a>]</td>
+<tr><td><a href="Irmin.Private.Commit.STORE.Val.html">Val</a> [<a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a>]</td>
 <td><div class="info">
 <code class="code">Val</code> provides function for commit values.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html">Val</a> [<a href="Irmin.Backend.NODE.html">Irmin.Backend.NODE</a>]</td>
+<tr><td><a href="Irmin.Private.Node.STORE.Val.html">Val</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
 <td><div class="info">
 <code class="code">Val</code> provides base functions for node values.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.CONTENTS.Val.html">Val</a> [<a href="Irmin.Backend.CONTENTS.html">Irmin.Backend.CONTENTS</a>]</td>
+<tr><td><a href="Irmin.Private.Contents.STORE.Val.html">Val</a> [<a href="Irmin.Private.Contents.STORE.html">Irmin.Private.Contents.STORE</a>]</td>
 <td><div class="info">
 <code class="code">Val</code> provides base function for user-defined contents values.
 </div>
@@ -222,6 +285,13 @@ Base functions over values.
 <td><div class="info">
 <code class="code">View</code> provides an in-memory partial mirror of the store, with
       lazy reads and delayed write.
+</div>
+</td></tr>
+<tr><td align="left"><br>W</td></tr>
+<tr><td><a href="Irmin.Private.Watch.html">Watch</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td><div class="info">
+<code class="code">Watch</code> provides helpers to register event notifications on
+      read-write stores.
 </div>
 </td></tr>
 </table>

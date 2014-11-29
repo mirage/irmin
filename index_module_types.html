@@ -21,30 +21,19 @@
 Append-only store.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.AO_MAKER.html">AO_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code">AO_MAKER</code> is the signature exposed by any backend providing
+    append-only stores.
+</div>
+</td></tr>
 <tr><td align="left"><br>B</td></tr>
 <tr><td><a href="Irmin.BC.html">BC</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Branch-consistent stores.
 </div>
 </td></tr>
-<tr><td align="left"><br>C</td></tr>
-<tr><td><a href="Irmin.Backend.COMMIT.html">COMMIT</a> [<a href="Irmin.Backend.html">Irmin.Backend</a>]</td>
-<td><div class="info">
-Commit values represent the store history.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Backend.CONTENTS.html">CONTENTS</a> [<a href="Irmin.Backend.html">Irmin.Backend</a>]</td>
-<td></td></tr>
-<tr><td align="left"><br>N</td></tr>
-<tr><td><a href="Irmin.Backend.NODE.html">NODE</a> [<a href="Irmin.Backend.html">Irmin.Backend</a>]</td>
-<td><div class="info">
-<code class="code">Node</code> provides functions to describe the graph-like structured
-      values.
-</div>
-</td></tr>
 <tr><td align="left"><br>R</td></tr>
-<tr><td><a href="Irmin.Backend.REMOTE.html">REMOTE</a> [<a href="Irmin.Backend.html">Irmin.Backend</a>]</td>
-<td></td></tr>
 <tr><td><a href="Irmin.RO.html">RO</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Read-only stores.
@@ -55,17 +44,36 @@ Read-only stores.
 Read-write stores.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.RW_MAKER.html">RW_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code">RW_MAKER</code> is the signature exposed by any backend providing
+    read-write stores.
+</div>
+</td></tr>
 <tr><td align="left"><br>S</td></tr>
 <tr><td><a href="Irmin.S.html">S</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Irmin high-level stores.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Watch.S.html">S</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
+<td><div class="info">
+The signature for watch helpers.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Sync.S.html">S</a> [<a href="Irmin.Private.Sync.html">Irmin.Private.Sync</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Commit.S.html">S</a> [<a href="Irmin.Private.Commit.html">Irmin.Private.Commit</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Node.S.html">S</a> [<a href="Irmin.Private.Node.html">Irmin.Private.Node</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Hash.S.html">S</a> [<a href="Irmin.Hash.html">Irmin.Hash</a>]</td>
 <td><div class="info">
 Signature for hash values.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Step.S.html">S</a> [<a href="Irmin.Step.html">Irmin.Step</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Tag.S.html">S</a> [<a href="Irmin.Tag.html">Irmin.Tag</a>]</td>
 <td><div class="info">
 A tag implementations specifies base functions over abstract
@@ -75,10 +83,18 @@ A tag implementations specifies base functions over abstract
 </td></tr>
 <tr><td><a href="Irmin.Contents.S.html">S</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
 <td></td></tr>
-<tr><td align="left"><br>T</td></tr>
-<tr><td><a href="Irmin.Backend.TAG.html">TAG</a> [<a href="Irmin.Backend.html">Irmin.Backend</a>]</td>
+<tr><td><a href="Irmin.Private.Tag.STORE.html">STORE</a> [<a href="Irmin.Private.Tag.html">Irmin.Private.Tag</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Commit.STORE.html">STORE</a> [<a href="Irmin.Private.Commit.html">Irmin.Private.Commit</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Node.STORE.html">STORE</a> [<a href="Irmin.Private.Node.html">Irmin.Private.Node</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Contents.STORE.html">STORE</a> [<a href="Irmin.Private.Contents.html">Irmin.Private.Contents</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.S_MAKER.html">S_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-Tags defines branch names.
+<code class="code">S_MAKER</code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code">Irmin.S</code></a>
+    implementations.
 </div>
 </td></tr>
 </table>

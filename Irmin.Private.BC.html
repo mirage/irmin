@@ -1,0 +1,262 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Private.Sync.html">
+<link rel="next" href="Irmin.Private.Make_ext.html">
+<link rel="Up" href="Irmin.Private.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Branch-consistent Store" rel="Section" href="#1_BranchconsistentStore">
+<link title="Persistent Stores" rel="Subsection" href="#persistent">
+<link title="Temporary Stores" rel="Subsection" href="#temporary">
+<link title="Clones and Merges" rel="Subsection" href="#2_ClonesandMerges">
+<link title="Slices" rel="Subsection" href="#2_Slices">
+<title>Irmin.Private.BC</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Private.Sync.html" title="Irmin.Private.Sync">Previous</a>
+&nbsp;<a class="up" href="Irmin.Private.html" title="Irmin.Private">Up</a>
+&nbsp;<a class="post" href="Irmin.Private.Make_ext.html" title="Irmin.Private.Make_ext">Next</a>
+</div>
+<h1>Functor <a href="type_Irmin.Private.BC.html">Irmin.Private.BC</a></h1>
+
+<pre><span class="keyword">module</span> BC: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Contents.STORE.html">Contents.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">Node.STORE</a></code><code class="type">  with type Val.contents = C.key</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">Commit.STORE</a></code><code class="type">  with type Val.node = N.key</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Tag.STORE.html">Tag.STORE</a></code><code class="type">  with type value = H.key</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.BC.html">Irmin.BC</a></code><code class="type">  with type key = N.Step.t list
+        and type value = C.value
+        and type tag = T.key
+        and type head = H.key</code></div></div></div></div></pre><div class="info module top">
+<code class="code">BC</code> builds an helper to build an high-level branch-consistent
+      store using a collection of lower-level user-provided stores.
+<p>
+
+      <ul>
+<li><code class="code">C</code> is an append-only store where user-defined contents is stored.</li>
+<li><code class="code">N</code> is an append-only store where the prefix-tree storing user-defined paths is stored.</li>
+<li><code class="code">H</code> is an append-only store where history commits are stored.</li>
+<li><code class="code">T</code> is a read-write store where branch names are stored.</li>
+</ul>
+<br>
+</div>
+<table border="0" cellpadding="3" width="100%">
+<tr>
+<td align="left" valign="top" width="1%%"><b>Parameters: </b></td>
+<td>
+<table class="paramstable">
+<tr>
+<td align="center" valign="top" width="15%">
+<code>C</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type"><a href="Irmin.Private.Contents.STORE.html">Contents.STORE</a></code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>N</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Node.STORE with type Val.contents = C.key</code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>H</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Commit.STORE with type Val.node = N.key</code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>T</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Tag.STORE with type value = H.key</code>
+</table>
+</td>
+</tr>
+</table>
+<hr width="100%">
+<br>
+<h1 id="1_BranchconsistentStore">Branch-consistent Store</h1>
+<p>
+
+      They are two kinds of branch consistent stores: the
+      <a href="Irmin.BC.html#persistent">persistent</a> and the <a href="Irmin.BC.html#temporary">temporary</a> ones.
+<p>
+
+      <h2 id="persistent">Persistent Stores</h2>
+<p>
+
+      The persistent stores are associated to a branch name, or
+      <a href="Irmin.BC.html#VALtag">tag</a>. The tag value is updated every time the
+      store is updated, so every handle connected or which will be
+      connected to the same tag will see the changes.
+<p>
+
+      These stores can be created using the
+      <a href="Irmin.BC.html#VALof_tag">of_tag</a> functions.<br>
+
+<pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
+<br>
+A branch-consistent store is read-write.
+<p>
+
+      <code class="code">create config task</code> is a persistent store handle on the
+      <code class="code">master</code> branch. This operation is cheap, can be repeated
+      multiple times and is expected to be done for every new user
+      task.<br>
+
+<pre><span id="TYPEtag"><span class="keyword">type</span> <code class="type"></code>tag</span> </pre>
+<div class="info ">
+Type for branch names, or tags. Tags usually share a common
+      global namespace and that's the user responsibility to avoid
+      name-clashes.<br>
+</div>
+
+
+<pre><span id="VALof_tag"><span class="keyword">val</span> of_tag</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> <a href="Irmin.html#TYPEtask">Irmin.task</a> -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> t Lwt.t</code></pre><div class="info ">
+<code class="code">create t tag</code> is a persistent store handle. Similar to
+      <code class="code">create</code>, but use the <code class="code">tag</code> branch instead of the <code class="code">master</code>
+      one.<br>
+</div>
+
+<pre><span id="VALtag"><span class="keyword">val</span> tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> option</code></pre><div class="info ">
+<code class="code">tag t</code> is the tag associated to the store handle <code class="code">t</code>. <code class="code">None</code>
+      means that the branch is not persistent.<br>
+</div>
+
+<pre><span id="VALtag_exn"><span class="keyword">val</span> tag_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a></code></pre><div class="info ">
+Same as <code class="code">tag</code> but raise <code class="code">Not_found</code> if the store handle is not
+      persistent.<br>
+</div>
+
+<pre><span id="VALupdate_tag"><span class="keyword">val</span> update_tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> [ `Duplicated_tag | `Ok ] Lwt.t</code></pre><div class="info ">
+Change the current tag name. Fail if a tag with the same name
+      already exists. The head is unchanged.<br>
+</div>
+
+<pre><span id="VALupdate_tag_force"><span class="keyword">val</span> update_tag_force</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
+Same as <code class="code">update_tag</code> but delete and update the tag if it already
+      exists.<br>
+</div>
+
+<pre><span id="VALswitch"><span class="keyword">val</span> switch</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
+Switch the store contents the be same as the contents of the
+      given branch name. The two branches are still independent.<br>
+</div>
+
+<pre><span id="VALdetach"><span class="keyword">val</span> detach</span> : <code class="type">t -> unit Lwt.t</code></pre><div class="info ">
+Detach the current branch (i.e. it is not associated to a tag
+      anymore).<br>
+</div>
+<br>
+<h2 id="temporary">Temporary Stores</h2>
+<p>
+
+      The temporary stores do not use global branch names. Instead,
+      the operations are relative to a given store revision: a
+      <a href="Irmin.BC.html#VALhead">head</a>. Every operation updates the store as a
+      normal persistent store, but the value of head is only kept
+      into the local store handle and it is not persisted into the
+      store -- this means it cannot be easily shared by concurrent
+      processes or loaded back in the future. In the Git
+      terminology, these store handle are said to be <i>detached
+      heads</i>.<br>
+
+<pre><span id="TYPEhead"><span class="keyword">type</span> <code class="type"></code>head</span> </pre>
+<div class="info ">
+Type for head values.<br>
+</div>
+
+
+<pre><span id="VALof_head"><span class="keyword">val</span> of_head</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> <a href="Irmin.html#TYPEtask">Irmin.task</a> -> <a href="Irmin.BC.html#TYPEhead">head</a> -> t Lwt.t</code></pre><div class="info ">
+Create a temporary store handle, which will not persist as it
+      has no associated to any persistent tag name.<br>
+</div>
+
+<pre><span id="VALhead"><span class="keyword">val</span> head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> option Lwt.t</code></pre><div class="info ">
+Return the head commit. This works for both persistent and
+      temporary stores. In the case of a persistent store, this
+      involves looking into the value associated to the branch tag,
+      so this might blocks. In the case of a temporary store, it is
+      a simple (non-blocking) look-up in the store handle local
+      state.<br>
+</div>
+
+<pre><span id="VALhead_exn"><span class="keyword">val</span> head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> Lwt.t</code></pre><div class="info ">
+Same as <code class="code">read_head</code> but raise <code class="code">Not_found</code> if the commit does
+      not exist.<br>
+</div>
+
+<pre><span id="VALheads"><span class="keyword">val</span> heads</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> list Lwt.t</code></pre><div class="info ">
+The list of all the heads of the store.<br>
+</div>
+
+<pre><span id="VALupdate_head"><span class="keyword">val</span> update_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
+Set the commit head.<br>
+</div>
+
+<pre><span id="VALmerge_head"><span class="keyword">val</span> merge_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+Merge a commit with the current branch.<br>
+</div>
+
+<pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">t -> key -> (key * <a href="Irmin.BC.html#TYPEhead">head</a>) Lwt_stream.t</code></pre><div class="info ">
+Watch changes for a given collection of keys and the ones they
+      have recursive access. Return the stream of heads corresponding
+      to the modified keys.<br>
+</div>
+<br>
+<h2 id="2_ClonesandMerges">Clones and Merges</h2><br>
+
+<pre><span id="VALclone"><span class="keyword">val</span> clone</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> [ `Duplicated_tag | `Ok of t ] Lwt.t</code></pre><div class="info ">
+Fork the store, using the given branch name. Return <code class="code">None</code> if
+      the branch already exists.<br>
+</div>
+
+<pre><span id="VALclone_force"><span class="keyword">val</span> clone_force</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> t Lwt.t</code></pre><div class="info ">
+Same as <code class="code">clone</code> but delete and update the existing branch if a
+      branch with the same name already exists.<br>
+</div>
+
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<code class="code">merge db t</code> merges the branch <code class="code">t</code> into the current store
+      branch. The two branches are still independent.<br>
+</div>
+<br>
+<h2 id="2_Slices">Slices</h2><br>
+
+<pre><span id="TYPEslice"><span class="keyword">type</span> <code class="type"></code>slice</span> </pre>
+<div class="info ">
+Type for store slices.<br>
+</div>
+
+
+<pre><span class="keyword">module</span> <a href="Irmin.BC.Slice.html">Slice</a>: <code class="type">Tc.S0</code><code class="type">  with type t = slice</code></pre><div class="info">
+Base functions over slices.
+</div>
+
+<pre><span id="VALexport"><span class="keyword">val</span> export</span> : <code class="type">?full:bool -><br>       ?depth:int -><br>       ?min:<a href="Irmin.BC.html#TYPEhead">head</a> list -><br>       ?max:<a href="Irmin.BC.html#TYPEhead">head</a> list -> t -> <a href="Irmin.BC.html#TYPEslice">slice</a> Lwt.t</code></pre><div class="info ">
+<code class="code">export t ~depth ~min ~max</code> exports the store slice between
+      <code class="code">min</code> and <code class="code">max</code>, using at most <code class="code">depth</code> history depth (starting
+      from the max).
+<p>
+
+      If <code class="code">max</code> is not specified, use the current <code class="code">heads</code>. If <code class="code">min</code> is
+      not specified, use an unbound past (but can be still limited by
+      <code class="code">depth</code>).
+<p>
+
+      <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code">None</code>
+      here means no limitation.
+<p>
+
+      If <code class="code">full</code> is set (default is true) the full graph, including the
+      commits, nodes and contents, is exported, otherwise it is the
+      commit history graph only.<br>
+</div>
+
+<pre><span id="VALimport"><span class="keyword">val</span> import</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEslice">slice</a> -> [ `Duplicated_tags of <a href="Irmin.BC.html#TYPEtag">tag</a> list | `Ok ] Lwt.t</code></pre><div class="info ">
+Import a store slide. Do not modify existing tags. FIXME: do not modify tags at all.<br>
+</div>
+
+<pre><span id="VALimport_force"><span class="keyword">val</span> import_force</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEslice">slice</a> -> unit Lwt.t</code></pre><div class="info ">
+Same as <code class="code">import</code> but delete and update the tags they already
+      exist in the store.<br>
+</div>
+</body></html>

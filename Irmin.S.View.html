@@ -54,10 +54,6 @@ The type for store handles.<br>
 A view is a read-write temporary store, mirroring the main
         store.<br>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">Irmin.Task.t -> t</code></pre><div class="info ">
-The empty view.<br>
-</div>
-
 <pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> into:t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Merge the actions done on one view into an other one. If a read
         operation doesn't return the same result, return

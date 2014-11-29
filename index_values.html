@@ -38,6 +38,16 @@ Write the contents of a value to the store.
 List to association lists.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Node.S.html#VALall_contents">all_contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<td><div class="info">
+List all the contents (slow).
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.S.html#VALall_succ">all_succ</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<td><div class="info">
+List all the nodes (slow).
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALapply">apply</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 The <code class="code">apply</code> combinator is useful to untie recursive loops.
@@ -61,6 +71,11 @@ Monadic bind over Result.
 </div>
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
+<tr><td><a href="Irmin.Private.Watch.S.html#VALclear">clear</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
+<td><div class="info">
+Clear all register listeners in the given watch state.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALclone">clone</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Fork the store, using the given branch name.
@@ -83,9 +98,10 @@ Same as <code class="code">clone</code> but delete and update the existing branc
 Return <code class="code">`Conflict str</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALcontents">contents</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Node.S.html#VALcontents">contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
-<code class="code">contents t</code> is the (optional) key of the node contents.
+<code class="code">contents t s</code> are the (optional) keys of the node contents
+          for the step <code class="code">s</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALcounter">counter</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
@@ -95,34 +111,34 @@ The merge function for mergeable counters.
 </td></tr>
 <tr><td><a href="Irmin.RO.html#VALcreate">create</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
-<code class="code">create config task</code> is the store handle with the
-      configuration <code class="code">config</code> and the task <code class="code">task</code>.
+<code class="code">create config task</code> is the store handle with the configuration
+      <code class="code">config</code> and the task <code class="code">task</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.COMMIT.Val.html#VALcreate">create</a> [<a href="Irmin.Backend.COMMIT.Val.html">Irmin.Backend.COMMIT.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Watch.S.html#VALcreate">create</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
+<td><div class="info">
+Create a watch state.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Sync.S.html#VALcreate">create</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
+<td><div class="info">
+Create a remote store handle.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Commit.S.html#VALcreate">create</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
 <td><div class="info">
 Create a commit.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALcreate">create</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Node.S.html#VALcreate">create</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
-<code class="code">create ~contents succ</code> is the node with contents <code class="code">contents</code> and
-          successors <code class="code">succs</code>.
+<code class="code">create contents succ</code> is the node with contents <code class="code">contents</code>
+          and successors <code class="code">succs</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Snapshot.html#VALcreate">create</a> [<a href="Irmin.S.Snapshot.html">Irmin.S.Snapshot</a>]</td>
 <td><div class="info">
 Snapshot the current state of the store.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.S.View.html#VALcreate">create</a> [<a href="Irmin.S.View.html">Irmin.S.View</a>]</td>
-<td><div class="info">
-The empty view.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Univ.html#VALcreate">create</a> [<a href="Irmin.Univ.html">Irmin.Univ</a>]</td>
-<td><div class="info">
-Creation of universal values.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Task.html#VALcreate">create</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
@@ -157,17 +173,17 @@ Compute a deterministic store key from a cstruct value.
 </div>
 </td></tr>
 <tr><td align="left"><br>E</td></tr>
-<tr><td><a href="Irmin.Backend.COMMIT.Val.html#VALedges">edges</a> [<a href="Irmin.Backend.COMMIT.Val.html">Irmin.Backend.COMMIT.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Commit.S.html#VALedges">edges</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
 <td><div class="info">
 The graph edges.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALedges">edges</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Node.S.html#VALedges">edges</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
 Return the list of successor vertices.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALempty">empty</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Node.S.html#VALempty">empty</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
 The empty node.
 </div>
@@ -185,21 +201,15 @@ Convert <code class="code">`Conflict</code> results to <code class="code">Confli
 </div>
 </td></tr>
 <tr><td align="left"><br>F</td></tr>
-<tr><td><a href="Irmin.Backend.REMOTE.html#VALfetch">fetch</a> [<a href="Irmin.Backend.REMOTE.html">Irmin.Backend.REMOTE</a>]</td>
+<tr><td><a href="Irmin.Private.Sync.S.html#VALfetch">fetch</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
 <td><div class="info">
-<code class="code">fetch t uri</code> fetches the contents of the remote store located
-        at <code class="code">uri</code> into the local store <code class="code">t</code>.
+<code class="code">fetch t uri</code> fetches the contents of the remote store
+          located at <code class="code">uri</code> into the local store <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Sync.html#VALfetch">fetch</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
 <td><div class="info">
 <code class="code">create t last</code> fetch an object in the local store.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.S.Sync.html#VALfetch_exn">fetch_exn</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
-<td><div class="info">
-Same as <code class="code">create</code> but raise <code class="code">Failure</code> is the fetch operation
-        fails.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Task.html#VALfprintf">fprintf</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
@@ -236,26 +246,22 @@ Same as <code class="code">import</code> but delete and update the tags they alr
       exist in the store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALis_empty">is_empty</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Node.S.html#VALis_empty">is_empty</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
 Is the node empty.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALis_leaf">is_leaf</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
-<td><div class="info">
-Is it a leaf node (see <a href="Irmin.Backend.NODE.Val.html#VALleaf">Backend.NODE.leaf</a>) ?
-</div>
-</td></tr>
 <tr><td align="left"><br>L</td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALleaf">leaf</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
-<td><div class="info">
-Create a leaf node, with some contents and no successors.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.RO.html#VALlist">list</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
 <code class="code">list t keys</code> is the list of sub-keys that any of the keys in
       <code class="code">keys</code> are allowed to access.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Watch.S.html#VALlisten_dir">listen_dir</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
+<td><div class="info">
+Register a fsevents/inotify thread to look for changes in
+            the given directory.
 </div>
 </td></tr>
 <tr><td align="left"><br>M</td></tr>
@@ -312,12 +318,24 @@ Get the messages associated to the task.
 </div>
 </td></tr>
 <tr><td align="left"><br>N</td></tr>
-<tr><td><a href="Irmin.Backend.COMMIT.Val.html#VALnode">node</a> [<a href="Irmin.Backend.COMMIT.Val.html">Irmin.Backend.COMMIT.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Commit.S.html#VALnode">node</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
 <td><div class="info">
 The underlying node.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Watch.S.html#VALnotify">notify</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
+<td><div class="info">
+Notify all listeners in the given watch state that a key has
+          changed, with the new value associated to this key.
+</div>
+</td></tr>
 <tr><td align="left"><br>O</td></tr>
+<tr><td><a href="Irmin.Private.Config.html#VALof_dict">of_dict</a> [<a href="Irmin.Private.Config.html">Irmin.Private.Config</a>]</td>
+<td><div class="info">
+Convert a dictionary of universal values into an abstract store
+        config.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALof_head">of_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Create a temporary store handle, which will not persist as it
@@ -342,7 +360,7 @@ Return <code class="code">`Ok x</code>.
 <tr><td><a href="Irmin.S.Dot.html#VALoutput_buffer">output_buffer</a> [<a href="Irmin.S.Dot.html">Irmin.S.Dot</a>]</td>
 <td><div class="info">
 <code class="code">output_buffer t ?html ?depth ?full buf</code> outputs the Graphviz
-        representation of <code class="code">t</code> in the buffer <code class="code">buf</code>.
+          representation of <code class="code">t</code> in the buffer <code class="code">buf</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Task.html#VALowner">owner</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
@@ -356,7 +374,7 @@ Get the task owner.
 Lift to pairs.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.COMMIT.Val.html#VALparents">parents</a> [<a href="Irmin.Backend.COMMIT.Val.html">Irmin.Backend.COMMIT.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Commit.S.html#VALparents">parents</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
 <td><div class="info">
 The commit parents.
 </div>
@@ -371,10 +389,16 @@ Pretty-print an action.
 Pretty-print a sequence of actions.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.REMOTE.html#VALpush">push</a> [<a href="Irmin.Backend.REMOTE.html">Irmin.Backend.REMOTE</a>]</td>
+<tr><td><a href="Irmin.S.Sync.html#VALpull">pull</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
 <td><div class="info">
-<code class="code">push t uri</code> pushes the contents of the local store <code class="code">t</code> into the
-        remote store located at <code class="code">uri</code>.
+Same as <a href="Irmin.S.Sync.html#VALfetch">fetch</a> but also update the current
+        branch.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Sync.S.html#VALpush">push</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
+<td><div class="info">
+<code class="code">push t uri</code> pushes the contents of the local store <code class="code">t</code> into
+          the remote store located at <code class="code">uri</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Sync.html#VALpush">push</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
@@ -383,12 +407,6 @@ Pretty-print a sequence of actions.
         store to the remote store -- also update the remote branch
         with the same name as the local one to points to the new
         state.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.S.Sync.html#VALpush_exn">push_exn</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
-<td><div class="info">
-Same as <code class="code">push</code> but raise <code class="code">Failure</code> is the push operation
-        fails.
 </div>
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
@@ -424,9 +442,20 @@ Revert the store to a previous state.
 Try the merge functions in sequence until one does not raise a conflict.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Watch.html#VALset_listen_dir_hook">set_listen_dir_hook</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
+<td><div class="info">
+Register a function which looks for file changes in a
+        directory.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALsome">some</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Lift a merge function to optional values of the same type.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.S.html#VALsteps">steps</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<td><div class="info">
+The list of available steps to visit a successor.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Sync.html#VALstore">store</a> [<a href="Irmin.S.Sync.html">Irmin.S.Sync</a>]</td>
@@ -440,7 +469,7 @@ Lift a merge function to optional values of the same type.
 The default string merge function.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALsucc">succ</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Node.S.html#VALsucc">succ</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
 Extract the successors of a node.
 </div>
@@ -468,15 +497,26 @@ Same as <code class="code">tag</code> but raise <code class="code">Not_found</co
 <code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.COMMIT.Val.html#VALtask">task</a> [<a href="Irmin.Backend.COMMIT.Val.html">Irmin.Backend.COMMIT.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Commit.S.html#VALtask">task</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
 <td><div class="info">
 The commit provenance.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Config.html#VALto_dict">to_dict</a> [<a href="Irmin.Private.Config.html">Irmin.Private.Config</a>]</td>
+<td><div class="info">
+Convert a configuration value into a dictionary of universal
+        values.
 </div>
 </td></tr>
 <tr><td align="left"><br>U</td></tr>
 <tr><td><a href="Irmin.Task.html#VALuid">uid</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
 <td><div class="info">
 Get the task unique identifier.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Config.html#VALuniv">univ</a> [<a href="Irmin.Private.Config.html">Irmin.Private.Config</a>]</td>
+<td><div class="info">
+Creation of universal values.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.RW.html#VALupdate">update</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
@@ -517,6 +557,11 @@ Same as <code class="code">update_tag</code> but delete and update the tag if it
 Watch the stream of values associated to a given key.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Watch.S.html#VALwatch">watch</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
+<td><div class="info">
+Create a stream of value notifications.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.S.Snapshot.html#VALwatch">watch</a> [<a href="Irmin.S.Snapshot.html">Irmin.S.Snapshot</a>]</td>
 <td><div class="info">
 Subscribe to the stream of modification events attached to a
@@ -529,14 +574,14 @@ Watch changes for a given collection of keys and the ones they
       have recursive access.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALwith_contents">with_contents</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Node.S.html#VALwith_contents">with_contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
-Replace the optional contents.
+Replace the contents.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Backend.NODE.Val.html#VALwith_succ">with_succ</a> [<a href="Irmin.Backend.NODE.Val.html">Irmin.Backend.NODE.Val</a>]</td>
+<tr><td><a href="Irmin.Private.Node.S.html#VALwith_succ">with_succ</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
-Replace the list of successors.
+Replace the successors.
 </div>
 </td></tr>
 </table>

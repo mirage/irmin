@@ -1,0 +1,38 @@
+<html><head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Private.Commit.S</title>
+</head>
+<body>
+<code class="code"><span class="keyword">sig</span><br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;equal&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.equal<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;compare&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.compare<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;hash&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.hash<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_sexp&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.to_sexp<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_json&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.to_json<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_json&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.of_json<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;size_of&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.size_of<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;write&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.writer<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;read&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.reader<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;commit<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;node<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.task&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;?node:<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">S</span>.node&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;parents:<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">S</span>.commit&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;node&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">S</span>.node&nbsp;option<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;parents&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">S</span>.commit&nbsp;list<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;task&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.task<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;edges&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;[&gt;&nbsp;<span class="keywordsign">`</span><span class="constructor">Commit</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">S</span>.commit<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Node</span>&nbsp;<span class="keyword">of</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">S</span>.node&nbsp;]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;list<br>
+<span class="keyword">end</span></code></body></html>

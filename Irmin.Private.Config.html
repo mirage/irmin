@@ -1,0 +1,72 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Private.Make.html">
+<link rel="next" href="Irmin.Private.Contents.html">
+<link rel="Up" href="Irmin.Private.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Configuration value" rel="Section" href="#1_Configurationvalue">
+<title>Irmin.Private.Config</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Private.Make.html" title="Irmin.Private.Make">Previous</a>
+&nbsp;<a class="up" href="Irmin.Private.html" title="Irmin.Private">Up</a>
+&nbsp;<a class="post" href="Irmin.Private.Contents.html" title="Irmin.Private.Contents">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.Private.Config.html">Irmin.Private.Config</a></h1>
+
+<pre><span class="keyword">module</span> Config: <code class="code">sig</code> <a href="Irmin.Private.Config.html">..</a> <code class="code">end</code></pre><div class="info module top">
+Backend-specific configuration values.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Configurationvalue">Configuration value</h1><br>
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a></code> </pre>
+<div class="info ">
+The type for backend-specific configuration values.<br>
+</div>
+
+
+<pre><span id="TYPEuniv"><span class="keyword">type</span> <code class="type"></code>univ</span> </pre>
+<div class="info ">
+Type type for universal values.
+<p>
+
+        See <a href="http://mlton.org/UniversalType">http://mlton.org/UniversalType</a>
+<p>
+
+        Universal values are used to carry around configuration values, see
+        <a href="Irmin.RO.html#VALcreate">RO.create</a>.<br>
+</div>
+
+
+<pre><span id="VALuniv"><span class="keyword">val</span> univ</span> : <code class="type">'a Tc.t -><br>       ('a -> <a href="Irmin.Private.Config.html#TYPEuniv">univ</a>) *<br>       (<a href="Irmin.Private.Config.html#TYPEuniv">univ</a> -> 'a option) * <a href="Irmin.Private.Config.html#TYPEuniv">univ</a> Tc.t</code></pre><div class="info ">
+Creation of universal values. <code class="code">univ tc</code> returns:
+<p>
+
+        <ul>
+<li>a function to inject a value from a given type in to a universal value;</li>
+<li>a function to project from a universal value to a value of a given type;</li>
+<li>a type-class to show and serialize universal values.</li>
+</ul>
+<br>
+</div>
+
+<pre><span id="VALof_dict"><span class="keyword">val</span> of_dict</span> : <code class="type">(string * <a href="Irmin.Private.Config.html#TYPEuniv">univ</a>) list -> <a href="Irmin.Private.Config.html#TYPEt">t</a></code></pre><div class="info ">
+Convert a dictionary of universal values into an abstract store
+        config.<br>
+</div>
+
+<pre><span id="VALto_dict"><span class="keyword">val</span> to_dict</span> : <code class="type"><a href="Irmin.Private.Config.html#TYPEt">t</a> -> (string * <a href="Irmin.Private.Config.html#TYPEuniv">univ</a>) list</code></pre><div class="info ">
+Convert a configuration value into a dictionary of universal
+        values.<br>
+</div>
+</body></html>

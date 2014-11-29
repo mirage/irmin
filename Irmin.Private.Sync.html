@@ -1,0 +1,31 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Private.Tag.html">
+<link rel="next" href="Irmin.Private.BC.html">
+<link rel="Up" href="Irmin.Private.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Private.Sync</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Private.Tag.html" title="Irmin.Private.Tag">Previous</a>
+&nbsp;<a class="up" href="Irmin.Private.html" title="Irmin.Private">Up</a>
+&nbsp;<a class="post" href="Irmin.Private.BC.html" title="Irmin.Private.BC">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.Private.Sync.html">Irmin.Private.Sync</a></h1>
+
+<pre><span class="keyword">module</span> Sync: <code class="code">sig</code> <a href="Irmin.Private.Sync.html">..</a> <code class="code">end</code></pre><hr width="100%">
+
+<pre><span class="keyword">module type</span> <a href="Irmin.Private.Sync.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Private.Sync.S.html">..</a> <code class="code">end</code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Sync.None.html">None</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Sync.S.html">S</a></code><code class="type">  with type head = H.t and type tag = T.t</code></div></div></pre><div class="info">
+<code class="code">None</code> is an implementation of <a href="Irmin.Private.Sync.S.html">S</a> which
+        does nothing.
+</div>
+</body></html>

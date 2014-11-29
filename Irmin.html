@@ -12,7 +12,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html"><link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
 <link title="Stores" rel="Section" href="#1_Stores">
-<link title="Backends" rel="Section" href="#1_Backends">
+<link title="Backends" rel="Section" href="#backend">
 <title>Irmin</title>
 </head>
 <body>
@@ -56,8 +56,32 @@ Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
 <pre><span class="keyword">module</span> <a href="Irmin.Tag.html">Tag</a>: <code class="code">sig</code> <a href="Irmin.Tag.html">..</a> <code class="code">end</code></pre><div class="info">
 User-defined tags.
 </div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Step.html">Step</a>: <code class="code">sig</code> <a href="Irmin.Step.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Step</code> provides functions to manipulate keys: Irmin
+    <a href="Irmin.S.html">stores</a> use list of steps as keys.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Hash</code> provides user-defined hash function to digest serialized
+    contents.
+</div>
 <br>
 <h1 id="1_Stores">Stores</h1><br>
+
+<pre><span id="TYPEtask"><span class="keyword">type</span> <code class="type"></code>task</span> </pre>
+<div class="info ">
+The type for user-defined tasks. See <a href="Irmin.Task.html">Task</a>.<br>
+</div>
+
+
+<pre><span id="TYPEconfig"><span class="keyword">type</span> <code class="type"></code>config</span> </pre>
+<div class="info ">
+The type for backend-specific configuration values. Every backend
+    has different configuration options, which are kept abstract to
+    the user.<br>
+</div>
+
 <br>
 Irmin provides to the user a high-level store, with few
     interesting features:
@@ -87,10 +111,6 @@ Tasks are used to keep track of the origin of reads and writes in
     the store.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Univ.html">Univ</a>: <code class="code">sig</code> <a href="Irmin.Univ.html">..</a> <code class="code">end</code></pre><div class="info">
-Universal values.
-</div>
-
 <pre><span class="keyword">module type</span> <a href="Irmin.RO.html">RO</a> = <code class="code">sig</code> <a href="Irmin.RO.html">..</a> <code class="code">end</code></pre><div class="info">
 Read-only stores.
 </div>
@@ -111,14 +131,32 @@ Branch-consistent stores.
 Irmin high-level stores.
 </div>
 <br>
-<h1 id="1_Backends">Backends</h1><br>
+<h1 id="backend">Backends</h1><br>
+<br>
+A backend is an implementation exposing either a concrete
+    implementation of <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> or a functor providing <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> once
+    applied.<br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Hash</code> provides function to digest user-defined serialized
-    contents.
+<pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER.html">AO_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.AO.html">AO</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
+<code class="code">AO_MAKER</code> is the signature exposed by any backend providing
+    append-only stores.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Backend.html">Backend</a>: <code class="code">sig</code> <a href="Irmin.Backend.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Backend</code> provides the signatures that every backend should satisfy.
+<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RW.html">RW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
+<code class="code">RW_MAKER</code> is the signature exposed by any backend providing
+    read-write stores.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.S_MAKER.html">S_MAKER</a> = <code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type step = S.t
+       and type value = C.t
+       and type tag = T.t
+       and type head = H.t</code></pre><div class="info">
+<code class="code">S_MAKER</code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code">Irmin.S</code></a>
+    implementations.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.Private.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Private</code> defines functions only useful for creting new
+    backends.
 </div>
 </body></html>
