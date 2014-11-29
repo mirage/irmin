@@ -224,8 +224,8 @@ module Tag: sig
 
 end
 
-(** [Step] provides functions to manipulate keys: Irmin
-    {{!Irmin.S}stores} use list of steps as keys. FIXME add
+(** Keys in an {{!Irmin.S}stores} are lists of steps. The [Step]
+    module provides functions to manipulate such steps. FIXME add
     examples.*)
 module Step: sig
 
@@ -244,7 +244,7 @@ module Step: sig
 end
 
 (** [Hash] provides user-defined hash function to digest serialized
-    contents. Some {{!Backend}backends} might be parameterize by such
+    contents. Some {{!backend}backends} might be parameterize by such
     a hash functions, other might work with a fixed one (for instance,
     the Git format use only SHA1).
 
@@ -605,7 +605,7 @@ module type S = sig
 
   include BC with type key = step list
 
-  module Step: Tc.S0 with type t = step
+  module Step: Step.S with type t = step
   (** [Step] provides base functions over steps. *)
 
   module Key: Tc.S0 with type t = key
@@ -803,7 +803,7 @@ module type S = sig
 
 end
 
-(** {1 Backends} *)
+(** {1:backend Backends} *)
 
 (** A backend is an implementation exposing either a concrete
     implementation of {!S} or a functor providing {!S} once
@@ -852,9 +852,10 @@ module Private: sig
 
       {!Make} creates a store where all the objects are stored in the
       same store, using the same internal keys format and a custom
-      binary format based on {:https://github.com/janestreet/bin_prot},
-      with no native synchronisation primitives: it is usually what is
-      needed to quickly create a new backend.
+      binary format based on
+      {{:https://github.com/janestreet/bin_prot}bin_prot}, with no
+      native synchronisation primitives: it is usually what is needed
+      to quickly create a new backend.
 
       {!Make_ext} creates a store with a {e deep} embedding of each of
       the internal stores into separate store, with a total control over
@@ -924,11 +925,11 @@ module Private: sig
       values.
 
       The node blocks form a labeled directed acyclic graph, labeled
-      by {{!Backend.NODE.Step}steps}: a list of steps defines a unique
-      path from one node to an other.
+      by {{!Private.Node.STORE.Step}steps}: a list of steps defines a
+      unique path from one node to an other.
 
       Every node can contain some optional key, corresponding to
-      user-defined {{!Backend.NODE.Val.contents}contents} values. *)
+      user-defined {{!Contents.S}contents} values. *)
   module Node: sig
 
     module type S = sig
@@ -991,7 +992,7 @@ module Private: sig
 
       include AO
 
-      module Step: Tc.S0
+      module Step: Step.S
       (** [Step] provides base functions over node steps. *)
 
       module Key: Hash.S with type t = key
@@ -1011,8 +1012,8 @@ module Private: sig
       collection of commits form an acyclic directed graph.
 
       Every commit also can contain an optional key, pointing to a
-      {{!Backend.COMMIT.Val.node}node} value. See the
-      {{!Backend.NODE}NODE} signature for more details on node
+      {{!Private.Commit.STORE}node} value. See the
+      {{!Private.Node.STORE}Node} signature for more details on node
       values. *)
   module Commit: sig
 
@@ -1120,7 +1121,7 @@ module Private: sig
 
     end
 
-    (** [None] is an implementation of {{!Backend.Remote.S}S} which
+    (** [None] is an implementation of {{!Private.Sync.S}S} which
         does nothing. *)
     module None (H: Tc.S0) (T: Tc.S0): S with type head = H.t and type tag = T.t
 
@@ -1148,7 +1149,7 @@ module Private: sig
 
   (** [Make] builds an high-level Irmin store using lower-level
       user-provided store and a native synchronisation
-      implementation. See {{!Backend.BC}BC} for details. *)
+      implementation. See {{!Private.BC}BC} for details. *)
   module Make_ext
       (C: Contents.STORE)
       (N: Node.STORE with type Val.contents = C.key)
