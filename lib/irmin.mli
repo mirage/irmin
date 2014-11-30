@@ -534,10 +534,6 @@ module type BC = sig
   (** Switch the store contents the be same as the contents of the
       given branch name. The two branches are still independent. *)
 
-  val detach: t -> unit Lwt.t
-  (** Detach the current branch (i.e. it is not associated to a tag
-      anymore). *)
-
   (** {2:temporary Temporary Stores}
 
       The temporary stores do not use global branch names. Instead,
@@ -571,6 +567,10 @@ module type BC = sig
 
   val heads: t -> head list Lwt.t
   (** The list of all the heads of the store. *)
+
+  val detach: t -> unit Lwt.t
+  (** Detach the current branch (i.e. it is not associated to a tag
+      anymore). *)
 
   val update_head: t -> head -> unit Lwt.t
   (** Set the commit head. *)

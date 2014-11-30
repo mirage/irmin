@@ -16,13 +16,14 @@
 
 (** JSON CRUD interface. *)
 
-module type Config = sig
+val config: Uri.t -> Irmin.config
 
-  val uri: Uri.t
-  (** The server URI. *)
+module Make (C: Cohttp_lwt.Client): Irmin.S_MAKER
+(** High-level bindings. Most of the computation is done on the
+    server, the client is (almost) stateless. The only thing that the
+    client needs to remember is the tag of the current branch or the
+    current head if the branch is detached. *)
 
-end
-
-module Make (C: Cohttp_lwt.Client) (C: Config): Irmin.BACKEND
-(** Build a CRUD client using the given cohttp client
-    implementation. *)
+module Low (C: Cohttp_lwt.Client): Irmin.S_MAKER
+(** Low-level bindings. Only access the backend stores, all the
+    high-level logic is done on the client. *)

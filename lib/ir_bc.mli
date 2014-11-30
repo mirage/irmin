@@ -26,12 +26,12 @@ module type STORE = sig
   val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag_force: t -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
-  val detach: t -> unit Lwt.t
   type head
   val of_head: Ir_config.t -> Ir_task.t -> head -> t Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
   val heads: t -> head list Lwt.t
+  val detach: t -> unit Lwt.t
   val update_head: t -> head -> unit Lwt.t
   val merge_head: t -> head -> unit Ir_merge.result Lwt.t
   val watch_head: t -> key -> (key * head) Lwt_stream.t
