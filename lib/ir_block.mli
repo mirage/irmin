@@ -53,6 +53,6 @@ module Make
          and type commit = S.value
          and type head = S.key
          and module Path = N.Path
-         and module Contents = Ir_commit.Store(C)(N)(S).Node.Contents
-         and module Node = Ir_commit.Store(C)(N)(S).Node
-         and module Commit = Ir_commit.Store(C)(N)(S)
+         and module Contents = Ir_contents.Make_ext(C)
+         and module Node = Ir_node.Make_ext(C)(N)
+         and module Commit = Ir_commit.Make_ext(C)(N)(S)

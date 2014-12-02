@@ -47,25 +47,25 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (K: Tc.S0) ->
-  functor (V: Tc.S0) ->
-  functor (T: Tc.S0) ->
-  functor (H: Tc.S0) ->
-  functor (S: Tc.S0) ->
+  functor (K: Ir_hum.S) ->
+  functor (C: Ir_contents.S) ->
+  functor (T: Ir_tag.S) ->
+  functor (H: Ir_hash.S) ->
     STORE with type key = K.t
-           and type value = V.t
+           and type value = C.t
            and type head = H.t
-           and type slice = S.t
+           and type tag = T.t
 
-module Make
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE with type Val.contents = C.key)
-    (S: Ir_commit.STORE with type Val.node = N.key)
-    (T: Ir_tag.STORE with type value = S.key):
-  STORE with type key = N.Path.t
-         and type value = C.value
-         and type tag = T.key
-         and type head = S.key
+module type PRIVATE = sig
+  module Contents: Ir_contents.STORE
+  module Node: Ir_node.STORE with type Val.contents = Contents.key
+  module Commit: Ir_commit.STORE with type Val.node = Node.key
+  module Tag: Ir_tag.STORE with type value = Commit.key
+end
+
+module Make (X: Ir_ao.MAKER) (Y: Ir_rw.MAKER): MAKER
+
+(** {1 Extended API} *)
 
 module type STORE_EXT = sig
 
@@ -123,18 +123,14 @@ module type STORE_EXT = sig
       | `Node of Block.Node.key
       | `Commit of Block.Commit.key
       | `Tag of Tag.key ]
-  (** The global graph of internal objects. *)
+      (** The global graph of internal objects. *)
 
 end
 
-module Make_ext
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE with type Val.contents = C.key)
-    (H: Ir_commit.STORE with type Val.node = N.key)
-    (T: Ir_tag.STORE with type value = H.key):
-  STORE_EXT with type step = N.Path.step
-             and type value = C.value
-             and type tag = T.key
-             and type head = H.key
-             and module Block = Ir_block.Make(C)(N)(H)
-             and module Tag = T
+module Make_ext (P: PRIVATE): STORE_EXT
+  with type step = P.Node.Path.step
+   and type value = P.Contents.value
+   and type tag = P.Tag.key
+   and type head = P.Commit.key
+   and module Block = Ir_block.Make(P.Contents)(P.Node)(P.Commit)
+   and module Tag = P.Tag

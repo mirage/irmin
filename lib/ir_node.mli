@@ -60,7 +60,7 @@ module type STORE_EXT = sig
   (** A step is used to pass from one node to an other. A list of
       steps forms a path. *)
 
-  module Contents: Ir_contents.STORE_EXT
+  module Contents: Ir_contents.STORE
   (** The contents store. *)
 
   include STORE
@@ -118,7 +118,7 @@ module type STORE_EXT = sig
 
 end
 
-module Store
+module Make_ext
     (C: Ir_contents.STORE)
     (S: STORE with type Val.contents = C.key)
   : STORE_EXT with type t = C.t * S.t
@@ -126,5 +126,5 @@ module Store
                and type value = S.value
                and type step = S.Path.step
                and module Path = S.Path
-               and module Contents = Ir_contents.Store(C)
+               and module Contents = C
 (** Create a node store from an append-only database. *)

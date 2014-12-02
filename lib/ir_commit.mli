@@ -49,7 +49,7 @@ module type STORE_EXT = sig
 
   (** Store the history as a partial-order of revisions. *)
 
-  module Node: Ir_node.STORE_EXT
+  module Node: Ir_node.STORE
   (** Store of nodes. *)
 
   include STORE with type Val.node = Node.key
@@ -81,12 +81,12 @@ module type STORE_EXT = sig
 
 end
 
-module Store
+module Make_ext
     (C: Ir_contents.STORE)
     (N: Ir_node.STORE with type Val.contents = C.key)
     (S: STORE with type Val.node = N.key):
   STORE_EXT with type t = C.t * N.t * S.t
              and type key = S.key
              and type value = S.value
-             and module Node = Ir_node.Store(C)(N)
+             and module Node = Ir_node.Make_ext(C)(N)
 (** Create a commit store. *)

@@ -37,7 +37,7 @@ module type S = sig
   val actions: t -> Action.t list
 end
 
-module Make (S: Ir_bc.STORE_EXT):
+module Make (S: Ir_s.STORE):
   S with type db = S.t
      and type step = S.step
      and type value = S.value

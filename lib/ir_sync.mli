@@ -16,7 +16,7 @@
 
 (** Store Synchronisation. *)
 
-module type S = sig
+module type BACKEND = sig
   type t
   type head
   type tag
@@ -37,9 +37,9 @@ module type STORE = sig
 end
 
 module None (H: Tc.S0) (T: Tc.S0):
-  S with type head = H.t and type tag = T.t
+  BACKEND with type head = H.t and type tag = T.t
 
 module Make
-    (S: Ir_bc.STORE)
-    (R: S with type head = S.head and type tag = S.tag):
+    (B: BACKEND)
+    (S: Ir_s.STORE with type head = B.head and type tag = B.tag):
   STORE with type db = S.t and type head = S.head

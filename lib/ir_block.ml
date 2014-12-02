@@ -31,7 +31,9 @@ module type STORE = sig
   module Node: Ir_node.STORE_EXT
     with type step = step
      and type value = node
-     and module Contents = Contents
+     and type Contents.t = Contents.t
+     and type Contents.key = Contents.key
+     and type Contents.value = Contents.value
      and module Path = Path
 
   module Commit: Ir_commit.STORE_EXT
@@ -44,20 +46,18 @@ end
 module Make
     (C: Ir_contents.STORE)
     (N: Ir_node.STORE with type Val.contents = C.key)
-    (S: Ir_commit.STORE with type Val.node = N.key) =
+    (H: Ir_commit.STORE with type Val.node = N.key) =
 struct
 
-  module C = Ir_commit.Store(C)(N)(S)
+  type step = N.Path.step
+  type contents = C.value
+  type node = N.value
+  type commit = H.value
+  type head = H.key
 
-  type step = C.Node.step
-  type contents = C.Node.contents
-  type node = C.node
-  type commit = C.value
-  type head = C.key
-
-  module Path = C.Node.Path
-  module Contents = C.Node.Contents
-  module Node = C.Node
-  module Commit = C
+  module Path = N.Path
+  module Contents = Ir_contents.Make_ext(C)
+  module Node = Ir_node.Make_ext(C)(N)
+  module Commit = Ir_commit.Make_ext(C)(N)(H)
 
 end

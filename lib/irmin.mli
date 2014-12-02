@@ -631,219 +631,6 @@ module type BC = sig
 
 end
 
-(** Irmin high-level stores.
-
-    An Irmin store is a branch-consistent store where keys are lists
-    of steps.
-
-    An example is a Git repository where keys are filenames, i.e. list
-    of ['\']-separated strings. More complex examples are structured
-    values, where steps might contains first-class fields accessors
-    and array offsets. *)
-module type S = sig
-
-  (** {1 Irmin Store} *)
-
-  type step
-  (** The type for step values. *)
-
-  include BC with type key = step list
-
-  module Key: Path.S with type step = step
-  (** [Key] provides base functions over step lists. *)
-
-  module Val: Contents.S with type t = value
-  (** [Val] provides base functions over user-defined, mergeable
-      contents. *)
-
-  (** [View] provides an in-memory partial mirror of the store, with
-      lazy reads and delayed write.
-
-      Views are like staging area in Git: they are temporary
-      non-persistent areas (they disappear if the host crash), hold in
-      memory for efficiency, where reads are done lazily and writes
-      are done only when needed on commit: if if you modify a key
-      twice, only the last change will be written to the store when
-      you commit. Views also hold a list of operations, which are
-      checked for conflicts on commits and are used to replay/rebase
-      the view if needed. The most important feature of views is that
-      they keep track of reads: i.e. you can have a conflict if a view
-      reads a key which has been modified concurrently by someone
-      else.  *)
-  module View: sig
-
-    (** {1 Views} *)
-
-    type db = t
-    (** The type for store handles. *)
-
-    include RW with type key = Key.t and type value = Val.t
-    (** A view is a read-write temporary store, mirroring the main
-        store. *)
-
-    val merge: t -> into:t -> unit Merge.result Lwt.t
-    (** Merge the actions done on one view into an other one. If a read
-        operation doesn't return the same result, return
-        [Conflict]. Only the [into] view is updated. *)
-
-    val of_path: db -> key -> t Lwt.t
-    (** Read a view from a path in the store. This is a cheap operation,
-        all the real reads operation will be done on-demand when the
-        view is used. *)
-
-    val update_path: db -> key -> t -> unit Lwt.t
-    (** Commit a view to the store. The view *replaces* the current
-        subtree, so if you want to do a merge, you have to do it
-        manually (by creating a new branch, or rebasing before
-        committing). *)
-
-    val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
-    (** Rebase the view to the tip of the store. *)
-
-    val merge_path: db -> key -> t -> unit Merge.result Lwt.t
-    (** Same as [update_path] but *merges* with the current subtree. *)
-
-    (** [Action] provides information about operations performed on a
-        view.
-
-        Each view stores the list of {{!S.View.Action.t}actions} that
-        have already been performed on it. These actions are useful
-        when the view needs to be rebased: write operations are
-        replayed while read results are checked against the original
-        run. *)
-    module Action: sig
-
-      (** {1 Actions} *)
-
-      type t =
-        [ `Read of (key * value option)
-        | `Write of (key * value option)
-        | `List of (key list * key list) ]
-      (** Operations on view. The read results are kept to be able
-          to replay them on merge and to check for possible conflict:
-          this happens if the result read is different from the one
-          recorded. *)
-
-      include Tc.S0 with type t := t
-
-      val pretty: t -> string
-      (** Pretty-print an action. *)
-
-      val prettys: t list -> string
-      (** Pretty-print a sequence of actions. *)
-
-    end
-    (** Signature for actions performed on a view. *)
-
-    val actions: t -> Action.t list
-    (** Return the list of actions performed on this view since its
-        creation. *)
-
-  end
-
-  (** [Snapshot] provides read-only, space-efficient, checkpoints of a
-      store. It also provides functions to rollback to a previous
-      state. *)
-  module Snapshot: sig
-
-    (** {1 Snapshots} *)
-
-    type db = t
-    (** Type for store handles. *)
-
-    include RO with type key = Key.t and type value = Val.t
-    (** A snapshot is a read-only store, mirroring the main store. *)
-
-    val create: db -> t Lwt.t
-    (** Snapshot the current state of the store. *)
-
-    val revert: db -> t -> unit Lwt.t
-    (** Revert the store to a previous state. *)
-
-    val merge: db -> t -> unit Merge.result Lwt.t
-    (** Merge the given snapshot into the current branch of the
-        store. *)
-
-    val watch: db -> key -> (key * t) Lwt_stream.t
-    (** Subscribe to the stream of modification events attached to a
-        given path. Takes and returns a new snapshot every time a
-        sub-path is modified. *)
-
-  end
-
-  (** [Dot] provides functions to export a store to the Graphviz `dot`
-      format. *)
-  module Dot: sig
-
-    (** {1 Dot Export} *)
-
-    type db = t
-    (** The type for store handles. *)
-
-    val output_buffer:
-      db -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string) ->
-      Buffer.t -> unit Lwt.t
-      (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
-          representation of [t] in the buffer [buf].
-
-          [html] (default is false) enables HTML labels.
-
-          [depth] is used to limit the depth of the commit history. [None]
-          here means no limitation.
-
-          If [full] is set (default is not) the full graph, including the
-          commits, nodes and contents, is exported, otherwise it is the
-          commit history graph only. *)
-
-  end
-
-  (** [Sync] provides functions to synchronization an Irmin store with
-      local and remote Irmin stores. *)
-  module Sync: sig
-
-    (** {1 Synchronization} *)
-
-    type db = t
-    (** The type for store handles. *)
-
-    type remote
-    (** The type for remote stores. *)
-
-    val uri: string -> remote
-    (** [uri s] is the remote store located at [uri]. Use the
-        optimized native synchronization protocol when available for the
-        given backend. *)
-
-    val store: db -> remote
-    (** [store t] is the remote corresponding to the local store
-        [t]. Synchronization is done by importing and exporting store
-        {{!BC.slice}slices}, so this is usually much slower than native
-        synchronization using [uri] remotes. *)
-
-    val fetch: db -> ?depth:int -> remote -> [`Local of head] option Lwt.t
-    (** [create t last] fetch an object in the local store. The local
-        store can then be either [merged], or [updated] to the new
-        contents. The [depth] parameter limits the history
-        depth. Return the new [head] in the local store corresponding
-        to the current branch -- [fetch] does not update the local
-        branches, use {{!S.Sync.pull}pull} instead. *)
-
-    val pull: db -> ?depth:int -> remote -> [`Merge | `Update] ->
-      unit Merge.result Lwt.t
-    (** Same as {{!S.Sync.fetch}fetch} but also update the current
-        branch. Either [merge] or force [update] with the fetched
-        head. *)
-
-    val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
-    (** [push t f] push the contents of the current branch of the
-        store to the remote store -- also update the remote branch
-        with the same name as the local one to points to the new
-        state. *)
-
-  end
-
-end
-
 (** {1:backend Backends} *)
 
 (** A backend is an implementation exposing either a concrete
@@ -866,26 +653,24 @@ module type RW_MAKER =
   functor (V: Tc.S0) ->
     RW with type key = K.t and type value = V.t
 
-(** [S_MAKER] is the signature exposed by any backend providing {!S}
-    implementations. [S] is the type of steps (a key is list of
-    steps), [C] is the implementation of user-defined contents, [T] is
-    the implementation of store tags and [H] is the implementation of
-    store heads. *)
-module type S_MAKER =
-  functor (P: Path.S) ->
+(** [BC_MAKER] is the signature exposed by any backend providing {!BC}
+    implementations. [K] is the type of keys, [C] is the
+    implementation of user-defined contents, [T] is the implementation
+    of store tags and [H] is the implementation of store heads. *)
+module type BC_MAKER =
+  functor (K: HUM) ->
   functor (C: Contents.S) ->
   functor (T: Tag.S) ->
   functor (H: Hash.S) ->
-    S with type step = P.step
-       and type value = C.t
-       and type tag = T.t
-       and type head = H.t
+    BC with type key = K.t
+        and type value = C.t
+        and type tag = T.t
+        and type head = H.t
 
 (** [Private] defines functions only useful for creating new
     backends. If you are just using the library (and not developing a
     new backend), you should not use this module. *)
 module Private: sig
-
 
   (** API to create new Irmin backends.
 
@@ -905,11 +690,6 @@ module Private: sig
       be used for other similar backends as well in the future.
 
   *)
-
-  (** [Make] is an helper to generate {e simple} implementation
-      satisfying the {!Irmin.S} signature, with no native
-      synchronization primitives. *)
-  module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 
   (** Backend-specific configuration values. *)
   module Config: sig
@@ -1138,76 +918,37 @@ module Private: sig
 
   end
 
-  module Sync: sig
+  (** The complete collection of private implementations. *)
+  module type S = sig
 
-    module type S = sig
+    (** {1 Private Implementations} *)
 
-      (** {1 Remote synchronization} *)
+    type t
+    (** The type for store handles. *)
 
-      type t
-      (** The type for store handles. *)
+    (** Private contents. *)
+    module Contents: Contents.STORE
 
-      type head
-      (** The type for store heads. *)
+    (** Private nodes. *)
+    module Node: Node.STORE with type Val.contents = Contents.key
 
-      type tag
-      (** The type for store tags. *)
+    (** Private commits. *)
+    module Commit: Commit.STORE with type Val.node = Node.key
 
-      val create: config -> t Lwt.t
-      (** Create a remote store handle. *)
+    (** Private tags. *)
+    module Tag: Tag.STORE with type value = Commit.key
 
-      val fetch: t -> ?depth:int -> uri:string -> tag -> [`Local of head] option Lwt.t
-      (** [fetch t uri] fetches the contents of the remote store
-          located at [uri] into the local store [t]. Return the head
-          of the remote branch with the same name, which is now in the
-          local store. [None] is no such branch exists. *)
-
-      val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
-      (** [push t uri] pushes the contents of the local store [t] into
-          the remote store located at [uri]. *)
-
-    end
-
-    (** [None] is an implementation of {{!Private.Sync.S}S} which
-        does nothing. *)
-    module None (H: Tc.S0) (T: Tc.S0): S with type head = H.t and type tag = T.t
+    val contents_t: t -> Contents.t
+    val node_t: t -> Contents.t * Node.t
+    val commit_t: t -> Contents.t * Node.t * Commit.t
+    val tag_t: t -> Tag.t
 
   end
 
-  (** [BC] builds an helper to build an high-level branch-consistent
-      store using a collection of lower-level user-provided stores.
-
-      {ul
-      {- [C] is an append-only store where user-defined contents is stored.}
-      {- [N] is an append-only store where the prefix-tree storing user-defined paths is stored.}
-      {- [H] is an append-only store where history commits are stored.}
-      {- [T] is a read-write store where branch names are stored.}
-      }
-  *)
-  module BC
-      (C: Contents.STORE)
-      (N: Node.STORE with type Val.contents = C.key)
-      (H: Commit.STORE with type Val.node = N.key)
-      (T: Tag.STORE with type value = H.key):
-    BC with type key = N.Path.t
-        and type value = C.value
-        and type tag = T.key
-        and type head = H.key
-
-  (** [Make] builds an high-level Irmin store using lower-level
-      user-provided store and a native synchronization
-      implementation. See {{!Private.BC}BC} for details. *)
-  module Make_ext
-      (C: Contents.STORE)
-      (N: Node.STORE with type Val.contents = C.key)
-      (H: Commit.STORE with type Val.node = N.key)
-      (T: Tag.STORE with type value = H.key)
-      (S: Sync.S with type head = H.key and type tag = T.key):
-    S with type step = N.Path.step
-       and type value = C.value
-       and type tag = T.key
-       and type head = H.key
-
+  (** [Make] is an helper to generate {e simple} implementation
+      satisfying the {!Irmin.S} signature, where all the keys have the
+      same type, all the values are stored in the same store. *)
+  module Make (AO: AO_MAKER) (RW: RW_MAKER): BC_MAKER
 
   (** [Watch] provides helpers to register event notifications on
       read-write stores. *)
@@ -1264,6 +1005,279 @@ module Private: sig
 
     (** [Make] builds an implementation of watch helpers. *)
     module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
+
+  end
+
+end
+
+(** {1:high-level High-level Stores}
+
+    An Irmin store is a branch-consistent store where keys are lists
+    of steps.
+
+    An example is a Git repository where keys are filenames, i.e. list
+    of ['\']-separated strings. More complex examples are structured
+    values, where steps might contains first-class fields accessors
+    and array offsets. *)
+module type S = sig
+
+  (** {1 Irmin Store} *)
+
+  type step
+  (** The type for step values. *)
+
+  include BC with type key = step list
+
+  module Key: Path.S with type step = step
+  (** [Key] provides base functions over step lists. *)
+
+  module Val: Contents.S with type t = value
+  (** [Val] provides base functions over user-defined, mergeable
+      contents. *)
+
+  (** Private functions, which might be used by the backends. *)
+  module Private: Private.S
+    with type t := t
+     and type Node.Path.step = step
+     and type Contents.value = value
+     and type Commit.key = head
+     and type Tag.key = tag
+
+end
+
+(** [S_MAKER] is the signature exposed by any backend providing {!S}
+    implementations. [S] is the type of steps (a key is list of
+    steps), [C] is the implementation of user-defined contents, [T] is
+    the implementation of store tags and [H] is the implementation of
+    store heads. *)
+module type S_MAKER =
+  functor (P: Path.S) ->
+  functor (C: Contents.S) ->
+  functor (T: Tag.S) ->
+  functor (H: Hash.S) ->
+    S with type step = P.step
+       and type value = C.t
+       and type tag = T.t
+       and type head = H.t
+
+(** Simple store creator. Use the same type of all of the internal
+    keys and store all the values in the same store. *)
+module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
+
+(** [View] provides an in-memory partial mirror of the store, with
+    lazy reads and delayed write.
+
+    Views are like staging area in Git: they are temporary
+    non-persistent areas (they disappear if the host crash), hold in
+    memory for efficiency, where reads are done lazily and writes
+    are done only when needed on commit: if if you modify a key
+    twice, only the last change will be written to the store when
+    you commit. Views also hold a list of operations, which are
+    checked for conflicts on commits and are used to replay/rebase
+    the view if needed. The most important feature of views is that
+    they keep track of reads: i.e. you can have a conflict if a view
+    reads a key which has been modified concurrently by someone
+    else.  *)
+module View (S: S): sig
+
+  (** {1 Views} *)
+
+  type db = S.t
+  (** The type for store handles. *)
+
+  include RW with type key = S.Key.t and type value = S.Val.t
+  (** A view is a read-write temporary store, mirroring the main
+      store. *)
+
+  val merge: t -> into:t -> unit Merge.result Lwt.t
+  (** Merge the actions done on one view into an other one. If a read
+      operation doesn't return the same result, return
+      [Conflict]. Only the [into] view is updated. *)
+
+  val of_path: db -> key -> t Lwt.t
+  (** Read a view from a path in the store. This is a cheap operation,
+      all the real reads operation will be done on-demand when the
+      view is used. *)
+
+  val update_path: db -> key -> t -> unit Lwt.t
+  (** Commit a view to the store. The view *replaces* the current
+      subtree, so if you want to do a merge, you have to do it
+      manually (by creating a new branch, or rebasing before
+      committing). *)
+
+  val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
+  (** Rebase the view to the tip of the store. *)
+
+  val merge_path: db -> key -> t -> unit Merge.result Lwt.t
+  (** Same as [update_path] but *merges* with the current subtree. *)
+
+  (** [Action] provides information about operations performed on a
+      view.
+
+      Each view stores the list of {{!S.View.Action.t}actions} that
+      have already been performed on it. These actions are useful
+      when the view needs to be rebased: write operations are
+      replayed while read results are checked against the original
+      run. *)
+  module Action: sig
+
+    (** {1 Actions} *)
+
+    type t =
+      [ `Read of (key * value option)
+      | `Write of (key * value option)
+      | `List of (key list * key list) ]
+    (** Operations on view. The read results are kept to be able
+        to replay them on merge and to check for possible conflict:
+        this happens if the result read is different from the one
+        recorded. *)
+
+    include Tc.S0 with type t := t
+
+    val pretty: t -> string
+    (** Pretty-print an action. *)
+
+    val prettys: t list -> string
+    (** Pretty-print a sequence of actions. *)
+
+  end
+  (** Signature for actions performed on a view. *)
+
+  val actions: t -> Action.t list
+  (** Return the list of actions performed on this view since its
+      creation. *)
+
+end
+
+(** [Snapshot] provides read-only, space-efficient, checkpoints of a
+    store. It also provides functions to rollback to a previous
+    state. *)
+module Snapshot (S: S): sig
+
+  (** {1 Snapshots} *)
+
+  include RO with type key = S.Key.t and type value = S.Val.t
+  (** A snapshot is a read-only store, mirroring the main store. *)
+
+  val create: S.t -> t Lwt.t
+  (** Snapshot the current state of the store. *)
+
+  val revert: S.t -> t -> unit Lwt.t
+  (** Revert the store to a previous state. *)
+
+  val merge: S.t -> t -> unit Merge.result Lwt.t
+  (** Merge the given snapshot into the current branch of the
+      store. *)
+
+  val watch: S.t -> key -> (key * t) Lwt_stream.t
+  (** Subscribe to the stream of modification events attached to a
+      given path. Takes and returns a new snapshot every time a
+      sub-path is modified. *)
+
+end
+
+(** [Dot] provides functions to export a store to the Graphviz `dot`
+    format. *)
+module Dot (S: S): sig
+
+  (** {1 Dot Export} *)
+
+  val output_buffer:
+    S.t -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string) ->
+    Buffer.t -> unit Lwt.t
+  (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
+      representation of [t] in the buffer [buf].
+
+      [html] (default is false) enables HTML labels.
+
+      [depth] is used to limit the depth of the commit history. [None]
+      here means no limitation.
+
+      If [full] is set (default is not) the full graph, including the
+      commits, nodes and contents, is exported, otherwise it is the
+      commit history graph only. *)
+
+end
+
+(** [Sync] provides functions to synchronization an Irmin store with
+    local and remote Irmin stores. *)
+module Sync: sig
+
+  module type BACKEND = sig
+
+    (** {1 Remote synchronization} *)
+
+    type t
+    (** The type for store handles. *)
+
+    type head
+    (** The type for store heads. *)
+
+    type tag
+    (** The type for store tags. *)
+
+    val create: config -> t Lwt.t
+    (** Create a remote store handle. *)
+
+    val fetch: t -> ?depth:int -> uri:string -> tag ->
+      [`Local of head] option Lwt.t
+    (** [fetch t uri] fetches the contents of the remote store
+        located at [uri] into the local store [t]. Return the head
+        of the remote branch with the same name, which is now in the
+        local store. [None] is no such branch exists. *)
+
+    val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+    (** [push t uri] pushes the contents of the local store [t] into
+        the remote store located at [uri]. *)
+
+  end
+
+  (** [None] is an implementation of {{!Sync.S}S} which does
+      nothing. *)
+  module None (H: Tc.S0) (T: Tc.S0):
+    BACKEND with type head = H.t and type tag = T.t
+
+  (** Native synchronisation. *)
+  module Make
+      (B: BACKEND)
+      (S: S with type head = B.head and type tag = B.tag):
+  sig
+
+    (** {1 Native Synchronization} *)
+
+    type remote
+    (** The type for remote stores. *)
+
+    val uri: string -> remote
+    (** [uri s] is the remote store located at [uri]. Use the
+        optimized native synchronization protocol when available for the
+        given backend. *)
+
+    val store: S.t -> remote
+    (** [store t] is the remote corresponding to the local store
+        [t]. Synchronization is done by importing and exporting store
+        {{!BC.slice}slices}, so this is usually much slower than native
+        synchronization using [uri] remotes. *)
+
+    val fetch: S.t -> ?depth:int -> remote -> [`Local of S.head] option Lwt.t
+    (** [create t last] fetch an object in the local store. The local
+        store can then be either [merged], or [updated] to the new
+        contents. The [depth] parameter limits the history
+        depth. Return the new [head] in the local store corresponding
+        to the current branch -- [fetch] does not update the local
+        branches, use {{!S.Sync.pull}pull} instead. *)
+
+    val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
+      unit Merge.result Lwt.t
+    (** Same as {{!S.Sync.fetch}fetch} but also update the current
+        branch. Either [merge] or force [update] with the fetched
+        head. *)
+
+    val push: S.t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+    (** [push t f] push the contents of the current branch of the
+        store to the remote store -- also update the remote branch
+        with the same name as the local one to points to the new
+        state. *)
 
   end
 

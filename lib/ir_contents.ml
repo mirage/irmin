@@ -154,7 +154,7 @@ module Cstruct = struct
   let merge = Ir_merge.default (module S)
 end
 
-module Store (S: STORE) = struct
+module Make_ext (S: STORE) = struct
   include S
   let merge t =
     Ir_merge.biject'

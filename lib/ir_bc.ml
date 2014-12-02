@@ -81,12 +81,19 @@ module type STORE_EXT = sig
     | `Tag of Tag.key ]
 end
 
-module Make_ext
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE with type Val.contents = C.key)
-    (H: Ir_commit.STORE with type Val.node = N.key)
-    (T: Ir_tag.STORE with type value = H.key)
-= struct
+module type PRIVATE = sig
+  module Contents: Ir_contents.STORE
+  module Node: Ir_node.STORE with type Val.contents = Contents.key
+  module Commit: Ir_commit.STORE with type Val.node = Node.key
+  module Tag: Ir_tag.STORE with type value = Commit.key
+end
+
+module Make_ext (P: PRIVATE) = struct
+
+  module C = P.Contents
+  module N = P.Node
+  module H = P.Commit
+  module T = P.Tag
 
   module B = Ir_block.Make(C)(N)(H)
   module Block = B
@@ -606,20 +613,46 @@ module Make_ext
 
 end
 
-module Make
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE with type Val.contents = C.key)
-    (S: Ir_commit.STORE with type Val.node = N.key)
-    (T: Ir_tag.STORE with type value = S.key)
-  = Make_ext(C)(N)(S)(T)
-
 module type MAKER =
-  functor (K: Tc.S0) ->
-  functor (V: Tc.S0) ->
-  functor (T: Tc.S0) ->
-  functor (H: Tc.S0) ->
-  functor (S: Tc.S0) ->
+  functor (K: Ir_hum.S) ->
+  functor (C: Ir_contents.S) ->
+  functor (T: Ir_tag.S) ->
+  functor (H: Ir_hash.S) ->
     STORE with type key = K.t
-           and type value = V.t
+           and type value = C.t
            and type head = H.t
-           and type slice = S.t
+           and type tag = T.t
+
+module Make
+    (AO: Ir_ao.MAKER)
+    (RW: Ir_rw.MAKER)
+    (P: Ir_path.S)
+    (C: Ir_contents.S)
+    (T: Ir_tag.S)
+    (H: Ir_hash.S) =
+struct
+  module P = struct
+    module Contents = struct
+      module Key = H
+      module Val = C
+      include AO (Key)(Val)
+    end
+    module Node = struct
+      module Key = H
+      module Val = Ir_node.Make (H)(H)(P)
+      module Path = P
+      include AO (Key)(Val)
+    end
+    module Commit = struct
+      module Key = H
+      module Val = Ir_commit.Make (H)(H)
+      include AO (Key)(Val)
+    end
+    module Tag = struct
+      module Key = T
+      module Val = H
+      include RW (Key)(Val)
+    end
+  end
+  include Make_ext(P)
+end

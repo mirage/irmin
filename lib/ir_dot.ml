@@ -26,7 +26,7 @@ module type S = sig
     Buffer.t -> unit Lwt.t
 end
 
-module Make (S: Ir_bc.STORE_EXT) = struct
+module Make (S: Ir_s.STORE) = struct
 
   type db = S.t
 

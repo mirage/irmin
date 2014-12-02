@@ -14,40 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-
 module type STORE = sig
   type step
   include Ir_bc.STORE with type key = step list
   module Key: Ir_path.S with type step = step
   module Val: Ir_contents.S with type t = value
-  module View: Ir_view.S
-      with type db = t
-       and type step := step
-       and type value = value
-  module Snapshot: Ir_snapshot.S
-    with type db = t
-     and type key = key
-     and type value = value
-  module Dot: Ir_dot.S
-    with type db = t
-  module Sync: Ir_sync.STORE
-    with type db = t
-     and type head := head
-end
-
-module Make_ext
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE with type Val.contents = C.key)
-    (S: Ir_commit.STORE with type Val.node = N.key)
-    (T: Ir_tag.STORE with type value = S.key)
-    (R: Ir_sync.S with type head = S.key and type tag = T.key) =
-struct
-  module B = Ir_bc.Make_ext(C)(N)(S)(T)
-  include B
-  module View = Ir_view.Make(B)
-  module Snapshot = Ir_snapshot.Make(B)
-  module Dot = Ir_dot.Make(B)
-  module Sync = Ir_sync.Make(B)(R)
+  module Private: sig
+    include Ir_bc.PRIVATE
+      with type Contents.value = value
+       and type Node.Path.step = step
+       and type Commit.key = head
+       and type Tag.key = tag
+    val contents_t: t -> Contents.t
+    val node_t: t -> Contents.t * Node.t
+    val commit_t: t -> Contents.t * Node.t * Commit.t
+    val tag_t: t -> Tag.t
+  end
 end
 
 module type MAKER =
@@ -68,29 +50,35 @@ module Make
     (T: Ir_tag.S)
     (H: Ir_hash.S) =
 struct
-  module XContents = struct
-    module Key = H
-    module Val = C
-    include AO (Key)(Val)
+  module X = struct
+    module Contents = struct
+      module Key = H
+      module Val = C
+      include AO (Key)(Val)
+    end
+    module Node = struct
+      module Key = H
+      module Val = Ir_node.Make (H)(H)(P)
+      module Path = P
+      include AO (Key)(Val)
+    end
+    module Commit = struct
+      module Key = H
+      module Val = Ir_commit.Make (H)(H)
+      include AO (Key)(Val)
+    end
+    module Tag = struct
+      module Key = T
+      module Val = H
+      include RW (Key)(Val)
+    end
   end
-  module XNode = struct
-    module Key = H
-    module Val = Ir_node.Make (H)(H)(P)
-    module Path = P
-    include AO (Key)(Val)
+  include Ir_bc.Make_ext(X)
+  module Private = struct
+    include X
+    let contents_t: t -> Contents.t = contents_t
+    let node_t = node_t
+    let commit_t = commit_t
+    let tag_t = tag_t
   end
-  module XCommit = struct
-    module Key = H
-    module Val = Ir_commit.Make (H)(H)
-    include AO (Key)(Val)
-  end
-  module XTag = struct
-    module Key = T
-    module Val = H
-    include RW (Key)(Val)
-  end
-  module XSync = Ir_sync.None(H)(T)
-
-  include Make_ext(XContents)(XNode)(XCommit)(XTag)(XSync)
-
 end

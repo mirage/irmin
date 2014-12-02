@@ -21,19 +21,17 @@ module type STORE = sig
   include Ir_bc.STORE with type key = step list
   module Key: Ir_path.S with type step = step
   module Val: Ir_contents.S with type t = value
-  module View: Ir_view.S
-      with type db = t
-       and type step := step
-       and type value = value
-  module Snapshot: Ir_snapshot.S
-    with type db = t
-     and type key = key
-     and type value = value
-  module Dot: Ir_dot.S
-    with type db = t
-  module Sync: Ir_sync.STORE
-    with type db = t
-     and type head := head
+  module Private: sig
+    include Ir_bc.PRIVATE
+      with type Contents.value = value
+       and type Node.Path.step = step
+       and type Commit.key = head
+       and type Tag.key = tag
+    val contents_t: t -> Contents.t
+    val node_t: t -> Contents.t * Node.t
+    val commit_t: t -> Contents.t * Node.t * Commit.t
+    val tag_t: t -> Tag.t
+  end
 end
 
 module type MAKER =
@@ -47,14 +45,3 @@ module type MAKER =
            and type head = H.t
 
 module Make (AO: Ir_ao.MAKER) (RW: Ir_rw.MAKER): MAKER
-
-module Make_ext
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE with type Val.contents = C.key)
-    (S: Ir_commit.STORE with type Val.node = N.key)
-    (T: Ir_tag.STORE with type value = S.key)
-    (R: Ir_sync.S with type head = S.key and type tag = T.key):
-  STORE with type step = N.Path.step
-         and type value = C.value
-         and type tag = T.key
-         and type head = S.key

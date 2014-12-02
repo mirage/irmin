@@ -36,7 +36,7 @@ module type STORE_EXT = sig
   val merge: t -> key Ir_merge.t
 end
 
-module Store (Contents: STORE):
+module Make_ext (Contents: STORE):
   STORE_EXT with type t = Contents.t
              and type key = Contents.key
              and type value = Contents.value

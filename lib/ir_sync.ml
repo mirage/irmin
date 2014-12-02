@@ -18,7 +18,7 @@ open Lwt
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
-module type S = sig
+module type BACKEND = sig
   type t
   type head
   type tag
@@ -38,10 +38,9 @@ module type STORE = sig
   val push: db -> ?depth:int -> remote -> [`Ok|`Error] Lwt.t
 end
 
-
 module Make
-    (S: Ir_bc.STORE)
-    (R: S with type head = S.head and type tag = S.tag) =
+    (B: BACKEND)
+    (S: Ir_s.STORE with type head = B.head and type tag = B.tag) =
 struct
 
   type db = S.t
@@ -67,8 +66,8 @@ struct
       begin match S.tag t with
         | None     -> return_none
         | Some tag ->
-          R.create (S.config t) >>= fun g ->
-          R.fetch g ?depth ~uri tag
+          B.create (S.config t) >>= fun g ->
+          B.fetch g ?depth ~uri tag
       end
     | Store r ->
       Log.debugf "fetch store";

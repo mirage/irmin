@@ -14,7 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
 open Lwt
 
 let error fmt =
@@ -59,10 +58,6 @@ let unit = {
   output = (fun () -> Ezjsonm.unit);
 }
 
-let json_headers = Cohttp.Header.of_list [
-    "Content-type", "application/json"
-  ]
-
 exception Invalid
 
 module type S = sig
@@ -75,19 +70,19 @@ module type SERVER = sig
   val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
 end
 
-module Make (HTTP: SERVER) (S: Irmin.S) = struct
+module Make (HTTP: SERVER)
+    (S: Irmin.Private.Contents) = struct
 
-  module K = S.Block.Key
+  module K = S.Key
   let key = {
     input  = K.of_json;
     output = K.to_json;
   }
 
-  module Contents = S.Block.Contents
-  module B = Contents.Value
+  module V = S.Val
   let contents = {
-    input  = B.of_json;
-    output = B.to_json;
+    input  = V.of_json;
+    output = V.to_json;
   }
 
   module Node = S.Block.Node

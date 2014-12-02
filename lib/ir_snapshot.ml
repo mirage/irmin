@@ -28,24 +28,25 @@ module type S = sig
   val watch: db -> key -> (key * t) Lwt_stream.t
 end
 
-module Make (S: Ir_bc.STORE_EXT) = struct
+module Make (S: Ir_s.STORE) = struct
 
-  module B = S.Block
-  module N = B.Node
-  module C = B.Commit
-  module K = B.Commit.Key
-  module T = S.Tag
-
-  type db = S.t
+  module P = S.Private
+  module B = Ir_bc.Make_ext(P)
+  module V = Ir_contents.Make_ext(P.Contents)
+  module N = Ir_node.Make_ext(P.Contents)(P.Node)
+  module C = Ir_commit.Make_ext(P.Contents)(P.Node)(P.Commit)
+  module K = P.Commit.Key
+  module T = P.Tag
 
   module Path = N.Path
   module PathSet = Ir_misc.Set(Path)
-  module StepMap = Ir_misc.Map(B.Path.Step)
+  module StepMap = Ir_misc.Map(S.Key.Step)
 
   (* XXX: add a path in the tuple to handle snapshot of sub-trees. *)
+  type db = S.t
   type key = S.key
   type value = S.value
-  type t = db * B.Node.key
+  type t = db * N.key
 
   let db (t:t) = fst t
 
@@ -53,7 +54,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
   let config t = S.config (db t)
 
   let of_head db c =
-    C.read (S.commit_t db) c >>= function
+    C.read (P.commit_t db) c >>= function
     | None   -> fail Not_found
     | Some c -> match C.Val.node c with
       | None   -> fail Not_found
@@ -65,13 +66,13 @@ module Make (S: Ir_bc.STORE_EXT) = struct
     | Some c -> of_head db c
 
   let root_node (db, n) =
-    N.read (S.node_t db) n >>= function
+    N.read (P.node_t db) n >>= function
     | None   -> return N.empty
     | Some n -> return n
 
   let map t path ~f =
     root_node t >>= fun node ->
-    f (S.node_t (db t)) node path
+    f (P.node_t (db t)) node path
 
   let read t path =
     map t path ~f:N.find
@@ -87,7 +88,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
   (* XXX: code duplication with Branch.list *)
   let list t paths =
     Log.debugf "list";
-    let t_n = S.node_t (db t) in
+    let t_n = P.node_t (db t) in
     let one path =
       root_node t >>= fun n ->
       N.sub t_n n path >>= function
@@ -107,13 +108,13 @@ module Make (S: Ir_bc.STORE_EXT) = struct
   let dump _ =
     failwith "TODO"
 
-  let pre_revert db (s:S.Block.Node.key) =
+  let pre_revert db (s:N.key) =
     begin S.head db >>= function
       | None   -> return_nil
       | Some h -> return [h]
     end >>= fun parents ->
     let c = C.Val.create (S.task db) ~node:s ~parents in
-    C.add (S.commit_t db) c
+    C.add (P.commit_t db) c
 
   let revert db (_, s) =
     Log.debugf "revert %a" force (show (module N.Key) s);

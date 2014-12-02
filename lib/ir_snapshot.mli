@@ -25,7 +25,7 @@ module type S = sig
   val watch: db -> key -> (key * t) Lwt_stream.t
 end
 
-module Make (S: Ir_bc.STORE_EXT):
+module Make (S: Ir_s.STORE):
   S with type db = S.t
             and type key = S.key
             and type value = S.value

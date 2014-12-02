@@ -18,9 +18,13 @@ module Merge = Ir_merge
 module Contents = Ir_contents
 module Tag = Ir_tag
 module Task = Ir_task
-module View = Ir_view
+module View = Ir_view.Make
+module Snapshot = Ir_snapshot.Make
+module Dot = Ir_dot.Make
+module Sync = Ir_sync
 module Hash = Ir_hash
 module Path = Ir_path
+module Make = Ir_s.Make
 
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
@@ -34,6 +38,7 @@ type config = Ir_config.t
 
 module type AO_MAKER = Ir_ao.MAKER
 module type RW_MAKER = Ir_rw.MAKER
+module type BC_MAKER = Ir_bc.MAKER
 module type S_MAKER = Ir_s.MAKER
 
 module Private = struct
@@ -43,8 +48,13 @@ module Private = struct
   module Commit = Ir_commit
   module Contents = Ir_contents
   module Tag = Ir_tag
-  module Sync = Ir_sync
-  module BC = Ir_bc.Make
-  module Make = Ir_s.Make
-  module Make_ext = Ir_s.Make_ext
+  module Make = Ir_bc.Make
+  module type S = sig
+    type t
+    include Ir_bc.PRIVATE
+    val contents_t: t -> Contents.t
+    val node_t: t -> Contents.t * Node.t
+    val commit_t: t -> Contents.t * Node.t * Commit.t
+    val tag_t: t -> Tag.t
+  end
 end
