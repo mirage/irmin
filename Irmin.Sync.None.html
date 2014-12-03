@@ -1,0 +1,83 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Irmin.Sync.Make.html">
+<link rel="Up" href="Irmin.Sync.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Remote synchronization" rel="Section" href="#1_Remotesynchronization">
+<title>Irmin.Sync.None</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Irmin.Sync.html" title="Irmin.Sync">Up</a>
+&nbsp;<a class="post" href="Irmin.Sync.Make.html" title="Irmin.Sync.Make">Next</a>
+</div>
+<h1>Functor <a href="type_Irmin.Sync.None.html">Irmin.Sync.None</a></h1>
+
+<pre><span class="keyword">module</span> None: <div class="sig_block"><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Sync.BACKEND.html">BACKEND</a></code><code class="type">  with type head = H.t and type tag = T.t</code></div></div></pre><div class="info module top">
+<code class="code">None</code> is an implementation of S which does
+      nothing.<br>
+</div>
+<table border="0" cellpadding="3" width="100%">
+<tr>
+<td align="left" valign="top" width="1%%"><b>Parameters: </b></td>
+<td>
+<table class="paramstable">
+<tr>
+<td align="center" valign="top" width="15%">
+<code>H</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Tc.S0</code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>T</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Tc.S0</code>
+</table>
+</td>
+</tr>
+</table>
+<hr width="100%">
+<br>
+<h1 id="1_Remotesynchronization">Remote synchronization</h1><br>
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
+<div class="info ">
+The type for store handles.<br>
+</div>
+
+
+<pre><span id="TYPEhead"><span class="keyword">type</span> <code class="type"></code>head</span> </pre>
+<div class="info ">
+The type for store heads.<br>
+</div>
+
+
+<pre><span id="TYPEtag"><span class="keyword">type</span> <code class="type"></code>tag</span> </pre>
+<div class="info ">
+The type for store tags.<br>
+</div>
+
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> <a href="Irmin.Sync.BACKEND.html#TYPEt">t</a> Lwt.t</code></pre><div class="info ">
+Create a remote store handle.<br>
+</div>
+
+<pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type"><a href="Irmin.Sync.BACKEND.html#TYPEt">t</a> -><br>       ?depth:int -><br>       uri:string -><br>       <a href="Irmin.Sync.BACKEND.html#TYPEtag">tag</a> -> [ `Local of <a href="Irmin.Sync.BACKEND.html#TYPEhead">head</a> ] option Lwt.t</code></pre><div class="info ">
+<code class="code">fetch t uri</code> fetches the contents of the remote store
+        located at <code class="code">uri</code> into the local store <code class="code">t</code>. Return the head
+        of the remote branch with the same name, which is now in the
+        local store. <code class="code">None</code> is no such branch exists.<br>
+</div>
+
+<pre><span id="VALpush"><span class="keyword">val</span> push</span> : <code class="type"><a href="Irmin.Sync.BACKEND.html#TYPEt">t</a> -><br>       ?depth:int -> uri:string -> <a href="Irmin.Sync.BACKEND.html#TYPEtag">tag</a> -> [ `Error | `Ok ] Lwt.t</code></pre><div class="info ">
+<code class="code">push t uri</code> pushes the contents of the local store <code class="code">t</code> into
+        the remote store located at <code class="code">uri</code>.<br>
+</div>
+</body></html>

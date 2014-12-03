@@ -1,0 +1,49 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Tag.html">
+<link rel="next" href="Irmin.Hash.html">
+<link rel="Up" href="Irmin.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Path" rel="Section" href="#1_Path">
+<title>Irmin.Path</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Tag.html" title="Irmin.Tag">Previous</a>
+&nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
+&nbsp;<a class="post" href="Irmin.Hash.html" title="Irmin.Hash">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.Path.html">Irmin.Path</a></h1>
+
+<pre><span class="keyword">module</span> Path: <code class="code">sig</code> <a href="Irmin.Path.html">..</a> <code class="code">end</code></pre><div class="info module top">
+A key in an <a href="Irmin.S.html">stores</a> is a path of basic elements. We
+    call these elements <em>steps</em>, and the following <code class="code">Path</code> module
+    provides functions to manipulate steps and paths.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Path">Path</h1><br>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.Path.STEP.html">STEP</a> = <code class="type"><a href="Irmin.HUM.html">Irmin.HUM</a></code></pre><div class="info">
+Signature for path steps.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.Path.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Path.S.html">..</a> <code class="code">end</code></pre><div class="info">
+Signature for path implementations.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Path.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.Path.STEP.html">STEP</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Path.S.html">S</a></code><code class="type">  with type step = S.t</code></div></pre><div class="info">
+A list of steps, representing keys in an Irmin store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Path.String.html">String</a>: <code class="type"><a href="Irmin.Path.S.html">S</a></code><code class="type">  with type step = string</code></pre><div class="info">
+An implementation of paths using strings as steps.
+</div>
+</body></html>

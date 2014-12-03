@@ -21,4 +21,11 @@
 &nbsp;&nbsp;&nbsp;&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Config</span>.univ)&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Config</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_dict&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Config</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(string&nbsp;*&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Config</span>.univ)&nbsp;list<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;find&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Config</span>.t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Config</span>.univ&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;option)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;option<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;find_bool&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Config</span>.t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Config</span>.univ&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;bool&nbsp;option)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;default:bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;bool<br>
 <span class="keyword">end</span></code></body></html>

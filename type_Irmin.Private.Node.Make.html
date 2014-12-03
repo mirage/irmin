@@ -12,7 +12,7 @@
 <body>
 <code class="code"><span class="keyword">functor</span>&nbsp;(<span class="constructor">C</span>&nbsp;:&nbsp;<span class="constructor">Tc</span>.<span class="constructor">S0</span>)&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;<span class="keyword">functor</span>&nbsp;(<span class="constructor">N</span>&nbsp;:&nbsp;<span class="constructor">Tc</span>.<span class="constructor">S0</span>)&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">functor</span>&nbsp;(<span class="constructor">S</span>&nbsp;:&nbsp;<span class="constructor">Tc</span>.<span class="constructor">S0</span>)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">functor</span>&nbsp;(<span class="constructor">P</span>&nbsp;:&nbsp;<span class="constructor">Path</span>.<span class="constructor">S</span>)&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sig</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;equal&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.equal<br>
@@ -26,7 +26,7 @@
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;read&nbsp;:&nbsp;t&nbsp;<span class="constructor">Tc</span>.reader<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;contents&nbsp;=&nbsp;<span class="constructor">C</span>.t<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;node&nbsp;=&nbsp;<span class="constructor">N</span>.t<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;step&nbsp;=&nbsp;<span class="constructor">S</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;step&nbsp;=&nbsp;<span class="constructor">P</span>.step<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;contents&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;step&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;contents&nbsp;option<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;all_contents&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(step&nbsp;*&nbsp;contents)&nbsp;list<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;with_contents&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;step&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;contents&nbsp;option&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t<br>

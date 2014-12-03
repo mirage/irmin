@@ -27,7 +27,7 @@
 <p>
 
       The node blocks form a labeled directed acyclic graph, labeled
-      by <a href="Irmin.Private.Node.STORE.Step.html">steps</a>: a list of steps defines a
+      by steps: a list of steps defines a
       unique path from one node to an other.
 <p>
 
@@ -37,7 +37,7 @@
 <hr width="100%">
 
 <pre><span class="keyword">module type</span> <a href="Irmin.Private.Node.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Private.Node.S.html">..</a> <code class="code">end</code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Node.S.html">S</a></code><code class="type">  with type contents = C.t
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">P</code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Node.S.html">S</a></code><code class="type">  with type contents = C.t
          and type node = N.t
-         and type step = S.t</code></div></div></div></pre>
+         and type step = P.step</code></div></div></div></pre>
 <pre><span class="keyword">module type</span> <a href="Irmin.Private.Node.STORE.html">STORE</a> = <code class="code">sig</code> <a href="Irmin.Private.Node.STORE.html">..</a> <code class="code">end</code></pre></body></html>

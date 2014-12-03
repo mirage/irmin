@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.Private.Make_ext.html">
+<link rel="previous" href="Irmin.Private.Make.html">
 <link rel="Up" href="Irmin.Private.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -15,7 +15,7 @@
 <title>Irmin.Private.Watch</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.Private.Make_ext.html" title="Irmin.Private.Make_ext">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.Private.Make.html" title="Irmin.Private.Make">Previous</a>
 &nbsp;<a class="up" href="Irmin.Private.html" title="Irmin.Private">Up</a>
 &nbsp;</div>
 <h1>Module <a href="type_Irmin.Private.Watch.html">Irmin.Private.Watch</a></h1>
@@ -36,6 +36,10 @@ The signature for watch helpers.
 Register a function which looks for file changes in a
         directory. Could use <code class="code">inotify</code> when available, or use an active
         stats file polling.<br>
+</div>
+
+<pre><span id="VALlwt_stream_lift"><span class="keyword">val</span> lwt_stream_lift</span> : <code class="type">'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t</code></pre><div class="info ">
+Lift a stream out of the monad.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Watch.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Watch.S.html">S</a></code><code class="type">  with type key = K.t and type value = V.t</code></div></div></pre><div class="info">

@@ -28,9 +28,24 @@ Append-only store.
 </div>
 </td></tr>
 <tr><td align="left"><br>B</td></tr>
+<tr><td><a href="Irmin.Sync.BACKEND.html">BACKEND</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.BC.html">BC</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Branch-consistent stores.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.BC_MAKER.html">BC_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code">BC_MAKER</code> is the signature exposed by any backend providing <a href="Irmin.BC.html"><code class="code">Irmin.BC</code></a>
+    implementations.
+</div>
+</td></tr>
+<tr><td align="left"><br>H</td></tr>
+<tr><td><a href="Irmin.HUM.html">HUM</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+Serializable data with reversible human-readable
+    representations.
 </div>
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
@@ -53,7 +68,12 @@ Read-write stores.
 <tr><td align="left"><br>S</td></tr>
 <tr><td><a href="Irmin.S.html">S</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-Irmin high-level stores.
+High-level Stores
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.S.html">S</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td><div class="info">
+The complete collection of private implementations.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Watch.S.html">S</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
@@ -61,7 +81,7 @@ Irmin high-level stores.
 The signature for watch helpers.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Sync.S.html">S</a> [<a href="Irmin.Private.Sync.html">Irmin.Private.Sync</a>]</td>
+<tr><td><a href="Irmin.Private.Slice.S.html">S</a> [<a href="Irmin.Private.Slice.html">Irmin.Private.Slice</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Private.Commit.S.html">S</a> [<a href="Irmin.Private.Commit.html">Irmin.Private.Commit</a>]</td>
 <td></td></tr>
@@ -72,8 +92,11 @@ The signature for watch helpers.
 Signature for hash values.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Step.S.html">S</a> [<a href="Irmin.Step.html">Irmin.Step</a>]</td>
-<td></td></tr>
+<tr><td><a href="Irmin.Path.S.html">S</a> [<a href="Irmin.Path.html">Irmin.Path</a>]</td>
+<td><div class="info">
+Signature for path implementations.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Tag.S.html">S</a> [<a href="Irmin.Tag.html">Irmin.Tag</a>]</td>
 <td><div class="info">
 A tag implementations specifies base functions over abstract
@@ -83,6 +106,11 @@ A tag implementations specifies base functions over abstract
 </td></tr>
 <tr><td><a href="Irmin.Contents.S.html">S</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.Path.STEP.html">STEP</a> [<a href="Irmin.Path.html">Irmin.Path</a>]</td>
+<td><div class="info">
+Signature for path steps.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Tag.STORE.html">STORE</a> [<a href="Irmin.Private.Tag.html">Irmin.Private.Tag</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Private.Commit.STORE.html">STORE</a> [<a href="Irmin.Private.Commit.html">Irmin.Private.Commit</a>]</td>

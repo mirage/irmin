@@ -1,0 +1,89 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Sync.None.html">
+<link rel="Up" href="Irmin.Sync.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Native Synchronization" rel="Section" href="#1_NativeSynchronization">
+<title>Irmin.Sync.Make</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Sync.None.html" title="Irmin.Sync.None">Previous</a>
+&nbsp;<a class="up" href="Irmin.Sync.html" title="Irmin.Sync">Up</a>
+&nbsp;</div>
+<h1>Functor <a href="type_Irmin.Sync.Make.html">Irmin.Sync.Make</a></h1>
+
+<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">B</code><code class="code"> : </code><code class="type"><a href="Irmin.Sync.BACKEND.html">BACKEND</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">Irmin.S</a></code><code class="type">  with type head = B.head and type tag = B.tag</code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Sync.Make.html">..</a> <code class="code">end</code></div></div></pre><div class="info module top">
+Native synchronisation.<br>
+</div>
+<table border="0" cellpadding="3" width="100%">
+<tr>
+<td align="left" valign="top" width="1%%"><b>Parameters: </b></td>
+<td>
+<table class="paramstable">
+<tr>
+<td align="center" valign="top" width="15%">
+<code>B</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type"><a href="Irmin.Sync.BACKEND.html">BACKEND</a></code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>S</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">S with type head = B.head and type tag = B.tag</code>
+</table>
+</td>
+</tr>
+</table>
+<hr width="100%">
+<br>
+<h1 id="1_NativeSynchronization">Native Synchronization</h1><br>
+
+<pre><span id="TYPEremote"><span class="keyword">type</span> <code class="type"></code>remote</span> </pre>
+<div class="info ">
+The type for remote stores.<br>
+</div>
+
+
+<pre><span id="VALuri"><span class="keyword">val</span> uri</span> : <code class="type">string -> <a href="Irmin.Sync.Make.html#TYPEremote">remote</a></code></pre><div class="info ">
+<code class="code">uri s</code> is the remote store located at <code class="code">uri</code>. Use the
+        optimized native synchronization protocol when available for the
+        given backend.<br>
+</div>
+
+<pre><span id="VALstore"><span class="keyword">val</span> store</span> : <code class="type">Irmin.S.t -> <a href="Irmin.Sync.Make.html#TYPEremote">remote</a></code></pre><div class="info ">
+<code class="code">store t</code> is the remote corresponding to the local store
+        <code class="code">t</code>. Synchronization is done by importing and exporting store
+        slices, so this is usually much slower than native
+        synchronization using <code class="code">uri</code> remotes.<br>
+</div>
+
+<pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type">Irmin.S.t -><br>       ?depth:int -><br>       <a href="Irmin.Sync.Make.html#TYPEremote">remote</a> -> [ `Local of Irmin.S.head ] option Lwt.t</code></pre><div class="info ">
+<code class="code">create t last</code> fetch an object in the local store. The local
+        store can then be either <code class="code">merged</code>, or <code class="code">updated</code> to the new
+        contents. The <code class="code">depth</code> parameter limits the history
+        depth. Return the new <code class="code">head</code> in the local store corresponding
+        to the current branch -- <code class="code">fetch</code> does not update the local
+        branches, use pull instead.<br>
+</div>
+
+<pre><span id="VALpull"><span class="keyword">val</span> pull</span> : <code class="type">Irmin.S.t -><br>       ?depth:int -><br>       <a href="Irmin.Sync.Make.html#TYPEremote">remote</a> -><br>       [ `Merge | `Update ] -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+Same as fetch but also update the current
+        branch. Either <code class="code">merge</code> or force <code class="code">update</code> with the fetched
+        head.<br>
+</div>
+
+<pre><span id="VALpush"><span class="keyword">val</span> push</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.Make.html#TYPEremote">remote</a> -> [ `Error | `Ok ] Lwt.t</code></pre><div class="info ">
+<code class="code">push t f</code> push the contents of the current branch of the
+        store to the remote store -- also update the remote branch
+        with the same name as the local one to points to the new
+        state.<br>
+</div>
+</body></html>
