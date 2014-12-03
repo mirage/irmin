@@ -166,8 +166,8 @@ struct
     let mem { uri; _ } key =
       get uri ["mem"; K.to_hum key] Ezjsonm.get_bool
 
-    let list { uri; _ } keys =
-      get uri ("list" :: List.map K.to_hum keys) (Ezjsonm.get_list K.of_json)
+    let list { uri; _ } key =
+      get uri ["list"; K.to_hum key] (Ezjsonm.get_list K.of_json)
 
     let dump { uri; _ } =
       get uri ["dump"] (Ezjsonm.get_list (Ezjsonm.get_pair K.of_json V.of_json))
@@ -286,6 +286,10 @@ struct
   let config t = H.config t.h
   let task t = H.task t.h
 
+  let branch t = match t.branch with
+    | `Head l -> L.branch l
+    | `Tag  t -> `Tag t
+
   let root_uri t =
     let reset () = Filename.(dirname (dirname (H.get_path t.h))) in
     match t.branch with
@@ -361,6 +365,9 @@ struct
   let tag_exn t = match tag t with
     | None   -> raise Not_found
     | Some t -> t
+
+  let tags t =
+    get (uri t) ["tags"] (Ezjsonm.get_list T.of_json)
 
   let head t = match t.branch with
     | `Head l -> L.head l

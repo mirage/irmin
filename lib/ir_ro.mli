@@ -26,21 +26,9 @@ module type STORE = sig
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
-  val list: t -> key list -> key list Lwt.t
+  val list: t -> key -> key list Lwt.t
   val dump: t -> (key * value) list Lwt.t
 end
-
-module type CSTRUCT = STORE
-  with type key = Cstruct.t
-   and type value = Cstruct.t
-(** Binary read-only stores. Keys, values and origin are cstruct
-    buffers. *)
-
-module type JSON = STORE
-  with type key = Ezjsonm.t
-   and type value = Ezjsonm.t
-(** Binary read-only stores. Keys, values and origin are cstruct
-    buffers. *)
 
 module type MAKER =
   functor (K: Ir_hum.S) ->
@@ -48,15 +36,3 @@ module type MAKER =
     STORE with type key = K.t
            and type value = V.t
 (** Signature for functor creating read-only stores. *)
-
-module Cstruct (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0):
-  STORE with type t = S.t
-         and type key = K.t
-         and type value = V.t
-(** Create a typed read-only store from a binary one. *)
-
-module Json (S: JSON) (K: Tc.S0) (V: Tc.S0):
-  STORE with type t = S.t
-         and type key = K.t
-         and type value = V.t
-(** Create a typed read-only store from a JSON one. *)

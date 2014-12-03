@@ -139,7 +139,7 @@ module Make (G: Git.Store.S) (C: I.Contents.S) = struct
       | Some v -> return v
 
     let list _ k =
-      return k
+      return [k]
 
     let dump { t; _ } =
       G.list t >>= fun keys ->

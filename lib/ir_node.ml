@@ -179,6 +179,7 @@ module type STORE_EXT = sig
   val valid: t -> value -> step list -> bool Lwt.t
   val merge: t -> key Ir_merge.t
   val contents_t: t -> Contents.t
+  val rec_list: t -> key list -> key list Lwt.t
 end
 
 module Make_ext
@@ -234,8 +235,13 @@ module Make_ext
 
   module Graph = Ir_graph.Make(C.Key)(Key)(Tc.Unit)(Tc.Unit)
 
-  let list t keys =
-    Log.debugf "list %a" force (shows (module Key) keys);
+  let list t k =
+    Log.debugf "list %a" force (show (module Key) k);
+    read_exn t k >>= fun node ->
+    return (List.map snd (Val.all_succ node))
+
+  let rec_list t keys =
+    Log.debugf "rec_list %a" force (shows (module Key) keys);
     let pred = function
       | `Node k -> read_exn t k >>= fun node -> return (Val.edges node)
       | _       -> return_nil in

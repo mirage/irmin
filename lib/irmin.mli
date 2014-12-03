@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** A library for persistent stores following the same design
-    principle as Git.
+(** [Irmin] is a library for persistent stores following the same
+    design principle as Git.
 
     Irmin is a distributed and history-preserving library for
     persistent stores with built-in snapshot, branching and reverting
@@ -212,7 +212,7 @@ module type HUM = sig
   (** Convert an human readable representation of a value into its
       abstract value.
 
-      @raise [Invalid_argument] if the string does not represent
+      @raise Invalid_argument if the string does not represent
       anything meaningful. *)
 
 end
@@ -435,9 +435,9 @@ module type RO = sig
   val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
-  val list: t -> key list -> key list Lwt.t
-  (** [list t keys] is the list of sub-keys that any of the keys in
-      [keys] are allowed to access. *)
+  val list: t -> key -> key list Lwt.t
+  (** [list t key] is the list of sub-keys that the key [keys] is
+      allowed to access. *)
 
   val dump: t -> (key * value) list Lwt.t
   (** [dump t] is a dump of the store contents. *)
@@ -522,6 +522,9 @@ module type BC = sig
   (** Same as [tag] but raise [Not_found] if the store handle is not
       persistent. *)
 
+  val tags: t -> tag list Lwt.t
+  (** The list of all the tags of the store. *)
+
   val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   (** Change the current tag name. Fail if a tag with the same name
       already exists. The head is unchanged. *)
@@ -564,6 +567,10 @@ module type BC = sig
   val head_exn: t -> head Lwt.t
   (** Same as [read_head] but raise [Not_found] if the commit does
       not exist. *)
+
+  val branch: t -> [`Tag of tag | `Head of head]
+  (** [branch t] is the current branch of the store [t]. Can either be
+      a persistent store with a [tag] name or a detached [head]. *)
 
   val heads: t -> head list Lwt.t
   (** The list of all the heads of the store. *)
@@ -1057,7 +1064,7 @@ module Private: sig
 
 end
 
-(** {1:high-level High-level Stores}
+(** {1 High-level Stores}
 
     An Irmin store is a branch-consistent store where keys are lists
     of steps.
@@ -1066,6 +1073,8 @@ end
     of ['\']-separated strings. More complex examples are structured
     values, where steps might contains first-class fields accessors
     and array offsets. *)
+
+(** Signature for Irmin stores. *)
 module type S = sig
 
   (** {1 Irmin Store} *)
@@ -1195,7 +1204,7 @@ module View (S: S): sig
     type t =
       [ `Read of (key * value option)
       | `Write of (key * value option)
-      | `List of (key list * key list) ]
+      | `List of (key * key list) ]
     (** Operations on view. The read results are kept to be able
         to replay them on merge and to check for possible conflict:
         this happens if the result read is different from the one

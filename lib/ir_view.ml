@@ -31,11 +31,11 @@ module Action (P: Tc.S0) (C: Tc.S0) = struct
   type t =
     [ `Read of (path * contents option)
     | `Write of (path * contents option)
-    | `List of  (path list * path list) ]
+    | `List of  (path * path list) ]
 
   module R = Tc.Pair( P )( Tc.Option(C) )
   module W = R
-  module L = Tc.Pair( Tc.List(P) )( Tc.List(P) )
+  module L = Tc.Pair( P )( Tc.List(P) )
 
   let compare = Pervasives.compare
   let hash = Hashtbl.hash
@@ -91,7 +91,7 @@ module Action (P: Tc.S0) (C: Tc.S0) = struct
     match t with
     | `Read (p,x) -> sprintf "read  %s -> %s" (pretty_key p) (pretty_valo x)
     | `Write (p,x) ->sprintf "write %s <- %s" (pretty_key p) (pretty_valo x)
-    | `List (i,o) -> sprintf "list  %s -> %s" (pretty_keys i) (pretty_keys o)
+    | `List (i,o) -> sprintf "list  %s -> %s" (pretty_key i) (pretty_keys o)
 
   let prettys ts =
     let buf = Buffer.create 1024 in
@@ -200,24 +200,20 @@ module Internal (Node: NODE) = struct
     | None  -> return false
     | _     -> return true
 
-  let list_aux t paths =
-    let aux acc path =
-      sub t path >>= function
-      | None   -> return acc
-      | Some n ->
-        Node.read n >>= function
-        | None -> return acc
-        | Some t ->
-          let succ = Node.succ t in
-          let paths = List.map (fun p -> path @ [p]) (StepMap.keys succ) in
-          let paths = PathSet.of_list paths in
-          return (PathSet.union acc paths) in
-    Lwt_list.fold_left_s aux PathSet.empty paths >>= fun paths ->
-    return (PathSet.to_list paths)
+  let list_aux t path =
+    sub t path >>= function
+    | None   -> return []
+    | Some n ->
+      Node.read n >>= function
+      | None -> return []
+      | Some t ->
+        let succ = Node.succ t in
+        let paths = List.map (fun p -> path @ [p]) (StepMap.keys succ) in
+        return paths
 
-  let list t paths =
-    list_aux t paths >>= fun result ->
-    t.ops <- `List (paths, result) :: t.ops;
+  let list t path =
+    list_aux t path >>= fun result ->
+    t.ops <- `List (path, result) :: t.ops;
     return result
 
   let dump _t =
@@ -290,8 +286,9 @@ module Internal (Node: NODE) = struct
       list t l >>= fun r' ->
       if Tc.equal (module PL) r r' then ok ()
       else
-        let str = Ir_misc.list_pretty (Tc.show (module Path)) in
-        conflict "list %s: got %s, expecting %s" (str l) (str r') (str r)
+        let one = Tc.show (module Path) in
+        let many = Ir_misc.list_pretty one in
+        conflict "list %s: got %s, expecting %s" (one l) (many r') (many r)
 
   let actions t =
     List.rev t.ops
@@ -607,7 +604,7 @@ module type S = sig
     type t =
       [ `Read of (key * value option)
       | `Write of (key * value option)
-      | `List of (key list * key list) ]
+      | `List of (key * key list) ]
     include Tc.S0 with type t := t
     val pretty: t -> string
     val prettys: t list -> string

@@ -23,6 +23,7 @@ module type STORE = sig
   val of_tag: Ir_config.t -> Ir_task.t -> tag -> t Lwt.t
   val tag: t -> tag option
   val tag_exn: t -> tag
+  val tags: t -> tag list Lwt.t
   val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag_force: t -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
@@ -30,6 +31,7 @@ module type STORE = sig
   val of_head: Ir_config.t -> Ir_task.t -> head -> t Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
+  val branch: t -> [`Tag of tag | `Head of head]
   val heads: t -> head list Lwt.t
   val detach: t -> unit Lwt.t
   val update_head: t -> head -> unit Lwt.t

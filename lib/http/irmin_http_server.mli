@@ -38,5 +38,10 @@ module type SERVER = sig
 
 end
 
-module Make (HTTP: SERVER) (S: Irmin.S): S with type t = S.t
+module type DATE = sig
+  val pretty: int64 -> string
+  (** Pretty print a raw date format. *)
+end
+
+module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S): S with type t = S.t
 (** Create an HTTP server, serving the contents of an Irmin database. *)

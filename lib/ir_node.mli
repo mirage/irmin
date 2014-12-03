@@ -116,6 +116,9 @@ module type STORE_EXT = sig
   val contents_t: t -> Contents.t
   (** An handler to the contents database. *)
 
+  val rec_list: t -> key list -> key list Lwt.t
+  (** Recursive list. *)
+
 end
 
 module Make_ext

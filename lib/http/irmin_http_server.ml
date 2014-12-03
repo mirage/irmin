@@ -21,42 +21,11 @@ let error fmt =
       failwith ("error: " ^ msg)
     ) fmt
 
+let string_replace ~pattern subst str =
+  let rex = Re_perl.compile_pat pattern in
+  Re_pcre.substitute ~rex ~subst str
+
 module Log = Log.Make(struct let section = "HTTP" end)
-
-type 'a t = {
-  input : Ezjsonm.t -> 'a;
-  output: 'a -> Ezjsonm.t;
-}
-
-let some fn = {
-  input  = Ezjsonm.get_option fn.input;
-  output = Ezjsonm.option fn.output
-}
-
-let list fn = {
-  input  = Ezjsonm.get_list fn.input;
-  output = Ezjsonm.list fn.output;
-}
-
-let pair a b = {
-  input  = Ezjsonm.get_pair a.input b.input;
-  output = Ezjsonm.pair a.output b.output;
-}
-
-let bool = {
-  input  = Ezjsonm.get_bool;
-  output = Ezjsonm.bool;
-}
-
-let path = {
-  input  = Ezjsonm.get_list Ezjsonm.get_string;
-  output = Ezjsonm.list Ezjsonm.string;
-}
-
-let unit = {
-  input  = Ezjsonm.get_unit;
-  output = (fun () -> Ezjsonm.unit);
-}
 
 let json_headers = Cohttp.Header.of_list [
     "Content-type", "application/json"
@@ -74,39 +43,12 @@ module type SERVER = sig
   val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
 end
 
-module Make (HTTP: SERVER) (S: Irmin.S) = struct
+module type DATE = sig
+  val pretty: int64 -> string
+  (** Pretty print a raw date format. *)
+end
 
-  module H = S.Head
-  let key = {
-    input  = K.of_json;
-    output = K.to_json;
-  }
-
-  module V = S.Val
-  let contents = {
-    input  = V.of_json;
-    output = V.to_json;
-  }
-
-  module Node = S.Private.Node
-  module T = Node.Val
-  let node = {
-    input  = T.of_json;
-    output = T.to_json;
-  }
-
-  module Commit = S.Private.Commit
-  module C = Commit.Val
-  let commit = {
-    input  = C.of_json;
-    output = C.to_json;
-  }
-
-  module RU = Tc.App1(Irmin.Merge.Result)(Tc.Unit)
-  let result = {
-    input  = RU.of_json;
-    output = RU.to_json;
-  }
+module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let read_exn file =
     match Irmin_http_static.read file with
@@ -114,7 +56,7 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
     | Some s -> s
 
   let respond_error e =
-    let json = `O [ "error", Ezjsonm.encode_string (Printexn.to_string e) ] in
+    let json = `O [ "error", Ezjsonm.encode_string (Printexc.to_string e) ] in
     let body = Ezjsonm.to_string json in
     HTTP.respond_string
       ~headers:json_headers
@@ -146,38 +88,42 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
 
   type 'a leaf = S.t -> string list -> Ezjsonm.t option -> (string * string list) list -> 'a
 
-  type response =
+  type dynamic_node = {
+    list: S.t -> string list Lwt.t;
+    child: S.t -> string -> response Lwt.t;
+  }
+
+  and response =
     | Fixed  of Ezjsonm.t Lwt.t leaf
     | Stream of Ezjsonm.t Lwt_stream.t leaf
-    | Node   of (string * response) list
+    | SNode  of (string * response) list
+    | DNode  of dynamic_node
     | Html   of string Lwt.t leaf
 
-  let to_json t =
-    let rec aux path acc = function
-      | Fixed   _
-      | Stream _
-      | Html _   -> `String (IrminPath.to_string (List.rev path)) :: acc
-      | Node c   -> List.fold_left c
-                      ~f:(fun acc (s,t) -> aux (s::path) acc t)
-                      ~init:acc in
-    `A (List.rev (aux [] [] t))
+  let json_of_response t r =
+    let str = Ezjsonm.encode_string in
+    let list x = `A x in
+    match r with
+    | Fixed   _
+    | Stream _
+    | Html _   -> return (str "<data>")
+    | SNode c  -> return (list ((List.map (fun (n, _) -> str n) c)))
+    | DNode d  -> d.list t >>= fun l -> return (list (List.map str l))
 
-  let child c t: response =
-    let error () =
-      failwith ("Unknown action: " ^ c) in
-    match t with
+  let child t c r: response Lwt.t =
+    let error () = fail (Failure ("Unknown action: " ^ c)) in
+    match r with
     | Fixed _
     | Stream _ -> error ()
-    | Html _   -> t
-    | Node l   ->
-      try List.Assoc.find_exn l c
+    | Html _   -> return r
+    | DNode d  -> d.child t c
+    | SNode l  ->
+      try return (List.assoc c l)
       with Not_found -> error ()
-
-  let t x = x
 
   let mk0p name = function
     | [] -> ()
-    | p  -> error "%s: non-empty path (%s)" name (IrminPath.to_string p)
+    | p  -> error "%s: non-empty path (%s)" name (String.concat ":" p)
 
   let mk0b name = function
     | None   -> ()
@@ -187,22 +133,15 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
     | [] -> ()
     | _  -> error "%s: non-empty query" name
 
-  let mk1p name i path =
+  let mk1p (type s) name (module S: Irmin.HUM with type t = s) path =
     match path with
-    | [x] -> i.input (`String x)
+    | [x] -> S.of_hum x
     | []  -> error "%s: empty path" name
-    | l   -> error "%s: %s is an invalid path" name (IrminPath.to_string l)
+    | p   -> error "%s: %s is an invalid path" name (String.concat ":" p)
 
   let mk1b name i = function
     | None   -> error "%s: empty body" name
-    | Some b  -> i.input b
-
-  let mk2b name i j = function
-    | None   -> error "%s: empty body" name
-    | Some b -> (pair i j).input b
-
-  let mklp name i1 path =
-    i1.input (Ezjsonm.strings path)
+    | Some b  -> Tc.of_json i b
 
   (* no arguments, fixed answer *)
   let mk0p0bf name fn db o =
@@ -211,8 +150,9 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
         mk0p name path;
         mk0b name params;
         mk0q name query;
-        fn (db t) >>= fun r ->
-        return (o.output r)
+        db t >>= fun t ->
+        fn t >>= fun r ->
+        return (Tc.to_json o r)
       )
 
   (* 0 argument, return an html page. *)
@@ -220,7 +160,8 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
     name,
     Html (fun t path params query ->
         mk0b name params;
-        fn (db t) path query
+        db t >>= fun t ->
+        fn t path query
       )
 
   (* 1 argument in the path, fixed answer *)
@@ -230,29 +171,9 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
         let x = mk1p name i1 path in
         mk0b name params;
         mk0q name query;
-        fn (db t) x >>= fun r ->
-        return (o.output r)
-      )
-
-  (* list of arguments in the path, fixed answer *)
-  let mklp0bf name fn db i1 o =
-    name,
-    Fixed (fun t path params query ->
-        let x = mklp name i1 path in
-        mk0b name params;
-        mk0q name query;
-        fn (db t) x >>= fun r ->
-        return (o.output r)
-      )
-
-  (* list of arguments in the path, query strings, fixed answer *)
-  let mklp0b1qf name fn db i1 o =
-    name,
-    Fixed (fun t path params query ->
-        let x = mklp name i1 path in
-        mk0b name params;
-        fn (db t) x query >>= fun r ->
-        return (o.output r)
+        db t >>= fun t ->
+        fn t x >>= fun r ->
+        return (Tc.to_json o r)
       )
 
   (* 1 argument in the body *)
@@ -262,8 +183,9 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
         mk0p name path;
         mk0q name query;
         let x = mk1b name i1 params in
-        fn (db t) x >>= fun r ->
-        return (o.output r)
+        db t >>= fun t ->
+        fn t x >>= fun r ->
+        return (Tc.to_json o r)
       )
 
   (* 1 argument in the path, 1 argument in the body, fixed answer *)
@@ -273,123 +195,260 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
-        fn (db t) x1 x2 >>= fun r ->
-        return (o.output r)
-      )
-
-  (* list of arguments in the path, 1 argument in the body, fixed answer *)
-  let mklp1bf name fn db i1 i2 o =
-    name,
-    Fixed (fun t path params query ->
-        let x1 = mklp name i1 path in
-        let x2 = mk1b name i2 params in
-        mk0q name query;
-        fn (db t) x1 x2 >>= fun r ->
-        return (o.output r)
-      )
-
-  (* list of arguments in the path, 2 arguments in the body, fixed answer *)
-  let mklp2bf name fn db i1 i2 i3 o =
-    name,
-    Fixed (fun t path params query ->
-        let x1 = mklp name i1 path in
-        let x2, x3 = mk2b name i2 i3 params in
-        mk0q name query;
-        fn (db t) x1 x2 x3 >>= fun r ->
-        return (o.output r)
+        db t >>= fun t ->
+        fn t x1 x2 >>= fun r ->
+        return (Tc.to_json o r)
       )
 
   (* list of arguments in the path, no body, streamed response *)
-  let mklp0bs name fn db i1 o =
+  let mk1p0bs name fn db i1 o =
     name,
-    Stream (fun t path params query ->
-        let x1 = mklp name i1 path in
+    Stream (fun t path _params query ->
+        let x1 = mk1p name i1 path in
         mk0q name query;
-        let stream = fn (db t) x1 in
-        Lwt_stream.map (fun r -> o.output r) stream
+        Irmin.Private.Watch.lwt_stream_lift
+          (db t >>= fun t ->
+           let stream = fn t x1 in
+           let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
+           return stream)
       )
 
   let graph_index = read_exn "index.html"
 
-  let graph_of_dump (dump:S.Sync.db) path query =
+  module Dot = Irmin.Dot(S)
+
+  let graph_of_dump dump path query =
     match path with
     | [] -> return graph_index
     | ["graph.dot"] ->
-      let depth = match List.Assoc.find query "depth" with
-        | Some (x::_) -> Some (Int.of_string x)
-        | _           -> None in
-      let full = match List.Assoc.find query "full" with
-        | Some (x::_) -> Some (x <> "0")
-        | _           -> None in
+      let param n fn =
+        try match List.assoc n query with
+          | []   -> None
+          | x::_ -> Some (fn x)
+        with Not_found -> None
+      in
+      let depth = param "depth" int_of_string in
+      let full = param "full" ((<>) "0") in
       let buffer = Buffer.create 1024 in
-      S.Dump.output_buffer dump ?depth ?full buffer >>= fun () ->
+      Dot.output_buffer dump ?depth ?full ~date:D.pretty buffer
+      >>= fun () ->
       let str = Buffer.contents buffer in
       (* Fix the OCamlGraph output (XXX: open an issue upstream) *)
-      let str = IrminMisc.replace ~pattern:",[ \\n]*]" (fun _ -> "]") str in
+      let str = string_replace ~pattern:",[ \\n]*]" (fun _ -> "]") str in
       return str
-    | [file] -> mk0q "dump" query; return (read_exn file)
-    | l      -> error "%s: not found" (String.concat ~sep:"/" l)
+    | [file] -> mk0q "graph" query; return (read_exn file)
+    | l      -> error "%s: not found" (String.concat "/" l)
 
-  let contents_store = Node [
-      mk1p0bf "read" Contents.read S.contents_t key (some contents);
-      mk1p0bf "mem"  Contents.mem  S.contents_t key bool;
-      mklp0bf "list" Contents.list S.contents_t (list key) (list key);
-      mk0p1bf "add"  Contents.add  S.contents_t contents key;
-      mk0p0bf "dump" Contents.dump S.contents_t (mk_dump key contents);
-  ]
+  let ao_store (type key) (type value) (type l)
+      (module M: Irmin.AO with type t = l and type key = key and type value = value)
+      (module K: Irmin.HUM with type t = M.key)
+      (module V: Tc.S0 with type t = M.value)
+      (fn: S.t -> l Lwt.t) =
+    let key' = (module K: Irmin.HUM with type t = K.t) in
+    let key: M.key Tc.t = (module K) in
+    let value: M.value Tc.t = (module V) in
+    let pairs = Tc.list (Tc.pair key value) in
+    SNode [
+      mk1p0bf "read" M.read fn key' (Tc.option value);
+      mk1p0bf "mem"  M.mem  fn key' Tc.bool;
+      mk1p0bf "list" M.list fn key' (Tc.list key);
+      mk0p0bf "dump" M.dump fn pairs;
+      mk0p1bf "add"  M.add  fn value key;
+    ]
 
-  let node_store = Node [
-      mk1p0bf "read" Node.read S.node_t key (some node);
-      mk1p0bf "mem"  Node.mem  S.node_t key bool;
-      mklp0bf "list" Node.list S.node_t (list key) (list key);
-      mk0p1bf "add"  Node.add  S.node_t node key;
-      mk0p0bf "dump" Node.dump S.node_t (mk_dump key node);
-  ]
+  let contents_store = ao_store
+      (module S.Private.Contents)
+      (module S.Private.Contents.Key)
+      (module S.Private.Contents.Val)
+      (fun t -> return (S.Private.contents_t t))
 
-  let commit_store =
-    let commit_list t keys query =
-      let depth =
-        match List.Assoc.find query "depth" with
-        | Some [d] -> Some (Int.of_string d)
-        | _        -> None in
-      Commit.list t ?depth keys in
-    Node [
-      mk1p0bf   "read" Commit.read S.commit_t key (some commit);
-      mk1p0bf   "mem"  Commit.mem  S.commit_t key bool;
-      mklp0b1qf "list" commit_list S.commit_t (list key) (list key);
-      mk0p1bf   "add"  Commit.add  S.commit_t commit key;
-      mk0p0bf   "dump" Commit.dump S.commit_t (mk_dump key commit);
-  ]
+  let node_store = ao_store
+      (module S.Private.Node)
+      (module S.Private.Node.Key)
+      (module S.Private.Node.Val)
+      (fun t -> return (snd (S.Private.node_t t)))
 
-  let tag_store = Node [
-      mklp0bf "read"   Tag.read   S.tag_t tag (some key);
-      mklp0bf "mem"    Tag.mem    S.tag_t tag bool;
-      mklp0bf "list"   Tag.list   S.tag_t (list tag) (list tag);
-      mklp1bf "update" Tag.update S.tag_t tag key unit;
-      mklp0bf "remove" Tag.remove S.tag_t tag unit;
-      mk0p0bf "dump"   Tag.dump   S.tag_t (mk_dump tag key);
-      mklp0bs "watch"  Tag.watch  S.tag_t tag key;
-  ]
+  let commit_store = ao_store
+      (module S.Private.Commit)
+      (module S.Private.Commit.Key)
+      (module S.Private.Commit.Val)
+      (fun t -> let _, _, t = S.Private.commit_t t in return t)
+
+  let tag_store =
+    let open S.Private.Tag in
+    let tag_t t = return (S.Private.tag_t t) in
+    let tag' = (module S.Tag: Irmin.HUM with type t = S.tag) in
+    let tag: S.tag Tc.t = (module S.Tag) in
+    let head: S.head Tc.t = (module S.Head) in
+    let pairs = Tc.list (Tc.pair tag head) in
+    SNode [
+      mk1p0bf "read"   read   tag_t tag' (Tc.option head);
+      mk1p0bf "mem"    mem    tag_t tag' Tc.bool;
+      mk1p0bf "list"   list   tag_t tag' (Tc.list tag);
+      mk0p0bf "dump"   dump   tag_t pairs;
+      mk1p1bf "update" update tag_t tag' head Tc.unit;
+      mk1p0bf "remove" remove tag_t tag' Tc.unit;
+      mk1p0bs "watch"  watch  tag_t tag' (Tc.option head);
+    ]
+
+  let ok_or_duplicated_tag =
+    let module M = struct
+      type t = [ `Ok | `Duplicated_tag ]
+      let to_string = function
+        | `Ok -> "ok"
+        | `Duplicated_tag -> "duplicated-tag"
+      let to_json t = `String (to_string t)
+      let to_sexp t = Sexplib.Type.Atom (to_string t)
+      let compare = Pervasives.compare
+      let equal = (=)
+      let hash = Hashtbl.hash
+      let of_json _ = failwith "TODO"
+      let write _ = failwith "TODO"
+      let read _ = failwith "TODO"
+      let size_of _ = failwith "TODO"
+    end in
+    (module M: Tc.S0 with type t = M.t)
+
+  let ok_or_duplicated_tag' =
+    let module M = struct
+      type t = [ `Ok of S.t | `Duplicated_tag ]
+      let to_string = function
+        | `Ok _ -> "ok"
+        | `Duplicated_tag -> "duplicated-tag"
+      let to_json t = `String (to_string t)
+      let to_sexp t = Sexplib.Type.Atom (to_string t)
+      let compare = Pervasives.compare
+      let equal = (=)
+      let hash = Hashtbl.hash
+      let of_json _ = failwith "TODO"
+      let write _ = failwith "TODO"
+      let read _ = failwith "TODO"
+      let size_of _ = failwith "TODO"
+    end in
+    (module M: Tc.S0 with type t = M.t)
+
+  let ok_or_duplicated_tags =
+    let module M = struct
+      type t = [ `Ok | `Duplicated_tags of S.tag list ]
+      let to_json = function
+        | `Ok -> `A []
+        | `Duplicated_tags ts -> `A (List.map S.Tag.to_json ts)
+      let to_sexp _ = failwith "TODO"
+      let compare = Pervasives.compare
+      let equal = (=)
+      let hash = Hashtbl.hash
+      let of_json _ = failwith "TODO"
+      let write _ = failwith "TODO"
+      let read _ = failwith "TODO"
+      let size_of _ = failwith "TODO"
+    end in
+    (module M: Tc.S0 with type t = M.t)
+
+  let branch =
+    let module M = struct
+      type t = S.t
+      let to_json t = match S.branch t with
+        | `Tag t  -> `O ["tag" , S.Tag.to_json t]
+        | `Head h -> `O ["head", S.Head.to_json h]
+      let to_sexp _ = failwith "TODO"
+      let compare = Pervasives.compare
+      let equal = (=)
+      let hash = Hashtbl.hash
+      let of_json _ = failwith "TODO"
+      let write _ = failwith "TODO"
+      let read _ = failwith "TODO"
+      let size_of _ = failwith "TODO"
+    end in
+    (module M: Tc.S0 with type t = M.t)
+
+  let key: S.key Tc.t = (module S.Key)
+  let head: S.head Tc.t = (module S.Head)
+
+  let export =
+    Tc.pair
+      (Tc.pair (Tc.option Tc.bool) (Tc.option Tc.int))
+      (Tc.pair (Tc.list head) (Tc.list head))
+
+  let merge (type x) (x:x Tc.t): x Irmin.Merge.result Tc.t =
+    let module X = (val x: Tc.S0 with type t = x) in
+    let module M = Tc.App1(Irmin.Merge.Result)(X) in
+    (module M)
+
+  let dyn_node list child = DNode { list; child }
 
   let store =
-    let s_update t p o c = S.update t ?origin:o p c in
-    let s_remove t p o = S.remove t ?origin:o p in
-    let s_merge t b o = S.merge t ?origin:o b in
-    let s_dump t = graph_of_dump t in (* XXX: weird API *)
-    Node [
-      mklp0bf "read"     S.read     t path (some contents);
-      mklp0bf "mem"      S.mem      t path bool;
-      mk0p1bf "list"     S.list     t (list path) (list path);
-      mklp2bf "update"   s_update   t path (some origin) contents unit;
-      mklp1bf "remove"   s_remove   t path (some origin) unit;
-      mk0p0bh "dump"     s_dump     t;
-      mklp0bs "watch"    S.watch    t path contents;
-      mklp1bf "merge"    s_merge    t tag (some origin) result;
-      "contents", contents_store;
-      "node"    , node_store;
-      "commit"  , commit_store;
-      "tag"     , tag_store;
-  ]
+    let key' = (module S.Key: Irmin.HUM with type t = S.key) in
+    let tag' = (module S.Tag: Irmin.HUM with type t = S.tag) in
+    let head' = (module S.Head: Irmin.HUM with type t = S.head) in
+    let value: S.value Tc.t = (module S.Val) in
+    let pairs = Tc.list (Tc.pair key value) in
+    let slice: S.slice Tc.t = (module S.Private.Slice) in
+    let s_export t ((full, depth), (min, max)) =
+      S.export ?full ?depth ~min ~max t
+    in
+    let s_graph t = graph_of_dump t in
+    let bc t = [
+      (* rw *)
+      mk1p0bf "read"     S.read     t key' (Tc.option value);
+      mk1p0bf "mem"      S.mem      t key' Tc.bool;
+      mk1p0bf "list"     S.list     t key' (Tc.list key);
+      mk0p0bf "dump"     S.dump     t pairs; (* XXX: do we really want to expose that? *)
+      mk1p1bf "update"   S.update   t key' value Tc.unit;
+      mk1p0bf "remove"   S.remove   t key' Tc.unit;
+      mk1p0bs "watch"    S.watch    t key' (Tc.option value);
+
+      (* more *)
+      mk1p0bf "update-tag"       S.update_tag t tag' ok_or_duplicated_tag;
+      mk1p0bf "update-tag-force" S.update_tag_force t tag' Tc.unit;
+      mk1p0bf "switch"           S.switch t tag' Tc.unit;
+      mk0p0bf "head"             S.head t (Tc.option head);
+      mk0p0bf "heads"            S.heads t (Tc.list head);
+      mk1p0bf "update-head"      S.update_head t head' Tc.unit;
+      mk1p0bf "merge-head"       S.merge_head t head' (merge Tc.unit);
+      mk1p0bs "watch-head"       S.watch_head t key' (Tc.pair key head);
+      mk1p0bf "clone"            S.clone t tag' ok_or_duplicated_tag';
+      mk1p0bf "clone-force"      S.clone_force t tag' branch;
+      mk1p0bf "merge"            S.merge t tag' (merge Tc.unit);
+      mk0p1bf "export"           s_export t export slice;
+      mk0p1bf "import"           S.import t slice ok_or_duplicated_tags;
+      mk0p1bf "import-force"     S.import_force t slice Tc.unit;
+
+      (* extra *)
+      mk0p0bh "graph" s_graph t;
+    ] in
+
+    SNode (
+      bc (fun x -> return x)
+      @ [
+        (* subdirs *)
+        "contents", contents_store;
+        "node"    , node_store;
+        "commit"  , commit_store;
+        "tag"     , tag_store;
+      ] @ [
+        "tree"    , dyn_node
+        (fun t ->
+          S.tags t  >>= fun tags ->
+          S.heads t >>= fun heads ->
+          return (List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads))
+        (fun t n ->
+           S.tags t >>= fun tags ->
+           let tags = List.map S.Tag.to_hum tags in
+           if List.mem n tags then (
+             return (SNode (bc (fun t ->
+                 S.of_tag (S.config t) (S.task t) (S.Tag.of_hum n)
+               )))
+           ) else (
+             S.heads t >>= fun heads ->
+             let heads = List.map S.Head.to_hum heads in
+             if List.mem n heads then (
+               return (SNode (bc (fun t ->
+                   S.of_head (S.config t) (S.task t) (S.Head.of_hum n)
+                 )))
+             ) else
+               error "%s is not a valid key or tag" n
+           ))
+      ])
 
   let process t req body path =
     begin match Cohttp.Request.meth req with
@@ -404,24 +463,24 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
           Log.debugf "process: length=%d body=%S" len b;
           try match Ezjsonm.from_string b with
             | `O l ->
-              if List.Assoc.mem l "params" then
-                return (List.Assoc.find l "params")
-              else
-                failwith "process: wrong request"
+              if List.mem_assoc "params" l then (
+                try return (Some (List.assoc "params" l))
+                with Not_found -> return_none
+              ) else
+                error "process: wrong request"
             | _    ->
-              failwith "Wrong parameters"
-          with _ ->
-            Log.debugf "process: not a valid JSON body %S" b;
-            fail Invalid
+              error "process: wrong parameters"
+          with e ->
+            error "process: not a valid JSON body %S [%s]" b (Printexc.to_string e)
         end
       | _ -> fail Invalid
     end >>= fun params ->
     let query = Uri.query (Cohttp.Request.uri req) in
     let rec aux actions path =
       match path with
-      | []      -> respond_json (to_json actions)
+      | []      -> json_of_response t actions >>= respond_json
       | h::path ->
-        match child h actions with
+        child t h actions >>= function
         | Fixed fn  -> fn t path params query >>= respond_json
         | Stream fn -> respond_json_stream (fn t path params query)
         | Html fn   -> fn t path params query >>= respond
@@ -437,12 +496,12 @@ module Make (HTTP: SERVER) (S: Irmin.S) = struct
     let port, uri = match Uri.port uri with
       | None   -> 8080, Uri.with_port uri (Some 8080)
       | Some p -> p   , uri in
-    printf "Server started on port %d.\n%!" port;
-    let callback conn_id req body =
+    Printf.printf "Server started on port %d.\n%!" port;
+    let callback _conn_id req body =
       let path = Uri.path (Cohttp.Request.uri req) in
       Log.infof "Request received: PATH=%s" path;
-      let path = String.split path ~on:'/' in
-      let path = List.filter ~f:((<>) "") path in
+      let path = Stringext.split path ~on:'/' in
+      let path = List.filter ((<>) "") path in
       catch
         (fun () -> process t req body path)
         (fun e  -> respond_error e) in

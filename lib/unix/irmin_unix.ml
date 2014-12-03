@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-module IB = Irmin.Backend
+module IB = Irmin.Private
 
 module Log = Log.Make(struct let section = "UNIX" end)
 
@@ -211,14 +211,6 @@ let install_dir_polling_listener delay =
 
       Lwt.async t
     )
-
-module Irmin_git = struct
-  module type S = Irmin_git.S
-  module Memory = Irmin_git.Memory (Git_unix.Sync.IO)
-  module Make = Irmin_git.Make (Git_unix.FS) (Git_unix.Sync.IO)
-end
-
-(*
 module Server = struct
 
   include Cohttp_lwt_unix.Server
@@ -232,10 +224,8 @@ module Server = struct
 
 end
 
-module IrminHTTP = struct
+module Irmin_http_server = struct
 
-  module Make = IrminHTTP.Make (Server)
+  module Make = Irmin_http_server.Make (Server)
 
 end
-
-*)

@@ -14,9 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Ir_misc.OP
-open Lwt
-
 module Log = Log.Make(struct let section = "AO" end)
 
 module type STORE = sig
@@ -24,43 +21,7 @@ module type STORE = sig
   val add: t -> value -> key Lwt.t
 end
 
-module type CSTRUCT = STORE
-  with type key = Cstruct.t
-   and type value = Cstruct.t
-
-module type JSON = STORE
-  with type key = Ezjsonm.t
-   and type value = Ezjsonm.t
-
 module type MAKER =
   functor (K: Ir_hash.S) ->
   functor (V: Tc.S0) ->
     STORE with type key = K.t and type value = V.t
-
-module Cstruct (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0) = struct
-
-  include Ir_ro.Cstruct(S)(K)(V)
-
-  let add t value =
-    Log.debugf "add";
-    let value = Tc.write_cstruct (module V) value in
-    S.add t value >>= fun key ->
-    let key = Tc.read_cstruct (module K) key in
-    Log.debugf "added: %a" force (show (module K) key);
-    return key
-
-end
-
-module Json (S: JSON) (K: Tc.S0) (V: Tc.S0) = struct
-
-  include Ir_ro.Json(S)(K)(V)
-
-  let add t value =
-    Log.debugf "add";
-    let value = Tc.to_json (module V) value in
-    S.add t value >>= fun key ->
-    let key = Tc.of_json (module K) key in
-    Log.debugf "added: %a" force (show (module K) key);
-    return key
-
-end

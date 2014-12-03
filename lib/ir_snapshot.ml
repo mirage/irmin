@@ -86,24 +86,15 @@ module Make (S: Ir_s.STORE) = struct
     map t path ~f:N.valid
 
   (* XXX: code duplication with Branch.list *)
-  let list t paths =
+  let list t path =
     Log.debugf "list";
-    let t_n = P.node_t (db t) in
-    let one path =
-      root_node t >>= fun n ->
-      N.sub t_n n path >>= function
-      | None      -> return_nil
-      | Some node ->
-        let steps = N.Val.steps node in
-        let paths = List.map (fun c -> path @ [c]) steps in
-        return paths in
-    Lwt_list.fold_left_s (fun set p ->
-        one p >>= fun paths ->
-        let paths = PathSet.of_list paths in
-        return (PathSet.union set paths)
-      ) PathSet.empty paths
-    >>= fun paths ->
-    return (PathSet.to_list paths)
+    root_node t >>= fun n ->
+    N.sub (P.node_t (db t)) n path >>= function
+    | None      -> return_nil
+    | Some node ->
+      let steps = N.Val.steps node in
+      let paths = List.map (fun c -> path @ [c]) steps in
+      return paths
 
   let dump _ =
     failwith "TODO"

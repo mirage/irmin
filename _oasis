@@ -72,7 +72,7 @@ Library "irmin-http"
   Path:            lib/http
   Findlibname:     http
   FindlibParent:   irmin
-  BuildDepends:    irmin, cohttp.lwt-core, ezjsonm.lwt
+  BuildDepends:    irmin, cohttp.lwt-core, ezjsonm.lwt, re
   InternalModules: Irmin_http_static
   Modules:         Irmin_http, Irmin_http_server
 

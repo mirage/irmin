@@ -29,7 +29,7 @@ module type S = sig
     type t =
       [ `Read of (key * value option)
       | `Write of (key * value option)
-      | `List of (key list * key list) ]
+      | `List of (key * key list) ]
     include Tc.S0 with type t := t
     val pretty: t -> string
     val prettys: t list -> string

@@ -79,6 +79,9 @@ module type STORE_EXT = sig
   val node_t: t -> Node.t
   (** An handler to the node database. *)
 
+  val rec_list: t -> key list -> key list Lwt.t
+  (** Recursive list of keys. *)
+
 end
 
 module Make_ext

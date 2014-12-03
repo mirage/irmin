@@ -28,6 +28,7 @@ module type STORE = sig
   val of_tag: Ir_config.t -> Ir_task.t -> tag -> t Lwt.t
   val tag: t -> tag option
   val tag_exn: t -> tag
+  val tags: t -> tag list Lwt.t
   val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag_force: t -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
@@ -35,6 +36,7 @@ module type STORE = sig
   val of_head: Ir_config.t -> Ir_task.t -> head -> t Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
+  val branch: t -> [`Tag of tag | `Head of head]
   val heads: t -> head list Lwt.t
   val detach: t -> unit Lwt.t
   val update_head: t -> head -> unit Lwt.t
@@ -130,7 +132,7 @@ module Make_ext (P: PRIVATE) = struct
   module Head = Commit.Key
   type head = Head.t
 
-  type branch = [ `Tag of tag | `Key of head ]
+  type branch = [ `Tag of tag | `Head of head ]
 
   module Graph = Ir_graph.Make(Contents.Key)(Node.Key)(Commit.Key)(Tag.Key)
 
@@ -147,19 +149,25 @@ module Make_ext (P: PRIVATE) = struct
   let contents_t t = Node.contents_t (node_t t)
 
   let tag t = match t.branch with
-    | `Tag t -> Some t
-    | `Key _ -> None
+    | `Tag t  -> Some t
+    | `Head _ -> None
 
   let tag_exn t = match t.branch with
-    | `Tag t -> t
-    | `Key _ -> raise Not_found
+    | `Tag t  -> t
+    | `Head _ -> raise Not_found
+
+  let tags t =
+    Tag.dump (tag_t t) >>= fun tags ->
+    return (List.map fst tags)
 
   let set_tag t tag =
     t.branch <- `Tag tag
 
   let head t = match t.branch with
-    | `Key key -> return (Some key)
-    | `Tag tag -> Tag.read (tag_t t) tag
+    | `Head key -> return (Some key)
+    | `Tag tag  -> Tag.read (tag_t t) tag
+
+  let branch t = t.branch
 
   let heads t =
     Tag.dump (tag_t t) >>= fun tags ->
@@ -175,10 +183,10 @@ module Make_ext (P: PRIVATE) = struct
 
   let detach t =
     match t.branch with
-    | `Key _   -> return_unit
+    | `Head _  -> return_unit
     | `Tag tag ->
       Tag.read_exn (tag_t t) tag >>= fun key ->
-      t.branch <- `Key key;
+      t.branch <- `Head key;
       return_unit
 
   let of_tag config task t =
@@ -195,11 +203,11 @@ module Make_ext (P: PRIVATE) = struct
   let of_head config task key =
     Commit.create config task >>= fun block ->
     Tag.create config task >>= fun tag ->
-    return { block; tag; task; branch = `Key key }
+    return { block; tag; task; branch = `Head key }
 
   let read_head_commit t =
     match t.branch with
-    | `Key key ->
+    | `Head key ->
       Log.debugf "read detached head: %a" force (show (module Head) key);
       Commit.read (commit_t t) key
     | `Tag tag ->
@@ -247,7 +255,7 @@ module Make_ext (P: PRIVATE) = struct
       >>= fun (key, _) ->
       (* XXX: the head might have changed since we started the operation *)
       match t.branch with
-      | `Key _   -> t.branch <- `Key key; return_unit
+      | `Head _  -> t.branch <- `Head key; return_unit
       | `Tag tag -> Tag.update (tag_t t) tag key
     )
 
@@ -282,23 +290,15 @@ module Make_ext (P: PRIVATE) = struct
     map t path ~f:Node.valid
 
   (* Return the subpaths. *)
-  let list t paths =
+  let list t path =
     Log.debugf "list";
-    let one path =
-      read_head_node t >>= fun n ->
-      Node.sub (node_t t) n path >>= function
-      | None      -> return_nil
-      | Some node ->
-        let steps = Node.Val.steps node in
-        let paths = List.map (fun c -> path @ [c]) steps in
-        return paths in
-    Lwt_list.fold_left_s (fun set p ->
-        one p >>= fun paths ->
-        let paths = KeySet.of_list paths in
-        return (KeySet.union set paths)
-      ) KeySet.empty paths
-    >>= fun paths ->
-    return (KeySet.to_list paths)
+    read_head_node t >>= fun n ->
+    Node.sub (node_t t) n path >>= function
+    | None      -> return_nil
+    | Some node ->
+      let steps = Node.Val.steps node in
+      let paths = List.map (fun c -> path @ [c]) steps in
+      return paths
 
   let dump t =
     Log.debugf "dump";
@@ -310,13 +310,13 @@ module Make_ext (P: PRIVATE) = struct
     let rec aux seen = function
       | []       -> return (List.sort Pervasives.compare seen)
       | path::tl ->
-        list t [path] >>= fun childs ->
+        list t path >>= fun childs ->
         let todo = childs @ tl in
         Node.find (node_t t) node path >>= function
         | None   -> aux seen todo
         | Some v -> aux ((path, v) :: seen) todo
     in
-    list t [[]] >>= aux init
+    list t [] >>= aux init
 
   (* Merge two commits:
      - Search for a common ancestor
@@ -331,7 +331,7 @@ module Make_ext (P: PRIVATE) = struct
 
   let update_head t c =
     match t.branch with
-    | `Key _   -> t.branch <- `Key c; return_unit
+    | `Head _  -> t.branch <- `Head c; return_unit
     | `Tag tag -> Tag.update (tag_t t) tag c
 
   let update_tag_force t tag =
@@ -359,7 +359,7 @@ module Make_ext (P: PRIVATE) = struct
       update_head t c3 >>= ok
     in
     match t.branch with
-    | `Key c2  -> aux c2
+    | `Head c2 -> aux c2
     | `Tag tag ->
       Tag.read (tag_t t) tag >>= function
       | None    -> update_head t c1 >>= ok
@@ -368,7 +368,7 @@ module Make_ext (P: PRIVATE) = struct
   let clone_force t branch =
     Log.debugf "clone %a" force (show (module Tag.Key) branch);
     begin match t.branch with
-      | `Key c -> Tag.update (tag_t t) branch c
+      | `Head c  -> Tag.update (tag_t t) branch c
       | `Tag tag ->
         Tag.read (tag_t t) tag >>= function
         | None   -> fail Not_found
@@ -391,7 +391,7 @@ module Make_ext (P: PRIVATE) = struct
   let watch_node t path =
     Log.infof "Adding a watch on %a" force (show (module Key) path);
     match t.branch with
-    | `Key _   -> Lwt_stream.of_list []
+    | `Head _  -> Lwt_stream.of_list []
     | `Tag tag ->
       let stream = Tag.watch (tag_t t) tag in
       Ir_watch.lwt_stream_lift (
@@ -508,14 +508,14 @@ module Make_ext (P: PRIVATE) = struct
         let root_nodes =
           Ir_misc.list_filter_map (fun (_,c) -> Commit.Val.node c) commits
         in
-        Node.list (node_t t) root_nodes >>= fun nodes ->
+        Node.rec_list (node_t t) root_nodes >>= fun nodes ->
         Lwt_list.map_p (fun k ->
             Node.read (node_t t) k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) nodes >>= fun nodes ->
         let nodes = Ir_misc.list_filter_map (fun x -> x) nodes in
-        let root_contents =
+        let contents =
           let module KSet = Ir_misc.Set(Contents.Key) in
           List.fold_left (fun acc (_, n) ->
               KSet.union
@@ -524,7 +524,6 @@ module Make_ext (P: PRIVATE) = struct
             ) KSet.empty nodes
           |> KSet.to_list
         in
-        Contents.list (contents_t t) root_contents >>= fun contents ->
         Lwt_list.map_p (fun k ->
             Contents.read (contents_t t) k >>= function
             | None   -> return_none

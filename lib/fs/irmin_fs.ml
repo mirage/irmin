@@ -93,7 +93,7 @@ module RO_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
 
   let list _ k =
-    return k
+    return [k]
 
   let keys_of_dir t =
     let files = IO.rec_files t.path in

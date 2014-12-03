@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 7fbf897bc43823d7198337dc54460d42)
+# DO NOT EDIT (digest: 713fbb8bd1331d5cf8fe20bf45aa3b49)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -86,6 +86,7 @@ true: annot, bin_annot
 <lib/http/*.ml{,i,y}>: pkg_mstruct
 <lib/http/*.ml{,i,y}>: pkg_nocrypto
 <lib/http/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/http/*.ml{,i,y}>: pkg_re
 <lib/http/*.ml{,i,y}>: pkg_sexplib
 <lib/http/*.ml{,i,y}>: pkg_stringext
 <lib/http/*.ml{,i,y}>: pkg_tc
@@ -106,6 +107,7 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: pkg_mstruct
 <lib/unix/*.ml{,i,y}>: pkg_nocrypto
 <lib/unix/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/unix/*.ml{,i,y}>: pkg_re
 <lib/unix/*.ml{,i,y}>: pkg_sexplib
 <lib/unix/*.ml{,i,y}>: pkg_stringext
 <lib/unix/*.ml{,i,y}>: pkg_tc
@@ -129,6 +131,7 @@ true: annot, bin_annot
 <bin/main.{native,byte}>: pkg_mstruct
 <bin/main.{native,byte}>: pkg_nocrypto
 <bin/main.{native,byte}>: pkg_ocamlgraph
+<bin/main.{native,byte}>: pkg_re
 <bin/main.{native,byte}>: pkg_sexplib
 <bin/main.{native,byte}>: pkg_stringext
 <bin/main.{native,byte}>: pkg_tc
@@ -152,6 +155,7 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: pkg_mstruct
 <bin/*.ml{,i,y}>: pkg_nocrypto
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
+<bin/*.ml{,i,y}>: pkg_re
 <bin/*.ml{,i,y}>: pkg_sexplib
 <bin/*.ml{,i,y}>: pkg_stringext
 <bin/*.ml{,i,y}>: pkg_tc
@@ -177,6 +181,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_mstruct
 <lib_test/test.{native,byte}>: pkg_nocrypto
 <lib_test/test.{native,byte}>: pkg_ocamlgraph
+<lib_test/test.{native,byte}>: pkg_re
 <lib_test/test.{native,byte}>: pkg_sexplib
 <lib_test/test.{native,byte}>: pkg_stringext
 <lib_test/test.{native,byte}>: pkg_tc
@@ -201,6 +206,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_mstruct
 <lib_test/*.ml{,i,y}>: pkg_nocrypto
 <lib_test/*.ml{,i,y}>: pkg_ocamlgraph
+<lib_test/*.ml{,i,y}>: pkg_re
 <lib_test/*.ml{,i,y}>: pkg_sexplib
 <lib_test/*.ml{,i,y}>: pkg_stringext
 <lib_test/*.ml{,i,y}>: pkg_tc
@@ -224,6 +230,7 @@ true: annot, bin_annot
 <examples/git_store.{native,byte}>: pkg_mstruct
 <examples/git_store.{native,byte}>: pkg_nocrypto
 <examples/git_store.{native,byte}>: pkg_ocamlgraph
+<examples/git_store.{native,byte}>: pkg_re
 <examples/git_store.{native,byte}>: pkg_sexplib
 <examples/git_store.{native,byte}>: pkg_stringext
 <examples/git_store.{native,byte}>: pkg_tc
@@ -247,6 +254,7 @@ true: annot, bin_annot
 <examples/custom_merge.{native,byte}>: pkg_mstruct
 <examples/custom_merge.{native,byte}>: pkg_nocrypto
 <examples/custom_merge.{native,byte}>: pkg_ocamlgraph
+<examples/custom_merge.{native,byte}>: pkg_re
 <examples/custom_merge.{native,byte}>: pkg_sexplib
 <examples/custom_merge.{native,byte}>: pkg_stringext
 <examples/custom_merge.{native,byte}>: pkg_tc
@@ -270,6 +278,7 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: pkg_mstruct
 <examples/views.{native,byte}>: pkg_nocrypto
 <examples/views.{native,byte}>: pkg_ocamlgraph
+<examples/views.{native,byte}>: pkg_re
 <examples/views.{native,byte}>: pkg_sexplib
 <examples/views.{native,byte}>: pkg_stringext
 <examples/views.{native,byte}>: pkg_tc
@@ -293,6 +302,7 @@ true: annot, bin_annot
 <examples/contacts.{native,byte}>: pkg_mstruct
 <examples/contacts.{native,byte}>: pkg_nocrypto
 <examples/contacts.{native,byte}>: pkg_ocamlgraph
+<examples/contacts.{native,byte}>: pkg_re
 <examples/contacts.{native,byte}>: pkg_sexplib
 <examples/contacts.{native,byte}>: pkg_stringext
 <examples/contacts.{native,byte}>: pkg_tc
@@ -316,6 +326,7 @@ true: annot, bin_annot
 <examples/intrusion.{native,byte}>: pkg_mstruct
 <examples/intrusion.{native,byte}>: pkg_nocrypto
 <examples/intrusion.{native,byte}>: pkg_ocamlgraph
+<examples/intrusion.{native,byte}>: pkg_re
 <examples/intrusion.{native,byte}>: pkg_sexplib
 <examples/intrusion.{native,byte}>: pkg_stringext
 <examples/intrusion.{native,byte}>: pkg_tc
@@ -339,6 +350,7 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: pkg_mstruct
 <examples/process.{native,byte}>: pkg_nocrypto
 <examples/process.{native,byte}>: pkg_ocamlgraph
+<examples/process.{native,byte}>: pkg_re
 <examples/process.{native,byte}>: pkg_sexplib
 <examples/process.{native,byte}>: pkg_stringext
 <examples/process.{native,byte}>: pkg_tc
@@ -361,6 +373,7 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: pkg_mstruct
 <examples/*.ml{,i,y}>: pkg_nocrypto
 <examples/*.ml{,i,y}>: pkg_ocamlgraph
+<examples/*.ml{,i,y}>: pkg_re
 <examples/*.ml{,i,y}>: pkg_sexplib
 <examples/*.ml{,i,y}>: pkg_stringext
 <examples/*.ml{,i,y}>: pkg_tc

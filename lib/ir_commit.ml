@@ -18,7 +18,6 @@ module Log = Log.Make(struct let section = "COMMIT" end)
 
 open Lwt
 open Ir_merge.OP
-open Ir_misc.OP
 open Printf
 
 module type S = sig
@@ -116,6 +115,7 @@ module type STORE_EXT = sig
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
   val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
   val node_t: t -> Node.t
+  val rec_list: t -> key list -> key list Lwt.t
 end
 
 module Make_ext
@@ -182,8 +182,11 @@ struct
 
   module Graph = Ir_graph.Make(C.Key)(N.Key)(Key)(Tc.Unit)
 
-  let list t keys =
-    Log.debugf "list %a" force (shows (module Key) keys);
+  let list t k =
+    read_exn t k >>= fun c ->
+    return (Val.parents c)
+
+  let rec_list t keys =
     let pred = function
       | `Commit k -> read_exn t k >>= fun r -> return (Val.edges r)
       | _         -> return_nil in

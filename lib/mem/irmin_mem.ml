@@ -62,7 +62,7 @@ module RO (K: Irmin.HUM) (V: Tc.S0) = struct
     return (Hashtbl.mem t key)
 
   let list _ k =
-    return k
+    return [k]
 
   let dump { t; _ } =
     return (hashtbl_to_alist t)

@@ -21,25 +21,7 @@ module type STORE = sig
   val add: t -> value -> key Lwt.t
 end
 
-module type CSTRUCT = STORE
-  with type key = Cstruct.t
-   and type value = Cstruct.t
-(** Binary append-only store. Keys and values are cstruct buffers. *)
-
-module type JSON = STORE
-  with type key = Ezjsonm.t
-   and type value = Ezjsonm.t
-(** JSON append-only store. Keys and values are JSON objects. *)
-
 module type MAKER =
   functor (K: Ir_hash.S) ->
   functor (V: Tc.S0) ->
     STORE with type key = K.t and type value = V.t
-
-module Cstruct (S: CSTRUCT) (K: Tc.S0) (V: Tc.S0):
-  STORE with type t = S.t and type key = K.t and type value = V.t
-(** Create a typed append-only store from a binary one. *)
-
-module Json (S: JSON) (K: Tc.S0) (V: Tc.S0):
-  STORE with type t = S.t and type key = K.t and type value = V.t
-(** Create a typed append-only store from a JSON one. *)

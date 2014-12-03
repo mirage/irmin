@@ -14,33 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Irmin_git: sig
+module Irmin_fs: Irmin.S_MAKER
 
-  (** Same as [IrminGit] but extended with local Git filesystem
-      constructors. *)
-
-  module type S = Irmin_git.S
-  (** Same as {{!Irmin_git.S}Irmin_git.S}. *)
-
-  module Memory (C: Irmin.Contents.S): S with type value = C.t
-  (** In-memory Git database, with synchronisation primitives using
-      [Lwt_unix]. *)
-
-  module Make (C: Irmin.Contents.S): S with type value = C.t
-  (** On-disk Git repository, with synchronisation primitives and file
-      access using [Lwt_unix] . *)
-
-end
-
-(*
-module IrminHTTP: sig
+module Irmin_http_server: sig
 
   (** Create an HTTP server. *)
 
-  module Make (S: Irmin.S): IrminHTTP.S with type t = S.t
+  module Make (S: Irmin.S): Irmin_http_server.S with type t = S.t
 
 end
-*)
 
 val install_dir_polling_listener: float -> unit
 (** Install the directory listener using active polling. The parameter
