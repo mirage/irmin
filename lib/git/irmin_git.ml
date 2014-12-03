@@ -46,19 +46,19 @@ let write_string str b =
   Cstruct.shift b len
 
 (* ~root *)
-let of_root, to_root, _root = IB.Config.univ Tc.string
+let of_root, to_root, _root = Irmin.Config.univ Tc.string
 let root_k = "git:root"
-let root_key t = IB.Config.find t root_k to_root
+let root_key t = Irmin.Config.find t root_k to_root
 
 (* ~disk *)
-let of_disk, to_disk, _disk = IB.Config.univ Tc.bool
+let of_disk, to_disk, _disk = Irmin.Config.univ Tc.bool
 let disk_k = "git:disk"
-let disk_key t = IB.Config.find_bool t disk_k to_disk ~default:false
+let disk_key t = Irmin.Config.find_bool t disk_k to_disk ~default:false
 
 (* ~bare *)
-let of_bare, to_bare, _bare = IB.Config.univ Tc.bool
+let of_bare, to_bare, _bare = Irmin.Config.univ Tc.bool
 let bare_k = "git:bare"
-let bare_key t = IB.Config.find_bool t bare_k to_bare ~default:true
+let bare_key t = Irmin.Config.find_bool t bare_k to_bare ~default:true
 
 let config ?root ?bare (module G: Git.Store.S) =
   let root = match root with
@@ -73,7 +73,7 @@ let config ?root ?bare (module G: Git.Store.S) =
     | None   -> [ bare_k, of_bare true ]
     | Some b -> [ bare_k, of_bare b ]
   in
-  IB.Config.of_dict (root @ disk @ bare)
+  Irmin.Config.of_dict (root @ disk @ bare)
 
 module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
 
@@ -383,7 +383,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
     module Key = T
     module Val = K
 
-    module W = IB.Watch.Make(T)(K)
+    module W = Irmin.Watch.Make(T)(K)
 
     type t = {
       task: I.task;
@@ -472,7 +472,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
       return_unit
 
     let watch t (r:key): value option Lwt_stream.t =
-      IB.Watch.lwt_stream_lift (
+      Irmin.Watch.lwt_stream_lift (
         read t r >>= fun k ->
         return (W.watch t.w r k)
       )

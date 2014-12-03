@@ -206,7 +206,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     Stream (fun t path _params query ->
         let x1 = mk1p name i1 path in
         mk0q name query;
-        Irmin.Private.Watch.lwt_stream_lift
+        Irmin.Watch.lwt_stream_lift
           (db t >>= fun t ->
            let stream = fn t x1 in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in

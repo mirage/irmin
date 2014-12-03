@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-module IB = Irmin.Private
 
 let hashtbl_to_alist t =
   let l = ref [] in
@@ -24,7 +23,7 @@ let hashtbl_to_alist t =
 
 module RO (K: Irmin.HUM) (V: Tc.S0) = struct
 
-  module W = IB.Watch.Make(K)(V)
+  module W = Irmin.Watch.Make(K)(V)
 
   type key = K.t
 
@@ -97,14 +96,14 @@ module RW (K: Irmin.HUM) (V: Tc.S0) = struct
     return_unit
 
   let watch t key =
-    IB.Watch.lwt_stream_lift (
+    Irmin.Watch.lwt_stream_lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)
     )
 
 end
 
-let config () = IB.Config.of_dict []
+let config () = Irmin.Config.of_dict []
 
 module Make
     (P: Irmin.Path.S)

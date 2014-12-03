@@ -17,7 +17,6 @@
 open Lwt
 
 module Log = Log.Make(struct let section = "FS" end)
-module IB = Irmin.Private
 
 let (/) = Filename.concat
 
@@ -36,20 +35,20 @@ module type IO = sig
 end
 
 (* ~path *)
-let of_path, to_path, _path = IB.Config.univ Tc.string
+let of_path, to_path, _path = Irmin.Config.univ Tc.string
 let path_k = "fs:path"
-let path_key t = IB.Config.find t path_k to_path
+let path_key t = Irmin.Config.find t path_k to_path
 
 let config ~path =
   let path = [ path_k, of_path path ] in
-  IB.Config.of_dict path
+  Irmin.Config.of_dict path
 
 module RO_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
   type key = K.t
 
   type value = V.t
 
-  module W = IB.Watch.Make(K)(V)
+  module W = Irmin.Watch.Make(K)(V)
 
   type t = {
     path: string;
@@ -169,7 +168,7 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
     return_unit
 
   let watch t key =
-    IB.Watch.lwt_stream_lift (
+    Irmin.Watch.lwt_stream_lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)
     )

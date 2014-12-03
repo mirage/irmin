@@ -345,6 +345,47 @@ type config
     and {{!RW}read-write} stores. These low-level stores are provided
     by various backends. *)
 
+  (** Backend-specific configuration values. *)
+module Config: sig
+
+  (** {1 Configuration value} *)
+
+  type t = config
+  (** The type for backend-specific configuration values. *)
+
+  type univ
+  (** Type type for universal values.
+
+      See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
+
+      Universal values are used to carry around configuration values, see
+      {{!RO.create}RO.create}. *)
+
+  val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
+  (** Creation of universal values. [univ tc] returns:
+
+      {ul
+      {- a function to inject a value from a given type in to a universal value;}
+      {- a function to project from a universal value to a value of a given type;}
+      {- a type-class to show and serialize universal values.}
+      } *)
+
+  val of_dict: (string * univ) list -> t
+  (** Convert a dictionary of universal values into an abstract store
+      config. *)
+
+  val to_dict: t -> (string * univ) list
+  (** Convert a configuration value into a dictionary of universal
+      values. *)
+
+  val find: t -> string -> (univ -> 'a option) -> 'a option
+  (** Find a the value associated to a key in a config value. *)
+
+  val find_bool: t -> string -> (univ -> bool option) -> default:bool -> bool
+  (** Find a boolean value associated to a key in a config value. *)
+
+end
+
 (** Tasks are used to keep track of the origin of reads and writes in
     the store. Every high-level operation is expected to have its own
     task, which is passed to every low-level calls. *)
@@ -659,47 +700,6 @@ module Private: sig
 
   *)
 
-  (** Backend-specific configuration values. *)
-  module Config: sig
-
-    (** {1 Configuration value} *)
-
-    type t = config
-    (** The type for backend-specific configuration values. *)
-
-    type univ
-    (** Type type for universal values.
-
-        See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
-
-        Universal values are used to carry around configuration values, see
-        {{!RO.create}RO.create}. *)
-
-    val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
-    (** Creation of universal values. [univ tc] returns:
-
-        {ul
-        {- a function to inject a value from a given type in to a universal value;}
-        {- a function to project from a universal value to a value of a given type;}
-        {- a type-class to show and serialize universal values.}
-        } *)
-
-    val of_dict: (string * univ) list -> t
-    (** Convert a dictionary of universal values into an abstract store
-        config. *)
-
-    val to_dict: t -> (string * univ) list
-    (** Convert a configuration value into a dictionary of universal
-        values. *)
-
-    val find: t -> string -> (univ -> 'a option) -> 'a option
-    (** Find a the value associated to a key in a config value. *)
-
-    val find_bool: t -> string -> (univ -> bool option) -> default:bool -> bool
-    (** Find a boolean value associated to a key in a config value. *)
-
-  end
-
   module Contents: sig
 
     module type STORE = sig
@@ -1002,64 +1002,6 @@ module Private: sig
 
   end
 
-  (** [Watch] provides helpers to register event notifications on
-      read-write stores. *)
-  module Watch: sig
-
-    (** {1 Watch Helpers} *)
-
-    (** The signature for watch helpers. *)
-    module type S = sig
-
-      (** {1 Watch Helpers} *)
-
-      type key
-      (** The type for store keys. *)
-
-      type value
-      (** The type for store values. *)
-
-      type t
-      (** The type for watch state. *)
-
-      val notify: t -> key -> value option -> unit
-      (** Notify all listeners in the given watch state that a key has
-          changed, with the new value associated to this key. If the
-          argument is [None], this means the key has been removed. *)
-
-      val create: unit -> t
-      (** Create a watch state. *)
-
-      val clear: t -> unit
-      (** Clear all register listeners in the given watch state. *)
-
-      val watch: t -> key -> value option -> value option Lwt_stream.t
-      (** Create a stream of value notifications. Need to provide the
-          initial value, or [None] if the key does not have associated
-          contents yet.  *)
-
-      val listen_dir: t -> string
-        -> key:(string -> key option)
-        -> value:(key -> value option Lwt.t)
-        -> unit
-        (** Register a fsevents/inotify thread to look for changes in
-            the given directory. *)
-
-    end
-
-    val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
-    (** Register a function which looks for file changes in a
-        directory. Could use [inotify] when available, or use an active
-        stats file polling.*)
-
-    val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
-    (** Lift a stream out of the monad. *)
-
-    (** [Make] builds an implementation of watch helpers. *)
-    module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
-
-  end
-
 end
 
 (** {1 High-level Stores}
@@ -1342,3 +1284,61 @@ module Make_ext (P: Private.S): S
    and type value = P.Contents.value
    and type tag = P.Tag.key
    and type head = P.Tag.value
+
+  (** [Watch] provides helpers to register event notifications on
+      read-write stores. *)
+module Watch: sig
+
+  (** {1 Watch Helpers} *)
+
+  (** The signature for watch helpers. *)
+  module type S = sig
+
+    (** {1 Watch Helpers} *)
+
+    type key
+    (** The type for store keys. *)
+
+    type value
+    (** The type for store values. *)
+
+    type t
+    (** The type for watch state. *)
+
+    val notify: t -> key -> value option -> unit
+    (** Notify all listeners in the given watch state that a key has
+        changed, with the new value associated to this key. If the
+        argument is [None], this means the key has been removed. *)
+
+    val create: unit -> t
+    (** Create a watch state. *)
+
+    val clear: t -> unit
+    (** Clear all register listeners in the given watch state. *)
+
+    val watch: t -> key -> value option -> value option Lwt_stream.t
+    (** Create a stream of value notifications. Need to provide the
+        initial value, or [None] if the key does not have associated
+        contents yet.  *)
+
+    val listen_dir: t -> string
+      -> key:(string -> key option)
+      -> value:(key -> value option Lwt.t)
+      -> unit
+      (** Register a fsevents/inotify thread to look for changes in
+          the given directory. *)
+
+  end
+
+  val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
+  (** Register a function which looks for file changes in a
+      directory. Could use [inotify] when available, or use an active
+      stats file polling.*)
+
+  val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
+  (** Lift a stream out of the monad. *)
+
+  (** [Make] builds an implementation of watch helpers. *)
+  module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
+
+end

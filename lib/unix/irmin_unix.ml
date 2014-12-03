@@ -85,7 +85,7 @@ end
 
 let install_dir_polling_listener delay =
 
-  IB.Watch.set_listen_dir_hook (fun dir fn ->
+  Irmin.Watch.set_listen_dir_hook (fun dir fn ->
 
       let read_files () =
         IO.rec_files dir >>= fun new_files ->

@@ -17,6 +17,7 @@
 module Merge = Ir_merge
 module Contents = Ir_contents
 module Tag = Ir_tag
+module Config = Ir_config
 module Task = Ir_task
 module View = Ir_view.Make
 module Snapshot = Ir_snapshot.Make
@@ -43,8 +44,6 @@ module type BC_MAKER = Ir_bc.MAKER
 module type S_MAKER = Ir_s.MAKER
 
 module Private = struct
-  module Config = Ir_config
-  module Watch = Ir_watch
   module Node = Ir_node
   module Commit = Ir_commit
   module Contents = Ir_contents
@@ -54,3 +53,5 @@ module Private = struct
   module Sync = Ir_sync
   module type S = Ir_bc.PRIVATE
 end
+
+module Watch = Ir_watch

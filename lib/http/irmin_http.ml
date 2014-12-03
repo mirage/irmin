@@ -33,13 +33,13 @@ module U: Tc.S0 with type t = Uri.t = struct
   let read b = Uri.of_string (Tc.String.read b)
 end
 
-let of_uri, to_uri, _uri = IB.Config.univ (module U)
+let of_uri, to_uri, _uri = Irmin.Config.univ (module U)
 let uri_k = "uttp:uri"
-let uri_key t = IB.Config.find t uri_k to_uri
+let uri_key t = Irmin.Config.find t uri_k to_uri
 
 let config uri =
   let uri = [ uri_k, of_uri uri ] in
-  IB.Config.of_dict uri
+  Irmin.Config.of_dict uri
 
 module type Config = sig val suffix: string option end
 
