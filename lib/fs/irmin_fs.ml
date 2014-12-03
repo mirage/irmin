@@ -45,7 +45,6 @@ let config ~path =
   IB.Config.of_dict path
 
 module RO_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
-
   type key = K.t
 
   type value = V.t
@@ -182,7 +181,7 @@ module Make_ext (Obj: Config) (Ref: Config) (IO: IO)
 = struct
   module AO = AO_ext(Obj)(IO)
   module RW = RW_ext(Ref)(IO)
-  include IB.Make(AO)(RW)(P)(C)(T)(H)
+  include Irmin.Make(AO)(RW)(P)(C)(T)(H)
 end
 
 

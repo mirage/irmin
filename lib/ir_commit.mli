@@ -49,7 +49,7 @@ module type STORE_EXT = sig
 
   (** Store the history as a partial-order of revisions. *)
 
-  module Node: Ir_node.STORE
+  module Node: Ir_node.STORE_EXT
   (** Store of nodes. *)
 
   include STORE with type Val.node = Node.key

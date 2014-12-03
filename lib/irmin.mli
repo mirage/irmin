@@ -602,9 +602,6 @@ module type BC = sig
   type slice
   (** Type for store slices. *)
 
-  module Slice: Tc.S0 with type t = slice
-  (** Base functions over slices. *)
-
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
   (** [export t ~depth ~min ~max] exports the store slice between
@@ -658,7 +655,7 @@ module type RW_MAKER =
     implementation of user-defined contents, [T] is the implementation
     of store tags and [H] is the implementation of store heads. *)
 module type BC_MAKER =
-  functor (K: HUM) ->
+  functor (K: Path.S) ->
   functor (C: Contents.S) ->
   functor (T: Tag.S) ->
   functor (H: Hash.S) ->
@@ -918,13 +915,61 @@ module Private: sig
 
   end
 
+  (** The signature for slices. *)
+  module Slice: sig
+
+    module type S = sig
+
+      (** {1 Slices} *)
+
+      include Tc.S0
+      (** Slices are serializable. *)
+
+      type contents
+      (** The type for exported contents. *)
+
+      type nodes
+      (** The type for exported nodes. *)
+
+      type commits
+      (** The type for exported commits. *)
+
+      type tags
+      (** The type for exported tags. *)
+
+      val create:
+        ?contents:contents -> ?nodes:nodes -> ?commits:commits -> ?tags:tags ->
+        unit -> t
+      (** Create a new slice. *)
+
+      val contents: t -> contents
+      (** The slice contents. *)
+
+      val nodes: t -> nodes
+      (** The slice nodes. *)
+
+      val commits: t -> commits
+      (** The slice commits. *)
+
+      val tags: t -> tags
+      (** The slice tags. *)
+
+    end
+
+    (** Build simple slices. *)
+    module Make
+        (C: Contents.STORE) (N: Node.STORE) (H: Commit.STORE) (T: Tag.STORE):
+      S with type contents = (C.key * C.value) list
+         and type nodes = (N.key * N.value) list
+         and type commits = (H.key * H.value) list
+         and type tags = (T.key * T.value) list
+
+  end
+
   (** The complete collection of private implementations. *)
   module type S = sig
 
     (** {1 Private Implementations} *)
-
-    type t
-    (** The type for store handles. *)
 
     (** Private contents. *)
     module Contents: Contents.STORE
@@ -938,10 +983,12 @@ module Private: sig
     (** Private tags. *)
     module Tag: Tag.STORE with type value = Commit.key
 
-    val contents_t: t -> Contents.t
-    val node_t: t -> Contents.t * Node.t
-    val commit_t: t -> Contents.t * Node.t * Commit.t
-    val tag_t: t -> Tag.t
+    (** Private slices. *)
+    module Slice: Slice.S
+      with type contents = (Contents.key * Contents.value) list
+       and type nodes = (Node.key * Node.value) list
+       and type commits = (Commit.key * Commit.value) list
+       and type tags = (Tag.key * Tag.value) list
 
   end
 
@@ -1035,13 +1082,28 @@ module type S = sig
   (** [Val] provides base functions over user-defined, mergeable
       contents. *)
 
+  module Tag: Tag.S with type t = tag
+  (** [Tag] provides base functions over user-defined tags. *)
+
+  module Head: Hash.S with type t = head
+  (** [Head] prives base functions over head values. *)
+
   (** Private functions, which might be used by the backends. *)
-  module Private: Private.S
-    with type t := t
-     and type Node.Path.step = step
-     and type Contents.value = value
-     and type Commit.key = head
-     and type Tag.key = tag
+  module Private: sig
+    include Private.S
+      with type Node.Path.step = step
+       and type Contents.value = value
+       and type Commit.key = head
+       and type Tag.key = tag
+       and type Slice.t = slice
+    val contents_t: t -> Contents.t
+    val node_t: t -> Contents.t * Node.t
+    val commit_t: t -> Contents.t * Node.t * Commit.t
+    val tag_t: t -> Tag.t
+    val read_node: t -> Node.Path.t -> Node.value option Lwt.t
+    val mem_node: t -> Node.Path.t -> bool Lwt.t
+    val update_node: t -> Node.Path.t -> Node.value -> unit Lwt.t
+  end
 
 end
 
@@ -1063,6 +1125,13 @@ module type S_MAKER =
 (** Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store. *)
 module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
+
+(** Advanced store creator. *)
+module Make_ext (P: Private.S): S
+  with type step = P.Node.Path.step
+   and type value = P.Contents.value
+   and type tag = P.Tag.key
+   and type head = P.Tag.value
 
 (** [View] provides an in-memory partial mirror of the store, with
     lazy reads and delayed write.

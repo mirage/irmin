@@ -303,9 +303,10 @@ module Internal (Node: NODE) = struct
 
 end
 
-module Make (S: Ir_bc.STORE_EXT) = struct
+module Make (S: Ir_s.STORE) = struct
 
-  module B = S.Block
+  module B = Ir_bc.Make_ext(S.Private)
+  module P = S.Private
 
   module Contents = struct
 
@@ -313,8 +314,8 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
     type contents_or_key =
       | Key of key
-      | Contents of B.contents
-      | Both of key * B.contents
+      | Contents of B.value
+      | Both of key * B.value
 
     type t = contents_or_key ref
     (* Same as [Contents.t] but can either be a raw contents or a key
@@ -337,7 +338,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       | Both (_, c)
       | Contents c -> return (Some c)
       | Key (db, k as key) ->
-        B.Contents.read (S.contents_t db) k >>= function
+        B.Contents.read (P.contents_t db) k >>= function
         | None   -> return_none
         | Some c ->
           t := Both (key, c);
@@ -347,10 +348,10 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   module Node = struct
 
-    module Path = B.Path
+    module Path = S.Key
     module StepMap = Ir_misc.Map(Path.Step)
 
-    type contents = B.contents
+    type contents = S.value
     type commit = S.head
     type key = S.t * B.Node.key
 
@@ -426,7 +427,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       | Both (_, n)
       | Node n   -> return (Some n)
       | Key (db, k) ->
-        B.Node.read (S.node_t db) k >>= function
+        B.Node.read (P.node_t db) k >>= function
         | None   -> return_none
         | Some n ->
           let n = import db n in
@@ -472,7 +473,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   let import db ~parents key =
     Log.debugf "import %a" force (show (module B.Node.Key) key);
-    B.Node.read (S.node_t db) key >>= function
+    B.Node.read (P.node_t db) key >>= function
     | None   -> fail Not_found
     | Some n ->
       let view = Node.both db key (Node.import db n) in
@@ -483,7 +484,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   let export db t =
     Log.debugf "export";
-    let node n = B.Node.add (S.node_t db) (Node.export_node n) in
+    let node n = B.Node.add (P.node_t db) (Node.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match !n with
@@ -503,7 +504,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
             | Contents.Key _       -> ()
             | Contents.Contents x  ->
               Stack.push (fun () ->
-                  B.Contents.add (S.contents_t db) x >>= fun k ->
+                  B.Contents.add (P.contents_t db) x >>= fun k ->
                   c := Contents.Key (db, k);
                   return_unit
                 ) todo
@@ -532,25 +533,25 @@ module Make (S: Ir_bc.STORE_EXT) = struct
       S.head db >>= function
       | None   -> return_nil
       | Some h -> return [h] in
-    S.read_node db path >>= function
+    P.read_node db path >>= function
     | None   -> create (S.config db) (S.task db)
     | Some n ->
-      B.Node.add (S.node_t db) n >>= fun k ->
+      B.Node.add (P.node_t db) n >>= fun k ->
       parents >>= fun parents ->
       import db ~parents k
 
   let node_of_view db t =
     export db t >>= fun key ->
-    B.Node.read_exn (S.node_t db) key
+    B.Node.read_exn (P.node_t db) key
 
   let update_path db path view =
     Log.debugf "update_view %a" force (show (module Path) path);
     node_of_view db view >>= fun node ->
-    S.update_node db path node
+    P.update_node db path node
 
   let rebase_path db path view =
     Log.debugf "merge_view %a" force (show (module Path) path);
-    S.mem_node db [] >>= function
+    P.mem_node db [] >>= function
     | false -> fail Not_found
     | true  ->
       of_path db path >>= fun head_view ->
@@ -560,7 +561,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 
   let merge_path db path view =
     Log.debugf "merge_view %a" force (show (module Path) path);
-    S.read_node db [] >>= function
+    P.read_node db [] >>= function
     | None           -> fail Not_found
     | Some head_node ->
       (* First, we check than we can rebase the view on the current
@@ -572,9 +573,9 @@ module Make (S: Ir_bc.STORE_EXT) = struct
          on a branch, and we merge the branch back into the store. *)
       node_of_view db view >>= fun view_node ->
       (* Create a commit with the contents of the view *)
-      B.Node.map (S.node_t db) head_node path (fun _ -> view_node)
+      B.Node.map (P.node_t db) head_node path (fun _ -> view_node)
       >>= fun new_head_node ->
-      let t_c = S.commit_t db in
+      let t_c = P.commit_t db in
       Lwt_list.map_p (B.Commit.read_exn t_c) view.parents
       >>= fun parents ->
       B.Commit.commit t_c ~node:new_head_node ~parents

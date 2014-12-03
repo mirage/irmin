@@ -25,6 +25,7 @@ module Sync = Ir_sync
 module Hash = Ir_hash
 module Path = Ir_path
 module Make = Ir_s.Make
+module Make_ext = Ir_s.Make_ext
 
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
@@ -48,13 +49,7 @@ module Private = struct
   module Commit = Ir_commit
   module Contents = Ir_contents
   module Tag = Ir_tag
+  module Slice = Ir_slice
   module Make = Ir_bc.Make
-  module type S = sig
-    type t
-    include Ir_bc.PRIVATE
-    val contents_t: t -> Contents.t
-    val node_t: t -> Contents.t * Node.t
-    val commit_t: t -> Contents.t * Node.t * Commit.t
-    val tag_t: t -> Tag.t
-  end
+  module type S = Ir_bc.PRIVATE
 end

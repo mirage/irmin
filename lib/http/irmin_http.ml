@@ -198,42 +198,40 @@ struct
 
   end
 
-  module XContents = struct
-    module Key = H
-    module Val = C
-    include AO(struct
-        let suffix = Some "contents"
-      end)(Key)(Val)
+  module X = struct
+    module Contents = struct
+      module Key = H
+      module Val = C
+      include AO(struct
+          let suffix = Some "contents"
+        end)(Key)(Val)
+    end
+    module Node = struct
+      module Key = H
+      module Path = P
+      module Val = IB.Node.Make(H)(H)(P)
+      include AO(struct
+          let suffix = Some "node"
+        end)(Key)(Val)
+    end
+    module Commit = struct
+      module Key = H
+      module Val = IB.Commit.Make(H)(H)
+      include AO(struct
+          let suffix = Some "commit"
+        end)(Key)(Val)
+    end
+    module Tag = struct
+      module Key = T
+      module Val = H
+      include RW(struct
+          let suffix = Some "tag"
+        end)(Key)(Val)
+    end
+    module Slice = IB.Slice.Make(Contents)(Node)(Commit)(Tag)
   end
 
-  module XNode = struct
-    module Key = H
-    module Path = P
-    module Val = IB.Node.Make(H)(H)(P)
-    include AO(struct
-        let suffix = Some "node"
-      end)(Key)(Val)
-  end
-
-  module XCommit = struct
-    module Key = H
-    module Val = IB.Commit.Make(H)(H)
-    include AO(struct
-        let suffix = Some "commit"
-      end)(Key)(Val)
-  end
-
-  module XTag = struct
-    module Key = T
-    module Val = H
-    include RW(struct
-        let suffix = Some "tag"
-      end)(Key)(Val)
-  end
-
-  module XSync = IB.Sync.None(H)(T)
-
-  include IB.Make_ext(XContents)(XNode)(XCommit)(XTag)(XSync)
+  include Irmin.Make_ext(X)
 end
 
 module Make (Client: Cohttp_lwt.Client)
@@ -261,6 +259,7 @@ struct
      tree nodes for the sub-directories, creating new tree nodes,
      etc. *)
   module L = Low(Client)(P)(C)(T)(H)
+  module LP = L.Private
 
   (* The high-level bindings: every high-level operation is simply
      forwarded to the HTTP server. *much* more efficient than using
@@ -274,22 +273,27 @@ struct
   type t = {
     mutable branch: [`Tag of T.t | `Head of L.t];
     mutable h: H.t;
+    contents_t: LP.Contents.t;
+    node_t: LP.Contents.t * LP.Node.t;
+    commit_t: LP.Contents.t * LP.Node.t * LP.Commit.t;
+    tag_t: LP.Tag.t;
+    read_node: L.key -> LP.Node.value option Lwt.t;
+    mem_node: L.key -> bool Lwt.t;
+    update_node: L.key -> LP.Node.value -> unit Lwt.t;
   }
-
-  type state = t
 
   let uri t = t.h.H.uri
   let config t = H.config t.h
   let task t = H.task t.h
 
-  let reset_uri t =
-    let reset () =
-      let path = Filename.(dirname (dirname (H.get_path t.h))) in
-      H.set_path t.h path
-    in
+  let root_uri t =
+    let reset () = Filename.(dirname (dirname (H.get_path t.h))) in
     match t.branch with
     | `Head _  -> reset ()
-    | `Tag tag -> if T.equal tag T.master then () else reset ()
+    | `Tag tag -> if T.equal tag T.master then H.get_path t.h else reset ()
+
+  let reset_uri t =
+    H.set_path t.h (root_uri t)
 
   let set_tag t tag =
     reset_uri t;
@@ -315,8 +319,17 @@ struct
 
   let create config task =
     H.create config task >>= fun h ->
+    L.create config task >>= fun l ->
     let branch = `Tag T.master in
-    return { branch; h }
+    let contents_t = LP.contents_t l in
+    let node_t = LP.node_t l in
+    let commit_t = LP.commit_t l in
+    let tag_t = LP.tag_t l in
+    let read_node = LP.read_node l in
+    let mem_node = LP.mem_node l in
+    let update_node = LP.update_node l in
+    return { branch; h; contents_t; node_t; commit_t; tag_t;
+             read_node; mem_node; update_node; }
 
   let of_tag config task tag =
     create config task >>= fun t ->
@@ -450,11 +463,11 @@ struct
 
   type slice = L.slice
 
-  module Slice = L.Slice
+  module Slice = L.Private.Slice
 
   let export ?full ?depth ?(min=[]) ?(max=[]) t =
     post (uri t) ["export"] (E.to_json ((full, depth), (min, max)))
-      L.Slice.of_json
+      L.Private.Slice.of_json
 
   module I = Tc.List(T)
 
@@ -469,99 +482,15 @@ struct
   type step = P.step
   module Key = P
   module Val = C
-
-  let to_l t = match t.branch with
-    | `Head l  -> return l
-    | `Tag tag -> L.of_tag (config t) (task t) tag
-
-  let app0 fn t = to_l t >>= fun l -> fn l >>= sync_head t l
-  let app1 fn t x = to_l t >>= fun l -> fn l x >>= sync_head t l
-  let app2 fn t x y = to_l t >>= fun l -> fn l x y >>= sync_head t l
-
-  let app1m fn t x =
-    IB.Watch.lwt_stream_lift (to_l t >>= fun l -> return (fn l x))
-
-  module View = struct
-    module V = L.View
-    type t = V.t
-    type key = V.key
-    type value = V.value
-    let create = V.create
-    let task = V.task
-    let config = V.config
-    let read = V.read
-    let read_exn = V.read_exn
-    let mem = V.mem
-    let list = V.list
-    let dump = V.dump
-    let update = V.update
-    let remove = V.remove
-    let watch = V.watch
-    let merge = V.merge
-    type db = state
-    let of_path = app1 V.of_path
-    let update_path = app2 V.update_path
-    let rebase_path = app2 V.rebase_path
-    let merge_path = app2 V.merge_path
-    module Action = V.Action
-    let actions = V.actions
-  end
-  module Snapshot = struct
-    module S = L.Snapshot
-    type t = S.t
-    type key = S.key
-    type value = S.value
-    let task = S.task
-    let config = S.config
-    let read = S.read
-    let read_exn = S.read_exn
-    let mem = S.mem
-    let list = S.list
-    let dump = S.dump
-    type db = state
-    let create = app0 S.create
-    let revert = app1 S.revert
-    let merge = app1 S.merge
-    let watch = app1m S.watch
-  end
-  module Dot = struct
-    type db = state
-    let output_buffer t ?html ?depth ?full ~date buf =
-      to_l t >>= fun l ->
-      L.Dot.output_buffer l ?html ?depth ?full ~date buf
-  end
-  module Sync = struct
-    module S = L.Sync
-    type db = state
-    type remote = [ `Remote of S.remote | `Tag of t ]
-
-    let uri u = `Remote (S.uri u)
-
-    let store t = match t.branch with
-      | `Head l -> `Remote (S.store l)
-      | `Tag _  -> `Tag t
-
-    let fetch t ?depth remote =
-      to_l t >>= fun l ->
-      match remote with
-        | `Remote x  -> S.fetch l ?depth x
-        | `Tag h -> to_l h >>= fun db -> S.fetch l ?depth (S.store db)
-
-    let pull t ?depth remote mode =
-      to_l t >>= fun l ->
-      begin match remote with
-        | `Remote x  -> S.pull l ?depth x mode
-        | `Tag h -> to_l h >>= fun db -> S.pull l ?depth (S.store db) mode
-      end >>= fun r ->
-      match t.branch with
-      | `Head _ -> sync_head t l r
-      | `Tag _  -> return r
-
-    let push t ?depth remote =
-      to_l t >>= fun l ->
-      match remote with
-        | `Remote x  -> S.push l ?depth x
-        | `Tag h -> to_l h >>= fun db -> S.push l ?depth (S.store db)
-
+  module Tag = T
+  module Private = struct
+    include L.Private
+    let contents_t t = t.contents_t
+    let node_t t = t.node_t
+    let commit_t t = t.commit_t
+    let tag_t t = t.tag_t
+    let update_node t = t.update_node
+    let read_node t = t.read_node
+    let mem_node t = t.mem_node
   end
 end

@@ -112,4 +112,4 @@ module Make
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S)
   =
-  IB.Make(AO)(RW)(P)(C)(T)(H)
+  Irmin.Make(AO)(RW)(P)(C)(T)(H)

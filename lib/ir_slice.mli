@@ -14,19 +14,28 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Git backend *)
+module type S = sig
+  include Tc.S0
+  type contents
+  type nodes
+  type commits
+  type tags
+  val create:
+    ?contents:contents -> ?nodes:nodes ->
+    ?commits:commits -> ?tags:tags ->
+    unit -> t
+  val contents: t -> contents
+  val nodes: t -> nodes
+  val commits: t -> commits
+  val tags: t -> tags
+end
 
-val config: ?root:string -> ?bare:bool -> (module Git.Store.S) -> Irmin.config
-
-module AO (G: Git.Store.S): Irmin.AO with type value = Cstruct.t
-module RW (G: Git.Store.S): Irmin.RW with type key = string list
-
-module type S = Irmin.S with type step = string and type tag = string list
-
-module Memory (C: Irmin.Contents.S):
-  S with type value = C.t
-
-module Make (G: Git.Store.S) (C: Irmin.Contents.S):
-  S with type value = C.t
-
-module Sync (G: Git.Store.S) (IO: Git.Sync.IO): Irmin.Sync.BACKEND
+module Make
+    (Contents: Ir_contents.STORE)
+    (Node: Ir_node.STORE)
+    (Commit: Ir_commit.STORE)
+    (Tag: Ir_tag.STORE):
+  S with type contents = (Contents.key * Contents.value) list
+     and type nodes = (Node.key * Node.value) list
+     and type commits = (Commit.key * Commit.value) list
+     and type tags = (Tag.key * Tag.value) list

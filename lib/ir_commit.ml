@@ -106,7 +106,7 @@ module type STORE = sig
 end
 
 module type STORE_EXT = sig
-  module Node: Ir_node.STORE
+  module Node: Ir_node.STORE_EXT
   include STORE with type Val.node = Node.key
   type node = Node.value
   val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
@@ -132,7 +132,7 @@ struct
   type t = C.t * N.t * S.t
   type node = N.value
 
-  module Node = Ir_node.Store(C)(N)
+  module Node = Ir_node.Make_ext(C)(N)
 
   let node_t: t -> Node.t = function (c, n, _) -> (c, n)
 

@@ -21,16 +21,22 @@ module type STORE = sig
   include Ir_bc.STORE with type key = step list
   module Key: Ir_path.S with type step = step
   module Val: Ir_contents.S with type t = value
+  module Tag: Ir_tag.S with type t = tag
+  module Head: Ir_hash.S with type t = head
   module Private: sig
     include Ir_bc.PRIVATE
       with type Contents.value = value
        and type Node.Path.step = step
        and type Commit.key = head
        and type Tag.key = tag
+       and type Slice.t = slice
     val contents_t: t -> Contents.t
     val node_t: t -> Contents.t * Node.t
     val commit_t: t -> Contents.t * Node.t * Commit.t
     val tag_t: t -> Tag.t
+    val read_node: t -> key -> Node.value option Lwt.t
+    val mem_node: t -> key -> bool Lwt.t
+    val update_node: t -> key -> Node.value -> unit Lwt.t
   end
 end
 
@@ -45,3 +51,9 @@ module type MAKER =
            and type head = H.t
 
 module Make (AO: Ir_ao.MAKER) (RW: Ir_rw.MAKER): MAKER
+
+module Make_ext (P: Ir_bc.PRIVATE): STORE
+  with type step = P.Node.Path.step
+   and type value = P.Contents.value
+   and type tag = P.Tag.key
+   and type head = P.Tag.value

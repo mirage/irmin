@@ -39,7 +39,6 @@ module type STORE = sig
   val clone_force: t -> tag -> t Lwt.t
   val merge: t -> tag -> unit Ir_merge.result Lwt.t
   type slice
-  module Slice: Tc.S0 with type t = slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
   val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
@@ -47,7 +46,7 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (K: Ir_hum.S) ->
+  functor (K: Ir_path.S) ->
   functor (C: Ir_contents.S) ->
   functor (T: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
@@ -61,6 +60,11 @@ module type PRIVATE = sig
   module Node: Ir_node.STORE with type Val.contents = Contents.key
   module Commit: Ir_commit.STORE with type Val.node = Node.key
   module Tag: Ir_tag.STORE with type value = Commit.key
+  module Slice: Ir_slice.S
+    with type contents = (Contents.key * Contents.value) list
+     and type nodes = (Node.key * Node.value) list
+     and type commits = (Commit.key * Commit.value) list
+     and type tags = (Tag.key * Tag.value) list
 end
 
 module Make (X: Ir_ao.MAKER) (Y: Ir_rw.MAKER): MAKER
@@ -76,52 +80,69 @@ module type STORE_EXT = sig
 
   include STORE with type key = step list
 
-  module Block: Ir_block.STORE
-    with type step = step
-     and type contents = value
-     and type head = head
-  (** The internal block store. *)
-
-  val contents_t: t -> Block.Contents.t
-  val node_t: t -> Block.Node.t
-  val commit_t: t -> Block.Commit.t
-
-  module Tag: Ir_tag.STORE
-    with type key = tag
-     and type value = head
-  (** The internal tag store. *)
-
-  val tag_t: t -> Tag.t
-
-  module Key: Ir_path.S with type step = Block.step
+  module Key: Ir_path.S with type step = step
   (** Base functions over keys. *)
 
   module Val: Ir_contents.S with type t = value
   (** Base functions over values. *)
 
-  (** {2 Nodes} *)
+  module Private: PRIVATE
+    with type Contents.value = value
+     and type Node.Path.step = step
+     and type Commit.key = head
+     and type Tag.key = tag
+     and type Slice.t = slice
+     and module Node.Path = Key
 
-  val read_node: t -> key -> Block.Node.value option Lwt.t
+  (** {1 Internal "block", append-only stores. *)
+
+  module Contents:  Ir_contents.STORE_EXT
+    with type t = Private.Contents.t
+     and type key = Private.Contents.key
+     and type value = Private.Contents.value
+
+  module Node: Ir_node.STORE_EXT
+    with type t = Private.Contents.t * Private.Node.t
+     and type key = Private.Node.key
+     and type value = Private.Node.value
+     and type step = step
+     and module Contents = Contents
+
+  module Commit: Ir_commit.STORE_EXT
+    with type t = Private.Contents.t * Private.Node.t * Private.Commit.t
+     and type key = head
+     and type value = Private.Commit.value
+     and module Node = Node
+
+  val contents_t: t -> Contents.t
+  val node_t: t -> Node.t
+  val commit_t: t -> Commit.t
+
+  (** {1 Internal "tag", read-write store. *)
+
+  module Tag: Ir_tag.STORE
+    with type t = Private.Tag.t
+     and type key = tag
+     and type value = head
+
+  val tag_t: t -> Tag.t
+
+  (** {1 Nodes} *)
+
+  val read_node: t -> key -> Node.value option Lwt.t
   (** Read a node. *)
 
   val mem_node: t -> key -> bool Lwt.t
   (** Check whether a node exists. *)
 
-  val update_node: t -> key -> Block.Node.value -> unit Lwt.t
+  val update_node: t -> key -> Node.value -> unit Lwt.t
   (** Update a node. *)
-
-  (** {2 More Slices} *)
-
-  val slice_contents: slice -> (Block.Contents.key * Block.contents) list
-  val slice_nodes: slice -> (Block.Node.key * Block.node) list
-  val slice_commits: slice -> (Block.Commit.key * Block.commit) list
-  val slice_tags: slice -> (Tag.key * Tag.value) list
 
   module Graph: Ir_graph.S
     with type V.t =
-      [ `Contents of Block.Contents.key
-      | `Node of Block.Node.key
-      | `Commit of Block.Commit.key
+      [ `Contents of Contents.key
+      | `Node of Node.key
+      | `Commit of Commit.key
       | `Tag of Tag.key ]
       (** The global graph of internal objects. *)
 
@@ -132,5 +153,9 @@ module Make_ext (P: PRIVATE): STORE_EXT
    and type value = P.Contents.value
    and type tag = P.Tag.key
    and type head = P.Commit.key
-   and module Block = Ir_block.Make(P.Contents)(P.Node)(P.Commit)
-   and module Tag = P.Tag
+   and type slice = P.Slice.t
+   and module Private.Contents = P.Contents
+   and module Private.Node = P.Node
+   and module Private.Commit = P.Commit
+   and module Private.Tag = P.Tag
+   and module Private.Slice = P.Slice

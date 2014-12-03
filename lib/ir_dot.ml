@@ -30,19 +30,20 @@ module Make (S: Ir_s.STORE) = struct
 
   type db = S.t
 
-  module T = S.Tag
-  module B = S.Block
+  module T = S.Private.Tag
+  module BC = Ir_bc.Make_ext(S.Private)
+  module Slice = S.Private.Slice
 
-  let fprintf t ?depth ?(html=false) ?full ~date name =
+  let fprintf (t:db) ?depth ?(html=false) ?full ~date name =
     Log.debugf "fprintf depth=%s html=%b full=%s"
       (match depth with None -> "<none>" | Some d -> string_of_int d)
       html
       (match full with None -> "<none>" | Some b -> string_of_bool b);
     S.export ?full ?depth t >>= fun slice ->
-    let contents = S.slice_contents slice in
-    let nodes = S.slice_nodes slice in
-    let commits = S.slice_commits slice in
-    let tags = S.slice_tags slice in
+    let contents = Slice.contents slice in
+    let nodes = Slice.nodes slice in
+    let commits = Slice.commits slice in
+    let tags = Slice.tags slice in
     let exists k l = List.exists (fun (kk,_) -> kk=k) l in
     let vertex = ref [] in
     let add_vertex v l =
@@ -67,10 +68,10 @@ module Make (S: Ir_s.STORE) = struct
            sprintf "<div class='node'><div class='sha1'>%s</div></div>"
          else
            fun x -> x)
-          (string_of_key (module B.Node.Key) k) in
+          (string_of_key (module BC.Node.Key) k) in
       `Label s in
     let label_of_path l =
-      let l = Tc.write_string (module B.Path.Step) l in
+      let l = Tc.write_string (module BC.Key.Step) l in
       let s =
         (if html then
           sprintf "<div class='path'>%s</div>"
@@ -79,8 +80,8 @@ module Make (S: Ir_s.STORE) = struct
           (string_of_contents l) in
       `Label s in
     let label_of_commit k c =
-      let k = string_of_key (module B.Commit.Key) k in
-      let o = B.Commit.Val.task c in
+      let k = string_of_key (module BC.Commit.Key) k in
+      let o = BC.Commit.Val.task c in
       let s =
         (if html then
           sprintf
@@ -99,16 +100,16 @@ module Make (S: Ir_s.STORE) = struct
       in
       `Label s in
     let label_of_contents k v =
-      let k = string_of_key (module B.Contents.Key) k in
+      let k = string_of_key (module BC.Contents.Key) k in
       let s =
         if html then
           sprintf "<div class='contents'>\n\
                   \  <div class='sha1'>%s</div>\n\
                   \  <div class='blob'><pre>%s</pre></div>\n\
                    </div>"
-            k (Ezjsonm.to_string (B.Contents.Val.to_json v))
+            k (Ezjsonm.to_string (BC.Contents.Val.to_json v))
         else
-           let v = string_of_contents (Tc.show (module B.Contents.Val) v) in
+           let v = string_of_contents (Tc.show (module BC.Contents.Val) v) in
            sprintf "%s | %s" k (String.escaped v) in
       `Label s in
     let label_of_tag t =
@@ -128,19 +129,19 @@ module Make (S: Ir_s.STORE) = struct
         List.iter (fun (l, v) ->
             if exists v contents then
               add_edge (`Node k) [`Style `Dotted; label_of_path l] (`Contents v)
-          ) (B.Node.Val.all_contents t);
+          ) (BC.Node.Val.all_contents t);
         List.iter (fun (l, n) ->
             if exists n nodes then
               add_edge (`Node k) [`Style `Solid; label_of_path l] (`Node n)
-          ) (B.Node.Val.all_succ t)
+          ) (BC.Node.Val.all_succ t)
       ) nodes;
     List.iter (fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
         List.iter (fun c ->
             if exists c commits then
               add_edge (`Commit k) [`Style `Bold] (`Commit c)
-          ) (B.Commit.Val.parents r);
-        match B.Commit.Val.node r with
+          ) (BC.Commit.Val.parents r);
+        match BC.Commit.Val.node r with
         | None      -> ()
         | Some node ->
           if exists node nodes then
@@ -150,7 +151,7 @@ module Make (S: Ir_s.STORE) = struct
         add_vertex (`Tag r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
         if exists k commits then add_edge (`Tag r) [`Style `Bold] (`Commit k);
       ) tags;
-    return (fun ppf -> S.Graph.output ppf !vertex !edges name)
+    return (fun ppf -> BC.Graph.output ppf !vertex !edges name)
 
   let output_buffer t ?html ?depth ?full ~date buf =
     fprintf t ?depth ?full ?html ~date "graph" >>= fun fprintf ->

@@ -1,11 +1,11 @@
 # OASIS_START
-# DO NOT EDIT (digest: 44c42580a8b0aadc4830fd4d53869535)
+# DO NOT EDIT (digest: 3d1c51a9e3d52d5207b21cb9b36f7a88)
 Irmin
 Ir_misc
 Ir_graph
 Ir_hash
 Ir_snapshot
-Ir_block
+Ir_slice
 Ir_ro
 Ir_ao
 Ir_rw

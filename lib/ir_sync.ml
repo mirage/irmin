@@ -94,8 +94,8 @@ struct
       begin match S.tag t with
         | None     -> return `Error
         | Some tag ->
-          R.create (S.config t) >>= fun g ->
-          R.push g ?depth ~uri tag
+          B.create (S.config t) >>= fun g ->
+          B.push g ?depth ~uri tag
       end
     | Store r ->
       S.head t >>= function

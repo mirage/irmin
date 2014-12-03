@@ -58,6 +58,10 @@ let unit = {
   output = (fun () -> Ezjsonm.unit);
 }
 
+let json_headers = Cohttp.Header.of_list [
+    "Content-type", "application/json"
+  ]
+
 exception Invalid
 
 module type S = sig
@@ -70,10 +74,9 @@ module type SERVER = sig
   val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
 end
 
-module Make (HTTP: SERVER)
-    (S: Irmin.Private.Contents) = struct
+module Make (HTTP: SERVER) (S: Irmin.S) = struct
 
-  module K = S.Key
+  module H = S.Head
   let key = {
     input  = K.of_json;
     output = K.to_json;
@@ -85,47 +88,33 @@ module Make (HTTP: SERVER)
     output = V.to_json;
   }
 
-  module Node = S.Block.Node
-  module T = Node.Value
+  module Node = S.Private.Node
+  module T = Node.Val
   let node = {
     input  = T.of_json;
     output = T.to_json;
   }
 
-  module Commit = S.Block.Commit
-  module C = Commit.Value
+  module Commit = S.Private.Commit
+  module C = Commit.Val
   let commit = {
     input  = C.of_json;
     output = C.to_json;
   }
 
-  module Tag = S.Tag
-  module TK = Tag.Key
-  let tag = {
-    input  = TK.of_json;
-    output = TK.to_json;
-  }
-
-  let origin = {
-    input  = IrminOrigin.of_json;
-    output = IrminOrigin.to_json;
-  }
-
+  module RU = Tc.App1(Irmin.Merge.Result)(Tc.Unit)
   let result = {
-    input  = IrminMerge.UnitResult.of_json;
-    output = IrminMerge.UnitResult.to_json;
+    input  = RU.of_json;
+    output = RU.to_json;
   }
-
-  let mk_dump key value =
-    list (pair key value)
 
   let read_exn file =
-    match IrminHTTPStatic.read file with
+    match Irmin_http_static.read file with
     | None   -> error "%s: not found" file
     | Some s -> s
 
   let respond_error e =
-    let json = `O [ "error", IrminMisc.json_encode (Exn.to_string e) ] in
+    let json = `O [ "error", Ezjsonm.encode_string (Printexn.to_string e) ] in
     let body = Ezjsonm.to_string json in
     HTTP.respond_string
       ~headers:json_headers

@@ -157,7 +157,7 @@ end
 
 module type STORE_EXT = sig
   type step
-  module Contents: Ir_contents.STORE
+  module Contents: Ir_contents.STORE_EXT
   include STORE
     with type Path.step = step
      and type Val.contents = Contents.key
@@ -186,7 +186,7 @@ module Make_ext
   (S: STORE with type Val.contents = C.key)
 = struct
 
-  module Contents = Ir_contents.Store(C)
+  module Contents = Ir_contents.Make_ext(C)
 
   module Path = S.Path
 
