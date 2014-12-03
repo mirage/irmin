@@ -14,15 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Store Synchronisation signatures. *)
+(** Store Synchronisation. *)
 
-module type S = sig
-  type t
+module type STORE = sig
+  type db
   type head
-  type tag
-  val create: Ir_config.t -> t Lwt.t
-  val fetch: t -> ?depth:int -> uri:string -> tag -> [`Local of head] option Lwt.t
-  val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+  type remote
+  val uri: string -> remote
+  val store: db -> remote
+  val fetch: db -> ?depth:int -> remote -> [`Local of head] option Lwt.t
+  val pull: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Ir_merge.result Lwt.t
+  val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
 end
 
-module None (H: Tc.S0) (T: Tc.S0): S with type head = H.t and type tag = T.t
+module Make (S: Ir_s.STORE): STORE with type db = S.t and type head = S.head

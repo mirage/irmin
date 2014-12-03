@@ -27,10 +27,10 @@ module type Config = sig
 end
 
 module type IO = sig
-  val getcwd: unit -> string
+  val getcwd: unit -> string Lwt.t
   val mkdir: string -> unit Lwt.t
   val remove: string -> unit Lwt.t
-  val rec_files: string -> string list
+  val rec_files: string -> string list Lwt.t
   val read_file: string -> Cstruct.t Lwt.t
   val write_file: string -> Cstruct.t -> unit Lwt.t
 end
@@ -44,7 +44,7 @@ let config ~path =
   let path = [ path_k, of_path path ] in
   IB.Config.of_dict path
 
-module RO_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
+module RO_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
   type key = K.t
 
   type value = V.t
@@ -65,8 +65,9 @@ module RO_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
     let w = W.create () in
     let path = match path_key config with
       | None   -> IO.getcwd ()
-      | Some p -> p
+      | Some p -> return p
     in
+    path >>= fun path ->
     IO.mkdir path >>= fun () ->
     return { path; w; config; task; }
 
@@ -96,7 +97,7 @@ module RO_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
     return [k]
 
   let keys_of_dir t =
-    let files = IO.rec_files t.path in
+    IO.rec_files t.path >>= fun files ->
     let files  =
       let p = String.length t.path in
       List.map (fun file ->
@@ -104,10 +105,11 @@ module RO_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
           if n <= p + 1 then "" else String.sub file (p+1) (n - p - 1)
         ) files
     in
-    List.map (fun file -> K.of_hum (S.key_of_file file)) files
+    let files = List.map (fun file -> K.of_hum (S.key_of_file file)) files in
+    return files
 
   let dump t =
-    let l = keys_of_dir t in
+    keys_of_dir t >>= fun l ->
     Lwt_list.fold_left_s (fun acc x ->
         read t x >>= function
         | None   -> return acc
@@ -116,9 +118,9 @@ module RO_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
 
 end
 
-module AO_ext (S: Config) (IO: IO) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
-  include RO_ext(S)(IO)(K)(V)
+  include RO_ext(IO)(S)(K)(V)
 
   let add t value =
     let value = Tc.write_cstruct (module V) value in
@@ -133,16 +135,17 @@ module AO_ext (S: Config) (IO: IO) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
 end
 
-module RW_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
+module RW_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
 
-  include RO_ext(S)(IO)(K)(V)
+  include RO_ext(IO)(S)(K)(V)
 
   let create config task =
     let w = W.create () in
     let path = match path_key config with
       | None   -> IO.getcwd ()
-      | Some p -> p
+      | Some p -> return p
     in
+    path >>= fun path ->
     let key_of_file file = Some (K.of_hum (S.key_of_file file)) in
     IO.mkdir path >>= fun () ->
     let t = { path; w; config; task; } in
@@ -173,14 +176,14 @@ module RW_ext (S: Config) (IO: IO) (K: Irmin.HUM) (V: Tc.S0) = struct
 
 end
 
-module Make_ext (Obj: Config) (Ref: Config) (IO: IO)
+module Make_ext (IO: IO) (Obj: Config) (Ref: Config)
     (P: Ir_path.S)
     (C: Ir_contents.S)
     (T: Ir_tag.S)
     (H: Ir_hash.S)
 = struct
-  module AO = AO_ext(Obj)(IO)
-  module RW = RW_ext(Ref)(IO)
+  module AO = AO_ext(IO)(Obj)
+  module RW = RW_ext(IO)(Ref)
   include Irmin.Make(AO)(RW)(P)(C)(T)(H)
 end
 
@@ -213,6 +216,6 @@ module Obj = struct
 
 end
 
-module AO = AO_ext (Obj)
-module RW = RW_ext (Ref)
-module Make = Make_ext(Obj)(Ref)
+module AO (IO: IO) = AO_ext (IO)(Obj)
+module RW (IO: IO) = RW_ext (IO)(Ref)
+module Make (IO: IO) = Make_ext (IO)(Obj)(Ref)

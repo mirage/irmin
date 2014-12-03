@@ -67,6 +67,7 @@ module type PRIVATE = sig
      and type nodes = (Node.key * Node.value) list
      and type commits = (Commit.key * Commit.value) list
      and type tags = (Tag.key * Tag.value) list
+  module Sync: Ir_sync.S with type head = Commit.key and type tag = Tag.key
 end
 
 module Make (X: Ir_ao.MAKER) (Y: Ir_rw.MAKER): MAKER

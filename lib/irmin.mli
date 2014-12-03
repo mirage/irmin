@@ -635,42 +635,6 @@ module type BC = sig
 
 end
 
-(** {1:backend Backends} *)
-
-(** A backend is an implementation exposing either a concrete
-    implementation of {!S} or a functor providing {!S} once
-    applied. *)
-
-(** [AO_MAKER] is the signature exposed by any backend providing
-    append-only stores. [K] is the implementation of keys and [V] is
-    the implementation of values. *)
-module type AO_MAKER =
-  functor (K: Hash.S) ->
-  functor (V: Tc.S0) ->
-    AO with type key = K.t and type value = V.t
-
-(** [RW_MAKER] is the signature exposed by any backend providing
-    read-write stores. [K] is the implementation of keys and [V] is
-    the implementation of values.*)
-module type RW_MAKER =
-  functor (K: HUM) ->
-  functor (V: Tc.S0) ->
-    RW with type key = K.t and type value = V.t
-
-(** [BC_MAKER] is the signature exposed by any backend providing {!BC}
-    implementations. [K] is the type of keys, [C] is the
-    implementation of user-defined contents, [T] is the implementation
-    of store tags and [H] is the implementation of store heads. *)
-module type BC_MAKER =
-  functor (K: Path.S) ->
-  functor (C: Contents.S) ->
-  functor (T: Tag.S) ->
-  functor (H: Hash.S) ->
-    BC with type key = K.t
-        and type value = C.t
-        and type tag = T.t
-        and type head = H.t
-
 (** [Private] defines functions only useful for creating new
     backends. If you are just using the library (and not developing a
     new backend), you should not use this module. *)
@@ -973,6 +937,43 @@ module Private: sig
 
   end
 
+  module Sync: sig
+
+    module type S = sig
+
+      (** {1 Remote synchronization} *)
+
+      type t
+      (** The type for store handles. *)
+
+      type head
+      (** The type for store heads. *)
+
+      type tag
+      (** The type for store tags. *)
+
+      val create: config -> t Lwt.t
+      (** Create a remote store handle. *)
+
+      val fetch: t -> ?depth:int -> uri:string -> tag ->
+        [`Local of head] option Lwt.t
+      (** [fetch t uri] fetches the contents of the remote store
+          located at [uri] into the local store [t]. Return the head
+          of the remote branch with the same name, which is now in the
+          local store. [None] is no such branch exists. *)
+
+      val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+      (** [push t uri] pushes the contents of the local store [t] into
+          the remote store located at [uri]. *)
+
+    end
+
+    (** [None] is an implementation of {{!Private.Sync.S}S} which does
+        nothing. *)
+    module None (H: Tc.S0) (T: Tc.S0): S with type head = H.t and type tag = T.t
+
+  end
+
   (** The complete collection of private implementations. *)
   module type S = sig
 
@@ -997,12 +998,9 @@ module Private: sig
        and type commits = (Commit.key * Commit.value) list
        and type tags = (Tag.key * Tag.value) list
 
-  end
+    module Sync: Sync.S with type head = Commit.key and type tag = Tag.key
 
-  (** [Make] is an helper to generate {e simple} implementation
-      satisfying the {!Irmin.S} signature, where all the keys have the
-      same type, all the values are stored in the same store. *)
-  module Make (AO: AO_MAKER) (RW: RW_MAKER): BC_MAKER
+  end
 
   (** [Watch] provides helpers to register event notifications on
       read-write stores. *)
@@ -1072,7 +1070,10 @@ end
     An example is a Git repository where keys are filenames, i.e. list
     of ['\']-separated strings. More complex examples are structured
     values, where steps might contains first-class fields accessors
-    and array offsets. *)
+    and array offsets.
+
+    FIXME: {!View} {!Snapshot} {!Dot} {!Sync}
+*)
 
 (** Signature for Irmin stores. *)
 module type S = sig
@@ -1115,32 +1116,6 @@ module type S = sig
   end
 
 end
-
-(** [S_MAKER] is the signature exposed by any backend providing {!S}
-    implementations. [S] is the type of steps (a key is list of
-    steps), [C] is the implementation of user-defined contents, [T] is
-    the implementation of store tags and [H] is the implementation of
-    store heads. *)
-module type S_MAKER =
-  functor (P: Path.S) ->
-  functor (C: Contents.S) ->
-  functor (T: Tag.S) ->
-  functor (H: Hash.S) ->
-    S with type step = P.step
-       and type value = C.t
-       and type tag = T.t
-       and type head = H.t
-
-(** Simple store creator. Use the same type of all of the internal
-    keys and store all the values in the same store. *)
-module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
-
-(** Advanced store creator. *)
-module Make_ext (P: Private.S): S
-  with type step = P.Node.Path.step
-   and type value = P.Contents.value
-   and type tag = P.Tag.key
-   and type head = P.Tag.value
 
 (** [View] provides an in-memory partial mirror of the store, with
     lazy reads and delayed write.
@@ -1279,84 +1254,91 @@ end
 
 (** [Sync] provides functions to synchronization an Irmin store with
     local and remote Irmin stores. *)
-module Sync: sig
+module Sync (S: S): sig
 
-  module type BACKEND = sig
+  (** {1 Native Synchronization} *)
 
-    (** {1 Remote synchronization} *)
+  type remote
+  (** The type for remote stores. *)
 
-    type t
-    (** The type for store handles. *)
+  val uri: string -> remote
+  (** [uri s] is the remote store located at [uri]. Use the
+      optimized native synchronization protocol when available for the
+      given backend. *)
 
-    type head
-    (** The type for store heads. *)
+  val store: S.t -> remote
+  (** [store t] is the remote corresponding to the local store
+      [t]. Synchronization is done by importing and exporting store
+      {{!BC.slice}slices}, so this is usually much slower than native
+      synchronization using [uri] remotes. *)
 
-    type tag
-    (** The type for store tags. *)
+  val fetch: S.t -> ?depth:int -> remote -> [`Local of S.head] option Lwt.t
+  (** [create t last] fetch an object in the local store. The local
+      store can then be either [merged], or [updated] to the new
+      contents. The [depth] parameter limits the history
+      depth. Return the new [head] in the local store corresponding
+      to the current branch -- [fetch] does not update the local
+      branches, use {{!S.Sync.pull}pull} instead. *)
 
-    val create: config -> t Lwt.t
-    (** Create a remote store handle. *)
+  val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
+    unit Merge.result Lwt.t
+  (** Same as {{!S.Sync.fetch}fetch} but also update the current
+      branch. Either [merge] or force [update] with the fetched
+      head. *)
 
-    val fetch: t -> ?depth:int -> uri:string -> tag ->
-      [`Local of head] option Lwt.t
-    (** [fetch t uri] fetches the contents of the remote store
-        located at [uri] into the local store [t]. Return the head
-        of the remote branch with the same name, which is now in the
-        local store. [None] is no such branch exists. *)
-
-    val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
-    (** [push t uri] pushes the contents of the local store [t] into
-        the remote store located at [uri]. *)
-
-  end
-
-  (** [None] is an implementation of {{!Sync.S}S} which does
-      nothing. *)
-  module None (H: Tc.S0) (T: Tc.S0):
-    BACKEND with type head = H.t and type tag = T.t
-
-  (** Native synchronisation. *)
-  module Make
-      (B: BACKEND)
-      (S: S with type head = B.head and type tag = B.tag):
-  sig
-
-    (** {1 Native Synchronization} *)
-
-    type remote
-    (** The type for remote stores. *)
-
-    val uri: string -> remote
-    (** [uri s] is the remote store located at [uri]. Use the
-        optimized native synchronization protocol when available for the
-        given backend. *)
-
-    val store: S.t -> remote
-    (** [store t] is the remote corresponding to the local store
-        [t]. Synchronization is done by importing and exporting store
-        {{!BC.slice}slices}, so this is usually much slower than native
-        synchronization using [uri] remotes. *)
-
-    val fetch: S.t -> ?depth:int -> remote -> [`Local of S.head] option Lwt.t
-    (** [create t last] fetch an object in the local store. The local
-        store can then be either [merged], or [updated] to the new
-        contents. The [depth] parameter limits the history
-        depth. Return the new [head] in the local store corresponding
-        to the current branch -- [fetch] does not update the local
-        branches, use {{!S.Sync.pull}pull} instead. *)
-
-    val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
-      unit Merge.result Lwt.t
-    (** Same as {{!S.Sync.fetch}fetch} but also update the current
-        branch. Either [merge] or force [update] with the fetched
-        head. *)
-
-    val push: S.t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
-    (** [push t f] push the contents of the current branch of the
-        store to the remote store -- also update the remote branch
-        with the same name as the local one to points to the new
-        state. *)
-
-  end
+  val push: S.t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+  (** [push t f] push the contents of the current branch of the
+      store to the remote store -- also update the remote branch
+      with the same name as the local one to points to the new
+      state. *)
 
 end
+
+(** {1:backend Backends} *)
+
+(** A backend is an implementation exposing either a concrete
+    implementation of {!S} or a functor providing {!S} once
+    applied. *)
+
+(** [AO_MAKER] is the signature exposed by any backend providing
+    append-only stores. [K] is the implementation of keys and [V] is
+    the implementation of values. *)
+module type AO_MAKER =
+  functor (K: Hash.S) ->
+  functor (V: Tc.S0) ->
+    AO with type key = K.t and type value = V.t
+
+(** [RW_MAKER] is the signature exposed by any backend providing
+    read-write stores. [K] is the implementation of keys and [V] is
+    the implementation of values.*)
+module type RW_MAKER =
+  functor (K: HUM) ->
+  functor (V: Tc.S0) ->
+    RW with type key = K.t and type value = V.t
+
+(** [S_MAKER] is the signature exposed by any backend providing {!S}
+    implementations. [S] is the type of steps (a key is list of
+    steps), [C] is the implementation of user-defined contents, [T] is
+    the implementation of store tags and [H] is the implementation of
+    store heads. It does not use any native synchronisation
+    primitves. *)
+module type S_MAKER =
+  functor (P: Path.S) ->
+  functor (C: Contents.S) ->
+  functor (T: Tag.S) ->
+  functor (H: Hash.S) ->
+    S with type step = P.step
+       and type value = C.t
+       and type tag = T.t
+       and type head = H.t
+
+(** Simple store creator. Use the same type of all of the internal
+    keys and store all the values in the same store. *)
+module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
+
+(** Advanced store creator. *)
+module Make_ext (P: Private.S): S
+  with type step = P.Node.Path.step
+   and type value = P.Contents.value
+   and type tag = P.Tag.key
+   and type head = P.Tag.value

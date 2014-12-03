@@ -97,6 +97,7 @@ struct
       include RW (Key)(Val)
     end
     module Slice = Ir_slice.Make(Contents)(Node)(Commit)(Tag)
+    module Sync = Ir_sync.None(H)(T)
   end
   include Make_ext(X)
 end

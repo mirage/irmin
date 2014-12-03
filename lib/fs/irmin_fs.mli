@@ -22,7 +22,7 @@ module type IO = sig
 
   (** File-system abstraction. *)
 
-  val getcwd: unit -> string
+  val getcwd: unit -> string Lwt.t
   (** Return the current directory. *)
 
   val mkdir: string -> unit Lwt.t
@@ -31,7 +31,7 @@ module type IO = sig
   val remove: string -> unit Lwt.t
   (** Remove a file or directory (even if non-empty). *)
 
-  val rec_files: string -> string list
+  val rec_files: string -> string list Lwt.t
   (** [rec_files dir] is the list of files recursively present in
       [dir] and all of its sub-directories. Return filenames prefixed
       by [dir].  *)
@@ -63,6 +63,6 @@ module type Config = sig
 
 end
 
-module AO_ext (C: Config) (IO: IO): Irmin.AO_MAKER
-module RW_ext (C: Config) (IO: IO): Irmin.RW_MAKER
-module Make_ext (Obj: Config) (Ref: Config) (IO: IO): Irmin.S_MAKER
+module AO_ext (IO: IO) (C: Config): Irmin.AO_MAKER
+module RW_ext (IO: IO) (C: Config): Irmin.RW_MAKER
+module Make_ext (IO: IO) (Obj: Config) (Ref: Config): Irmin.S_MAKER

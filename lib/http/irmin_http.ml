@@ -229,6 +229,7 @@ struct
         end)(Key)(Val)
     end
     module Slice = IB.Slice.Make(Contents)(Node)(Commit)(Tag)
+    module Sync = IB.Sync.None(H)(T)
   end
 
   include Irmin.Make_ext(X)

@@ -62,6 +62,7 @@ module type PRIVATE = sig
      and type nodes = (Node.key * Node.value) list
      and type commits = (Commit.key * Commit.value) list
      and type tags = (Tag.key * Tag.value) list
+  module Sync: Ir_sync.S with type head = Commit.key and type tag = Tag.key
 end
 
 module type STORE_EXT = sig
@@ -617,6 +618,7 @@ struct
       include RW (Key)(Val)
     end
     module Slice = Ir_slice.Make(Contents)(Node)(Commit)(Tag)
+    module Sync = Ir_sync.None(H)(T)
   end
   include Make_ext(X)
 end

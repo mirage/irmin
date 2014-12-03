@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 3d1c51a9e3d52d5207b21cb9b36f7a88)
+# DO NOT EDIT (digest: 42bce1bb3e735c663763d0b92c6f04c1)
 Irmin
 Ir_misc
 Ir_graph
@@ -25,4 +25,5 @@ Ir_view
 Ir_task
 Ir_bc
 Ir_sync
+Ir_sync_ext
 # OASIS_STOP

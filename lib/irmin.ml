@@ -21,7 +21,7 @@ module Task = Ir_task
 module View = Ir_view.Make
 module Snapshot = Ir_snapshot.Make
 module Dot = Ir_dot.Make
-module Sync = Ir_sync
+module Sync = Ir_sync_ext.Make
 module Hash = Ir_hash
 module Path = Ir_path
 module Make = Ir_s.Make
@@ -51,5 +51,6 @@ module Private = struct
   module Tag = Ir_tag
   module Slice = Ir_slice
   module Make = Ir_bc.Make
+  module Sync = Ir_sync
   module type S = Ir_bc.PRIVATE
 end

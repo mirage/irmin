@@ -23,10 +23,8 @@ module RW (G: Git.Store.S): Irmin.RW with type key = string list
 
 module type S = Irmin.S with type step = string and type tag = string list
 
-module Memory (C: Irmin.Contents.S):
+module Memory (IO: Git.Sync.IO) (C: Irmin.Contents.S):
   S with type value = C.t
 
-module Make (G: Git.Store.S) (C: Irmin.Contents.S):
+module FS (IO: Git.Sync.IO) (G: Git.FS.IO) (C: Irmin.Contents.S):
   S with type value = C.t
-
-module Sync (G: Git.Store.S) (IO: Git.Sync.IO): Irmin.Sync.BACKEND

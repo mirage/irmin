@@ -75,7 +75,7 @@ let config ?root ?bare (module G: Git.Store.S) =
   in
   IB.Config.of_dict (root @ disk @ bare)
 
-module Make (G: Git.Store.S) (C: I.Contents.S) = struct
+module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
 
   module K = struct
     type t = Git.SHA.t
@@ -478,79 +478,85 @@ module Make (G: Git.Store.S) (C: I.Contents.S) = struct
       )
 
   end
+
+  module XSync = struct
+
+    module Sync = Git.Sync.Make(IO)(G)
+
+    type t = G.t
+    type head = XCommit.key
+    type tag = XTag.key
+
+    let key_of_git key = Git.SHA.of_commit key
+
+    let o_key_of_git = function
+      | None   -> return_none
+      | Some k -> return (Some (`Local (key_of_git k)))
+
+    let create config =
+      let root = root_key config in
+      G.create ?root ()
+
+    let fetch t ?depth ~uri tag =
+      Log.debugf "fetch %s" uri;
+      let gri = Git.Gri.of_string uri in
+      let deepen = depth in
+      let result r =
+        Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
+        let tag = XTag.git_of_ref tag in
+        let key =
+          let refs = r.Git.Sync.Result.references in
+          try Some (Git.Reference.Map.find tag refs)
+          with Not_found -> None
+        in
+        o_key_of_git key
+      in
+      Sync.fetch t ?deepen gri >>=
+      result
+
+    let push t ?depth:_ ~uri tag =
+      Log.debugf "push %s" uri;
+      let branch = XTag.git_of_ref tag in
+      let gri = Git.Gri.of_string uri in
+      let result r =
+        Log.debugf "push result: %s" (Git.Sync.Result.pretty_push r);
+        match r.Git.Sync.Result.result with
+        | `Ok      -> return `Ok
+        | `Error _ -> return `Error in
+      Sync.push t ~branch gri >>=
+      result
+
+  end
   module P = struct
     module Contents = XContents
     module Node = XNode
     module Commit = XCommit
     module Tag = XTag
     module Slice = IB.Slice.Make(Contents)(Node)(Commit)(Tag)
+    module Sync = XSync
   end
   include Irmin.Make_ext(P)
 end
 
-module Memory = Make (Git.Memory)
+module Memory (IO: Git.Sync.IO) = Make (IO) (Git.Memory)
+module FS (IO: Git.Sync.IO) (FS: Git.FS.IO) = Make (IO) (Git.FS.Make(FS))
+
+module FakeIO = struct
+  type ic = unit
+  type oc = unit
+  let with_connection _ ?init:_ _ = failwith "FakeIO"
+  let read_all _ = failwith "FakeIO"
+  let read_exactly _ _ = failwith "FakeIO"
+  let write _ _ = failwith "FakeIO"
+  let flush _ = failwith "FakeIO"
+end
 
 module AO (G: Git.Store.S) = struct
-  module M = Make (G)(Irmin.Contents.Cstruct)
+  module M = Make (FakeIO)(G)(Irmin.Contents.Cstruct)
   include M.XContents
 end
 
 module RW (G: Git.Store.S) = struct
-  module M = Make (G)(Irmin.Contents.Cstruct)
+  module M = Make (FakeIO)(G)(Irmin.Contents.Cstruct)
   include M.XTag
-end
-
-module Sync (G: Git.Store.S) (IO: Git.Sync.IO) = struct
-
-  module Sync = Git.Sync.Make(IO)(G)
-  module S = Make(G)(Irmin.Contents.Cstruct)
-  module P = S.Private
-
-  type t = G.t
-  type head = S.head
-  type tag = S.tag
-
-  let key_of_git key = Git.SHA.of_commit key
-
-  let o_key_of_git = function
-    | None   -> return_none
-    | Some k -> return (Some (`Local (key_of_git k)))
-
-  let create config =
-    let root = root_key config in
-    G.create ?root ()
-
-  let git_of_ref r =
-    let str = S.Tag.to_hum r in
-    Git.Reference.of_raw ("refs/heads" / str)
-
-  let fetch t ?depth ~uri tag =
-    Log.debugf "fetch %s" uri;
-    let gri = Git.Gri.of_string uri in
-    let deepen = depth in
-    let result r =
-      Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
-      let tag = git_of_ref tag in
-      let key =
-        let refs = r.Git.Sync.Result.references in
-        try Some (Git.Reference.Map.find tag refs)
-        with Not_found -> None
-      in
-      o_key_of_git key
-    in
-    Sync.fetch t ?deepen gri >>=
-    result
-
-  let push t ?depth:_ ~uri tag =
-    Log.debugf "push %s" uri;
-    let branch = git_of_ref tag in
-    let gri = Git.Gri.of_string uri in
-    let result r =
-      Log.debugf "push result: %s" (Git.Sync.Result.pretty_push r);
-      match r.Git.Sync.Result.result with
-      | `Ok      -> return `Ok
-      | `Error _ -> return `Error in
-    Sync.push t ~branch gri >>=
-    result
-
 end
