@@ -15,12 +15,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Universal values. *)
+type 'a key
+val key : ?docs:string -> ?docv:string -> ?doc:string ->
+  string -> 'a Tc.t -> 'a -> 'a key
 
-type univ
-val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
+val name: 'a key -> string
+val docs: 'a key -> string option
+val docv: 'a key -> string option
+val doc: 'a key -> string option
+val tc: 'a key -> 'a Tc.t
+val default: 'a key -> 'a
+
+val root: string option key
+
 type t
-val to_dict: t -> (string * univ) list
-val of_dict: (string * univ) list -> t
-val find: t -> string -> (univ -> 'a option) -> 'a option
-val find_bool: t -> string -> (univ -> bool option) -> default:bool -> bool
+val empty : t
+val is_empty : t -> bool
+val mem : t -> 'a key -> bool
+val add : t -> 'a key -> 'a -> t
+val rem : t -> 'a key -> t
+val find : t -> 'a key -> 'a option
+val get : t -> 'a key -> 'a

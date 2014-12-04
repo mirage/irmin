@@ -35,13 +35,9 @@ module type IO = sig
 end
 
 (* ~path *)
-let of_path, to_path, _path = Irmin.Config.univ Tc.string
-let path_k = "fs:path"
-let path_key t = Irmin.Config.find t path_k to_path
+let root_key = Irmin.Conf.root
 
-let config ~path =
-  let path = [ path_k, of_path path ] in
-  Irmin.Config.of_dict path
+let config ?root () = Irmin.Conf.add Irmin.Conf.empty root_key root
 
 module RO_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
   type key = K.t
@@ -62,7 +58,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
 
   let create config task =
     let w = W.create () in
-    let path = match path_key config with
+    let path = match Irmin.Conf.get config root_key with
       | None   -> IO.getcwd ()
       | Some p -> return p
     in
@@ -140,7 +136,7 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
 
   let create config task =
     let w = W.create () in
-    let path = match path_key config with
+    let path = match Irmin.Conf.get config root_key with
       | None   -> IO.getcwd ()
       | Some p -> return p
     in

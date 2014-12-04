@@ -15,59 +15,59 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type univ = {
-  v      : exn;
-  to_sexp: unit Tc.to_sexp;
-  to_json: unit Tc.to_json;
-  size_of: unit Tc.size_of;
-  write  : unit Tc.writer;
-  hash   : unit Tc.hash;
-  compare: exn -> int;
-  equal  : exn -> bool;
+module Univ = struct
+  type t = exn
+  let create (type s) () =
+    let module M = struct exception E of s option end in
+    (fun x -> M.E (Some x)), (function M.E x -> x | _ -> None)
+end
+
+type 'a key = {
+  id     : int;
+  to_univ: 'a -> Univ.t;
+  of_univ: Univ.t -> 'a option;
+  name   : string;
+  doc    : string option;
+  docv   : string option;
+  docs   : string option;
+  tc     : 'a Tc.t;
+  default: 'a;
 }
 
-let univ (type s) (module M: Tc.S0 with type t = s) =
-  let module E = struct exception E of s end in
-  let create t = {
-    v = E.E t;
-    to_sexp = (fun () -> M.to_sexp t);
-    to_json = (fun () -> M.to_json t);
-    size_of = (fun () -> M.size_of t);
-    write   = (fun () -> M.write t);
-    hash    = (fun () -> M.hash t);
-    compare = (function
-        | E.E x -> M.compare t x
-        | e     -> Pervasives.compare (E.E t) e);
-    equal = (function
-        | E.E x -> M.equal t x
-        | _     -> false);
-  } in
-  let module T = struct
-    type t = univ
-    let hash t = t.hash ()
-    let to_sexp t = t.to_sexp ()
-    let to_json t = t.to_json ()
-    let size_of t = t.size_of ()
-    let write t   = t.write ()
-    let of_json j = create (M.of_json j)
-    let read b = create (M.read b)
-    let compare t y = t.compare y.v
-    let equal t y = t.equal y.v
-  end in
-  (fun x -> create x),
-  (function { v = E.E x; _ } -> Some x | _ -> None),
-  (module T: Tc.S0 with type t = univ)
+let name t = t.name
+let doc t = t.doc
+let docv t = t.docv
+let docs t = t.docs
+let tc t = t.tc
+let default t = t.default
 
-type t = (string * univ) list
+let key ?docs ?docv ?doc name tc default =
+  let to_univ, of_univ = Univ.create () in
+  let id = Oo.id (object end) in
+  { id; to_univ; of_univ; name; docs; docv; doc; tc; default }
 
-let to_dict x = x
-let of_dict x = x
+module Id = struct
+  type t = int
+  let compare (x:int) (y:int) = compare x y
+end
 
-let find config k f =
-  try f (List.assoc k (to_dict config))
-  with Not_found -> None
+module M = Map.Make (Id)
 
-let find_bool config k f ~default =
-  match find config k f with
-  | None   -> default
-  | Some b -> b
+type t = Univ.t M.t
+
+let empty = M.empty
+let is_empty = M.is_empty
+let mem d k = M.mem k.id d
+let add d k v = M.add k.id (k.to_univ v) d
+let rem d k = M.remove k.id d
+let find d k = try k.of_univ (M.find k.id d) with Not_found -> None
+let get d k =
+  try match k.of_univ (M.find k.id d) with Some v -> v | None -> raise Not_found
+  with Not_found -> raise Not_found
+
+(* ~root *)
+let root =
+  key
+    ~docv:"ROOT"
+    ~doc:"The location of the Git repository root."
+    "root" (Tc.option Tc.string) None

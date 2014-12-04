@@ -15,19 +15,11 @@
  *)
 
 open Lwt
-open Core_kernel.Std
 open Cmdliner
 open Irmin_unix
+open Printf
 
 let () =
-  let origin =
-    sprintf "Irmin (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
-  IrminOrigin.set_date (fun () -> Int64.of_float (Unix.time ()));
-  IrminOrigin.set_id (fun () -> origin);
-  IrminOrigin.set_string_of_date (fun d ->
-      let tm = Unix.localtime (Int64.to_float d) in
-      sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
-    );
   install_dir_polling_listener 0.5
 
 (* Global options *)
@@ -94,12 +86,12 @@ let create_command c =
 
 let pr_str = Format.pp_print_string
 
-let path_conv =
-  let parse str = `Ok (IrminPath.of_string str) in
-  let print ppf path = pr_str ppf (IrminPath.to_string path) in
-  parse, print
-
-let path =
+let path (type s) (module P: Irmin.Path.S with type step = s) =
+  let path_conv =
+    let parse str = `Ok (P.of_hum str) in
+    let print ppf path = pr_str ppf (P.to_hum path) in
+    parse, print
+  in
   let doc = Arg.info ~docv:"PATH" ~doc:"Path." [] in
   Arg.(value & pos 0 path_conv [] & doc)
 
@@ -112,11 +104,22 @@ let run t =
   Lwt_unix.run (
     catch
       (fun () -> t)
-      (function e -> eprintf "%s\n%!" (Exn.to_string e); exit 1)
+      (function e -> eprintf "%s\n%!" (Printexc.to_string e); exit 1)
   )
 
 let mk (fn:'a): 'a Term.t =
   Term.(pure (fun global -> app_global global; fn) $ global)
+
+let create (type t) (module S: Irmin.S with type t = t) config fmt =
+  let owner =
+    (* git config user.name *)
+    sprintf "Irmin (%s[%d])" (Unix.gethostname()) (Unix.getpid())
+  in
+  ksprintf (fun msg ->
+      let date = Int64.of_float (Unix.gettimeofday ()) in
+      let task = Irmin.Task.create ~date ~owner "%s" msg in
+      S.create config task
+    )
 
 (* INIT *)
 let init = {
@@ -133,7 +136,7 @@ let init = {
           ~doc:"Start the Irmin server on the given socket address \
                 (to use with --daemon)." in
       Arg.(value & opt string "http://localhost:8080" & doc) in
-    let init (module S: Irmin.S) daemon uri =
+    let init (module S: Irmin.S) config daemon uri =
       run begin
         S.create () >>= fun t ->
         IrminResolver.init_hook ();

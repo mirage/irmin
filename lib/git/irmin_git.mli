@@ -16,15 +16,11 @@
 
 (** Git backend *)
 
-val config: ?root:string -> ?bare:bool -> (module Git.Store.S) -> Irmin.config
+(* Discard the hash implementation passed in parameter of the functors. *)
 
-module AO (G: Git.Store.S): Irmin.AO with type value = Cstruct.t
-module RW (G: Git.Store.S): Irmin.RW with type key = string list
+val config: ?root:string -> ?bare:bool -> unit -> Irmin.config
 
-module type S = Irmin.S with type step = string and type tag = string list
-
-module Memory (IO: Git.Sync.IO) (C: Irmin.Contents.S):
-  S with type value = C.t
-
-module FS (IO: Git.Sync.IO) (G: Git.FS.IO) (C: Irmin.Contents.S):
-  S with type value = C.t
+module AO (G: Git.Store.S): Irmin.AO_MAKER
+module RW (G: Git.Store.S): Irmin.RW_MAKER
+module Memory (IO: Git.Sync.IO): Irmin.S_MAKER
+module FS (IO: Git.Sync.IO) (G: Git.FS.IO): Irmin.S_MAKER

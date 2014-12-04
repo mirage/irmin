@@ -20,10 +20,6 @@ module I = Irmin
 module IB = Irmin.Private
 module Log = Log.Make(struct let section = "GIT" end)
 
-module type S = Irmin.S with type step = string and type tag = string list
-
-module StringMap = Map.Make(Tc.String)
-
 let (/) = Filename.concat
 
 let string_chop_prefix t ~prefix =
@@ -45,37 +41,31 @@ let write_string str b =
   Cstruct.blit_from_string str 0 b 0 len;
   Cstruct.shift b len
 
-(* ~root *)
-let of_root, to_root, _root = Irmin.Config.univ Tc.string
-let root_k = "git:root"
-let root_key t = Irmin.Config.find t root_k to_root
-
-(* ~disk *)
-let of_disk, to_disk, _disk = Irmin.Config.univ Tc.bool
-let disk_k = "git:disk"
-let disk_key t = Irmin.Config.find_bool t disk_k to_disk ~default:false
+let root_key = Irmin.Conf.root
 
 (* ~bare *)
-let of_bare, to_bare, _bare = Irmin.Config.univ Tc.bool
-let bare_k = "git:bare"
-let bare_key t = Irmin.Config.find_bool t bare_k to_bare ~default:true
+let bare_key =
+  Irmin.Conf.key
+    ~doc:"Do not expand the filesystem on the disk."
+    "root" Tc.bool false
 
-let config ?root ?bare (module G: Git.Store.S) =
-  let root = match root with
-    | None   -> []
-    | Some r -> [ root_k, of_root r ]
+let config ?root ?bare () =
+  let config = Irmin.Conf.empty in
+  let config = Irmin.Conf.add config root_key root in
+  let config = match bare with
+    | None   -> Irmin.Conf.add config bare_key false
+    | Some b -> Irmin.Conf.add config bare_key b
   in
-  let disk = match G.kind with
-    | `Memory -> [ disk_k, of_disk false ]
-    | `Disk   -> [ disk_k, of_disk true ]
-  in
-  let bare = match bare with
-    | None   -> [ bare_k, of_bare true ]
-    | Some b -> [ bare_k, of_bare b ]
-  in
-  Irmin.Config.of_dict (root @ disk @ bare)
+  config
 
-module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
+module Make (IO: Git.Sync.IO) (G: Git.Store.S)
+    (P: Irmin.Path.S)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S)
+    (H: Irmin.Hash.S) =
+struct
+
+  module S = P.Step
 
   module K = struct
     type t = Git.SHA.t
@@ -113,7 +103,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
     type value = V.t
 
     let create config task =
-      let root = root_key config in
+      let root = Irmin.Conf.get config root_key in
       G.create ?root () >>= fun t ->
       return { task; config; t }
 
@@ -174,13 +164,13 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
 
   module XNode = struct
     module Key = K
-    module Path = Irmin.Path.String
+    module Path = P
     module Val = struct
 
       type t = Git.Tree.t
       type contents = K.t
       type node = K.t
-      type step = string
+      type step = P.step
 
       let compare = Git.Tree.compare
       let equal = Git.Tree.equal
@@ -201,8 +191,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
         (* XXX: eeerk: might cause wwrite duplication!!  *)
         (* String.length (to_string t) *)
 
-      let of_git { Git.Tree.name; node; _ } = (name, node)
-      let to_git perm (name, node) = { Git.Tree.perm; name; node }
+      let of_git { Git.Tree.name; node; _ } = (S.of_hum name, node)
+      let to_git perm (name, node) = { Git.Tree.perm; name = S.to_hum name; node }
 
       let all_contents t =
         List.filter (fun { Git.Tree.perm; _ } -> perm <> `Dir) t
@@ -213,6 +203,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
         |> List.map of_git
 
       let find t p s =
+        let s = S.to_hum s in
         try
           List.find (fun { Git.Tree.perm; name; _ } -> p perm && name = s) t
           |> fun v -> Some v.Git.Tree.node
@@ -220,6 +211,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
           None
 
       let remove t p s =
+        let s = S.to_hum s in
         List.filter
           (fun { Git.Tree.perm; name; _ } -> not (p perm && name = s))
           t
@@ -238,7 +230,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
 
       let succ t s = find t (function `Dir -> true | _ -> false) s
       let contents t s = find t (function `Dir -> false | _ -> true) s
-      let steps t = List.map (fun { Git.Tree.name; _ } -> name) t
+      let steps t = List.map (fun { Git.Tree.name; _ } -> S.of_hum name) t
       let empty = []
       let create ~contents ~succ =
         List.map (to_git `Normal) contents @ List.map (to_git `Dir) succ
@@ -253,7 +245,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
             | { Git.Tree.node; _ } -> `Contents node
           ) t
 
-      module N = IB.Node.Make (K)(K)(Irmin.Path.String)
+      module N = IB.Node.Make (K)(K)(P)
 
       (* FIXME: handle executable files *)
       let to_n t =
@@ -362,7 +354,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
 
     end
 
-    module Key = K
+    module Key = H
 
     include AO(struct
         type t = Val.t
@@ -379,9 +371,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
 
   module XTag = struct
 
-    module T = I.Tag.Path
     module Key = T
-    module Val = K
+    module Val = H
 
     module W = Irmin.Watch.Make(T)(K)
 
@@ -411,7 +402,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
     let mem { t; _ } r =
       G.mem_reference t (git_of_ref r)
 
-    let key_of_git k = Git.SHA.of_commit k
+    let key_of_git k =
+      H.of_hum (K.to_hum (Git.SHA.of_commit k))
 
     let read { t; _ } r =
       G.read_reference t (git_of_ref r) >>= function
@@ -419,16 +411,16 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
       | Some k -> return (Some (key_of_git k))
 
     let create config task =
-      let root = root_key config in
+      let root = Irmin.Conf.get config root_key in
       G.create ?root () >>= fun t ->
       let git_root = G.root t / ".git" in
       let ref_of_file file =
         match string_chop_prefix ~prefix:(git_root / "refs/heads/") file with
         | None   -> None
-        | Some r -> Some [r] in
+        | Some r -> Some (T.of_hum r) in
       let w = W.create () in
       let t = { task; config; t; w } in
-      if disk_key config then
+      if G.kind = `Disk then
         W.listen_dir w (git_root / "refs/heads") ~key:ref_of_file ~value:(read t);
       return t
 
@@ -461,7 +453,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
       G.write_head t.t (Git.Reference.Ref gr) >>= fun () ->
       G.write_reference t.t gr gk >>= fun () ->
       W.notify t.w r (Some k);
-      if disk_key t.config && not (bare_key t.config) then
+      if G.kind = `Disk && not (Irmin.Conf.get t.config bare_key) then
         G.write_cache t.t gk
       else
         return_unit
@@ -474,6 +466,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
     let watch t (r:key): value option Lwt_stream.t =
       Irmin.Watch.lwt_stream_lift (
         read t r >>= fun k ->
+        let k = H.of_hum (K.to_hum k) in
         return (W.watch t.w r k)
       )
 
@@ -494,7 +487,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S) (C: I.Contents.S) = struct
       | Some k -> return (Some (`Local (key_of_git k)))
 
     let create config =
-      let root = root_key config in
+      let root = Irmin.Conf.get config root_key in
       G.create ?root ()
 
     let fetch t ?depth ~uri tag =

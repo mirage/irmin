@@ -33,13 +33,14 @@ module U: Tc.S0 with type t = Uri.t = struct
   let read b = Uri.of_string (Tc.String.read b)
 end
 
-let of_uri, to_uri, _uri = Irmin.Config.univ (module U)
-let uri_k = "uttp:uri"
-let uri_key t = Irmin.Config.find t uri_k to_uri
+let uri_key =
+  Irmin.Conf.key
+    ~docv:"URI"
+    ~doc:"Location of the remote store."
+    "uri" (module Tc.Option(U)) None
 
 let config uri =
-  let uri = [ uri_k, of_uri uri ] in
-  Irmin.Config.of_dict uri
+  Irmin.Conf.add Irmin.Conf.empty uri_key (Some uri)
 
 module type Config = sig val suffix: string option end
 
@@ -145,7 +146,7 @@ struct
       Some (fn x)
 
     let create config task =
-      let uri = match uri_key config with
+      let uri = match Irmin.Conf.get config uri_key with
         | None   -> failwith "Irmin_http.create: No URI specified"
         | Some u -> u
       in

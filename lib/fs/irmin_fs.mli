@@ -16,7 +16,7 @@
 
 (** Disk persistence. *)
 
-val config: path:string -> Irmin.config
+val config: ?root:string -> unit -> Irmin.config
 
 module type IO = sig
 

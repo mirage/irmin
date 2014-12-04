@@ -103,7 +103,7 @@ module RW (K: Irmin.HUM) (V: Tc.S0) = struct
 
 end
 
-let config () = Irmin.Config.of_dict []
+let config () = Irmin.Conf.empty
 
 module Make
     (P: Irmin.Path.S)

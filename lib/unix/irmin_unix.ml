@@ -67,11 +67,10 @@ module Irmin_http_server = struct
   module X = struct
     include Cohttp_lwt_unix.Server
     let listen t ?timeout uri =
-      let address = Uri.host_with_default ~default:"localhost" uri in
       let port = match Uri.port uri with
         | None   -> 8080
         | Some p -> p in
-      create ?timeout ~address ~port t
+      create ?timeout ~mode:(`TCP (`Port port)) t
   end
   module Y = struct
     let pretty d =

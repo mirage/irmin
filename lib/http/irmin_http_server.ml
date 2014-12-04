@@ -456,11 +456,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       | `GET       -> return_none
       | `POST ->
         Cohttp_lwt_body.length body >>= fun (len, body) ->
-        if len = 0 then
+        if len = 0L then
           return_none
         else begin
           Cohttp_lwt_body.to_string body >>= fun b ->
-          Log.debugf "process: length=%d body=%S" len b;
+          Log.debugf "process: length=%Ld body=%S" len b;
           try match Ezjsonm.from_string b with
             | `O l ->
               if List.mem_assoc "params" l then (
@@ -505,7 +505,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       catch
         (fun () -> process t req body path)
         (fun e  -> respond_error e) in
-    let conn_closed conn_id () =
+    let conn_closed (_, conn_id) () =
       Log.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
     let config = { HTTP.callback; conn_closed } in
     HTTP.listen config ?timeout uri

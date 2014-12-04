@@ -321,68 +321,96 @@ type task
 (** The type for user-defined tasks. See {{!Task}Task}. *)
 
 type config
-(** The type for backend-specific configuration values. Every backend
+(** The type for backend-specific configuration values. See {{!Conf}Conf}.
+
+Every backend
     has different configuration options, which are kept abstract to
     the user. *)
 
-(** Irmin provides to the user a high-level store, with few
-    interesting features:
-
-    {ul
-    {- Support for fast {{!BC}clones}, branches and merges, in a
-    fashion very similar to Git.}
-    {- Efficient {{!S.View}staging areas} for fast, transient,
-    in-memory operations.}
-    {- Space efficient {{!S.Snapshot}snapshots} and fast and consistent
-    rollback operations.}
-    {- Fast {{!S.Sync}synchronization} primitives between remote
-    stores, using native backend protocols (as the Git protocol) when
-    available.}
-    }
-
-    An Irmin store is automatically built from a number of lower-level
+(** An Irmin store is automatically built from a number of lower-level
     stores, implementing fewer operations, such as {{!AO}append-only}
     and {{!RW}read-write} stores. These low-level stores are provided
     by various backends. *)
 
-  (** Backend-specific configuration values. *)
-module Config: sig
+  (** Backend configuration.
 
-  (** {1 Configuration value} *)
+      A backend configuration is a set of {{!keys}keys} mapping to
+      typed values. Backends define their own keys. *)
+module Conf: sig
+
+  (** {1:keys Keys} *)
+
+  type 'a key
+  (** The type for configuration keys whose lookup value is ['a]. *)
+
+  val key : ?docs:string -> ?docv:string -> ?doc:string ->
+    string -> 'a Tc.t -> 'a -> 'a key
+  (** [key docs docv doc name tc default] is a configuration key named
+      [name] that maps to value [v] by default. [tc] provides base
+      serialization type-classes for key values provided by end users.
+
+      [docs] is the title of a documentation section under which the
+      key is documented. [doc] is a short documentation string for the
+      key, this should be a single sentence or paragraph starting with
+      a capital letter and ending with a dot.  [docv] is a
+      meta-variable for representing the values of the key
+      (e.g. ["BOOL"] for a boolean).
+
+      @raise Invalid_argument if the key name is not made of a
+      sequence of ASCII lowercase letter, digit, dash or underscore.
+      FIXME not implemented.
+
+      {b Warning.} No two keys should share the same [name] as this
+      may lead to difficulties in the UI. *)
+
+  val name: 'a key -> string
+  (** The key name. *)
+
+  val tc: 'a key -> 'a Tc.t
+  (** [tc k] are [k]'s base type-classes. *)
+
+  val default : 'a key -> 'a
+  (** [default k] is [k]'s default value. *)
+
+  val doc : 'a key -> string option
+  (** [doc k] is [k]'s documentation string (if any). *)
+
+  val docv : 'a key -> string option
+  (** [docv k] is [k]'s value documentation meta-variable (if any). *)
+
+  val docs : 'a key -> string option
+  (** [docs k] is [k]'s documentation section (if any). *)
+
+  val root: string option key
+  (** Default [--root=ROOT] argument. *)
+
+  (** {1:conf Configurations} *)
 
   type t = config
-  (** The type for backend-specific configuration values. *)
+  (** The type for configurations. *)
 
-  type univ
-  (** Type type for universal values.
+  val empty : t
+  (** [empty] is the empty configuration. *)
 
-      See {{:http://mlton.org/UniversalType}http://mlton.org/UniversalType}
+  val is_empty : t -> bool
+  (** [is_empty c] is [true] iff [c] is empty. *)
 
-      Universal values are used to carry around configuration values, see
-      {{!RO.create}RO.create}. *)
+  val mem : t -> 'a key -> bool
+  (** [mem c k] is [true] iff [k] has a mapping in [c]. *)
 
-  val univ: 'a Tc.t -> ('a -> univ) * (univ -> 'a option) * univ Tc.t
-  (** Creation of universal values. [univ tc] returns:
+  val add : t -> 'a key -> 'a -> t
+  (** [add c k v] is [c] with [k] mapping to [v]. *)
 
-      {ul
-      {- a function to inject a value from a given type in to a universal value;}
-      {- a function to project from a universal value to a value of a given type;}
-      {- a type-class to show and serialize universal values.}
-      } *)
+  val rem : t -> 'a key -> t
+  (** [rem c k] is [c] with [k] unbound. *)
 
-  val of_dict: (string * univ) list -> t
-  (** Convert a dictionary of universal values into an abstract store
-      config. *)
+  val find : t -> 'a key -> 'a option
+  (** [find c k] is [k]'s mapping in [c], if any. *)
 
-  val to_dict: t -> (string * univ) list
-  (** Convert a configuration value into a dictionary of universal
-      values. *)
+  val get : t -> 'a key -> 'a
+  (** [get c k] is [k]'s mapping in [c].
 
-  val find: t -> string -> (univ -> 'a option) -> 'a option
-  (** Find a the value associated to a key in a config value. *)
-
-  val find_bool: t -> string -> (univ -> bool option) -> default:bool -> bool
-  (** Find a boolean value associated to a key in a config value. *)
+      {b Raises.} [Not_found] if [k] is not bound in [d]. *)
 
 end
 
@@ -1014,6 +1042,19 @@ end
     values, where steps might contains first-class fields accessors
     and array offsets.
 
+    Irmin provides the followgin features:
+
+    {ul
+    {- Support for fast {{!BC}clones}, branches and merges, in a
+    fashion very similar to Git.}
+    {- Efficient {{!S.View}staging areas} for fast, transient,
+    in-memory operations.}
+    {- Space efficient {{!S.Snapshot}snapshots} and fast and consistent
+    rollback operations.}
+    {- Fast {{!S.Sync}synchronization} primitives between remote
+    stores, using native backend protocols (as the Git protocol) when
+    available.}
+    }
     FIXME: {!View} {!Snapshot} {!Dot} {!Sync}
 *)
 

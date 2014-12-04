@@ -18,7 +18,7 @@ module Irmin_fs: sig
 
   (** {1 File-system store} *)
 
-  val config: path:string -> Irmin.config
+  val config: ?root:string -> unit -> Irmin.config
 
   module AO: Irmin.AO_MAKER
   module RW: Irmin.RW_MAKER
@@ -36,7 +36,7 @@ end
 
 module Irmin_git: sig
 
-  val config: ?root:string -> ?bare:bool -> (module Git.Store.S) -> Irmin.config
+  val config: ?root:string -> ?bare:bool -> unit -> Irmin.config
 
   module AO (G: Git.Store.S): Irmin.AO with type value = Cstruct.t
   module RW (G: Git.Store.S): Irmin.RW with type key = string list

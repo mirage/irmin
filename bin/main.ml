@@ -15,4 +15,4 @@
  *)
 
 let () =
-  IrminCLI.(run ~default commands)
+  Cli.(run ~default commands)
