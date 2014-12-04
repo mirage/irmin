@@ -4,25 +4,29 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
+<link rel="next" href="Irmin_unix.html">
 <link rel="Up" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
 <link title="Stores" rel="Section" href="#1_Stores">
+<link title="High-level Stores" rel="Section" href="#1_HighlevelStores">
 <link title="Backends" rel="Section" href="#backend">
 <title>Irmin</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
-&nbsp;</div>
+&nbsp;<a class="post" href="Irmin_unix.html" title="Irmin_unix">Next</a>
+</div>
 <h1>Module <a href="type_Irmin.html">Irmin</a></h1>
 
 <pre><span class="keyword">module</span> Irmin: <code class="code">sig</code> <a href="Irmin.html">..</a> <code class="code">end</code></pre><div class="info module top">
-A library for persistent stores following the same design
-    principle as Git.
+<code class="code">Irmin</code> is a library for persistent stores following the same
+    design principle as Git.
 <p>
 
     Irmin is a distributed and history-preserving library for
@@ -81,34 +85,23 @@ The type for user-defined tasks. See <a href="Irmin.Task.html">Task</a>.<br>
 
 <pre><span id="TYPEconfig"><span class="keyword">type</span> <code class="type"></code>config</span> </pre>
 <div class="info ">
-The type for backend-specific configuration values. Every backend
+The type for backend-specific configuration values. See <a href="Irmin.Conf.html">Conf</a>.
+<p>
+
+Every backend
     has different configuration options, which are kept abstract to
     the user.<br>
 </div>
 
 <br>
-Irmin provides to the user a high-level store, with few
-    interesting features:
-<p>
-
-    <ul>
-<li>Support for fast <a href="Irmin.BC.html">clones</a>, branches and merges, in a
-    fashion very similar to Git.</li>
-<li>Efficient staging areas for fast, transient,
-    in-memory operations.</li>
-<li>Space efficient snapshots and fast and consistent
-    rollback operations.</li>
-<li>Fast synchronization primitives between remote
-    stores, using native backend protocols (as the Git protocol) when
-    available.</li>
-</ul>
-
-<p>
-
-    An Irmin store is automatically built from a number of lower-level
+An Irmin store is automatically built from a number of lower-level
     stores, implementing fewer operations, such as <a href="Irmin.AO.html">append-only</a>
     and <a href="Irmin.RW.html">read-write</a> stores. These low-level stores are provided
     by various backends.<br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Conf.html">Conf</a>: <code class="code">sig</code> <a href="Irmin.Conf.html">..</a> <code class="code">end</code></pre><div class="info">
+Backend configuration.
+</div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Task.html">Task</a>: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre><div class="info">
 Tasks are used to keep track of the origin of reads and writes in
@@ -130,6 +123,65 @@ Read-write stores.
 <pre><span class="keyword">module type</span> <a href="Irmin.BC.html">BC</a> = <code class="code">sig</code> <a href="Irmin.BC.html">..</a> <code class="code">end</code></pre><div class="info">
 Branch-consistent stores.
 </div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.Private.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Private</code> defines functions only useful for creating new
+    backends.
+</div>
+<br>
+<h1 id="1_HighlevelStores">High-level Stores</h1>
+<p>
+
+    An Irmin store is a branch-consistent store where keys are lists
+    of steps.
+<p>
+
+    An example is a Git repository where keys are filenames, i.e. list
+    of <code class="code">'\'</code>-separated strings. More complex examples are structured
+    values, where steps might contains first-class fields accessors
+    and array offsets.
+<p>
+
+    Irmin provides the followgin features:
+<p>
+
+    <ul>
+<li>Support for fast <a href="Irmin.BC.html">clones</a>, branches and merges, in a
+    fashion very similar to Git.</li>
+<li>Efficient <a href="Irmin.View.html">staging areas</a> for fast, transient,
+    in-memory operations.</li>
+<li>Space efficient <a href="Irmin.Snapshot.html">snapshots</a> and fast and consistent
+    rollback operations.</li>
+<li>Fast <a href="Irmin.Sync.html">synchronization</a> primitives between remote
+    stores, using native backend protocols (as the Git protocol) when
+    available.</li>
+</ul>
+
+    FIXME: <a href="Irmin.View.html"><code class="code">Irmin.View</code></a> <a href="Irmin.Snapshot.html"><code class="code">Irmin.Snapshot</code></a> <a href="Irmin.Dot.html"><code class="code">Irmin.Dot</code></a> <a href="Irmin.Sync.html"><code class="code">Irmin.Sync</code></a><br>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><div class="info">
+Signature for Irmin stores.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.View.html">View</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.View.html">..</a> <code class="code">end</code></div></pre><div class="info">
+<code class="code">View</code> provides an in-memory partial mirror of the store, with
+    lazy reads and delayed write.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Snapshot.html">Snapshot</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Snapshot.html">..</a> <code class="code">end</code></div></pre><div class="info">
+<code class="code">Snapshot</code> provides read-only, space-efficient, checkpoints of a
+    store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Dot.html">Dot</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Dot.html">..</a> <code class="code">end</code></div></pre><div class="info">
+<code class="code">Dot</code> provides functions to export a store to the Graphviz `dot`
+    format.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Sync.html">Sync</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Sync.html">..</a> <code class="code">end</code></div></pre><div class="info">
+<code class="code">Sync</code> provides functions to synchronization an Irmin store with
+    local and remote Irmin stores.
+</div>
 <br>
 <h1 id="backend">Backends</h1><br>
 <br>
@@ -145,23 +197,6 @@ A backend is an implementation exposing either a concrete
 <pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="Irmin.HUM.html">HUM</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RW.html">RW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
 <code class="code">RW_MAKER</code> is the signature exposed by any backend providing
     read-write stores.
-</div>
-
-<pre><span class="keyword">module type</span> <a href="Irmin.BC_MAKER.html">BC_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Path.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.BC.html">BC</a></code><code class="type">  with type key = K.t
-        and type value = C.t
-        and type tag = T.t
-        and type head = H.t</code></pre><div class="info">
-<code class="code">BC_MAKER</code> is the signature exposed by any backend providing <a href="Irmin.BC.html"><code class="code">Irmin.BC</code></a>
-    implementations.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.Private.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Private</code> defines functions only useful for creating new
-    backends.
-</div>
-
-<pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><div class="info">
-High-level Stores
 </div>
 
 <pre><span class="keyword">module type</span> <a href="Irmin.S_MAKER.html">S_MAKER</a> = <code class="code">functor (</code><code class="code">P</code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Path.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type step = P.step
@@ -184,23 +219,8 @@ Simple store creator.
 Advanced store creator.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.View.html">View</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.View.html">..</a> <code class="code">end</code></div></pre><div class="info">
-<code class="code">View</code> provides an in-memory partial mirror of the store, with
-    lazy reads and delayed write.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Snapshot.html">Snapshot</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Snapshot.html">..</a> <code class="code">end</code></div></pre><div class="info">
-<code class="code">Snapshot</code> provides read-only, space-efficient, checkpoints of a
-    store.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Dot.html">Dot</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Dot.html">..</a> <code class="code">end</code></div></pre><div class="info">
-<code class="code">Dot</code> provides functions to export a store to the Graphviz `dot`
-    format.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Sync.html">Sync</a>: <code class="code">sig</code> <a href="Irmin.Sync.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Sync</code> provides functions to synchronization an Irmin store with
-    local and remote Irmin stores.
+<pre><span class="keyword">module</span> <a href="Irmin.Watch.html">Watch</a>: <code class="code">sig</code> <a href="Irmin.Watch.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Watch</code> provides helpers to register event notifications on
+      read-write stores.
 </div>
 </body></html>

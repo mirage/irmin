@@ -8,7 +8,8 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Index of modules</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Index of modules</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
@@ -16,6 +17,12 @@
 <h1>Index of modules</h1>
 <table>
 <tr><td align="left"><br>A</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_git.AO.html">AO</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Irmin_fs.AO.html">AO</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Irmin_fs.AO_ext.html">AO_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.View.Action.html">Action</a> [<a href="Irmin.View.html">Irmin.View</a>]</td>
 <td><div class="info">
 <code class="code">Action</code> provides information about operations performed on a
@@ -33,9 +40,9 @@ Private commits.
 Commit values represent the store history.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Config.html">Config</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<tr><td><a href="Irmin.Conf.html">Conf</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-Backend-specific configuration values.
+Backend configuration.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.S.Contents.html">Contents</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
@@ -63,6 +70,9 @@ Cstruct values where only the last modified value is kept on
     format.
 </div>
 </td></tr>
+<tr><td align="left"><br>F</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_git.FS.html">FS</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>H</td></tr>
 <tr><td><a href="Irmin.Hash.html">Hash</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
@@ -78,8 +88,33 @@ Cstruct values where only the last modified value is kept on
 <tr><td align="left"><br>I</td></tr>
 <tr><td><a href="Irmin.html">Irmin</a> </td>
 <td><div class="info">
-A library for persistent stores following the same design
-    principle as Git.
+<code class="code">Irmin</code> is a library for persistent stores following the same
+    design principle as Git.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_fs.html">Irmin_fs</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td><div class="info">
+File system backends.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_git.html">Irmin_git</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td><div class="info">
+Git backends.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_http.html">Irmin_http</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td><div class="info">
+REST (over HTTP) backend..
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_http_server.html">Irmin_http_server</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td><div class="info">
+Server-side of the REST API over HTTP.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.html">Irmin_unix</a> </td>
+<td><div class="info">
+Unix backends
 </div>
 </td></tr>
 <tr><td align="left"><br>J</td></tr>
@@ -115,27 +150,24 @@ Base functions over keys.
 <code class="code">Key</code> provides base functions for user-defined contents keys.
 </div>
 </td></tr>
+<tr><td align="left"><br>L</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_http.Low.html">Low</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>M</td></tr>
-<tr><td><a href="Irmin.Sync.Make.html">Make</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<tr><td><a href="Irmin_unix.Irmin_http_server.Make.html">Make</a> [<a href="Irmin_unix.Irmin_http_server.html">Irmin_unix.Irmin_http_server</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Irmin_http.Make.html">Make</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Irmin_fs.Make.html">Make</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Watch.Make.html">Make</a> [<a href="Irmin.Watch.html">Irmin.Watch</a>]</td>
 <td><div class="info">
-Native synchronisation.
+<code class="code">Make</code> builds an implementation of watch helpers.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Make.html">Make</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Simple store creator.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.Watch.Make.html">Make</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
-<td><div class="info">
-<code class="code">Make</code> builds an implementation of watch helpers.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.Make.html">Make</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
-<td><div class="info">
-<code class="code">Make</code> is an helper to generate <em>simple</em> implementation
-      satisfying the <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> signature, where all the keys have the
-      same type, all the values are stored in the same store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Slice.Make.html">Make</a> [<a href="Irmin.Private.Slice.html">Irmin.Private.Slice</a>]</td>
@@ -152,6 +184,8 @@ Build simple slices.
 A list of steps, representing keys in an Irmin store.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_unix.Irmin_fs.Make_ext.html">Make_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Make_ext.html">Make_ext</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Advanced store creator.
@@ -162,6 +196,8 @@ Advanced store creator.
 Lift to maps.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_unix.Irmin_git.Memory.html">Memory</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Merge.html">Merge</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code">Merge</code> provides functions to build custom 3-way merge operators
@@ -180,10 +216,10 @@ Private nodes.
       values.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Sync.None.html">None</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<tr><td><a href="Irmin.Private.Sync.None.html">None</a> [<a href="Irmin.Private.Sync.html">Irmin.Private.Sync</a>]</td>
 <td><div class="info">
-<code class="code">None</code> is an implementation of S which does
-      nothing.
+<code class="code">None</code> is an implementation of <a href="Irmin.Private.Sync.S.html">S</a> which does
+        nothing.
 </div>
 </td></tr>
 <tr><td align="left"><br>O</td></tr>
@@ -221,6 +257,12 @@ Private functions, which might be used by the backends.
 </div>
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_git.RW.html">RW</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Irmin_fs.RW.html">RW</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_unix.Irmin_fs.RW_ext.html">RW_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Merge.Result.html">Result</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Base functions over results.
@@ -267,6 +309,10 @@ String values where only the last modified value is kept on
     local and remote Irmin stores.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.S.Sync.html">Sync</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Sync.html">Sync</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>T</td></tr>
 <tr><td><a href="Irmin.S.Tag.html">Tag</a> [<a href="Irmin.S.html">Irmin.S</a>]</td>
 <td><div class="info">
@@ -328,7 +374,7 @@ Base functions over values.
 </div>
 </td></tr>
 <tr><td align="left"><br>W</td></tr>
-<tr><td><a href="Irmin.Private.Watch.html">Watch</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
+<tr><td><a href="Irmin.Watch.html">Watch</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code">Watch</code> provides helpers to register event notifications on
       read-write stores.

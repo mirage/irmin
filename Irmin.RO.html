@@ -12,7 +12,8 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Read-only stores" rel="Section" href="#1_Readonlystores">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Read-only stores" rel="Section" href="#1_Readonlystores">
 <title>Irmin.RO</title>
 </head>
 <body>
@@ -75,9 +76,9 @@ Same as <code class="code">read</code> but raise <code class="code">Not_found</c
 Check if a key exists.<br>
 </div>
 
-<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> list -> <a href="Irmin.RO.html#TYPEkey">key</a> list Lwt.t</code></pre><div class="info ">
-<code class="code">list t keys</code> is the list of sub-keys that any of the keys in
-      <code class="code">keys</code> are allowed to access.<br>
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> list Lwt.t</code></pre><div class="info ">
+<code class="code">list t key</code> is the list of sub-keys that the key <code class="code">keys</code> is
+      allowed to access.<br>
 </div>
 
 <pre><span id="VALdump"><span class="keyword">val</span> dump</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> (<a href="Irmin.RO.html#TYPEkey">key</a> * <a href="Irmin.RO.html#TYPEvalue">value</a>) list Lwt.t</code></pre><div class="info ">

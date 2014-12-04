@@ -10,7 +10,8 @@
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><link title="Actions" rel="Section" href="#1_Actions">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Actions" rel="Section" href="#1_Actions">
 <title>Irmin.View.Action</title>
 </head>
 <body>
@@ -23,7 +24,7 @@
       view.
 <p>
 
-      Each view stores the list of actions that
+      Each view stores the list of <a href="Irmin.View.Action.html#TYPEt">actions</a> that
       have already been performed on it. These actions are useful
       when the view needs to be rebased: write operations are
       replayed while read results are checked against the original
@@ -35,7 +36,7 @@ Signature for actions performed on a view.<br>
 <br>
 <h1 id="1_Actions">Actions</h1><br>
 
-<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type">[ `List of key list * key list<br>       | `Read of key * value option<br>       | `Write of key * value option ]</code> </pre>
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type">[ `List of key * key list<br>       | `Read of key * value option<br>       | `Write of key * value option ]</code> </pre>
 <div class="info ">
 Operations on view. The read results are kept to be able
         to replay them on merge and to check for possible conflict:

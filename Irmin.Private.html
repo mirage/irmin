@@ -5,19 +5,20 @@
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Task.html">
-<link rel="next" href="Irmin.Make.html">
+<link rel="next" href="Irmin.View.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
 <link title="Index of values" rel=Appendix href="index_values.html">
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
-<link title="Irmin" rel="Chapter" href="Irmin.html"><title>Irmin.Private</title>
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.Private</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin.Task.html" title="Irmin.Task">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
-&nbsp;<a class="post" href="Irmin.Make.html" title="Irmin.Make">Next</a>
+&nbsp;<a class="post" href="Irmin.View.html" title="Irmin.View">Next</a>
 </div>
 <h1>Module <a href="type_Irmin.Private.html">Irmin.Private</a></h1>
 
@@ -34,7 +35,7 @@ API to create new Irmin backends.
       There are two ways to create a concrete <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> implementation.
 <p>
 
-      <a href="Irmin.Private.Make.html"><code class="code">Irmin.Private.Make</code></a> creates a store where all the objects are stored in the
+      <a href="Irmin.Make.html"><code class="code">Irmin.Make</code></a> creates a store where all the objects are stored in the
       same store, using the same internal keys format and a custom
       binary format based on
       <a href="https://github.com/janestreet/bin_prot">bin_prot</a>, with no
@@ -47,10 +48,6 @@ API to create new Irmin backends.
       the binary format and using the native synchronization protocols
       when available. This is mainly used by the Git backend, but could
       be used for other similar backends as well in the future.<br>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Config.html">Config</a>: <code class="code">sig</code> <a href="Irmin.Private.Config.html">..</a> <code class="code">end</code></pre><div class="info">
-Backend-specific configuration values.
-</div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Contents.html">Contents</a>: <code class="code">sig</code> <a href="Irmin.Private.Contents.html">..</a> <code class="code">end</code></pre>
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Node.html">Node</a>: <code class="code">sig</code> <a href="Irmin.Private.Node.html">..</a> <code class="code">end</code></pre><div class="info">
@@ -70,18 +67,8 @@ Tags defines branch names.
 The signature for slices.
 </div>
 
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Sync.html">Sync</a>: <code class="code">sig</code> <a href="Irmin.Private.Sync.html">..</a> <code class="code">end</code></pre>
 <pre><span class="keyword">module type</span> <a href="Irmin.Private.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Private.S.html">..</a> <code class="code">end</code></pre><div class="info">
 The complete collection of private implementations.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">AO</code><code class="code"> : </code><code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">RW</code><code class="code"> : </code><code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.BC_MAKER.html">Irmin.BC_MAKER</a></code><code class="type"> </code></div></div></pre><div class="info">
-<code class="code">Make</code> is an helper to generate <em>simple</em> implementation
-      satisfying the <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> signature, where all the keys have the
-      same type, all the values are stored in the same store.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Watch.html">Watch</a>: <code class="code">sig</code> <a href="Irmin.Private.Watch.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Watch</code> provides helpers to register event notifications on
-      read-write stores.
 </div>
 </body></html>
