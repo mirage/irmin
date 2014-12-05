@@ -236,6 +236,25 @@ struct
   include Irmin.Make_ext(X)
 end
 
+
+module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+  module V = struct
+    include V
+    let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
+  end
+  module M = Low (Client)(Irmin.Path.String)(V)(Irmin.Tag.Path)(K)
+  include M.X.Contents
+end
+
+module RW (Client: Cohttp_lwt.Client) (K: Irmin.HUM) (V: Irmin.Hash.S) = struct
+  module K = struct
+    include K
+    let master = K.of_hum "master"
+  end
+  module M = Low (Client)(Irmin.Path.String)(Irmin.Contents.String)(K)(V)
+  include M.X.Tag
+end
+
 module Make (Client: Cohttp_lwt.Client)
     (P: Irmin.Path.S)
     (C: Irmin.Contents.S)

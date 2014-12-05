@@ -20,6 +20,8 @@
 
 val config: ?root:string -> ?bare:bool -> unit -> Irmin.config
 
+val bare_key: bool Irmin.Conf.key
+
 module AO (G: Git.Store.S): Irmin.AO_MAKER
 module RW (G: Git.Store.S): Irmin.RW_MAKER
 module Memory (IO: Git.Sync.IO): Irmin.S_MAKER

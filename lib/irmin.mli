@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** [Irmin] is a library for persistent stores following the same
+(** Irmin public API.
+
+    Irmin is a library for persistent stores following the same
     design principle as Git.
 
     Irmin is a distributed and history-preserving library for
@@ -306,6 +308,15 @@ module Hash: sig
 
     val digest: Cstruct.t -> t
     (** Compute a deterministic store key from a cstruct value. *)
+
+    val has_kind: [> `SHA1] -> bool
+    (** The kind of generated hash. *)
+
+    val to_raw: t -> Cstruct.t
+    (** The raw hash value. *)
+
+    val of_raw: Cstruct.t -> t
+    (** Abstract an hash value. *)
 
   end
   (** Signature for hash values. *)
@@ -748,7 +759,7 @@ module Private: sig
       values.
 
       The node blocks form a labeled directed acyclic graph, labeled
-      by {{!Private.Node.STORE.Step}steps}: a list of steps defines a
+      by {{!Path.S.step}steps}: a list of steps defines a
       unique path from one node to an other.
 
       Every node can contain some optional key, corresponding to
@@ -1047,11 +1058,11 @@ end
     {ul
     {- Support for fast {{!BC}clones}, branches and merges, in a
     fashion very similar to Git.}
-    {- Efficient {{!S.View}staging areas} for fast, transient,
+    {- Efficient {{!View}staging areas} for fast, transient,
     in-memory operations.}
-    {- Space efficient {{!S.Snapshot}snapshots} and fast and consistent
+    {- Space efficient {{!Snapshot}snapshots} and fast and consistent
     rollback operations.}
-    {- Fast {{!S.Sync}synchronization} primitives between remote
+    {- Fast {{!Sync}synchronization} primitives between remote
     stores, using native backend protocols (as the Git protocol) when
     available.}
     }
@@ -1150,7 +1161,7 @@ module View (S: S): sig
   (** [Action] provides information about operations performed on a
       view.
 
-      Each view stores the list of {{!S.View.Action.t}actions} that
+      Each view stores the list of {{!View.Action.t}actions} that
       have already been performed on it. These actions are useful
       when the view needs to be rebased: write operations are
       replayed while read results are checked against the original
@@ -1261,11 +1272,11 @@ module Sync (S: S): sig
       contents. The [depth] parameter limits the history
       depth. Return the new [head] in the local store corresponding
       to the current branch -- [fetch] does not update the local
-      branches, use {{!S.Sync.pull}pull} instead. *)
+      branches, use {{!Sync.pull}pull} instead. *)
 
   val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
     unit Merge.result Lwt.t
-  (** Same as {{!S.Sync.fetch}fetch} but also update the current
+  (** Same as {{!Sync.fetch}fetch} but also update the current
       branch. Either [merge] or force [update] with the fetched
       head. *)
 
@@ -1296,7 +1307,7 @@ module type AO_MAKER =
     the implementation of values.*)
 module type RW_MAKER =
   functor (K: HUM) ->
-  functor (V: Tc.S0) ->
+  functor (V: Hash.S) ->
     RW with type key = K.t and type value = V.t
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}

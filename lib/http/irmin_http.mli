@@ -17,13 +17,10 @@
 (** JSON CRUD interface. *)
 
 val config: Uri.t -> Irmin.config
+val uri_key: Uri.t option Irmin.Conf.key
+
+module AO (C: Cohttp_lwt.Client): Irmin.AO_MAKER
+module RW (C: Cohttp_lwt.Client): Irmin.RW_MAKER
 
 module Make (C: Cohttp_lwt.Client): Irmin.S_MAKER
-(** High-level bindings. Most of the computation is done on the
-    server, the client is (almost) stateless. The only thing that the
-    client needs to remember is the tag of the current branch or the
-    current head if the branch is detached. *)
-
 module Low (C: Cohttp_lwt.Client): Irmin.S_MAKER
-(** Low-level bindings. Only access the backend stores, all the
-    high-level logic is done on the client. *)

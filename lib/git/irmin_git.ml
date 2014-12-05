@@ -62,12 +62,16 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     (P: Irmin.Path.S)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
-    (H: Irmin.Hash.S) =
-struct
+    (H: Irmin.Hash.S)
+= struct
+
+  let () =
+    if not (H.has_kind `SHA1) then
+      failwith "The Git backend only support SHA1 hashes."
 
   module S = P.Step
 
-  module K = struct
+  module GK = struct
     type t = Git.SHA.t
     let hash = Git.SHA.hash
     let compare = Git.SHA.compare
@@ -81,6 +85,9 @@ struct
     let digest = Git.SHA.of_cstruct
     let to_hum = Git.SHA.to_hex
     let of_hum = Git.SHA.of_hex
+    let to_raw t = Cstruct.of_string (Git.SHA.to_raw t)
+    let of_raw t = Git.SHA.of_raw (Cstruct.to_string t)
+    let has_kind = function `SHA1 -> true | _ -> false
   end
 
   module type V = sig
@@ -90,7 +97,7 @@ struct
     val of_git: Git.Value.t -> t option
   end
 
-  module AO (V: V) = struct
+  module AO (K: Irmin.Hash.S) (V: V) = struct
 
     type t = {
       t: G.t;
@@ -110,7 +117,11 @@ struct
     let task t = t.task
     let config t = t.config
 
+    let git_of_key k = GK.of_raw (K.to_raw k)
+    let key_of_git k = K.of_raw (GK.to_raw k)
+
     let mem { t; _ } key =
+      let key = git_of_key key in
       G.mem t key >>= function
       | false    -> return false
       | true     ->
@@ -119,6 +130,7 @@ struct
         | Some v -> return (V.type_eq (Git.Value.type_of v))
 
     let read { t; _ } key =
+      let key = git_of_key key in
       G.read t key >>= function
       | None   -> return_none
       | Some v -> return (V.of_git v)
@@ -137,39 +149,43 @@ struct
           G.read_exn t k >>= fun v ->
           match V.of_git v with
           | None   -> return acc
-          | Some v -> return ((k, v) :: acc)
+          | Some v ->
+            let k = key_of_git k in
+            return ((k, v) :: acc)
         ) [] keys
 
     let add { t; _ } v =
-      G.write t (V.to_git v)
+      G.write t (V.to_git v) >>= fun k ->
+      return (key_of_git k)
 
   end
 
+  module GitContents = struct
+    type t = C.t
+    let c: t Tc.t = (module C)
+    let type_eq = function
+      | Git.Object_type.Blob -> true
+      | _ -> false
+    let of_git = function
+      | Git.Value.Blob b -> Some (Tc.read_string c (Git.Blob.to_raw b))
+      | _                -> None
+    let to_git b =
+      Git.Value.Blob (Git.Blob.of_raw (Tc.write_string c b))
+  end
   module XContents = struct
-    include AO (struct
-        type t = C.t
-        let c: t Tc.t = (module C)
-        let type_eq = function
-          | Git.Object_type.Blob -> true
-          | _ -> false
-        let of_git = function
-          | Git.Value.Blob b -> Some (Tc.read_string c (Git.Blob.to_raw b))
-          | _                -> None
-        let to_git b =
-          Git.Value.Blob (Git.Blob.of_raw (Tc.write_string c b))
-      end)
-      module Val = C
-      module Key = K
-    end
+    include AO (GK)(GitContents)
+    module Val = C
+    module Key = GK
+  end
 
   module XNode = struct
-    module Key = K
+    module Key = GK
     module Path = P
     module Val = struct
 
       type t = Git.Tree.t
-      type contents = K.t
-      type node = K.t
+      type contents = GK.t
+      type node = GK.t
       type step = P.step
 
       let compare = Git.Tree.compare
@@ -245,7 +261,7 @@ struct
             | { Git.Tree.node; _ } -> `Contents node
           ) t
 
-      module N = IB.Node.Make (K)(K)(P)
+      module N = IB.Node.Make (GK)(GK)(P)
 
       (* FIXME: handle executable files *)
       let to_n t =
@@ -259,7 +275,7 @@ struct
       let of_json j = of_n (N.of_json j)
     end
 
-    include AO (struct
+    include AO (GK)(struct
         type t = Val.t
         let type_eq = function
           | Git.Object_type.Tree -> true
@@ -274,7 +290,7 @@ struct
   module XCommit = struct
     module Val = struct
       type t = Git.Commit.t
-      type node = K.t
+      type node = GK.t
 
       let to_sexp = Git.Commit.sexp_of_t
       let compare = Git.Commit.compare
@@ -293,7 +309,7 @@ struct
         (* XXX: yiiik *)
         (* String.length (to_string t) *)
 
-      let commit_key_of_git k = Git.SHA.of_commit k
+      let commit_key_of_git k = H.of_raw (GK.to_raw (Git.SHA.of_commit k))
       let node_key_of_git k = Git.SHA.of_tree k
 
       let task_of_git author message =
@@ -310,7 +326,7 @@ struct
         (task, node, parents)
 
       let to_git task node parents =
-        let git_of_commit_key k = Git.SHA.to_commit k in
+        let git_of_commit_key k = Git.SHA.to_commit (GK.of_raw (H.to_raw k)) in
         let git_of_node_key k = Git.SHA.to_tree k in
         let tree = match node with
           | None   ->
@@ -340,7 +356,7 @@ struct
         let parents = parents t in
         `Node node :: List.map (fun k -> `Commit k) parents
 
-      module C = IB.Commit.Make(K)(K)
+      module C = IB.Commit.Make(H)(GK)
 
       let of_c c =
         to_git (C.task c) (C.node c) (C.parents c)
@@ -356,7 +372,7 @@ struct
 
     module Key = H
 
-    include AO(struct
+    include AO (H)(struct
         type t = Val.t
         let type_eq = function
           | Git.Object_type.Commit -> true
@@ -374,7 +390,7 @@ struct
     module Key = T
     module Val = H
 
-    module W = Irmin.Watch.Make(T)(K)
+    module W = Irmin.Watch.Make(Key)(Val)
 
     type t = {
       task: I.task;
@@ -389,26 +405,26 @@ struct
     let task t = t.task
     let config t = t.config
 
-    let ref_of_git r =
+    let tag_of_git r =
       let str = Git.Reference.to_raw r in
       match string_chop_prefix ~prefix:"refs/heads/" str with
       | None   -> None
       | Some r -> Some (Key.of_hum r)
 
-    let git_of_ref r =
+    let git_of_tag r =
       let str = Key.to_hum r in
       Git.Reference.of_raw ("refs/heads" / str)
 
     let mem { t; _ } r =
-      G.mem_reference t (git_of_ref r)
+      G.mem_reference t (git_of_tag r)
 
-    let key_of_git k =
-      H.of_hum (K.to_hum (Git.SHA.of_commit k))
+    let head_of_git k =
+      H.of_raw (GK.to_raw (Git.SHA.of_commit k))
 
     let read { t; _ } r =
-      G.read_reference t (git_of_ref r) >>= function
+      G.read_reference t (git_of_tag r) >>= function
       | None   -> return_none
-      | Some k -> return (Some (key_of_git k))
+      | Some k -> return (Some (head_of_git k))
 
     let create config task =
       let root = Irmin.Conf.get config root_key in
@@ -425,31 +441,32 @@ struct
       return t
 
     let read_exn { t; _ } r =
-      G.read_reference_exn t (git_of_ref r) >>= fun k ->
-      return (key_of_git k)
+      G.read_reference_exn t (git_of_tag r) >>= fun k ->
+      return (head_of_git k)
 
     let list { t; _ } _ =
       Log.debugf "list";
       G.references t >>= fun refs ->
-      return (list_filter_map ref_of_git refs)
+      return (list_filter_map tag_of_git refs)
 
     let dump { t; _ } =
       Log.debugf "dump";
       G.references t >>= fun refs ->
       Lwt_list.map_p (fun r ->
-          match ref_of_git r with
+          match tag_of_git r with
           | None     -> return_none
           | Some ref ->
             G.read_reference_exn t r >>= fun k ->
-            return (Some (ref, key_of_git k))
+            return (Some (ref, head_of_git k))
         ) refs >>= fun l ->
       list_filter_map (fun x -> x) l |> return
 
-    let git_of_key k = Git.SHA.to_commit k
+    let git_of_head k =
+      Git.SHA.to_commit (GK.of_raw (H.to_raw k))
 
     let update t r k =
-      let gr = git_of_ref r in
-      let gk = git_of_key k in
+      let gr = git_of_tag r in
+      let gk = git_of_head k in
       G.write_head t.t (Git.Reference.Ref gr) >>= fun () ->
       G.write_reference t.t gr gk >>= fun () ->
       W.notify t.w r (Some k);
@@ -459,14 +476,13 @@ struct
         return_unit
 
     let remove t r =
-      G.remove_reference t.t (git_of_ref r) >>= fun () ->
+      G.remove_reference t.t (git_of_tag r) >>= fun () ->
       W.notify t.w r None;
       return_unit
 
     let watch t (r:key): value option Lwt_stream.t =
       Irmin.Watch.lwt_stream_lift (
         read t r >>= fun k ->
-        let k = H.of_hum (K.to_hum k) in
         return (W.watch t.w r k)
       )
 
@@ -480,11 +496,11 @@ struct
     type head = XCommit.key
     type tag = XTag.key
 
-    let key_of_git key = Git.SHA.of_commit key
+    let head_of_git key = H.of_raw (GK.to_raw (Git.SHA.of_commit key))
 
-    let o_key_of_git = function
+    let o_head_of_git = function
       | None   -> return_none
-      | Some k -> return (Some (`Local (key_of_git k)))
+      | Some k -> return (Some (`Local (head_of_git k)))
 
     let create config =
       let root = Irmin.Conf.get config root_key in
@@ -496,20 +512,20 @@ struct
       let deepen = depth in
       let result r =
         Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
-        let tag = XTag.git_of_ref tag in
+        let tag = XTag.git_of_tag tag in
         let key =
           let refs = r.Git.Sync.Result.references in
           try Some (Git.Reference.Map.find tag refs)
           with Not_found -> None
         in
-        o_key_of_git key
+        o_head_of_git key
       in
       Sync.fetch t ?deepen gri >>=
       result
 
     let push t ?depth:_ ~uri tag =
       Log.debugf "push %s" uri;
-      let branch = XTag.git_of_ref tag in
+      let branch = XTag.git_of_tag tag in
       let gri = Git.Gri.of_string uri in
       let result r =
         Log.debugf "push result: %s" (Git.Sync.Result.pretty_push r);
@@ -544,12 +560,20 @@ module FakeIO = struct
   let flush _ = failwith "FakeIO"
 end
 
-module AO (G: Git.Store.S) = struct
-  module M = Make (FakeIO)(G)(Irmin.Contents.Cstruct)
-  include M.XContents
+module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+  module V = struct
+    include V
+    let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
+  end
+  module M = Make (FakeIO)(G)(Irmin.Path.String)(V)(Irmin.Tag.Path)(K)
+  include M.AO(K)(M.GitContents)
 end
 
-module RW (G: Git.Store.S) = struct
-  module M = Make (FakeIO)(G)(Irmin.Contents.Cstruct)
+module RW (G: Git.Store.S) (K: Irmin.HUM) (V: Irmin.Hash.S) = struct
+  module K = struct
+    include K
+    let master = K.of_hum "master"
+  end
+  module M = Make (FakeIO)(G)(Irmin.Path.String)(Irmin.Contents.String)(K)(V)
   include M.XTag
 end

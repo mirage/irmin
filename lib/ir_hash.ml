@@ -21,6 +21,9 @@ exception Invalid of string
 module type S = sig
   include Ir_hum.S
   val digest: Cstruct.t -> t
+  val has_kind: [> `SHA1] -> bool
+  val to_raw: t -> Cstruct.t
+  val of_raw: Cstruct.t -> t
 end
 
 module SHA1 = struct
@@ -34,6 +37,11 @@ module SHA1 = struct
     h
 
   let len = 20
+
+  let to_raw t = t
+  let of_raw t =
+    if Cstruct.len t = len then t
+    else raise (Invalid (Cstruct.to_string t))
 
   let hex_len = 40
 
@@ -70,4 +78,9 @@ module SHA1 = struct
   let digest buf = Nocrypto.Hash.SHA1.digest buf
   let to_hum = to_hex
   let of_hum = of_hex
+
+  let has_kind = function
+    | `SHA1 -> true
+    | _ -> false
+
 end

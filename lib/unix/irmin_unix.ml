@@ -50,15 +50,18 @@ end
 
 module Irmin_git = struct
   let config = Irmin_git.config
+  let bare_key = Irmin_git.bare_key
   module AO = Irmin_git.AO
   module RW = Irmin_git.RW
-  module type S = Irmin_git.S
   module Memory = Irmin_git.Memory(Git_unix.Sync.IO)
   module FS = Irmin_git.FS(Git_unix.Sync.IO)(IO)
 end
 
 module Irmin_http = struct
   let config = Irmin_http.config
+  let uri_key = Irmin_http.uri_key
+  module AO = Irmin_http.AO(Cohttp_lwt_unix.Client)
+  module RW = Irmin_http.RW(Cohttp_lwt_unix.Client)
   module Make = Irmin_http.Make(Cohttp_lwt_unix.Client)
   module Low = Irmin_http.Low(Cohttp_lwt_unix.Client)
 end

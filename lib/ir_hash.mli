@@ -19,6 +19,9 @@
 module type S = sig
   include Ir_hum.S
   val digest: Cstruct.t -> t
+  val has_kind: [> `SHA1] -> bool
+  val to_raw: t -> Cstruct.t
+  val of_raw: Cstruct.t -> t
 end
 
 exception Invalid of string

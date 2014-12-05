@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(** {1 Unix backends} *)
+
+(** File system backends. *)
 module Irmin_fs: sig
 
   (** {1 File-system store} *)
@@ -34,34 +37,43 @@ module Irmin_fs: sig
 
 end
 
+(** Git backends. *)
 module Irmin_git: sig
 
   val config: ?root:string -> ?bare:bool -> unit -> Irmin.config
+  val bare_key: bool Irmin.Conf.key
 
-  module AO (G: Git.Store.S): Irmin.AO with type value = Cstruct.t
-  module RW (G: Git.Store.S): Irmin.RW with type key = string list
+  module AO (G: Git.Store.S): Irmin.AO_MAKER
+  module RW (G: Git.Store.S): Irmin.RW_MAKER
 
-  module type S = Irmin.S with type step = string and type tag = string list
-
-  module Memory (C: Irmin.Contents.S):
-    S with type value = C.t
-
-  module FS (C: Irmin.Contents.S):
-    S with type value = C.t
-
+  module Memory: Irmin.S_MAKER
+  module FS: Irmin.S_MAKER
 end
 
+(** REST (over HTTP) backend.. *)
 module Irmin_http: sig
 
   (** {1 HTTP client} *)
 
   val config: Uri.t -> Irmin.config
+  val uri_key: Uri.t option Irmin.Conf.key
+
+  module AO: Irmin.AO_MAKER
+  module RW: Irmin.RW_MAKER
 
   module Make: Irmin.S_MAKER
+  (** High-level bindings. Most of the computation is done on the
+      server, the client is (almost) stateless. The only thing that
+      the client needs to remember is the tag of the current branch or
+      the current head if the branch is detached. *)
+
   module Low: Irmin.S_MAKER
+  (** Low-level bindings. Only access the backend stores, all the
+      high-level logic is done on the client. *)
 
 end
 
+(** Server-side of the REST API over HTTP. *)
 module Irmin_http_server: sig
 
   (** {1 HTTP server} *)
