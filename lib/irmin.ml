@@ -17,12 +17,13 @@
 module Merge = Ir_merge
 module Contents = Ir_contents
 module Tag = Ir_tag
-module Conf = Ir_config
 module Task = Ir_task
+module Conf = Ir_conf
 module View = Ir_view.Make
 module Snapshot = Ir_snapshot.Make
 module Dot = Ir_dot.Make
-module Sync = Ir_sync_ext.Make
+module type S = Ir_s.STORE
+
 module Hash = Ir_hash
 module Path = Ir_path
 module Make = Ir_s.Make
@@ -32,11 +33,10 @@ module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
 module type RW = Ir_rw.STORE
 module type BC = Ir_bc.STORE
-module type S = Ir_s.STORE
-module type HUM = Ir_hum.S
+module Hum = Ir_hum
 
 type task = Task.t
-type config = Ir_config.t
+type config = Ir_conf.t
 
 module type AO_MAKER = Ir_ao.MAKER
 module type RW_MAKER = Ir_rw.MAKER
@@ -55,3 +55,14 @@ module Private = struct
 end
 
 module Watch = Ir_watch
+
+let version = Ir_version.current
+
+module Sync (S: Ir_s.STORE) = struct
+  (* XXX: cannot "include Ir_sync_ext.Make" because equality does not
+     lift to signatures in pack, see below. *)
+  include Ir_sync_ext.Make(S)
+  let store (type t) (module M: S with type t = t) (t:t) =
+    let module X = (M: Ir_s.STORE with type t = t) in
+    store (module X) t
+end

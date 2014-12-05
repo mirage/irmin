@@ -17,9 +17,9 @@
 (** Provenance tracking. *)
 
 include Tc.S0
-val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
+val create: date:int64 -> owner:string -> string -> t
 val date: t -> int64
 val uid: t -> int64
 val owner: t -> string
 val messages: t -> string list
-val fprintf: t -> ('a, unit, string, unit) format4 -> 'a
+val add: t -> string -> unit

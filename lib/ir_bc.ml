@@ -25,7 +25,7 @@ module StringMap = Map.Make(String)
 module type STORE = sig
   include Ir_rw.STORE
   type tag
-  val of_tag: Ir_config.t -> Ir_task.t -> tag -> t Lwt.t
+  val of_tag: Ir_conf.t -> ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
   val tag: t -> tag option
   val tag_exn: t -> tag
   val tags: t -> tag list Lwt.t
@@ -33,7 +33,7 @@ module type STORE = sig
   val update_tag_force: t -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
   type head
-  val of_head: Ir_config.t -> Ir_task.t -> head -> t Lwt.t
+  val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
   val branch: t -> [`Tag of tag | `Head of head]
@@ -193,7 +193,9 @@ module Make_ext (P: PRIVATE) = struct
   let of_tag config task t =
     Commit.create config task >>= fun block ->
     Tag.create config task >>= fun tag ->
-    return { block; tag; task; branch = `Tag t }
+    return (fun a ->
+        { block = block a; tag = tag a; task = task a; branch = `Tag t }
+      )
 
   let task t = Commit.task t.block
   let config t = Commit.config t.block
@@ -204,7 +206,9 @@ module Make_ext (P: PRIVATE) = struct
   let of_head config task key =
     Commit.create config task >>= fun block ->
     Tag.create config task >>= fun tag ->
-    return { block; tag; task; branch = `Head key }
+    return (fun a ->
+        { block = block a; tag = tag a; task = task a; branch = `Head key }
+      )
 
   let read_head_commit t =
     match t.branch with

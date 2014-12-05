@@ -30,6 +30,9 @@
     FIXME
 *)
 
+val version: string
+(** The version of the library. *)
+
 (** {1 User-Defined Contents} *)
 
 (** Defining the {e contents} of the store and how {e merge} conflicts
@@ -200,22 +203,28 @@ end
 
 (** Serializable data with reversible human-readable
     representations. *)
-module type HUM = sig
+module Hum: sig
 
-  (** {1 Serializable values with inversible human-readable
-      representations} *)
+  (** Serializable values with inversible human-readable
+      representations. *)
+  module type S = sig
 
-  include Tc.S0
+    include Tc.S0
 
-  val to_hum: t -> string
-  (** Display a value using its human readable representation. *)
+    val to_hum: t -> string
+    (** Display a value using its human readable representation. *)
 
-  val of_hum: string -> t
-  (** Convert an human readable representation of a value into its
-      abstract value.
+    val of_hum: string -> t
+    (** Convert an human readable representation of a value into its
+        abstract value.
 
-      @raise Invalid_argument if the string does not represent
-      anything meaningful. *)
+        @raise Invalid_argument if the string does not represent
+        anything meaningful. *)
+
+  end
+
+  type 'a t = (module S with type t = 'a)
+  (** Type for implementation of [S] for values of type ['a]. *)
 
 end
 
@@ -234,7 +243,7 @@ module Tag: sig
 
     (** Signature for tags (i.e. branch names). *)
 
-    include HUM
+    include Hum.S
 
     val master: t
     (** The name of the master branch. *)
@@ -258,7 +267,7 @@ module Path: sig
   (** {1 Path} *)
 
   (** Signature for path steps. *)
-  module type STEP = HUM
+  module type STEP = Hum.S
 
   (** Signature for path implementations.*)
   module type S = sig
@@ -273,7 +282,7 @@ module Path: sig
 
     module Step: STEP with type t = step
 
-    include HUM with type t := t
+    include Hum.S with type t := t
 
   end
 
@@ -304,7 +313,7 @@ module Hash: sig
 
     (** Signature for unique identifiers. *)
 
-    include HUM
+    include Hum.S
 
     val digest: Cstruct.t -> t
     (** Compute a deterministic store key from a cstruct value. *)
@@ -334,20 +343,40 @@ type task
 type config
 (** The type for backend-specific configuration values. See {{!Conf}Conf}.
 
-Every backend
-    has different configuration options, which are kept abstract to
-    the user. *)
+    Every backend has different configuration options, which are kept
+    abstract to the user. *)
 
 (** An Irmin store is automatically built from a number of lower-level
     stores, implementing fewer operations, such as {{!AO}append-only}
     and {{!RW}read-write} stores. These low-level stores are provided
     by various backends. *)
 
-  (** Backend configuration.
+(** Backend configuration.
 
-      A backend configuration is a set of {{!keys}keys} mapping to
-      typed values. Backends define their own keys. *)
+    A backend configuration is a set of {{!keys}keys} mapping to
+    typed values. Backends define their own keys. *)
 module Conf: sig
+
+  (** {1 Configuration converters}
+
+      A configuration converter transforms a string value to an OCaml
+      value and vice-versa. There are a few
+      {{!builtin_converters}built-in converters}. *)
+
+  type 'a parser = string -> [ `Error of string | `Ok of 'a ]
+  (** The type for configuration converter parsers. *)
+
+  type 'a printer = Format.formatter -> 'a -> unit
+  (** The type for configuration converter printers. *)
+
+  type 'a converter = 'a parser * 'a printer
+  (** The type for configuration converters. *)
+
+  val parser : 'a converter -> 'a parser
+  (** [parser c] is [c]'s parser. *)
+
+  val printer : 'a converter -> 'a printer
+  (** [converter c] is [c]'s printer. *)
 
   (** {1:keys Keys} *)
 
@@ -355,10 +384,10 @@ module Conf: sig
   (** The type for configuration keys whose lookup value is ['a]. *)
 
   val key : ?docs:string -> ?docv:string -> ?doc:string ->
-    string -> 'a Tc.t -> 'a -> 'a key
-  (** [key docs docv doc name tc default] is a configuration key named
-      [name] that maps to value [v] by default. [tc] provides base
-      serialization type-classes for key values provided by end users.
+    string -> 'a converter -> 'a -> 'a key
+  (** [key docs docv doc name conv default] is a configuration key named
+      [name] that maps to value [v] by default. [converter] is
+      used to convert key values provided by end users.
 
       [docs] is the title of a documentation section under which the
       key is documented. [doc] is a short documentation string for the
@@ -377,8 +406,8 @@ module Conf: sig
   val name: 'a key -> string
   (** The key name. *)
 
-  val tc: 'a key -> 'a Tc.t
-  (** [tc k] are [k]'s base type-classes. *)
+  val conv: 'a key -> 'a converter
+  (** [tc k] is [k]'s converter. *)
 
   val default : 'a key -> 'a
   (** [default k] is [k]'s default value. *)
@@ -403,6 +432,9 @@ module Conf: sig
   val empty : t
   (** [empty] is the empty configuration. *)
 
+  val singleton: 'a key -> 'a -> t
+  (** [singletong k v] is the configuration where [k] maps to [v]. *)
+
   val is_empty : t -> bool
   (** [is_empty c] is [true] iff [c] is empty. *)
 
@@ -423,6 +455,23 @@ module Conf: sig
 
       {b Raises.} [Not_found] if [k] is not bound in [d]. *)
 
+  (** {1:builtin_converters Built-in value converters}  *)
+
+  val bool : bool converter
+  (** [bool] converts values with [bool_of_string].  *)
+
+  val int : int converter
+  (** [int] converts values with [int_of_string]. *)
+
+  val string : string converter
+  (** [string] converts values with the indentity function. *)
+
+  val uri: Uri.t converter
+  (** [uri] converts values with [Uri.of_string]. *)
+
+  val some : 'a converter -> 'a option converter
+  (** [string] converts values with the indentity function. *)
+
 end
 
 (** Tasks are used to keep track of the origin of reads and writes in
@@ -434,7 +483,7 @@ module Task: sig
 
   include Tc.S0 with type t = task
 
-  val create: date:int64 -> owner:string -> ('a, unit, string, t) format4 -> 'a
+  val create: date:int64 -> owner:string -> string -> t
   (** Create a new task. *)
 
   val date: t -> int64
@@ -472,8 +521,7 @@ module Task: sig
       the Git backend, this will be translated to the commit
       message.  *)
 
-
-  val fprintf: t ->  ('a, unit, string, unit) format4 -> 'a
+  val add: t -> string -> unit
   (** Add a message to the task messages list. See
       {{!Task.messages}messages} for more details. *)
 
@@ -493,10 +541,12 @@ module type RO = sig
   type value
   (** Type for values. *)
 
-  val create: config -> task -> t Lwt.t
-  (** [create config task] is the store handle with the configuration
-      [config] and the task [task]. [config] is provided by the
-      backend and [task] is the provided by the user. *)
+  val create: config -> ('a -> task) -> ('a -> t) Lwt.t
+  (** [create config task] is a function returning fresh store
+      handles, with the configuration [config] and fresh tasks
+      computed using [task]. [config] is provided by the backend and
+      [task] is the provided by the user. The operation might be
+      blocking, depending on the backend. *)
 
   val config: t -> config
   (** [config t] is the list of configurations keys for the store
@@ -589,7 +639,7 @@ module type BC = sig
       global namespace and that's the user responsibility to avoid
       name-clashes. *)
 
-  val of_tag: config -> task -> tag -> t Lwt.t
+  val of_tag: config -> ('a -> task) -> tag -> ('a -> t) Lwt.t
   (** [create t tag] is a persistent store handle. Similar to
       [create], but use the [tag] branch instead of the [master]
       one. *)
@@ -632,7 +682,7 @@ module type BC = sig
   type head
   (** Type for head values. *)
 
-  val of_head: config -> task -> head -> t Lwt.t
+  val of_head: config -> ('a -> task) -> head -> ('a -> t) Lwt.t
   (** Create a temporary store handle, which will not persist as it
       has no associated to any persistent tag name. *)
 
@@ -1066,7 +1116,6 @@ end
     stores, using native backend protocols (as the Git protocol) when
     available.}
     }
-    FIXME: {!View} {!Snapshot} {!Dot} {!Sync}
 *)
 
 (** Signature for Irmin stores. *)
@@ -1260,7 +1309,7 @@ module Sync (S: S): sig
       optimized native synchronization protocol when available for the
       given backend. *)
 
-  val store: S.t -> remote
+  val store: (module S with type t = 'a) -> 'a -> remote
   (** [store t] is the remote corresponding to the local store
       [t]. Synchronization is done by importing and exporting store
       {{!BC.slice}slices}, so this is usually much slower than native
@@ -1306,7 +1355,7 @@ module type AO_MAKER =
     read-write stores. [K] is the implementation of keys and [V] is
     the implementation of values.*)
 module type RW_MAKER =
-  functor (K: HUM) ->
+  functor (K: Hum.S) ->
   functor (V: Hash.S) ->
     RW with type key = K.t and type value = V.t
 

@@ -39,7 +39,7 @@ let root_key = Irmin.Conf.root
 
 let config ?root () = Irmin.Conf.add Irmin.Conf.empty root_key root
 
-module RO_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
+module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   type key = K.t
 
   type value = V.t
@@ -64,7 +64,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
     in
     path >>= fun path ->
     IO.mkdir path >>= fun () ->
-    return { path; w; config; task; }
+    return (fun a -> { path; w; config; task = task a })
 
   let file_of_key { path; _ } key =
     path / S.file_of_key (K.to_hum key)
@@ -130,9 +130,11 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
 end
 
-module RW_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
+module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   include RO_ext(IO)(S)(K)(V)
+
+  let key_of_file file = Some (K.of_hum (S.key_of_file file))
 
   let create config task =
     let w = W.create () in
@@ -141,11 +143,8 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
       | Some p -> return p
     in
     path >>= fun path ->
-    let key_of_file file = Some (K.of_hum (S.key_of_file file)) in
     IO.mkdir path >>= fun () ->
-    let t = { path; w; config; task; } in
-    W.listen_dir w path ~key:key_of_file ~value:(read t);
-    return t
+    return (fun a -> { path; w; config; task = task a })
 
   let remove t key =
     let file = file_of_key t key in
@@ -164,6 +163,7 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
     return_unit
 
   let watch t key =
+    W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
     Irmin.Watch.lwt_stream_lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)

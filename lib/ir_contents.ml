@@ -122,6 +122,12 @@ end
 
 module String = struct
   include Tc.String
+  let size_of t = String.length t
+  let read buf = Mstruct.to_string buf
+  let write t buf =
+    let len = String.length t in
+    Cstruct.blit_from_string t 0 buf 0 len;
+    Cstruct.shift buf len
   let merge = Ir_merge.default (module Tc.String)
 end
 

@@ -21,7 +21,7 @@ let hashtbl_to_alist t =
   Hashtbl.iter (fun k v -> l := (k, v) :: !l) t;
   !l
 
-module RO (K: Irmin.HUM) (V: Tc.S0) = struct
+module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   module W = Irmin.Watch.Make(K)(V)
 
@@ -42,12 +42,7 @@ module RO (K: Irmin.HUM) (V: Tc.S0) = struct
   let watches = W.create ()
 
   let create config task =
-    let t = {
-      t = table;
-      w = watches;
-      task; config
-    } in
-    return t
+    return (fun a -> { t = table; w = watches; task = task a; config })
 
   let read { t; _ } key =
     try return (Some (Hashtbl.find t key))
@@ -81,7 +76,7 @@ module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
 end
 
-module RW (K: Irmin.HUM) (V: Tc.S0) = struct
+module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   include RO(K)(V)
 

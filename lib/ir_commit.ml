@@ -140,7 +140,7 @@ struct
     C.create config task >>= fun c ->
     N.create config task >>= fun n ->
     S.create config task >>= fun s ->
-    return (c, n, s)
+    return (fun a -> c a, n a, s a)
 
   let task (_, _, t) =
     S.task t

@@ -133,7 +133,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     | [] -> ()
     | _  -> error "%s: non-empty query" name
 
-  let mk1p (type s) name (module S: Irmin.HUM with type t = s) path =
+  let mk1p (type s) name (module S: Irmin.Hum.S with type t = s) path =
     match path with
     | [x] -> S.of_hum x
     | []  -> error "%s: empty path" name
@@ -241,10 +241,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let ao_store (type key) (type value) (type l)
       (module M: Irmin.AO with type t = l and type key = key and type value = value)
-      (module K: Irmin.HUM with type t = M.key)
+      (module K: Irmin.Hum.S with type t = M.key)
       (module V: Tc.S0 with type t = M.value)
       (fn: S.t -> l Lwt.t) =
-    let key' = (module K: Irmin.HUM with type t = K.t) in
+    let key': M.key Irmin.Hum.t = (module K) in
     let key: M.key Tc.t = (module K) in
     let value: M.value Tc.t = (module V) in
     let pairs = Tc.list (Tc.pair key value) in
@@ -277,7 +277,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let tag_store =
     let open S.Private.Tag in
     let tag_t t = return (S.Private.tag_t t) in
-    let tag' = (module S.Tag: Irmin.HUM with type t = S.tag) in
+    let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
     let head: S.head Tc.t = (module S.Head) in
     let pairs = Tc.list (Tc.pair tag head) in
@@ -377,9 +377,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let dyn_node list child = DNode { list; child }
 
   let store =
-    let key' = (module S.Key: Irmin.HUM with type t = S.key) in
-    let tag' = (module S.Tag: Irmin.HUM with type t = S.tag) in
-    let head' = (module S.Head: Irmin.HUM with type t = S.head) in
+    let key': S.key Irmin.Hum.t = (module S.Key) in
+    let tag': S.tag Irmin.Hum.t = (module S.Tag) in
+    let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
     let pairs = Tc.list (Tc.pair key value) in
     let slice: S.slice Tc.t = (module S.Private.Slice) in

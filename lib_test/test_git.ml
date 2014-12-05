@@ -16,13 +16,8 @@
 
 open Lwt
 open Test_common
-open Irmin_unix
 
 let test_db = "test_db_git"
-
-let init_memory () =
-  Git.Memory.create ~root:test_db () >>= fun t ->
-  Git.Memory.clear t
 
 let init_disk () =
   if Filename.basename (Sys.getcwd ()) <> "lib_test" then
@@ -33,33 +28,12 @@ let init_disk () =
   else
     return_unit
 
-module Memory = IrminGit.Memory'(struct
-    let root = test_db
-  end)
-
-module Disk = IrminGit.FS (struct
-  let root = Some test_db
-  let bare = true
-  end)
-
-let init = function
-  | `Disk   -> init_disk
-  | `Memory -> init_memory
-
-let string_of_g = function
-  | `Disk   -> ""
-  | `Memory -> ".MEM"
-
-let suite k g =
+let suite k =
   {
-    name  = "GIT" ^ string_of_g g ^ string_of_kind k;
-    kind  = k;
-    init  = init g;
-    clean = unit;
-    store =
-      let (module B: Irmin.BACKEND) = match g with
-        | `Memory -> (module Memory)
-        | `Disk   -> (module Disk  ) in
-      let (module K), (module C), (module T) = modules k in
-      Irmin.cast (module B.Make(K)(C)(T))
+    name   = "GIT" ^ string_of_kind k;
+    kind   = k;
+    init   = init_disk;
+    clean  = none;
+    config = Irmin.Conf.singleton Irmin.Conf.root (Some test_db);
+    store  = git_store k;
   }

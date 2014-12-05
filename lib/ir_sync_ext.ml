@@ -23,7 +23,7 @@ module type STORE = sig
   type head
   type remote
   val uri: string -> remote
-  val store: db -> remote
+  val store: (module Ir_s.STORE with type t = 'a) -> 'a -> remote
   val fetch: db -> ?depth:int -> remote -> [`Local of head] option Lwt.t
   val pull: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Ir_merge.result Lwt.t
   val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
@@ -36,17 +36,26 @@ module Make (S: Ir_s.STORE) = struct
   type head = S.head
 
   type remote =
-    | Store of db
+    | Store: (module Ir_s.STORE with type t = 'a) * 'a -> remote
     | URI of string
 
-  let store db = Store db
+  let store m x = Store (m, x)
   let uri s = URI s
 
   (* sync objects *)
-  let sync ?depth l r =
-    S.heads r >>= fun min ->
+  let sync (type s) (type r)
+      (module S: Ir_s.STORE with type t = s)
+      (module R: Ir_s.STORE with type t = r)
+      ?depth l (r:r)
+    =
+    R.heads r >>= fun min ->
+    let min = List.map (fun r -> S.Head.of_raw (R.Head.to_raw r)) min in
     S.export l ?depth ~min >>= fun slice ->
-    S.import_force r slice
+    let slice =
+      Tc.read_cstruct (module R.Private.Slice)
+        (Tc.write_cstruct (module S.Private.Slice) slice)
+    in
+    R.import_force r slice
 
   let fetch t ?depth remote =
     match remote with
@@ -58,12 +67,14 @@ module Make (S: Ir_s.STORE) = struct
           B.create (S.config t) >>= fun g ->
           B.fetch g ?depth ~uri tag
       end
-    | Store r ->
+    | Store ((module R), r) ->
       Log.debugf "fetch store";
-      sync ?depth t r >>= fun () ->
-      S.head r >>= function
+      sync (module S) (module R) ?depth t r >>= fun () ->
+      R.head r >>= function
       | None   -> return_none
-      | Some h -> return (Some (`Local h))
+      | Some h ->
+        let h = S.Head.of_raw (R.Head.to_raw h) in
+        return (Some (`Local h))
 
   let pull t ?depth remote kind =
     let open Ir_merge.OP in
@@ -86,12 +97,13 @@ module Make (S: Ir_s.STORE) = struct
           B.create (S.config t) >>= fun g ->
           B.push g ?depth ~uri tag
       end
-    | Store r ->
+    | Store ((module R), r) ->
       S.head t >>= function
       | None   -> return `Error
-      | Some k ->
-        sync ?depth r t >>= fun () ->
-        S.update_head r k >>= fun () ->
+      | Some h ->
+        sync (module R) (module S) ?depth r t >>= fun () ->
+        let h = R.Head.of_raw (S.Head.to_raw h) in
+        R.update_head r h >>= fun () ->
         return `Ok
 
 end

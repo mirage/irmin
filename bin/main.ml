@@ -15,4 +15,4 @@
  *)
 
 let () =
-  Cli.(run ~default commands)
+  Ir_cli.(run ~default commands)

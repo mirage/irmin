@@ -43,11 +43,11 @@ let suite k server =
 
     init = begin fun () ->
       let (module Server) = server.store in
-      let module HTTP = IrminHTTP.Make(Server) in
+      let module HTTP = Irmin_http_server.Make(Server) in
       let server () =
-        server.init ()   >>= fun () ->
-        Server.create () >>= fun t  ->
-        signal ()        >>= fun () ->
+        server.init () >>= fun () ->
+        Server.create server.config (task "server") >>= fun t  ->
+        signal () >>= fun () ->
         HTTP.listen t uri
       in
       let () =
@@ -73,8 +73,6 @@ let suite k server =
       server.clean ()
     end;
 
-    store =
-      let module M = IrminCRUD.Make(Cohttp_lwt_unix.Client)(struct let uri = uri end) in
-      let (module K), (module C), (module T) = modules k in
-      Irmin.cast (module M.Make(K)(C)(T))
+    config = Irmin.Conf.singleton Irmin_http.uri_key (Some uri);
+    store = http_store k;
   }

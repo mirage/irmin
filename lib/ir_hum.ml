@@ -19,3 +19,5 @@ module type S = sig
   val to_hum: t -> string
   val of_hum: string -> t
 end
+
+type 'a t = (module S with type t = 'a)

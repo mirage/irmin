@@ -17,10 +17,16 @@
 open OUnit
 open Test_common
 open Lwt
-open Core_kernel.Std
 
-let urandom = Cryptokit.Random.device_rng "/dev/urandom"
-let long_random_string = Cryptokit.Random.string urandom 1024
+let random_string n =
+  let t  = Unix.gettimeofday () in
+  let cs = Cstruct.create 8 in
+  Cstruct.BE.set_uint64 cs 0 Int64.(of_float (t *. 1000.)) ;
+  Nocrypto.Rng.reseed cs;
+  Cstruct.to_string (Nocrypto.Rng.generate n)
+
+let long_random_string =
+  random_string 1024_000
 
 module Make (S: Irmin.S) = struct
 
@@ -37,20 +43,20 @@ module Make (S: Irmin.S) = struct
   type e = {
     v1: B.t;
     v2: B.t;
-    kv1: K.t Lwt.t Lazy.t;
-    kv2: K.t Lwt.t Lazy.t;
+    kv1: KB.t Lazy.t;
+    kv2: KB.t Lazy.t;
     r1: T.t;
     r2: T.t;
   }
 
   let random_value ~kind ~value =
-    let str = Cryptokit.(Random.string urandom value) in
+    let str = random_string value in
     match kind with
-    | `String -> B.of_string str
-    | `JSON   -> B.of_string (Ezjsonm.to_string (`A [ IrminMisc.json_encode str ]))
+    | `String -> Tc.read_string (module B) str
+    | `JSON   -> B.of_json (`A [ Ezjsonm.encode_string str ])
 
   let random_path ~label ~path =
-    let short () = Cryptokit.(Random.string urandom label) in
+    let short () = random_string label in
     let rec aux = function
       | 0 -> []
       | n -> short () :: aux (n-1) in
@@ -65,27 +71,32 @@ module Make (S: Irmin.S) = struct
       | n -> aux (random_node ~label ~path ~value ~kind :: acc) (n-1) in
     aux [] n
 
-  let origin =
-    IrminOrigin.create ~date:0L ~id:"test" "Very useful tracking information"
+  let task =
+    Irmin.Task.create ~date:0L ~owner:"test" "Very useful tracking information"
 
   let mk k t =
     let v1 = match k with
-      | `String -> B.of_string long_random_string
-      | `JSON   -> B.of_string (
-          Ezjsonm.to_string (`O [ "foo", IrminMisc.json_encode long_random_string ])
+      | `String -> Tc.read_string (module B) long_random_string
+      | `JSON   -> B.of_json (
+          (`O [ "foo", Ezjsonm.encode_string long_random_string ])
         ) in
     let v2 = match k with
-      | `String -> B.of_string ""
-      | `JSON   -> B.of_string (Ezjsonm.to_string (`A[])) in
-    let kv1 = lazy (Block.add (block_t t) (IrminBlock.Contents v1)) in
-    let kv2 = lazy (Block.add (block_t t) (IrminBlock.Contents v2)) in
-    let r1 = T.of_string "foo" in
-    let r2 = T.of_string "bar" in
+      | `String -> Tc.read_string (module B) ""
+      | `JSON   -> B.of_json (`A[]) in
+    let kv1 = lazy (KB.digest (Tc.write_cstruct (module B) v1)) in
+    let kv2 = lazy (KB.digest (Tc.write_cstruct (module B) v2)) in
+    let r1 = T.of_hum "foo" in
+    let r2 = T.of_hum "bar" in
     return { v1; v2; kv1; kv2; r1; r2 }
+
+  let create x fmt =
+    Printf.ksprintf (fun msg ->
+        S.create x.config (new_task msg)
+      )
 
   let test_contents x () =
     let test () =
-      create ()   >>= fun t                         ->
+      create "test_contents" >>= fun t ->
       mk x.kind t >>= function { v1; v2; kv1; kv2 } ->
 
       Lazy.force kv1 >>= fun kv1 ->

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6c78d8797e8f10ee61a08639c36c5ba2)
+# DO NOT EDIT (digest: f17c1bdc7efc47f765c9c15b47e96765)
 version = "0.8.3"
 description = "A Distributed Version Control Database"
 requires =
@@ -12,7 +12,8 @@ exists_if = "irmin.cma"
 package "unix" (
  version = "0.8.3"
  description = "A Distributed Version Control Database"
- requires = "irmin irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
+ requires =
+ "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
  archive(byte) = "irmin-unix.cma"
  archive(byte, plugin) = "irmin-unix.cma"
  archive(native) = "irmin-unix.cmxa"
@@ -34,7 +35,7 @@ package "mem" (
 package "http" (
  version = "0.8.3"
  description = "A Distributed Version Control Database"
- requires = "irmin cohttp.lwt-core ezjsonm.lwt re"
+ requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
  archive(byte) = "irmin-http.cma"
  archive(byte, plugin) = "irmin-http.cma"
  archive(native) = "irmin-http.cmxa"

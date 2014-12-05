@@ -209,7 +209,7 @@ module Make_ext
   let create config task =
     C.create config task >>= fun c ->
     S.create config task >>= fun s ->
-    return (c, s)
+    return (fun a -> (c a, s a))
 
   let task (_, t) =
     S.task t

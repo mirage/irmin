@@ -20,8 +20,8 @@ let () =
     `Quick, Test_fs.suite k;
     `Quick, Test_git.suite k `Disk;
     `Quick, Test_git.suite k `Memory;
-    `Slow , Test_crud.suite k (Test_memory.suite k);
-    `Slow , Test_crud.suite k (Test_fs.suite k);
-    `Slow , Test_crud.suite k (Test_git.suite k `Disk);
+    `Slow , Test_http.suite k (Test_memory.suite k);
+    `Slow , Test_http.suite k (Test_fs.suite k);
+    `Slow , Test_http.suite k (Test_git.suite k `Disk);
   ] in
   Test_store.run "irminsule" (suite `String @ suite `JSON)

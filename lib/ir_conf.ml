@@ -15,6 +15,49 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type 'a parser = string -> [ `Error of string | `Ok of 'a ]
+type 'a printer = Format.formatter -> 'a -> unit
+type 'a converter = 'a parser * 'a printer
+
+let parser (p, _) = p
+let printer (_, p) = p
+
+let str = Printf.sprintf
+let pr_str = Format.pp_print_string
+let quote s = str "`%s'" s
+
+module Err = struct
+  let alts = function
+  | [a; b] -> str "either %s or %s" a b
+  | alts -> str "one of: %s" (String.concat ", " alts)
+
+  let invalid kind s exp = str "invalid %s %s, %s" kind (quote s) exp
+  let invalid_val = invalid "value"
+end
+
+let bool =
+  (fun s -> try `Ok (bool_of_string s) with Invalid_argument _ ->
+     `Error (Err.invalid_val s (Err.alts ["true"; "false"]))),
+  Format.pp_print_bool
+
+let parse_with t_of_str exp s =
+  try `Ok (t_of_str s) with Failure _ -> `Error (Err.invalid_val s exp)
+
+let int =
+  parse_with int_of_string "expected an integer", Format.pp_print_int
+
+let string = (fun s -> `Ok s), pr_str
+
+let some (parse, print) =
+  let none = "" in
+  (fun s -> match parse s with `Ok v -> `Ok (Some v) | `Error _ as e -> e),
+  (fun ppf v -> match v with None -> pr_str ppf none| Some v -> print ppf v)
+
+let uri =
+  let parse s = `Ok (Uri.of_string s) in
+  let print pp u = Format.pp_print_string pp (Uri.to_string u) in
+  parse, print
+
 module Univ = struct
   type t = exn
   let create (type s) () =
@@ -30,7 +73,7 @@ type 'a key = {
   doc    : string option;
   docv   : string option;
   docs   : string option;
-  tc     : 'a Tc.t;
+  conv   : 'a converter;
   default: 'a;
 }
 
@@ -38,13 +81,13 @@ let name t = t.name
 let doc t = t.doc
 let docv t = t.docv
 let docs t = t.docs
-let tc t = t.tc
+let conv t = t.conv
 let default t = t.default
 
-let key ?docs ?docv ?doc name tc default =
+let key ?docs ?docv ?doc name conv default =
   let to_univ, of_univ = Univ.create () in
   let id = Oo.id (object end) in
-  { id; to_univ; of_univ; name; docs; docv; doc; tc; default }
+  { id; to_univ; of_univ; name; docs; docv; doc; conv; default }
 
 module Id = struct
   type t = int
@@ -56,6 +99,7 @@ module M = Map.Make (Id)
 type t = Univ.t M.t
 
 let empty = M.empty
+let singleton k v = M.singleton k.id (k.to_univ v)
 let is_empty = M.is_empty
 let mem d k = M.mem k.id d
 let add d k v = M.add k.id (k.to_univ v) d
@@ -70,4 +114,4 @@ let root =
   key
     ~docv:"ROOT"
     ~doc:"The location of the Git repository root."
-    "root" (Tc.option Tc.string) None
+    "root" (some string) None

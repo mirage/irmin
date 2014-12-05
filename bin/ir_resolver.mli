@@ -16,21 +16,26 @@
 
 (** Irmin store resolver. *)
 
-val init_hook: unit -> unit
-(** Initialisation hooks. *)
-
-val store: (module Irmin.S) Cmdliner.Term.t
+val store: (module Irmin.S) option Cmdliner.Term.t
 (** Parse a store on the command-line. *)
 
-val store_of_string: string -> (module Irmin.S) option
+val config: Irmin.Conf.t Cmdliner.Term.t
+(** Parse configuration values. *)
+
+val remote: string Cmdliner.Term.t
+(** Parse a remote store location. *)
+
+val read_config_file: unit -> (module Irmin.S) option * Irmin.config
 (** Parse a Irmin URI. *)
 
-val store_of_string_exn: string -> (module Irmin.S)
-(** Same as [store_of_string] but raises [Not_found] if it is not a
-    valid URI. *)
+val parse: ((module Irmin.S) * Irmin.config) Cmdliner.Term.t
+(** Parse the command-line arguments and then the config file. *)
 
-val store_of_env_var: unit -> (module Irmin.S) option
-(** Read the "IRMIN" env variable. *)
+type contents = [`String | `Json]
 
-val remote: IrminSync.remote Cmdliner.Term.t
-(** Parse a remote store. *)
+val contents: contents Cmdliner.Term.t
+
+val mem_store: contents -> (module Irmin.S)
+val irf_store: contents -> (module Irmin.S)
+val http_store: contents -> (module Irmin.S)
+val git_store: contents -> (module Irmin.S)

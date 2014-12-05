@@ -86,14 +86,14 @@ let create_command c =
 
 let pr_str = Format.pp_print_string
 
-let path (type s) (module P: Irmin.Path.S with type step = s) =
+let path =
   let path_conv =
-    let parse str = `Ok (P.of_hum str) in
-    let print ppf path = pr_str ppf (P.to_hum path) in
+    let parse str = `Ok str in
+    let print ppf path = pr_str ppf path in
     parse, print
   in
-  let doc = Arg.info ~docv:"PATH" ~doc:"Path." [] in
-  Arg.(value & pos 0 path_conv [] & doc)
+  let doc = Arg.info ~docv:"PATH" ~doc:"Local path." [] in
+  Arg.(required & pos 0 (some path_conv) None & doc)
 
 let depth =
   let doc =
@@ -110,7 +110,7 @@ let run t =
 let mk (fn:'a): 'a Term.t =
   Term.(pure (fun global -> app_global global; fn) $ global)
 
-let create (type t) (module S: Irmin.S with type t = t) config fmt =
+let create (type t) (module S:Irmin.S with type t = t) config fmt =
   let owner =
     (* git config user.name *)
     sprintf "Irmin (%s[%d])" (Unix.gethostname()) (Unix.getpid())
@@ -119,7 +119,7 @@ let create (type t) (module S: Irmin.S with type t = t) config fmt =
       let date = Int64.of_float (Unix.gettimeofday ()) in
       let task = Irmin.Task.create ~date ~owner "%s" msg in
       S.create config task
-    )
+    ) fmt
 
 (* INIT *)
 let init = {
@@ -136,11 +136,10 @@ let init = {
           ~doc:"Start the Irmin server on the given socket address \
                 (to use with --daemon)." in
       Arg.(value & opt string "http://localhost:8080" & doc) in
-    let init (module S: Irmin.S) config daemon uri =
+    let init ((module S: Irmin.S), config) daemon uri =
       run begin
-        S.create () >>= fun t ->
-        IrminResolver.init_hook ();
-        let module HTTP = IrminHTTP.Make(S) in
+        create (module S) config "Initialising the store." >>= fun t ->
+        let module HTTP = Irmin_http_server.Make(S) in
         if daemon then
           let uri = Uri.of_string uri in
           Log.infof "daemon: %s" (Uri.to_string uri);
@@ -148,7 +147,7 @@ let init = {
         else return_unit
       end
     in
-    Term.(mk init $ IrminResolver.store $ daemon $ uri)
+    Term.(mk init $ Ir_resolver.parse $ daemon $ uri)
 }
 
 let print fmt =
@@ -160,15 +159,15 @@ let read = {
   doc  = "Read the contents of a node.";
   man  = [];
   term =
-    let read (module S: Irmin.S) path =
+    let read ((module S: Irmin.S), config) path =
       run begin
-        S.create ()   >>= fun t ->
-        S.read t path >>= function
+        create (module S) config "Reading %s" path >>= fun t ->
+        S.read t (S.Key.of_hum path) >>= function
         | None   -> print "<none>"; exit 1
-        | Some v -> print "%s" (S.Value.to_string v); return_unit
+        | Some v -> print "%s" (Tc.write_string (module S.Val) v); return_unit
       end
     in
-    Term.(mk read $ IrminResolver.store $ path);
+    Term.(mk read $ Ir_resolver.parse $ path);
 }
 
 (* LS *)
@@ -177,15 +176,15 @@ let ls = {
   doc  = "List subdirectories.";
   man  = [];
   term =
-    let ls (module S: Irmin.S) path =
+    let ls ((module S: Irmin.S), config) path =
       run begin
-        S.create ()     >>= fun t ->
-        S.list t [path] >>= fun paths ->
-        List.iter ~f:(fun p -> print "%s" (IrminPath.to_string p)) paths;
+        create (module S) config "ls %s." path >>= fun t ->
+        S.list t (S.Key.of_hum path) >>= fun paths ->
+        List.iter (fun p -> print "%s" (S.Key.to_hum p)) paths;
         return_unit
       end
     in
-    Term.(mk ls $ IrminResolver.store $ path);
+    Term.(mk ls $ Ir_resolver.parse $ path);
 }
 
 (* TREE *)
@@ -194,27 +193,29 @@ let tree = {
   doc  = "List the store contents.";
   man  = [];
   term =
-  let tree (module S: Irmin.S) =
+  let tree ((module S: Irmin.S), config) =
     run begin
-      S.create () >>= fun t ->
-      S.dump t    >>= fun all ->
+      create (module S) config "tree" >>= fun t ->
+      S.dump t >>= fun all ->
       let all =
-        List.map ~f:(fun (k,v) ->
-            IrminPath.to_string k, sprintf "%S" (S.Value.to_string v)
+        List.map (fun (k,v) ->
+            S.Key.to_hum k, sprintf "%S" (Tc.write_string (module S.Val) v)
           ) all in
       let max_lenght l =
-        List.fold_left ~f:(fun len s -> max len (String.length s)) ~init:0 l in
-      let k_max = max_lenght (List.map ~f:fst all) in
-      let v_max = max_lenght (List.map ~f:snd all) in
+        List.fold_left (fun len s -> max len (String.length s)) 0 l in
+      let k_max = max_lenght (List.map fst all) in
+      let v_max = max_lenght (List.map snd all) in
       let pad = 79 + k_max + v_max in
-      List.iter ~f:(fun (k,v) ->
-          let dots = String.make (pad - String.length k - String.length v) '.' in
+      List.iter (fun (k,v) ->
+          let dots =
+            String.make (pad - String.length k - String.length v) '.'
+          in
           print "/%s%s%s" k dots v
         ) all;
       return_unit
     end
   in
-  Term.(mk tree $ IrminResolver.store);
+  Term.(mk tree $ Ir_resolver.parse);
 }
 
 (* WRITE *)
@@ -226,21 +227,21 @@ let write = {
     let args =
       let doc = Arg.info ~docv:"VALUE" ~doc:"Value to add." [] in
       Arg.(value & pos_all string [] & doc) in
-    let write (module S: Irmin.S) args =
+    let write ((module S: Irmin.S), config) args =
       let mk value =
-        try S.Value.of_string value
+        try Tc.read_string (module S.Val) value
         with _ -> failwith "invalid value" in
       let path, value = match args with
-        | []            -> failwith "Not enough arguments"
-        | [path; value] -> IrminPath.of_string path, mk value
-        | [value]       -> []                      , mk value
-        | _             -> failwith "Too many arguments" in
+        | [] | [_]      -> failwith "Not enough arguments"
+        | [path; value] -> S.Key.of_hum path, mk value
+        | _             -> failwith "Too many arguments"
+      in
       run begin
-        S.create () >>= fun t ->
+        create (module S) config "write" >>= fun t ->
         S.update t path value
       end
     in
-    Term.(mk write $ IrminResolver.store $ args);
+    Term.(mk write $ Ir_resolver.parse $ args);
 }
 
 (* RM *)
@@ -249,13 +250,13 @@ let rm = {
   doc  = "Remove a node.";
   man  = [];
   term =
-    let rm (module S: Irmin.S) path =
+    let rm ((module S: Irmin.S), config) path =
       run begin
-        S.create () >>= fun t ->
-        S.remove t path
+        create (module S) config "rm %s." path >>= fun t ->
+        S.remove t (S.Key.of_hum path)
       end
     in
-    Term.(mk rm $ IrminResolver.store $ path);
+    Term.(mk rm $ Ir_resolver.parse $ path);
 }
 
 (* CLONE *)
@@ -264,16 +265,35 @@ let clone = {
   doc  = "Clone a repository into a new store.";
   man  = [];
   term =
-    let clone (module L: Irmin.S) remote depth =
-      IrminResolver.init_hook ();
+    let native =
+      let doc = Arg.info ~doc:"Use native synchronisation." ["native"] in
+      Arg.(value & flag & doc)
+    in
+    let clone ((module S: Irmin.S), config) remote native depth =
+      let module IS = Irmin.Sync(S) in
       run begin
-        L.create ()                           >>= fun local  ->
-        L.Sync.fetch_exn local ?depth remote >>= fun d ->
-        L.Sync.update local d
+        create (module S) config "clone %s." remote >>= fun t ->
+        let remote =
+          if native then return (IS.uri remote) else
+            (* XXX: we might want to sync with local Irmin stores ... *)
+            let module R = (val Ir_resolver.http_store `String) in
+            let config =
+              Irmin.Conf.empty |> fun c ->
+              Irmin.Conf.add c  Irmin_http.uri_key (Some (Uri.of_string remote))
+            in
+            create (module R) config "clone" >>= fun t ->
+            return (IS.store (module R) t)
+        in
+        remote >>= fun remote ->
+        IS.fetch t ?depth remote >>= function
+        | Some (`Local d) -> S.update_head t d
+        | None            -> return_unit
       end
     in
-    Term.(mk clone $ IrminResolver.store $ IrminResolver.remote $ depth);
+    Term.(mk clone $ Ir_resolver.parse $ Ir_resolver.remote $ native $ depth);
 }
+
+let none = Term.pure ()
 
 (* FETCH *)
 let fetch = {
@@ -281,6 +301,11 @@ let fetch = {
   doc  = "Download objects and refs from another repository.";
   man  = [];
   term =
+    none;
+(*    let native =
+      let doc = Arg.info ~doc:"Use native synchronisation." ["native"] in
+      Arg.(value & flag & doc)
+    in
     let fetch (module L: Irmin.S) remote =
       run begin
         let branch = L.Branch.of_string "import" in
@@ -289,7 +314,8 @@ let fetch = {
         L.Sync.update local d
       end
     in
-    Term.(mk fetch $ IrminResolver.store $ IrminResolver.remote);
+    Term.(mk fetch $ Ir_resolver.parse $ IrminResolver.remote);
+*)
 }
 
 (* PULL *)
@@ -298,6 +324,8 @@ let pull = {
   doc  = "Fetch and merge with another repository.";
   man  = [];
   term =
+    none;
+(*
     let pull (module L: Irmin.S) remote =
       run begin
         L.create ()                    >>= fun local ->
@@ -305,7 +333,8 @@ let pull = {
         L.Sync.merge_exn local d
       end
     in
-    Term.(mk pull $ IrminResolver.store $ IrminResolver.remote);
+    Term.(mk pull $ Ir_resolver.parse $ IrminResolver.remote);
+*)
 }
 
 (* PUSH *)
@@ -313,7 +342,8 @@ let push = {
   name = "push";
   doc  = "Update remote references along with associated objects.";
   man  = [];
-  term =
+  term = none;
+(*
     let push (module L: Irmin.S) remote =
       run begin
         L.create ()                  >>= fun local ->
@@ -321,7 +351,8 @@ let push = {
         return_unit
       end
     in
-    Term.(mk push $ IrminResolver.store $ IrminResolver.remote);
+    Term.(mk push $ Ir_resolver.parse $ IrminResolver.remote);
+*)
 }
 
 (* SNAPSHOT *)
@@ -329,7 +360,8 @@ let snapshot = {
   name = "snapshot";
   doc  = "Snapshot the contents of the store.";
   man  = [];
-  term =
+  term = none;
+(*
     let snapshot (module S: Irmin.S) =
       run begin
         S.create ()         >>= fun t ->
@@ -338,7 +370,8 @@ let snapshot = {
         return_unit
       end
     in
-    Term.(mk snapshot $ IrminResolver.store)
+    Term.(mk snapshot $ Ir_resolver.parse)
+*)
 }
 
 (* REVERT *)
@@ -346,7 +379,8 @@ let revert = {
   name = "revert";
   doc  = "Revert the contents of the store to a previous state.";
   man  = [];
-  term =
+  term = none;
+(*
     let snapshot =
       let doc = Arg.info ~docv:"SNAPSHOT" ~doc:"The snapshot to revert to." [] in
       Arg.(required & pos 0 (some string) None & doc) in
@@ -357,7 +391,8 @@ let revert = {
         S.Snapshot.revert t s
       end
     in
-    Term.(mk revert $ IrminResolver.store $ snapshot)
+    Term.(mk revert $ Ir_resolver.parse $ snapshot)
+*)
 }
 (* WATCH *)
 let watch = {
@@ -365,6 +400,8 @@ let watch = {
   doc  = "Watch the contents of a store and be notified on updates.";
   man  = [];
   term =
+    none;
+(*
     let path =
       let doc =
         Arg.info ~docv:"PATH" ~doc:"The path to watch." [] in
@@ -379,7 +416,8 @@ let watch = {
           ) stream
       end
     in
-    Term.(mk watch $ IrminResolver.store $ path)
+    Term.(mk watch $ Ir_resolver.parse $ path)
+*)
 }
 
 (* DUMP *)
@@ -388,6 +426,8 @@ let dump = {
   doc  = "Dump the contents of the store as a Graphviz file.";
   man  = [];
   term =
+    none;
+(*
     let basename =
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
@@ -410,7 +450,8 @@ let dump = {
         S.Dump.output_file t ?depth ~full basename
       end
     in
-    Term.(mk dump $ IrminResolver.store $ basename $ depth $ no_dot_call $ full);
+    Term.(mk dump $ Ir_resolver.parse $ basename $ depth $ no_dot_call $ full);
+*)
 }
 
 (* HELP *)
@@ -429,10 +470,10 @@ let help = {
       | None       -> `Help (`Pager, None)
       | Some topic ->
         let topics = "topics" :: cmds in
-        let conv, _ = Arg.enum (List.rev_map ~f:(fun s -> (s, s)) topics) in
+        let conv, _ = Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
         match conv topic with
         | `Error e                -> `Error (false, e)
-        | `Ok t when t = "topics" -> List.iter ~f:print_endline cmds; `Ok ()
+        | `Ok t when t = "topics" -> List.iter print_endline cmds; `Ok ()
         | `Ok t                   -> `Help (man_format, Some t) in
     Term.(ret (mk help $Term.man_format $Term.choice_names $topic))
 }
@@ -476,26 +517,27 @@ let default =
       revert.doc watch.doc dump.doc in
   Term.(pure usage $ global),
   Term.info "irmin"
-    ~version:IrminVersion.current
+    ~version:Irmin.version
     ~sdocs:global_option_section
     ~doc
     ~man
 
-let commands = List.map ~f:create_command [
-  init;
-  read;
-  write;
-  rm;
-  ls;
-  tree;
-  clone;
-  pull;
-  push;
-  snapshot;
-  revert;
-  watch;
-  dump;
-]
+let commands = List.map create_command [
+    help;
+    init;
+    read;
+    write;
+    rm;
+    ls;
+    tree;
+    clone;
+    pull;
+    push;
+    snapshot;
+    revert;
+    watch;
+    dump;
+  ]
 
 let run ~default:x y =
   match Cmdliner.Term.eval_choice x y with

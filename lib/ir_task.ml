@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Printf
-
 type t = {
   date : int64;
   uid  : int64;
@@ -64,19 +62,15 @@ let equal x y = X.equal (explode x) (explode y)
 
 let uid_ref = ref 0L
 
-let create ~date ~owner fmt =
+let create ~date ~owner msg =
   let uid = !uid_ref in
   uid_ref := Int64.add !uid_ref 1L;
-  ksprintf (fun msg ->
-      { date; uid; owner; msgs = [msg]}
-    ) fmt
+  { date; uid; owner; msgs = [msg]}
 
 let date t = t.date
 let uid t = t.uid
 let owner t = t.owner
 let messages t = List.rev t.msgs
 
-let fprintf t fmt =
-  ksprintf (fun msg ->
-      t.msgs <- msg :: t.msgs
-    ) fmt
+let add t msg =
+  t.msgs <- msg :: t.msgs

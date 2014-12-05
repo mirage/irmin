@@ -20,24 +20,11 @@ module IB = Irmin.Private
 module Log = Log.Make(struct let section = "CRUD" end)
 
 (* ~uri *)
-module U: Tc.S0 with type t = Uri.t = struct
-  type t = Uri.t
-  let hash = Hashtbl.hash
-  let compare x y = String.compare (Uri.to_string x) (Uri.to_string y)
-  let equal x y = (Uri.to_string x) = (Uri.to_string y)
-  let to_sexp = Uri.sexp_of_t
-  let to_json t = Ezjsonm.encode_string (Uri.to_string t)
-  let of_json t = Uri.of_string (Ezjsonm.decode_string_exn t)
-  let size_of t = Tc.String.size_of (Uri.to_string t)
-  let write t = Tc.String.write (Uri.to_string t)
-  let read b = Uri.of_string (Tc.String.read b)
-end
-
 let uri_key =
   Irmin.Conf.key
     ~docv:"URI"
     ~doc:"Location of the remote store."
-    "uri" (module Tc.Option(U)) None
+    "uri" Irmin.Conf.(some uri) None
 
 let config uri =
   Irmin.Conf.add Irmin.Conf.empty uri_key (Some uri)
@@ -124,7 +111,7 @@ struct
 
   include Helper (Client)
 
-  module RO (C: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
+  module RO (C: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
     type t = {
       mutable uri: Uri.t;
@@ -154,7 +141,7 @@ struct
         | None   -> uri
         | Some p -> uri_append uri [p]
       in
-      return { uri; config; task }
+      return (fun a -> { uri; config; task = task a })
 
     let read { uri; _ } key =
       catch
@@ -184,7 +171,7 @@ struct
 
   end
 
-  module RW (C: Config) (K: Irmin.HUM) (V: Tc.S0) = struct
+  module RW (C: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
     include RO (C)(K)(V)
 
@@ -246,7 +233,7 @@ module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   include M.X.Contents
 end
 
-module RW (Client: Cohttp_lwt.Client) (K: Irmin.HUM) (V: Irmin.Hash.S) = struct
+module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
   module K = struct
     include K
     let master = K.of_hum "master"
@@ -334,8 +321,8 @@ struct
     return cont
 
   let set_head t head =
-    L.of_head (config t) (task t) head >>= fun l ->
-    sync_head t l ()
+    L.of_head (config t) (fun () -> task t) head >>= fun l ->
+    sync_head t (l ()) ()
 
   type key = H.key
   type value = H.value
@@ -345,26 +332,34 @@ struct
   let create config task =
     H.create config task >>= fun h ->
     L.create config task >>= fun l ->
-    let branch = `Tag T.master in
-    let contents_t = LP.contents_t l in
-    let node_t = LP.node_t l in
-    let commit_t = LP.commit_t l in
-    let tag_t = LP.tag_t l in
-    let read_node = LP.read_node l in
-    let mem_node = LP.mem_node l in
-    let update_node = LP.update_node l in
-    return { branch; h; contents_t; node_t; commit_t; tag_t;
-             read_node; mem_node; update_node; }
+    let fn a =
+      let h = h a in
+      let l = l a in
+      let task = task a in
+      let branch = `Tag T.master in
+      let contents_t = LP.contents_t l in
+      let node_t = LP.node_t l in
+      let commit_t = LP.commit_t l in
+      let tag_t = LP.tag_t l in
+      let read_node = LP.read_node l in
+      let mem_node = LP.mem_node l in
+      let update_node = LP.update_node l in
+      { branch; h; contents_t; node_t; commit_t; tag_t;
+        read_node; mem_node; update_node; }
+    in
+    return fn
 
   let of_tag config task tag =
     create config task >>= fun t ->
-    set_tag t tag;
-    return t
+    return (fun a ->
+        set_tag (t a) tag; t
+      )
 
   let of_head config task head =
     create config task >>= fun t ->
-    set_head t head >>= fun () ->
-    return t
+    return (fun a ->
+        set_head (t a) head
+      )
 
   let read t = H.read t.h
   let read_exn t = H.read_exn t.h

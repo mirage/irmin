@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 713fbb8bd1331d5cf8fe20bf45aa3b49)
+# DO NOT EDIT (digest: c642dec768d05237467aab55920f8133)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -87,6 +87,8 @@ true: annot, bin_annot
 <lib/http/*.ml{,i,y}>: pkg_nocrypto
 <lib/http/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/http/*.ml{,i,y}>: pkg_re
+<lib/http/*.ml{,i,y}>: pkg_re.pcre
+<lib/http/*.ml{,i,y}>: pkg_re.perl
 <lib/http/*.ml{,i,y}>: pkg_sexplib
 <lib/http/*.ml{,i,y}>: pkg_stringext
 <lib/http/*.ml{,i,y}>: pkg_tc
@@ -108,6 +110,8 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: pkg_nocrypto
 <lib/unix/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/unix/*.ml{,i,y}>: pkg_re
+<lib/unix/*.ml{,i,y}>: pkg_re.pcre
+<lib/unix/*.ml{,i,y}>: pkg_re.perl
 <lib/unix/*.ml{,i,y}>: pkg_sexplib
 <lib/unix/*.ml{,i,y}>: pkg_stringext
 <lib/unix/*.ml{,i,y}>: pkg_tc
@@ -116,6 +120,7 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: use_irmin-fs
 <lib/unix/*.ml{,i,y}>: use_irmin-git
 <lib/unix/*.ml{,i,y}>: use_irmin-http
+<lib/unix/*.ml{,i,y}>: use_irmin-mem
 # Executable irmin
 <bin/main.{native,byte}>: pkg_bin_prot
 <bin/main.{native,byte}>: pkg_cmdliner
@@ -132,6 +137,8 @@ true: annot, bin_annot
 <bin/main.{native,byte}>: pkg_nocrypto
 <bin/main.{native,byte}>: pkg_ocamlgraph
 <bin/main.{native,byte}>: pkg_re
+<bin/main.{native,byte}>: pkg_re.pcre
+<bin/main.{native,byte}>: pkg_re.perl
 <bin/main.{native,byte}>: pkg_sexplib
 <bin/main.{native,byte}>: pkg_stringext
 <bin/main.{native,byte}>: pkg_tc
@@ -140,6 +147,7 @@ true: annot, bin_annot
 <bin/main.{native,byte}>: use_irmin-fs
 <bin/main.{native,byte}>: use_irmin-git
 <bin/main.{native,byte}>: use_irmin-http
+<bin/main.{native,byte}>: use_irmin-mem
 <bin/main.{native,byte}>: use_irmin-unix
 <bin/*.ml{,i,y}>: pkg_bin_prot
 <bin/*.ml{,i,y}>: pkg_cmdliner
@@ -156,6 +164,8 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: pkg_nocrypto
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
 <bin/*.ml{,i,y}>: pkg_re
+<bin/*.ml{,i,y}>: pkg_re.pcre
+<bin/*.ml{,i,y}>: pkg_re.perl
 <bin/*.ml{,i,y}>: pkg_sexplib
 <bin/*.ml{,i,y}>: pkg_stringext
 <bin/*.ml{,i,y}>: pkg_tc
@@ -164,13 +174,13 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: use_irmin-fs
 <bin/*.ml{,i,y}>: use_irmin-git
 <bin/*.ml{,i,y}>: use_irmin-http
+<bin/*.ml{,i,y}>: use_irmin-mem
 <bin/*.ml{,i,y}>: use_irmin-unix
 # Executable test_irmin
 <lib_test/test.{native,byte}>: pkg_alcotest
 <lib_test/test.{native,byte}>: pkg_bin_prot
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt-core
-<lib_test/test.{native,byte}>: pkg_cryptokit
 <lib_test/test.{native,byte}>: pkg_cstruct
 <lib_test/test.{native,byte}>: pkg_dolog
 <lib_test/test.{native,byte}>: pkg_ezjsonm
@@ -182,6 +192,8 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_nocrypto
 <lib_test/test.{native,byte}>: pkg_ocamlgraph
 <lib_test/test.{native,byte}>: pkg_re
+<lib_test/test.{native,byte}>: pkg_re.pcre
+<lib_test/test.{native,byte}>: pkg_re.perl
 <lib_test/test.{native,byte}>: pkg_sexplib
 <lib_test/test.{native,byte}>: pkg_stringext
 <lib_test/test.{native,byte}>: pkg_tc
@@ -190,12 +202,12 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: use_irmin-fs
 <lib_test/test.{native,byte}>: use_irmin-git
 <lib_test/test.{native,byte}>: use_irmin-http
+<lib_test/test.{native,byte}>: use_irmin-mem
 <lib_test/test.{native,byte}>: use_irmin-unix
 <lib_test/*.ml{,i,y}>: pkg_alcotest
 <lib_test/*.ml{,i,y}>: pkg_bin_prot
 <lib_test/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib_test/*.ml{,i,y}>: pkg_cohttp.lwt-core
-<lib_test/*.ml{,i,y}>: pkg_cryptokit
 <lib_test/*.ml{,i,y}>: pkg_cstruct
 <lib_test/*.ml{,i,y}>: pkg_dolog
 <lib_test/*.ml{,i,y}>: pkg_ezjsonm
@@ -207,6 +219,8 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_nocrypto
 <lib_test/*.ml{,i,y}>: pkg_ocamlgraph
 <lib_test/*.ml{,i,y}>: pkg_re
+<lib_test/*.ml{,i,y}>: pkg_re.pcre
+<lib_test/*.ml{,i,y}>: pkg_re.perl
 <lib_test/*.ml{,i,y}>: pkg_sexplib
 <lib_test/*.ml{,i,y}>: pkg_stringext
 <lib_test/*.ml{,i,y}>: pkg_tc
@@ -215,6 +229,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_irmin-fs
 <lib_test/*.ml{,i,y}>: use_irmin-git
 <lib_test/*.ml{,i,y}>: use_irmin-http
+<lib_test/*.ml{,i,y}>: use_irmin-mem
 <lib_test/*.ml{,i,y}>: use_irmin-unix
 # Executable test_git_store
 <examples/git_store.{native,byte}>: pkg_bin_prot
@@ -231,6 +246,8 @@ true: annot, bin_annot
 <examples/git_store.{native,byte}>: pkg_nocrypto
 <examples/git_store.{native,byte}>: pkg_ocamlgraph
 <examples/git_store.{native,byte}>: pkg_re
+<examples/git_store.{native,byte}>: pkg_re.pcre
+<examples/git_store.{native,byte}>: pkg_re.perl
 <examples/git_store.{native,byte}>: pkg_sexplib
 <examples/git_store.{native,byte}>: pkg_stringext
 <examples/git_store.{native,byte}>: pkg_tc
@@ -239,6 +256,7 @@ true: annot, bin_annot
 <examples/git_store.{native,byte}>: use_irmin-fs
 <examples/git_store.{native,byte}>: use_irmin-git
 <examples/git_store.{native,byte}>: use_irmin-http
+<examples/git_store.{native,byte}>: use_irmin-mem
 <examples/git_store.{native,byte}>: use_irmin-unix
 # Executable test_custom_merge
 <examples/custom_merge.{native,byte}>: pkg_bin_prot
@@ -255,6 +273,8 @@ true: annot, bin_annot
 <examples/custom_merge.{native,byte}>: pkg_nocrypto
 <examples/custom_merge.{native,byte}>: pkg_ocamlgraph
 <examples/custom_merge.{native,byte}>: pkg_re
+<examples/custom_merge.{native,byte}>: pkg_re.pcre
+<examples/custom_merge.{native,byte}>: pkg_re.perl
 <examples/custom_merge.{native,byte}>: pkg_sexplib
 <examples/custom_merge.{native,byte}>: pkg_stringext
 <examples/custom_merge.{native,byte}>: pkg_tc
@@ -263,6 +283,7 @@ true: annot, bin_annot
 <examples/custom_merge.{native,byte}>: use_irmin-fs
 <examples/custom_merge.{native,byte}>: use_irmin-git
 <examples/custom_merge.{native,byte}>: use_irmin-http
+<examples/custom_merge.{native,byte}>: use_irmin-mem
 <examples/custom_merge.{native,byte}>: use_irmin-unix
 # Executable test_views
 <examples/views.{native,byte}>: pkg_bin_prot
@@ -279,6 +300,8 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: pkg_nocrypto
 <examples/views.{native,byte}>: pkg_ocamlgraph
 <examples/views.{native,byte}>: pkg_re
+<examples/views.{native,byte}>: pkg_re.pcre
+<examples/views.{native,byte}>: pkg_re.perl
 <examples/views.{native,byte}>: pkg_sexplib
 <examples/views.{native,byte}>: pkg_stringext
 <examples/views.{native,byte}>: pkg_tc
@@ -287,6 +310,7 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: use_irmin-fs
 <examples/views.{native,byte}>: use_irmin-git
 <examples/views.{native,byte}>: use_irmin-http
+<examples/views.{native,byte}>: use_irmin-mem
 <examples/views.{native,byte}>: use_irmin-unix
 # Executable test_contatcs
 <examples/contacts.{native,byte}>: pkg_bin_prot
@@ -303,6 +327,8 @@ true: annot, bin_annot
 <examples/contacts.{native,byte}>: pkg_nocrypto
 <examples/contacts.{native,byte}>: pkg_ocamlgraph
 <examples/contacts.{native,byte}>: pkg_re
+<examples/contacts.{native,byte}>: pkg_re.pcre
+<examples/contacts.{native,byte}>: pkg_re.perl
 <examples/contacts.{native,byte}>: pkg_sexplib
 <examples/contacts.{native,byte}>: pkg_stringext
 <examples/contacts.{native,byte}>: pkg_tc
@@ -311,6 +337,7 @@ true: annot, bin_annot
 <examples/contacts.{native,byte}>: use_irmin-fs
 <examples/contacts.{native,byte}>: use_irmin-git
 <examples/contacts.{native,byte}>: use_irmin-http
+<examples/contacts.{native,byte}>: use_irmin-mem
 <examples/contacts.{native,byte}>: use_irmin-unix
 # Executable test_intrusion
 <examples/intrusion.{native,byte}>: pkg_bin_prot
@@ -327,6 +354,8 @@ true: annot, bin_annot
 <examples/intrusion.{native,byte}>: pkg_nocrypto
 <examples/intrusion.{native,byte}>: pkg_ocamlgraph
 <examples/intrusion.{native,byte}>: pkg_re
+<examples/intrusion.{native,byte}>: pkg_re.pcre
+<examples/intrusion.{native,byte}>: pkg_re.perl
 <examples/intrusion.{native,byte}>: pkg_sexplib
 <examples/intrusion.{native,byte}>: pkg_stringext
 <examples/intrusion.{native,byte}>: pkg_tc
@@ -335,6 +364,7 @@ true: annot, bin_annot
 <examples/intrusion.{native,byte}>: use_irmin-fs
 <examples/intrusion.{native,byte}>: use_irmin-git
 <examples/intrusion.{native,byte}>: use_irmin-http
+<examples/intrusion.{native,byte}>: use_irmin-mem
 <examples/intrusion.{native,byte}>: use_irmin-unix
 # Executable test_process
 <examples/process.{native,byte}>: pkg_bin_prot
@@ -351,6 +381,8 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: pkg_nocrypto
 <examples/process.{native,byte}>: pkg_ocamlgraph
 <examples/process.{native,byte}>: pkg_re
+<examples/process.{native,byte}>: pkg_re.pcre
+<examples/process.{native,byte}>: pkg_re.perl
 <examples/process.{native,byte}>: pkg_sexplib
 <examples/process.{native,byte}>: pkg_stringext
 <examples/process.{native,byte}>: pkg_tc
@@ -359,6 +391,7 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: use_irmin-fs
 <examples/process.{native,byte}>: use_irmin-git
 <examples/process.{native,byte}>: use_irmin-http
+<examples/process.{native,byte}>: use_irmin-mem
 <examples/process.{native,byte}>: use_irmin-unix
 <examples/*.ml{,i,y}>: pkg_bin_prot
 <examples/*.ml{,i,y}>: pkg_cohttp.lwt
@@ -374,6 +407,8 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: pkg_nocrypto
 <examples/*.ml{,i,y}>: pkg_ocamlgraph
 <examples/*.ml{,i,y}>: pkg_re
+<examples/*.ml{,i,y}>: pkg_re.pcre
+<examples/*.ml{,i,y}>: pkg_re.perl
 <examples/*.ml{,i,y}>: pkg_sexplib
 <examples/*.ml{,i,y}>: pkg_stringext
 <examples/*.ml{,i,y}>: pkg_tc
@@ -382,6 +417,7 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: use_irmin-fs
 <examples/*.ml{,i,y}>: use_irmin-git
 <examples/*.ml{,i,y}>: use_irmin-http
+<examples/*.ml{,i,y}>: use_irmin-mem
 <examples/*.ml{,i,y}>: use_irmin-unix
 # OASIS_STOP
 true: bin_annot, annot, debug

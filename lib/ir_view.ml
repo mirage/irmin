@@ -137,7 +137,7 @@ module Internal (Node: NODE) = struct
   type action = Action.t
 
   type t = {
-    config: Ir_config.t;
+    config: Ir_conf.t;
     task: Ir_task.t;
     view: Node.t;
     mutable ops: action list;
@@ -152,10 +152,11 @@ module Internal (Node: NODE) = struct
     let view = Node.empty () in
     let ops = [] in
     let parents = [] in
-    return { config; task; parents; view; ops }
+    return (fun a -> { config; task = task a; parents; view; ops })
 
   let task t =
-    Ir_task.fprintf t.task "%s" (Action.prettys t.ops);
+    (* FIXME: what if someone does multiple calls to the function ? *)
+    Ir_task.add t.task (Action.prettys t.ops);
     t.task
 
   let config t = t.config
@@ -531,7 +532,9 @@ module Make (S: Ir_s.STORE) = struct
       | None   -> return_nil
       | Some h -> return [h] in
     P.read_node db path >>= function
-    | None   -> create (S.config db) (S.task db)
+    | None   ->
+      create (S.config db) (fun () -> S.task db) >>= fun t ->
+      return (t ())
     | Some n ->
       B.Node.add (P.node_t db) n >>= fun k ->
       parents >>= fun parents ->

@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Core_kernel.Std
+open Irmin_unix
 
 let () =
   Log.set_log_level Log.DEBUG;
@@ -41,7 +41,7 @@ let rec cmp_list fn x y =
 let printer_list fn = function
   | [] -> "[]"
   | l  -> Printf.sprintf "[ %s ]"
-            (String.concat ~sep:", " (List.map ~f:fn l))
+            (String.concat ", " (List.map fn l))
 
 let line msg =
   let line () = Alcotest.line stderr ~color:`Yellow '-' in
@@ -50,8 +50,6 @@ let line msg =
   line ()
 
 module Make (S: Irmin.S) = struct
-
-  open S
 
   let cmp_list eq comp l1 l2 =
     cmp_list eq (List.sort comp l1) (List.sort comp l2)
@@ -64,48 +62,57 @@ module Make (S: Irmin.S) = struct
     aux (cmp_opt equal) (printer_opt pretty),
     aux (cmp_list equal compare) (printer_list pretty)
 
-  module K = Block.Key
-  let assert_key_equal, assert_key_opt_equal, assert_keys_equal =
-    mk K.equal K.compare K.to_string
+  module KB = S.Private.Contents.Key
+  let assert_key_contents_equal, assert_key_contents_opt_equal, assert_keys_contents_equal =
+    mk KB.equal KB.compare KB.to_hum
 
-  module R = IrminMerge.Result(K)
+  module KN = S.Private.Node.Key
+  let assert_key_node_equal, assert_key_node_opt_equal, assert_keys_node_equal =
+    mk KN.equal KN.compare KN.to_hum
+
+  module KC = S.Head
+  let assert_head_equal, assert_head_opt_equal, assert_heads_equal =
+    mk KC.equal KC.compare KC.to_hum
+
+  module R = Tc.App1(Irmin.Merge.Result)(KC)
 
   let assert_key_result_equal, assert_key_result_opt_equal, assert_key_results_equal =
-    mk R.equal R.compare R.to_string
+    mk R.equal R.compare (Tc.show (module R))
 
-  module Contents = Block.Contents
-  module B = Contents.Value
+  module Contents = S.Private.Contents
+  module B = Contents.Val
   let assert_contents_equal, assert_contents_opt_equal, assert_contentss_equal =
-    mk B.equal B.compare B.to_string
+    mk B.equal B.compare (Tc.show (module B))
 
-  module T = Tag.Key
+  module T = S.Tag
   let assert_tag_equal, assert_tag_opt_equal, assert_tags_equal =
-    mk T.equal T.compare T.to_string
+    mk T.equal T.compare T.to_hum
 
-  module Node = Block.Node
-  module N = Node.Value
+  module Node = S.Private.Node
+  module N = Node.Val
   let assert_node_equal, assert_node_opt_equal, assert_nodes_equal =
-    mk N.equal N.compare N.to_string
+    mk N.equal N.compare (Tc.show (module N))
 
-  module Commit = Block.Commit
-  module C = Commit.Value
+  module Commit = S.Private.Commit
+  module C = Commit.Val
   let assert_commit_equal, assert_commit_opt_equal, assert_commits_equal =
-    mk C.equal C.compare C.to_string
+    mk C.equal C.compare (Tc.show (module C))
 
-  module P = IrminPath
+  module P = S.Key
   let assert_path_equal, assert_path_opt_equal, assert_paths_equal =
-    mk P.equal P.compare P.to_string
-  module V = Block.Value
+    mk P.equal P.compare P.to_hum
+  module V = S.Val
 
   let assert_bool_equal, assert_bool_opt_equal, assert_bools_equal =
     mk (=) compare string_of_bool
 
   let assert_string_equal, assert_string_opt_equal, assert_strings_equal =
-    mk String.equal String.compare (fun x -> x)
+    mk (=) String.compare (fun x -> x)
 
   let assert_succ_equal msg s1 s2 =
-    let l1, k1 = List.unzip s1 in
-    let l2, k2 = List.unzip s2 in
+    let unzip l = List.map fst l, List.map snd l in
+    let l1, k1 = unzip s1 in
+    let l2, k2 = unzip s2 in
     assert_strings_equal msg l1 l2;
     assert_nodes_equal msg k1 k2
 
@@ -113,22 +120,44 @@ end
 
 open Lwt
 
-let modules x: (module IrminKey.S) * (module IrminContents.S) * (module IrminTag.S) =
-  match x with
-  | `String -> (module IrminKey.SHA1), (module IrminContents.String), (module IrminTag.String)
-  | `JSON   -> (module IrminKey.SHA1), (module IrminContents.JSON)  , (module IrminTag.String)
+module P = Irmin.Path.String
+module K = Irmin.Hash.SHA1
+module T = Irmin.Tag.Path
+module Store (F: Irmin.S_MAKER)(C: Irmin.Contents.S) =  F(P)(C)(T)(K)
+
+let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
+  fun (module M) c ->
+    let (module C: Irmin.Contents.S) = match c with
+      | `String -> (module Irmin.Contents.String)
+      | `Json   -> (module Irmin.Contents.Json)
+    in
+    let module X = Store(M)(C) in
+    (module X)
 
 type t = {
-  name : string;
-  kind : [`JSON | `String];
-  init : unit -> unit Lwt.t;
-  clean: unit -> unit Lwt.t;
-  store: (module Irmin.S);
+  name  : string;
+  kind  : [`Json | `String];
+  init  : unit -> unit Lwt.t;
+  clean : unit -> unit Lwt.t;
+  config: Irmin.config;
+  store : (module Irmin.S);
 }
 
-let unit () =
+let none () =
   return_unit
 
 let string_of_kind = function
-  | `JSON   -> ".JSON"
+  | `Json   -> "-json"
   | `String -> ""
+
+let mem_store = create (module Irmin_mem.Make)
+let irf_store = create (module Irmin_fs.Make)
+let http_store = create (module Irmin_http.Make)
+let git_store = create (module Irmin_git.FS)
+
+let new_task fmt =
+  let owner = "TEST" in
+  let date = Int64.of_float (Unix.gettimeofday ()) in
+  Printf.ksprintf (fun msg ->
+      Irmin.Task.create ~date ~owner "%s" msg
+    ) fmt

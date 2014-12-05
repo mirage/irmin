@@ -47,7 +47,7 @@ let root_key = Irmin.Conf.root
 let bare_key =
   Irmin.Conf.key
     ~doc:"Do not expand the filesystem on the disk."
-    "root" Tc.bool false
+    "root" Irmin.Conf.bool false
 
 let config ?root ?bare () =
   let config = Irmin.Conf.empty in
@@ -112,7 +112,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     let create config task =
       let root = Irmin.Conf.get config root_key in
       G.create ?root () >>= fun t ->
-      return { task; config; t }
+      return (fun a -> { task = task a; config; t })
 
     let task t = t.task
     let config t = t.config
@@ -317,7 +317,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         let date = match Stringext.split ~on:' ' author.Git.User.date with
           | [date;_] -> Int64.of_string date
           | _        -> 0L in
-        I.Task.create ~date ~owner:id "%s" message
+        I.Task.create ~date ~owner:id message
 
       let of_git { Git.Commit.tree; parents; author; message; _ } =
         let parents = List.map commit_key_of_git parents in
@@ -395,6 +395,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     type t = {
       task: I.task;
       config: I.config;
+      git_root: string;
       t: G.t;
       w: W.t;
     }
@@ -426,19 +427,17 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | None   -> return_none
       | Some k -> return (Some (head_of_git k))
 
+    let ref_of_file ~git_root file =
+      match string_chop_prefix ~prefix:(git_root / "refs/heads/") file with
+      | None   -> None
+      | Some r -> Some (T.of_hum r)
+
     let create config task =
       let root = Irmin.Conf.get config root_key in
       G.create ?root () >>= fun t ->
       let git_root = G.root t / ".git" in
-      let ref_of_file file =
-        match string_chop_prefix ~prefix:(git_root / "refs/heads/") file with
-        | None   -> None
-        | Some r -> Some (T.of_hum r) in
       let w = W.create () in
-      let t = { task; config; t; w } in
-      if G.kind = `Disk then
-        W.listen_dir w (git_root / "refs/heads") ~key:ref_of_file ~value:(read t);
-      return t
+      return (fun a -> { task = task a; config; t; w; git_root })
 
     let read_exn { t; _ } r =
       G.read_reference_exn t (git_of_tag r) >>= fun k ->
@@ -481,6 +480,10 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       return_unit
 
     let watch t (r:key): value option Lwt_stream.t =
+      if G.kind = `Disk then
+        W.listen_dir t.w (t.git_root / "refs/heads")
+          ~key:(ref_of_file ~git_root:t.git_root)
+          ~value:(read t);
       Irmin.Watch.lwt_stream_lift (
         read t r >>= fun k ->
         return (W.watch t.w r k)
@@ -569,7 +572,7 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   include M.AO(K)(M.GitContents)
 end
 
-module RW (G: Git.Store.S) (K: Irmin.HUM) (V: Irmin.Hash.S) = struct
+module RW (G: Git.Store.S) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
   module K = struct
     include K
     let master = K.of_hum "master"

@@ -14,17 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Test_common
 
 let suite k =
-  let (module K), (module C), (module T) = modules k in
-  let module M = IrminMemory.Make(K)(C)(T) in
   {
-    name  = "MEM" ^ string_of_kind k;
-    kind  = k;
-    init  = (fun () -> M.clear (); return_unit);
-    clean = unit;
-    store =
-      Irmin.cast (module M)
+    name   = "MEM" ^ string_of_kind k;
+    kind   = k;
+    init   = none;
+    clean  = none;
+    config = Irmin.Conf.empty;
+    store  = mem_store k;
 }
