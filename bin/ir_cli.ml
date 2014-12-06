@@ -19,6 +19,9 @@ open Cmdliner
 open Irmin_unix
 open Printf
 
+let fmt t = Printf.ksprintf (fun s -> t s)
+let (/) = Filename.concat
+
 let () =
   install_dir_polling_listener 0.5
 
@@ -110,17 +113,6 @@ let run t =
 let mk (fn:'a): 'a Term.t =
   Term.(pure (fun global -> app_global global; fn) $ global)
 
-let create (type t) (module S:Irmin.S with type t = t) config fmt =
-  let owner =
-    (* git config user.name *)
-    sprintf "Irmin (%s[%d])" (Unix.gethostname()) (Unix.getpid())
-  in
-  ksprintf (fun msg ->
-      let date = Int64.of_float (Unix.gettimeofday ()) in
-      let task = Irmin.Task.create ~date ~owner "%s" msg in
-      S.create config task
-    ) fmt
-
 (* INIT *)
 let init = {
   name = "init";
@@ -138,12 +130,12 @@ let init = {
       Arg.(value & opt string "http://localhost:8080" & doc) in
     let init ((module S: Irmin.S), config) daemon uri =
       run begin
-        create (module S) config "Initialising the store." >>= fun t ->
+        S.create config task >>= fun t ->
         let module HTTP = Irmin_http_server.Make(S) in
         if daemon then
           let uri = Uri.of_string uri in
           Log.infof "daemon: %s" (Uri.to_string uri);
-          HTTP.listen t uri
+          HTTP.listen (t "Initialising the HTTP server.") uri
         else return_unit
       end
     in
@@ -161,8 +153,8 @@ let read = {
   term =
     let read ((module S: Irmin.S), config) path =
       run begin
-        create (module S) config "Reading %s" path >>= fun t ->
-        S.read t (S.Key.of_hum path) >>= function
+        S.create config task >>= fun t ->
+        S.read (fmt t "Reading %s" path) (S.Key.of_hum path) >>= function
         | None   -> print "<none>"; exit 1
         | Some v -> print "%s" (Tc.write_string (module S.Val) v); return_unit
       end
@@ -178,8 +170,8 @@ let ls = {
   term =
     let ls ((module S: Irmin.S), config) path =
       run begin
-        create (module S) config "ls %s." path >>= fun t ->
-        S.list t (S.Key.of_hum path) >>= fun paths ->
+        S.create config task >>= fun t ->
+        S.list (fmt t "ls %s." path) (S.Key.of_hum path) >>= fun paths ->
         List.iter (fun p -> print "%s" (S.Key.to_hum p)) paths;
         return_unit
       end
@@ -195,8 +187,8 @@ let tree = {
   term =
   let tree ((module S: Irmin.S), config) =
     run begin
-      create (module S) config "tree" >>= fun t ->
-      S.dump t >>= fun all ->
+      S.create config task >>= fun t ->
+      S.dump (t "tree") >>= fun all ->
       let all =
         List.map (fun (k,v) ->
             S.Key.to_hum k, sprintf "%S" (Tc.write_string (module S.Val) v)
@@ -237,8 +229,8 @@ let write = {
         | _             -> failwith "Too many arguments"
       in
       run begin
-        create (module S) config "write" >>= fun t ->
-        S.update t path value
+        S.create config task >>= fun t ->
+        S.update (t "write") path value
       end
     in
     Term.(mk write $ Ir_resolver.parse $ args);
@@ -252,8 +244,8 @@ let rm = {
   term =
     let rm ((module S: Irmin.S), config) path =
       run begin
-        create (module S) config "rm %s." path >>= fun t ->
-        S.remove t (S.Key.of_hum path)
+        S.create config task >>= fun t ->
+        S.remove (fmt t "rm %s." path) (S.Key.of_hum path)
       end
     in
     Term.(mk rm $ Ir_resolver.parse $ path);
@@ -272,21 +264,32 @@ let clone = {
     let clone ((module S: Irmin.S), config) remote native depth =
       let module IS = Irmin.Sync(S) in
       run begin
-        create (module S) config "clone %s." remote >>= fun t ->
-        let remote =
-          if native then return (IS.uri remote) else
-            (* XXX: we might want to sync with local Irmin stores ... *)
-            let module R = (val Ir_resolver.http_store `String) in
-            let config =
-              Irmin.Conf.empty |> fun c ->
-              Irmin.Conf.add c  Irmin_http.uri_key (Some (Uri.of_string remote))
+        let r =
+          if native then return (IS.uri remote)
+          else
+            let r =
+              if Sys.file_exists remote
+              then
+                if Sys.file_exists (remote / ".git")
+                then Ir_resolver.git_store `String
+                else Ir_resolver.irf_store `String
+              else
+                Ir_resolver.http_store `String
             in
-            create (module R) config "clone" >>= fun t ->
-            return (IS.store (module R) t)
+            let module R = (val r) in
+            let config =
+              let add k v c = Irmin.Conf.add c k v in
+              Irmin.Conf.empty
+              |> add Irmin_http.uri_key (Some (Uri.of_string remote))
+              |> add Irmin.Conf.root (Some remote)
+            in
+            R.create config task >>= fun r ->
+          return (IS.store (module R) (r "Clone %s."))
         in
-        remote >>= fun remote ->
-        IS.fetch t ?depth remote >>= function
-        | Some (`Local d) -> S.update_head t d
+        r >>= fun r ->
+        S.create config task >>= fun t ->
+        IS.fetch (fmt t "Fetch %s." remote) ?depth r >>= function
+        | Some (`Local d) -> S.update_head (t "update head after clone") d
         | None            -> return_unit
       end
     in

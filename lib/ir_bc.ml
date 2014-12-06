@@ -42,8 +42,8 @@ module type STORE = sig
   val update_head: t -> head -> unit Lwt.t
   val merge_head: t -> head -> unit Ir_merge.result Lwt.t
   val watch_head: t -> key -> (key * head) Lwt_stream.t
-  val clone: t -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
-  val clone_force: t -> tag -> t Lwt.t
+  val clone: t -> ('a -> Ir_task.t) -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone_force: t ->  ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
   val merge: t -> tag -> unit Ir_merge.result Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
@@ -141,19 +141,20 @@ module Make_ext (P: PRIVATE) = struct
     block: Commit.t;
     tag: Tag.t;
     task: Ir_task.t;
-    mutable branch: branch;
+    branch: branch ref;
   }
 
   let tag_t t = t.tag
   let commit_t t = t.block
   let node_t t = Commit.node_t (commit_t t)
   let contents_t t = Node.contents_t (node_t t)
+  let branch t = ! (t.branch)
 
-  let tag t = match t.branch with
+  let tag t = match branch t with
     | `Tag t  -> Some t
     | `Head _ -> None
 
-  let tag_exn t = match t.branch with
+  let tag_exn t = match branch t with
     | `Tag t  -> t
     | `Head _ -> raise Not_found
 
@@ -162,13 +163,11 @@ module Make_ext (P: PRIVATE) = struct
     return (List.map fst tags)
 
   let set_tag t tag =
-    t.branch <- `Tag tag
+    t.branch := `Tag tag
 
-  let head t = match t.branch with
+  let head t = match ! (t.branch) with
     | `Head key -> return (Some key)
     | `Tag tag  -> Tag.read (tag_t t) tag
-
-  let branch t = t.branch
 
   let heads t =
     Tag.dump (tag_t t) >>= fun tags ->
@@ -183,18 +182,22 @@ module Make_ext (P: PRIVATE) = struct
     | Some k -> return k
 
   let detach t =
-    match t.branch with
+    match ! (t.branch) with
     | `Head _  -> return_unit
     | `Tag tag ->
       Tag.read_exn (tag_t t) tag >>= fun key ->
-      t.branch <- `Head key;
+      t.branch := `Head key;
       return_unit
 
   let of_tag config task t =
     Commit.create config task >>= fun block ->
     Tag.create config task >>= fun tag ->
+    (* [branch] is created outside of the closure as we want the
+       branch to be shared by every invocation of the function return
+       by [of_tag]. *)
+    let branch = ref (`Tag t) in
     return (fun a ->
-        { block = block a; tag = tag a; task = task a; branch = `Tag t }
+        { block = block a; tag = tag a; task = task a; branch }
       )
 
   let task t = Commit.task t.block
@@ -206,12 +209,16 @@ module Make_ext (P: PRIVATE) = struct
   let of_head config task key =
     Commit.create config task >>= fun block ->
     Tag.create config task >>= fun tag ->
+    (* the branch is created outside of the closure. Every call to the
+       function return by [of_head] *must* share the same branch
+       reference. *)
+    let branch = ref (`Head key) in
     return (fun a ->
-        { block = block a; tag = tag a; task = task a; branch = `Head key }
+        { block = block a; tag = tag a; task = task a; branch; }
       )
 
   let read_head_commit t =
-    match t.branch with
+    match branch t with
     | `Head key ->
       Log.debugf "read detached head: %a" force (show (module Head) key);
       Commit.read (commit_t t) key
@@ -259,8 +266,8 @@ module Make_ext (P: PRIVATE) = struct
       Commit.commit (commit_t t) ~node ~parents
       >>= fun (key, _) ->
       (* XXX: the head might have changed since we started the operation *)
-      match t.branch with
-      | `Head _  -> t.branch <- `Head key; return_unit
+      match branch t with
+      | `Head _  -> t.branch := `Head key; return_unit
       | `Tag tag -> Tag.update (tag_t t) tag key
     )
 
@@ -335,8 +342,8 @@ module Make_ext (P: PRIVATE) = struct
     | Some old -> Commit.merge (commit_t t) ~old c1 c2
 
   let update_head t c =
-    match t.branch with
-    | `Head _  -> t.branch <- `Head c; return_unit
+    match branch t with
+    | `Head _  -> t.branch := `Head c; return_unit
     | `Tag tag -> Tag.update (tag_t t) tag c
 
   let update_tag_force t tag =
@@ -363,28 +370,29 @@ module Make_ext (P: PRIVATE) = struct
       three_way_merge t c1 c2 >>| fun c3 ->
       update_head t c3 >>= ok
     in
-    match t.branch with
+    match branch t with
     | `Head c2 -> aux c2
     | `Tag tag ->
       Tag.read (tag_t t) tag >>= function
       | None    -> update_head t c1 >>= ok
       | Some c2 -> aux c2
 
-  let clone_force t branch =
-    Log.debugf "clone %a" force (show (module Tag.Key) branch);
-    begin match t.branch with
-      | `Head c  -> Tag.update (tag_t t) branch c
+  let clone_force t task tag =
+    Log.debugf "clone %a" force (show (module Tag.Key) tag);
+    begin match branch t with
+      | `Head c  -> Tag.update (tag_t t) tag c
       | `Tag tag ->
         Tag.read (tag_t t) tag >>= function
         | None   -> fail Not_found
-        | Some c -> Tag.update (tag_t t) branch c
+        | Some c -> Tag.update (tag_t t) tag c
     end  >>= fun () ->
-    return { t with branch = `Tag branch }
+    let branch = ref (`Tag tag) in
+    return (fun a -> { t with branch; task = task a; })
 
-  let clone t branch =
+  let clone t task branch =
     Tag.mem (tag_t t) branch >>= function
     | true  -> return `Duplicated_tag
-    | false -> clone_force t branch >>= fun t -> return (`Ok t)
+    | false -> clone_force t task branch >>= fun t -> return (`Ok t)
 
   let merge t branch =
     Log.debugf "merge %a" force (show (module Tag.Key) branch);
@@ -395,7 +403,7 @@ module Make_ext (P: PRIVATE) = struct
 
   let watch_node t path =
     Log.infof "Adding a watch on %a" force (show (module Key) path);
-    match t.branch with
+    match branch t with
     | `Head _  -> Lwt_stream.of_list []
     | `Tag tag ->
       let stream = Tag.watch (tag_t t) tag in

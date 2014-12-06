@@ -46,9 +46,9 @@ let suite k server =
       let module HTTP = Irmin_http_server.Make(Server) in
       let server () =
         server.init () >>= fun () ->
-        Server.create server.config (task "server") >>= fun t  ->
+        Server.create server.config task >>= fun t  ->
         signal () >>= fun () ->
-        HTTP.listen t uri
+        HTTP.listen (t "server") uri
       in
       let () =
         try Unix.unlink file

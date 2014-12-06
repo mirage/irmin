@@ -154,10 +154,3 @@ let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Irmin_fs.Make)
 let http_store = create (module Irmin_http.Make)
 let git_store = create (module Irmin_git.FS)
-
-let new_task fmt =
-  let owner = "TEST" in
-  let date = Int64.of_float (Unix.gettimeofday ()) in
-  Printf.ksprintf (fun msg ->
-      Irmin.Task.create ~date ~owner "%s" msg
-    ) fmt

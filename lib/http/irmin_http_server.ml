@@ -309,47 +309,12 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     end in
     (module M: Tc.S0 with type t = M.t)
 
-  let ok_or_duplicated_tag' =
-    let module M = struct
-      type t = [ `Ok of S.t | `Duplicated_tag ]
-      let to_string = function
-        | `Ok _ -> "ok"
-        | `Duplicated_tag -> "duplicated-tag"
-      let to_json t = `String (to_string t)
-      let to_sexp t = Sexplib.Type.Atom (to_string t)
-      let compare = Pervasives.compare
-      let equal = (=)
-      let hash = Hashtbl.hash
-      let of_json _ = failwith "TODO"
-      let write _ = failwith "TODO"
-      let read _ = failwith "TODO"
-      let size_of _ = failwith "TODO"
-    end in
-    (module M: Tc.S0 with type t = M.t)
-
   let ok_or_duplicated_tags =
     let module M = struct
       type t = [ `Ok | `Duplicated_tags of S.tag list ]
       let to_json = function
         | `Ok -> `A []
         | `Duplicated_tags ts -> `A (List.map S.Tag.to_json ts)
-      let to_sexp _ = failwith "TODO"
-      let compare = Pervasives.compare
-      let equal = (=)
-      let hash = Hashtbl.hash
-      let of_json _ = failwith "TODO"
-      let write _ = failwith "TODO"
-      let read _ = failwith "TODO"
-      let size_of _ = failwith "TODO"
-    end in
-    (module M: Tc.S0 with type t = M.t)
-
-  let branch =
-    let module M = struct
-      type t = S.t
-      let to_json t = match S.branch t with
-        | `Tag t  -> `O ["tag" , S.Tag.to_json t]
-        | `Head h -> `O ["head", S.Head.to_json h]
       let to_sexp _ = failwith "TODO"
       let compare = Pervasives.compare
       let equal = (=)
@@ -387,6 +352,15 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.export ?full ?depth ~min ~max t
     in
     let s_graph t = graph_of_dump t in
+    let s_clone t tag =
+      S.clone t (fun () -> S.task t) tag >>= function
+      | `Ok _ -> return `Ok
+      | `Duplicated_tag -> return `Duplicated_tag
+    in
+    let s_clone_force t tag =
+      S.clone_force t (fun () -> S.task t) tag >>= fun _ ->
+      return_unit
+    in
     let bc t = [
       (* rw *)
       mk1p0bf "read"     S.read     t key' (Tc.option value);
@@ -406,11 +380,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p0bf "update-head"      S.update_head t head' Tc.unit;
       mk1p0bf "merge-head"       S.merge_head t head' (merge Tc.unit);
       mk1p0bs "watch-head"       S.watch_head t key' (Tc.pair key head);
-      mk1p0bf "clone"            S.clone t tag' ok_or_duplicated_tag';
-      mk1p0bf "clone-force"      S.clone_force t tag' branch;
+      mk1p0bf "clone"            s_clone t tag' ok_or_duplicated_tag;
+      mk1p0bf "clone-force"      s_clone_force t tag' Tc.unit;
       mk1p0bf "merge"            S.merge t tag' (merge Tc.unit);
       mk0p1bf "export"           s_export t export slice;
-      mk0p1bf "import"           S.import t slice ok_or_duplicated_tags;
+      mk0p1bf "import"           S.import t slice (ok_or_duplicated_tags);
       mk0p1bf "import-force"     S.import_force t slice Tc.unit;
 
       (* extra *)
@@ -436,14 +410,16 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
            let tags = List.map S.Tag.to_hum tags in
            if List.mem n tags then (
              return (SNode (bc (fun t ->
-                 S.of_tag (S.config t) (S.task t) (S.Tag.of_hum n)
+                 S.of_tag (S.config t) (fun () -> S.task t) (S.Tag.of_hum n)
+                 >>= fun t -> return (t ())
                )))
            ) else (
              S.heads t >>= fun heads ->
              let heads = List.map S.Head.to_hum heads in
              if List.mem n heads then (
                return (SNode (bc (fun t ->
-                   S.of_head (S.config t) (S.task t) (S.Head.of_hum n)
+                   S.of_head (S.config t) (fun () -> S.task t) (S.Head.of_hum n)
+                   >>= fun t -> return (t ())
                  )))
              ) else
                error "%s is not a valid key or tag" n

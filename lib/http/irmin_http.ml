@@ -119,10 +119,6 @@ struct
       config: Irmin.config;
     }
 
-    let append_path t path = t.uri <- uri_append t.uri path
-    let set_path t path = t.uri <- Uri.with_path t.uri path
-    let get_path t = Uri.path t.uri
-
     let task t = t.task
     let config t = t.config
 
@@ -132,7 +128,7 @@ struct
     let some fn x =
       Some (fn x)
 
-    let create config task =
+    let create_aux config task =
       let uri = match Irmin.Conf.get config uri_key with
         | None   -> failwith "Irmin_http.create: No URI specified"
         | Some u -> u
@@ -141,7 +137,10 @@ struct
         | None   -> uri
         | Some p -> uri_append uri [p]
       in
-      return (fun a -> { uri; config; task = task a })
+      { uri; config; task = task }
+
+    let create config task =
+      return (fun a -> create_aux config (task a))
 
     let read { uri; _ } key =
       catch
@@ -279,7 +278,7 @@ struct
        - `$uri/tree/$tag` if branch = `Tag tag
        - `$uri/tree/$key if key = `Key key *)
   type t = {
-    mutable branch: [`Tag of T.t | `Head of L.t];
+    mutable branch: [`Tag of T.t | `Head of L.t ];
     mutable h: H.t;
     contents_t: LP.Contents.t;
     node_t: LP.Contents.t * LP.Node.t;
@@ -290,7 +289,16 @@ struct
     update_node: L.key -> LP.Node.value -> unit Lwt.t;
   }
 
-  let uri t = t.h.H.uri
+  let uri t =
+    let base = t.h.H.uri in
+    match t.branch with
+    | `Tag tag ->
+      if T.equal tag T.master then return base
+      else return (uri_append base ["tree"; T.to_hum tag])
+    | `Head h ->
+      L.head_exn h >>= fun head ->
+      return (uri_append base ["tree"; Head.to_hum head])
+
   let config t = H.config t.h
   let task t = H.task t.h
 
@@ -298,31 +306,8 @@ struct
     | `Head l -> L.branch l
     | `Tag  t -> `Tag t
 
-  let root_uri t =
-    let reset () = Filename.(dirname (dirname (H.get_path t.h))) in
-    match t.branch with
-    | `Head _  -> reset ()
-    | `Tag tag -> if T.equal tag T.master then H.get_path t.h else reset ()
-
-  let reset_uri t =
-    H.set_path t.h (root_uri t)
-
-  let set_tag t tag =
-    reset_uri t;
-    t.branch <- `Tag tag;
-    if not (T.equal tag T.master) then
-      H.append_path t.h ["tree"; T.to_hum tag]
-
-  let sync_head t l cont =
-    reset_uri t;
-    L.head_exn l >>= fun head ->
-    let head = Head.to_hum head in
-    H.append_path t.h ["tree"; head];
-    return cont
-
-  let set_head t head =
-    L.of_head (config t) (fun () -> task t) head >>= fun l ->
-    sync_head t (l ()) ()
+  let set_tag t tag = t.branch <- `Tag tag
+  let set_head t head = t.branch <- `Head head
 
   type key = H.key
   type value = H.value
@@ -335,7 +320,6 @@ struct
     let fn a =
       let h = h a in
       let l = l a in
-      let task = task a in
       let branch = `Tag T.master in
       let contents_t = LP.contents_t l in
       let node_t = LP.node_t l in
@@ -352,14 +336,29 @@ struct
   let of_tag config task tag =
     create config task >>= fun t ->
     return (fun a ->
-        set_tag (t a) tag; t
+        let t = t a in
+        set_tag t tag;
+        t
       )
 
   let of_head config task head =
-    create config task >>= fun t ->
-    return (fun a ->
-        set_head (t a) head
-      )
+    H.create config task >>= fun h ->
+    L.of_head config task head >>= fun l ->
+    let fn a =
+      let h = h a in
+      let l = l a in
+      let branch = `Tag T.master in
+      let contents_t = LP.contents_t l in
+      let node_t = LP.node_t l in
+      let commit_t = LP.commit_t l in
+      let tag_t = LP.tag_t l in
+      let read_node = LP.read_node l in
+      let mem_node = LP.mem_node l in
+      let update_node = LP.update_node l in
+      { branch; h; contents_t; node_t; commit_t; tag_t;
+        read_node; mem_node; update_node; }
+    in
+    return fn
 
   let read t = H.read t.h
   let read_exn t = H.read_exn t.h
@@ -371,7 +370,7 @@ struct
 
   let update t key value =
     match t.branch with
-    | `Head l  -> L.update l key value >>= sync_head t l
+    | `Head l  -> L.update l key value
     | `Tag _   -> H.update t.h key value
 
   let tag t = match t.branch with
@@ -383,11 +382,14 @@ struct
     | Some t -> t
 
   let tags t =
-    get (uri t) ["tags"] (Ezjsonm.get_list T.of_json)
+    uri t >>= fun uri ->
+    get uri ["tags"] (Ezjsonm.get_list T.of_json)
 
   let head t = match t.branch with
     | `Head l -> L.head l
-    | `Tag _  -> get (uri t) ["head"] (Ezjsonm.get_option Head.of_json)
+    | `Tag _  ->
+      uri t >>= fun uri ->
+      get uri ["head"] (Ezjsonm.get_option Head.of_json)
 
   let head_exn t =
     head t >>= function
@@ -395,25 +397,29 @@ struct
     | Some h -> return h
 
   let update_tag t tag =
-    get (uri t) ["update-tag"; T.to_hum tag] Ezjsonm.get_string >>= function
+    uri t >>= fun uri ->
+    get uri ["update-tag"; T.to_hum tag] Ezjsonm.get_string >>= function
     | "ok" -> set_tag t tag; return `Ok
     | _    -> return `Duplicated_tag
 
   let update_tag_force t tag =
-    get (uri t) ["update-tag-force"; T.to_hum tag] Ezjsonm.get_unit >>= fun () ->
+    uri t >>= fun uri ->
+    get uri ["update-tag-force"; T.to_hum tag] Ezjsonm.get_unit >>= fun () ->
     set_tag t tag;
     return_unit
 
   let switch t tag =
     match t.branch with
-    | `Head l -> L.switch l tag >>= sync_head t l
+    | `Head l -> L.switch l tag
     | `Tag _  ->
-      get (uri t) ["switch"; T.to_hum tag] Ezjsonm.get_unit >>= fun () ->
+      uri t >>= fun uri ->
+      get uri ["switch"; T.to_hum tag] Ezjsonm.get_unit >>= fun () ->
       set_tag t tag;
       return_unit
 
   let heads t =
-    get (uri t) ["heads"] (Ezjsonm.get_list Head.of_json)
+    uri t >>= fun uri ->
+    get uri ["heads"] (Ezjsonm.get_list Head.of_json)
 
   let detach t =
     match t.branch with
@@ -421,64 +427,68 @@ struct
     | `Tag _  ->
       head t >>= function
       | None   -> return_unit
-      | Some h -> set_head t h
+      | Some h ->
+        L.of_head (config t) (fun () -> task t) h >>= fun h ->
+        set_head t (h ());
+        return_unit
 
   let update_head t head =
     match t.branch with
-    | `Head l -> L.update_head l head >>= sync_head t l
-    | `Tag _  -> get (uri t) ["update-head"; Head.to_hum head] Ezjsonm.get_unit
+    | `Head l -> L.update_head l head
+    | `Tag _  ->
+      uri t >>= fun uri ->
+      get uri ["update-head"; Head.to_hum head] Ezjsonm.get_unit
 
   module M = Tc.App1 (Irmin.Merge.Result) (Tc.Unit)
 
   let merge_head t head =
     match t.branch with
-    | `Tag _  -> get (uri t) ["merge-head"; Head.to_hum head] M.of_json
-    | `Head l -> L.merge_head l head >>= sync_head t l
+    | `Head l -> L.merge_head l head
+    | `Tag _  ->
+      uri t >>= fun uri ->
+      get uri ["merge-head"; Head.to_hum head] M.of_json
 
   module W = Tc.Pair (P)(Head)
 
   let watch_head t key =
     match t.branch with
     | `Head _ -> Lwt_stream.of_list []
-    | `Tag _  -> get_stream (uri t) ["watch-head"; P.to_hum key] W.of_json
+    | `Tag _  ->
+      Irmin.Watch.lwt_stream_lift (
+        uri t >>= fun uri ->
+        let s = get_stream uri ["watch-head"; P.to_hum key] W.of_json in
+        return s
+      )
 
-  let clone t tag =
+  let clone t task tag =
     match t.branch with
     | `Head l ->
-      begin L.clone l tag >>= function
-        | `Ok l ->
-          let t = { t with branch = `Head l } in
-          sync_head t l (`Ok t)
+      begin L.clone l task tag >>= function
+        | `Ok l -> return (`Ok (fun a -> { t with branch = `Head (l a) }))
         | `Duplicated_tag -> return `Duplicated_tag
       end
     | `Tag _  ->
-      get (uri t) ["clone"; T.to_hum tag] Ezjsonm.get_string >>= function
-      | "ok" -> of_tag (config t) (task t) tag >>= fun t -> return (`Ok t)
+      uri t >>= fun uri ->
+      get uri ["clone"; T.to_hum tag] Ezjsonm.get_string >>= function
+      | "ok" -> of_tag (config t) task tag >>= fun t -> return (`Ok t)
       | _    -> return `Duplicated_tag
 
-  module Branch = struct
-    let of_json = function
-      | `O [ "tag" , j] -> `Tag (T.of_json j)
-      | `O [ "head", j] -> `Head (Head.of_json j)
-      | j -> Ezjsonm.parse_error j "Irmin_http.Branch.json_of"
-  end
-
-  let clone_force t tag =
+  let clone_force t task tag =
     match t.branch with
     | `Head l ->
-      begin L.clone_force l tag >>= fun l ->
-        let t = { t with branch = `Head l } in
-        sync_head t l t
-      end
+      L.clone_force l task tag >>= fun l ->
+      return (fun a -> { t with branch = `Head (l a) })
     | `Tag _  ->
-      get (uri t) ["clone-force"; T.to_hum tag] Branch.of_json >>= function
-      | `Head head -> of_head (config t) (task t) head
-      | `Tag tag   -> of_tag (config t) (task t) tag
+      uri t >>= fun uri ->
+      get uri ["clone-force"; T.to_hum tag] Tc.Unit.of_json >>= fun () ->
+      of_tag (config t) task tag
 
   let merge t tag =
     match t.branch with
-    | `Head l -> L.merge l tag >>= sync_head t l
-    | `Tag _  -> get (uri t) ["merge"; T.to_hum tag] M.of_json
+    | `Head l -> L.merge l tag
+    | `Tag _  ->
+      uri t >>= fun uri ->
+      get uri ["merge"; T.to_hum tag] M.of_json
 
   module E = Tc.Pair
       (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))
@@ -489,18 +499,21 @@ struct
   module Slice = L.Private.Slice
 
   let export ?full ?depth ?(min=[]) ?(max=[]) t =
-    post (uri t) ["export"] (E.to_json ((full, depth), (min, max)))
+    uri t >>= fun uri ->
+    post uri ["export"] (E.to_json ((full, depth), (min, max)))
       L.Private.Slice.of_json
 
   module I = Tc.List(T)
 
   let import t slice =
-    post (uri t) ["import"] (Slice.to_json slice) I.of_json >>= function
+    uri t >>= fun uri ->
+    post uri ["import"] (Slice.to_json slice) I.of_json >>= function
     | [] -> return `Ok
     | l  -> return (`Duplicated_tags l)
 
   let import_force t slice =
-    post (uri t) ["import-force"] (Slice.to_json slice) Ezjsonm.get_unit
+    uri t >>= fun uri ->
+    post uri ["import-force"] (Slice.to_json slice) Ezjsonm.get_unit
 
   type step = P.step
   module Key = P

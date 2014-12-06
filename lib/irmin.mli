@@ -722,11 +722,11 @@ module type BC = sig
 
   (** {2 Clones and Merges} *)
 
-  val clone: t -> tag -> [`Ok of t | `Duplicated_tag] Lwt.t
+  val clone: t -> ('a -> task) -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   (** Fork the store, using the given branch name. Return [None] if
       the branch already exists. *)
 
-  val clone_force: t -> tag -> t Lwt.t
+  val clone_force: t -> ('a -> task) -> tag -> ('a -> t) Lwt.t
   (** Same as [clone] but delete and update the existing branch if a
       branch with the same name already exists. *)
 

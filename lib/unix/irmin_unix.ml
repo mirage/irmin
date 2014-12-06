@@ -114,3 +114,11 @@ let install_dir_polling_listener delay =
 
       Lwt.async t
     )
+
+let task msg =
+  let date = Int64.of_float (Unix.gettimeofday ()) in
+  let owner =
+    (* XXX: get "git config user.name" *)
+    Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname()) (Unix.getpid())
+  in
+  Irmin.Task.create ~date ~owner msg

@@ -16,6 +16,11 @@
 
 (** {1 Unix backends} *)
 
+val task: string -> Irmin.task
+(** [task fmt] creates a fresh task, with the {{!Irmin.Task.date}date}
+    set with [Unix.gettimeoday] and a proper
+    {{!Irmin.Task.owner}owner. *)
+
 (** File system backends. *)
 module Irmin_fs: sig
 

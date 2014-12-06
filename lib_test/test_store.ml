@@ -14,9 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
 open OUnit
 open Test_common
-open Lwt
+open Irmin_unix
 
 let random_string n =
   let t  = Unix.gettimeofday () in
@@ -32,7 +33,6 @@ module Make (S: Irmin.S) = struct
 
   module Common = Make(S)
   open Common
-  open S
 
   let run x test =
     try Lwt_unix.run (x.init () >>= test >>= x.clean)
@@ -53,7 +53,7 @@ module Make (S: Irmin.S) = struct
     let str = random_string value in
     match kind with
     | `String -> Tc.read_string (module B) str
-    | `JSON   -> B.of_json (`A [ Ezjsonm.encode_string str ])
+    | `Json   -> B.of_json (`A [ Ezjsonm.encode_string str ])
 
   let random_path ~label ~path =
     let short () = random_string label in
@@ -71,46 +71,43 @@ module Make (S: Irmin.S) = struct
       | n -> aux (random_node ~label ~path ~value ~kind :: acc) (n-1) in
     aux [] n
 
-  let task =
+  let dummy_task =
     Irmin.Task.create ~date:0L ~owner:"test" "Very useful tracking information"
 
   let mk k t =
     let v1 = match k with
       | `String -> Tc.read_string (module B) long_random_string
-      | `JSON   -> B.of_json (
+      | `Json   -> B.of_json (
           (`O [ "foo", Ezjsonm.encode_string long_random_string ])
         ) in
     let v2 = match k with
       | `String -> Tc.read_string (module B) ""
-      | `JSON   -> B.of_json (`A[]) in
+      | `Json   -> B.of_json (`A[]) in
     let kv1 = lazy (KB.digest (Tc.write_cstruct (module B) v1)) in
     let kv2 = lazy (KB.digest (Tc.write_cstruct (module B) v2)) in
     let r1 = T.of_hum "foo" in
     let r2 = T.of_hum "bar" in
     return { v1; v2; kv1; kv2; r1; r2 }
 
-  let create x fmt =
-    Printf.ksprintf (fun msg ->
-        S.create x.config (new_task msg)
-      )
+  let create x = S.create x.config task
 
   let test_contents x () =
     let test () =
-      create "test_contents" >>= fun t ->
-      mk x.kind t >>= function { v1; v2; kv1; kv2 } ->
+      create x  >>= fun t ->
+      mk x.kind (t "test_contents") >>= fun { v1; v2; kv1; kv2; _ } ->
 
-      Lazy.force kv1 >>= fun kv1 ->
-      Lazy.force kv2 >>= fun kv2 ->
+      let kv1 = Lazy.force kv1 in
+      let kv2 = Lazy.force kv2 in
+      let v = S.Private.contents_t (t "get contents handle") in
 
-      let v = contents_t t in
       Contents.add v v1                >>= fun k1'  ->
-      assert_key_equal "kv1" kv1 k1';
+      assert_key_contents_equal "kv1" kv1 k1';
       Contents.add v v1                >>= fun k1'' ->
-      assert_key_equal "kv1" kv1 k1'';
+      assert_key_contents_equal "kv1" kv1 k1'';
       Contents.add v v2                >>= fun k2'  ->
-      assert_key_equal "kv2" kv2 k2';
+      assert_key_contents_equal "kv2" kv2 k2';
       Contents.add v v2                >>= fun k2'' ->
-      assert_key_equal "kv2" kv2 k2'';
+      assert_key_contents_equal "kv2" kv2 k2'';
       Contents.read v kv1              >>= fun v1'  ->
       assert_contents_opt_equal "v1" (Some v1) v1';
       Contents.read v kv2              >>= fun v2'  ->
@@ -121,9 +118,9 @@ module Make (S: Irmin.S) = struct
 
   let test_nodes x () =
     let test () =
-      create () >>= fun t          ->
-      mk x.kind t >>= function { v1; v2 } ->
-      let node = node_t t in
+      create x >>= fun t          ->
+      mk x.kind t >>= function { v1; v2; _ } ->
+      let node = S.Private.node_t (t "get node handle") in
 
       (* Create a node containing t1(v1) *)
       Node.node node ~contents:v1 () >>= fun (k1 , _) ->
@@ -460,7 +457,7 @@ module Make (S: Irmin.S) = struct
       let mk str =
         match x.kind with
         | `String -> B.of_string str
-        | `JSON   -> B.of_string (
+        | `Json   -> B.of_string (
             Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
           ) in
       let v1 = mk "X1" in
@@ -503,7 +500,7 @@ module Make (S: Irmin.S) = struct
       let mk str =
         match x.kind with
         | `String -> B.of_string str
-        | `JSON   -> B.of_string (
+        | `Json   -> B.of_string (
             Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
           ) in
       let v1 = mk "X1" in
