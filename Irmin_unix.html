@@ -25,6 +25,12 @@
 </div>
 <hr width="100%">
 
+<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type">string -> <a href="Irmin.html#TYPEtask">Irmin.task</a></code></pre><div class="info ">
+<code class="code">task fmt</code> creates a fresh task, with the <a href="Irmin.Task.html#VALdate">date</a>
+    set with <code class="code">Unix.gettimeoday</code> and a proper
+    <a href="Irmin.Task.html#VALowner">owner</a>.<br>
+</div>
+
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.html">Irmin_fs</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_fs.html">..</a> <code class="code">end</code></pre><div class="info">
 File system backends.
 </div>

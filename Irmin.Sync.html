@@ -57,7 +57,7 @@ The type for remote stores.<br>
       given backend.<br>
 </div>
 
-<pre><span id="VALstore"><span class="keyword">val</span> store</span> : <code class="type">Irmin.S.t -> <a href="Irmin.Sync.html#TYPEremote">remote</a></code></pre><div class="info ">
+<pre><span id="VALstore"><span class="keyword">val</span> store</span> : <code class="type">(module Irmin.S with type t = 'a) -> 'a -> <a href="Irmin.Sync.html#TYPEremote">remote</a></code></pre><div class="info ">
 <code class="code">store t</code> is the remote corresponding to the local store
       <code class="code">t</code>. Synchronization is done by importing and exporting store
       slices, so this is usually much slower than native

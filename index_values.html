@@ -34,6 +34,11 @@ Return the list of actions performed on this view since its
 Write the contents of a value to the store.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Task.html#VALadd">add</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
+<td><div class="info">
+Add a message to the task messages list.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Conf.html#VALadd">add</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
 <td><div class="info">
 <code class="code">add c k v</code> is <code class="code">c</code> with <code class="code">k</code> mapping to <code class="code">v</code>.
@@ -60,6 +65,8 @@ The <code class="code">apply</code> combinator is useful to untie recursive loop
 </div>
 </td></tr>
 <tr><td align="left"><br>B</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_git.html#VALbare_key">bare_key</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Merge.html#VALbiject">biject</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Use the merge function defined in another domain.
@@ -74,6 +81,11 @@ Same as <code class="code">map</code> but with potentially blocking converting
 <tr><td><a href="Irmin.Merge.html#VALbind">bind</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Monadic bind over Result.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Conf.html#VALbool">bool</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">bool</code> converts values with <code class="code">bool_of_string</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALbranch">branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -135,6 +147,11 @@ The slice contents.
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALcontents_t">contents_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.Conf.html#VALconv">conv</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">tc k</code> is <code class="code">k</code>'s converter.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALcounter">counter</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 The merge function for mergeable counters.
@@ -142,8 +159,9 @@ The merge function for mergeable counters.
 </td></tr>
 <tr><td><a href="Irmin.RO.html#VALcreate">create</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
-<code class="code">create config task</code> is the store handle with the configuration
-      <code class="code">config</code> and the task <code class="code">task</code>.
+<code class="code">create config task</code> is a function returning fresh store
+      handles, with the configuration <code class="code">config</code> and fresh tasks
+      computed using <code class="code">task</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Watch.S.html#VALcreate">create</a> [<a href="Irmin.Watch.S.html">Irmin.Watch.S</a>]</td>
@@ -278,11 +296,6 @@ Convert <code class="code">`Conflict</code> results to <code class="code">Confli
 <code class="code">find c k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>, if any.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Task.html#VALfprintf">fprintf</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
-<td><div class="info">
-Add a message to the task messages list.
-</div>
-</td></tr>
 <tr><td align="left"><br>G</td></tr>
 <tr><td><a href="Irmin.Conf.html#VALget">get</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
 <td><div class="info">
@@ -290,6 +303,11 @@ Add a message to the task messages list.
 </div>
 </td></tr>
 <tr><td align="left"><br>H</td></tr>
+<tr><td><a href="Irmin.Hash.S.html#VALhas_kind">has_kind</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
+<td><div class="info">
+The kind of generated hash.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALhead">head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Return the head commit.
@@ -323,6 +341,11 @@ Same as <code class="code">import</code> but delete and update the tags they alr
 Install the directory listener using active polling.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Conf.html#VALint">int</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">int</code> converts values with <code class="code">int_of_string</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Node.S.html#VALis_empty">is_empty</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
 <td><div class="info">
 Is the node empty.
@@ -336,7 +359,7 @@ Is the node empty.
 <tr><td align="left"><br>K</td></tr>
 <tr><td><a href="Irmin.Conf.html#VALkey">key</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
 <td><div class="info">
-<code class="code">key docs docv doc name tc default</code> is a configuration key named
+<code class="code">key docs docv doc name conv default</code> is a configuration key named
       <code class="code">name</code> that maps to value <code class="code">v</code> by default.
 </div>
 </td></tr>
@@ -449,15 +472,20 @@ Create a temporary store handle, which will not persist as it
       has no associated to any persistent tag name.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.HUM.html#VALof_hum">of_hum</a> [<a href="Irmin.HUM.html">Irmin.HUM</a>]</td>
+<tr><td><a href="Irmin.Hum.S.html#VALof_hum">of_hum</a> [<a href="Irmin.Hum.S.html">Irmin.Hum.S</a>]</td>
 <td><div class="info">
 Convert an human readable representation of a value into its
-      abstract value.
+        abstract value.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.View.html#VALof_path">of_path</a> [<a href="Irmin.View.html">Irmin.View</a>]</td>
 <td><div class="info">
 Read a view from a path in the store.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Hash.S.html#VALof_raw">of_raw</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
+<td><div class="info">
+Abstract an hash value.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALof_tag">of_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -492,6 +520,11 @@ Lift to pairs.
 The commit parents.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Conf.html#VALparser">parser</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">parser c</code> is <code class="code">c</code>'s parser.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.View.Action.html#VALpretty">pretty</a> [<a href="Irmin.View.Action.html">Irmin.View.Action</a>]</td>
 <td><div class="info">
 Pretty-print an action.
@@ -500,6 +533,11 @@ Pretty-print an action.
 <tr><td><a href="Irmin.View.Action.html#VALprettys">prettys</a> [<a href="Irmin.View.Action.html">Irmin.View.Action</a>]</td>
 <td><div class="info">
 Pretty-print a sequence of actions.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Conf.html#VALprinter">printer</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">converter c</code> is <code class="code">c</code>'s printer.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Sync.html#VALpull">pull</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
@@ -573,6 +611,16 @@ Register a function which looks for file changes in a
       directory.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Conf.html#VALsingleton">singleton</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">singletong k v</code> is the configuration where <code class="code">k</code> maps to <code class="code">v</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Conf.html#VALsome">some</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">string</code> converts values with the indentity function.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALsome">some</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Lift a merge function to optional values of the same type.
@@ -587,6 +635,11 @@ The list of available steps to visit a successor.
 <td><div class="info">
 <code class="code">store t</code> is the remote corresponding to the local store
       <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Conf.html#VALstring">string</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">string</code> converts values with the indentity function.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALstring">string</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
@@ -629,6 +682,13 @@ The list of all the tags of the store.
 The slice tags.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_unix.html#VALtask">task</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td><div class="info">
+<code class="code">task fmt</code> creates a fresh task, with the <a href="Irmin.Task.html#VALdate">date</a>
+    set with <code class="code">Unix.gettimeoday</code> and a proper
+    <a href="Irmin.Task.html#VALowner">owner</a>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.RO.html#VALtask">task</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
 <code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.
@@ -639,14 +699,14 @@ The slice tags.
 The commit provenance.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALtc">tc</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
-<td><div class="info">
-<code class="code">tc k</code> are <code class="code">k</code>'s base type-classes.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.HUM.html#VALto_hum">to_hum</a> [<a href="Irmin.HUM.html">Irmin.HUM</a>]</td>
+<tr><td><a href="Irmin.Hum.S.html#VALto_hum">to_hum</a> [<a href="Irmin.Hum.S.html">Irmin.Hum.S</a>]</td>
 <td><div class="info">
 Display a value using its human readable representation.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Hash.S.html#VALto_raw">to_raw</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
+<td><div class="info">
+The raw hash value.
 </div>
 </td></tr>
 <tr><td align="left"><br>U</td></tr>
@@ -687,6 +747,19 @@ Same as <code class="code">update_tag</code> but delete and update the tag if it
 <tr><td><a href="Irmin.Sync.html#VALuri">uri</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
 <td><div class="info">
 <code class="code">uri s</code> is the remote store located at <code class="code">uri</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Conf.html#VALuri">uri</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">uri</code> converts values with <code class="code">Uri.of_string</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_http.html#VALuri_key">uri_key</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>V</td></tr>
+<tr><td><a href="Irmin.html#VALversion">version</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+The version of the library.
 </div>
 </td></tr>
 <tr><td align="left"><br>W</td></tr>

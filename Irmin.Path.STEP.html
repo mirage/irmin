@@ -12,9 +12,7 @@
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Serializable values with inversible human-readable
-      representations" rel="Section" href="#1_Serializablevalueswithinversiblehumanreadablerepresentations">
-<title>Irmin.Path.STEP</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.Path.STEP</title>
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="Irmin.Path.html" title="Irmin.Path">Up</a>
@@ -22,13 +20,10 @@
 </div>
 <h1>Module type <a href="type_Irmin.Path.STEP.html">Irmin.Path.STEP</a></h1>
 
-<pre><span class="keyword">module type</span> STEP = <code class="type"><a href="Irmin.HUM.html">Irmin.HUM</a></code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> STEP = <code class="type"><a href="Irmin.Hum.S.html">Irmin.Hum.S</a></code></pre><div class="info modtype top">
 Signature for path steps.<br>
 </div>
 <hr width="100%">
-<br>
-<h1 id="1_Serializablevalueswithinversiblehumanreadablerepresentations">Serializable values with inversible human-readable
-      representations</h1><br>
 
 <pre><span class="keyword">include</span> Tc.S0</pre>
 
@@ -38,8 +33,8 @@ Display a value using its human readable representation.<br>
 
 <pre><span id="VALof_hum"><span class="keyword">val</span> of_hum</span> : <code class="type">string -> t</code></pre><div class="info ">
 Convert an human readable representation of a value into its
-      abstract value.<br>
+        abstract value.<br>
 <b>Raises</b> <code>Invalid_argument</code> if the string does not represent
-      anything meaningful.<br>
+        anything meaningful.<br>
 </div>
 </body></html>

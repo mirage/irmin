@@ -34,7 +34,7 @@ Tasks are used to keep track of the origin of reads and writes in
 
 <pre><span class="keyword">include</span> Tc.S0</pre>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">date:int64 -> owner:string -> ('a, unit, string, t) Pervasives.format4 -> 'a</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">date:int64 -> owner:string -> string -> t</code></pre><div class="info ">
 Create a new task.<br>
 </div>
 
@@ -76,12 +76,12 @@ Get the messages associated to the task.
 
       Text messages can be added to a task either at creation time,
       using <a href="Irmin.Task.html#VALcreate">create</a>, or can be appended on already
-      created tasks using the <a href="Irmin.Task.html#VALfprintf">fprintf</a> function. For
+      created tasks using the fprintf function. For
       the Git backend, this will be translated to the commit
       message.<br>
 </div>
 
-<pre><span id="VALfprintf"><span class="keyword">val</span> fprintf</span> : <code class="type">t -> ('a, unit, string, unit) Pervasives.format4 -> 'a</code></pre><div class="info ">
+<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type">t -> string -> unit</code></pre><div class="info ">
 Add a message to the task messages list. See
       <a href="Irmin.Task.html#VALmessages">messages</a> for more details.<br>
 </div>

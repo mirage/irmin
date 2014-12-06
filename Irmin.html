@@ -44,6 +44,10 @@ Irmin public API.
     FIXME<br>
 </div>
 <hr width="100%">
+
+<pre><span id="VALversion"><span class="keyword">val</span> version</span> : <code class="type">string</code></pre><div class="info ">
+The version of the library.<br>
+</div>
 <br>
 <h1 id="1_UserDefinedContents">User-Defined Contents</h1><br>
 <br>
@@ -60,7 +64,7 @@ Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
 <code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.HUM.html">HUM</a> = <code class="code">sig</code> <a href="Irmin.HUM.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Hum.html">Hum</a>: <code class="code">sig</code> <a href="Irmin.Hum.html">..</a> <code class="code">end</code></pre><div class="info">
 Serializable data with reversible human-readable
     representations.
 </div>
@@ -91,9 +95,8 @@ The type for user-defined tasks. See <a href="Irmin.Task.html">Task</a>.<br>
 The type for backend-specific configuration values. See <a href="Irmin.Conf.html">Conf</a>.
 <p>
 
-Every backend
-    has different configuration options, which are kept abstract to
-    the user.<br>
+    Every backend has different configuration options, which are kept
+    abstract to the user.<br>
 </div>
 
 <br>
@@ -159,8 +162,7 @@ Branch-consistent stores.
     stores, using native backend protocols (as the Git protocol) when
     available.</li>
 </ul>
-
-    FIXME: <a href="Irmin.View.html"><code class="code">Irmin.View</code></a> <a href="Irmin.Snapshot.html"><code class="code">Irmin.Snapshot</code></a> <a href="Irmin.Dot.html"><code class="code">Irmin.Dot</code></a> <a href="Irmin.Sync.html"><code class="code">Irmin.Sync</code></a><br>
+<br>
 
 <pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><div class="info">
 Signature for Irmin stores.
@@ -197,7 +199,7 @@ A backend is an implementation exposing either a concrete
     append-only stores.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="Irmin.HUM.html">HUM</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RW.html">RW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RW.html">RW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
 <code class="code">RW_MAKER</code> is the signature exposed by any backend providing
     read-write stores.
 </div>
