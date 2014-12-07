@@ -35,11 +35,10 @@ module type S = sig
   val create: contents:(step * contents) list -> succ:(step * node) list -> t
   val is_empty: t -> bool
 end
-
-module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_path.S):
-  S with type contents = C.t
-     and type node = N.t
-     and type step = P.step
+  module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_path.S):
+    S with type contents = C.t
+       and type node = N.t
+       and type step = P.step
 
 module type STORE = sig
   include Ir_ao.STORE
@@ -52,73 +51,31 @@ module type STORE = sig
 end
 
 module type STORE_EXT = sig
-
-  (** The node store encodes a labeled DAG where every node might hold
-      some contents. *)
-
   type step
-  (** A step is used to pass from one node to an other. A list of
-      steps forms a path. *)
-
   module Contents: Ir_contents.STORE_EXT
-  (** The contents store. *)
-
   include STORE
     with type Path.step = step
      and type Val.contents = Contents.key
-
   type contents = Contents.value
-  (** Node contents. *)
-
   val empty: value
-  (** The empty node. *)
-
   val node: t ->
     ?contents:(step * contents) list ->
     ?succ:(step * value) list ->
     unit -> (key * value) Lwt.t
-  (** Create a new node. *)
-
   val contents: t -> value -> step -> contents Lwt.t option
-  (** Return the node contents. *)
-
   val succ: t -> value -> step -> value Lwt.t option
-  (** Return the node successors. *)
-
+  val all_succ: t -> value -> (step * value Lwt.t) list
   val sub: t -> value -> step list -> value option Lwt.t
-  (** Find a subvalue. *)
-
   val sub_exn: t -> value -> step list -> value Lwt.t
-  (** Find a subvalue. Raise [Not_found] if it does not exist. *)
-
   val map: t -> value -> step list -> (value -> value) -> value Lwt.t
-  (** Modify a subtree. *)
-
   val update: t -> value -> step list -> contents -> value Lwt.t
-  (** Add a value by recusively saving subvalues into the
-      corresponding stores. *)
-
   val find: t -> value -> step list -> contents option Lwt.t
-  (** Find a value. *)
-
   val find_exn: t -> value -> step list -> contents Lwt.t
-  (** Find a value. Raise [Not_found] is [path] is not defined. *)
-
   val remove: t -> value -> step list -> value Lwt.t
-  (** Remove the contents. *)
-
   val valid: t -> value -> step list -> bool Lwt.t
-  (** Is a path valid. *)
-
   val merge: t -> key Ir_merge.t
-  (** Merge two nodes together. *)
-
   val contents_t: t -> Contents.t
-  (** An handler to the contents database. *)
-
   val rec_list: t -> key list -> key list Lwt.t
-  (** Recursive list. *)
-
 end
 
 module Make_ext

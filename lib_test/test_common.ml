@@ -62,6 +62,9 @@ module Make (S: Irmin.S) = struct
     aux (cmp_opt equal) (printer_opt pretty),
     aux (cmp_list equal compare) (printer_list pretty)
 
+  let assert_step_equal, assert_step_opt_equal, assert_steps_equal =
+    mk S.Key.Step.equal S.Key.Step.compare S.Key.Step.to_hum
+
   module KB = S.Private.Contents.Key
   let assert_key_contents_equal, assert_key_contents_opt_equal, assert_keys_contents_equal =
     mk KB.equal KB.compare KB.to_hum
@@ -71,13 +74,23 @@ module Make (S: Irmin.S) = struct
     mk KN.equal KN.compare KN.to_hum
 
   module KC = S.Head
-  let assert_head_equal, assert_head_opt_equal, assert_heads_equal =
+  let assert_key_commit_equal, assert_key_commit_opt_equal, assert_key_commits_equal =
     mk KC.equal KC.compare KC.to_hum
 
-  module R = Tc.App1(Irmin.Merge.Result)(KC)
+  module RB = Tc.App1(Irmin.Merge.Result)(KB)
+  let assert_contents_result_equal, assert_contents_result_opt_equal,
+      assert_contents_results_equal =
+    mk RB.equal RB.compare (Tc.show (module RB))
 
-  let assert_key_result_equal, assert_key_result_opt_equal, assert_key_results_equal =
-    mk R.equal R.compare (Tc.show (module R))
+  module RN = Tc.App1(Irmin.Merge.Result)(KN)
+  let assert_node_result_equal, assert_node_result_opt_equal,
+      assert_node_results_equal =
+    mk RN.equal RN.compare (Tc.show (module RN))
+
+  module RC = Tc.App1(Irmin.Merge.Result)(KC)
+  let assert_commit_result_equal, assert_commit_result_opt_equal,
+      assert_commit_results_equal =
+    mk RC.equal RC.compare (Tc.show (module RC))
 
   module Contents = S.Private.Contents
   module B = Contents.Val
@@ -113,7 +126,7 @@ module Make (S: Irmin.S) = struct
     let unzip l = List.map fst l, List.map snd l in
     let l1, k1 = unzip s1 in
     let l2, k2 = unzip s2 in
-    assert_strings_equal msg l1 l2;
+    assert_steps_equal msg l1 l2;
     assert_nodes_equal msg k1 k2
 
 end

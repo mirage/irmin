@@ -46,42 +46,17 @@ module type STORE = sig
 end
 
 module type STORE_EXT = sig
-
-  (** Store the history as a partial-order of revisions. *)
-
   module Node: Ir_node.STORE_EXT
-  (** Store of nodes. *)
-
   include STORE with type Val.node = Node.key
-
   type node = Node.value
-  (** Node values. *)
-
   val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
-  (** Create a new commit. *)
-
   val node: t -> value -> node Lwt.t option
-  (** Get the commit node. *)
-
   val parents: t -> value -> value Lwt.t list
-  (** Get the immmediate precessors. *)
-
   val merge: t -> key Ir_merge.t
-  (** Lift [S.merge] to the store keys. *)
-
   val find_common_ancestor: t -> key -> key -> key option Lwt.t
-  (** Find the common ancestor of two commits. *)
-
   val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
-  (** Same as [find_common_ancestor] but raises [Not_found] if the two
-      commits share no common ancestor. *)
-
   val node_t: t -> Node.t
-  (** An handler to the node database. *)
-
   val rec_list: t -> key list -> key list Lwt.t
-  (** Recursive list of keys. *)
-
 end
 
 module Make_ext
@@ -92,4 +67,3 @@ module Make_ext
              and type key = S.key
              and type value = S.value
              and module Node = Ir_node.Make_ext(C)(N)
-(** Create a commit store. *)

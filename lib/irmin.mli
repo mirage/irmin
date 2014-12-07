@@ -372,10 +372,10 @@ module Conf: sig
   type 'a converter = 'a parser * 'a printer
   (** The type for configuration converters. *)
 
-  val parser : 'a converter -> 'a parser
+  val parser: 'a converter -> 'a parser
   (** [parser c] is [c]'s parser. *)
 
-  val printer : 'a converter -> 'a printer
+  val printer: 'a converter -> 'a printer
   (** [converter c] is [c]'s printer. *)
 
   (** {1:keys Keys} *)
@@ -383,7 +383,7 @@ module Conf: sig
   type 'a key
   (** The type for configuration keys whose lookup value is ['a]. *)
 
-  val key : ?docs:string -> ?docv:string -> ?doc:string ->
+  val key: ?docs:string -> ?docv:string -> ?doc:string ->
     string -> 'a converter -> 'a -> 'a key
   (** [key docs docv doc name conv default] is a configuration key named
       [name] that maps to value [v] by default. [converter] is
@@ -409,16 +409,16 @@ module Conf: sig
   val conv: 'a key -> 'a converter
   (** [tc k] is [k]'s converter. *)
 
-  val default : 'a key -> 'a
+  val default: 'a key -> 'a
   (** [default k] is [k]'s default value. *)
 
-  val doc : 'a key -> string option
+  val doc: 'a key -> string option
   (** [doc k] is [k]'s documentation string (if any). *)
 
-  val docv : 'a key -> string option
+  val docv: 'a key -> string option
   (** [docv k] is [k]'s value documentation meta-variable (if any). *)
 
-  val docs : 'a key -> string option
+  val docs: 'a key -> string option
   (** [docs k] is [k]'s documentation section (if any). *)
 
   val root: string option key
@@ -429,47 +429,47 @@ module Conf: sig
   type t = config
   (** The type for configurations. *)
 
-  val empty : t
+  val empty: t
   (** [empty] is the empty configuration. *)
 
   val singleton: 'a key -> 'a -> t
   (** [singletong k v] is the configuration where [k] maps to [v]. *)
 
-  val is_empty : t -> bool
+  val is_empty: t -> bool
   (** [is_empty c] is [true] iff [c] is empty. *)
 
-  val mem : t -> 'a key -> bool
+  val mem: t -> 'a key -> bool
   (** [mem c k] is [true] iff [k] has a mapping in [c]. *)
 
-  val add : t -> 'a key -> 'a -> t
+  val add: t -> 'a key -> 'a -> t
   (** [add c k v] is [c] with [k] mapping to [v]. *)
 
-  val rem : t -> 'a key -> t
+  val rem: t -> 'a key -> t
   (** [rem c k] is [c] with [k] unbound. *)
 
-  val find : t -> 'a key -> 'a option
+  val find: t -> 'a key -> 'a option
   (** [find c k] is [k]'s mapping in [c], if any. *)
 
-  val get : t -> 'a key -> 'a
+  val get: t -> 'a key -> 'a
   (** [get c k] is [k]'s mapping in [c].
 
       {b Raises.} [Not_found] if [k] is not bound in [d]. *)
 
   (** {1:builtin_converters Built-in value converters}  *)
 
-  val bool : bool converter
+  val bool: bool converter
   (** [bool] converts values with [bool_of_string].  *)
 
-  val int : int converter
+  val int: int converter
   (** [int] converts values with [int_of_string]. *)
 
-  val string : string converter
+  val string: string converter
   (** [string] converts values with the indentity function. *)
 
   val uri: Uri.t converter
   (** [uri] converts values with [Uri.of_string]. *)
 
-  val some : 'a converter -> 'a option converter
+  val some: 'a converter -> 'a option converter
   (** [string] converts values with the indentity function. *)
 
 end
@@ -803,6 +803,18 @@ module Private: sig
 
     end
 
+    (** FIXME *)
+    module type STORE_EXT = sig
+      include STORE
+      val merge: t -> key Merge.t
+    end
+
+    (** FIXME *)
+    module Make_ext (Contents: STORE):
+      STORE_EXT with type t = Contents.t
+                 and type key = Contents.key
+                 and type value = Contents.value
+
   end
 
   (** [Node] provides functions to describe the graph-like structured
@@ -888,6 +900,90 @@ module Private: sig
                      and type step = Path.step
     end
 
+    (** FIXME *)
+    module type STORE_EXT = sig
+      (** The node store encodes a labeled DAG where every node might hold
+          some contents. *)
+
+      type step
+      (** A step is used to pass from one node to an other. A list of
+          steps forms a path. *)
+
+      module Contents: Contents.STORE_EXT
+      (** The contents store. *)
+
+      include STORE with
+        type Path.step = step and type Val.contents = Contents.key
+
+      type contents = Contents.value
+      (** Node contents. *)
+
+      val empty: value
+      (** The empty node. *)
+
+      val node: t ->
+        ?contents:(step * contents) list ->
+        ?succ:(step * value) list ->
+        unit -> (key * value) Lwt.t
+      (** Create a new node. *)
+
+      val contents: t -> value -> step -> contents Lwt.t option
+      (** Return the node contents. *)
+
+      val succ: t -> value -> step -> value Lwt.t option
+      (** Return the node successors. *)
+
+      val all_succ: t -> value -> (step * value Lwt.t) list
+      (** FIXME *)
+
+      val sub: t -> value -> step list -> value option Lwt.t
+      (** Find a subvalue. *)
+
+      val sub_exn: t -> value -> step list -> value Lwt.t
+      (** Find a subvalue. Raise [Not_found] if it does not exist. *)
+
+      val map: t -> value -> step list -> (value -> value) -> value Lwt.t
+      (** Modify a subtree. *)
+
+      val update: t -> value -> step list -> contents -> value Lwt.t
+      (** Add a value by recusively saving subvalues into the
+          corresponding stores. *)
+
+      val find: t -> value -> step list -> contents option Lwt.t
+      (** Find a value. *)
+
+      val find_exn: t -> value -> step list -> contents Lwt.t
+      (** Find a value. Raise [Not_found] is [path] is not defined. *)
+
+      val remove: t -> value -> step list -> value Lwt.t
+      (** Remove the contents. *)
+
+      val valid: t -> value -> step list -> bool Lwt.t
+      (** Is a path valid. *)
+
+      val merge: t -> key Merge.t
+      (** Merge two nodes together. *)
+
+      val contents_t: t -> Contents.t
+      (** An handler to the contents database. *)
+
+      val rec_list: t -> key list -> key list Lwt.t
+      (** Recursive list. *)
+
+    end
+
+    (** FIXME *)
+    module Make_ext
+        (C: Contents.STORE)
+        (S: STORE with type Val.contents = C.key)
+      : STORE_EXT with type t = C.t * S.t
+                   and type key = S.key
+                   and type value = S.value
+                   and type step = S.Path.step
+                   and module Path = S.Path
+                   and module Contents = Contents.Make_ext(C)
+                   and type Contents.t = C.t
+
   end
 
   (** Commit values represent the store history.
@@ -946,6 +1042,56 @@ module Private: sig
       module Val: S with type t = value and type commit := key
 
     end
+
+    (** FIXME *)
+    module type STORE_EXT = sig
+
+      (** Store the history as a partial-order of revisions. *)
+
+      module Node: Node.STORE_EXT
+      (** Store of nodes. *)
+
+      include STORE with type Val.node = Node.key
+
+      type node = Node.value
+      (** Node values. *)
+
+      val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
+      (** Create a new commit. *)
+
+      val node: t -> value -> node Lwt.t option
+      (** Get the commit node. *)
+
+      val parents: t -> value -> value Lwt.t list
+      (** Get the immmediate precessors. *)
+
+      val merge: t -> key Merge.t
+      (** Lift [S.merge] to the store keys. *)
+
+      val find_common_ancestor: t -> key -> key -> key option Lwt.t
+      (** Find the common ancestor of two commits. *)
+
+      val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
+      (** Same as [find_common_ancestor] but raises [Not_found] if the two
+          commits share no common ancestor. *)
+
+      val node_t: t -> Node.t
+      (** An handler to the node database. *)
+
+      val rec_list: t -> key list -> key list Lwt.t
+      (** Recursive list of keys. *)
+
+    end
+
+    (** FIXME *)
+    module Make_ext
+        (C: Contents.STORE)
+        (N: Node.STORE with type Val.contents = C.key)
+        (S: STORE with type Val.node = N.key):
+      STORE_EXT with type t = C.t * N.t * S.t
+                 and type key = S.key
+                 and type value = S.value
+                 and module Node = Node.Make_ext(C)(N)
 
   end
 
@@ -1051,7 +1197,7 @@ module Private: sig
           of the remote branch with the same name, which is now in the
           local store. [None] is no such branch exists. *)
 
-      val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+      val push: t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
       (** [push t uri] pushes the contents of the local store [t] into
           the remote store located at [uri]. *)
 
