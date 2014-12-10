@@ -33,11 +33,253 @@
 val version: string
 (** The version of the library. *)
 
-(** {1 User-Defined Contents} *)
+(** {1 Preliminaries} *)
 
-(** Defining the {e contents} of the store and how {e merge} conflicts
-    between different version of the same contents should be
-    resolved. *)
+(** Serializable data with reversible human-readable
+    representations. *)
+module Hum: sig
+
+  (** {1 Human-representable values} *)
+
+  module type S = sig
+
+    include Tc.S0
+
+    val to_hum: t -> string
+    (** Display a value using its human readable representation. *)
+
+    val of_hum: string -> t
+    (** Convert an human readable representation of a value into its
+        abstract value.
+
+        @raise Invalid_argument if the string does not represent
+        anything meaningful. *)
+
+  end
+
+  type 'a t = (module S with type t = 'a)
+  (** Type for implementation of [S] for values of type ['a]. *)
+
+end
+
+(** Hashing functions.
+
+    [Hash] provides user-defined hash function to digest serialized
+    contents. Some {{!backend}backends} might be parameterize by such
+    a hash functions, other might work with a fixed one (for instance,
+    the Git format use only SHA1).
+
+    An {{!Hash.SHA1}SHA1} implementation is available to pass to the
+    backends. *)
+module Hash: sig
+
+  (** {1 Contents Hashing} *)
+
+  exception Invalid of string
+  (** Exception raised when parsing a human-readable representation of
+      a hash. *)
+
+  module type S = sig
+
+    (** Signature for unique identifiers. *)
+
+    include Hum.S
+
+    val digest: Cstruct.t -> t
+    (** Compute a deterministic store key from a cstruct value. *)
+
+    val has_kind: [> `SHA1] -> bool
+    (** The kind of generated hash. *)
+
+    val to_raw: t -> Cstruct.t
+    (** The raw hash value. *)
+
+    val of_raw: Cstruct.t -> t
+    (** Abstract an hash value. *)
+
+  end
+  (** Signature for hash values. *)
+
+  module SHA1: S
+  (** SHA1 digests *)
+
+end
+
+(** Backend configuration.
+
+    A backend configuration is a set of {{!keys}keys} mapping to
+    typed values. Backends define their own keys. *)
+module Conf: sig
+
+  (** {1 Configuration converters}
+
+      A configuration converter transforms a string value to an OCaml
+      value and vice-versa. There are a few
+      {{!builtin_converters}built-in converters}. *)
+
+  type 'a parser = string -> [ `Error of string | `Ok of 'a ]
+  (** The type for configuration converter parsers. *)
+
+  type 'a printer = Format.formatter -> 'a -> unit
+  (** The type for configuration converter printers. *)
+
+  type 'a converter = 'a parser * 'a printer
+  (** The type for configuration converters. *)
+
+  val parser: 'a converter -> 'a parser
+  (** [parser c] is [c]'s parser. *)
+
+  val printer: 'a converter -> 'a printer
+  (** [converter c] is [c]'s printer. *)
+
+  (** {1:keys Keys} *)
+
+  type 'a key
+  (** The type for configuration keys whose lookup value is ['a]. *)
+
+  val key: ?docs:string -> ?docv:string -> ?doc:string ->
+    string -> 'a converter -> 'a -> 'a key
+  (** [key docs docv doc name conv default] is a configuration key named
+      [name] that maps to value [v] by default. [converter] is
+      used to convert key values provided by end users.
+
+      [docs] is the title of a documentation section under which the
+      key is documented. [doc] is a short documentation string for the
+      key, this should be a single sentence or paragraph starting with
+      a capital letter and ending with a dot.  [docv] is a
+      meta-variable for representing the values of the key
+      (e.g. ["BOOL"] for a boolean).
+
+      @raise Invalid_argument if the key name is not made of a
+      sequence of ASCII lowercase letter, digit, dash or underscore.
+      FIXME not implemented.
+
+      {b Warning.} No two keys should share the same [name] as this
+      may lead to difficulties in the UI. *)
+
+  val name: 'a key -> string
+  (** The key name. *)
+
+  val conv: 'a key -> 'a converter
+  (** [tc k] is [k]'s converter. *)
+
+  val default: 'a key -> 'a
+  (** [default k] is [k]'s default value. *)
+
+  val doc: 'a key -> string option
+  (** [doc k] is [k]'s documentation string (if any). *)
+
+  val docv: 'a key -> string option
+  (** [docv k] is [k]'s value documentation meta-variable (if any). *)
+
+  val docs: 'a key -> string option
+  (** [docs k] is [k]'s documentation section (if any). *)
+
+  val root: string option key
+  (** Default [--root=ROOT] argument. *)
+
+  (** {1:conf Configurations} *)
+
+  type t
+  (** The type for configurations. *)
+
+  val empty: t
+  (** [empty] is the empty configuration. *)
+
+  val singleton: 'a key -> 'a -> t
+  (** [singletong k v] is the configuration where [k] maps to [v]. *)
+
+  val is_empty: t -> bool
+  (** [is_empty c] is [true] iff [c] is empty. *)
+
+  val mem: t -> 'a key -> bool
+  (** [mem c k] is [true] iff [k] has a mapping in [c]. *)
+
+  val add: t -> 'a key -> 'a -> t
+  (** [add c k v] is [c] with [k] mapping to [v]. *)
+
+  val rem: t -> 'a key -> t
+  (** [rem c k] is [c] with [k] unbound. *)
+
+  val find: t -> 'a key -> 'a option
+  (** [find c k] is [k]'s mapping in [c], if any. *)
+
+  val get: t -> 'a key -> 'a
+  (** [get c k] is [k]'s mapping in [c].
+
+      {b Raises.} [Not_found] if [k] is not bound in [d]. *)
+
+  (** {1:builtin_converters Built-in value converters}  *)
+
+  val bool: bool converter
+  (** [bool] converts values with [bool_of_string].  *)
+
+  val int: int converter
+  (** [int] converts values with [int_of_string]. *)
+
+  val string: string converter
+  (** [string] converts values with the indentity function. *)
+
+  val uri: Uri.t converter
+  (** [uri] converts values with [Uri.of_string]. *)
+
+  val some: 'a converter -> 'a option converter
+  (** [string] converts values with the indentity function. *)
+
+end
+
+(** Tasks are used to keep track of the origin of reads and writes in
+    the store. Every high-level operation is expected to have its own
+    task, which is passed to every low-level calls. *)
+module Task: sig
+
+  (** {1 Task} *)
+
+  include Tc.S0
+
+  val create: date:int64 -> owner:string -> string -> t
+  (** Create a new task. *)
+
+  val date: t -> int64
+  (** Get the task date.
+
+      The date is computed by the user user when calling the
+      {{!Task.create}create} function. When available,
+      [Unix.gettimeofday ()] is a good value for such date. On more
+      esoteric platforms, any monotonic counter is a fine value as
+      well. On the Git backend, the date will be translated into the
+      commit {e Date} field. *)
+
+  val owner: t -> string
+  (** Get the task owner.
+
+      The owner identifies the entity (human, unikernel, process,
+      thread, etc) performing an operation. For the Git backend, this
+      will be directly translated into the {e Author} field. *)
+
+  val uid: t -> int64
+  (** Get the task unique identifier.
+
+      The user does not have control over the generation of that
+      unique identifier. That identifier is useful for debugging
+      purposes, for instance to relate debug lines to the tasks which
+      cause them, and might appear in one line of the commit message
+      for the Git backend. *)
+
+  val messages: t -> string list
+  (** Get the messages associated to the task.
+
+      Text messages can be added to a task either at creation time,
+      using {{!Task.create}create}, or can be appended on already
+      created tasks using the {{!Task.fprintf}fprintf} function. For
+      the Git backend, this will be translated to the commit
+      message.  *)
+
+  val add: t -> string -> unit
+  (** Add a message to the task messages list. See
+      {{!Task.messages}messages} for more details. *)
+
+end
 
 (** [Merge] provides functions to build custom 3-way merge operators
     for various user-defined contents. *)
@@ -150,191 +392,6 @@ module Merge: sig
 
 end
 
-(** [Contents] specifies how user-defined contents need to be {e
-    serializable} and {e mergeable}.
-
-    The user need to provide:
-
-    {ul
-    {- a [to_sexp] function for debugging purposes (that might expose
-      the internal state of abstract values)}
-    {- a pair of [to_json] and [of_json] functions, to be used by the
-    REST interface.}
-    {- a triple of [size_of], [write] and [read] functions, to
-    serialize data on disk or to send it over the network.}
-    {- a 3-way [merge] function, to handle conflicts between multiple
-    versions of the same contents.}
-    }
-
-    Default contents for {{!Contents.String}string},
-    {{!Contents.Json}JSON} and {{!Contents.Cstruct}C-buffers like}
-    values are provided. *)
-module Contents: sig
-
-  module type S = sig
-
-    (** {1 Signature for store contents} *)
-
-    include Tc.S0
-    (** Base functions over contents. *)
-
-    val merge: t Merge.t
-    (** Merge function. Evaluates to [`Conflict] if the values cannot be
-        merged properly. *)
-
-  end
-
-  module String: S with type t = string
-  (** String values where only the last modified value is kept on
-      merge. If the value has been modified concurrently, the [merge]
-      function raises [Conflict]. *)
-
-  module Json: S with type t = Ezjsonm.t
-  (** JSON values where only the last modified value is kept on
-      merge. If the value has been modified concurrently, the [merge]
-      function raises [Conflict]. *)
-
-  module Cstruct: S with type t = Cstruct.t
-  (** Cstruct values where only the last modified value is kept on
-      merge. If the value has been modified concurrently, then this is a
-      conflict. *)
-
-end
-
-(** Serializable data with reversible human-readable
-    representations. *)
-module Hum: sig
-
-  (** Serializable values with inversible human-readable
-      representations. *)
-  module type S = sig
-
-    include Tc.S0
-
-    val to_hum: t -> string
-    (** Display a value using its human readable representation. *)
-
-    val of_hum: string -> t
-    (** Convert an human readable representation of a value into its
-        abstract value.
-
-        @raise Invalid_argument if the string does not represent
-        anything meaningful. *)
-
-  end
-
-  type 'a t = (module S with type t = 'a)
-  (** Type for implementation of [S] for values of type ['a]. *)
-
-end
-
-(** User-defined tags. Tags are used to specify branch names in an
-    Irmin store. *)
-module Tag: sig
-
-  (** {1 Tags} *)
-
-  (** A tag implementations specifies base functions over abstract
-      tags and define a default value for denoting the
-      {{!Tag.S.master}master} branch name. *)
-  module type S = sig
-
-    (** {1 Signature for tags implementations} *)
-
-    (** Signature for tags (i.e. branch names). *)
-
-    include Hum.S
-
-    val master: t
-    (** The name of the master branch. *)
-
-  end
-
-  module Path: S with type t = string list
-  (** [Path] is an implementation of {{!Tag.S}S} where tags are lists
-      of strings.
-
-      The [master] tag is [["master"]] and the human-representation of
-      [["x"];["y"]] is ["x/y"]. *)
-
-end
-
-(** A key in an {{!Irmin.S}stores} is a path of basic elements. We
-    call these elements {e steps}, and the following [Path] module
-    provides functions to manipulate steps and paths. *)
-module Path: sig
-
-  (** {1 Path} *)
-
-  (** Signature for path steps. *)
-  module type STEP = Hum.S
-
-  (** Signature for path implementations.*)
-  module type S = sig
-
-    (** {1 Path} *)
-
-    type step
-    (** Type type for basic steps. *)
-
-    type t = step list
-    (** The type for path values. *)
-
-    module Step: STEP with type t = step
-
-    include Hum.S with type t := t
-
-  end
-
-  module Make (S: STEP): S with type step = S.t
-  (** A list of steps, representing keys in an Irmin store. *)
-
-  module String: S with type step = string
-  (** An implementation of paths using strings as steps. *)
-
-end
-
-(** [Hash] provides user-defined hash function to digest serialized
-    contents. Some {{!backend}backends} might be parameterize by such
-    a hash functions, other might work with a fixed one (for instance,
-    the Git format use only SHA1).
-
-    An {{!Hash.SHA1}SHA1} implementation is available to pass to the
-    backends. *)
-module Hash: sig
-
-  (** {1 Contents Hashing} *)
-
-  exception Invalid of string
-  (** Exception raised when parsing a human-readable representation of
-      a hash. *)
-
-  module type S = sig
-
-    (** Signature for unique identifiers. *)
-
-    include Hum.S
-
-    val digest: Cstruct.t -> t
-    (** Compute a deterministic store key from a cstruct value. *)
-
-    val has_kind: [> `SHA1] -> bool
-    (** The kind of generated hash. *)
-
-    val to_raw: t -> Cstruct.t
-    (** The raw hash value. *)
-
-    val of_raw: Cstruct.t -> t
-    (** Abstract an hash value. *)
-
-  end
-  (** Signature for hash values. *)
-
-  module SHA1: S
-  (** SHA1 digests *)
-
-end
-
 (** {1 Stores} *)
 
 type task
@@ -351,181 +408,6 @@ type config
     and {{!RW}read-write} stores. These low-level stores are provided
     by various backends. *)
 
-(** Backend configuration.
-
-    A backend configuration is a set of {{!keys}keys} mapping to
-    typed values. Backends define their own keys. *)
-module Conf: sig
-
-  (** {1 Configuration converters}
-
-      A configuration converter transforms a string value to an OCaml
-      value and vice-versa. There are a few
-      {{!builtin_converters}built-in converters}. *)
-
-  type 'a parser = string -> [ `Error of string | `Ok of 'a ]
-  (** The type for configuration converter parsers. *)
-
-  type 'a printer = Format.formatter -> 'a -> unit
-  (** The type for configuration converter printers. *)
-
-  type 'a converter = 'a parser * 'a printer
-  (** The type for configuration converters. *)
-
-  val parser: 'a converter -> 'a parser
-  (** [parser c] is [c]'s parser. *)
-
-  val printer: 'a converter -> 'a printer
-  (** [converter c] is [c]'s printer. *)
-
-  (** {1:keys Keys} *)
-
-  type 'a key
-  (** The type for configuration keys whose lookup value is ['a]. *)
-
-  val key: ?docs:string -> ?docv:string -> ?doc:string ->
-    string -> 'a converter -> 'a -> 'a key
-  (** [key docs docv doc name conv default] is a configuration key named
-      [name] that maps to value [v] by default. [converter] is
-      used to convert key values provided by end users.
-
-      [docs] is the title of a documentation section under which the
-      key is documented. [doc] is a short documentation string for the
-      key, this should be a single sentence or paragraph starting with
-      a capital letter and ending with a dot.  [docv] is a
-      meta-variable for representing the values of the key
-      (e.g. ["BOOL"] for a boolean).
-
-      @raise Invalid_argument if the key name is not made of a
-      sequence of ASCII lowercase letter, digit, dash or underscore.
-      FIXME not implemented.
-
-      {b Warning.} No two keys should share the same [name] as this
-      may lead to difficulties in the UI. *)
-
-  val name: 'a key -> string
-  (** The key name. *)
-
-  val conv: 'a key -> 'a converter
-  (** [tc k] is [k]'s converter. *)
-
-  val default: 'a key -> 'a
-  (** [default k] is [k]'s default value. *)
-
-  val doc: 'a key -> string option
-  (** [doc k] is [k]'s documentation string (if any). *)
-
-  val docv: 'a key -> string option
-  (** [docv k] is [k]'s value documentation meta-variable (if any). *)
-
-  val docs: 'a key -> string option
-  (** [docs k] is [k]'s documentation section (if any). *)
-
-  val root: string option key
-  (** Default [--root=ROOT] argument. *)
-
-  (** {1:conf Configurations} *)
-
-  type t = config
-  (** The type for configurations. *)
-
-  val empty: t
-  (** [empty] is the empty configuration. *)
-
-  val singleton: 'a key -> 'a -> t
-  (** [singletong k v] is the configuration where [k] maps to [v]. *)
-
-  val is_empty: t -> bool
-  (** [is_empty c] is [true] iff [c] is empty. *)
-
-  val mem: t -> 'a key -> bool
-  (** [mem c k] is [true] iff [k] has a mapping in [c]. *)
-
-  val add: t -> 'a key -> 'a -> t
-  (** [add c k v] is [c] with [k] mapping to [v]. *)
-
-  val rem: t -> 'a key -> t
-  (** [rem c k] is [c] with [k] unbound. *)
-
-  val find: t -> 'a key -> 'a option
-  (** [find c k] is [k]'s mapping in [c], if any. *)
-
-  val get: t -> 'a key -> 'a
-  (** [get c k] is [k]'s mapping in [c].
-
-      {b Raises.} [Not_found] if [k] is not bound in [d]. *)
-
-  (** {1:builtin_converters Built-in value converters}  *)
-
-  val bool: bool converter
-  (** [bool] converts values with [bool_of_string].  *)
-
-  val int: int converter
-  (** [int] converts values with [int_of_string]. *)
-
-  val string: string converter
-  (** [string] converts values with the indentity function. *)
-
-  val uri: Uri.t converter
-  (** [uri] converts values with [Uri.of_string]. *)
-
-  val some: 'a converter -> 'a option converter
-  (** [string] converts values with the indentity function. *)
-
-end
-
-(** Tasks are used to keep track of the origin of reads and writes in
-    the store. Every high-level operation is expected to have its own
-    task, which is passed to every low-level calls. *)
-module Task: sig
-
-  (** {1 Task} *)
-
-  include Tc.S0 with type t = task
-
-  val create: date:int64 -> owner:string -> string -> t
-  (** Create a new task. *)
-
-  val date: t -> int64
-  (** Get the task date.
-
-      The date is computed by the user user when calling the
-      {{!Task.create}create} function. When available,
-      [Unix.gettimeofday ()] is a good value for such date. On more
-      esoteric platforms, any monotonic counter is a fine value as
-      well. On the Git backend, the date will be translated into the
-      commit {e Date} field. *)
-
-  val owner: t -> string
-  (** Get the task owner.
-
-      The owner identifies the entity (human, unikernel, process,
-      thread, etc) performing an operation. For the Git backend, this
-      will be directly translated into the {e Author} field. *)
-
-  val uid: t -> int64
-  (** Get the task unique identifier.
-
-      The user does not have control over the generation of that
-      unique identifier. That identifier is useful for debugging
-      purposes, for instance to relate debug lines to the tasks which
-      cause them, and might appear in one line of the commit message
-      for the Git backend. *)
-
-  val messages: t -> string list
-  (** Get the messages associated to the task.
-
-      Text messages can be added to a task either at creation time,
-      using {{!Task.create}create}, or can be appended on already
-      created tasks using the {{!Task.fprintf}fprintf} function. For
-      the Git backend, this will be translated to the commit
-      message.  *)
-
-  val add: t -> string -> unit
-  (** Add a message to the task messages list. See
-      {{!Task.messages}messages} for more details. *)
-
-end
 
 (** Read-only stores. *)
 module type RO = sig
@@ -765,361 +647,469 @@ module type BC = sig
 
 end
 
-(** [Private] defines functions only useful for creating new
-    backends. If you are just using the library (and not developing a
-    new backend), you should not use this module. *)
-module Private: sig
+(** {1 User-Defined Contents} *)
 
-  (** API to create new Irmin backends.
 
-      There are two ways to create a concrete {!Irmin.S} implementation.
+(** [Contents] specifies how user-defined contents need to be {e
+    serializable} and {e mergeable}.
 
-      {!Make} creates a store where all the objects are stored in the
-      same store, using the same internal keys format and a custom
-      binary format based on
-      {{:https://github.com/janestreet/bin_prot}bin_prot}, with no
-      native synchronization primitives: it is usually what is needed
-      to quickly create a new backend.
+    The user need to provide:
 
-      {!Make_ext} creates a store with a {e deep} embedding of each of
-      the internal stores into separate store, with a total control over
-      the binary format and using the native synchronization protocols
-      when available. This is mainly used by the Git backend, but could
-      be used for other similar backends as well in the future.
+    {ul
+    {- a [to_sexp] function for debugging purposes (that might expose
+      the internal state of abstract values)}
+    {- a pair of [to_json] and [of_json] functions, to be used by the
+    REST interface.}
+    {- a triple of [size_of], [write] and [read] functions, to
+    serialize data on disk or to send it over the network.}
+    {- a 3-way [merge] function, to handle conflicts between multiple
+    versions of the same contents.}
+    }
 
-  *)
+    Default contents for {{!Contents.String}string},
+    {{!Contents.Json}JSON} and {{!Contents.Cstruct}C-buffers like}
+    values are provided. *)
+module Contents: sig
 
-  module Contents: sig
+  module type S = sig
 
-    module type STORE = sig
+    (** {1 Signature for store contents} *)
+
+    include Tc.S0
+    (** Base functions over contents. *)
+
+    val merge: t Merge.t
+    (** Merge function. Evaluates to [`Conflict] if the values cannot be
+        merged properly. *)
+
+  end
+
+  module String: S with type t = string
+  (** String values where only the last modified value is kept on
+      merge. If the value has been modified concurrently, the [merge]
+      function raises [Conflict]. *)
+
+  module Json: S with type t = Ezjsonm.t
+  (** JSON values where only the last modified value is kept on
+      merge. If the value has been modified concurrently, the [merge]
+      function raises [Conflict]. *)
+
+  module Cstruct: S with type t = Cstruct.t
+  (** Cstruct values where only the last modified value is kept on
+      merge. If the value has been modified concurrently, then this is a
+      conflict. *)
+
+  (** Contents store. *)
+  module type STORE = sig
 
       include AO
+
+      val merge: t -> key Merge.t
+      (** [merge t] lifts the merge functions defined over contents
+          values to contents key. The merge functio will: {e (i)} read
+          the values associated with the given keys, {e (ii)} use the
+          merge function defined over values and {e (iii)} write the
+          resulting values into the store to get the resulting key.
+
+          If any of these operation fails, return [`Conflict]. *)
 
       module Key: Hash.S with type t = key
       (** [Key] provides base functions for user-defined contents keys. *)
 
-      module Val: Contents.S with type t = value
+      module Val: S with type t = value
       (** [Val] provides base function for user-defined contents values. *)
 
     end
 
-    (** FIXME *)
-    module type STORE_EXT = sig
-      include STORE
-      val merge: t -> key Merge.t
-    end
+  (** [Make] builds a contents store. *)
+  module Make
+      (S: AO)(K: Hash.S with type t = S.key) (V: S with type t = S.value):
+    STORE with type t = S.t and type key = S.key and type value = S.value
 
-    (** FIXME *)
-    module Make_ext (Contents: STORE):
-      STORE_EXT with type t = Contents.t
-                 and type key = Contents.key
-                 and type value = Contents.value
+end
 
-  end
+(** User-defined tags. Tags are used to specify branch names in an
+    Irmin store. *)
+module Tag: sig
 
-  (** [Node] provides functions to describe the graph-like structured
-      values.
+  (** {1 Tags} *)
 
-      The node blocks form a labeled directed acyclic graph, labeled
-      by {{!Path.S.step}steps}: a list of steps defines a
-      unique path from one node to an other.
+  (** A tag implementations specifies base functions over abstract
+      tags and define a default value for denoting the
+      {{!Tag.S.master}master} branch name. *)
+  module type S = sig
 
-      Every node can contain some optional key, corresponding to
-      user-defined {{!Contents.S}contents} values. *)
-  module Node: sig
+    (** {1 Signature for tags implementations} *)
 
-    module type S = sig
+    (** Signature for tags (i.e. branch names). *)
 
-      (** {1 Node values} *)
+    include Hum.S
 
-      include Tc.S0
-
-      type contents
-      (** The type for contents keys. *)
-
-      type node
-      (** The type for node keys. *)
-
-      type step
-      (** The type for steps between nodes. *)
-
-      val contents: t -> step -> contents option
-      (** [contents t s] are the (optional) keys of the node contents
-          for the step [s]. *)
-
-      val all_contents: t -> (step * contents) list
-      (** List all the contents (slow). *)
-
-      val with_contents: t -> step -> contents option -> t
-      (** Replace the contents. *)
-
-      val succ: t -> step -> node option
-      (** Extract the successors of a node. *)
-
-      val all_succ: t -> (step * node) list
-      (** List all the nodes (slow). *)
-
-      val with_succ: t -> step -> node option -> t
-      (** Replace the successors. *)
-
-      val steps: t -> step list
-      (** The list of available steps to visit a successor. *)
-
-      val edges: t -> [> `Contents of contents | `Node of node] list
-      (** Return the list of successor vertices. *)
-
-      val empty: t
-      (** The empty node. *)
-
-      val create: contents:(step * contents) list -> succ:(step * node) list -> t
-      (** [create contents succ] is the node with contents [contents]
-          and successors [succs]. *)
-
-      val is_empty: t -> bool
-      (** Is the node empty. *)
-    end
-
-    module Make (C: Tc.S0) (N: Tc.S0) (P: Path.S):
-      S with type contents = C.t
-         and type node = N.t
-         and type step = P.step
-
-    module type STORE = sig
-
-      include AO
-
-      module Path: Path.S
-      (** [Step] provides base functions over node steps. *)
-
-      module Key: Hash.S with type t = key
-      (** [Key] provides base functions for node keys. *)
-
-      (** [Val] provides base functions for node values. *)
-      module Val: S with type t = value
-                     and type node = key
-                     and type step = Path.step
-    end
-
-    (** FIXME *)
-    module type STORE_EXT = sig
-      (** The node store encodes a labeled DAG where every node might hold
-          some contents. *)
-
-      type step
-      (** A step is used to pass from one node to an other. A list of
-          steps forms a path. *)
-
-      module Contents: Contents.STORE_EXT
-      (** The contents store. *)
-
-      include STORE with
-        type Path.step = step and type Val.contents = Contents.key
-
-      type contents = Contents.value
-      (** Node contents. *)
-
-      val empty: value
-      (** The empty node. *)
-
-      val node: t ->
-        ?contents:(step * contents) list ->
-        ?succ:(step * value) list ->
-        unit -> (key * value) Lwt.t
-      (** Create a new node. *)
-
-      val contents: t -> value -> step -> contents Lwt.t option
-      (** Return the node contents. *)
-
-      val succ: t -> value -> step -> value Lwt.t option
-      (** Return the node successors. *)
-
-      val all_succ: t -> value -> (step * value Lwt.t) list
-      (** FIXME *)
-
-      val sub: t -> value -> step list -> value option Lwt.t
-      (** Find a subvalue. *)
-
-      val sub_exn: t -> value -> step list -> value Lwt.t
-      (** Find a subvalue. Raise [Not_found] if it does not exist. *)
-
-      val map: t -> value -> step list -> (value -> value) -> value Lwt.t
-      (** Modify a subtree. *)
-
-      val update: t -> value -> step list -> contents -> value Lwt.t
-      (** Add a value by recusively saving subvalues into the
-          corresponding stores. *)
-
-      val find: t -> value -> step list -> contents option Lwt.t
-      (** Find a value. *)
-
-      val find_exn: t -> value -> step list -> contents Lwt.t
-      (** Find a value. Raise [Not_found] is [path] is not defined. *)
-
-      val remove: t -> value -> step list -> value Lwt.t
-      (** Remove the contents. *)
-
-      val valid: t -> value -> step list -> bool Lwt.t
-      (** Is a path valid. *)
-
-      val merge: t -> key Merge.t
-      (** Merge two nodes together. *)
-
-      val contents_t: t -> Contents.t
-      (** An handler to the contents database. *)
-
-      val rec_list: t -> key list -> key list Lwt.t
-      (** Recursive list. *)
-
-    end
-
-    (** FIXME *)
-    module Make_ext
-        (C: Contents.STORE)
-        (S: STORE with type Val.contents = C.key)
-      : STORE_EXT with type t = C.t * S.t
-                   and type key = S.key
-                   and type value = S.value
-                   and type step = S.Path.step
-                   and module Path = S.Path
-                   and module Contents = Contents.Make_ext(C)
-                   and type Contents.t = C.t
+    val master: t
+    (** The name of the master branch. *)
 
   end
 
-  (** Commit values represent the store history.
+  module String_list: S with type t = string list
+  (** [String_list] is an implementation of {{!Tag.S}S} where tags are
+      lists of strings.
 
-      Every commit contains a list of predecessor commits, and the
-      collection of commits form an acyclic directed graph.
+      The [master] tag is [["master"]] and the human-representation of
+      [["x"];["y"]] is ["x/y"]. *)
 
-      Every commit also can contain an optional key, pointing to a
-      {{!Private.Commit.STORE}node} value. See the
-      {{!Private.Node.STORE}Node} signature for more details on node
-      values. *)
-  module Commit: sig
+  (** [STORE] specifies the signature of tag stores.
 
-    module type S = sig
-
-      (** {1 Commit values} *)
-
-      include Tc.S0
-      (** Base functions over commit values. *)
-
-      type commit
-      (** Type for commit keys. *)
-
-      type node
-      (** Type for node keys. *)
-
-      val create: task -> ?node:node -> parents:commit list -> t
-      (** Create a commit. *)
-
-      val node: t -> node option
-      (** The underlying node. *)
-
-      val parents: t -> commit list
-      (** The commit parents. *)
-
-      val task: t -> task
-      (** The commit provenance. *)
-
-      val edges: t -> [> `Node of node | `Commit of commit] list
-      (** The graph edges. *)
-
-    end
-
-    module Make (C: Tc.S0) (N: Tc.S0):
-      S with type commit := C.t
-         and type node = N.t
-
-    module type STORE = sig
-
-      include AO
-
-      module Key: Hash.S with type t = key
-      (** [Key] provides base functions for commit keys. *)
-
-      (** [Val] provides function for commit values. *)
-      module Val: S with type t = value and type commit := key
-
-    end
-
-    (** FIXME *)
-    module type STORE_EXT = sig
-
-      (** Store the history as a partial-order of revisions. *)
-
-      module Node: Node.STORE_EXT
-      (** Store of nodes. *)
-
-      include STORE with type Val.node = Node.key
-
-      type node = Node.value
-      (** Node values. *)
-
-      val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
-      (** Create a new commit. *)
-
-      val node: t -> value -> node Lwt.t option
-      (** Get the commit node. *)
-
-      val parents: t -> value -> value Lwt.t list
-      (** Get the immmediate precessors. *)
-
-      val merge: t -> key Merge.t
-      (** Lift [S.merge] to the store keys. *)
-
-      val find_common_ancestor: t -> key -> key -> key option Lwt.t
-      (** Find the common ancestor of two commits. *)
-
-      val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
-      (** Same as [find_common_ancestor] but raises [Not_found] if the two
-          commits share no common ancestor. *)
-
-      val node_t: t -> Node.t
-      (** An handler to the node database. *)
-
-      val rec_list: t -> key list -> key list Lwt.t
-      (** Recursive list of keys. *)
-
-    end
-
-    (** FIXME *)
-    module Make_ext
-        (C: Contents.STORE)
-        (N: Node.STORE with type Val.contents = C.key)
-        (S: STORE with type Val.node = N.key):
-      STORE_EXT with type t = C.t * N.t * S.t
-                 and type key = S.key
-                 and type value = S.value
-                 and module Node = Node.Make_ext(C)(N)
-
-  end
-
-  (** Tags defines branch names.
-
-      A *tag store* is a key / value store, where keys are names
+      A {i tag store} is a key / value store, where keys are names
       created by users (and/or global names created by convention) and
       values are keys from the block store.
 
       A typical Irmin application should have a very low number of
       keys in the tag store. *)
-  module Tag: sig
+  module type STORE = sig
 
-    module type STORE = sig
+    (** {1 Tag Store} *)
 
-      (** {1 The tag store} *)
+    include RW
 
-      include RW
+    module Key: S with type t = key
+    (** Base functions over keys. *)
 
-      module Key: Tag.S with type t = key
-      (** Base functions over keys. *)
-
-      module Val: Hash.S with type t = value
-      (** Base functions over values. *)
-
-    end
+    module Val: Hash.S with type t = value
+    (** Base functions over values. *)
 
   end
+
+end
+
+(** A key in an {{!Irmin.S}stores} is a path of basic elements. We
+    call these elements {e steps}, and the following [Path] module
+    provides functions to manipulate steps and paths. *)
+module Path: sig
+
+  (** {1 Path} *)
+
+  (** Signature for path steps. *)
+  module type STEP = Hum.S
+
+  (** Signature for path implementations.*)
+  module type S = sig
+
+    (** {1 Path} *)
+
+    type step
+    (** Type type for basic steps. *)
+
+    type t = step list
+    (** The type for path values. *)
+
+    module Step: STEP with type t = step
+
+    include Hum.S with type t := t
+
+  end
+
+  module Make (S: STEP): S with type step = S.t
+  (** A list of steps, representing keys in an Irmin store. *)
+
+  module String: S with type step = string
+  (** An implementation of paths using strings as steps. *)
+
+end
+
+(** [Node] provides functions to describe the graph-like structured
+    values.
+
+    The node blocks form a labeled directed acyclic graph, labeled
+    by {{!Path.S.step}steps}: a list of steps defines a
+    unique path from one node to an other.
+
+    Each node can point to user-defined {{!Contents.S}contents}
+    values. *)
+module Node: sig
+
+  module type S = sig
+
+    (** {1 Node values} *)
+
+    include Tc.S0
+
+    type contents
+    (** The type for contents keys. *)
+
+    type node
+    (** The type for node keys. *)
+
+    type step
+    (** The type for steps between nodes. *)
+
+    val create: contents:(step * contents) list -> succ:(step * node) list -> t
+    (** Create a new node. *)
+
+    val empty: t
+    (** The empty node. *)
+
+    val is_empty: t -> bool
+    (** Is the node empty. *)
+
+    val contents: t -> step -> contents option
+    (** Get the node contents.
+
+        A node can point to user-defined
+        {{!Node.S.contents}contents}. The edge between the node and
+        that contents is labeled by a {{!Node.S.step}step}. *)
+
+    val iter_contents: t -> (step -> contents -> unit) -> unit
+    (** Iter over all the contents. Use {{!Node.S.contents}contents} when
+        you know the step in advance. *)
+
+    val with_contents: t -> step -> contents option -> t
+    (** Replace the contents. *)
+
+    val succ: t -> step -> node option
+    (** Extract the successors of a node. *)
+
+    val iter_succ: t -> (step -> node -> unit) -> unit
+    (** Iter over all the successors. FIXME *)
+
+    val with_succ: t -> step -> node option -> t
+    (** Replace the successors. *)
+
+  end
+
+  (** [Node] provides a simple node implementation, parametrized over
+      contents [C], node [N] and paths [P]. *)
+  module Make (C: Tc.S0) (N: Tc.S0) (P: Path.S):
+    S with type contents = C.t
+       and type node = N.t
+       and type step = P.step
+
+  (** [STORE] specifies the signature for node stores. *)
+  module type STORE = sig
+
+    include AO
+
+    module Path: Path.S
+    (** [Step] provides base functions over node steps. *)
+
+    module Key: Hash.S with type t = key
+    (** [Key] provides base functions for node keys. *)
+
+    (** [Val] provides base functions for node values. *)
+    module Val: S with type t = value
+                   and type node = key
+                   and type step = Path.step
+  end
+
+  (** [Graph] specifies the signature for node graphs. A node graph
+      is a DAG labelled by steps. *)
+  module type GRAPH = sig
+
+    (** {1 Node Graphs} *)
+
+    type t
+    (** The type for store handles. *)
+
+    type contents
+    (** The type of user-defined contents. *)
+
+    type node
+    (** The type for node values. *)
+
+    type step
+    (** The type of steps. A step is used to pass from one node to an
+        other. A list of steps forms a path. *)
+
+    val empty: t -> node Lwt.t
+    (** The empty node. *)
+
+    val node: t ->
+      contents:(step * contents) list -> succ:(step * node) list -> node Lwt.t
+    (** [create t contents succ] Create a new node pointing to
+        [contents] and [succ], and using the store handle [t]. *)
+
+    val contents: t -> node -> step -> contents option Lwt.t
+    (** [contents t n s] is the contents pointed by [s] in the node [n]. *)
+
+    val succ: t -> node -> step -> node option Lwt.t
+    (** [succ t n s] is the node pointed by [s] in the node [n]. *)
+
+    val steps: t -> node -> step list Lwt.t
+    (** FIXME *)
+
+    (** {1 Contents} *)
+
+    val mem_contents: t -> node -> step list -> bool Lwt.t
+    (** FIXME: Is a path valid. *)
+
+    val read_contents: t -> node -> step list -> contents option Lwt.t
+    (** FIXME: Find a value. *)
+
+    val read_contents_exn: t -> node -> step list -> contents Lwt.t
+    (** FIXME: Find a value. Raise [Not_found] is [path] is not defined. *)
+
+    val add_contents: t -> node -> step list -> contents -> node Lwt.t
+    (** FIXME: Add a value by recusively saving subvalues into the
+        corresponding stores. *)
+
+    val remove_contents: t -> node -> step list -> node Lwt.t
+    (** FIXME: Remove the contents. *)
+
+    (** {1 Nodes} *)
+
+    val mem_node: t -> node -> step list -> bool Lwt.t
+    (** FIXME: Is a path valid. *)
+
+    val read_node: t -> node -> step list -> node option Lwt.t
+    (** [read_node t n p] is the node reached following the path [p]
+        from the node [n]. If [p] is not a valid path, return
+        [None]. *)
+
+    val read_node_exn: t -> node -> step list -> node Lwt.t
+    (** Same as {{!Node.GRAPH.read_node}read_node} but raise
+        [Not_found] if the path is invalid. *)
+
+    val add_node: t -> node -> step list -> node -> node Lwt.t
+    (** FIXME: Add a value by recusively saving subvalues into the
+        corresponding stores. *)
+
+    val remove_node: t -> node -> step list -> node Lwt.t
+    (** FIXME: Remove the contents. *)
+
+    val merge: t -> node Merge.t
+    (** FIXME: Merge two nodes together. *)
+
+    val closure: t -> min:node list -> max:node list -> node list Lwt.t
+    (** FIXME: Recursive list. *)
+
+    module Store: Contents.STORE with type t = t and type key = node
+    (** FIXME *)
+
+  end
+
+  module Graph (C: Contents.STORE) (S: STORE with type Val.contents = C.key)
+    : GRAPH with type t = C.t * S.t
+             and type contents = C.key
+             and type node = S.key
+             and type step = S.Val.step
+
+end
+
+(** Commit values represent the store history.
+
+    Every commit contains a list of predecessor commits, and the
+    collection of commits form an acyclic directed graph.
+
+    Every commit also can contain an optional key, pointing to a
+    {{!Private.Commit.STORE}node} value. See the
+    {{!Private.Node.STORE}Node} signature for more details on node
+    values. *)
+module Commit: sig
+
+  module type S = sig
+
+    (** {1 Commit values} *)
+
+    include Tc.S0
+    (** Base functions over commit values. *)
+
+    type commit
+    (** Type for commit keys. *)
+
+    type node
+    (** Type for node keys. *)
+
+    val create: task -> ?node:node -> parents:commit list -> t
+    (** Create a commit. *)
+
+    val node: t -> node option
+    (** The underlying node. *)
+
+    val parents: t -> commit list
+    (** The commit parents. *)
+
+    val task: t -> task
+    (** The commit provenance. *)
+
+  end
+
+  (** [Make] provides a simple implementation of commit values,
+      parametrized over commit [C] and node [N]. *)
+  module Make (C: Tc.S0) (N: Tc.S0):
+    S with type commit := C.t and type node = N.t
+
+  (** [STORE] specifies the signature for commit stores. *)
+  module type STORE = sig
+
+    (** {1 Commit Store} *)
+
+    include AO
+
+    module Key: Hash.S with type t = key
+    (** [Key] provides base functions for commit keys. *)
+
+    (** [Val] provides function for commit values. *)
+    module Val: S with type t = value and type commit := key
+
+  end
+
+  (** [History] specifies the signature for commit history. The
+      history is represented as a partial-order of commits and basic
+      functions to search through that history are provided.
+
+      Every commit can point to an entry point in a node graph, where
+      user-defined contents are stored. *)
+  module type HISTORY = sig
+
+    (** {1 Commit History} *)
+
+    type t
+    (** The type for store handles. *)
+
+    type node
+    (** The type for node values. *)
+
+    type commit
+    (** The type for commit values. *)
+
+    val commit: t -> ?node:node -> parents:commit list -> commit Lwt.t
+    (** Create a new commit. *)
+
+    val node: t -> commit -> node option Lwt.t
+    (** Get the commit node. FIXME *)
+
+    val parents: t -> commit -> commit list Lwt.t
+    (** Get the node parents. FIXME *)
+
+    val merge: t -> commit Merge.t
+    (** Lift [S.merge] to the store keys. *)
+
+    val find_common_ancestor: t -> commit -> commit -> commit option Lwt.t
+    (** FIXME Find the common ancestor of two commits. *)
+
+    val find_common_ancestor_exn: t -> commit -> commit -> commit Lwt.t
+    (** Same as [find_common_ancestor] but raises [Not_found] if the two
+        commits share no common ancestor. *)
+
+    val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
+    (** FIXME Recursive list of keys. *)
+
+    module Store: Contents.STORE with type t = t and type key = commit
+    (** FIXME *)
+
+  end
+
+  (** [History] builds a commit history. FIXME *)
+  module History (N: Contents.STORE) (S: STORE with type Val.node = N.key):
+    HISTORY with type t = N.t * S.t
+             and type node = N.key
+             and type commit = S.key
+
+end
+
+(** [Private] defines functions only useful for creating new
+    backends. If you are just using the library (and not developing a
+    new backend), you should not use this module. *)
+module Private: sig
 
   (** The signature for slices. *)
   module Slice: sig
@@ -1296,12 +1286,12 @@ module type S = sig
        and type Tag.key = tag
        and type Slice.t = slice
     val contents_t: t -> Contents.t
-    val node_t: t -> Contents.t * Node.t
-    val commit_t: t -> Contents.t * Node.t * Commit.t
+    val node_t: t -> Node.t
+    val commit_t: t -> Commit.t
     val tag_t: t -> Tag.t
-    val read_node: t -> Node.Path.t -> Node.value option Lwt.t
-    val mem_node: t -> Node.Path.t -> bool Lwt.t
-    val update_node: t -> Node.Path.t -> Node.value -> unit Lwt.t
+    val read_node: t -> key -> Node.key option Lwt.t
+    val mem_node: t -> key -> bool Lwt.t
+    val update_node: t -> key -> Node.key -> unit Lwt.t
   end
 
 end
@@ -1485,9 +1475,25 @@ end
 
 (** {1:backend Backends} *)
 
-(** A backend is an implementation exposing either a concrete
-    implementation of {!S} or a functor providing {!S} once
-    applied. *)
+(** API to create new Irmin backends. A backend is an implementation
+    exposing either a concrete implementation of {!S} or a functor
+    providing {!S} once applied.
+
+    There are two ways to create a concrete {!Irmin.S} implementation:
+
+    {ul
+    {- {!Make} creates a store where all the objects are stored in the
+    same store, using the same internal keys format and a custom binary
+    format based on {{:https://github.com/janestreet/bin_prot}bin_prot},
+    with no native synchronization primitives: it is usually what is
+    needed to quickly create a new backend.}
+    {-{!Make_ext} creates a store with a {e deep} embedding of each of
+    the internal stores into separate store, with a total control over
+    the binary format and using the native synchronization protocols
+    when available. This is mainly used by the Git backend, but could
+    be used for other similar backends as well in the future.}
+    }
+*)
 
 (** [AO_MAKER] is the signature exposed by any backend providing
     append-only stores. [K] is the implementation of keys and [V] is
@@ -1532,8 +1538,8 @@ module Make_ext (P: Private.S): S
    and type tag = P.Tag.key
    and type head = P.Tag.value
 
-  (** [Watch] provides helpers to register event notifications on
-      read-write stores. *)
+(** [Watch] provides helpers to register event notifications on
+    read-write stores. *)
 module Watch: sig
 
   (** {1 Watch Helpers} *)

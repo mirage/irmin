@@ -21,7 +21,7 @@ module type S = sig
   val master: t
 end
 
-module Path: S with type t = string list
+module String_list: S with type t = string list
 
 module type STORE = sig
   include Ir_rw.STORE

@@ -21,7 +21,7 @@ module type S = sig
   val master: t
 end
 
-module Path = struct
+module String_list = struct
   include Tc.List(Tc.String)
   let master = ["master"]
   let to_hum t = String.concat "/" t

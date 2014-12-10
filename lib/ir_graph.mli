@@ -39,10 +39,10 @@ module type S = sig
 
   val closure:
     ?depth:int
-    -> ?min:vertex list
     -> pred:(vertex -> vertex list Lwt.t)
-    -> vertex list
-    -> t Lwt.t
+    -> min:vertex list
+    -> max:vertex list
+    -> unit -> t Lwt.t
   (** [closure min max pred] creates the clansitive closure of [max]
       using the precedence relation [pred]. The closure will not
       contain any keys before the the one specified in [min]. *)

@@ -28,7 +28,6 @@ module type S = sig
   val node: t -> node option
   val parents: t -> commit list
   val task: t -> Ir_task.t
-  val edges: t -> [> `Node of node | `Commit of commit] list
 end
 
 module Make (C: Tc.S0) (N: Tc.S0) = struct
@@ -69,13 +68,6 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
     let task    = Ezjsonm.find j ["task"]    |> T.of_json in
     { node; parents; task }
 
-  let edges t =
-    begin match t.node with
-      | None   -> []
-      | Some k -> [`Node k]
-    end
-    @ List.map (fun k -> `Commit k) t.parents
-
   module X = Tc.Triple(Tc.Option(N))(Tc.List(C))(T)
 
   let explode t = t.node, t.parents, t.task
@@ -104,94 +96,100 @@ module type STORE = sig
 
 end
 
-module type STORE_EXT = sig
-  module Node: Ir_node.STORE_EXT
-  include STORE with type Val.node = Node.key
-  type node = Node.value
-  val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
-  val node: t -> value -> node Lwt.t option
-  val parents: t -> value -> value Lwt.t list
-  val merge: t -> key Ir_merge.t
-  val find_common_ancestor: t -> key -> key -> key option Lwt.t
-  val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
-  val node_t: t -> Node.t
-  val rec_list: t -> key list -> key list Lwt.t
+module type HISTORY = sig
+  type t
+  type node
+  type commit
+  val commit: t -> ?node:node -> parents:commit list -> commit Lwt.t
+  val node: t -> commit -> node option Lwt.t
+  val parents: t -> commit -> commit list Lwt.t
+  val merge: t -> commit Ir_merge.t
+  val find_common_ancestor: t -> commit -> commit -> commit option Lwt.t
+  val find_common_ancestor_exn: t -> commit -> commit -> commit Lwt.t
+  val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
+  module Store: Ir_contents.STORE with type t = t and type key = commit
 end
 
-module Make_ext
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE with type Val.contents = C.key)
-    (S: STORE with type Val.node = N.key) =
+module History (N: Ir_contents.STORE) (S: STORE with type Val.node = N.key) =
 struct
 
-  module Val = S.Val
-  module Key = S.Key
+  type commit = S.key
+  type node = N.key
 
-  type key = Key.t
-  type value = Val.t
-  type t = C.t * N.t * S.t
-  type node = N.value
+  module Store = struct
 
-  module Node = Ir_node.Make_ext(C)(N)
+    type t = N.t * S.t
+    type key = S.key
+    type value = S.value
 
-  let node_t: t -> Node.t = function (c, n, _) -> (c, n)
+    let create config task =
+      N.create config task >>= fun n ->
+      S.create config task >>= fun s ->
+      return (fun a -> (n a, s a))
 
-  let create config task =
-    C.create config task >>= fun c ->
-    N.create config task >>= fun n ->
-    S.create config task >>= fun s ->
-    return (fun a -> c a, n a, s a)
+    let task (_, t) = S.task t
+    let config (_, t) = S.config t
+    let add (_, t) = S.add t
+    let mem (_, t) = S.mem t
+    let read (_, t) = S.read t
+    let read_exn (_, t) = S.read_exn t
+    let dump (_, t) = S.dump t
+    let list (_, t) = S.list t
 
-  let task (_, _, t) =
-    S.task t
+    let merge_node (n, _) =
+      Ir_merge.some (module N.Key) (N.merge n)
 
-  let config (_, _, t) =
-    S.config t
+    let merge t ~old k1 k2 =
+      read_exn t old >>= fun vold ->
+      read_exn t k1  >>= fun v1   ->
+      read_exn t k2  >>= fun v2   ->
+      merge_node t ~old:(S.Val.node vold) (S.Val.node v1) (S.Val.node v2) >>|
+      fun node ->
+      let parents = [k1; k2] in
+      let commit = S.Val.create ?node ~parents (task t) in
+      add t commit >>= fun key ->
+      ok key
 
-  let add (_, _, t) c =
-    S.add t c
-
-  let read (_, _, t) c =
-    S.read t c
-
-  let read_exn (_, _, t) c =
-    S.read_exn t c
-
-  let mem (_, _, t) c =
-    S.mem t c
-
-  let node (_, t, _) c =
-    match Val.node c with
-    | None   -> None
-    | Some k -> Some (N.read_exn t k)
-
-  let commit (_, n, t) ?node ~parents =
-    begin match node with
-      | None      -> return_none
-      | Some node -> N.add n node >>= fun k -> return (Some k)
+    module Key = S.Key
+    module Val = struct
+      include S.Val
+      let merge ~old:_ _ _ = fail (Failure "Commit.History.Store.Val")
     end
-    >>= fun node ->
-    Lwt_list.map_p (S.add t) parents
-    >>= fun parents ->
-    let commit = Val.create ?node ~parents (S.task t) in
+  end
+
+  type t = Store.t
+  let merge = Store.merge
+
+  let node t c =
+    Store.read t c >>= function
+    | None   -> return_none
+    | Some n -> return (S.Val.node n)
+
+  let commit (_, t) ?node ~parents =
+    let commit = S.Val.create ?node ~parents (S.task t) in
     S.add t commit >>= fun key ->
-    return (key, commit)
+    return key
 
   let parents t c =
-    List.map (read_exn t) (Val.parents c)
+    Store.read t c >>= function
+    | None   -> return_nil
+    | Some c -> return (S.Val.parents c)
 
-  module Graph = Ir_graph.Make(C.Key)(N.Key)(Key)(Tc.Unit)
+  module Graph = Ir_graph.Make(Tc.Unit)(N.Key)(S.Key)(Tc.Unit)
 
-  let list t k =
-    read_exn t k >>= fun c ->
-    return (Val.parents c)
+  let edges t =
+    (match S.Val.node t with
+      | None   -> []
+      | Some k -> [`Node k])
+    @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
-  let rec_list t keys =
+  let closure t ~min ~max =
     let pred = function
-      | `Commit k -> read_exn t k >>= fun r -> return (Val.edges r)
+      | `Commit k -> Store.read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
-    let max = List.map (fun k -> `Commit k) keys in
-    Graph.closure max ~pred >>= fun g ->
+    let min = List.map (fun k -> `Commit k) min in
+    let max = List.map (fun k -> `Commit k) max in
+    Graph.closure ~pred ~min ~max () >>= fun g ->
     let keys =
       Ir_misc.list_filter_map
         (function `Commit k -> Some k | _ -> None)
@@ -199,24 +197,7 @@ struct
     in
     return keys
 
-  let dump (_, _, t) =
-    S.dump t
-
-  let merge_node t =
-    Ir_merge.some (module N.Key) (Node.merge (node_t t))
-
-  let merge t ~old k1 k2 =
-    read_exn t old >>= fun vold ->
-    read_exn t k1  >>= fun v1   ->
-    read_exn t k2  >>= fun v2   ->
-    merge_node t ~old:(Val.node vold) (Val.node v1) (Val.node v2) >>|
-    fun node ->
-    let parents = [k1; k2] in
-    let commit = Val.create ?node ~parents (task t) in
-    add t commit >>= fun key ->
-    ok key
-
-  module KSet = Ir_misc.Set(Key)
+  module KSet = Ir_misc.Set(S.Key)
 
   let find_common_ancestor t c1 c2 =
     let rec aux (seen1, todo1) (seen2, todo2) =
@@ -230,8 +211,8 @@ struct
           (* Compute the immediate parents *)
           let parents todo =
             let parents_of_commit seen c =
-              read_exn t c >>= fun v ->
-              let parents = KSet.of_list (Val.parents v) in
+              Store.read_exn t c >>= fun v ->
+              let parents = KSet.of_list (S.Val.parents v) in
               return (KSet.diff parents seen) in
             Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
           in
@@ -240,7 +221,7 @@ struct
           aux (seen1', todo1') (seen2', todo2')
         | [r] -> return (Some r)
         | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
-                                  (Tc.shows (module Key) rs))) in
+                                  (Tc.shows (module S.Key) rs))) in
     aux
       (KSet.empty, KSet.singleton c1)
       (KSet.empty, KSet.singleton c2)

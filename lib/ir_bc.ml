@@ -71,83 +71,66 @@ module type STORE_EXT = sig
   module Key: Ir_path.S with type step = step
   module Val: Ir_contents.S with type t = value
   module Private: PRIVATE
-      with type Contents.value = value
-       and type Node.Path.step = step
-       and type Commit.key = head
-       and type Tag.key = tag
-       and type Slice.t = slice
-       and module Node.Path = Key
-  module Contents:  Ir_contents.STORE_EXT
-    with type t = Private.Contents.t
-     and type key = Private.Contents.key
-     and type value = Private.Contents.value
-  module Node: Ir_node.STORE_EXT
-    with type t = Private.Contents.t * Private.Node.t
-     and type key = Private.Node.key
-     and type value = Private.Node.value
-     and type step = step
-     and module Contents = Contents
-  module Commit: Ir_commit.STORE_EXT
-    with type t = Private.Contents.t * Private.Node.t * Private.Commit.t
-     and type key = head
-     and type value = Private.Commit.value
-     and module Node = Node
-  val contents_t: t -> Contents.t
-  val node_t: t -> Node.t
-  val commit_t: t -> Commit.t
-  module Tag: Ir_tag.STORE
-    with type t = Private.Tag.t
-     and type key = tag
-     and type value = head
-  val tag_t: t -> Tag.t
-  val read_node: t -> key -> Node.value option Lwt.t
+    with type Contents.value = value
+     and type Node.Path.step = step
+     and type Commit.key = head
+     and type Tag.key = tag
+     and type Slice.t = slice
+     and module Node.Path = Key
+  val contents_t: t -> Private.Contents.t
+  val node_t: t -> Private.Node.t
+  val commit_t: t -> Private.Commit.t
+  val tag_t: t -> Private.Tag.t
+  val read_node: t -> key -> Private.Node.key option Lwt.t
   val mem_node: t -> key -> bool Lwt.t
-  val update_node: t -> key -> Node.value -> unit Lwt.t
-  module Graph: Ir_graph.S
-    with type V.t =
-      [ `Contents of Contents.key
-      | `Node of Node.key
-      | `Commit of Commit.key
-      | `Tag of Tag.key ]
+  val update_node: t -> key -> Private.Node.key -> unit Lwt.t
 end
 
 module Make_ext (P: PRIVATE) = struct
 
-  module Contents = Ir_contents.Make_ext(P.Contents)
-  module Node = Ir_node.Make_ext(P.Contents)(P.Node)
-  module Commit = Ir_commit.Make_ext(P.Contents)(P.Node)(P.Commit)
   module Tag = P.Tag
   module Private = P
 
   type tag = Tag.key
 
-  module Key = Node.Path
+  module Key = P.Node.Path
   module KeySet = Ir_misc.Set(Key)
   type key = Key.t
 
-  module Val = Contents.Val
+  module Val = P.Contents.Val
   type value = Val.t
 
-  type step = Node.Path.step
+  type step = P.Node.Path.step
 
-  module Head = Commit.Key
+  module Head = P.Commit.Key
   type head = Head.t
 
   type branch = [ `Tag of tag | `Head of head ]
 
-  module Graph = Ir_graph.Make(Contents.Key)(Node.Key)(Commit.Key)(Tag.Key)
+  module Graph = Ir_node.Graph(P.Contents)(P.Node)
+  module History = Ir_commit.History(Graph.Store)(P.Commit)
+
+  module KGraph =
+    Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Tag.Key)
 
   type t = {
-    block: Commit.t;
-    tag: Tag.t;
+    config: Ir_conf.t;
     task: Ir_task.t;
+    contents: P.Contents.t;
+    node: P.Node.t;
+    commit: P.Commit.t;
+    tag: Tag.t;
     branch: branch ref;
   }
 
+  let config t = t.config
+  let task t = t.task
   let tag_t t = t.tag
-  let commit_t t = t.block
-  let node_t t = Commit.node_t (commit_t t)
-  let contents_t t = Node.contents_t (node_t t)
+  let commit_t t = t.commit
+  let node_t t = t.node
+  let contents_t t = t.contents
+  let graph_t t = t.contents, t.node
+  let history_t t = graph_t t, t.commit
   let branch t = ! (t.branch)
 
   let tag t = match branch t with
@@ -190,81 +173,91 @@ module Make_ext (P: PRIVATE) = struct
       return_unit
 
   let of_tag config task t =
-    Commit.create config task >>= fun block ->
-    Tag.create config task >>= fun tag ->
+    P.Contents.create config task >>= fun contents ->
+    P.Node.create config task     >>= fun node ->
+    P.Commit.create config task   >>= fun commit ->
+    Tag.create config task        >>= fun tag ->
     (* [branch] is created outside of the closure as we want the
        branch to be shared by every invocation of the function return
        by [of_tag]. *)
     let branch = ref (`Tag t) in
     return (fun a ->
-        { block = block a; tag = tag a; task = task a; branch }
+        { contents = contents a;
+          node     = node a;
+          commit   = commit a;
+          tag      = tag a;
+          task     = task a;
+          config   = config;
+          branch }
       )
-
-  let task t = Commit.task t.block
-  let config t = Commit.config t.block
 
   let create config task =
     of_tag config task Tag.Key.master
 
   let of_head config task key =
-    Commit.create config task >>= fun block ->
-    Tag.create config task >>= fun tag ->
+    P.Contents.create config task >>= fun contents ->
+    P.Node.create config task     >>= fun node ->
+    P.Commit.create config task   >>= fun commit ->
+    Tag.create config task        >>= fun tag ->
     (* the branch is created outside of the closure. Every call to the
        function return by [of_head] *must* share the same branch
        reference. *)
     let branch = ref (`Head key) in
     return (fun a ->
-        { block = block a; tag = tag a; task = task a; branch; }
+        { contents = contents a;
+          node     = node a;
+          commit   = commit a;
+          tag      = tag a;
+          task     = task a;
+          config   = config;
+          branch }
       )
 
   let read_head_commit t =
     match branch t with
     | `Head key ->
       Log.debugf "read detached head: %a" force (show (module Head) key);
-      Commit.read (commit_t t) key
+      return (Some key)
     | `Tag tag ->
       Log.debugf "read head: %a" force (show (module Tag.Key) tag);
       Tag.read (tag_t t) tag >>= function
       | None   -> return_none
-      | Some k -> Commit.read (commit_t t) k
-
-  let node_of_commit t c =
-    match Commit.node (commit_t t) c with
-    | None   -> return Node.empty
-    | Some n -> n
-
-  let node_of_opt_commit t = function
-    | None   -> return Node.empty
-    | Some c -> node_of_commit t c
+      | Some k -> return (Some k)
 
   let read_head_node t =
     Log.debug (lazy "read_head_node");
-    read_head_commit t >>=
-    node_of_opt_commit t
+    read_head_commit t >>= function
+    | None   -> return_none
+    | Some h -> History.node (history_t t) h
 
   let parents_of_commit = function
     | None   -> []
     | Some r -> [r]
 
   let read_node t path =
-    read_head_commit t >>= fun commit ->
-    node_of_opt_commit t commit >>= fun node ->
-    Node.sub (node_t t) node path
+    read_head_node t >>= function
+    | None   -> return_none
+    | Some n -> Graph.read_node (graph_t t) n path
 
   let mem_node t path =
-    read_node t path >>= function
+    read_head_node t >>= function
     | None   -> return false
-    | Some _ -> return true
+    | Some n -> Graph.mem_node (graph_t t) n path
 
   let apply t ~f =
     read_head_commit t >>= fun commit ->
-    node_of_opt_commit t commit >>= fun old_node ->
+    begin match commit with
+      | None   -> Graph.empty (graph_t t)
+      | Some h ->
+        History.node (history_t t) h >>= function
+        | None   -> Graph.empty (graph_t t)
+        | Some n -> return n
+    end >>= fun old_node ->
     f old_node >>= fun node ->
-    if Node.Val.equal node old_node then return_unit
+    if P.Node.Key.equal node old_node then return_unit
     else (
       let parents = parents_of_commit commit in
-      Commit.commit (commit_t t) ~node ~parents
-      >>= fun (key, _) ->
+      History.commit (history_t t) ~node ~parents >>= fun key ->
       (* XXX: the head might have changed since we started the operation *)
       match branch t with
       | `Head _  -> t.branch := `Head key; return_unit
@@ -273,62 +266,78 @@ module Make_ext (P: PRIVATE) = struct
 
  let update_node t path node =
     apply t ~f:(fun head ->
-        Node.map (node_t t) head path (fun _ -> node)
+        Graph.add_node (graph_t t) head path node
       )
 
   let map t path ~f =
-    read_head_node t >>= fun node ->
-    f (node_t t) node path
+    begin read_head_node t >>= function
+      | None   -> Graph.empty (graph_t t)
+      | Some n -> return n
+    end >>= fun node ->
+    f (graph_t t) node path
 
   let read t path =
-    map t path ~f:Node.find
+    map t path ~f:Graph.read_contents >>= function
+    | None   -> return_none
+    | Some c -> P.Contents.read (contents_t t) c
 
   let update t path contents =
     Log.debugf "update %a" force (show (module Key) path);
+    P.Contents.add (contents_t t) contents >>= fun contents ->
     apply t ~f:(fun node ->
-        Node.update (node_t t) node path contents
+        Graph.add_contents (graph_t t) node path contents
       )
 
   let remove t path =
     apply t ~f:(fun node ->
-        Node.remove (node_t t) node path
+        Graph.remove_contents (graph_t t) node path
       )
 
   let read_exn t path =
     Log.debugf "read_exn %a" force (show (module Key) path);
-    map t path ~f:Node.find_exn
+    map t path ~f:Graph.read_contents_exn >>= fun c ->
+    P.Contents.read_exn (contents_t t) c
 
   let mem t path =
-    map t path ~f:Node.valid
+    map t path ~f:Graph.mem_contents
 
   (* Return the subpaths. *)
   let list t path =
     Log.debugf "list";
-    read_head_node t >>= fun n ->
-    Node.sub (node_t t) n path >>= function
-    | None      -> return_nil
-    | Some node ->
-      let steps = Node.Val.steps node in
-      let paths = List.map (fun c -> path @ [c]) steps in
-      return paths
+    read_head_node t >>= function
+    | None   -> return_nil
+    | Some n ->
+      Graph.read_node (graph_t t) n path >>= function
+      | None      -> return_nil
+      | Some node ->
+        Graph.steps (graph_t t) node >>= fun steps ->
+        let paths = List.map (fun c -> path @ [c]) steps in
+        return paths
 
   let dump t =
     Log.debugf "dump";
-    read_head_node t >>= fun node ->
-    begin Node.find (node_t t) node [] >>= function
-      | None   -> return_nil
-      | Some v -> return [ ([], v) ]
-    end >>= fun init ->
-    let rec aux seen = function
-      | []       -> return (List.sort Pervasives.compare seen)
-      | path::tl ->
-        list t path >>= fun childs ->
-        let todo = childs @ tl in
-        Node.find (node_t t) node path >>= function
-        | None   -> aux seen todo
-        | Some v -> aux ((path, v) :: seen) todo
-    in
-    list t [] >>= aux init
+    read_head_node t >>= function
+    | None   -> return_nil
+    | Some n ->
+      let get_contents path =
+        Graph.read_contents (graph_t t) n path >>= function
+        | None   -> return_none
+        | Some c -> P.Contents.read (contents_t t) c
+      in
+      begin get_contents [] >>= function
+        | None   -> return_nil
+        | Some v -> return [ ([], v) ]
+      end >>= fun init ->
+      let rec aux seen = function
+        | []       -> return (List.sort Pervasives.compare seen)
+        | path::tl ->
+          list t path >>= fun childs ->
+          let todo = childs @ tl in
+          get_contents path >>= function
+          | None   -> aux seen todo
+          | Some v -> aux ((path, v) :: seen) todo
+      in
+      list t [] >>= aux init
 
   (* Merge two commits:
      - Search for a common ancestor
@@ -337,9 +346,9 @@ module Make_ext (P: PRIVATE) = struct
     Log.debugf "3-way merge between %a and %a"
       force (show (module Head) c1)
       force (show (module Head) c2);
-    Commit.find_common_ancestor (commit_t t) c1 c2 >>= function
+    History.find_common_ancestor (history_t t) c1 c2 >>= function
     | None     -> conflict "no common ancestor"
-    | Some old -> Commit.merge (commit_t t) ~old c1 c2
+    | Some old -> History.merge (history_t t) ~old c1 c2
 
   let update_head t c =
     match branch t with
@@ -399,7 +408,7 @@ module Make_ext (P: PRIVATE) = struct
     Tag.read_exn (tag_t t) branch >>= fun c ->
     merge_head t c
 
-  module ONode = Tc.Option(Node.Val)
+  module ONode = Tc.Option(P.Node.Key)
 
   let watch_node t path =
     Log.infof "Adding a watch on %a" force (show (module Key) path);
@@ -419,12 +428,11 @@ module Make_ext (P: PRIVATE) = struct
               )
             | Some head ->
               Log.debugf "watch: %a" force (show (module Head) head);
-              Commit.read_exn (commit_t t) head >>= fun commit ->
-              begin match Commit.node (commit_t t) commit with
-                | None      -> return Node.empty
-                | Some node -> node
+              begin History.node (history_t t) head >>= function
+                | None      -> Graph.empty (graph_t t)
+                | Some node -> return node
               end >>= fun node ->
-              Node.sub (node_t t) node path >>= fun node ->
+              Graph.read_node (graph_t t) node path >>= fun node ->
               if ONode.equal !old_node node then return_none
               else (
                 old_node := node;
@@ -434,7 +442,7 @@ module Make_ext (P: PRIVATE) = struct
         return stream
       )
 
-  module OContents = Tc.Option(Contents.Val)
+  module OContents = Tc.Option(P.Contents.Key)
 
   let watch_head t path =
     Lwt_stream.filter_map (fun (k, h, _) ->
@@ -446,11 +454,7 @@ module Make_ext (P: PRIVATE) = struct
   (* watch contents changes. *)
   let watch t path =
     let path, file = Ir_misc.list_end path in
-    let get_contents n =
-      match Node.contents (node_t t) n file with
-      | None   -> return_none
-      | Some c -> c >>= fun c -> return (Some c)
-    in
+    let get_contents n = Graph.contents (graph_t t) n file in
     Ir_watch.lwt_stream_lift (
       begin
         read_node t path >>= function
@@ -472,7 +476,11 @@ module Make_ext (P: PRIVATE) = struct
             if OContents.equal !old_contents contents then return_none
             else (
               old_contents := contents;
-              return (Some contents)
+              match contents with
+              | None   -> return (Some None)
+              | Some k ->
+                P.Contents.read (contents_t t) k >>= fun c ->
+                return (Some c)
             )
         ) stream
       in
@@ -497,21 +505,17 @@ module Make_ext (P: PRIVATE) = struct
     let min = List.map (fun x -> `Commit x) min in
     let pred = function
         | `Commit k ->
-          begin
-            Commit.read (commit_t t) k >>= function
-            | None   -> return_nil
-            | Some c ->
-              return (List.map (fun x -> `Commit x) (Commit.Val.parents c))
-          end
+          History.parents (history_t t) k >>= fun parents ->
+          return (List.map (fun x -> `Commit x) parents)
         | _ -> return_nil in
-      Graph.closure ?depth ~pred ~min max >>= fun g ->
+      KGraph.closure ?depth ~pred ~min ~max () >>= fun g ->
       let keys =
         Ir_misc.list_filter_map
           (function `Commit c -> Some c | _ -> None)
-          (Graph.vertex g)
+          (KGraph.vertex g)
       in
       Lwt_list.map_p (fun k ->
-          Commit.read_exn (commit_t t) k >>= fun c ->
+          P.Commit.read_exn (commit_t t) k >>= fun c ->
           return (k, c)
         ) keys
       >>= fun commits ->
@@ -519,26 +523,26 @@ module Make_ext (P: PRIVATE) = struct
         return (P.Slice.create ~commits ~tags ())
       else
         let root_nodes =
-          Ir_misc.list_filter_map (fun (_,c) -> Commit.Val.node c) commits
+          Ir_misc.list_filter_map (fun (_,c) -> P.Commit.Val.node c) commits
         in
-        Node.rec_list (node_t t) root_nodes >>= fun nodes ->
+        (* XXX: we can compute a [min] if needed *)
+        Graph.closure (graph_t t) ~min:[] ~max:root_nodes >>= fun nodes ->
         Lwt_list.map_p (fun k ->
-            Node.read (node_t t) k >>= function
+            P.Node.read (node_t t) k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) nodes >>= fun nodes ->
         let nodes = Ir_misc.list_filter_map (fun x -> x) nodes in
         let contents =
-          let module KSet = Ir_misc.Set(Contents.Key) in
-          List.fold_left (fun acc (_, n) ->
-              KSet.union
-                (KSet.of_list (List.map snd (Node.Val.all_contents n)))
-                acc
-            ) KSet.empty nodes
-          |> KSet.to_list
+          let module KSet = Ir_misc.Set(P.Contents.Key) in
+          let set = ref KSet.empty in
+          List.iter (fun (_, n) ->
+              P.Node.Val.iter_contents n (fun _ k -> set := KSet.add k !set)
+            ) nodes;
+          KSet.to_list !set
         in
         Lwt_list.map_p (fun k ->
-            Contents.read (contents_t t) k >>= function
+            P.Contents.read (contents_t t) k >>= function
             | None   -> return_none
             | Some v -> return (Some (k, v))
           ) contents >>= fun contents ->
@@ -562,14 +566,14 @@ module Make_ext (P: PRIVATE) = struct
           return_unit
         ) elts
     in
-    aux "Contents"
-      (module Contents) (module Contents.Key) contents_t (P.Slice.contents s)
+    aux "Contents" (module P.Contents)
+      (module P.Contents.Key) contents_t (P.Slice.contents s)
     >>= fun () ->
-    aux "Node"
-      (module Node) (module Node.Key) node_t (P.Slice.nodes s)
+    aux "Node" (module P.Node)
+      (module P.Node.Key) node_t (P.Slice.nodes s)
     >>= fun () ->
-    aux "Commit"
-      (module Commit) (module Commit.Key) commit_t (P.Slice.commits s)
+    aux "Commit" (module P.Commit)
+      (module P.Commit.Key) commit_t (P.Slice.commits s)
 
   let import t s =
     Lwt_list.partition_p
@@ -608,11 +612,7 @@ module Make
     (H: Ir_hash.S) =
 struct
   module X = struct
-    module Contents = struct
-      module Key = H
-      module Val = C
-      include AO (Key)(Val)
-    end
+    module Contents = Ir_contents.Make(AO(H)(C))(H)(C)
     module Node = struct
       module Key = H
       module Val = Ir_node.Make (H)(H)(P)

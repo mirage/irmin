@@ -23,22 +23,25 @@ module type S = sig
   type contents
   type node
   type step
-  val contents: t -> step -> contents option
-  val all_contents: t -> (step * contents) list
-  val with_contents: t -> step -> contents option -> t
-  val succ: t -> step -> node option
-  val all_succ: t -> (step * node) list
-  val with_succ: t -> step -> node option -> t
-  val steps: t -> step list
-  val edges: t -> [> `Contents of contents | `Node of node] list
-  val empty: t
+
   val create: contents:(step * contents) list -> succ:(step * node) list -> t
+
+  val empty: t
   val is_empty: t -> bool
+
+  val contents: t -> step -> contents option
+  val iter_contents: t -> (step -> contents -> unit) -> unit
+  val with_contents: t -> step -> contents option -> t
+
+  val succ: t -> step -> node option
+  val iter_succ: t -> (step -> node -> unit) -> unit
+  val with_succ: t -> step -> node option -> t
 end
-  module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_path.S):
-    S with type contents = C.t
-       and type node = N.t
-       and type step = P.step
+
+module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_path.S):
+  S with type contents = C.t
+     and type node = N.t
+     and type step = P.step
 
 module type STORE = sig
   include Ir_ao.STORE
@@ -50,42 +53,41 @@ module type STORE = sig
      and type step = Path.step
 end
 
-module type STORE_EXT = sig
+
+module type GRAPH = sig
+  type t
+  type contents
+  type node
   type step
-  module Contents: Ir_contents.STORE_EXT
-  include STORE
-    with type Path.step = step
-     and type Val.contents = Contents.key
-  type contents = Contents.value
-  val empty: value
+
+  val empty: t -> node Lwt.t
   val node: t ->
-    ?contents:(step * contents) list ->
-    ?succ:(step * value) list ->
-    unit -> (key * value) Lwt.t
-  val contents: t -> value -> step -> contents Lwt.t option
-  val succ: t -> value -> step -> value Lwt.t option
-  val all_succ: t -> value -> (step * value Lwt.t) list
-  val sub: t -> value -> step list -> value option Lwt.t
-  val sub_exn: t -> value -> step list -> value Lwt.t
-  val map: t -> value -> step list -> (value -> value) -> value Lwt.t
-  val update: t -> value -> step list -> contents -> value Lwt.t
-  val find: t -> value -> step list -> contents option Lwt.t
-  val find_exn: t -> value -> step list -> contents Lwt.t
-  val remove: t -> value -> step list -> value Lwt.t
-  val valid: t -> value -> step list -> bool Lwt.t
-  val merge: t -> key Ir_merge.t
-  val contents_t: t -> Contents.t
-  val rec_list: t -> key list -> key list Lwt.t
+    contents:(step * contents) list -> succ:(step * node) list -> node Lwt.t
+
+  val contents: t -> node -> step -> contents option Lwt.t
+  val succ: t -> node -> step -> node option Lwt.t
+  val steps: t -> node -> step list Lwt.t
+
+  val mem_contents: t -> node -> step list -> bool Lwt.t
+  val read_contents: t -> node -> step list -> contents option Lwt.t
+  val read_contents_exn: t -> node -> step list -> contents Lwt.t
+  val add_contents: t -> node -> step list -> contents -> node Lwt.t
+  val remove_contents: t -> node -> step list -> node Lwt.t
+
+  val mem_node: t -> node -> step list -> bool Lwt.t
+  val read_node: t -> node -> step list -> node option Lwt.t
+  val read_node_exn: t -> node -> step list -> node Lwt.t
+  val add_node: t -> node -> step list -> node -> node Lwt.t
+  val remove_node: t -> node -> step list -> node Lwt.t
+
+  val merge: t -> node Ir_merge.t
+  val closure: t -> min:node list -> max:node list -> node list Lwt.t
+
+  module Store: Ir_contents.STORE with type t = t and type key = node
 end
 
-module Make_ext
-    (C: Ir_contents.STORE)
-    (S: STORE with type Val.contents = C.key)
-  : STORE_EXT with type t = C.t * S.t
-               and type key = S.key
-               and type value = S.value
-               and type step = S.Path.step
-               and module Path = S.Path
-               and module Contents = Ir_contents.Make_ext(C)
-               and type Contents.t = C.t
-(** Create a node store from an append-only database. *)
+module Graph (C: Ir_contents.STORE) (S: STORE with type Val.contents = C.key)
+  : GRAPH with type t = C.t * S.t
+           and type contents = C.key
+           and type node = S.key
+           and type step = S.Val.step

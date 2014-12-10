@@ -25,13 +25,9 @@ end
 
 module type STORE = sig
   include Ir_ao.STORE
+  val merge: t -> key Ir_merge.t
   module Key: Ir_hash.S with type t = key
   module Val: S with type t = value
-end
-
-module type STORE_EXT = sig
-  include STORE
-  val merge: t -> key Ir_merge.t
 end
 
 module Json = struct
@@ -160,9 +156,13 @@ module Cstruct = struct
   let merge = Ir_merge.default (module S)
 end
 
-module Make_ext (S: STORE) = struct
+module Make (S: Ir_ao.STORE)
+    (K: Ir_hash.S with type t = S.key)
+    (V: S with type t = S.value) =
+struct
   include S
+  module Key = K
+  module Val = V
   let merge t =
-    Ir_merge.biject'
-      (module S.Val) (module S.Key) S.Val.merge (add t) (read_exn t)
+    Ir_merge.biject' (module Val) (module Key) Val.merge (add t) (read_exn t)
 end

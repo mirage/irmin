@@ -29,12 +29,12 @@ module type STORE = sig
        and type Tag.key = tag
        and type Slice.t = slice
     val contents_t: t -> Contents.t
-    val node_t: t -> Contents.t * Node.t
-    val commit_t: t -> Contents.t * Node.t * Commit.t
+    val node_t: t -> Node.t
+    val commit_t: t -> Commit.t
     val tag_t: t -> Tag.t
-    val read_node: t -> key -> Node.value option Lwt.t
+    val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
-    val update_node: t -> key -> Node.value -> unit Lwt.t
+    val update_node: t -> key -> Node.key -> unit Lwt.t
   end
 end
 
@@ -50,10 +50,9 @@ module type MAKER =
 
 module Make_ext (P: Ir_bc.PRIVATE) = struct
   module P = Ir_bc.Make_ext(P)
-  include (P: module type of P with module Private := P.Private
-                                and module Tag := P.Tag)
-  module Tag = P.Tag.Key
-  module Head = P.Commit.Key
+  include (P: module type of P with module Private := P.Private)
+  module Tag = P.Private.Tag.Key
+  module Head = P.Private.Commit.Key
   module Private = struct
     include P.Private
     let contents_t = P.contents_t
@@ -75,11 +74,7 @@ module Make
     (H: Ir_hash.S) =
 struct
   module X = struct
-    module Contents = struct
-      module Key = H
-      module Val = C
-      include AO (Key)(Val)
-    end
+    module Contents = Ir_contents.Make(AO(H)(C))(H)(C)
     module Node = struct
       module Key = H
       module Val = Ir_node.Make (H)(H)(P)

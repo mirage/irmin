@@ -306,9 +306,15 @@ module Make (S: Ir_s.STORE) = struct
   module B = Ir_bc.Make_ext(S.Private)
   module P = S.Private
 
+  module Graph = Ir_node.Graph(P.Contents)(P.Node)
+  module History = Ir_commit.History(Graph.Store)(P.Commit)
+
+  let graph_t t = P.contents_t t, P.node_t t
+  let history_t t = graph_t t, P.commit_t t
+
   module Contents = struct
 
-    type key = S.t * B.Contents.key
+    type key = S.t * B.Private.Contents.key
 
     type contents_or_key =
       | Key of key
@@ -336,7 +342,7 @@ module Make (S: Ir_s.STORE) = struct
       | Both (_, c)
       | Contents c -> return (Some c)
       | Key (db, k as key) ->
-        B.Contents.read (P.contents_t db) k >>= function
+        P.Contents.read (P.contents_t db) k >>= function
         | None   -> return_none
         | Some c ->
           t := Both (key, c);
@@ -351,7 +357,7 @@ module Make (S: Ir_s.STORE) = struct
 
     type contents = S.value
     type commit = S.head
-    type key = S.t * B.Node.key
+    type key = S.t * P.Node.key
 
     type node = {
       contents: Contents.t StepMap.t;
@@ -391,17 +397,15 @@ module Make (S: Ir_s.STORE) = struct
       | Node n -> StepMap.is_empty n.contents && StepMap.is_empty n.succ
 
     let import t n =
-      let contents =
-        B.Node.Val.all_contents n
-        |> StepMap.of_alist
-        |> StepMap.map (Contents.key t)
-      in
-      let succ =
-        B.Node.Val.all_succ n
-        |> StepMap.of_alist
-        |> StepMap.map (key t)
-      in
-      { contents; succ }
+      let contents = ref StepMap.empty in
+      P.Node.Val.iter_contents n (fun l k ->
+          contents := StepMap.add l (Contents.key t k) !contents
+        );
+      let succ = ref StepMap.empty in
+      P.Node.Val.iter_succ n (fun l k ->
+          succ := StepMap.add l (key t k) !succ
+        );
+      { contents = !contents; succ = !succ }
 
     let export n =
       match !n with
@@ -418,14 +422,14 @@ module Make (S: Ir_s.STORE) = struct
         StepMap.map export n.succ
         |> StepMap.to_alist
       in
-      B.Node.Val.create ~contents ~succ
+      P.Node.Val.create ~contents ~succ
 
     let read t =
       match !t with
       | Both (_, n)
       | Node n   -> return (Some n)
       | Key (db, k) ->
-        B.Node.read (P.node_t db) k >>= function
+        P.Node.read (P.node_t db) k >>= function
         | None   -> return_none
         | Some n ->
           let n = import db n in
@@ -461,7 +465,7 @@ module Make (S: Ir_s.STORE) = struct
         t := Node new_n;
         return_unit
 
-    module Contents = B.Contents.Val
+    module Contents = P.Contents.Val
 
   end
 
@@ -470,8 +474,8 @@ module Make (S: Ir_s.STORE) = struct
   type db = S.t
 
   let import db ~parents key =
-    Log.debugf "import %a" force (show (module B.Node.Key) key);
-    B.Node.read (P.node_t db) key >>= function
+    Log.debugf "import %a" force (show (module P.Node.Key) key);
+    P.Node.read (P.node_t db) key >>= function
     | None   -> fail Not_found
     | Some n ->
       let view = Node.both db key (Node.import db n) in
@@ -482,7 +486,7 @@ module Make (S: Ir_s.STORE) = struct
 
   let export db t =
     Log.debugf "export";
-    let node n = B.Node.add (P.node_t db) (Node.export_node n) in
+    let node n = P.Node.add (P.node_t db) (Node.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match !n with
@@ -502,7 +506,7 @@ module Make (S: Ir_s.STORE) = struct
             | Contents.Key _       -> ()
             | Contents.Contents x  ->
               Stack.push (fun () ->
-                  B.Contents.add (P.contents_t db) x >>= fun k ->
+                  P.Contents.add (P.contents_t db) x >>= fun k ->
                   c := Contents.Key (db, k);
                   return_unit
                 ) todo
@@ -536,17 +540,12 @@ module Make (S: Ir_s.STORE) = struct
       create (S.config db) (fun () -> S.task db) >>= fun t ->
       return (t ())
     | Some n ->
-      B.Node.add (P.node_t db) n >>= fun k ->
       parents >>= fun parents ->
-      import db ~parents k
-
-  let node_of_view db t =
-    export db t >>= fun key ->
-    B.Node.read_exn (P.node_t db) key
+      import db ~parents n
 
   let update_path db path view =
     Log.debugf "update_view %a" force (show (module Path) path);
-    node_of_view db view >>= fun node ->
+    export db view >>= fun node ->
     P.update_node db path node
 
   let rebase_path db path view =
@@ -571,15 +570,11 @@ module Make (S: Ir_s.STORE) = struct
       (* Now that we know that rebasing is possible, we discard the
          result and proceed as a normal merge, ie. we apply the view
          on a branch, and we merge the branch back into the store. *)
-      node_of_view db view >>= fun view_node ->
+      export db view >>= fun view_node ->
       (* Create a commit with the contents of the view *)
-      B.Node.map (P.node_t db) head_node path (fun _ -> view_node)
-      >>= fun new_head_node ->
-      let t_c = P.commit_t db in
-      Lwt_list.map_p (B.Commit.read_exn t_c) view.parents
-      >>= fun parents ->
-      B.Commit.commit t_c ~node:new_head_node ~parents
-      >>= fun (k, _) ->
+      Graph.add_node (graph_t db) head_node path view_node >>= fun new_node ->
+      let parents = view.parents in
+      History.commit (history_t db) ~node:new_node ~parents >>= fun k ->
       (* We want to avoid to create a merge commit when the HEAD has
          not been updated since the view has been created. *)
       S.head db >>= function

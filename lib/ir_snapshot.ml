@@ -31,14 +31,23 @@ end
 module Make (S: Ir_s.STORE) = struct
 
   module P = S.Private
-  module B = Ir_bc.Make_ext(P)
-  module V = Ir_contents.Make_ext(P.Contents)
-  module N = Ir_node.Make_ext(P.Contents)(P.Node)
-  module C = Ir_commit.Make_ext(P.Contents)(P.Node)(P.Commit)
-  module K = P.Commit.Key
+  module V = P.Contents
+  module N = P.Node
+  module C = P.Commit
+  module K = C.Key
   module T = P.Tag
 
-  module Path = N.Path
+  module Graph = Ir_node.Graph(V)(N)
+(*
+  module B = Ir_bc.Make_ext(P)
+  module V = B.Contents
+  module N = B.Node
+  module C = B.Commit
+  module K = P.Commit.Key
+  module T = P.Tag
+*)
+
+  module Path = S.Key
   module PathSet = Ir_misc.Set(Path)
   module StepMap = Ir_misc.Map(S.Key.Step)
 
@@ -49,6 +58,7 @@ module Make (S: Ir_s.STORE) = struct
   type t = db * N.key
 
   let db (t:t) = fst t
+  let contents_t t = P.contents_t (db t)
 
   let task t = S.task (db t)
   let config t = S.config (db t)
@@ -65,17 +75,16 @@ module Make (S: Ir_s.STORE) = struct
     | None   -> fail Not_found
     | Some c -> of_head db c
 
-  let root_node (db, n) =
-    N.read (P.node_t db) n >>= function
-    | None   -> return N.empty
-    | Some n -> return n
+  let graph_t db =
+    P.contents_t db, P.node_t db
 
-  let map t path ~f =
-    root_node t >>= fun node ->
-    f (P.node_t (db t)) node path
+  let map (db, n) path ~f =
+    f (graph_t db) n path
 
   let read t path =
-    map t path ~f:N.find
+    map t path ~f:Graph.read_contents >>= function
+    | None   -> return_none
+    | Some c -> V.read (contents_t t) c
 
   let read_exn t path =
     read t path >>= function
@@ -83,16 +92,16 @@ module Make (S: Ir_s.STORE) = struct
     | Some x -> return x
 
   let mem t path =
-    map t path ~f:N.valid
+    map t path ~f:Graph.mem_contents
 
   (* XXX: code duplication with Branch.list *)
-  let list t path =
+  let list (db, n) path =
     Log.debugf "list";
-    root_node t >>= fun n ->
-    N.sub (P.node_t (db t)) n path >>= function
+    let t = graph_t db in
+    Graph.read_node t n path >>= function
     | None      -> return_nil
     | Some node ->
-      let steps = N.Val.steps node in
+      Graph.steps t node >>= fun steps ->
       let paths = List.map (fun c -> path @ [c]) steps in
       return paths
 

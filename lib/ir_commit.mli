@@ -24,7 +24,6 @@ module type S = sig
   val node: t -> node option
   val parents: t -> commit list
   val task: t -> Ir_task.t
-  val edges: t -> [> `Node of node | `Commit of commit] list
 end
 
 module Make (C: Tc.S0) (N: Tc.S0):
@@ -32,38 +31,28 @@ module Make (C: Tc.S0) (N: Tc.S0):
      and type node = N.t
 
 module type STORE = sig
-
   include Ir_ao.STORE
-
   module Key: Ir_hash.S with type t = key
-  (** Base functions over keys. *)
-
   module Val: S
     with type t = value
      and type commit := key
-  (** Base functions over values. *)
-
 end
 
-module type STORE_EXT = sig
-  module Node: Ir_node.STORE_EXT
-  include STORE with type Val.node = Node.key
-  type node = Node.value
-  val commit: t -> ?node:node -> parents:value list -> (key * value) Lwt.t
-  val node: t -> value -> node Lwt.t option
-  val parents: t -> value -> value Lwt.t list
-  val merge: t -> key Ir_merge.t
-  val find_common_ancestor: t -> key -> key -> key option Lwt.t
-  val find_common_ancestor_exn: t -> key -> key -> key Lwt.t
-  val node_t: t -> Node.t
-  val rec_list: t -> key list -> key list Lwt.t
+module type HISTORY = sig
+  type t
+  type node
+  type commit
+  val commit: t -> ?node:node -> parents:commit list -> commit Lwt.t
+  val node: t -> commit -> node option Lwt.t
+  val parents: t -> commit -> commit list Lwt.t
+  val merge: t -> commit Ir_merge.t
+  val find_common_ancestor: t -> commit -> commit -> commit option Lwt.t
+  val find_common_ancestor_exn: t -> commit -> commit -> commit Lwt.t
+  val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
+  module Store: Ir_contents.STORE with type t = t and type key = commit
 end
 
-module Make_ext
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE with type Val.contents = C.key)
-    (S: STORE with type Val.node = N.key):
-  STORE_EXT with type t = C.t * N.t * S.t
-             and type key = S.key
-             and type value = S.value
-             and module Node = Ir_node.Make_ext(C)(N)
+module History (N: Ir_contents.STORE) (S: STORE with type Val.node = N.key):
+  HISTORY with type t = N.t * S.t
+           and type node = N.key
+           and type commit = S.key

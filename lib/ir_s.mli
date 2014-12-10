@@ -31,12 +31,12 @@ module type STORE = sig
        and type Tag.key = tag
        and type Slice.t = slice
     val contents_t: t -> Contents.t
-    val node_t: t -> Contents.t * Node.t
-    val commit_t: t -> Contents.t * Node.t * Commit.t
+    val node_t: t -> Node.t
+    val commit_t: t -> Commit.t
     val tag_t: t -> Tag.t
-    val read_node: t -> key -> Node.value option Lwt.t
+    val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
-    val update_node: t -> key -> Node.value -> unit Lwt.t
+    val update_node: t -> key -> Node.key -> unit Lwt.t
   end
 end
 

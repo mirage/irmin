@@ -29,10 +29,10 @@ module type S = sig
   val edges: t -> (vertex * vertex) list
   val closure:
     ?depth:int
-    -> ?min:vertex list
     -> pred:(vertex -> vertex list Lwt.t)
-    -> vertex list
-    -> t Lwt.t
+    -> min:vertex list
+    -> max:vertex list
+    -> unit -> t Lwt.t
   val output:
     Format.formatter ->
     (vertex * Graph.Graphviz.DotAttributes.vertex list) list ->
@@ -140,7 +140,7 @@ module Make
   let edges g =
     G.fold_edges (fun k1 k2 list -> (k1,k2) :: list) g []
 
-  let closure ?(depth=max_int) ?(min=[]) ~pred max =
+  let closure ?(depth=max_int) ~pred ~min ~max () =
     Log.debugf "closure depth=%d (%d elements)" depth (List.length max);
     let g = G.create ~size:1024 () in
     let marks = Table.create 1024 in

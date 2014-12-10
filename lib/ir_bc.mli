@@ -97,57 +97,21 @@ module type STORE_EXT = sig
      and type Slice.t = slice
      and module Node.Path = Key
 
-  (** {1 Internal "block", append-only stores. *)
-
-  module Contents:  Ir_contents.STORE_EXT
-    with type t = Private.Contents.t
-     and type key = Private.Contents.key
-     and type value = Private.Contents.value
-
-  module Node: Ir_node.STORE_EXT
-    with type t = Private.Contents.t * Private.Node.t
-     and type key = Private.Node.key
-     and type value = Private.Node.value
-     and type step = step
-     and module Contents = Contents
-
-  module Commit: Ir_commit.STORE_EXT
-    with type t = Private.Contents.t * Private.Node.t * Private.Commit.t
-     and type key = head
-     and type value = Private.Commit.value
-     and module Node = Node
-
-  val contents_t: t -> Contents.t
-  val node_t: t -> Node.t
-  val commit_t: t -> Commit.t
-
-  (** {1 Internal "tag", read-write store. *)
-
-  module Tag: Ir_tag.STORE
-    with type t = Private.Tag.t
-     and type key = tag
-     and type value = head
-
-  val tag_t: t -> Tag.t
+  val contents_t: t -> Private.Contents.t
+  val node_t: t -> Private.Node.t
+  val commit_t: t -> Private.Commit.t
+  val tag_t: t -> Private.Tag.t
 
   (** {1 Nodes} *)
 
-  val read_node: t -> key -> Node.value option Lwt.t
+  val read_node: t -> key -> Private.Node.key option Lwt.t
   (** Read a node. *)
 
   val mem_node: t -> key -> bool Lwt.t
   (** Check whether a node exists. *)
 
-  val update_node: t -> key -> Node.value -> unit Lwt.t
+  val update_node: t -> key -> Private.Node.key -> unit Lwt.t
   (** Update a node. *)
-
-  module Graph: Ir_graph.S
-    with type V.t =
-      [ `Contents of Contents.key
-      | `Node of Node.key
-      | `Commit of Commit.key
-      | `Tag of Tag.key ]
-      (** The global graph of internal objects. *)
 
 end
 

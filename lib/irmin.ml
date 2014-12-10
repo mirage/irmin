@@ -29,6 +29,9 @@ module Path = Ir_path
 module Make = Ir_s.Make
 module Make_ext = Ir_s.Make_ext
 
+module Node = Ir_node
+module Commit = Ir_commit
+
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
 module type RW = Ir_rw.STORE
@@ -44,10 +47,6 @@ module type BC_MAKER = Ir_bc.MAKER
 module type S_MAKER = Ir_s.MAKER
 
 module Private = struct
-  module Node = Ir_node
-  module Commit = Ir_commit
-  module Contents = Ir_contents
-  module Tag = Ir_tag
   module Slice = Ir_slice
   module Make = Ir_bc.Make
   module Sync = Ir_sync

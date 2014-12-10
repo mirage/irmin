@@ -27,16 +27,13 @@ module Cstruct: S with type t = Cstruct.t
 
 module type STORE = sig
   include Ir_ao.STORE
+  val merge: t -> key Ir_merge.t
   module Key: Ir_hash.S with type t = key
   module Val: S with type t = value
 end
 
-module type STORE_EXT = sig
-  include STORE
-  val merge: t -> key Ir_merge.t
-end
-
-module Make_ext (Contents: STORE):
-  STORE_EXT with type t = Contents.t
-             and type key = Contents.key
-             and type value = Contents.value
+module Make
+    (S: Ir_ao.STORE)
+    (K: Ir_hash.S with type t = S.key)
+    (V: S with type t = S.value):
+  STORE with type t = S.t and type key = S.key and type value = S.value
