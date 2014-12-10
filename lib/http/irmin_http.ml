@@ -16,7 +16,6 @@
 
 open Lwt
 
-module IB = Irmin.Private
 module Log = Log.Make(struct let section = "CRUD" end)
 
 (* ~uri *)
@@ -186,37 +185,29 @@ struct
   end
 
   module X = struct
-    module Contents = struct
-      module Key = H
-      module Val = C
-      include AO(struct
-          let suffix = Some "contents"
-        end)(Key)(Val)
-    end
+    module Contents = Irmin.Contents.Make(struct
+        module Key = H
+        module Val = C
+        include AO(struct let suffix = Some "contents" end)(H)(C)
+      end)
     module Node = struct
       module Key = H
       module Path = P
-      module Val = IB.Node.Make(H)(H)(P)
-      include AO(struct
-          let suffix = Some "node"
-        end)(Key)(Val)
+      module Val = Irmin.Node.Make(H)(H)(P)
+      include AO(struct let suffix = Some "node" end)(Key)(Val)
     end
     module Commit = struct
       module Key = H
-      module Val = IB.Commit.Make(H)(H)
-      include AO(struct
-          let suffix = Some "commit"
-        end)(Key)(Val)
+      module Val = Irmin.Commit.Make(H)(H)
+      include AO(struct let suffix = Some "commit" end)(Key)(Val)
     end
     module Tag = struct
       module Key = T
       module Val = H
-      include RW(struct
-          let suffix = Some "tag"
-        end)(Key)(Val)
+      include RW(struct let suffix = Some "tag" end)(Key)(Val)
     end
-    module Slice = IB.Slice.Make(Contents)(Node)(Commit)(Tag)
-    module Sync = IB.Sync.None(H)(T)
+    module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)(Tag)
+    module Sync = Irmin.Private.Sync.None(H)(T)
   end
 
   include Irmin.Make_ext(X)
@@ -228,7 +219,7 @@ module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     include V
     let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
   end
-  module M = Low (Client)(Irmin.Path.String)(V)(Irmin.Tag.Path)(K)
+  module M = Low (Client)(Irmin.Path.String)(V)(Irmin.Tag.String_list)(K)
   include M.X.Contents
 end
 
@@ -281,12 +272,12 @@ struct
     mutable branch: [`Tag of T.t | `Head of L.t ];
     mutable h: H.t;
     contents_t: LP.Contents.t;
-    node_t: LP.Contents.t * LP.Node.t;
-    commit_t: LP.Contents.t * LP.Node.t * LP.Commit.t;
+    node_t: LP.Node.t;
+    commit_t: LP.Commit.t;
     tag_t: LP.Tag.t;
-    read_node: L.key -> LP.Node.value option Lwt.t;
+    read_node: L.key -> LP.Node.key option Lwt.t;
     mem_node: L.key -> bool Lwt.t;
-    update_node: L.key -> LP.Node.value -> unit Lwt.t;
+    update_node: L.key -> LP.Node.key -> unit Lwt.t;
   }
 
   let uri t =

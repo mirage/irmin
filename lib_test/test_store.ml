@@ -34,15 +34,18 @@ module Make (S: Irmin.S) = struct
   module Common = Make(S)
   open Common
 
-  module Contents =
-    Irmin.Private.Contents.Make_ext(S.Private.Contents)
+  module Contents = Irmin.Contents.Make(S.Private.Contents)
 
-  module Node =
-    Irmin.Private.Node.Make_ext(S.Private.Contents)(S.Private.Node)
+  module Graph = Irmin.Node.Graph(Contents)(S.Private.Node)
+  module History = Irmin.Commit.History(Graph.Store)(S.Private.Commit)
 
-  module Commit =
-    Irmin.Private.Commit.Make_ext
-      (S.Private.Contents)(S.Private.Node)(S.Private.Commit)
+  let v t a = S.Private.contents_t (t a)
+  let n t a = S.Private.node_t (t a)
+  let ct t a = S.Private.commit_t (t a)
+  let g t a = let t = t a in S.Private.contents_t t, S.Private.node_t t
+  let h t a =
+    let t = t a in
+    (S.Private.contents_t t, S.Private.node_t t), S.Private.commit_t t
 
   module Tag = S.Private.Tag
 
@@ -77,43 +80,37 @@ module Make (S: Irmin.S) = struct
 
   let n1 x =
     create x >>= fun t ->
-    let t = S.Private.node_t (t "n1") in
-    Node.node t ~contents:[l "", v1 x] ()
+    Graph.node (g t "n1") ~contents:[l "", kv1 x] ~succ:[]
 
   let n2 x =
-    n1 x >>= fun (_, t1) ->
+    n1 x >>= fun kn1 ->
     create x >>= fun t ->
-    let t = S.Private.node_t (t "n2") in
-    Node.node t ~succ:[l "b", t1] ()
+    Graph.node (g t "n2") ~contents:[] ~succ:[l "b", kn1]
 
   let n3 x =
-    n2 x >>= fun (_, t2) ->
+    n2 x >>= fun kn2 ->
     create x >>= fun t ->
-    let t = S.Private.node_t (t "n3") in
-    Node.node t ~succ:[l "a", t2] ()
+    Graph.node (g t "n3") ~contents:[] ~succ:[l "a", kn2]
 
   let n4 x =
-    n1 x >>= fun (_, t1) ->
-    n3 x >>= fun (_, t3) ->
+    n1 x >>= fun kn1 ->
+    n3 x >>= fun kn3->
     create x >>= fun t ->
-    let t = S.Private.node_t (t "n4") in
     let v2 = v2 x in
-    Node.node t ~contents:[l "", v2] () >>= fun (_, t4) ->
-    Node.node t ~succ:[(l "b",t1); (l "c",t4)] () >>= fun (_, t5) ->
-    Node.node t ~succ:[l "a",t5] ()
+    Graph.node (g t "n4") ~contents:[l "", kv2 x] ~succ:[] >>= fun kn4 ->
+    Graph.node (g t "n5") ~contents:[] ~succ:[(l "b", kn1); (l "c", kn4)] >>= fun kn5 ->
+    Graph.node (g t "n6") ~contents:[] ~succ:[l "a", kn5]
 
   let r1 x =
-    n2 x >>= fun (_, n2) ->
+    n2 x >>= fun kn2 ->
     create_dummy x >>= fun t ->
-    let t = S.Private.commit_t (t ()) in
-    Commit.commit t ~node:n2 ~parents:[]
+    History.commit (h t ()) ~node:kn2 ~parents:[]
 
   let r2 x =
-    n3 x >>= fun (_, n3) ->
-    r1 x >>= fun (_, r1) ->
+    n3 x >>= fun kn3 ->
+    r1 x >>= fun kr1 ->
     create_dummy x >>= fun t ->
-    let t = S.Private.commit_t (t ()) in
-    Commit.commit t ~node:n3 ~parents:[r1]
+    History.commit (h t ()) ~node:kn3 ~parents:[kr1]
 
   let run x test =
     try Lwt_unix.run (x.init () >>= test >>= x.clean)
@@ -131,7 +128,7 @@ module Make (S: Irmin.S) = struct
     let short () = random_string label in
     let rec aux = function
       | 0 -> []
-      | n -> short () :: aux (n-1) in
+      | n -> S.Key.Step.of_hum (short ()) :: aux (n-1) in
     aux path
 
   let random_node ~label ~path ~value ~kind =
@@ -171,62 +168,59 @@ module Make (S: Irmin.S) = struct
     let test () =
       create x >>= fun t ->
       let v1 = v1 x in
-      let node = S.Private.node_t (t "get node handle") in
+      let g = g t and n = n t in
 
       (* Create a node containing t1(v1) *)
-      Node.node node ~contents:[l "", v1] () >>= fun (k1 , _) ->
-      Node.node node ~contents:[l "", v1] () >>= fun (k1', _) ->
+      Graph.node (g "k1") ~contents:[l "", kv1 x] ~succ:[] >>= fun k1 ->
+      Graph.node (g "k1'") ~contents:[l "", kv1 x] ~succ:[] >>= fun k1' ->
       assert_key_node_equal "k1.1" k1 k1';
-      Node.read_exn node k1 >>= fun t1 ->
-      Node.add node t1 >>= fun k1''->
+      Node.read_exn (n "t1") k1 >>= fun t1 ->
+      Node.add (n "k1''") t1 >>= fun k1''->
       assert_key_node_equal "k1.2" k1 k1'';
 
       (* Create the node  t2 -b-> t1(v1) *)
-      Node.node node ~succ:[l "b", t1] () >>= fun (k2 , _) ->
-      Node.node node ~succ:[l "b", t1] () >>= fun (k2', _) ->
+      Graph.node (g "k2") ~succ:[l "b", k1] ~contents:[] >>= fun k2 ->
+      Graph.node (g "k2'") ~succ:[l "b", k1] ~contents:[] >>= fun k2' ->
       assert_key_node_equal "k2.1" k2 k2';
-      Node.read_exn node k2 >>= fun t2 ->
-      Node.add node t2 >>= fun k2''->
+      Node.read_exn (n "t2") k2 >>= fun t2 ->
+      Node.add (n "k2''") t2 >>= fun k2''->
       assert_key_node_equal "k2.2" k2 k2'';
-      Node.sub_exn node t2 [l "b"] >>= fun t1' ->
-      assert_node_equal "t1.1" t1 t1';
-      Node.add node t1' >>= fun k1''->
-      assert_key_node_equal "k1.3" k1 k1'';
+      Graph.read_node_exn (g "k1'''") k2 [l "b"] >>= fun k1''' ->
+      assert_key_node_equal "k1.3" k1 k1''';
 
       (* Create the node t3 -a-> t2 -b-> t1(v1) *)
-      Node.node node ~succ:[l "a", t2] () >>= fun (k3 , _) ->
-      Node.node node ~succ:[l "a", t2] () >>= fun (k3', _) ->
+      Graph.node (g "k3") ~succ:[l "a", k2] ~contents:[] >>= fun k3 ->
+      Graph.node (g "k3'") ~succ:[l "a", k2] ~contents:[] >>= fun k3' ->
       assert_key_node_equal "k3.1" k3 k3';
-      Node.read_exn node k3 >>= fun t3 ->
-      Node.add node t3 >>= fun k3''->
+      Node.read_exn (n "t3") k3 >>= fun t3 ->
+      Node.add (n "k3''") t3 >>= fun k3''->
       assert_key_node_equal "k3.2" k3 k3'';
-      Node.sub_exn node t3 [l "a"] >>= fun t2' ->
-      assert_node_equal "t2.1" t2 t2';
-      Node.add node t2' >>= fun k2''->
+      Graph.read_node_exn (g "t2'") k3 [l "a"] >>= fun k2'' ->
       assert_key_node_equal "k2.3" k2 k2'';
-      Node.sub_exn node t2' [l "b"] >>= fun t1' ->
-      assert_node_equal "t1.2" t1 t1';
-      Node.sub node t3 [l "a";l "b"] >>= fun t1' ->
-      assert_node_opt_equal "t1.3" (Some t1) t1';
+      Graph.read_node_exn (g "t1'") k2' [l "b"] >>= fun k1'''' ->
+      assert_key_node_equal "t1.2" k1 k1'''';
+      Graph.read_node (g "t1'") k3 [l "a";l "b"] >>= fun k1'''''->
+      assert_key_node_opt_equal "t1.3" (Some k1) k1''''';
 
-      Node.find node t1 [] >>= fun v11 ->
-      assert_contents_opt_equal "v1.1" (Some v1) v11;
-      Node.find node t2 [l "b"] >>= fun v12 ->
-      assert_contents_opt_equal "v1.2" (Some v1) v12;
-      Node.find node t3 [l "a"; l "b"] >>= fun v13 ->
-      assert_contents_opt_equal "v1" (Some v1) v13;
+      let kv1 = kv1 x in
+      Graph.read_contents (g "kv11") k1 [] >>= fun kv11 ->
+      assert_key_contents_opt_equal "v1.1" (Some kv1) kv11;
+      Graph.read_contents (g "kv12") k2 [l "b"] >>= fun kv12 ->
+      assert_key_contents_opt_equal "v1.2" (Some kv1) kv12;
+      Graph.read_contents (g "kv13") k3 [l "a"; l "b"] >>= fun kv13 ->
+      assert_key_contents_opt_equal "v1" (Some kv1) kv13;
 
       (* Create the node t6 -a-> t5 -b-> t1(v1)
                                    \-c-> t4(v2) *)
-      let v2 = v2 x in
-      Node.node node ~contents:[l "", v2] () >>= fun (k4, _) ->
-      Node.read_exn node k4 >>= fun t4 ->
-      Node.node node ~succ:[(l "b",t1); (l "c",t4)] () >>= fun (k5, _) ->
-      Node.read_exn node k5 >>= fun t5 ->
-      Node.node node ~succ:[l "a",t5] () >>= fun (k6, _) ->
-      Node.read_exn node k6 >>= fun t6 ->
-      Node.update node t3 [l "a"; l "c"] v2 >>= fun t6' ->
-      assert_node_equal "node" t6 t6';
+      let kv2 = kv2 x in
+      Graph.node (g "k4") ~contents:[l "", kv2] ~succ:[] >>= fun k4 ->
+      Node.read_exn (n "t4") k4 >>= fun t4 ->
+      Graph.node (g "k5") ~succ:[(l "b",k1); (l "c",k4)] ~contents:[] >>= fun k5 ->
+      Node.read_exn (n "t5") k5 >>= fun t5 ->
+      Graph.node (g "k6") ~succ:[l "a", k5] ~contents:[] >>= fun k6 ->
+      Node.read_exn (n "t6") k6 >>= fun t6 ->
+      Graph.add_contents (g "k6") k3 [l "a"; l "c"] kv2 >>= fun k6' ->
+      assert_key_node_equal "node" k6 k6';
 
       return_unit
     in
@@ -236,39 +230,29 @@ module Make (S: Irmin.S) = struct
     let test () =
       create x >>= fun t ->
       create_dummy x >>= fun dummy ->
-      let v1 = v1 x in
-      let node = S.Private.node_t (t "get node handle") in
-      let commit = S.Private.commit_t (dummy ()) in
+      let kv1 = kv1 x in
+      let g = g t and h = h t in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
-      Node.node node ~contents:[l "", v1] () >>= fun (_, t1) ->
-      Node.node node ~succ:[l "a", t1] () >>= fun (_, t2) ->
-      Node.node node ~succ:[l "b", t2] () >>= fun (_, t3) ->
-
-      let module Commit =
-        Irmin.Private.Commit.Make_ext
-          (S.Private.Contents)(S.Private.Node)(S.Private.Commit)
-      in
+      Graph.node (g "kt1") ~contents:[l "", kv1] ~succ:[] >>= fun kt1 ->
+      Graph.node (g "kt2") ~contents:[] ~succ:[l "a", kt1] >>= fun kt2 ->
+      Graph.node (g "kt3") ~contents:[] ~succ:[l "b", kt2] >>= fun kt3 ->
 
       (* r1 : t2 *)
-      Commit.commit commit ~node:t2 ~parents:[] >>= fun (kr1 , r1 ) ->
-      Commit.commit commit ~node:t2 ~parents:[] >>= fun (kr1', r1') ->
+      History.commit (h "kr1") ~node:kt2 ~parents:[] >>= fun kr1 ->
+      History.commit (h "kr1'") ~node:kt2 ~parents:[] >>= fun kr1' ->
       assert_key_commit_equal "kr1" kr1 kr1';
-      assert_commit_equal "r1" r1 r1';
+      assert_key_commit_equal "r1" kr1 kr1';
 
       (* r1 -> r2 : t3 *)
-      Commit.commit commit ~node:t3 ~parents:[r1] >>= fun (kr2 , r2) ->
-      Commit.commit commit ~node:t3 ~parents:[r1] >>= fun (kr2', r2') ->
+      History.commit (h "kr2") ~node:kt3 ~parents:[kr1] >>= fun kr2 ->
+      History.commit (h "kr2'") ~node:kt3 ~parents:[kr1] >>= fun kr2' ->
       assert_key_commit_equal "kr2" kr2 kr2';
-      assert_commit_equal "r2" r2 r2';
 
-      Commit.list commit kr1 >>= fun kr1s ->
+      History.closure (h "kr1s") ~min:[] ~max:[kr1] >>= fun kr1s ->
       assert_key_commits_equal "g1" [kr1] kr1s;
 
-      Commit.list commit kr2 >>= fun kr2s ->
-      assert_key_commits_equal "g2" [kr1] kr2s;
-
-      Commit.rec_list commit [kr2] >>= fun kr2s ->
+      History.closure (h "kr2s") ~min:[] ~max:[kr2] >>= fun kr2s ->
       assert_key_commits_equal "g2" [kr1; kr2] kr2s;
 
       return_unit
@@ -281,8 +265,8 @@ module Make (S: Irmin.S) = struct
 
       let tag = S.Private.tag_t (t "tag handle") in
 
-      r1 x >>= fun (kv1, _) ->
-      r2 x >>= fun (kv2, _) ->
+      r1 x >>= fun kv1 ->
+      r2 x >>= fun kv2 ->
 
       Tag.update tag t1 kv1 >>= fun () ->
       Tag.read   tag t1 >>= fun k1' ->
@@ -321,29 +305,26 @@ module Make (S: Irmin.S) = struct
 
       (* merge nodes *)
 
-      let node = S.Private.node_t (t "node_t") in
       let v1 = v1 x in
+      let g = g t and n = n t in
+
       (* The empty node *)
-      Node.node node () >>= fun (k0, t0) ->
+      Graph.node (g "k0") ~contents:[] ~succ:[] >>= fun k0 ->
       (* Create a node containing t1(v1) *)
-      Node.node node ~contents:[l "x", v1] () >>= fun (k1, t1) ->
+      Graph.node (g "k1") ~contents:[l "x", kv1] ~succ:[] >>= fun k1 ->
       (* Create the node  t2 -b-> t1(v1) *)
-      Node.node node ~succ:[l "b", t1] () >>= fun (k2, t2) ->
+      Graph.node (g "k2") ~succ:[l "b", k1] ~contents:[] >>= fun k2 ->
       (* Create the node  t3 -c-> t1(v1) *)
-      Node.node node ~succ:[l "c", t1] () >>= fun (k3, t3) ->
+      Graph.node (g "k3") ~succ:[l "c", k2] ~contents:[] >>= fun k3 ->
       (* Should create the node:
                           t4 -b-> t1(v1)
                              \c/  *)
 
-      Node.merge node ~old:k0 k2 k3 >>= fun k4 ->
+      Graph.merge (g "merge: k4") ~old:k0 k2 k3 >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
-      Node.read_exn node k4 >>= fun t4 ->
-      let succ = Node.all_succ node t4 in
-      Lwt_list.map_p
-        (fun (l, v) -> v >>= fun v -> return (l, v))
-        succ
-      >>= fun succ ->
-      assert_succ_equal "k4" succ [ (l "b", t1); (l "c", t1) ];
+      let succ = ref [] in
+      Graph.iter_succ (g "iter") k4 (fun l v -> succ := (l, v) :: !succ) >>= fun () ->
+      assert_succ_equal "k4" (List.rev !succ) [ (l "b", k1); (l "c", k1) ];
 
       (* merge commits *)
 
@@ -352,16 +333,17 @@ module Make (S: Irmin.S) = struct
       S.create x.config task >>= fun t ->
 
       let commit date = S.Private.commit_t (t date) in
+      let h = h t in
 
-      Commit.commit (commit 0) ~node:t0 ~parents:[] >>= fun (kr0, r0) ->
-      Commit.commit (commit 1) ~node:t2 ~parents:[r0] >>= fun (kr1, r1) ->
-      Commit.commit (commit 2) ~node:t3 ~parents:[r0] >>= fun (kr2, r2) ->
-      Commit.merge (commit 3) ~old:kr0 kr1 kr2 >>= fun kr3 ->
+      History.commit (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
+      History.commit (h 1) ~node:k2 ~parents:[kr0] >>= fun kr1 ->
+      History.commit (h 2) ~node:k3 ~parents:[kr0] >>= fun kr2 ->
+      History.merge (h 3) ~old:kr0 kr1 kr2 >>= fun kr3 ->
       Irmin.Merge.exn kr3 >>= fun kr3 ->
       Commit.read_exn (commit 4) kr3 >>= fun r3 ->
-      Commit.commit (commit 3) ~node:t4 ~parents:[r1; r2] >>= fun (kr3', r3') ->
+      History.commit (h 3) ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
       assert_key_commit_equal "kr3" kr3 kr3';
-      assert_commit_equal "r3" r3 r3';
+      assert_key_commit_equal "r3" kr3 kr3';
 
       return_unit
     in
@@ -428,25 +410,25 @@ module Make (S: Irmin.S) = struct
         assert_contents_opt_equal "foo2" (Some foo2) foo2';
         return_unit in
 
-      View.create () >>= fun v0 ->
+      View.create x.config task >>= fun v0 ->
       Lwt_list.iter_s (fun (k,v) ->
-          View.update v0 k v
+          View.update (v0 "init") k v
         ) nodes >>= fun () ->
-      View.update v0 ["foo";"1"] foo1 >>= fun () ->
-      View.update v0 ["foo";"2"] foo2 >>= fun () ->
+      View.update (v0 "foo/1") [l "foo";l "1"] foo1 >>= fun () ->
+      View.update (v0 "foo/2") [l "foo";l "2"] foo2 >>= fun () ->
       check_view v0 >>= fun () ->
 
-      View.update_path t ["b"] v0 >>= fun () ->
-      View.update_path t ["a"] v0 >>= fun () ->
+      View.update_path (t "update_path b/") [l "b"] (v0 "export") >>= fun () ->
+      View.update_path (t "update_oath a/") [l "a"] (v0 "export") >>= fun () ->
 
-      list t [["b";"foo"]] >>= fun ls ->
-      assert_paths_equal "path2" [ ["b";"foo";"1"]; ["b";"foo";"2"] ] ls;
-      read t ["b";"foo";"1"] >>= fun foo1' ->
+      S.list (t "list") [l "b";l "foo"] >>= fun ls ->
+      assert_paths_equal "path2" [ [l "b";l "foo";l "1"]; [l "b";l "foo";l "2"] ] ls;
+      S.read (t "read foo1") [l "b";l "foo";l "1"] >>= fun foo1' ->
       assert_contents_opt_equal "foo1" (Some foo1) foo1';
-      read t ["a";"foo";"2"] >>= fun foo2' ->
+      S.read (t "read foo2") [l "a";l "foo";l "2"] >>= fun foo2' ->
       assert_contents_opt_equal "foo2" (Some foo2) foo2';
 
-      View.of_path t ["b"] >>= fun v1 ->
+      View.of_path (t "of_path") [l "b"] >>= fun v1 ->
       check_view v1 >>= fun () ->
 
       update t ["b";"x"] foo1 >>= fun () ->

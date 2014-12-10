@@ -19,7 +19,7 @@ open Irmin_unix
 
 module P = Irmin.Path.String
 module K = Irmin.Hash.SHA1
-module T = Irmin.Tag.Path
+module T = Irmin.Tag.String_list
 
 type contents = [`String | `Json]
 

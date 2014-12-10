@@ -17,7 +17,6 @@
 open Lwt
 
 module I = Irmin
-module IB = Irmin.Private
 module Log = Log.Make(struct let section = "GIT" end)
 
 let (/) = Filename.concat
@@ -207,16 +206,18 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         (* XXX: eeerk: might cause wwrite duplication!!  *)
         (* String.length (to_string t) *)
 
-      let of_git { Git.Tree.name; node; _ } = (S.of_hum name, node)
-      let to_git perm (name, node) = { Git.Tree.perm; name = S.to_hum name; node }
+      let to_git perm (name, node) =
+        { Git.Tree.perm; name = S.to_hum name; node }
 
-      let all_contents t =
-        List.filter (fun { Git.Tree.perm; _ } -> perm <> `Dir) t
-        |> List.map of_git
+      let iter_contents t fn =
+        List.iter (fun { Git.Tree.perm; name; node } ->
+            if perm <> `Dir then fn (S.of_hum name) node
+          ) t
 
-      let all_succ t =
-        List.filter (fun { Git.Tree.perm; _ } -> perm <> `Dir) t
-        |> List.map of_git
+      let iter_succ t fn =
+        List.iter (fun { Git.Tree.perm; name; node } ->
+            if perm <> `Dir then fn (S.of_hum name) node
+          ) t
 
       let find t p s =
         let s = S.to_hum s in
@@ -246,7 +247,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
       let succ t s = find t (function `Dir -> true | _ -> false) s
       let contents t s = find t (function `Dir -> false | _ -> true) s
-      let steps t = List.map (fun { Git.Tree.name; _ } -> S.of_hum name) t
       let empty = []
       let create ~contents ~succ =
         List.map (to_git `Normal) contents @ List.map (to_git `Dir) succ
@@ -255,21 +255,22 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         | [] -> true
         | _  -> false
 
-      let edges t =
-        List.map (function
-            | { Git.Tree.perm = `Dir; node; _ } -> `Node node
-            | { Git.Tree.node; _ } -> `Contents node
-          ) t
-
-      module N = IB.Node.Make (GK)(GK)(P)
+      module N = Irmin.Node.Make (GK)(GK)(P)
 
       (* FIXME: handle executable files *)
       let to_n t =
-        let succ = all_succ t in
-        let contents = all_contents t in
-        N.create ~contents ~succ
+        let contents = ref [] in
+        iter_contents t (fun l k -> contents := (l, k) :: !contents);
+        let succ = ref [] in
+        iter_succ t (fun l k -> succ := (l, k) :: !succ);
+        N.create ~contents:!contents ~succ:!succ
 
-      let of_n n = create ~contents:(N.all_contents n) ~succ:(N.all_succ n)
+      let of_n n =
+        let contents = ref [] in
+        N.iter_contents n (fun l k -> contents := (l, k) :: !contents);
+        let succ = ref [] in
+        N.iter_succ n (fun l k -> succ := (l, k) :: !succ);
+        create ~contents:!contents ~succ:!succ
 
       let to_json t = N.to_json (to_n t)
       let of_json j = of_n (N.of_json j)
@@ -351,12 +352,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let parents { Git.Commit.parents; _ } = List.map commit_key_of_git parents
       let task { Git.Commit.author; message; _ } = task_of_git author message
 
-      let edges t =
-        let node = xnode t in
-        let parents = parents t in
-        `Node node :: List.map (fun k -> `Commit k) parents
-
-      module C = IB.Commit.Make(H)(GK)
+      module C = Irmin.Commit.Make(H)(GK)
 
       let of_c c =
         to_git (C.task c) (C.node c) (C.parents c)
@@ -540,11 +536,11 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
   end
   module P = struct
-    module Contents = XContents
+    module Contents = Irmin.Contents.Make(XContents)
     module Node = XNode
     module Commit = XCommit
     module Tag = XTag
-    module Slice = IB.Slice.Make(Contents)(Node)(Commit)(Tag)
+    module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)(Tag)
     module Sync = XSync
   end
   include Irmin.Make_ext(P)
@@ -568,7 +564,7 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     include V
     let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
   end
-  module M = Make (FakeIO)(G)(Irmin.Path.String)(V)(Irmin.Tag.Path)(K)
+  module M = Make (FakeIO)(G)(Irmin.Path.String)(V)(Irmin.Tag.String_list)(K)
   include M.AO(K)(M.GitContents)
 end
 

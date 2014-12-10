@@ -127,7 +127,7 @@ module Make (S: Irmin.S) = struct
     let l1, k1 = unzip s1 in
     let l2, k2 = unzip s2 in
     assert_steps_equal msg l1 l2;
-    assert_nodes_equal msg k1 k2
+    assert_keys_node_equal msg k1 k2
 
 end
 
@@ -135,7 +135,7 @@ open Lwt
 
 module P = Irmin.Path.String
 module K = Irmin.Hash.SHA1
-module T = Irmin.Tag.Path
+module T = Irmin.Tag.String_list
 module Store (F: Irmin.S_MAKER)(C: Irmin.Contents.S) =  F(P)(C)(T)(K)
 
 let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =

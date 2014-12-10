@@ -266,13 +266,13 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       (module S.Private.Node)
       (module S.Private.Node.Key)
       (module S.Private.Node.Val)
-      (fun t -> return (snd (S.Private.node_t t)))
+      (fun t -> return (S.Private.node_t t))
 
   let commit_store = ao_store
       (module S.Private.Commit)
       (module S.Private.Commit.Key)
       (module S.Private.Commit.Val)
-      (fun t -> let _, _, t = S.Private.commit_t t in return t)
+      (fun t -> return (S.Private.commit_t t))
 
   let tag_store =
     let open S.Private.Tag in

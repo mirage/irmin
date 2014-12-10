@@ -68,6 +68,9 @@ module type GRAPH = sig
   val succ: t -> node -> step -> node option Lwt.t
   val steps: t -> node -> step list Lwt.t
 
+  val iter_contents: t -> node -> (step -> contents -> unit) -> unit Lwt.t
+  val iter_succ: t -> node -> (step -> node -> unit) -> unit Lwt.t
+
   val mem_contents: t -> node -> step list -> bool Lwt.t
   val read_contents: t -> node -> step list -> contents option Lwt.t
   val read_contents_exn: t -> node -> step list -> contents Lwt.t

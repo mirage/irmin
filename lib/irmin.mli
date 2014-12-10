@@ -394,10 +394,10 @@ end
 
 (** {1 Stores} *)
 
-type task
+type task = Task.t
 (** The type for user-defined tasks. See {{!Task}Task}. *)
 
-type config
+type config = Conf.t
 (** The type for backend-specific configuration values. See {{!Conf}Conf}.
 
     Every backend has different configuration options, which are kept
@@ -649,7 +649,6 @@ end
 
 (** {1 User-Defined Contents} *)
 
-
 (** [Contents] specifies how user-defined contents need to be {e
     serializable} and {e mergeable}.
 
@@ -722,8 +721,11 @@ module Contents: sig
     end
 
   (** [Make] builds a contents store. *)
-  module Make
-      (S: AO)(K: Hash.S with type t = S.key) (V: S with type t = S.value):
+  module Make (S: sig
+                 include AO
+                 module Key: Hash.S with type t = key
+                 module Val: S with type t = value
+               end):
     STORE with type t = S.t and type key = S.key and type value = S.value
 
 end
@@ -934,6 +936,12 @@ module Node: sig
     (** [succ t n s] is the node pointed by [s] in the node [n]. *)
 
     val steps: t -> node -> step list Lwt.t
+    (** FIXME *)
+
+    val iter_contents: t -> node -> (step -> contents -> unit) -> unit Lwt.t
+    (** FIXME *)
+
+    val iter_succ: t -> node -> (step -> node -> unit) -> unit Lwt.t
     (** FIXME *)
 
     (** {1 Contents} *)

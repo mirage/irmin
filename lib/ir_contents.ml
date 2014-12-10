@@ -156,13 +156,14 @@ module Cstruct = struct
   let merge = Ir_merge.default (module S)
 end
 
-module Make (S: Ir_ao.STORE)
-    (K: Ir_hash.S with type t = S.key)
-    (V: S with type t = S.value) =
+module Make
+    (S: sig
+       include Ir_ao.STORE
+       module Key: Ir_hash.S with type t = key
+       module Val: S with type t = value
+     end) =
 struct
   include S
-  module Key = K
-  module Val = V
   let merge t =
     Ir_merge.biject' (module Val) (module Key) Val.merge (add t) (read_exn t)
 end

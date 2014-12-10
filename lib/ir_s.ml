@@ -74,7 +74,11 @@ module Make
     (H: Ir_hash.S) =
 struct
   module X = struct
-    module Contents = Ir_contents.Make(AO(H)(C))(H)(C)
+    module Contents = Ir_contents.Make(struct
+        include AO(H)(C)
+        module Key = H
+        module Val = C
+      end)
     module Node = struct
       module Key = H
       module Val = Ir_node.Make (H)(H)(P)
