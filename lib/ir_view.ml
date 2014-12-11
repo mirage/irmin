@@ -531,16 +531,15 @@ module Make (S: Ir_s.STORE) = struct
 
   let of_path db path =
     Log.debugf "read_view %a" force (show (module Path) path);
-    let parents =
-      S.head db >>= function
-      | None   -> return_nil
-      | Some h -> return [h] in
     P.read_node db path >>= function
     | None   ->
       create (S.config db) (fun () -> S.task db) >>= fun t ->
       return (t ())
     | Some n ->
-      parents >>= fun parents ->
+      begin S.head db >>= function
+        | None   -> return_nil
+        | Some h -> return [h]
+      end >>= fun parents ->
       import db ~parents n
 
   let update_path db path view =
@@ -557,6 +556,10 @@ module Make (S: Ir_s.STORE) = struct
       merge view ~into:head_view >>| fun () ->
       update_path db path head_view >>= fun () ->
       ok ()
+
+  let rebase_path_exn db path view =
+    rebase_path db path view >>=
+    Ir_merge.exn
 
   let merge_path db path view =
     Log.debugf "merge_view %a" force (show (module Path) path);
@@ -587,6 +590,10 @@ module Make (S: Ir_s.STORE) = struct
         else
           S.merge_head db k
 
+  let merge_path_exn db path t =
+    merge_path db path t >>=
+    Ir_merge.exn
+
 end
 
 module type S = sig
@@ -597,7 +604,9 @@ module type S = sig
   val of_path: db -> key -> t Lwt.t
   val update_path: db -> key -> t -> unit Lwt.t
   val rebase_path: db -> key -> t -> unit Ir_merge.result Lwt.t
+  val rebase_path_exn: db -> key -> t -> unit Lwt.t
   val merge_path: db -> key -> t -> unit Ir_merge.result Lwt.t
+  val merge_path_exn: db -> key -> t -> unit Lwt.t
   module Action: sig
     type t =
       [ `Read of (key * value option)

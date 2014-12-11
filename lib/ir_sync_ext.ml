@@ -24,9 +24,12 @@ module type STORE = sig
   type remote
   val uri: string -> remote
   val store: (module Ir_s.STORE with type t = 'a) -> 'a -> remote
-  val fetch: db -> ?depth:int -> remote -> [`Local of head] option Lwt.t
+  val fetch: db -> ?depth:int -> remote -> head option Lwt.t
+  val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
   val pull: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Ir_merge.result Lwt.t
+  val pull_exn: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Lwt.t
   val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+  val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
 end
 
 module Make (S: Ir_s.STORE) = struct
@@ -65,7 +68,9 @@ module Make (S: Ir_s.STORE) = struct
         | None     -> return_none
         | Some tag ->
           B.create (S.config t) >>= fun g ->
-          B.fetch g ?depth ~uri tag
+          B.fetch g ?depth ~uri tag >>= function
+          | None  -> return_none
+          | Some (`Local h) -> return (Some h)
       end
     | Store ((module R), r) ->
       Log.debugf "fetch store";
@@ -74,18 +79,27 @@ module Make (S: Ir_s.STORE) = struct
       | None   -> return_none
       | Some h ->
         let h = S.Head.of_raw (R.Head.to_raw h) in
-        return (Some (`Local h))
+        return (Some h)
+
+  let fetch_exn t ?depth remote =
+    fetch t ?depth remote >>= function
+    | Some h -> return h
+    | None   -> fail (Failure "Sync.fetch_exn")
 
   let pull t ?depth remote kind =
     let open Ir_merge.OP in
     fetch t ?depth remote >>= function
     | None -> ok () (* XXX ? *)
-    | Some (`Local k) ->
+    | Some k ->
       match kind with
       | `Merge  -> S.merge_head t k
       | `Update ->
         S.update_head t k >>= fun () ->
         ok ()
+
+  let pull_exn t ?depth remote kind =
+    pull t ?depth remote kind >>=
+    Ir_merge.exn
 
   let push t ?depth remote =
     Log.debugf "push";
@@ -105,5 +119,10 @@ module Make (S: Ir_s.STORE) = struct
         let h = R.Head.of_raw (S.Head.to_raw h) in
         R.update_head r h >>= fun () ->
         return `Ok
+
+  let push_exn t ?depth remote =
+    push t ?depth remote >>= function
+    | `Ok    -> return_unit
+    | `Error -> fail (Failure "Sync.push_exn")
 
 end

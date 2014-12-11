@@ -289,8 +289,8 @@ let clone = {
         r >>= fun r ->
         S.create config task >>= fun t ->
         IS.fetch (fmt t "Fetch %s." remote) ?depth r >>= function
-        | Some (`Local d) -> S.update_head (t "update head after clone") d
-        | None            -> return_unit
+        | Some d -> S.update_head (t "update head after clone") d
+        | None   -> return_unit
       end
     in
     Term.(mk clone $ Ir_resolver.parse $ Ir_resolver.remote $ native $ depth);

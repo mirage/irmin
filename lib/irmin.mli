@@ -1348,8 +1348,14 @@ module View (S: S): sig
   val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
   (** Rebase the view to the tip of the store. *)
 
+  val rebase_path_exn: db -> key -> t -> unit Lwt.t
+  (** FIXME *)
+
   val merge_path: db -> key -> t -> unit Merge.result Lwt.t
   (** Same as [update_path] but *merges* with the current subtree. *)
+
+  val merge_path_exn: db -> key -> t -> unit Lwt.t
+  (** FIXME *)
 
   (** [Action] provides information about operations performed on a
       view.
@@ -1459,7 +1465,7 @@ module Sync (S: S): sig
       {{!BC.slice}slices}, so this is usually much slower than native
       synchronization using [uri] remotes. *)
 
-  val fetch: S.t -> ?depth:int -> remote -> [`Local of S.head] option Lwt.t
+  val fetch: S.t -> ?depth:int -> remote -> S.head option Lwt.t
   (** [create t last] fetch an object in the local store. The local
       store can then be either [merged], or [updated] to the new
       contents. The [depth] parameter limits the history
@@ -1467,17 +1473,26 @@ module Sync (S: S): sig
       to the current branch -- [fetch] does not update the local
       branches, use {{!Sync.pull}pull} instead. *)
 
+  val fetch_exn: S.t -> ?depth:int -> remote -> S.head Lwt.t
+  (** FIXME *)
+
   val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
     unit Merge.result Lwt.t
   (** Same as {{!Sync.fetch}fetch} but also update the current
       branch. Either [merge] or force [update] with the fetched
       head. *)
 
+  val pull_exn: S.t -> ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t
+  (** FIXME *)
+
   val push: S.t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
   (** [push t f] push the contents of the current branch of the
       store to the remote store -- also update the remote branch
       with the same name as the local one to points to the new
       state. *)
+
+  val push_exn: S.t -> ?depth:int -> remote -> unit Lwt.t
+  (** FIXME *)
 
 end
 

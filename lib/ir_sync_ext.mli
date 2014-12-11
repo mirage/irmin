@@ -22,9 +22,12 @@ module type STORE = sig
   type remote
   val uri: string -> remote
   val store: (module Ir_s.STORE with type t = 'a) -> 'a -> remote
-  val fetch: db -> ?depth:int -> remote -> [`Local of head] option Lwt.t
+  val fetch: db -> ?depth:int -> remote -> head option Lwt.t
+  val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
   val pull: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Ir_merge.result Lwt.t
+  val pull_exn: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Lwt.t
   val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+  val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
 end
 
 module Make (S: Ir_s.STORE): STORE with type db = S.t and type head = S.head

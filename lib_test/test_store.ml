@@ -118,7 +118,7 @@ module Make (S: Irmin.S) = struct
       Lwt_unix.run (x.clean ());
       raise e
 
-  let random_value ~kind ~value =
+  let random_value kind value =
     let str = random_string value in
     match kind with
     | `String -> Tc.read_string (module B) str
@@ -132,7 +132,7 @@ module Make (S: Irmin.S) = struct
     aux path
 
   let random_node ~label ~path ~value ~kind =
-    random_path ~label ~path, random_value ~kind ~value
+    random_path ~label ~path, random_value kind value
 
   let random_nodes ?(label=8) ?(path=5) ?(value=1024) kind n =
     let rec aux acc = function
@@ -402,11 +402,11 @@ module Make (S: Irmin.S) = struct
       let foo2 = random_value x.kind 10 in
 
       let check_view view =
-        View.list (view "list") [l "foo"] >>= fun ls ->
+        View.list view [l "foo"] >>= fun ls ->
         assert_paths_equal "path1" [ [l "foo";l "1"]; [l "foo";l "2"] ] ls;
-        View.read (view "read1") [l "foo";l "1"] >>= fun foo1' ->
+        View.read view [l "foo";l "1"] >>= fun foo1' ->
         assert_contents_opt_equal "foo1" (Some foo1) foo1';
-        View.read (view "read2") [l "foo";l "2"] >>= fun foo2' ->
+        View.read view [l "foo";l "2"] >>= fun foo2' ->
         assert_contents_opt_equal "foo2" (Some foo2) foo2';
         return_unit in
 
@@ -416,7 +416,7 @@ module Make (S: Irmin.S) = struct
         ) nodes >>= fun () ->
       View.update (v0 "foo/1") [l "foo";l "1"] foo1 >>= fun () ->
       View.update (v0 "foo/2") [l "foo";l "2"] foo2 >>= fun () ->
-      check_view v0 >>= fun () ->
+      check_view (v0 "check v0") >>= fun () ->
 
       View.update_path (t "update_path b/") [l "b"] (v0 "export") >>= fun () ->
       View.update_path (t "update_oath a/") [l "a"] (v0 "export") >>= fun () ->
@@ -431,18 +431,19 @@ module Make (S: Irmin.S) = struct
       View.of_path (t "of_path") [l "b"] >>= fun v1 ->
       check_view v1 >>= fun () ->
 
-      update t ["b";"x"] foo1 >>= fun () ->
-      View.update v1 ["y"] foo2 >>= fun () ->
-      View.merge_path_exn t ["b"] v1 >>= fun () ->
-      read t ["b";"x"] >>= fun foo1' ->
-      read t ["b";"y"] >>= fun foo2' ->
+      S.update (t "update b/x") [l "b";l "x"] foo1 >>= fun () ->
+      View.update v1 [l "y"] foo2 >>= fun () ->
+      View.merge_path_exn (t "merge_path") [l "b"] v1 >>= fun () ->
+      S.read (t "read b/x") [l "b";l "x"] >>= fun foo1' ->
+      S.read (t "read b/y") [l"b";l "y"] >>= fun foo2' ->
       assert_contents_opt_equal "merge: b/x" (Some foo1) foo1';
       assert_contents_opt_equal "merge: b/y" (Some foo2) foo2';
 
       Lwt_list.iteri_s (fun i (k, v) ->
-          read_exn t ("a"::k) >>= fun v' ->
+          let p = String.concat "/" (List.map S.Key.Step.to_hum k) in
+          S.read_exn (t @@ "read a/"^p) (l "a"::k) >>= fun v' ->
           assert_contents_equal ("a"^string_of_int i) v v';
-          read_exn t ("b"::k) >>= fun v' ->
+          S.read_exn (t @@ "read b/"^p) (l "b"::k) >>= fun v' ->
           assert_contents_equal ("b"^string_of_int i) v v';
           return_unit
         ) nodes >>= fun () ->
@@ -451,47 +452,50 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  module Sync = Irmin.Sync(S)
+
   let test_sync x () =
     let test () =
-      create () >>= fun t1 ->
-      mk x.kind t1 >>= function { v1; v2 } ->
+      create x >>= fun t1 ->
+      let v1 = v1 x in
+      let v2 = v2 x in
 
-      update t1 ["a";"b"] v1 >>= fun () ->
-      Snapshot.create t1 >>= fun r1 ->
-      update t1 ["a";"c"] v2 >>= fun () ->
-      Snapshot.create t1 >>= fun r2 ->
-      update t1 ["a";"d"] v1 >>= fun () ->
-      Snapshot.create t1 >>= fun r3 ->
+      S.update (t1 "update a/b") [l "a";l "b"] v1 >>= fun () ->
+      Snapshot.create (t1 "snapshot 1") >>= fun r1 ->
+      S.update (t1 "update a/c") [l "a";l "c"] v2 >>= fun () ->
+      Snapshot.create (t1 "snapshot 2") >>= fun r2 ->
+      S.update (t1 "update a/d") [l "a";l "d"] v1 >>= fun () ->
+      Snapshot.create (t1 "snapshot 3") >>= fun r3 ->
 
-      let remote = IrminSync.store (module S) Branch.master in
+      let remote = Sync.store (module S) (t1 "remote") in
 
-      Sync.fetch_exn t1 ~depth:0 remote >>= fun partial ->
-      Sync.fetch_exn t1          remote >>= fun full ->
+      Sync.fetch_exn (t1 "partial fetch") ~depth:0 remote >>= fun partial ->
+      Sync.fetch_exn (t1 "total fetch") remote >>= fun full ->
 
       (* Restart a fresh store and import everything in there. *)
-      let branch = Branch.of_string "export" in
-      S.create ~branch () >>= fun t2 ->
-      Sync.update t2 partial >>= fun () ->
+      let tag = S.Tag.of_hum "export" in
+      S.of_tag x.config task tag >>= fun t2 ->
+      S.update_head (t2 "partial update") partial >>= fun () ->
 
-      mem t2 ["a";"b"] >>= fun b1 ->
+      S.mem (t2 "mem a/b") [l "a";l "b"] >>= fun b1 ->
       assert_bool_equal "mem-ab" true b1;
 
-      mem t2 ["a";"c"] >>= fun b2 ->
+      S.mem (t2 "mem a/c") [l "a";l "c"] >>= fun b2 ->
       assert_bool_equal "mem-ac" true b2;
 
-      mem t2 ["a";"d"] >>= fun b3 ->
+      S.mem (t2 "mem a/d") [l "a";l "d"] >>= fun b3 ->
       assert_bool_equal "mem-ad" true b3;
-      read_exn t2 ["a";"d"] >>= fun v1' ->
+      S.read_exn (t2 "read a/d") [l "a";l "d"] >>= fun v1' ->
       assert_contents_equal "v1" v1' v1;
 
-      Snapshot.revert t2 r2 >>= fun () ->
-      mem t2 ["a";"d"] >>= fun b4 ->
+      Snapshot.revert (t2 "revert to t2") r2 >>= fun () ->
+      S.mem (t2 "mem a/b") [l "a";l "d"] >>= fun b4 ->
       assert_bool_equal "mem-ab" false b4;
 
-      Sync.update t2 full >>= fun () ->
-      Snapshot.revert t2 r2 >>= fun () ->
-      mem t2 ["a";"d"] >>= fun b4 ->
-      assert_bool_equal "mem-ab" false b4;
+      S.update_head (t2 "full update") full >>= fun () ->
+      Snapshot.revert (t2 "revert to r2") r2 >>= fun () ->
+      S.mem (t2 "mem a/d") [l "a";l "d"] >>= fun b4 ->
+      assert_bool_equal "mem-ad" false b4;
       return_unit
     in
     run x test
