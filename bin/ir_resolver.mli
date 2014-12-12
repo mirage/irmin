@@ -31,7 +31,7 @@ val read_config_file: unit -> (module Irmin.S) option * Irmin.config
 val parse: ((module Irmin.S) * Irmin.config) Cmdliner.Term.t
 (** Parse the command-line arguments and then the config file. *)
 
-type contents = [`String | `Json]
+type contents = (module Irmin.Contents.S)
 
 val contents: contents Cmdliner.Term.t
 

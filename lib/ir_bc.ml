@@ -70,7 +70,7 @@ end
 module type STORE_EXT = sig
   include STORE
   module Key: Ir_path.S with type step = step
-  module Val: Tc.S0 with type t = value
+  module Val: Ir_contents.S with type t = value
   module Private: PRIVATE
     with type Contents.value = value
      and type Node.Path.step = step
@@ -389,14 +389,9 @@ module Make_ext (P: PRIVATE) = struct
     Ir_merge.exn
 
   let clone_force t task tag =
-    Log.debugf "clone %a" force (show (module Tag.Key) tag);
-    begin match branch t with
-      | `Head c  -> Tag.update (tag_t t) tag c
-      | `Tag tag ->
-        Tag.read (tag_t t) tag >>= function
-        | None   -> fail Not_found
-        | Some c -> Tag.update (tag_t t) tag c
-    end  >>= fun () ->
+    Log.debugf "clone_force %a" force (show (module Tag.Key) tag);
+    head_exn t >>= fun h ->
+    Tag.update (tag_t t) tag h >>= fun () ->
     let branch = ref (`Tag tag) in
     return (fun a -> { t with branch; task = task a; })
 

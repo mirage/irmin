@@ -148,7 +148,10 @@ struct
       ok key
 
     module Key = S.Key
-    module Val = S.Val
+    module Val = struct
+      include S.Val
+      let merge ~old:_ _ _ = conflict "Commit.Val"
+    end
   end
 
   type t = Store.t

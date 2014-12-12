@@ -736,7 +736,7 @@ module Contents: sig
       module Key: Hash.S with type t = key
       (** [Key] provides base functions for user-defined contents keys. *)
 
-      module Val: Tc.S0 with type t = value
+      module Val: S with type t = value
       (** [Val] provides base function for user-defined contents values. *)
 
     end
@@ -1303,7 +1303,7 @@ module type S = sig
   module Key: Path.S with type step = step
   (** [Key] provides base functions over step lists. *)
 
-  module Val: Tc.S0 with type t = value
+  module Val: Contents.S with type t = value
   (** [Val] provides base functions over user-defined, mergeable
       contents. *)
 

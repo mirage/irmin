@@ -277,10 +277,10 @@ let clone = {
               if Sys.file_exists remote
               then
                 if Sys.file_exists (remote / ".git")
-                then Ir_resolver.git_store `String
-                else Ir_resolver.irf_store `String
+                then Ir_resolver.git_store (module S.Val)
+                else Ir_resolver.irf_store (module S.Val)
               else
-                Ir_resolver.http_store `String
+                Ir_resolver.http_store (module S.Val)
             in
             let module R = (val r) in
             let config =

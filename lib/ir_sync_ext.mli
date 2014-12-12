@@ -30,4 +30,5 @@ module type STORE = sig
   val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
 end
 
-module Make (S: Ir_s.STORE): STORE with type db = S.t and type head = S.head
+module Make (S: Ir_s.STORE): STORE
+  with type db = S.t and type head = S.head

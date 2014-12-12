@@ -21,16 +21,12 @@ module P = Irmin.Path.String
 module K = Irmin.Hash.SHA1
 module T = Irmin.Tag.String_list
 
-type contents = [`String | `Json]
+type contents = (module Irmin.Contents.S)
 
 module Make (F: Irmin.S_MAKER)(C: Irmin.Contents.S) =  F(P)(C)(T)(K)
 
-let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
-  fun (module M) c ->
-    let (module C: Irmin.Contents.S) = match c with
-      | `String -> (module Irmin.Contents.String)
-      | `Json   -> (module Irmin.Contents.Json)
-    in
+let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
+  fun (module M) (module C) ->
     let module X = Make(M)(C) in
     (module X)
 
@@ -82,25 +78,34 @@ let kinds = [
   ("mem" , mem_store);
 ]
 
+let mk_contents k: contents = match k with
+  | `String  -> (module Irmin.Contents.String)
+  | `Json    -> (module Irmin.Contents.Json)
+  | `Cstruct -> (module Irmin.Contents.Cstruct)
+
+let string = mk_contents `String
+
+let contents_kinds = [
+  "string" , string;
+  "json"   , mk_contents `Json;
+  "cstruct", mk_contents `Cstruct
+]
+
 let contents =
-  let create = function
-    | true  -> `Json
-    | false -> `String
+  let kind =
+    let doc = Arg.info ~doc:"The type of user-defined contents." ["contents";"c"] in
+    Arg.(value & opt (enum contents_kinds) (mk_contents `String) & doc)
   in
-  let json =
-    let doc = Arg.info ~doc:"User JSON contents." ["json"] in
-    Arg.(value & flag & doc)
-  in
-  Term.(pure create $ json)
+  Term.(pure (fun x -> x) $ kind)
 
 let store =
   let store =
     let doc = Arg.info ~doc:"The kind of backend stores." ["s";"store"] in
     Arg.(value & opt (some (enum kinds)) None & doc)
   in
-  let create store json =
+  let create store contents =
     match store with
-    | Some s -> Some (s json)
+    | Some s -> Some (s contents)
     | None   -> None
   in
   Term.(pure create $ store $ contents)
@@ -122,8 +127,12 @@ let read_config_file () =
       List.fold_left (fun l -> function None -> l | Some x -> x::l) [] lines
     in
     let assoc name fn = try Some (fn (List.assoc name lines)) with Not_found -> None in
-    let json = match assoc "json" bool_of_string with Some true -> `Json | _ -> `String in
-    let store = assoc "store" (fun x -> (List.assoc x kinds) json) in
+    let contents =
+      match assoc "contents" (fun x -> List.assoc x contents_kinds) with
+      | None   -> string
+      | Some c -> c
+    in
+    let store = assoc "store" (fun x -> (List.assoc x kinds) contents) in
     let config =
       let root = assoc "root" (fun x -> x) in
       let bare = match assoc "bare" bool_of_string with None -> false | Some b -> b in

@@ -86,7 +86,7 @@ module type STORE_EXT = sig
   module Key: Ir_path.S with type step = step
   (** Base functions over keys. *)
 
-  module Val: Tc.S0 with type t = value
+  module Val: Ir_contents.S with type t = value
   (** Base functions over values. *)
 
   module Private: PRIVATE

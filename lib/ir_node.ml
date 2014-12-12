@@ -17,6 +17,7 @@
 
 open Lwt
 open Ir_misc.OP
+open Ir_merge.OP
 
 module Log = Log.Make(struct let section = "NODE" end)
 
@@ -234,7 +235,10 @@ struct
       merge_key () ~old x y
 
     module Key = S.Key
-    module Val = S.Val
+    module Val = struct
+      include S.Val
+      let merge ~old:_ _ _ = conflict "Node.Val"
+    end
   end
 
   type t = Store.t

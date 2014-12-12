@@ -53,14 +53,35 @@ module Make (S: Ir_s.STORE) = struct
     =
     R.heads r >>= fun min ->
     let min = List.map (fun r -> S.Head.of_raw (R.Head.to_raw r)) min in
-    S.export l ?depth ~min >>= fun slice ->
-    (* FIXME: the serialiaztion of slices is broken
-      let p_slice = Tc.write_cstruct (module S.Private.Slice) slice in
-      let slice = Tc.read_cstruct (module R.Private.Slice) p_slice in
-    *)
-    let p_slice = Tc.to_json (module S.Private.Slice) slice in
-    let slice = Tc.of_json (module R.Private.Slice) p_slice in
-    R.import_force r slice
+    S.export l ?depth ~min >>= fun s_slice ->
+    let module SP = S.Private in
+    let module RP = R.Private in
+    RP.Slice.create () >>= fun r_slice ->
+    SP.Slice.iter_contents s_slice (fun (k, v) ->
+        let k = RP.Contents.Key.of_raw (SP.Contents.Key.to_raw k) in
+        let v = Tc.read_cstruct (module RP.Contents.Val)
+            (Tc.write_cstruct (module SP.Contents.Val) v) in
+        RP.Slice.add_contents r_slice (k, v)
+      ) >>= fun () ->
+    SP.Slice.iter_nodes s_slice (fun (k, v) ->
+        let k = RP.Node.Key.of_raw (SP.Node.Key.to_raw k) in
+        let v = Tc.read_cstruct (module RP.Node.Val)
+            (Tc.write_cstruct (module SP.Node.Val) v) in
+        RP.Slice.add_node r_slice (k, v)
+      ) >>= fun () ->
+    SP.Slice.iter_commits s_slice (fun (k, v) ->
+        let k = RP.Commit.Key.of_raw (SP.Commit.Key.to_raw k) in
+        let v = Tc.read_cstruct (module RP.Commit.Val)
+            (Tc.write_cstruct (module SP.Commit.Val) v) in
+        RP.Slice.add_commit r_slice (k, v)
+      ) >>= fun () ->
+    SP.Slice.iter_tags s_slice (fun (k, v) ->
+        let v = RP.Commit.Key.of_raw (SP.Commit.Key.to_raw v) in
+        let k = Tc.read_cstruct (module RP.Tag.Key)
+            (Tc.write_cstruct (module SP.Tag.Key) k) in
+        RP.Slice.add_tag r_slice (k, v)
+      ) >>= fun () ->
+    R.import_force r r_slice
 
   let fetch t ?depth remote =
     match remote with

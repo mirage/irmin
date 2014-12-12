@@ -27,7 +27,7 @@ module type STORE = sig
   include Ir_ao.STORE
   val merge: t -> key Ir_merge.t
   module Key: Ir_hash.S with type t = key
-  module Val: Tc.S0 with type t = value
+  module Val: S with type t = value
 end
 
 module Json = struct
