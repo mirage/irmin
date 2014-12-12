@@ -21,6 +21,7 @@ module Log = Log.Make(struct let section = "FS" end)
 let (/) = Filename.concat
 
 module type Config = sig
+  val dir: string -> string
   val file_of_key: string -> string
   val key_of_file: string -> string
 end
@@ -40,6 +41,7 @@ let root_key = Irmin.Conf.root
 let config ?root () = Irmin.Conf.add Irmin.Conf.empty root_key root
 
 module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
+
   type key = K.t
 
   type value = V.t
@@ -83,13 +85,15 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | true  -> IO.read_file (file_of_key t key) >>= fun x -> return (mk_value x)
 
   let read t key =
+    Log.debugf "read";
     mem t key >>= function
     | false -> return_none
     | true  ->
       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
 
   let keys_of_dir t fn =
-    IO.rec_files t.path >>= fun files ->
+    Log.debugf "keys_of_dir";
+    IO.rec_files (S.dir t.path) >>= fun files ->
     let files  =
       let p = String.length t.path in
       List.map (fun file ->
@@ -112,13 +116,13 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   include RO_ext(IO)(S)(K)(V)
 
   let add t value =
+    Log.debugf "add";
     let value = Tc.write_cstruct (module V) value in
     let key = K.digest value in
     let file = file_of_key t key in
-    begin if Sys.file_exists file then
-        return_unit
-      else
-        IO.write_file file value
+    begin
+      if Sys.file_exists file then return_unit
+      else catch (fun () -> IO.write_file file value) (fun e -> Log.debugf "XXX"; fail e)
     end >>= fun () ->
     return key
 
@@ -145,6 +149,7 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     IO.remove file
 
   let update t key value =
+    Log.debugf "update";
     remove t key >>= fun () ->
     IO.write_file (file_of_key t key) (Tc.write_cstruct (module V) value)
     >>= fun () ->
@@ -183,12 +188,15 @@ let string_chop_prefix ~prefix str =
   else String.sub str len (String.length str - len)
 
 module Ref = struct
+  let dir p = p / "refs"
   let file_of_key key = "refs" / key
   let key_of_file file =
     string_chop_prefix ~prefix:("refs" / "") file
 end
 
 module Obj = struct
+
+  let dir t = t / "objects"
 
   let file_of_key k =
     let len = String.length k in

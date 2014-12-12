@@ -55,6 +55,9 @@ module type Config = sig
   (** Same as [Config] but gives more control on the file
       hierarchy. *)
 
+  val dir: string -> string
+  (** [dir root] is the sub-directory to look for the keys. *)
+
   val file_of_key: string -> string
   (** Convert a key to a filename. *)
 
