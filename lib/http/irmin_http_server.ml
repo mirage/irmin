@@ -164,6 +164,20 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         fn t path query
       )
 
+  (* 0 arguments, return a stream *)
+  let mk0p0bs name fn db o =
+    name,
+    Stream (fun t path params query ->
+        mk0p name path;
+        mk0b name params;
+        mk0q name query;
+        Irmin.Watch.lwt_stream_lift
+          (db t >>= fun t ->
+           let stream = fn t in
+           let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
+           return stream)
+      )
+
   (* 1 argument in the path, fixed answer *)
   let mk1p0bf name fn db i1 o =
     name,
@@ -206,6 +220,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     Stream (fun t path _params query ->
         let x1 = mk1p name i1 path in
         mk0q name query;
+        (* mk0b name params; *)
         Irmin.Watch.lwt_stream_lift
           (db t >>= fun t ->
            let stream = fn t x1 in
@@ -247,12 +262,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let key': M.key Irmin.Hum.t = (module K) in
     let key: M.key Tc.t = (module K) in
     let value: M.value Tc.t = (module V) in
-    let pairs = Tc.list (Tc.pair key value) in
     SNode [
       mk1p0bf "read" M.read fn key' (Tc.option value);
       mk1p0bf "mem"  M.mem  fn key' Tc.bool;
-      mk1p0bf "list" M.list fn key' (Tc.list key);
-      mk0p0bf "dump" M.dump fn pairs;
       mk0p1bf "add"  M.add  fn value key;
     ]
 
@@ -274,18 +286,24 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       (module S.Private.Commit.Val)
       (fun t -> return (S.Private.commit_t t))
 
+  let stream fn t =
+    let stream, push = Lwt_stream.create () in
+    Irmin.Watch.lwt_stream_lift (
+      fn t (fun k -> push (Some k); return_unit) >>= fun () ->
+      push None;
+      return stream
+    )
+
   let tag_store =
     let open S.Private.Tag in
     let tag_t t = return (S.Private.tag_t t) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
     let head: S.head Tc.t = (module S.Head) in
-    let pairs = Tc.list (Tc.pair tag head) in
     SNode [
       mk1p0bf "read"   read   tag_t tag' (Tc.option head);
       mk1p0bf "mem"    mem    tag_t tag' Tc.bool;
-      mk1p0bf "list"   list   tag_t tag' (Tc.list tag);
-      mk0p0bf "dump"   dump   tag_t pairs;
+      mk0p0bs "iter"   (stream iter) tag_t tag;
       mk1p1bf "update" update tag_t tag' head Tc.unit;
       mk1p0bf "remove" remove tag_t tag' Tc.unit;
       mk1p0bs "watch"  watch  tag_t tag' (Tc.option head);
@@ -346,7 +364,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
-    let pairs = Tc.list (Tc.pair key value) in
     let slice: S.slice Tc.t = (module S.Private.Slice) in
     let s_export t ((full, depth), (min, max)) =
       S.export ?full ?depth ~min ~max t
@@ -365,11 +382,14 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       (* rw *)
       mk1p0bf "read"     S.read     t key' (Tc.option value);
       mk1p0bf "mem"      S.mem      t key' Tc.bool;
-      mk1p0bf "list"     S.list     t key' (Tc.list key);
-      mk0p0bf "dump"     S.dump     t pairs; (* XXX: do we really want to expose that? *)
+      mk0p0bs "iter"     (stream S.iter) t key;
       mk1p1bf "update"   S.update   t key' value Tc.unit;
       mk1p0bf "remove"   S.remove   t key' Tc.unit;
       mk1p0bs "watch"    S.watch    t key' (Tc.option value);
+
+      (* hrw *)
+      mk1p0bf "list-dir"   S.list_dir t key' (Tc.list key);
+      mk1p0bf "remove-dir" S.remove_dir t key' Tc.unit;
 
       (* more *)
       mk1p0bf "update-tag"       S.update_tag t tag' ok_or_duplicated_tag;

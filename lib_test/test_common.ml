@@ -54,80 +54,45 @@ module Make (S: Irmin.S) = struct
   let cmp_list eq comp l1 l2 =
     cmp_list eq (List.sort comp l1) (List.sort comp l2)
 
-  let mk equal compare pretty =
-    let aux cmp printer msg =
-      line msg;
-      OUnit.assert_equal ~msg ~cmp ~printer in
-    aux equal pretty,
-    aux (cmp_opt equal) (printer_opt pretty),
-    aux (cmp_list equal compare) (printer_list pretty)
+  let aux cmp printer msg =
+    line msg;
+    OUnit.assert_equal ~msg ~cmp ~printer
 
-  let assert_step_equal, assert_step_opt_equal, assert_steps_equal =
-    mk S.Key.Step.equal S.Key.Step.compare S.Key.Step.to_hum
+  let assert_equal (type t) (module S: Tc.S0 with type t = t) msg =
+    aux S.equal (Tc.show (module S)) msg
 
-  module KB = S.Private.Contents.Key
-  let assert_key_contents_equal, assert_key_contents_opt_equal, assert_keys_contents_equal =
-    mk KB.equal KB.compare KB.to_hum
+  module Set (S: Tc.S0) = struct
+    module L = Tc.List(S)
+    include L
+    let compare x y =
+      let x = List.sort S.compare x in
+      let y = List.sort S.compare y in
+      L.compare x y
+    let equal x y =
+      let x = List.sort S.compare x in
+      let y = List.sort S.compare y in
+      L.equal x y
+  end
 
+  module KV = S.Private.Contents.Key
   module KN = S.Private.Node.Key
-  let assert_key_node_equal, assert_key_node_opt_equal, assert_keys_node_equal =
-    mk KN.equal KN.compare KN.to_hum
-
   module KC = S.Head
-  let assert_key_commit_equal, assert_key_commit_opt_equal, assert_key_commits_equal =
-    mk KC.equal KC.compare KC.to_hum
 
-  module RB = Tc.App1(Irmin.Merge.Result)(KB)
-  let assert_contents_result_equal, assert_contents_result_opt_equal,
-      assert_contents_results_equal =
-    mk RB.equal RB.compare (Tc.show (module RB))
-
+  module RV = Tc.App1(Irmin.Merge.Result)(KV)
   module RN = Tc.App1(Irmin.Merge.Result)(KN)
-  let assert_node_result_equal, assert_node_result_opt_equal,
-      assert_node_results_equal =
-    mk RN.equal RN.compare (Tc.show (module RN))
-
   module RC = Tc.App1(Irmin.Merge.Result)(KC)
-  let assert_commit_result_equal, assert_commit_result_opt_equal,
-      assert_commit_results_equal =
-    mk RC.equal RC.compare (Tc.show (module RC))
 
   module Contents = S.Private.Contents
-  module B = Contents.Val
-  let assert_contents_equal, assert_contents_opt_equal, assert_contentss_equal =
-    mk B.equal B.compare (Tc.show (module B))
+  module Node = S.Private.Node
+  module Commit = S.Private.Commit
 
   module T = S.Tag
-  let assert_tag_equal, assert_tag_opt_equal, assert_tags_equal =
-    mk T.equal T.compare T.to_hum
-
-  module Node = S.Private.Node
-  module N = Node.Val
-  let assert_node_equal, assert_node_opt_equal, assert_nodes_equal =
-    mk N.equal N.compare (Tc.show (module N))
-
-  module Commit = S.Private.Commit
-  module C = Commit.Val
-  let assert_commit_equal, assert_commit_opt_equal, assert_commits_equal =
-    mk C.equal C.compare (Tc.show (module C))
-
-  module P = S.Key
-  let assert_path_equal, assert_path_opt_equal, assert_paths_equal =
-    mk P.equal P.compare P.to_hum
+  module K = S.Key
   module V = S.Val
+  module N = Node.Val
+  module C = Commit.Val
 
-  let assert_bool_equal, assert_bool_opt_equal, assert_bools_equal =
-    mk (=) compare string_of_bool
-
-  let assert_string_equal, assert_string_opt_equal, assert_strings_equal =
-    mk (=) String.compare (fun x -> x)
-
-  let assert_succ_equal msg s1 s2 =
-    let unzip l = List.map fst l, List.map snd l in
-    let l1, k1 = unzip s1 in
-    let l2, k2 = unzip s2 in
-    assert_steps_equal msg l1 l2;
-    assert_keys_node_equal msg k1 k2
+  module Succ = Set( Tc.Pair(S.Key.Step)(S.Private.Node.Key) )
 
 end
 

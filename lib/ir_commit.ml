@@ -14,11 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Log = Log.Make(struct let section = "COMMIT" end)
-
+open Ir_misc.OP
 open Lwt
 open Ir_merge.OP
 open Printf
+
+module Log = Log.Make(struct let section = "COMMIT" end)
 
 module type S = sig
   include Tc.S0
@@ -133,11 +134,7 @@ struct
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
     let read_exn (_, t) = S.read_exn t
-    let dump (_, t) = S.dump t
-    let list (_, t) = S.list t
-
-    let merge_node (n, _) =
-      Ir_merge.some (module N.Key) (N.merge n)
+    let merge_node (n, _) = Ir_merge.some (module N.Key) (N.merge n)
 
     let merge t ~old k1 k2 =
       read_exn t old >>= fun vold ->
@@ -158,6 +155,7 @@ struct
   let merge = Store.merge
 
   let node t c =
+    Log.debugf "node %a" force (show (module S.Key) c);
     Store.read t c >>= function
     | None   -> return_none
     | Some n -> return (S.Val.node n)
@@ -168,6 +166,7 @@ struct
     return key
 
   let parents t c =
+    Log.debugf "parents %a" force (show (module S.Key) c);
     Store.read t c >>= function
     | None   -> return_nil
     | Some c -> return (S.Val.parents c)
@@ -175,12 +174,14 @@ struct
   module Graph = Ir_graph.Make(Tc.Unit)(N.Key)(S.Key)(Tc.Unit)
 
   let edges t =
+    Log.debugf "edges";
     (match S.Val.node t with
       | None   -> []
       | Some k -> [`Node k])
     @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
   let closure t ~min ~max =
+    Log.debugf "closure";
     let pred = function
       | `Commit k -> Store.read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
@@ -197,6 +198,9 @@ struct
   module KSet = Ir_misc.Set(S.Key)
 
   let find_common_ancestor t c1 c2 =
+    Log.debugf "find_common_ancestor %a %a"
+      force (show (module S.Key) c1)
+      force (show (module S.Key) c2);
     let rec aux (seen1, todo1) (seen2, todo2) =
       if KSet.is_empty todo1 && KSet.is_empty todo2 then
         return_none

@@ -86,20 +86,6 @@ module Make (S: Ir_s.STORE) = struct
   let mem t path =
     map t path ~f:Graph.mem_contents
 
-  (* XXX: code duplication with Branch.list *)
-  let list (db, n) path =
-    Log.debugf "list";
-    let t = graph_t db in
-    Graph.read_node t n path >>= function
-    | None      -> return_nil
-    | Some node ->
-      Graph.steps t node >>= fun steps ->
-      let paths = List.map (fun c -> path @ [c]) steps in
-      return paths
-
-  let dump _ =
-    failwith "TODO"
-
   let pre_revert db (s:N.key) =
     begin S.head db >>= function
       | None   -> return_nil

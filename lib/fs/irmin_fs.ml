@@ -88,10 +88,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | true  ->
       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
 
-  let list _ k =
-    return [k]
-
-  let keys_of_dir t =
+  let keys_of_dir t fn =
     IO.rec_files t.path >>= fun files ->
     let files  =
       let p = String.length t.path in
@@ -100,16 +97,13 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
           if n <= p + 1 then "" else String.sub file (p+1) (n - p - 1)
         ) files
     in
-    let files = List.map (fun file -> K.of_hum (S.key_of_file file)) files in
-    return files
+    Lwt_list.iter_p (fun file ->
+        let k = K.of_hum (S.key_of_file file) in
+        fn k
+      ) files
 
-  let dump t =
-    keys_of_dir t >>= fun l ->
-    Lwt_list.fold_left_s (fun acc x ->
-        read t x >>= function
-        | None   -> return acc
-        | Some v -> return ((x, v) :: acc)
-      ) [] l
+  let iter t fn =
+    keys_of_dir t (fun k -> fn k)
 
 end
 

@@ -62,9 +62,14 @@ let equal x y = X.equal (explode x) (explode y)
 
 let uid_ref = ref 0L
 
-let create ~date ~owner msg =
-  let uid = !uid_ref in
-  uid_ref := Int64.add !uid_ref 1L;
+let create ~date ~owner ?uid msg =
+  let uid = match uid with
+    | Some u -> u
+    | None   ->
+      let u = !uid_ref in
+      uid_ref := Int64.add !uid_ref 1L;
+      u
+  in
   { date; uid; owner; msgs = [msg]}
 
 let date t = t.date

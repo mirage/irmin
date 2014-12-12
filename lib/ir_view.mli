@@ -17,8 +17,7 @@
 (** In-memory partial views of the database, with lazy fetching. *)
 
 module type S = sig
-  type step
-  include Ir_rw.STORE with type key = step list
+  include Ir_rw.HIERARCHICAL
   val merge: t -> into:t -> unit Ir_merge.result Lwt.t
   val merge_exn: t -> into:t -> unit Lwt.t
   type db
@@ -32,6 +31,7 @@ module type S = sig
     type t =
       [ `Read of (key * value option)
       | `Write of (key * value option)
+      | `Rmdir of key
       | `List of (key * key list) ]
     include Tc.S0 with type t := t
     val pretty: t -> string

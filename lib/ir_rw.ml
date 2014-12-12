@@ -16,9 +16,17 @@
 
 module type STORE = sig
   include Ir_ro.STORE
+  val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
   val update: t -> key -> value -> unit Lwt.t
   val remove: t -> key -> unit Lwt.t
   val watch: t -> key -> value option Lwt_stream.t
+end
+
+module type HIERARCHICAL = sig
+  type step
+  include STORE with type key = step list
+  val list_dir: t -> key -> key list Lwt.t
+  val remove_dir: t -> key -> unit Lwt.t
 end
 
 module type MAKER =

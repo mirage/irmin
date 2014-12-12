@@ -152,11 +152,8 @@ struct
     let mem { uri; _ } key =
       get uri ["mem"; K.to_hum key] Ezjsonm.get_bool
 
-    let list { uri; _ } key =
-      get uri ["list"; K.to_hum key] (Ezjsonm.get_list K.of_json)
-
-    let dump { uri; _ } =
-      get uri ["dump"] (Ezjsonm.get_list (Ezjsonm.get_pair K.of_json V.of_json))
+    let iter { uri; _ } fn =
+      Lwt_stream.iter_p fn (get_stream uri ["iter"] K.of_json)
 
   end
 
@@ -354,8 +351,7 @@ struct
   let read t = H.read t.h
   let read_exn t = H.read_exn t.h
   let mem t = H.mem t.h
-  let list t = H.list t.h
-  let dump t = H.dump t.h
+  let iter t = H.iter t.h
   let watch t = H.watch t.h
   let remove t = H.remove t.h
 
@@ -513,6 +509,14 @@ struct
   let import_force t slice =
     uri t >>= fun uri ->
     post uri ["import-force"] (Slice.to_json slice) Ezjsonm.get_unit
+
+  let remove_dir t dir =
+    uri t >>= fun uri ->
+    get uri ["remove-dir"; P.to_hum dir] Ezjsonm.get_unit
+
+  let list_dir t dir =
+    uri t >>= fun uri ->
+    get uri ["list-dir"; P.to_hum dir] (Ezjsonm.get_list P.of_json)
 
   type step = P.step
   module Key = P

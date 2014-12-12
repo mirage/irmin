@@ -58,21 +58,21 @@ module Make (S: Irmin.S) = struct
     S.create x.config task
 
   let string x str = match x.kind with
-    | `String -> Tc.read_string (module B) str
-    | `Json -> B.of_json (
+    | `String -> Tc.read_string (module V) str
+    | `Json -> V.of_json (
         (`O [ "foo", Ezjsonm.encode_string str ])
       )
   let v1 x = string x long_random_string
 
   let v2 x = match x.kind with
-    | `String -> Tc.read_string (module B) ""
-    | `Json -> B.of_json (`A[])
+    | `String -> Tc.read_string (module V) ""
+    | `Json -> V.of_json (`A[])
 
   let kv1 x =
-    KB.digest (Tc.write_cstruct (module B) (v1 x))
+    KV.digest (Tc.write_cstruct (module V) (v1 x))
 
   let kv2 x =
-    KB.digest (Tc.write_cstruct (module B) (v2 x))
+    KV.digest (Tc.write_cstruct (module V) (v2 x))
 
   let t1 = T.of_hum "foo"
   let t2 = T.of_hum "bar"
@@ -143,17 +143,17 @@ module Make (S: Irmin.S) = struct
       let kv2 = kv2 x in
       let t = S.Private.contents_t (t "get contents handle") in
       Contents.add t v1 >>= fun k1' ->
-      assert_key_contents_equal "kv1" kv1 k1';
+      assert_equal (module KV) "kv1" kv1 k1';
       Contents.add t v1 >>= fun k1'' ->
-      assert_key_contents_equal "kv1" kv1 k1'';
+      assert_equal (module KV) "kv1" kv1 k1'';
       Contents.add t v2 >>= fun k2' ->
-      assert_key_contents_equal "kv2" kv2 k2';
+      assert_equal (module KV) "kv2" kv2 k2';
       Contents.add t v2 >>= fun k2'' ->
-      assert_key_contents_equal "kv2" kv2 k2'';
+      assert_equal (module KV) "kv2" kv2 k2'';
       Contents.read t kv1 >>= fun v1' ->
-      assert_contents_opt_equal "v1" (Some v1) v1';
+      assert_equal (module Tc.Option(V)) "v1" (Some v1) v1';
       Contents.read t kv2 >>= fun v2' ->
-      assert_contents_opt_equal "v2" (Some v2) v2';
+      assert_equal (module Tc.Option(V)) "v2" (Some v2) v2';
       return_unit
     in
     run x test
@@ -163,54 +163,57 @@ module Make (S: Irmin.S) = struct
       create x >>= fun t ->
       let g = g t and n = n t in
 
-      (* Create a node containing t1(v1) *)
-      Graph.node (g "k1") ~contents:[l "", kv1 x] ~succ:[] >>= fun k1 ->
-      Graph.node (g "k1'") ~contents:[l "", kv1 x] ~succ:[] >>= fun k1' ->
-      assert_key_node_equal "k1.1" k1 k1';
+      (* Create a node containing t1 -x-> (v1) *)
+      Graph.node (g "k1")  ~contents:[l "x", kv1 x] ~succ:[] >>= fun k1 ->
+      Graph.node (g "k1'") ~contents:[l "x", kv1 x] ~succ:[] >>= fun k1' ->
+      assert_equal (module KN) "k1.1" k1 k1';
       Node.read_exn (n "t1") k1 >>= fun t1 ->
       Node.add (n "k1''") t1 >>= fun k1''->
-      assert_key_node_equal "k1.2" k1 k1'';
+      assert_equal (module KN) "k1.2" k1 k1'';
 
-      (* Create the node  t2 -b-> t1(v1) *)
+      (* Create the node  t2 -b-> t1 -x-> (v1) *)
       Graph.node (g "k2") ~succ:[l "b", k1] ~contents:[] >>= fun k2 ->
       Graph.node (g "k2'") ~succ:[l "b", k1] ~contents:[] >>= fun k2' ->
-      assert_key_node_equal "k2.1" k2 k2';
+      assert_equal (module KN) "k2.1" k2 k2';
       Node.read_exn (n "t2") k2 >>= fun t2 ->
       Node.add (n "k2''") t2 >>= fun k2''->
-      assert_key_node_equal "k2.2" k2 k2'';
+      assert_equal (module KN) "k2.2" k2 k2'';
       Graph.read_node_exn (g "k1'''") k2 [l "b"] >>= fun k1''' ->
-      assert_key_node_equal "k1.3" k1 k1''';
+      assert_equal (module KN) "k1.3" k1 k1''';
 
-      (* Create the node t3 -a-> t2 -b-> t1(v1) *)
+      (* Create the node t3 -a-> t2 -b-> t1 -x-> (v1) *)
       Graph.node (g "k3") ~succ:[l "a", k2] ~contents:[] >>= fun k3 ->
       Graph.node (g "k3'") ~succ:[l "a", k2] ~contents:[] >>= fun k3' ->
-      assert_key_node_equal "k3.1" k3 k3';
+      assert_equal (module KN) "k3.1" k3 k3';
       Node.read_exn (n "t3") k3 >>= fun t3 ->
       Node.add (n "k3''") t3 >>= fun k3''->
-      assert_key_node_equal "k3.2" k3 k3'';
+      assert_equal (module KN) "k3.2" k3 k3'';
       Graph.read_node_exn (g "t2'") k3 [l "a"] >>= fun k2'' ->
-      assert_key_node_equal "k2.3" k2 k2'';
+      assert_equal (module KN) "k2.3" k2 k2'';
       Graph.read_node_exn (g "t1'") k2' [l "b"] >>= fun k1'''' ->
-      assert_key_node_equal "t1.2" k1 k1'''';
+      assert_equal (module KN) "t1.2" k1 k1'''';
       Graph.read_node (g "t1'") k3 [l "a";l "b"] >>= fun k1'''''->
-      assert_key_node_opt_equal "t1.3" (Some k1) k1''''';
+      assert_equal (module Tc.Option(KN)) "t1.3" (Some k1) k1''''';
 
       let kv1 = kv1 x in
-      Graph.read_contents (g "kv11") k1 [] >>= fun kv11 ->
-      assert_key_contents_opt_equal "v1.1" (Some kv1) kv11;
-      Graph.read_contents (g "kv12") k2 [l "b"] >>= fun kv12 ->
-      assert_key_contents_opt_equal "v1.2" (Some kv1) kv12;
-      Graph.read_contents (g "kv13") k3 [l "a"; l "b"] >>= fun kv13 ->
-      assert_key_contents_opt_equal "v1" (Some kv1) kv13;
+      Graph.read_contents (g "read_contents k1:/x") k1 [l "x"] >>= fun kv11 ->
+      assert_equal (module Tc.Option(KV)) "v1.1" (Some kv1) kv11;
+      Graph.read_contents (g "read_contents k2:/b/x") k2 [l "b"; l "x"] >>= fun kv12 ->
+      assert_equal (module Tc.Option(KV)) "v1.2" (Some kv1) kv12;
+      Graph.read_contents (g "read_contents k3:a/b/x") k3 [l "a"; l "b"; l "x"] >>= fun kv13 ->
+      assert_equal (module Tc.Option(KV)) "v1" (Some kv1) kv13;
 
-      (* Create the node t6 -a-> t5 -b-> t1(v1)
-                                   \-c-> t4(v2) *)
+      (* Create the node t6 -a-> t5 -b-> t1 -x-> (v1)
+                                   \-c-> t4 -x-> (v2) *)
       let kv2 = kv2 x in
-      Graph.node (g "k4") ~contents:[l "", kv2] ~succ:[] >>= fun k4 ->
+      Graph.node (g "k4") ~succ:[] ~contents:[l "x", kv2] >>= fun k4 ->
       Graph.node (g "k5") ~succ:[(l "b",k1); (l "c",k4)] ~contents:[] >>= fun k5 ->
       Graph.node (g "k6") ~succ:[l "a", k5] ~contents:[] >>= fun k6 ->
-      Graph.add_contents (g "k6") k3 [l "a"; l "c"] kv2 >>= fun k6' ->
-      assert_key_node_equal "node" k6 k6';
+      Graph.add_contents (g "k6") k3 [l "a"; l "c";l "x"] kv2 >>= fun k6' ->
+      Node.read_exn (n "") k6' >>= fun n6' ->
+      Node.read_exn (n "") k6  >>= fun n6 ->
+      assert_equal (module N) "node" n6 n6';
+      assert_equal (module KN) "node" k6 k6';
 
       return_unit
     in
@@ -220,11 +223,13 @@ module Make (S: Irmin.S) = struct
     let test () =
 
       let task date =
-        Irmin.Task.create ~date:(Int64.of_int date) ~owner:"test" "Test commit" in
+        let i = Int64.of_int date in
+        Irmin.Task.create ~date:i ~owner:"test" "Test commit" ~uid:i
+      in
       S.create x.config task >>= fun t ->
 
       let kv1 = kv1 x in
-      let g = g t and h = h t in
+      let g = g t and h = h t and c x = S.Private.commit_t (t x) in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
       Graph.node (g 0) ~contents:[l "", kv1] ~succ:[] >>= fun kt1 ->
@@ -234,19 +239,21 @@ module Make (S: Irmin.S) = struct
       (* r1 : t2 *)
       History.commit (h 3) ~node:kt2 ~parents:[] >>= fun kr1 ->
       History.commit (h 3) ~node:kt2 ~parents:[] >>= fun kr1' ->
-      assert_key_commit_equal "kr1" kr1 kr1';
-      assert_key_commit_equal "r1" kr1 kr1';
+      Commit.read_exn (c 0) kr1  >>= fun t1 ->
+      Commit.read_exn (c 0) kr1' >>= fun t1' ->
+      assert_equal (module C) "t1" t1 t1';
+      assert_equal (module KC) "kr1" kr1 kr1';
 
       (* r1 -> r2 : t3 *)
       History.commit (h 4) ~node:kt3 ~parents:[kr1] >>= fun kr2 ->
       History.commit (h 4) ~node:kt3 ~parents:[kr1] >>= fun kr2' ->
-      assert_key_commit_equal "kr2" kr2 kr2';
+      assert_equal (module KC) "kr2" kr2 kr2';
 
       History.closure (h 5) ~min:[] ~max:[kr1] >>= fun kr1s ->
-      assert_key_commits_equal "g1" [kr1] kr1s;
+      assert_equal (module Set(KC)) "g1" [kr1] kr1s;
 
       History.closure (h 6) ~min:[] ~max:[kr2] >>= fun kr2s ->
-      assert_key_commits_equal "g2" [kr1; kr2] kr2s;
+      assert_equal (module Set(KC)) "g2" [kr1; kr2] kr2s;
 
       return_unit
     in
@@ -263,20 +270,26 @@ module Make (S: Irmin.S) = struct
 
       Tag.update tag t1 kv1 >>= fun () ->
       Tag.read   tag t1 >>= fun k1' ->
-      assert_key_commit_opt_equal "r1" (Some kv1) k1';
+      assert_equal (module Tc.Option(KC)) "r1" (Some kv1) k1';
       Tag.update tag t2 kv2 >>= fun () ->
       Tag.read   tag t2 >>= fun k2' ->
-      assert_key_commit_opt_equal "r2" (Some kv2) k2';
+      assert_equal (module Tc.Option(KC)) "r2" (Some kv2) k2';
       Tag.update tag t1 kv2 >>= fun () ->
       Tag.read   tag t1 >>= fun k2'' ->
-      assert_key_commit_opt_equal "r1-after-update" (Some kv2) k2'';
-      Tag.list tag t1 >>= fun ts ->
-      assert_tags_equal "list" [t1; t2] ts;
+      assert_equal (module Tc.Option(KC)) "r1-after-update" (Some kv2) k2'';
+
+      let list t =
+        let tags = ref [] in
+        Tag.iter t (fun t -> tags := t :: !tags; return_unit) >>= fun () ->
+        return !tags
+      in
+      list tag >>= fun ts ->
+      assert_equal (module Set(T)) "list" [t1; t2] ts;
       Tag.remove tag t1 >>= fun () ->
       Tag.read   tag t1 >>= fun empty ->
-      assert_key_commit_opt_equal "empty" None empty;
-      Tag.list tag t1 >>= fun r2' ->
-      assert_tags_equal "all-after-remove" [t2] r2';
+      assert_equal (module Tc.Option(KC)) "empty" None empty;
+      list tag >>= fun r2' ->
+      assert_equal (module Set(T)) "all-after-remove" [t2] r2';
       return_unit
     in
     run x test
@@ -292,9 +305,9 @@ module Make (S: Irmin.S) = struct
 
       let v = S.Private.contents_t (t "contents_t") in
       Contents.merge v ~old:kv1 kv1 kv1 >>= fun kv1' ->
-      assert_contents_result_equal "merge kv1" (`Ok kv1) kv1';
+      assert_equal (module RV) "merge kv1" (`Ok kv1) kv1';
       Contents.merge v ~old:kv1 kv1 kv2 >>= fun kv2' ->
-      assert_contents_result_equal "merge kv2" (`Ok kv2) kv2';
+      assert_equal (module RV) "merge kv2" (`Ok kv2) kv2';
 
       (* merge nodes *)
 
@@ -302,29 +315,35 @@ module Make (S: Irmin.S) = struct
 
       (* The empty node *)
       Graph.node (g "k0") ~contents:[] ~succ:[] >>= fun k0 ->
-      (* Create a node containing t1(v1) *)
-      Graph.node (g "k1") ~contents:[l "x", kv1] ~succ:[] >>= fun k1 ->
-      (* Create the node  t2 -b-> t1(v1) *)
-      Graph.node (g "k2") ~succ:[l "b", k1] ~contents:[] >>= fun k2 ->
-      (* Create the node  t3 -c-> t1(v1) *)
-      Graph.node (g "k3") ~succ:[l "c", k2] ~contents:[] >>= fun k3 ->
-      (* Should create the node:
-                          t4 -b-> t1(v1)
-                             \c/  *)
 
+      (* Create the node t1 -x-> (v1) *)
+      Graph.node (g "k1") ~contents:[l "x", kv1] ~succ:[] >>= fun k1 ->
+
+      (* Create the node t2 -b-> t1 -x-> (v1) *)
+      Graph.node (g "k2") ~succ:[l "b", k1] ~contents:[] >>= fun k2 ->
+
+      (* Create the node t3 -c-> t1 -x-> (v1) *)
+      Graph.node (g "k3") ~succ:[l "c", k1] ~contents:[] >>= fun k3 ->
+
+      (* Should create the node:
+                          t4 -b-> t1 -x-> (v1)
+                             \c/ *)
       Graph.merge (g "merge: k4") ~old:k0 k2 k3 >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
+
       let succ = ref [] in
       Graph.iter_succ (g "iter") k4 (fun l v -> succ := (l, v) :: !succ) >>= fun () ->
-      assert_succ_equal "k4" (List.rev !succ) [ (l "b", k1); (l "c", k1) ];
+      assert_equal (module Succ) "k4"!succ [ (l "b", k1); (l "c", k1) ];
 
       (* merge commits *)
 
       let task date =
-        Irmin.Task.create ~date:(Int64.of_int date) ~owner:"test" "Test commit" in
+        let i = Int64.of_int date in
+        Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
+      in
       S.create x.config task >>= fun t ->
 
-      let h = h t in
+      let h = h t and c a = S.Private.commit_t (t a) in
 
       History.commit (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
       History.commit (h 1) ~node:k2 ~parents:[kr0] >>= fun kr1 ->
@@ -332,8 +351,11 @@ module Make (S: Irmin.S) = struct
       History.merge (h 3) ~old:kr0 kr1 kr2 >>= fun kr3 ->
       Irmin.Merge.exn kr3 >>= fun kr3 ->
       History.commit (h 3) ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
-      assert_key_commit_equal "kr3" kr3 kr3';
-      assert_key_commit_equal "r3" kr3 kr3';
+
+      Commit.read_exn (c 0) kr3 >>= fun r3 ->
+      Commit.read_exn (c 0) kr3' >>= fun r3' ->
+      assert_equal (module C) "r3" r3 r3';
+      assert_equal (module KC) "kr3" kr3 kr3';
 
       return_unit
     in
@@ -348,35 +370,35 @@ module Make (S: Irmin.S) = struct
       S.update (t "update") [l "a";l "b"] v1 >>= fun () ->
 
       S.mem (t "mem1") [l "a";l "b"] >>= fun b1 ->
-      assert_bool_equal "mem1" true b1;
+      assert_equal (module Tc.Bool) "mem1" true b1;
       S.mem (t "mem2") [l "a"] >>= fun b2 ->
-      assert_bool_equal "mem2" false b2;
+      assert_equal (module Tc.Bool) "mem2" false b2;
       S.read_exn (t "read1") [l "a";l "b"] >>= fun v1' ->
-      assert_contents_equal "v1.1" v1 v1';
+      assert_equal (module V) "v1.1" v1 v1';
 
       Snapshot.create (t "snapshot") >>= fun r1 ->
 
       let v2 = v2 x in
       S.update (t "update") [l "a";l "c"] v2 >>= fun () ->
       S.mem (t "mem3") [l "a";l "b"] >>= fun b1 ->
-      assert_bool_equal "mem3" true b1;
+      assert_equal (module Tc.Bool) "mem3" true b1;
       S.mem (t "mem4") [l "a"] >>= fun b2 ->
-      assert_bool_equal "mem4" false b2;
+      assert_equal (module Tc.Bool) "mem4" false b2;
       S.read_exn (t "read2") [l "a";l "b"] >>= fun v1' ->
-      assert_contents_equal "v1.1" v1 v1';
+      assert_equal (module V) "v1.1" v1 v1';
       S.mem (t "mem5") [l "a";l "c"] >>= fun b1 ->
-      assert_bool_equal "mem5" true b1;
+      assert_equal (module Tc.Bool) "mem5" true b1;
       S.read_exn (t "read3") [l "a";l "c"] >>= fun v2' ->
-      assert_contents_equal "v1.1" v2 v2';
+      assert_equal (module V) "v1.1" v2 v2';
 
       S.remove (t "remove") [l "a";l "b"] >>= fun () ->
       S.read (t "read4") [l "a";l "b"] >>= fun v1''->
-      assert_contents_opt_equal "v1.2" None v1'';
+      assert_equal (module Tc.Option(V)) "v1.2" None v1'';
       Snapshot.revert (t "revert") r1 >>= fun () ->
       S.read (t "read") [l "a";l "b"] >>= fun v1''->
-      assert_contents_opt_equal "v1.3" (Some v1) v1'';
-      S.list (t "list") [l "a"] >>= fun ks ->
-      assert_paths_equal "path" [[l "a";l "b"]] ks;
+      assert_equal (module Tc.Option(V)) "v1.3" (Some v1) v1'';
+      S.list_dir (t "list") [l "a"] >>= fun ks ->
+      assert_equal (module Set(K)) "path" [[l "a";l "b"]] ks;
       S.update (t "update2") [l long_random_string] v1 >>= fun () ->
       return_unit
     in
@@ -392,12 +414,12 @@ module Make (S: Irmin.S) = struct
       let foo2 = random_value x 10 in
 
       let check_view view =
-        View.list view [l "foo"] >>= fun ls ->
-        assert_paths_equal "path1" [ [l "foo";l "1"]; [l "foo";l "2"] ] ls;
+        View.list_dir view [l "foo"] >>= fun ls ->
+        assert_equal (module Set(K)) "path1" [ [l "foo";l "1"]; [l "foo";l "2"] ] ls;
         View.read view [l "foo";l "1"] >>= fun foo1' ->
-        assert_contents_opt_equal "foo1" (Some foo1) foo1';
+        assert_equal (module Tc.Option(V)) "foo1" (Some foo1) foo1';
         View.read view [l "foo";l "2"] >>= fun foo2' ->
-        assert_contents_opt_equal "foo2" (Some foo2) foo2';
+        assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
         return_unit in
 
       View.create x.config task >>= fun v0 ->
@@ -411,12 +433,12 @@ module Make (S: Irmin.S) = struct
       View.update_path (t "update_path b/") [l "b"] (v0 "export") >>= fun () ->
       View.update_path (t "update_oath a/") [l "a"] (v0 "export") >>= fun () ->
 
-      S.list (t "list") [l "b";l "foo"] >>= fun ls ->
-      assert_paths_equal "path2" [ [l "b";l "foo";l "1"]; [l "b";l "foo";l "2"] ] ls;
+      S.list_dir (t "list") [l "b";l "foo"] >>= fun ls ->
+      assert_equal (module Set(K)) "path2" [ [l "b";l "foo";l "1"]; [l "b";l "foo";l "2"] ] ls;
       S.read (t "read foo1") [l "b";l "foo";l "1"] >>= fun foo1' ->
-      assert_contents_opt_equal "foo1" (Some foo1) foo1';
+      assert_equal (module Tc.Option(V)) "foo1" (Some foo1) foo1';
       S.read (t "read foo2") [l "a";l "foo";l "2"] >>= fun foo2' ->
-      assert_contents_opt_equal "foo2" (Some foo2) foo2';
+      assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
 
       View.of_path (t "of_path") [l "b"] >>= fun v1 ->
       check_view v1 >>= fun () ->
@@ -426,15 +448,15 @@ module Make (S: Irmin.S) = struct
       View.merge_path_exn (t "merge_path") [l "b"] v1 >>= fun () ->
       S.read (t "read b/x") [l "b";l "x"] >>= fun foo1' ->
       S.read (t "read b/y") [l"b";l "y"] >>= fun foo2' ->
-      assert_contents_opt_equal "merge: b/x" (Some foo1) foo1';
-      assert_contents_opt_equal "merge: b/y" (Some foo2) foo2';
+      assert_equal (module Tc.Option(V)) "merge: b/x" (Some foo1) foo1';
+      assert_equal (module Tc.Option(V)) "merge: b/y" (Some foo2) foo2';
 
       Lwt_list.iteri_s (fun i (k, v) ->
           let p = String.concat "/" (List.map S.Key.Step.to_hum k) in
           S.read_exn (t @@ "read a/"^p) (l "a"::k) >>= fun v' ->
-          assert_contents_equal ("a"^string_of_int i) v v';
+          assert_equal (module V) ("a"^string_of_int i) v v';
           S.read_exn (t @@ "read b/"^p) (l "b"::k) >>= fun v' ->
-          assert_contents_equal ("b"^string_of_int i) v v';
+          assert_equal (module V) ("b"^string_of_int i) v v';
           return_unit
         ) nodes >>= fun () ->
 
@@ -468,24 +490,24 @@ module Make (S: Irmin.S) = struct
       S.update_head (t2 "partial update") partial >>= fun () ->
 
       S.mem (t2 "mem a/b") [l "a";l "b"] >>= fun b1 ->
-      assert_bool_equal "mem-ab" true b1;
+      assert_equal (module Tc.Bool) "mem-ab" true b1;
 
       S.mem (t2 "mem a/c") [l "a";l "c"] >>= fun b2 ->
-      assert_bool_equal "mem-ac" true b2;
+      assert_equal (module Tc.Bool) "mem-ac" true b2;
 
       S.mem (t2 "mem a/d") [l "a";l "d"] >>= fun b3 ->
-      assert_bool_equal "mem-ad" true b3;
+      assert_equal (module Tc.Bool) "mem-ad" true b3;
       S.read_exn (t2 "read a/d") [l "a";l "d"] >>= fun v1' ->
-      assert_contents_equal "v1" v1' v1;
+      assert_equal (module V) "v1" v1' v1;
 
       Snapshot.revert (t2 "revert to t2") r2 >>= fun () ->
       S.mem (t2 "mem a/b") [l "a";l "d"] >>= fun b4 ->
-      assert_bool_equal "mem-ab" false b4;
+      assert_equal (module Tc.Bool) "mem-ab" false b4;
 
       S.update_head (t2 "full update") full >>= fun () ->
       Snapshot.revert (t2 "revert to r2") r2 >>= fun () ->
       S.mem (t2 "mem a/d") [l "a";l "d"] >>= fun b4 ->
-      assert_bool_equal "mem-ad" false b4;
+      assert_equal (module Tc.Bool) "mem-ad" false b4;
       return_unit
     in
     run x test
@@ -532,9 +554,9 @@ module Make (S: Irmin.S) = struct
       S.read_exn (t2 "read test:a/b/c")   [l "a";l "b";l "b"] >>= fun v2' ->
       S.read_exn (t1 "read master:a/b/b") [l "a";l "b";l "b"] >>= fun v3' ->
 
-      assert_contents_equal "v1" v1 v1';
-      assert_contents_equal "v2" v2 v2';
-      assert_contents_equal "v3" v3 v3';
+      assert_equal (module V) "v1" v1 v1';
+      assert_equal (module V) "v2" v2 v2';
+      assert_equal (module V) "v3" v3 v3';
 
       return_unit
     in

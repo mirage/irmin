@@ -18,7 +18,7 @@
     operations. *)
 
 module type STORE = sig
-  include Ir_rw.STORE
+  include Ir_rw.HIERARCHICAL
   type tag
   val of_tag: Ir_conf.t -> ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
   val tag: t -> tag option
@@ -54,7 +54,7 @@ module type MAKER =
   functor (C: Ir_contents.S) ->
   functor (T: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
-    STORE with type key = K.t
+    STORE with type step = K.step
            and type value = C.t
            and type head = H.t
            and type tag = T.t
@@ -81,9 +81,7 @@ module type STORE_EXT = sig
   (** Same as [S] but also expose the store internals. Useful to build
       derived functionalities. *)
 
-  type step
-
-  include STORE with type key = step list
+  include STORE
 
   module Key: Ir_path.S with type step = step
   (** Base functions over keys. *)

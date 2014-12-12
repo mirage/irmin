@@ -171,7 +171,7 @@ let ls = {
     let ls ((module S: Irmin.S), config) path =
       run begin
         S.create config task >>= fun t ->
-        S.list (fmt t "ls %s." path) (S.Key.of_hum path) >>= fun paths ->
+        S.list_dir (fmt t "ls %s." path) (S.Key.of_hum path) >>= fun paths ->
         List.iter (fun p -> print "%s" (S.Key.to_hum p)) paths;
         return_unit
       end
@@ -188,7 +188,13 @@ let tree = {
   let tree ((module S: Irmin.S), config) =
     run begin
       S.create config task >>= fun t ->
-      S.dump (t "tree") >>= fun all ->
+      let all = ref [] in
+      S.iter (t "tree") (fun k ->
+          S.read (t "value") k >>= function
+          | None   -> return_unit
+          | Some v -> all := (k, v) :: !all; return_unit
+        )>>= fun () ->
+      let all = !all in
       let all =
         List.map (fun (k,v) ->
             S.Key.to_hum k, sprintf "%S" (Tc.write_string (module S.Val) v)

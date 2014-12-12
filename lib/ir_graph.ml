@@ -164,7 +164,7 @@ module Make
           List.iter (fun k -> Queue.push (k, level+1) todo) keys;
           add ()
         )
-      with Not_found -> return_unit
+      with Queue.Empty -> return_unit
     in
     add () >>= fun () ->
     Lwt.return g

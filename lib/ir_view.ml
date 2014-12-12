@@ -31,6 +31,7 @@ module Action (P: Tc.S0) (C: Tc.S0) = struct
   type t =
     [ `Read of (path * contents option)
     | `Write of (path * contents option)
+    | `Rmdir of path
     | `List of  (path * path list) ]
 
   module R = Tc.Pair( P )( Tc.Option(C) )
@@ -43,6 +44,7 @@ module Action (P: Tc.S0) (C: Tc.S0) = struct
   let equal x y = match x, y with
     | `Read x , `Read y  -> R.equal x y
     | `Write x, `Write y -> W.equal x y
+    | `Rmdir x, `Rmdir y -> P.equal x y
     | `List x , `List y  -> L.equal x y
     | _ -> false
 
@@ -51,16 +53,19 @@ module Action (P: Tc.S0) (C: Tc.S0) = struct
     match t with
     | `Read x  -> List [ Atom "read" ; R.to_sexp x ]
     | `Write x -> List [ Atom "write"; W.to_sexp x ]
+    | `Rmdir x -> List [ Atom "rmdir"; P.to_sexp x ]
     | `List x  -> List [ Atom "list" ; L.to_sexp x ]
 
   let to_json = function
     | `Read x  -> `O [ "read" , R.to_json x ]
     | `Write x -> `O [ "write", W.to_json x ]
+    | `Rmdir x -> `O [ "rmdir", P.to_json x ]
     | `List x  -> `O [ "list" , L.to_json x ]
 
   let of_json = function
     | `O [ "read" , x ] -> `Read  (R.of_json x)
     | `O [ "write", x ] -> `Write (W.of_json x)
+    | `O [ "rmdir", x ] -> `Rmdir (P.of_json x)
     | `O [ "list" , x ] -> `List  (L.of_json x)
     | j -> Ezjsonm.parse_error j "View.Action.of_json"
 
@@ -68,17 +73,20 @@ module Action (P: Tc.S0) (C: Tc.S0) = struct
     | `Read x  -> R.write x (Ir_misc.tag buf 0)
     | `Write x -> W.write x (Ir_misc.tag buf 1)
     | `List x  -> L.write x (Ir_misc.tag buf 2)
+    | `Rmdir x -> P.write x (Ir_misc.tag buf 3)
 
   let read buf = match Ir_misc.untag buf with
     | 0 -> `Read  (R.read buf)
     | 1 -> `Write (W.read buf)
     | 2 -> `List  (L.read buf)
+    | 3 -> `Rmdir (P.read buf)
     | n -> Tc.Reader.error "View.Action.read (tag=%d)" n
 
   let size_of t = 1 + match t with
     | `Read x  -> R.size_of x
     | `Write x -> W.size_of x
     | `List x  -> L.size_of x
+    | `Rmdir x -> P.size_of x
 
   let pretty t =
     let pretty_key = Tc.show (module P) in
@@ -90,8 +98,9 @@ module Action (P: Tc.S0) (C: Tc.S0) = struct
     in
     match t with
     | `Read (p,x) -> sprintf "read  %s -> %s" (pretty_key p) (pretty_valo x)
-    | `Write (p,x) ->sprintf "write %s <- %s" (pretty_key p) (pretty_valo x)
+    | `Write (p,x)-> sprintf "write %s <- %s" (pretty_key p) (pretty_valo x)
     | `List (i,o) -> sprintf "list  %s -> %s" (pretty_key i) (pretty_keys o)
+    | `Rmdir p    -> sprintf "rmdir %s"       (pretty_key p)
 
   let prettys ts =
     let buf = Buffer.create 1024 in
@@ -114,7 +123,6 @@ module type NODE = sig
   module Path: Ir_path.S
   module StepMap: Ir_misc.MAP with type key = Path.step
   val empty: unit -> t
-  val is_empty: t -> bool
   val read: t -> node option Lwt.t
   val succ: node -> t StepMap.t
   val contents: t -> contents StepMap.t Lwt.t
@@ -212,23 +220,22 @@ module Internal (Node: NODE) = struct
         let paths = List.map (fun p -> path @ [p]) (StepMap.keys succ) in
         return paths
 
-  let list t path =
+  let list_dir t path =
     list_aux t path >>= fun result ->
     t.ops <- `List (path, result) :: t.ops;
     return result
 
-  let dump _t =
-    failwith "TODO"
-
-  let with_cleanup _t view fn =
-    fn () >>= fun () ->
-    Node.read view >>= function
-    | None   -> return_unit
-    | Some n ->
-      let succ =
-        StepMap.filter (fun _ n -> not (Node.is_empty n)) (Node.succ n)
-      in
-      Node.update_succ view succ
+  let iter t fn =
+    Log.debugf "iter";
+    let rec aux = function
+      | []       -> return_unit
+      | path::tl ->
+        list_dir t path >>= fun childs ->
+        let todo = childs @ tl in
+        fn path >>= fun () ->
+        aux todo
+    in
+    list_dir t [] >>= aux
 
   let update_opt_aux t k v =
     let rec aux view = function
@@ -246,8 +253,7 @@ module Internal (Node: NODE) = struct
         | Some n ->
           try
             let child = StepMap.find h (Node.succ n) in
-            if v = None then with_cleanup t view (fun () -> aux child p)
-            else aux child p
+            aux child p
           with Not_found ->
             if v = None then return_unit
             else
@@ -267,12 +273,37 @@ module Internal (Node: NODE) = struct
   let remove t k =
     update_opt t k None
 
+  let remove_dir t k =
+    let rec aux view = function
+      | []    -> failwith "empty path"
+      | [dir] -> begin
+          Node.read view >>= function
+          | None      -> return_unit
+          | Some node ->
+            let succ = Node.succ node in
+            let succ = StepMap.remove dir succ in
+            Node.update_succ view succ
+        end
+      | h::p ->
+        Node.read view >>= function
+        | None   -> return_unit
+        | Some n ->
+          try
+            let child = StepMap.find h (Node.succ n) in
+            aux child p
+          with Not_found ->
+            return_unit
+    in
+    t.ops <- `Rmdir k :: t.ops;
+    aux t.view k
+
   let watch _ =
     failwith "TODO: View.watch"
 
   let apply t a =
     Log.debugf "apply %a" force (show (module Action) a);
     match a with
+    | `Rmdir _ -> ok ()
     | `Write (k, v) -> update_opt t k v >>= ok
     | `Read (k, v)  ->
       read t k >>= fun v' ->
@@ -284,7 +315,7 @@ module Internal (Node: NODE) = struct
         conflict "read %s: got %S, expecting %S"
           (Tc.show (module Path) k) (str v') (str v)
     | `List (l, r) ->
-      list t l >>= fun r' ->
+      list_dir t l >>= fun r' ->
       if Tc.equal (module PL) r r' then ok ()
       else
         let one = Tc.show (module Path) in
@@ -393,12 +424,6 @@ module Make (S: Ir_s.STORE) = struct
 
     let empty () =
       create StepMap.empty StepMap.empty
-
-    let is_empty n =
-      match !n with
-      | Key _  -> false
-      | Both (_, n)
-      | Node n -> StepMap.is_empty n.contents && StepMap.is_empty n.succ
 
     let import t n =
       let contents = ref StepMap.empty in
@@ -601,8 +626,7 @@ module Make (S: Ir_s.STORE) = struct
 end
 
 module type S = sig
-  type step
-  include Ir_rw.STORE with type key = step list
+  include Ir_rw.HIERARCHICAL
   val merge: t -> into:t -> unit Ir_merge.result Lwt.t
   val merge_exn: t -> into:t -> unit Lwt.t
   type db
@@ -616,6 +640,7 @@ module type S = sig
     type t =
       [ `Read of (key * value option)
       | `Write of (key * value option)
+      | `Rmdir of key
       | `List of (key * key list) ]
     include Tc.S0 with type t := t
     val pretty: t -> string

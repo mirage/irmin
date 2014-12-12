@@ -23,7 +23,7 @@ module Log = Log.Make(struct let section = "BRANCH" end)
 module StringMap = Map.Make(String)
 
 module type STORE = sig
-  include Ir_rw.STORE
+  include Ir_rw.HIERARCHICAL
   type tag
   val of_tag: Ir_conf.t -> ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
   val tag: t -> tag option
@@ -68,8 +68,7 @@ module type PRIVATE = sig
 end
 
 module type STORE_EXT = sig
-  type step
-  include STORE with type key = step list
+  include STORE
   module Key: Ir_path.S with type step = step
   module Val: Tc.S0 with type t = value
   module Private: PRIVATE
@@ -144,8 +143,9 @@ module Make_ext (P: PRIVATE) = struct
     | `Head _ -> raise Not_found
 
   let tags t =
-    Tag.dump (tag_t t) >>= fun tags ->
-    return (List.map fst tags)
+    let tags = ref [] in
+    Tag.iter (tag_t t) (fun t -> tags := t :: !tags; return_unit) >>= fun () ->
+    return !tags
 
   let set_tag t tag =
     t.branch := `Tag tag
@@ -155,11 +155,15 @@ module Make_ext (P: PRIVATE) = struct
     | `Tag tag  -> Tag.read (tag_t t) tag
 
   let heads t =
-    Tag.dump (tag_t t) >>= fun tags ->
-    let heads = List.map snd tags in
+    let heads = ref [] in
+    Tag.iter (tag_t t) (fun k ->
+        Tag.read (tag_t t) k >>= function
+        | None   -> return_unit
+        | Some h -> heads := h :: !heads; return_unit
+      ) >>= fun () ->
     head t >>= function
-    | None   -> return heads
-    | Some h -> return (h :: List.filter ((<>) h) heads)
+    | None   -> return !heads
+    | Some h -> return (h :: List.filter ((<>) h) !heads)
 
   let head_exn t =
     head t >>= function
@@ -295,6 +299,11 @@ module Make_ext (P: PRIVATE) = struct
         Graph.remove_contents (graph_t t) node path
       )
 
+  let remove_dir t path =
+    apply t ~f:(fun node ->
+        Graph.remove_node (graph_t t) node path
+      )
+
   let read_exn t path =
     Log.debugf "read_exn %a" force (show (module Key) path);
     map t path ~f:Graph.read_contents_exn >>= fun c ->
@@ -304,7 +313,7 @@ module Make_ext (P: PRIVATE) = struct
     map t path ~f:Graph.mem_contents
 
   (* Return the subpaths. *)
-  let list t path =
+  let list_dir t path =
     Log.debugf "list";
     read_head_node t >>= function
     | None   -> return_nil
@@ -316,30 +325,17 @@ module Make_ext (P: PRIVATE) = struct
         let paths = List.map (fun c -> path @ [c]) steps in
         return paths
 
-  let dump t =
-    Log.debugf "dump";
-    read_head_node t >>= function
-    | None   -> return_nil
-    | Some n ->
-      let get_contents path =
-        Graph.read_contents (graph_t t) n path >>= function
-        | None   -> return_none
-        | Some c -> P.Contents.read (contents_t t) c
-      in
-      begin get_contents [] >>= function
-        | None   -> return_nil
-        | Some v -> return [ ([], v) ]
-      end >>= fun init ->
-      let rec aux seen = function
-        | []       -> return (List.sort Pervasives.compare seen)
-        | path::tl ->
-          list t path >>= fun childs ->
-          let todo = childs @ tl in
-          get_contents path >>= function
-          | None   -> aux seen todo
-          | Some v -> aux ((path, v) :: seen) todo
-      in
-      list t [] >>= aux init
+  let iter t fn =
+    Log.debugf "iter";
+    let rec aux = function
+      | []       -> return_unit
+      | path::tl ->
+        list_dir t path >>= fun childs ->
+        let todo = childs @ tl in
+        fn path >>= fun () ->
+        aux todo
+    in
+    list_dir t [] >>= aux
 
   (* Merge two commits:
      - Search for a common ancestor
@@ -509,8 +505,16 @@ module Make_ext (P: PRIVATE) = struct
       | Some m -> return m
       | None   -> heads t
     end >>= fun max ->
-    Tag.dump (tag_t t) >>= fun tags ->
-    let tags = List.filter (fun (_, k) -> List.mem k max) tags in
+    let tags = ref [] in
+    Tag.iter (tag_t t)
+      (fun k ->
+         Tag.read (tag_t t) k >>= function
+         | None   -> return_unit
+         | Some h ->
+           if List.mem h max then tags := (k, h) :: !tags;
+           return_unit
+      ) >>= fun () ->
+    let tags = !tags in
     let max = List.map (fun x -> `Commit x) max in
     let min = List.map (fun x -> `Commit x) min in
     let pred = function
@@ -608,7 +612,7 @@ module type MAKER =
   functor (C: Ir_contents.S) ->
   functor (T: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
-    STORE with type key = K.t
+    STORE with type step = K.step
            and type value = C.t
            and type head = H.t
            and type tag = T.t

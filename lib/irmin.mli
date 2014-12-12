@@ -237,7 +237,7 @@ module Task: sig
 
   include Tc.S0
 
-  val create: date:int64 -> owner:string -> string -> t
+  val create: date:int64 -> owner:string -> ?uid:int64 -> string -> t
   (** Create a new task. *)
 
   val date: t -> int64
@@ -260,8 +260,8 @@ module Task: sig
   val uid: t -> int64
   (** Get the task unique identifier.
 
-      The user does not have control over the generation of that
-      unique identifier. That identifier is useful for debugging
+      By default, it is freshly generated on each call to
+      {{!Task.create}create}. That identifier is useful for debugging
       purposes, for instance to relate debug lines to the tasks which
       cause them, and might appear in one line of the commit message
       for the Git backend. *)
@@ -447,13 +447,6 @@ module type RO = sig
   val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
-  val list: t -> key -> key list Lwt.t
-  (** [list t key] is the list of sub-keys that the key [keys] is
-      allowed to access. *)
-
-  val dump: t -> (key * value) list Lwt.t
-  (** [dump t] is a dump of the store contents. *)
-
 end
 
 (** Append-only store. *)
@@ -477,6 +470,9 @@ module type RW = sig
 
   include RO
 
+  val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
+  (** FIXME *)
+
   val update: t -> key -> value -> unit Lwt.t
   (** Replace the contents of [key] by [value] if [key] is already
       defined and create it otherwise. *)
@@ -487,6 +483,25 @@ module type RW = sig
   val watch: t -> key -> value option Lwt_stream.t
   (** Watch the stream of values associated to a given key. Return
       [None] if the value is removed. *)
+
+end
+
+(** Hierarchical read-write stores. *)
+module type HRW = sig
+
+  (** {1 Hierarchical read-write stores} *)
+
+  type step
+  (** The type for step values. *)
+
+  include RW with type key = step list
+
+  val list_dir: t -> key -> key list Lwt.t
+  (** [list_dir t k] list the sub-directories of the path [k]. *)
+
+  val remove_dir: t -> key -> unit Lwt.t
+  (** Same as {{!RW.remove}RW.remove} but recursively removes all the
+      sub-directories. *)
 
 end
 
@@ -508,8 +523,8 @@ module type BC = sig
       These stores can be created using the
       {{!BC.of_tag}of_tag} functions. *)
 
-  include RW
-  (** A branch-consistent store is read-write.
+  include HRW
+  (** A branch-consistent store is a hierachical read-write store.
 
       [create config task] is a persistent store handle on the
       [master] branch. This operation is cheap, can be repeated
@@ -1273,10 +1288,7 @@ module type S = sig
 
   (** {1 Irmin Store} *)
 
-  type step
-  (** The type for step values. *)
-
-  include BC with type key = step list
+  include BC
 
   module Key: Path.S with type step = step
   (** [Key] provides base functions over step lists. *)
@@ -1331,7 +1343,7 @@ module View (S: S): sig
   type db = S.t
   (** The type for store handles. *)
 
-  include RW with type key = S.Key.t and type value = S.Val.t
+  include HRW with type step = S.Key.step and type value = S.Val.t
   (** A view is a read-write temporary store, mirroring the main
       store. *)
 
@@ -1381,6 +1393,7 @@ module View (S: S): sig
     type t =
       [ `Read of (key * value option)
       | `Write of (key * value option)
+      | `Rmdir of key
       | `List of (key * key list) ]
     (** Operations on view. The read results are kept to be able
         to replay them on merge and to check for possible conflict:

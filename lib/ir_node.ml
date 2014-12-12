@@ -199,8 +199,6 @@ struct
     let read (_, t) = S.read t
     let read_exn (_, t) = S.read_exn t
     let add (_, t) = S.add t
-    let list (_, t) = S.list t
-    let dump (_, t) = S.dump t
 
     module XContents = Tc.List(Tc.Pair(Step)(C.Key))
     module XParents = Tc.List(Tc.Pair(Step)(S.Key))
@@ -248,16 +246,19 @@ struct
   module StepMap = Ir_misc.Map(Step)
 
   let iter_contents t n fn =
+    Log.debugf "iter_contents";
     Store.read t n >>= function
     | None   -> return_unit
     | Some n -> return (S.Val.iter_contents n fn)
 
   let iter_succ t n fn =
+    Log.debugf "iter_succ";
     Store.read t n >>= function
     | None   -> return_unit
     | Some n -> return (S.Val.iter_succ n fn)
 
   let steps t n =
+    Log.debugf "steps";
     Store.read t n >>= function
     | None   -> return_nil
     | Some n ->
@@ -275,7 +276,7 @@ struct
     !edges
 
   let closure t ~min ~max =
-    Log.debugf "rec_list min=%a max=%a"
+    Log.debugf "closure min=%a max=%a"
       force (shows (module S.Key) min)
       force (shows (module S.Key) max);
     let pred = function
@@ -296,16 +297,23 @@ struct
     Store.add t (S.Val.create ~contents ~succ)
 
   let contents t node step =
+    Log.debugf "contents %a" force (show (module S.Key) node);
     Store.read t node >>= function
     | None   -> return_none
     | Some n -> return (S.Val.contents n step)
 
   let succ t node step =
+    Log.debugf "succ %a %a"
+      force (show (module S.Key) node)
+      force (show (module Step) step);
     Store.read t node >>= function
     | None   -> return_none
     | Some n -> return (S.Val.succ n step)
 
   let read_node_exn t node path =
+    Log.debugf "read_node_exn %a %a"
+      force (show (module S.Key) node)
+      force (show (module S.Path) path);
     let rec aux node = function
       | []    -> return node
       | h::tl ->
@@ -323,7 +331,9 @@ struct
       (function Not_found -> return_none | e -> fail e)
 
   let read_contents_exn t node path =
-    Log.debugf "find_exn %a" force (shows (module Step) path);
+   Log.debugf "read_contents_exn %a %a"
+     force (show (module S.Key) node)
+     force (show (module S.Path) path);
     let path, file = Ir_misc.list_end path in
     read_node t node path >>= function
     | None      ->
@@ -335,7 +345,9 @@ struct
       | Some c -> return c
 
   let read_contents t node path =
-    Log.debugf "find %a" force (shows (module Step) path);
+    Log.debugf "read_contents %a %a"
+      force (show (module S.Key) node)
+      force (show (module S.Path) path);
     let path, file = Ir_misc.list_end path in
     read_node t node path >>= function
     | None      -> return_none
@@ -345,13 +357,17 @@ struct
       | Some c -> return (Some c)
 
   let mem_node t node path =
-    Log.debugf "mem %a" force (shows (module Step) path);
+    Log.debugf "mem_node %a %a"
+      force (show (module S.Key) node)
+      force (show (module S.Path) path);
     read_node t node path >>= function
     | None   -> return false
     | Some _ -> return true
 
   let mem_contents t node path =
-    Log.debugf "mem %a" force (shows (module Step) path);
+    Log.debugf "mem_contents %a %a"
+      force (show (module S.Key) node)
+      force (show (module S.Path) path);
     let path, file = Ir_misc.list_end path in
     read_node t node path >>= function
     | None   -> return false
@@ -361,33 +377,32 @@ struct
       | Some _ -> return true
 
   let map_one t node f label =
-    Log.debugf "map_one %a" force (show (module Step) label);
+    Log.debugf "map_one %a %a"
+      force (show (module S.Val) node)
+      force (show (module Step) label);
     let old_key = S.Val.succ node label in
     begin match old_key with
       | None   -> return S.Val.empty
       | Some k -> Store.read_exn t k
     end >>= fun old_node ->
-    f old_node >>= fun node ->
-    if S.Val.equal old_node node then
+    f old_node >>= fun new_node ->
+    if S.Val.equal old_node new_node then
       return node
     else (
-      begin
-        if S.Val.is_empty node then return_none
-        else
-          Store.add t node >>= fun k ->
-          return (Some k)
-      end >>= fun key ->
-      let node = match old_key, key with
-        | None  , None     -> node
-        | Some _, None     -> S.Val.with_succ node label None
-        | None  , Some k   -> S.Val.with_succ node label (Some k)
-        | Some k1, Some k2 ->
-          if S.Key.equal k1 k2 then node
-          else S.Val.with_succ node label (Some k2) in
-      return node
+      if S.Val.is_empty new_node then (
+        let node = S.Val.with_succ node label None in
+        if S.Val.is_empty node then return S.Val.empty
+        else return node
+      ) else
+        Store.add t new_node >>= fun k ->
+        let node = S.Val.with_succ node label (Some k) in
+        return node
     )
 
   let map t node path f =
+    Log.debugf "map %a %a"
+      force (show (module S.Key) node)
+      force (show (module S.Path) path);
     let rec aux node = function
       | []      -> return (f node)
       | h :: tl -> map_one t node (fun node -> aux node tl) h
@@ -400,7 +415,9 @@ struct
     Store.add t
 
   let update_node t node path n =
-    Log.debugf "update_node %a" force (shows (module Step) path);
+    Log.debugf "update_node %a %a"
+      force (show (module S.Key) node)
+      force (show (module S.Path) path);
     let path, file = Ir_misc.list_end path in
     map t node path (fun node -> S.Val.with_succ node file n)
 
@@ -408,7 +425,9 @@ struct
   let remove_node t node path = update_node t node path None
 
   let update_contents t node path c =
-    Log.debugf "update_contents %a" force (shows (module Step) path);
+    Log.debugf "update_contents %a %a"
+      force (show (module S.Key) node)
+      force (show (module S.Path) path);
     let path, file = Ir_misc.list_end path in
     map t node path (fun node -> S.Val.with_contents node file c)
 

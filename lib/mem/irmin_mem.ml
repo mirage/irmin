@@ -16,11 +16,6 @@
 
 open Lwt
 
-let hashtbl_to_alist t =
-  let l = ref [] in
-  Hashtbl.iter (fun k v -> l := (k, v) :: !l) t;
-  !l
-
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   module W = Irmin.Watch.Make(K)(V)
@@ -55,11 +50,10 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let mem { t; _ } key =
     return (Hashtbl.mem t key)
 
-  let list _ k =
-    return [k]
-
-  let dump { t; _ } =
-    return (hashtbl_to_alist t)
+  let iter { t; _ } fn =
+    let todo = ref [] in
+    Hashtbl.iter (fun k _ -> todo := (fn k) :: !todo) t;
+    Lwt_list.iter_p (fun x -> x) !todo
 
 end
 

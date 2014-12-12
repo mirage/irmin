@@ -26,8 +26,6 @@ module type STORE = sig
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
-  val list: t -> key -> key list Lwt.t
-  val dump: t -> (key * value) list Lwt.t
 end
 
 module type MAKER =

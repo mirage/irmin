@@ -29,12 +29,6 @@ let string_chop_prefix t ~prefix =
     if String.compare p prefix <> 0 then None
     else Some (String.sub t lp (lt - lp))
 
-let list_filter_map f l =
-  List.fold_left (fun acc x -> match f x with
-      | None -> acc
-      | Some y -> y :: acc
-    ) [] l
-
 let write_string str b =
   let len = String.length str in
   Cstruct.blit_from_string str 0 b 0 len;
@@ -138,20 +132,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       read t key >>= function
       | None   -> fail Not_found
       | Some v -> return v
-
-    let list _ k =
-      return [k]
-
-    let dump { t; _ } =
-      G.list t >>= fun keys ->
-      Lwt_list.fold_left_s (fun acc k ->
-          G.read_exn t k >>= fun v ->
-          match V.of_git v with
-          | None   -> return acc
-          | Some v ->
-            let k = key_of_git k in
-            return ((k, v) :: acc)
-        ) [] keys
 
     let add { t; _ } v =
       G.write t (V.to_git v) >>= fun k ->
@@ -439,22 +419,12 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       G.read_reference_exn t (git_of_tag r) >>= fun k ->
       return (head_of_git k)
 
-    let list { t; _ } _ =
-      Log.debugf "list";
+    let iter { t; _ } fn =
       G.references t >>= fun refs ->
-      return (list_filter_map tag_of_git refs)
-
-    let dump { t; _ } =
-      Log.debugf "dump";
-      G.references t >>= fun refs ->
-      Lwt_list.map_p (fun r ->
-          match tag_of_git r with
-          | None     -> return_none
-          | Some ref ->
-            G.read_reference_exn t r >>= fun k ->
-            return (Some (ref, head_of_git k))
-        ) refs >>= fun l ->
-      list_filter_map (fun x -> x) l |> return
+      Lwt_list.iter_p (fun r -> match tag_of_git r with
+          | None   -> return_unit
+          | Some r -> fn r
+        ) refs
 
     let git_of_head k =
       Git.SHA.to_commit (GK.of_raw (H.to_raw k))

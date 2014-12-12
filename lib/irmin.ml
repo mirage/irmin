@@ -35,6 +35,7 @@ module Commit = Ir_commit
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
 module type RW = Ir_rw.STORE
+module type HRW = Ir_rw.HIERARCHICAL
 module type BC = Ir_bc.STORE
 module Hum = Ir_hum
 
