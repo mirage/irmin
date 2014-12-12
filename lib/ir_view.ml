@@ -186,7 +186,9 @@ module Internal (Node: NODE) = struct
     aux t.view path
 
   let read_aux t path =
-    let path, file = Ir_misc.list_end path in
+    let path, file =
+      try Ir_misc.list_end path with Not_found -> [], Path.Step.of_hum ""
+    in
     sub t path >>= function
     | None   -> return_none
     | Some n ->
@@ -217,10 +219,16 @@ module Internal (Node: NODE) = struct
       | None -> return []
       | Some t ->
         let succ = Node.succ t in
-        let paths = List.map (fun p -> path @ [p]) (StepMap.keys succ) in
-        return paths
+        Node.contents n >>= fun contents ->
+        let paths x =
+          List.fold_left (fun set p ->
+              PathSet.add (path @ [p]) set
+            ) PathSet.empty (StepMap.keys x)
+        in
+        let path = PathSet.union (paths succ) (paths contents) in
+        return (PathSet.to_list path)
 
-  let list_dir t path =
+  let list t path =
     list_aux t path >>= fun result ->
     t.ops <- `List (path, result) :: t.ops;
     return result
@@ -230,12 +238,12 @@ module Internal (Node: NODE) = struct
     let rec aux = function
       | []       -> return_unit
       | path::tl ->
-        list_dir t path >>= fun childs ->
+        list t path >>= fun childs ->
         let todo = childs @ tl in
         fn path >>= fun () ->
         aux todo
     in
-    list_dir t [] >>= aux
+    list t [] >>= aux
 
   let update_opt_aux t k v =
     let rec aux view = function
@@ -273,7 +281,7 @@ module Internal (Node: NODE) = struct
   let remove t k =
     update_opt t k None
 
-  let remove_dir t k =
+  let remove_rec t k =
     let rec aux view = function
       | []    -> failwith "empty path"
       | [dir] -> begin
@@ -315,7 +323,7 @@ module Internal (Node: NODE) = struct
         conflict "read %s: got %S, expecting %S"
           (Tc.show (module Path) k) (str v') (str v)
     | `List (l, r) ->
-      list_dir t l >>= fun r' ->
+      list t l >>= fun r' ->
       if Tc.equal (module PL) r r' then ok ()
       else
         let one = Tc.show (module Path) in
@@ -548,7 +556,7 @@ module Make (S: Ir_s.STORE) = struct
     let rec loop () =
       let task =
         try Some (Stack.pop todo)
-        with Not_found -> None
+        with Stack.Empty -> None
       in
       match task with
       | None   -> return_unit

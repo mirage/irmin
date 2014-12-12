@@ -510,13 +510,13 @@ struct
     uri t >>= fun uri ->
     post uri ["import-force"] (Slice.to_json slice) Ezjsonm.get_unit
 
-  let remove_dir t dir =
+  let remove_rec t dir =
     uri t >>= fun uri ->
-    get uri ["remove-dir"; P.to_hum dir] Ezjsonm.get_unit
+    get uri ["remove-rec"; P.to_hum dir] Ezjsonm.get_unit
 
-  let list_dir t dir =
+  let list t dir =
     uri t >>= fun uri ->
-    get uri ["list-dir"; P.to_hum dir] (Ezjsonm.get_list P.of_json)
+    get uri ["list"; P.to_hum dir] (Ezjsonm.get_list P.of_json)
 
   type step = P.step
   module Key = P

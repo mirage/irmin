@@ -388,8 +388,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p0bs "watch"    S.watch    t key' (Tc.option value);
 
       (* hrw *)
-      mk1p0bf "list-dir"   S.list_dir t key' (Tc.list key);
-      mk1p0bf "remove-dir" S.remove_dir t key' Tc.unit;
+      mk1p0bf "list"       S.list t key' (Tc.list key);
+      mk1p0bf "remove-rec" S.remove_rec t key' Tc.unit;
 
       (* more *)
       mk1p0bf "update-tag"       S.update_tag t tag' ok_or_duplicated_tag;

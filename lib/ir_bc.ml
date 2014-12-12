@@ -60,10 +60,10 @@ module type PRIVATE = sig
   module Commit: Ir_commit.STORE with type Val.node = Node.key
   module Tag: Ir_tag.STORE with type value = Commit.key
   module Slice: Ir_slice.S
-    with type contents = (Contents.key * Contents.value) list
-     and type nodes = (Node.key * Node.value) list
-     and type commits = (Commit.key * Commit.value) list
-     and type tags = (Tag.key * Tag.value) list
+    with type contents = Contents.key * Contents.value
+     and type node = Node.key * Node.value
+     and type commit = Commit.key * Commit.value
+     and type tag = Tag.key * Tag.value
   module Sync: Ir_sync.S with type head = Commit.key and type tag = Tag.key
 end
 
@@ -299,7 +299,7 @@ module Make_ext (P: PRIVATE) = struct
         Graph.remove_contents (graph_t t) node path
       )
 
-  let remove_dir t path =
+  let remove_rec t path =
     apply t ~f:(fun node ->
         Graph.remove_node (graph_t t) node path
       )
@@ -313,7 +313,7 @@ module Make_ext (P: PRIVATE) = struct
     map t path ~f:Graph.mem_contents
 
   (* Return the subpaths. *)
-  let list_dir t path =
+  let list t path =
     Log.debugf "list";
     read_head_node t >>= function
     | None   -> return_nil
@@ -330,12 +330,12 @@ module Make_ext (P: PRIVATE) = struct
     let rec aux = function
       | []       -> return_unit
       | path::tl ->
-        list_dir t path >>= fun childs ->
+        list t path >>= fun childs ->
         let todo = childs @ tl in
         fn path >>= fun () ->
         aux todo
     in
-    list_dir t [] >>= aux
+    list t [] >>= aux
 
   (* Merge two commits:
      - Search for a common ancestor
@@ -459,7 +459,9 @@ module Make_ext (P: PRIVATE) = struct
 
   (* watch contents changes. *)
   let watch t path =
-    let path, file = Ir_misc.list_end path in
+    let path, file =
+      try Ir_misc.list_end path with Not_found -> [], Key.Step.of_hum ""
+    in
     let get_contents n = Graph.contents (graph_t t) n file in
     Ir_watch.lwt_stream_lift (
       begin
@@ -505,16 +507,15 @@ module Make_ext (P: PRIVATE) = struct
       | Some m -> return m
       | None   -> heads t
     end >>= fun max ->
-    let tags = ref [] in
+    P.Slice.create () >>= fun slice ->
     Tag.iter (tag_t t)
       (fun k ->
          Tag.read (tag_t t) k >>= function
          | None   -> return_unit
          | Some h ->
-           if List.mem h max then tags := (k, h) :: !tags;
-           return_unit
+           if List.mem h max then P.Slice.add_tag slice (k, h)
+           else return_unit
       ) >>= fun () ->
-    let tags = !tags in
     let max = List.map (fun x -> `Commit x) max in
     let min = List.map (fun x -> `Commit x) min in
     let pred = function
@@ -527,41 +528,39 @@ module Make_ext (P: PRIVATE) = struct
         Ir_misc.list_filter_map
           (function `Commit c -> Some c | _ -> None)
           (KGraph.vertex g)
-      in
-      Lwt_list.map_p (fun k ->
+    in
+    let root_nodes = ref [] in
+      Lwt_list.iter_p (fun k ->
           P.Commit.read_exn (commit_t t) k >>= fun c ->
-          return (k, c)
+          let () = match P.Commit.Val.node c with
+            | None   -> ()
+            | Some n -> root_nodes := n :: !root_nodes
+          in
+          P.Slice.add_commit slice (k, c)
         ) keys
-      >>= fun commits ->
+      >>= fun () ->
       if not full then
-        return (P.Slice.create ~commits ~tags ())
+        return slice
       else
-        let root_nodes =
-          Ir_misc.list_filter_map (fun (_,c) -> P.Commit.Val.node c) commits
-        in
         (* XXX: we can compute a [min] if needed *)
-        Graph.closure (graph_t t) ~min:[] ~max:root_nodes >>= fun nodes ->
-        Lwt_list.map_p (fun k ->
+        Graph.closure (graph_t t) ~min:[] ~max:!root_nodes >>= fun nodes ->
+        let module KSet = Ir_misc.Set(P.Contents.Key) in
+        let contents = ref KSet.empty in
+        Lwt_list.iter_p (fun k ->
             P.Node.read (node_t t) k >>= function
-            | None   -> return_none
-            | Some v -> return (Some (k, v))
-          ) nodes >>= fun nodes ->
-        let nodes = Ir_misc.list_filter_map (fun x -> x) nodes in
-        let contents =
-          let module KSet = Ir_misc.Set(P.Contents.Key) in
-          let set = ref KSet.empty in
-          List.iter (fun (_, n) ->
-              P.Node.Val.iter_contents n (fun _ k -> set := KSet.add k !set)
-            ) nodes;
-          KSet.to_list !set
-        in
-        Lwt_list.map_p (fun k ->
+            | None   -> return_unit
+            | Some v ->
+              P.Node.Val.iter_contents v (fun _ k ->
+                  contents := KSet.add k !contents;
+                );
+              P.Slice.add_node slice (k, v)
+          ) nodes >>= fun () ->
+        Lwt_list.iter_p (fun k ->
             P.Contents.read (contents_t t) k >>= function
-            | None   -> return_none
-            | Some v -> return (Some (k, v))
-          ) contents >>= fun contents ->
-        let contents = Ir_misc.list_filter_map (fun x -> x) contents in
-        return (P.Slice.create ~contents ~nodes ~commits ~tags ())
+            | None   -> return_unit
+            | Some v -> P.Slice.add_contents slice (k, v)
+          ) (KSet.to_list !contents) >>= fun () ->
+        return slice
 
   let import_force t s =
     let aux (type k) (type v)
@@ -569,39 +568,37 @@ module Make_ext (P: PRIVATE) = struct
         (type s)
         (module S: Ir_ao.STORE with type t = s and type key = k and type value = v)
         (module K: Tc.S0 with type t = k)
+        fn
         (s:t -> s)
-        elts
       =
-      Lwt_list.iter_p (fun (k, v) ->
+      fn (fun (k, v) ->
           S.add (s t) v >>= fun k' ->
           if not (K.equal k k') then
             Log.warnf "%s import error: expected %a, got %a"
               name force (show (module K) k) force (show (module K) k');
           return_unit
-        ) elts
+        )
     in
-    aux "Contents" (module P.Contents)
-      (module P.Contents.Key) contents_t (P.Slice.contents s)
+    aux "Contents"
+      (module P.Contents) (module P.Contents.Key)
+      (P.Slice.iter_contents s) contents_t
     >>= fun () ->
-    aux "Node" (module P.Node)
-      (module P.Node.Key) node_t (P.Slice.nodes s)
+    aux "Node"
+      (module P.Node) (module P.Node.Key)
+      (P.Slice.iter_nodes s) node_t
     >>= fun () ->
-    aux "Commit" (module P.Commit)
-      (module P.Commit.Key) commit_t (P.Slice.commits s)
+    aux "Commit"
+      (module P.Commit) (module P.Commit.Key)
+      (P.Slice.iter_commits s) commit_t
 
   let import t s =
-    Lwt_list.partition_p
-      (fun (tag, _) -> Tag.mem (tag_t t) tag)
-      (P.Slice.tags s)
-    >>= fun (tags, duplicated_tags) ->
-    let s = P.Slice.create
-              ~contents:(P.Slice.contents s)
-              ~nodes:(P.Slice.nodes s)
-              ~commits:(P.Slice.commits s)
-              ~tags ()
-    in
+    let duplicated_tags = ref [] in
+    P.Slice.iter_tags s (fun tag ->
+        duplicated_tags := tag :: !duplicated_tags;
+        return_unit
+      ) >>= fun () ->
     import_force t s >>= fun () ->
-    match duplicated_tags with
+    match !duplicated_tags with
     | [] -> return `Ok
     | l  -> return (`Duplicated_tags (List.map fst l))
 

@@ -65,10 +65,10 @@ module type PRIVATE = sig
   module Commit: Ir_commit.STORE with type Val.node = Node.key
   module Tag: Ir_tag.STORE with type value = Commit.key
   module Slice: Ir_slice.S
-    with type contents = (Contents.key * Contents.value) list
-     and type nodes = (Node.key * Node.value) list
-     and type commits = (Commit.key * Commit.value) list
-     and type tags = (Tag.key * Tag.value) list
+    with type contents = Contents.key * Contents.value
+     and type node = Node.key * Node.value
+     and type commit = Commit.key * Commit.value
+     and type tag = Tag.key * Tag.value
   module Sync: Ir_sync.S with type head = Commit.key and type tag = Tag.key
 end
 

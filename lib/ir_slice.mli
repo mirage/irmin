@@ -17,25 +17,26 @@
 module type S = sig
   include Tc.S0
   type contents
-  type nodes
-  type commits
-  type tags
-  val create:
-    ?contents:contents -> ?nodes:nodes ->
-    ?commits:commits -> ?tags:tags ->
-    unit -> t
-  val contents: t -> contents
-  val nodes: t -> nodes
-  val commits: t -> commits
-  val tags: t -> tags
+  type node
+  type commit
+  type tag
+  val create: unit -> t Lwt.t
+  val add_contents: t -> contents -> unit Lwt.t
+  val add_node: t -> node -> unit Lwt.t
+  val add_commit: t -> commit -> unit Lwt.t
+  val add_tag: t -> tag -> unit Lwt.t
+  val iter_contents: t -> (contents -> unit Lwt.t) -> unit Lwt.t
+  val iter_nodes: t -> (node -> unit Lwt.t) -> unit Lwt.t
+  val iter_commits: t -> (commit -> unit Lwt.t) -> unit Lwt.t
+  val iter_tags: t -> (tag -> unit Lwt.t) -> unit Lwt.t
 end
 
 module Make
-    (Contents: Ir_contents.STORE)
-    (Node: Ir_node.STORE)
-    (Commit: Ir_commit.STORE)
-    (Tag: Ir_tag.STORE):
-  S with type contents = (Contents.key * Contents.value) list
-     and type nodes = (Node.key * Node.value) list
-     and type commits = (Commit.key * Commit.value) list
-     and type tags = (Tag.key * Tag.value) list
+    (C: Ir_contents.STORE)
+    (N: Ir_node.STORE)
+    (H: Ir_commit.STORE)
+    (T: Ir_tag.STORE):
+  S with type contents = C.key * C.value
+     and type node = N.key * N.value
+     and type commit = H.key * H.value
+     and type tag = T.key * T.value

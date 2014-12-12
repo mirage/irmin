@@ -40,12 +40,16 @@ module SHA1 = struct
 
   let to_raw t = t
   let of_raw t =
+    Log.debugf "of_raw: %d" (Cstruct.len t);
     if Cstruct.len t = len then t
-    else raise (Invalid (Cstruct.to_string t))
+    else
+      let str = Cstruct.to_string t in
+      raise (Invalid (Printf.sprintf "%s (%d)" str (String.length str)))
 
   let hex_len = 40
 
   let of_hex hex =
+    Log.debugf "of_hex: %d" (String.length hex);
     if String.length hex = hex_len then
       Cstruct.of_string (Hex.to_string (`Hex hex))
     else
@@ -56,7 +60,8 @@ module SHA1 = struct
   let to_json x = Ezjsonm.of_sexp (to_sexp x)
   let of_json x = of_sexp (Ezjsonm.to_sexp x)
 
-  let size_of t = Bin_prot.Size.bin_size_bigstring (Cstruct.to_bigarray t)
+  let size_of t =
+    Bin_prot.Size.bin_size_bigstring (Cstruct.to_bigarray t)
 
   let write t =
     Tc.Writer.of_bin_prot
@@ -64,6 +69,7 @@ module SHA1 = struct
       (Cstruct.to_bigarray t)
 
   let read buf =
+    Log.debugf "read: %d" (Mstruct.length buf);
     let t =
       Tc.Reader.of_bin_prot Bin_prot.Read.bin_read_bigstring buf
       |> Cstruct.of_bigarray

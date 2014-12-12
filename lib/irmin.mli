@@ -496,12 +496,12 @@ module type HRW = sig
 
   include RW with type key = step list
 
-  val list_dir: t -> key -> key list Lwt.t
-  (** [list_dir t k] list the sub-directories of the path [k]. *)
+  val list: t -> key -> key list Lwt.t
+  (** [list t k] list the sub-keys of the path [k]. *)
 
-  val remove_dir: t -> key -> unit Lwt.t
+  val remove_rec: t -> key -> unit Lwt.t
   (** Same as {{!RW.remove}RW.remove} but recursively removes all the
-      sub-directories. *)
+      sub-paths. *)
 
 end
 
@@ -1153,41 +1153,51 @@ module Private: sig
       type contents
       (** The type for exported contents. *)
 
-      type nodes
+      type node
       (** The type for exported nodes. *)
 
-      type commits
+      type commit
       (** The type for exported commits. *)
 
-      type tags
+      type tag
       (** The type for exported tags. *)
 
-      val create:
-        ?contents:contents -> ?nodes:nodes -> ?commits:commits -> ?tags:tags ->
-        unit -> t
-      (** Create a new slice. *)
+      val create: unit -> t Lwt.t
+      (** Create a new emtpy slice. *)
 
-      val contents: t -> contents
-      (** The slice contents. *)
+      val add_contents: t -> contents -> unit Lwt.t
+      (** FIXME *)
 
-      val nodes: t -> nodes
-      (** The slice nodes. *)
+      val add_node: t -> node -> unit Lwt.t
+      (** FIXME *)
 
-      val commits: t -> commits
-      (** The slice commits. *)
+      val add_commit: t -> commit -> unit Lwt.t
+      (** FIXME *)
 
-      val tags: t -> tags
-      (** The slice tags. *)
+      val add_tag: t -> tag -> unit Lwt.t
+      (** FIXME *)
+
+      val iter_contents: t -> (contents -> unit Lwt.t) -> unit Lwt.t
+      (** FIXME The slice contents. *)
+
+      val iter_nodes: t -> (node -> unit Lwt.t) -> unit Lwt.t
+      (** FIXME The slice nodes. *)
+
+      val iter_commits: t -> (commit -> unit Lwt.t) -> unit Lwt.t
+      (** FIXME The slice commits. *)
+
+      val iter_tags: t -> (tag -> unit Lwt.t) -> unit Lwt.t
+      (** FIXME The slice tags. *)
 
     end
 
     (** Build simple slices. *)
     module Make
         (C: Contents.STORE) (N: Node.STORE) (H: Commit.STORE) (T: Tag.STORE):
-      S with type contents = (C.key * C.value) list
-         and type nodes = (N.key * N.value) list
-         and type commits = (H.key * H.value) list
-         and type tags = (T.key * T.value) list
+      S with type contents = C.key * C.value
+         and type node = N.key * N.value
+         and type commit = H.key * H.value
+         and type tag = T.key * T.value
 
   end
 
@@ -1247,10 +1257,10 @@ module Private: sig
 
     (** Private slices. *)
     module Slice: Slice.S
-      with type contents = (Contents.key * Contents.value) list
-       and type nodes = (Node.key * Node.value) list
-       and type commits = (Commit.key * Commit.value) list
-       and type tags = (Tag.key * Tag.value) list
+      with type contents = Contents.key * Contents.value
+       and type node = Node.key * Node.value
+       and type commit = Commit.key * Commit.value
+       and type tag = Tag.key * Tag.value
 
     module Sync: Sync.S with type head = Commit.key and type tag = Tag.key
 

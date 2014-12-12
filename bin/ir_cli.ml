@@ -171,7 +171,7 @@ let ls = {
     let ls ((module S: Irmin.S), config) path =
       run begin
         S.create config task >>= fun t ->
-        S.list_dir (fmt t "ls %s." path) (S.Key.of_hum path) >>= fun paths ->
+        S.list (fmt t "ls %s." path) (S.Key.of_hum path) >>= fun paths ->
         List.iter (fun p -> print "%s" (S.Key.to_hum p)) paths;
         return_unit
       end

@@ -14,21 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
+
+module Log = Log.Make(struct let section = "NODE" end)
 
 module type S = sig
   include Tc.S0
   type contents
-  type nodes
-  type commits
-  type tags
-  val create:
-    ?contents:contents -> ?nodes:nodes ->
-    ?commits:commits -> ?tags:tags ->
-    unit -> t
-  val contents: t -> contents
-  val nodes: t -> nodes
-  val commits: t -> commits
-  val tags: t -> tags
+  type node
+  type commit
+  type tag
+  val create: unit -> t Lwt.t
+  val add_contents: t -> contents -> unit Lwt.t
+  val add_node: t -> node -> unit Lwt.t
+  val add_commit: t -> commit -> unit Lwt.t
+  val add_tag: t -> tag -> unit Lwt.t
+  val iter_contents: t -> (contents -> unit Lwt.t) -> unit Lwt.t
+  val iter_nodes: t -> (node -> unit Lwt.t) -> unit Lwt.t
+  val iter_commits: t -> (commit -> unit Lwt.t) -> unit Lwt.t
+  val iter_tags: t -> (tag -> unit Lwt.t) -> unit Lwt.t
 end
 
 module Make
@@ -38,25 +42,30 @@ module Make
     (Tag: Ir_tag.STORE) =
 struct
 
-  type contents = (Contents.key * Contents.value) list
-  type nodes = (Node.key * Node.value) list
-  type commits = (Commit.key * Commit.value) list
-  type tags = (Tag.key * Tag.value) list
+  type contents = Contents.key * Contents.value
+  type node = Node.key * Node.value
+  type commit = Commit.key * Commit.value
+  type tag = Tag.key * Tag.value
 
   type t = {
-    contents: (Contents.key * Contents.value) list;
-    nodes   : (Node.key * Node.value) list;
-    commits : (Commit.key * Commit.value) list;
-    tags    : (Tag.key * Tag.value) list;
+    mutable contents: (Contents.key * Contents.value) list;
+    mutable nodes   : (Node.key * Node.value) list;
+    mutable commits : (Commit.key * Commit.value) list;
+    mutable tags    : (Tag.key * Tag.value) list;
   }
 
-  let create ?(contents=[]) ?(nodes=[]) ?(commits=[]) ?(tags=[]) () =
-    { contents; nodes; commits; tags }
+  let create () =
+    return { contents = []; nodes = []; commits = []; tags = [] }
 
-  let contents t = t.contents
-  let nodes t = t.nodes
-  let commits t = t.commits
-  let tags t = t.tags
+  let add_contents t c = t.contents <- c :: t.contents; return_unit
+  let add_node t n = t.nodes <- n :: t.nodes; return_unit
+  let add_commit t c = t.commits <- c :: t.commits; return_unit
+  let add_tag t k = t.tags <- k :: t.tags; return_unit
+
+  let iter_contents t f = Lwt_list.iter_p f t.contents
+  let iter_nodes t f = Lwt_list.iter_p f t.nodes
+  let iter_commits t f = Lwt_list.iter_p f t.commits
+  let iter_tags t f = Lwt_list.iter_p f t.tags
 
   module M (K: Tc.S0)(V: Tc.S0) = Tc.List( Tc.Pair(K)(V) )
   module Ct = M(Contents.Key)(Contents.Val)
@@ -64,17 +73,6 @@ struct
   module Cm = M(Commit.Key)(Commit.Val)
   module Ta = M(Tag.Key)(Tag.Val)
   module T = Tc.Pair( Tc.Pair(Ct)(No) )( Tc.Pair(Cm)(Ta) )
-
-  let explode t = (t.contents, t.nodes), (t.commits, t.tags)
-  let implode ((contents, nodes), (commits, tags)) =
-    { contents; nodes; commits; tags }
-
-  let compare x y = T.compare (explode x) (explode y)
-  let equal x y = T.equal (explode x) (explode y)
-  let hash = Hashtbl.hash
-  let write t buf = T.write (explode t) buf
-  let read b = implode (T.read b)
-  let size_of t = T.size_of (explode t)
 
   let to_sexp t =
     let open Sexplib.Type in
@@ -99,5 +97,16 @@ struct
     let commits = Ezjsonm.find j ["commits"] |> Cm.of_json in
     let tags = Ezjsonm.find j ["tags"] |> Ta.of_json in
     { contents; nodes; commits; tags }
+
+  let explode t = (t.contents, t.nodes), (t.commits, t.tags)
+  let implode ((contents, nodes), (commits, tags)) =
+    { contents; nodes; commits; tags }
+
+  let compare x y = T.compare (explode x) (explode y)
+  let equal x y = T.equal (explode x) (explode y)
+  let hash = Hashtbl.hash
+  let write t buf = T.write (explode t) buf
+  let read b = implode (T.read b)
+  let size_of t = T.size_of (explode t)
 
 end

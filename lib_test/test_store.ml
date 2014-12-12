@@ -397,9 +397,26 @@ module Make (S: Irmin.S) = struct
       Snapshot.revert (t "revert") r1 >>= fun () ->
       S.read (t "read") [l "a";l "b"] >>= fun v1''->
       assert_equal (module Tc.Option(V)) "v1.3" (Some v1) v1'';
-      S.list_dir (t "list") [l "a"] >>= fun ks ->
+      S.list (t "list") [l "a"] >>= fun ks ->
       assert_equal (module Set(K)) "path" [[l "a";l "b"]] ks;
-      S.update (t "update2") [l long_random_string] v1 >>= fun () ->
+
+      S.update (t "update2") [l "a"; l long_random_string] v1 >>= fun () ->
+
+      S.remove_rec (t "remove rec") [l "a"] >>= fun () ->
+      S.list (t "list") [] >>= fun dirs ->
+      assert_equal (module Set(K)) "remove rec" [] dirs;
+
+      S.update (t "update root") [] v1 >>= fun () ->
+      S.read_exn (t "read root") [] >>= fun v1' ->
+      assert_equal (module V) "read root" v1 v1';
+
+      S.update (t "update") [l "a"] v1 >>= fun () ->
+      S.remove_rec (t "remove rec --all") [] >>= fun () ->
+      S.list (t "list") [] >>= fun dirs ->
+
+
+      assert_equal (module Set(K)) "remove rec root" [] dirs;
+
       return_unit
     in
     run x test
@@ -414,7 +431,7 @@ module Make (S: Irmin.S) = struct
       let foo2 = random_value x 10 in
 
       let check_view view =
-        View.list_dir view [l "foo"] >>= fun ls ->
+        View.list view [l "foo"] >>= fun ls ->
         assert_equal (module Set(K)) "path1" [ [l "foo";l "1"]; [l "foo";l "2"] ] ls;
         View.read view [l "foo";l "1"] >>= fun foo1' ->
         assert_equal (module Tc.Option(V)) "foo1" (Some foo1) foo1';
@@ -433,7 +450,7 @@ module Make (S: Irmin.S) = struct
       View.update_path (t "update_path b/") [l "b"] (v0 "export") >>= fun () ->
       View.update_path (t "update_oath a/") [l "a"] (v0 "export") >>= fun () ->
 
-      S.list_dir (t "list") [l "b";l "foo"] >>= fun ls ->
+      S.list (t "list") [l "b";l "foo"] >>= fun ls ->
       assert_equal (module Set(K)) "path2" [ [l "b";l "foo";l "1"]; [l "b";l "foo";l "2"] ] ls;
       S.read (t "read foo1") [l "b";l "foo";l "1"] >>= fun foo1' ->
       assert_equal (module Tc.Option(V)) "foo1" (Some foo1) foo1';
@@ -574,8 +591,8 @@ let suite (speed, x) =
     "Basic operations on commits"     , speed, T.test_commits    x;
     "Basic operations on tags"        , speed, T.test_tags x;
     "Basic merge operations"          , speed, T.test_merges     x;
-    "High-level operations in views"  , speed, T.test_views      x;
     "High-level store operations"     , speed, T.test_stores     x;
+    "High-level operations in views"  , speed, T.test_views      x;
     "High-level store synchronisation", speed, T.test_sync       x;
     "High-level store merges"         , speed, T.test_merge_api  x;
   ]

@@ -54,10 +54,12 @@ module Make (S: Ir_s.STORE) = struct
     R.heads r >>= fun min ->
     let min = List.map (fun r -> S.Head.of_raw (R.Head.to_raw r)) min in
     S.export l ?depth ~min >>= fun slice ->
-    let slice =
-      Tc.read_cstruct (module R.Private.Slice)
-        (Tc.write_cstruct (module S.Private.Slice) slice)
-    in
+    (* FIXME: the serialiaztion of slices is broken
+      let p_slice = Tc.write_cstruct (module S.Private.Slice) slice in
+      let slice = Tc.read_cstruct (module R.Private.Slice) p_slice in
+    *)
+    let p_slice = Tc.to_json (module S.Private.Slice) slice in
+    let slice = Tc.of_json (module R.Private.Slice) p_slice in
     R.import_force r slice
 
   let fetch t ?depth remote =

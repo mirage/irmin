@@ -161,7 +161,11 @@ let pair
 
 exception C of string
 
-let merge_elt (type a) (module V: Tc.S0 with type t = a) merge_v old key vs =
+let merge_elt (type k) (type a)
+    (module K: Tc.S0 with type t = k)
+    (module V: Tc.S0 with type t = a)
+    merge_v old key vs
+  =
   match vs with
   | `Left v | `Right v ->
     begin
@@ -172,7 +176,7 @@ let merge_elt (type a) (module V: Tc.S0 with type t = a) merge_v old key vs =
           return_none
         else
           (* the value has been both created and removed. *)
-          fail (C "remove/add")
+          fail (C (sprintf "remove/add key=%s" (Tc.show (module K) key)))
       | None ->
         (* the value has been created in one branch *)
         return (Some v)
@@ -201,7 +205,7 @@ let alist
   let y = sort y in
   let old k = try Some (List.assoc k old) with Not_found -> None in
   Lwt.catch (fun () ->
-      Ir_misc.alist_merge_lwt A.compare (merge_elt (module B) merge_b old) x y
+      Ir_misc.alist_merge_lwt A.compare (merge_elt (module A) (module B) merge_b old) x y
       >>= ok)
     (function
       | C msg -> conflict "%s" msg
@@ -212,18 +216,18 @@ module Map (M: Map.S) (S: Tc.S0 with type t = M.key) = struct
   module SM = Ir_misc.Map_ext(M)(S)
 
   let merge (type a) (module A: Tc.S0 with type t = a) t =
-    let module S = Tc.App1(SM)(A) in
+    let module X = Tc.App1(SM)(A) in
     fun ~old m1 m2 ->
       Log.debugf "assoc %a | %a | %a"
-        force (show (module S) old)
-        force (show (module S) m1)
-        force (show (module S) m2);
-      default (module S) ~old m1 m2 >>= function
+        force (show (module X) old)
+        force (show (module X) m1)
+        force (show (module X) m2);
+      default (module X) ~old m1 m2 >>= function
       | `Ok x       -> ok x
       | `Conflict _ ->
         Lwt.catch (fun () ->
             let old key = try Some (SM.find key old) with Not_found -> None in
-            SM.Lwt.merge (merge_elt (module A) t old) m1 m2
+            SM.Lwt.merge (merge_elt (module S) (module A) t old) m1 m2
             >>= ok)
           (function
             | C msg -> conflict "%s" msg

@@ -330,25 +330,29 @@ struct
          return (Some node))
       (function Not_found -> return_none | e -> fail e)
 
+  let mk_path path =
+    try Ir_misc.list_end path
+    with Not_found -> [], Step.of_hum ""
+
   let read_contents_exn t node path =
    Log.debugf "read_contents_exn %a %a"
      force (show (module S.Key) node)
      force (show (module S.Path) path);
-    let path, file = Ir_misc.list_end path in
-    read_node t node path >>= function
-    | None      ->
-      Log.debugf "subpath not found";
-      fail Not_found
-    | Some node ->
-      contents t node file >>= function
-      | None   -> fail Not_found
-      | Some c -> return c
+     let path, file = mk_path path in
+     read_node t node path >>= function
+     | None      ->
+       Log.debugf "subpath not found";
+       fail Not_found
+     | Some node ->
+       contents t node file >>= function
+       | None   -> fail Not_found
+       | Some c -> return c
 
   let read_contents t node path =
     Log.debugf "read_contents %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    let path, file = Ir_misc.list_end path in
+    let path, file = mk_path path in
     read_node t node path >>= function
     | None      -> return_none
     | Some node ->
@@ -368,7 +372,7 @@ struct
     Log.debugf "mem_contents %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    let path, file = Ir_misc.list_end path in
+    let path, file = mk_path path in
     read_node t node path >>= function
     | None   -> return false
     | Some n ->
@@ -418,17 +422,20 @@ struct
     Log.debugf "update_node %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    let path, file = Ir_misc.list_end path in
+    let path, file = mk_path path in
     map t node path (fun node -> S.Val.with_succ node file n)
 
   let add_node t node path n = update_node t node path (Some n)
-  let remove_node t node path = update_node t node path None
+  let remove_node t node path =
+    match path with
+    | [] -> empty t
+    | _  -> update_node t node path None
 
   let update_contents t node path c =
     Log.debugf "update_contents %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    let path, file = Ir_misc.list_end path in
+    let path, file = mk_path path in
     map t node path (fun node -> S.Val.with_contents node file c)
 
   let add_contents t node path c = update_contents t node path (Some c)

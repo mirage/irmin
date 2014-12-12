@@ -43,11 +43,6 @@ module Make (S: Ir_s.STORE) = struct
       html
       (match full with None -> "<none>" | Some b -> string_of_bool b);
     S.export ?full ?depth t >>= fun slice ->
-    let contents = Slice.contents slice in
-    let nodes = Slice.nodes slice in
-    let commits = Slice.commits slice in
-    let tags = Slice.tags slice in
-    let exists k l = List.exists (fun (kk,_) -> kk=k) l in
     let vertex = ref [] in
     let add_vertex v l =
       vertex := (v, l) :: !vertex in
@@ -74,7 +69,7 @@ module Make (S: Ir_s.STORE) = struct
           (string_of_key (module Node.Key) k) in
       `Label s in
     let label_of_step l =
-      let l = Tc.write_string (module S.Key.Step) l in
+      let l = S.Key.Step.to_hum l in
       let s =
         (if html then
           sprintf "<div class='path'>%s</div>"
@@ -124,36 +119,36 @@ module Make (S: Ir_s.STORE) = struct
           Tc.show (module Tag.Key) t
       in
       `Label s in
-    List.iter (fun (k, b) ->
+    Slice.iter_contents slice (fun (k, b) ->
         add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
-      ) contents;
-    List.iter (fun (k, t) ->
+        return_unit
+      ) >>= fun () ->
+    Slice.iter_nodes slice (fun (k, t) ->
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
         Node.Val.iter_contents t (fun l v ->
-            if exists v contents then
-              add_edge (`Node k) [`Style `Dotted; label_of_step l] (`Contents v)
+            add_edge (`Node k) [`Style `Dotted; label_of_step l] (`Contents v)
           );
         Node.Val.iter_succ t (fun l n ->
-            if exists n nodes then
-              add_edge (`Node k) [`Style `Solid; label_of_step l] (`Node n)
+            add_edge (`Node k) [`Style `Solid; label_of_step l] (`Node n)
           );
-      ) nodes;
-    List.iter (fun (k, r) ->
+        return_unit
+      ) >>= fun () ->
+    Slice.iter_commits slice (fun (k, r) ->
         add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
         List.iter (fun c ->
-            if exists c commits then
-              add_edge (`Commit k) [`Style `Bold] (`Commit c)
+            add_edge (`Commit k) [`Style `Bold] (`Commit c)
           ) (Commit.Val.parents r);
         match Commit.Val.node r with
-        | None      -> ()
+        | None      -> return_unit
         | Some node ->
-          if exists node nodes then
-            add_edge (`Commit k) [`Style `Dashed] (`Node node)
-      ) commits;
-    List.iter (fun (r,k) ->
+          add_edge (`Commit k) [`Style `Dashed] (`Node node);
+          return_unit
+      ) >>= fun () ->
+    Slice.iter_tags slice (fun (r,k) ->
         add_vertex (`Tag r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
-        if exists k commits then add_edge (`Tag r) [`Style `Bold] (`Commit k);
-      ) tags;
+        add_edge (`Tag r) [`Style `Bold] (`Commit k);
+        return_unit
+      ) >>= fun () ->
     return (fun ppf -> Graph.output ppf !vertex !edges name)
 
   let output_buffer t ?html ?depth ?full ~date buf =
