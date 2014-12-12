@@ -41,10 +41,12 @@ module type STORE = sig
   val detach: t -> unit Lwt.t
   val update_head: t -> head -> unit Lwt.t
   val merge_head: t -> head -> unit Ir_merge.result Lwt.t
+  val merge_head_exn: t -> head -> unit Lwt.t
   val watch_head: t -> key -> (key * head) Lwt_stream.t
   val clone: t -> ('a -> Ir_task.t) -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   val clone_force: t ->  ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
   val merge: t -> tag -> unit Ir_merge.result Lwt.t
+  val merge_exn: t -> tag -> unit Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
@@ -69,7 +71,7 @@ module type STORE_EXT = sig
   type step
   include STORE with type key = step list
   module Key: Ir_path.S with type step = step
-  module Val: Ir_contents.S with type t = value
+  module Val: Tc.S0 with type t = value
   module Private: PRIVATE
     with type Contents.value = value
      and type Node.Path.step = step
@@ -386,6 +388,10 @@ module Make_ext (P: PRIVATE) = struct
       | None    -> update_head t c1 >>= ok
       | Some c2 -> aux c2
 
+  let merge_head_exn t c1 =
+    merge_head t c1 >>=
+    Ir_merge.exn
+
   let clone_force t task tag =
     Log.debugf "clone %a" force (show (module Tag.Key) tag);
     begin match branch t with
@@ -407,6 +413,10 @@ module Make_ext (P: PRIVATE) = struct
     Log.debugf "merge %a" force (show (module Tag.Key) branch);
     Tag.read_exn (tag_t t) branch >>= fun c ->
     merge_head t c
+
+  let merge_exn t branch =
+    merge t branch >>=
+    Ir_merge.exn
 
   module ONode = Tc.Option(P.Node.Key)
 

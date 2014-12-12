@@ -15,7 +15,6 @@
  *)
 
 open Lwt
-open OUnit
 open Test_common
 open Irmin_unix
 
@@ -34,8 +33,7 @@ module Make (S: Irmin.S) = struct
   module Common = Make(S)
   open Common
 
-  module Contents = Irmin.Contents.Make(S.Private.Contents)
-
+  module Contents = S.Private.Contents
   module Graph = Irmin.Node.Graph(Contents)(S.Private.Node)
   module History = Irmin.Commit.History(Graph.Store)(S.Private.Commit)
 
@@ -59,11 +57,12 @@ module Make (S: Irmin.S) = struct
     in
     S.create x.config task
 
-  let v1 x = match x.kind with
-    | `String -> Tc.read_string (module B) long_random_string
+  let string x str = match x.kind with
+    | `String -> Tc.read_string (module B) str
     | `Json -> B.of_json (
-        (`O [ "foo", Ezjsonm.encode_string long_random_string ])
+        (`O [ "foo", Ezjsonm.encode_string str ])
       )
+  let v1 x = string x long_random_string
 
   let v2 x = match x.kind with
     | `String -> Tc.read_string (module B) ""
@@ -94,9 +93,7 @@ module Make (S: Irmin.S) = struct
 
   let n4 x =
     n1 x >>= fun kn1 ->
-    n3 x >>= fun kn3->
     create x >>= fun t ->
-    let v2 = v2 x in
     Graph.node (g t "n4") ~contents:[l "", kv2 x] ~succ:[] >>= fun kn4 ->
     Graph.node (g t "n5") ~contents:[] ~succ:[(l "b", kn1); (l "c", kn4)] >>= fun kn5 ->
     Graph.node (g t "n6") ~contents:[] ~succ:[l "a", kn5]
@@ -118,11 +115,8 @@ module Make (S: Irmin.S) = struct
       Lwt_unix.run (x.clean ());
       raise e
 
-  let random_value kind value =
-    let str = random_string value in
-    match kind with
-    | `String -> Tc.read_string (module B) str
-    | `Json -> B.of_json (`A [ Ezjsonm.encode_string str ])
+  let random_value x value =
+    string x (random_string value)
 
   let random_path ~label ~path =
     let short () = random_string label in
@@ -131,13 +125,13 @@ module Make (S: Irmin.S) = struct
       | n -> S.Key.Step.of_hum (short ()) :: aux (n-1) in
     aux path
 
-  let random_node ~label ~path ~value ~kind =
-    random_path ~label ~path, random_value kind value
+  let random_node x ~label ~path ~value =
+    random_path ~label ~path, random_value x value
 
-  let random_nodes ?(label=8) ?(path=5) ?(value=1024) kind n =
+  let random_nodes x ?(label=8) ?(path=5) ?(value=1024) n =
     let rec aux acc = function
       | 0 -> acc
-      | n -> aux (random_node ~label ~path ~value ~kind :: acc) (n-1) in
+      | n -> aux (random_node x ~label ~path ~value :: acc) (n-1) in
     aux [] n
 
   let test_contents x () =
@@ -167,7 +161,6 @@ module Make (S: Irmin.S) = struct
   let test_nodes x () =
     let test () =
       create x >>= fun t ->
-      let v1 = v1 x in
       let g = g t and n = n t in
 
       (* Create a node containing t1(v1) *)
@@ -214,11 +207,8 @@ module Make (S: Irmin.S) = struct
                                    \-c-> t4(v2) *)
       let kv2 = kv2 x in
       Graph.node (g "k4") ~contents:[l "", kv2] ~succ:[] >>= fun k4 ->
-      Node.read_exn (n "t4") k4 >>= fun t4 ->
       Graph.node (g "k5") ~succ:[(l "b",k1); (l "c",k4)] ~contents:[] >>= fun k5 ->
-      Node.read_exn (n "t5") k5 >>= fun t5 ->
       Graph.node (g "k6") ~succ:[l "a", k5] ~contents:[] >>= fun k6 ->
-      Node.read_exn (n "t6") k6 >>= fun t6 ->
       Graph.add_contents (g "k6") k3 [l "a"; l "c"] kv2 >>= fun k6' ->
       assert_key_node_equal "node" k6 k6';
 
@@ -228,31 +218,34 @@ module Make (S: Irmin.S) = struct
 
   let test_commits x () =
     let test () =
-      create x >>= fun t ->
-      create_dummy x >>= fun dummy ->
+
+      let task date =
+        Irmin.Task.create ~date:(Int64.of_int date) ~owner:"test" "Test commit" in
+      S.create x.config task >>= fun t ->
+
       let kv1 = kv1 x in
       let g = g t and h = h t in
 
       (* t3 -a-> t2 -b-> t1(v1) *)
-      Graph.node (g "kt1") ~contents:[l "", kv1] ~succ:[] >>= fun kt1 ->
-      Graph.node (g "kt2") ~contents:[] ~succ:[l "a", kt1] >>= fun kt2 ->
-      Graph.node (g "kt3") ~contents:[] ~succ:[l "b", kt2] >>= fun kt3 ->
+      Graph.node (g 0) ~contents:[l "", kv1] ~succ:[] >>= fun kt1 ->
+      Graph.node (g 1) ~contents:[] ~succ:[l "a", kt1] >>= fun kt2 ->
+      Graph.node (g 2) ~contents:[] ~succ:[l "b", kt2] >>= fun kt3 ->
 
       (* r1 : t2 *)
-      History.commit (h "kr1") ~node:kt2 ~parents:[] >>= fun kr1 ->
-      History.commit (h "kr1'") ~node:kt2 ~parents:[] >>= fun kr1' ->
+      History.commit (h 3) ~node:kt2 ~parents:[] >>= fun kr1 ->
+      History.commit (h 3) ~node:kt2 ~parents:[] >>= fun kr1' ->
       assert_key_commit_equal "kr1" kr1 kr1';
       assert_key_commit_equal "r1" kr1 kr1';
 
       (* r1 -> r2 : t3 *)
-      History.commit (h "kr2") ~node:kt3 ~parents:[kr1] >>= fun kr2 ->
-      History.commit (h "kr2'") ~node:kt3 ~parents:[kr1] >>= fun kr2' ->
+      History.commit (h 4) ~node:kt3 ~parents:[kr1] >>= fun kr2 ->
+      History.commit (h 4) ~node:kt3 ~parents:[kr1] >>= fun kr2' ->
       assert_key_commit_equal "kr2" kr2 kr2';
 
-      History.closure (h "kr1s") ~min:[] ~max:[kr1] >>= fun kr1s ->
+      History.closure (h 5) ~min:[] ~max:[kr1] >>= fun kr1s ->
       assert_key_commits_equal "g1" [kr1] kr1s;
 
-      History.closure (h "kr2s") ~min:[] ~max:[kr2] >>= fun kr2s ->
+      History.closure (h 6) ~min:[] ~max:[kr2] >>= fun kr2s ->
       assert_key_commits_equal "g2" [kr1; kr2] kr2s;
 
       return_unit
@@ -305,8 +298,7 @@ module Make (S: Irmin.S) = struct
 
       (* merge nodes *)
 
-      let v1 = v1 x in
-      let g = g t and n = n t in
+      let g = g t in
 
       (* The empty node *)
       Graph.node (g "k0") ~contents:[] ~succ:[] >>= fun k0 ->
@@ -332,7 +324,6 @@ module Make (S: Irmin.S) = struct
         Irmin.Task.create ~date:(Int64.of_int date) ~owner:"test" "Test commit" in
       S.create x.config task >>= fun t ->
 
-      let commit date = S.Private.commit_t (t date) in
       let h = h t in
 
       History.commit (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
@@ -340,7 +331,6 @@ module Make (S: Irmin.S) = struct
       History.commit (h 2) ~node:k3 ~parents:[kr0] >>= fun kr2 ->
       History.merge (h 3) ~old:kr0 kr1 kr2 >>= fun kr3 ->
       Irmin.Merge.exn kr3 >>= fun kr3 ->
-      Commit.read_exn (commit 4) kr3 >>= fun r3 ->
       History.commit (h 3) ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
       assert_key_commit_equal "kr3" kr3 kr3';
       assert_key_commit_equal "r3" kr3 kr3';
@@ -397,9 +387,9 @@ module Make (S: Irmin.S) = struct
   let test_views x () =
     let test () =
       create x >>= fun t ->
-      let nodes = random_nodes x.kind 100 in
-      let foo1 = random_value x.kind 10 in
-      let foo2 = random_value x.kind 10 in
+      let nodes = random_nodes x 100 in
+      let foo1 = random_value x 10 in
+      let foo2 = random_value x 10 in
 
       let check_view view =
         View.list view [l "foo"] >>= fun ls ->
@@ -461,11 +451,11 @@ module Make (S: Irmin.S) = struct
       let v2 = v2 x in
 
       S.update (t1 "update a/b") [l "a";l "b"] v1 >>= fun () ->
-      Snapshot.create (t1 "snapshot 1") >>= fun r1 ->
+      Snapshot.create (t1 "snapshot 1") >>= fun _r1 ->
       S.update (t1 "update a/c") [l "a";l "c"] v2 >>= fun () ->
       Snapshot.create (t1 "snapshot 2") >>= fun r2 ->
       S.update (t1 "update a/d") [l "a";l "d"] v1 >>= fun () ->
-      Snapshot.create (t1 "snapshot 3") >>= fun r3 ->
+      Snapshot.create (t1 "snapshot 3") >>= fun _r3 ->
 
       let remote = Sync.store (module S) (t1 "remote") in
 
@@ -500,83 +490,51 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  module Dot = Irmin.Dot(S)
+
+  let output_file t file =
+    let buf = Buffer.create 1024 in
+    let date d =
+      let tm = Unix.localtime (Int64.to_float d) in
+      Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+    in
+    Dot.output_buffer t ~date buf >>= fun () ->
+    let oc = open_out_bin (file ^ ".dot") in
+    output_string oc (Buffer.contents buf);
+    close_out oc;
+    return_unit
+
   let test_merge_api x () =
     let test () =
-      let mk str =
-        match x.kind with
-        | `String -> B.of_string str
-        | `Json -> B.of_string (
-            Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
-          ) in
-      let v1 = mk "X1" in
-      let v2 = mk "X2" in
-      let v3 = mk "X3" in
+      let v1 = string x "X1" in
+      let v2 = string x "X2" in
+      let v3 = string x "X3" in
 
-      create () >>= fun t1 ->
+      create x >>= fun t1 ->
 
-      update t1 ["a";"b";"a"] v1 >>= fun () ->
-      update t1 ["a";"b";"b"] v2 >>= fun () ->
-      update t1 ["a";"b";"c"] v3 >>= fun () ->
+      S.update (t1 "update a/b/a") [l "a";l "b";l "a"] v1 >>= fun () ->
+      S.update (t1 "update a/b/b") [l "a";l "b";l "b"] v2 >>= fun () ->
+      S.update (t1 "update a/b/c") [l "a";l "b";l "c"] v3 >>= fun () ->
 
-      let test = T.of_string "test" in
+      let test = S.Tag.of_hum "test" in
 
-      clone_force t1 test >>= fun t2 ->
+      S.clone_force (t1 "clone master into test") task test >>= fun t2 ->
 
-      update t1 ["a";"b";"b"] v1 >>= fun () ->
-      update t1 ["a";"b";"b"] v3 >>= fun () ->
+      S.update (t1 "update master:a/b/b") [l "a";l "b";l "b"] v1 >>= fun () ->
+      S.update (t1 "update master:a/b/b") [l "a";l "b";l "b"] v3 >>= fun () ->
+      S.update (t2 "update test:a/b/c")   [l "a";l "b";l "c"] v1 >>= fun () ->
 
-      update t2 ["a";"b";"c"] v1 >>= fun () ->
+      output_file (t1 "before.dot") "before" >>= fun () ->
+      S.merge_exn (t1 "merge test into master") test >>= fun () ->
+      output_file (t1 "after.dot") "after" >>= fun () ->
 
-      Dump.output_file t1 "before" >>= fun () ->
-      merge_exn t1 test >>= fun () ->
-      Dump.output_file t1 "after" >>= fun () ->
+      S.read_exn (t1 "read master:a/b/c") [l "a";l "b";l "c"] >>= fun v1' ->
+      S.read_exn (t2 "read test:a/b/c")   [l "a";l "b";l "b"] >>= fun v2' ->
+      S.read_exn (t1 "read master:a/b/b") [l "a";l "b";l "b"] >>= fun v3' ->
 
-      read_exn t1 ["a";"b";"c"] >>= fun v1' ->
-      read_exn t2 ["a";"b";"b"] >>= fun v2' ->
-      read_exn t1 ["a";"b";"b"] >>= fun v3' ->
-
-      assert_contents_equal "v1" v1 v1;
+      assert_contents_equal "v1" v1 v1';
       assert_contents_equal "v2" v2 v2';
       assert_contents_equal "v3" v3 v3';
-
-      return_unit
-    in
-    run x test
-
-  let test_rec_store x () =
-    let test () =
-      let mk str =
-        match x.kind with
-        | `String -> B.of_string str
-        | `Json -> B.of_string (
-            Ezjsonm.to_string (`A [ IrminMisc.json_encode str ])
-          ) in
-      let v1 = mk "X1" in
-      let v2 = mk "X2" in
-      let v3 = mk "X3" in
-
-      let module R = Irmin.Rec(IrminMemory.AO)(S) in
-
-      create () >>= fun t ->
-
-      update t ["a";"b";"a"] v1 >>= fun () ->
-      update t ["a";"b";"b"] v2 >>= fun () ->
-      update t ["a";"b";"c"] v3 >>= fun () ->
-      head_exn t >>= fun h ->
-
-      R.create () >>= fun r ->
-      R.update r ["a";"b"] h >>= fun () ->
-
-      let check () =
-        R.read_exn r ["a";"b"] >>= fun h1 ->
-        create_head h1 >>= fun t1 ->
-        read t1 ["a";"b";"a"] >>= fun v1' ->
-        assert_contents_opt_equal "v1" (Some v1) v1';
-        return_unit in
-
-      check () >>= fun () ->
-      remove t ["a";"b";"a"] >>= fun () ->
-      check () >>= fun () ->
 
       return_unit
     in
@@ -598,9 +556,8 @@ let suite (speed, x) =
     "High-level store operations"     , speed, T.test_stores     x;
     "High-level store synchronisation", speed, T.test_sync       x;
     "High-level store merges"         , speed, T.test_merge_api  x;
-    "Recurisve stores"                , speed, T.test_rec_store  x;
   ]
 
 let run name tl =
-  let tl = List.map ~f:suite tl in
+  let tl = List.map suite tl in
   Alcotest.run name tl

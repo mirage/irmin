@@ -439,6 +439,10 @@ struct
       uri t >>= fun uri ->
       get uri ["merge-head"; Head.to_hum head] M.of_json
 
+  let merge_head_exn t head =
+    merge_head t head >>=
+    Irmin.Merge.exn
+
   module W = Tc.Pair (P)(Head)
 
   let watch_head t key =
@@ -480,6 +484,10 @@ struct
     | `Tag _  ->
       uri t >>= fun uri ->
       get uri ["merge"; T.to_hum tag] M.of_json
+
+  let merge_exn t tag =
+    merge t tag >>=
+    Irmin.Merge.exn
 
   module E = Tc.Pair
       (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))

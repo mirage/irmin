@@ -18,7 +18,7 @@ module type STORE = sig
   type step
   include Ir_bc.STORE with type key = step list
   module Key: Ir_path.S with type step = step
-  module Val: Ir_contents.S with type t = value
+  module Val: Tc.S0 with type t = value
   module Tag: Ir_tag.S with type t = tag
   module Head: Ir_hash.S with type t = head
   module Private: sig

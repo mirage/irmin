@@ -236,10 +236,7 @@ struct
       merge_key () ~old x y
 
     module Key = S.Key
-    module Val = struct
-      include S.Val
-      let merge ~old:_ _ _ = fail (Failure "Node.Store.Val.merge")
-    end
+    module Val = S.Val
   end
 
   type t = Store.t

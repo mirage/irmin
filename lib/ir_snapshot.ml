@@ -25,6 +25,7 @@ module type S = sig
   val create: db -> t Lwt.t
   val revert: db -> t -> unit Lwt.t
   val merge: db -> t -> unit Ir_merge.result Lwt.t
+  val merge_exn: db -> t -> unit Lwt.t
   val watch: db -> key -> (key * t) Lwt_stream.t
 end
 
@@ -38,15 +39,6 @@ module Make (S: Ir_s.STORE) = struct
   module T = P.Tag
 
   module Graph = Ir_node.Graph(V)(N)
-(*
-  module B = Ir_bc.Make_ext(P)
-  module V = B.Contents
-  module N = B.Node
-  module C = B.Commit
-  module K = P.Commit.Key
-  module T = P.Tag
-*)
-
   module Path = S.Key
   module PathSet = Ir_misc.Set(Path)
   module StepMap = Ir_misc.Map(S.Key.Step)
@@ -125,6 +117,10 @@ module Make (S: Ir_s.STORE) = struct
     Log.debugf "merge %a" force (show (module N.Key) s);
     pre_revert db s >>= fun k ->
     S.merge_head db k
+
+  let merge_exn t s =
+    merge t s >>=
+    Ir_merge.exn
 
   let watch db path =
     let stream = S.watch_head db path in

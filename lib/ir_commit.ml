@@ -151,10 +151,7 @@ struct
       ok key
 
     module Key = S.Key
-    module Val = struct
-      include S.Val
-      let merge ~old:_ _ _ = fail (Failure "Commit.History.Store.Val")
-    end
+    module Val = S.Val
   end
 
   type t = Store.t

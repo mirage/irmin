@@ -22,6 +22,7 @@ module type S = sig
   val create: db -> t Lwt.t
   val revert: db -> t -> unit Lwt.t
   val merge: db -> t -> unit Ir_merge.result Lwt.t
+  val merge_exn: db -> t -> unit Lwt.t
   val watch: db -> key -> (key * t) Lwt_stream.t
 end
 

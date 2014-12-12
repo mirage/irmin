@@ -20,6 +20,7 @@ module type S = sig
   type step
   include Ir_rw.STORE with type key = step list
   val merge: t -> into:t -> unit Ir_merge.result Lwt.t
+  val merge_exn: t -> into:t -> unit Lwt.t
   type db
   val of_path: db -> key -> t Lwt.t
   val update_path: db -> key -> t -> unit Lwt.t

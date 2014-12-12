@@ -18,10 +18,9 @@ let () =
   let suite k = [
     `Quick, Test_memory.suite k;
     `Quick, Test_fs.suite k;
-    `Quick, Test_git.suite k `Disk;
-    `Quick, Test_git.suite k `Memory;
+    `Quick, Test_git.suite k;
     `Slow , Test_http.suite k (Test_memory.suite k);
     `Slow , Test_http.suite k (Test_fs.suite k);
-    `Slow , Test_http.suite k (Test_git.suite k `Disk);
+    `Slow , Test_http.suite k (Test_git.suite k);
   ] in
-  Test_store.run "irminsule" (suite `String @ suite `JSON)
+  Test_store.run "irmin" (suite `String @ suite `Json)

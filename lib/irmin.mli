@@ -597,6 +597,9 @@ module type BC = sig
   val merge_head: t -> head -> unit Merge.result Lwt.t
   (** Merge a commit with the current branch. *)
 
+  val merge_head_exn: t -> head -> unit Lwt.t
+  (** FIXME *)
+
   val watch_head: t -> key -> (key * head) Lwt_stream.t
   (** Watch changes for a given collection of keys and the ones they
       have recursive access. Return the stream of heads corresponding
@@ -615,6 +618,9 @@ module type BC = sig
   val merge: t -> tag -> unit Merge.result Lwt.t
   (** [merge db t] merges the branch [t] into the current store
       branch. The two branches are still independent. *)
+
+  val merge_exn: t -> tag -> unit Lwt.t
+  (** FIXME *)
 
   (** {2 Slices} *)
 
@@ -715,7 +721,7 @@ module Contents: sig
       module Key: Hash.S with type t = key
       (** [Key] provides base functions for user-defined contents keys. *)
 
-      module Val: S with type t = value
+      module Val: Tc.S0 with type t = value
       (** [Val] provides base function for user-defined contents values. *)
 
     end
@@ -1275,7 +1281,7 @@ module type S = sig
   module Key: Path.S with type step = step
   (** [Key] provides base functions over step lists. *)
 
-  module Val: Contents.S with type t = value
+  module Val: Tc.S0 with type t = value
   (** [Val] provides base functions over user-defined, mergeable
       contents. *)
 
@@ -1333,6 +1339,9 @@ module View (S: S): sig
   (** Merge the actions done on one view into an other one. If a read
       operation doesn't return the same result, return
       [Conflict]. Only the [into] view is updated. *)
+
+  val merge_exn: t -> into:t -> unit Lwt.t
+  (** FIXME *)
 
   val of_path: db -> key -> t Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,
@@ -1414,6 +1423,9 @@ module Snapshot (S: S): sig
   val merge: S.t -> t -> unit Merge.result Lwt.t
   (** Merge the given snapshot into the current branch of the
       store. *)
+
+  val merge_exn: S.t -> t -> unit Lwt.t
+  (** FIXME *)
 
   val watch: S.t -> key -> (key * t) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
