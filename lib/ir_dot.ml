@@ -17,7 +17,7 @@
 open Lwt
 open Printf
 
-module Log = Log.Make(struct let section ="DUMP" end)
+module Log = Log.Make(struct let section ="DOT" end)
 
 module type S = sig
   type db
@@ -90,7 +90,7 @@ module Make (S: Ir_s.STORE) = struct
             \  <div class='message'>%s</div>\n\
              </div>"
         else
-          sprintf "%s | %s | %s | %s")
+          sprintf "%s %s %s %s")
           k
           (Ir_task.owner o)
           (date (Ir_task.date o))
@@ -108,7 +108,7 @@ module Make (S: Ir_s.STORE) = struct
             k (Ezjsonm.to_string (S.Val.to_json v))
         else
            let v = string_of_contents (Tc.show (module S.Val) v) in
-           sprintf "%s | %s" k (String.escaped v) in
+           sprintf "%s (%s)" k (String.escaped v) in
       `Label s in
     let label_of_tag t =
       let s =
@@ -120,7 +120,7 @@ module Make (S: Ir_s.STORE) = struct
       in
       `Label s in
     Slice.iter_contents slice (fun (k, b) ->
-        add_vertex (`Contents k) [`Shape `Record; label_of_contents k b];
+        add_vertex (`Contents k) [`Shape `Box; label_of_contents k b];
         return_unit
       ) >>= fun () ->
     Slice.iter_nodes slice (fun (k, t) ->
