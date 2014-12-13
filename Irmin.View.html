@@ -64,7 +64,7 @@ The type for store handles.<br>
 </div>
 
 
-<pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.HRW.html">Irmin.HRW</a></pre>
 <br>
 A view is a read-write temporary store, mirroring the main
       store.<br>
@@ -73,6 +73,10 @@ A view is a read-write temporary store, mirroring the main
 Merge the actions done on one view into an other one. If a read
       operation doesn't return the same result, return
       <code class="code">Conflict</code>. Only the <code class="code">into</code> view is updated.<br>
+</div>
+
+<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">t -> into:t -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
 </div>
 
 <pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t Lwt.t</code></pre><div class="info ">
@@ -92,8 +96,16 @@ Commit a view to the store. The view *replaces* the current
 Rebase the view to the tip of the store.<br>
 </div>
 
+<pre><span id="VALrebase_path_exn"><span class="keyword">val</span> rebase_path_exn</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
+</div>
+
 <pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Same as <code class="code">update_path</code> but *merges* with the current subtree.<br>
+</div>
+
+<pre><span id="VALmerge_path_exn"><span class="keyword">val</span> merge_path_exn</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.View.Action.html">Action</a>: <code class="code">sig</code> <a href="Irmin.View.Action.html">..</a> <code class="code">end</code></pre><div class="info">

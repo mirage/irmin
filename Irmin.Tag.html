@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.Hum.html">
+<link rel="previous" href="Irmin.Contents.html">
 <link rel="next" href="Irmin.Path.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -17,7 +17,7 @@
 <title>Irmin.Tag</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.Hum.html" title="Irmin.Hum">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.Contents.html" title="Irmin.Contents">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
 &nbsp;<a class="post" href="Irmin.Path.html" title="Irmin.Path">Next</a>
 </div>
@@ -37,8 +37,12 @@ A tag implementations specifies base functions over abstract
       <a href="Irmin.Tag.S.html#VALmaster">master</a> branch name.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Tag.Path.html">Path</a>: <code class="type"><a href="Irmin.Tag.S.html">S</a></code><code class="type">  with type t = string list</code></pre><div class="info">
-<code class="code">Path</code> is an implementation of <a href="Irmin.Tag.S.html">S</a> where tags are lists
-      of strings.
+<pre><span class="keyword">module</span> <a href="Irmin.Tag.String_list.html">String_list</a>: <code class="type"><a href="Irmin.Tag.S.html">S</a></code><code class="type">  with type t = string list</code></pre><div class="info">
+<code class="code">String_list</code> is an implementation of <a href="Irmin.Tag.S.html">S</a> where tags are
+      lists of strings.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.Tag.STORE.html">STORE</a> = <code class="code">sig</code> <a href="Irmin.Tag.STORE.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">STORE</code> specifies the signature of tag stores.
 </div>
 </body></html>

@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.Path.html">
+<link rel="previous" href="Irmin.Hum.html">
 <link rel="next" href="Irmin.Conf.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -17,14 +17,17 @@
 <title>Irmin.Hash</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.Path.html" title="Irmin.Path">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.Hum.html" title="Irmin.Hum">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
 &nbsp;<a class="post" href="Irmin.Conf.html" title="Irmin.Conf">Next</a>
 </div>
 <h1>Module <a href="type_Irmin.Hash.html">Irmin.Hash</a></h1>
 
 <pre><span class="keyword">module</span> Hash: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info module top">
-<code class="code">Hash</code> provides user-defined hash function to digest serialized
+Hashing functions.
+<p>
+
+    <code class="code">Hash</code> provides user-defined hash function to digest serialized
     contents. Some <a href="Irmin.html#backend">backends</a> might be parameterize by such
     a hash functions, other might work with a fixed one (for instance,
     the Git format use only SHA1).

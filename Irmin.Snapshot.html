@@ -63,6 +63,10 @@ Merge the given snapshot into the current branch of the
       store.<br>
 </div>
 
+<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">Irmin.S.t -> t -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
+</div>
+
 <pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">Irmin.S.t -> key -> (key * t) Lwt_stream.t</code></pre><div class="info ">
 Subscribe to the stream of modification events attached to a
       given path. Takes and returns a new snapshot every time a

@@ -26,27 +26,27 @@ The complete collection of private implementations.<br>
 <br>
 <h1 id="1_PrivateImplementations">Private Implementations</h1><br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Contents.html">Contents</a>: <code class="type"><a href="Irmin.Private.Contents.STORE.html">Irmin.Private.Contents.STORE</a></code><code class="type"> </code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Contents.html">Contents</a>: <code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="type"> </code></pre><div class="info">
 Private contents.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Node.html">Node</a>: <code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="type">  with type Val.contents = Contents.key</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Node.html">Node</a>: <code class="type"><a href="Irmin.Node.STORE.html">Irmin.Node.STORE</a></code><code class="type">  with type Val.contents = Contents.key</code></pre><div class="info">
 Private nodes.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Commit.html">Commit</a>: <code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code><code class="type">  with type Val.node = Node.key</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Commit.html">Commit</a>: <code class="type"><a href="Irmin.Commit.STORE.html">Irmin.Commit.STORE</a></code><code class="type">  with type Val.node = Node.key</code></pre><div class="info">
 Private commits.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Private.Tag.STORE.html">Irmin.Private.Tag.STORE</a></code><code class="type">  with type value = Commit.key</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.STORE.html">Irmin.Tag.STORE</a></code><code class="type">  with type value = Commit.key</code></pre><div class="info">
 Private tags.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.S.Slice.html">Slice</a>: <code class="type"><a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a></code><code class="type"> 
-      with type contents = (Contents.key * Contents.value) list
-       and type nodes = (Node.key * Node.value) list
-       and type commits = (Commit.key * Commit.value) list
-       and type tags = (Tag.key * Tag.value) list</code></pre><div class="info">
+      with type contents = Contents.key * Contents.value
+       and type node = Node.key * Node.value
+       and type commit = Commit.key * Commit.value
+       and type tag = Tag.key * Tag.value</code></pre><div class="info">
 Private slices.
 </div>
 

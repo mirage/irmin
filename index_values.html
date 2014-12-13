@@ -44,19 +44,46 @@ Add a message to the task messages list.
 <code class="code">add c k v</code> is <code class="code">c</code> with <code class="code">k</code> mapping to <code class="code">v</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#VALadd_commit">add_commit</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#VALadd_contents">add_contents</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALadd_contents">add_contents</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Add a value by recusively saving subvalues into the
+        corresponding stores.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#VALadd_node">add_node</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALadd_node">add_node</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Add a value by recusively saving subvalues into the
+        corresponding stores.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#VALadd_tag">add_tag</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.S.html#VALalist">alist</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALalist">alist</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 List to association lists.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALall_contents">all_contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
-<td><div class="info">
-List all the contents (slow).
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALall_succ">all_succ</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
-<td><div class="info">
-List all the nodes (slow).
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALapply">apply</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
@@ -65,7 +92,7 @@ The <code class="code">apply</code> combinator is useful to untie recursive loop
 </div>
 </td></tr>
 <tr><td align="left"><br>B</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_git.html#VALbare_key">bare_key</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<tr><td><a href="Irmin_unix.Irmin_git.html#VALbare">bare</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Merge.html#VALbiject">biject</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
@@ -88,6 +115,8 @@ Monadic bind over Result.
 <code class="code">bool</code> converts values with <code class="code">bool_of_string</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_unix.Irmin_git.html#VALbranch">branch</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.BC.html#VALbranch">branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">branch t</code> is the current branch of the store <code class="code">t</code>.
@@ -110,13 +139,23 @@ Same as <code class="code">clone</code> but delete and update the existing branc
       branch with the same name already exists.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.S.Private.html#VALcommit_t">commit_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin.Private.Slice.S.html#VALcommits">commits</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<tr><td><a href="Irmin.Commit.HISTORY.html#VALclosure">closure</a> [<a href="Irmin.Commit.HISTORY.html">Irmin.Commit.HISTORY</a>]</td>
 <td><div class="info">
-The slice commits.
+FIXME Recursive list of keys.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALclosure">closure</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Recursive list.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Commit.HISTORY.html#VALcommit">commit</a> [<a href="Irmin.Commit.HISTORY.html">Irmin.Commit.HISTORY</a>]</td>
+<td><div class="info">
+Create a new commit.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.S.Private.html#VALcommit_t">commit_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.html#VALconfig">config</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.html#VALconfig">config</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
@@ -134,15 +173,14 @@ The slice commits.
 Return <code class="code">`Conflict str</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Slice.S.html#VALcontents">contents</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALcontents">contents</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
 <td><div class="info">
-The slice contents.
+<code class="code">contents t n s</code> is the contents pointed by <code class="code">s</code> in the node <code class="code">n</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALcontents">contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.Node.S.html#VALcontents">contents</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
 <td><div class="info">
-<code class="code">contents t s</code> are the (optional) keys of the node contents
-          for the step <code class="code">s</code>.
+Get the node contents.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALcontents_t">contents_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
@@ -181,18 +219,17 @@ Create a remote store handle.
 </td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#VALcreate">create</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
 <td><div class="info">
-Create a new slice.
+Create a new emtpy slice.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Commit.S.html#VALcreate">create</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
+<tr><td><a href="Irmin.Commit.S.html#VALcreate">create</a> [<a href="Irmin.Commit.S.html">Irmin.Commit.S</a>]</td>
 <td><div class="info">
 Create a commit.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALcreate">create</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.Node.S.html#VALcreate">create</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
 <td><div class="info">
-<code class="code">create contents succ</code> is the node with contents <code class="code">contents</code>
-          and successors <code class="code">succs</code>.
+Create a new node.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Task.html#VALcreate">create</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
@@ -206,14 +243,14 @@ Create a new task.
 Get the task date.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALdefault">default</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
-<td><div class="info">
-<code class="code">default k</code> is <code class="code">k</code>'s default value.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALdefault">default</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Create a default merge function.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Conf.html#VALdefault">default</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">default k</code> is <code class="code">k</code>'s default value.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALdetach">detach</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -241,23 +278,13 @@ Compute a deterministic store key from a cstruct value.
 <code class="code">docv k</code> is <code class="code">k</code>'s value documentation meta-variable (if any).
 </div>
 </td></tr>
-<tr><td><a href="Irmin.RO.html#VALdump">dump</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
-<td><div class="info">
-<code class="code">dump t</code> is a dump of the store contents.
-</div>
-</td></tr>
 <tr><td align="left"><br>E</td></tr>
-<tr><td><a href="Irmin.Private.Commit.S.html#VALedges">edges</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALempty">empty</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
 <td><div class="info">
-The graph edges.
+The empty node.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALedges">edges</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
-<td><div class="info">
-Return the list of successor vertices.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALempty">empty</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.Node.S.html#VALempty">empty</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
 <td><div class="info">
 The empty node.
 </div>
@@ -291,9 +318,25 @@ Convert <code class="code">`Conflict</code> results to <code class="code">Confli
           located at <code class="code">uri</code> into the local store <code class="code">t</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Sync.html#VALfetch_exn">fetch_exn</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Conf.html#VALfind">find</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
 <td><div class="info">
 <code class="code">find c k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>, if any.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Commit.HISTORY.html#VALfind_common_ancestor">find_common_ancestor</a> [<a href="Irmin.Commit.HISTORY.html">Irmin.Commit.HISTORY</a>]</td>
+<td><div class="info">
+FIXME Find the common ancestor of two commits.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Commit.HISTORY.html#VALfind_common_ancestor_exn">find_common_ancestor_exn</a> [<a href="Irmin.Commit.HISTORY.html">Irmin.Commit.HISTORY</a>]</td>
+<td><div class="info">
+Same as <code class="code">find_common_ancestor</code> but raises <code class="code">Not_found</code> if the two
+        commits share no common ancestor.
 </div>
 </td></tr>
 <tr><td align="left"><br>G</td></tr>
@@ -346,7 +389,7 @@ Install the directory listener using active polling.
 <code class="code">int</code> converts values with <code class="code">int_of_string</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALis_empty">is_empty</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.Node.S.html#VALis_empty">is_empty</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
 <td><div class="info">
 Is the node empty.
 </div>
@@ -354,6 +397,51 @@ Is the node empty.
 <tr><td><a href="Irmin.Conf.html#VALis_empty">is_empty</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
 <td><div class="info">
 <code class="code">is_empty c</code> is <code class="code">true</code> iff <code class="code">c</code> is empty.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.RW.html#VALiter">iter</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#VALiter_commits">iter_commits</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+FIXME The slice commits.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#VALiter_contents">iter_contents</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+FIXME The slice contents.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALiter_contents">iter_contents</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.S.html#VALiter_contents">iter_contents</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
+<td><div class="info">
+Iter over all the contents.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#VALiter_nodes">iter_nodes</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+FIXME The slice nodes.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALiter_succ">iter_succ</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.S.html#VALiter_succ">iter_succ</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
+<td><div class="info">
+Iter over all the successors.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Slice.S.html#VALiter_tags">iter_tags</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<td><div class="info">
+FIXME The slice tags.
 </div>
 </td></tr>
 <tr><td align="left"><br>K</td></tr>
@@ -364,10 +452,9 @@ Is the node empty.
 </div>
 </td></tr>
 <tr><td align="left"><br>L</td></tr>
-<tr><td><a href="Irmin.RO.html#VALlist">list</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
+<tr><td><a href="Irmin.HRW.html#VALlist">list</a> [<a href="Irmin.HRW.html">Irmin.HRW</a>]</td>
 <td><div class="info">
-<code class="code">list t key</code> is the list of sub-keys that the key <code class="code">keys</code> is
-      allowed to access.
+<code class="code">list t k</code> list the sub-keys of the path <code class="code">k</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Watch.S.html#VALlisten_dir">listen_dir</a> [<a href="Irmin.Watch.S.html">Irmin.Watch.S</a>]</td>
@@ -397,8 +484,18 @@ Check if a key exists.
 <code class="code">mem c k</code> is <code class="code">true</code> iff <code class="code">k</code> has a mapping in <code class="code">c</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALmem_contents">mem_contents</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Is a path valid.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALmem_node">mem_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALmem_node">mem_node</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Is a path valid.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge">merge</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">merge db t</code> merges the branch <code class="code">t</code> into the current store
@@ -416,6 +513,22 @@ Merge the given snapshot into the current branch of the
 Merge the actions done on one view into an other one.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Commit.HISTORY.html#VALmerge">merge</a> [<a href="Irmin.Commit.HISTORY.html">Irmin.Commit.HISTORY</a>]</td>
+<td><div class="info">
+Lift <code class="code">S.merge</code> to the store keys.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALmerge">merge</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Merge two nodes together.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Contents.STORE.html#VALmerge">merge</a> [<a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a>]</td>
+<td><div class="info">
+<code class="code">merge t</code> lifts the merge functions defined over contents
+          values to contents key.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Contents.S.html#VALmerge">merge</a> [<a href="Irmin.Contents.S.html">Irmin.Contents.S</a>]</td>
 <td><div class="info">
 Merge function.
@@ -426,14 +539,39 @@ Merge function.
 Lift to <code class="code">X.t</code> maps.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.BC.html#VALmerge_exn">merge_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Snapshot.html#VALmerge_exn">merge_exn</a> [<a href="Irmin.Snapshot.html">Irmin.Snapshot</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
+<tr><td><a href="Irmin.View.html#VALmerge_exn">merge_exn</a> [<a href="Irmin.View.html">Irmin.View</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_head">merge_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Merge a commit with the current branch.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.BC.html#VALmerge_head_exn">merge_head_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
 <tr><td><a href="Irmin.View.html#VALmerge_path">merge_path</a> [<a href="Irmin.View.html">Irmin.View</a>]</td>
 <td><div class="info">
 Same as <code class="code">update_path</code> but *merges* with the current subtree.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.View.html#VALmerge_path_exn">merge_path_exn</a> [<a href="Irmin.View.html">Irmin.View</a>]</td>
+<td><div class="info">
+FIXME
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Task.html#VALmessages">messages</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
@@ -447,18 +585,24 @@ Get the messages associated to the task.
 The key name.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Commit.S.html#VALnode">node</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
+<tr><td><a href="Irmin.Commit.HISTORY.html#VALnode">node</a> [<a href="Irmin.Commit.HISTORY.html">Irmin.Commit.HISTORY</a>]</td>
+<td><div class="info">
+Get the commit node.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Commit.S.html#VALnode">node</a> [<a href="Irmin.Commit.S.html">Irmin.Commit.S</a>]</td>
 <td><div class="info">
 The underlying node.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.S.Private.html#VALnode_t">node_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin.Private.Slice.S.html#VALnodes">nodes</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALnode">node</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
 <td><div class="info">
-The slice nodes.
+<code class="code">create t xs</code> creates a new node pointing to the contents and
+        nodes <code class="code">xs</code>, and using the store handle <code class="code">t</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.S.Private.html#VALnode_t">node_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Watch.S.html#VALnotify">notify</a> [<a href="Irmin.Watch.S.html">Irmin.Watch.S</a>]</td>
 <td><div class="info">
 Notify all listeners in the given watch state that a key has
@@ -515,7 +659,12 @@ Get the task owner.
 Lift to pairs.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Commit.S.html#VALparents">parents</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
+<tr><td><a href="Irmin.Commit.HISTORY.html#VALparents">parents</a> [<a href="Irmin.Commit.HISTORY.html">Irmin.Commit.HISTORY</a>]</td>
+<td><div class="info">
+Get the node parents.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Commit.S.html#VALparents">parents</a> [<a href="Irmin.Commit.S.html">Irmin.Commit.S</a>]</td>
 <td><div class="info">
 The commit parents.
 </div>
@@ -546,6 +695,11 @@ Same as fetch but also update the current
       branch.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Sync.html#VALpull_exn">pull_exn</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Sync.html#VALpush">push</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
 <td><div class="info">
 <code class="code">push t f</code> push the contents of the current branch of the
@@ -560,10 +714,25 @@ Same as fetch but also update the current
           the remote store located at <code class="code">uri</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Sync.html#VALpush_exn">push_exn</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<td><div class="info">
+FIXME
+</div>
+</td></tr>
 <tr><td align="left"><br>R</td></tr>
 <tr><td><a href="Irmin.RO.html#VALread">read</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
 Read a value from the store.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALread_contents">read_contents</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Find a value.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALread_contents_exn">read_contents_exn</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Find a value.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.RO.html#VALread_exn">read_exn</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
@@ -574,9 +743,26 @@ Same as <code class="code">read</code> but raise <code class="code">Not_found</c
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALread_node">read_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALread_node">read_node</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+<code class="code">read_node t n p</code> is the node reached following the path <code class="code">p</code>
+        from the node <code class="code">n</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALread_node_exn">read_node_exn</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+Same as <a href="Irmin.Node.GRAPH.html#VALread_node">read_node</a> but raise
+        <code class="code">Not_found</code> if the path is invalid.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.View.html#VALrebase_path">rebase_path</a> [<a href="Irmin.View.html">Irmin.View</a>]</td>
 <td><div class="info">
 Rebase the view to the tip of the store.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.View.html#VALrebase_path_exn">rebase_path_exn</a> [<a href="Irmin.View.html">Irmin.View</a>]</td>
+<td><div class="info">
+FIXME
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Conf.html#VALrem">rem</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
@@ -587,6 +773,22 @@ Rebase the view to the tip of the store.
 <tr><td><a href="Irmin.RW.html#VALremove">remove</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
 <td><div class="info">
 Remove the given key.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALremove_contents">remove_contents</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Remove the contents.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALremove_node">remove_node</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME: Remove the contents.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.HRW.html#VALremove_rec">remove_rec</a> [<a href="Irmin.HRW.html">Irmin.HRW</a>]</td>
+<td><div class="info">
+Same as <a href="Irmin.RW.html#VALremove">RW.remove</a> but recursively removes all the
+      sub-paths.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Snapshot.html#VALrevert">revert</a> [<a href="Irmin.Snapshot.html">Irmin.Snapshot</a>]</td>
@@ -616,19 +818,19 @@ Register a function which looks for file changes in a
 <code class="code">singletong k v</code> is the configuration where <code class="code">k</code> maps to <code class="code">v</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALsome">some</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
-<td><div class="info">
-<code class="code">string</code> converts values with the indentity function.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALsome">some</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Lift a merge function to optional values of the same type.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALsteps">steps</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.Conf.html#VALsome">some</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
 <td><div class="info">
-The list of available steps to visit a successor.
+<code class="code">string</code> converts values with the indentity function.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALsteps">steps</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+FIXME
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Sync.html#VALstore">store</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
@@ -637,17 +839,22 @@ The list of available steps to visit a successor.
       <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALstring">string</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
-<td><div class="info">
-<code class="code">string</code> converts values with the indentity function.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALstring">string</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 The default string merge function.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALsucc">succ</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.Conf.html#VALstring">string</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<td><div class="info">
+<code class="code">string</code> converts values with the indentity function.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.GRAPH.html#VALsucc">succ</a> [<a href="Irmin.Node.GRAPH.html">Irmin.Node.GRAPH</a>]</td>
+<td><div class="info">
+<code class="code">succ t n s</code> is the node pointed by <code class="code">s</code> in the node <code class="code">n</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Node.S.html#VALsucc">succ</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
 <td><div class="info">
 Extract the successors of a node.
 </div>
@@ -677,11 +884,6 @@ Same as <code class="code">tag</code> but raise <code class="code">Not_found</co
 The list of all the tags of the store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Slice.S.html#VALtags">tags</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
-<td><div class="info">
-The slice tags.
-</div>
-</td></tr>
 <tr><td><a href="Irmin_unix.html#VALtask">task</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
 <td><div class="info">
 <code class="code">task fmt</code> creates a fresh task, with the <a href="Irmin.Task.html#VALdate">date</a>
@@ -694,7 +896,7 @@ The slice tags.
 <code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Commit.S.html#VALtask">task</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
+<tr><td><a href="Irmin.Commit.S.html#VALtask">task</a> [<a href="Irmin.Commit.S.html">Irmin.Commit.S</a>]</td>
 <td><div class="info">
 The commit provenance.
 </div>
@@ -744,6 +946,8 @@ Same as <code class="code">update_tag</code> but delete and update the tag if it
       exists.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_unix.Irmin_http.html#VALuri">uri</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Sync.html#VALuri">uri</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
 <td><div class="info">
 <code class="code">uri s</code> is the remote store located at <code class="code">uri</code>.
@@ -754,8 +958,6 @@ Same as <code class="code">update_tag</code> but delete and update the tag if it
 <code class="code">uri</code> converts values with <code class="code">Uri.of_string</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http.html#VALuri_key">uri_key</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td></td></tr>
 <tr><td align="left"><br>V</td></tr>
 <tr><td><a href="Irmin.html#VALversion">version</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
@@ -785,12 +987,12 @@ Watch changes for a given collection of keys and the ones they
       have recursive access.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALwith_contents">with_contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.Node.S.html#VALwith_contents">with_contents</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
 <td><div class="info">
 Replace the contents.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.S.html#VALwith_succ">with_succ</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<tr><td><a href="Irmin.Node.S.html#VALwith_succ">with_succ</a> [<a href="Irmin.Node.S.html">Irmin.Node.S</a>]</td>
 <td><div class="info">
 Replace the successors.
 </div>

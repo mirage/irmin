@@ -27,8 +27,9 @@ Git backends.<br>
 </div>
 <hr width="100%">
 
-<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?root:string -> ?bare:bool -> unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre>
-<pre><span id="VALbare_key"><span class="keyword">val</span> bare_key</span> : <code class="type">bool <a href="Irmin.Conf.html#TYPEkey">Irmin.Conf.key</a></code></pre>
+<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?root:string -> ?branch:string -> ?bare:bool -> unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre>
+<pre><span id="VALbranch"><span class="keyword">val</span> branch</span> : <code class="type">string <a href="Irmin.Conf.html#TYPEkey">Irmin.Conf.key</a></code></pre>
+<pre><span id="VALbare"><span class="keyword">val</span> bare</span> : <code class="type">bool <a href="Irmin.Conf.html#TYPEkey">Irmin.Conf.key</a></code></pre>
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.AO.html">AO</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">G</code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></div></pre>
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.RW.html">RW</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">G</code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></div></pre>
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.Memory.html">Memory</a>: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre>

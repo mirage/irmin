@@ -5,7 +5,7 @@
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Conf.html">
-<link rel="next" href="Irmin.Private.html">
+<link rel="next" href="Irmin.Merge.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -19,7 +19,7 @@
 <body>
 <div class="navbar"><a class="pre" href="Irmin.Conf.html" title="Irmin.Conf">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
-&nbsp;<a class="post" href="Irmin.Private.html" title="Irmin.Private">Next</a>
+&nbsp;<a class="post" href="Irmin.Merge.html" title="Irmin.Merge">Next</a>
 </div>
 <h1>Module <a href="type_Irmin.Task.html">Irmin.Task</a></h1>
 
@@ -34,7 +34,7 @@ Tasks are used to keep track of the origin of reads and writes in
 
 <pre><span class="keyword">include</span> Tc.S0</pre>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">date:int64 -> owner:string -> string -> t</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">date:int64 -> owner:string -> ?uid:int64 -> string -> t</code></pre><div class="info ">
 Create a new task.<br>
 </div>
 
@@ -63,8 +63,8 @@ Get the task owner.
 Get the task unique identifier.
 <p>
 
-      The user does not have control over the generation of that
-      unique identifier. That identifier is useful for debugging
+      By default, it is freshly generated on each call to
+      <a href="Irmin.Task.html#VALcreate">create</a>. That identifier is useful for debugging
       purposes, for instance to relate debug lines to the tasks which
       cause them, and might appear in one line of the commit message
       for the Git backend.<br>

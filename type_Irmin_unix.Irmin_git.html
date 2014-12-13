@@ -12,8 +12,10 @@
 </head>
 <body>
 <code class="code"><span class="keyword">sig</span><br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;config&nbsp;:&nbsp;?root:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?bare:bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.config<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;bare_key&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Conf</span>.key<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;config&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;?root:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?branch:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?bare:bool&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.config<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;branch&nbsp;:&nbsp;string&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Conf</span>.key<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;bare&nbsp;:&nbsp;bool&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Conf</span>.key<br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">AO</span>&nbsp;:&nbsp;<span class="keyword">functor</span>&nbsp;(<span class="constructor">G</span>&nbsp;:&nbsp;<span class="constructor">Git</span>.<span class="constructor">Store</span>.<span class="constructor">S</span>)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">AO_MAKER</span><br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">RW</span>&nbsp;:&nbsp;<span class="keyword">functor</span>&nbsp;(<span class="constructor">G</span>&nbsp;:&nbsp;<span class="constructor">Git</span>.<span class="constructor">Store</span>.<span class="constructor">S</span>)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">RW_MAKER</span><br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Memory</span>&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S_MAKER</span><br>

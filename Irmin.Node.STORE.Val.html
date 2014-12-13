@@ -1,0 +1,98 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Node.STORE.Key.html">
+<link rel="Up" href="Irmin.Node.STORE.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Node values" rel="Section" href="#1_Nodevalues">
+<title>Irmin.Node.STORE.Val</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Node.STORE.Key.html" title="Irmin.Node.STORE.Key">Previous</a>
+&nbsp;<a class="up" href="Irmin.Node.STORE.html" title="Irmin.Node.STORE">Up</a>
+&nbsp;</div>
+<h1>Module <a href="type_Irmin.Node.STORE.Val.html">Irmin.Node.STORE.Val</a></h1>
+
+<pre><span class="keyword">module</span> Val: <code class="type"><a href="Irmin.Node.S.html">Irmin.Node.S</a></code><code class="type">  with type t = value
+                   and type node = key
+                   and type step = Path.step</code></pre><div class="info module top">
+<code class="code">Val</code> provides base functions for node values.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Nodevalues">Node values</h1><br>
+
+<pre><span class="keyword">include</span> Tc.S0</pre>
+
+<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> </pre>
+<div class="info ">
+The type for contents keys.<br>
+</div>
+
+
+<pre><span id="TYPEnode"><span class="keyword">type</span> <code class="type"></code>node</span> </pre>
+<div class="info ">
+The type for node keys.<br>
+</div>
+
+
+<pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
+<div class="info ">
+The type for steps between nodes.<br>
+</div>
+
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">(<a href="Irmin.Node.S.html#TYPEstep">step</a> *<br>        [ `Contents of <a href="Irmin.Node.S.html#TYPEcontents">contents</a> | `Node of <a href="Irmin.Node.S.html#TYPEnode">node</a> ])<br>       list -> t</code></pre><div class="info ">
+Create a new node.<br>
+</div>
+
+<pre><span id="VALalist"><span class="keyword">val</span> alist</span> : <code class="type">t -><br>       (<a href="Irmin.Node.S.html#TYPEstep">step</a> *<br>        [ `Contents of <a href="Irmin.Node.S.html#TYPEcontents">contents</a> | `Node of <a href="Irmin.Node.S.html#TYPEnode">node</a> ])<br>       list</code></pre><div class="info ">
+FIXME<br>
+</div>
+
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type">t</code></pre><div class="info ">
+The empty node.<br>
+</div>
+
+<pre><span id="VALis_empty"><span class="keyword">val</span> is_empty</span> : <code class="type">t -> bool</code></pre><div class="info ">
+Is the node empty.<br>
+</div>
+
+<pre><span id="VALcontents"><span class="keyword">val</span> contents</span> : <code class="type">t -> <a href="Irmin.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Node.S.html#TYPEcontents">contents</a> option</code></pre><div class="info ">
+Get the node contents.
+<p>
+
+        A node can point to user-defined
+        <a href="Irmin.Node.S.html#VALcontents">contents</a>. The edge between the node and
+        that contents is labeled by a <a href="Irmin.Node.S.html#TYPEstep">step</a>.<br>
+</div>
+
+<pre><span id="VALiter_contents"><span class="keyword">val</span> iter_contents</span> : <code class="type">t -> (<a href="Irmin.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Node.S.html#TYPEcontents">contents</a> -> unit) -> unit</code></pre><div class="info ">
+Iter over all the contents. Use <a href="Irmin.Node.S.html#VALcontents">contents</a> when
+        you know the step in advance.<br>
+</div>
+
+<pre><span id="VALwith_contents"><span class="keyword">val</span> with_contents</span> : <code class="type">t -> <a href="Irmin.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Node.S.html#TYPEcontents">contents</a> option -> t</code></pre><div class="info ">
+Replace the contents.<br>
+</div>
+
+<pre><span id="VALsucc"><span class="keyword">val</span> succ</span> : <code class="type">t -> <a href="Irmin.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Node.S.html#TYPEnode">node</a> option</code></pre><div class="info ">
+Extract the successors of a node.<br>
+</div>
+
+<pre><span id="VALiter_succ"><span class="keyword">val</span> iter_succ</span> : <code class="type">t -> (<a href="Irmin.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Node.S.html#TYPEnode">node</a> -> unit) -> unit</code></pre><div class="info ">
+Iter over all the successors. FIXME<br>
+</div>
+
+<pre><span id="VALwith_succ"><span class="keyword">val</span> with_succ</span> : <code class="type">t -> <a href="Irmin.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Node.S.html#TYPEnode">node</a> option -> t</code></pre><div class="info ">
+Replace the successors.<br>
+</div>
+</body></html>

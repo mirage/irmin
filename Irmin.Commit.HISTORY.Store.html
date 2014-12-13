@@ -1,0 +1,46 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="Up" href="Irmin.Commit.HISTORY.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.Commit.HISTORY.Store</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Irmin.Commit.HISTORY.html" title="Irmin.Commit.HISTORY">Up</a>
+&nbsp;</div>
+<h1>Module <a href="type_Irmin.Commit.HISTORY.Store.html">Irmin.Commit.HISTORY.Store</a></h1>
+
+<pre><span class="keyword">module</span> Store: <code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="type">  with type t = t and type key = commit</code></pre><div class="info module top">
+FIXME<br>
+</div>
+<hr width="100%">
+
+<pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
+
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> key <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+<code class="code">merge t</code> lifts the merge functions defined over contents
+          values to contents key. The merge functio will: <em>(i)</em> read
+          the values associated with the given keys, <em>(ii)</em> use the
+          merge function defined over values and <em>(iii)</em> write the
+          resulting values into the store to get the resulting key.
+<p>
+
+          If any of these operation fails, return <code class="code">`Conflict</code>.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
+<code class="code">Key</code> provides base functions for user-defined contents keys.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
+<code class="code">Val</code> provides base function for user-defined contents values.
+</div>
+</body></html>

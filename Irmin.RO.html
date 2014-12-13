@@ -75,13 +75,4 @@ Same as <code class="code">read</code> but raise <code class="code">Not_found</c
 <pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> bool Lwt.t</code></pre><div class="info ">
 Check if a key exists.<br>
 </div>
-
-<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> list Lwt.t</code></pre><div class="info ">
-<code class="code">list t key</code> is the list of sub-keys that the key <code class="code">keys</code> is
-      allowed to access.<br>
-</div>
-
-<pre><span id="VALdump"><span class="keyword">val</span> dump</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> (<a href="Irmin.RO.html#TYPEkey">key</a> * <a href="Irmin.RO.html#TYPEvalue">value</a>) list Lwt.t</code></pre><div class="info ">
-<code class="code">dump t</code> is a dump of the store contents.<br>
-</div>
 </body></html>

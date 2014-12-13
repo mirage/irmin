@@ -43,6 +43,10 @@
 
 <pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
 
+<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">t -> (key -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
+</div>
+
 <pre><span id="VALupdate"><span class="keyword">val</span> update</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
 Replace the contents of <code class="code">key</code> by <code class="code">value</code> if <code class="code">key</code> is already
       defined and create it otherwise.<br>

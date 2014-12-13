@@ -12,8 +12,9 @@
 <link title="Index of modules" rel=Appendix href="index_modules.html">
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Preliminaries" rel="Section" href="#1_Preliminaries">
 <link title="Stores" rel="Section" href="#1_Stores">
+<link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
 <link title="High-level Stores" rel="Section" href="#1_HighlevelStores">
 <link title="Backends" rel="Section" href="#backend">
 <title>Irmin</title>
@@ -49,48 +50,40 @@ Irmin public API.
 The version of the library.<br>
 </div>
 <br>
-<h1 id="1_UserDefinedContents">User-Defined Contents</h1><br>
-<br>
-Defining the <em>contents</em> of the store and how <em>merge</em> conflicts
-    between different version of the same contents should be
-    resolved.<br>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Merge.html">Merge</a>: <code class="code">sig</code> <a href="Irmin.Merge.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Merge</code> provides functions to build custom 3-way merge operators
-    for various user-defined contents.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.html">Contents</a>: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
-</div>
+<h1 id="1_Preliminaries">Preliminaries</h1><br>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Hum.html">Hum</a>: <code class="code">sig</code> <a href="Irmin.Hum.html">..</a> <code class="code">end</code></pre><div class="info">
 Serializable data with reversible human-readable
     representations.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Tag.html">Tag</a>: <code class="code">sig</code> <a href="Irmin.Tag.html">..</a> <code class="code">end</code></pre><div class="info">
-User-defined tags.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Path.html">Path</a>: <code class="code">sig</code> <a href="Irmin.Path.html">..</a> <code class="code">end</code></pre><div class="info">
-A key in an <a href="Irmin.S.html">stores</a> is a path of basic elements.
-</div>
-
 <pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Hash</code> provides user-defined hash function to digest serialized
-    contents.
+Hashing functions.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Conf.html">Conf</a>: <code class="code">sig</code> <a href="Irmin.Conf.html">..</a> <code class="code">end</code></pre><div class="info">
+Backend configuration.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Task.html">Task</a>: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre><div class="info">
+Tasks are used to keep track of the origin of reads and writes in
+    the store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Merge.html">Merge</a>: <code class="code">sig</code> <a href="Irmin.Merge.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Merge</code> provides functions to build custom 3-way merge operators
+    for various user-defined contents.
 </div>
 <br>
 <h1 id="1_Stores">Stores</h1><br>
 
-<pre><span id="TYPEtask"><span class="keyword">type</span> <code class="type"></code>task</span> </pre>
+<pre><span id="TYPEtask"><span class="keyword">type</span> <code class="type"></code>task</span> = <code class="type">Task.t</code> </pre>
 <div class="info ">
 The type for user-defined tasks. See <a href="Irmin.Task.html">Task</a>.<br>
 </div>
 
 
-<pre><span id="TYPEconfig"><span class="keyword">type</span> <code class="type"></code>config</span> </pre>
+<pre><span id="TYPEconfig"><span class="keyword">type</span> <code class="type"></code>config</span> = <code class="type"><a href="Irmin.Conf.html#TYPEt">Conf.t</a></code> </pre>
 <div class="info ">
 The type for backend-specific configuration values. See <a href="Irmin.Conf.html">Conf</a>.
 <p>
@@ -105,15 +98,6 @@ An Irmin store is automatically built from a number of lower-level
     and <a href="Irmin.RW.html">read-write</a> stores. These low-level stores are provided
     by various backends.<br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Conf.html">Conf</a>: <code class="code">sig</code> <a href="Irmin.Conf.html">..</a> <code class="code">end</code></pre><div class="info">
-Backend configuration.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Task.html">Task</a>: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre><div class="info">
-Tasks are used to keep track of the origin of reads and writes in
-    the store.
-</div>
-
 <pre><span class="keyword">module type</span> <a href="Irmin.RO.html">RO</a> = <code class="code">sig</code> <a href="Irmin.RO.html">..</a> <code class="code">end</code></pre><div class="info">
 Read-only stores.
 </div>
@@ -126,8 +110,35 @@ Append-only store.
 Read-write stores.
 </div>
 
+<pre><span class="keyword">module type</span> <a href="Irmin.HRW.html">HRW</a> = <code class="code">sig</code> <a href="Irmin.HRW.html">..</a> <code class="code">end</code></pre><div class="info">
+Hierarchical read-write stores.
+</div>
+
 <pre><span class="keyword">module type</span> <a href="Irmin.BC.html">BC</a> = <code class="code">sig</code> <a href="Irmin.BC.html">..</a> <code class="code">end</code></pre><div class="info">
 Branch-consistent stores.
+</div>
+<br>
+<h1 id="1_UserDefinedContents">User-Defined Contents</h1><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.html">Contents</a>: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Tag.html">Tag</a>: <code class="code">sig</code> <a href="Irmin.Tag.html">..</a> <code class="code">end</code></pre><div class="info">
+User-defined tags.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Path.html">Path</a>: <code class="code">sig</code> <a href="Irmin.Path.html">..</a> <code class="code">end</code></pre><div class="info">
+A key in an <a href="Irmin.S.html">stores</a> is a path of basic elements.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Node.html">Node</a>: <code class="code">sig</code> <a href="Irmin.Node.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Node</code> provides functions to describe the graph-like structured
+    values.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Commit.html">Commit</a>: <code class="code">sig</code> <a href="Irmin.Commit.html">..</a> <code class="code">end</code></pre><div class="info">
+Commit values represent the store history.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.Private.html">..</a> <code class="code">end</code></pre><div class="info">
@@ -190,9 +201,27 @@ Signature for Irmin stores.
 <br>
 <h1 id="backend">Backends</h1><br>
 <br>
-A backend is an implementation exposing either a concrete
-    implementation of <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> or a functor providing <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> once
-    applied.<br>
+API to create new Irmin backends. A backend is an implementation
+    exposing either a concrete implementation of <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> or a functor
+    providing <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> once applied.
+<p>
+
+    There are two ways to create a concrete <a href="Irmin.S.html"><code class="code">Irmin.S</code></a> implementation:
+<p>
+
+    <ul>
+<li><a href="Irmin.Make.html"><code class="code">Irmin.Make</code></a> creates a store where all the objects are stored in the
+    same store, using the same internal keys format and a custom binary
+    format based on <a href="https://github.com/janestreet/bin_prot">bin_prot</a>,
+    with no native synchronization primitives: it is usually what is
+    needed to quickly create a new backend.</li>
+<li><a href="Irmin.Make_ext.html"><code class="code">Irmin.Make_ext</code></a> creates a store with a <em>deep</em> embedding of each
+    of the internal stores into separate store, with a total control over
+    the binary format and using the native synchronization protocols
+    when available. This is mainly used by the Git backend, but could
+    be used for other similar backends as well in the future.</li>
+</ul>
+<br>
 
 <pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER.html">AO_MAKER</a> = <code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.AO.html">AO</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
 <code class="code">AO_MAKER</code> is the signature exposed by any backend providing
@@ -226,6 +255,6 @@ Advanced store creator.
 
 <pre><span class="keyword">module</span> <a href="Irmin.Watch.html">Watch</a>: <code class="code">sig</code> <a href="Irmin.Watch.html">..</a> <code class="code">end</code></pre><div class="info">
 <code class="code">Watch</code> provides helpers to register event notifications on
-      read-write stores.
+    read-write stores.
 </div>
 </body></html>

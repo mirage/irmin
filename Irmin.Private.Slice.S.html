@@ -33,41 +33,57 @@ The type for exported contents.<br>
 </div>
 
 
-<pre><span id="TYPEnodes"><span class="keyword">type</span> <code class="type"></code>nodes</span> </pre>
+<pre><span id="TYPEnode"><span class="keyword">type</span> <code class="type"></code>node</span> </pre>
 <div class="info ">
 The type for exported nodes.<br>
 </div>
 
 
-<pre><span id="TYPEcommits"><span class="keyword">type</span> <code class="type"></code>commits</span> </pre>
+<pre><span id="TYPEcommit"><span class="keyword">type</span> <code class="type"></code>commit</span> </pre>
 <div class="info ">
 The type for exported commits.<br>
 </div>
 
 
-<pre><span id="TYPEtags"><span class="keyword">type</span> <code class="type"></code>tags</span> </pre>
+<pre><span id="TYPEtag"><span class="keyword">type</span> <code class="type"></code>tag</span> </pre>
 <div class="info ">
 The type for exported tags.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">?contents:<a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> -><br>       ?nodes:<a href="Irmin.Private.Slice.S.html#TYPEnodes">nodes</a> -><br>       ?commits:<a href="Irmin.Private.Slice.S.html#TYPEcommits">commits</a> -><br>       ?tags:<a href="Irmin.Private.Slice.S.html#TYPEtags">tags</a> -> unit -> t</code></pre><div class="info ">
-Create a new slice.<br>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> t Lwt.t</code></pre><div class="info ">
+Create a new emtpy slice.<br>
 </div>
 
-<pre><span id="VALcontents"><span class="keyword">val</span> contents</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a></code></pre><div class="info ">
-The slice contents.<br>
+<pre><span id="VALadd_contents"><span class="keyword">val</span> add_contents</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
 </div>
 
-<pre><span id="VALnodes"><span class="keyword">val</span> nodes</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEnodes">nodes</a></code></pre><div class="info ">
-The slice nodes.<br>
+<pre><span id="VALadd_node"><span class="keyword">val</span> add_node</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
 </div>
 
-<pre><span id="VALcommits"><span class="keyword">val</span> commits</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEcommits">commits</a></code></pre><div class="info ">
-The slice commits.<br>
+<pre><span id="VALadd_commit"><span class="keyword">val</span> add_commit</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
 </div>
 
-<pre><span id="VALtags"><span class="keyword">val</span> tags</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEtags">tags</a></code></pre><div class="info ">
-The slice tags.<br>
+<pre><span id="VALadd_tag"><span class="keyword">val</span> add_tag</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
+</div>
+
+<pre><span id="VALiter_contents"><span class="keyword">val</span> iter_contents</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+FIXME The slice contents.<br>
+</div>
+
+<pre><span id="VALiter_nodes"><span class="keyword">val</span> iter_nodes</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+FIXME The slice nodes.<br>
+</div>
+
+<pre><span id="VALiter_commits"><span class="keyword">val</span> iter_commits</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+FIXME The slice commits.<br>
+</div>
+
+<pre><span id="VALiter_tags"><span class="keyword">val</span> iter_tags</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEtag">tag</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+FIXME The slice tags.<br>
 </div>
 </body></html>

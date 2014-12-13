@@ -28,9 +28,9 @@ Private functions, which might be used by the backends.<br>
 <pre><span class="keyword">include</span> <a href="Irmin.Private.S.html">Irmin.Private.S</a></pre>
 
 <pre><span id="VALcontents_t"><span class="keyword">val</span> contents_t</span> : <code class="type">t -> Contents.t</code></pre>
-<pre><span id="VALnode_t"><span class="keyword">val</span> node_t</span> : <code class="type">t -> Contents.t * Node.t</code></pre>
-<pre><span id="VALcommit_t"><span class="keyword">val</span> commit_t</span> : <code class="type">t -> Contents.t * Node.t * Commit.t</code></pre>
+<pre><span id="VALnode_t"><span class="keyword">val</span> node_t</span> : <code class="type">t -> Node.t</code></pre>
+<pre><span id="VALcommit_t"><span class="keyword">val</span> commit_t</span> : <code class="type">t -> Commit.t</code></pre>
 <pre><span id="VALtag_t"><span class="keyword">val</span> tag_t</span> : <code class="type">t -> Irmin.S.Tag.t</code></pre>
-<pre><span id="VALread_node"><span class="keyword">val</span> read_node</span> : <code class="type">t -> Node.Path.t -> Node.value option Lwt.t</code></pre>
-<pre><span id="VALmem_node"><span class="keyword">val</span> mem_node</span> : <code class="type">t -> Node.Path.t -> bool Lwt.t</code></pre>
-<pre><span id="VALupdate_node"><span class="keyword">val</span> update_node</span> : <code class="type">t -> Node.Path.t -> Node.value -> unit Lwt.t</code></pre></body></html>
+<pre><span id="VALread_node"><span class="keyword">val</span> read_node</span> : <code class="type">t -> key -> Node.key option Lwt.t</code></pre>
+<pre><span id="VALmem_node"><span class="keyword">val</span> mem_node</span> : <code class="type">t -> key -> bool Lwt.t</code></pre>
+<pre><span id="VALupdate_node"><span class="keyword">val</span> update_node</span> : <code class="type">t -> key -> Node.key -> unit Lwt.t</code></pre></body></html>

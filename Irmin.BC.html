@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.RW.html">
+<link rel="previous" href="Irmin.HRW.html">
 <link rel="next" href="Irmin.S.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -21,7 +21,7 @@
 <title>Irmin.BC</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.RW.html" title="Irmin.RW">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.HRW.html" title="Irmin.HRW">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
 &nbsp;<a class="post" href="Irmin.S.html" title="Irmin.S">Next</a>
 </div>
@@ -51,9 +51,9 @@ Branch-consistent stores.<br>
       These stores can be created using the
       <a href="Irmin.BC.html#VALof_tag">of_tag</a> functions.<br>
 
-<pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.HRW.html">Irmin.HRW</a></pre>
 <br>
-A branch-consistent store is read-write.
+A branch-consistent store is a hierachical read-write store.
 <p>
 
       <code class="code">create config task</code> is a persistent store handle on the
@@ -164,6 +164,10 @@ Set the commit head.<br>
 Merge a commit with the current branch.<br>
 </div>
 
+<pre><span id="VALmerge_head_exn"><span class="keyword">val</span> merge_head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
+</div>
+
 <pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">t -> key -> (key * <a href="Irmin.BC.html#TYPEhead">head</a>) Lwt_stream.t</code></pre><div class="info ">
 Watch changes for a given collection of keys and the ones they
       have recursive access. Return the stream of heads corresponding
@@ -185,6 +189,10 @@ Same as <code class="code">clone</code> but delete and update the existing branc
 <pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 <code class="code">merge db t</code> merges the branch <code class="code">t</code> into the current store
       branch. The two branches are still independent.<br>
+</div>
+
+<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
+FIXME<br>
 </div>
 <br>
 <h2 id="2_Slices">Slices</h2><br>
