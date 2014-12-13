@@ -27,7 +27,7 @@
     unikernels -- and can be be compiled to JavaScipt to run in a
     browser.
 
-    FIXME
+    {e Release %%VERSION%% - %%MAINTAINER%% }
 *)
 
 val version: string
