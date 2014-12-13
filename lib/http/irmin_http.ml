@@ -16,7 +16,7 @@
 
 open Lwt
 
-module Log = Log.Make(struct let section = "CRUD" end)
+module Log = Log.Make(struct let section = "HTTP" end)
 
 (* ~uri *)
 let uri =
@@ -36,7 +36,10 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
   let uri_append t path = match Uri.path t :: path with
     | []   -> t
-    | path -> Uri.with_path t (Irmin.Path.String.to_hum path)
+    | path ->
+      let path = List.filter ((<>)"")  path in
+      let path = String.concat "/" path in
+      Uri.with_path t path
 
   let result_of_json json =
     let error =
@@ -51,23 +54,27 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     | None  , Some r -> r
     | Some _, Some _ -> raise (Error "result_of_json")
 
-  let map_string_response fn (_, b) =
+  let map_string_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
     Cohttp_lwt_body.to_string b >>= fun b ->
     Log.debugf "response: body=%s" b;
     let j = Ezjsonm.from_string b in
-    try return (fn (result_of_json j))
-    with Error e -> fail (Error e)
+    try
+      result_of_json j
+      |> M.of_json
+      |> return
+    with Error e ->
+      fail (Error e)
 
-  let map_stream_response fn (_, b) =
+  let map_stream_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
     let stream = Cohttp_lwt_body.to_stream b in
     let stream = Ezjsonm_lwt.from_stream stream in
     let stream = Lwt_stream.map result_of_json stream in
-    Lwt_stream.map fn stream
+    Lwt_stream.map (Tc.of_json (module Tc.Option(M))) stream
 
   let map_get t path fn =
     Log.debugf "get %s" (Uri.to_string (uri_append t path));
-    Client.get (uri_append t path) >>=
-    fn
+    Client.get (uri_append t path) >>= fun r ->
+    fn r
 
   let get t path fn =
     map_get t path (map_string_response fn)
@@ -79,6 +86,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       | Some s -> Lwt_stream.get s
       | None   ->
         map_get t path (fun b ->
+            Log.debugf "XXX POP";
             let s = map_stream_response fn b in
             stream := Some s;
             return_unit) >>= fun () ->
@@ -94,9 +102,13 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let body =
       let params = `O [ "params", body ] in
       Ezjsonm.to_string params in
-    Log.debugf "post %s %s" (Uri.to_string (uri_append t path)) body;
+    let uri = uri_append t path in
+    let short_body =
+      if String.length body > 80 then String.sub body 0 80 ^ ".." else body
+    in
+    Log.debugf "post %s %s" (Uri.path uri) short_body;
     let body = Cohttp_lwt_body.of_string body in
-    Cohttp_lwt_unix.Client.post ~body (uri_append t path) >>=
+    Cohttp_lwt_unix.Client.post ~body uri >>=
     map_string_response fn
 
 end
@@ -124,9 +136,6 @@ struct
     type key = K.t
     type value = V.t
 
-    let some fn x =
-      Some (fn x)
-
     let create_aux config task =
       let uri = match Irmin.Conf.get config uri with
         | None   -> failwith "Irmin_http.create: No URI specified"
@@ -142,18 +151,18 @@ struct
       return (fun a -> create_aux config (task a))
 
     let read { uri; _ } key =
-      catch
-        (fun () -> get uri ["read"; K.to_hum key] (some V.of_json))
-        (fun _  -> return_none)
+      get uri ["read"; K.to_hum key] (module Tc.Option(V))
 
-    let read_exn { uri; _ } key =
-      get uri ["read"; K.to_hum key] V.of_json
+    let read_exn t key =
+      read t key >>= function
+      | None   -> fail Not_found
+      | Some v -> return v
 
     let mem { uri; _ } key =
-      get uri ["mem"; K.to_hum key] Ezjsonm.get_bool
+      get uri ["mem"; K.to_hum key] Tc.bool
 
     let iter { uri; _ } fn =
-      Lwt_stream.iter_p fn (get_stream uri ["iter"] K.of_json)
+      Lwt_stream.iter_p fn (get_stream uri ["iter"] (module K))
 
   end
 
@@ -162,7 +171,7 @@ struct
     include RO (C)(K)(V)
 
     let add { uri; _ } value =
-      post uri ["add"] (V.to_json value) K.of_json
+      post uri ["add"] (V.to_json value) (module K)
 
   end
 
@@ -171,13 +180,13 @@ struct
     include RO (C)(K)(V)
 
     let update { uri; _ } key value =
-      post uri ["update"; K.to_hum key] (V.to_json value) Ezjsonm.get_unit
+      post uri ["update"; K.to_hum key] (V.to_json value) Tc.unit
 
     let remove { uri; _ } key =
-      delete uri ["remove"; K.to_hum key] Ezjsonm.get_unit
+      delete uri ["remove"; K.to_hum key] Tc.unit
 
     let watch { uri; _ } path =
-      get_stream uri ["watch"; K.to_hum path] (Ezjsonm.get_option V.of_json)
+      get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
 
   end
 
@@ -370,13 +379,13 @@ struct
 
   let tags t =
     uri t >>= fun uri ->
-    get uri ["tags"] (Ezjsonm.get_list T.of_json)
+    get uri ["tags"] (module Tc.List(T))
 
   let head t = match t.branch with
     | `Head l -> L.head l
     | `Tag _  ->
       uri t >>= fun uri ->
-      get uri ["head"] (Ezjsonm.get_option Head.of_json)
+      get uri ["head"] (module Tc.Option(Head))
 
   let head_exn t =
     head t >>= function
@@ -385,13 +394,13 @@ struct
 
   let update_tag t tag =
     uri t >>= fun uri ->
-    get uri ["update-tag"; T.to_hum tag] Ezjsonm.get_string >>= function
+    get uri ["update-tag"; T.to_hum tag] Tc.string >>= function
     | "ok" -> set_tag t tag; return `Ok
     | _    -> return `Duplicated_tag
 
   let update_tag_force t tag =
     uri t >>= fun uri ->
-    get uri ["update-tag-force"; T.to_hum tag] Ezjsonm.get_unit >>= fun () ->
+    get uri ["update-tag-force"; T.to_hum tag] Tc.unit >>= fun () ->
     set_tag t tag;
     return_unit
 
@@ -400,13 +409,13 @@ struct
     | `Head l -> L.switch l tag
     | `Tag _  ->
       uri t >>= fun uri ->
-      get uri ["switch"; T.to_hum tag] Ezjsonm.get_unit >>= fun () ->
+      get uri ["switch"; T.to_hum tag] Tc.unit >>= fun () ->
       set_tag t tag;
       return_unit
 
   let heads t =
     uri t >>= fun uri ->
-    get uri ["heads"] (Ezjsonm.get_list Head.of_json)
+    get uri ["heads"] (module Tc.List(Head))
 
   let detach t =
     match t.branch with
@@ -424,7 +433,7 @@ struct
     | `Head l -> L.update_head l head
     | `Tag _  ->
       uri t >>= fun uri ->
-      get uri ["update-head"; Head.to_hum head] Ezjsonm.get_unit
+      get uri ["update-head"; Head.to_hum head] Tc.unit
 
   module M = Tc.App1 (Irmin.Merge.Result) (Tc.Unit)
 
@@ -433,7 +442,7 @@ struct
     | `Head l -> L.merge_head l head
     | `Tag _  ->
       uri t >>= fun uri ->
-      get uri ["merge-head"; Head.to_hum head] M.of_json
+      get uri ["merge-head"; Head.to_hum head] (module M)
 
   let merge_head_exn t head =
     merge_head t head >>=
@@ -447,7 +456,7 @@ struct
     | `Tag _  ->
       Irmin.Watch.lwt_stream_lift (
         uri t >>= fun uri ->
-        let s = get_stream uri ["watch-head"; P.to_hum key] W.of_json in
+        let s = get_stream uri ["watch-head"; P.to_hum key] (module W) in
         return s
       )
 
@@ -460,7 +469,7 @@ struct
       end
     | `Tag _  ->
       uri t >>= fun uri ->
-      get uri ["clone"; T.to_hum tag] Ezjsonm.get_string >>= function
+      get uri ["clone"; T.to_hum tag] Tc.string >>= function
       | "ok" -> of_tag (config t) task tag >>= fun t -> return (`Ok t)
       | _    -> return `Duplicated_tag
 
@@ -471,7 +480,7 @@ struct
       return (fun a -> { t with branch = `Head (l a) })
     | `Tag _  ->
       uri t >>= fun uri ->
-      get uri ["clone-force"; T.to_hum tag] Tc.Unit.of_json >>= fun () ->
+      get uri ["clone-force"; T.to_hum tag] Tc.unit >>= fun () ->
       of_tag (config t) task tag
 
   let merge t tag =
@@ -479,7 +488,7 @@ struct
     | `Head l -> L.merge l tag
     | `Tag _  ->
       uri t >>= fun uri ->
-      get uri ["merge"; T.to_hum tag] M.of_json
+      get uri ["merge"; T.to_hum tag] (module M)
 
   let merge_exn t tag =
     merge t tag >>=
@@ -496,27 +505,27 @@ struct
   let export ?full ?depth ?(min=[]) ?(max=[]) t =
     uri t >>= fun uri ->
     post uri ["export"] (E.to_json ((full, depth), (min, max)))
-      L.Private.Slice.of_json
+      (module L.Private.Slice)
 
   module I = Tc.List(T)
 
   let import t slice =
     uri t >>= fun uri ->
-    post uri ["import"] (Slice.to_json slice) I.of_json >>= function
+    post uri ["import"] (Slice.to_json slice) (module I) >>= function
     | [] -> return `Ok
     | l  -> return (`Duplicated_tags l)
 
   let import_force t slice =
     uri t >>= fun uri ->
-    post uri ["import-force"] (Slice.to_json slice) Ezjsonm.get_unit
+    post uri ["import-force"] (Slice.to_json slice) Tc.unit
 
   let remove_rec t dir =
     uri t >>= fun uri ->
-    get uri ["remove-rec"; P.to_hum dir] Ezjsonm.get_unit
+    get uri ["remove-rec"; P.to_hum dir] Tc.unit
 
   let list t dir =
     uri t >>= fun uri ->
-    get uri ["list"; P.to_hum dir] (Ezjsonm.get_list P.of_json)
+    get uri ["list"; P.to_hum dir] (module Tc.List(P))
 
   type step = P.step
   module Key = P

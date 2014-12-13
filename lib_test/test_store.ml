@@ -141,19 +141,24 @@ module Make (S: Irmin.S) = struct
   let test_contents x () =
     let test () =
       create x >>= fun t ->
-      let v1 = v1 x in
-      let v2 = v2 x in
-      kv1 x >>= fun kv1 ->
-      kv2 x >>= fun kv2 ->
       let t = S.Private.contents_t (t "get contents handle") in
+
+      let v2 = v2 x in
+      kv2 x >>= fun kv2 ->
+      Contents.add t v2 >>= fun k2' ->
+      assert_equal (module KV) "kv2" kv2 k2';
+      Contents.read t k2' >>= fun v2' ->
+      assert_equal (module Tc.Option(V)) "v2" (Some v2) v2';
+
+      Contents.add t v2 >>= fun k2'' ->
+      assert_equal (module KV) "kv2" kv2 k2'';
+
+      let v1 = v1 x in
+      kv1 x >>= fun kv1 ->
       Contents.add t v1 >>= fun k1' ->
       assert_equal (module KV) "kv1" kv1 k1';
       Contents.add t v1 >>= fun k1'' ->
       assert_equal (module KV) "kv1" kv1 k1'';
-      Contents.add t v2 >>= fun k2' ->
-      assert_equal (module KV) "kv2" kv2 k2';
-      Contents.add t v2 >>= fun k2'' ->
-      assert_equal (module KV) "kv2" kv2 k2'';
       Contents.read t kv1 >>= fun v1' ->
       assert_equal (module Tc.Option(V)) "v1" (Some v1) v1';
       Contents.read t kv2 >>= fun v2' ->

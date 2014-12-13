@@ -39,7 +39,7 @@ let rec wait_for_the_server_to_start () =
 
 let suite k server =
   let server_pid = ref 0 in
-  { name = Printf.sprintf "CRUD.%s" server.name;
+  { name = Printf.sprintf "HTTP.%s" server.name;
 
     init = begin fun () ->
       let (module Server) = server.store in

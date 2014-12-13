@@ -289,7 +289,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let stream fn t =
     let stream, push = Lwt_stream.create () in
     Irmin.Watch.lwt_stream_lift (
-      fn t (fun k -> push (Some k); return_unit) >>= fun () ->
+      fn t (fun k ->
+          Log.debugf "XXX push";
+          push (Some k);
+          return_unit
+        ) >>= fun () ->
       push None;
       return stream
     )
@@ -456,7 +460,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           return_none
         else begin
           Cohttp_lwt_body.to_string body >>= fun b ->
-          Log.debugf "process: length=%Ld body=%S" len b;
+          let short_body =
+            if String.length b > 80 then String.sub b 0 80 ^ ".." else b
+          in
+          Log.debugf "process: length=%Ld body=%S" len short_body;
           try match Ezjsonm.from_string b with
             | `O l ->
               if List.mem_assoc "params" l then (
@@ -473,6 +480,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     end >>= fun params ->
     let query = Uri.query (Cohttp.Request.uri req) in
     let rec aux actions path =
+      Log.debugf "aux %s" (String.concat "/" path);
       match path with
       | []      -> json_of_response t actions >>= respond_json
       | h::path ->

@@ -52,9 +52,11 @@ module SHA1 = struct
       raise (Invalid hex)
 
   let to_sexp t = Sexplib.Sexp.Atom (to_hex t)
-  let of_sexp s = of_hex (Sexplib.Conv.string_of_sexp s)
-  let to_json x = Ezjsonm.of_sexp (to_sexp x)
-  let of_json x = of_sexp (Ezjsonm.to_sexp x)
+  let to_json x = `String (to_hex x)
+
+  let of_json = function
+    | `String x -> of_hex x
+    | j -> Ezjsonm.parse_error j "Hash.of_json"
 
   let size_of t =
     Bin_prot.Size.bin_size_bigstring (Cstruct.to_bigarray t)
