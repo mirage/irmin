@@ -77,7 +77,7 @@ module Make (S: Irmin.S) = struct
     Contents.add (S.Private.contents_t (t "contents_t")) (v2 x)
 
   let t1 = T.of_hum "foo"
-  let t2 = T.of_hum "bar"
+  let t2 = T.of_hum "bar/toto"
 
   let n1 x =
     create x >>= fun t ->
@@ -486,7 +486,7 @@ module Make (S: Irmin.S) = struct
       View.update v1 [l "y"] foo2 >>= fun () ->
       View.merge_path_exn (t "merge_path") [l "b"] v1 >>= fun () ->
       S.read (t "read b/x") [l "b";l "x"] >>= fun foo1' ->
-      S.read (t "read b/y") [l"b";l "y"] >>= fun foo2' ->
+      S.read (t "read b/y") [l "b";l "y"] >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "merge: b/x" (Some foo1) foo1';
       assert_equal (module Tc.Option(V)) "merge: b/y" (Some foo2) foo2';
 

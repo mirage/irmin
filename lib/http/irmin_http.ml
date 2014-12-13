@@ -15,6 +15,7 @@
  *)
 
 open Lwt
+open Irmin.Merge.OP
 
 module Log = Log.Make(struct let section = "HTTP" end)
 
@@ -62,7 +63,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
   let map_string_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
     Cohttp_lwt_body.to_string b >>= fun b ->
-    Log.debugf "response: body=%s" b;
+    Log.debugf "got response: %s" b;
     let j = Ezjsonm.from_string b in
     try
       result_of_json j
@@ -75,11 +76,15 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let stream = Cohttp_lwt_body.to_stream b in
     let stream = Ezjsonm_lwt.from_stream stream in
     let stream = Lwt_stream.map result_of_json stream in
-    Lwt_stream.map M.of_json stream
+    Lwt_stream.map (fun j ->
+        Log.debugf "stream get %s" (Ezjsonm.to_string j);
+        M.of_json j
+      ) stream
 
   let map_get t path fn =
-    Log.debugf "get %s" (Uri.to_string (uri_append t path));
-    Client.get (uri_append t path) >>= fun r ->
+    let uri = uri_append t path in
+    Log.debugf "get %s" (Uri.path uri);
+    Client.get uri >>= fun r ->
     fn r
 
   let get t path fn =
@@ -92,7 +97,6 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       | Some s -> Lwt_stream.get s
       | None   ->
         map_get t path (fun b ->
-            Log.debugf "XXX POP";
             let s = map_stream_response fn b in
             stream := Some s;
             return_unit) >>= fun () ->
@@ -100,8 +104,9 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     Lwt_stream.from get
 
   let delete t path fn =
-    Log.debugf "delete %s" (Uri.to_string (uri_append t path));
-    Cohttp_lwt_unix.Client.delete (uri_append t path) >>=
+    let uri = uri_append t path in
+    Log.debugf "delete %s" (Uri.path uri);
+    Client.delete uri >>=
     map_string_response fn
 
   let post t path body fn =
@@ -114,7 +119,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     in
     Log.debugf "post %s %s" (Uri.path uri) short_body;
     let body = Cohttp_lwt_body.of_string body in
-    Cohttp_lwt_unix.Client.post ~body uri >>=
+    Client.post ~body uri >>=
     map_string_response fn
 
 end
@@ -251,8 +256,26 @@ module Make (Client: Cohttp_lwt.Client)
     (H: Irmin.Hash.S) =
 struct
 
+  module T = struct
+    include T
+    let to_hum t = Uri.pct_encode (to_hum t)
+    let of_hum t = of_hum (Uri.pct_decode t)
+  end
+
+  module P = struct
+
+    include P
+
+    let to_hum t =
+      String.concat "/" (List.map (fun x -> Uri.pct_encode (Step.to_hum x)) t)
+
+    let of_hum t =
+      List.filter ((<>)"") (Stringext.split t ~on:'/')
+      |> List.map (fun x -> Step.of_hum (Uri.pct_decode x))
+
+  end
+
   include Helper (Client)
-  module Head = H
 
   (* Implementing a high-level HTTP BC backend is a bit tricky as we
      need to keep track of some hidden state which is not directly
@@ -260,29 +283,24 @@ struct
      `detached` mode, and an high-level update does not return the new
      head value.
 
-     We solve this by tapping information in lower-level bindings. *)
-
-  (* The low-level bindings: every high-level operation is decomposed
-     into lower level operations at the backend level. For instance
-     inserting a new value in the store (1 high-level operation) will
-     result in multiple low-level operations: read the corresponding
-     tree nodes for the sub-directories, creating new tree nodes,
-     etc. *)
-  module L = Low(Client)(P)(C)(T)(H)
-  module LP = L.Private
+     We solve this by tapping updating the HTTP API to return more
+     information than the OCaml API dictates. in lower-level
+     bindings. *)
 
   (* The high-level bindings: every high-level operation is simply
      forwarded to the HTTP server. *much* more efficient than using
      [L]. *)
-  module H = L.RW(struct let suffix = None end)(P)(C)
+  module L = Low(Client)(P)(C)(T)(H)
+  module LP = L.Private
+  module S = L.RW(struct let suffix = None end)(P)(C)
 
   (* [t.s.uri] always point to the right location:
        - `$uri/` if branch = `Tag T.master
        - `$uri/tree/$tag` if branch = `Tag tag
        - `$uri/tree/$key if key = `Key key *)
   type t = {
-    mutable branch: [`Tag of T.t | `Head of L.t ];
-    mutable h: H.t;
+    mutable branch: [`Tag of T.t | `Head of H.t ];
+    mutable h: S.t;
     contents_t: LP.Contents.t;
     node_t: LP.Node.t;
     commit_t: LP.Commit.t;
@@ -293,32 +311,29 @@ struct
   }
 
   let uri t =
-    let base = t.h.H.uri in
+    let base = t.h.S.uri in
     match t.branch with
     | `Tag tag ->
-      if T.equal tag T.master then return base
-      else return (uri_append base ["tree"; T.to_hum tag])
+      if T.equal tag T.master then base
+      else uri_append base ["tree"; T.to_hum tag]
     | `Head h ->
-      L.head_exn h >>= fun head ->
-      return (uri_append base ["tree"; Head.to_hum head])
+      uri_append base ["tree"; H.to_hum h]
 
-  let config t = H.config t.h
-  let task t = H.task t.h
+  let config t = S.config t.h
+  let task t = S.task t.h
 
-  let branch t = match t.branch with
-    | `Head l -> L.branch l
-    | `Tag  t -> `Tag t
+  let branch t = t.branch
 
   let set_tag t tag = t.branch <- `Tag tag
   let set_head t head = t.branch <- `Head head
 
-  type key = H.key
-  type value = H.value
+  type key = S.key
+  type value = S.value
   type head = L.head
   type tag = L.tag
 
   let create config task =
-    H.create config task >>= fun h ->
+    S.create config task >>= fun h ->
     L.create config task >>= fun l ->
     let fn a =
       let h = h a in
@@ -345,7 +360,7 @@ struct
       )
 
   let of_head config task head =
-    H.create config task >>= fun h ->
+    S.create config task >>= fun h ->
     L.of_head config task head >>= fun l ->
     let fn a =
       let h = h a in
@@ -363,17 +378,37 @@ struct
     in
     return fn
 
-  let read t = H.read t.h
-  let read_exn t = H.read_exn t.h
-  let mem t = H.mem t.h
-  let iter t = H.iter t.h
-  let watch t = H.watch t.h
-  let remove t = H.remove t.h
+  let read t key =
+    get (uri t) ["read"; P.to_hum key] (module Tc.Option(C))
+
+  let read_exn t key =
+    read t key >>= function
+    | None   -> fail Not_found
+    | Some v -> return v
+
+  let mem t key =
+    get (uri t) ["mem"; P.to_hum key] Tc.bool
+
+  let iter t fn =
+    Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module P))
+
+  let watch t path =
+    get_stream (uri t) ["watch"; P.to_hum path] (module Tc.Option(C))
 
   let update t key value =
+    post (uri t) ["update"; P.to_hum key] (C.to_json value) (module H)
+    >>= fun h ->
+    let () = match t.branch with
+      | `Head _ -> set_head t h
+      | `Tag  _ -> ()
+    in
+    return_unit
+
+  let remove t  key =
+    delete (uri t) ["remove"; P.to_hum key] (module H) >>= fun h ->
     match t.branch with
-    | `Head l  -> L.update l key value
-    | `Tag _   -> H.update t.h key value
+    | `Head _ -> set_head t h; return_unit
+    | `Tag _  -> return_unit
 
   let tag t = match t.branch with
     | `Head _ -> None
@@ -384,14 +419,11 @@ struct
     | Some t -> t
 
   let tags t =
-    uri t >>= fun uri ->
-    get uri ["tags"] (module Tc.List(T))
+    get (uri t) ["tags"] (module Tc.List(T))
 
   let head t = match t.branch with
-    | `Head l -> L.head l
-    | `Tag _  ->
-      uri t >>= fun uri ->
-      get uri ["head"] (module Tc.Option(Head))
+    | `Head h -> return (Some h)
+    | `Tag _  -> get (uri t) ["head"] (module Tc.Option(H))
 
   let head_exn t =
     head t >>= function
@@ -399,29 +431,25 @@ struct
     | Some h -> return h
 
   let update_tag t tag =
-    uri t >>= fun uri ->
-    get uri ["update-tag"; T.to_hum tag] Tc.string >>= function
+    get (uri t) ["update-tag"; T.to_hum tag] Tc.string >>= function
     | "ok" -> set_tag t tag; return `Ok
     | _    -> return `Duplicated_tag
 
   let update_tag_force t tag =
-    uri t >>= fun uri ->
-    get uri ["update-tag-force"; T.to_hum tag] Tc.unit >>= fun () ->
+    get (uri t) ["update-tag-force"; T.to_hum tag] Tc.unit >>= fun () ->
     set_tag t tag;
     return_unit
 
   let switch t tag =
     match t.branch with
-    | `Head l -> L.switch l tag
+    | `Head _ -> set_tag t tag; return_unit
     | `Tag _  ->
-      uri t >>= fun uri ->
-      get uri ["switch"; T.to_hum tag] Tc.unit >>= fun () ->
+      get (uri t) ["switch"; T.to_hum tag] Tc.unit >>= fun () ->
       set_tag t tag;
       return_unit
 
   let heads t =
-    uri t >>= fun uri ->
-    get uri ["heads"] (module Tc.List(Head))
+    get (uri t) ["heads"] (module Tc.List(H))
 
   let detach t =
     match t.branch with
@@ -429,72 +457,52 @@ struct
     | `Tag _  ->
       head t >>= function
       | None   -> return_unit
-      | Some h ->
-        L.of_head (config t) (fun () -> task t) h >>= fun h ->
-        set_head t (h ());
-        return_unit
+      | Some h -> set_head t h; return_unit
 
   let update_head t head =
     match t.branch with
-    | `Head l -> L.update_head l head
-    | `Tag _  ->
-      uri t >>= fun uri ->
-      get uri ["update-head"; Head.to_hum head] Tc.unit
+    | `Head _ -> set_head t head; return_unit
+    | `Tag _  -> get (uri t) ["update-head"; H.to_hum head] Tc.unit
 
-  module M = Tc.App1 (Irmin.Merge.Result) (Tc.Unit)
+  module M = Tc.App1 (Irmin.Merge.Result) (H)
 
   let merge_head t head =
+    get (uri t) ["merge-head"; H.to_hum head] (module M) >>| fun h ->
     match t.branch with
-    | `Head l -> L.merge_head l head
-    | `Tag _  ->
-      uri t >>= fun uri ->
-      get uri ["merge-head"; Head.to_hum head] (module M)
+    | `Head _ -> set_head t h; ok ()
+    | `Tag _  -> ok ()
 
   let merge_head_exn t head =
     merge_head t head >>=
     Irmin.Merge.exn
 
-  module W = Tc.Pair (P)(Head)
+  module W = Tc.Pair (P)(H)
 
   let watch_head t key =
     match t.branch with
     | `Head _ -> Lwt_stream.of_list []
     | `Tag _  ->
       Irmin.Watch.lwt_stream_lift (
-        uri t >>= fun uri ->
-        let s = get_stream uri ["watch-head"; P.to_hum key] (module W) in
+        let s = get_stream (uri t) ["watch-head"; P.to_hum key] (module W) in
         return s
       )
 
   let clone t task tag =
-    match t.branch with
-    | `Head l ->
-      begin L.clone l task tag >>= function
-        | `Ok l -> return (`Ok (fun a -> { t with branch = `Head (l a) }))
-        | `Duplicated_tag -> return `Duplicated_tag
-      end
-    | `Tag _  ->
-      uri t >>= fun uri ->
-      get uri ["clone"; T.to_hum tag] Tc.string >>= function
-      | "ok" -> of_tag (config t) task tag >>= fun t -> return (`Ok t)
-      | _    -> return `Duplicated_tag
+    get (uri t) ["clone"; T.to_hum tag] Tc.string >>= function
+    | "ok" ->
+      of_tag (config t) task tag >>= fun t ->
+      return (`Ok t)
+    | _    -> return `Duplicated_tag
 
   let clone_force t task tag =
-    match t.branch with
-    | `Head l ->
-      L.clone_force l task tag >>= fun l ->
-      return (fun a -> { t with branch = `Head (l a) })
-    | `Tag _  ->
-      uri t >>= fun uri ->
-      get uri ["clone-force"; T.to_hum tag] Tc.unit >>= fun () ->
-      of_tag (config t) task tag
+    get (uri t) ["clone-force"; T.to_hum tag] Tc.unit >>= fun () ->
+    of_tag (config t) task tag
 
   let merge t tag =
+    get (uri t) ["merge"; T.to_hum tag] (module M) >>| fun h ->
     match t.branch with
-    | `Head l -> L.merge l tag
-    | `Tag _  ->
-      uri t >>= fun uri ->
-      get uri ["merge"; T.to_hum tag] (module M)
+    | `Head _ -> set_head t h; ok ()
+    | `Tag _  -> ok ()
 
   let merge_exn t tag =
     merge t tag >>=
@@ -502,41 +510,40 @@ struct
 
   module E = Tc.Pair
       (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))
-      (Tc.Pair (Tc.List(Head)) (Tc.List(Head)))
+      (Tc.Pair (Tc.List(H)) (Tc.List(H)))
 
   type slice = L.slice
 
   module Slice = L.Private.Slice
 
   let export ?full ?depth ?(min=[]) ?(max=[]) t =
-    uri t >>= fun uri ->
-    post uri ["export"] (E.to_json ((full, depth), (min, max)))
+    post (uri t) ["export"] (E.to_json ((full, depth), (min, max)))
       (module L.Private.Slice)
 
   module I = Tc.List(T)
 
   let import t slice =
-    uri t >>= fun uri ->
-    post uri ["import"] (Slice.to_json slice) (module I) >>= function
+    post (uri t) ["import"] (Slice.to_json slice) (module I) >>= function
     | [] -> return `Ok
     | l  -> return (`Duplicated_tags l)
 
   let import_force t slice =
-    uri t >>= fun uri ->
-    post uri ["import-force"] (Slice.to_json slice) Tc.unit
+    post (uri t) ["import-force"] (Slice.to_json slice) Tc.unit
 
   let remove_rec t dir =
-    uri t >>= fun uri ->
-    get uri ["remove-rec"; P.to_hum dir] Tc.unit
+    get (uri t) ["remove-rec"; P.to_hum dir] (module H) >>= fun h ->
+    match t.branch with
+    | `Head _ -> set_head t h; return_unit
+    | `Tag _  -> return_unit
 
   let list t dir =
-    uri t >>= fun uri ->
-    get uri ["list"; P.to_hum dir] (module Tc.List(P))
+    get (uri t) ["list"; P.to_hum dir] (module Tc.List(P))
 
   type step = P.step
   module Key = P
   module Val = C
   module Tag = T
+  module Head = H
   module Private = struct
     include L.Private
     let contents_t t = t.contents_t

@@ -276,6 +276,7 @@ module Make_ext (P: PRIVATE) = struct
       )
 
   let map t path ~f =
+    Log.debugf "map %a" force (show (module Key) path);
     begin read_head_node t >>= function
       | None   -> Graph.empty (graph_t t)
       | Some n -> return n

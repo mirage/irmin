@@ -325,17 +325,19 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let commit_key_of_git k = H.of_raw (GK.to_raw (Git.SHA.of_commit k))
       let node_key_of_git k = Git.SHA.of_tree k
 
-      let task_of_git author message =
+      let task_of_git author message git =
         let id = author.Git.User.name in
         let date = match Stringext.split ~on:' ' author.Git.User.date with
           | [date;_] -> Int64.of_string date
           | _        -> 0L in
-        I.Task.create ~date ~owner:id message
+        let uid = Int64.of_int (Hashtbl.hash (author, message, git)) in
+        I.Task.create ~date ~owner:id ~uid message
 
-      let of_git { Git.Commit.tree; parents; author; message; _ } =
+      let of_git g =
+        let { Git.Commit.tree; parents; author; message; _ } = g in
         let parents = List.map commit_key_of_git parents in
         let node = Some (node_key_of_git tree) in
-        let task = task_of_git author message in
+        let task = task_of_git author message g in
         (task, node, parents)
 
       let to_git task node parents =
@@ -363,7 +365,9 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let xnode { Git.Commit.tree; _ } = node_key_of_git tree
       let node t = Some (xnode t)
       let parents { Git.Commit.parents; _ } = List.map commit_key_of_git parents
-      let task { Git.Commit.author; message; _ } = task_of_git author message
+      let task g =
+        let { Git.Commit.author; message; _ } = g in
+        task_of_git author message g
 
       module C = Irmin.Commit.Make(H)(GK)
 

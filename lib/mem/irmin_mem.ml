@@ -16,6 +16,8 @@
 
 open Lwt
 
+module Log = Log.Make(struct let section = "MEM" end)
+
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   module W = Irmin.Watch.Make(K)(V)
@@ -75,6 +77,8 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   include RO(K)(V)
 
   let update t key value =
+    Log.debugf "update %s %s"
+      (Tc.show (module K) key) (Tc.show (module V) value);
     Hashtbl.replace t.t key value;
     W.notify t.w key (Some value);
     return_unit

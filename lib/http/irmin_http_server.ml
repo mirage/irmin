@@ -15,6 +15,7 @@
  *)
 
 open Lwt
+open Irmin.Merge.OP
 
 let error fmt =
   Printf.ksprintf (fun msg ->
@@ -327,10 +328,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       (module S.Private.Commit.Val)
       (fun t -> return (S.Private.commit_t t))
 
-  let stream fn t =
+  let stream m fn t =
     let stream, push = Lwt_stream.create () in
     Irmin.Watch.lwt_stream_lift (
       fn t (fun k ->
+          Log.debugf "stream push %s" (Tc.show m k);
           push (Some k);
           return_unit
         ) >>= fun () ->
@@ -347,7 +349,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     SNode [
       mk1p0bf "read"   read   tag_t tag' (Tc.option head);
       mk1p0bf "mem"    mem    tag_t tag' Tc.bool;
-      mk0p0bs "iter"   (stream iter) tag_t tag;
+      mk0p0bs "iter"   (stream tag iter) tag_t tag;
       mk1p1bf "update" update tag_t tag' head Tc.unit;
       mk1p0bf "remove" remove tag_t tag' Tc.unit;
       mk1p0bs "watch"  watch  tag_t tag' (Tc.option head);
@@ -422,18 +424,40 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.clone_force t (fun () -> S.task t) tag >>= fun _ ->
       return_unit
     in
+    let s_update t k v =
+      S.update t k v >>= fun () ->
+      S.head_exn t
+    in
+    let s_remove t k =
+      S.remove t k >>= fun () ->
+      S.head_exn t
+    in
+    let s_remove_rec t k =
+      S.remove_rec t k >>= fun () ->
+      S.head_exn t
+    in
+    let s_merge_head t k =
+      S.merge_head t k >>| fun () ->
+      S.head_exn t >>=
+      ok
+    in
+    let s_merge t k =
+      S.merge t k >>| fun () ->
+      S.head_exn t >>=
+      ok
+    in
     let bc t = [
       (* rw *)
       mknp0bf "read"     S.read     t step' (Tc.option value);
       mknp0bf "mem"      S.mem      t step' Tc.bool;
-      mk0p0bs "iter"     (stream S.iter) t key;
-      mknp1bf "update"   S.update   t step' value Tc.unit;
-      mknp0bf "remove"   S.remove   t step' Tc.unit;
+      mk0p0bs "iter"     (stream key S.iter) t key;
+      mknp1bf "update"   s_update   t step' value head;
+      mknp0bf "remove"   s_remove   t step' head;
       mknp0bs "watch"    S.watch    t step' (Tc.option value);
 
       (* hrw *)
       mknp0bf "list"       S.list       t step' (Tc.list key);
-      mknp0bf "remove-rec" S.remove_rec t step' Tc.unit;
+      mknp0bf "remove-rec" s_remove_rec t step' head;
 
       (* more *)
       mk1p0bf "update-tag"       S.update_tag t tag' ok_or_duplicated_tag;
@@ -442,11 +466,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bf "head"             S.head t (Tc.option head);
       mk0p0bf "heads"            S.heads t (Tc.list head);
       mk1p0bf "update-head"      S.update_head t head' Tc.unit;
-      mk1p0bf "merge-head"       S.merge_head t head' (merge Tc.unit);
+      mk1p0bf "merge-head"       s_merge_head t head' (merge head);
       mknp0bs "watch-head"       S.watch_head t step' (Tc.pair key head);
       mk1p0bf "clone"            s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force"      s_clone_force t tag' Tc.unit;
-      mk1p0bf "merge"            S.merge t tag' (merge Tc.unit);
+      mk1p0bf "merge"            s_merge t tag' (merge head);
       mk0p1bf "export"           s_export t export slice;
       mk0p1bf "import"           S.import t slice (ok_or_duplicated_tags);
       mk0p1bf "import-force"     S.import_force t slice Tc.unit;
@@ -469,25 +493,16 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           S.tags t  >>= fun tags ->
           S.heads t >>= fun heads ->
           return (List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads))
-        (fun t n ->
-           S.tags t >>= fun tags ->
-           let tags = List.map S.Tag.to_hum tags in
-           if List.mem n tags then (
-             return (SNode (bc (fun t ->
-                 S.of_tag (S.config t) (fun () -> S.task t) (S.Tag.of_hum n)
-                 >>= fun t -> return (t ())
-               )))
-           ) else (
-             S.heads t >>= fun heads ->
-             let heads = List.map S.Head.to_hum heads in
-             if List.mem n heads then (
-               return (SNode (bc (fun t ->
-                   S.of_head (S.config t) (fun () -> S.task t) (S.Head.of_hum n)
-                   >>= fun t -> return (t ())
-                 )))
-             ) else
-               error "%s is not a valid key or tag" n
-           ))
+        (fun _ n ->
+           let app fn t x =
+             fn (S.config t) (fun () -> S.task t) x >>= fun t ->
+             return (t ())
+           in
+           try
+             let n = S.Head.of_hum n in
+             return (SNode (bc (fun t -> app S.of_head t n)))
+           with Irmin.Hash.Invalid _ ->
+             return (SNode (bc (fun t -> app S.of_tag t (S.Tag.of_hum n)))))
       ])
 
   let process t req body path =
@@ -541,16 +556,20 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       | None   -> 8080, Uri.with_port uri (Some 8080)
       | Some p -> p   , uri in
     Printf.printf "Server started on port %d.\n%!" port;
-    let callback _conn_id req body =
+    let callback (_, conn_id) req body =
       let path = Uri.path (Cohttp.Request.uri req) in
-      Log.infof "Request received: PATH=%s" path;
+      Log.infof "Connection %s: %s %s"
+        (Cohttp.Connection.to_string conn_id)
+        (Cohttp.(Code.string_of_method (Request.meth req)))
+        path;
       let path = Stringext.split path ~on:'/' in
       let path = List.filter ((<>) "") path in
       catch
         (fun () -> process t req body path)
         (fun e  -> respond_error e) in
     let conn_closed (_, conn_id) () =
-      Log.debugf "Connection %s closed!" (Cohttp.Connection.to_string conn_id) in
+      Log.debugf "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
+    in
     let config = { HTTP.callback; conn_closed } in
     HTTP.listen config ?timeout uri
 
