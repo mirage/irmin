@@ -50,6 +50,7 @@ end
 
 module Irmin_git = struct
   let config = Irmin_git.config
+  let branch_key = Irmin_git.branch_key
   let bare_key = Irmin_git.bare_key
   module AO = Irmin_git.AO
   module RW = Irmin_git.RW

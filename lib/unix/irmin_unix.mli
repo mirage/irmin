@@ -45,7 +45,9 @@ end
 (** Git backends. *)
 module Irmin_git: sig
 
-  val config: ?root:string -> ?bare:bool -> unit -> Irmin.config
+  val config: ?root:string -> ?branch:string -> ?bare:bool -> unit -> Irmin.config
+
+  val branch_key: string Irmin.Conf.key
   val bare_key: bool Irmin.Conf.key
 
   module AO (G: Git.Store.S): Irmin.AO_MAKER

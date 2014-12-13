@@ -106,8 +106,11 @@ let add d k v = M.add k.id (k.to_univ v) d
 let rem d k = M.remove k.id d
 let find d k = try k.of_univ (M.find k.id d) with Not_found -> None
 let get d k =
-  try match k.of_univ (M.find k.id d) with Some v -> v | None -> raise Not_found
-  with Not_found -> raise Not_found
+  try match k.of_univ (M.find k.id d) with
+    | Some v -> v
+    | None   -> raise Not_found
+  with Not_found ->
+    k.default
 
 (* ~root *)
 let root =

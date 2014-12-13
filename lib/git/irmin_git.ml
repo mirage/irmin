@@ -36,17 +36,26 @@ let write_string str b =
 
 let root_key = Irmin.Conf.root
 
+let branch_key =
+  Irmin.Conf.key
+    ~doc:"The main branch of the Git repository."
+    "branch" Irmin.Conf.string "master"
+
 (* ~bare *)
 let bare_key =
   Irmin.Conf.key
     ~doc:"Do not expand the filesystem on the disk."
     "root" Irmin.Conf.bool false
 
-let config ?root ?bare () =
+let config ?root ?branch ?bare () =
   let config = Irmin.Conf.empty in
   let config = Irmin.Conf.add config root_key root in
+  let config = match branch with
+    | None   -> Irmin.Conf.add config branch_key (Irmin.Conf.default branch_key)
+    | Some b -> Irmin.Conf.add config branch_key b
+  in
   let config = match bare with
-    | None   -> Irmin.Conf.add config bare_key false
+    | None   -> Irmin.Conf.add config bare_key (Irmin.Conf.default bare_key)
     | Some b -> Irmin.Conf.add config bare_key b
   in
   config
@@ -229,7 +238,13 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let contents t s = find t (function `Dir -> false | _ -> true) s
       let empty = []
       let create ~contents ~succ =
-        List.map (to_git `Normal) contents @ List.map (to_git `Dir) succ
+        let compare { Git.Tree.name = y; _ } { Git.Tree.name = x; _ } =
+          String.compare x y in
+        let contents = List.map (to_git `Normal) contents in
+        let contents = List.sort compare contents in
+        let succ = List.map (to_git `Dir) succ in
+        let succ = List.sort compare succ in
+        contents @ succ
 
       let is_empty = function
         | [] -> true
@@ -317,6 +332,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
           | Some n -> git_of_node_key n
         in
         let parents = List.map git_of_commit_key parents in
+        let parents = List.sort Git.SHA.Commit.compare parents in
         let date = Int64.to_string (I.Task.date task) ^ " +0000" in
         let author =
           Git.User.({ name  = I.Task.owner task;
@@ -388,9 +404,12 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | None   -> None
       | Some r -> Some (Key.of_hum r)
 
+    let git_of_string str =
+      Git.Reference.of_raw ("refs/heads" / str)
+
     let git_of_tag r =
       let str = Key.to_hum r in
-      Git.Reference.of_raw ("refs/heads" / str)
+      git_of_string str
 
     let mem { t; _ } r =
       G.mem_reference t (git_of_tag r)
@@ -410,8 +429,10 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
     let create config task =
       let root = Irmin.Conf.get config root_key in
+      let branch = Irmin.Conf.get config branch_key in
       G.create ?root () >>= fun t ->
       let git_root = G.root t / ".git" in
+      G.write_head t (Git.Reference.Ref (git_of_string branch)) >>= fun () ->
       let w = W.create () in
       return (fun a -> { task = task a; config; t; w; git_root })
 
@@ -432,7 +453,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     let update t r k =
       let gr = git_of_tag r in
       let gk = git_of_head k in
-      G.write_head t.t (Git.Reference.Ref gr) >>= fun () ->
       G.write_reference t.t gr gk >>= fun () ->
       W.notify t.w r (Some k);
       if G.kind = `Disk && not (Irmin.Conf.get t.config bare_key) then

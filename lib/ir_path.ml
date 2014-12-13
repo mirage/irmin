@@ -45,8 +45,12 @@ module Make (S: STEP) = struct
 
 end
 
+exception Invalid of string
+
 module String = Make(struct
     include Tc.String
     let to_hum s = s
-    let of_hum s = s
+    let of_hum = function
+      | "" -> raise (Invalid "Empty step!")
+      | s  -> s
   end)

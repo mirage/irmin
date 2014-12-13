@@ -28,8 +28,6 @@ end
 
 module SHA1 = struct
 
-  module Log = Log.Make(struct let section = "SHA1" end)
-
   type t = Cstruct.t
 
   let to_hex t =
@@ -40,7 +38,6 @@ module SHA1 = struct
 
   let to_raw t = t
   let of_raw t =
-    Log.debugf "of_raw: %d" (Cstruct.len t);
     if Cstruct.len t = len then t
     else
       let str = Cstruct.to_string t in
@@ -49,7 +46,6 @@ module SHA1 = struct
   let hex_len = 40
 
   let of_hex hex =
-    Log.debugf "of_hex: %d" (String.length hex);
     if String.length hex = hex_len then
       Cstruct.of_string (Hex.to_string (`Hex hex))
     else
@@ -69,7 +65,6 @@ module SHA1 = struct
       (Cstruct.to_bigarray t)
 
   let read buf =
-    Log.debugf "read: %d" (Mstruct.length buf);
     let t =
       Tc.Reader.of_bin_prot Bin_prot.Read.bin_read_bigstring buf
       |> Cstruct.of_bigarray

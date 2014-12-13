@@ -69,17 +69,20 @@ module Make (S: Irmin.S) = struct
     | `Json -> V.of_json (`A[])
 
   let kv1 x =
-    KV.digest (Tc.write_cstruct (module V) (v1 x))
+    create x >>= fun t ->
+    Contents.add (S.Private.contents_t (t "contents_t")) (v1 x)
 
   let kv2 x =
-    KV.digest (Tc.write_cstruct (module V) (v2 x))
+    create x >>= fun t ->
+    Contents.add (S.Private.contents_t (t "contents_t")) (v2 x)
 
   let t1 = T.of_hum "foo"
   let t2 = T.of_hum "bar"
 
   let n1 x =
     create x >>= fun t ->
-    Graph.node (g t "n1") ~contents:[l "", kv1 x] ~succ:[]
+    kv1 x >>= fun kv1 ->
+    Graph.node (g t "n1") ~contents:[l "x", kv1] ~succ:[]
 
   let n2 x =
     n1 x >>= fun kn1 ->
@@ -94,7 +97,8 @@ module Make (S: Irmin.S) = struct
   let n4 x =
     n1 x >>= fun kn1 ->
     create x >>= fun t ->
-    Graph.node (g t "n4") ~contents:[l "", kv2 x] ~succ:[] >>= fun kn4 ->
+    kv2 x >>= fun kv2 ->
+    Graph.node (g t "n4") ~contents:[l "x", kv2] ~succ:[] >>= fun kn4 ->
     Graph.node (g t "n5") ~contents:[] ~succ:[(l "b", kn1); (l "c", kn4)] >>= fun kn5 ->
     Graph.node (g t "n6") ~contents:[] ~succ:[l "a", kn5]
 
@@ -139,8 +143,8 @@ module Make (S: Irmin.S) = struct
       create x >>= fun t ->
       let v1 = v1 x in
       let v2 = v2 x in
-      let kv1 = kv1 x in
-      let kv2 = kv2 x in
+      kv1 x >>= fun kv1 ->
+      kv2 x >>= fun kv2 ->
       let t = S.Private.contents_t (t "get contents handle") in
       Contents.add t v1 >>= fun k1' ->
       assert_equal (module KV) "kv1" kv1 k1';
@@ -162,10 +166,11 @@ module Make (S: Irmin.S) = struct
     let test () =
       create x >>= fun t ->
       let g = g t and n = n t in
+      kv1 x >>= fun kv1 ->
 
       (* Create a node containing t1 -x-> (v1) *)
-      Graph.node (g "k1")  ~contents:[l "x", kv1 x] ~succ:[] >>= fun k1 ->
-      Graph.node (g "k1'") ~contents:[l "x", kv1 x] ~succ:[] >>= fun k1' ->
+      Graph.node (g "k1")  ~contents:[l "x", kv1] ~succ:[] >>= fun k1 ->
+      Graph.node (g "k1'") ~contents:[l "x", kv1] ~succ:[] >>= fun k1' ->
       assert_equal (module KN) "k1.1" k1 k1';
       Node.read_exn (n "t1") k1 >>= fun t1 ->
       Node.add (n "k1''") t1 >>= fun k1''->
@@ -195,7 +200,6 @@ module Make (S: Irmin.S) = struct
       Graph.read_node (g "t1'") k3 [l "a";l "b"] >>= fun k1'''''->
       assert_equal (module Tc.Option(KN)) "t1.3" (Some k1) k1''''';
 
-      let kv1 = kv1 x in
       Graph.read_contents (g "read_contents k1:/x") k1 [l "x"] >>= fun kv11 ->
       assert_equal (module Tc.Option(KV)) "v1.1" (Some kv1) kv11;
       Graph.read_contents (g "read_contents k2:/b/x") k2 [l "b"; l "x"] >>= fun kv12 ->
@@ -205,15 +209,15 @@ module Make (S: Irmin.S) = struct
 
       (* Create the node t6 -a-> t5 -b-> t1 -x-> (v1)
                                    \-c-> t4 -x-> (v2) *)
-      let kv2 = kv2 x in
+      kv2 x >>= fun kv2 ->
       Graph.node (g "k4") ~succ:[] ~contents:[l "x", kv2] >>= fun k4 ->
       Graph.node (g "k5") ~succ:[(l "b",k1); (l "c",k4)] ~contents:[] >>= fun k5 ->
       Graph.node (g "k6") ~succ:[l "a", k5] ~contents:[] >>= fun k6 ->
       Graph.add_contents (g "k6") k3 [l "a"; l "c";l "x"] kv2 >>= fun k6' ->
       Node.read_exn (n "") k6' >>= fun n6' ->
       Node.read_exn (n "") k6  >>= fun n6 ->
-      assert_equal (module N) "node" n6 n6';
-      assert_equal (module KN) "node" k6 k6';
+      assert_equal (module N) "node n6" n6 n6';
+      assert_equal (module KN) "node k6" k6 k6';
 
       return_unit
     in
@@ -228,11 +232,11 @@ module Make (S: Irmin.S) = struct
       in
       S.create x.config task >>= fun t ->
 
-      let kv1 = kv1 x in
+      kv1 x >>= fun kv1 ->
       let g = g t and h = h t and c x = S.Private.commit_t (t x) in
 
-      (* t3 -a-> t2 -b-> t1(v1) *)
-      Graph.node (g 0) ~contents:[l "", kv1] ~succ:[] >>= fun kt1 ->
+      (* t3 -a-> t2 -b-> t1 -x-> (v1) *)
+      Graph.node (g 0) ~contents:[l "x", kv1] ~succ:[] >>= fun kt1 ->
       Graph.node (g 1) ~contents:[] ~succ:[l "a", kt1] >>= fun kt2 ->
       Graph.node (g 2) ~contents:[] ~succ:[l "b", kt2] >>= fun kt3 ->
 
@@ -268,7 +272,9 @@ module Make (S: Irmin.S) = struct
       r1 x >>= fun kv1 ->
       r2 x >>= fun kv2 ->
 
+      line "pre-update";
       Tag.update tag t1 kv1 >>= fun () ->
+      line "post-update";
       Tag.read   tag t1 >>= fun k1' ->
       assert_equal (module Tc.Option(KC)) "r1" (Some kv1) k1';
       Tag.update tag t2 kv2 >>= fun () ->
@@ -298,8 +304,8 @@ module Make (S: Irmin.S) = struct
     let test () =
       create x >>= fun t ->
 
-      let kv1 = kv1 x in
-      let kv2 = kv2 x in
+      kv1 x >>= fun kv1 ->
+      kv2 x >>= fun kv2 ->
 
       (* merge contents *)
 
