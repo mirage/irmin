@@ -216,35 +216,47 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         with Not_found ->
           None
 
-      let remove t p s =
-        let s = S.to_hum s in
-        List.filter
-          (fun { Git.Tree.perm; name; _ } -> not (p perm && name = s))
-          t
+      let with_succ t step succ =
+        let step = S.to_hum step in
+        let rec aux acc = function
+          | { Git.Tree.perm; name; node } as h :: l when perm = `Dir ->
+            if name = step then match succ with
+              | None   -> List.rev_append acc l
+              | Some c ->
+                if Git.SHA.equal c node then t
+                else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
+            else aux (h :: acc) l
+          | h::t -> aux (h :: acc) t
+          | []   -> match succ with
+            | None   -> t
+            | Some c ->
+              List.rev ({ Git.Tree.perm = `Dir; name = step; node = c} :: acc)
+        in
+        let new_t = aux [] t in
+        if t == new_t then t else new_t
 
-      let with_succ t name node =
-        let t = remove t (function `Dir -> true | _ -> false) name in
-        match node with
-        | None      -> t
-        | Some node -> to_git `Dir (name, node) :: t
-
-      let with_contents t name node =
-        let t = remove t (function `Dir -> false | _ -> true) name in
-        match node with
-        | None      -> t
-        | Some node -> to_git `Normal (name, node) :: t
+      let with_contents t step contents =
+        let step = S.to_hum step in
+        let rec aux acc = function
+          | { Git.Tree.perm; name; node } as h :: l when perm <> `Dir ->
+            if name = step then match contents with
+              | None   -> List.rev_append acc l
+              | Some c ->
+                if Git.SHA.equal c node then t
+                else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
+            else aux (h :: acc) l
+          | h::t -> aux (h :: acc) t
+          | []   -> match contents with
+            | None   -> t
+            | Some c ->
+              List.rev ({ Git.Tree.perm = `Normal; name = step; node = c} :: acc)
+        in
+        let new_t = aux [] t in
+        if t == new_t then t else new_t
 
       let succ t s = find t (function `Dir -> true | _ -> false) s
       let contents t s = find t (function `Dir -> false | _ -> true) s
       let empty = []
-      let create ~contents ~succ =
-        let compare { Git.Tree.name = y; _ } { Git.Tree.name = x; _ } =
-          String.compare x y in
-        let contents = List.map (to_git `Normal) contents in
-        let contents = List.sort compare contents in
-        let succ = List.map (to_git `Dir) succ in
-        let succ = List.sort compare succ in
-        contents @ succ
 
       let is_empty = function
         | [] -> true
@@ -253,22 +265,26 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       module N = Irmin.Node.Make (GK)(GK)(P)
 
       (* FIXME: handle executable files *)
-      let to_n t =
-        let contents = ref [] in
-        iter_contents t (fun l k -> contents := (l, k) :: !contents);
-        let succ = ref [] in
-        iter_succ t (fun l k -> succ := (l, k) :: !succ);
-        N.create ~contents:!contents ~succ:!succ
+      let alist t =
+        List.map (function
+            | { Git.Tree.perm = `Dir; name; node } -> (S.of_hum name, `Node node)
+            | { Git.Tree.name; node; _ }           -> (S.of_hum name, `Contents node)
+          ) t
 
-      let of_n n =
-        let contents = ref [] in
-        N.iter_contents n (fun l k -> contents := (l, k) :: !contents);
-        let succ = ref [] in
-        N.iter_succ n (fun l k -> succ := (l, k) :: !succ);
-        create ~contents:!contents ~succ:!succ
+     let to_n t =
+        N.create (alist t)
 
+     let create alist =
+       List.map (fun (l, x) ->
+           match x with
+           | `Contents c -> to_git `Normal (l, c)
+           | `Node n     -> to_git `Dir (l, n)
+         ) alist
+
+      let of_n n = create (N.alist n)
       let to_json t = N.to_json (to_n t)
       let of_json j = of_n (N.of_json j)
+
     end
 
     include AO (GK)(struct

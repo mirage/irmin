@@ -865,8 +865,11 @@ module Node: sig
     type step
     (** The type for steps between nodes. *)
 
-    val create: contents:(step * contents) list -> succ:(step * node) list -> t
+    val create: (step * [`Contents of contents | `Node of node]) list -> t
     (** Create a new node. *)
+
+    val alist: t -> (step * [`Contents of contents | `Node of node]) list
+    (** FIXME *)
 
     val empty: t
     (** The empty node. *)
@@ -945,10 +948,9 @@ module Node: sig
     val empty: t -> node Lwt.t
     (** The empty node. *)
 
-    val node: t ->
-      contents:(step * contents) list -> succ:(step * node) list -> node Lwt.t
-    (** [create t contents succ] Create a new node pointing to
-        [contents] and [succ], and using the store handle [t]. *)
+    val node: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
+    (** [create t xs] creates a new node pointing to the contents and
+        nodes [xs], and using the store handle [t]. *)
 
     val contents: t -> node -> step -> contents option Lwt.t
     (** [contents t n s] is the contents pointed by [s] in the node [n]. *)

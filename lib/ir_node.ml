@@ -27,7 +27,8 @@ module type S = sig
   type node
   type step
 
-  val create: contents:(step * contents) list -> succ:(step * node) list -> t
+  val create: (step * [`Contents of contents | `Node of node]) list -> t
+  val alist: t -> (step * [`Contents of contents | `Node of node]) list
 
   val empty: t
   val is_empty: t -> bool
@@ -50,84 +51,150 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_path.S) = struct
   module Path = P
   module StepMap = Ir_misc.Map(P.Step)
 
+  module X = struct
+
+    type t = [`Contents of contents | `Node of node ]
+
+    let compare x y = match x, y with
+      | `Contents x, `Contents y -> K_c.compare x y
+      | `Node x    , `Node y     -> K_n.compare x y
+      | `Contents _, _           -> 1
+      | _ -> -1
+
+    let equal x y = match x, y with
+      | `Contents x, `Contents y -> K_c.equal x y
+      | `Node x    , `Node y     -> K_n.equal x y
+      | _ -> false
+
+    let hash = Hashtbl.hash
+
+    let to_sexp t =
+      let open Sexplib.Type in
+      match t with
+      | `Contents c -> List [ Atom "contents"; K_c.to_sexp c ]
+      | `Node n     -> List [ Atom "node"    ; K_n.to_sexp n ]
+
+    let to_json = function
+      | `Contents c -> `O [ "contents", K_c.to_json c ]
+      | `Node n     -> `O [ "node"    , K_n.to_json n ]
+
+    let of_json = function
+      | `O [ "contents", j ] -> `Contents (K_c.of_json j)
+      | `O [ "node"    , j ] -> `Node (K_n.of_json j)
+      | j -> Ezjsonm.parse_error j "Node.of_json"
+
+    let write t buf = match t with
+      | `Contents x -> K_c.write x (Ir_misc.tag buf 0)
+      | `Node x -> K_n.write x (Ir_misc.tag buf 1)
+
+    let size_of t = 1 + match t with
+      | `Contents x -> K_c.size_of x
+      | `Node x -> K_n.size_of x
+
+    let read buf = match Ir_misc.untag buf with
+      | 0 -> `Contents (K_c.read buf)
+      | 1 -> `Node (K_n.read buf)
+      | n -> Tc.Reader.error "Vertex.read parse error (tag=%d)" n
+
+  end
+
   type t = {
-    contents: contents StepMap.t;
-    succ    : node StepMap.t;
+    contents: contents StepMap.t Lazy.t;
+    succ    : node StepMap.t Lazy.t;
+    alist   : (step * X.t) list;
   }
 
-  let create ~contents ~succ =
-    let contents = StepMap.of_alist contents in
-    let succ = StepMap.of_alist succ in
-    { contents; succ }
+  let alist t = t.alist
 
-  let iter_contents t f = StepMap.iter f t.contents
-  let iter_succ t f = StepMap.iter f t.succ
+  let mk_index alist =
+    lazy (
+      List.fold_left (fun (contents, succ) (l, x) ->
+          match x with
+          | `Contents c -> StepMap.add l c contents, succ
+          | `Node n     -> contents, StepMap.add l n succ
+        ) (StepMap.empty, StepMap.empty) alist
+    )
+
+  let create alist =
+    let maps = mk_index alist in
+    let contents = lazy (fst (Lazy.force maps)) in
+    let succ = lazy (snd (Lazy.force maps)) in
+    { contents; succ; alist }
+
+  let iter_contents t f =
+    List.iter (fun (l, x) -> match x with
+        | `Contents c -> f l c
+        | `Node _     -> ()
+      ) t.alist
+
+  let iter_succ t f =
+    List.iter (fun (l, x) -> match x with
+        | `Node n     -> f l n
+        | `Contents _ -> ()
+      ) t.alist
 
   let contents t l =
-    try Some (StepMap.find l t.contents)
+    try Some (StepMap.find l (Lazy.force t.contents))
     with Not_found -> None
 
   let succ t l =
-    try Some (StepMap.find l t.succ)
+    try Some (StepMap.find l (Lazy.force t.succ))
     with Not_found -> None
 
-  let to_sexp t =
-    let open Sexplib.Type in
-    List [
-      List [ Atom "contents"; StepMap.to_sexp K_c.to_sexp t.contents ];
-      List [ Atom "succ"    ; StepMap.to_sexp K_n.to_sexp t.succ ];
-    ]
+  module Y = Tc.List (Tc.Pair (P.Step)(X) )
 
-  let to_json t =
-    `O [
-      ("contents", StepMap.to_json K_c.to_json t.contents);
-      ("succ"    , StepMap.to_json K_n.to_json t.succ);
-    ]
-
-  let of_json j =
-    let contents =
-      try Ezjsonm.find j ["contents"] |> StepMap.of_json K_c.of_json
-      with Not_found -> StepMap.empty
-    in
-    let succ =
-      try Ezjsonm.find j ["succ"] |> StepMap.of_json K_n.of_json
-      with Not_found -> StepMap.empty
-    in
-    { contents; succ }
-
-  module Contents = Tc.App1(StepMap)(K_c)
-  module Parents = Tc.App1(StepMap)(K_n)
-  module P = Tc.Pair(Contents)(Parents)
-
-  let explode t = (t.contents, t.succ)
-  let implode (contents, succ) = { contents; succ }
-  let write t = P.write (explode t)
-  let size_of t = P.size_of (explode t)
-  let read b = implode (P.read b)
-  let hash t = P.hash (explode t)
-  let compare x y = P.compare (explode x) (explode y)
-  let equal x y = P.equal (explode x) (explode y)
+  let to_sexp t = Y.to_sexp t.alist
+  let to_json t = Y.to_json t.alist
+  let of_json j = create (Y.of_json j)
+  let write t = Y.write t.alist
+  let size_of t = Y.size_of t.alist
+  let read b = create (Y.read b)
+  let hash t = Y.hash t.alist
+  let compare x y = Y.compare x.alist y.alist
+  let equal x y = Y.equal x.alist y.alist
 
   let empty =
-    { contents = StepMap.empty;
-      succ = StepMap.empty }
+    { contents = lazy StepMap.empty;
+      succ = lazy StepMap.empty;
+      alist = []; }
 
-  let is_empty e =
-    StepMap.is_empty e.contents && StepMap.is_empty e.succ
+  let is_empty e = e.alist = []
 
+  (* FIXME is linear scanning bad here? *)
   let with_contents t step contents =
-    let contents = match contents with
-      | None   -> StepMap.remove step t.contents
-      | Some c -> StepMap.add step c t.contents
+    let rec aux acc = function
+      | (s, `Contents x as h) :: l ->
+        if P.Step.equal step s then match contents with
+          | None   -> List.rev_append acc l
+          | Some c ->
+            if K_c.equal c x then t.alist
+            else List.rev_append acc ((s, `Contents c) :: l)
+        else aux (h :: acc) l
+      | h::t -> aux (h :: acc) t
+      | []   -> match contents with
+        | None   -> t.alist
+        | Some c -> List.rev ((step, `Contents c) :: acc)
     in
-    { t with contents }
+    let alist = aux [] t.alist in
+    if t.alist == alist then t else create alist
 
+  (* FIXME: is linear scanning bad here? *)
   let with_succ t step succ =
-    let succ = match succ with
-      | None   -> StepMap.remove step t.succ
-      | Some s -> StepMap.add step s t.succ
+    let rec aux acc = function
+      | (s, `Node x as h) :: l ->
+        if P.Step.equal step s then match succ with
+          | None   -> List.rev_append acc l
+          | Some c ->
+            if K_n.equal c x then t.alist
+            else List.rev_append acc ((s, `Node c) :: l)
+        else aux (h :: acc) l
+      | h::t -> aux (h :: acc) t
+      | []   -> match succ with
+        | None   -> t.alist
+        | Some c -> List.rev ((step, `Node c) :: acc)
     in
-    { t with succ }
+    let alist = aux [] t.alist in
+    if t.alist == alist then t else create alist
 
 end
 
@@ -148,8 +215,7 @@ module type GRAPH = sig
   type step
 
   val empty: t -> node Lwt.t
-  val node: t ->
-    contents:(step * contents) list -> succ:(step * node) list -> node Lwt.t
+  val node: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
 
   val contents: t -> node -> step -> contents option Lwt.t
   val succ: t -> node -> step -> node option Lwt.t
@@ -217,7 +283,11 @@ struct
 
     let merge_value (c, _) merge_key =
       let explode t = all_contents t, all_succ t in
-      let implode (contents, succ) = S.Val.create ~contents ~succ in
+      let implode (contents, succ) =
+        let xs = List.map (fun (s, c) -> s, `Contents c) contents in
+        let ys = List.map (fun (s, n) -> s, `Node n) succ in
+        S.Val.create (xs @ ys)
+      in
       let merge_pair =
         Ir_merge.pair (module XContents) (module XParents)
         (Ir_merge.alist (module Step) (module C.Key) (C.merge c))
@@ -297,8 +367,8 @@ struct
     in
     return keys
 
-  let node t ~contents ~succ =
-    Store.add t (S.Val.create ~contents ~succ)
+  let node t xs =
+    Store.add t (S.Val.create xs)
 
   let contents t node step =
     Log.debugf "contents %a" force (show (module S.Key) node);

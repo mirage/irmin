@@ -82,25 +82,25 @@ module Make (S: Irmin.S) = struct
   let n1 x =
     create x >>= fun t ->
     kv1 x >>= fun kv1 ->
-    Graph.node (g t "n1") ~contents:[l "x", kv1] ~succ:[]
+    Graph.node (g t "n1") [l "x", `Contents kv1]
 
   let n2 x =
     n1 x >>= fun kn1 ->
     create x >>= fun t ->
-    Graph.node (g t "n2") ~contents:[] ~succ:[l "b", kn1]
+    Graph.node (g t "n2") [l "b", `Node kn1]
 
   let n3 x =
     n2 x >>= fun kn2 ->
     create x >>= fun t ->
-    Graph.node (g t "n3") ~contents:[] ~succ:[l "a", kn2]
+    Graph.node (g t "n3") [l "a", `Node kn2]
 
   let n4 x =
     n1 x >>= fun kn1 ->
     create x >>= fun t ->
     kv2 x >>= fun kv2 ->
-    Graph.node (g t "n4") ~contents:[l "x", kv2] ~succ:[] >>= fun kn4 ->
-    Graph.node (g t "n5") ~contents:[] ~succ:[(l "b", kn1); (l "c", kn4)] >>= fun kn5 ->
-    Graph.node (g t "n6") ~contents:[] ~succ:[l "a", kn5]
+    Graph.node (g t "n4") [l "x", `Contents kv2] >>= fun kn4 ->
+    Graph.node (g t "n5") [l "b", `Node kn1; l "c", `Node kn4] >>= fun kn5 ->
+    Graph.node (g t "n6") [l "a", `Node kn5]
 
   let r1 x =
     n2 x >>= fun kn2 ->
@@ -169,16 +169,16 @@ module Make (S: Irmin.S) = struct
       kv1 x >>= fun kv1 ->
 
       (* Create a node containing t1 -x-> (v1) *)
-      Graph.node (g "k1")  ~contents:[l "x", kv1] ~succ:[] >>= fun k1 ->
-      Graph.node (g "k1'") ~contents:[l "x", kv1] ~succ:[] >>= fun k1' ->
+      Graph.node (g "k1")  [l "x", `Contents kv1] >>= fun k1 ->
+      Graph.node (g "k1'") [l "x", `Contents kv1] >>= fun k1' ->
       assert_equal (module KN) "k1.1" k1 k1';
       Node.read_exn (n "t1") k1 >>= fun t1 ->
       Node.add (n "k1''") t1 >>= fun k1''->
       assert_equal (module KN) "k1.2" k1 k1'';
 
       (* Create the node  t2 -b-> t1 -x-> (v1) *)
-      Graph.node (g "k2") ~succ:[l "b", k1] ~contents:[] >>= fun k2 ->
-      Graph.node (g "k2'") ~succ:[l "b", k1] ~contents:[] >>= fun k2' ->
+      Graph.node (g "k2")  [l "b", `Node k1] >>= fun k2 ->
+      Graph.node (g "k2'") [l "b", `Node k1] >>= fun k2' ->
       assert_equal (module KN) "k2.1" k2 k2';
       Node.read_exn (n "t2") k2 >>= fun t2 ->
       Node.add (n "k2''") t2 >>= fun k2''->
@@ -187,8 +187,8 @@ module Make (S: Irmin.S) = struct
       assert_equal (module KN) "k1.3" k1 k1''';
 
       (* Create the node t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      Graph.node (g "k3") ~succ:[l "a", k2] ~contents:[] >>= fun k3 ->
-      Graph.node (g "k3'") ~succ:[l "a", k2] ~contents:[] >>= fun k3' ->
+      Graph.node (g "k3")  [l "a", `Node k2] >>= fun k3 ->
+      Graph.node (g "k3'") [l "a", `Node k2] >>= fun k3' ->
       assert_equal (module KN) "k3.1" k3 k3';
       Node.read_exn (n "t3") k3 >>= fun t3 ->
       Node.add (n "k3''") t3 >>= fun k3''->
@@ -210,9 +210,9 @@ module Make (S: Irmin.S) = struct
       (* Create the node t6 -a-> t5 -b-> t1 -x-> (v1)
                                    \-c-> t4 -x-> (v2) *)
       kv2 x >>= fun kv2 ->
-      Graph.node (g "k4") ~succ:[] ~contents:[l "x", kv2] >>= fun k4 ->
-      Graph.node (g "k5") ~succ:[(l "b",k1); (l "c",k4)] ~contents:[] >>= fun k5 ->
-      Graph.node (g "k6") ~succ:[l "a", k5] ~contents:[] >>= fun k6 ->
+      Graph.node (g "k4") [l "x", `Contents kv2] >>= fun k4 ->
+      Graph.node (g "k5") [l "b", `Node k1; l "c", `Node k4] >>= fun k5 ->
+      Graph.node (g "k6") [l "a", `Node k5] >>= fun k6 ->
       Graph.add_contents (g "k6") k3 [l "a"; l "c";l "x"] kv2 >>= fun k6' ->
       Node.read_exn (n "") k6' >>= fun n6' ->
       Node.read_exn (n "") k6  >>= fun n6 ->
@@ -236,9 +236,9 @@ module Make (S: Irmin.S) = struct
       let g = g t and h = h t and c x = S.Private.commit_t (t x) in
 
       (* t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      Graph.node (g 0) ~contents:[l "x", kv1] ~succ:[] >>= fun kt1 ->
-      Graph.node (g 1) ~contents:[] ~succ:[l "a", kt1] >>= fun kt2 ->
-      Graph.node (g 2) ~contents:[] ~succ:[l "b", kt2] >>= fun kt3 ->
+      Graph.node (g 0) [l "x", `Contents kv1] >>= fun kt1 ->
+      Graph.node (g 1) [l "a", `Node kt1] >>= fun kt2 ->
+      Graph.node (g 2) [l "b", `Node kt2] >>= fun kt3 ->
 
       (* r1 : t2 *)
       History.commit (h 3) ~node:kt2 ~parents:[] >>= fun kr1 ->
@@ -320,16 +320,16 @@ module Make (S: Irmin.S) = struct
       let g = g t in
 
       (* The empty node *)
-      Graph.node (g "k0") ~contents:[] ~succ:[] >>= fun k0 ->
+      Graph.node (g "k0") [] >>= fun k0 ->
 
       (* Create the node t1 -x-> (v1) *)
-      Graph.node (g "k1") ~contents:[l "x", kv1] ~succ:[] >>= fun k1 ->
+      Graph.node (g "k1") [l "x", `Contents kv1] >>= fun k1 ->
 
       (* Create the node t2 -b-> t1 -x-> (v1) *)
-      Graph.node (g "k2") ~succ:[l "b", k1] ~contents:[] >>= fun k2 ->
+      Graph.node (g "k2") [l "b", `Node k1] >>= fun k2 ->
 
       (* Create the node t3 -c-> t1 -x-> (v1) *)
-      Graph.node (g "k3") ~succ:[l "c", k1] ~contents:[] >>= fun k3 ->
+      Graph.node (g "k3") [l "c", `Node k1] >>= fun k3 ->
 
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)

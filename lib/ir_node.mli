@@ -24,7 +24,8 @@ module type S = sig
   type node
   type step
 
-  val create: contents:(step * contents) list -> succ:(step * node) list -> t
+  val create: (step * [`Contents of contents | `Node of node]) list -> t
+  val alist: t -> (step * [`Contents of contents | `Node of node]) list
 
   val empty: t
   val is_empty: t -> bool
@@ -61,8 +62,7 @@ module type GRAPH = sig
   type step
 
   val empty: t -> node Lwt.t
-  val node: t ->
-    contents:(step * contents) list -> succ:(step * node) list -> node Lwt.t
+  val node: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
 
   val contents: t -> node -> step -> contents option Lwt.t
   val succ: t -> node -> step -> node option Lwt.t

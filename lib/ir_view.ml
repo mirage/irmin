@@ -405,6 +405,7 @@ module Make (S: Ir_s.STORE) = struct
     type node = {
       contents: Contents.t StepMap.t;
       succ    : t StepMap.t;
+      alist   : (Path.step * [`Contents of Contents.t | `Node of t ]) list;
     }
 
     and node_or_key  =
@@ -418,11 +419,18 @@ module Make (S: Ir_s.STORE) = struct
 
     let succ t = t.succ
 
-    let create' contents succ =
-      Node { contents; succ }
+    let create0 alist =
+      let contents, succ =
+        List.fold_left (fun (contents, succ) (l, x) ->
+            match x with
+            | `Contents c -> StepMap.add l c contents, succ
+            | `Node n     -> contents, StepMap.add l n succ
+          ) (StepMap.empty, StepMap.empty) alist
+      in
+      { contents; succ; alist }
 
-    let create contents succ =
-      ref (create' contents succ)
+    let create alist =
+      ref (Node (create0 alist))
 
     let key db k =
       ref (Key (db, k))
@@ -430,19 +438,16 @@ module Make (S: Ir_s.STORE) = struct
     let both db k v =
       ref (Both ((db, k), v))
 
-    let empty () =
-      create StepMap.empty StepMap.empty
+    let empty () = create []
 
     let import t n =
-      let contents = ref StepMap.empty in
-      P.Node.Val.iter_contents n (fun l k ->
-          contents := StepMap.add l (Contents.key t k) !contents
-        );
-      let succ = ref StepMap.empty in
-      P.Node.Val.iter_succ n (fun l k ->
-          succ := StepMap.add l (key t k) !succ
-        );
-      { contents = !contents; succ = !succ }
+      let alist = P.Node.Val.alist n in
+      let alist = List.map (fun (l, x) ->
+          match x with
+          | `Contents c -> (l, `Contents (Contents.key t c))
+          | `Node n     -> (l, `Node (key t n))
+        ) alist in
+      create0 alist
 
     let export n =
       match !n with
@@ -451,15 +456,13 @@ module Make (S: Ir_s.STORE) = struct
       | Node _ -> failwith "Node.export"
 
     let export_node n =
-      let contents =
-        StepMap.map Contents.export n.contents
-        |> StepMap.to_alist
+      let alist = List.map (fun (l, x) ->
+          match x with
+          | `Contents c -> (l, `Contents (Contents.export c))
+          | `Node n     -> (l, `Node (export n))
+        ) n.alist
       in
-      let succ =
-        StepMap.map export n.succ
-        |> StepMap.to_alist
-      in
-      P.Node.Val.create ~contents ~succ
+      P.Node.Val.create alist
 
     let read t =
       match !t with
