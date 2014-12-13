@@ -37,8 +37,14 @@ module Helper (Client: Cohttp_lwt.Client) = struct
   let uri_append t path = match Uri.path t :: path with
     | []   -> t
     | path ->
-      let path = List.filter ((<>)"")  path in
-      let path = String.concat "/" path in
+      let buf = Buffer.create 10 in
+      List.iter (function
+          | "" -> ()
+          | s  ->
+            if s.[0] <> '/' then Buffer.add_char buf '/';
+            Buffer.add_string buf s;
+        ) path;
+      let path = Buffer.contents buf in
       Uri.with_path t path
 
   let result_of_json json =
@@ -69,7 +75,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let stream = Cohttp_lwt_body.to_stream b in
     let stream = Ezjsonm_lwt.from_stream stream in
     let stream = Lwt_stream.map result_of_json stream in
-    Lwt_stream.map (Tc.of_json (module Tc.Option(M))) stream
+    Lwt_stream.map M.of_json stream
 
   let map_get t path fn =
     Log.debugf "get %s" (Uri.to_string (uri_append t path));

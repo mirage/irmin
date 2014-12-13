@@ -25,7 +25,7 @@ let string_replace ~pattern subst str =
   let rex = Re_perl.compile_pat pattern in
   Re_pcre.substitute ~rex ~subst str
 
-module Log = Log.Make(struct let section = "HTTP" end)
+module Log = Log.Make(struct let section = "HTTP.server" end)
 
 let json_headers = Cohttp.Header.of_list [
     "Content-type", "application/json"
@@ -81,7 +81,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let stream =
       (Lwt_stream.of_list ["["])
       ++ (Lwt_stream.map (fun j -> Ezjsonm.to_string (`O ["result", j]) ^ ",") stream)
-      ++ (Lwt_stream.of_list [" {\"result\":[]}]"])
+      ++ (Lwt_stream.of_list [" ]"])
     in
     let body = Cohttp_lwt_body.of_stream stream in
     HTTP.respond ~headers:json_headers ~status:`OK ~body ()
@@ -135,9 +135,12 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let mk1p (type s) name (module S: Irmin.Hum.S with type t = s) path =
     match path with
-    | [x] -> S.of_hum x
-    | []  -> error "%s: empty path" name
-    | p   -> error "%s: %s is an invalid path" name (String.concat ":" p)
+    | [x] -> S.of_hum (Uri.pct_decode x)
+    | [] -> error "%s: empty path" name
+    | p  -> error "%s: %s is an invalid path" name (String.concat ":" p)
+
+  let mknp (type s) (module S: Irmin.Hum.S with type t = s) path =
+    List.map S.of_hum (List.map Uri.pct_decode path)
 
   let mk1b name i = function
     | None   -> error "%s: empty body" name
@@ -190,6 +193,18 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         return (Tc.to_json o r)
       )
 
+  (* n argument in the path, fixed answer *)
+  let mknp0bf name fn db i1 o =
+    name,
+    Fixed (fun t path params query ->
+        let x = mknp i1 path in
+        mk0b name params;
+        mk0q name query;
+        db t >>= fun t ->
+        fn t x >>= fun r ->
+        return (Tc.to_json o r)
+      )
+
   (* 1 argument in the body *)
   let mk0p1bf name fn db i1 o =
     name,
@@ -214,11 +229,37 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         return (Tc.to_json o r)
       )
 
-  (* list of arguments in the path, no body, streamed response *)
+  (* n arguments in the path, 1 argument in the body, fixed answer *)
+  let mknp1bf name fn db i1 i2 o =
+    name,
+    Fixed (fun t path params query ->
+        let x1 = mknp i1 path in
+        let x2 = mk1b name i2 params in
+        mk0q name query;
+        db t >>= fun t ->
+        fn t x1 x2 >>= fun r ->
+        return (Tc.to_json o r)
+      )
+
+  (* 1 of arguments in the path, no body, streamed response *)
   let mk1p0bs name fn db i1 o =
     name,
     Stream (fun t path _params query ->
         let x1 = mk1p name i1 path in
+        mk0q name query;
+        (* mk0b name params; *)
+        Irmin.Watch.lwt_stream_lift
+          (db t >>= fun t ->
+           let stream = fn t x1 in
+           let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
+           return stream)
+      )
+
+  (* list of arguments in the path, no body, streamed response *)
+  let mknp0bs name fn db i1 o =
+    name,
+    Stream (fun t path _params query ->
+        let x1 = mknp i1 path in
         mk0q name query;
         (* mk0b name params; *)
         Irmin.Watch.lwt_stream_lift
@@ -290,7 +331,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let stream, push = Lwt_stream.create () in
     Irmin.Watch.lwt_stream_lift (
       fn t (fun k ->
-          Log.debugf "XXX push";
           push (Some k);
           return_unit
         ) >>= fun () ->
@@ -364,7 +404,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let dyn_node list child = DNode { list; child }
 
   let store =
-    let key': S.key Irmin.Hum.t = (module S.Key) in
+    let step': S.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
@@ -384,16 +424,16 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     in
     let bc t = [
       (* rw *)
-      mk1p0bf "read"     S.read     t key' (Tc.option value);
-      mk1p0bf "mem"      S.mem      t key' Tc.bool;
+      mknp0bf "read"     S.read     t step' (Tc.option value);
+      mknp0bf "mem"      S.mem      t step' Tc.bool;
       mk0p0bs "iter"     (stream S.iter) t key;
-      mk1p1bf "update"   S.update   t key' value Tc.unit;
-      mk1p0bf "remove"   S.remove   t key' Tc.unit;
-      mk1p0bs "watch"    S.watch    t key' (Tc.option value);
+      mknp1bf "update"   S.update   t step' value Tc.unit;
+      mknp0bf "remove"   S.remove   t step' Tc.unit;
+      mknp0bs "watch"    S.watch    t step' (Tc.option value);
 
       (* hrw *)
-      mk1p0bf "list"       S.list t key' (Tc.list key);
-      mk1p0bf "remove-rec" S.remove_rec t key' Tc.unit;
+      mknp0bf "list"       S.list       t step' (Tc.list key);
+      mknp0bf "remove-rec" S.remove_rec t step' Tc.unit;
 
       (* more *)
       mk1p0bf "update-tag"       S.update_tag t tag' ok_or_duplicated_tag;
@@ -403,7 +443,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bf "heads"            S.heads t (Tc.list head);
       mk1p0bf "update-head"      S.update_head t head' Tc.unit;
       mk1p0bf "merge-head"       S.merge_head t head' (merge Tc.unit);
-      mk1p0bs "watch-head"       S.watch_head t key' (Tc.pair key head);
+      mknp0bs "watch-head"       S.watch_head t step' (Tc.pair key head);
       mk1p0bf "clone"            s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force"      s_clone_force t tag' Tc.unit;
       mk1p0bf "merge"            S.merge t tag' (merge Tc.unit);
