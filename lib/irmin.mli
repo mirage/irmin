@@ -62,49 +62,6 @@ module Hum: sig
 
 end
 
-(** Hashing functions.
-
-    [Hash] provides user-defined hash function to digest serialized
-    contents. Some {{!backend}backends} might be parameterize by such
-    a hash functions, other might work with a fixed one (for instance,
-    the Git format use only SHA1).
-
-    An {{!Hash.SHA1}SHA1} implementation is available to pass to the
-    backends. *)
-module Hash: sig
-
-  (** {1 Contents Hashing} *)
-
-  exception Invalid of string
-  (** Exception raised when parsing a human-readable representation of
-      a hash. *)
-
-  module type S = sig
-
-    (** Signature for unique identifiers. *)
-
-    include Hum.S
-
-    val digest: Cstruct.t -> t
-    (** Compute a deterministic store key from a cstruct value. *)
-
-    val has_kind: [> `SHA1] -> bool
-    (** The kind of generated hash. *)
-
-    val to_raw: t -> Cstruct.t
-    (** The raw hash value. *)
-
-    val of_raw: Cstruct.t -> t
-    (** Abstract an hash value. *)
-
-  end
-  (** Signature for hash values. *)
-
-  module SHA1: S
-  (** SHA1 digests *)
-
-end
-
 (** Backend configuration.
 
     A backend configuration is a set of {{!keys}keys} mapping to
@@ -271,7 +228,7 @@ module Task: sig
 
       Text messages can be added to a task either at creation time,
       using {{!Task.create}create}, or can be appended on already
-      created tasks using the {{!Task.fprintf}fprintf} function. For
+      created tasks using the {{!Task.add}add} function. For
       the Git backend, this will be translated to the commit
       message.  *)
 
@@ -670,6 +627,84 @@ end
 
 (** {1 User-Defined Contents} *)
 
+(** A key in an {{!Irmin.S}stores} is a path of basic elements. We
+    call these elements {e steps}, and the following [Path] module
+    provides functions to manipulate steps and paths. *)
+module Path: sig
+
+  (** {1 Path} *)
+
+  (** Signature for path steps. *)
+  module type STEP = Hum.S
+
+  (** Signature for path implementations.*)
+  module type S = sig
+
+    (** {1 Path} *)
+
+    type step
+    (** Type type for basic steps. *)
+
+    type t = step list
+    (** The type for path values. *)
+
+    module Step: STEP with type t = step
+
+    include Hum.S with type t := t
+
+  end
+
+  module Make (S: STEP): S with type step = S.t
+  (** A list of steps, representing keys in an Irmin store. *)
+
+  module String: S with type step = string
+  (** An implementation of paths using strings as steps. *)
+
+end
+
+(** Hashing functions.
+
+    [Hash] provides user-defined hash function to digest serialized
+    contents. Some {{!backend}backends} might be parameterize by such
+    a hash functions, other might work with a fixed one (for instance,
+    the Git format use only SHA1).
+
+    An {{!Hash.SHA1}SHA1} implementation is available to pass to the
+    backends. *)
+module Hash: sig
+
+  (** {1 Contents Hashing} *)
+
+  exception Invalid of string
+  (** Exception raised when parsing a human-readable representation of
+      a hash. *)
+
+  module type S = sig
+
+    (** Signature for unique identifiers. *)
+
+    include Hum.S
+
+    val digest: Cstruct.t -> t
+    (** Compute a deterministic store key from a cstruct value. *)
+
+    val has_kind: [> `SHA1] -> bool
+    (** The kind of generated hash. *)
+
+    val to_raw: t -> Cstruct.t
+    (** The raw hash value. *)
+
+    val of_raw: Cstruct.t -> t
+    (** Abstract an hash value. *)
+
+  end
+  (** Signature for hash values. *)
+
+  module SHA1: S
+  (** SHA1 digests *)
+
+end
+
 (** [Contents] specifies how user-defined contents need to be {e
     serializable} and {e mergeable}.
 
@@ -722,24 +757,24 @@ module Contents: sig
   (** Contents store. *)
   module type STORE = sig
 
-      include AO
+    include AO
 
-      val merge: t -> key Merge.t
-      (** [merge t] lifts the merge functions defined over contents
-          values to contents key. The merge functio will: {e (i)} read
-          the values associated with the given keys, {e (ii)} use the
-          merge function defined over values and {e (iii)} write the
-          resulting values into the store to get the resulting key.
+    val merge: t -> key Merge.t
+    (** [merge t] lifts the merge functions defined over contents
+        values to contents key. The merge functio will: {e (i)} read
+        the values associated with the given keys, {e (ii)} use the
+        merge function defined over values and {e (iii)} write the
+        resulting values into the store to get the resulting key.
 
-          If any of these operation fails, return [`Conflict]. *)
+        If any of these operation fails, return [`Conflict]. *)
 
-      module Key: Hash.S with type t = key
-      (** [Key] provides base functions for user-defined contents keys. *)
+    module Key: Hash.S with type t = key
+    (** [Key] provides base functions for user-defined contents keys. *)
 
-      module Val: S with type t = value
-      (** [Val] provides base function for user-defined contents values. *)
+    module Val: S with type t = value
+    (** [Val] provides base function for user-defined contents values. *)
 
-    end
+  end
 
   (** [Make] builds a contents store. *)
   module Make (S: sig
@@ -804,344 +839,391 @@ module Tag: sig
 
 end
 
-(** A key in an {{!Irmin.S}stores} is a path of basic elements. We
-    call these elements {e steps}, and the following [Path] module
-    provides functions to manipulate steps and paths. *)
-module Path: sig
-
-  (** {1 Path} *)
-
-  (** Signature for path steps. *)
-  module type STEP = Hum.S
-
-  (** Signature for path implementations.*)
-  module type S = sig
-
-    (** {1 Path} *)
-
-    type step
-    (** Type type for basic steps. *)
-
-    type t = step list
-    (** The type for path values. *)
-
-    module Step: STEP with type t = step
-
-    include Hum.S with type t := t
-
-  end
-
-  module Make (S: STEP): S with type step = S.t
-  (** A list of steps, representing keys in an Irmin store. *)
-
-  module String: S with type step = string
-  (** An implementation of paths using strings as steps. *)
-
-end
-
-(** [Node] provides functions to describe the graph-like structured
-    values.
-
-    The node blocks form a labeled directed acyclic graph, labeled
-    by {{!Path.S.step}steps}: a list of steps defines a
-    unique path from one node to an other.
-
-    Each node can point to user-defined {{!Contents.S}contents}
-    values. *)
-module Node: sig
-
-  module type S = sig
-
-    (** {1 Node values} *)
-
-    include Tc.S0
-
-    type contents
-    (** The type for contents keys. *)
-
-    type node
-    (** The type for node keys. *)
-
-    type step
-    (** The type for steps between nodes. *)
-
-    val create: (step * [`Contents of contents | `Node of node]) list -> t
-    (** Create a new node. *)
-
-    val alist: t -> (step * [`Contents of contents | `Node of node]) list
-    (** FIXME *)
-
-    val empty: t
-    (** The empty node. *)
-
-    val is_empty: t -> bool
-    (** Is the node empty. *)
-
-    val contents: t -> step -> contents option
-    (** Get the node contents.
-
-        A node can point to user-defined
-        {{!Node.S.contents}contents}. The edge between the node and
-        that contents is labeled by a {{!Node.S.step}step}. *)
-
-    val iter_contents: t -> (step -> contents -> unit) -> unit
-    (** Iter over all the contents. Use {{!Node.S.contents}contents} when
-        you know the step in advance. *)
-
-    val with_contents: t -> step -> contents option -> t
-    (** Replace the contents. *)
-
-    val succ: t -> step -> node option
-    (** Extract the successors of a node. *)
-
-    val iter_succ: t -> (step -> node -> unit) -> unit
-    (** Iter over all the successors. FIXME *)
-
-    val with_succ: t -> step -> node option -> t
-    (** Replace the successors. *)
-
-  end
-
-  (** [Node] provides a simple node implementation, parametrized over
-      contents [C], node [N] and paths [P]. *)
-  module Make (C: Tc.S0) (N: Tc.S0) (P: Path.S):
-    S with type contents = C.t
-       and type node = N.t
-       and type step = P.step
-
-  (** [STORE] specifies the signature for node stores. *)
-  module type STORE = sig
-
-    include AO
-
-    module Path: Path.S
-    (** [Step] provides base functions over node steps. *)
-
-    module Key: Hash.S with type t = key
-    (** [Key] provides base functions for node keys. *)
-
-    (** [Val] provides base functions for node values. *)
-    module Val: S with type t = value
-                   and type node = key
-                   and type step = Path.step
-  end
-
-  (** [Graph] specifies the signature for node graphs. A node graph
-      is a DAG labelled by steps. *)
-  module type GRAPH = sig
-
-    (** {1 Node Graphs} *)
-
-    type t
-    (** The type for store handles. *)
-
-    type contents
-    (** The type of user-defined contents. *)
-
-    type node
-    (** The type for node values. *)
-
-    type step
-    (** The type of steps. A step is used to pass from one node to an
-        other. A list of steps forms a path. *)
-
-    val empty: t -> node Lwt.t
-    (** The empty node. *)
-
-    val node: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
-    (** [create t xs] creates a new node pointing to the contents and
-        nodes [xs], and using the store handle [t]. *)
-
-    val contents: t -> node -> step -> contents option Lwt.t
-    (** [contents t n s] is the contents pointed by [s] in the node [n]. *)
-
-    val succ: t -> node -> step -> node option Lwt.t
-    (** [succ t n s] is the node pointed by [s] in the node [n]. *)
-
-    val steps: t -> node -> step list Lwt.t
-    (** FIXME *)
-
-    val iter_contents: t -> node -> (step -> contents -> unit) -> unit Lwt.t
-    (** FIXME *)
-
-    val iter_succ: t -> node -> (step -> node -> unit) -> unit Lwt.t
-    (** FIXME *)
-
-    (** {1 Contents} *)
-
-    val mem_contents: t -> node -> step list -> bool Lwt.t
-    (** FIXME: Is a path valid. *)
-
-    val read_contents: t -> node -> step list -> contents option Lwt.t
-    (** FIXME: Find a value. *)
-
-    val read_contents_exn: t -> node -> step list -> contents Lwt.t
-    (** FIXME: Find a value. Raise [Not_found] is [path] is not defined. *)
-
-    val add_contents: t -> node -> step list -> contents -> node Lwt.t
-    (** FIXME: Add a value by recusively saving subvalues into the
-        corresponding stores. *)
-
-    val remove_contents: t -> node -> step list -> node Lwt.t
-    (** FIXME: Remove the contents. *)
-
-    (** {1 Nodes} *)
-
-    val mem_node: t -> node -> step list -> bool Lwt.t
-    (** FIXME: Is a path valid. *)
-
-    val read_node: t -> node -> step list -> node option Lwt.t
-    (** [read_node t n p] is the node reached following the path [p]
-        from the node [n]. If [p] is not a valid path, return
-        [None]. *)
-
-    val read_node_exn: t -> node -> step list -> node Lwt.t
-    (** Same as {{!Node.GRAPH.read_node}read_node} but raise
-        [Not_found] if the path is invalid. *)
-
-    val add_node: t -> node -> step list -> node -> node Lwt.t
-    (** FIXME: Add a value by recusively saving subvalues into the
-        corresponding stores. *)
-
-    val remove_node: t -> node -> step list -> node Lwt.t
-    (** FIXME: Remove the contents. *)
-
-    val merge: t -> node Merge.t
-    (** FIXME: Merge two nodes together. *)
-
-    val closure: t -> min:node list -> max:node list -> node list Lwt.t
-    (** FIXME: Recursive list. *)
-
-    module Store: Contents.STORE with type t = t and type key = node
-    (** FIXME *)
-
-  end
-
-  module Graph (C: Contents.STORE) (S: STORE with type Val.contents = C.key)
-    : GRAPH with type t = C.t * S.t
-             and type contents = C.key
-             and type node = S.key
-             and type step = S.Val.step
-
-end
-
-(** Commit values represent the store history.
-
-    Every commit contains a list of predecessor commits, and the
-    collection of commits form an acyclic directed graph.
-
-    Every commit also can contain an optional key, pointing to a
-    {{!Private.Commit.STORE}node} value. See the
-    {{!Private.Node.STORE}Node} signature for more details on node
-    values. *)
-module Commit: sig
-
-  module type S = sig
-
-    (** {1 Commit values} *)
-
-    include Tc.S0
-    (** Base functions over commit values. *)
-
-    type commit
-    (** Type for commit keys. *)
-
-    type node
-    (** Type for node keys. *)
-
-    val create: task -> ?node:node -> parents:commit list -> t
-    (** Create a commit. *)
-
-    val node: t -> node option
-    (** The underlying node. *)
-
-    val parents: t -> commit list
-    (** The commit parents. *)
-
-    val task: t -> task
-    (** The commit provenance. *)
-
-  end
-
-  (** [Make] provides a simple implementation of commit values,
-      parametrized over commit [C] and node [N]. *)
-  module Make (C: Tc.S0) (N: Tc.S0):
-    S with type commit := C.t and type node = N.t
-
-  (** [STORE] specifies the signature for commit stores. *)
-  module type STORE = sig
-
-    (** {1 Commit Store} *)
-
-    include AO
-
-    module Key: Hash.S with type t = key
-    (** [Key] provides base functions for commit keys. *)
-
-    (** [Val] provides function for commit values. *)
-    module Val: S with type t = value and type commit := key
-
-  end
-
-  (** [History] specifies the signature for commit history. The
-      history is represented as a partial-order of commits and basic
-      functions to search through that history are provided.
-
-      Every commit can point to an entry point in a node graph, where
-      user-defined contents are stored. *)
-  module type HISTORY = sig
-
-    (** {1 Commit History} *)
-
-    type t
-    (** The type for store handles. *)
-
-    type node
-    (** The type for node values. *)
-
-    type commit
-    (** The type for commit values. *)
-
-    val commit: t -> ?node:node -> parents:commit list -> commit Lwt.t
-    (** Create a new commit. *)
-
-    val node: t -> commit -> node option Lwt.t
-    (** Get the commit node. FIXME *)
-
-    val parents: t -> commit -> commit list Lwt.t
-    (** Get the node parents. FIXME *)
-
-    val merge: t -> commit Merge.t
-    (** Lift [S.merge] to the store keys. *)
-
-    val find_common_ancestor: t -> commit -> commit -> commit option Lwt.t
-    (** FIXME Find the common ancestor of two commits. *)
-
-    val find_common_ancestor_exn: t -> commit -> commit -> commit Lwt.t
-    (** Same as [find_common_ancestor] but raises [Not_found] if the two
-        commits share no common ancestor. *)
-
-    val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
-    (** FIXME Recursive list of keys. *)
-
-    module Store: Contents.STORE with type t = t and type key = commit
-    (** FIXME *)
-
-  end
-
-  (** [History] builds a commit history. FIXME *)
-  module History (N: Contents.STORE) (S: STORE with type Val.node = N.key):
-    HISTORY with type t = N.t * S.t
-             and type node = N.key
-             and type commit = S.key
-
-end
+(** {1 High-level Stores}
+
+    An Irmin store is a branch-consistent store where keys are lists
+    of steps.
+
+    An example is a Git repository where keys are filenames, i.e. list
+    of ['\']-separated strings. More complex examples are structured
+    values, where steps might contains first-class fields accessors
+    and array offsets.
+
+    Irmin provides the followgin features:
+
+    {ul
+    {- Support for fast {{!BC}clones}, branches and merges, in a
+    fashion very similar to Git.}
+    {- Efficient {{!View}staging areas} for fast, transient,
+    in-memory operations.}
+    {- Space efficient {{!Snapshot}snapshots} and fast and consistent
+    rollback operations.}
+    {- Fast {{!Sync}synchronization} primitives between remote
+    stores, using native backend protocols (as the Git protocol) when
+    available.}
+    }
+*)
 
 (** [Private] defines functions only useful for creating new
     backends. If you are just using the library (and not developing a
     new backend), you should not use this module. *)
 module Private: sig
 
+(** [Watch] provides helpers to register event notifications on
+    read-write stores. *)
+  module Watch: sig
+
+    (** {1 Watch Helpers} *)
+
+    (** The signature for watch helpers. *)
+    module type S = sig
+
+      (** {1 Watch Helpers} *)
+
+      type key
+      (** The type for store keys. *)
+
+      type value
+      (** The type for store values. *)
+
+      type t
+      (** The type for watch state. *)
+
+      val notify: t -> key -> value option -> unit
+      (** Notify all listeners in the given watch state that a key has
+          changed, with the new value associated to this key. If the
+          argument is [None], this means the key has been removed. *)
+
+      val create: unit -> t
+      (** Create a watch state. *)
+
+      val clear: t -> unit
+      (** Clear all register listeners in the given watch state. *)
+
+      val watch: t -> key -> value option -> value option Lwt_stream.t
+      (** Create a stream of value notifications. Need to provide the
+          initial value, or [None] if the key does not have associated
+          contents yet.  *)
+
+      val listen_dir: t -> string
+        -> key:(string -> key option)
+        -> value:(key -> value option Lwt.t)
+        -> unit
+        (** Register a fsevents/inotify thread to look for changes in
+            the given directory. *)
+
+    end
+
+    val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
+    (** Register a function which looks for file changes in a
+        directory. Could use [inotify] when available, or use an active
+        stats file polling.*)
+
+    val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
+    (** Lift a stream out of the monad. *)
+
+    (** [Make] builds an implementation of watch helpers. *)
+    module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
+
+  end
+
+  (** [Node] provides functions to describe the graph-like structured
+      values.
+
+      The node blocks form a labeled directed acyclic graph, labeled
+      by {{!Path.S.step}steps}: a list of steps defines a
+      unique path from one node to an other.
+
+      Each node can point to user-defined {{!Contents.S}contents}
+      values. *)
+  module Node: sig
+
+    module type S = sig
+
+      (** {1 Node values} *)
+
+      include Tc.S0
+
+      type contents
+      (** The type for contents keys. *)
+
+      type node
+      (** The type for node keys. *)
+
+      type step
+      (** The type for steps between nodes. *)
+
+      val create: (step * [`Contents of contents | `Node of node]) list -> t
+      (** Create a new node. *)
+
+      val alist: t -> (step * [`Contents of contents | `Node of node]) list
+      (** FIXME *)
+
+      val empty: t
+      (** The empty node. *)
+
+      val is_empty: t -> bool
+      (** Is the node empty. *)
+
+      val contents: t -> step -> contents option
+      (** Get the node contents.
+
+          A node can point to user-defined
+          {{!Node.S.contents}contents}. The edge between the node and
+          that contents is labeled by a {{!Node.S.step}step}. *)
+
+      val iter_contents: t -> (step -> contents -> unit) -> unit
+      (** Iter over all the contents. Use {{!Node.S.contents}contents} when
+          you know the step in advance. *)
+
+      val with_contents: t -> step -> contents option -> t
+      (** Replace the contents. *)
+
+      val succ: t -> step -> node option
+      (** Extract the successors of a node. *)
+
+      val iter_succ: t -> (step -> node -> unit) -> unit
+      (** Iter over all the successors. FIXME *)
+
+      val with_succ: t -> step -> node option -> t
+      (** Replace the successors. *)
+
+    end
+
+    (** [Node] provides a simple node implementation, parametrized over
+        contents [C], node [N] and paths [P]. *)
+    module Make (C: Tc.S0) (N: Tc.S0) (P: Path.S):
+      S with type contents = C.t
+         and type node = N.t
+         and type step = P.step
+
+    (** [STORE] specifies the signature for node stores. *)
+    module type STORE = sig
+
+      include AO
+
+      module Path: Path.S
+      (** [Step] provides base functions over node steps. *)
+
+      module Key: Hash.S with type t = key
+      (** [Key] provides base functions for node keys. *)
+
+      (** [Val] provides base functions for node values. *)
+      module Val: S with type t = value
+                     and type node = key
+                     and type step = Path.step
+    end
+
+    (** [Graph] specifies the signature for node graphs. A node graph
+        is a DAG labelled by steps. *)
+    module type GRAPH = sig
+
+      (** {1 Node Graphs} *)
+
+      type t
+      (** The type for store handles. *)
+
+      type contents
+      (** The type of user-defined contents. *)
+
+      type node
+      (** The type for node values. *)
+
+      type step
+      (** The type of steps. A step is used to pass from one node to an
+          other. A list of steps forms a path. *)
+
+      val empty: t -> node Lwt.t
+      (** The empty node. *)
+
+      val node: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
+      (** [create t xs] creates a new node pointing to the contents and
+          nodes [xs], and using the store handle [t]. *)
+
+      val contents: t -> node -> step -> contents option Lwt.t
+      (** [contents t n s] is the contents pointed by [s] in the node [n]. *)
+
+      val succ: t -> node -> step -> node option Lwt.t
+      (** [succ t n s] is the node pointed by [s] in the node [n]. *)
+
+      val steps: t -> node -> step list Lwt.t
+      (** FIXME *)
+
+      val iter_contents: t -> node -> (step -> contents -> unit) -> unit Lwt.t
+      (** FIXME *)
+
+      val iter_succ: t -> node -> (step -> node -> unit) -> unit Lwt.t
+      (** FIXME *)
+
+      (** {1 Contents} *)
+
+      val mem_contents: t -> node -> step list -> bool Lwt.t
+      (** FIXME: Is a path valid. *)
+
+      val read_contents: t -> node -> step list -> contents option Lwt.t
+      (** FIXME: Find a value. *)
+
+      val read_contents_exn: t -> node -> step list -> contents Lwt.t
+      (** FIXME: Find a value. Raise [Not_found] is [path] is not defined. *)
+
+      val add_contents: t -> node -> step list -> contents -> node Lwt.t
+      (** FIXME: Add a value by recusively saving subvalues into the
+          corresponding stores. *)
+
+      val remove_contents: t -> node -> step list -> node Lwt.t
+      (** FIXME: Remove the contents. *)
+
+      (** {1 Nodes} *)
+
+      val mem_node: t -> node -> step list -> bool Lwt.t
+      (** FIXME: Is a path valid. *)
+
+      val read_node: t -> node -> step list -> node option Lwt.t
+      (** [read_node t n p] is the node reached following the path [p]
+          from the node [n]. If [p] is not a valid path, return
+          [None]. *)
+
+      val read_node_exn: t -> node -> step list -> node Lwt.t
+      (** Same as {{!Node.GRAPH.read_node}read_node} but raise
+          [Not_found] if the path is invalid. *)
+
+      val add_node: t -> node -> step list -> node -> node Lwt.t
+      (** FIXME: Add a value by recusively saving subvalues into the
+          corresponding stores. *)
+
+      val remove_node: t -> node -> step list -> node Lwt.t
+      (** FIXME: Remove the contents. *)
+
+      val merge: t -> node Merge.t
+      (** FIXME: Merge two nodes together. *)
+
+      val closure: t -> min:node list -> max:node list -> node list Lwt.t
+      (** FIXME: Recursive list. *)
+
+      module Store: Contents.STORE with type t = t and type key = node
+      (** FIXME *)
+
+    end
+
+    module Graph (C: Contents.STORE) (S: STORE with type Val.contents = C.key)
+      : GRAPH with type t = C.t * S.t
+               and type contents = C.key
+               and type node = S.key
+               and type step = S.Val.step
+
+  end
+
+  (** Commit values represent the store history.
+
+      Every commit contains a list of predecessor commits, and the
+      collection of commits form an acyclic directed graph.
+
+      Every commit also can contain an optional key, pointing to a
+      {{!Private.Commit.STORE}node} value. See the
+      {{!Private.Node.STORE}Node} signature for more details on node
+      values. *)
+  module Commit: sig
+
+    module type S = sig
+
+      (** {1 Commit values} *)
+
+      include Tc.S0
+      (** Base functions over commit values. *)
+
+      type commit
+      (** Type for commit keys. *)
+
+      type node
+      (** Type for node keys. *)
+
+      val create: task -> ?node:node -> parents:commit list -> t
+      (** Create a commit. *)
+
+      val node: t -> node option
+      (** The underlying node. *)
+
+      val parents: t -> commit list
+      (** The commit parents. *)
+
+      val task: t -> task
+      (** The commit provenance. *)
+
+    end
+
+    (** [Make] provides a simple implementation of commit values,
+        parametrized over commit [C] and node [N]. *)
+    module Make (C: Tc.S0) (N: Tc.S0):
+      S with type commit := C.t and type node = N.t
+
+    (** [STORE] specifies the signature for commit stores. *)
+    module type STORE = sig
+
+      (** {1 Commit Store} *)
+
+      include AO
+
+      module Key: Hash.S with type t = key
+      (** [Key] provides base functions for commit keys. *)
+
+      (** [Val] provides function for commit values. *)
+      module Val: S with type t = value and type commit := key
+
+    end
+
+    (** [History] specifies the signature for commit history. The
+        history is represented as a partial-order of commits and basic
+        functions to search through that history are provided.
+
+        Every commit can point to an entry point in a node graph, where
+        user-defined contents are stored. *)
+    module type HISTORY = sig
+
+      (** {1 Commit History} *)
+
+      type t
+      (** The type for store handles. *)
+
+      type node
+      (** The type for node values. *)
+
+      type commit
+      (** The type for commit values. *)
+
+      val commit: t -> ?node:node -> parents:commit list -> commit Lwt.t
+      (** Create a new commit. *)
+
+      val node: t -> commit -> node option Lwt.t
+      (** Get the commit node. FIXME *)
+
+      val parents: t -> commit -> commit list Lwt.t
+      (** Get the node parents. FIXME *)
+
+      val merge: t -> commit Merge.t
+      (** Lift [S.merge] to the store keys. *)
+
+      val find_common_ancestor: t -> commit -> commit -> commit option Lwt.t
+      (** FIXME Find the common ancestor of two commits. *)
+
+      val find_common_ancestor_exn: t -> commit -> commit -> commit Lwt.t
+      (** Same as [find_common_ancestor] but raises [Not_found] if the two
+          commits share no common ancestor. *)
+
+      val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
+      (** FIXME Recursive list of keys. *)
+
+      module Store: Contents.STORE with type t = t and type key = commit
+      (** FIXME *)
+
+    end
+
+    (** [History] builds a commit history. FIXME *)
+    module History (N: Contents.STORE) (S: STORE with type Val.node = N.key):
+      HISTORY with type t = N.t * S.t
+               and type node = N.key
+               and type commit = S.key
+
+  end
   (** The signature for slices. *)
   module Slice: sig
 
@@ -1269,31 +1351,6 @@ module Private: sig
   end
 
 end
-
-(** {1 High-level Stores}
-
-    An Irmin store is a branch-consistent store where keys are lists
-    of steps.
-
-    An example is a Git repository where keys are filenames, i.e. list
-    of ['\']-separated strings. More complex examples are structured
-    values, where steps might contains first-class fields accessors
-    and array offsets.
-
-    Irmin provides the followgin features:
-
-    {ul
-    {- Support for fast {{!BC}clones}, branches and merges, in a
-    fashion very similar to Git.}
-    {- Efficient {{!View}staging areas} for fast, transient,
-    in-memory operations.}
-    {- Space efficient {{!Snapshot}snapshots} and fast and consistent
-    rollback operations.}
-    {- Fast {{!Sync}synchronization} primitives between remote
-    stores, using native backend protocols (as the Git protocol) when
-    available.}
-    }
-*)
 
 (** Signature for Irmin stores. *)
 module type S = sig
@@ -1468,17 +1525,17 @@ module Dot (S: S): sig
   val output_buffer:
     S.t -> ?html:bool -> ?depth:int -> ?full:bool -> date:(int64 -> string) ->
     Buffer.t -> unit Lwt.t
-  (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
-      representation of [t] in the buffer [buf].
+    (** [output_buffer t ?html ?depth ?full buf] outputs the Graphviz
+        representation of [t] in the buffer [buf].
 
-      [html] (default is false) enables HTML labels.
+        [html] (default is false) enables HTML labels.
 
-      [depth] is used to limit the depth of the commit history. [None]
-      here means no limitation.
+        [depth] is used to limit the depth of the commit history. [None]
+        here means no limitation.
 
-      If [full] is set (default is not) the full graph, including the
-      commits, nodes and contents, is exported, otherwise it is the
-      commit history graph only. *)
+        If [full] is set (default is not) the full graph, including the
+        commits, nodes and contents, is exported, otherwise it is the
+        commit history graph only. *)
 
 end
 
@@ -1597,61 +1654,3 @@ module Make_ext (P: Private.S): S
    and type value = P.Contents.value
    and type tag = P.Tag.key
    and type head = P.Tag.value
-
-(** [Watch] provides helpers to register event notifications on
-    read-write stores. *)
-module Watch: sig
-
-  (** {1 Watch Helpers} *)
-
-  (** The signature for watch helpers. *)
-  module type S = sig
-
-    (** {1 Watch Helpers} *)
-
-    type key
-    (** The type for store keys. *)
-
-    type value
-    (** The type for store values. *)
-
-    type t
-    (** The type for watch state. *)
-
-    val notify: t -> key -> value option -> unit
-    (** Notify all listeners in the given watch state that a key has
-        changed, with the new value associated to this key. If the
-        argument is [None], this means the key has been removed. *)
-
-    val create: unit -> t
-    (** Create a watch state. *)
-
-    val clear: t -> unit
-    (** Clear all register listeners in the given watch state. *)
-
-    val watch: t -> key -> value option -> value option Lwt_stream.t
-    (** Create a stream of value notifications. Need to provide the
-        initial value, or [None] if the key does not have associated
-        contents yet.  *)
-
-    val listen_dir: t -> string
-      -> key:(string -> key option)
-      -> value:(key -> value option Lwt.t)
-      -> unit
-      (** Register a fsevents/inotify thread to look for changes in
-          the given directory. *)
-
-  end
-
-  val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
-  (** Register a function which looks for file changes in a
-      directory. Could use [inotify] when available, or use an active
-      stats file polling.*)
-
-  val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
-  (** Lift a stream out of the monad. *)
-
-  (** [Make] builds an implementation of watch helpers. *)
-  module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
-
-end

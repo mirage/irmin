@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Merge = Ir_merge
 module Contents = Ir_contents
+module Merge = Ir_merge
 module Tag = Ir_tag
 module Task = Ir_task
 module Conf = Ir_conf
@@ -28,9 +28,6 @@ module Hash = Ir_hash
 module Path = Ir_path
 module Make = Ir_s.Make
 module Make_ext = Ir_s.Make_ext
-
-module Node = Ir_node
-module Commit = Ir_commit
 
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
@@ -48,13 +45,14 @@ module type BC_MAKER = Ir_bc.MAKER
 module type S_MAKER = Ir_s.MAKER
 
 module Private = struct
+  module Node = Ir_node
+  module Commit = Ir_commit
   module Slice = Ir_slice
   module Make = Ir_bc.Make
   module Sync = Ir_sync
   module type S = Ir_bc.PRIVATE
+  module Watch = Ir_watch
 end
-
-module Watch = Ir_watch
 
 let version = Ir_version.current
 

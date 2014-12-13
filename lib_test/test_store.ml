@@ -34,8 +34,8 @@ module Make (S: Irmin.S) = struct
   open Common
 
   module Contents = S.Private.Contents
-  module Graph = Irmin.Node.Graph(Contents)(S.Private.Node)
-  module History = Irmin.Commit.History(Graph.Store)(S.Private.Commit)
+  module Graph = Irmin.Private.Node.Graph(Contents)(S.Private.Node)
+  module History = Irmin.Private.Commit.History(Graph.Store)(S.Private.Commit)
 
   let v t a = S.Private.contents_t (t a)
   let n t a = S.Private.node_t (t a)

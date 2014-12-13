@@ -210,12 +210,12 @@ struct
     module Node = struct
       module Key = H
       module Path = P
-      module Val = Irmin.Node.Make(H)(H)(P)
+      module Val = Irmin.Private.Node.Make(H)(H)(P)
       include AO(struct let suffix = Some "node" end)(Key)(Val)
     end
     module Commit = struct
       module Key = H
-      module Val = Irmin.Commit.Make(H)(H)
+      module Val = Irmin.Private.Commit.Make(H)(H)
       include AO(struct let suffix = Some "commit" end)(Key)(Val)
     end
     module Tag = struct
@@ -482,7 +482,7 @@ struct
     match t.branch with
     | `Head _ -> Lwt_stream.of_list []
     | `Tag _  ->
-      Irmin.Watch.lwt_stream_lift (
+      Irmin.Private.Watch.lwt_stream_lift (
         let s = get_stream (uri t) ["watch-head"; P.to_hum key] (module W) in
         return s
       )

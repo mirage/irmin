@@ -264,7 +264,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         | [] -> true
         | _  -> false
 
-      module N = Irmin.Node.Make (GK)(GK)(P)
+      module N = Irmin.Private.Node.Make (GK)(GK)(P)
 
       (* FIXME: handle executable files *)
       let alist t =
@@ -369,7 +369,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         let { Git.Commit.author; message; _ } = g in
         task_of_git author message g
 
-      module C = Irmin.Commit.Make(H)(GK)
+      module C = Irmin.Private.Commit.Make(H)(GK)
 
       let of_c c =
         to_git (C.task c) (C.node c) (C.parents c)
@@ -403,7 +403,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     module Key = T
     module Val = H
 
-    module W = Irmin.Watch.Make(Key)(Val)
+    module W = Irmin.Private.Watch.Make(Key)(Val)
 
     type t = {
       task: I.task;
@@ -495,7 +495,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         W.listen_dir t.w (t.git_root / "refs/heads")
           ~key:(ref_of_file ~git_root:t.git_root)
           ~value:(read t);
-      Irmin.Watch.lwt_stream_lift (
+      Irmin.Private.Watch.lwt_stream_lift (
         read t r >>= fun k ->
         return (W.watch t.w r k)
       )

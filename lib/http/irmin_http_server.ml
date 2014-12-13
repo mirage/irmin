@@ -175,7 +175,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         mk0p name path;
         mk0b name params;
         mk0q name query;
-        Irmin.Watch.lwt_stream_lift
+        Irmin.Private.Watch.lwt_stream_lift
           (db t >>= fun t ->
            let stream = fn t in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
@@ -249,7 +249,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         let x1 = mk1p name i1 path in
         mk0q name query;
         (* mk0b name params; *)
-        Irmin.Watch.lwt_stream_lift
+        Irmin.Private.Watch.lwt_stream_lift
           (db t >>= fun t ->
            let stream = fn t x1 in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
@@ -263,7 +263,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         let x1 = mknp i1 path in
         mk0q name query;
         (* mk0b name params; *)
-        Irmin.Watch.lwt_stream_lift
+        Irmin.Private.Watch.lwt_stream_lift
           (db t >>= fun t ->
            let stream = fn t x1 in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
@@ -330,7 +330,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let stream m fn t =
     let stream, push = Lwt_stream.create () in
-    Irmin.Watch.lwt_stream_lift (
+    Irmin.Private.Watch.lwt_stream_lift (
       fn t (fun k ->
           Log.debugf "stream push %s" (Tc.show m k);
           push (Some k);

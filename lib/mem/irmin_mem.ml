@@ -20,7 +20,7 @@ module Log = Log.Make(struct let section = "MEM" end)
 
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
-  module W = Irmin.Watch.Make(K)(V)
+  module W = Irmin.Private.Watch.Make(K)(V)
 
   type key = K.t
 
@@ -89,7 +89,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
     return_unit
 
   let watch t key =
-    Irmin.Watch.lwt_stream_lift (
+    Irmin.Private.Watch.lwt_stream_lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)
     )

@@ -46,7 +46,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type value = V.t
 
-  module W = Irmin.Watch.Make(K)(V)
+  module W = Irmin.Private.Watch.Make(K)(V)
 
   type t = {
     path: string;
@@ -163,7 +163,7 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let watch t key =
     W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
-    Irmin.Watch.lwt_stream_lift (
+    Irmin.Private.Watch.lwt_stream_lift (
       read t key >>= fun value ->
       return (W.watch t.w key value)
     )

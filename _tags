@@ -422,3 +422,4 @@ true: annot, bin_annot
 # OASIS_STOP
 true: bin_annot, annot, debug
 true: warn_error_A, warn(A-4-41-44)
+true: short_paths
