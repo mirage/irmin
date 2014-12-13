@@ -22,6 +22,6 @@ let suite k =
     kind   = k;
     init   = none;
     clean  = none;
-    config = Irmin.Conf.empty;
+    config = Irmin_mem.config ();
     store  = mem_store k;
 }

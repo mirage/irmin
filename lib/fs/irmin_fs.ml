@@ -36,9 +36,10 @@ module type IO = sig
 end
 
 (* ~path *)
-let root_key = Irmin.Conf.root
+let root_key = Irmin.Private.Conf.root
 
-let config ?root () = Irmin.Conf.add Irmin.Conf.empty root_key root
+let config ?root () =
+  Irmin.Private.Conf.singleton root_key root
 
 module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
@@ -60,7 +61,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let create config task =
     let w = W.create () in
-    let path = match Irmin.Conf.get config root_key with
+    let path = match Irmin.Private.Conf.get config root_key with
       | None   -> IO.getcwd ()
       | Some p -> return p
     in
@@ -136,7 +137,7 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let create config task =
     let w = W.create () in
-    let path = match Irmin.Conf.get config root_key with
+    let path = match Irmin.Private.Conf.get config root_key with
       | None   -> IO.getcwd ()
       | Some p -> return p
     in

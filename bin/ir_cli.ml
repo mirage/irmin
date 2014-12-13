@@ -284,10 +284,10 @@ let clone = {
             in
             let module R = (val r) in
             let config =
-              let add k v c = Irmin.Conf.add c k v in
-              Irmin.Conf.empty
+              let add k v c = Irmin.Private.Conf.add c k v in
+              Irmin.Private.Conf.empty
               |> add Irmin_http.uri (Some (Uri.of_string remote))
-              |> add Irmin.Conf.root (Some remote)
+              |> add Irmin.Private.Conf.root (Some remote)
             in
             R.create config task >>= fun r ->
           return (IS.store (module R) (r "Clone %s."))

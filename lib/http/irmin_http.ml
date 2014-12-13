@@ -21,13 +21,13 @@ module Log = Log.Make(struct let section = "HTTP" end)
 
 (* ~uri *)
 let uri =
-  Irmin.Conf.key
+  Irmin.Private.Conf.key
     ~docv:"URI"
     ~doc:"Location of the remote store."
-    "uri" Irmin.Conf.(some uri) None
+    "uri" Irmin.Private.Conf.(some uri) None
 
 let config x =
-  Irmin.Conf.add Irmin.Conf.empty uri (Some x)
+  Irmin.Private.Conf.singleton uri (Some x)
 
 module type Config = sig val suffix: string option end
 
@@ -148,7 +148,7 @@ struct
     type value = V.t
 
     let create_aux config task =
-      let uri = match Irmin.Conf.get config uri with
+      let uri = match Irmin.Private.Conf.get config uri with
         | None   -> failwith "Irmin_http.create: No URI specified"
         | Some u -> u
       in

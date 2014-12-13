@@ -96,7 +96,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
 end
 
-let config () = Irmin.Conf.empty
+let config () = Irmin.Private.Conf.empty
 
 module Make
     (P: Irmin.Path.S)

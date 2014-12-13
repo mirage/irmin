@@ -19,7 +19,7 @@
 val store: (module Irmin.S) option Cmdliner.Term.t
 (** Parse a store on the command-line. *)
 
-val config: Irmin.Conf.t Cmdliner.Term.t
+val config: Irmin.config Cmdliner.Term.t
 (** Parse configuration values. *)
 
 val remote: string Cmdliner.Term.t

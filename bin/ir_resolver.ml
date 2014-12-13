@@ -36,12 +36,12 @@ let http_store = create (module Irmin_http.Make)
 let git_store = create (module Irmin_git.FS)
 
 let flag_key k =
-  let doc = Irmin.Conf.doc k in
-  let docs = Irmin.Conf.docs k in
-  let docv = Irmin.Conf.docv k in
-  let default = Irmin.Conf.default k in
+  let doc = Irmin.Private.Conf.doc k in
+  let docs = Irmin.Private.Conf.docs k in
+  let docv = Irmin.Private.Conf.docv k in
+  let default = Irmin.Private.Conf.default k in
   let name =
-    let x = Irmin.Conf.name k in
+    let x = Irmin.Private.Conf.name k in
     if default then "no-" ^ x else x
   in
   let i = Arg.info ?docv ?doc ?docs [name] in
@@ -49,27 +49,27 @@ let flag_key k =
   else Arg.(value & flag i)
 
 let key k default =
-  let doc = Irmin.Conf.doc k in
-  let docs = Irmin.Conf.docs k in
-  let docv = Irmin.Conf.docv k in
-  let conv = Irmin.Conf.conv k in
-  let name = Irmin.Conf.name k in
+  let doc = Irmin.Private.Conf.doc k in
+  let docs = Irmin.Private.Conf.docs k in
+  let docv = Irmin.Private.Conf.docv k in
+  let conv = Irmin.Private.Conf.conv k in
+  let name = Irmin.Private.Conf.name k in
   let i = Arg.info ?docv ?doc ?docs [name] in
   Arg.(value & opt conv default i)
 
-let opt_key k = key k (Irmin.Conf.default k)
+let opt_key k = key k (Irmin.Private.Conf.default k)
 
 let config =
-  let add k v config = Irmin.Conf.add config k v in
+  let add k v config = Irmin.Private.Conf.add config k v in
   let create root bare branch uri =
-    Irmin.Conf.empty
-    |> add Irmin.Conf.root root
+    Irmin.Private.Conf.empty
+    |> add Irmin.Private.Conf.root root
     |> add Irmin_git.bare bare
     |> add Irmin_git.branch branch
     |> add Irmin_http.uri uri
   in
   Term.(pure create $
-        opt_key Irmin.Conf.root $
+        opt_key Irmin.Private.Conf.root $
         flag_key Irmin_git.bare $
         opt_key Irmin_git.branch $
         opt_key Irmin_http.uri)
@@ -118,7 +118,7 @@ let cfg = ".irminconfig"
 (* FIXME: use a proper configuration format and interface properly
    with cmdliner *)
 let read_config_file () =
-  if not (Sys.file_exists cfg) then None, Irmin.Conf.empty else
+  if not (Sys.file_exists cfg) then None, Irmin.Private.Conf.empty else
     let oc = open_in cfg in
     let len = in_channel_length oc in
     let buf = String.create len in
@@ -139,17 +139,17 @@ let read_config_file () =
     let config =
       let root = assoc "root" (fun x -> x) in
       let bare = match assoc "bare" bool_of_string with
-        | None   -> Irmin.Conf.default Irmin_git.bare
+        | None   -> Irmin.Private.Conf.default Irmin_git.bare
         | Some b -> b
       in
       let branch = match assoc "branch" (fun x -> x) with
-        | None   -> Irmin.Conf.default Irmin_git.branch
+        | None   -> Irmin.Private.Conf.default Irmin_git.branch
         | Some b -> b
       in
       let uri = assoc "uri" Uri.of_string in
-      let add k v config = Irmin.Conf.add config k v in
-      Irmin.Conf.empty
-      |> add Irmin.Conf.root root
+      let add k v config = Irmin.Private.Conf.add config k v in
+      Irmin.Private.Conf.empty
+      |> add Irmin.Private.Conf.root root
       |> add Irmin_git.bare bare
       |> add Irmin_git.branch branch
       |> add Irmin_http.uri uri

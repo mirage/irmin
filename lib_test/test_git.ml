@@ -35,7 +35,5 @@ let suite k =
     init   = init_disk;
     clean  = none;
     store  = git_store k;
-    config =
-      Irmin.Conf.singleton Irmin.Conf.root (Some test_db)
-      |> fun c -> Irmin.Conf.add c Irmin_git.branch "test";
+    config = Irmin_git.config ~root:test_db ~branch:"test" ~bare:true ()
   }

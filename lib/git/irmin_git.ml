@@ -36,30 +36,31 @@ let write_string str b =
 
 module Conf = struct
 
-  let root = Irmin.Conf.root
+  let root = Irmin.Private.Conf.root
 
   let branch =
-    Irmin.Conf.key
+    Irmin.Private.Conf.key
       ~doc:"The main branch of the Git repository."
-      "branch" Irmin.Conf.string "master"
+      "branch" Irmin.Private.Conf.string "master"
 
   let bare =
-    Irmin.Conf.key
+    Irmin.Private.Conf.key
       ~doc:"Do not expand the filesystem on the disk."
-      "root" Irmin.Conf.bool false
+      "root" Irmin.Private.Conf.bool false
 
 end
 
 let config ?root ?branch ?bare () =
-  let config = Irmin.Conf.empty in
-  let config = Irmin.Conf.add config Conf.root root in
+  let module C = Irmin.Private.Conf in
+  let config = C.empty in
+  let config = C.add config Conf.root root in
   let config = match branch with
-    | None   -> Irmin.Conf.add config Conf.branch (Irmin.Conf.default Conf.branch)
-    | Some b -> Irmin.Conf.add config Conf.branch b
+    | None   -> C.add config Conf.branch (C.default Conf.branch)
+    | Some b -> C.add config Conf.branch b
   in
   let config = match bare with
-    | None   -> Irmin.Conf.add config Conf.bare (Irmin.Conf.default Conf.bare)
-    | Some b -> Irmin.Conf.add config Conf.bare b
+    | None   -> C.add config Conf.bare (C.default Conf.bare)
+    | Some b -> C.add config Conf.bare b
   in
   config
 
@@ -115,7 +116,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     type value = V.t
 
     let create config task =
-      let root = Irmin.Conf.get config Conf.root in
+      let root = Irmin.Private.Conf.get config Conf.root in
       G.create ?root () >>= fun t ->
       return (fun a -> { task = task a; config; t })
 
@@ -449,8 +450,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | Some r -> Some (T.of_hum r)
 
     let create config task =
-      let root = Irmin.Conf.get config Conf.root in
-      let branch = Irmin.Conf.get config Conf.branch in
+      let root = Irmin.Private.Conf.get config Conf.root in
+      let branch = Irmin.Private.Conf.get config Conf.branch in
       G.create ?root () >>= fun t ->
       let git_root = G.root t / ".git" in
       G.write_head t (Git.Reference.Ref (git_of_string branch)) >>= fun () ->
@@ -477,8 +478,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       G.write_reference t.t gr gk >>= fun () ->
       W.notify t.w r (Some k);
       if G.kind = `Disk
-      && not (Irmin.Conf.get t.config Conf.bare)
-      && Irmin.Conf.get t.config Conf.branch = T.to_hum r
+      && not (Irmin.Private.Conf.get t.config Conf.bare)
+      && Irmin.Private.Conf.get t.config Conf.branch = T.to_hum r
       then (
         Log.debugf "write cache (%s)" (T.to_hum r);
         G.write_cache t.t gk
@@ -517,7 +518,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | Some k -> return (Some (`Local (head_of_git k)))
 
     let create config =
-      let root = Irmin.Conf.get config Conf.root in
+      let root = Irmin.Private.Conf.get config Conf.root in
       G.create ?root ()
 
     let fetch t ?depth ~uri tag =

@@ -18,7 +18,6 @@ module Contents = Ir_contents
 module Merge = Ir_merge
 module Tag = Ir_tag
 module Task = Ir_task
-module Conf = Ir_conf
 module View = Ir_view.Make
 module Snapshot = Ir_snapshot.Make
 module Dot = Ir_dot.Make
@@ -45,6 +44,7 @@ module type BC_MAKER = Ir_bc.MAKER
 module type S_MAKER = Ir_s.MAKER
 
 module Private = struct
+  module Conf = Ir_conf
   module Node = Ir_node
   module Commit = Ir_commit
   module Slice = Ir_slice

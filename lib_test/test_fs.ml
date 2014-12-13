@@ -32,6 +32,6 @@ let suite k =
     kind = k;
     init;
     clean  = none;
-    config = Irmin.Conf.singleton Irmin.Conf.root (Some test_db);
+    config = Irmin_fs.config ~root:test_db ();
     store  =  irf_store k;
   }
