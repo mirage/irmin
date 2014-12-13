@@ -455,7 +455,7 @@ module Make_ext (P: PRIVATE) = struct
   (* watch contents changes. *)
   let watch t path =
     let path, file =
-      try Ir_misc.list_end path with Not_found -> [], Key.Step.of_hum ""
+      try Ir_misc.list_end path with Not_found -> [], Key.Step.of_hum "__root__"
     in
     let get_contents n = Graph.contents (graph_t t) n file in
     Ir_watch.lwt_stream_lift (

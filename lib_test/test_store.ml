@@ -436,6 +436,20 @@ module Make (S: Irmin.S) = struct
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
 
+      View.create x.config task >>= fun v0 ->
+
+      View.update (v0 "/") [] foo1 >>= fun () ->
+      View.read (v0 "read /") [] >>= fun foo1' ->
+      assert_equal (module Tc.Option(V)) "read /" (Some foo1) foo1';
+
+      View.update (v0 "foo/1") [l "foo";l "1"] foo1 >>= fun () ->
+      View.read (v0 "read foo/1") [l "foo"; l "1"] >>= fun foo1' ->
+      assert_equal (module Tc.Option(V)) "read foo/1" (Some foo1) foo1';
+
+      View.update (v0 "foo/2") [l "foo";l "2"] foo2 >>= fun () ->
+      View.read (v0 "read foo/2") [l "foo"; l "2"] >>= fun foo2' ->
+      assert_equal (module Tc.Option(V)) "read foo/2" (Some foo2) foo2';
+
       let check_view view =
         View.list view [l "foo"] >>= fun ls ->
         assert_equal (module Set(K)) "path1" [ [l "foo";l "1"]; [l "foo";l "2"] ] ls;
@@ -445,16 +459,13 @@ module Make (S: Irmin.S) = struct
         assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
         return_unit in
 
-      View.create x.config task >>= fun v0 ->
       Lwt_list.iter_s (fun (k,v) ->
           View.update (v0 "init") k v
         ) nodes >>= fun () ->
-      View.update (v0 "foo/1") [l "foo";l "1"] foo1 >>= fun () ->
-      View.update (v0 "foo/2") [l "foo";l "2"] foo2 >>= fun () ->
       check_view (v0 "check v0") >>= fun () ->
 
       View.update_path (t "update_path b/") [l "b"] (v0 "export") >>= fun () ->
-      View.update_path (t "update_oath a/") [l "a"] (v0 "export") >>= fun () ->
+      View.update_path (t "update_path a/") [l "a"] (v0 "export") >>= fun () ->
 
       S.list (t "list") [l "b";l "foo"] >>= fun ls ->
       assert_equal (module Set(K)) "path2" [ [l "b";l "foo";l "1"]; [l "b";l "foo";l "2"] ] ls;

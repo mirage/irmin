@@ -121,21 +121,23 @@ module type NODE = sig
   type contents
   module Contents: Tc.S0 with type t = contents
   module Path: Ir_path.S
-  module StepMap: Ir_misc.MAP with type key = Path.step
+
   val empty: unit -> t
   val read: t -> node option Lwt.t
-  val succ: node -> t StepMap.t
-  val contents: t -> contents StepMap.t Lwt.t
-  val update_succ: t -> t StepMap.t -> unit Lwt.t
-  val update_contents: t -> contents StepMap.t -> unit Lwt.t
+
+  val read_contents: t -> Path.step -> contents option Lwt.t
+  val with_contents: t -> Path.step -> contents option -> unit Lwt.t
+
+  val read_succ: node -> Path.step -> t option
+  val with_succ: t -> Path.step -> t option -> unit Lwt.t
+
+  val steps: t -> Path.step list Lwt.t
 end
 
 module Internal (Node: NODE) = struct
 
   module Path = Node.Path
   module PathSet = Ir_misc.Set(Path)
-
-  module StepMap = Node.StepMap
 
   type step = Path.step
   type key = step list
@@ -176,28 +178,24 @@ module Internal (Node: NODE) = struct
         Node.read node >>= function
         | None -> return_none
         | Some t ->
-          let succ = Node.succ t in
-          try
-            let v = StepMap.find h succ in
-            aux v p
-          with Not_found ->
-            return_none
+          match Node.read_succ t h with
+          | None   -> return_none
+          | Some v -> aux v p
     in
     aux t.view path
 
-  let read_aux t path =
-    let path, file =
-      try Ir_misc.list_end path with Not_found -> [], Path.Step.of_hum ""
-    in
+  let mk_path k =
+    try Ir_misc.list_end k with Not_found -> [], Path.Step.of_hum "__root__"
+
+  let read_contents t path =
+    Log.debugf "read_contents %a" force (show (module Path) path);
+    let path, file = mk_path path in
     sub t path >>= function
     | None   -> return_none
-    | Some n ->
-      Node.contents n >>= fun m ->
-      try return (Some (StepMap.find file m))
-      with Not_found -> return_none
+    | Some n -> Node.read_contents n file
 
   let read t k =
-    read_aux t k >>= fun v ->
+    read_contents t k >>= fun v ->
     t.ops <- `Read (k, v) :: t.ops;
     return v
 
@@ -215,20 +213,16 @@ module Internal (Node: NODE) = struct
     sub t path >>= function
     | None   -> return []
     | Some n ->
-      Node.read n >>= function
-      | None -> return []
-      | Some t ->
-        let succ = Node.succ t in
-        Node.contents n >>= fun contents ->
-        let paths x =
-          List.fold_left (fun set p ->
-              PathSet.add (path @ [p]) set
-            ) PathSet.empty (StepMap.keys x)
-        in
-        let path = PathSet.union (paths succ) (paths contents) in
-        return (PathSet.to_list path)
+      Node.steps n >>= fun steps ->
+      let paths =
+        List.fold_left (fun set p ->
+            PathSet.add (path @ [p]) set
+          ) PathSet.empty steps
+      in
+      return (PathSet.to_list paths)
 
   let list t path =
+    Log.debugf "list %a" force (show (module Path) path);
     list_aux t path >>= fun result ->
     t.ops <- `List (path, result) :: t.ops;
     return result
@@ -245,65 +239,51 @@ module Internal (Node: NODE) = struct
     in
     list t [] >>= aux
 
-  let update_opt_aux t k v =
+  let update_contents_aux t k v =
+    let path, file = mk_path k in
     let rec aux view = function
-      | []     -> failwith "empty path"
-      | [file] ->
-        Node.contents view >>= fun contents ->
-        let contents = match v with
-          | None   -> StepMap.remove file contents
-          | Some v -> StepMap.add file v contents
-        in
-        Node.update_contents view contents
+      | [] -> Node.with_contents view file v
       | h::p   ->
         Node.read view >>= function
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
-          try
-            let child = StepMap.find h (Node.succ n) in
-            aux child p
-          with Not_found ->
+          match Node.read_succ n h with
+          | Some child -> aux child p
+          | None ->
             if v = None then return_unit
             else
               let child = Node.empty () in
-              let succ = StepMap.add h child (Node.succ n) in
-              Node.update_succ view succ >>= fun () ->
-              aux child p in
-    aux t.view k
+              Node.with_succ view h (Some child) >>= fun () ->
+              aux child p
+    in
+    aux t.view path
 
-  let update_opt t k v =
+  let update_contents t k v =
     t.ops <- `Write (k, v) :: t.ops;
-    update_opt_aux t k v
+    update_contents_aux t k v
 
   let update t k v =
-    update_opt t k (Some v)
+    update_contents t k (Some v)
 
   let remove t k =
-    update_opt t k None
+    update_contents t k None
 
-  let remove_rec t k =
-    let rec aux view = function
-      | []    -> failwith "empty path"
-      | [dir] -> begin
+  let remove_rec t k = match k with
+    | [] -> return_unit
+    | _  ->
+      let rec aux view = function
+        | []    -> assert false
+        | [dir] -> Node.with_succ view dir None
+        | h::p ->
           Node.read view >>= function
-          | None      -> return_unit
-          | Some node ->
-            let succ = Node.succ node in
-            let succ = StepMap.remove dir succ in
-            Node.update_succ view succ
-        end
-      | h::p ->
-        Node.read view >>= function
-        | None   -> return_unit
-        | Some n ->
-          try
-            let child = StepMap.find h (Node.succ n) in
-            aux child p
-          with Not_found ->
-            return_unit
-    in
-    t.ops <- `Rmdir k :: t.ops;
-    aux t.view k
+          | None   -> return_unit
+          | Some n ->
+            match Node.read_succ n h with
+            | None       -> return_unit
+            | Some child -> aux child p
+      in
+      t.ops <- `Rmdir k :: t.ops;
+      aux t.view k
 
   let watch _ =
     failwith "TODO: View.watch"
@@ -312,7 +292,7 @@ module Internal (Node: NODE) = struct
     Log.debugf "apply %a" force (show (module Action) a);
     match a with
     | `Rmdir _ -> ok ()
-    | `Write (k, v) -> update_opt t k v >>= ok
+    | `Write (k, v) -> update_contents t k v >>= ok
     | `Read (k, v)  ->
       read t k >>= fun v' ->
       if Tc.equal (module CO) v v' then ok ()
@@ -391,20 +371,32 @@ module Make (S: Ir_s.STORE) = struct
           t := Both (key, c);
           return (Some c)
 
+    let equal (x:t) (y:t) = match !x, !y with
+      | (Key (_,x) | Both ((_,x),_)), (Key (_,y) | Both ((_,y),_)) ->
+        P.Contents.Key.equal x y
+      | (Contents x | Both (_, x)), (Contents y | Both (_, y)) ->
+        P.Contents.Val.equal x y
+      | _ -> false
+
   end
 
   module Node = struct
 
     module Path = S.Key
+
+    module Step = Path.Step
     module StepMap = Ir_misc.Map(Path.Step)
+    module StepSet = Ir_misc.Set(Path.Step)
 
     type contents = S.value
     type commit = S.head
     type key = S.t * P.Node.key
 
+    (* XXX: fix code duplication with Ir_node.Graph (using
+       functors?) *)
     type node = {
-      contents: Contents.t StepMap.t;
-      succ    : t StepMap.t;
+      contents: Contents.t StepMap.t Lazy.t;
+      succ    : t StepMap.t Lazy.t;
       alist   : (Path.step * [`Contents of Contents.t | `Node of t ]) list;
     }
 
@@ -417,20 +409,36 @@ module Make (S: Ir_s.STORE) = struct
     (* Similir to [Node.t] but using where all of the values can just
        be keys. *)
 
-    let succ t = t.succ
+    let rec equal (x:t) (y:t) = match !x, !y with
+      | (Key (_,x) | Both ((_,x),_)), (Key (_,y) | Both ((_,y),_)) ->
+        P.Node.Key.equal x y
+      | (Node x | Both (_, x)), (Node y | Both (_, y)) ->
+        List.length x.alist = List.length y.alist
+        && List.for_all2 (fun (s1, n1) (s2, n2) ->
+            Step.equal s1 s2
+            && match n1, n2 with
+            | `Contents n1, `Contents n2 -> Contents.equal n1 n2
+            | `Node n1, `Node n2 -> equal n1 n2
+            | _ -> false) x.alist y.alist
+      | _ -> false
 
-    let create0 alist =
-      let contents, succ =
+    let mk_index alist =
+      lazy (
         List.fold_left (fun (contents, succ) (l, x) ->
             match x with
             | `Contents c -> StepMap.add l c contents, succ
             | `Node n     -> contents, StepMap.add l n succ
           ) (StepMap.empty, StepMap.empty) alist
-      in
+      )
+
+    let create_node alist =
+      let maps = mk_index alist in
+      let contents = lazy (fst (Lazy.force maps)) in
+      let succ = lazy (snd (Lazy.force maps)) in
       { contents; succ; alist }
 
     let create alist =
-      ref (Node (create0 alist))
+      ref (Node (create_node alist))
 
     let key db k =
       ref (Key (db, k))
@@ -447,7 +455,7 @@ module Make (S: Ir_s.STORE) = struct
           | `Contents c -> (l, `Contents (Contents.key t c))
           | `Node n     -> (l, `Node (key t n))
         ) alist in
-      create0 alist
+      create_node alist
 
     let export n =
       match !n with
@@ -476,33 +484,86 @@ module Make (S: Ir_s.STORE) = struct
           t := Both ((db, k), n);
           return (Some n)
 
-    let contents t =
+    let steps t =
+      Log.debugf "steps";
       read t >>= function
-      | None   -> return StepMap.empty
-      | Some c ->
-        StepMap.fold (fun l k acc ->
-            Contents.read k >>= function
-            | None   -> acc
-            | Some c -> acc >>= fun m -> return (StepMap.add l c m)
-          ) c.contents (return StepMap.empty)
+      | None    -> return_nil
+      | Some  n ->
+        let steps = ref StepSet.empty in
+        List.iter (fun (l, _) -> steps := StepSet.add l !steps) n.alist;
+        return (StepSet.to_list !steps)
 
-    let update_contents t contents =
+    let read_contents t step =
       read t >>= function
-      | None -> if
-        StepMap.is_empty contents then return_unit else fail Not_found (* ? *)
+      | None   -> return_none
+      | Some t ->
+        try
+          StepMap.find step (Lazy.force t.contents)
+          |> Contents.read
+        with Not_found ->
+          return_none
+
+    let read_succ t step =
+      try Some (StepMap.find step (Lazy.force t.succ))
+      with Not_found -> None
+
+    (* FIXME code duplication with Ir_node.Make.with_contents *)
+    let with_contents t step contents =
+      Log.debugf "with_contents %a %a"
+        force (show (module Step) step)
+        force (show (module Tc.Option(S.Val)) contents);
+      let mk c = `Contents (Contents.create c) in
+      read t >>= function
+      | None   ->
+        let () = match contents with
+          | None   -> ()
+          | Some c -> t := Node (create_node [ step, mk c ])
+        in
+        return_unit
       | Some n ->
-        let contents = StepMap.map Contents.create contents in
-        let new_n = { n with contents } in
-        t := Node new_n;
+        let rec aux acc = function
+          | (s, `Contents x as h) :: l ->
+            if Step.equal step s then match contents with
+              | None   -> List.rev_append acc l
+              | Some c ->
+                if Contents.equal (Contents.create c) x then n.alist
+                else List.rev_append acc ((s, mk c) :: l)
+            else aux (h :: acc) l
+          | h::t -> aux (h :: acc) t
+          | []   -> match contents with
+            | None   -> n.alist
+            | Some c -> List.rev ((step, mk c) :: acc)
+        in
+        let alist = aux [] n.alist in
+        if n.alist != alist then t := Node (create_node alist);
         return_unit
 
-    let update_succ t succ =
+    (* FIXME: code duplication with Ir_node.Make.with_succ *)
+    let with_succ t step succ =
+      let mk c = `Node c in
       read t >>= function
-      | None ->
-        if StepMap.is_empty succ then return_unit else fail Not_found (* ? *)
+      | None   ->
+        let () = match succ with
+          | None   -> ()
+          | Some c -> t := Node (create_node [ step, mk c ])
+        in
+        return_unit
       | Some n ->
-        let new_n = { n with succ } in
-        t := Node new_n;
+        let rec aux acc = function
+          | (s, `Node x as h) :: l ->
+            if Step.equal step s then match succ with
+              | None   -> List.rev_append acc l
+              | Some c ->
+                if equal c x then n.alist
+                else List.rev_append acc ((s, mk c) :: l)
+            else aux (h :: acc) l
+          | h::t -> aux (h :: acc) t
+          | []   -> match succ with
+            | None   -> n.alist
+            | Some c -> List.rev ((step, mk c) :: acc)
+        in
+        let alist = aux [] n.alist in
+        if n.alist != alist then t := Node (create_node alist);
         return_unit
 
     module Contents = P.Contents.Val
@@ -540,21 +601,27 @@ module Make (S: Ir_s.STORE) = struct
             return_unit
           ) todo;
         (* 2. we push the contents job on the stack. *)
-        StepMap.iter (fun _ c ->
-            match !c with
-            | Contents.Both _
-            | Contents.Key _       -> ()
-            | Contents.Contents x  ->
-              Stack.push (fun () ->
-                  P.Contents.add (P.contents_t db) x >>= fun k ->
-                  c := Contents.Key (db, k);
-                  return_unit
-                ) todo
-          ) x.Node.contents;
+        List.iter (fun (_, x) ->
+            match x with
+            | `Node _ -> ()
+            | `Contents c ->
+              match !c with
+              | Contents.Both _
+              | Contents.Key _       -> ()
+              | Contents.Contents x  ->
+                Stack.push (fun () ->
+                    P.Contents.add (P.contents_t db) x >>= fun k ->
+                    c := Contents.Key (db, k);
+                    return_unit
+                  ) todo
+          ) x.Node.alist;
         (* 3. we push the children jobs on the stack. *)
-        StepMap.iter (fun _ n ->
-            Stack.push (fun () -> add_to_todo n; return_unit) todo
-          ) x.Node.succ;
+        List.iter (fun (_, x) ->
+            match x with
+            | `Contents _ -> ()
+            | `Node n ->
+              Stack.push (fun () -> add_to_todo n; return_unit) todo
+          ) x.Node.alist;
     in
     let rec loop () =
       let task =

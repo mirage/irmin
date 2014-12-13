@@ -406,7 +406,7 @@ struct
 
   let mk_path path =
     try Ir_misc.list_end path
-    with Not_found -> [], Step.of_hum ""
+    with Not_found -> [], Step.of_hum "__root__"
 
   let read_contents_exn t node path =
    Log.debugf "read_contents_exn %a %a"
