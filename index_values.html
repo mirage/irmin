@@ -34,14 +34,14 @@ Return the list of actions performed on this view since its
 Write the contents of a value to the store.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Conf.html#VALadd">add</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
+<td><div class="info">
+<code class="code">add c k v</code> is <code class="code">c</code> with <code class="code">k</code> mapping to <code class="code">v</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Task.html#VALadd">add</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
 <td><div class="info">
 Add a message to the task messages list.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Conf.html#VALadd">add</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
-<td><div class="info">
-<code class="code">add c k v</code> is <code class="code">c</code> with <code class="code">k</code> mapping to <code class="code">v</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#VALadd_commit">add_commit</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
@@ -110,7 +110,7 @@ Same as <code class="code">map</code> but with potentially blocking converting
 Monadic bind over Result.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALbool">bool</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALbool">bool</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">bool</code> converts values with <code class="code">bool_of_string</code>.
 </div>
@@ -185,7 +185,7 @@ Get the node contents.
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALcontents_t">contents_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin.Conf.html#VALconv">conv</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALconv">conv</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">tc k</code> is <code class="code">k</code>'s converter.
 </div>
@@ -243,14 +243,14 @@ Create a new task.
 Get the task date.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Conf.html#VALdefault">default</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
+<td><div class="info">
+<code class="code">default k</code> is <code class="code">k</code>'s default value.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALdefault">default</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Create a default merge function.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Conf.html#VALdefault">default</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
-<td><div class="info">
-<code class="code">default k</code> is <code class="code">k</code>'s default value.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALdetach">detach</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -263,17 +263,17 @@ Detach the current branch (i.e.
 Compute a deterministic store key from a cstruct value.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALdoc">doc</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALdoc">doc</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">doc k</code> is <code class="code">k</code>'s documentation string (if any).
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALdocs">docs</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALdocs">docs</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">docs k</code> is <code class="code">k</code>'s documentation section (if any).
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALdocv">docv</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALdocv">docv</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">docv k</code> is <code class="code">k</code>'s value documentation meta-variable (if any).
 </div>
@@ -289,7 +289,7 @@ The empty node.
 The empty node.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALempty">empty</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALempty">empty</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">empty</code> is the empty configuration.
 </div>
@@ -323,7 +323,7 @@ Convert <code class="code">`Conflict</code> results to <code class="code">Confli
 FIXME
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALfind">find</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALfind">find</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">find c k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>, if any.
 </div>
@@ -340,7 +340,7 @@ Same as <code class="code">find_common_ancestor</code> but raises <code class="c
 </div>
 </td></tr>
 <tr><td align="left"><br>G</td></tr>
-<tr><td><a href="Irmin.Conf.html#VALget">get</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALget">get</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">get c k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>.
 </div>
@@ -384,7 +384,7 @@ Same as <code class="code">import</code> but delete and update the tags they alr
 Install the directory listener using active polling.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALint">int</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALint">int</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">int</code> converts values with <code class="code">int_of_string</code>.
 </div>
@@ -394,7 +394,7 @@ Install the directory listener using active polling.
 Is the node empty.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALis_empty">is_empty</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALis_empty">is_empty</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">is_empty c</code> is <code class="code">true</code> iff <code class="code">c</code> is empty.
 </div>
@@ -445,10 +445,10 @@ FIXME The slice tags.
 </div>
 </td></tr>
 <tr><td align="left"><br>K</td></tr>
-<tr><td><a href="Irmin.Conf.html#VALkey">key</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALkey">key</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">key docs docv doc name conv default</code> is a configuration key named
-      <code class="code">name</code> that maps to value <code class="code">v</code> by default.
+        <code class="code">name</code> that maps to value <code class="code">v</code> by default.
 </div>
 </td></tr>
 <tr><td align="left"><br>L</td></tr>
@@ -479,7 +479,7 @@ The name of the master branch.
 Check if a key exists.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALmem">mem</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALmem">mem</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">mem c k</code> is <code class="code">true</code> iff <code class="code">k</code> has a mapping in <code class="code">c</code>.
 </div>
@@ -580,7 +580,7 @@ Get the messages associated to the task.
 </div>
 </td></tr>
 <tr><td align="left"><br>N</td></tr>
-<tr><td><a href="Irmin.Conf.html#VALname">name</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALname">name</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 The key name.
 </div>
@@ -669,7 +669,7 @@ Get the node parents.
 The commit parents.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALparser">parser</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALparser">parser</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">parser c</code> is <code class="code">c</code>'s parser.
 </div>
@@ -684,7 +684,7 @@ Pretty-print an action.
 Pretty-print a sequence of actions.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALprinter">printer</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALprinter">printer</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">converter c</code> is <code class="code">c</code>'s printer.
 </div>
@@ -765,7 +765,7 @@ Rebase the view to the tip of the store.
 FIXME
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALrem">rem</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALrem">rem</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">rem c k</code> is <code class="code">c</code> with <code class="code">k</code> unbound.
 </div>
@@ -796,7 +796,7 @@ Same as <a href="Irmin.RW.html#VALremove">RW.remove</a> but recursively removes 
 Revert the store to a previous state.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALroot">root</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALroot">root</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 Default <code class="code">--root=ROOT</code> argument.
 </div>
@@ -813,19 +813,19 @@ Register a function which looks for file changes in a
         directory.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALsingleton">singleton</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALsingleton">singleton</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">singletong k v</code> is the configuration where <code class="code">k</code> maps to <code class="code">v</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Conf.html#VALsome">some</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
+<td><div class="info">
+<code class="code">string</code> converts values with the indentity function.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.html#VALsome">some</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Lift a merge function to optional values of the same type.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Conf.html#VALsome">some</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
-<td><div class="info">
-<code class="code">string</code> converts values with the indentity function.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALsteps">steps</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
@@ -839,14 +839,14 @@ FIXME
       <code class="code">t</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Conf.html#VALstring">string</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
+<td><div class="info">
+<code class="code">string</code> converts values with the indentity function.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALstring">string</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 The default string merge function.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Conf.html#VALstring">string</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
-<td><div class="info">
-<code class="code">string</code> converts values with the indentity function.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALsucc">succ</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
@@ -953,7 +953,7 @@ Same as <code class="code">update_tag</code> but delete and update the tag if it
 <code class="code">uri s</code> is the remote store located at <code class="code">uri</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Conf.html#VALuri">uri</a> [<a href="Irmin.Conf.html">Irmin.Conf</a>]</td>
+<tr><td><a href="Irmin.Private.Conf.html#VALuri">uri</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">uri</code> converts values with <code class="code">Uri.of_string</code>.
 </div>

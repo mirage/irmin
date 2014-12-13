@@ -57,10 +57,6 @@ Serializable data with reversible human-readable
     representations.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Conf.html">Conf</a>: <code class="code">sig</code> <a href="Irmin.Conf.html">..</a> <code class="code">end</code></pre><div class="info">
-Backend configuration.
-</div>
-
 <pre><span class="keyword">module</span> <a href="Irmin.Task.html">Task</a>: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre><div class="info">
 Tasks are used to keep track of the origin of reads and writes in
     the store.
@@ -79,9 +75,9 @@ The type for user-defined tasks. See <a href="Irmin.Task.html">Task</a>.<br>
 </div>
 
 
-<pre><span id="TYPEconfig"><span class="keyword">type</span> <code class="type"></code>config</span> = <code class="type"><a href="Irmin.Conf.html#TYPEt">Conf.t</a></code> </pre>
+<pre><span id="TYPEconfig"><span class="keyword">type</span> <code class="type"></code>config</span> </pre>
 <div class="info ">
-The type for backend-specific configuration values. See <a href="Irmin.Conf.html">Conf</a>.
+The type for backend-specific configuration values.
 <p>
 
     Every backend has different configuration options, which are kept
