@@ -1547,8 +1547,8 @@ end
     format based on {{:https://github.com/janestreet/bin_prot}bin_prot},
     with no native synchronization primitives: it is usually what is
     needed to quickly create a new backend.}
-    {-{!Make_ext} creates a store with a {e deep} embedding of each of
-    the internal stores into separate store, with a total control over
+    {- {!Make_ext} creates a store with a {e deep} embedding of each
+    of the internal stores into separate store, with a total control over
     the binary format and using the native synchronization protocols
     when available. This is mainly used by the Git backend, but could
     be used for other similar backends as well in the future.}
