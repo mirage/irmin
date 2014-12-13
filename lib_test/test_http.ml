@@ -73,6 +73,6 @@ let suite k server =
       server.clean ()
     end;
 
-    config = Irmin.Conf.singleton Irmin_http.uri_key (Some uri);
+    config = Irmin.Conf.singleton Irmin_http.uri (Some uri);
     store = http_store k;
   }

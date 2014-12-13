@@ -286,7 +286,7 @@ let clone = {
             let config =
               let add k v c = Irmin.Conf.add c k v in
               Irmin.Conf.empty
-              |> add Irmin_http.uri_key (Some (Uri.of_string remote))
+              |> add Irmin_http.uri (Some (Uri.of_string remote))
               |> add Irmin.Conf.root (Some remote)
             in
             R.create config task >>= fun r ->

@@ -34,29 +34,32 @@ let write_string str b =
   Cstruct.blit_from_string str 0 b 0 len;
   Cstruct.shift b len
 
-let root_key = Irmin.Conf.root
+module Conf = struct
 
-let branch_key =
-  Irmin.Conf.key
-    ~doc:"The main branch of the Git repository."
-    "branch" Irmin.Conf.string "master"
+  let root = Irmin.Conf.root
 
-(* ~bare *)
-let bare_key =
-  Irmin.Conf.key
-    ~doc:"Do not expand the filesystem on the disk."
-    "root" Irmin.Conf.bool false
+  let branch =
+    Irmin.Conf.key
+      ~doc:"The main branch of the Git repository."
+      "branch" Irmin.Conf.string "master"
+
+  let bare =
+    Irmin.Conf.key
+      ~doc:"Do not expand the filesystem on the disk."
+      "root" Irmin.Conf.bool false
+
+end
 
 let config ?root ?branch ?bare () =
   let config = Irmin.Conf.empty in
-  let config = Irmin.Conf.add config root_key root in
+  let config = Irmin.Conf.add config Conf.root root in
   let config = match branch with
-    | None   -> Irmin.Conf.add config branch_key (Irmin.Conf.default branch_key)
-    | Some b -> Irmin.Conf.add config branch_key b
+    | None   -> Irmin.Conf.add config Conf.branch (Irmin.Conf.default Conf.branch)
+    | Some b -> Irmin.Conf.add config Conf.branch b
   in
   let config = match bare with
-    | None   -> Irmin.Conf.add config bare_key (Irmin.Conf.default bare_key)
-    | Some b -> Irmin.Conf.add config bare_key b
+    | None   -> Irmin.Conf.add config Conf.bare (Irmin.Conf.default Conf.bare)
+    | Some b -> Irmin.Conf.add config Conf.bare b
   in
   config
 
@@ -112,7 +115,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     type value = V.t
 
     let create config task =
-      let root = Irmin.Conf.get config root_key in
+      let root = Irmin.Conf.get config Conf.root in
       G.create ?root () >>= fun t ->
       return (fun a -> { task = task a; config; t })
 
@@ -190,10 +193,9 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let write t b =
         write_string (to_string t) b
 
-      let size_of _t =
-        failwith "Git.Tree.size_of"
-        (* XXX: eeerk: might cause wwrite duplication!!  *)
-        (* String.length (to_string t) *)
+      let size_of t =
+        (* XXX: eeerk: cause *a lot* of wwrite duplication!!  *)
+        String.length (to_string t)
 
       let to_git perm (name, node) =
         { Git.Tree.perm; name = S.to_hum name; node }
@@ -205,7 +207,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
       let iter_succ t fn =
         List.iter (fun { Git.Tree.perm; name; node } ->
-            if perm <> `Dir then fn (S.of_hum name) node
+            if perm = `Dir then fn (S.of_hum name) node
           ) t
 
       let find t p s =
@@ -316,10 +318,9 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         Buffer.contents buf
 
       let write t b = write_string (to_string t) b
-      let size_of _t =
-        failwith "Git.Commit.size_of"
-        (* XXX: yiiik *)
-        (* String.length (to_string t) *)
+      let size_of t =
+        (* XXX: yiiik, causes *a lot* of write duplciations *)
+        String.length (to_string t)
 
       let commit_key_of_git k = H.of_raw (GK.to_raw (Git.SHA.of_commit k))
       let node_key_of_git k = Git.SHA.of_tree k
@@ -444,8 +445,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | Some r -> Some (T.of_hum r)
 
     let create config task =
-      let root = Irmin.Conf.get config root_key in
-      let branch = Irmin.Conf.get config branch_key in
+      let root = Irmin.Conf.get config Conf.root in
+      let branch = Irmin.Conf.get config Conf.branch in
       G.create ?root () >>= fun t ->
       let git_root = G.root t / ".git" in
       G.write_head t (Git.Reference.Ref (git_of_string branch)) >>= fun () ->
@@ -471,9 +472,13 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let gk = git_of_head k in
       G.write_reference t.t gr gk >>= fun () ->
       W.notify t.w r (Some k);
-      if G.kind = `Disk && not (Irmin.Conf.get t.config bare_key) then
+      if G.kind = `Disk
+      && not (Irmin.Conf.get t.config Conf.bare)
+      && Irmin.Conf.get t.config Conf.branch = T.to_hum r
+      then (
+        Log.debugf "write cache (%s)" (T.to_hum r);
         G.write_cache t.t gk
-      else
+      ) else
         return_unit
 
     let remove t r =
@@ -508,7 +513,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | Some k -> return (Some (`Local (head_of_git k)))
 
     let create config =
-      let root = Irmin.Conf.get config root_key in
+      let root = Irmin.Conf.get config Conf.root in
       G.create ?root ()
 
     let fetch t ?depth ~uri tag =
@@ -582,3 +587,5 @@ module RW (G: Git.Store.S) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
   module M = Make (FakeIO)(G)(Irmin.Path.String)(Irmin.Contents.String)(K)(V)
   include M.XTag
 end
+
+include Conf

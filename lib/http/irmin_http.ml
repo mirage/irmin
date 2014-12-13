@@ -19,14 +19,14 @@ open Lwt
 module Log = Log.Make(struct let section = "CRUD" end)
 
 (* ~uri *)
-let uri_key =
+let uri =
   Irmin.Conf.key
     ~docv:"URI"
     ~doc:"Location of the remote store."
     "uri" Irmin.Conf.(some uri) None
 
-let config uri =
-  Irmin.Conf.add Irmin.Conf.empty uri_key (Some uri)
+let config x =
+  Irmin.Conf.add Irmin.Conf.empty uri (Some x)
 
 module type Config = sig val suffix: string option end
 
@@ -128,7 +128,7 @@ struct
       Some (fn x)
 
     let create_aux config task =
-      let uri = match Irmin.Conf.get config uri_key with
+      let uri = match Irmin.Conf.get config uri with
         | None   -> failwith "Irmin_http.create: No URI specified"
         | Some u -> u
       in

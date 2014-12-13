@@ -47,8 +47,8 @@ module Irmin_git: sig
 
   val config: ?root:string -> ?branch:string -> ?bare:bool -> unit -> Irmin.config
 
-  val branch_key: string Irmin.Conf.key
-  val bare_key: bool Irmin.Conf.key
+  val branch: string Irmin.Conf.key
+  val bare: bool Irmin.Conf.key
 
   module AO (G: Git.Store.S): Irmin.AO_MAKER
   module RW (G: Git.Store.S): Irmin.RW_MAKER
@@ -63,7 +63,7 @@ module Irmin_http: sig
   (** {1 HTTP client} *)
 
   val config: Uri.t -> Irmin.config
-  val uri_key: Uri.t option Irmin.Conf.key
+  val uri: Uri.t option Irmin.Conf.key
 
   module AO: Irmin.AO_MAKER
   module RW: Irmin.RW_MAKER

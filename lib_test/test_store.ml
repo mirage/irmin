@@ -339,7 +339,7 @@ module Make (S: Irmin.S) = struct
 
       let succ = ref [] in
       Graph.iter_succ (g "iter") k4 (fun l v -> succ := (l, v) :: !succ) >>= fun () ->
-      assert_equal (module Succ) "k4"!succ [ (l "b", k1); (l "c", k1) ];
+      assert_equal (module Succ) "k4"[ (l "b", k1); (l "c", k1) ] !succ;
 
       (* merge commits *)
 

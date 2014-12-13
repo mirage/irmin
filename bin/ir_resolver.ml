@@ -48,28 +48,31 @@ let flag_key k =
   if default then Arg.(value & vflag true [false, i])
   else Arg.(value & flag i)
 
-let opt_key k =
+let key k default =
   let doc = Irmin.Conf.doc k in
   let docs = Irmin.Conf.docs k in
   let docv = Irmin.Conf.docv k in
   let conv = Irmin.Conf.conv k in
-  let default = Irmin.Conf.default k in
   let name = Irmin.Conf.name k in
   let i = Arg.info ?docv ?doc ?docs [name] in
   Arg.(value & opt conv default i)
 
+let opt_key k = key k (Irmin.Conf.default k)
+
 let config =
   let add k v config = Irmin.Conf.add config k v in
-  let create root bare uri =
+  let create root bare branch uri =
     Irmin.Conf.empty
     |> add Irmin.Conf.root root
-    |> add Irmin_git.bare_key bare
-    |> add Irmin_http.uri_key uri
+    |> add Irmin_git.bare bare
+    |> add Irmin_git.branch branch
+    |> add Irmin_http.uri uri
   in
   Term.(pure create $
         opt_key Irmin.Conf.root $
-        flag_key Irmin_git.bare_key $
-        opt_key Irmin_http.uri_key)
+        flag_key Irmin_git.bare $
+        opt_key Irmin_git.branch $
+        opt_key Irmin_http.uri)
 
 let kinds = [
   ("git" , git_store);
@@ -135,13 +138,21 @@ let read_config_file () =
     let store = assoc "store" (fun x -> (List.assoc x kinds) contents) in
     let config =
       let root = assoc "root" (fun x -> x) in
-      let bare = match assoc "bare" bool_of_string with None -> false | Some b -> b in
+      let bare = match assoc "bare" bool_of_string with
+        | None   -> Irmin.Conf.default Irmin_git.bare
+        | Some b -> b
+      in
+      let branch = match assoc "branch" (fun x -> x) with
+        | None   -> Irmin.Conf.default Irmin_git.branch
+        | Some b -> b
+      in
       let uri = assoc "uri" Uri.of_string in
       let add k v config = Irmin.Conf.add config k v in
       Irmin.Conf.empty
       |> add Irmin.Conf.root root
-      |> add Irmin_git.bare_key bare
-      |> add Irmin_http.uri_key uri
+      |> add Irmin_git.bare bare
+      |> add Irmin_git.branch branch
+      |> add Irmin_http.uri uri
     in
     store, config
 

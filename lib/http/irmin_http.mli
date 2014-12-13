@@ -17,7 +17,8 @@
 (** JSON CRUD interface. *)
 
 val config: Uri.t -> Irmin.config
-val uri_key: Uri.t option Irmin.Conf.key
+
+val uri: Uri.t option Irmin.Conf.key
 
 module AO (C: Cohttp_lwt.Client): Irmin.AO_MAKER
 module RW (C: Cohttp_lwt.Client): Irmin.RW_MAKER
