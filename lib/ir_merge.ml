@@ -159,6 +159,23 @@ let pair
     b ~old:o2 b1 b2 >>| fun b3 ->
     ok (a3, b3)
 
+let triple
+  (type a) (module A: Tc.S0 with type t = a)
+  (type b) (module B: Tc.S0 with type t = b)
+  (type c) (module C: Tc.S0 with type t = c)
+  a b c =
+  let module S = Tc.Triple(A)(B)(C) in
+  fun ~old x y ->
+    Log.debugf "triple %a | %a | %a"
+      force (show (module S) old)
+      force (show (module S) x)
+      force (show (module S) y);
+    let (o1, o2, o3), (a1, b1, c1), (a2, b2, c2) = old, x, y in
+    a ~old:o1 a1 a2 >>| fun a3 ->
+    b ~old:o2 b1 b2 >>| fun b3 ->
+    c ~old:o3 c1 c2 >>| fun c3 ->
+    ok (a3, b3, c3)
+
 exception C of string
 
 let merge_elt (type k) (type a)

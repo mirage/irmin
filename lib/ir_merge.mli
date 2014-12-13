@@ -48,6 +48,7 @@ module Map (M: Map.S) (K: Tc.S0 with type t = M.key): sig
   val merge: 'a Tc.t -> 'a t -> 'a M.t t
 end
 val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t
+val triple: 'a Tc.t -> 'b Tc.t -> 'c Tc.t -> 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
 val biject: 'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
 val biject': 'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
 val apply: ('a -> 'b t) -> 'a -> 'b t
