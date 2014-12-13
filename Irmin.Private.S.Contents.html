@@ -29,13 +29,13 @@ Private contents.<br>
 
 <pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> key <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
 <code class="code">merge t</code> lifts the merge functions defined over contents
-          values to contents key. The merge functio will: <em>(i)</em> read
-          the values associated with the given keys, <em>(ii)</em> use the
-          merge function defined over values and <em>(iii)</em> write the
-          resulting values into the store to get the resulting key.
+        values to contents key. The merge functio will: <em>(i)</em> read
+        the values associated with the given keys, <em>(ii)</em> use the
+        merge function defined over values and <em>(iii)</em> write the
+        resulting values into the store to get the resulting key.
 <p>
 
-          If any of these operation fails, return <code class="code">`Conflict</code>.<br>
+        If any of these operation fails, return <code class="code">`Conflict</code>.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">

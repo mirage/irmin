@@ -47,18 +47,18 @@
 
 <pre><span id="VALoutput_buffer"><span class="keyword">val</span> output_buffer</span> : <code class="type">Irmin.S.t -><br>       ?html:bool -><br>       ?depth:int -> ?full:bool -> date:(int64 -> string) -> Buffer.t -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">output_buffer t ?html ?depth ?full buf</code> outputs the Graphviz
-      representation of <code class="code">t</code> in the buffer <code class="code">buf</code>.
+        representation of <code class="code">t</code> in the buffer <code class="code">buf</code>.
 <p>
 
-      <code class="code">html</code> (default is false) enables HTML labels.
+        <code class="code">html</code> (default is false) enables HTML labels.
 <p>
 
-      <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code">None</code>
-      here means no limitation.
+        <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code">None</code>
+        here means no limitation.
 <p>
 
-      If <code class="code">full</code> is set (default is not) the full graph, including the
-      commits, nodes and contents, is exported, otherwise it is the
-      commit history graph only.<br>
+        If <code class="code">full</code> is set (default is not) the full graph, including the
+        commits, nodes and contents, is exported, otherwise it is the
+        commit history graph only.<br>
 </div>
 </body></html>

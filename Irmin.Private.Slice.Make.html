@@ -19,7 +19,7 @@
 &nbsp;</div>
 <h1>Functor <a href="type_Irmin.Private.Slice.Make.html">Irmin.Private.Slice.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type"><a href="Irmin.Node.STORE.html">Irmin.Node.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Commit.STORE.html">Irmin.Commit.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.STORE.html">Irmin.Tag.STORE</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Slice.S.html">S</a></code><code class="type">  with type contents = C.key * C.value
+<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.STORE.html">Irmin.Tag.STORE</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Slice.S.html">S</a></code><code class="type">  with type contents = C.key * C.value
          and type node = N.key * N.value
          and type commit = H.key * H.value
          and type tag = T.key * T.value</code></div></div></div></div></pre><div class="info module top">
@@ -39,12 +39,12 @@ Build simple slices.<br>
 <td align="center" valign="top" width="15%">
 <code>N</code></td>
 <td align="center" valign="top">:</td>
-<td><code class="type"><a href="Irmin.Node.STORE.html">Irmin.Node.STORE</a></code>
+<td><code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code>
 <tr>
 <td align="center" valign="top" width="15%">
 <code>H</code></td>
 <td align="center" valign="top">:</td>
-<td><code class="type"><a href="Irmin.Commit.STORE.html">Irmin.Commit.STORE</a></code>
+<td><code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code>
 <tr>
 <td align="center" valign="top" width="15%">
 <code>T</code></td>

@@ -22,24 +22,24 @@
 </div>
 <h1>Module <a href="type_Irmin.Private.S.Node.html">Irmin.Private.S.Node</a></h1>
 
-<pre><span class="keyword">module</span> Node: <code class="type"><a href="Irmin.Node.STORE.html">Irmin.Node.STORE</a></code><code class="type">  with type Val.contents = Contents.key</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Node: <code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="type">  with type Val.contents = Contents.key</code></pre><div class="info module top">
 Private nodes.<br>
 </div>
 <hr width="100%">
 
 <pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Node.STORE.Path.html">Path</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type"> </code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.STORE.Path.html">Path</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type"> </code></pre><div class="info">
 <code class="code">Step</code> provides base functions over node steps.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Node.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
 <code class="code">Key</code> provides base functions for node keys.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Node.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Node.S.html">Irmin.Node.S</a></code><code class="type">  with type t = value
-                   and type node = key
-                   and type step = Path.step</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a></code><code class="type">  with type t = value
+                     and type node = key
+                     and type step = Path.step</code></pre><div class="info">
 <code class="code">Val</code> provides base functions for node values.
 </div>
 </body></html>

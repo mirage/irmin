@@ -57,10 +57,6 @@ Serializable data with reversible human-readable
     representations.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info">
-Hashing functions.
-</div>
-
 <pre><span class="keyword">module</span> <a href="Irmin.Conf.html">Conf</a>: <code class="code">sig</code> <a href="Irmin.Conf.html">..</a> <code class="code">end</code></pre><div class="info">
 Backend configuration.
 </div>
@@ -120,30 +116,20 @@ Branch-consistent stores.
 <br>
 <h1 id="1_UserDefinedContents">User-Defined Contents</h1><br>
 
+<pre><span class="keyword">module</span> <a href="Irmin.Path.html">Path</a>: <code class="code">sig</code> <a href="Irmin.Path.html">..</a> <code class="code">end</code></pre><div class="info">
+A key in an <a href="Irmin.S.html">stores</a> is a path of basic elements.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Hash.html">Hash</a>: <code class="code">sig</code> <a href="Irmin.Hash.html">..</a> <code class="code">end</code></pre><div class="info">
+Hashing functions.
+</div>
+
 <pre><span class="keyword">module</span> <a href="Irmin.Contents.html">Contents</a>: <code class="code">sig</code> <a href="Irmin.Contents.html">..</a> <code class="code">end</code></pre><div class="info">
 <code class="code">Contents</code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Tag.html">Tag</a>: <code class="code">sig</code> <a href="Irmin.Tag.html">..</a> <code class="code">end</code></pre><div class="info">
 User-defined tags.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Path.html">Path</a>: <code class="code">sig</code> <a href="Irmin.Path.html">..</a> <code class="code">end</code></pre><div class="info">
-A key in an <a href="Irmin.S.html">stores</a> is a path of basic elements.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Node.html">Node</a>: <code class="code">sig</code> <a href="Irmin.Node.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Node</code> provides functions to describe the graph-like structured
-    values.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Commit.html">Commit</a>: <code class="code">sig</code> <a href="Irmin.Commit.html">..</a> <code class="code">end</code></pre><div class="info">
-Commit values represent the store history.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.Private.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Private</code> defines functions only useful for creating new
-    backends.
 </div>
 <br>
 <h1 id="1_HighlevelStores">High-level Stores</h1>
@@ -174,6 +160,11 @@ Commit values represent the store history.
     available.</li>
 </ul>
 <br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.Private.html">..</a> <code class="code">end</code></pre><div class="info">
+<code class="code">Private</code> defines functions only useful for creating new
+    backends.
+</div>
 
 <pre><span class="keyword">module type</span> <a href="Irmin.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.S.html">..</a> <code class="code">end</code></pre><div class="info">
 Signature for Irmin stores.
@@ -251,10 +242,5 @@ Simple store creator.
    and type tag = P.Tag.key
    and type head = P.Tag.value</code></div></pre><div class="info">
 Advanced store creator.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Watch.html">Watch</a>: <code class="code">sig</code> <a href="Irmin.Watch.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Watch</code> provides helpers to register event notifications on
-    read-write stores.
 </div>
 </body></html>
