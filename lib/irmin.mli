@@ -159,7 +159,7 @@ module Merge: sig
 
   val biject: 'a Tc.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
   (** Use the merge function defined in another domain. The domain
-      converting functions might be pariah: in that case the {e
+      converting functions might be partial: in that case the {e
       convention} is that they raise [Not_found] on undefined
       entries. *)
 
