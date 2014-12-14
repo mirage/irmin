@@ -143,7 +143,7 @@ module Cstruct = struct
 
     let to_sexp t = Sexplib.Type.Atom (to_hex t)
     let to_json t = Cstruct.to_string t |> Ezjsonm.encode_string
-    let of_json j = Ezjsonm.decode_string_exn j |> Cstruct.of_string
+    let of_json j = Cstruct.of_string (Ezjsonm.decode_string_exn j)
     let size_of t = Cstruct.len t
     let read b = Mstruct.to_cstruct b
 

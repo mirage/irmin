@@ -68,8 +68,8 @@ module SHA1 = struct
 
   let read buf =
     let t =
-      Tc.Reader.of_bin_prot Bin_prot.Read.bin_read_bigstring buf
-      |> Cstruct.of_bigarray
+      Cstruct.of_bigarray
+        (Tc.Reader.of_bin_prot Bin_prot.Read.bin_read_bigstring buf)
     in
     if Cstruct.len t <> len then raise (Invalid (Cstruct.to_string t))
     else t
