@@ -278,7 +278,7 @@ type task = Task.t
 (** The type for user-defined tasks. See {{!Task}Task}. *)
 
 type config
-(** The type for backend-specific configuration values. See {{!Conf}Conf}.
+(** The type for backend-specific configuration values.
 
     Every backend has different configuration options, which are kept
     abstract to the user. *)
@@ -287,7 +287,6 @@ type config
     stores, implementing fewer operations, such as {{!AO}append-only}
     and {{!RW}read-write} stores. These low-level stores are provided
     by various backends. *)
-
 
 (** Read-only stores. *)
 module type RO = sig
@@ -351,18 +350,21 @@ module type RW = sig
   include RO
 
   val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
-  (** FIXME *)
+  (** [iter t fn] call the function [fn] over all [t]'s keys. *)
 
   val update: t -> key -> value -> unit Lwt.t
-  (** Replace the contents of [key] by [value] if [key] is already
-      defined and create it otherwise. *)
+  (** [update t k v] replaces the contents of [k] by [v] in [t]. If
+      [k] is not already defined in [t], create a fresh binding. *)
 
   val remove: t -> key -> unit Lwt.t
-  (** Remove the given key. *)
+  (** [remove t k] remove the key [k] in [t]. *)
 
   val watch: t -> key -> value option Lwt_stream.t
-  (** Watch the stream of values associated to a given key. Return
-      [None] if the value is removed. *)
+  (** [watch t k] is the stream values associated to the key [k]. The
+      stream return a new value every time the bindings is modified in
+      [t]. It return [None] if the binding is removed. *)
+
+  (** FIXME: add move *)
 
 end
 
@@ -371,17 +373,21 @@ module type HRW = sig
 
   (** {1 Hierarchical read-write stores} *)
 
+  (** Hierarchical read-write stores are read-write stores using
+      {{!Path.t}paths} as keys. They are a very simplified abstraction
+      of filesystems. *)
+
   type step
-  (** The type for step values. *)
+  (** The type for step values. A step is a path component. *)
 
   include RW with type key = step list
 
   val list: t -> key -> key list Lwt.t
-  (** [list t k] list the sub-keys of the path [k]. *)
+  (** [list t k] list the sub-paths of the path [k] in [t]. *)
 
   val remove_rec: t -> key -> unit Lwt.t
-  (** Same as {{!RW.remove}RW.remove} but recursively removes all the
-      sub-paths. *)
+  (** Same as {{!RW.remove}RW.remove} but removes all the sub-paths
+      recursively. *)
 
 end
 
@@ -493,7 +499,8 @@ module type BC = sig
   (** Merge a commit with the current branch. *)
 
   val merge_head_exn: t -> head -> unit Lwt.t
-  (** FIXME *)
+  (** Same as {!merge_head} but raise {!Merge.Conflict} in case of a
+      conflict. *)
 
   val watch_head: t -> key -> (key * head) Lwt_stream.t
   (** Watch changes for a given collection of keys and the ones they
@@ -515,7 +522,8 @@ module type BC = sig
       branch. The two branches are still independent. *)
 
   val merge_exn: t -> tag -> unit Lwt.t
-  (** FIXME *)
+  (** Same as {!merge} but raise {!Merge.Conflict} in case of a
+      conflict. *)
 
   (** {2 Slices} *)
 
