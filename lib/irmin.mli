@@ -16,16 +16,14 @@
 
 (** Irmin public API.
 
-    Irmin is a library for persistent stores following the same
-    design principle as Git.
+    Irmin is a library for persistent stores with built-in snapshot,
+    branching and reverting mechanisms. Irmin uses concepts similar to
+    {{:http://git-scm.com/}Git} but it exposes them as a high-level
+    library instead of a complex command-line frontend.
 
-    Irmin is a distributed and history-preserving library for
-    persistent stores with built-in snapshot, branching and reverting
-    mechanisms. It is designed to use a large variety of
-    backends. Irmin is written in pure OCaml and does not depend on
-    external C stubs; it aims is to run everywhere, from Linux to Xen
-    unikernels -- and can be be compiled to JavaScipt to run in a
-    browser.
+    It is designed to use a large variety of backends. Irmin is
+    written in pure OCaml and does not depend on external C stubs; it
+    aims is to run everywhere, from Linux to Xen unikernels.
 
     {e Release %%VERSION%% - %%MAINTAINER%% }
 *)

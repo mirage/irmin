@@ -4,8 +4,7 @@ Irmin is a library for persistent stores with built-in snapshot,
 branching and reverting mechanisms. It is designed to use a large
 variety of backends. Irmin is written in pure OCaml and does not
 depend on external C stubs; it aims is to run everywhere, from Linux
-to Xen unikernels -- and can be be compiled to JavaScipt to run in a
-browser.
+to Xen unikernels.
 
 [![Build Status](https://travis-ci.org/mirage/irmin.png?branch=master)](https://travis-ci.org/mirage/irmin)
 
