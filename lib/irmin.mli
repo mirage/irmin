@@ -553,9 +553,12 @@ end
 
 (** {1 User-Defined Contents} *)
 
-(** A key in an {{!Irmin.S}stores} is a path of basic elements. We
-    call these elements {e steps}, and the following [Path] module
-    provides functions to manipulate steps and paths. *)
+(** Store paths.
+
+    An Irmin {{!Irmin.S}store} binds {{!Path.S.t}paths} to
+    user-defined {{!Contents.S}contents}. Paths are composed by basic
+    elements, that we call {{!Path.S.step}steps}. The following [Path]
+    module provides functions to manipulate steps and paths. *)
 module Path: sig
 
   (** {1 Path} *)
