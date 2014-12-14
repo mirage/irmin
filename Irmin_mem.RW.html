@@ -1,0 +1,53 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin_mem.AO.html">
+<link rel="next" href="Irmin_mem.Make.html">
+<link rel="Up" href="Irmin_mem.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Read-write stores" rel="Section" href="#1_Readwritestores">
+<title>Irmin_mem.RW</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin_mem.AO.html" title="Irmin_mem.AO">Previous</a>
+&nbsp;<a class="up" href="Irmin_mem.html" title="Irmin_mem">Up</a>
+&nbsp;<a class="post" href="Irmin_mem.Make.html" title="Irmin_mem.Make">Next</a>
+</div>
+<h1>Module <a href="type_Irmin_mem.RW.html">Irmin_mem.RW</a></h1>
+
+<pre><span class="keyword">module</span> RW: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre><hr width="100%">
+<br>
+<h1 id="1_Readwritestores">Read-write stores</h1><br>
+
+<pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
+
+<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">t -> (key -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">iter t fn</code> call the function <code class="code">fn</code> on all <code class="code">t</code>'s keys.<br>
+</div>
+
+<pre><span id="VALupdate"><span class="keyword">val</span> update</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">update t k v</code> replaces the contents of <code class="code">k</code> by <code class="code">v</code> in <code class="code">t</code>. If
+      <code class="code">k</code> is not already defined in <code class="code">t</code>, create a fresh binding.<br>
+</div>
+
+<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">t -> key -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">remove t k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -> key -> value option Lwt_stream.t</code></pre><div class="info ">
+<code class="code">watch t k</code> is the stream values associated to the key <code class="code">k</code>. The
+      stream return a new value every time the bindings is modified in
+      <code class="code">t</code>. It return <code class="code">None</code> if the binding is removed.<br>
+</div>
+<br>
+FIXME: add move<br>
+</body></html>
