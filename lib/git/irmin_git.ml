@@ -556,7 +556,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     module Node = XNode
     module Commit = XCommit
     module Tag = XTag
-    module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)(Tag)
+    module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
   end
   include Irmin.Make_ext(P)

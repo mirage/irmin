@@ -50,8 +50,7 @@ module type STORE = sig
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
-  val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
-  val import_force: t -> slice -> unit Lwt.t
+  val import: t -> slice -> unit Lwt.t
 end
 
 module type PRIVATE = sig
@@ -63,7 +62,6 @@ module type PRIVATE = sig
     with type contents = Contents.key * Contents.value
      and type node = Node.key * Node.value
      and type commit = Commit.key * Commit.value
-     and type tag = Tag.key * Tag.value
   module Sync: Ir_sync.S with type head = Commit.key and type tag = Tag.key
 end
 
@@ -504,61 +502,53 @@ module Make_ext (P: PRIVATE) = struct
       | None   -> heads t
     end >>= fun max ->
     P.Slice.create () >>= fun slice ->
-    Tag.iter (tag_t t)
-      (fun k ->
-         Tag.read (tag_t t) k >>= function
-         | None   -> return_unit
-         | Some h ->
-           if List.mem h max then P.Slice.add_tag slice (k, h)
-           else return_unit
-      ) >>= fun () ->
     let max = List.map (fun x -> `Commit x) max in
     let min = List.map (fun x -> `Commit x) min in
     let pred = function
-        | `Commit k ->
-          History.parents (history_t t) k >>= fun parents ->
-          return (List.map (fun x -> `Commit x) parents)
-        | _ -> return_nil in
-      KGraph.closure ?depth ~pred ~min ~max () >>= fun g ->
-      let keys =
-        Ir_misc.list_filter_map
-          (function `Commit c -> Some c | _ -> None)
-          (KGraph.vertex g)
+      | `Commit k ->
+        History.parents (history_t t) k >>= fun parents ->
+        return (List.map (fun x -> `Commit x) parents)
+      | _ -> return_nil in
+    KGraph.closure ?depth ~pred ~min ~max () >>= fun g ->
+    let keys =
+      Ir_misc.list_filter_map
+        (function `Commit c -> Some c | _ -> None)
+        (KGraph.vertex g)
     in
     let root_nodes = ref [] in
+    Lwt_list.iter_p (fun k ->
+        P.Commit.read_exn (commit_t t) k >>= fun c ->
+        let () = match P.Commit.Val.node c with
+          | None   -> ()
+          | Some n -> root_nodes := n :: !root_nodes
+        in
+        P.Slice.add_commit slice (k, c)
+      ) keys
+    >>= fun () ->
+    if not full then
+      return slice
+    else
+      (* XXX: we can compute a [min] if needed *)
+      Graph.closure (graph_t t) ~min:[] ~max:!root_nodes >>= fun nodes ->
+      let module KSet = Ir_misc.Set(P.Contents.Key) in
+      let contents = ref KSet.empty in
       Lwt_list.iter_p (fun k ->
-          P.Commit.read_exn (commit_t t) k >>= fun c ->
-          let () = match P.Commit.Val.node c with
-            | None   -> ()
-            | Some n -> root_nodes := n :: !root_nodes
-          in
-          P.Slice.add_commit slice (k, c)
-        ) keys
-      >>= fun () ->
-      if not full then
-        return slice
-      else
-        (* XXX: we can compute a [min] if needed *)
-        Graph.closure (graph_t t) ~min:[] ~max:!root_nodes >>= fun nodes ->
-        let module KSet = Ir_misc.Set(P.Contents.Key) in
-        let contents = ref KSet.empty in
-        Lwt_list.iter_p (fun k ->
-            P.Node.read (node_t t) k >>= function
-            | None   -> return_unit
-            | Some v ->
-              P.Node.Val.iter_contents v (fun _ k ->
-                  contents := KSet.add k !contents;
-                );
-              P.Slice.add_node slice (k, v)
-          ) nodes >>= fun () ->
-        Lwt_list.iter_p (fun k ->
-            P.Contents.read (contents_t t) k >>= function
-            | None   -> return_unit
-            | Some v -> P.Slice.add_contents slice (k, v)
-          ) (KSet.to_list !contents) >>= fun () ->
-        return slice
+          P.Node.read (node_t t) k >>= function
+          | None   -> return_unit
+          | Some v ->
+            P.Node.Val.iter_contents v (fun _ k ->
+                contents := KSet.add k !contents;
+              );
+            P.Slice.add_node slice (k, v)
+        ) nodes >>= fun () ->
+      Lwt_list.iter_p (fun k ->
+          P.Contents.read (contents_t t) k >>= function
+          | None   -> return_unit
+          | Some v -> P.Slice.add_contents slice (k, v)
+        ) (KSet.to_list !contents) >>= fun () ->
+      return slice
 
-  let import_force t s =
+  let import t s =
     let aux (type k) (type v)
         name
         (type s)
@@ -586,17 +576,6 @@ module Make_ext (P: PRIVATE) = struct
     aux "Commit"
       (module P.Commit) (module P.Commit.Key)
       (P.Slice.iter_commits s) commit_t
-
-  let import t s =
-    let duplicated_tags = ref [] in
-    P.Slice.iter_tags s (fun tag ->
-        duplicated_tags := tag :: !duplicated_tags;
-        return_unit
-      ) >>= fun () ->
-    import_force t s >>= fun () ->
-    match !duplicated_tags with
-    | [] -> return `Ok
-    | l  -> return (`Duplicated_tags (List.map fst l))
 
 end
 
@@ -640,7 +619,7 @@ struct
       module Val = H
       include RW (Key)(Val)
     end
-    module Slice = Ir_slice.Make(Contents)(Node)(Commit)(Tag)
+    module Slice = Ir_slice.Make(Contents)(Node)(Commit)
     module Sync = Ir_sync.None(H)(T)
   end
   include Make_ext(X)

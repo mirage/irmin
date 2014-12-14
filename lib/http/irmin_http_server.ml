@@ -373,23 +373,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     end in
     (module M: Tc.S0 with type t = M.t)
 
-  let ok_or_duplicated_tags =
-    let module M = struct
-      type t = [ `Ok | `Duplicated_tags of S.tag list ]
-      let to_json = function
-        | `Ok -> `A []
-        | `Duplicated_tags ts -> `A (List.map S.Tag.to_json ts)
-      let to_sexp _ = failwith "TODO"
-      let compare = Pervasives.compare
-      let equal = (=)
-      let hash = Hashtbl.hash
-      let of_json _ = failwith "TODO"
-      let write _ = failwith "TODO"
-      let read _ = failwith "TODO"
-      let size_of _ = failwith "TODO"
-    end in
-    (module M: Tc.S0 with type t = M.t)
-
   let key: S.key Tc.t = (module S.Key)
   let head: S.head Tc.t = (module S.Head)
 
@@ -472,8 +455,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p0bf "clone-force"      s_clone_force t tag' Tc.unit;
       mk1p0bf "merge"            s_merge t tag' (merge head);
       mk0p1bf "export"           s_export t export slice;
-      mk0p1bf "import"           S.import t slice (ok_or_duplicated_tags);
-      mk0p1bf "import-force"     S.import_force t slice Tc.unit;
+      mk0p1bf "import"           S.import t slice Tc.unit;
 
       (* extra *)
       mk0p0bh "graph" s_graph t;

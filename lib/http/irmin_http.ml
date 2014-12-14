@@ -223,7 +223,7 @@ struct
       module Val = H
       include RW(struct let suffix = Some "tag" end)(Key)(Val)
     end
-    module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)(Tag)
+    module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = Irmin.Private.Sync.None(H)(T)
   end
 
@@ -523,12 +523,7 @@ struct
   module I = Tc.List(T)
 
   let import t slice =
-    post (uri t) ["import"] (Slice.to_json slice) (module I) >>= function
-    | [] -> return `Ok
-    | l  -> return (`Duplicated_tags l)
-
-  let import_force t slice =
-    post (uri t) ["import-force"] (Slice.to_json slice) Tc.unit
+    post (uri t) ["import"] (Slice.to_json slice) Tc.unit
 
   let remove_rec t dir =
     get (uri t) ["remove-rec"; P.to_hum dir] (module H) >>= fun h ->

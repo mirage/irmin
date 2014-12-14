@@ -75,13 +75,7 @@ module Make (S: Ir_s.STORE) = struct
             (Tc.write_cstruct (module SP.Commit.Val) v) in
         RP.Slice.add_commit r_slice (k, v)
       ) >>= fun () ->
-    SP.Slice.iter_tags s_slice (fun (k, v) ->
-        let v = RP.Commit.Key.of_raw (SP.Commit.Key.to_raw v) in
-        let k = Tc.read_cstruct (module RP.Tag.Key)
-            (Tc.write_cstruct (module SP.Tag.Key) k) in
-        RP.Slice.add_tag r_slice (k, v)
-      ) >>= fun () ->
-    R.import_force r r_slice
+    R.import r r_slice
 
   let fetch t ?depth remote =
     match remote with

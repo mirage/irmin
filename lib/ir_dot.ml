@@ -144,7 +144,9 @@ module Make (S: Ir_s.STORE) = struct
           add_edge (`Commit k) [`Style `Dashed] (`Node node);
           return_unit
       ) >>= fun () ->
-    Slice.iter_tags slice (fun (r,k) ->
+    let tag_t = S.Private.tag_t t in
+    Tag.iter tag_t (fun r ->
+        Tag.read_exn tag_t r >>= fun k ->
         add_vertex (`Tag r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
         add_edge (`Tag r) [`Style `Bold] (`Commit k);
         return_unit

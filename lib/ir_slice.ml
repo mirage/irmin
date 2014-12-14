@@ -23,56 +23,47 @@ module type S = sig
   type contents
   type node
   type commit
-  type tag
   val create: unit -> t Lwt.t
   val add_contents: t -> contents -> unit Lwt.t
   val add_node: t -> node -> unit Lwt.t
   val add_commit: t -> commit -> unit Lwt.t
-  val add_tag: t -> tag -> unit Lwt.t
   val iter_contents: t -> (contents -> unit Lwt.t) -> unit Lwt.t
   val iter_nodes: t -> (node -> unit Lwt.t) -> unit Lwt.t
   val iter_commits: t -> (commit -> unit Lwt.t) -> unit Lwt.t
-  val iter_tags: t -> (tag -> unit Lwt.t) -> unit Lwt.t
 end
 
 module Make
     (Contents: Ir_contents.STORE)
     (Node: Ir_node.STORE)
-    (Commit: Ir_commit.STORE)
-    (Tag: Ir_tag.STORE) =
+    (Commit: Ir_commit.STORE) =
 struct
 
   type contents = Contents.key * Contents.value
   type node = Node.key * Node.value
   type commit = Commit.key * Commit.value
-  type tag = Tag.key * Tag.value
 
   type t = {
     mutable contents: (Contents.key * Contents.value) list;
     mutable nodes   : (Node.key * Node.value) list;
     mutable commits : (Commit.key * Commit.value) list;
-    mutable tags    : (Tag.key * Tag.value) list;
   }
 
   let create () =
-    return { contents = []; nodes = []; commits = []; tags = [] }
+    return { contents = []; nodes = []; commits = [] }
 
   let add_contents t c = t.contents <- c :: t.contents; return_unit
   let add_node t n = t.nodes <- n :: t.nodes; return_unit
   let add_commit t c = t.commits <- c :: t.commits; return_unit
-  let add_tag t k = t.tags <- k :: t.tags; return_unit
 
   let iter_contents t f = Lwt_list.iter_p f t.contents
   let iter_nodes t f = Lwt_list.iter_p f t.nodes
   let iter_commits t f = Lwt_list.iter_p f t.commits
-  let iter_tags t f = Lwt_list.iter_p f t.tags
 
   module M (K: Tc.S0)(V: Tc.S0) = Tc.List( Tc.Pair(K)(V) )
   module Ct = M(Contents.Key)(Contents.Val)
   module No = M(Node.Key)(Node.Val)
   module Cm = M(Commit.Key)(Commit.Val)
-  module Ta = M(Tag.Key)(Tag.Val)
-  module T = Tc.Pair( Tc.Pair(Ct)(No) )( Tc.Pair(Cm)(Ta) )
+  module T = Tc.Triple (Ct)(No)(Cm)
 
   let to_sexp t =
     let open Sexplib.Type in
@@ -80,7 +71,6 @@ struct
       List [ Atom "contents"; Ct.to_sexp t.contents ];
       List [ Atom "nodes"   ; No.to_sexp t.nodes ];
       List [ Atom "commmits"; Cm.to_sexp t.commits ];
-      List [ Atom "tags"    ; Ta.to_sexp t.tags ];
     ]
 
   let to_json t =
@@ -88,19 +78,17 @@ struct
       ("contents", Ct.to_json t.contents);
       ("nodes"   , No.to_json t.nodes);
       ("commits" , Cm.to_json t.commits);
-      ("tags"    , Ta.to_json t.tags);
     ]
 
   let of_json j =
     let contents = Ezjsonm.find j ["contents"] |> Ct.of_json in
     let nodes = Ezjsonm.find j ["nodes"] |> No.of_json in
     let commits = Ezjsonm.find j ["commits"] |> Cm.of_json in
-    let tags = Ezjsonm.find j ["tags"] |> Ta.of_json in
-    { contents; nodes; commits; tags }
+    { contents; nodes; commits }
 
-  let explode t = (t.contents, t.nodes), (t.commits, t.tags)
-  let implode ((contents, nodes), (commits, tags)) =
-    { contents; nodes; commits; tags }
+  let explode t = (t.contents, t.nodes, t.commits)
+  let implode (contents, nodes, commits) =
+    { contents; nodes; commits }
 
   let compare x y = T.compare (explode x) (explode y)
   let equal x y = T.equal (explode x) (explode y)

@@ -45,8 +45,7 @@ module type STORE = sig
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
-  val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
-  val import_force: t -> slice -> unit Lwt.t
+  val import: t -> slice -> unit Lwt.t
 end
 
 module type MAKER =
@@ -68,7 +67,6 @@ module type PRIVATE = sig
     with type contents = Contents.key * Contents.value
      and type node = Node.key * Node.value
      and type commit = Commit.key * Commit.value
-     and type tag = Tag.key * Tag.value
   module Sync: Ir_sync.S with type head = Commit.key and type tag = Tag.key
 end
 

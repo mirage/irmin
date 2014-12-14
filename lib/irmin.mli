@@ -493,12 +493,9 @@ module type BC = sig
       commits, nodes and contents, is exported, otherwise it is the
       commit history graph only. *)
 
-  val import: t -> slice -> [`Ok | `Duplicated_tags of tag list] Lwt.t
-  (** Import a store slide. Do not modify existing tags. FIXME: do not modify tags at all. *)
-
-  val import_force: t -> slice -> unit Lwt.t
-  (** Same as [import] but delete and update the tags they already
-      exist in the store. *)
+  val import: t -> slice -> unit Lwt.t
+  (** [import t s] imports the contents of the slice [s] in [t]. Do
+      not modify tags. *)
 
 end
 
@@ -1243,9 +1240,6 @@ module Private: sig
       type commit
       (** The type for exported commits. *)
 
-      type tag
-      (** The type for exported tags. *)
-
       val create: unit -> t Lwt.t
       (** Create a new emtpy slice. *)
 
@@ -1258,9 +1252,6 @@ module Private: sig
       val add_commit: t -> commit -> unit Lwt.t
       (** FIXME *)
 
-      val add_tag: t -> tag -> unit Lwt.t
-      (** FIXME *)
-
       val iter_contents: t -> (contents -> unit Lwt.t) -> unit Lwt.t
       (** FIXME The slice contents. *)
 
@@ -1270,18 +1261,13 @@ module Private: sig
       val iter_commits: t -> (commit -> unit Lwt.t) -> unit Lwt.t
       (** FIXME The slice commits. *)
 
-      val iter_tags: t -> (tag -> unit Lwt.t) -> unit Lwt.t
-      (** FIXME The slice tags. *)
-
     end
 
     (** Build simple slices. *)
-    module Make
-        (C: Contents.STORE) (N: Node.STORE) (H: Commit.STORE) (T: Tag.STORE):
+    module Make (C: Contents.STORE) (N: Node.STORE) (H: Commit.STORE):
       S with type contents = C.key * C.value
          and type node = N.key * N.value
          and type commit = H.key * H.value
-         and type tag = T.key * T.value
 
   end
 
@@ -1344,7 +1330,6 @@ module Private: sig
       with type contents = Contents.key * Contents.value
        and type node = Node.key * Node.value
        and type commit = Commit.key * Commit.value
-       and type tag = Tag.key * Tag.value
 
     module Sync: Sync.S with type head = Commit.key and type tag = Tag.key
 
