@@ -4,3 +4,4 @@ script: bash -ex .travis-opam.sh
 env:
   - OCAML_VERSION=4.01
   - OCAML_VERSION=latest
+  - DEPOPTS="git cohttp"
