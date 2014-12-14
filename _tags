@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: c642dec768d05237467aab55920f8133)
+# DO NOT EDIT (digest: b220d653bc221ab45b0db3599a4f912e)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -20,6 +20,7 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_dolog
 <lib/*.ml{,i,y}>: pkg_ezjsonm
+<lib/*.ml{,i,y}>: pkg_hex
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mstruct
 <lib/*.ml{,i,y}>: pkg_nocrypto
@@ -34,6 +35,7 @@ true: annot, bin_annot
 <lib/mem/*.ml{,i,y}>: pkg_cstruct
 <lib/mem/*.ml{,i,y}>: pkg_dolog
 <lib/mem/*.ml{,i,y}>: pkg_ezjsonm
+<lib/mem/*.ml{,i,y}>: pkg_hex
 <lib/mem/*.ml{,i,y}>: pkg_lwt
 <lib/mem/*.ml{,i,y}>: pkg_mstruct
 <lib/mem/*.ml{,i,y}>: pkg_nocrypto
@@ -50,6 +52,7 @@ true: annot, bin_annot
 <lib/git/*.ml{,i,y}>: pkg_dolog
 <lib/git/*.ml{,i,y}>: pkg_ezjsonm
 <lib/git/*.ml{,i,y}>: pkg_git
+<lib/git/*.ml{,i,y}>: pkg_hex
 <lib/git/*.ml{,i,y}>: pkg_lwt
 <lib/git/*.ml{,i,y}>: pkg_mstruct
 <lib/git/*.ml{,i,y}>: pkg_nocrypto
@@ -65,6 +68,7 @@ true: annot, bin_annot
 <lib/fs/*.ml{,i,y}>: pkg_cstruct
 <lib/fs/*.ml{,i,y}>: pkg_dolog
 <lib/fs/*.ml{,i,y}>: pkg_ezjsonm
+<lib/fs/*.ml{,i,y}>: pkg_hex
 <lib/fs/*.ml{,i,y}>: pkg_lwt
 <lib/fs/*.ml{,i,y}>: pkg_mstruct
 <lib/fs/*.ml{,i,y}>: pkg_nocrypto
@@ -82,6 +86,7 @@ true: annot, bin_annot
 <lib/http/*.ml{,i,y}>: pkg_dolog
 <lib/http/*.ml{,i,y}>: pkg_ezjsonm
 <lib/http/*.ml{,i,y}>: pkg_ezjsonm.lwt
+<lib/http/*.ml{,i,y}>: pkg_hex
 <lib/http/*.ml{,i,y}>: pkg_lwt
 <lib/http/*.ml{,i,y}>: pkg_mstruct
 <lib/http/*.ml{,i,y}>: pkg_nocrypto
@@ -105,6 +110,7 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <lib/unix/*.ml{,i,y}>: pkg_git
 <lib/unix/*.ml{,i,y}>: pkg_git.unix
+<lib/unix/*.ml{,i,y}>: pkg_hex
 <lib/unix/*.ml{,i,y}>: pkg_lwt
 <lib/unix/*.ml{,i,y}>: pkg_mstruct
 <lib/unix/*.ml{,i,y}>: pkg_nocrypto
@@ -132,6 +138,7 @@ true: annot, bin_annot
 <bin/main.{native,byte}>: pkg_ezjsonm.lwt
 <bin/main.{native,byte}>: pkg_git
 <bin/main.{native,byte}>: pkg_git.unix
+<bin/main.{native,byte}>: pkg_hex
 <bin/main.{native,byte}>: pkg_lwt
 <bin/main.{native,byte}>: pkg_mstruct
 <bin/main.{native,byte}>: pkg_nocrypto
@@ -159,6 +166,7 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <bin/*.ml{,i,y}>: pkg_git
 <bin/*.ml{,i,y}>: pkg_git.unix
+<bin/*.ml{,i,y}>: pkg_hex
 <bin/*.ml{,i,y}>: pkg_lwt
 <bin/*.ml{,i,y}>: pkg_mstruct
 <bin/*.ml{,i,y}>: pkg_nocrypto
@@ -187,6 +195,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_ezjsonm.lwt
 <lib_test/test.{native,byte}>: pkg_git
 <lib_test/test.{native,byte}>: pkg_git.unix
+<lib_test/test.{native,byte}>: pkg_hex
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_mstruct
 <lib_test/test.{native,byte}>: pkg_nocrypto
@@ -214,6 +223,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <lib_test/*.ml{,i,y}>: pkg_git
 <lib_test/*.ml{,i,y}>: pkg_git.unix
+<lib_test/*.ml{,i,y}>: pkg_hex
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_mstruct
 <lib_test/*.ml{,i,y}>: pkg_nocrypto
@@ -241,6 +251,7 @@ true: annot, bin_annot
 <examples/git_store.{native,byte}>: pkg_ezjsonm.lwt
 <examples/git_store.{native,byte}>: pkg_git
 <examples/git_store.{native,byte}>: pkg_git.unix
+<examples/git_store.{native,byte}>: pkg_hex
 <examples/git_store.{native,byte}>: pkg_lwt
 <examples/git_store.{native,byte}>: pkg_mstruct
 <examples/git_store.{native,byte}>: pkg_nocrypto
@@ -268,6 +279,7 @@ true: annot, bin_annot
 <examples/custom_merge.{native,byte}>: pkg_ezjsonm.lwt
 <examples/custom_merge.{native,byte}>: pkg_git
 <examples/custom_merge.{native,byte}>: pkg_git.unix
+<examples/custom_merge.{native,byte}>: pkg_hex
 <examples/custom_merge.{native,byte}>: pkg_lwt
 <examples/custom_merge.{native,byte}>: pkg_mstruct
 <examples/custom_merge.{native,byte}>: pkg_nocrypto
@@ -295,6 +307,7 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: pkg_ezjsonm.lwt
 <examples/views.{native,byte}>: pkg_git
 <examples/views.{native,byte}>: pkg_git.unix
+<examples/views.{native,byte}>: pkg_hex
 <examples/views.{native,byte}>: pkg_lwt
 <examples/views.{native,byte}>: pkg_mstruct
 <examples/views.{native,byte}>: pkg_nocrypto
@@ -322,6 +335,7 @@ true: annot, bin_annot
 <examples/contacts.{native,byte}>: pkg_ezjsonm.lwt
 <examples/contacts.{native,byte}>: pkg_git
 <examples/contacts.{native,byte}>: pkg_git.unix
+<examples/contacts.{native,byte}>: pkg_hex
 <examples/contacts.{native,byte}>: pkg_lwt
 <examples/contacts.{native,byte}>: pkg_mstruct
 <examples/contacts.{native,byte}>: pkg_nocrypto
@@ -349,6 +363,7 @@ true: annot, bin_annot
 <examples/intrusion.{native,byte}>: pkg_ezjsonm.lwt
 <examples/intrusion.{native,byte}>: pkg_git
 <examples/intrusion.{native,byte}>: pkg_git.unix
+<examples/intrusion.{native,byte}>: pkg_hex
 <examples/intrusion.{native,byte}>: pkg_lwt
 <examples/intrusion.{native,byte}>: pkg_mstruct
 <examples/intrusion.{native,byte}>: pkg_nocrypto
@@ -376,6 +391,7 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: pkg_ezjsonm.lwt
 <examples/process.{native,byte}>: pkg_git
 <examples/process.{native,byte}>: pkg_git.unix
+<examples/process.{native,byte}>: pkg_hex
 <examples/process.{native,byte}>: pkg_lwt
 <examples/process.{native,byte}>: pkg_mstruct
 <examples/process.{native,byte}>: pkg_nocrypto
@@ -402,6 +418,7 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <examples/*.ml{,i,y}>: pkg_git
 <examples/*.ml{,i,y}>: pkg_git.unix
+<examples/*.ml{,i,y}>: pkg_hex
 <examples/*.ml{,i,y}>: pkg_lwt
 <examples/*.ml{,i,y}>: pkg_mstruct
 <examples/*.ml{,i,y}>: pkg_nocrypto
