@@ -164,6 +164,5 @@ module Make
      end) =
 struct
   include S
-  let merge t =
-    Ir_merge.biject' (module Val) (module Key) Val.merge (add t) (read_exn t)
+  let merge t = Ir_merge.biject' (module Key) Val.merge (read_exn t) (add t)
 end

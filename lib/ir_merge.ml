@@ -228,6 +228,23 @@ let alist
       | C msg -> conflict "%s" msg
       | e     -> fail e)
 
+module MSet (M: Map.S) = struct
+
+  let merge ~old m1 m2 =
+    let get k m = try M.find k m with Not_found -> 0 in
+    let set k v m = match v with
+      | 0 -> M.remove k m
+      | _ -> M.add k v m
+    in
+    let add k v m = set k (v + get k m) m in
+    let keys = ref M.empty in
+    M.iter (fun k v -> keys := add k (-v) !keys) old;
+    M.iter (fun k v -> keys := add k v !keys) m1;
+    M.iter (fun k v -> keys := add k v !keys) m2;
+    ok !keys
+
+end
+
 module Map (M: Map.S) (S: Tc.S0 with type t = M.key) = struct
 
   module SM = Ir_misc.Map_ext(M)(S)
@@ -254,55 +271,63 @@ end
 
 let biject
     (type a) (module A: Tc.S0 with type t = a)
-    (type b) (module B: Tc.S0 with type t = b)
-    t a_to_b b_to_a =
-  let default = default (module B) in
-  let merge' ~old b1 b2 =
-    Log.debugf "map %a | %a | %a"
-      force (show (module B) old)
-      force (show (module B) b1)
-      force (show (module B) b2);
+    t a_to_b b_to_a
+  =
+  let default = default (module A) in
+  let merge' ~old a1 a2 =
+    Log.debugf "biject %a | %a | %a"
+      force (show (module A) old)
+      force (show (module A) a1)
+      force (show (module A) a2);
     try
-      let a1  = b_to_a b1 in
-      let a2  = b_to_a b2 in
-      let old = b_to_a old in
-      t ~old a1 a2 >>| fun a3 ->
-      ok (a_to_b a3)
+      let b1  = a_to_b a1 in
+      let b2  = a_to_b a2 in
+      let old = a_to_b old in
+      t ~old b1 b2 >>| fun b3 ->
+      ok (b_to_a b3)
     with Not_found ->
       conflict "biject"
   in
-  fun ~old b1 b2 ->
-    default ~old b1 b2 >>= function
+  fun ~old a1 a2 ->
+    default ~old a1 a2 >>= function
     | `Ok x       -> ok x
-    | `Conflict _ -> merge' ~old b1 b2
+    | `Conflict _ -> merge' ~old a1 a2
 
 let biject'
-  (type a) (module A: Tc.S0 with type t = a)
-  (type b) (module B: Tc.S0 with type t = b)
-  t a_to_b b_to_a =
-  let default = default (module B) in
-  let merge' ~old b1 b2 =
-    Log.debugf "map' %a | %a | %a"
-      force (show (module B) old)
-      force (show (module B) b1)
-      force (show (module B) b2);
+    (type a) (module A: Tc.S0 with type t = a)
+    t a_to_b b_to_a
+  =
+  let default = default (module A) in
+  let merge' ~old a1 a2 =
+    Log.debugf "biject' %a | %a | %a"
+      force (show (module A) old)
+      force (show (module A) a1)
+      force (show (module A) a2);
     try
-      b_to_a b1  >>= fun a1 ->
-      b_to_a b2  >>= fun a2 ->
-      b_to_a old >>= fun old ->
-      t ~old a1 a2 >>| fun a3 ->
-      a_to_b a3 >>=
+      a_to_b a1  >>= fun b1 ->
+      a_to_b a2  >>= fun b2 ->
+      a_to_b old >>= fun old ->
+      t ~old b1 b2 >>| fun b3 ->
+      b_to_a b3 >>=
       ok
     with Not_found ->
       conflict "biject'"
   in
-  fun ~old b1 b2 ->
-    default ~old b1 b2 >>= function
+  fun ~old a1 a2 ->
+    default ~old a1 a2 >>= function
     | `Ok x       -> ok x
-    | `Conflict _ -> merge' ~old b1 b2
+    | `Conflict _ -> merge' ~old a1 a2
 
 let string ~old x y =
   default (module Tc.String) ~old x y
+
+let set (type t) (module S: Set.S with type t = t) ~old x y =
+  let (++) = S.union and (--) = S.diff in
+  let to_add = (x -- old) ++ (y -- old) in
+  let to_del = (old -- x) ++ (old -- y) in
+  ok ((old -- to_del) ++ to_add)
+
+type counter = int
 
 let counter ~old x y =
   ok (x + y - old)

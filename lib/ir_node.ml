@@ -293,14 +293,13 @@ struct
         (Ir_merge.alist (module Step) (module C.Key) (C.merge c))
         (Ir_merge.alist (module Step) (module S.Key) merge_key)
       in
-      Ir_merge.biject (module XP) (module S.Val) merge_pair implode explode
+      Ir_merge.biject (module S.Val) merge_pair explode implode
 
     let merge t ~old x y =
       let rec merge_key () =
         Log.debugf "merge";
         let merge = merge_value t (Ir_merge.apply merge_key ()) in
-        Ir_merge.biject'
-        (module S.Val) (module S.Key) merge (add t) (read_exn t)
+        Ir_merge.biject' (module S.Key) merge (read_exn t) (add t)
       in
       merge_key () ~old x y
 

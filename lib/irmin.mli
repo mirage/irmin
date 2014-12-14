@@ -128,7 +128,7 @@ module Merge: sig
   (** Base functions over results. *)
 
   val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
-  (** Monadic bind over Result. *)
+  (** Monadic bind over results. *)
 
   exception Conflict of string
   (** Exception which might be raised when merging.  *)
@@ -148,6 +148,26 @@ module Merge: sig
       v}
   *)
 
+  val seq: 'a t list -> 'a t
+  (** Call the merge functions in sequence. Stop as soon as one is {e
+      not} returning a conflict. *)
+
+  val apply: ('a -> 'b t) -> 'a -> 'b t
+  (** The [apply] combinator is useful to untie recursive loops when
+      building a complex merge function. *)
+
+  val biject: 'a Tc.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
+  (** Use the merge function defined in another domain. The domain
+      converting functions might be parial: in that case the {e
+      convention} is that they raise [Not_found] on undefined
+      entries. *)
+
+  val biject': 'a Tc.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
+  (** Same as {{!Merge.biject}biject} but with blocking domain
+      converting functions. *)
+
+  (** {1 Basic Merges} *)
+
   val default: 'a Tc.t -> 'a t
   (** Create a default merge function. This is a simple merge
       functions which support changes in one branch at the time:
@@ -164,21 +184,65 @@ module Merge: sig
   (** The default string merge function. Do not anything clever, just
       compare the strings using the [default] merge function. *)
 
-  val counter: int t
-  (** The merge function for mergeable counters. *)
-
-  val seq: 'a t list -> 'a t
-  (** Try the merge functions in sequence until one does not raise a conflict. *)
-
   val some: 'a Tc.t -> 'a t -> 'a option t
   (** Lift a merge function to optional values of the same type. If all
       the provided values are inhabited, then call the provided merge
       function, otherwise use the same behavior as [create]. *)
 
-  val alist: 'a Tc.t -> 'b Tc.t -> 'b t -> ('a * 'b) list t
-  (** List to association lists. *)
+  val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t
+  (** Lift merge functions to pair of elements. *)
 
-  (** Lift to maps. *)
+  val triple: 'a Tc.t -> 'b Tc.t -> 'c Tc.t -> 'a t -> 'b t -> 'c t ->
+    ('a * 'b * 'c) t
+  (** Lift merge functions to triple of elements. *)
+
+  val set: (module Set.S with type t = 'a) -> 'a t
+  (** List merge functions to sets. *)
+
+  (** {1 Counters and Multisets} *)
+
+  type counter = int
+  (** The type for counter values. It is expected that the only valid
+      operations on counters are {e increment} and {e decrement}. The
+      following merge functions ensure that the counter semantics is
+      preserved: ie. it ensures that the number of increments and
+      decrements is preserved. *)
+
+  val counter: int t
+  (** The merge function for mergeable counters. *)
+
+  (** Multi-sets. *)
+  module MSet (M: Map.S): sig
+    val merge: counter M.t t
+  end
+
+  (** {1 Maps and Association Lists} *)
+
+  (** We consider that the only valid operations for maps and
+      association lists are:
+
+      {ul
+      {- Adding a new bindings to the map.}
+      {- Removing a binding from the map.}
+      {- Replacing an existing binding with a different value.}
+      {- {e Trying to add an already existing binding is a no-op}.}
+      }
+
+      We thus assume that no operation on maps is modifying the {e
+      key} names. So the following merge functions ensures that {e
+      (i)} new bindings are preserved {e (ii)} removed bindings stay
+      removed and {e (iii)} modified bindings are merged using the
+      merge function of values.
+
+      {b Note:} We only consider sets of bindings, instead of
+      multisets. Application developper should take care of concurrent
+      adding and removal of similar bindings themselve, by using the
+      appropriate {{!Merge.MSet}multi-sets}. *)
+
+  val alist: 'a Tc.t -> 'b Tc.t -> 'b t -> ('a * 'b) list t
+  (** Lift the merge functions to association lists. *)
+
+  (** Lift the merge functions to maps. *)
   module Map (M: Map.S) (X: Tc.S0 with type t = M.key): sig
 
     (** {1 Merging Maps} *)
@@ -188,27 +252,9 @@ module Merge: sig
 
   end
 
-  val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t
-  (** Lift to pairs. *)
-
-  val biject: 'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
-  (** Use the merge function defined in another domain. If the
-      functions given in argument are partial (i.e. returning
-      [Not_found] on some entries), the exception is caught and
-      [Conflict] is returned instead. *)
-
-  val biject':
-    'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
-  (** Same as [map] but with potentially blocking converting
-      functions. *)
-
-  val apply: ('a -> 'b t) -> 'a -> 'b t
-  (** The [apply] combinator is useful to untie recursive loops. *)
-
   (** Useful merge operators.
 
-      Use [open Irmin.Merge.OP] at the top of your file to use
-      them. *)
+      [open Irmin.Merge.OP] at the top of your file to use them. *)
   module OP: sig
 
     (** {1 Useful operators} *)

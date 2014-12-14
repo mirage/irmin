@@ -38,17 +38,29 @@ end
 
 type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
 
-val default: 'a Tc.t -> 'a t
-val string: string t
-val counter: int t
 val seq: 'a t list -> 'a t
+val apply: ('a -> 'b t) -> 'a -> 'b t
+
+val default: 'a Tc.t -> 'a t
+
+val string: string t
+
+type counter = int
+val counter: counter t
+module MSet (M: Map.S): sig
+  val merge: counter M.t t
+end
+
 val some: 'a Tc.t -> 'a t -> 'a option t
+val set: (module Set.S with type t = 'a) -> 'a t
+
 val alist: 'a Tc.t -> 'b Tc.t -> 'b t -> ('a * 'b) list t
 module Map (M: Map.S) (K: Tc.S0 with type t = M.key): sig
   val merge: 'a Tc.t -> 'a t -> 'a M.t t
 end
+
 val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t
 val triple: 'a Tc.t -> 'b Tc.t -> 'c Tc.t -> 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
-val biject: 'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b) -> ('b -> 'a) -> 'b t
-val biject': 'a Tc.t -> 'b Tc.t -> 'a t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'b t
-val apply: ('a -> 'b t) -> 'a -> 'b t
+
+val biject:  'a Tc.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
+val biject': 'a Tc.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
