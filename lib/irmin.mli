@@ -125,10 +125,10 @@ module Merge: sig
   (** Type for merge results. *)
 
   module Result: Tc.S1 with type 'a t = 'a result
-  (** Base functions over results. *)
+  (** Base functions on results. *)
 
   val bind: 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
-  (** Monadic bind over results. *)
+  (** Monadic bind for results. *)
 
   exception Conflict of string
   (** Exception which might be raised when merging.  *)
@@ -158,7 +158,7 @@ module Merge: sig
 
   val biject: 'a Tc.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
   (** Use the merge function defined in another domain. The domain
-      converting functions might be parial: in that case the {e
+      converting functions might be pariah: in that case the {e
       convention} is that they raise [Not_found] on undefined
       entries. *)
 
@@ -205,7 +205,7 @@ module Merge: sig
   (** The type for counter values. It is expected that the only valid
       operations on counters are {e increment} and {e decrement}. The
       following merge functions ensure that the counter semantics is
-      preserved: ie. it ensures that the number of increments and
+      preserved: {e i.e.} it ensures that the number of increments and
       decrements is preserved. *)
 
   val counter: int t
@@ -235,8 +235,8 @@ module Merge: sig
       merge function of values.
 
       {b Note:} We only consider sets of bindings, instead of
-      multisets. Application developper should take care of concurrent
-      adding and removal of similar bindings themselve, by using the
+      multisets. Application developer should take care of concurrent
+      adding and removal of similar bindings themselves, by using the
       appropriate {{!Merge.MSet}multi-sets}. *)
 
   val alist: 'a Tc.t -> 'b Tc.t -> 'b t -> ('a * 'b) list t
@@ -350,7 +350,7 @@ module type RW = sig
   include RO
 
   val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
-  (** [iter t fn] call the function [fn] over all [t]'s keys. *)
+  (** [iter t fn] call the function [fn] on all [t]'s keys. *)
 
   val update: t -> key -> value -> unit Lwt.t
   (** [update t k v] replaces the contents of [k] by [v] in [t]. If
@@ -374,8 +374,8 @@ module type HRW = sig
   (** {1 Hierarchical read-write stores} *)
 
   (** Hierarchical read-write stores are read-write stores using
-      {{!Path.t}paths} as keys. They are a very simplified abstraction
-      of filesystems. *)
+      {{!Path.S.t}paths} as keys. They are a very simplified
+      abstraction of filesystems. *)
 
   type step
   (** The type for step values. A step is a path component. *)
@@ -410,7 +410,7 @@ module type BC = sig
       {{!BC.of_tag}of_tag} functions. *)
 
   include HRW
-  (** A branch-consistent store is a hierachical read-write store.
+  (** A branch-consistent store is a hierarchical read-write store.
 
       [create config task] is a persistent store handle on the
       [master] branch. This operation is cheap, can be repeated
@@ -489,8 +489,8 @@ module type BC = sig
   (** The list of all the heads of the store. *)
 
   val detach: t -> unit Lwt.t
-  (** Detach the current branch (i.e. it is not associated to a tag
-      anymore). *)
+  (** Detach the current branch, {e i.e.} it is not associated to a
+      tag anymore. *)
 
   val update_head: t -> head -> unit Lwt.t
   (** Set the commit head. *)
@@ -659,7 +659,7 @@ module Contents: sig
     (** {1 Signature for store contents} *)
 
     include Tc.S0
-    (** Base functions over contents. *)
+    (** Base functions on contents. *)
 
     val merge: t Merge.t
     (** Merge function. Evaluates to [`Conflict] if the values cannot be
@@ -688,10 +688,10 @@ module Contents: sig
     include AO
 
     val merge: t -> key Merge.t
-    (** [merge t] lifts the merge functions defined over contents
-        values to contents key. The merge functio will: {e (i)} read
+    (** [merge t] lifts the merge functions defined on contents
+        values to contents key. The merge function will: {e (i)} read
         the values associated with the given keys, {e (ii)} use the
-        merge function defined over values and {e (iii)} write the
+        merge function defined on values and {e (iii)} write the
         resulting values into the store to get the resulting key.
 
         If any of these operation fails, return [`Conflict]. *)
@@ -720,8 +720,8 @@ module Tag: sig
 
   (** {1 Tags} *)
 
-  (** A tag implementations specifies base functions over abstract
-      tags and define a default value for denoting the
+  (** A tag implementations specifies base functions on abstract tags
+      and define a default value for denoting the
       {{!Tag.S.master}master} branch name. *)
   module type S = sig
 
@@ -758,10 +758,10 @@ module Tag: sig
     include RW
 
     module Key: S with type t = key
-    (** Base functions over keys. *)
+    (** Base functions on keys. *)
 
     module Val: Hash.S with type t = value
-    (** Base functions over values. *)
+    (** Base functions on values. *)
 
   end
 
@@ -772,12 +772,12 @@ end
     An Irmin store is a branch-consistent store where keys are lists
     of steps.
 
-    An example is a Git repository where keys are filenames, i.e. list
-    of ['\']-separated strings. More complex examples are structured
-    values, where steps might contains first-class fields accessors
-    and array offsets.
+    An example is a Git repository where keys are filenames, {e i.e.}
+    list of ['\']-separated strings. More complex examples are
+    structured values, where steps might contains first-class fields
+    accessors and array offsets.
 
-    Irmin provides the followgin features:
+    Irmin provides the follow gin features:
 
     {ul
     {- Support for fast {{!BC}clones}, branches and merges, in a
@@ -879,7 +879,7 @@ module Private: sig
     (** [empty] is the empty configuration. *)
 
     val singleton: 'a key -> 'a -> t
-    (** [singletong k v] is the configuration where [k] maps to [v]. *)
+    (** [singleton k v] is the configuration where [k] maps to [v]. *)
 
     val is_empty: t -> bool
     (** [is_empty c] is [true] iff [c] is empty. *)
@@ -910,13 +910,13 @@ module Private: sig
     (** [int] converts values with [int_of_string]. *)
 
     val string: string converter
-    (** [string] converts values with the indentity function. *)
+    (** [string] converts values with the identity function. *)
 
     val uri: Uri.t converter
     (** [uri] converts values with [Uri.of_string]. *)
 
     val some: 'a converter -> 'a option converter
-    (** [string] converts values with the indentity function. *)
+    (** [string] converts values with the identity function. *)
 
   end
 
@@ -1005,16 +1005,16 @@ module Private: sig
       (** The type for steps between nodes. *)
 
       val create: (step * [`Contents of contents | `Node of node]) list -> t
-      (** Create a new node. *)
+      (** [create l] is a new node. *)
 
       val alist: t -> (step * [`Contents of contents | `Node of node]) list
-      (** FIXME *)
+      (** [alist t] is the contents of [t]. *)
 
       val empty: t
       (** The empty node. *)
 
       val is_empty: t -> bool
-      (** Is the node empty. *)
+      (** Is the node empty? *)
 
       val contents: t -> step -> contents option
       (** Get the node contents.
@@ -1024,25 +1024,28 @@ module Private: sig
           that contents is labeled by a {{!Node.S.step}step}. *)
 
       val iter_contents: t -> (step -> contents -> unit) -> unit
-      (** Iter over all the contents. Use {{!Node.S.contents}contents} when
+      (** [iter_contents t f] calls [f] on [t]'s contents. For better
+          performance, use {{!Node.S.contents}contents} instead when
           you know the step in advance. *)
 
       val with_contents: t -> step -> contents option -> t
-      (** Replace the contents. *)
+      (** [with_contents t s c] replaces [t]'s contents for the step
+          [s] by [c]. *)
 
       val succ: t -> step -> node option
-      (** Extract the successors of a node. *)
+      (** [succ t s] is [s]'s successor in [t]. *)
 
       val iter_succ: t -> (step -> node -> unit) -> unit
-      (** Iter over all the successors. FIXME *)
+      (** [iter_succ t f] calls f on [t]'s successors. *)
 
       val with_succ: t -> step -> node option -> t
-      (** Replace the successors. *)
+      (** [replace_succ t s n] replaces [t]'s successor for the step
+          [s] by [n]. *)
 
     end
 
-    (** [Node] provides a simple node implementation, parametrized over
-        contents [C], node [N] and paths [P]. *)
+    (** [Node] provides a simple node implementation, parameterized by
+        the contents [C], node [N] and paths [P]. *)
     module Make (C: Tc.S0) (N: Tc.S0) (P: Path.S):
       S with type contents = C.t
          and type node = N.t
@@ -1054,7 +1057,7 @@ module Private: sig
       include AO
 
       module Path: Path.S
-      (** [Step] provides base functions over node steps. *)
+      (** [Step] provides base functions on node steps. *)
 
       module Key: Hash.S with type t = key
       (** [Key] provides base functions for node keys. *)
@@ -1066,7 +1069,7 @@ module Private: sig
     end
 
     (** [Graph] specifies the signature for node graphs. A node graph
-        is a DAG labelled by steps. *)
+        is a deterministic DAG, labeled by steps. *)
     module type GRAPH = sig
 
       (** {1 Node Graphs} *)
@@ -1087,72 +1090,90 @@ module Private: sig
       val empty: t -> node Lwt.t
       (** The empty node. *)
 
-      val node: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
-      (** [create t xs] creates a new node pointing to the contents and
-          nodes [xs], and using the store handle [t]. *)
+      val create: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
+      (** Create a new node. *)
 
       val contents: t -> node -> step -> contents option Lwt.t
-      (** [contents t n s] is the contents pointed by [s] in the node [n]. *)
+      (** [contents t n s] is [n]'s contents in [t], associated to the step [s]. *)
 
       val succ: t -> node -> step -> node option Lwt.t
-      (** [succ t n s] is the node pointed by [s] in the node [n]. *)
+      (** [succ t n s] is [n]'s successors in [t], associated to the step [s]. *)
 
       val steps: t -> node -> step list Lwt.t
-      (** FIXME *)
+      (** [steps t n] is the list of steps leaving the node [t]. *)
 
       val iter_contents: t -> node -> (step -> contents -> unit) -> unit Lwt.t
-      (** FIXME *)
+      (** [iter_contents f fn] calls [fn] on [t]'s contents. *)
 
       val iter_succ: t -> node -> (step -> node -> unit) -> unit Lwt.t
-      (** FIXME *)
+      (** [iter_succ t fn] calls [fn] on [t]'s successors. *)
 
       (** {1 Contents} *)
 
       val mem_contents: t -> node -> step list -> bool Lwt.t
-      (** FIXME: Is a path valid. *)
+      (** [mem_contents t n path] checks if there is a path labeled by
+          [path] from [n] to a valid contents in [t].  *)
 
       val read_contents: t -> node -> step list -> contents option Lwt.t
-      (** FIXME: Find a value. *)
+      (** [read_contents t n path] is the contents at the end of the
+          path starting from [n] and labeled by [path] in [t]. Return
+          [None] if no such contents exists.*)
 
       val read_contents_exn: t -> node -> step list -> contents Lwt.t
-      (** FIXME: Find a value. Raise [Not_found] is [path] is not defined. *)
+      (** Same as {!read_contents} by raise [Not_found] if there is no
+          valid contents. *)
 
       val add_contents: t -> node -> step list -> contents -> node Lwt.t
-      (** FIXME: Add a value by recusively saving subvalues into the
-          corresponding stores. *)
+      (** [add_contents t n path c] adds the contents [c] as the end of
+          the path starting from [n] and labeled by [path] in [t]. *)
 
       val remove_contents: t -> node -> step list -> node Lwt.t
-      (** FIXME: Remove the contents. *)
+      (** [remove_contents t n path] removes the contents at the end of
+          the path of the path starting from [n] and labeled by [path]
+          in [t]. *)
 
       (** {1 Nodes} *)
 
       val mem_node: t -> node -> step list -> bool Lwt.t
-      (** FIXME: Is a path valid. *)
+      (** [mem_node t n] checks if there is a path labeled by [path]
+          from [n] to a valid node in [t]. *)
 
       val read_node: t -> node -> step list -> node option Lwt.t
-      (** [read_node t n p] is the node reached following the path [p]
-          from the node [n]. If [p] is not a valid path, return
-          [None]. *)
+      (** [read_node t n path] is the node at the end of the path
+          starting from [n] and labeled by [path] in [t]. Return
+          [None] if no such node exists. *)
 
       val read_node_exn: t -> node -> step list -> node Lwt.t
       (** Same as {{!Node.GRAPH.read_node}read_node} but raise
           [Not_found] if the path is invalid. *)
 
       val add_node: t -> node -> step list -> node -> node Lwt.t
-      (** FIXME: Add a value by recusively saving subvalues into the
-          corresponding stores. *)
+      (** [add_node t n path c] adds the node [c] as the end of the
+          path starting from [n] and labeled by [path] in [t]. *)
 
       val remove_node: t -> node -> step list -> node Lwt.t
-      (** FIXME: Remove the contents. *)
+      (** [remove_node t n path] removes the node at the end of the
+          path of the path starting from [n] and labeled by [path] in
+          [t]. *)
 
       val merge: t -> node Merge.t
-      (** FIXME: Merge two nodes together. *)
+      (** [merge t] is the 3-way merge function for nodes. FIXME: give
+          semantics*)
 
       val closure: t -> min:node list -> max:node list -> node list Lwt.t
-      (** FIXME: Recursive list. *)
+      (** [closure t ~min ~max] is the transitive closure [c] of [t]'s nodes such that:
+
+          {ul
+          {- There is a path in [t] from any nodes in [min] to nodes
+          in [c]. If [min] is empty, that condition is always true.}
+          {- There is a path in [t] from any nodes in [c] to nodes in
+          [max]. If [max] is empty, that condition is always false.}
+          }
+
+          {B Note:} Both [min] and [max] are subsets of [c].*)
 
       module Store: Contents.STORE with type t = t and type key = node
-      (** FIXME *)
+      (** Graph nodes forms a {{!Contents.STORE}contents store}. *)
 
     end
 
@@ -1180,7 +1201,7 @@ module Private: sig
       (** {1 Commit values} *)
 
       include Tc.S0
-      (** Base functions over commit values. *)
+      (** Base functions on commit values. *)
 
       type commit
       (** Type for commit keys. *)
@@ -1203,7 +1224,7 @@ module Private: sig
     end
 
     (** [Make] provides a simple implementation of commit values,
-        parametrized over commit [C] and node [N]. *)
+        parameterized by the commit [C] and node [N]. *)
     module Make (C: Tc.S0) (N: Tc.S0):
       S with type commit := C.t and type node = N.t
 
@@ -1241,34 +1262,40 @@ module Private: sig
       type commit
       (** The type for commit values. *)
 
-      val commit: t -> ?node:node -> parents:commit list -> commit Lwt.t
+      val create: t -> ?node:node -> parents:commit list -> commit Lwt.t
       (** Create a new commit. *)
 
       val node: t -> commit -> node option Lwt.t
-      (** Get the commit node. FIXME *)
+      (** Get the commit node.
+
+          A commit might contain a graph
+          {{!Private.Node.GRAPH.node}node}. *)
 
       val parents: t -> commit -> commit list Lwt.t
-      (** Get the node parents. FIXME *)
+      (** Get the commit parents.
+
+          Commits form a append-only, fully functional, partial-order
+          data-structure: every commit carries the list of its
+          immediate predecessors. *)
 
       val merge: t -> commit Merge.t
-      (** Lift [S.merge] to the store keys. *)
+      (** [merge t] is the 3-way merge function for commit.  *)
 
-      val find_common_ancestor: t -> commit -> commit -> commit option Lwt.t
-      (** FIXME Find the common ancestor of two commits. *)
-
-      val find_common_ancestor_exn: t -> commit -> commit -> commit Lwt.t
-      (** Same as [find_common_ancestor] but raises [Not_found] if the two
-          commits share no common ancestor. *)
+      val lca: t -> commit -> commit -> commit list Lwt.t
+      (** Find the least common ancestors
+          {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
+          between two commits. *)
 
       val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
-      (** FIXME Recursive list of keys. *)
+      (** Same as {{!Private.Node.GRAPH.closure}GRAPH.closure} but for
+          the history graph. *)
 
       module Store: Contents.STORE with type t = t and type key = commit
-      (** FIXME *)
+      (** An history forms a {{!Contents.STORE}contents store}. *)
 
     end
 
-    (** [History] builds a commit history. FIXME *)
+    (** Build a commit history. *)
     module History (N: Contents.STORE) (S: STORE with type Val.node = N.key):
       HISTORY with type t = N.t * S.t
                and type node = N.key
@@ -1295,25 +1322,25 @@ module Private: sig
       (** The type for exported commits. *)
 
       val create: unit -> t Lwt.t
-      (** Create a new emtpy slice. *)
+      (** Create a new empty slice. *)
 
       val add_contents: t -> contents -> unit Lwt.t
-      (** FIXME *)
+      (** [add_contents t c] adds the contents [c] to the slice [t]. *)
 
       val add_node: t -> node -> unit Lwt.t
-      (** FIXME *)
+      (** [add_node t n] adds the node [n] to the slice [t]. *)
 
       val add_commit: t -> commit -> unit Lwt.t
-      (** FIXME *)
+      (** [add_commit t c] adds the commit [c] to the slice [t]. *)
 
       val iter_contents: t -> (contents -> unit Lwt.t) -> unit Lwt.t
-      (** FIXME The slice contents. *)
+      (** [iter_contents t f] calls [f] on [t]'s contents. *)
 
       val iter_nodes: t -> (node -> unit Lwt.t) -> unit Lwt.t
-      (** FIXME The slice nodes. *)
+      (** [iter_nodes t f] calls [f] on [t]'s nodes. *)
 
       val iter_commits: t -> (commit -> unit Lwt.t) -> unit Lwt.t
-      (** FIXME The slice commits. *)
+      (** [iter_commits t f] calls [f] on [t]'s commits. *)
 
     end
 
@@ -1399,17 +1426,17 @@ module type S = sig
   include BC
 
   module Key: Path.S with type step = step
-  (** [Key] provides base functions over step lists. *)
+  (** [Key] provides base functions on step lists. *)
 
   module Val: Contents.S with type t = value
-  (** [Val] provides base functions over user-defined, mergeable
+  (** [Val] provides base functions on user-defined, mergeable
       contents. *)
 
   module Tag: Tag.S with type t = tag
-  (** [Tag] provides base functions over user-defined tags. *)
+  (** [Tag] provides base functions on user-defined tags. *)
 
   module Head: Hash.S with type t = head
-  (** [Head] prives base functions over head values. *)
+  (** [Head] provides base functions on head values. *)
 
   (** Private functions, which might be used by the backends. *)
   module Private: sig
@@ -1435,15 +1462,14 @@ end
 
     Views are like staging area in Git: they are temporary
     non-persistent areas (they disappear if the host crash), hold in
-    memory for efficiency, where reads are done lazily and writes
-    are done only when needed on commit: if if you modify a key
-    twice, only the last change will be written to the store when
-    you commit. Views also hold a list of operations, which are
-    checked for conflicts on commits and are used to replay/rebase
-    the view if needed. The most important feature of views is that
-    they keep track of reads: i.e. you can have a conflict if a view
-    reads a key which has been modified concurrently by someone
-    else.  *)
+    memory for efficiency, where reads are done lazily and writes are
+    done only when needed on commit: if if you modify a key twice,
+    only the last change will be written to the store when you
+    commit. Views also hold a list of operations, which are checked
+    for conflicts on commits and are used to replay/rebase the view if
+    needed. The most important feature of views is that they keep
+    track of reads: {e i.e.} you can have a conflict if a view reads a
+    key which has been modified concurrently by someone else.  *)
 module View (S: S): sig
 
   (** {1 Views} *)
@@ -1461,7 +1487,8 @@ module View (S: S): sig
       [Conflict]. Only the [into] view is updated. *)
 
   val merge_exn: t -> into:t -> unit Lwt.t
-  (** FIXME *)
+  (** Same as {!merge} but raise {!Merge.Conflict} in case of
+      conflict. *)
 
   val of_path: db -> key -> t Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,
@@ -1469,22 +1496,41 @@ module View (S: S): sig
       view is used. *)
 
   val update_path: db -> key -> t -> unit Lwt.t
-  (** Commit a view to the store. The view *replaces* the current
-      subtree, so if you want to do a merge, you have to do it
-      manually (by creating a new branch, or rebasing before
-      committing). *)
+  (** [update_path t path v] {e replaces} the sub-tree under [path] in
+      the store [t] by the contents of the view [v]. See {!merge_path}
+      for more details. *)
 
   val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
-  (** Rebase the view to the tip of the store. *)
+  (** [rebase_path t path v] {e rebases} the view [v] on top of the
+      contents of [t]'s sub-tree pointed by the path [path]. Rebasing
+      means re-applying every {{!Action.t}actions} stored in [t],
+      including the {e reads}. Return {!Merge.Conflict} if one of the
+      action cannot apply cleanly. See {!merge_path} for more
+      details.  *)
 
   val rebase_path_exn: db -> key -> t -> unit Lwt.t
-  (** FIXME *)
+  (** Same as {!rebase_path} but raise {!Merge.Conflict} in case of
+      conflict. *)
 
   val merge_path: db -> key -> t -> unit Merge.result Lwt.t
-  (** Same as [update_path] but *merges* with the current subtree. *)
+  (** [merge_path t path v] {e merges} the view [v] with the contents
+      of [t]'s sub-tree pointed by the path [path]. Merging means
+      applying the {{!Merge.Map}merge function for map} between the
+      view's contents and [t]'s sub-tree.
+
+      {ul
+      {- {!update_path} discards any preexisting sub-tree.}
+      {- {!rebase_path} is operation based. It keeps track of read
+      operations which can lead to {{!Merge.Conflict}conflicts}. It
+      replays the full operation history of the view on top of any
+      preexisting sub-tree.}
+      {- {!merge_path} is state based. Is is an efficient 3-way merge operators between
+      prefix trees, based on {!Merge.Map.merge}.}
+      } *)
 
   val merge_path_exn: db -> key -> t -> unit Lwt.t
-  (** FIXME *)
+  (** Same as {!merge_path} but raise {!Merge.Conflict} in case of
+      conflicts. *)
 
   (** [Action] provides information about operations performed on a
       view.
@@ -1546,7 +1592,8 @@ module Snapshot (S: S): sig
       store. *)
 
   val merge_exn: S.t -> t -> unit Lwt.t
-  (** FIXME *)
+  (** Same as {!merge} but raise {!Merge.Conflict} in case of
+      conflict. *)
 
   val watch: S.t -> key -> (key * t) Lwt_stream.t
   (** Subscribe to the stream of modification events attached to a
@@ -1599,33 +1646,40 @@ module Sync (S: S): sig
       synchronization using [uri] remotes. *)
 
   val fetch: S.t -> ?depth:int -> remote -> S.head option Lwt.t
-  (** [create t last] fetch an object in the local store. The local
-      store can then be either [merged], or [updated] to the new
-      contents. The [depth] parameter limits the history
-      depth. Return the new [head] in the local store corresponding
-      to the current branch -- [fetch] does not update the local
-      branches, use {{!Sync.pull}pull} instead. *)
+  (** [fetch t ?depth r] populate the local store [t] with objects for
+      the remote store [r], using [t]'s current branch. The [depth]
+      parameter limits the history depth. Return [None] if either the
+      local or remote store do not have a valid head. *)
 
   val fetch_exn: S.t -> ?depth:int -> remote -> S.head Lwt.t
-  (** FIXME *)
+  (** Same as {!fetch} but raise [Failure] if either the local or
+      remote store do not have a valid head. *)
 
   val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
     unit Merge.result Lwt.t
-  (** Same as {{!Sync.fetch}fetch} but also update the current
-      branch. Either [merge] or force [update] with the fetched
-      head. *)
+  (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
+      also updates [t]'s current branch. [s] is the update strategy:
+
+      {ul
+      {- [`Merge] uses {S.merge_head}. This strategy can return a conflict.}
+      {- [`Update] uses {S.update_head.}}
+      } *)
 
   val pull_exn: S.t -> ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t
-  (** FIXME *)
+  (** Same as {!pull} but raise {!Merge.Conflict} in case of
+      conflict. *)
 
   val push: S.t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
-  (** [push t f] push the contents of the current branch of the
-      store to the remote store -- also update the remote branch
-      with the same name as the local one to points to the new
-      state. *)
+  (** [push t ?depth r] populates the remote store [r] with objects
+      from the current store [t], using [t]'s current branch. If [b]
+      is [t]'s current branch, [push] also updates the head of [b] in
+      [r] to be the same as in [t].
+
+      {b Note:} {e Git} semantics is to update [b] only if the new
+      head if more recent. This is not the case in {e Irmin}. *)
 
   val push_exn: S.t -> ?depth:int -> remote -> unit Lwt.t
-  (** FIXME *)
+  (** Same as {!push} but raise [Failure] if an error happen. *)
 
 end
 
@@ -1671,8 +1725,8 @@ module type RW_MAKER =
     implementations. [S] is the type of steps (a key is list of
     steps), [C] is the implementation of user-defined contents, [T] is
     the implementation of store tags and [H] is the implementation of
-    store heads. It does not use any native synchronisation
-    primitves. *)
+    store heads. It does not use any native synchronization
+    primitives. *)
 module type S_MAKER =
   functor (P: Path.S) ->
   functor (C: Contents.S) ->

@@ -101,12 +101,11 @@ module type HISTORY = sig
   type t
   type node
   type commit
-  val commit: t -> ?node:node -> parents:commit list -> commit Lwt.t
+  val create: t -> ?node:node -> parents:commit list -> commit Lwt.t
   val node: t -> commit -> node option Lwt.t
   val parents: t -> commit -> commit list Lwt.t
   val merge: t -> commit Ir_merge.t
-  val find_common_ancestor: t -> commit -> commit -> commit option Lwt.t
-  val find_common_ancestor_exn: t -> commit -> commit -> commit Lwt.t
+  val lca: t -> commit -> commit -> commit list Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
   module Store: Ir_contents.STORE with type t = t and type key = commit
 end
@@ -163,7 +162,7 @@ struct
     | None   -> return_none
     | Some n -> return (S.Val.node n)
 
-  let commit (_, t) ?node ~parents =
+  let create (_, t) ?node ~parents =
     let commit = S.Val.create ?node ~parents (S.task t) in
     S.add t commit >>= fun key ->
     return key
@@ -200,13 +199,14 @@ struct
 
   module KSet = Ir_misc.Set(S.Key)
 
-  let find_common_ancestor t c1 c2 =
-    Log.debugf "find_common_ancestor %a %a"
+  (* FIXME: should work with multiple lca *)
+  let lca t c1 c2 =
+    Log.debugf "lca %a %a"
       force (show (module S.Key) c1)
       force (show (module S.Key) c2);
     let rec aux (seen1, todo1) (seen2, todo2) =
       if KSet.is_empty todo1 && KSet.is_empty todo2 then
-        return_none
+        return_nil
       else
         let seen1' = KSet.union seen1 todo1 in
         let seen2' = KSet.union seen2 todo2 in
@@ -223,16 +223,11 @@ struct
           parents todo1 >>= fun todo1' ->
           parents todo2 >>= fun todo2' ->
           aux (seen1', todo1') (seen2', todo2')
-        | [r] -> return (Some r)
+        | [r] -> return [r]
         | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
                                   (Tc.shows (module S.Key) rs))) in
     aux
       (KSet.empty, KSet.singleton c1)
       (KSet.empty, KSet.singleton c2)
-
-  let find_common_ancestor_exn t c1 c2 =
-    find_common_ancestor t c1 c2 >>= function
-    | Some r -> return r
-    | None   -> fail Not_found
 
 end

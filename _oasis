@@ -84,7 +84,7 @@ Document irmin
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib/
-  XOCamlbuildLibraries: irmin, irmin.unix
+  XOCamlbuildLibraries: irmin, irmin.mem, irmin.unix
 
 Executable irmin
   Build$:         flag(unix) && flag(http) && flag(git)

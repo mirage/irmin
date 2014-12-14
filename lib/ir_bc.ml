@@ -261,7 +261,7 @@ module Make_ext (P: PRIVATE) = struct
     if P.Node.Key.equal node old_node then return_unit
     else (
       let parents = parents_of_commit commit in
-      History.commit (history_t t) ~node ~parents >>= fun key ->
+      History.create (history_t t) ~node ~parents >>= fun key ->
       (* XXX: the head might have changed since we started the operation *)
       match branch t with
       | `Head _  -> t.branch := `Head key; return_unit
@@ -343,9 +343,11 @@ module Make_ext (P: PRIVATE) = struct
     Log.debugf "3-way merge between %a and %a"
       force (show (module Head) c1)
       force (show (module Head) c2);
-    History.find_common_ancestor (history_t t) c1 c2 >>= function
-    | None     -> conflict "no common ancestor"
-    | Some old -> History.merge (history_t t) ~old c1 c2
+    History.lca (history_t t) c1 c2 >>= function
+    | []    -> conflict "No common ancestor between %s and %s"
+                 (Head.to_hum c1) (Head.to_hum c2)
+    | [old] -> History.merge (history_t t) ~old c1 c2
+    | _     -> assert false (* FIXME *)
 
   let update_head t c =
     match branch t with

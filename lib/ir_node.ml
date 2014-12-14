@@ -215,7 +215,7 @@ module type GRAPH = sig
   type step
 
   val empty: t -> node Lwt.t
-  val node: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
+  val create: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
 
   val contents: t -> node -> step -> contents option Lwt.t
   val succ: t -> node -> step -> node option Lwt.t
@@ -366,7 +366,7 @@ struct
     in
     return keys
 
-  let node t xs =
+  let create t xs =
     Store.add t (S.Val.create xs)
 
   let contents t node step =

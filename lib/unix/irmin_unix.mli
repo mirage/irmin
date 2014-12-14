@@ -14,36 +14,81 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** {1 Unix backends} *)
+(** {1 Unix backends}
+
+    This module provides Irmin backends for Unix applications:
+
+    {ul
+    {- A {{!Irmin_fs}file-system} backend, using
+    {{:https://github.com/janestreet/bin_prot}bin_prot} to serialize
+    internal structures.}
+    {- A fully compatible, bi-directional encoding of Irmin into
+    {{!Irmin_git}Git}. You can view and edit your store using both the
+    library and your usual Git tools. }
+    {- {!Irmin_http} and {!Irmin_http_server} FIXME }
+    {- {!Irmin_mem} FIXME }
+    }
+*)
 
 val task: string -> Irmin.task
 (** [task fmt] creates a fresh task, with the {{!Irmin.Task.date}date}
     set with [Unix.gettimeoday] and a proper
     {{!Irmin.Task.owner}owner}. *)
 
-(** File system backends. *)
+(** File system backends, using
+    {{:https://github.com/janestreet/bin_prot}bin_prot}. *)
 module Irmin_fs: sig
 
-  (** {1 File-system store} *)
+  (** {1 File-system Store} *)
 
   val config: ?root:string -> unit -> Irmin.config
+  (** Create a configuration value. *)
 
   module AO: Irmin.AO_MAKER
+  (** Append-only store maker. *)
+
   module RW: Irmin.RW_MAKER
+  (** Read-write store maker. *)
+
   module Make: Irmin.S_MAKER
+  (** Irmin store maker. *)
 
   (** {1 Extended configuration} *)
 
-  module type Config = Irmin_fs.Config
+  (** [Config] provides function to control the filename shapes. *)
+  module type Config = sig
+
+    (** Same as [Config] but gives more control on the file
+        hierarchy. *)
+
+    val dir: string -> string
+    (** [dir root] is the sub-directory to look for the keys. *)
+
+    val file_of_key: string -> string
+    (** Convert a key to a filename. *)
+
+    val key_of_file: string -> string
+    (** Convert a filename to a key. *)
+
+  end
 
   module AO_ext (C: Config): Irmin.AO_MAKER
+  (** Append-only store maker, with control over the filenames shapes. *)
+
   module RW_ext (C: Config): Irmin.RW_MAKER
+  (** Read-write store maker, with control over the filename shapes. *)
+
   module Make_ext (Obj: Config) (Ref: Config): Irmin.S_MAKER
+  (** Irmin store maker, with control over the filename shapes. *)
 
 end
 
 (** Git backends. *)
 module Irmin_git: sig
+
+  (** {1 Git Store} *)
+
+  (** FIXME *)
 
   val config: ?root:string -> ?branch:string -> ?bare:bool -> unit -> Irmin.config
 
@@ -61,6 +106,8 @@ end
 module Irmin_http: sig
 
   (** {1 HTTP client} *)
+
+  (** FIXME *)
 
   val config: Uri.t -> Irmin.config
   val uri: Uri.t option Irmin.Private.Conf.key
@@ -85,7 +132,18 @@ module Irmin_http_server: sig
 
   (** {1 HTTP server} *)
 
-  module type S = Irmin_http_server.S
+  (** FIXME *)
+
+  module type S = sig
+
+    type t
+    (** Database type. *)
+
+    val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+    (** [start_server t uri] start a server serving the contents of [t]
+        at the address [uri]. *)
+
+  end
 
   module Make (S: Irmin.S): S with type t = S.t
 

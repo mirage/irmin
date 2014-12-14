@@ -16,6 +16,8 @@
 
 (** In-memory store *)
 
+(** FIXME *)
+
 val config: unit -> Irmin.config
 
 module AO: Irmin.AO_MAKER

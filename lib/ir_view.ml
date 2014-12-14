@@ -684,7 +684,7 @@ module Make (S: Ir_s.STORE) = struct
       (* Create a commit with the contents of the view *)
       Graph.add_node (graph_t db) head_node path view_node >>= fun new_node ->
       let parents = view.parents in
-      History.commit (history_t db) ~node:new_node ~parents >>= fun k ->
+      History.create (history_t db) ~node:new_node ~parents >>= fun k ->
       (* We want to avoid to create a merge commit when the HEAD has
          not been updated since the view has been created. *)
       S.head db >>= function
