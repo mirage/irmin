@@ -28,10 +28,10 @@ Contents store.<br>
 <pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
 <pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> key <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
-<code class="code">merge t</code> lifts the merge functions defined over contents
-        values to contents key. The merge functio will: <em>(i)</em> read
+<code class="code">merge t</code> lifts the merge functions defined on contents
+        values to contents key. The merge function will: <em>(i)</em> read
         the values associated with the given keys, <em>(ii)</em> use the
-        merge function defined over values and <em>(iii)</em> write the
+        merge function defined on values and <em>(iii)</em> write the
         resulting values into the store to get the resulting key.
 <p>
 

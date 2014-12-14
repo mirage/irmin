@@ -54,20 +54,23 @@
 <pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
 
 <pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">t -> (key -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+<code class="code">iter t fn</code> call the function <code class="code">fn</code> on all <code class="code">t</code>'s keys.<br>
 </div>
 
 <pre><span id="VALupdate"><span class="keyword">val</span> update</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
-Replace the contents of <code class="code">key</code> by <code class="code">value</code> if <code class="code">key</code> is already
-      defined and create it otherwise.<br>
+<code class="code">update t k v</code> replaces the contents of <code class="code">k</code> by <code class="code">v</code> in <code class="code">t</code>. If
+      <code class="code">k</code> is not already defined in <code class="code">t</code>, create a fresh binding.<br>
 </div>
 
 <pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">t -> key -> unit Lwt.t</code></pre><div class="info ">
-Remove the given key.<br>
+<code class="code">remove t k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.<br>
 </div>
 
 <pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -> key -> value option Lwt_stream.t</code></pre><div class="info ">
-Watch the stream of values associated to a given key. Return
-      <code class="code">None</code> if the value is removed.<br>
+<code class="code">watch t k</code> is the stream values associated to the key <code class="code">k</code>. The
+      stream return a new value every time the bindings is modified in
+      <code class="code">t</code>. It return <code class="code">None</code> if the binding is removed.<br>
 </div>
+<br>
+FIXME: add move<br>
 </body></html>

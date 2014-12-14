@@ -15,7 +15,7 @@
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;node<br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;commit<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;commit&nbsp;:<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.t&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;?node:<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.node&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;parents:<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span><br>
@@ -31,16 +31,11 @@
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;merge&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.t&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;find_common_ancestor&nbsp;:<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;lca&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.t&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;option&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;find_common_ancestor_exn&nbsp;:<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.t&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;list&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;closure&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.t&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;min:<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.commit&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span><br>

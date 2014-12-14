@@ -53,7 +53,7 @@ Branch-consistent stores.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.HRW.html">Irmin.HRW</a></pre>
 <br>
-A branch-consistent store is a hierachical read-write store.
+A branch-consistent store is a hierarchical read-write store.
 <p>
 
       <code class="code">create config task</code> is a persistent store handle on the
@@ -152,8 +152,8 @@ The list of all the heads of the store.<br>
 </div>
 
 <pre><span id="VALdetach"><span class="keyword">val</span> detach</span> : <code class="type">t -> unit Lwt.t</code></pre><div class="info ">
-Detach the current branch (i.e. it is not associated to a tag
-      anymore).<br>
+Detach the current branch, <em>i.e.</em> it is not associated to a
+      tag anymore.<br>
 </div>
 
 <pre><span id="VALupdate_head"><span class="keyword">val</span> update_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
@@ -165,7 +165,8 @@ Merge a commit with the current branch.<br>
 </div>
 
 <pre><span id="VALmerge_head_exn"><span class="keyword">val</span> merge_head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <a href="Irmin.BC.html#VALmerge_head"><code class="code">Irmin.BC.merge_head</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code">Irmin.Merge.Conflict</code></a> in case of a
+      conflict.<br>
 </div>
 
 <pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">t -> key -> (key * <a href="Irmin.BC.html#TYPEhead">head</a>) Lwt_stream.t</code></pre><div class="info ">
@@ -192,7 +193,8 @@ Same as <code class="code">clone</code> but delete and update the existing branc
 </div>
 
 <pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <a href="Irmin.BC.html#VALmerge"><code class="code">Irmin.BC.merge</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code">Irmin.Merge.Conflict</code></a> in case of a
+      conflict.<br>
 </div>
 <br>
 <h2 id="2_Slices">Slices</h2><br>
@@ -223,12 +225,8 @@ Type for store slices.<br>
       commit history graph only.<br>
 </div>
 
-<pre><span id="VALimport"><span class="keyword">val</span> import</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEslice">slice</a> -> [ `Duplicated_tags of <a href="Irmin.BC.html#TYPEtag">tag</a> list | `Ok ] Lwt.t</code></pre><div class="info ">
-Import a store slide. Do not modify existing tags. FIXME: do not modify tags at all.<br>
-</div>
-
-<pre><span id="VALimport_force"><span class="keyword">val</span> import_force</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEslice">slice</a> -> unit Lwt.t</code></pre><div class="info ">
-Same as <code class="code">import</code> but delete and update the tags they already
-      exist in the store.<br>
+<pre><span id="VALimport"><span class="keyword">val</span> import</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEslice">slice</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">import t s</code> imports the contents of the slice <code class="code">s</code> in <code class="code">t</code>. Do
+      not modify tags.<br>
 </div>
 </body></html>

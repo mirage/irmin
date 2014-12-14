@@ -64,7 +64,8 @@ Merge the given snapshot into the current branch of the
 </div>
 
 <pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">Irmin.S.t -> t -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <code class="code">merge</code> but raise <code class="code">Merge.Conflict</code> in case of
+      conflict.<br>
 </div>
 
 <pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">Irmin.S.t -> key -> (key * t) Lwt_stream.t</code></pre><div class="info ">

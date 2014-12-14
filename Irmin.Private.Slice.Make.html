@@ -19,10 +19,9 @@
 &nbsp;</div>
 <h1>Functor <a href="type_Irmin.Private.Slice.Make.html">Irmin.Private.Slice.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.STORE.html">Irmin.Tag.STORE</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Slice.S.html">S</a></code><code class="type">  with type contents = C.key * C.value
+<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Slice.S.html">S</a></code><code class="type">  with type contents = C.key * C.value
          and type node = N.key * N.value
-         and type commit = H.key * H.value
-         and type tag = T.key * T.value</code></div></div></div></div></pre><div class="info module top">
+         and type commit = H.key * H.value</code></div></div></div></pre><div class="info module top">
 Build simple slices.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
@@ -45,11 +44,6 @@ Build simple slices.<br>
 <code>H</code></td>
 <td align="center" valign="top">:</td>
 <td><code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code>
-<tr>
-<td align="center" valign="top" width="15%">
-<code>T</code></td>
-<td align="center" valign="top">:</td>
-<td><code class="type"><a href="Irmin.Tag.STORE.html">Irmin.Tag.STORE</a></code>
 </table>
 </td>
 </tr>
@@ -80,45 +74,31 @@ The type for exported commits.<br>
 </div>
 
 
-<pre><span id="TYPEtag"><span class="keyword">type</span> <code class="type"></code>tag</span> </pre>
-<div class="info ">
-The type for exported tags.<br>
-</div>
-
-
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> t Lwt.t</code></pre><div class="info ">
-Create a new emtpy slice.<br>
+Create a new empty slice.<br>
 </div>
 
 <pre><span id="VALadd_contents"><span class="keyword">val</span> add_contents</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+<code class="code">add_contents t c</code> adds the contents <code class="code">c</code> to the slice <code class="code">t</code>.<br>
 </div>
 
 <pre><span id="VALadd_node"><span class="keyword">val</span> add_node</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+<code class="code">add_node t n</code> adds the node <code class="code">n</code> to the slice <code class="code">t</code>.<br>
 </div>
 
 <pre><span id="VALadd_commit"><span class="keyword">val</span> add_commit</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
-</div>
-
-<pre><span id="VALadd_tag"><span class="keyword">val</span> add_tag</span> : <code class="type">t -> <a href="Irmin.Private.Slice.S.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+<code class="code">add_commit t c</code> adds the commit <code class="code">c</code> to the slice <code class="code">t</code>.<br>
 </div>
 
 <pre><span id="VALiter_contents"><span class="keyword">val</span> iter_contents</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEcontents">contents</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-FIXME The slice contents.<br>
+<code class="code">iter_contents t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s contents.<br>
 </div>
 
 <pre><span id="VALiter_nodes"><span class="keyword">val</span> iter_nodes</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEnode">node</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-FIXME The slice nodes.<br>
+<code class="code">iter_nodes t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s nodes.<br>
 </div>
 
 <pre><span id="VALiter_commits"><span class="keyword">val</span> iter_commits</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-FIXME The slice commits.<br>
-</div>
-
-<pre><span id="VALiter_tags"><span class="keyword">val</span> iter_tags</span> : <code class="type">t -> (<a href="Irmin.Private.Slice.S.html#TYPEtag">tag</a> -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-FIXME The slice tags.<br>
+<code class="code">iter_commits t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s commits.<br>
 </div>
 </body></html>

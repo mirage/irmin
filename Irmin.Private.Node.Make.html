@@ -24,8 +24,8 @@
 <pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">P</code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Node.S.html">S</a></code><code class="type">  with type contents = C.t
          and type node = N.t
          and type step = P.step</code></div></div></div></pre><div class="info module top">
-<code class="code">Node</code> provides a simple node implementation, parametrized over
-        contents <code class="code">C</code>, node <code class="code">N</code> and paths <code class="code">P</code>.<br>
+<code class="code">Node</code> provides a simple node implementation, parameterized by
+        the contents <code class="code">C</code>, node <code class="code">N</code> and paths <code class="code">P</code>.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -76,11 +76,11 @@ The type for steps between nodes.<br>
 
 
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">(<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> *<br>        [ `Contents of <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a><br>        | `Node of <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> ])<br>       list -> t</code></pre><div class="info ">
-Create a new node.<br>
+<code class="code">create l</code> is a new node.<br>
 </div>
 
 <pre><span id="VALalist"><span class="keyword">val</span> alist</span> : <code class="type">t -><br>       (<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> *<br>        [ `Contents of <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a><br>        | `Node of <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> ])<br>       list</code></pre><div class="info ">
-FIXME<br>
+<code class="code">alist t</code> is the contents of <code class="code">t</code>.<br>
 </div>
 
 <pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type">t</code></pre><div class="info ">
@@ -88,7 +88,7 @@ The empty node.<br>
 </div>
 
 <pre><span id="VALis_empty"><span class="keyword">val</span> is_empty</span> : <code class="type">t -> bool</code></pre><div class="info ">
-Is the node empty.<br>
+Is the node empty?<br>
 </div>
 
 <pre><span id="VALcontents"><span class="keyword">val</span> contents</span> : <code class="type">t -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> option</code></pre><div class="info ">
@@ -101,23 +101,26 @@ Get the node contents.
 </div>
 
 <pre><span id="VALiter_contents"><span class="keyword">val</span> iter_contents</span> : <code class="type">t -><br>       (<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> -> unit) -> unit</code></pre><div class="info ">
-Iter over all the contents. Use <a href="Irmin.Private.Node.S.html#VALcontents">contents</a> when
+<code class="code">iter_contents t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s contents. For better
+          performance, use <a href="Irmin.Private.Node.S.html#VALcontents">contents</a> instead when
           you know the step in advance.<br>
 </div>
 
 <pre><span id="VALwith_contents"><span class="keyword">val</span> with_contents</span> : <code class="type">t -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEcontents">contents</a> option -> t</code></pre><div class="info ">
-Replace the contents.<br>
+<code class="code">with_contents t s c</code> replaces <code class="code">t</code>'s contents for the step
+          <code class="code">s</code> by <code class="code">c</code>.<br>
 </div>
 
 <pre><span id="VALsucc"><span class="keyword">val</span> succ</span> : <code class="type">t -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> option</code></pre><div class="info ">
-Extract the successors of a node.<br>
+<code class="code">succ t s</code> is <code class="code">s</code>'s successor in <code class="code">t</code>.<br>
 </div>
 
 <pre><span id="VALiter_succ"><span class="keyword">val</span> iter_succ</span> : <code class="type">t -> (<a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> -> unit) -> unit</code></pre><div class="info ">
-Iter over all the successors. FIXME<br>
+<code class="code">iter_succ t f</code> calls f on <code class="code">t</code>'s successors.<br>
 </div>
 
 <pre><span id="VALwith_succ"><span class="keyword">val</span> with_succ</span> : <code class="type">t -> <a href="Irmin.Private.Node.S.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.S.html#TYPEnode">node</a> option -> t</code></pre><div class="info ">
-Replace the successors.<br>
+<code class="code">replace_succ t s n</code> replaces <code class="code">t</code>'s successor for the step
+          <code class="code">s</code> by <code class="code">n</code>.<br>
 </div>
 </body></html>

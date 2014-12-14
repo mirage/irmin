@@ -21,7 +21,23 @@
 <h1>Module <a href="type_Irmin_unix.html">Irmin_unix</a></h1>
 
 <pre><span class="keyword">module</span> Irmin_unix: <code class="code">sig</code> <a href="Irmin_unix.html">..</a> <code class="code">end</code></pre><div class="info module top">
-<h1 id="1_Unixbackends">Unix backends</h1><br>
+<h1 id="1_Unixbackends">Unix backends</h1>
+<p>
+
+    This module provides Irmin backends for Unix applications:
+<p>
+
+    <ul>
+<li>A <a href="Irmin_unix.Irmin_fs.html">file-system</a> backend, using
+    <a href="https://github.com/janestreet/bin_prot">bin_prot</a> to serialize
+    internal structures.</li>
+<li>A fully compatible, bi-directional encoding of Irmin into
+    <a href="Irmin_unix.Irmin_git.html">Git</a>. You can view and edit your store using both the
+    library and your usual Git tools. </li>
+<li><a href="Irmin_unix.Irmin_http.html"><code class="code">Irmin_unix.Irmin_http</code></a> and <a href="Irmin_unix.Irmin_http_server.html"><code class="code">Irmin_unix.Irmin_http_server</code></a> FIXME </li>
+<li><code class="code">Irmin_mem</code> FIXME </li>
+</ul>
+<br>
 </div>
 <hr width="100%">
 
@@ -32,7 +48,8 @@
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.html">Irmin_fs</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_fs.html">..</a> <code class="code">end</code></pre><div class="info">
-File system backends.
+File system backends, using
+    <a href="https://github.com/janestreet/bin_prot">bin_prot</a>.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.html">Irmin_git</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_git.html">..</a> <code class="code">end</code></pre><div class="info">

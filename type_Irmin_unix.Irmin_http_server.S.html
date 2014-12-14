@@ -11,4 +11,8 @@
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_unix.Irmin_http_server.S</title>
 </head>
 <body>
-<code class="code"><span class="constructor">Irmin_http_server</span>.<span class="constructor">S</span></code></body></html>
+<code class="code"><span class="keyword">sig</span><br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;listen&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin_unix</span>.<span class="constructor">Irmin_http_server</span>.<span class="constructor">S</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?timeout:int&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Uri</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
+<span class="keyword">end</span></code></body></html>

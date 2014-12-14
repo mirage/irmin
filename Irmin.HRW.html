@@ -29,21 +29,25 @@ Hierarchical read-write stores.<br>
 <hr width="100%">
 <br>
 <h1 id="1_Hierarchicalreadwritestores">Hierarchical read-write stores</h1><br>
+<br>
+Hierarchical read-write stores are read-write stores using
+      <a href="Irmin.Path.S.html#TYPEt">paths</a> as keys. They are a very simplified
+      abstraction of filesystems.<br>
 
 <pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
 <div class="info ">
-The type for step values.<br>
+The type for step values. A step is a path component.<br>
 </div>
 
 
 <pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
 
 <pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type">t -> key -> key list Lwt.t</code></pre><div class="info ">
-<code class="code">list t k</code> list the sub-keys of the path <code class="code">k</code>.<br>
+<code class="code">list t k</code> list the sub-paths of the path <code class="code">k</code> in <code class="code">t</code>.<br>
 </div>
 
 <pre><span id="VALremove_rec"><span class="keyword">val</span> remove_rec</span> : <code class="type">t -> key -> unit Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.RW.html#VALremove">RW.remove</a> but recursively removes all the
-      sub-paths.<br>
+Same as <a href="Irmin.RW.html#VALremove">RW.remove</a> but removes all the sub-paths
+      recursively.<br>
 </div>
 </body></html>

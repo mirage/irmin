@@ -29,8 +29,8 @@
     implementations. <code class="code">S</code> is the type of steps (a key is list of
     steps), <code class="code">C</code> is the implementation of user-defined contents, <code class="code">T</code> is
     the implementation of store tags and <code class="code">H</code> is the implementation of
-    store heads. It does not use any native synchronisation
-    primitves.<br>
+    store heads. It does not use any native synchronization
+    primitives.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -68,20 +68,20 @@
 <pre><span class="keyword">include</span> <a href="Irmin.BC.html">Irmin.BC</a></pre>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type step = step</code></pre><div class="info">
-<code class="code">Key</code> provides base functions over step lists.
+<code class="code">Key</code> provides base functions on step lists.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
-<code class="code">Val</code> provides base functions over user-defined, mergeable
+<code class="code">Val</code> provides base functions on user-defined, mergeable
       contents.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code">Tag</code> provides base functions over user-defined tags.
+<code class="code">Tag</code> provides base functions on user-defined tags.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code">Head</code> prives base functions over head values.
+<code class="code">Head</code> provides base functions on head values.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.S.Private.html">..</a> <code class="code">end</code></pre><div class="info">

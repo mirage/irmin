@@ -23,7 +23,7 @@
 
 <pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Commit.S.html">S</a></code><code class="type">  with type commit := C.t and type node = N.t</code></div></div></pre><div class="info module top">
 <code class="code">Make</code> provides a simple implementation of commit values,
-        parametrized over commit <code class="code">C</code> and node <code class="code">N</code>.<br>
+        parameterized by the commit <code class="code">C</code> and node <code class="code">N</code>.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -50,7 +50,7 @@
 
 <pre><span class="keyword">include</span> Tc.S0</pre>
 <br>
-Base functions over commit values.<br>
+Base functions on commit values.<br>
 
 <pre><span id="TYPEcommit"><span class="keyword">type</span> <code class="type"></code>commit</span> </pre>
 <div class="info ">

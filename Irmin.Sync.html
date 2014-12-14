@@ -65,36 +65,46 @@ The type for remote stores.<br>
 </div>
 
 <pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> Irmin.S.head option Lwt.t</code></pre><div class="info ">
-<code class="code">create t last</code> fetch an object in the local store. The local
-      store can then be either <code class="code">merged</code>, or <code class="code">updated</code> to the new
-      contents. The <code class="code">depth</code> parameter limits the history
-      depth. Return the new <code class="code">head</code> in the local store corresponding
-      to the current branch -- <code class="code">fetch</code> does not update the local
-      branches, use pull instead.<br>
+<code class="code">fetch t ?depth r</code> populate the local store <code class="code">t</code> with objects for
+      the remote store <code class="code">r</code>, using <code class="code">t</code>'s current branch. The <code class="code">depth</code>
+      parameter limits the history depth. Return <code class="code">None</code> if either the
+      local or remote store do not have a valid head.<br>
 </div>
 
 <pre><span id="VALfetch_exn"><span class="keyword">val</span> fetch_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> Irmin.S.head Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <code class="code">fetch</code> but raise <code class="code">Failure</code> if either the local or
+      remote store do not have a valid head.<br>
 </div>
 
 <pre><span id="VALpull"><span class="keyword">val</span> pull</span> : <code class="type">Irmin.S.t -><br>       ?depth:int -><br>       <a href="Irmin.Sync.html#TYPEremote">remote</a> -> [ `Merge | `Update ] -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-Same as fetch but also update the current
-      branch. Either <code class="code">merge</code> or force <code class="code">update</code> with the fetched
-      head.<br>
+<code class="code">pull t ?depth r s</code> is similar to fetch but it
+      also updates <code class="code">t</code>'s current branch. <code class="code">s</code> is the update strategy:
+<p>
+
+      <ul>
+<li><code class="code">`Merge</code> uses . This strategy can return a conflict.</li>
+<li><code class="code">`Update</code> uses </li>
+</ul>
+<br>
 </div>
 
 <pre><span id="VALpull_exn"><span class="keyword">val</span> pull_exn</span> : <code class="type">Irmin.S.t -><br>       ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> [ `Merge | `Update ] -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <code class="code">pull</code> but raise <code class="code">Merge.Conflict</code> in case of
+      conflict.<br>
 </div>
 
 <pre><span id="VALpush"><span class="keyword">val</span> push</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> [ `Error | `Ok ] Lwt.t</code></pre><div class="info ">
-<code class="code">push t f</code> push the contents of the current branch of the
-      store to the remote store -- also update the remote branch
-      with the same name as the local one to points to the new
-      state.<br>
+<code class="code">push t ?depth r</code> populates the remote store <code class="code">r</code> with objects
+      from the current store <code class="code">t</code>, using <code class="code">t</code>'s current branch. If <code class="code">b</code>
+      is <code class="code">t</code>'s current branch, <code class="code">push</code> also updates the head of <code class="code">b</code> in
+      <code class="code">r</code> to be the same as in <code class="code">t</code>.
+<p>
+
+      <b>Note:</b> <em>Git</em> semantics is to update <code class="code">b</code> only if the new
+      head if more recent. This is not the case in <em>Irmin</em>.<br>
 </div>
 
 <pre><span id="VALpush_exn"><span class="keyword">val</span> push_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <code class="code">push</code> but raise <code class="code">Failure</code> if an error happen.<br>
 </div>
 </body></html>

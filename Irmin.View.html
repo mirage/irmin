@@ -30,15 +30,14 @@
 
     Views are like staging area in Git: they are temporary
     non-persistent areas (they disappear if the host crash), hold in
-    memory for efficiency, where reads are done lazily and writes
-    are done only when needed on commit: if if you modify a key
-    twice, only the last change will be written to the store when
-    you commit. Views also hold a list of operations, which are
-    checked for conflicts on commits and are used to replay/rebase
-    the view if needed. The most important feature of views is that
-    they keep track of reads: i.e. you can have a conflict if a view
-    reads a key which has been modified concurrently by someone
-    else.<br>
+    memory for efficiency, where reads are done lazily and writes are
+    done only when needed on commit: if if you modify a key twice,
+    only the last change will be written to the store when you
+    commit. Views also hold a list of operations, which are checked
+    for conflicts on commits and are used to replay/rebase the view if
+    needed. The most important feature of views is that they keep
+    track of reads: <em>i.e.</em> you can have a conflict if a view reads a
+    key which has been modified concurrently by someone else.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -76,7 +75,8 @@ Merge the actions done on one view into an other one. If a read
 </div>
 
 <pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">t -> into:t -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <code class="code">merge</code> but raise <code class="code">Merge.Conflict</code> in case of
+      conflict.<br>
 </div>
 
 <pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t Lwt.t</code></pre><div class="info ">
@@ -86,26 +86,47 @@ Read a view from a path in the store. This is a cheap operation,
 </div>
 
 <pre><span id="VALupdate_path"><span class="keyword">val</span> update_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
-Commit a view to the store. The view *replaces* the current
-      subtree, so if you want to do a merge, you have to do it
-      manually (by creating a new branch, or rebasing before
-      committing).<br>
+<code class="code">update_path t path v</code> <em>replaces</em> the sub-tree under <code class="code">path</code> in
+      the store <code class="code">t</code> by the contents of the view <code class="code">v</code>. See <code class="code">merge_path</code>
+      for more details.<br>
 </div>
 
 <pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-Rebase the view to the tip of the store.<br>
+<code class="code">rebase_path t path v</code> <em>rebases</em> the view <code class="code">v</code> on top of the
+      contents of <code class="code">t</code>'s sub-tree pointed by the path <code class="code">path</code>. Rebasing
+      means re-applying every actions stored in <code class="code">t</code>,
+      including the <em>reads</em>. Return <code class="code">Merge.Conflict</code> if one of the
+      action cannot apply cleanly. See <code class="code">merge_path</code> for more
+      details.<br>
 </div>
 
 <pre><span id="VALrebase_path_exn"><span class="keyword">val</span> rebase_path_exn</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <code class="code">rebase_path</code> but raise <code class="code">Merge.Conflict</code> in case of
+      conflict.<br>
 </div>
 
 <pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-Same as <code class="code">update_path</code> but *merges* with the current subtree.<br>
+<code class="code">merge_path t path v</code> <em>merges</em> the view <code class="code">v</code> with the contents
+      of <code class="code">t</code>'s sub-tree pointed by the path <code class="code">path</code>. Merging means
+      applying the merge function for map between the
+      view's contents and <code class="code">t</code>'s sub-tree.
+<p>
+
+      <ul>
+<li><code class="code">update_path</code> discards any preexisting sub-tree.</li>
+<li><code class="code">rebase_path</code> is operation based. It keeps track of read
+      operations which can lead to conflicts. It
+      replays the full operation history of the view on top of any
+      preexisting sub-tree.</li>
+<li><code class="code">merge_path</code> is state based. Is is an efficient 3-way merge operators between
+      prefix trees, based on <code class="code">Merge.Map.merge</code>.</li>
+</ul>
+<br>
 </div>
 
 <pre><span id="VALmerge_path_exn"><span class="keyword">val</span> merge_path_exn</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
-FIXME<br>
+Same as <code class="code">merge_path</code> but raise <code class="code">Merge.Conflict</code> in case of
+      conflicts.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.View.Action.html">Action</a>: <code class="code">sig</code> <a href="Irmin.View.Action.html">..</a> <code class="code">end</code></pre><div class="info">

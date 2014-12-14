@@ -21,7 +21,10 @@
 &nbsp;</div>
 <h1>Functor <a href="type_Irmin_unix.Irmin_fs.Make_ext.html">Irmin_unix.Irmin_fs.Make_ext</a></h1>
 
-<pre><span class="keyword">module</span> Make_ext: <div class="sig_block"><code class="code">functor (</code><code class="code">Obj</code><code class="code"> : </code><code class="type"><a href="Irmin_unix.Irmin_fs.Config.html">Config</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Ref</code><code class="code"> : </code><code class="type"><a href="Irmin_unix.Irmin_fs.Config.html">Config</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></div></div></pre><table border="0" cellpadding="3" width="100%">
+<pre><span class="keyword">module</span> Make_ext: <div class="sig_block"><code class="code">functor (</code><code class="code">Obj</code><code class="code"> : </code><code class="type"><a href="Irmin_unix.Irmin_fs.Config.html">Config</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">Ref</code><code class="code"> : </code><code class="type"><a href="Irmin_unix.Irmin_fs.Config.html">Config</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></div></div></pre><div class="info module top">
+Irmin store maker, with control over the filename shapes.<br>
+</div>
+<table border="0" cellpadding="3" width="100%">
 <tr>
 <td align="left" valign="top" width="1%%"><b>Parameters: </b></td>
 <td>
@@ -47,20 +50,20 @@
 <pre><span class="keyword">include</span> <a href="Irmin.BC.html">Irmin.BC</a></pre>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type step = step</code></pre><div class="info">
-<code class="code">Key</code> provides base functions over step lists.
+<code class="code">Key</code> provides base functions on step lists.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
-<code class="code">Val</code> provides base functions over user-defined, mergeable
+<code class="code">Val</code> provides base functions on user-defined, mergeable
       contents.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code">Tag</code> provides base functions over user-defined tags.
+<code class="code">Tag</code> provides base functions on user-defined tags.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code">Head</code> prives base functions over head values.
+<code class="code">Head</code> provides base functions on head values.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.S.Private.html">..</a> <code class="code">end</code></pre><div class="info">
