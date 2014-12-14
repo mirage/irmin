@@ -7,12 +7,15 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 
 build: [
-  ["./configure" "--prefix" prefix
+  ["./configure"
+      "--prefix" prefix
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
-      "--%{base-unix:enable}%-unix"]
+      "--%{base-unix:enable}%-unix"
+      "--%{cohttp+git+alcotest:enable}%-tests"]
   [make]
 ]
+build-test: [make "test"]
 install: [make "install"]
 remove: [
   ["ocamlfind" "remove" "irmin"]
@@ -35,6 +38,9 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
+  "git" {test}
+  "cohttp" {test}
+  "alcotest" {test}
 ]
 depopts: [
   "cohttp"
