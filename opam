@@ -1,0 +1,46 @@
+opam-version: "1.2"
+maintainer:   "thomas@gazagnaire.org"
+authors:      "Thomas Gazagnaire"
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "https://github.com/mirage/irmin.git"
+
+build: [
+  ["./configure" "--prefix" prefix
+      "--%{cohttp:enable}%-http"
+      "--%{git:enable}%-git"
+      "--%{base-unix:enable}%-unix"]
+  [make]
+]
+install: [make "install"]
+remove: [
+  ["ocamlfind" "remove" "irmin"]
+  ["rm" "-f" "%{bin}%/irmin"]
+]
+depends: [
+  "ezjsonm" {>= "0.3.0"}
+  "ocamlgraph"
+  "lwt" {>= "2.4.5"}
+  "nocrypto" {>= "0.2.2"}
+  "dolog" {>= "0.4"}
+  "cstruct"
+  "tc" {>= "0.2.1"}
+  "mstruct"
+  "uri" {>= "1.3.12"}
+  "bin_prot"
+  "sexplib"
+  "stringext"
+  "hex"
+  "re"
+  "cmdliner"
+]
+depopts: [
+  "cohttp"
+  "git"
+]
+conflicts: [
+  "git"    {< "1.4.2"}
+  "cohttp" {< "0.13.0"}
+]
+available: [ocaml-version >= "4.01.0"]
