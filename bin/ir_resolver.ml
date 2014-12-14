@@ -121,7 +121,7 @@ let read_config_file () =
   if not (Sys.file_exists cfg) then None, Irmin.Private.Conf.empty else
     let oc = open_in cfg in
     let len = in_channel_length oc in
-    let buf = String.create len in
+    let buf = Bytes.create len in
     really_input oc buf 0 len;
     let lines = Stringext.split ~on:'\n' buf in
     let lines = List.map String.trim lines in

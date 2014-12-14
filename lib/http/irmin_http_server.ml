@@ -32,6 +32,8 @@ let json_headers = Cohttp.Header.of_list [
     "Content-type", "application/json"
   ]
 
+let http_headers = Cohttp.Header.of_list []
+
 exception Invalid
 
 module type S = sig
@@ -524,7 +526,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         child t h actions >>= function
         | Fixed fn  -> fn t path params query >>= respond_json
         | Stream fn -> respond_json_stream (fn t path params query)
-        | Html fn   -> fn t path params query >>= respond
+        | Html fn   -> fn t path params query >>= respond ~headers:http_headers
         | actions   -> aux actions path in
     aux store path
 
