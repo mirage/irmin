@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
 open Cmdliner
 open Irmin_unix
 
@@ -59,19 +60,19 @@ let key k default =
 
 let opt_key k = key k (Irmin.Private.Conf.default k)
 
-let config =
+let config_term =
   let add k v config = Irmin.Private.Conf.add config k v in
-  let create root bare branch uri =
+  let create root bare head uri =
     Irmin.Private.Conf.empty
     |> add Irmin.Private.Conf.root root
     |> add Irmin_git.bare bare
-    |> add Irmin_git.branch branch
+    |> add Irmin_git.head head
     |> add Irmin_http.uri uri
   in
   Term.(pure create $
         opt_key Irmin.Private.Conf.root $
         flag_key Irmin_git.bare $
-        opt_key Irmin_git.branch $
+        opt_key Irmin_git.head $
         opt_key Irmin_http.uri)
 
 let kinds = [
@@ -80,6 +81,8 @@ let kinds = [
   ("http", http_store);
   ("mem" , mem_store);
 ]
+
+let default = git_store
 
 let mk_contents k: contents = match k with
   | `String  -> (module Irmin.Contents.String)
@@ -101,7 +104,7 @@ let contents =
   in
   Term.(pure (fun x -> x) $ kind)
 
-let store =
+let store_term =
   let store =
     let doc = Arg.info ~doc:"The kind of backend stores." ["s";"store"] in
     Arg.(value & opt (some (enum kinds)) None & doc)
@@ -115,10 +118,13 @@ let store =
 
 let cfg = ".irminconfig"
 
-(* FIXME: use a proper configuration format and interface properly
-   with cmdliner *)
-let read_config_file () =
-  if not (Sys.file_exists cfg) then None, Irmin.Private.Conf.empty else
+type t = S: (module Irmin.S with type t = 'a) * (string -> 'a) Lwt.t -> t
+
+(* FIXME: use a proper configuration format (toml?) and interface
+   properly with cmdliner *)
+let read_config_file (): t option =
+  if not (Sys.file_exists cfg) then None
+  else
     let oc = open_in cfg in
     let len = in_channel_length oc in
     let buf = Bytes.create len in
@@ -135,42 +141,89 @@ let read_config_file () =
       | None   -> string
       | Some c -> c
     in
-    let store = assoc "store" (fun x -> (List.assoc x kinds) contents) in
+    let store =
+      match assoc "store" (fun x -> (List.assoc x kinds) contents) with
+      | None   -> default contents
+      | Some s -> s
+    in
+    let module S = (val store) in
+    let branch = assoc "branch" (fun x -> S.Tag.of_hum x) in
     let config =
       let root = assoc "root" (fun x -> x) in
       let bare = match assoc "bare" bool_of_string with
         | None   -> Irmin.Private.Conf.default Irmin_git.bare
         | Some b -> b
       in
-      let branch = match assoc "branch" (fun x -> x) with
-        | None   -> Irmin.Private.Conf.default Irmin_git.branch
-        | Some b -> b
-      in
+      let head = assoc "head" (fun x -> x) in
       let uri = assoc "uri" Uri.of_string in
       let add k v config = Irmin.Private.Conf.add config k v in
       Irmin.Private.Conf.empty
       |> add Irmin.Private.Conf.root root
       |> add Irmin_git.bare bare
-      |> add Irmin_git.branch branch
+      |> add Irmin_git.head head
       |> add Irmin_http.uri uri
     in
-    store, config
+    match branch with
+    | None   -> Some (S ((module S), S.create config task))
+    | Some b -> Some (S ((module S), S.of_tag config task b))
 
-let parse =
- let create store config =
-    let store, config = match store with
-      | None   -> read_config_file ()
-      | Some s -> Some s, config
+let store =
+  let branch =
+    let doc =
+      Arg.info
+        ~doc:"The current branch name. Default is the store's master branch."
+        ["b"; "branch"]
     in
-    match store with
-    | None   -> `Error (false, "Missing store configuration.")
-    | Some s -> `Ok (s, config)
+    Arg.(value & opt (some string) None & doc)
   in
-  Term.(ret (pure create $ store $ config))
+  let create store config branch =
+    let conf = match store with
+      | Some s ->
+        let module S = (val s: Irmin.S) in
+        (* first look at the command-line options *)
+        let t = match branch with
+          | None   -> S.create config task
+          | Some t -> S.of_tag config task (S.Tag.of_hum t)
+        in
+        Some (S ((module S), t))
+      | None ->
+        (* then look at the config file options *)
+        read_config_file ()
+    in
+    match conf with
+    | None   -> `Error (false, "Missing store configuration.")
+    | Some c -> `Ok c
+  in
+  Term.(ret (pure create $ store_term $ config_term $ branch))
+
+(* FIXME: read the remote configuration in a file *)
+let (/) = Filename.concat
+
+(* FIXME: this is a very crude heuristic to choose the remote
+   kind. Would be better to read the config file and look for remote
+   alias. *)
+let infer_remote contents str =
+  if Sys.file_exists str then (
+    let r =
+      if Sys.file_exists (str / ".git")
+      then git_store contents
+      else irf_store contents
+    in
+    let module R = (val r) in
+    let config =
+      let add k v c = Irmin.Private.Conf.add c k v in
+      Irmin.Private.Conf.empty
+      |> add Irmin_http.uri (Some (Uri.of_string str))
+      |> add Irmin.Private.Conf.root (Some str)
+    in
+    R.create config task >>= fun r ->
+      return (Irmin.remote_store (module R) (r "Clone %s."))
+    ) else
+      return (Irmin.remote_uri str)
 
 let remote =
   let repo =
     let doc = Arg.info ~docv:"REMOTE"
         ~doc:"The URI of the remote repository to clone from." [] in
     Arg.(required & pos 0 (some string) None & doc) in
-  Term.(pure (fun x -> x) $ repo)
+  Term.(pure infer_remote $ contents $ repo)

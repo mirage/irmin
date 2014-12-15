@@ -56,11 +56,12 @@ end
 
 let version = Ir_version.current
 
-module Sync (S: Ir_s.STORE) = struct
-  (* XXX: cannot "include Ir_sync_ext.Make" because equality does not
-     lift to signatures in pack, see below. *)
-  include Ir_sync_ext.Make(S)
-  let store (type t) (module M: S with type t = t) (t:t) =
-    let module X = (M: Ir_s.STORE with type t = t) in
-    store (module X) t
-end
+module Sync = Ir_sync_ext.Make
+
+type remote = Ir_sync_ext.remote
+
+let remote_store (type t) (module M: S with type t = t) (t:t) =
+  let module X = (M: Ir_s.STORE with type t = t) in
+  Ir_sync_ext.remote_store (module X) t
+
+let remote_uri = Ir_sync_ext.remote_uri

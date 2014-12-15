@@ -22,6 +22,8 @@ module Log = Log.Make(struct let section = "SNAPSHOT" end)
 module type S = sig
   include Ir_ro.STORE
   type db
+  val to_hum: t -> string
+  val of_hum: db -> string -> t
   val create: db -> t Lwt.t
   val revert: db -> t -> unit Lwt.t
   val merge: db -> t -> unit Ir_merge.result Lwt.t
@@ -54,6 +56,9 @@ module Make (S: Ir_s.STORE) = struct
 
   let task t = S.task (db t)
   let config t = S.config (db t)
+
+  let to_hum (_, k) = N.Key.to_hum k
+  let of_hum db s = (db, N.Key.of_hum s)
 
   let of_head db c =
     C.read (P.commit_t db) c >>= function

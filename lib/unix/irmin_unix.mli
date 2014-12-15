@@ -95,27 +95,27 @@ module Irmin_git: sig
 
   (** {1 Git Store} *)
 
-  val config: ?root:string -> ?branch:string -> ?bare:bool -> unit -> Irmin.config
+  val config: ?root:string -> ?head:string -> ?bare:bool -> unit -> Irmin.config
   (** Create a configuration value.
 
       {ul
       {- [root] is the local Git repository's root (the parent of the
       {e .git/} directory).}
-      {- [branch] is the name of the local Git repository's current
-      branch. This will be set the contents of file {i
-      [root]/.git/HEAD} to be {i ref: refs/heads/[branch]}.}
+      {- [head] is the name of the local Git repository's current
+      branch. If set, this will cause the file {i [root]/.git/HEAD} to
+      be modified to contain {i ref: refs/heads/[branch]}.}
       {- If [bare] is set (default is {e unset}), then the local Git
       repository's contents will be expanded into the filesystem on
       each update. This might cause some performance issues.}
       } *)
 
-  val branch: string Irmin.Private.Conf.key
+  val head: string option Irmin.Private.Conf.key
   (** The configuration key to set the local Git repository's current
-      branch. *)
+      branch. See {!Irmin_git.config}. *)
 
   val bare: bool Irmin.Private.Conf.key
   (** The configuration key to set the local Git repository's bare
-      attribute. *)
+      attribute. See {!Irmin_git.config}.*)
 
   module AO (G: Git.Store.S): Irmin.AO_MAKER
   (** Embed an append-only store into a Git repository. Contents will

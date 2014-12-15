@@ -38,10 +38,10 @@ module Conf = struct
 
   let root = Irmin.Private.Conf.root
 
-  let branch =
+  let head =
     Irmin.Private.Conf.key
       ~doc:"The main branch of the Git repository."
-      "branch" Irmin.Private.Conf.string "master"
+      "head" Irmin.Private.Conf.(some string) None
 
   let bare =
     Irmin.Private.Conf.key
@@ -50,18 +50,15 @@ module Conf = struct
 
 end
 
-let config ?root ?branch ?bare () =
+let config ?root ?head ?bare () =
   let module C = Irmin.Private.Conf in
   let config = C.empty in
   let config = C.add config Conf.root root in
-  let config = match branch with
-    | None   -> C.add config Conf.branch (C.default Conf.branch)
-    | Some b -> C.add config Conf.branch b
-  in
   let config = match bare with
     | None   -> C.add config Conf.bare (C.default Conf.bare)
     | Some b -> C.add config Conf.bare b
   in
+  let config = C.add config Conf.head head in
   config
 
 module Make (IO: Git.Sync.IO) (G: Git.Store.S)
@@ -410,6 +407,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       task: I.task;
       config: I.config;
       git_root: string;
+      git_head: Git.Reference.head_contents;
       t: G.t;
       w: W.t;
     }
@@ -426,12 +424,11 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | None   -> None
       | Some r -> Some (Key.of_hum r)
 
-    let git_of_string str =
+    let git_of_tag_string str =
       Git.Reference.of_raw ("refs/heads" / str)
 
     let git_of_tag r =
-      let str = Key.to_hum r in
-      git_of_string str
+      git_of_tag_string (Key.to_hum r)
 
     let mem { t; _ } r =
       G.mem_reference t (git_of_tag r)
@@ -451,12 +448,23 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
     let create config task =
       let root = Irmin.Private.Conf.get config Conf.root in
-      let branch = Irmin.Private.Conf.get config Conf.branch in
+      let head = Irmin.Private.Conf.get config Conf.head in
       G.create ?root () >>= fun t ->
       let git_root = G.root t / ".git" in
-      G.write_head t (Git.Reference.Ref (git_of_string branch)) >>= fun () ->
+      let write_head head =
+        let head = Git.Reference.Ref head in
+        G.write_head t head >>= fun () ->
+        return head
+      in
+      begin match head with
+        | Some h -> write_head (git_of_tag_string h)
+        | None   ->
+          G.read_head t >>= function
+          | Some h -> return h
+          | None   -> write_head (git_of_tag T.master)
+      end >>= fun git_head ->
       let w = W.create () in
-      return (fun a -> { task = task a; config; t; w; git_root })
+      return (fun a -> { task = task a; git_head; config; t; w; git_root })
 
     let read_exn { t; _ } r =
       G.read_reference_exn t (git_of_tag r) >>= fun k ->
@@ -479,7 +487,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       W.notify t.w r (Some k);
       if G.kind = `Disk
       && not (Irmin.Private.Conf.get t.config Conf.bare)
-      && Irmin.Private.Conf.get t.config Conf.branch = T.to_hum r
+      && t.git_head = Git.Reference.Ref (git_of_tag r)
       then (
         Log.debugf "write cache (%s)" (T.to_hum r);
         G.write_cache t.t gk

@@ -16,12 +16,13 @@
 
 (** Store Synchronisation. *)
 
+type remote
+val remote_uri: string -> remote
+val remote_store: (module Ir_s.STORE with type t = 'a) -> 'a -> remote
+
 module type STORE = sig
   type db
   type head
-  type remote
-  val uri: string -> remote
-  val store: (module Ir_s.STORE with type t = 'a) -> 'a -> remote
   val fetch: db -> ?depth:int -> remote -> head option Lwt.t
   val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
   val pull: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Ir_merge.result Lwt.t

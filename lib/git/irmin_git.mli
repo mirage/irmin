@@ -18,10 +18,10 @@
 
 (* Discard the hash implementation passed in parameter of the functors. *)
 
-val config: ?root:string -> ?branch:string -> ?bare:bool -> unit -> Irmin.config
+val config: ?root:string -> ?head:string -> ?bare:bool -> unit -> Irmin.config
 
-val branch: string Irmin.Private.Conf.key
 val bare: bool Irmin.Private.Conf.key
+val head: string option Irmin.Private.Conf.key
 
 module AO (G: Git.Store.S): Irmin.AO_MAKER
 module RW (G: Git.Store.S): Irmin.RW_MAKER

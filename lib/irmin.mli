@@ -1585,6 +1585,12 @@ module Snapshot (S: S): sig
   include RO with type key = S.Key.t and type value = S.Val.t
   (** A snapshot is a read-only store, mirroring the main store. *)
 
+  val to_hum: t -> string
+  (** Pretty-print a snapshot value. *)
+
+  val of_hum: S.t -> string -> t
+  (** Read a pretty-printed snapshot value. *)
+
   val create: S.t -> t Lwt.t
   (** Snapshot the current state of the store. *)
 
@@ -1629,25 +1635,25 @@ module Dot (S: S): sig
 
 end
 
+type remote
+(** The type for remote stores. *)
+
+val remote_uri: string -> remote
+(** [remote_uri s] is the remote store located at [uri]. Use the
+    optimized native synchronization protocol when available for the
+    given backend. *)
+
+val remote_store: (module S with type t = 'a) -> 'a -> remote
+(** [remote_store t] is the remote corresponding to the local store
+    [t]. Synchronization is done by importing and exporting store
+    {{!BC.slice}slices}, so this is usually much slower than native
+    synchronization using [uri] remotes. *)
+
 (** [Sync] provides functions to synchronization an Irmin store with
     local and remote Irmin stores. *)
 module Sync (S: S): sig
 
   (** {1 Native Synchronization} *)
-
-  type remote
-  (** The type for remote stores. *)
-
-  val uri: string -> remote
-  (** [uri s] is the remote store located at [uri]. Use the
-      optimized native synchronization protocol when available for the
-      given backend. *)
-
-  val store: (module S with type t = 'a) -> 'a -> remote
-  (** [store t] is the remote corresponding to the local store
-      [t]. Synchronization is done by importing and exporting store
-      {{!BC.slice}slices}, so this is usually much slower than native
-      synchronization using [uri] remotes. *)
 
   val fetch: S.t -> ?depth:int -> remote -> S.head option Lwt.t
   (** [fetch t ?depth r] populate the local store [t] with objects for

@@ -19,6 +19,8 @@
 module type S = sig
   include Ir_ro.STORE
   type db
+  val to_hum: t -> string
+  val of_hum: db -> string -> t
   val create: db -> t Lwt.t
   val revert: db -> t -> unit Lwt.t
   val merge: db -> t -> unit Ir_merge.result Lwt.t

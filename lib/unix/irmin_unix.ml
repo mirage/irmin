@@ -36,7 +36,7 @@ end
 
 module Irmin_git = struct
   let config = Irmin_git.config
-  let branch = Irmin_git.branch
+  let head = Irmin_git.head
   let bare = Irmin_git.bare
   module AO = Irmin_git.AO
   module RW = Irmin_git.RW

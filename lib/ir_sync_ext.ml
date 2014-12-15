@@ -18,12 +18,16 @@ open Lwt
 
 module Log = Log.Make(struct let section = "SYNC" end)
 
+type remote =
+  | Store: (module Ir_s.STORE with type t = 'a) * 'a -> remote
+  | URI of string
+
+let remote_store m x = Store (m, x)
+let remote_uri s = URI s
+
 module type STORE = sig
   type db
   type head
-  type remote
-  val uri: string -> remote
-  val store: (module Ir_s.STORE with type t = 'a) -> 'a -> remote
   val fetch: db -> ?depth:int -> remote -> head option Lwt.t
   val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
   val pull: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Ir_merge.result Lwt.t
@@ -37,13 +41,6 @@ module Make (S: Ir_s.STORE) = struct
   module B = S.Private.Sync
   type db = S.t
   type head = S.head
-
-  type remote =
-    | Store: (module Ir_s.STORE with type t = 'a) * 'a -> remote
-    | URI of string
-
-  let store m x = Store (m, x)
-  let uri s = URI s
 
   (* sync objects *)
   let sync (type s) (type r)

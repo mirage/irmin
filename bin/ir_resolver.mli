@@ -16,24 +16,25 @@
 
 (** Irmin store resolver. *)
 
-val store: (module Irmin.S) option Cmdliner.Term.t
-(** Parse a store on the command-line. *)
-
-val config: Irmin.config Cmdliner.Term.t
-(** Parse configuration values. *)
-
-val remote: string Cmdliner.Term.t
-(** Parse a remote store location. *)
-
-val read_config_file: unit -> (module Irmin.S) option * Irmin.config
-(** Parse a Irmin URI. *)
-
-val parse: ((module Irmin.S) * Irmin.config) Cmdliner.Term.t
-(** Parse the command-line arguments and then the config file. *)
+(** {1 Contents} *)
 
 type contents = (module Irmin.Contents.S)
 
 val contents: contents Cmdliner.Term.t
+
+(** {1 Global Configuration} *)
+
+type t = S: (module Irmin.S with type t = 'a) * (string -> 'a) Lwt.t -> t
+(** The type for store configurations. A configuration value contains:
+    the store implementation a creator of store's state. *)
+
+val store: t Cmdliner.Term.t
+(** Parse the command-line arguments and then the config file. *)
+
+val remote: Irmin.remote Lwt.t Cmdliner.Term.t
+(** Parse a remote store location. *)
+
+(** {1 Stores} *)
 
 val mem_store: contents -> (module Irmin.S)
 val irf_store: contents -> (module Irmin.S)
