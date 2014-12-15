@@ -16,24 +16,30 @@
 
 (** {1 Unix backends}
 
-    This module provides Irmin backends for Unix applications:
+    This module provides Irmin backends for Unix applications. The
+    currently supported backends are:
 
     {ul
+    {- An {{!Irmin_mem}in-memory} store, internally using hash tables. }
     {- A {{!Irmin_fs}file-system} backend, using
     {{:https://github.com/janestreet/bin_prot}bin_prot} to serialize
     internal structures.}
-    {- A fully compatible, bi-directional encoding of Irmin into
+    {- A fully compatible, bidirectional encoding of Irmin into
     {{!Irmin_git}Git}. You can view and edit your store using both the
     library and your usual Git tools. }
-    {- {!Irmin_http} and {!Irmin_http_server} FIXME }
-    {- {!Irmin_mem} FIXME }
+    {- The HTTP {{!module:Irmin_http}clients} and
+    {{!module:Irmin_http_server}servers} provides a high-level REST API, with
+    1 RTT for the {{!Irmin.S.Private}private} and {{!Irmin.BC}public}
+    functions.}
     }
+
 *)
 
 val task: string -> Irmin.task
 (** [task fmt] creates a fresh task, with the {{!Irmin.Task.date}date}
-    set with [Unix.gettimeoday] and a proper
-    {{!Irmin.Task.owner}owner}. *)
+    set to [Unix.gettimeoday ()] and a task {{!Irmin.Task.owner}owner}
+    based on the local Git configuration {b FIXME:} not implemented,
+    use [Unix.gethostname()] and [Unix.getpid()] for now on.  *)
 
 (** File system backends, using
     {{:https://github.com/janestreet/bin_prot}bin_prot}. *)
@@ -42,7 +48,8 @@ module Irmin_fs: sig
   (** {1 File-system Store} *)
 
   val config: ?root:string -> unit -> Irmin.config
-  (** Create a configuration value. *)
+  (** Create a configuration value. [root] is the location of local
+  repository's root.*)
 
   module AO: Irmin.AO_MAKER
   (** Append-only store maker. *)
@@ -83,23 +90,48 @@ module Irmin_fs: sig
 
 end
 
-(** Git backends. *)
+(** Bidirectional Git backends. *)
 module Irmin_git: sig
 
   (** {1 Git Store} *)
 
-  (** FIXME *)
-
   val config: ?root:string -> ?branch:string -> ?bare:bool -> unit -> Irmin.config
+  (** Create a configuration value.
+
+      {ul
+      {- [root] is the local Git repository's root (the parent of the
+      {e .git/} directory).}
+      {- [branch] is the name of the local Git repository's current
+      branch. This will be set the contents of file {i
+      [root]/.git/HEAD} to be {i ref: refs/heads/[branch]}.}
+      {- If [bare] is set (default is {e unset}), then the local Git
+      repository's contents will be expanded into the filesystem on
+      each update. This might cause some performance issues.}
+      } *)
 
   val branch: string Irmin.Private.Conf.key
+  (** The configuration key to set the local Git repository's current
+      branch. *)
+
   val bare: bool Irmin.Private.Conf.key
+  (** The configuration key to set the local Git repository's bare
+      attribute. *)
 
   module AO (G: Git.Store.S): Irmin.AO_MAKER
+  (** Embed an append-only store into a Git repository. Contents will
+      be written in {i .git/objects/} and might be cleaned-up if you
+      run {i git gc} manually. *)
+
   module RW (G: Git.Store.S): Irmin.RW_MAKER
+  (** Embed a read-write store into a Git repository. Contents will be
+      written in {i .git/refs}. *)
 
   module Memory: Irmin.S_MAKER
+  (** Embed an Irmin store into an in-memory Git repository. *)
+
   module FS: Irmin.S_MAKER
+  (** Embed an Irmin store into a local Git repository. *)
+
 end
 
 (** REST (over HTTP) backend.. *)
@@ -107,23 +139,38 @@ module Irmin_http: sig
 
   (** {1 HTTP client} *)
 
-  (** FIXME *)
-
   val config: Uri.t -> Irmin.config
+  (** Create a configuration value. [uri] it the location of the
+      remote HTTP {{!module:Irmin_http_server}server}. *)
+
   val uri: Uri.t option Irmin.Private.Conf.key
+  (** The configuration key to set the location of the remote HTTP
+      {{!module:Irmin_http_server}server}. *)
 
   module AO: Irmin.AO_MAKER
+  (** An HTTP client using a REST API for an append-only store. *)
+
   module RW: Irmin.RW_MAKER
+  (** An HTTP client using a REST API for a read-write store. *)
 
   module Make: Irmin.S_MAKER
-  (** High-level bindings. Most of the computation is done on the
-      server, the client is (almost) stateless. The only thing that
-      the client needs to remember is the tag of the current branch or
-      the current head if the branch is detached. *)
+  (** [Make] provides high-level bindings to the remote HTTP server.
+
+      Most of the computation are done on the server, the client is
+      (almost) stateless. The only thing that the client needs to
+      remember is the tag of the current branch or the current head if
+      the branch is detached.
+
+      All of the low-level and high-level operations take only one
+      RTT. *)
 
   module Low: Irmin.S_MAKER
-  (** Low-level bindings. Only access the backend stores, all the
-      high-level logic is done on the client. *)
+  (** [Low] provides low-level bindings to the remote HTTP server.
+
+      Only the {{!Irmin.S.Private}low-level operations} are forwarded
+      to the server, all the high-level logic is done on the
+      client. Hence a high-level operation might take multiple
+      RTTs. *)
 
 end
 
@@ -132,23 +179,27 @@ module Irmin_http_server: sig
 
   (** {1 HTTP server} *)
 
-  (** FIXME *)
-
+  (** Server Signature. *)
   module type S = sig
 
     type t
-    (** Database type. *)
+    (** The type for store handles. *)
 
     val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
-    (** [start_server t uri] start a server serving the contents of [t]
-        at the address [uri]. *)
+    (** [start_server t uri] start a server serving the contents of
+        [t] at the address [uri]. Close clients' connections after
+        [timeout] seconds of inactivity. *)
 
   end
 
   module Make (S: Irmin.S): S with type t = S.t
+  (** [Make] exposes an Irmin store as a REST API for HTTP
+      {{!module:Irmin_http}clients}. *)
 
 end
 
 val install_dir_polling_listener: float -> unit
-(** Install the directory listener using active polling. The
-    parameter is the thread sleep time. *)
+(** Install the directory listener using active polling. The parameter
+    is the thread sleep time. Prefer
+    {{:https://opam.ocaml.org/packages/inotify/inotify.2.0/}inotify}
+    if it works on your system. *)

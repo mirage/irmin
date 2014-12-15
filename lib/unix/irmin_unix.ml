@@ -19,20 +19,6 @@ module IB = Irmin.Private
 
 module Log = Log.Make(struct let section = "UNIX" end)
 
-module S = struct
-  module X = struct
-    include Set.Make(struct
-        type t = string * string
-        let compare = Tc.Compare.pair String.compare String.compare
-      end)
-    let of_list l = List.fold_left (fun set elt -> add elt set) empty l
-    let to_list = elements
-    module K = Tc.Pair(Tc.String)(Tc.String)
-  end
-  include X
-  include Tc.As_L0 (X)
-end
-
 let (/) = Filename.concat
 
 module IO = Git_unix.FS.IO
@@ -85,6 +71,19 @@ module Irmin_http_server = struct
   module Make = Irmin_http_server.Make (X)(Y)
 end
 
+module S = struct
+  module X = struct
+    include Set.Make(struct
+        type t = string * string
+        let compare = Tc.Compare.pair String.compare String.compare
+      end)
+    let of_list l = List.fold_left (fun set elt -> add elt set) empty l
+    let to_list = elements
+    module K = Tc.Pair(Tc.String)(Tc.String)
+  end
+  include X
+  include Tc.As_L0 (X)
+end
 
 let install_dir_polling_listener delay =
 
