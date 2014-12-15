@@ -46,38 +46,19 @@
 <br>
 <h1 id="1_NativeSynchronization">Native Synchronization</h1><br>
 
-<pre><span id="TYPEremote"><span class="keyword">type</span> <code class="type"></code>remote</span> </pre>
-<div class="info ">
-The type for remote stores.<br>
-</div>
-
-
-<pre><span id="VALuri"><span class="keyword">val</span> uri</span> : <code class="type">string -> <a href="Irmin.Sync.html#TYPEremote">remote</a></code></pre><div class="info ">
-<code class="code">uri s</code> is the remote store located at <code class="code">uri</code>. Use the
-      optimized native synchronization protocol when available for the
-      given backend.<br>
-</div>
-
-<pre><span id="VALstore"><span class="keyword">val</span> store</span> : <code class="type">(module Irmin.S with type t = 'a) -> 'a -> <a href="Irmin.Sync.html#TYPEremote">remote</a></code></pre><div class="info ">
-<code class="code">store t</code> is the remote corresponding to the local store
-      <code class="code">t</code>. Synchronization is done by importing and exporting store
-      slices, so this is usually much slower than native
-      synchronization using <code class="code">uri</code> remotes.<br>
-</div>
-
-<pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> Irmin.S.head option Lwt.t</code></pre><div class="info ">
+<pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> Irmin.S.head option Lwt.t</code></pre><div class="info ">
 <code class="code">fetch t ?depth r</code> populate the local store <code class="code">t</code> with objects for
       the remote store <code class="code">r</code>, using <code class="code">t</code>'s current branch. The <code class="code">depth</code>
       parameter limits the history depth. Return <code class="code">None</code> if either the
       local or remote store do not have a valid head.<br>
 </div>
 
-<pre><span id="VALfetch_exn"><span class="keyword">val</span> fetch_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> Irmin.S.head Lwt.t</code></pre><div class="info ">
+<pre><span id="VALfetch_exn"><span class="keyword">val</span> fetch_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> Irmin.S.head Lwt.t</code></pre><div class="info ">
 Same as <code class="code">fetch</code> but raise <code class="code">Failure</code> if either the local or
       remote store do not have a valid head.<br>
 </div>
 
-<pre><span id="VALpull"><span class="keyword">val</span> pull</span> : <code class="type">Irmin.S.t -><br>       ?depth:int -><br>       <a href="Irmin.Sync.html#TYPEremote">remote</a> -> [ `Merge | `Update ] -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALpull"><span class="keyword">val</span> pull</span> : <code class="type">Irmin.S.t -><br>       ?depth:int -><br>       <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> [ `Merge | `Update ] -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 <code class="code">pull t ?depth r s</code> is similar to fetch but it
       also updates <code class="code">t</code>'s current branch. <code class="code">s</code> is the update strategy:
 <p>
@@ -89,12 +70,12 @@ Same as <code class="code">fetch</code> but raise <code class="code">Failure</co
 <br>
 </div>
 
-<pre><span id="VALpull_exn"><span class="keyword">val</span> pull_exn</span> : <code class="type">Irmin.S.t -><br>       ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> [ `Merge | `Update ] -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALpull_exn"><span class="keyword">val</span> pull_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> [ `Merge | `Update ] -> unit Lwt.t</code></pre><div class="info ">
 Same as <code class="code">pull</code> but raise <code class="code">Merge.Conflict</code> in case of
       conflict.<br>
 </div>
 
-<pre><span id="VALpush"><span class="keyword">val</span> push</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> [ `Error | `Ok ] Lwt.t</code></pre><div class="info ">
+<pre><span id="VALpush"><span class="keyword">val</span> push</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> [ `Error | `Ok ] Lwt.t</code></pre><div class="info ">
 <code class="code">push t ?depth r</code> populates the remote store <code class="code">r</code> with objects
       from the current store <code class="code">t</code>, using <code class="code">t</code>'s current branch. If <code class="code">b</code>
       is <code class="code">t</code>'s current branch, <code class="code">push</code> also updates the head of <code class="code">b</code> in
@@ -105,7 +86,7 @@ Same as <code class="code">pull</code> but raise <code class="code">Merge.Confli
       head if more recent. This is not the case in <em>Irmin</em>.<br>
 </div>
 
-<pre><span id="VALpush_exn"><span class="keyword">val</span> push_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.Sync.html#TYPEremote">remote</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALpush_exn"><span class="keyword">val</span> push_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> unit Lwt.t</code></pre><div class="info ">
 Same as <code class="code">push</code> but raise <code class="code">Failure</code> if an error happen.<br>
 </div>
 </body></html>

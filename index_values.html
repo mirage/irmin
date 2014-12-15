@@ -116,12 +116,6 @@ Monadic bind for results.
 <code class="code">bool</code> converts values with <code class="code">bool_of_string</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.Irmin_git.html#VALbranch">branch</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
-<td><div class="info">
-The configuration key to set the local Git repository's current
-      branch.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALbranch">branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">branch t</code> is the current branch of the store <code class="code">t</code>.
@@ -375,6 +369,12 @@ Convert a key to a filename.
 <tr><td><a href="Irmin.Hash.S.html#VALhas_kind">has_kind</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
 <td><div class="info">
 The kind of generated hash.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_git.html#VALhead">head</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
+<td><div class="info">
+The configuration key to set the local Git repository's current
+      branch.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALhead">head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -653,6 +653,11 @@ Create a temporary store handle, which will not persist as it
       has no associated to any persistent tag name.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Snapshot.html#VALof_hum">of_hum</a> [<a href="Irmin.Snapshot.html">Irmin.Snapshot</a>]</td>
+<td><div class="info">
+Read a pretty-printed snapshot value.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Hum.S.html#VALof_hum">of_hum</a> [<a href="Irmin.Hum.S.html">Irmin.Hum.S</a>]</td>
 <td><div class="info">
 Convert an human readable representation of a value into its
@@ -810,6 +815,17 @@ Same as <code class="code">rebase_path</code> but raise <code class="code">Merge
 <code class="code">rem c k</code> is <code class="code">c</code> with <code class="code">k</code> unbound.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.html#VALremote_store">remote_store</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code">remote_store t</code> is the remote corresponding to the local store
+    <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.html#VALremote_uri">remote_uri</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code">remote_uri s</code> is the remote store located at <code class="code">uri</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.RW.html#VALremove">remove</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
 <td><div class="info">
 <code class="code">remove t k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.
@@ -882,12 +898,6 @@ Lift a merge function to optional values of the same type.
 <code class="code">steps t n</code> is the list of steps leaving the node <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Sync.html#VALstore">store</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
-<td><div class="info">
-<code class="code">store t</code> is the remote corresponding to the local store
-      <code class="code">t</code>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALstring">string</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">string</code> converts values with the identity function.
@@ -951,6 +961,11 @@ The list of all the tags of the store.
 The commit provenance.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Snapshot.html#VALto_hum">to_hum</a> [<a href="Irmin.Snapshot.html">Irmin.Snapshot</a>]</td>
+<td><div class="info">
+Pretty-print a snapshot value.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Hum.S.html#VALto_hum">to_hum</a> [<a href="Irmin.Hum.S.html">Irmin.Hum.S</a>]</td>
 <td><div class="info">
 Display a value using its human readable representation.
@@ -1005,11 +1020,6 @@ Same as <code class="code">update_tag</code> but delete and update the tag if it
 <td><div class="info">
 The configuration key to set the location of the remote HTTP
       <a href="Irmin_unix.Irmin_http_server.html">server</a>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Sync.html#VALuri">uri</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
-<td><div class="info">
-<code class="code">uri s</code> is the remote store located at <code class="code">uri</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALuri">uri</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>

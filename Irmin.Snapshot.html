@@ -51,6 +51,14 @@
 <br>
 A snapshot is a read-only store, mirroring the main store.<br>
 
+<pre><span id="VALto_hum"><span class="keyword">val</span> to_hum</span> : <code class="type">t -> string</code></pre><div class="info ">
+Pretty-print a snapshot value.<br>
+</div>
+
+<pre><span id="VALof_hum"><span class="keyword">val</span> of_hum</span> : <code class="type">Irmin.S.t -> string -> t</code></pre><div class="info ">
+Read a pretty-printed snapshot value.<br>
+</div>
+
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">Irmin.S.t -> t Lwt.t</code></pre><div class="info ">
 Snapshot the current state of the store.<br>
 </div>

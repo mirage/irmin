@@ -183,6 +183,25 @@ Signature for Irmin stores.
     format.
 </div>
 
+<pre><span id="TYPEremote"><span class="keyword">type</span> <code class="type"></code>remote</span> </pre>
+<div class="info ">
+The type for remote stores.<br>
+</div>
+
+
+<pre><span id="VALremote_uri"><span class="keyword">val</span> remote_uri</span> : <code class="type">string -> <a href="Irmin.html#TYPEremote">remote</a></code></pre><div class="info ">
+<code class="code">remote_uri s</code> is the remote store located at <code class="code">uri</code>. Use the
+    optimized native synchronization protocol when available for the
+    given backend.<br>
+</div>
+
+<pre><span id="VALremote_store"><span class="keyword">val</span> remote_store</span> : <code class="type">(module Irmin.S with type t = 'a) -> 'a -> <a href="Irmin.html#TYPEremote">remote</a></code></pre><div class="info ">
+<code class="code">remote_store t</code> is the remote corresponding to the local store
+    <code class="code">t</code>. Synchronization is done by importing and exporting store
+    <a href="Irmin.BC.html#TYPEslice">slices</a>, so this is usually much slower than native
+    synchronization using <code class="code">uri</code> remotes.<br>
+</div>
+
 <pre><span class="keyword">module</span> <a href="Irmin.Sync.html">Sync</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Sync.html">..</a> <code class="code">end</code></div></pre><div class="info">
 <code class="code">Sync</code> provides functions to synchronization an Irmin store with
     local and remote Irmin stores.
