@@ -397,7 +397,7 @@ let dot = {
     let basename =
       let doc =
         Arg.info ~docv:"BASENAME" ~doc:"Basename for the .dot and .png files." [] in
-      Arg.(required & pos 0 (some & string) None & doc) in
+      Arg.(required & pos 0 (some string) None & doc) in
     let no_dot_call =
       let doc =
         Arg.info ~doc:"Do not call the `dot' utility on the generated `.dot` file."
