@@ -14,12 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** In-memory store *)
+(** In-memory store.
 
-(** FIXME *)
+    A simple in-memory store, using hash tables. Once one of the
+    functors below is instantiated to a module [M], it has a unique
+    shared hash-table: multiple invocation of [M.create] will see and
+    manipulate the same contents. *)
 
 val config: unit -> Irmin.config
+(** Configuration values. *)
 
 module AO: Irmin.AO_MAKER
+(** An in-memory append-only store. *)
+
 module RW: Irmin.RW_MAKER
+(** An in-memory read-write store. *)
+
 module Make: Irmin.S_MAKER
+(** An in-memory Irmin store. *)
