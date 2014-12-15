@@ -1,0 +1,6 @@
+# OASIS_START
+# DO NOT EDIT (digest: 54f4eafe4ea6633f3cfc003c6436859a)
+Irmin
+mem/Irmin_mem
+unix/Irmin_unix
+# OASIS_STOP

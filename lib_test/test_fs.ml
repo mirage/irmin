@@ -16,7 +16,6 @@
 
 open Lwt
 open Test_common
-open Irmin_unix
 
 let test_db = "test-db"
 
@@ -32,9 +31,7 @@ let suite k =
     name = "FS" ^ string_of_kind k;
     kind = k;
     init;
-    clean = unit;
-    store =
-      let module M = IrminFS.Make (struct let path = test_db end) in
-      let (module K), (module C), (module T) = modules k in
-      Irmin.cast (module M.Make(K)(C)(T))
+    clean  = none;
+    config = Irmin_fs.config ~root:test_db ();
+    store  =  irf_store k;
   }

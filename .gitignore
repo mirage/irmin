@@ -1,6 +1,7 @@
-lib/core/irminVersion.ml
+lib/ir_version.ml
+lib/http/irmin_http_static.ml
 _build/
-irminsule
+irmin
 *~
 test-db/
 \#*

@@ -14,7 +14,7 @@ let () =
 
 let () =
   let origin =
-    Printf.sprintf "Irminsule (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
+    Printf.sprintf "Irmin (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
   IrminOrigin.set_date (fun () -> Int64.of_float (Unix.time ()));
   IrminOrigin.set_id (fun () -> origin);
   IrminOrigin.set_string_of_date (fun d ->

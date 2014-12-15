@@ -1,0 +1,68 @@
+# OASIS_START
+# DO NOT EDIT (digest: 8a63f0ca2b6c06619ee67a1cbc5c972d)
+version = "0.9.0"
+description = "A Distributed Version Control Database"
+requires =
+"ezjsonm ocamlgraph lwt nocrypto dolog cstruct tc mstruct uri bin_prot sexplib stringext hex"
+archive(byte) = "irmin.cma"
+archive(byte, plugin) = "irmin.cma"
+archive(native) = "irmin.cmxa"
+archive(native, plugin) = "irmin.cmxs"
+exists_if = "irmin.cma"
+package "unix" (
+ version = "0.9.0"
+ description = "A Distributed Version Control Database"
+ requires =
+ "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
+ archive(byte) = "irmin-unix.cma"
+ archive(byte, plugin) = "irmin-unix.cma"
+ archive(native) = "irmin-unix.cmxa"
+ archive(native, plugin) = "irmin-unix.cmxs"
+ exists_if = "irmin-unix.cma"
+)
+
+package "mem" (
+ version = "0.9.0"
+ description = "A Distributed Version Control Database"
+ requires = "irmin"
+ archive(byte) = "irmin-mem.cma"
+ archive(byte, plugin) = "irmin-mem.cma"
+ archive(native) = "irmin-mem.cmxa"
+ archive(native, plugin) = "irmin-mem.cmxs"
+ exists_if = "irmin-mem.cma"
+)
+
+package "http" (
+ version = "0.9.0"
+ description = "A Distributed Version Control Database"
+ requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
+ archive(byte) = "irmin-http.cma"
+ archive(byte, plugin) = "irmin-http.cma"
+ archive(native) = "irmin-http.cmxa"
+ archive(native, plugin) = "irmin-http.cmxs"
+ exists_if = "irmin-http.cma"
+)
+
+package "git" (
+ version = "0.9.0"
+ description = "A Distributed Version Control Database"
+ requires = "irmin git"
+ archive(byte) = "irmin-git.cma"
+ archive(byte, plugin) = "irmin-git.cma"
+ archive(native) = "irmin-git.cmxa"
+ archive(native, plugin) = "irmin-git.cmxs"
+ exists_if = "irmin-git.cma"
+)
+
+package "fs" (
+ version = "0.9.0"
+ description = "A Distributed Version Control Database"
+ requires = "irmin"
+ archive(byte) = "irmin-fs.cma"
+ archive(byte, plugin) = "irmin-fs.cma"
+ archive(native) = "irmin-fs.cmxa"
+ archive(native, plugin) = "irmin-fs.cmxs"
+ exists_if = "irmin-fs.cma"
+)
+# OASIS_STOP
+
