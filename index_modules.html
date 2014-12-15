@@ -19,16 +19,25 @@
 <table>
 <tr><td align="left"><br>A</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.AO.html">AO</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td></td></tr>
+<td><div class="info">
+An HTTP client using a REST API for an append-only store.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.AO.html">AO</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Embed an append-only store into a Git repository.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.AO.html">AO</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
 <td><div class="info">
 Append-only store maker.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_mem.AO.html">AO</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
-<td></td></tr>
+<td><div class="info">
+An in-memory append-only store.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.AO_ext.html">AO_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
 <td><div class="info">
 Append-only store maker, with control over the filenames shapes.
@@ -81,7 +90,10 @@ Cstruct values where only the last modified value is kept on
 </td></tr>
 <tr><td align="left"><br>F</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.FS.html">FS</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Embed an Irmin store into a local Git repository.
+</div>
+</td></tr>
 <tr><td align="left"><br>G</td></tr>
 <tr><td><a href="Irmin.Private.Node.Graph.html">Graph</a> [<a href="Irmin.Private.Node.html">Irmin.Private.Node</a>]</td>
 <td></td></tr>
@@ -121,7 +133,7 @@ File system backends, using
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.html">Irmin_git</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
 <td><div class="info">
-Git backends.
+Bidirectional Git backends.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.html">Irmin_http</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
@@ -136,7 +148,7 @@ Server-side of the REST API over HTTP.
 </td></tr>
 <tr><td><a href="Irmin_mem.html">Irmin_mem</a> </td>
 <td><div class="info">
-In-memory store
+In-memory store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.html">Irmin_unix</a> </td>
@@ -180,7 +192,7 @@ Base functions on keys.
 <tr><td align="left"><br>L</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.Low.html">Low</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
 <td><div class="info">
-Low-level bindings.
+<code class="code">Low</code> provides low-level bindings to the remote HTTP server.
 </div>
 </td></tr>
 <tr><td align="left"><br>M</td></tr>
@@ -190,10 +202,14 @@ Multi-sets.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http_server.Make.html">Make</a> [<a href="Irmin_unix.Irmin_http_server.html">Irmin_unix.Irmin_http_server</a>]</td>
-<td></td></tr>
+<td><div class="info">
+<code class="code">Make</code> exposes an Irmin store as a REST API for HTTP
+      <a href="Irmin_unix.Irmin_http.html">clients</a>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.Make.html">Make</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
 <td><div class="info">
-High-level bindings.
+<code class="code">Make</code> provides high-level bindings to the remote HTTP server.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.Make.html">Make</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
@@ -202,7 +218,10 @@ Irmin store maker.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_mem.Make.html">Make</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
-<td></td></tr>
+<td><div class="info">
+An in-memory Irmin store.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Make.html">Make</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Simple store creator.
@@ -256,7 +275,10 @@ Lift the merge functions to maps.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.Memory.html">Memory</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Embed an Irmin store into an in-memory Git repository.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html">Merge</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code">Merge</code> provides functions to build custom 3-way merge operators
@@ -311,16 +333,25 @@ Private functions, which might be used by the backends.
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.RW.html">RW</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td></td></tr>
+<td><div class="info">
+An HTTP client using a REST API for a read-write store.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.RW.html">RW</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Embed a read-write store into a Git repository.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.RW.html">RW</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
 <td><div class="info">
 Read-write store maker.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_mem.RW.html">RW</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
-<td></td></tr>
+<td><div class="info">
+An in-memory read-write store.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.RW_ext.html">RW_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
 <td><div class="info">
 Read-write store maker, with control over the filename shapes.

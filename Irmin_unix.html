@@ -25,18 +25,22 @@
 <h1 id="1_Unixbackends">Unix backends</h1>
 <p>
 
-    This module provides Irmin backends for Unix applications:
+    This module provides Irmin backends for Unix applications. The
+    currently supported backends are:
 <p>
 
     <ul>
+<li>An <a href="Irmin_mem.html">in-memory</a> store, internally using hash tables. </li>
 <li>A <a href="Irmin_unix.Irmin_fs.html">file-system</a> backend, using
     <a href="https://github.com/janestreet/bin_prot">bin_prot</a> to serialize
     internal structures.</li>
-<li>A fully compatible, bi-directional encoding of Irmin into
+<li>A fully compatible, bidirectional encoding of Irmin into
     <a href="Irmin_unix.Irmin_git.html">Git</a>. You can view and edit your store using both the
     library and your usual Git tools. </li>
-<li><a href="Irmin_unix.Irmin_http.html"><code class="code">Irmin_unix.Irmin_http</code></a> and <a href="Irmin_unix.Irmin_http_server.html"><code class="code">Irmin_unix.Irmin_http_server</code></a> FIXME </li>
-<li><a href="Irmin_mem.html"><code class="code">Irmin_mem</code></a> FIXME </li>
+<li>The HTTP <a href="Irmin_unix.Irmin_http.html">clients</a> and
+    <a href="Irmin_unix.Irmin_http_server.html">servers</a> provides a high-level REST API, with
+    1 RTT for the <a href="Irmin.S.Private.html">private</a> and <a href="Irmin.BC.html">public</a>
+    functions.</li>
 </ul>
 <br>
 </div>
@@ -44,8 +48,9 @@
 
 <pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type">string -> <a href="Irmin.html#TYPEtask">Irmin.task</a></code></pre><div class="info ">
 <code class="code">task fmt</code> creates a fresh task, with the <a href="Irmin.Task.html#VALdate">date</a>
-    set with <code class="code">Unix.gettimeoday</code> and a proper
-    <a href="Irmin.Task.html#VALowner">owner</a>.<br>
+    set to <code class="code">Unix.gettimeoday ()</code> and a task <a href="Irmin.Task.html#VALowner">owner</a>
+    based on the local Git configuration <b>FIXME:</b> not implemented,
+    use <code class="code">Unix.gethostname()</code> and <code class="code">Unix.getpid()</code> for now on.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.html">Irmin_fs</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_fs.html">..</a> <code class="code">end</code></pre><div class="info">
@@ -54,7 +59,7 @@ File system backends, using
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.html">Irmin_git</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_git.html">..</a> <code class="code">end</code></pre><div class="info">
-Git backends.
+Bidirectional Git backends.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.html">Irmin_http</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_http.html">..</a> <code class="code">end</code></pre><div class="info">
@@ -66,7 +71,9 @@ Server-side of the REST API over HTTP.
 </div>
 
 <pre><span id="VALinstall_dir_polling_listener"><span class="keyword">val</span> install_dir_polling_listener</span> : <code class="type">float -> unit</code></pre><div class="info ">
-Install the directory listener using active polling. The
-    parameter is the thread sleep time.<br>
+Install the directory listener using active polling. The parameter
+    is the thread sleep time. Prefer
+    <a href="https://opam.ocaml.org/packages/inotify/inotify.2.0/">inotify</a>
+    if it works on your system.<br>
 </div>
 </body></html>

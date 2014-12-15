@@ -90,7 +90,11 @@ The <code class="code">apply</code> combinator is useful to untie recursive loop
 </td></tr>
 <tr><td align="left"><br>B</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.html#VALbare">bare</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The configuration key to set the local Git repository's bare
+      attribute.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALbiject">biject</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Use the merge function defined in another domain.
@@ -113,7 +117,11 @@ Monadic bind for results.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.html#VALbranch">branch</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The configuration key to set the local Git repository's current
+      branch.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALbranch">branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">branch t</code> is the current branch of the store <code class="code">t</code>.
@@ -150,16 +158,25 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALclosure">GRAPH.closure</a> but
 <tr><td><a href="Irmin.S.Private.html#VALcommit_t">commit_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.html#VALconfig">config</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Create a configuration value.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.html#VALconfig">config</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Create a configuration value.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.html#VALconfig">config</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
 <td><div class="info">
 Create a configuration value.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_mem.html#VALconfig">config</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
-<td></td></tr>
+<td><div class="info">
+Configuration values.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.RO.html#VALconfig">config</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
 <code class="code">config t</code> is the list of configurations keys for the store
@@ -469,8 +486,8 @@ Find the least common ancestors
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http_server.S.html#VALlisten">listen</a> [<a href="Irmin_unix.Irmin_http_server.S.html">Irmin_unix.Irmin_http_server.S</a>]</td>
 <td><div class="info">
-<code class="code">start_server t uri</code> start a server serving the contents of <code class="code">t</code>
-        at the address <code class="code">uri</code>.
+<code class="code">start_server t uri</code> start a server serving the contents of
+        <code class="code">t</code> at the address <code class="code">uri</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Watch.S.html#VALlisten_dir">listen_dir</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
@@ -919,8 +936,9 @@ The list of all the tags of the store.
 <tr><td><a href="Irmin_unix.html#VALtask">task</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
 <td><div class="info">
 <code class="code">task fmt</code> creates a fresh task, with the <a href="Irmin.Task.html#VALdate">date</a>
-    set with <code class="code">Unix.gettimeoday</code> and a proper
-    <a href="Irmin.Task.html#VALowner">owner</a>.
+    set to <code class="code">Unix.gettimeoday ()</code> and a task <a href="Irmin.Task.html#VALowner">owner</a>
+    based on the local Git configuration <b>FIXME:</b> not implemented,
+    use <code class="code">Unix.gethostname()</code> and <code class="code">Unix.getpid()</code> for now on.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.RO.html#VALtask">task</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
@@ -984,7 +1002,11 @@ Same as <code class="code">update_tag</code> but delete and update the tag if it
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.html#VALuri">uri</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
-<td></td></tr>
+<td><div class="info">
+The configuration key to set the location of the remote HTTP
+      <a href="Irmin_unix.Irmin_http_server.html">server</a>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Sync.html#VALuri">uri</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
 <td><div class="info">
 <code class="code">uri s</code> is the remote store located at <code class="code">uri</code>.

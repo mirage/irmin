@@ -19,16 +19,20 @@
 &nbsp;</div>
 <h1>Module type <a href="type_Irmin_unix.Irmin_http_server.S.html">Irmin_unix.Irmin_http_server.S</a></h1>
 
-<pre><span class="keyword">module type</span> S = <code class="code">sig</code> <a href="Irmin_unix.Irmin_http_server.S.html">..</a> <code class="code">end</code></pre><hr width="100%">
+<pre><span class="keyword">module type</span> S = <code class="code">sig</code> <a href="Irmin_unix.Irmin_http_server.S.html">..</a> <code class="code">end</code></pre><div class="info modtype top">
+Server Signature.<br>
+</div>
+<hr width="100%">
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
 <div class="info ">
-Database type.<br>
+The type for store handles.<br>
 </div>
 
 
 <pre><span id="VALlisten"><span class="keyword">val</span> listen</span> : <code class="type"><a href="Irmin_unix.Irmin_http_server.S.html#TYPEt">t</a> -> ?timeout:int -> Uri.t -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">start_server t uri</code> start a server serving the contents of <code class="code">t</code>
-        at the address <code class="code">uri</code>.<br>
+<code class="code">start_server t uri</code> start a server serving the contents of
+        <code class="code">t</code> at the address <code class="code">uri</code>. Close clients' connections after
+        <code class="code">timeout</code> seconds of inactivity.<br>
 </div>
 </body></html>

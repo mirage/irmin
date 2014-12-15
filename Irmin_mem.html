@@ -24,13 +24,29 @@
 <h1>Module <a href="type_Irmin_mem.html">Irmin_mem</a></h1>
 
 <pre><span class="keyword">module</span> Irmin_mem: <code class="code">sig</code> <a href="Irmin_mem.html">..</a> <code class="code">end</code></pre><div class="info module top">
-In-memory store<br>
+In-memory store.
+<p>
+
+    A simple in-memory store, using hash tables. Once one of the
+    functors below is instantiated to a module <code class="code">M</code>, it has a unique
+    shared hash-table: multiple invocation of <code class="code">M.create</code> will see and
+    manipulate the same contents.<br>
 </div>
 <hr width="100%">
-<br>
-FIXME<br>
 
-<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_mem.AO.html">AO</a>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_mem.RW.html">RW</a>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_mem.Make.html">Make</a>: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre></body></html>
+<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre><div class="info ">
+Configuration values.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin_mem.AO.html">AO</a>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre><div class="info">
+An in-memory append-only store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin_mem.RW.html">RW</a>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre><div class="info">
+An in-memory read-write store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin_mem.Make.html">Make</a>: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre><div class="info">
+An in-memory Irmin store.
+</div>
+</body></html>

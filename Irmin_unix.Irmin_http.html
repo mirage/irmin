@@ -30,18 +30,30 @@ REST (over HTTP) backend..<br>
 <hr width="100%">
 <br>
 <h1 id="1_HTTPclient">HTTP client</h1><br>
-<br>
-FIXME<br>
 
-<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">Uri.t -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre>
-<pre><span id="VALuri"><span class="keyword">val</span> uri</span> : <code class="type">Uri.t option <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.AO.html">AO</a>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.RW.html">RW</a>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre>
+<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">Uri.t -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre><div class="info ">
+Create a configuration value. <code class="code">uri</code> it the location of the
+      remote HTTP <a href="Irmin_unix.Irmin_http_server.html">server</a>.<br>
+</div>
+
+<pre><span id="VALuri"><span class="keyword">val</span> uri</span> : <code class="type">Uri.t option <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre><div class="info ">
+The configuration key to set the location of the remote HTTP
+      <a href="Irmin_unix.Irmin_http_server.html">server</a>.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.AO.html">AO</a>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre><div class="info">
+An HTTP client using a REST API for an append-only store.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.RW.html">RW</a>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre><div class="info">
+An HTTP client using a REST API for a read-write store.
+</div>
+
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.Make.html">Make</a>: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre><div class="info">
-High-level bindings.
+<code class="code">Make</code> provides high-level bindings to the remote HTTP server.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.Low.html">Low</a>: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre><div class="info">
-Low-level bindings.
+<code class="code">Low</code> provides low-level bindings to the remote HTTP server.
 </div>
 </body></html>

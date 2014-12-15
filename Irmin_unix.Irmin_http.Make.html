@@ -25,10 +25,17 @@
 <h1>Module <a href="type_Irmin_unix.Irmin_http.Make.html">Irmin_unix.Irmin_http.Make</a></h1>
 
 <pre><span class="keyword">module</span> Make: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
-High-level bindings. Most of the computation is done on the
-      server, the client is (almost) stateless. The only thing that
-      the client needs to remember is the tag of the current branch or
-      the current head if the branch is detached.<br>
+<code class="code">Make</code> provides high-level bindings to the remote HTTP server.
+<p>
+
+      Most of the computation are done on the server, the client is
+      (almost) stateless. The only thing that the client needs to
+      remember is the tag of the current branch or the current head if
+      the branch is detached.
+<p>
+
+      All of the low-level and high-level operations take only one
+      RTT.<br>
 </div>
 <hr width="100%">
 <br>

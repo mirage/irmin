@@ -19,7 +19,11 @@
 &nbsp;</div>
 <h1>Functor <a href="type_Irmin_unix.Irmin_http_server.Make.html">Irmin_unix.Irmin_http_server.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">Irmin.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin_unix.Irmin_http_server.S.html">S</a></code><code class="type">  with type t = S.t</code></div></pre><table border="0" cellpadding="3" width="100%">
+<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">Irmin.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin_unix.Irmin_http_server.S.html">S</a></code><code class="type">  with type t = S.t</code></div></pre><div class="info module top">
+<code class="code">Make</code> exposes an Irmin store as a REST API for HTTP
+      <a href="Irmin_unix.Irmin_http.html">clients</a>.<br>
+</div>
+<table border="0" cellpadding="3" width="100%">
 <tr>
 <td align="left" valign="top" width="1%%"><b>Parameters: </b></td>
 <td>
@@ -37,12 +41,13 @@
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
 <div class="info ">
-Database type.<br>
+The type for store handles.<br>
 </div>
 
 
 <pre><span id="VALlisten"><span class="keyword">val</span> listen</span> : <code class="type"><a href="Irmin_unix.Irmin_http_server.S.html#TYPEt">t</a> -> ?timeout:int -> Uri.t -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">start_server t uri</code> start a server serving the contents of <code class="code">t</code>
-        at the address <code class="code">uri</code>.<br>
+<code class="code">start_server t uri</code> start a server serving the contents of
+        <code class="code">t</code> at the address <code class="code">uri</code>. Close clients' connections after
+        <code class="code">timeout</code> seconds of inactivity.<br>
 </div>
 </body></html>

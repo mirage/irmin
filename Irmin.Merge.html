@@ -84,7 +84,7 @@ The <code class="code">apply</code> combinator is useful to untie recursive loop
 
 <pre><span id="VALbiject"><span class="keyword">val</span> biject</span> : <code class="type">'a Tc.t -> 'b <a href="Irmin.Merge.html#TYPEt">t</a> -> ('a -> 'b) -> ('b -> 'a) -> 'a <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
 Use the merge function defined in another domain. The domain
-      converting functions might be pariah: in that case the <em>      convention</em> is that they raise <code class="code">Not_found</code> on undefined
+      converting functions might be partial: in that case the <em>      convention</em> is that they raise <code class="code">Not_found</code> on undefined
       entries.<br>
 </div>
 
