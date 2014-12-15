@@ -1461,6 +1461,65 @@ module type S = sig
 
 end
 
+type remote
+(** The type for remote stores. *)
+
+val remote_uri: string -> remote
+(** [remote_uri s] is the remote store located at [uri]. Use the
+    optimized native synchronization protocol when available for the
+    given backend. *)
+
+val remote_store: (module S with type t = 'a) -> 'a -> remote
+(** [remote_store t] is the remote corresponding to the local store
+    [t]. Synchronization is done by importing and exporting store
+    {{!BC.slice}slices}, so this is usually much slower than native
+    synchronization using {!remote_uri} but it works for all
+    backends. *)
+
+(** [Sync] provides functions to synchronization an Irmin store with
+    local and remote Irmin stores. *)
+module Sync (S: S): sig
+
+  (** {1 Native Synchronization} *)
+
+  val fetch: S.t -> ?depth:int -> remote -> S.head option Lwt.t
+  (** [fetch t ?depth r] populate the local store [t] with objects for
+      the remote store [r], using [t]'s current branch. The [depth]
+      parameter limits the history depth. Return [None] if either the
+      local or remote store do not have a valid head. *)
+
+  val fetch_exn: S.t -> ?depth:int -> remote -> S.head Lwt.t
+  (** Same as {!fetch} but raise [Failure] if either the local or
+      remote store do not have a valid head. *)
+
+  val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
+    unit Merge.result Lwt.t
+  (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
+      also updates [t]'s current branch. [s] is the update strategy:
+
+      {ul
+      {- [`Merge] uses {S.merge_head}. This strategy can return a conflict.}
+      {- [`Update] uses {S.update_head.}}
+      } *)
+
+  val pull_exn: S.t -> ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t
+  (** Same as {!pull} but raise {!Merge.Conflict} in case of
+      conflict. *)
+
+  val push: S.t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+  (** [push t ?depth r] populates the remote store [r] with objects
+      from the current store [t], using [t]'s current branch. If [b]
+      is [t]'s current branch, [push] also updates the head of [b] in
+      [r] to be the same as in [t].
+
+      {b Note:} {e Git} semantics is to update [b] only if the new
+      head if more recent. This is not the case in {e Irmin}. *)
+
+  val push_exn: S.t -> ?depth:int -> remote -> unit Lwt.t
+  (** Same as {!push} but raise [Failure] if an error happen. *)
+
+end
+
 (** [View] provides an in-memory partial mirror of the store, with
     lazy reads and delayed write.
 
@@ -1632,64 +1691,6 @@ module Dot (S: S): sig
         If [full] is set (default is not) the full graph, including the
         commits, nodes and contents, is exported, otherwise it is the
         commit history graph only. *)
-
-end
-
-type remote
-(** The type for remote stores. *)
-
-val remote_uri: string -> remote
-(** [remote_uri s] is the remote store located at [uri]. Use the
-    optimized native synchronization protocol when available for the
-    given backend. *)
-
-val remote_store: (module S with type t = 'a) -> 'a -> remote
-(** [remote_store t] is the remote corresponding to the local store
-    [t]. Synchronization is done by importing and exporting store
-    {{!BC.slice}slices}, so this is usually much slower than native
-    synchronization using [uri] remotes. *)
-
-(** [Sync] provides functions to synchronization an Irmin store with
-    local and remote Irmin stores. *)
-module Sync (S: S): sig
-
-  (** {1 Native Synchronization} *)
-
-  val fetch: S.t -> ?depth:int -> remote -> S.head option Lwt.t
-  (** [fetch t ?depth r] populate the local store [t] with objects for
-      the remote store [r], using [t]'s current branch. The [depth]
-      parameter limits the history depth. Return [None] if either the
-      local or remote store do not have a valid head. *)
-
-  val fetch_exn: S.t -> ?depth:int -> remote -> S.head Lwt.t
-  (** Same as {!fetch} but raise [Failure] if either the local or
-      remote store do not have a valid head. *)
-
-  val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
-    unit Merge.result Lwt.t
-  (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
-      also updates [t]'s current branch. [s] is the update strategy:
-
-      {ul
-      {- [`Merge] uses {S.merge_head}. This strategy can return a conflict.}
-      {- [`Update] uses {S.update_head.}}
-      } *)
-
-  val pull_exn: S.t -> ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t
-  (** Same as {!pull} but raise {!Merge.Conflict} in case of
-      conflict. *)
-
-  val push: S.t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
-  (** [push t ?depth r] populates the remote store [r] with objects
-      from the current store [t], using [t]'s current branch. If [b]
-      is [t]'s current branch, [push] also updates the head of [b] in
-      [r] to be the same as in [t].
-
-      {b Note:} {e Git} semantics is to update [b] only if the new
-      head if more recent. This is not the case in {e Irmin}. *)
-
-  val push_exn: S.t -> ?depth:int -> remote -> unit Lwt.t
-  (** Same as {!push} but raise [Failure] if an error happen. *)
 
 end
 
