@@ -66,7 +66,8 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     Log.debugf "got response: %s" b;
     let j = Ezjsonm.from_string b in
     try
-      result_of_json j
+      Ezjsonm.value j
+      |> result_of_json
       |> M.of_json
       |> return
     with Error e ->
@@ -77,7 +78,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let stream = Ezjsonm_lwt.from_stream stream in
     let stream = Lwt_stream.map result_of_json stream in
     Lwt_stream.map (fun j ->
-        Log.debugf "stream get %s" (Ezjsonm.to_string j);
+        Log.debugf "stream get %s" Ezjsonm.(to_string (wrap j));
         M.of_json j
       ) stream
 

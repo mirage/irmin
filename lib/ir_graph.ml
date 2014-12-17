@@ -60,6 +60,7 @@ module Make
       | `Node of Node.t
       | `Commit of Commit.t
       | `Tag of Tag.t ]
+
     let hash = Hashtbl.hash
 
     let compare x y = match x, y with
@@ -80,12 +81,6 @@ module Make
       | `Commit x, `Commit y -> Commit.equal x y
       | `Tag x, `Tag y -> Tag.equal x y
       | _ -> false
-
-    let to_sexp = function
-      | `Contents x -> Contents.to_sexp x
-      | `Node x -> Node.to_sexp x
-      | `Commit x -> Commit.to_sexp x
-      | `Tag x -> Tag.to_sexp x
 
     let to_json = function
       | `Contents x -> `O [ "contents", Contents.to_json x ]

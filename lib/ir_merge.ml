@@ -36,12 +36,6 @@ module Result = struct
   let compare _ = Pervasives.compare
   let hash _ = Hashtbl.hash
 
-  let to_sexp a_to_sexp t =
-    let open Sexplib.Type in
-    match t with
-    | `Ok a       -> List [ Atom "ok"; a_to_sexp a ]
-    | `Conflict s -> List [ Atom "conflict"; Atom s ]
-
   let to_json a_to_json = function
     | `Ok a       -> `O [ "ok", a_to_json a ]
     | `Conflict s -> `O [ "conflict", Ezjsonm.encode_string s ]

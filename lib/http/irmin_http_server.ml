@@ -89,7 +89,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let body = Cohttp_lwt_body.of_stream stream in
     HTTP.respond ~headers:json_headers ~status:`OK ~body ()
 
-  type 'a leaf = S.t -> string list -> Ezjsonm.t option -> (string * string list) list -> 'a
+  type 'a leaf = S.t -> string list -> Ezjsonm.value option -> (string * string list) list -> 'a
 
   type dynamic_node = {
     list: S.t -> string list Lwt.t;
@@ -97,8 +97,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   }
 
   and response =
-    | Fixed  of Ezjsonm.t Lwt.t leaf
-    | Stream of Ezjsonm.t Lwt_stream.t leaf
+    | Fixed  of Ezjsonm.value Lwt.t leaf
+    | Stream of Ezjsonm.value Lwt_stream.t leaf
     | SNode  of (string * response) list
     | DNode  of dynamic_node
     | Html   of string Lwt.t leaf
@@ -364,7 +364,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         | `Ok -> "ok"
         | `Duplicated_tag -> "duplicated-tag"
       let to_json t = `String (to_string t)
-      let to_sexp t = Sexplib.Type.Atom (to_string t)
       let compare = Pervasives.compare
       let equal = (=)
       let hash = Hashtbl.hash

@@ -47,15 +47,6 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
   let task t = t.task
   let create task ?node ~parents = { node; parents; task }
 
-  let to_sexp t =
-    let open Sexplib.Type in
-    let open Sexplib.Conv in
-    List [
-      List [ Atom "node"   ; sexp_of_option N.to_sexp t.node ];
-      List [ Atom "parents"; sexp_of_list C.to_sexp t.parents ];
-      List [ Atom "task"   ; T.to_sexp t.task ]
-    ]
-
   let to_json t =
     `O [
       ("node"   , Ezjsonm.option N.to_json t.node);
@@ -70,16 +61,16 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
     { node; parents; task }
 
   module X = Tc.Triple(Tc.Option(N))(Tc.List(C))(T)
-
   let explode t = t.node, t.parents, t.task
   let implode (node, parents, task) = { node; parents; task }
+  let x = Tc.biject (module X) implode explode
 
-  let hash t = X.hash (explode t)
-  let compare x y = X.compare (explode x) (explode y)
-  let equal x y = X.equal (explode x) (explode y)
-  let size_of t = X.size_of (explode t)
-  let write t b = X.write (explode t) b
-  let read b = implode (X.read b)
+  let hash = Tc.hash x
+  let compare = Tc.compare x
+  let equal = Tc.equal x
+  let size_of = Tc.size_of x
+  let write = Tc.write x
+  let read = Tc.read x
 
 end
 

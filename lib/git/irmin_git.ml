@@ -79,7 +79,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     let hash = Git.SHA.hash
     let compare = Git.SHA.compare
     let equal = (=)
-    let to_sexp t = Sexplib.Type.Atom (Git.SHA.to_hex t)
     let to_json t = Ezjsonm.string (Git.SHA.to_hex t)
     let of_json j = Git.SHA.of_hex (Ezjsonm.get_string j)
     let size_of _ = 20
@@ -180,7 +179,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let compare = Git.Tree.compare
       let equal = Git.Tree.equal
       let hash = Git.Tree.hash
-      let to_sexp = Git.Tree.sexp_of_t
       let read = Git.Tree.input
 
       let to_string t =
@@ -304,7 +302,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       type t = Git.Commit.t
       type node = GK.t
 
-      let to_sexp = Git.Commit.sexp_of_t
       let compare = Git.Commit.compare
       let equal = Git.Commit.equal
       let hash = Git.Commit.hash

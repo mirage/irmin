@@ -68,12 +68,6 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_path.S) = struct
 
     let hash = Hashtbl.hash
 
-    let to_sexp t =
-      let open Sexplib.Type in
-      match t with
-      | `Contents c -> List [ Atom "contents"; K_c.to_sexp c ]
-      | `Node n     -> List [ Atom "node"    ; K_n.to_sexp n ]
-
     let to_json = function
       | `Contents c -> `O [ "contents", K_c.to_json c ]
       | `Node n     -> `O [ "node"    , K_n.to_json n ]
@@ -143,7 +137,6 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_path.S) = struct
 
   module Y = Tc.List (Tc.Pair (P.Step)(X) )
 
-  let to_sexp t = Y.to_sexp t.alist
   let to_json t = Y.to_json t.alist
   let of_json j = create (Y.of_json j)
   let write t = Y.write t.alist

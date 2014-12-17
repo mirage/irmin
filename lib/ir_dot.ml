@@ -105,7 +105,7 @@ module Make (S: Ir_s.STORE) = struct
                   \  <div class='sha1'>%s</div>\n\
                   \  <div class='blob'><pre>%s</pre></div>\n\
                    </div>"
-            k (Ezjsonm.to_string (S.Val.to_json v))
+            k (Tc.show (module S.Val) v)
         else
            let v = string_of_contents (Tc.show (module S.Val) v) in
            sprintf "%s (%s)" k (String.escaped v) in
@@ -114,7 +114,7 @@ module Make (S: Ir_s.STORE) = struct
       let s =
         if html then
           sprintf "<div class='tag'>%s</div>"
-            (Ezjsonm.to_string (Tag.Key.to_json t))
+            (Tc.show (module Tag.Key) t)
         else
           Tc.show (module Tag.Key) t
       in

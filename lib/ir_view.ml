@@ -48,14 +48,6 @@ module Action (P: Tc.S0) (C: Tc.S0) = struct
     | `List x , `List y  -> L.equal x y
     | _ -> false
 
-  let to_sexp t =
-    let open Sexplib.Type in
-    match t with
-    | `Read x  -> List [ Atom "read" ; R.to_sexp x ]
-    | `Write x -> List [ Atom "write"; W.to_sexp x ]
-    | `Rmdir x -> List [ Atom "rmdir"; P.to_sexp x ]
-    | `List x  -> List [ Atom "list" ; L.to_sexp x ]
-
   let to_json = function
     | `Read x  -> `O [ "read" , R.to_json x ]
     | `Write x -> `O [ "write", W.to_json x ]
