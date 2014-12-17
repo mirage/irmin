@@ -1,6 +1,6 @@
 0.9.0 (master)
 * Improve the efficiency of the Git backend
-* Expose a cleaner API for the Unix backend
+* Expose a cleaner API for the Unix backends
 * Expose a cleaner public API
 * Rename `Origin` into `Task` and use it pervasively through the API
 * Expose a high-level REST API over HTTP (#80)
@@ -8,6 +8,8 @@
 * Add a limit on concurrently open files (#93, #75)
 * Add `remove_rec` to remove directories (#74, #85)
 * Remove dependency to `core_kernel` (#22, #81)
+* Remove dependency to `cryptokit and `sha1` and use `nocrypto` instead
+* Remove dependency to caml4
 * Fix writing contents at the root of the store (#73)
 * More efficient synchronization protocol between Irmin stores (#11)
 
