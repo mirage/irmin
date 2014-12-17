@@ -585,7 +585,7 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     include V
     let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
   end
-  module M = Make (FakeIO)(G)(Irmin.Path.String)(V)(Irmin.Tag.String_list)(K)
+  module M = Make (FakeIO)(G)(Irmin.Path.String_list)(V)(Irmin.Tag.String_list)(K)
   include M.AO(K)(M.GitContents)
 end
 
@@ -594,7 +594,7 @@ module RW (G: Git.Store.S) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
     include K
     let master = K.of_hum "master"
   end
-  module M = Make (FakeIO)(G)(Irmin.Path.String)(Irmin.Contents.String)(K)(V)
+  module M = Make (FakeIO)(G)(Irmin.Path.String_list)(Irmin.Contents.String)(K)(V)
   include M.XTag
 end
 

@@ -47,7 +47,7 @@ end
 
 exception Invalid of string
 
-module String = Make(struct
+module String_list = Make(struct
     include Tc.String
     let to_hum s = s
     let of_hum = function

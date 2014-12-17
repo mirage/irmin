@@ -98,18 +98,13 @@ end
 
 open Lwt
 
-module P = Irmin.Path.String
-module K = Irmin.Hash.SHA1
-module T = Irmin.Tag.String_list
-module Store (F: Irmin.S_MAKER)(C: Irmin.Contents.S) =  F(P)(C)(T)(K)
-
 let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
   fun (module M) c ->
     let (module C: Irmin.Contents.S) = match c with
       | `String -> (module Irmin.Contents.String)
       | `Json   -> (module Irmin.Contents.Json)
     in
-    let module X = Store(M)(C) in
+    let module X = Irmin.Default(M)(C) in
     (module X)
 
 type t = {

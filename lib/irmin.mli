@@ -589,8 +589,8 @@ module Path: sig
   module Make (S: STEP): S with type step = S.t
   (** A list of steps, representing keys in an Irmin store. *)
 
-  module String: S with type step = string
-  (** An implementation of paths using strings as steps. *)
+  module String_list: S with type step = string
+  (** An implementation of paths as string lists. *)
 
 end
 
@@ -1748,9 +1748,17 @@ module type S_MAKER =
        and type tag = T.t
        and type head = H.t
 
+module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 (** Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store. *)
-module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
+
+module Default (S: S_MAKER) (C: Contents.S): S
+  with type step = string
+   and type value = C.t
+   and type tag = string list
+   and type head = Hash.SHA1.t
+(** Default store creator. Use string step, string tags and SHA1
+    digests. Only the content is provided by the user. *)
 
 (** Advanced store creator. *)
 module Make_ext (P: Private.S): S

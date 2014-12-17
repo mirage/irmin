@@ -56,3 +56,9 @@ module Make_ext (P: Ir_bc.PRIVATE): STORE
    and type value = P.Contents.value
    and type tag = P.Tag.key
    and type head = P.Tag.value
+
+module Default (S: MAKER) (C: Ir_contents.S): STORE
+  with type step = string
+   and type value = C.t
+   and type tag = string list
+   and type head = Ir_hash.SHA1.t

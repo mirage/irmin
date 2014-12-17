@@ -237,7 +237,7 @@ module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     include V
     let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
   end
-  module M = Low (Client)(Irmin.Path.String)(V)(Irmin.Tag.String_list)(K)
+  module M = Low (Client)(Irmin.Path.String_list)(V)(Irmin.Tag.String_list)(K)
   include M.X.Contents
 end
 
@@ -246,7 +246,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struc
     include K
     let master = K.of_hum "master"
   end
-  module M = Low (Client)(Irmin.Path.String)(Irmin.Contents.String)(K)(V)
+  module M = Low (Client)(Irmin.Path.String_list)(Irmin.Contents.String)(K)(V)
   include M.X.Tag
 end
 

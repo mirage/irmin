@@ -208,7 +208,7 @@ module Obj = struct
   let key_of_file path =
     Log.debugf "key_of_file %s" path;
     let path = string_chop_prefix ~prefix:("objects" / "") path in
-    let path = Irmin.Path.String.of_hum path in
+    let path = Stringext.split ~on:'/' path in
     let path = String.concat "" path in
     path
 

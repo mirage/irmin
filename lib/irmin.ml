@@ -65,3 +65,5 @@ let remote_store (type t) (module M: S with type t = t) (t:t) =
   Ir_sync_ext.remote_store (module X) t
 
 let remote_uri = Ir_sync_ext.remote_uri
+
+module Default = Ir_s.Default
