@@ -1,6 +1,5 @@
 open Lwt
-open Core_kernel.Std
-open IrminMerge.OP
+open Irmin.Merge.OP
 open Irmin_unix
 
 (* Enable debug outputs if DEBUG is set *)
@@ -12,70 +11,68 @@ let () =
       Log.set_log_level Log.DEBUG
   with Not_found -> ()
 
+module StringSet = Set.Make(String)
+let set_of_list s =
+  List.fold_left (fun s x -> StringSet.add x s) StringSet.empty s
+
 module Contents = struct
 
-  type elt =
+  type t =
     | String of string
-    | Set of String.Set.t
-  with bin_io, compare, sexp
+    | Set of StringSet.t
 
-  (* Glue code *)
-  module X = IrminIdent.Make(struct
-      type nonrec t = elt with compare, sexp
-    end)
-  include X
+  module T = Tc.Pair(Tc.String)(Tc.List(Tc.String))
 
-  let to_string = function
-    | String s -> sprintf "%s\n" s
-    | Set  s   -> sprintf "List:\n%s\n" (String.concat ~sep:"\n" (String.Set.to_list s))
+  let of_t = function
+    | String s -> ("string", [s])
+    | Set s    -> ("set"   , StringSet.elements s)
 
-  let of_string str =
-    match String.split str ~on:'\n' with
-    | "List:" :: l ->
-      let l = List.filter ~f:(fun x -> String.(x <> "")) l in
-      Set (String.Set.of_list l)
-    | _            -> String str
+  let to_t = function
+    | "string", [s] -> String s
+    | "set"   , s   -> Set (set_of_list s)
+    | _ -> failwith "Contents"
 
-  let (++) = String.Set.union
-  let (--) = String.Set.diff
+  let t = Tc.biject (module T) to_t of_t
 
-  let merge_t ~origin ~old t1 t2 =
+  let compare = Tc.compare t
+  let hash = Tc.hash t
+  let equal = Tc.equal t
+  let to_json = Tc.to_json t
+  let of_json = Tc.of_json t
+  let size_of = Tc.size_of t
+  let write = Tc.write t
+  let read = Tc.read t
+
+  let (++) = StringSet.union
+  let (--) = StringSet.diff
+
+  let merge ~old t1 t2 =
     match old, t1, t2 with
-
     | Set old, Set s1, Set s2 ->
-      let add = (s1 -- old) ++ (s2 -- old) in
-      let del = (old -- s1) ++ (old -- s2) in
-      ok (Set (add ++ old -- del))
-
+      Irmin.Merge.set (module StringSet) ~old s1 s2 >>| fun s3 ->
+      ok (Set s3)
     | String old, String x1, String x2 ->
-      if String.(old = x1) then ok (String x2)
-      else if String.(old = x2) then ok (String x1)
-      else if String.(x1 = x2) then ok (String x1)
-      else if String.(IrminOrigin.id origin = "root") then
-        ok (String "Muhahaha!")
-      else
-        conflict "Not mergeable string (%s / %s / %s)" old x1 x2
-
-    | _ -> conflict "Not mergeable contents"
-
-  let merge = IrminMerge.create' (module X) merge_t
+      Irmin.Merge.string ~old x1 x2 >>| fun x3 ->
+      ok (String x3)
+    | _ -> conflict "unmergeable contents"
 
 end
 
-module View = IrminView.Make(IrminKey.SHA1)(Contents)
+module Store = Irmin.Default(Irmin_git.FS)(Contents)
+module View = Irmin.View(Store)
 
 module Contact = struct
 
   type t = {
     id    : string;
     name  : string;
-    phones: String.Set.t;
+    phones: StringSet.t;
   }
 
-  let view_of_t t =
+  let view_of_t config t =
     let name = Contents.String t.name in
     let phones = Contents.Set t.phones in
-    View.create () >>= fun view ->
+    View.create config task >>= fun view ->
     View.update view [t.id; "name"  ] name   >>= fun () ->
     View.update view [t.id; "phones"] phones >>= fun () ->
     return view
@@ -92,10 +89,6 @@ module Contact = struct
     return { id; name; phones }
 
 end
-
-module type S = Irmin.S with type Block.key = IrminKey.SHA1.t
-                         and type value = Contents.t
-                         and type branch = IrminTag.String.t
 
 module ContactStore (Store: S) = struct
 
