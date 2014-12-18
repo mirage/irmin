@@ -86,15 +86,18 @@ module type T = S with type step = string
 
 type 'a t = T: (module T with type value = 'a and type t = 't) * 't -> 'a t
 
-let create (type a) (module T: T with type value = a) config task =
+let create (type a) (t: a basic) config task =
+  let (module T) = t in
   T.create config task >>= fun t ->
   return (fun a -> T ((module T), t a))
 
-let of_tag (type a) (module T: T with type value = a) config task t =
-  T.of_tag config task t >>= fun t ->
+let of_tag (type a) (t: a basic) config task tag =
+  let (module T) = t in
+  T.of_tag config task tag >>= fun t ->
   return (fun a -> T ((module T), t a))
 
-let of_head (type a) (module T: T with type value = a) config task h =
+let of_head (type a) (t: a basic) config task h =
+  let (module T) = t in
   T.of_head config task h >>= fun t ->
   return (fun a -> T ((module T), t a))
 
