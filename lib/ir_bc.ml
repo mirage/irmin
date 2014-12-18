@@ -340,17 +340,24 @@ module Make_ext (P: PRIVATE) = struct
     list t [] >>= aux
 
   (* Merge two commits:
-     - Search for a common ancestor
-     - Perform a 3-way merge *)
-  let three_way_merge t c1 c2 =
+     - Search for common ancestors
+     - Perform recursive 3-way merges *)
+  let rec three_way_merge t c1 c2 =
     Log.debugf "3-way merge between %a and %a"
       force (show (module Head) c1)
       force (show (module Head) c2);
     History.lca (history_t t) c1 c2 >>= function
-    | []    -> conflict "No common ancestor between %s and %s"
-                 (Head.to_hum c1) (Head.to_hum c2)
-    | [old] -> History.merge (history_t t) ~old c1 c2
-    | _     -> assert false (* FIXME *)
+    | [] -> conflict "No common ancestor between %s and %s"
+              (Head.to_hum c1) (Head.to_hum c2)
+    | old :: olds ->
+      let rec aux acc = function
+        | []        -> ok acc
+        | old::olds ->
+          three_way_merge t acc old >>| fun acc ->
+          aux acc olds
+      in
+      aux old olds >>| fun old ->
+      History.merge (history_t t) ~old c1 c2
 
   let update_head t c =
     match branch t with

@@ -17,7 +17,6 @@
 open Ir_misc.OP
 open Lwt
 open Ir_merge.OP
-open Printf
 
 module Log = Log.Make(struct let section = "COMMIT" end)
 
@@ -188,36 +187,38 @@ struct
     return keys
 
   module KSet = Ir_misc.Set(S.Key)
+  let (--) = KSet.diff
+  let (++) = KSet.union
+  let ( ** ) = KSet.inter
 
-  (* FIXME: should work with multiple lca *)
+  (* FIXME: pretty dumb and inefficient *)
   let lca t c1 c2 =
     Log.debugf "lca %a %a"
       force (show (module S.Key) c1)
       force (show (module S.Key) c2);
     let rec aux (seen1, todo1) (seen2, todo2) =
-      if KSet.is_empty todo1 && KSet.is_empty todo2 then
-        return_nil
-      else
-        let seen1' = KSet.union seen1 todo1 in
-        let seen2' = KSet.union seen2 todo2 in
-        match KSet.to_list (KSet.inter seen1' seen2') with
-        | []  ->
-          (* Compute the immediate parents *)
-          let parents todo =
-            let parents_of_commit seen c =
-              Store.read_exn t c >>= fun v ->
-              let parents = KSet.of_list (S.Val.parents v) in
-              return (KSet.diff parents seen) in
-            Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
-          in
-          parents todo1 >>= fun todo1' ->
-          parents todo2 >>= fun todo2' ->
-          aux (seen1', todo1') (seen2', todo2')
-        | [r] -> return [r]
-        | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
-                                  (Tc.shows (module S.Key) rs))) in
-    aux
-      (KSet.empty, KSet.singleton c1)
-      (KSet.empty, KSet.singleton c2)
+      if KSet.is_empty todo1 && KSet.is_empty todo2 then (
+        Log.debugf "lca stats: %d/%d/%d"
+          (KSet.cardinal seen1)
+          (KSet.cardinal seen2)
+          (KSet.cardinal (seen1 ++ seen2));
+        return (seen1 ** seen2)
+      ) else
+        let seen1' = seen1 ++ todo1 in
+        let seen2' = seen2 ++ todo2 in
+        (* Compute the immediate parents *)
+        let parents todo =
+          let parents_of_commit seen c =
+            Store.read_exn t c >>= fun v ->
+            let parents = KSet.of_list (S.Val.parents v) in
+            return (KSet.diff parents seen) in
+          Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
+        in
+        parents (todo1 -- seen2') >>= fun todo1' ->
+        parents (todo2 -- seen1') >>= fun todo2' ->
+        aux (seen1', todo1') (seen2', todo2')
+    in
+    aux (KSet.empty, KSet.singleton c1) (KSet.empty, KSet.singleton c2)
+    >>= fun s -> return (KSet.to_list s)
 
 end
