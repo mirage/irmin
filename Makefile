@@ -48,3 +48,15 @@ $(VFILE): _oasis
 
 $(SFILE): $(SFILES)
 	cd lib/http/ && ./make_static.sh
+
+
+doc/html/.git:
+	cd doc/html && git init && git remote add origin git@github.com:samoht/irmin.git
+
+gh-pages: doc/html/.git
+	cd doc/html && git checkout gh-pages
+	rm -f doc/html/*.html
+	cp irmin.docdir/*.html doc/html/
+	cd doc/html && git add *.html
+	cd doc/html && git commit -a -m "Doc updates"
+	cd doc/html && git push origin gh-pages
