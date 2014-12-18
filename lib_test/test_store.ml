@@ -368,6 +368,16 @@ module Make (S: Irmin.S) = struct
       assert_equal (module C) "r3" r3 r3';
       assert_equal (module KC) "kr3" kr3 kr3';
 
+      (* test for multiple lca *)
+      History.create (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
+      History.create (h 1) ~node:k0 ~parents:[kr0] >>= fun kr1 ->
+      History.create (h 2) ~node:k0 ~parents:[kr0] >>= fun kr2 ->
+      History.create (h 3) ~node:k0 ~parents:[kr1; kr2] >>= fun kr3 ->
+      History.create (h 4) ~node:k0 ~parents:[kr1; kr2] >>= fun kr4 ->
+      S.of_head x.config task kr3 >>= fun t1 ->
+      S.of_head x.config task kr4 >>= fun t2 ->
+      S.merge_exn 4 t1 ~into:t2   >>= fun () ->
+
       return_unit
     in
     run x test
