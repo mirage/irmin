@@ -21,11 +21,11 @@ let () =
       Log.set_log_level Log.DEBUG
   with Not_found -> ()
 
-module Store = Irmin.Default(Irmin_git.FS)(Irmin.Contents.String)
+let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
 
 let main () =
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true () in
-  Irmin.create (module Store) config task >>= fun t ->
+  Irmin.create store config task >>= fun t ->
 
   Irmin.update (t "t: Update 1.txt") ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
   Irmin.update (t "t: Update 2.txt") ["root";"misc";"2.txt"] "Hi!" >>= fun () ->

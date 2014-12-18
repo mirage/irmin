@@ -83,9 +83,9 @@ let log t fmt =
     ) fmt
 
 let main () =
-  let module Store = Irmin.Default(Irmin_git.FS)(Log) in
+  let store = Irmin.basic (module Irmin_git.FS) (module Log) in
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true () in
-  Irmin.create (module Store) config task >>= fun t ->
+  Irmin.create store config task >>= fun t ->
 
   (* populate the log with some random messages *)
   Lwt_list.iter_s (fun msg ->

@@ -1767,12 +1767,9 @@ module Make_ext (P: Private.S): S
    and type head = P.Tag.value
 
 
-(** {2 Default Helpers} *)
+(** {2 Basic API} *)
 
-module type T = S with type step = string
-                   and type tag = string
-                   and type head = Hash.SHA1.t
-(** Default Irmin implementations use:
+(** The basic API considers default Irmin implementations using:
 
     {ul
     {- {{!Path.String_list}list of strings} as keys.}
@@ -1783,23 +1780,32 @@ module type T = S with type step = string
     Only the {{!Contents.S}contents} is provided by the user.
 *)
 
-module Default (S: S_MAKER) (C: Contents.S): T with type value = C.t
-(** Default store creator. Use string step, string tags and SHA1
-    digests. Only the content is provided by the user. *)
 
-type 'a backend = (module T with type value = 'a)
-(** The type for backend implementations of the default store. *)
+type 'a basic = (module S with type step = string
+                           and type tag = string
+                           and type head = Hash.SHA1.t
+                           and type value = 'a)
+(** The type for basic Irmin implementations. *)
+
+val cast: 'a basic -> (module S)
+(** [cast s] forgets about the constraints on the step, tag and head
+    types. *)
+
+val basic: (module S_MAKER) -> (module Contents.S with type t = 'a) -> 'a basic
+(** [basic backend contents] is a basic Irmin implementation using
+    [backend] as a backend and containing values defined by
+    [contents]. *)
 
 type 'a t
 (** The type for default store. *)
 
-val create: 'a backend -> config -> ('m -> task) -> ('m -> 'a t) Lwt.t
+val create: 'a basic -> config -> ('m -> task) -> ('m -> 'a t) Lwt.t
 (** See {!RO.create}. Needs a backend as first argument. *)
 
-val of_tag: 'a backend -> config -> ('m -> task) -> string -> ('m -> 'a t) Lwt.t
+val of_tag: 'a basic -> config -> ('m -> task) -> string -> ('m -> 'a t) Lwt.t
 (** See {!BC.of_tag}. Needs a backend as first argument. *)
 
-val of_head: 'a backend -> config -> ('m -> task) -> Hash.SHA1.t -> ('m -> 'a t) Lwt.t
+val of_head: 'a basic -> config -> ('m -> task) -> Hash.SHA1.t -> ('m -> 'a t) Lwt.t
 (** See {!BC.of_head}. Needs a backend as first argument. *)
 
 (** {2 Base Operations} *)

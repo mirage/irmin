@@ -11,10 +11,6 @@
 open Lwt
 open Irmin_unix
 
-module Store = Irmin.Default(Irmin_git.FS)(Irmin.Contents.String)
-module View = Irmin.View(Store)
-
-let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
 let fmt t x = Printf.ksprintf (fun str -> t str) x
 
 type t1 = int
@@ -48,6 +44,12 @@ let t_of_view v =
     ) t2s in
   let t2s = List.sort compare t2s in
   Lwt_list.fold_left_s aux [] t2s
+
+let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+let view  = Irmin.view store
+
+let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
+
 
 let main () =
 

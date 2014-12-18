@@ -68,13 +68,20 @@ let remote_store (type t) (module M: S with type t = t) (t:t) =
 
 let remote_uri = Ir_sync_ext.remote_uri
 
+type 'a basic = (module S with type step = string
+                           and type tag = string
+                           and type head = Hash.SHA1.t
+                           and type value = 'a)
+
+let cast (type a): a basic -> (module S) = fun (module M) -> (module M)
+
+let basic (type a) (module B: S_MAKER) (module C: Contents.S with type t = a): a basic =
+  let module B = Ir_s.Default(B)(C) in
+  (module B)
+
 module type T = S with type step = string
                    and type tag = string
                    and type head = Hash.SHA1.t
-
-module Default = Ir_s.Default
-
-type 'a backend = (module T with type value = 'a)
 
 type 'a t = T: (module T with type value = 'a and type t = 't) * 't -> 'a t
 

@@ -21,9 +21,7 @@ open Irmin_unix
 type contents = (module Irmin.Contents.S)
 
 let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
-  fun (module M) (module C) ->
-    let module X = Irmin.Default(M)(C) in
-    (module X)
+  fun b (module C) -> Irmin.(cast (basic b (module C)))
 
 let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Irmin_fs.Make)
