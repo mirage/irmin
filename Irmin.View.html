@@ -69,48 +69,48 @@ The type for store handles.<br>
 A view is a read-write temporary store, mirroring the main
       store.<br>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> into:t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Merge the actions done on one view into an other one. If a read
       operation doesn't return the same result, return
       <code class="code">Conflict</code>. Only the <code class="code">into</code> view is updated.<br>
 </div>
 
-<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">t -> into:t -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t</code></pre><div class="info ">
 Same as <code class="code">merge</code> but raise <code class="code">Merge.Conflict</code> in case of
       conflict.<br>
 </div>
 
-<pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type">('a -> <a href="Irmin.html#TYPEtask">Irmin.task</a>) -> <a href="Irmin.View.html#TYPEdb">db</a> -> key -> ('a -> t) Lwt.t</code></pre><div class="info ">
 Read a view from a path in the store. This is a cheap operation,
       all the real reads operation will be done on-demand when the
       view is used.<br>
 </div>
 
-<pre><span id="VALupdate_path"><span class="keyword">val</span> update_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">update_path t path v</code> <em>replaces</em> the sub-tree under <code class="code">path</code> in
-      the store <code class="code">t</code> by the contents of the view <code class="code">v</code>. See <code class="code">merge_path</code>
-      for more details.<br>
+<pre><span id="VALupdate_path"><span class="keyword">val</span> update_path</span> : <code class="type">'a -> ('a -> <a href="Irmin.View.html#TYPEdb">db</a>) -> key -> ('a -> t) -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">update_path x t path v</code> <em>replaces</em> the sub-tree under <code class="code">path</code>
+      in the store <code class="code">t x</code> by the contents of the view <code class="code">v x</code>. See
+      <code class="code">merge_path</code> for more details.<br>
 </div>
 
-<pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-<code class="code">rebase_path t path v</code> <em>rebases</em> the view <code class="code">v</code> on top of the
-      contents of <code class="code">t</code>'s sub-tree pointed by the path <code class="code">path</code>. Rebasing
-      means re-applying every actions stored in <code class="code">t</code>,
-      including the <em>reads</em>. Return <code class="code">Merge.Conflict</code> if one of the
-      action cannot apply cleanly. See <code class="code">merge_path</code> for more
-      details.<br>
+<pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type">'a -><br>       ('a -> <a href="Irmin.View.html#TYPEdb">db</a>) -> key -> ('a -> t) -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<code class="code">rebase_path x t path v</code> <em>rebases</em> the view <code class="code">v x</code> on top of
+      the contents of <code class="code">t x</code>'s sub-tree pointed by the path
+      <code class="code">path</code>. Rebasing means re-applying every actions
+      stored in <code class="code">t</code>, including the <em>reads</em>. Return <code class="code">Merge.Conflict</code>
+      if one of the action cannot apply cleanly. See <code class="code">merge_path</code> for
+      more details.<br>
 </div>
 
-<pre><span id="VALrebase_path_exn"><span class="keyword">val</span> rebase_path_exn</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALrebase_path_exn"><span class="keyword">val</span> rebase_path_exn</span> : <code class="type">'a -> ('a -> <a href="Irmin.View.html#TYPEdb">db</a>) -> key -> ('a -> t) -> unit Lwt.t</code></pre><div class="info ">
 Same as <code class="code">rebase_path</code> but raise <code class="code">Merge.Conflict</code> in case of
       conflict.<br>
 </div>
 
-<pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-<code class="code">merge_path t path v</code> <em>merges</em> the view <code class="code">v</code> with the contents
-      of <code class="code">t</code>'s sub-tree pointed by the path <code class="code">path</code>. Merging means
-      applying the merge function for map between the
-      view's contents and <code class="code">t</code>'s sub-tree.
+<pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type">'a -><br>       ('a -> <a href="Irmin.View.html#TYPEdb">db</a>) -> key -> ('a -> t) -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<code class="code">merge_path x t path v</code> <em>merges</em> the view <code class="code">v x</code> with the
+      contents of <code class="code">t x</code>'s sub-tree pointed by the path <code class="code">path</code>. Merging
+      means applying the merge function for map between
+      the view's contents and <code class="code">t</code>'s sub-tree.
 <p>
 
       <ul>
@@ -125,7 +125,7 @@ Same as <code class="code">rebase_path</code> but raise <code class="code">Merge
 <br>
 </div>
 
-<pre><span id="VALmerge_path_exn"><span class="keyword">val</span> merge_path_exn</span> : <code class="type"><a href="Irmin.View.html#TYPEdb">db</a> -> key -> t -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_path_exn"><span class="keyword">val</span> merge_path_exn</span> : <code class="type">'a -> ('a -> <a href="Irmin.View.html#TYPEdb">db</a>) -> key -> ('a -> t) -> unit Lwt.t</code></pre><div class="info ">
 Same as <code class="code">merge_path</code> but raise <code class="code">Merge.Conflict</code> in case of
       conflicts.<br>
 </div>
