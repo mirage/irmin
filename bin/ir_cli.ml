@@ -290,7 +290,7 @@ let fetch = {
         store >>= fun t ->
         remote >>= fun r ->
         let tag = S.Tag.of_hum "import" in
-        S.of_tag (S.config (t "config")) task tag >>= fun t ->
+        S.of_tag (S.Private.config (t "config")) task tag >>= fun t ->
         Sync.pull_exn (t "Fetching.")  r `Update
       end
     in

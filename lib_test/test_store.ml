@@ -441,7 +441,7 @@ module Make (S: Irmin.S) = struct
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
 
-      View.create x.config task >>= fun v0 ->
+      View.create task >>= fun v0 ->
 
       View.update (v0 "/") [] foo1 >>= fun () ->
       View.read (v0 "read /") [] >>= fun foo1' ->

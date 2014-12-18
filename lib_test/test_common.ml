@@ -99,12 +99,12 @@ end
 open Lwt
 
 let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
-  fun b c ->
+  fun (module B) c ->
     let (module C: Irmin.Contents.S) = match c with
       | `String -> (module Irmin.Contents.String)
       | `Json   -> (module Irmin.Contents.Json)
     in
-    Irmin.(cast (basic b (module C)))
+    let module S = Irmin.Basic(B)(C) in (module S)
 
 type t = {
   name  : string;
