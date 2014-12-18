@@ -5,6 +5,7 @@
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.RW_MAKER.html">
+<link rel="next" href="Irmin.BASIC.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -19,7 +20,8 @@
 <body>
 <div class="navbar"><a class="pre" href="Irmin.RW_MAKER.html" title="Irmin.RW_MAKER">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
-&nbsp;</div>
+&nbsp;<a class="post" href="Irmin.BASIC.html" title="Irmin.BASIC">Next</a>
+</div>
 <h1>Module type <a href="type_Irmin.S_MAKER.html">Irmin.S_MAKER</a></h1>
 
 <pre><span class="keyword">module type</span> S_MAKER = <code class="code">functor (</code><code class="code">P</code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Path.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type step = P.step

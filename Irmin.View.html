@@ -69,14 +69,20 @@ The type for store handles.<br>
 A view is a read-write temporary store, mirroring the main
       store.<br>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-Merge the actions done on one view into an other one. If a read
-      operation doesn't return the same result, return
-      <code class="code">Conflict</code>. Only the <code class="code">into</code> view is updated.<br>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">('a -> <a href="Irmin.html#TYPEtask">Irmin.task</a>) -> ('a -> t) Lwt.t</code></pre><div class="info ">
+Create an empty view. Empty views do not have associated backend
+      configuration values, as they can perform in-memory operation,
+      independently of any given backend.<br>
 </div>
 
-<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t</code></pre><div class="info ">
-Same as <code class="code">merge</code> but raise <code class="code">Merge.Conflict</code> in case of
+<pre><span id="VALrebase"><span class="keyword">val</span> rebase</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<code class="code">rebase x t i</code> rebases the actions done on the view <code class="code">t x</code> into
+      the view <code class="code">i x</code>. If a read operation doesn't return the same
+      result, return <code class="code">Conflict</code>. Only the view <code class="code">i</code> is updated.<br>
+</div>
+
+<pre><span id="VALrebase_exn"><span class="keyword">val</span> rebase_exn</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t</code></pre><div class="info ">
+Same as <code class="code">rebase</code> but raise <code class="code">Merge.Conflict</code> in case of
       conflict.<br>
 </div>
 

@@ -282,16 +282,22 @@ The basic API considers default Irmin implementations using:
 
     Only the <a href="Irmin.Contents.S.html">contents</a> is provided by the user.<br>
 
-<pre><span id="TYPEbasic"><span class="keyword">type</span> <code class="type">'a</code> basic</span> = <code class="type">(module Irmin.S with type head = Hash.SHA1.t and type step = string and type tag = <br>        string and type value = 'a)</code> </pre>
+<pre><span class="keyword">module type</span> <a href="Irmin.BASIC.html">BASIC</a> = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type step = string
+                       and type tag = string
+                       and type head = Hash.SHA1.t</code></pre><div class="info">
+The signature of basic stores.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Basic.html">Basic</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">B</code><code class="code"> : </code><code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.BASIC.html">BASIC</a></code><code class="type">  with type value = C.t</code></div></div></pre><div class="info">
+Generate a basic store using <code class="code">B</code> as backend and <code class="code">C</code> as
+    user-provided contents.
+</div>
+
+<pre><span id="TYPEbasic"><span class="keyword">type</span> <code class="type">'a</code> basic</span> = <code class="type">(module Irmin.BASIC with type value = 'a)</code> </pre>
 <div class="info ">
-The type for basic Irmin implementations.<br>
+The type for basic stores.<br>
 </div>
 
-
-<pre><span id="VALcast"><span class="keyword">val</span> cast</span> : <code class="type">'a <a href="Irmin.html#TYPEbasic">basic</a> -> (module Irmin.S)</code></pre><div class="info ">
-<code class="code">cast s</code> forgets about the constraints on the step, tag and head
-    types.<br>
-</div>
 
 <pre><span id="VALbasic"><span class="keyword">val</span> basic</span> : <code class="type">(module Irmin.S_MAKER) -><br>       (module Irmin.Contents.S with type t = 'a) -> 'a <a href="Irmin.html#TYPEbasic">basic</a></code></pre><div class="info ">
 <code class="code">basic backend contents</code> is a basic Irmin implementation using
@@ -361,7 +367,7 @@ See <a href="Irmin.HRW.html#VALremove_rec"><code class="code">Irmin.HRW.remove_r
 See <a href="Irmin.BC.html#VALtag"><code class="code">Irmin.BC.tag</code></a>.<br>
 </div>
 
-<pre><span id="VALtax_exn"><span class="keyword">val</span> tax_exn</span> : <code class="type">'a <a href="Irmin.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<pre><span id="VALtag_exn"><span class="keyword">val</span> tag_exn</span> : <code class="type">'a <a href="Irmin.html#TYPEt">t</a> -> string</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALtag_exn"><code class="code">Irmin.BC.tag_exn</code></a>.<br>
 </div>
 
