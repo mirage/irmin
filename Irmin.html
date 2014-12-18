@@ -18,7 +18,7 @@
 <link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
 <link title="High-level Stores" rel="Section" href="#1_HighlevelStores">
 <link title="Backends" rel="Section" href="#backend">
-<link title="Default Helpers" rel="Subsection" href="#2_DefaultHelpers">
+<link title="Basic API" rel="Subsection" href="#2_BasicAPI">
 <link title="Base Operations" rel="Subsection" href="#2_BaseOperations">
 <link title="Tags" rel="Subsection" href="#2_Tags">
 <link title="Heads" rel="Subsection" href="#2_Heads">
@@ -267,23 +267,37 @@ Simple store creator.
 Advanced store creator.
 </div>
 <br>
-<h2 id="2_DefaultHelpers">Default Helpers</h2><br>
+<h2 id="2_BasicAPI">Basic API</h2><br>
+<br>
+The basic API considers default Irmin implementations using:
+<p>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.T.html">T</a> = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type step = string
-                   and type tag = string
-                   and type head = Hash.SHA1.t</code></pre><div class="info">
-Default Irmin implementations use:
-</div>
+    <ul>
+<li><a href="Irmin.Path.String_list.html">list of strings</a> as keys.</li>
+<li><a href="Irmin.Tag.String.html">strings</a> as tags.</li>
+<li><a href="Irmin.Hash.SHA1.html">SHA1</a> as internal digests.</li>
+</ul>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Default.html">Default</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.T.html">T</a></code><code class="type">  with type value = C.t</code></div></div></pre><div class="info">
-Default store creator.
-</div>
+<p>
 
-<pre><span id="TYPEbackend"><span class="keyword">type</span> <code class="type">'a</code> backend</span> = <code class="type">(module Irmin.T with type value = 'a)</code> </pre>
+    Only the <a href="Irmin.Contents.S.html">contents</a> is provided by the user.<br>
+
+<pre><span id="TYPEbasic"><span class="keyword">type</span> <code class="type">'a</code> basic</span> = <code class="type">(module Irmin.S with type head = Hash.SHA1.t and type step = string and type tag = <br>        string and type value = 'a)</code> </pre>
 <div class="info ">
-The type for backend implementations of the default store.<br>
+The type for basic Irmin implementations.<br>
 </div>
 
+
+<pre><span id="VALcast"><span class="keyword">val</span> cast</span> : <code class="type">'a <a href="Irmin.html#TYPEbasic">basic</a> -> (module Irmin.S)</code></pre><div class="info ">
+<code class="code">cast s</code> forgets about the constraints on the step, tag and head
+    types.<br>
+</div>
+
+<pre><span id="VALbasic"><span class="keyword">val</span> basic</span> : <code class="type">(module Irmin.S_MAKER) -><br>       (module Irmin.Contents.S with type t = 'a) -> 'a <a href="Irmin.html#TYPEbasic">basic</a></code></pre><div class="info ">
+<code class="code">basic backend contents</code> is a basic Irmin implementation using
+    <code class="code">backend</code> as a backend and containing values defined by
+    <code class="code">contents</code>.<br>
+</div>
 
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> </pre>
 <div class="info ">
@@ -291,15 +305,15 @@ The type for default store.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">'a <a href="Irmin.html#TYPEbackend">backend</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> ('m -> 'a <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">'a <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> ('m -> 'a <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.RO.html#VALcreate"><code class="code">Irmin.RO.create</code></a>. Needs a backend as first argument.<br>
 </div>
 
-<pre><span id="VALof_tag"><span class="keyword">val</span> of_tag</span> : <code class="type">'a <a href="Irmin.html#TYPEbackend">backend</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> string -> ('m -> 'a <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_tag"><span class="keyword">val</span> of_tag</span> : <code class="type">'a <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> string -> ('m -> 'a <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALof_tag"><code class="code">Irmin.BC.of_tag</code></a>. Needs a backend as first argument.<br>
 </div>
 
-<pre><span id="VALof_head"><span class="keyword">val</span> of_head</span> : <code class="type">'a <a href="Irmin.html#TYPEbackend">backend</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> Hash.SHA1.t -> ('m -> 'a <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_head"><span class="keyword">val</span> of_head</span> : <code class="type">'a <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> Hash.SHA1.t -> ('m -> 'a <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALof_head"><code class="code">Irmin.BC.of_head</code></a>. Needs a backend as first argument.<br>
 </div>
 <br>
