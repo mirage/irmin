@@ -478,7 +478,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           return (List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads))
         (fun _ n ->
            let app fn t x =
-             fn (S.config t) (fun () -> S.task t) x >>= fun t ->
+             fn (S.Private.config t) (fun () -> S.task t) x >>= fun t ->
              return (t ())
            in
            try

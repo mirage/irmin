@@ -254,7 +254,6 @@ struct
     type key = S.key
     type value = S.value
     let task (_, t) = S.task t
-    let config (_, t) = S.config t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
     let read_exn (_, t) = S.read_exn t

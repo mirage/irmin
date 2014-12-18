@@ -29,6 +29,7 @@ module type STORE = sig
        and type Commit.key = head
        and type Tag.key = tag
        and type Slice.t = slice
+    val config: t -> Ir_conf.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t

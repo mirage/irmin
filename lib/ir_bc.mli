@@ -97,6 +97,7 @@ module type STORE_EXT = sig
      and type Slice.t = slice
      and module Node.Path = Key
 
+  val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
   val node_t: t -> Private.Node.t
   val commit_t: t -> Private.Commit.t

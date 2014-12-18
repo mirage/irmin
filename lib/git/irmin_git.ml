@@ -117,8 +117,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       return (fun a -> { task = task a; config; t })
 
     let task t = t.task
-    let config t = t.config
-
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
 
@@ -413,7 +411,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     type value = Val.t
 
     let task t = t.task
-    let config t = t.config
 
     let tag_of_git r =
       let str = Git.Reference.to_raw r in

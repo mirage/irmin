@@ -119,7 +119,6 @@ struct
       return (fun a -> (n a, s a))
 
     let task (_, t) = S.task t
-    let config (_, t) = S.config t
     let add (_, t) = S.add t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t

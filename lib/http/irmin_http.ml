@@ -139,11 +139,9 @@ struct
     type t = {
       mutable uri: Uri.t;
       task: Irmin.task;
-      config: Irmin.config;
     }
 
     let task t = t.task
-    let config t = t.config
 
     type key = K.t
     type value = V.t
@@ -157,7 +155,7 @@ struct
         | None   -> uri
         | Some p -> uri_append uri [p]
       in
-      { uri; config; task = task }
+      { uri; task = task }
 
     let create config task =
       return (fun a -> create_aux config (task a))
@@ -302,6 +300,7 @@ struct
   type t = {
     mutable branch: [`Tag of T.t | `Head of H.t ];
     mutable h: S.t;
+    config: Irmin.config;
     contents_t: LP.Contents.t;
     node_t: LP.Node.t;
     commit_t: LP.Commit.t;
@@ -320,11 +319,8 @@ struct
     | `Head h ->
       uri_append base ["tree"; H.to_hum h]
 
-  let config t = S.config t.h
   let task t = S.task t.h
-
   let branch t = t.branch
-
   let set_tag t tag = t.branch <- `Tag tag
   let set_head t head = t.branch <- `Head head
 
@@ -348,7 +344,7 @@ struct
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
       { branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; }
+        read_node; mem_node; update_node; config; }
     in
     return fn
 
@@ -375,7 +371,7 @@ struct
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
       { branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; }
+        read_node; mem_node; update_node; config; }
     in
     return fn
 
@@ -491,13 +487,13 @@ struct
   let clone task t tag =
     get (uri t) ["clone"; T.to_hum tag] Tc.string >>= function
     | "ok" ->
-      of_tag (config t) task tag >>= fun t ->
+      of_tag t.config task tag >>= fun t ->
       return (`Ok t)
     | _    -> return `Duplicated_tag
 
   let clone_force task t tag =
     get (uri t) ["clone-force"; T.to_hum tag] Tc.unit >>= fun () ->
-    of_tag (config t) task tag
+    of_tag t.config task tag
 
   let merge_tag t tag =
     get (uri t) ["merge-tag"; T.to_hum tag] (module M) >>| fun h ->
@@ -548,6 +544,7 @@ struct
   module Head = H
   module Private = struct
     include L.Private
+    let config t = t.config
     let contents_t t = t.contents_t
     let node_t t = t.node_t
     let commit_t t = t.commit_t

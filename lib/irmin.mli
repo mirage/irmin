@@ -310,10 +310,6 @@ module type RO = sig
       [task] is the provided by the user. The operation might be
       blocking, depending on the backend. *)
 
-  val config: t -> config
-  (** [config t] is the list of configurations keys for the store
-      handle [t]. *)
-
   val task: t -> task
   (** [task t] is the task associated to the store handle [t]. *)
 
@@ -1457,6 +1453,7 @@ module type S = sig
        and type Commit.key = head
        and type Tag.key = tag
        and type Slice.t = slice
+    val config: t -> config
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
@@ -1551,13 +1548,18 @@ module View (S: S): sig
   (** A view is a read-write temporary store, mirroring the main
       store. *)
 
-  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Merge.result Lwt.t
-  (** Merge the actions done on one view into an other one. If a read
-      operation doesn't return the same result, return
-      [Conflict]. Only the [into] view is updated. *)
+  val create: ('a -> task) -> ('a -> t) Lwt.t
+  (** Create an empty view. Empty views do not have associated backend
+      configuration values, as they can perform in-memory operation,
+      independently of any given backend. *)
 
-  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
-  (** Same as {!merge} but raise {!Merge.Conflict} in case of
+  val rebase: 'a -> ('a -> t) -> into:('a -> t) -> unit Merge.result Lwt.t
+  (** [rebase x t i] rebases the actions done on the view [t x] into
+      the view [i x]. If a read operation doesn't return the same
+      result, return [Conflict]. Only the view [i] is updated. *)
+
+  val rebase_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  (** Same as {!rebase} but raise {!Merge.Conflict} in case of
       conflict. *)
 
   val of_path: ('a -> task) -> db -> key -> ('a -> t) Lwt.t
@@ -1781,15 +1783,17 @@ module Make_ext (P: Private.S): S
 *)
 
 
-type 'a basic = (module S with type step = string
-                           and type tag = string
-                           and type head = Hash.SHA1.t
-                           and type value = 'a)
-(** The type for basic Irmin implementations. *)
+module type BASIC = S with type step = string
+                       and type tag = string
+                       and type head = Hash.SHA1.t
+(** The signature of basic stores. *)
 
-val cast: 'a basic -> (module S)
-(** [cast s] forgets about the constraints on the step, tag and head
-    types. *)
+module Basic (B: S_MAKER) (C: Contents.S): BASIC with type value = C.t
+(** Generate a basic store using [B] as backend and [C] as
+    user-provided contents. *)
+
+type 'a basic = (module BASIC with type value = 'a)
+(** The type for basic stores. *)
 
 val basic: (module S_MAKER) -> (module Contents.S with type t = 'a) -> 'a basic
 (** [basic backend contents] is a basic Irmin implementation using
@@ -1842,7 +1846,7 @@ val remove_rec: 'a t -> string list -> unit Lwt.t
 val tag: 'a t -> string option
 (** See {!BC.tag}. *)
 
-val tax_exn: 'a t -> string
+val tag_exn: 'a t -> string
 (** See {!BC.tag_exn}. *)
 
 val tags: 'a t -> string list Lwt.t

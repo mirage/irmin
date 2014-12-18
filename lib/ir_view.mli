@@ -18,8 +18,9 @@
 
 module type S = sig
   include Ir_rw.HIERARCHICAL
-  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
-  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  val create: ('a -> Ir_task.t) -> ('a -> t) Lwt.t
+  val rebase: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
+  val rebase_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
   type db
   val of_path: ('a -> Ir_task.t) -> db -> key -> ('a -> t) Lwt.t
   val update_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t

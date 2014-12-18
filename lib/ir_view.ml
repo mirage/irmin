@@ -139,7 +139,6 @@ module Internal (Node: NODE) = struct
   type action = Action.t
 
   type t = {
-    config: Ir_conf.t;
     task: Ir_task.t;
     view: Node.t;
     mutable ops: action list;
@@ -149,19 +148,14 @@ module Internal (Node: NODE) = struct
   module CO = Tc.Option(Node.Contents)
   module PL = Tc.List(Path)
 
-  let create config task =
+  let create task =
     Log.debugf "create";
     let view = Node.empty () in
     let ops = [] in
     let parents = [] in
-    return (fun a -> { config; task = task a; parents; view; ops })
+    return (fun a -> { task = task a; parents; view; ops })
 
-  let task t =
-    (* FIXME: what if someone does multiple calls to the function ? *)
-    Ir_task.add t.task (Action.prettys t.ops);
-    t.task
-
-  let config t = t.config
+  let task t = t.task
 
   let sub t path =
     let rec aux node = function
@@ -304,13 +298,13 @@ module Internal (Node: NODE) = struct
 
   let actions t = List.rev t.ops
 
-  let merge a t1 ~into =
+  let rebase a t1 ~into =
     let t1 = t1 a and into = into a in
     Ir_merge.iter (apply into) (List.rev t1.ops) >>| fun () ->
     into.parents <- Ir_misc.list_dedup (t1.parents @ into.parents);
     ok ()
 
-  let merge_exn a t1 ~into = merge a t1 ~into >>= Ir_merge.exn
+  let rebase_exn a t1 ~into = rebase a t1 ~into >>= Ir_merge.exn
 
 end
 
@@ -571,8 +565,7 @@ module Make (S: Ir_s.STORE) = struct
     | Some n ->
       let view = Node.both db key (Node.import db n) in
       let ops = [] in
-      let config = S.config db in
-      return (fun a -> { config; task = task a; parents; view; ops })
+      return (fun a -> { task = task a; parents; view; ops })
 
   let export db t =
     Log.debugf "export";
@@ -628,7 +621,7 @@ module Make (S: Ir_s.STORE) = struct
   let of_path task db path =
     Log.debugf "read_view %a" force (show (module Path) path);
     P.read_node db path >>= function
-    | None   -> create (S.config db) task
+    | None   -> create task
     | Some n ->
       begin S.head db >>= function
         | None   -> return_nil
@@ -649,7 +642,7 @@ module Make (S: Ir_s.STORE) = struct
     | false -> fail Not_found
     | true  ->
       of_path (fun () -> S.task db) db path >>= fun head_view ->
-      merge () (fun () -> view) ~into:head_view >>| fun () ->
+      rebase () (fun () -> view) ~into:head_view >>| fun () ->
       update_path () (fun () -> db) path head_view >>= fun () ->
       ok ()
 
@@ -665,7 +658,7 @@ module Make (S: Ir_s.STORE) = struct
       (* First, we check than we can rebase the view on the current
          HEAD. *)
       of_path (fun () -> S.task db) db path >>= fun head_view ->
-      merge () (fun () -> view) ~into:head_view >>| fun () ->
+      rebase () (fun () -> view) ~into:head_view >>| fun () ->
       (* Now that we know that rebasing is possible, we discard the
          result and proceed as a normal merge, ie. we apply the view
          on a branch, and we merge the branch back into the store. *)
@@ -692,8 +685,9 @@ end
 
 module type S = sig
   include Ir_rw.HIERARCHICAL
-  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
-  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  val create: ('a -> Ir_task.t) -> ('a -> t) Lwt.t
+  val rebase: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
+  val rebase_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
   type db
   val of_path: ('a -> Ir_task.t) -> db -> key -> ('a -> t) Lwt.t
   val update_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t

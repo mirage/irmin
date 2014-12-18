@@ -27,6 +27,7 @@ module type STORE = sig
        and type Commit.key = head
        and type Tag.key = tag
        and type Slice.t = slice
+    val config: t -> Ir_conf.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
@@ -54,6 +55,7 @@ module Make_ext (P: Ir_bc.PRIVATE) = struct
   module Head = P.Private.Commit.Key
   module Private = struct
     include P.Private
+    let config = P.config
     let contents_t = P.contents_t
     let node_t = P.node_t
     let commit_t = P.commit_t

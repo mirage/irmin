@@ -34,7 +34,6 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
   }
 
   let task t = t.task
-  let config t = t.config
   let table = Hashtbl.create 23
   let watches = W.create ()
 

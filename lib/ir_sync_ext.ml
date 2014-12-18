@@ -81,7 +81,7 @@ module Make (S: Ir_s.STORE) = struct
       begin match S.tag t with
         | None     -> return_none
         | Some tag ->
-          B.create (S.config t) >>= fun g ->
+          B.create (S.Private.config t) >>= fun g ->
           B.fetch g ?depth ~uri tag >>= function
           | None  -> return_none
           | Some (`Local h) -> return (Some h)
@@ -122,7 +122,7 @@ module Make (S: Ir_s.STORE) = struct
       begin match S.tag t with
         | None     -> return `Error
         | Some tag ->
-          B.create (S.config t) >>= fun g ->
+          B.create (S.Private.config t) >>= fun g ->
           B.push g ?depth ~uri tag
       end
     | Store ((module R), r) ->

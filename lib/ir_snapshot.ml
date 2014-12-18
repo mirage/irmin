@@ -53,10 +53,7 @@ module Make (S: Ir_s.STORE) = struct
 
   let db (t:t) = fst t
   let contents_t t = P.contents_t (db t)
-
   let task t = S.task (db t)
-  let config t = S.config (db t)
-
   let to_hum (_, k) = N.Key.to_hum k
   let of_hum db s = (db, N.Key.of_hum s)
 
