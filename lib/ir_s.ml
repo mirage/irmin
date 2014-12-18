@@ -101,4 +101,4 @@ struct
 end
 
 module Default (S: MAKER) (C: Ir_contents.S) =
-  S(Ir_path.String_list)(C)(Ir_tag.String_list)(Ir_hash.SHA1)
+  S(Ir_path.String_list)(C)(Ir_tag.String)(Ir_hash.SHA1)

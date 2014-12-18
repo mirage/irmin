@@ -60,5 +60,5 @@ module Make_ext (P: Ir_bc.PRIVATE): STORE
 module Default (S: MAKER) (C: Ir_contents.S): STORE
   with type step = string
    and type value = C.t
-   and type tag = string list
+   and type tag = string
    and type head = Ir_hash.SHA1.t

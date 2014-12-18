@@ -21,7 +21,7 @@ module type S = sig
   val master: t
 end
 
-module String_list: S with type t = string list
+module String: S with type t = string
 
 module type STORE = sig
   include Ir_rw.STORE

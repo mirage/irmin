@@ -237,7 +237,7 @@ module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     include V
     let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
   end
-  module M = Low (Client)(Irmin.Path.String_list)(V)(Irmin.Tag.String_list)(K)
+  module M = Low (Client)(Irmin.Path.String_list)(V)(Irmin.Tag.String)(K)
   include M.X.Contents
 end
 
@@ -431,13 +431,13 @@ struct
     | None   -> fail Not_found
     | Some h -> return h
 
-  let update_tag t tag =
-    get (uri t) ["update-tag"; T.to_hum tag] Tc.string >>= function
+  let rename_tag t tag =
+    get (uri t) ["rename-tag"; T.to_hum tag] Tc.string >>= function
     | "ok" -> set_tag t tag; return `Ok
     | _    -> return `Duplicated_tag
 
-  let update_tag_force t tag =
-    get (uri t) ["update-tag-force"; T.to_hum tag] Tc.unit >>= fun () ->
+  let update_tag t tag =
+    get (uri t) ["update-tag"; T.to_hum tag] Tc.unit >>= fun () ->
     set_tag t tag;
     return_unit
 
@@ -488,26 +488,32 @@ struct
         return s
       )
 
-  let clone t task tag =
+  let clone task t tag =
     get (uri t) ["clone"; T.to_hum tag] Tc.string >>= function
     | "ok" ->
       of_tag (config t) task tag >>= fun t ->
       return (`Ok t)
     | _    -> return `Duplicated_tag
 
-  let clone_force t task tag =
+  let clone_force task t tag =
     get (uri t) ["clone-force"; T.to_hum tag] Tc.unit >>= fun () ->
     of_tag (config t) task tag
 
-  let merge t tag =
-    get (uri t) ["merge"; T.to_hum tag] (module M) >>| fun h ->
+  let merge_tag t tag =
+    get (uri t) ["merge-tag"; T.to_hum tag] (module M) >>| fun h ->
     match t.branch with
     | `Head _ -> set_head t h; ok ()
     | `Tag _  -> ok ()
 
-  let merge_exn t tag =
-    merge t tag >>=
-    Irmin.Merge.exn
+  let merge_tag_exn t tag = merge_tag t tag >>= Irmin.Merge.exn
+
+  let merge a t ~into =
+    let t = t a and into = into a in
+    match branch t with
+    | `Tag tag -> merge_tag into tag
+    | `Head h  -> merge_head into h
+
+  let merge_exn a t ~into = merge a t ~into >>= Irmin.Merge.exn
 
   module E = Tc.Pair
       (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))

@@ -400,12 +400,12 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     in
     let s_graph t = graph_of_dump t in
     let s_clone t tag =
-      S.clone t (fun () -> S.task t) tag >>= function
+      S.clone (fun () -> S.task t) t tag >>= function
       | `Ok _ -> return `Ok
       | `Duplicated_tag -> return `Duplicated_tag
     in
     let s_clone_force t tag =
-      S.clone_force t (fun () -> S.task t) tag >>= fun _ ->
+      S.clone_force (fun () -> S.task t) t tag >>= fun _ ->
       return_unit
     in
     let s_update t k v =
@@ -425,38 +425,38 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t >>=
       ok
     in
-    let s_merge t k =
-      S.merge t k >>| fun () ->
+    let s_merge_tag t k =
+      S.merge_tag t k >>| fun () ->
       S.head_exn t >>=
       ok
     in
     let bc t = [
       (* rw *)
-      mknp0bf "read"     S.read     t step' (Tc.option value);
-      mknp0bf "mem"      S.mem      t step' Tc.bool;
-      mk0p0bs "iter"     (stream key S.iter) t key;
-      mknp1bf "update"   s_update   t step' value head;
-      mknp0bf "remove"   s_remove   t step' head;
-      mknp0bs "watch"    S.watch    t step' (Tc.option value);
+      mknp0bf "read"   S.read     t step' (Tc.option value);
+      mknp0bf "mem"    S.mem      t step' Tc.bool;
+      mk0p0bs "iter"   (stream key S.iter) t key;
+      mknp1bf "update" s_update   t step' value head;
+      mknp0bf "remove" s_remove   t step' head;
+      mknp0bs "watch"  S.watch    t step' (Tc.option value);
 
       (* hrw *)
       mknp0bf "list"       S.list       t step' (Tc.list key);
       mknp0bf "remove-rec" s_remove_rec t step' head;
 
       (* more *)
-      mk1p0bf "update-tag"       S.update_tag t tag' ok_or_duplicated_tag;
-      mk1p0bf "update-tag-force" S.update_tag_force t tag' Tc.unit;
-      mk1p0bf "switch"           S.switch t tag' Tc.unit;
-      mk0p0bf "head"             S.head t (Tc.option head);
-      mk0p0bf "heads"            S.heads t (Tc.list head);
-      mk1p0bf "update-head"      S.update_head t head' Tc.unit;
-      mk1p0bf "merge-head"       s_merge_head t head' (merge head);
-      mknp0bs "watch-head"       S.watch_head t step' (Tc.pair key head);
-      mk1p0bf "clone"            s_clone t tag' ok_or_duplicated_tag;
-      mk1p0bf "clone-force"      s_clone_force t tag' Tc.unit;
-      mk1p0bf "merge"            s_merge t tag' (merge head);
-      mk0p1bf "export"           s_export t export slice;
-      mk0p1bf "import"           S.import t slice Tc.unit;
+      mk1p0bf "rename-tag"  S.rename_tag t tag' ok_or_duplicated_tag;
+      mk1p0bf "update-tag"  S.update_tag t tag' Tc.unit;
+      mk1p0bf "merge-tag"   s_merge_tag t tag' (merge head);
+      mk1p0bf "switch"      S.switch t tag' Tc.unit;
+      mk0p0bf "head"        S.head t (Tc.option head);
+      mk0p0bf "heads"       S.heads t (Tc.list head);
+      mk1p0bf "update-head" S.update_head t head' Tc.unit;
+      mk1p0bf "merge-head"  s_merge_head t head' (merge head);
+      mknp0bs "watch-head"  S.watch_head t step' (Tc.pair key head);
+      mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
+      mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
+      mk0p1bf "export"      s_export t export slice;
+      mk0p1bf "import"      S.import t slice Tc.unit;
 
       (* extra *)
       mk0p0bh "graph" s_graph t;

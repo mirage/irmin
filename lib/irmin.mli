@@ -439,13 +439,22 @@ module type BC = sig
   val tags: t -> tag list Lwt.t
   (** The list of all the tags of the store. *)
 
-  val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+  val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   (** Change the current tag name. Fail if a tag with the same name
       already exists. The head is unchanged. *)
 
-  val update_tag_force: t -> tag -> unit Lwt.t
-  (** Same as [update_tag] but delete and update the tag if it already
-      exists. *)
+  val update_tag: t -> tag -> unit Lwt.t
+  (** [update_tag t tag] updates [t]'s current branch with the
+      contents of the branch named [tag]. *)
+
+  val merge_tag: t -> tag -> unit Merge.result Lwt.t
+  (** [merge_tag t tag] merges the contents of the branch named [tag]
+      into [t]'s current branch. The two branches are still
+      independent. *)
+
+  val merge_tag_exn: t -> tag -> unit Lwt.t
+  (** Same as {!merge_tag} but raise {!Merge.Conflict} in case of a
+      conflict. *)
 
   val switch: t -> tag -> unit Lwt.t
   (** Switch the store contents the be same as the contents of the
@@ -500,8 +509,8 @@ module type BC = sig
   (** Merge a commit with the current branch. *)
 
   val merge_head_exn: t -> head -> unit Lwt.t
-  (** Same as {!merge_head} but raise {!Merge.Conflict} in case of a
-      conflict. *)
+  (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
+      in case of a conflict. *)
 
   val watch_head: t -> key -> (key * head) Lwt_stream.t
   (** Watch changes for a given collection of keys and the ones they
@@ -510,21 +519,22 @@ module type BC = sig
 
   (** {2 Clones and Merges} *)
 
-  val clone: t -> ('a -> task) -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
-  (** Fork the store, using the given branch name. Return [None] if
-      the branch already exists. *)
+  val clone: ('a -> task) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  (** Fork the store [t], using the given branch name. Return [None]
+      if a branch with the same name already exists. *)
 
-  val clone_force: t -> ('a -> task) -> tag -> ('a -> t) Lwt.t
-  (** Same as [clone] but delete and update the existing branch if a
-      branch with the same name already exists. *)
+  val clone_force: ('a -> task) -> t -> tag -> ('a -> t) Lwt.t
+  (** Same as {{!BC.clone}clone} but delete and update the existing
+      branch if a branch with the same name already exists. *)
 
-  val merge: t -> tag -> unit Merge.result Lwt.t
-  (** [merge db t] merges the branch [t] into the current store
-      branch. The two branches are still independent. *)
+  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Merge.result Lwt.t
+  (** [merge x t i] merges [t x]'s current branch into [i x]'s current
+      branch. After that operation, the two stores are still
+      independent. *)
 
-  val merge_exn: t -> tag -> unit Lwt.t
-  (** Same as {!merge} but raise {!Merge.Conflict} in case of a
-      conflict. *)
+  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  (** Same as {{!BC.merge}merge} but raise {!Merge.Conflict} in case
+      of a conflict. *)
 
   (** {2 Slices} *)
 
@@ -740,12 +750,9 @@ module Tag: sig
 
   end
 
-  module String_list: S with type t = string list
-  (** [String_list] is an implementation of {{!Tag.S}S} where tags are
-      lists of strings.
-
-      The [master] tag is [["master"]] and the human-representation of
-      [["x"];["y"]] is ["x/y"]. *)
+  module String: S with type t = string
+  (** [String] is an implementation of {{!Tag.S}S} where tags are
+      strings. The [master] tag is ["master"]. *)
 
   (** [STORE] specifies the signature of tag stores.
 
@@ -1544,42 +1551,42 @@ module View (S: S): sig
   (** A view is a read-write temporary store, mirroring the main
       store. *)
 
-  val merge: t -> into:t -> unit Merge.result Lwt.t
+  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Merge.result Lwt.t
   (** Merge the actions done on one view into an other one. If a read
       operation doesn't return the same result, return
       [Conflict]. Only the [into] view is updated. *)
 
-  val merge_exn: t -> into:t -> unit Lwt.t
+  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
   (** Same as {!merge} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  val of_path: db -> key -> t Lwt.t
+  val of_path: ('a -> task) -> db -> key -> ('a -> t) Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,
       all the real reads operation will be done on-demand when the
       view is used. *)
 
-  val update_path: db -> key -> t -> unit Lwt.t
-  (** [update_path t path v] {e replaces} the sub-tree under [path] in
-      the store [t] by the contents of the view [v]. See {!merge_path}
-      for more details. *)
+  val update_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
+  (** [update_path x t path v] {e replaces} the sub-tree under [path]
+      in the store [t x] by the contents of the view [v x]. See
+      {!merge_path} for more details. *)
 
-  val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
-  (** [rebase_path t path v] {e rebases} the view [v] on top of the
-      contents of [t]'s sub-tree pointed by the path [path]. Rebasing
-      means re-applying every {{!Action.t}actions} stored in [t],
-      including the {e reads}. Return {!Merge.Conflict} if one of the
-      action cannot apply cleanly. See {!merge_path} for more
-      details.  *)
+  val rebase_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Merge.result Lwt.t
+  (** [rebase_path x t path v] {e rebases} the view [v x] on top of
+      the contents of [t x]'s sub-tree pointed by the path
+      [path]. Rebasing means re-applying every {{!Action.t}actions}
+      stored in [t], including the {e reads}. Return {!Merge.Conflict}
+      if one of the action cannot apply cleanly. See {!merge_path} for
+      more details.  *)
 
-  val rebase_path_exn: db -> key -> t -> unit Lwt.t
+  val rebase_path_exn: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
   (** Same as {!rebase_path} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  val merge_path: db -> key -> t -> unit Merge.result Lwt.t
-  (** [merge_path t path v] {e merges} the view [v] with the contents
-      of [t]'s sub-tree pointed by the path [path]. Merging means
-      applying the {{!Merge.Map}merge function for map} between the
-      view's contents and [t]'s sub-tree.
+  val merge_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Merge.result Lwt.t
+  (** [merge_path x t path v] {e merges} the view [v x] with the
+      contents of [t x]'s sub-tree pointed by the path [path]. Merging
+      means applying the {{!Merge.Map}merge function for map} between
+      the view's contents and [t]'s sub-tree.
 
       {ul
       {- {!update_path} discards any preexisting sub-tree.}
@@ -1591,7 +1598,7 @@ module View (S: S): sig
       prefix trees, based on {!Merge.Map.merge}.}
       } *)
 
-  val merge_path_exn: db -> key -> t -> unit Lwt.t
+  val merge_path_exn: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
   (** Same as {!merge_path} but raise {!Merge.Conflict} in case of
       conflicts. *)
 
@@ -1752,17 +1759,143 @@ module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 (** Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store. *)
 
-module Default (S: S_MAKER) (C: Contents.S): S
-  with type step = string
-   and type value = C.t
-   and type tag = string list
-   and type head = Hash.SHA1.t
-(** Default store creator. Use string step, string tags and SHA1
-    digests. Only the content is provided by the user. *)
-
 (** Advanced store creator. *)
 module Make_ext (P: Private.S): S
   with type step = P.Node.Path.step
    and type value = P.Contents.value
    and type tag = P.Tag.key
    and type head = P.Tag.value
+
+
+(** {2 Default Helpers} *)
+
+module type T = S with type step = string
+                   and type tag = string
+                   and type head = Hash.SHA1.t
+(** Default Irmin implementations use:
+
+    {ul
+    {- {{!Path.String_list}list of strings} as keys.}
+    {- {{!Tag.String}strings} as tags.}
+    {- {{!Hash.SHA1}SHA1} as internal digests.}
+    }
+
+    Only the {{!Contents.S}contents} is provided by the user.
+*)
+
+module Default (S: S_MAKER) (C: Contents.S): T with type value = C.t
+(** Default store creator. Use string step, string tags and SHA1
+    digests. Only the content is provided by the user. *)
+
+type 'a backend = (module T with type value = 'a)
+(** The type for backend implementations of the default store. *)
+
+type 'a t
+(** The type for default store. *)
+
+val create: 'a backend -> config -> ('m -> task) -> ('m -> 'a t) Lwt.t
+(** See {!RO.create}. Needs a backend as first argument. *)
+
+val of_tag: 'a backend -> config -> ('m -> task) -> string -> ('m -> 'a t) Lwt.t
+(** See {!BC.of_tag}. Needs a backend as first argument. *)
+
+val of_head: 'a backend -> config -> ('m -> task) -> Hash.SHA1.t -> ('m -> 'a t) Lwt.t
+(** See {!BC.of_head}. Needs a backend as first argument. *)
+
+(** {2 Base Operations} *)
+
+val read: 'a t -> string list -> 'a option Lwt.t
+(** See {!RO.read}. *)
+
+val read_exn: 'a t -> string list -> 'a Lwt.t
+(** See {!RO.read_exn}. *)
+
+val mem: 'a t -> string list -> bool Lwt.t
+(** See {!RO.mem}. *)
+
+val iter: 'a t -> (string list -> unit Lwt.t) -> unit Lwt.t
+(** See {!RW.iter}. *)
+
+val update: 'a t -> string list -> 'a -> unit Lwt.t
+(** See {!RW.update}. *)
+
+val remove: 'a t -> string list -> unit Lwt.t
+(** See {!RW.remove}. *)
+
+val watch: 'a t -> string list -> 'a option Lwt_stream.t
+(** See {!RW.watch}. *)
+
+val list: 'a t -> string list -> string list list Lwt.t
+(** See {!HRW.list}. *)
+
+val remove_rec: 'a t -> string list -> unit Lwt.t
+(** See {!HRW.remove_rec}. *)
+
+(** {2 Tags} *)
+
+val tag: 'a t -> string option
+(** See {!BC.tag}. *)
+
+val tax_exn: 'a t -> string
+(** See {!BC.tag_exn}. *)
+
+val tags: 'a t -> string list Lwt.t
+(** See {!BC.tags}. *)
+
+val rename_tag: 'a t -> string -> [`Ok | `Duplicated_tag] Lwt.t
+(** See {!BC.rename_tag}. *)
+
+val update_tag: 'a t -> string -> unit Lwt.t
+(** See {!BC.update_tag}. *)
+
+val merge_tag: 'a t -> string -> unit Merge.result Lwt.t
+(** See {!BC.merge_tag}. *)
+
+val merge_tag_exn: 'a t -> string -> unit Lwt.t
+(** See {!BC.merge_tag_exn}. *)
+
+val switch: 'a t -> string -> unit Lwt.t
+(** See {!BC.switch}. *)
+
+(** {2 Heads} *)
+
+val head: 'a t -> Hash.SHA1.t option Lwt.t
+(** See {!BC.head}. *)
+
+val head_exn: 'a t -> Hash.SHA1.t Lwt.t
+(** See {!BC.head_exn}. *)
+
+val branch: 'a t -> [`Tag of string | `Head of Hash.SHA1.t]
+(** See {!BC.branch}. *)
+
+val heads: 'a t -> Hash.SHA1.t list Lwt.t
+(** See {!BC.heads}. *)
+
+val detach: 'a t -> unit Lwt.t
+(** See {!BC.detach}. *)
+
+val update_head: 'a t -> Hash.SHA1.t -> unit Lwt.t
+(** See {!BC.update_head}. *)
+
+val merge_head: 'a t -> Hash.SHA1.t -> unit Merge.result Lwt.t
+(** See {!BC.merge_head}. *)
+
+val merge_head_exn: 'a t -> Hash.SHA1.t -> unit Lwt.t
+(** See {!BC.merge_head_exn}. *)
+
+val watch_head: 'a t -> string list -> (string list * Hash.SHA1.t) Lwt_stream.t
+(** See {!BC.watch_head}. *)
+
+(** {2 Clones and Merges} *)
+
+val clone: ('m -> task) -> 'a t -> string -> [`Ok of ('m -> 'a t) | `Duplicated_tag] Lwt.t
+(** See {!BC.clone}. *)
+
+val clone_force: ('m -> task) -> 'a t -> string -> ('m -> 'a t) Lwt.t
+(** See {!BC.clone_force}. *)
+
+val merge: 'm -> ('m -> 'a t) -> into:('m -> 'a t) -> unit Merge.result Lwt.t
+(** See {!BC.merge}. *)
+
+val merge_exn: 'm -> ('m -> 'a t) -> into:('m -> 'a t) -> unit Lwt.t
+(** See {!BC.merge_exn}. *)

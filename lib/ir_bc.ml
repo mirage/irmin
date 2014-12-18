@@ -29,8 +29,10 @@ module type STORE = sig
   val tag: t -> tag option
   val tag_exn: t -> tag
   val tags: t -> tag list Lwt.t
-  val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-  val update_tag_force: t -> tag -> unit Lwt.t
+  val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+  val update_tag: t -> tag -> unit Lwt.t
+  val merge_tag: t -> tag -> unit Ir_merge.result Lwt.t
+  val merge_tag_exn: t -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
   type head
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
@@ -43,10 +45,10 @@ module type STORE = sig
   val merge_head: t -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> head -> unit Lwt.t
   val watch_head: t -> key -> (key * head) Lwt_stream.t
-  val clone: t -> ('a -> Ir_task.t) -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
-  val clone_force: t ->  ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
-  val merge: t -> tag -> unit Ir_merge.result Lwt.t
-  val merge_exn: t -> tag -> unit Lwt.t
+  val clone: ('a -> Ir_task.t) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone_force: ('a -> Ir_task.t) -> t ->  tag -> ('a -> t) Lwt.t
+  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
+  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
@@ -354,18 +356,23 @@ module Make_ext (P: PRIVATE) = struct
     | `Head _  -> t.branch := `Head c; return_unit
     | `Tag tag -> Tag.update (tag_t t) tag c
 
-  let update_tag_force t tag =
-    begin head t >>= function
-      | None   -> return_unit
-      | Some k -> Tag.update (tag_t t) tag k
-    end >>= fun () ->
-    set_tag t tag;
-    return_unit
+  let rename_tag t tag =
+    Tag.mem (tag_t t) tag >>= function
+    | true  -> return `Duplicated_tag
+    | false ->
+      begin match branch t with
+        | `Head h   -> Tag.update (tag_t t) tag h
+        | `Tag otag ->
+          Tag.read_exn (tag_t t) otag >>= fun h ->
+          Tag.remove (tag_t t) otag >>= fun () ->
+          Tag.update (tag_t t) tag h
+      end >>= fun () ->
+      set_tag t tag;
+      return `Ok
 
   let update_tag t tag =
-    Tag.mem (tag_t t) tag >>= function
-    | true -> return `Duplicated_tag
-    | false -> update_tag_force t tag >>= fun () -> return `Ok
+    Tag.read_exn (tag_t t) tag >>= fun k ->
+    update_head t k
 
   let switch t branch =
     Log.debugf "switch %a" force (show (module Tag.Key) branch);
@@ -389,26 +396,33 @@ module Make_ext (P: PRIVATE) = struct
     merge_head t c1 >>=
     Ir_merge.exn
 
-  let clone_force t task tag =
+  let clone_force task t tag =
     Log.debugf "clone_force %a" force (show (module Tag.Key) tag);
     head_exn t >>= fun h ->
     Tag.update (tag_t t) tag h >>= fun () ->
     let branch = ref (`Tag tag) in
     return (fun a -> { t with branch; task = task a; })
 
-  let clone t task branch =
-    Tag.mem (tag_t t) branch >>= function
+  let clone task t tag =
+    Tag.mem (tag_t t) tag >>= function
     | true  -> return `Duplicated_tag
-    | false -> clone_force t task branch >>= fun t -> return (`Ok t)
+    | false -> clone_force task t tag >>= fun t -> return (`Ok t)
 
-  let merge t branch =
-    Log.debugf "merge %a" force (show (module Tag.Key) branch);
-    Tag.read_exn (tag_t t) branch >>= fun c ->
+  let merge_tag t tag =
+    Log.debugf "merge_tag %a" force (show (module Tag.Key) tag);
+    Tag.read_exn (tag_t t) tag >>= fun c ->
     merge_head t c
 
-  let merge_exn t branch =
-    merge t branch >>=
-    Ir_merge.exn
+  let merge_tag_exn t tag = merge_tag t tag >>= Ir_merge.exn
+
+  let merge a t ~into =
+    Log.debugf "merge";
+    let t = t a and into = into a in
+    match branch t with
+    | `Tag tag -> merge_tag into tag
+    | `Head h  -> merge_head into h
+
+  let merge_exn a t ~into = merge a t ~into >>= Ir_merge.exn
 
   module ONode = Tc.Option(P.Node.Key)
 
