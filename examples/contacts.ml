@@ -11,9 +11,12 @@ let () =
       Log.set_log_level Log.DEBUG
   with Not_found -> ()
 
-module StringSet = Set.Make(String)
-let set_of_list s =
-  List.fold_left (fun s x -> StringSet.add x s) StringSet.empty s
+module StringSet = struct
+  include Set.Make(String)
+  let of_list = List.fold_left (fun s x -> add x s) empty
+end
+
+let fmt t x = Printf.ksprintf (fun str -> t str) x
 
 module Contents = struct
 
@@ -29,7 +32,7 @@ module Contents = struct
 
   let to_t = function
     | "string", [s] -> String s
-    | "set"   , s   -> Set (set_of_list s)
+    | "set"   , s   -> Set (StringSet.of_list s)
     | _ -> failwith "Contents"
 
   let t = Tc.biject (module T) to_t of_t
@@ -58,7 +61,7 @@ module Contents = struct
 
 end
 
-module Store = Irmin.Default(Irmin_git.FS)(Contents)
+module Store = Irmin.Basic(Irmin_git.FS)(Contents)
 module View = Irmin.View(Store)
 
 module Contact = struct
@@ -69,17 +72,19 @@ module Contact = struct
     phones: StringSet.t;
   }
 
-  let view_of_t config t =
+  let view_of_t t =
     let name = Contents.String t.name in
     let phones = Contents.Set t.phones in
-    View.create config task >>= fun view ->
-    View.update view [t.id; "name"  ] name   >>= fun () ->
-    View.update view [t.id; "phones"] phones >>= fun () ->
-    return view
+    View.create task >>= fun v ->
+    let v = v "Contact.view_of_t" in
+    View.update v [t.id; "name"  ] name >>= fun () ->
+    View.update v [t.id; "phones"] phones >>= fun () ->
+    return (fun _ -> v)
 
-  let t_of_view id view =
-    View.read_exn view ["name"  ] >>= fun name ->
-    View.read_exn view ["phones"] >>= fun phones ->
+  let t_of_view id v =
+    let v = fmt v "Contact.t_of_view[%s]" id in
+    View.read_exn v ["name"  ] >>= fun name ->
+    View.read_exn v ["phones"] >>= fun phones ->
     let name = match name with
       | Contents.String s -> s
       | _                 -> failwith "name" in
@@ -88,57 +93,44 @@ module Contact = struct
       | _              -> failwith "phones" in
     return { id; name; phones }
 
-end
-
-module ContactStore (Store: S) = struct
-
-  open Contact
-
   let add t contact =
-    Contact.view_of_t contact >>= fun view ->
-    Store.View.merge_path_exn t ["contacts"] view
+    view_of_t contact >>= fun view ->
+    View.merge_path_exn "ContactStore.add" t ["contacts"] view
 
   let add_phone contact phone =
-    let phones = String.Set.add contact.phones phone in
+    let phones = StringSet.add phone contact.phones in
     { contact with phones }
 
   let update_name contact name =
     { contact with name }
 
   let list t =
-    Store.list t [["contacts"]] >>= fun paths ->
+    let t = t "Contact.list" in
+    Store.list t ["contacts"] >>= fun paths ->
     Lwt_list.map_s (fun path ->
-        Store.View.of_path t path >>= fun view ->
-        let id = List.hd_exn (List.rev path) in
+        View.of_path task t path >>= fun view ->
+        let id = List.hd (List.rev path) in
         t_of_view id view
       ) paths
 
 end
 
-let thomas = {
-  Contact.id = "tg364";
-  name       = "Thomas Gazagnaire";
-  phones     = String.Set.of_list [ "+33 677891037"; "+44 7712345655" ]
+let jean = {
+  Contact.id = "jean@dupont.fr";
+  name       = "Jean Dupont";
+  phones     = StringSet.of_list [ "+33 123456789" ]
 }
 
-let anil = {
-  Contact.id = "avsm2";
-  name       = "Anil";
-  phones     = String.Set.empty;
+let jane = {
+  Contact.id = "jane@doo.com";
+  name       = "Jane Doo";
+  phones     = StringSet.empty;
 }
 
 let error () =
-  eprintf "usage: contact init \n\
-          \       contact import <path>\n";
+  Printf.eprintf "usage: contact init \n\
+                 \       contact import <path>\n";
   exit 1
-
-module Git (C: sig val root: string option end) = struct
-  module G = IrminGit.FS(struct
-      let root = C.root
-      let bare = true
-    end)
-  include G.Make(IrminKey.SHA1)(Contents)(IrminTag.String)
-end
 
 let main () =
 
@@ -148,26 +140,28 @@ let main () =
   match Sys.argv.(1) with
   | "init" ->
 
-    let module Local = Git(struct let root = None end) in
-    let module CS    = ContactStore (Local) in
+    let local = Irmin_git.config () in
 
-    Local.create () >>= fun t ->
-    CS.add t thomas >>= fun () ->
-    CS.add t anil   >>= fun () ->
+    Store.create local task >>= fun t ->
+    Contact.add t jean >>= fun () ->
+    Contact.add t jane   >>= fun () ->
 
-    Local.clone_force t "test" >>= fun test ->
+    Store.clone_force task (t "Cloning test") "test" >>= fun test ->
 
-    let anil_test = CS.add_phone anil      "+44 12345" in
-    let anil_test = CS.add_phone anil_test "+44 45678" in
-    let anil_t    = CS.add_phone anil      "+33 123456" in
+    let jane1 =
+      let x = Contact.add_phone jane "+44 12345" in
+      let x = Contact.add_phone x "+44 45678" in
+      x
+    in
+    let jane2 = Contact.add_phone jane "+33 123456" in
 
-    CS.add test anil_test >>= fun () ->
-    CS.add t anil_t       >>= fun () ->
+    Contact.add test jane1 >>= fun () ->
+    Contact.add t jane2    >>= fun () ->
 
-    Local.merge_exn t (Local.branch_exn test) >>= fun () ->
+    Store.merge_exn "Merging test into the main branch" test ~into:t >>= fun () ->
 
-    let thomas = CS.update_name thomas "T. Gazagnaire" in
-    CS.add t thomas >>= fun () ->
+    let jean = Contact.update_name jean "Jean Dupont" in
+    Contact.add t jean >>= fun () ->
 
     return_unit
 
@@ -176,16 +170,13 @@ let main () =
     if argc <> 3 then error ();
     let path = Sys.argv.(2) in
 
-    let module Local  = Git(struct let root = None end) in
-    let module Remote = Git(struct let root = Some path end) in
+    let local = Irmin_git.config () in
+    let remote = Irmin_git.config ~root:path () in
 
-    let module LocalCS  = ContactStore (Local) in
-    let module RemoteCS = ContactStore (Remote) in
-
-    Local.create ()      >>= fun local    ->
-    Remote.create ()     >>= fun remote   ->
-    RemoteCS.list remote >>= fun contacts ->
-    Lwt_list.iter_p (LocalCS.add local) contacts
+    Store.create local task  >>= fun local    ->
+    Store.create remote task >>= fun remote   ->
+    Contact.list remote >>= fun contacts ->
+    Lwt_list.iter_p (Contact.add local) contacts
 
   | _ -> error ()
 

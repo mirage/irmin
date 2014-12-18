@@ -13,55 +13,50 @@ let () =
   with Not_found -> ()
 
 let () =
-  let origin =
-    Printf.sprintf "Irmin (%s[%d])" (Unix.gethostname()) (Unix.getpid()) in
-  IrminOrigin.set_date (fun () -> Int64.of_float (Unix.time ()));
-  IrminOrigin.set_id (fun () -> origin);
-  IrminOrigin.set_string_of_date (fun d ->
-      let tm = Unix.localtime (Int64.to_float d) in
-      Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
-    );
   install_dir_polling_listener 0.5
 
-module Git = IrminGit.FS(struct
-    let root = Some "/tmp/irmin/test"
-    let bare = true
-  end)
+module Store = Irmin.Basic(Irmin_git.FS)(Irmin.Contents.String)
+module View = Irmin.View(Store)
 
-module Store = Git.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String)
+let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
 
-let o id fmt = IrminOrigin.create ~id fmt
+let task ~user msg =
+  let date = Int64.of_float (Unix.gettimeofday ()) in
+  let owner = user in
+  Irmin.Task.create ~date ~owner msg
+
 let fin () =
   let _ = Sys.command "cd /tmp/irmin/test && git reset HEAD --hard" in
   return_unit
 
-  (* 1. Cloning the gold image. *)
+(* 1. Cloning the gold image. *)
 let provision () =
   let _ = Sys.command "rm -rf /tmp/irmin/test" in
   let _ = Sys.command "mkdir -p /tmp/irmin/test" in
+  let task = task ~user:"Automatic VM provisioning" in
 
-  Store.create ~branch:"upstream" () >>= fun t ->
+  Store.of_tag config task "upstream" >>= fun t ->
 
-  Store.View.create () >>= fun v ->
-  Store.View.update v ["etc"; "manpath"]
+  View.create task >>= fun view ->
+  let v = view "Provision the VM" in
+  View.update v ["etc"; "manpath"]
     "/usr/share/man\n\
      /usr/local/share/man"
   >>= fun () ->
-  Store.View.update v ["bin"; "sh"]
+  View.update v ["bin"; "sh"]
     "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
   >>= fun () ->
-  Store.View.merge_path_exn t [] v
-    ~origin:(o "Automatic VM provisioning" "Cloning Ubuntu 14.04 Gold Image.")
+  View.merge_path_exn "Cloning Ubuntu 14.04 Gold Image." t [] view
   >>= fin
 
   (* 2. VM configuration. *)
 let configure () =
-
-  Store.create ~branch:"local" () >>= fun t ->
-  Lwt_unix.sleep 2.               >>= fun () ->
-
-  Store.switch t "upstream"       >>= fun () ->
-  Store.View.create () >>= fun v ->
+  let task = task ~user:"Bob the sysadmin" in
+  Store.of_tag config task "local" >>= fun t ->
+  Lwt_unix.sleep 2.                >>= fun () ->
+  Store.switch (t "Switching to upstream") "upstream" >>= fun () ->
+  View.create task                 >>= fun view ->
+  let v = view "Configuration" in
 
 (*
   Store.View.update v ["etc";"passwd"]
@@ -71,33 +66,33 @@ let configure () =
   >>= fun () ->
 *)
 
-  Store.View.update v ["etc";"resolv.conf"]
+  View.update v ["etc";"resolv.conf"]
     "domain mydomain.com\n\
      nameserver 128.221.130.23"
   >>= fun () ->
 
-  Store.View.merge_path_exn t [] v
-    ~origin:(o "Bob the sysadmin" "Network configuration.")
+  View.merge_path_exn "Network configuration." t [] view
   >>= fin
 
 let attack () =
 
+  let task = task ~user:"Remote connection from 132.443.12.444" in
+
   (* 3. Attacker. *)
 
-  Store.create ()        >>= fun t ->
-  Store.switch t "local" >>= fun () ->
-  Lwt_unix.sleep 2.      >>= fun () ->
+  Store.of_tag config task "local" >>= fun t ->
+  Lwt_unix.sleep 2.                >>= fun () ->
 
-  Store.update t ["etc";"resolv.conf"]
+  Store.update (t "$ vim /etc/resolv.conf")
+    ["etc";"resolv.conf"]
     "domain mydomain.com\n\
      nameserver 12.221.130.23"
-    ~origin:(o "Remote connection from 132.443.12.444" "$ vim /etc/resolv.conf" )
   >>= fun () ->
 
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.update t ["bin";"sh"]
+  Store.update (t "$ gcc -c /tmp/sh.c -o /bin/sh")
+    ["bin";"sh"]
     "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
-    ~origin:(o "Remote connection from 132.443.12.444" "$ gcc -c /tmp/sh.c -o /bin/sh")
   >>= fin
 
 let () =
