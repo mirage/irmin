@@ -22,17 +22,16 @@ remove: [
   ["rm" "-f" "%{bin}%/irmin"]
 ]
 depends: [
-  "ezjsonm" {>= "0.3.0"}
+  "ezjsonm" {>= "0.4.0"}
   "ocamlgraph"
   "lwt" {>= "2.4.5"}
   "nocrypto" {>= "0.2.2"}
   "dolog" {>= "0.4"}
   "cstruct"
-  "mirage-tc" {>= "0.2.1"}
+  "mirage-tc" {>= "0.3.0"}
   "mstruct"
   "uri" {>= "1.3.12"}
   "bin_prot"
-  "sexplib"
   "stringext"
   "hex"
   "re"

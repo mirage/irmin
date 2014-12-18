@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: b220d653bc221ab45b0db3599a4f912e)
+# DO NOT EDIT (digest: d030064813ef751ab65c6df37af1a6b5)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -25,7 +25,6 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_mstruct
 <lib/*.ml{,i,y}>: pkg_nocrypto
 <lib/*.ml{,i,y}>: pkg_ocamlgraph
-<lib/*.ml{,i,y}>: pkg_sexplib
 <lib/*.ml{,i,y}>: pkg_stringext
 <lib/*.ml{,i,y}>: pkg_tc
 <lib/*.ml{,i,y}>: pkg_uri
@@ -40,7 +39,6 @@ true: annot, bin_annot
 <lib/mem/*.ml{,i,y}>: pkg_mstruct
 <lib/mem/*.ml{,i,y}>: pkg_nocrypto
 <lib/mem/*.ml{,i,y}>: pkg_ocamlgraph
-<lib/mem/*.ml{,i,y}>: pkg_sexplib
 <lib/mem/*.ml{,i,y}>: pkg_stringext
 <lib/mem/*.ml{,i,y}>: pkg_tc
 <lib/mem/*.ml{,i,y}>: pkg_uri
@@ -57,7 +55,6 @@ true: annot, bin_annot
 <lib/git/*.ml{,i,y}>: pkg_mstruct
 <lib/git/*.ml{,i,y}>: pkg_nocrypto
 <lib/git/*.ml{,i,y}>: pkg_ocamlgraph
-<lib/git/*.ml{,i,y}>: pkg_sexplib
 <lib/git/*.ml{,i,y}>: pkg_stringext
 <lib/git/*.ml{,i,y}>: pkg_tc
 <lib/git/*.ml{,i,y}>: pkg_uri
@@ -73,7 +70,6 @@ true: annot, bin_annot
 <lib/fs/*.ml{,i,y}>: pkg_mstruct
 <lib/fs/*.ml{,i,y}>: pkg_nocrypto
 <lib/fs/*.ml{,i,y}>: pkg_ocamlgraph
-<lib/fs/*.ml{,i,y}>: pkg_sexplib
 <lib/fs/*.ml{,i,y}>: pkg_stringext
 <lib/fs/*.ml{,i,y}>: pkg_tc
 <lib/fs/*.ml{,i,y}>: pkg_uri
@@ -94,7 +90,6 @@ true: annot, bin_annot
 <lib/http/*.ml{,i,y}>: pkg_re
 <lib/http/*.ml{,i,y}>: pkg_re.pcre
 <lib/http/*.ml{,i,y}>: pkg_re.perl
-<lib/http/*.ml{,i,y}>: pkg_sexplib
 <lib/http/*.ml{,i,y}>: pkg_stringext
 <lib/http/*.ml{,i,y}>: pkg_tc
 <lib/http/*.ml{,i,y}>: pkg_uri
@@ -118,7 +113,6 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: pkg_re
 <lib/unix/*.ml{,i,y}>: pkg_re.pcre
 <lib/unix/*.ml{,i,y}>: pkg_re.perl
-<lib/unix/*.ml{,i,y}>: pkg_sexplib
 <lib/unix/*.ml{,i,y}>: pkg_stringext
 <lib/unix/*.ml{,i,y}>: pkg_tc
 <lib/unix/*.ml{,i,y}>: pkg_uri
@@ -146,7 +140,6 @@ true: annot, bin_annot
 <bin/main.{native,byte}>: pkg_re
 <bin/main.{native,byte}>: pkg_re.pcre
 <bin/main.{native,byte}>: pkg_re.perl
-<bin/main.{native,byte}>: pkg_sexplib
 <bin/main.{native,byte}>: pkg_stringext
 <bin/main.{native,byte}>: pkg_tc
 <bin/main.{native,byte}>: pkg_uri
@@ -174,7 +167,6 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: pkg_re
 <bin/*.ml{,i,y}>: pkg_re.pcre
 <bin/*.ml{,i,y}>: pkg_re.perl
-<bin/*.ml{,i,y}>: pkg_sexplib
 <bin/*.ml{,i,y}>: pkg_stringext
 <bin/*.ml{,i,y}>: pkg_tc
 <bin/*.ml{,i,y}>: pkg_uri
@@ -203,7 +195,6 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_re
 <lib_test/test.{native,byte}>: pkg_re.pcre
 <lib_test/test.{native,byte}>: pkg_re.perl
-<lib_test/test.{native,byte}>: pkg_sexplib
 <lib_test/test.{native,byte}>: pkg_stringext
 <lib_test/test.{native,byte}>: pkg_tc
 <lib_test/test.{native,byte}>: pkg_uri
@@ -231,7 +222,6 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_re
 <lib_test/*.ml{,i,y}>: pkg_re.pcre
 <lib_test/*.ml{,i,y}>: pkg_re.perl
-<lib_test/*.ml{,i,y}>: pkg_sexplib
 <lib_test/*.ml{,i,y}>: pkg_stringext
 <lib_test/*.ml{,i,y}>: pkg_tc
 <lib_test/*.ml{,i,y}>: pkg_uri
@@ -259,7 +249,6 @@ true: annot, bin_annot
 <examples/git_store.{native,byte}>: pkg_re
 <examples/git_store.{native,byte}>: pkg_re.pcre
 <examples/git_store.{native,byte}>: pkg_re.perl
-<examples/git_store.{native,byte}>: pkg_sexplib
 <examples/git_store.{native,byte}>: pkg_stringext
 <examples/git_store.{native,byte}>: pkg_tc
 <examples/git_store.{native,byte}>: pkg_uri
@@ -287,7 +276,6 @@ true: annot, bin_annot
 <examples/custom_merge.{native,byte}>: pkg_re
 <examples/custom_merge.{native,byte}>: pkg_re.pcre
 <examples/custom_merge.{native,byte}>: pkg_re.perl
-<examples/custom_merge.{native,byte}>: pkg_sexplib
 <examples/custom_merge.{native,byte}>: pkg_stringext
 <examples/custom_merge.{native,byte}>: pkg_tc
 <examples/custom_merge.{native,byte}>: pkg_uri
@@ -315,7 +303,6 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: pkg_re
 <examples/views.{native,byte}>: pkg_re.pcre
 <examples/views.{native,byte}>: pkg_re.perl
-<examples/views.{native,byte}>: pkg_sexplib
 <examples/views.{native,byte}>: pkg_stringext
 <examples/views.{native,byte}>: pkg_tc
 <examples/views.{native,byte}>: pkg_uri
@@ -343,7 +330,6 @@ true: annot, bin_annot
 <examples/contacts.{native,byte}>: pkg_re
 <examples/contacts.{native,byte}>: pkg_re.pcre
 <examples/contacts.{native,byte}>: pkg_re.perl
-<examples/contacts.{native,byte}>: pkg_sexplib
 <examples/contacts.{native,byte}>: pkg_stringext
 <examples/contacts.{native,byte}>: pkg_tc
 <examples/contacts.{native,byte}>: pkg_uri
@@ -371,7 +357,6 @@ true: annot, bin_annot
 <examples/intrusion.{native,byte}>: pkg_re
 <examples/intrusion.{native,byte}>: pkg_re.pcre
 <examples/intrusion.{native,byte}>: pkg_re.perl
-<examples/intrusion.{native,byte}>: pkg_sexplib
 <examples/intrusion.{native,byte}>: pkg_stringext
 <examples/intrusion.{native,byte}>: pkg_tc
 <examples/intrusion.{native,byte}>: pkg_uri
@@ -399,7 +384,6 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: pkg_re
 <examples/process.{native,byte}>: pkg_re.pcre
 <examples/process.{native,byte}>: pkg_re.perl
-<examples/process.{native,byte}>: pkg_sexplib
 <examples/process.{native,byte}>: pkg_stringext
 <examples/process.{native,byte}>: pkg_tc
 <examples/process.{native,byte}>: pkg_uri
@@ -426,7 +410,6 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: pkg_re
 <examples/*.ml{,i,y}>: pkg_re.pcre
 <examples/*.ml{,i,y}>: pkg_re.perl
-<examples/*.ml{,i,y}>: pkg_sexplib
 <examples/*.ml{,i,y}>: pkg_stringext
 <examples/*.ml{,i,y}>: pkg_tc
 <examples/*.ml{,i,y}>: pkg_uri
