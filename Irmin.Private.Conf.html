@@ -25,7 +25,7 @@
 </div>
 <h1>Module <a href="type_Irmin.Private.Conf.html">Irmin.Private.Conf</a></h1>
 
-<pre><span class="keyword">module</span> Conf: <code class="code">sig</code> <a href="Irmin.Private.Conf.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Conf: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Conf.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 Backend configuration.
 <p>
 
@@ -60,7 +60,7 @@ The type for configuration converters.<br>
 
 
 <pre><span id="VALparser"><span class="keyword">val</span> parser</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEparser">parser</a></code></pre><div class="info ">
-<code class="code">parser c</code> is <code class="code">c</code>'s parser.<br>
+<code class="code"><span class="keyword">parser</span> c</code> is <code class="code">c</code>'s parser.<br>
 </div>
 
 <pre><span id="VALprinter"><span class="keyword">val</span> printer</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEprinter">printer</a></code></pre><div class="info ">
@@ -71,7 +71,7 @@ The type for configuration converters.<br>
 
 <pre><span id="TYPEkey"><span class="keyword">type</span> <code class="type">'a</code> key</span> </pre>
 <div class="info ">
-The type for configuration keys whose lookup value is <code class="code">'a</code>.<br>
+The type for configuration keys whose lookup value is <code class="code"><span class="keywordsign">'</span>a</code>.<br>
 </div>
 
 
@@ -86,7 +86,7 @@ The type for configuration keys whose lookup value is <code class="code">'a</cod
         key, this should be a single sentence or paragraph starting with
         a capital letter and ending with a dot.  <code class="code">docv</code> is a
         meta-variable for representing the values of the key
-        (e.g. <code class="code">"BOOL"</code> for a boolean).<br>
+        (e.g. <code class="code"><span class="string">"BOOL"</span></code> for a boolean).<br>
 <b>Raises</b> <code>Invalid_argument</code> if the key name is not made of a
         sequence of ASCII lowercase letter, digit, dash or underscore.
         FIXME not implemented.
@@ -121,7 +121,7 @@ The key name.<br>
 </div>
 
 <pre><span id="VALroot"><span class="keyword">val</span> root</span> : <code class="type">string option <a href="Irmin.Private.Conf.html#TYPEkey">key</a></code></pre><div class="info ">
-Default <code class="code">--root=ROOT</code> argument.<br>
+Default <code class="code">--root=<span class="constructor">ROOT</span></code> argument.<br>
 </div>
 <br>
 <h1 id="conf">Configurations</h1><br>
@@ -141,11 +141,11 @@ The type for configurations.<br>
 </div>
 
 <pre><span id="VALis_empty"><span class="keyword">val</span> is_empty</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
-<code class="code">is_empty c</code> is <code class="code">true</code> iff <code class="code">c</code> is empty.<br>
+<code class="code">is_empty c</code> is <code class="code"><span class="keyword">true</span></code> iff <code class="code">c</code> is empty.<br>
 </div>
 
 <pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> bool</code></pre><div class="info ">
-<code class="code">mem c k</code> is <code class="code">true</code> iff <code class="code">k</code> has a mapping in <code class="code">c</code>.<br>
+<code class="code">mem c k</code> is <code class="code"><span class="keyword">true</span></code> iff <code class="code">k</code> has a mapping in <code class="code">c</code>.<br>
 </div>
 
 <pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -><br>       'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> 'a -> <a href="Irmin.Private.Conf.html#TYPEt">t</a></code></pre><div class="info ">
@@ -164,7 +164,7 @@ The type for configurations.<br>
 <code class="code">get c k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>.
 <p>
 
-        <b>Raises.</b> <code class="code">Not_found</code> if <code class="code">k</code> is not bound in <code class="code">d</code>.<br>
+        <b>Raises.</b> <code class="code"><span class="constructor">Not_found</span></code> if <code class="code">k</code> is not bound in <code class="code">d</code>.<br>
 </div>
 <br>
 <h1 id="builtin_converters">Built-in value converters</h1><br>
@@ -182,7 +182,7 @@ The type for configurations.<br>
 </div>
 
 <pre><span id="VALuri"><span class="keyword">val</span> uri</span> : <code class="type">Uri.t <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a></code></pre><div class="info ">
-<code class="code">uri</code> converts values with <code class="code">Uri.of_string</code>.<br>
+<code class="code">uri</code> converts values with <code class="code"><span class="constructor">Uri</span>.of_string</code>.<br>
 </div>
 
 <pre><span id="VALsome"><span class="keyword">val</span> some</span> : <code class="type">'a <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> -> 'a option <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a></code></pre><div class="info ">

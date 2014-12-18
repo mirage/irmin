@@ -22,22 +22,22 @@
 &nbsp;</div>
 <h1>Module <a href="type_Irmin.Merge.OP.html">Irmin.Merge.OP</a></h1>
 
-<pre><span class="keyword">module</span> OP: <code class="code">sig</code> <a href="Irmin.Merge.OP.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> OP: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.OP.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 Useful merge operators.
 <p>
 
-      <code class="code">open Irmin.Merge.OP</code> at the top of your file to use them.<br>
+      <code class="code"><span class="keyword">open</span> <span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">OP</span></code> at the top of your file to use them.<br>
 </div>
 <hr width="100%">
 <br>
 <h1 id="1_Usefuloperators">Useful operators</h1><br>
 
 <pre><span id="VALok"><span class="keyword">val</span> ok</span> : <code class="type">'a -> 'a <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-Return <code class="code">`Ok x</code>.<br>
+Return <code class="code"><span class="keywordsign">`</span><span class="constructor">Ok</span> x</code>.<br>
 </div>
 
 <pre><span id="VALconflict"><span class="keyword">val</span> conflict</span> : <code class="type">('a, unit, string, 'b <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t) Pervasives.format4 -> 'a</code></pre><div class="info ">
-Return <code class="code">`Conflict str</code>.<br>
+Return <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span> str</code>.<br>
 </div>
 
 <pre><span id="VAL(>>|)"><span class="keyword">val</span> (&gt;&gt;|)</span> : <code class="type">'a <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t -><br>       ('a -> 'b <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t) -> 'b <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">

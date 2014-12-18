@@ -24,7 +24,7 @@
 </div>
 <h1>Module <a href="type_Irmin.Tag.html">Irmin.Tag</a></h1>
 
-<pre><span class="keyword">module</span> Tag: <code class="code">sig</code> <a href="Irmin.Tag.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Tag: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Tag.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 User-defined tags. Tags are used to specify branch names in an
     Irmin store.<br>
 </div>
@@ -32,18 +32,18 @@ User-defined tags. Tags are used to specify branch names in an
 <br>
 <h1 id="1_Tags">Tags</h1><br>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.Tag.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Tag.S.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.Tag.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Tag.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 A tag implementations specifies base functions on abstract tags
       and define a default value for denoting the
       <a href="Irmin.Tag.S.html#VALmaster">master</a> branch name.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Tag.String.html">String</a>: <code class="type"><a href="Irmin.Tag.S.html">S</a></code><code class="type">  with type t = string</code></pre><div class="info">
-<code class="code">String</code> is an implementation of <a href="Irmin.Tag.S.html">S</a> where tags are
+<code class="code"><span class="constructor">String</span></code> is an implementation of <a href="Irmin.Tag.S.html">S</a> where tags are
       strings.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.Tag.STORE.html">STORE</a> = <code class="code">sig</code> <a href="Irmin.Tag.STORE.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">STORE</code> specifies the signature of tag stores.
+<pre><span class="keyword">module type</span> <a href="Irmin.Tag.STORE.html">STORE</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Tag.STORE.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">STORE</span></code> specifies the signature of tag stores.
 </div>
 </body></html>

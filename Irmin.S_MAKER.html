@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.RW_MAKER.html">
+<link rel="previous" href="Irmin.S.html">
 <link rel="next" href="Irmin.BASIC.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -18,20 +18,20 @@
 <title>Irmin.S_MAKER</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.RW_MAKER.html" title="Irmin.RW_MAKER">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.S.html" title="Irmin.S">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
 &nbsp;<a class="post" href="Irmin.BASIC.html" title="Irmin.BASIC">Next</a>
 </div>
 <h1>Module type <a href="type_Irmin.S_MAKER.html">Irmin.S_MAKER</a></h1>
 
-<pre><span class="keyword">module type</span> S_MAKER = <code class="code">functor (</code><code class="code">P</code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Path.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">T</code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code><code class="code">) -&gt; </code><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type step = P.step
+<pre><span class="keyword">module type</span> S_MAKER = <code class="code">(</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Path.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">T</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type step = P.step
        and type value = C.t
        and type tag = T.t
        and type head = H.t</code></pre><div class="info modtype top">
-<code class="code">S_MAKER</code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code">Irmin.S</code></a>
-    implementations. <code class="code">S</code> is the type of steps (a key is list of
-    steps), <code class="code">C</code> is the implementation of user-defined contents, <code class="code">T</code> is
-    the implementation of store tags and <code class="code">H</code> is the implementation of
+<code class="code"><span class="constructor">S_MAKER</span></code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span></code></a>
+    implementations. <code class="code"><span class="constructor">S</span></code> is the type of steps (a key is list of
+    steps), <code class="code"><span class="constructor">C</span></code> is the implementation of user-defined contents, <code class="code"><span class="constructor">T</span></code> is
+    the implementation of store tags and <code class="code"><span class="constructor">H</span></code> is the implementation of
     store heads. It does not use any native synchronization
     primitives.<br>
 </div>
@@ -71,23 +71,23 @@
 <pre><span class="keyword">include</span> <a href="Irmin.BC.html">Irmin.BC</a></pre>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type step = step</code></pre><div class="info">
-<code class="code">Key</code> provides base functions on step lists.
+<code class="code"><span class="constructor">Key</span></code> provides base functions on step lists.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
-<code class="code">Val</code> provides base functions on user-defined, mergeable
+<code class="code"><span class="constructor">Val</span></code> provides base functions on user-defined, mergeable
       contents.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code">Tag</code> provides base functions on user-defined tags.
+<code class="code"><span class="constructor">Tag</span></code> provides base functions on user-defined tags.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code">Head</code> provides base functions on head values.
+<code class="code"><span class="constructor">Head</span></code> provides base functions on head values.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.S.Private.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Private.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Private functions, which might be used by the backends.
 </div>
 </body></html>

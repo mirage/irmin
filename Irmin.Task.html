@@ -24,7 +24,7 @@
 </div>
 <h1>Module <a href="type_Irmin.Task.html">Irmin.Task</a></h1>
 
-<pre><span class="keyword">module</span> Task: <code class="code">sig</code> <a href="Irmin.Task.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Task: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 Tasks are used to keep track of the origin of reads and writes in
     the store. Every high-level operation is expected to have its own
     task, which is passed to every low-level calls.<br>
@@ -45,7 +45,7 @@ Get the task date.
 
       The date is computed by the user user when calling the
       <a href="Irmin.Task.html#VALcreate">create</a> function. When available,
-      <code class="code">Unix.gettimeofday ()</code> is a good value for such date. On more
+      <code class="code"><span class="constructor">Unix</span>.gettimeofday ()</code> is a good value for such date. On more
       esoteric platforms, any monotonic counter is a fine value as
       well. On the Git backend, the date will be translated into the
       commit <em>Date</em> field.<br>

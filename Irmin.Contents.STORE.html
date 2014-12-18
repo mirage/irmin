@@ -21,7 +21,7 @@
 &nbsp;</div>
 <h1>Module type <a href="type_Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></h1>
 
-<pre><span class="keyword">module type</span> STORE = <code class="code">sig</code> <a href="Irmin.Contents.STORE.html">..</a> <code class="code">end</code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> STORE = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Contents.STORE.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
 Contents store.<br>
 </div>
 <hr width="100%">
@@ -36,14 +36,14 @@ Contents store.<br>
         resulting values into the store to get the resulting key.
 <p>
 
-        If any of these operation fails, return <code class="code">`Conflict</code>.<br>
+        If any of these operation fails, return <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span></code>.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
-<code class="code">Key</code> provides base functions for user-defined contents keys.
+<code class="code"><span class="constructor">Key</span></code> provides base functions for user-defined contents keys.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
-<code class="code">Val</code> provides base function for user-defined contents values.
+<code class="code"><span class="constructor">Val</span></code> provides base function for user-defined contents values.
 </div>
 </body></html>

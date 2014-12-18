@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.Private.html">
+<link rel="previous" href="Irmin.Basic.html">
 <link rel="next" href="Irmin.View.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -18,14 +18,14 @@
 <title>Irmin.Sync</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.Private.html" title="Irmin.Private">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.Basic.html" title="Irmin.Basic">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
 &nbsp;<a class="post" href="Irmin.View.html" title="Irmin.View">Next</a>
 </div>
 <h1>Functor <a href="type_Irmin.Sync.html">Irmin.Sync</a></h1>
 
-<pre><span class="keyword">module</span> Sync: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Sync.html">..</a> <code class="code">end</code></div></pre><div class="info module top">
-<code class="code">Sync</code> provides functions to synchronization an Irmin store with
+<pre><span class="keyword">module</span> Sync <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Sync.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+<code class="code"><span class="constructor">Sync</span></code> provides functions to synchronization an Irmin store with
     local and remote Irmin stores.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
@@ -49,12 +49,12 @@
 <pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> Irmin.S.head option Lwt.t</code></pre><div class="info ">
 <code class="code">fetch t ?depth r</code> populate the local store <code class="code">t</code> with objects for
       the remote store <code class="code">r</code>, using <code class="code">t</code>'s current branch. The <code class="code">depth</code>
-      parameter limits the history depth. Return <code class="code">None</code> if either the
+      parameter limits the history depth. Return <code class="code"><span class="constructor">None</span></code> if either the
       local or remote store do not have a valid head.<br>
 </div>
 
 <pre><span id="VALfetch_exn"><span class="keyword">val</span> fetch_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> Irmin.S.head Lwt.t</code></pre><div class="info ">
-Same as <code class="code">fetch</code> but raise <code class="code">Failure</code> if either the local or
+Same as <code class="code">fetch</code> but raise <code class="code"><span class="constructor">Failure</span></code> if either the local or
       remote store do not have a valid head.<br>
 </div>
 
@@ -64,14 +64,14 @@ Same as <code class="code">fetch</code> but raise <code class="code">Failure</co
 <p>
 
       <ul>
-<li><code class="code">`Merge</code> uses . This strategy can return a conflict.</li>
-<li><code class="code">`Update</code> uses </li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Merge</span></code> uses . This strategy can return a conflict.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Update</span></code> uses </li>
 </ul>
 <br>
 </div>
 
 <pre><span id="VALpull_exn"><span class="keyword">val</span> pull_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> [ `Merge | `Update ] -> unit Lwt.t</code></pre><div class="info ">
-Same as <code class="code">pull</code> but raise <code class="code">Merge.Conflict</code> in case of
+Same as <code class="code">pull</code> but raise <code class="code"><span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code> in case of
       conflict.<br>
 </div>
 
@@ -87,6 +87,6 @@ Same as <code class="code">pull</code> but raise <code class="code">Merge.Confli
 </div>
 
 <pre><span id="VALpush_exn"><span class="keyword">val</span> push_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> unit Lwt.t</code></pre><div class="info ">
-Same as <code class="code">push</code> but raise <code class="code">Failure</code> if an error happen.<br>
+Same as <code class="code">push</code> but raise <code class="code"><span class="constructor">Failure</span></code> if an error happen.<br>
 </div>
 </body></html>

@@ -5,7 +5,6 @@
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Make.html">
-<link rel="next" href="Irmin.Basic.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -20,15 +19,14 @@
 <body>
 <div class="navbar"><a class="pre" href="Irmin.Make.html" title="Irmin.Make">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
-&nbsp;<a class="post" href="Irmin.Basic.html" title="Irmin.Basic">Next</a>
-</div>
+&nbsp;</div>
 <h1>Functor <a href="type_Irmin.Make_ext.html">Irmin.Make_ext</a></h1>
 
-<pre><span class="keyword">module</span> Make_ext: <div class="sig_block"><code class="code">functor (</code><code class="code">P</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.S.html">Private.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type"> 
+<pre><span class="keyword">module</span> Make_ext <code class="code">(</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.S.html">Private.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.S.html">S</a></code><code class="type"> 
   with type step = P.Node.Path.step
    and type value = P.Contents.value
    and type tag = P.Tag.key
-   and type head = P.Tag.value</code></div></pre><div class="info module top">
+   and type head = P.Tag.value</code></pre><div class="info module top">
 Advanced store creator.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
@@ -52,23 +50,23 @@ Advanced store creator.<br>
 <pre><span class="keyword">include</span> <a href="Irmin.BC.html">Irmin.BC</a></pre>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type step = step</code></pre><div class="info">
-<code class="code">Key</code> provides base functions on step lists.
+<code class="code"><span class="constructor">Key</span></code> provides base functions on step lists.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
-<code class="code">Val</code> provides base functions on user-defined, mergeable
+<code class="code"><span class="constructor">Val</span></code> provides base functions on user-defined, mergeable
       contents.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code">Tag</code> provides base functions on user-defined tags.
+<code class="code"><span class="constructor">Tag</span></code> provides base functions on user-defined tags.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code">Head</code> provides base functions on head values.
+<code class="code"><span class="constructor">Head</span></code> provides base functions on head values.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.S.Private.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Private.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Private functions, which might be used by the backends.
 </div>
 </body></html>

@@ -23,7 +23,7 @@
 </div>
 <h1>Module <a href="type_Irmin.Private.Commit.html">Irmin.Private.Commit</a></h1>
 
-<pre><span class="keyword">module</span> Commit: <code class="code">sig</code> <a href="Irmin.Private.Commit.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Commit: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Commit.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 Commit values represent the store history.
 <p>
 
@@ -40,23 +40,23 @@ The signature for slices.<br>
 </div>
 <hr width="100%">
 
-<pre><span class="keyword">module type</span> <a href="Irmin.Private.Commit.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Private.Commit.S.html">..</a> <code class="code">end</code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Commit.S.html">S</a></code><code class="type">  with type commit := C.t and type node = N.t</code></div></div></pre><div class="info">
-<code class="code">Make</code> provides a simple implementation of commit values,
-        parameterized by the commit <code class="code">C</code> and node <code class="code">N</code>.
+<pre><span class="keyword">module type</span> <a href="Irmin.Private.Commit.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Commit.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Commit.S.html">S</a></code><code class="type">  with type commit := C.t and type node = N.t</code></pre><div class="info">
+<code class="code"><span class="constructor">Make</span></code> provides a simple implementation of commit values,
+        parameterized by the commit <code class="code"><span class="constructor">C</span></code> and node <code class="code"><span class="constructor">N</span></code>.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.Private.Commit.STORE.html">STORE</a> = <code class="code">sig</code> <a href="Irmin.Private.Commit.STORE.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">STORE</code> specifies the signature for commit stores.
+<pre><span class="keyword">module type</span> <a href="Irmin.Private.Commit.STORE.html">STORE</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Commit.STORE.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">STORE</span></code> specifies the signature for commit stores.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.Private.Commit.HISTORY.html">HISTORY</a> = <code class="code">sig</code> <a href="Irmin.Private.Commit.HISTORY.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">History</code> specifies the signature for commit history.
+<pre><span class="keyword">module type</span> <a href="Irmin.Private.Commit.HISTORY.html">HISTORY</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Commit.HISTORY.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">History</span></code> specifies the signature for commit history.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.History.html">History</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">STORE</a></code><code class="type">  with type Val.node = N.key</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Commit.HISTORY.html">HISTORY</a></code><code class="type">  with type t = N.t * S.t
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.History.html">History</a> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">STORE</a></code><code class="type">  with type Val.node = N.key</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Commit.HISTORY.html">HISTORY</a></code><code class="type">  with type t = N.t * S.t
                and type node = N.key
-               and type commit = S.key</code></div></div></pre><div class="info">
+               and type commit = S.key</code></pre><div class="info">
 Build a commit history.
 </div>
 </body></html>

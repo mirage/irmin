@@ -22,19 +22,19 @@
 &nbsp;</div>
 <h1>Module <a href="type_Irmin_unix.Irmin_http_server.html">Irmin_unix.Irmin_http_server</a></h1>
 
-<pre><span class="keyword">module</span> Irmin_http_server: <code class="code">sig</code> <a href="Irmin_unix.Irmin_http_server.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Irmin_http_server: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_http_server.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 Server-side of the REST API over HTTP.<br>
 </div>
 <hr width="100%">
 <br>
 <h1 id="1_HTTPserver">HTTP server</h1><br>
 
-<pre><span class="keyword">module type</span> <a href="Irmin_unix.Irmin_http_server.S.html">S</a> = <code class="code">sig</code> <a href="Irmin_unix.Irmin_http_server.S.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin_unix.Irmin_http_server.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_http_server.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Server Signature.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http_server.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">Irmin.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin_unix.Irmin_http_server.S.html">S</a></code><code class="type">  with type t = S.t</code></div></pre><div class="info">
-<code class="code">Make</code> exposes an Irmin store as a REST API for HTTP
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http_server.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">Irmin.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin_unix.Irmin_http_server.S.html">S</a></code><code class="type">  with type t = S.t</code></pre><div class="info">
+<code class="code"><span class="constructor">Make</span></code> exposes an Irmin store as a REST API for HTTP
       <a href="Irmin_unix.Irmin_http.html">clients</a>.
 </div>
 </body></html>

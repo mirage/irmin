@@ -28,7 +28,7 @@
 </div>
 <h1>Module type <a href="type_Irmin.BC.html">Irmin.BC</a></h1>
 
-<pre><span class="keyword">module type</span> BC = <code class="code">sig</code> <a href="Irmin.BC.html">..</a> <code class="code">end</code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> BC = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.BC.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
 Branch-consistent stores.<br>
 </div>
 <hr width="100%">
@@ -77,12 +77,12 @@ Type for branch names, or tags. Tags usually share a common
 </div>
 
 <pre><span id="VALtag"><span class="keyword">val</span> tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> option</code></pre><div class="info ">
-<code class="code">tag t</code> is the tag associated to the store handle <code class="code">t</code>. <code class="code">None</code>
+<code class="code">tag t</code> is the tag associated to the store handle <code class="code">t</code>. <code class="code"><span class="constructor">None</span></code>
       means that the branch is not persistent.<br>
 </div>
 
 <pre><span id="VALtag_exn"><span class="keyword">val</span> tag_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a></code></pre><div class="info ">
-Same as <code class="code">tag</code> but raise <code class="code">Not_found</code> if the store handle is not
+Same as <code class="code">tag</code> but raise <code class="code"><span class="constructor">Not_found</span></code> if the store handle is not
       persistent.<br>
 </div>
 
@@ -107,7 +107,7 @@ Change the current tag name. Fail if a tag with the same name
 </div>
 
 <pre><span id="VALmerge_tag_exn"><span class="keyword">val</span> merge_tag_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code">Irmin.BC.merge_tag</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code">Irmin.Merge.Conflict</code></a> in case of a
+Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of a
       conflict.<br>
 </div>
 
@@ -150,7 +150,7 @@ Return the head commit. This works for both persistent and
 </div>
 
 <pre><span id="VALhead_exn"><span class="keyword">val</span> head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> Lwt.t</code></pre><div class="info ">
-Same as <code class="code">read_head</code> but raise <code class="code">Not_found</code> if the commit does
+Same as <code class="code">read_head</code> but raise <code class="code"><span class="constructor">Not_found</span></code> if the commit does
       not exist.<br>
 </div>
 
@@ -177,7 +177,7 @@ Merge a commit with the current branch.<br>
 </div>
 
 <pre><span id="VALmerge_head_exn"><span class="keyword">val</span> merge_head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.BC.html#VALmerge_head">merge_head</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code">Irmin.Merge.Conflict</code></a>
+Same as <a href="Irmin.BC.html#VALmerge_head">merge_head</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a>
       in case of a conflict.<br>
 </div>
 
@@ -190,7 +190,7 @@ Watch changes for a given collection of keys and the ones they
 <h2 id="2_ClonesandMerges">Clones and Merges</h2><br>
 
 <pre><span id="VALclone"><span class="keyword">val</span> clone</span> : <code class="type">('a -> <a href="Irmin.html#TYPEtask">Irmin.task</a>) -><br>       t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> [ `Duplicated_tag | `Ok of 'a -> t ] Lwt.t</code></pre><div class="info ">
-Fork the store <code class="code">t</code>, using the given branch name. Return <code class="code">None</code>
+Fork the store <code class="code">t</code>, using the given branch name. Return <code class="code"><span class="constructor">None</span></code>
       if a branch with the same name already exists.<br>
 </div>
 
@@ -206,7 +206,7 @@ Same as <a href="Irmin.BC.html#VALclone">clone</a> but delete and update the exi
 </div>
 
 <pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code">Irmin.Merge.Conflict</code></a> in case
+Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case
       of a conflict.<br>
 </div>
 <br>
@@ -229,7 +229,7 @@ Type for store slices.<br>
       <code class="code">depth</code>).
 <p>
 
-      <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code">None</code>
+      <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code"><span class="constructor">None</span></code>
       here means no limitation.
 <p>
 

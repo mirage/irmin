@@ -28,8 +28,8 @@
 </div>
 <h1>Module <a href="type_Irmin.Merge.html">Irmin.Merge</a></h1>
 
-<pre><span class="keyword">module</span> Merge: <code class="code">sig</code> <a href="Irmin.Merge.html">..</a> <code class="code">end</code></pre><div class="info module top">
-<code class="code">Merge</code> provides functions to build custom 3-way merge operators
+<pre><span class="keyword">module</span> Merge: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+<code class="code"><span class="constructor">Merge</span></code> provides functions to build custom 3-way merge operators
     for various user-defined contents.<br>
 </div>
 <hr width="100%">
@@ -56,7 +56,7 @@ Exception which might be raised when merging.<br>
 </div>
 
 <pre><span id="VALexn"><span class="keyword">val</span> exn</span> : <code class="type">'a <a href="Irmin.Merge.html#TYPEresult">result</a> -> 'a Lwt.t</code></pre><div class="info ">
-Convert <code class="code">`Conflict</code> results to <code class="code">Conflict</code> exceptions.<br>
+Convert <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span></code> results to <code class="code"><span class="constructor">Conflict</span></code> exceptions.<br>
 </div>
 <br>
 <h1 id="1_MergeCombinators">Merge Combinators</h1><br>
@@ -84,7 +84,7 @@ The <code class="code">apply</code> combinator is useful to untie recursive loop
 
 <pre><span id="VALbiject"><span class="keyword">val</span> biject</span> : <code class="type">'a Tc.t -> 'b <a href="Irmin.Merge.html#TYPEt">t</a> -> ('a -> 'b) -> ('b -> 'a) -> 'a <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
 Use the merge function defined in another domain. The domain
-      converting functions might be partial: in that case the <em>      convention</em> is that they raise <code class="code">Not_found</code> on undefined
+      converting functions might be partial: in that case the <em>      convention</em> is that they raise <code class="code"><span class="constructor">Not_found</span></code> on undefined
       entries.<br>
 </div>
 
@@ -101,10 +101,10 @@ Create a default merge function. This is a simple merge
 <p>
 
       <ul>
-<li>if <code class="code">t1=t2</code> then the result of the merge is <code class="code">`OK t1</code>;</li>
-<li>if <code class="code">t1=old</code> then the result of the merge is <code class="code">`OK t2</code>;</li>
-<li>if <code class="code">t2=old</code> then return <code class="code">`OK t1</code>;</li>
-<li>otherwise the result is <code class="code">`Conflict</code>.</li>
+<li>if <code class="code">t1=t2</code> then the result of the merge is <code class="code"><span class="keywordsign">`</span><span class="constructor">OK</span> t1</code>;</li>
+<li>if <code class="code">t1=old</code> then the result of the merge is <code class="code"><span class="keywordsign">`</span><span class="constructor">OK</span> t2</code>;</li>
+<li>if <code class="code">t2=old</code> then return <code class="code"><span class="keywordsign">`</span><span class="constructor">OK</span> t1</code>;</li>
+<li>otherwise the result is <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span></code>.</li>
 </ul>
 <br>
 </div>
@@ -148,7 +148,7 @@ The type for counter values. It is expected that the only valid
 The merge function for mergeable counters.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Merge.MSet.html">MSet</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">M</code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Merge.MSet.html">..</a> <code class="code">end</code></div></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Merge.MSet.html">MSet</a> <code class="code">(</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.MSet.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Multi-sets.
 </div>
 <br>
@@ -181,11 +181,11 @@ We consider that the only valid operations for maps and
 Lift the merge functions to association lists.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Merge.Map.html">Map</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">M</code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">X</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="type">  with type t = M.key</code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Merge.Map.html">..</a> <code class="code">end</code></div></div></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Merge.Map.html">Map</a> <code class="code">(</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">X</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="type">  with type t = M.key</code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.Map.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Lift the merge functions to maps.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Merge.OP.html">OP</a>: <code class="code">sig</code> <a href="Irmin.Merge.OP.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Merge.OP.html">OP</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.OP.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Useful merge operators.
 </div>
 </body></html>

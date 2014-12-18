@@ -49,7 +49,7 @@ An HTTP client using a REST API for a read-write store.<br>
 <pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -> key -> value option Lwt_stream.t</code></pre><div class="info ">
 <code class="code">watch t k</code> is the stream values associated to the key <code class="code">k</code>. The
       stream return a new value every time the bindings is modified in
-      <code class="code">t</code>. It return <code class="code">None</code> if the binding is removed.<br>
+      <code class="code">t</code>. It return <code class="code"><span class="constructor">None</span></code> if the binding is removed.<br>
 </div>
 <br>
 FIXME: add move<br>

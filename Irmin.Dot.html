@@ -24,8 +24,8 @@
 </div>
 <h1>Functor <a href="type_Irmin.Dot.html">Irmin.Dot</a></h1>
 
-<pre><span class="keyword">module</span> Dot: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Dot.html">..</a> <code class="code">end</code></div></pre><div class="info module top">
-<code class="code">Dot</code> provides functions to export a store to the Graphviz `dot`
+<pre><span class="keyword">module</span> Dot <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Dot.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+<code class="code"><span class="constructor">Dot</span></code> provides functions to export a store to the Graphviz `dot`
     format.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
@@ -54,7 +54,7 @@
         <code class="code">html</code> (default is false) enables HTML labels.
 <p>
 
-        <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code">None</code>
+        <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code"><span class="constructor">None</span></code>
         here means no limitation.
 <p>
 

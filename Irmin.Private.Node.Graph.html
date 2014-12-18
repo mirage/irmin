@@ -24,8 +24,8 @@
 &nbsp;</div>
 <h1>Module type <a href="type_Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a></h1>
 
-<pre><span class="keyword">module type</span> GRAPH = <code class="code">sig</code> <a href="Irmin.Private.Node.GRAPH.html">..</a> <code class="code">end</code></pre><div class="info modtype top">
-<code class="code">Graph</code> specifies the signature for node graphs. A node graph
+<pre><span class="keyword">module type</span> GRAPH = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Node.GRAPH.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
+<code class="code"><span class="constructor">Graph</span></code> specifies the signature for node graphs. A node graph
         is a deterministic DAG, labeled by steps.<br>
 </div>
 <hr width="100%">
@@ -95,11 +95,11 @@ Create a new node.<br>
 <pre><span id="VALread_contents"><span class="keyword">val</span> read_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">read_contents t n path</code> is the contents at the end of the
           path starting from <code class="code">n</code> and labeled by <code class="code">path</code> in <code class="code">t</code>. Return
-          <code class="code">None</code> if no such contents exists.<br>
+          <code class="code"><span class="constructor">None</span></code> if no such contents exists.<br>
 </div>
 
 <pre><span id="VALread_contents_exn"><span class="keyword">val</span> read_contents_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -> <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code">Irmin.Private.Node.GRAPH.read_contents</code></a> by raise <code class="code">Not_found</code> if there is no
+Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">GRAPH</span>.read_contents</code></a> by raise <code class="code"><span class="constructor">Not_found</span></code> if there is no
           valid contents.<br>
 </div>
 
@@ -124,12 +124,12 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="co
 <pre><span id="VALread_node"><span class="keyword">val</span> read_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">read_node t n path</code> is the node at the end of the path
           starting from <code class="code">n</code> and labeled by <code class="code">path</code> in <code class="code">t</code>. Return
-          <code class="code">None</code> if no such node exists.<br>
+          <code class="code"><span class="constructor">None</span></code> if no such node exists.<br>
 </div>
 
 <pre><span id="VALread_node_exn"><span class="keyword">val</span> read_node_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_node">read_node</a> but raise
-          <code class="code">Not_found</code> if the path is invalid.<br>
+          <code class="code"><span class="constructor">Not_found</span></code> if the path is invalid.<br>
 </div>
 
 <pre><span id="VALadd_node"><span class="keyword">val</span> add_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">

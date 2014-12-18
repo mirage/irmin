@@ -31,16 +31,16 @@ Private nodes.<br>
 <pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Node.STORE.Path.html">Path</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type"> </code></pre><div class="info">
-<code class="code">Step</code> provides base functions on node steps.
+<code class="code"><span class="constructor">Step</span></code> provides base functions on node steps.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Node.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
-<code class="code">Key</code> provides base functions for node keys.
+<code class="code"><span class="constructor">Key</span></code> provides base functions for node keys.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Node.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a></code><code class="type">  with type t = value
                      and type node = key
                      and type step = Path.step</code></pre><div class="info">
-<code class="code">Val</code> provides base functions for node values.
+<code class="code"><span class="constructor">Val</span></code> provides base functions for node values.
 </div>
 </body></html>

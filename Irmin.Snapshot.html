@@ -24,8 +24,8 @@
 </div>
 <h1>Functor <a href="type_Irmin.Snapshot.html">Irmin.Snapshot</a></h1>
 
-<pre><span class="keyword">module</span> Snapshot: <div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) -&gt; </code><code class="code">sig</code> <a href="Irmin.Snapshot.html">..</a> <code class="code">end</code></div></pre><div class="info module top">
-<code class="code">Snapshot</code> provides read-only, space-efficient, checkpoints of a
+<pre><span class="keyword">module</span> Snapshot <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Snapshot.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+<code class="code"><span class="constructor">Snapshot</span></code> provides read-only, space-efficient, checkpoints of a
     store. It also provides functions to rollback to a previous
     state.<br>
 </div>
@@ -51,33 +51,33 @@
 <br>
 A snapshot is a read-only store, mirroring the main store.<br>
 
-<pre><span id="VALto_hum"><span class="keyword">val</span> to_hum</span> : <code class="type">t -> string</code></pre><div class="info ">
+<pre><span id="VALto_hum"><span class="keyword">val</span> to_hum</span> : <code class="type"><a href="Irmin.html#TYPEt">Irmin.t</a> -> string</code></pre><div class="info ">
 Pretty-print a snapshot value.<br>
 </div>
 
-<pre><span id="VALof_hum"><span class="keyword">val</span> of_hum</span> : <code class="type">Irmin.S.t -> string -> t</code></pre><div class="info ">
+<pre><span id="VALof_hum"><span class="keyword">val</span> of_hum</span> : <code class="type">Irmin.S.t -> string -> <a href="Irmin.html#TYPEt">Irmin.t</a></code></pre><div class="info ">
 Read a pretty-printed snapshot value.<br>
 </div>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">Irmin.S.t -> t Lwt.t</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">Irmin.S.t -> <a href="Irmin.html#TYPEt">Irmin.t</a> Lwt.t</code></pre><div class="info ">
 Snapshot the current state of the store.<br>
 </div>
 
-<pre><span id="VALrevert"><span class="keyword">val</span> revert</span> : <code class="type">Irmin.S.t -> t -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALrevert"><span class="keyword">val</span> revert</span> : <code class="type">Irmin.S.t -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit Lwt.t</code></pre><div class="info ">
 Revert the store to a previous state.<br>
 </div>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">Irmin.S.t -> t -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">Irmin.S.t -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Merge the given snapshot into the current branch of the
       store.<br>
 </div>
 
-<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">Irmin.S.t -> t -> unit Lwt.t</code></pre><div class="info ">
-Same as <code class="code">merge</code> but raise <code class="code">Merge.Conflict</code> in case of
+<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">Irmin.S.t -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit Lwt.t</code></pre><div class="info ">
+Same as <code class="code">merge</code> but raise <code class="code"><span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code> in case of
       conflict.<br>
 </div>
 
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">Irmin.S.t -> key -> (key * t) Lwt_stream.t</code></pre><div class="info ">
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">Irmin.S.t -> key -> (key * <a href="Irmin.html#TYPEt">Irmin.t</a>) Lwt_stream.t</code></pre><div class="info ">
 Subscribe to the stream of modification events attached to a
       given path. Takes and returns a new snapshot every time a
       sub-path is modified.<br>

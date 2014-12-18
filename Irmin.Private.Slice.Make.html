@@ -20,9 +20,9 @@
 &nbsp;</div>
 <h1>Functor <a href="type_Irmin.Private.Slice.Make.html">Irmin.Private.Slice.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">H</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Slice.S.html">S</a></code><code class="type">  with type contents = C.key * C.value
+<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Slice.S.html">S</a></code><code class="type">  with type contents = C.key * C.value
          and type node = N.key * N.value
-         and type commit = H.key * H.value</code></div></div></div></pre><div class="info module top">
+         and type commit = H.key * H.value</code></pre><div class="info module top">
 Build simple slices.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">

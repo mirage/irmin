@@ -21,7 +21,7 @@
 &nbsp;</div>
 <h1>Module <a href="type_Irmin_unix.html">Irmin_unix</a></h1>
 
-<pre><span class="keyword">module</span> Irmin_unix: <code class="code">sig</code> <a href="Irmin_unix.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Irmin_unix: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 <h1 id="1_Unixbackends">Unix backends</h1>
 <p>
 
@@ -48,25 +48,25 @@
 
 <pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type">string -> <a href="Irmin.html#TYPEtask">Irmin.task</a></code></pre><div class="info ">
 <code class="code">task fmt</code> creates a fresh task, with the <a href="Irmin.Task.html#VALdate">date</a>
-    set to <code class="code">Unix.gettimeoday ()</code> and a task <a href="Irmin.Task.html#VALowner">owner</a>
+    set to <code class="code"><span class="constructor">Unix</span>.gettimeoday ()</code> and a task <a href="Irmin.Task.html#VALowner">owner</a>
     based on the local Git configuration <b>FIXME:</b> not implemented,
-    use <code class="code">Unix.gethostname()</code> and <code class="code">Unix.getpid()</code> for now on.<br>
+    use <code class="code"><span class="constructor">Unix</span>.gethostname()</code> and <code class="code"><span class="constructor">Unix</span>.getpid()</code> for now on.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.html">Irmin_fs</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_fs.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.html">Irmin_fs</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_fs.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 File system backends, using
     <a href="https://github.com/janestreet/bin_prot">bin_prot</a>.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.html">Irmin_git</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_git.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.html">Irmin_git</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_git.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Bidirectional Git backends.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.html">Irmin_http</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_http.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http.html">Irmin_http</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_http.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 REST (over HTTP) backend..
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http_server.html">Irmin_http_server</a>: <code class="code">sig</code> <a href="Irmin_unix.Irmin_http_server.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http_server.html">Irmin_http_server</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_http_server.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Server-side of the REST API over HTTP.
 </div>
 

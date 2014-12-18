@@ -23,8 +23,8 @@
 </div>
 <h1>Module <a href="type_Irmin.Private.Node.html">Irmin.Private.Node</a></h1>
 
-<pre><span class="keyword">module</span> Node: <code class="code">sig</code> <a href="Irmin.Private.Node.html">..</a> <code class="code">end</code></pre><div class="info module top">
-<code class="code">Node</code> provides functions to describe the graph-like structured
+<pre><span class="keyword">module</span> Node: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Node.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+<code class="code"><span class="constructor">Node</span></code> provides functions to describe the graph-like structured
       values.
 <p>
 
@@ -38,23 +38,23 @@
 </div>
 <hr width="100%">
 
-<pre><span class="keyword">module type</span> <a href="Irmin.Private.Node.S.html">S</a> = <code class="code">sig</code> <a href="Irmin.Private.Node.S.html">..</a> <code class="code">end</code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.Make.html">Make</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">N</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">P</code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Node.S.html">S</a></code><code class="type">  with type contents = C.t
+<pre><span class="keyword">module type</span> <a href="Irmin.Private.Node.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Node.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Node.S.html">S</a></code><code class="type">  with type contents = C.t
          and type node = N.t
-         and type step = P.step</code></div></div></div></pre><div class="info">
-<code class="code">Node</code> provides a simple node implementation, parameterized by
-        the contents <code class="code">C</code>, node <code class="code">N</code> and paths <code class="code">P</code>.
+         and type step = P.step</code></pre><div class="info">
+<code class="code"><span class="constructor">Node</span></code> provides a simple node implementation, parameterized by
+        the contents <code class="code"><span class="constructor">C</span></code>, node <code class="code"><span class="constructor">N</span></code> and paths <code class="code"><span class="constructor">P</span></code>.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.Private.Node.STORE.html">STORE</a> = <code class="code">sig</code> <a href="Irmin.Private.Node.STORE.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">STORE</code> specifies the signature for node stores.
+<pre><span class="keyword">module type</span> <a href="Irmin.Private.Node.STORE.html">STORE</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Node.STORE.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">STORE</span></code> specifies the signature for node stores.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.Private.Node.GRAPH.html">GRAPH</a> = <code class="code">sig</code> <a href="Irmin.Private.Node.GRAPH.html">..</a> <code class="code">end</code></pre><div class="info">
-<code class="code">Graph</code> specifies the signature for node graphs.
+<pre><span class="keyword">module type</span> <a href="Irmin.Private.Node.GRAPH.html">GRAPH</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Node.GRAPH.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">Graph</span></code> specifies the signature for node graphs.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.Graph.html">Graph</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">C</code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">S</code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">STORE</a></code><code class="type">  with type Val.contents = C.key</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Node.GRAPH.html">GRAPH</a></code><code class="type">  with type t = C.t * S.t
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.Graph.html">Graph</a> <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">STORE</a></code><code class="type">  with type Val.contents = C.key</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Node.GRAPH.html">GRAPH</a></code><code class="type">  with type t = C.t * S.t
                and type contents = C.key
                and type node = S.key
-               and type step = S.Val.step</code></div></div></pre></body></html>
+               and type step = S.Val.step</code></pre></body></html>

@@ -24,7 +24,7 @@
 </div>
 <h1>Module <a href="type_Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a></h1>
 
-<pre><span class="keyword">module</span> Irmin_git: <code class="code">sig</code> <a href="Irmin_unix.Irmin_git.html">..</a> <code class="code">end</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Irmin_git: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_git.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 Bidirectional Git backends.<br>
 </div>
 <hr width="100%">
@@ -50,19 +50,19 @@ Create a configuration value.
 
 <pre><span id="VALhead"><span class="keyword">val</span> head</span> : <code class="type">string option <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre><div class="info ">
 The configuration key to set the local Git repository's current
-      branch. See <a href="Irmin_unix.Irmin_git.html#VALconfig"><code class="code">Irmin_unix.Irmin_git.config</code></a>.<br>
+      branch. See <a href="Irmin_unix.Irmin_git.html#VALconfig"><code class="code"><span class="constructor">Irmin_unix</span>.<span class="constructor">Irmin_git</span>.config</code></a>.<br>
 </div>
 
 <pre><span id="VALbare"><span class="keyword">val</span> bare</span> : <code class="type">bool <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre><div class="info ">
 The configuration key to set the local Git repository's bare
-      attribute. See <a href="Irmin_unix.Irmin_git.html#VALconfig"><code class="code">Irmin_unix.Irmin_git.config</code></a>.<br>
+      attribute. See <a href="Irmin_unix.Irmin_git.html#VALconfig"><code class="code"><span class="constructor">Irmin_unix</span>.<span class="constructor">Irmin_git</span>.config</code></a>.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.AO.html">AO</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">G</code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></div></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.AO.html">AO</a> <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre><div class="info">
 Embed an append-only store into a Git repository.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.RW.html">RW</a>: <div class="sig_block"><code class="code">functor (</code><code class="code">G</code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></div></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.RW.html">RW</a> <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre><div class="info">
 Embed a read-write store into a Git repository.
 </div>
 

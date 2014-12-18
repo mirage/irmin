@@ -24,8 +24,8 @@
 </div>
 <h1>Module type <a href="type_Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></h1>
 
-<pre><span class="keyword">module type</span> STORE = <code class="code">sig</code> <a href="Irmin.Private.Commit.STORE.html">..</a> <code class="code">end</code></pre><div class="info modtype top">
-<code class="code">STORE</code> specifies the signature for commit stores.<br>
+<pre><span class="keyword">module type</span> STORE = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Commit.STORE.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
+<code class="code"><span class="constructor">STORE</span></code> specifies the signature for commit stores.<br>
 </div>
 <hr width="100%">
 <br>
@@ -34,10 +34,10 @@
 <pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
-<code class="code">Key</code> provides base functions for commit keys.
+<code class="code"><span class="constructor">Key</span></code> provides base functions for commit keys.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a></code><code class="type">  with type t = value and type commit := key</code></pre><div class="info">
-<code class="code">Val</code> provides function for commit values.
+<code class="code"><span class="constructor">Val</span></code> provides function for commit values.
 </div>
 </body></html>

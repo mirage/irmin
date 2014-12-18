@@ -24,7 +24,7 @@
 </div>
 <h1>Functor <a href="type_Irmin_unix.Irmin_git.RW.html">Irmin_unix.Irmin_git.RW</a></h1>
 
-<pre><span class="keyword">module</span> RW: <div class="sig_block"><code class="code">functor (</code><code class="code">G</code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></div></pre><div class="info module top">
+<pre><span class="keyword">module</span> RW <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
 Embed a read-write store into a Git repository. Contents will be
       written in <i>.git/refs</i>.<br>
 </div>
@@ -64,7 +64,7 @@ Embed a read-write store into a Git repository. Contents will be
 <pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -> key -> value option Lwt_stream.t</code></pre><div class="info ">
 <code class="code">watch t k</code> is the stream values associated to the key <code class="code">k</code>. The
       stream return a new value every time the bindings is modified in
-      <code class="code">t</code>. It return <code class="code">None</code> if the binding is removed.<br>
+      <code class="code">t</code>. It return <code class="code"><span class="constructor">None</span></code> if the binding is removed.<br>
 </div>
 <br>
 FIXME: add move<br>

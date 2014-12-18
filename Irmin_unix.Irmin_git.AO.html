@@ -22,7 +22,7 @@
 </div>
 <h1>Functor <a href="type_Irmin_unix.Irmin_git.AO.html">Irmin_unix.Irmin_git.AO</a></h1>
 
-<pre><span class="keyword">module</span> AO: <div class="sig_block"><code class="code">functor (</code><code class="code">G</code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></div></pre><div class="info module top">
+<pre><span class="keyword">module</span> AO <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
 Embed an append-only store into a Git repository. Contents will
       be written in <i>.git/objects/</i> and might be cleaned-up if you
       run <i>git gc</i> manually.<br>

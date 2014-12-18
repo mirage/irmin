@@ -25,7 +25,7 @@
 <h1>Module <a href="type_Irmin_unix.Irmin_http.Make.html">Irmin_unix.Irmin_http.Make</a></h1>
 
 <pre><span class="keyword">module</span> Make: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
-<code class="code">Make</code> provides high-level bindings to the remote HTTP server.
+<code class="code"><span class="constructor">Make</span></code> provides high-level bindings to the remote HTTP server.
 <p>
 
       Most of the computation are done on the server, the client is
@@ -44,23 +44,23 @@
 <pre><span class="keyword">include</span> <a href="Irmin.BC.html">Irmin.BC</a></pre>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type step = step</code></pre><div class="info">
-<code class="code">Key</code> provides base functions on step lists.
+<code class="code"><span class="constructor">Key</span></code> provides base functions on step lists.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
-<code class="code">Val</code> provides base functions on user-defined, mergeable
+<code class="code"><span class="constructor">Val</span></code> provides base functions on user-defined, mergeable
       contents.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code">Tag</code> provides base functions on user-defined tags.
+<code class="code"><span class="constructor">Tag</span></code> provides base functions on user-defined tags.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code">Head</code> provides base functions on head values.
+<code class="code"><span class="constructor">Head</span></code> provides base functions on head values.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code">sig</code> <a href="Irmin.S.Private.html">..</a> <code class="code">end</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Private.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Private functions, which might be used by the backends.
 </div>
 </body></html>

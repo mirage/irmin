@@ -20,8 +20,8 @@
 &nbsp;</div>
 <h1>Functor <a href="type_Irmin.Private.Watch.Make.html">Irmin.Private.Watch.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code">functor (</code><code class="code">K</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><div class="sig_block"><code class="code">functor (</code><code class="code">V</code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) -&gt; </code><code class="type"><a href="Irmin.Private.Watch.S.html">S</a></code><code class="type">  with type key = K.t and type value = V.t</code></div></div></pre><div class="info module top">
-<code class="code">Make</code> builds an implementation of watch helpers.<br>
+<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Watch.S.html">S</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info module top">
+<code class="code"><span class="constructor">Make</span></code> builds an implementation of watch helpers.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -67,7 +67,7 @@ The type for watch state.<br>
 <pre><span id="VALnotify"><span class="keyword">val</span> notify</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option -> unit</code></pre><div class="info ">
 Notify all listeners in the given watch state that a key has
           changed, with the new value associated to this key. If the
-          argument is <code class="code">None</code>, this means the key has been removed.<br>
+          argument is <code class="code"><span class="constructor">None</span></code>, this means the key has been removed.<br>
 </div>
 
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> <a href="Irmin.Private.Watch.S.html#TYPEt">t</a></code></pre><div class="info ">
@@ -80,7 +80,7 @@ Clear all register listeners in the given watch state.<br>
 
 <pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option -><br>       <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option Lwt_stream.t</code></pre><div class="info ">
 Create a stream of value notifications. Need to provide the
-          initial value, or <code class="code">None</code> if the key does not have associated
+          initial value, or <code class="code"><span class="constructor">None</span></code> if the key does not have associated
           contents yet.<br>
 </div>
 

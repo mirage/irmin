@@ -20,7 +20,7 @@
 &nbsp;</div>
 <h1>Module type <a href="type_Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a></h1>
 
-<pre><span class="keyword">module type</span> S = <code class="code">sig</code> <a href="Irmin.Private.Watch.S.html">..</a> <code class="code">end</code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> S = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Watch.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
 The signature for watch helpers.<br>
 </div>
 <hr width="100%">
@@ -48,7 +48,7 @@ The type for watch state.<br>
 <pre><span id="VALnotify"><span class="keyword">val</span> notify</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option -> unit</code></pre><div class="info ">
 Notify all listeners in the given watch state that a key has
           changed, with the new value associated to this key. If the
-          argument is <code class="code">None</code>, this means the key has been removed.<br>
+          argument is <code class="code"><span class="constructor">None</span></code>, this means the key has been removed.<br>
 </div>
 
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> <a href="Irmin.Private.Watch.S.html#TYPEt">t</a></code></pre><div class="info ">
@@ -61,7 +61,7 @@ Clear all register listeners in the given watch state.<br>
 
 <pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option -><br>       <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option Lwt_stream.t</code></pre><div class="info ">
 Create a stream of value notifications. Need to provide the
-          initial value, or <code class="code">None</code> if the key does not have associated
+          initial value, or <code class="code"><span class="constructor">None</span></code> if the key does not have associated
           contents yet.<br>
 </div>
 
