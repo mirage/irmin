@@ -130,7 +130,7 @@ let alist_merge_lwt compare_k f l1 l2 =
   alist_iter2_lwt compare_k f l1 l2 >>= fun () ->
   return !l3
 
-module Map_ext (M: Map.S) (K: Tc.S0 with type t = M.key)= struct
+module Map_ext (M: Map.S) (K: Tc.S0 with type t = M.key) = struct
 
   include M
 
