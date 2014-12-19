@@ -154,3 +154,11 @@ Executable test_process
   CompiledObject: best
   Install:        false
   BuildDepends:   irmin, irmin.unix
+
+Executable test_sync
+  Path:           examples/
+  MainIs:         sync.ml
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
+  CompiledObject: best
+  Install:        false
+  BuildDepends:   irmin, irmin.unix

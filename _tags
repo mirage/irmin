@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: d030064813ef751ab65c6df37af1a6b5)
+# DO NOT EDIT (digest: dbfce4585a7b3713b549fa1a4d7b5441)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -393,6 +393,33 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: use_irmin-http
 <examples/process.{native,byte}>: use_irmin-mem
 <examples/process.{native,byte}>: use_irmin-unix
+# Executable test_sync
+<examples/sync.{native,byte}>: pkg_bin_prot
+<examples/sync.{native,byte}>: pkg_cohttp.lwt
+<examples/sync.{native,byte}>: pkg_cohttp.lwt-core
+<examples/sync.{native,byte}>: pkg_cstruct
+<examples/sync.{native,byte}>: pkg_dolog
+<examples/sync.{native,byte}>: pkg_ezjsonm
+<examples/sync.{native,byte}>: pkg_ezjsonm.lwt
+<examples/sync.{native,byte}>: pkg_git
+<examples/sync.{native,byte}>: pkg_git.unix
+<examples/sync.{native,byte}>: pkg_hex
+<examples/sync.{native,byte}>: pkg_lwt
+<examples/sync.{native,byte}>: pkg_mstruct
+<examples/sync.{native,byte}>: pkg_nocrypto
+<examples/sync.{native,byte}>: pkg_ocamlgraph
+<examples/sync.{native,byte}>: pkg_re
+<examples/sync.{native,byte}>: pkg_re.pcre
+<examples/sync.{native,byte}>: pkg_re.perl
+<examples/sync.{native,byte}>: pkg_stringext
+<examples/sync.{native,byte}>: pkg_tc
+<examples/sync.{native,byte}>: pkg_uri
+<examples/sync.{native,byte}>: use_irmin
+<examples/sync.{native,byte}>: use_irmin-fs
+<examples/sync.{native,byte}>: use_irmin-git
+<examples/sync.{native,byte}>: use_irmin-http
+<examples/sync.{native,byte}>: use_irmin-mem
+<examples/sync.{native,byte}>: use_irmin-unix
 <examples/*.ml{,i,y}>: pkg_bin_prot
 <examples/*.ml{,i,y}>: pkg_cohttp.lwt
 <examples/*.ml{,i,y}>: pkg_cohttp.lwt-core
@@ -420,6 +447,7 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: use_irmin-mem
 <examples/*.ml{,i,y}>: use_irmin-unix
 # OASIS_STOP
-true: bin_annot, annot, debug
+true: bin_annot, debug
 true: warn_error_A, warn(A-4-41-44)
 true: short_paths
+"bench": -traverse
