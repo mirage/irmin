@@ -76,7 +76,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   include RO(K)(V)
 
   let update t key value =
-    Log.debugf "update %s %s"
+    Log.debug "update %s %s"
       (Tc.show (module K) key) (Tc.show (module V) value);
     Hashtbl.replace t.t key value;
     W.notify t.w key (Some value);

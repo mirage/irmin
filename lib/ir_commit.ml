@@ -146,7 +146,7 @@ struct
   let merge = Store.merge
 
   let node t c =
-    Log.debugf "node %a" force (show (module S.Key) c);
+    Log.debug "node %a" force (show (module S.Key) c);
     Store.read t c >>= function
     | None   -> return_none
     | Some n -> return (S.Val.node n)
@@ -157,7 +157,7 @@ struct
     return key
 
   let parents t c =
-    Log.debugf "parents %a" force (show (module S.Key) c);
+    Log.debug "parents %a" force (show (module S.Key) c);
     Store.read t c >>= function
     | None   -> return_nil
     | Some c -> return (S.Val.parents c)
@@ -165,14 +165,14 @@ struct
   module Graph = Ir_graph.Make(Tc.Unit)(N.Key)(S.Key)(Tc.Unit)
 
   let edges t =
-    Log.debugf "edges";
+    Log.debug "edges";
     (match S.Val.node t with
       | None   -> []
       | Some k -> [`Node k])
     @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
   let closure t ~min ~max =
-    Log.debugf "closure";
+    Log.debug "closure";
     let pred = function
       | `Commit k -> Store.read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
@@ -193,12 +193,12 @@ struct
 
   (* FIXME: pretty dumb and inefficient *)
   let lca t c1 c2 =
-    Log.debugf "lca %a %a"
+    Log.debug "lca %a %a"
       force (show (module S.Key) c1)
       force (show (module S.Key) c2);
     let rec aux (seen1, todo1) (seen2, todo2) =
       if KSet.is_empty todo1 && KSet.is_empty todo2 then (
-        Log.debugf "lca stats: %d/%d/%d"
+        Log.debug "lca stats: %d/%d/%d"
           (KSet.cardinal seen1)
           (KSet.cardinal seen2)
           (KSet.cardinal (seen1 ++ seen2));

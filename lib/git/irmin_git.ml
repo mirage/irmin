@@ -483,7 +483,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       && not (Irmin.Private.Conf.get t.config Conf.bare)
       && t.git_head = Git.Reference.Ref (git_of_tag r)
       then (
-        Log.debugf "write cache (%s)" (T.to_hum r);
+        Log.debug "write cache (%s)" (T.to_hum r);
         G.write_cache t.t gk
       ) else
         return_unit
@@ -524,11 +524,11 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       G.create ?root ()
 
     let fetch t ?depth ~uri tag =
-      Log.debugf "fetch %s" uri;
+      Log.debug "fetch %s" uri;
       let gri = Git.Gri.of_string uri in
       let deepen = depth in
       let result r =
-        Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
+        Log.debug "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
         let tag = XTag.git_of_tag tag in
         let key =
           let refs = r.Git.Sync.Result.references in
@@ -541,11 +541,11 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       result
 
     let push t ?depth:_ ~uri tag =
-      Log.debugf "push %s" uri;
+      Log.debug "push %s" uri;
       let branch = XTag.git_of_tag tag in
       let gri = Git.Gri.of_string uri in
       let result r =
-        Log.debugf "push result: %s" (Git.Sync.Result.pretty_push r);
+        Log.debug "push result: %s" (Git.Sync.Result.pretty_push r);
         match r.Git.Sync.Result.result with
         | `Ok      -> return `Ok
         | `Error _ -> return `Error in

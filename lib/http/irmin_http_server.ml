@@ -67,11 +67,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       ~body ()
 
   let respond ?headers body =
-    Log.debug
-      (lazy (String.escaped @@
-             if String.length body > 140 then
-               String.sub body 0 100 ^ ".."
-             else body));
     HTTP.respond_string ?headers ~status:`OK ~body ()
 
   let respond_json json =
@@ -334,7 +329,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let stream, push = Lwt_stream.create () in
     Irmin.Private.Watch.lwt_stream_lift (
       fn t (fun k ->
-          Log.debugf "stream push %s" (Tc.show m k);
+          Log.debug "stream push %s" (Tc.show m k);
           push (Some k);
           return_unit
         ) >>= fun () ->
@@ -501,7 +496,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           let short_body =
             if String.length b > 80 then String.sub b 0 80 ^ ".." else b
           in
-          Log.debugf "process: length=%Ld body=%S" len short_body;
+          Log.debug "process: length=%Ld body=%S" len short_body;
           try match Ezjsonm.from_string b with
             | `O l ->
               if List.mem_assoc "params" l then (
@@ -518,7 +513,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     end >>= fun params ->
     let query = Uri.query (Cohttp.Request.uri req) in
     let rec aux actions path =
-      Log.debugf "aux %s" (String.concat "/" path);
+      Log.debug "aux %s" (String.concat "/" path);
       match path with
       | []      -> json_of_response t actions >>= respond_json
       | h::path ->
@@ -541,7 +536,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     Printf.printf "Server started on port %d.\n%!" port;
     let callback (_, conn_id) req body =
       let path = Uri.path (Cohttp.Request.uri req) in
-      Log.infof "Connection %s: %s %s"
+      Log.info "Connection %s: %s %s"
         (Cohttp.Connection.to_string conn_id)
         (Cohttp.(Code.string_of_method (Request.meth req)))
         path;
@@ -551,7 +546,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         (fun () -> process t req body path)
         (fun e  -> respond_error e) in
     let conn_closed (_, conn_id) () =
-      Log.debugf "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
+      Log.debug "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
     in
     let config = { HTTP.callback; conn_closed } in
     HTTP.listen config ?timeout uri

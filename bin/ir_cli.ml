@@ -136,7 +136,7 @@ let init = {
         let module HTTP = Irmin_http_server.Make(S) in
         if daemon then
           let uri = Uri.of_string uri in
-          Log.infof "daemon: %s" (Uri.to_string uri);
+          Log.info "daemon: %s" (Uri.to_string uri);
           HTTP.listen (t "Initialising the HTTP server.") uri
         else return_unit
       end
@@ -427,12 +427,12 @@ let dot = {
         >>= fun () ->
         if call_dot then (
           let i = Sys.command "/bin/sh -c 'command -v dot'" in
-          if i <> 0 then Log.errorf
+          if i <> 0 then Log.error
               "Cannot find the `dot' utility. Please install it on your system \
                and be sure it is available in your $PATH.";
           let i = Sys.command
               (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename) in
-          if i <> 0 then Log.errorf "The %s.dot is corrupted" basename;
+          if i <> 0 then Log.error "The %s.dot is corrupted" basename;
         );
         return_unit
       end

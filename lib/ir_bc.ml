@@ -223,16 +223,16 @@ module Make_ext (P: PRIVATE) = struct
   let read_head_commit t =
     match branch t with
     | `Head key ->
-      Log.debugf "read detached head: %a" force (show (module Head) key);
+      Log.debug "read detached head: %a" force (show (module Head) key);
       return (Some key)
     | `Tag tag ->
-      Log.debugf "read head: %a" force (show (module Tag.Key) tag);
+      Log.debug "read head: %a" force (show (module Tag.Key) tag);
       Tag.read (tag_t t) tag >>= function
       | None   -> return_none
       | Some k -> return (Some k)
 
   let read_head_node t =
-    Log.debug (lazy "read_head_node");
+    Log.debug "read_head_node";
     read_head_commit t >>= function
     | None   -> return_none
     | Some h -> History.node (history_t t) h
@@ -277,7 +277,7 @@ module Make_ext (P: PRIVATE) = struct
       )
 
   let map t path ~f =
-    Log.debugf "map %a" force (show (module Key) path);
+    Log.debug "map %a" force (show (module Key) path);
     begin read_head_node t >>= function
       | None   -> Graph.empty (graph_t t)
       | Some n -> return n
@@ -290,7 +290,7 @@ module Make_ext (P: PRIVATE) = struct
     | Some c -> P.Contents.read (contents_t t) c
 
   let update t path contents =
-    Log.debugf "update %a" force (show (module Key) path);
+    Log.debug "update %a" force (show (module Key) path);
     P.Contents.add (contents_t t) contents >>= fun contents ->
     apply t ~f:(fun node ->
         Graph.add_contents (graph_t t) node path contents
@@ -307,7 +307,7 @@ module Make_ext (P: PRIVATE) = struct
       )
 
   let read_exn t path =
-    Log.debugf "read_exn %a" force (show (module Key) path);
+    Log.debug "read_exn %a" force (show (module Key) path);
     map t path ~f:Graph.read_contents_exn >>= fun c ->
     P.Contents.read_exn (contents_t t) c
 
@@ -316,7 +316,7 @@ module Make_ext (P: PRIVATE) = struct
 
   (* Return the subpaths. *)
   let list t path =
-    Log.debugf "list";
+    Log.debug "list";
     read_head_node t >>= function
     | None   -> return_nil
     | Some n ->
@@ -328,7 +328,7 @@ module Make_ext (P: PRIVATE) = struct
         return paths
 
   let iter t fn =
-    Log.debugf "iter";
+    Log.debug "iter";
     let rec aux = function
       | []       -> return_unit
       | path::tl ->
@@ -343,7 +343,7 @@ module Make_ext (P: PRIVATE) = struct
      - Search for common ancestors
      - Perform recursive 3-way merges *)
   let rec three_way_merge t c1 c2 =
-    Log.debugf "3-way merge between %a and %a"
+    Log.debug "3-way merge between %a and %a"
       force (show (module Head) c1)
       force (show (module Head) c2);
     History.lca (history_t t) c1 c2 >>= function
@@ -383,7 +383,7 @@ module Make_ext (P: PRIVATE) = struct
     update_head t k
 
   let switch t branch =
-    Log.debugf "switch %a" force (show (module Tag.Key) branch);
+    Log.debug "switch %a" force (show (module Tag.Key) branch);
     Tag.read (tag_t t) branch >>= function
     | Some c -> update_head t c
     | None   -> fail Not_found
@@ -405,7 +405,7 @@ module Make_ext (P: PRIVATE) = struct
     Ir_merge.exn
 
   let clone_force task t tag =
-    Log.debugf "clone_force %a" force (show (module Tag.Key) tag);
+    Log.debug "clone_force %a" force (show (module Tag.Key) tag);
     head_exn t >>= fun h ->
     Tag.update (tag_t t) tag h >>= fun () ->
     let branch = ref (`Tag tag) in
@@ -417,14 +417,14 @@ module Make_ext (P: PRIVATE) = struct
     | false -> clone_force task t tag >>= fun t -> return (`Ok t)
 
   let merge_tag t tag =
-    Log.debugf "merge_tag %a" force (show (module Tag.Key) tag);
+    Log.debug "merge_tag %a" force (show (module Tag.Key) tag);
     Tag.read_exn (tag_t t) tag >>= fun c ->
     merge_head t c
 
   let merge_tag_exn t tag = merge_tag t tag >>= Ir_merge.exn
 
   let merge a t ~into =
-    Log.debugf "merge";
+    Log.debug "merge";
     let t = t a and into = into a in
     match branch t with
     | `Tag tag -> merge_tag into tag
@@ -435,7 +435,7 @@ module Make_ext (P: PRIVATE) = struct
   module ONode = Tc.Option(P.Node.Key)
 
   let watch_node t path =
-    Log.infof "Adding a watch on %a" force (show (module Key) path);
+    Log.info "Adding a watch on %a" force (show (module Key) path);
     match branch t with
     | `Head _  -> Lwt_stream.of_list []
     | `Tag tag ->
@@ -451,7 +451,7 @@ module Make_ext (P: PRIVATE) = struct
                 return (Some (path, None, None))
               )
             | Some head ->
-              Log.debugf "watch: %a" force (show (module Head) head);
+              Log.debug "watch: %a" force (show (module Head) head);
               begin History.node (history_t t) head >>= function
                 | None      -> Graph.empty (graph_t t)
                 | Some node -> return node
@@ -517,7 +517,7 @@ module Make_ext (P: PRIVATE) = struct
   type slice = P.Slice.t
 
   let export ?(full=true) ?depth ?(min=[]) ?max t =
-    Log.debugf "export depth=%s full=%b min=%d max=%s"
+    Log.debug "export depth=%s full=%b min=%d max=%s"
       (match depth with None -> "<none>" | Some d -> string_of_int d)
       full (List.length min)
       (match max with None -> "<none>" | Some l -> string_of_int (List.length l));
@@ -584,7 +584,7 @@ module Make_ext (P: PRIVATE) = struct
       fn (fun (k, v) ->
           S.add (s t) v >>= fun k' ->
           if not (K.equal k k') then
-            Log.warnf "%s import error: expected %a, got %a"
+            Log.warn "%s import error: expected %a, got %a"
               name force (show (module K) k) force (show (module K) k');
           return_unit
         )

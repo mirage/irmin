@@ -38,7 +38,7 @@ module Make (S: Ir_s.STORE) = struct
   module Graph = Ir_graph.Make(Contents.Key)(Node.Key)(Commit.Key)(Tag.Key)
 
   let fprintf (t:db) ?depth ?(html=false) ?full ~date name =
-    Log.debugf "fprintf depth=%s html=%b full=%s"
+    Log.debug "fprintf depth=%s html=%b full=%s"
       (match depth with None -> "<none>" | Some d -> string_of_int d)
       html
       (match full with None -> "<none>" | Some b -> string_of_bool b);

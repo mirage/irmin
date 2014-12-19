@@ -63,7 +63,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
   let map_string_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
     Cohttp_lwt_body.to_string b >>= fun b ->
-    Log.debugf "got response: %s" b;
+    Log.debug "got response: %s" b;
     let j = Ezjsonm.from_string b in
     try
       Ezjsonm.value j
@@ -78,13 +78,13 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let stream = Ezjsonm_lwt.from_stream stream in
     let stream = Lwt_stream.map result_of_json stream in
     Lwt_stream.map (fun j ->
-        Log.debugf "stream get %s" Ezjsonm.(to_string (wrap j));
+        Log.debug "stream get %s" Ezjsonm.(to_string (wrap j));
         M.of_json j
       ) stream
 
   let map_get t path fn =
     let uri = uri_append t path in
-    Log.debugf "get %s" (Uri.path uri);
+    Log.debug "get %s" (Uri.path uri);
     Client.get uri >>= fun r ->
     fn r
 
@@ -106,7 +106,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
   let delete t path fn =
     let uri = uri_append t path in
-    Log.debugf "delete %s" (Uri.path uri);
+    Log.debug "delete %s" (Uri.path uri);
     Client.delete uri >>=
     map_string_response fn
 
@@ -118,7 +118,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let short_body =
       if String.length body > 80 then String.sub body 0 80 ^ ".." else body
     in
-    Log.debugf "post %s %s" (Uri.path uri) short_body;
+    Log.debug "post %s %s" (Uri.path uri) short_body;
     let body = Cohttp_lwt_body.of_string body in
     Client.post ~body uri >>=
     map_string_response fn

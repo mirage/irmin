@@ -77,7 +77,7 @@ module Make (S: Ir_s.STORE) = struct
   let fetch t ?depth remote =
     match remote with
     | URI uri ->
-      Log.debugf "fetch URI %s" uri;
+      Log.debug "fetch URI %s" uri;
       begin match S.tag t with
         | None     -> return_none
         | Some tag ->
@@ -87,7 +87,7 @@ module Make (S: Ir_s.STORE) = struct
           | Some (`Local h) -> return (Some h)
       end
     | Store ((module R), r) ->
-      Log.debugf "fetch store";
+      Log.debug "fetch store";
       sync (module S) (module R) ?depth t r >>= fun () ->
       R.head r >>= function
       | None   -> return_none
@@ -116,7 +116,7 @@ module Make (S: Ir_s.STORE) = struct
     Ir_merge.exn
 
   let push t ?depth remote =
-    Log.debugf "push";
+    Log.debug "push";
     match remote with
     | URI uri ->
       begin match S.tag t with

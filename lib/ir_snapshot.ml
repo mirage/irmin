@@ -97,12 +97,12 @@ module Make (S: Ir_s.STORE) = struct
     C.add (P.commit_t db) c
 
   let revert db (_, s) =
-    Log.debugf "revert %a" force (show (module N.Key) s);
+    Log.debug "revert %a" force (show (module N.Key) s);
     pre_revert db s >>= fun k ->
     S.update_head db k
 
   let merge db (_, s) =
-    Log.debugf "merge %a" force (show (module N.Key) s);
+    Log.debug "merge %a" force (show (module N.Key) s);
     pre_revert db s >>= fun k ->
     S.merge_head db k
 

@@ -66,12 +66,12 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     | ws -> Hashtbl.replace t key ws
 
   let notify t key value =
-    Log.debugf "notify %a" force (show (module K) key);
+    Log.debug "notify %a" force (show (module K) key);
     try
       let ws = Hashtbl.find t key in
       let ws = List.map (fun (id, old_value, f as w) ->
           if not (OV.equal old_value value) then (
-            Log.debugf "firing watch %a:%d" force (show (module K) key) id;
+            Log.debug "firing watch %a:%d" force (show (module K) key) id;
             try f (Some value); (id, value, f)
             with e ->
               unwatch t key id;
@@ -88,7 +88,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     fun () -> incr c; !c
 
   let watch (t:t) key value =
-    Log.debugf "watch %a" force (show (module K) key);
+    Log.debug "watch %a" force (show (module K) key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
     Ir_misc.hashtbl_add_multi t key (id, value, push);
@@ -96,7 +96,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
 
   let listen_dir t dir ~key ~value =
     !listen_dir_hook dir (fun file ->
-        Log.debugf "listen_dir_hook: %s" file;
+        Log.debug "listen_dir_hook: %s" file;
         match key file with
         | None     -> return_unit
         | Some key ->

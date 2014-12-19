@@ -149,7 +149,7 @@ module Internal (Node: NODE) = struct
   module PL = Tc.List(Path)
 
   let create task =
-    Log.debugf "create";
+    Log.debug "create";
     let view = Node.empty () in
     let ops = [] in
     let parents = [] in
@@ -174,7 +174,7 @@ module Internal (Node: NODE) = struct
     try Ir_misc.list_end k with Not_found -> [], Path.Step.of_hum "__root__"
 
   let read_contents t path =
-    Log.debugf "read_contents %a" force (show (module Path) path);
+    Log.debug "read_contents %a" force (show (module Path) path);
     let path, file = mk_path path in
     sub t path >>= function
     | None   -> return_none
@@ -208,13 +208,13 @@ module Internal (Node: NODE) = struct
       return (PathSet.to_list paths)
 
   let list t path =
-    Log.debugf "list %a" force (show (module Path) path);
+    Log.debug "list %a" force (show (module Path) path);
     list_aux t path >>= fun result ->
     t.ops <- `List (path, result) :: t.ops;
     return result
 
   let iter t fn =
-    Log.debugf "iter";
+    Log.debug "iter";
     let rec aux = function
       | []       -> return_unit
       | path::tl ->
@@ -275,7 +275,7 @@ module Internal (Node: NODE) = struct
     failwith "TODO: View.watch"
 
   let apply t a =
-    Log.debugf "apply %a" force (show (module Action) a);
+    Log.debug "apply %a" force (show (module Action) a);
     match a with
     | `Rmdir _ -> ok ()
     | `Write (k, v) -> update_contents t k v >>= ok
@@ -469,7 +469,7 @@ module Make (S: Ir_s.STORE) = struct
           return (Some n)
 
     let steps t =
-      Log.debugf "steps";
+      Log.debug "steps";
       read t >>= function
       | None    -> return_nil
       | Some  n ->
@@ -493,7 +493,7 @@ module Make (S: Ir_s.STORE) = struct
 
     (* FIXME code duplication with Ir_node.Make.with_contents *)
     let with_contents t step contents =
-      Log.debugf "with_contents %a %a"
+      Log.debug "with_contents %a %a"
         force (show (module Step) step)
         force (show (module Tc.Option(S.Val)) contents);
       let mk c = `Contents (Contents.create c) in
@@ -559,7 +559,7 @@ module Make (S: Ir_s.STORE) = struct
   type db = S.t
 
   let import task db ~parents key =
-    Log.debugf "import %a" force (show (module P.Node.Key) key);
+    Log.debug "import %a" force (show (module P.Node.Key) key);
     P.Node.read (P.node_t db) key >>= function
     | None   -> fail Not_found
     | Some n ->
@@ -568,7 +568,7 @@ module Make (S: Ir_s.STORE) = struct
       return (fun a -> { task = task a; parents; view; ops })
 
   let export db t =
-    Log.debugf "export";
+    Log.debug "export";
     let node n = P.Node.add (P.node_t db) (Node.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
@@ -619,7 +619,7 @@ module Make (S: Ir_s.STORE) = struct
     return (Node.export t.view)
 
   let of_path task db path =
-    Log.debugf "read_view %a" force (show (module Path) path);
+    Log.debug "read_view %a" force (show (module Path) path);
     P.read_node db path >>= function
     | None   -> create task
     | Some n ->
@@ -630,13 +630,13 @@ module Make (S: Ir_s.STORE) = struct
       import task db ~parents n
 
   let update_path a db path view =
-    Log.debugf "update_view %a" force (show (module Path) path);
+    Log.debug "update_view %a" force (show (module Path) path);
     let db = db a and view = view a in
     export db view >>= fun node ->
     P.update_node db path node
 
   let rebase_path a db path view =
-    Log.debugf "merge_view %a" force (show (module Path) path);
+    Log.debug "merge_view %a" force (show (module Path) path);
     let db = db a and view = view a in
     P.mem_node db [] >>= function
     | false -> fail Not_found
@@ -650,7 +650,7 @@ module Make (S: Ir_s.STORE) = struct
     rebase_path a db path view >>= Ir_merge.exn
 
   let merge_path a db path view =
-    Log.debugf "merge_view %a" force (show (module Path) path);
+    Log.debug "merge_view %a" force (show (module Path) path);
     let db = db a and view = view a in
     P.read_node db [] >>= function
     | None           -> fail Not_found
