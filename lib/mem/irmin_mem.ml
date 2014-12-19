@@ -66,7 +66,7 @@ module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
     (* XXX: hook to choose the serialization format / key generator
        ? *)
     let key = K.digest (Tc.write_cstruct (module V) value) in
-    Hashtbl.add t key value;
+    Hashtbl.replace t key value;
     return key
 
 end
