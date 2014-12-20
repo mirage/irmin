@@ -52,8 +52,8 @@ Irmin public API.
 <p>
 
     Consult the <a href="Irmin.html#basics"><i>Basic API</i></a> and <a href="Irmin.html#examples"><i>Examples</i></a> of use for a quick
-    start. See also the documentation for the unix
-    backend.
+    start. See also the <a href="Irmin_unix.html">documentation</a> for the unix
+    backends.
 <p>
 
     <em>Release %%VERSION%% - %%MAINTAINER%% </em><br>
@@ -383,7 +383,7 @@ See <a href="Irmin.BC.html#VALmerge_exn"><code class="code"><span class="constru
 <p>
 
     A simple synchronization example, using the
-    Git backend and some <a href="Irmin.Sync.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span></code></a> helpers. The
+    <a href="Irmin_unix.Irmin_git.html">Git</a> backend and some <a href="Irmin.Sync.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span></code></a> helpers. The
     code clones a fresh repository if the repository does not exists
     locally, otherwise it performs a fetch: in this case, only
     the missing contents is downloaded.
@@ -475,7 +475,7 @@ See <a href="Irmin.BC.html#VALmerge_exn"><code class="code"><span class="constru
     show here how to use the on-disk <code class="code"><span class="constructor">Git</span></code> backend on Unix.
 <p>
 
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="comment">(*&nbsp;Bring&nbsp;[Git_unix.task]&nbsp;and&nbsp;[Git_unix.Irmin_git]&nbsp;in&nbsp;scope.&nbsp;*)</span><br>
+<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="comment">(*&nbsp;Bring&nbsp;[Irmin_unix.task]&nbsp;and&nbsp;[Irmin_unix.Irmin_git]&nbsp;in&nbsp;scope.&nbsp;*)</span><br>
 &nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
 <br>
 &nbsp;&nbsp;<span class="comment">(*&nbsp;Build&nbsp;an&nbsp;Irmin&nbsp;store&nbsp;containing&nbsp;log&nbsp;files.&nbsp;*)</span><br>
