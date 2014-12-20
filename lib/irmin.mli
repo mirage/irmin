@@ -29,8 +29,8 @@
     Xen unikernels.
 
     Consult the {!basics} and {!examples} of use for a quick
-    start. See also the {{!Git_unix}documentation} for the unix
-    backend.
+    start. See also the {{!Irmin_unix}documentation} for the unix
+    backends.
 
     {e Release %%VERSION%% - %%MAINTAINER%% }
 *)
@@ -1634,7 +1634,7 @@ val merge_exn: 'm -> ('m -> 'a t) -> into:('m -> 'a t) -> unit Lwt.t
     {3 Synchronisation}
 
     A simple synchronization example, using the
-    {{!Git_unix.Irmin_git}Git} backend and some {!Sync} helpers. The
+    {{!Irmin_unix.Irmin_git}Git} backend and the {!Sync} helpers. The
     code clones a fresh repository if the repository does not exists
     locally, otherwise it performs a fetch: in this case, only
     the missing contents is downloaded.
@@ -1721,7 +1721,7 @@ let () =
     show here how to use the on-disk [Git] backend on Unix.
 
 {[
-  (* Bring [Git_unix.task] and [Git_unix.Irmin_git] in scope. *)
+  (* Bring [Irmin_unix.task] and [Irmin_unix.Irmin_git] in scope. *)
   open Irmin_unix
 
   (* Build an Irmin store containing log files. *)
