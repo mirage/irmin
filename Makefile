@@ -60,3 +60,15 @@ gh-pages: doc/html/.git
 	cd doc/html && git add *.html
 	cd doc/html && git commit -a -m "Doc updates"
 	cd doc/html && git push origin gh-pages
+
+NAME    = $(shell grep 'Name:' _oasis    | sed 's/Name: *//')
+ARCHIVE = https://github.com/mirage/$(NAME)/archive/$(VERSION).tar.gz
+
+release:
+	git tag -a $(VERSION) -m "Version $(VERSION)."
+	git push upstream $(VERSION)
+	$(MAKE) pr
+
+pr:
+	opam publish prepare $(NAME).$(VERSION) $(ARCHIVE)
+	opam publish submit $(NAME).$(VERSION) && rm -rf $(NAME).$(VERSION)
