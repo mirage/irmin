@@ -68,12 +68,6 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_path.S) = struct
 
     let hash = Hashtbl.hash
 
-    let to_sexp t =
-      let open Sexplib.Type in
-      match t with
-      | `Contents c -> List [ Atom "contents"; K_c.to_sexp c ]
-      | `Node n     -> List [ Atom "node"    ; K_n.to_sexp n ]
-
     let to_json = function
       | `Contents c -> `O [ "contents", K_c.to_json c ]
       | `Node n     -> `O [ "node"    , K_n.to_json n ]
@@ -143,7 +137,6 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_path.S) = struct
 
   module Y = Tc.List (Tc.Pair (P.Step)(X) )
 
-  let to_sexp t = Y.to_sexp t.alist
   let to_json t = Y.to_json t.alist
   let of_json j = create (Y.of_json j)
   let write t = Y.write t.alist
@@ -261,7 +254,6 @@ struct
     type key = S.key
     type value = S.value
     let task (_, t) = S.task t
-    let config (_, t) = S.config t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
     let read_exn (_, t) = S.read_exn t
@@ -297,7 +289,7 @@ struct
 
     let merge t ~old x y =
       let rec merge_key () =
-        Log.debugf "merge";
+        Log.debug "merge";
         let merge = merge_value t (Ir_merge.apply merge_key ()) in
         Ir_merge.biject' (module S.Key) merge (read_exn t) (add t)
       in
@@ -319,19 +311,19 @@ struct
   module StepMap = Ir_misc.Map(Step)
 
   let iter_contents t n fn =
-    Log.debugf "iter_contents";
+    Log.debug "iter_contents";
     Store.read t n >>= function
     | None   -> return_unit
     | Some n -> return (S.Val.iter_contents n fn)
 
   let iter_succ t n fn =
-    Log.debugf "iter_succ";
+    Log.debug "iter_succ";
     Store.read t n >>= function
     | None   -> return_unit
     | Some n -> return (S.Val.iter_succ n fn)
 
   let steps t n =
-    Log.debugf "steps";
+    Log.debug "steps";
     Store.read t n >>= function
     | None   -> return_nil
     | Some n ->
@@ -349,7 +341,7 @@ struct
     !edges
 
   let closure t ~min ~max =
-    Log.debugf "closure min=%a max=%a"
+    Log.debug "closure min=%a max=%a"
       force (shows (module S.Key) min)
       force (shows (module S.Key) max);
     let pred = function
@@ -370,13 +362,13 @@ struct
     Store.add t (S.Val.create xs)
 
   let contents t node step =
-    Log.debugf "contents %a" force (show (module S.Key) node);
+    Log.debug "contents %a" force (show (module S.Key) node);
     Store.read t node >>= function
     | None   -> return_none
     | Some n -> return (S.Val.contents n step)
 
   let succ t node step =
-    Log.debugf "succ %a %a"
+    Log.debug "succ %a %a"
       force (show (module S.Key) node)
       force (show (module Step) step);
     Store.read t node >>= function
@@ -384,7 +376,7 @@ struct
     | Some n -> return (S.Val.succ n step)
 
   let read_node_exn t node path =
-    Log.debugf "read_node_exn %a %a"
+    Log.debug "read_node_exn %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
     let rec aux node = function
@@ -408,13 +400,13 @@ struct
     with Not_found -> [], Step.of_hum "__root__"
 
   let read_contents_exn t node path =
-   Log.debugf "read_contents_exn %a %a"
+   Log.debug "read_contents_exn %a %a"
      force (show (module S.Key) node)
      force (show (module S.Path) path);
      let path, file = mk_path path in
      read_node t node path >>= function
      | None      ->
-       Log.debugf "subpath not found";
+       Log.debug "subpath not found";
        fail Not_found
      | Some node ->
        contents t node file >>= function
@@ -422,7 +414,7 @@ struct
        | Some c -> return c
 
   let read_contents t node path =
-    Log.debugf "read_contents %a %a"
+    Log.debug "read_contents %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
     let path, file = mk_path path in
@@ -434,7 +426,7 @@ struct
       | Some c -> return (Some c)
 
   let mem_node t node path =
-    Log.debugf "mem_node %a %a"
+    Log.debug "mem_node %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
     read_node t node path >>= function
@@ -442,7 +434,7 @@ struct
     | Some _ -> return true
 
   let mem_contents t node path =
-    Log.debugf "mem_contents %a %a"
+    Log.debug "mem_contents %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
     let path, file = mk_path path in
@@ -454,7 +446,7 @@ struct
       | Some _ -> return true
 
   let map_one t node f label =
-    Log.debugf "map_one %a %a"
+    Log.debug "map_one %a %a"
       force (show (module S.Val) node)
       force (show (module Step) label);
     let old_key = S.Val.succ node label in
@@ -477,7 +469,7 @@ struct
     )
 
   let map t node path f =
-    Log.debugf "map %a %a"
+    Log.debug "map %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
     let rec aux node = function
@@ -492,7 +484,7 @@ struct
     Store.add t
 
   let update_node t node path n =
-    Log.debugf "update_node %a %a"
+    Log.debug "update_node %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
     let path, file = mk_path path in
@@ -505,7 +497,7 @@ struct
     | _  -> update_node t node path None
 
   let update_contents t node path c =
-    Log.debugf "update_contents %a %a"
+    Log.debug "update_contents %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
     let path, file = mk_path path in

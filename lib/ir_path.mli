@@ -28,4 +28,4 @@ end
 
 module Make (S: STEP): S with type step = S.t
 
-module String: S with type step = string
+module String_list: S with type step = string

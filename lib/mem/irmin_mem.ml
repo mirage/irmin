@@ -34,7 +34,6 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
   }
 
   let task t = t.task
-  let config t = t.config
   let table = Hashtbl.create 23
   let watches = W.create ()
 
@@ -67,7 +66,7 @@ module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
     (* XXX: hook to choose the serialization format / key generator
        ? *)
     let key = K.digest (Tc.write_cstruct (module V) value) in
-    Hashtbl.add t key value;
+    Hashtbl.replace t key value;
     return key
 
 end
@@ -77,7 +76,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   include RO(K)(V)
 
   let update t key value =
-    Log.debugf "update %s %s"
+    Log.debug "update %s %s"
       (Tc.show (module K) key) (Tc.show (module V) value);
     Hashtbl.replace t.t key value;
     W.notify t.w key (Some value);

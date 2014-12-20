@@ -17,7 +17,6 @@
 open Ir_misc.OP
 open Lwt
 open Ir_merge.OP
-open Printf
 
 module Log = Log.Make(struct let section = "COMMIT" end)
 
@@ -47,15 +46,6 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
   let task t = t.task
   let create task ?node ~parents = { node; parents; task }
 
-  let to_sexp t =
-    let open Sexplib.Type in
-    let open Sexplib.Conv in
-    List [
-      List [ Atom "node"   ; sexp_of_option N.to_sexp t.node ];
-      List [ Atom "parents"; sexp_of_list C.to_sexp t.parents ];
-      List [ Atom "task"   ; T.to_sexp t.task ]
-    ]
-
   let to_json t =
     `O [
       ("node"   , Ezjsonm.option N.to_json t.node);
@@ -70,16 +60,16 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
     { node; parents; task }
 
   module X = Tc.Triple(Tc.Option(N))(Tc.List(C))(T)
-
   let explode t = t.node, t.parents, t.task
   let implode (node, parents, task) = { node; parents; task }
+  let x = Tc.biject (module X) implode explode
 
-  let hash t = X.hash (explode t)
-  let compare x y = X.compare (explode x) (explode y)
-  let equal x y = X.equal (explode x) (explode y)
-  let size_of t = X.size_of (explode t)
-  let write t b = X.write (explode t) b
-  let read b = implode (X.read b)
+  let hash = Tc.hash x
+  let compare = Tc.compare x
+  let equal = Tc.equal x
+  let size_of = Tc.size_of x
+  let write = Tc.write x
+  let read = Tc.read x
 
 end
 
@@ -128,7 +118,6 @@ struct
       return (fun a -> (n a, s a))
 
     let task (_, t) = S.task t
-    let config (_, t) = S.config t
     let add (_, t) = S.add t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
@@ -157,7 +146,7 @@ struct
   let merge = Store.merge
 
   let node t c =
-    Log.debugf "node %a" force (show (module S.Key) c);
+    Log.debug "node %a" force (show (module S.Key) c);
     Store.read t c >>= function
     | None   -> return_none
     | Some n -> return (S.Val.node n)
@@ -168,7 +157,7 @@ struct
     return key
 
   let parents t c =
-    Log.debugf "parents %a" force (show (module S.Key) c);
+    Log.debug "parents %a" force (show (module S.Key) c);
     Store.read t c >>= function
     | None   -> return_nil
     | Some c -> return (S.Val.parents c)
@@ -176,14 +165,14 @@ struct
   module Graph = Ir_graph.Make(Tc.Unit)(N.Key)(S.Key)(Tc.Unit)
 
   let edges t =
-    Log.debugf "edges";
+    Log.debug "edges";
     (match S.Val.node t with
       | None   -> []
       | Some k -> [`Node k])
     @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
   let closure t ~min ~max =
-    Log.debugf "closure";
+    Log.debug "closure";
     let pred = function
       | `Commit k -> Store.read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
@@ -198,36 +187,38 @@ struct
     return keys
 
   module KSet = Ir_misc.Set(S.Key)
+  let (--) = KSet.diff
+  let (++) = KSet.union
+  let ( ** ) = KSet.inter
 
-  (* FIXME: should work with multiple lca *)
+  (* FIXME: pretty dumb and inefficient *)
   let lca t c1 c2 =
-    Log.debugf "lca %a %a"
+    Log.debug "lca %a %a"
       force (show (module S.Key) c1)
       force (show (module S.Key) c2);
     let rec aux (seen1, todo1) (seen2, todo2) =
-      if KSet.is_empty todo1 && KSet.is_empty todo2 then
-        return_nil
-      else
-        let seen1' = KSet.union seen1 todo1 in
-        let seen2' = KSet.union seen2 todo2 in
-        match KSet.to_list (KSet.inter seen1' seen2') with
-        | []  ->
-          (* Compute the immediate parents *)
-          let parents todo =
-            let parents_of_commit seen c =
-              Store.read_exn t c >>= fun v ->
-              let parents = KSet.of_list (S.Val.parents v) in
-              return (KSet.diff parents seen) in
-            Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
-          in
-          parents todo1 >>= fun todo1' ->
-          parents todo2 >>= fun todo2' ->
-          aux (seen1', todo1') (seen2', todo2')
-        | [r] -> return [r]
-        | rs  -> fail (Failure (sprintf "Multiple common ancestor: %s"
-                                  (Tc.shows (module S.Key) rs))) in
-    aux
-      (KSet.empty, KSet.singleton c1)
-      (KSet.empty, KSet.singleton c2)
+      if KSet.is_empty todo1 && KSet.is_empty todo2 then (
+        Log.debug "lca stats: %d/%d/%d"
+          (KSet.cardinal seen1)
+          (KSet.cardinal seen2)
+          (KSet.cardinal (seen1 ++ seen2));
+        return (seen1 ** seen2)
+      ) else
+        let seen1' = seen1 ++ todo1 in
+        let seen2' = seen2 ++ todo2 in
+        (* Compute the immediate parents *)
+        let parents todo =
+          let parents_of_commit seen c =
+            Store.read_exn t c >>= fun v ->
+            let parents = KSet.of_list (S.Val.parents v) in
+            return (KSet.diff parents seen) in
+          Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
+        in
+        parents (todo1 -- seen2') >>= fun todo1' ->
+        parents (todo2 -- seen1') >>= fun todo2' ->
+        aux (seen1', todo1') (seen2', todo2')
+    in
+    aux (KSet.empty, KSet.singleton c1) (KSet.empty, KSet.singleton c2)
+    >>= fun s -> return (KSet.to_list s)
 
 end

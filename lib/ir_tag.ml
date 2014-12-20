@@ -21,11 +21,11 @@ module type S = sig
   val master: t
 end
 
-module String_list = struct
-  include Tc.List(Tc.String)
-  let master = ["master"]
-  let to_hum t = String.concat "/" t
-  let of_hum s = List.filter ((<>)"") (Stringext.split s ~on:'/')
+module String = struct
+  include Tc.String
+  let master = "master"
+  let to_hum s = s
+  let of_hum s = s
 end
 
 module type STORE = sig

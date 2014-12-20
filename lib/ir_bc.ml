@@ -29,8 +29,10 @@ module type STORE = sig
   val tag: t -> tag option
   val tag_exn: t -> tag
   val tags: t -> tag list Lwt.t
-  val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-  val update_tag_force: t -> tag -> unit Lwt.t
+  val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+  val update_tag: t -> tag -> unit Lwt.t
+  val merge_tag: t -> tag -> unit Ir_merge.result Lwt.t
+  val merge_tag_exn: t -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
   type head
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
@@ -43,10 +45,10 @@ module type STORE = sig
   val merge_head: t -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> head -> unit Lwt.t
   val watch_head: t -> key -> (key * head) Lwt_stream.t
-  val clone: t -> ('a -> Ir_task.t) -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
-  val clone_force: t ->  ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
-  val merge: t -> tag -> unit Ir_merge.result Lwt.t
-  val merge_exn: t -> tag -> unit Lwt.t
+  val clone: ('a -> Ir_task.t) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone_force: ('a -> Ir_task.t) -> t ->  tag -> ('a -> t) Lwt.t
+  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
+  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
@@ -76,6 +78,7 @@ module type STORE_EXT = sig
      and type Tag.key = tag
      and type Slice.t = slice
      and module Node.Path = Key
+  val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
   val node_t: t -> Private.Node.t
   val commit_t: t -> Private.Commit.t
@@ -220,16 +223,16 @@ module Make_ext (P: PRIVATE) = struct
   let read_head_commit t =
     match branch t with
     | `Head key ->
-      Log.debugf "read detached head: %a" force (show (module Head) key);
+      Log.debug "read detached head: %a" force (show (module Head) key);
       return (Some key)
     | `Tag tag ->
-      Log.debugf "read head: %a" force (show (module Tag.Key) tag);
+      Log.debug "read head: %a" force (show (module Tag.Key) tag);
       Tag.read (tag_t t) tag >>= function
       | None   -> return_none
       | Some k -> return (Some k)
 
   let read_head_node t =
-    Log.debug (lazy "read_head_node");
+    Log.debug "read_head_node";
     read_head_commit t >>= function
     | None   -> return_none
     | Some h -> History.node (history_t t) h
@@ -274,7 +277,7 @@ module Make_ext (P: PRIVATE) = struct
       )
 
   let map t path ~f =
-    Log.debugf "map %a" force (show (module Key) path);
+    Log.debug "map %a" force (show (module Key) path);
     begin read_head_node t >>= function
       | None   -> Graph.empty (graph_t t)
       | Some n -> return n
@@ -287,7 +290,7 @@ module Make_ext (P: PRIVATE) = struct
     | Some c -> P.Contents.read (contents_t t) c
 
   let update t path contents =
-    Log.debugf "update %a" force (show (module Key) path);
+    Log.debug "update %a" force (show (module Key) path);
     P.Contents.add (contents_t t) contents >>= fun contents ->
     apply t ~f:(fun node ->
         Graph.add_contents (graph_t t) node path contents
@@ -304,7 +307,7 @@ module Make_ext (P: PRIVATE) = struct
       )
 
   let read_exn t path =
-    Log.debugf "read_exn %a" force (show (module Key) path);
+    Log.debug "read_exn %a" force (show (module Key) path);
     map t path ~f:Graph.read_contents_exn >>= fun c ->
     P.Contents.read_exn (contents_t t) c
 
@@ -313,7 +316,7 @@ module Make_ext (P: PRIVATE) = struct
 
   (* Return the subpaths. *)
   let list t path =
-    Log.debugf "list";
+    Log.debug "list";
     read_head_node t >>= function
     | None   -> return_nil
     | Some n ->
@@ -325,7 +328,7 @@ module Make_ext (P: PRIVATE) = struct
         return paths
 
   let iter t fn =
-    Log.debugf "iter";
+    Log.debug "iter";
     let rec aux = function
       | []       -> return_unit
       | path::tl ->
@@ -337,38 +340,50 @@ module Make_ext (P: PRIVATE) = struct
     list t [] >>= aux
 
   (* Merge two commits:
-     - Search for a common ancestor
-     - Perform a 3-way merge *)
-  let three_way_merge t c1 c2 =
-    Log.debugf "3-way merge between %a and %a"
+     - Search for common ancestors
+     - Perform recursive 3-way merges *)
+  let rec three_way_merge t c1 c2 =
+    Log.debug "3-way merge between %a and %a"
       force (show (module Head) c1)
       force (show (module Head) c2);
     History.lca (history_t t) c1 c2 >>= function
-    | []    -> conflict "No common ancestor between %s and %s"
-                 (Head.to_hum c1) (Head.to_hum c2)
-    | [old] -> History.merge (history_t t) ~old c1 c2
-    | _     -> assert false (* FIXME *)
+    | [] -> conflict "No common ancestor between %s and %s"
+              (Head.to_hum c1) (Head.to_hum c2)
+    | old :: olds ->
+      let rec aux acc = function
+        | []        -> ok acc
+        | old::olds ->
+          three_way_merge t acc old >>| fun acc ->
+          aux acc olds
+      in
+      aux old olds >>| fun old ->
+      History.merge (history_t t) ~old c1 c2
 
   let update_head t c =
     match branch t with
     | `Head _  -> t.branch := `Head c; return_unit
     | `Tag tag -> Tag.update (tag_t t) tag c
 
-  let update_tag_force t tag =
-    begin head t >>= function
-      | None   -> return_unit
-      | Some k -> Tag.update (tag_t t) tag k
-    end >>= fun () ->
-    set_tag t tag;
-    return_unit
+  let rename_tag t tag =
+    Tag.mem (tag_t t) tag >>= function
+    | true  -> return `Duplicated_tag
+    | false ->
+      begin match branch t with
+        | `Head h   -> Tag.update (tag_t t) tag h
+        | `Tag otag ->
+          Tag.read_exn (tag_t t) otag >>= fun h ->
+          Tag.remove (tag_t t) otag >>= fun () ->
+          Tag.update (tag_t t) tag h
+      end >>= fun () ->
+      set_tag t tag;
+      return `Ok
 
   let update_tag t tag =
-    Tag.mem (tag_t t) tag >>= function
-    | true -> return `Duplicated_tag
-    | false -> update_tag_force t tag >>= fun () -> return `Ok
+    Tag.read_exn (tag_t t) tag >>= fun k ->
+    update_head t k
 
   let switch t branch =
-    Log.debugf "switch %a" force (show (module Tag.Key) branch);
+    Log.debug "switch %a" force (show (module Tag.Key) branch);
     Tag.read (tag_t t) branch >>= function
     | Some c -> update_head t c
     | None   -> fail Not_found
@@ -389,31 +404,38 @@ module Make_ext (P: PRIVATE) = struct
     merge_head t c1 >>=
     Ir_merge.exn
 
-  let clone_force t task tag =
-    Log.debugf "clone_force %a" force (show (module Tag.Key) tag);
+  let clone_force task t tag =
+    Log.debug "clone_force %a" force (show (module Tag.Key) tag);
     head_exn t >>= fun h ->
     Tag.update (tag_t t) tag h >>= fun () ->
     let branch = ref (`Tag tag) in
     return (fun a -> { t with branch; task = task a; })
 
-  let clone t task branch =
-    Tag.mem (tag_t t) branch >>= function
+  let clone task t tag =
+    Tag.mem (tag_t t) tag >>= function
     | true  -> return `Duplicated_tag
-    | false -> clone_force t task branch >>= fun t -> return (`Ok t)
+    | false -> clone_force task t tag >>= fun t -> return (`Ok t)
 
-  let merge t branch =
-    Log.debugf "merge %a" force (show (module Tag.Key) branch);
-    Tag.read_exn (tag_t t) branch >>= fun c ->
+  let merge_tag t tag =
+    Log.debug "merge_tag %a" force (show (module Tag.Key) tag);
+    Tag.read_exn (tag_t t) tag >>= fun c ->
     merge_head t c
 
-  let merge_exn t branch =
-    merge t branch >>=
-    Ir_merge.exn
+  let merge_tag_exn t tag = merge_tag t tag >>= Ir_merge.exn
+
+  let merge a t ~into =
+    Log.debug "merge";
+    let t = t a and into = into a in
+    match branch t with
+    | `Tag tag -> merge_tag into tag
+    | `Head h  -> merge_head into h
+
+  let merge_exn a t ~into = merge a t ~into >>= Ir_merge.exn
 
   module ONode = Tc.Option(P.Node.Key)
 
   let watch_node t path =
-    Log.infof "Adding a watch on %a" force (show (module Key) path);
+    Log.info "Adding a watch on %a" force (show (module Key) path);
     match branch t with
     | `Head _  -> Lwt_stream.of_list []
     | `Tag tag ->
@@ -429,7 +451,7 @@ module Make_ext (P: PRIVATE) = struct
                 return (Some (path, None, None))
               )
             | Some head ->
-              Log.debugf "watch: %a" force (show (module Head) head);
+              Log.debug "watch: %a" force (show (module Head) head);
               begin History.node (history_t t) head >>= function
                 | None      -> Graph.empty (graph_t t)
                 | Some node -> return node
@@ -495,7 +517,7 @@ module Make_ext (P: PRIVATE) = struct
   type slice = P.Slice.t
 
   let export ?(full=true) ?depth ?(min=[]) ?max t =
-    Log.debugf "export depth=%s full=%b min=%d max=%s"
+    Log.debug "export depth=%s full=%b min=%d max=%s"
       (match depth with None -> "<none>" | Some d -> string_of_int d)
       full (List.length min)
       (match max with None -> "<none>" | Some l -> string_of_int (List.length l));
@@ -562,7 +584,7 @@ module Make_ext (P: PRIVATE) = struct
       fn (fun (k, v) ->
           S.add (s t) v >>= fun k' ->
           if not (K.equal k k') then
-            Log.warnf "%s import error: expected %a, got %a"
+            Log.warn "%s import error: expected %a, got %a"
               name force (show (module K) k) force (show (module K) k');
           return_unit
         )

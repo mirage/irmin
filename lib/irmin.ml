@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt
+
 module Contents = Ir_contents
 module Merge = Ir_merge
 module Tag = Ir_tag
@@ -65,3 +67,138 @@ let remote_store (type t) (module M: S with type t = t) (t:t) =
   Ir_sync_ext.remote_store (module X) t
 
 let remote_uri = Ir_sync_ext.remote_uri
+
+module type BASIC = S with type step = string
+                       and type tag = string
+                       and type head = Hash.SHA1.t
+
+module Basic = Ir_s.Default
+
+type 'a basic = (module BASIC with type value = 'a)
+
+let basic (type a) (module B: S_MAKER) (module C: Contents.S with type t = a): a basic =
+  let module B = Basic(B)(C) in
+  (module B)
+
+module type T = S with type step = string
+                   and type tag = string
+                   and type head = Hash.SHA1.t
+
+type 'a t = T: (module T with type value = 'a and type t = 't) * 't -> 'a t
+
+let create (type a) (t: a basic) config task =
+  let (module T) = t in
+  T.create config task >>= fun t ->
+  return (fun a -> T ((module T), t a))
+
+let of_tag (type a) (t: a basic) config task tag =
+  let (module T) = t in
+  T.of_tag config task tag >>= fun t ->
+  return (fun a -> T ((module T), t a))
+
+let of_head (type a) (t: a basic) config task h =
+  let (module T) = t in
+  T.of_head config task h >>= fun t ->
+  return (fun a -> T ((module T), t a))
+
+let read (type a): a t -> string list -> a option Lwt.t =
+  function T ((module M), t) -> M.read t
+
+let read_exn (type a): a t -> string list -> a Lwt.t =
+  function T ((module M), t) -> M.read_exn t
+
+let mem (type a): a t -> string list -> bool Lwt.t =
+  function T ((module M), t) -> M.mem t
+
+let iter (type a): a t -> (string list -> unit Lwt.t) -> unit Lwt.t =
+  function T ((module M), t) -> M.iter t
+
+let update (type a): a t -> string list -> a -> unit Lwt.t =
+  function T ((module M), t) -> M.update t
+
+let remove (type a): a t -> string list -> unit Lwt.t =
+  function T ((module M), t) -> M.remove t
+
+let watch (type a): a t -> string list -> a option Lwt_stream.t =
+  function T ((module M), t) -> M.watch t
+
+let list (type a): a t -> string list -> string list list Lwt.t =
+  function T ((module M), t) -> M.list t
+
+let remove_rec (type a): a t -> string list -> unit Lwt.t =
+  function T ((module M), t) -> M.remove_rec t
+
+let tag (type a): a t -> string option =
+  function T ((module M), t) -> M.tag t
+
+let tag_exn (type a): a t -> string =
+  function T ((module M), t) -> M.tag_exn t
+
+let tags (type a): a t -> string list Lwt.t =
+  function T ((module M), t) -> M.tags t
+
+let rename_tag (type a): a t -> string -> [`Ok | `Duplicated_tag] Lwt.t =
+  function T ((module M), t) -> M.rename_tag t
+
+let update_tag (type a): a t -> string -> unit Lwt.t =
+  function T ((module M), t) -> M.update_tag t
+
+let merge_tag (type a): a t -> string -> unit Merge.result Lwt.t =
+  function T ((module M), t) -> M.merge_tag t
+
+let merge_tag_exn (type a): a t -> string -> unit Lwt.t =
+  function T ((module M), t) -> M.merge_tag_exn t
+
+let switch (type a): a t -> string -> unit Lwt.t =
+  function T ((module M), t) -> M.switch t
+
+let head (type a): a t -> Hash.SHA1.t option Lwt.t =
+  function T ((module M), t) -> M.head t
+
+let head_exn (type a): a t -> Hash.SHA1.t Lwt.t =
+  function T ((module M), t) -> M.head_exn t
+
+let branch (type a): a t -> [`Tag of string | `Head of Hash.SHA1.t] =
+  function T ((module M), t) -> M.branch t
+
+let heads (type a): a t -> Hash.SHA1.t list Lwt.t =
+  function T ((module M), t) -> M.heads t
+
+let detach (type a): a t -> unit Lwt.t =
+  function T ((module M), t) -> M.detach t
+
+let update_head (type a): a t -> Hash.SHA1.t -> unit Lwt.t =
+  function T ((module M), t) -> M.update_head t
+
+let merge_head (type a): a t -> Hash.SHA1.t -> unit Merge.result Lwt.t =
+  function T ((module M), t) -> M.merge_head t
+
+let merge_head_exn (type a): a t -> Hash.SHA1.t -> unit Lwt.t =
+  function T ((module M), t) -> M.merge_head_exn t
+
+let watch_head (type a): a t -> string list -> (string list * Hash.SHA1.t) Lwt_stream.t =
+  function T ((module M), t) -> M.watch_head t
+
+let clone (type a): ('m -> task) -> a t -> string -> [`Ok of ('m -> a t) | `Duplicated_tag] Lwt.t =
+  fun x t y -> match t with
+    | T ((module M), t) ->
+      M.clone x t y >>= function
+      | `Ok t -> return (`Ok (fun a -> T ((module M), t a)))
+      | `Duplicated_tag -> return `Duplicated_tag
+
+let clone_force (type a): ('m -> task) -> a t -> string -> ('m -> a t) Lwt.t =
+  fun x t y -> match t with
+    | T ((module M), t) ->
+      M.clone_force x t y >>= fun t ->
+      return (fun a -> T ((module M), t a))
+
+let merge (type a): 'a -> ('a -> a t) -> into:('a -> a t) -> unit Merge.result Lwt.t =
+  fun a t ~into -> match t a, into a with
+    | T ((module M), t), T ((module I), into) ->
+      (* XXX: not ideal ... *)
+      match M.branch t with
+      | `Tag tag -> I.merge_tag into tag
+      | `Head h  -> I.merge_head into h
+
+let merge_exn (type a): 'a -> ('a -> a t) -> into:('a -> a t) -> unit Lwt.t =
+  fun a t ~into -> merge a t ~into >>= Merge.exn

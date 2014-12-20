@@ -639,3 +639,8 @@ let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 # 640 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
+(* Ocamlbuild_pack.Flags.mark_tag_used "tests" *)
+let () =
+  flag ["ocaml"; "doc"] (A"-colorize-code");
+  flag ["ocaml"; "doc"] (A"-short-functors");
+  flag ["ocaml"; "doc"] (A"-short-paths")

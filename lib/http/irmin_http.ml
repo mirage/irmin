@@ -63,10 +63,11 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
   let map_string_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
     Cohttp_lwt_body.to_string b >>= fun b ->
-    Log.debugf "got response: %s" b;
+    Log.debug "got response: %s" b;
     let j = Ezjsonm.from_string b in
     try
-      result_of_json j
+      Ezjsonm.value j
+      |> result_of_json
       |> M.of_json
       |> return
     with Error e ->
@@ -77,13 +78,13 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let stream = Ezjsonm_lwt.from_stream stream in
     let stream = Lwt_stream.map result_of_json stream in
     Lwt_stream.map (fun j ->
-        Log.debugf "stream get %s" (Ezjsonm.to_string j);
+        Log.debug "stream get %s" Ezjsonm.(to_string (wrap j));
         M.of_json j
       ) stream
 
   let map_get t path fn =
     let uri = uri_append t path in
-    Log.debugf "get %s" (Uri.path uri);
+    Log.debug "get %s" (Uri.path uri);
     Client.get uri >>= fun r ->
     fn r
 
@@ -105,7 +106,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
   let delete t path fn =
     let uri = uri_append t path in
-    Log.debugf "delete %s" (Uri.path uri);
+    Log.debug "delete %s" (Uri.path uri);
     Client.delete uri >>=
     map_string_response fn
 
@@ -117,7 +118,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let short_body =
       if String.length body > 80 then String.sub body 0 80 ^ ".." else body
     in
-    Log.debugf "post %s %s" (Uri.path uri) short_body;
+    Log.debug "post %s %s" (Uri.path uri) short_body;
     let body = Cohttp_lwt_body.of_string body in
     Client.post ~body uri >>=
     map_string_response fn
@@ -138,11 +139,9 @@ struct
     type t = {
       mutable uri: Uri.t;
       task: Irmin.task;
-      config: Irmin.config;
     }
 
     let task t = t.task
-    let config t = t.config
 
     type key = K.t
     type value = V.t
@@ -156,7 +155,7 @@ struct
         | None   -> uri
         | Some p -> uri_append uri [p]
       in
-      { uri; config; task = task }
+      { uri; task = task }
 
     let create config task =
       return (fun a -> create_aux config (task a))
@@ -236,7 +235,7 @@ module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     include V
     let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
   end
-  module M = Low (Client)(Irmin.Path.String)(V)(Irmin.Tag.String_list)(K)
+  module M = Low (Client)(Irmin.Path.String_list)(V)(Irmin.Tag.String)(K)
   include M.X.Contents
 end
 
@@ -245,7 +244,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struc
     include K
     let master = K.of_hum "master"
   end
-  module M = Low (Client)(Irmin.Path.String)(Irmin.Contents.String)(K)(V)
+  module M = Low (Client)(Irmin.Path.String_list)(Irmin.Contents.String)(K)(V)
   include M.X.Tag
 end
 
@@ -301,6 +300,7 @@ struct
   type t = {
     mutable branch: [`Tag of T.t | `Head of H.t ];
     mutable h: S.t;
+    config: Irmin.config;
     contents_t: LP.Contents.t;
     node_t: LP.Node.t;
     commit_t: LP.Commit.t;
@@ -319,11 +319,8 @@ struct
     | `Head h ->
       uri_append base ["tree"; H.to_hum h]
 
-  let config t = S.config t.h
   let task t = S.task t.h
-
   let branch t = t.branch
-
   let set_tag t tag = t.branch <- `Tag tag
   let set_head t head = t.branch <- `Head head
 
@@ -347,7 +344,7 @@ struct
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
       { branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; }
+        read_node; mem_node; update_node; config; }
     in
     return fn
 
@@ -374,7 +371,7 @@ struct
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
       { branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; }
+        read_node; mem_node; update_node; config; }
     in
     return fn
 
@@ -430,13 +427,13 @@ struct
     | None   -> fail Not_found
     | Some h -> return h
 
-  let update_tag t tag =
-    get (uri t) ["update-tag"; T.to_hum tag] Tc.string >>= function
+  let rename_tag t tag =
+    get (uri t) ["rename-tag"; T.to_hum tag] Tc.string >>= function
     | "ok" -> set_tag t tag; return `Ok
     | _    -> return `Duplicated_tag
 
-  let update_tag_force t tag =
-    get (uri t) ["update-tag-force"; T.to_hum tag] Tc.unit >>= fun () ->
+  let update_tag t tag =
+    get (uri t) ["update-tag"; T.to_hum tag] Tc.unit >>= fun () ->
     set_tag t tag;
     return_unit
 
@@ -487,26 +484,32 @@ struct
         return s
       )
 
-  let clone t task tag =
+  let clone task t tag =
     get (uri t) ["clone"; T.to_hum tag] Tc.string >>= function
     | "ok" ->
-      of_tag (config t) task tag >>= fun t ->
+      of_tag t.config task tag >>= fun t ->
       return (`Ok t)
     | _    -> return `Duplicated_tag
 
-  let clone_force t task tag =
+  let clone_force task t tag =
     get (uri t) ["clone-force"; T.to_hum tag] Tc.unit >>= fun () ->
-    of_tag (config t) task tag
+    of_tag t.config task tag
 
-  let merge t tag =
-    get (uri t) ["merge"; T.to_hum tag] (module M) >>| fun h ->
+  let merge_tag t tag =
+    get (uri t) ["merge-tag"; T.to_hum tag] (module M) >>| fun h ->
     match t.branch with
     | `Head _ -> set_head t h; ok ()
     | `Tag _  -> ok ()
 
-  let merge_exn t tag =
-    merge t tag >>=
-    Irmin.Merge.exn
+  let merge_tag_exn t tag = merge_tag t tag >>= Irmin.Merge.exn
+
+  let merge a t ~into =
+    let t = t a and into = into a in
+    match branch t with
+    | `Tag tag -> merge_tag into tag
+    | `Head h  -> merge_head into h
+
+  let merge_exn a t ~into = merge a t ~into >>= Irmin.Merge.exn
 
   module E = Tc.Pair
       (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))
@@ -541,6 +544,7 @@ struct
   module Head = H
   module Private = struct
     include L.Private
+    let config t = t.config
     let contents_t t = t.contents_t
     let node_t t = t.node_t
     let commit_t t = t.commit_t

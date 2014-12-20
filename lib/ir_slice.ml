@@ -65,13 +65,16 @@ struct
   module Cm = M(Commit.Key)(Commit.Val)
   module T = Tc.Triple (Ct)(No)(Cm)
 
-  let to_sexp t =
-    let open Sexplib.Type in
-    List [
-      List [ Atom "contents"; Ct.to_sexp t.contents ];
-      List [ Atom "nodes"   ; No.to_sexp t.nodes ];
-      List [ Atom "commmits"; Cm.to_sexp t.commits ];
-    ]
+  let explode t = (t.contents, t.nodes, t.commits)
+  let implode (contents, nodes, commits) = { contents; nodes; commits }
+
+  let t = Tc.biject (module T) implode explode
+  let compare = Tc.compare t
+  let equal = Tc.equal t
+  let hash = Tc.hash t
+  let write = Tc.write t
+  let read = Tc.read t
+  let size_of = Tc.size_of t
 
   let to_json t =
     `O [
@@ -86,15 +89,5 @@ struct
     let commits = Ezjsonm.find j ["commits"] |> Cm.of_json in
     { contents; nodes; commits }
 
-  let explode t = (t.contents, t.nodes, t.commits)
-  let implode (contents, nodes, commits) =
-    { contents; nodes; commits }
-
-  let compare x y = T.compare (explode x) (explode y)
-  let equal x y = T.equal (explode x) (explode y)
-  let hash = Hashtbl.hash
-  let write t buf = T.write (explode t) buf
-  let read b = implode (T.read b)
-  let size_of t = T.size_of (explode t)
 
 end

@@ -18,18 +18,11 @@ open Lwt
 open Cmdliner
 open Irmin_unix
 
-module P = Irmin.Path.String
-module K = Irmin.Hash.SHA1
-module T = Irmin.Tag.String_list
-
 type contents = (module Irmin.Contents.S)
 
-module Make (F: Irmin.S_MAKER)(C: Irmin.Contents.S) =  F(P)(C)(T)(K)
-
 let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
-  fun (module M) (module C) ->
-    let module X = Make(M)(C) in
-    (module X)
+  fun (module B) (module C) ->
+    let module S = Irmin.Basic(B)(C) in (module S)
 
 let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Irmin_fs.Make)

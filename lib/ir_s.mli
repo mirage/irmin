@@ -29,6 +29,7 @@ module type STORE = sig
        and type Commit.key = head
        and type Tag.key = tag
        and type Slice.t = slice
+    val config: t -> Ir_conf.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
@@ -56,3 +57,9 @@ module Make_ext (P: Ir_bc.PRIVATE): STORE
    and type value = P.Contents.value
    and type tag = P.Tag.key
    and type head = P.Tag.value
+
+module Default (S: MAKER) (C: Ir_contents.S): STORE
+  with type step = string
+   and type value = C.t
+   and type tag = string
+   and type head = Ir_hash.SHA1.t

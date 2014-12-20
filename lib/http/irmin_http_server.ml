@@ -67,11 +67,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       ~body ()
 
   let respond ?headers body =
-    Log.debug
-      (lazy (String.escaped @@
-             if String.length body > 140 then
-               String.sub body 0 100 ^ ".."
-             else body));
     HTTP.respond_string ?headers ~status:`OK ~body ()
 
   let respond_json json =
@@ -89,7 +84,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let body = Cohttp_lwt_body.of_stream stream in
     HTTP.respond ~headers:json_headers ~status:`OK ~body ()
 
-  type 'a leaf = S.t -> string list -> Ezjsonm.t option -> (string * string list) list -> 'a
+  type 'a leaf = S.t -> string list -> Ezjsonm.value option -> (string * string list) list -> 'a
 
   type dynamic_node = {
     list: S.t -> string list Lwt.t;
@@ -97,8 +92,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   }
 
   and response =
-    | Fixed  of Ezjsonm.t Lwt.t leaf
-    | Stream of Ezjsonm.t Lwt_stream.t leaf
+    | Fixed  of Ezjsonm.value Lwt.t leaf
+    | Stream of Ezjsonm.value Lwt_stream.t leaf
     | SNode  of (string * response) list
     | DNode  of dynamic_node
     | Html   of string Lwt.t leaf
@@ -334,7 +329,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let stream, push = Lwt_stream.create () in
     Irmin.Private.Watch.lwt_stream_lift (
       fn t (fun k ->
-          Log.debugf "stream push %s" (Tc.show m k);
+          Log.debug "stream push %s" (Tc.show m k);
           push (Some k);
           return_unit
         ) >>= fun () ->
@@ -364,7 +359,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         | `Ok -> "ok"
         | `Duplicated_tag -> "duplicated-tag"
       let to_json t = `String (to_string t)
-      let to_sexp t = Sexplib.Type.Atom (to_string t)
       let compare = Pervasives.compare
       let equal = (=)
       let hash = Hashtbl.hash
@@ -401,12 +395,12 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     in
     let s_graph t = graph_of_dump t in
     let s_clone t tag =
-      S.clone t (fun () -> S.task t) tag >>= function
+      S.clone (fun () -> S.task t) t tag >>= function
       | `Ok _ -> return `Ok
       | `Duplicated_tag -> return `Duplicated_tag
     in
     let s_clone_force t tag =
-      S.clone_force t (fun () -> S.task t) tag >>= fun _ ->
+      S.clone_force (fun () -> S.task t) t tag >>= fun _ ->
       return_unit
     in
     let s_update t k v =
@@ -426,38 +420,38 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t >>=
       ok
     in
-    let s_merge t k =
-      S.merge t k >>| fun () ->
+    let s_merge_tag t k =
+      S.merge_tag t k >>| fun () ->
       S.head_exn t >>=
       ok
     in
     let bc t = [
       (* rw *)
-      mknp0bf "read"     S.read     t step' (Tc.option value);
-      mknp0bf "mem"      S.mem      t step' Tc.bool;
-      mk0p0bs "iter"     (stream key S.iter) t key;
-      mknp1bf "update"   s_update   t step' value head;
-      mknp0bf "remove"   s_remove   t step' head;
-      mknp0bs "watch"    S.watch    t step' (Tc.option value);
+      mknp0bf "read"   S.read     t step' (Tc.option value);
+      mknp0bf "mem"    S.mem      t step' Tc.bool;
+      mk0p0bs "iter"   (stream key S.iter) t key;
+      mknp1bf "update" s_update   t step' value head;
+      mknp0bf "remove" s_remove   t step' head;
+      mknp0bs "watch"  S.watch    t step' (Tc.option value);
 
       (* hrw *)
       mknp0bf "list"       S.list       t step' (Tc.list key);
       mknp0bf "remove-rec" s_remove_rec t step' head;
 
       (* more *)
-      mk1p0bf "update-tag"       S.update_tag t tag' ok_or_duplicated_tag;
-      mk1p0bf "update-tag-force" S.update_tag_force t tag' Tc.unit;
-      mk1p0bf "switch"           S.switch t tag' Tc.unit;
-      mk0p0bf "head"             S.head t (Tc.option head);
-      mk0p0bf "heads"            S.heads t (Tc.list head);
-      mk1p0bf "update-head"      S.update_head t head' Tc.unit;
-      mk1p0bf "merge-head"       s_merge_head t head' (merge head);
-      mknp0bs "watch-head"       S.watch_head t step' (Tc.pair key head);
-      mk1p0bf "clone"            s_clone t tag' ok_or_duplicated_tag;
-      mk1p0bf "clone-force"      s_clone_force t tag' Tc.unit;
-      mk1p0bf "merge"            s_merge t tag' (merge head);
-      mk0p1bf "export"           s_export t export slice;
-      mk0p1bf "import"           S.import t slice Tc.unit;
+      mk1p0bf "rename-tag"  S.rename_tag t tag' ok_or_duplicated_tag;
+      mk1p0bf "update-tag"  S.update_tag t tag' Tc.unit;
+      mk1p0bf "merge-tag"   s_merge_tag t tag' (merge head);
+      mk1p0bf "switch"      S.switch t tag' Tc.unit;
+      mk0p0bf "head"        S.head t (Tc.option head);
+      mk0p0bf "heads"       S.heads t (Tc.list head);
+      mk1p0bf "update-head" S.update_head t head' Tc.unit;
+      mk1p0bf "merge-head"  s_merge_head t head' (merge head);
+      mknp0bs "watch-head"  S.watch_head t step' (Tc.pair key head);
+      mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
+      mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
+      mk0p1bf "export"      s_export t export slice;
+      mk0p1bf "import"      S.import t slice Tc.unit;
 
       (* extra *)
       mk0p0bh "graph" s_graph t;
@@ -479,7 +473,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           return (List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads))
         (fun _ n ->
            let app fn t x =
-             fn (S.config t) (fun () -> S.task t) x >>= fun t ->
+             fn (S.Private.config t) (fun () -> S.task t) x >>= fun t ->
              return (t ())
            in
            try
@@ -502,7 +496,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           let short_body =
             if String.length b > 80 then String.sub b 0 80 ^ ".." else b
           in
-          Log.debugf "process: length=%Ld body=%S" len short_body;
+          Log.debug "process: length=%Ld body=%S" len short_body;
           try match Ezjsonm.from_string b with
             | `O l ->
               if List.mem_assoc "params" l then (
@@ -519,7 +513,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     end >>= fun params ->
     let query = Uri.query (Cohttp.Request.uri req) in
     let rec aux actions path =
-      Log.debugf "aux %s" (String.concat "/" path);
+      Log.debug "aux %s" (String.concat "/" path);
       match path with
       | []      -> json_of_response t actions >>= respond_json
       | h::path ->
@@ -542,7 +536,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     Printf.printf "Server started on port %d.\n%!" port;
     let callback (_, conn_id) req body =
       let path = Uri.path (Cohttp.Request.uri req) in
-      Log.infof "Connection %s: %s %s"
+      Log.info "Connection %s: %s %s"
         (Cohttp.Connection.to_string conn_id)
         (Cohttp.(Code.string_of_method (Request.meth req)))
         path;
@@ -552,7 +546,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         (fun () -> process t req body path)
         (fun e  -> respond_error e) in
     let conn_closed (_, conn_id) () =
-      Log.debugf "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
+      Log.debug "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
     in
     let config = { HTTP.callback; conn_closed } in
     HTTP.listen config ?timeout uri

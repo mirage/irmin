@@ -46,7 +46,7 @@ let printer_list fn = function
 let line msg =
   let line () = Alcotest.line stderr ~color:`Yellow '-' in
   line ();
-  Log.infof "ASSERT %s" msg;
+  Log.info "ASSERT %s" msg;
   line ()
 
 module Make (S: Irmin.S) = struct
@@ -98,19 +98,13 @@ end
 
 open Lwt
 
-module P = Irmin.Path.String
-module K = Irmin.Hash.SHA1
-module T = Irmin.Tag.String_list
-module Store (F: Irmin.S_MAKER)(C: Irmin.Contents.S) =  F(P)(C)(T)(K)
-
 let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
-  fun (module M) c ->
+  fun (module B) c ->
     let (module C: Irmin.Contents.S) = match c with
       | `String -> (module Irmin.Contents.String)
       | `Json   -> (module Irmin.Contents.Json)
     in
-    let module X = Store(M)(C) in
-    (module X)
+    let module S = Irmin.Basic(B)(C) in (module S)
 
 type t = {
   name  : string;

@@ -24,8 +24,10 @@ module type STORE = sig
   val tag: t -> tag option
   val tag_exn: t -> tag
   val tags: t -> tag list Lwt.t
-  val update_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-  val update_tag_force: t -> tag -> unit Lwt.t
+  val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
+  val update_tag: t -> tag -> unit Lwt.t
+  val merge_tag: t -> tag -> unit Ir_merge.result Lwt.t
+  val merge_tag_exn: t -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
   type head
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
@@ -38,10 +40,10 @@ module type STORE = sig
   val merge_head: t -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> head -> unit Lwt.t
   val watch_head: t -> key -> (key * head) Lwt_stream.t
-  val clone: t -> ('a -> Ir_task.t) -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
-  val clone_force: t ->  ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
-  val merge: t -> tag -> unit Ir_merge.result Lwt.t
-  val merge_exn: t -> tag -> unit Lwt.t
+  val clone: ('a -> Ir_task.t) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone_force: ('a -> Ir_task.t) -> t -> tag -> ('a -> t) Lwt.t
+  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
+  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
@@ -95,6 +97,7 @@ module type STORE_EXT = sig
      and type Slice.t = slice
      and module Node.Path = Key
 
+  val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
   val node_t: t -> Private.Node.t
   val commit_t: t -> Private.Commit.t

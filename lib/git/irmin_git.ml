@@ -79,7 +79,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     let hash = Git.SHA.hash
     let compare = Git.SHA.compare
     let equal = (=)
-    let to_sexp t = Sexplib.Type.Atom (Git.SHA.to_hex t)
     let to_json t = Ezjsonm.string (Git.SHA.to_hex t)
     let of_json j = Git.SHA.of_hex (Ezjsonm.get_string j)
     let size_of _ = 20
@@ -118,8 +117,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       return (fun a -> { task = task a; config; t })
 
     let task t = t.task
-    let config t = t.config
-
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
 
@@ -180,7 +177,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let compare = Git.Tree.compare
       let equal = Git.Tree.equal
       let hash = Git.Tree.hash
-      let to_sexp = Git.Tree.sexp_of_t
       let read = Git.Tree.input
 
       let to_string t =
@@ -304,7 +300,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       type t = Git.Commit.t
       type node = GK.t
 
-      let to_sexp = Git.Commit.sexp_of_t
       let compare = Git.Commit.compare
       let equal = Git.Commit.equal
       let hash = Git.Commit.hash
@@ -416,7 +411,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     type value = Val.t
 
     let task t = t.task
-    let config t = t.config
 
     let tag_of_git r =
       let str = Git.Reference.to_raw r in
@@ -489,7 +483,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       && not (Irmin.Private.Conf.get t.config Conf.bare)
       && t.git_head = Git.Reference.Ref (git_of_tag r)
       then (
-        Log.debugf "write cache (%s)" (T.to_hum r);
+        Log.debug "write cache (%s)" (T.to_hum r);
         G.write_cache t.t gk
       ) else
         return_unit
@@ -530,11 +524,11 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       G.create ?root ()
 
     let fetch t ?depth ~uri tag =
-      Log.debugf "fetch %s" uri;
+      Log.debug "fetch %s" uri;
       let gri = Git.Gri.of_string uri in
       let deepen = depth in
       let result r =
-        Log.debugf "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
+        Log.debug "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
         let tag = XTag.git_of_tag tag in
         let key =
           let refs = r.Git.Sync.Result.references in
@@ -547,11 +541,11 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       result
 
     let push t ?depth:_ ~uri tag =
-      Log.debugf "push %s" uri;
+      Log.debug "push %s" uri;
       let branch = XTag.git_of_tag tag in
       let gri = Git.Gri.of_string uri in
       let result r =
-        Log.debugf "push result: %s" (Git.Sync.Result.pretty_push r);
+        Log.debug "push result: %s" (Git.Sync.Result.pretty_push r);
         match r.Git.Sync.Result.result with
         | `Ok      -> return `Ok
         | `Error _ -> return `Error in
@@ -588,7 +582,7 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     include V
     let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
   end
-  module M = Make (FakeIO)(G)(Irmin.Path.String)(V)(Irmin.Tag.String_list)(K)
+  module M = Make (FakeIO)(G)(Irmin.Path.String_list)(V)(Irmin.Tag.String)(K)
   include M.AO(K)(M.GitContents)
 end
 
@@ -597,7 +591,7 @@ module RW (G: Git.Store.S) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
     include K
     let master = K.of_hum "master"
   end
-  module M = Make (FakeIO)(G)(Irmin.Path.String)(Irmin.Contents.String)(K)(V)
+  module M = Make (FakeIO)(G)(Irmin.Path.String_list)(Irmin.Contents.String)(K)(V)
   include M.XTag
 end
 

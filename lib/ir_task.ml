@@ -21,15 +21,6 @@ type t = {
   mutable msgs: string list;
 }
 
-let to_sexp t =
-  let open Sexplib.Type in
-  List [
-    List [ Atom "date"    ; Atom (Int64.to_string t.date) ];
-    List [ Atom "uid"     ; Atom (Int64.to_string t.uid) ];
-    List [ Atom "owner"   ; Atom t.owner ];
-    List [ Atom "messages"; List (List.map (fun x -> Atom x) t.msgs) ];
-  ]
-
 let to_json t =
   `O [ ("date"    , Ezjsonm.string (Int64.to_string t.date));
        ("uid"     , Ezjsonm.string (Int64.to_string t.uid));

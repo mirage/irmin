@@ -33,7 +33,7 @@ Library irmin
                    Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync, Ir_sync_ext
   Modules:         Irmin
   BuildDepends:    ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct, tc,
-                   mstruct, uri, bin_prot, sexplib, stringext, hex
+                   mstruct, uri, bin_prot, stringext, hex
 
 Library "irmin-mem"
   Path:          lib/mem
@@ -150,6 +150,14 @@ Executable test_intrusion
 Executable test_process
   Path:           examples/
   MainIs:         process.ml
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
+  CompiledObject: best
+  Install:        false
+  BuildDepends:   irmin, irmin.unix
+
+Executable test_sync
+  Path:           examples/
+  MainIs:         sync.ml
   Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false

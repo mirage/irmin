@@ -36,12 +36,6 @@ module Result = struct
   let compare _ = Pervasives.compare
   let hash _ = Hashtbl.hash
 
-  let to_sexp a_to_sexp t =
-    let open Sexplib.Type in
-    match t with
-    | `Ok a       -> List [ Atom "ok"; a_to_sexp a ]
-    | `Conflict s -> List [ Atom "conflict"; Atom s ]
-
   let to_json a_to_json = function
     | `Ok a       -> `O [ "ok", a_to_json a ]
     | `Conflict s -> `O [ "conflict", Ezjsonm.encode_string s ]
@@ -79,7 +73,7 @@ type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
 
 let conflict fmt =
   ksprintf (fun msg ->
-      Log.debugf "conflict: %s" msg;
+      Log.debug "conflict: %s" msg;
       return (`Conflict msg)
     ) fmt
 
@@ -109,7 +103,7 @@ let rec iter f = function
 
 let default (type a) (module A: Tc.S0 with type t = a) =
   fun ~old t1 t2 ->
-    Log.debugf "default %a | %a | %a"
+    Log.debug "default %a | %a | %a"
       force (show (module A) old)
       force (show (module A) t1)
       force (show (module A) t2);
@@ -131,7 +125,7 @@ let seq = function
 let some (type a) (module T: Tc.S0 with type t = a) t =
   let module S = Tc.Option(T) in
   fun ~old t1 t2 ->
-    Log.debugf "some %a | %a | %a"
+    Log.debug "some %a | %a | %a"
       force (show (module S) old)
       force (show (module S) t1)
       force (show (module S) t2);
@@ -150,7 +144,7 @@ let pair
     a b =
   let module S = Tc.Pair(A)(B) in
   fun ~old x y ->
-    Log.debugf "pair %a | %a | %a"
+    Log.debug "pair %a | %a | %a"
       force (show (module S) old)
       force (show (module S) x)
       force (show (module S) y);
@@ -166,7 +160,7 @@ let triple
   a b c =
   let module S = Tc.Triple(A)(B)(C) in
   fun ~old x y ->
-    Log.debugf "triple %a | %a | %a"
+    Log.debug "triple %a | %a | %a"
       force (show (module S) old)
       force (show (module S) x)
       force (show (module S) y);
@@ -252,7 +246,7 @@ module Map (M: Map.S) (S: Tc.S0 with type t = M.key) = struct
   let merge (type a) (module A: Tc.S0 with type t = a) t =
     let module X = Tc.App1(SM)(A) in
     fun ~old m1 m2 ->
-      Log.debugf "assoc %a | %a | %a"
+      Log.debug "assoc %a | %a | %a"
         force (show (module X) old)
         force (show (module X) m1)
         force (show (module X) m2);
@@ -275,7 +269,7 @@ let biject
   =
   let default = default (module A) in
   let merge' ~old a1 a2 =
-    Log.debugf "biject %a | %a | %a"
+    Log.debug "biject %a | %a | %a"
       force (show (module A) old)
       force (show (module A) a1)
       force (show (module A) a2);
@@ -299,7 +293,7 @@ let biject'
   =
   let default = default (module A) in
   let merge' ~old a1 a2 =
-    Log.debugf "biject' %a | %a | %a"
+    Log.debug "biject' %a | %a | %a"
       force (show (module A) old)
       force (show (module A) a1)
       force (show (module A) a2);

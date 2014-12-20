@@ -53,10 +53,7 @@ module Make (S: Ir_s.STORE) = struct
 
   let db (t:t) = fst t
   let contents_t t = P.contents_t (db t)
-
   let task t = S.task (db t)
-  let config t = S.config (db t)
-
   let to_hum (_, k) = N.Key.to_hum k
   let of_hum db s = (db, N.Key.of_hum s)
 
@@ -100,12 +97,12 @@ module Make (S: Ir_s.STORE) = struct
     C.add (P.commit_t db) c
 
   let revert db (_, s) =
-    Log.debugf "revert %a" force (show (module N.Key) s);
+    Log.debug "revert %a" force (show (module N.Key) s);
     pre_revert db s >>= fun k ->
     S.update_head db k
 
   let merge db (_, s) =
-    Log.debugf "merge %a" force (show (module N.Key) s);
+    Log.debug "merge %a" force (show (module N.Key) s);
     pre_revert db s >>= fun k ->
     S.merge_head db k
 

@@ -52,12 +52,10 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   type t = {
     path: string;
     w: W.t;
-    config: Irmin.config;
     task: Irmin.task;
   }
 
   let task t = t.task
-  let config t = t.config
 
   let create config task =
     let w = W.create () in
@@ -67,7 +65,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     in
     path >>= fun path ->
     IO.mkdir path >>= fun () ->
-    return (fun a -> { path; w; config; task = task a })
+    return (fun a -> { path; w; task = task a })
 
   let file_of_key { path; _ } key =
     path / S.file_of_key (K.to_hum key)
@@ -77,7 +75,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let mem t key =
     let file = file_of_key t key in
-    Log.debugf "file=%s" file;
+    Log.debug "file=%s" file;
     return (Sys.file_exists file)
 
   let read_exn t key =
@@ -86,14 +84,14 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | true  -> IO.read_file (file_of_key t key) >>= fun x -> return (mk_value x)
 
   let read t key =
-    Log.debugf "read";
+    Log.debug "read";
     mem t key >>= function
     | false -> return_none
     | true  ->
       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
 
   let keys_of_dir t fn =
-    Log.debugf "keys_of_dir";
+    Log.debug "keys_of_dir";
     IO.rec_files (S.dir t.path) >>= fun files ->
     let files  =
       let p = String.length t.path in
@@ -117,13 +115,13 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   include RO_ext(IO)(S)(K)(V)
 
   let add t value =
-    Log.debugf "add";
+    Log.debug "add";
     let value = Tc.write_cstruct (module V) value in
     let key = K.digest value in
     let file = file_of_key t key in
     begin
       if Sys.file_exists file then return_unit
-      else catch (fun () -> IO.write_file file value) (fun e -> Log.debugf "XXX"; fail e)
+      else catch (fun () -> IO.write_file file value) (fun e -> Log.debug "XXX"; fail e)
     end >>= fun () ->
     return key
 
@@ -143,14 +141,14 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     in
     path >>= fun path ->
     IO.mkdir path >>= fun () ->
-    return (fun a -> { path; w; config; task = task a })
+    return (fun a -> { path; w; task = task a })
 
   let remove t key =
     let file = file_of_key t key in
     IO.remove file
 
   let update t key value =
-    Log.debugf "update";
+    Log.debug "update";
     remove t key >>= fun () ->
     IO.write_file (file_of_key t key) (Tc.write_cstruct (module V) value)
     >>= fun () ->
@@ -206,9 +204,9 @@ module Obj = struct
     "objects" / pre / suf
 
   let key_of_file path =
-    Log.debugf "key_of_file %s" path;
+    Log.debug "key_of_file %s" path;
     let path = string_chop_prefix ~prefix:("objects" / "") path in
-    let path = Irmin.Path.String.of_hum path in
+    let path = Stringext.split ~on:'/' path in
     let path = String.concat "" path in
     path
 

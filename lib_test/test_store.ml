@@ -368,6 +368,16 @@ module Make (S: Irmin.S) = struct
       assert_equal (module C) "r3" r3 r3';
       assert_equal (module KC) "kr3" kr3 kr3';
 
+      (* test for multiple lca *)
+      History.create (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
+      History.create (h 1) ~node:k0 ~parents:[kr0] >>= fun kr1 ->
+      History.create (h 2) ~node:k0 ~parents:[kr0] >>= fun kr2 ->
+      History.create (h 3) ~node:k0 ~parents:[kr1; kr2] >>= fun kr3 ->
+      History.create (h 4) ~node:k0 ~parents:[kr1; kr2] >>= fun kr4 ->
+      S.of_head x.config task kr3 >>= fun t1 ->
+      S.of_head x.config task kr4 >>= fun t2 ->
+      S.merge_exn 4 t1 ~into:t2   >>= fun () ->
+
       return_unit
     in
     run x test
@@ -441,7 +451,7 @@ module Make (S: Irmin.S) = struct
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
 
-      View.create x.config task >>= fun v0 ->
+      View.create task >>= fun v0 ->
 
       View.update (v0 "/") [] foo1 >>= fun () ->
       View.read (v0 "read /") [] >>= fun foo1' ->
@@ -455,22 +465,22 @@ module Make (S: Irmin.S) = struct
       View.read (v0 "read foo/2") [l "foo"; l "2"] >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "read foo/2" (Some foo2) foo2';
 
-      let check_view view =
-        View.list view [l "foo"] >>= fun ls ->
+      let check_view v =
+        View.list (v "list foo/") [l "foo"] >>= fun ls ->
         assert_equal (module Set(K)) "path1" [ [l "foo";l "1"]; [l "foo";l "2"] ] ls;
-        View.read view [l "foo";l "1"] >>= fun foo1' ->
+        View.read (v "read foo/1") [l "foo";l "1"] >>= fun foo1' ->
         assert_equal (module Tc.Option(V)) "foo1" (Some foo1) foo1';
-        View.read view [l "foo";l "2"] >>= fun foo2' ->
+        View.read (v "read foo/2") [l "foo";l "2"] >>= fun foo2' ->
         assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
         return_unit in
 
       Lwt_list.iter_s (fun (k,v) ->
           View.update (v0 "init") k v
         ) nodes >>= fun () ->
-      check_view (v0 "check v0") >>= fun () ->
+      check_view v0 >>= fun () ->
 
-      View.update_path (t "update_path b/") [l "b"] (v0 "export") >>= fun () ->
-      View.update_path (t "update_path a/") [l "a"] (v0 "export") >>= fun () ->
+      View.update_path "update_path b/" t [l "b"] v0 >>= fun () ->
+      View.update_path "update_path a/" t [l "a"] v0 >>= fun () ->
 
       S.list (t "list") [l "b";l "foo"] >>= fun ls ->
       assert_equal (module Set(K)) "path2" [ [l "b";l "foo";l "1"]; [l "b";l "foo";l "2"] ] ls;
@@ -479,12 +489,12 @@ module Make (S: Irmin.S) = struct
       S.read (t "read foo2") [l "a";l "foo";l "2"] >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
 
-      View.of_path (t "of_path") [l "b"] >>= fun v1 ->
+      View.of_path task (t "of_path") [l "b"] >>= fun v1 ->
       check_view v1 >>= fun () ->
 
       S.update (t "update b/x") [l "b";l "x"] foo1 >>= fun () ->
-      View.update v1 [l "y"] foo2 >>= fun () ->
-      View.merge_path_exn (t "merge_path") [l "b"] v1 >>= fun () ->
+      View.update (v1 "update y") [l "y"] foo2 >>= fun () ->
+      View.merge_path_exn "merge_path" t [l "b"] v1 >>= fun () ->
       S.read (t "read b/x") [l "b";l "x"] >>= fun foo1' ->
       S.read (t "read b/y") [l "b";l "y"] >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "merge: b/x" (Some foo1) foo1';
@@ -579,14 +589,14 @@ module Make (S: Irmin.S) = struct
 
       let test = S.Tag.of_hum "test" in
 
-      S.clone_force (t1 "clone master into test") task test >>= fun t2 ->
+      S.clone_force task (t1 "clone master into test") test >>= fun t2 ->
 
       S.update (t1 "update master:a/b/b") [l "a";l "b";l "b"] v1 >>= fun () ->
       S.update (t1 "update master:a/b/b") [l "a";l "b";l "b"] v3 >>= fun () ->
       S.update (t2 "update test:a/b/c")   [l "a";l "b";l "c"] v1 >>= fun () ->
 
       output_file (t1 "before.dot") "before" >>= fun () ->
-      S.merge_exn (t1 "merge test into master") test >>= fun () ->
+      S.merge_exn "merge test into master" t2 ~into:t1 >>= fun () ->
       output_file (t1 "after.dot") "after" >>= fun () ->
 
       S.read_exn (t1 "read master:a/b/c") [l "a";l "b";l "c"] >>= fun v1' ->

@@ -51,26 +51,16 @@ module SHA1 = struct
     else
       raise (Invalid hex)
 
-  let to_sexp t = Sexplib.Sexp.Atom (to_hex t)
   let to_json x = `String (to_hex x)
 
   let of_json = function
     | `String x -> of_hex x
     | j -> Ezjsonm.parse_error j "Hash.of_json"
 
-  let size_of t =
-    Bin_prot.Size.bin_size_bigstring (Cstruct.to_bigarray t)
-
-  let write t =
-    Tc.Writer.of_bin_prot
-      Bin_prot.Write.bin_write_bigstring
-      (Cstruct.to_bigarray t)
-
+  let size_of = Tc.Cstruct.size_of
+  let write = Tc.Cstruct.write
   let read buf =
-    let t =
-      Cstruct.of_bigarray
-        (Tc.Reader.of_bin_prot Bin_prot.Read.bin_read_bigstring buf)
-    in
+    let t = Tc.Cstruct.read buf in
     if Cstruct.len t <> len then raise (Invalid (Cstruct.to_string t))
     else t
 
