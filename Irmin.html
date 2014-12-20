@@ -25,7 +25,6 @@
 <link title="Tags" rel="Subsection" href="#2_Tags">
 <link title="Heads" rel="Subsection" href="#2_Heads">
 <link title="Clones and Merges" rel="Subsection" href="#2_ClonesandMerges">
-<link title="Mergeable logs" rel="Subsection" href="#2_Mergeablelogs">
 <title>Irmin</title>
 </head>
 <body>
@@ -52,7 +51,9 @@ Irmin public API.
     Xen unikernels.
 <p>
 
-    Consult the <a href="Irmin.html#basics"><i>Basic API</i></a> and <a href="Irmin.html#examples"><i>Examples</i></a> of use for a quick start.
+    Consult the <a href="Irmin.html#basics"><i>Basic API</i></a> and <a href="Irmin.html#examples"><i>Examples</i></a> of use for a quick
+    start. See also the documentation for the unix
+    backend.
 <p>
 
     <em>Release %%VERSION%% - %%MAINTAINER%% </em><br>
@@ -378,10 +379,44 @@ See <a href="Irmin.BC.html#VALmerge_exn"><code class="code"><span class="constru
     distribution.
 <p>
 
-    <h2 id="2_Mergeablelogs">Mergeable logs</h2>
+    <h3 id="3_Synchronisation">Synchronisation</h3>
 <p>
 
-    We want to define mergeable debug log. We first define a log entry
+    A simple synchronization example, using the
+    Git backend and some <a href="Irmin.Sync.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span></code></a> helpers. The
+    code clones a fresh repository if the repository does not exists
+    locally, otherwise it performs a fetch: in this case, only
+    the missing contents is downloaded.
+<p>
+
+<pre class="codepre"><code class="code"><span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span><br>
+<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
+<br>
+<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Basic</span>&nbsp;(<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>)&nbsp;(<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)<br>
+<span class="keyword">module</span>&nbsp;<span class="constructor">Sync</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Sync</span>(<span class="constructor">S</span>)<br>
+<br>
+<span class="comment">(*&nbsp;FIXME:&nbsp;only&nbsp;git://&nbsp;uri&nbsp;are&nbsp;supported.&nbsp;*)</span><br>
+<span class="keyword">let</span>&nbsp;upstream&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;<span class="constructor">Array</span>.length&nbsp;<span class="constructor">Sys</span>.argv&nbsp;=&nbsp;2&nbsp;<span class="keyword">then</span>&nbsp;(<span class="constructor">Irmin</span>.remote_uri&nbsp;<span class="constructor">Sys</span>.argv.(1))<br>
+&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;(<span class="constructor">Printf</span>.eprintf&nbsp;<span class="string">"Usage:&nbsp;sync&nbsp;[uri]\n%!"</span>;&nbsp;exit&nbsp;1)<br>
+<br>
+<span class="keyword">let</span>&nbsp;test&nbsp;()&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/test"</span>&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">S</span>.create&nbsp;config&nbsp;task<br>
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sync</span>.pull_exn&nbsp;(t&nbsp;<span class="string">"Syncing&nbsp;with&nbsp;upstream&nbsp;store"</span>)&nbsp;upstream&nbsp;<span class="keywordsign">`</span><span class="constructor">Update</span><br>
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">S</span>.read_exn&nbsp;(t&nbsp;<span class="string">"get&nbsp;the&nbsp;README"</span>)&nbsp;[<span class="string">"README.md"</span>]<br>
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;r&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"%s\n%!"</span>&nbsp;r;&nbsp;return_unit<br>
+<br>
+<span class="keyword">let</span>&nbsp;()&nbsp;=<br>
+&nbsp;&nbsp;<span class="constructor">Lwt_main</span>.run&nbsp;(test&nbsp;())<br>
+</code></pre>
+<p>
+
+    <h3 id="3_Mergeablelogs">Mergeable logs</h3>
+<p>
+
+    We will demonstrate the use of custom merge operators by
+    defining mergeable debug log files. We first define a log entry
     as a pair of a timestamp and a message, using the combinator
     exposed by <a href="https://github.com/mirage/mirage-tc">mirage-tc</a>:
 <p>
@@ -454,7 +489,9 @@ See <a href="Irmin.BC.html#VALmerge_exn"><code class="code"><span class="constru
   We can now define a toy example to use our mergeable log files.
 <p>
 
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="comment">(*&nbsp;Name&nbsp;of&nbsp;the&nbsp;log&nbsp;file.&nbsp;*)</span><br>
+<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span><br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Name&nbsp;of&nbsp;the&nbsp;log&nbsp;file.&nbsp;*)</span><br>
 &nbsp;&nbsp;<span class="keyword">let</span>&nbsp;file&nbsp;=&nbsp;[&nbsp;<span class="string">"local"</span>;&nbsp;<span class="string">"debug"</span>&nbsp;]<br>
 <br>
 &nbsp;&nbsp;<span class="comment">(*&nbsp;Read&nbsp;the&nbsp;entire&nbsp;log&nbsp;file.&nbsp;*)</span><br>
@@ -473,16 +510,16 @@ See <a href="Irmin.BC.html#VALmerge_exn"><code class="code"><span class="constru
 <br>
 &nbsp;&nbsp;<span class="keyword">let</span>&nbsp;()&nbsp;=<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Lwt_unix</span>.run&nbsp;<span class="keyword">begin</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.create&nbsp;store&nbsp;config&nbsp;task&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;log&nbsp;t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;log&nbsp;entry"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.clone_force&nbsp;task&nbsp;(t&nbsp;<span class="string">"Cloning&nbsp;the&nbsp;store"</span>)&nbsp;<span class="string">"x"</span>&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;x&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;new&nbsp;stuff&nbsp;to&nbsp;x"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;more&nbsp;stuff&nbsp;to&nbsp;x"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;log&nbsp;x&nbsp;<span class="string">"More.&nbsp;Stuff.&nbsp;To&nbsp;x."</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;log&nbsp;t&nbsp;<span class="string">"I&nbsp;can&nbsp;add&nbsp;stuff&nbsp;on&nbsp;t&nbsp;also"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;log&nbsp;t&nbsp;<span class="string">"Yes.&nbsp;On&nbsp;t!"</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.merge_exn&nbsp;<span class="string">"Merging&nbsp;x&nbsp;into&nbsp;t"</span>&nbsp;x&nbsp;~into:t&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;return_unit<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.create&nbsp;store&nbsp;config&nbsp;task<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;log&nbsp;entry"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.clone_force&nbsp;task&nbsp;(t&nbsp;<span class="string">"Cloning&nbsp;the&nbsp;store"</span>)&nbsp;<span class="string">"x"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;x&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;new&nbsp;stuff&nbsp;to&nbsp;x"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;more&nbsp;stuff&nbsp;to&nbsp;x"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"More.&nbsp;Stuff.&nbsp;To&nbsp;x."</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"I&nbsp;can&nbsp;add&nbsp;stuff&nbsp;on&nbsp;t&nbsp;also"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Yes.&nbsp;On&nbsp;t!"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.merge_exn&nbsp;<span class="string">"Merging&nbsp;x&nbsp;into&nbsp;t"</span>&nbsp;x&nbsp;~into:t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_unit<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
 </code></pre><br>
 <br>
