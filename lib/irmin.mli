@@ -28,7 +28,9 @@
     is thus very portable and aims is to run everywhere, from Linux to
     Xen unikernels.
 
-    Consult the {!basics} and {!examples} of use for a quick start.
+    Consult the {!basics} and {!examples} of use for a quick
+    start. See also the {{!Git_unix}documentation} for the unix
+    backend.
 
     {e Release %%VERSION%% - %%MAINTAINER%% }
 *)
@@ -1629,9 +1631,41 @@ val merge_exn: 'm -> ('m -> 'a t) -> into:('m -> 'a t) -> unit Lwt.t
     These examples are in the [examples] directory of the
     distribution.
 
-    {2 Mergeable logs}
+    {3 Synchronisation}
 
-    We want to define mergeable debug log. We first define a log entry
+    A simple synchronization example, using the
+    {{!Git_unix.Irmin_git}Git} backend and some {!Sync} helpers. The
+    code clones a fresh repository if the repository does not exists
+    locally, otherwise it performs a fetch: in this case, only
+    the missing contents is downloaded.
+
+{[
+open Lwt
+open Irmin_unix
+
+module S = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
+module Sync = Irmin.Sync(S)
+
+(* FIXME: only git:// uri are supported. *)
+let upstream =
+  if Array.length Sys.argv = 2 then (Irmin.remote_uri Sys.argv.(1))
+  else (Printf.eprintf "Usage: sync [uri]\n%!"; exit 1)
+
+let test () =
+  let config = Irmin_git.config ~root:"/tmp/test" () in
+  S.create config task
+  >>= fun t  -> Sync.pull_exn (t "Syncing with upstream store") upstream `Update
+  >>= fun () -> S.read_exn (t "get the README") ["README.md"]
+  >>= fun r  -> Printf.printf "%s\n%!" r; return_unit
+
+let () =
+  Lwt_main.run (test ())
+]}
+
+    {3 Mergeable logs}
+
+    We will demonstrate the use of custom merge operators by
+    defining mergeable debug log files. We first define a log entry
     as a pair of a timestamp and a message, using the combinator
     exposed by {{:https://github.com/mirage/mirage-tc}mirage-tc}:
 
@@ -1700,6 +1734,8 @@ val merge_exn: 'm -> ('m -> 'a t) -> into:('m -> 'a t) -> unit Lwt.t
   We can now define a toy example to use our mergeable log files.
 
 {[
+  open Lwt
+
   (* Name of the log file. *)
   let file = [ "local"; "debug" ]
 
@@ -1719,16 +1755,16 @@ val merge_exn: 'm -> ('m -> 'a t) -> into:('m -> 'a t) -> unit Lwt.t
 
   let () =
     Lwt_unix.run begin
-      Irmin.create store config task                     >>= fun t ->
-      log t "Adding a new log entry"                     >>= fun () ->
-      Irmin.clone_force task (t "Cloning the store") "x" >>= fun x ->
-      log x "Adding new stuff to x"                      >>= fun () ->
-      log x "Adding more stuff to x"                     >>= fun () ->
-      log x "More. Stuff. To x."                         >>= fun () ->
-      log t "I can add stuff on t also"                  >>= fun () ->
-      log t "Yes. On t!"                                 >>= fun () ->
-      Irmin.merge_exn "Merging x into t" x ~into:t       >>= fun () ->
-      return_unit
+      Irmin.create store config task
+      >>= fun t  -> log t "Adding a new log entry"
+      >>= fun () -> Irmin.clone_force task (t "Cloning the store") "x"
+      >>= fun x  -> log x "Adding new stuff to x"
+      >>= fun () -> log x "Adding more stuff to x"
+      >>= fun () -> log x "More. Stuff. To x."
+      >>= fun () -> log t "I can add stuff on t also"
+      >>= fun () -> log t "Yes. On t!"
+      >>= fun () -> Irmin.merge_exn "Merging x into t" x ~into:t
+      >>= fun () -> return_unit
     end
 ]}
 
