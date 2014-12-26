@@ -27,7 +27,7 @@ depends: [
   "lwt" {>= "2.4.5"}
   "nocrypto" {>= "0.2.2"}
   "dolog" {>= "0.4"}
-  "cstruct"
+  "cstruct" {>= "1.0.1"}
   "mirage-tc" {>= "0.3.0"}
   "mstruct"
   "uri" {>= "1.3.12"}
@@ -43,7 +43,6 @@ depends: [
 ]
 conflicts: [
   "git"    {< "1.4.2"}
-  "cohttp" {< "0.13.0"}
-  "cohttp" {>= "0.14.0"}
+  "cohttp" {< "0.14.0"}
 ]
 available: [ocaml-version >= "4.01.0"]

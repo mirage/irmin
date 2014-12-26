@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4ae1f3cf6a1c60433458d2eb2a937462)
-version = "0.9.0"
+# DO NOT EDIT (digest: e73e45dbe0954db57b0d73eb1b94548a)
+version = "0.9.1"
 description = "A Distributed Version Control Database"
 requires =
 "ezjsonm ocamlgraph lwt nocrypto dolog cstruct tc mstruct uri bin_prot stringext hex"
@@ -10,7 +10,7 @@ archive(native) = "irmin.cmxa"
 archive(native, plugin) = "irmin.cmxs"
 exists_if = "irmin.cma"
 package "unix" (
- version = "0.9.0"
+ version = "0.9.1"
  description = "A Distributed Version Control Database"
  requires =
  "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
@@ -22,7 +22,7 @@ package "unix" (
 )
 
 package "mem" (
- version = "0.9.0"
+ version = "0.9.1"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin-mem.cma"
@@ -33,7 +33,7 @@ package "mem" (
 )
 
 package "http" (
- version = "0.9.0"
+ version = "0.9.1"
  description = "A Distributed Version Control Database"
  requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
  archive(byte) = "irmin-http.cma"
@@ -44,7 +44,7 @@ package "http" (
 )
 
 package "git" (
- version = "0.9.0"
+ version = "0.9.1"
  description = "A Distributed Version Control Database"
  requires = "irmin git"
  archive(byte) = "irmin-git.cma"
@@ -55,7 +55,7 @@ package "git" (
 )
 
 package "fs" (
- version = "0.9.0"
+ version = "0.9.1"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin-fs.cma"

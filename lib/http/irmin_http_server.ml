@@ -545,10 +545,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       catch
         (fun () -> process t req body path)
         (fun e  -> respond_error e) in
-    let conn_closed (_, conn_id) () =
+    let conn_closed (_, conn_id) =
       Log.debug "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
     in
-    let config = { HTTP.callback; conn_closed } in
+    let config = HTTP.make ~callback ~conn_closed () in
     HTTP.listen config ?timeout uri
 
 end
