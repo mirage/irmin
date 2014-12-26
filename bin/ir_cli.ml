@@ -481,7 +481,7 @@ let default =
       \             [--help]\n\
       \             <command> [<args>]\n\
       \n\
-      The most commonly used irminsule commands are:\n\
+      The most commonly used subcommands are:\n\
       \    init        %s\n\
       \    read        %s\n\
       \    write       %s\n\
@@ -492,7 +492,7 @@ let default =
       \    fetch       %s\n\
       \    pull        %s\n\
       \    push        %s\n\
-      \    snaphsot    %s\n\
+      \    snapshot    %s\n\
       \    revert      %s\n\
       \    watch       %s\n\
       \    dot         %s\n\
