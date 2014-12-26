@@ -1,4 +1,7 @@
-0.9.0 (master)
+0.9.1 (2014-12-26)
+* Port to Cohttp 0.14.0+ HTTP interface
+
+0.9.0 (2014-12-20)
 * Improve the efficiency of the Git backend
 * Expose a cleaner API for the Unix backends
 * Expose a cleaner public API
