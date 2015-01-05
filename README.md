@@ -27,11 +27,15 @@ To get the full capabilites of Irmin, use the API:
 ```ocaml
 $ ledit ocaml
 # #require "irmin.unix";;
+# open Lwt;;
 # let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String);;
 # let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ();;
 # let prog =
     Irmin.create store config >>= fun t ->
     Irmin.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!";;
+    Irmin.read_exn (t "Reading foo/bar") ["foo"; "bar"] >>= fun x ->
+    Printf.printf "Read: %s\n%!" x;
+    return_unit;;
 # let () = Lwt_main.run prog;;
 ```
 
