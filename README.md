@@ -26,12 +26,16 @@ To get the full capabilites of Irmin, use the API:
 
 ```ocaml
 $ ledit ocaml
-# #require "irmin.backend";;
-# module G = IrminGit.Memory;;
-# module S = G.Make(IrminKey.SHA1)(IrminContents.String)(IrminTag.String);;
+# #require "irmin.unix";;
+# open Lwt;;
+# let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String);;
+# let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ();;
 # let prog =
-    S.create () >>= fun t ->
-    S.update t ["foo"; "bar"] "hi!";;
+    Irmin.create store config >>= fun t ->
+    Irmin.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!" >>= fun () ->
+    Irmin.read_exn (t "Reading foo/bar") ["foo"; "bar"] >>= fun x ->
+    Printf.printf "Read: %s\n%!" x;
+    return_unit;;
 # let () = Lwt_main.run prog;;
 ```
 
@@ -42,33 +46,3 @@ A tutorial is available on the [wiki](https://github.com/mirage/irmin/wiki/Getti
 ### Issues
 
 To report any issues please use the [bugtracker on Github](https://github.com/mirage/irmin/issues).
-
-### Install from source
-
-If you need to install Irmin from source, first you need to have
-`libssl` on your system. For instance, on Debian/Ubuntu: ``` apt-get
-install libssl-dev```.
-
-Then, install the OCaml dependencies using [OPAM](http://opam.ocaml.org):
-```
-opam install ezjsonm ocamlgraph lwt sha \
-             re dolog mstruct core_kernel \
-             uri cohttp ssl core_kernel \
-             cmdliner alcotest git crunch
-```
-
-You can then download the source code of Irmin, uncompress it, and run
-the usual steps:
-
-```
-make PREFIX=$(opam config var prefix)
-make install
-```
-
-Due to a bug in [oasis], the uninstall target from source is quite
-unreliable. Instead, use:
-
-```
-ocamlfind remove irmin
-rm $(which irmin)
-```
