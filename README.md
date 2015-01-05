@@ -32,7 +32,7 @@ $ ledit ocaml
 # let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ();;
 # let prog =
     Irmin.create store config >>= fun t ->
-    Irmin.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!";;
+    Irmin.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!" >>= fun () ->
     Irmin.read_exn (t "Reading foo/bar") ["foo"; "bar"] >>= fun x ->
     Printf.printf "Read: %s\n%!" x;
     return_unit;;
