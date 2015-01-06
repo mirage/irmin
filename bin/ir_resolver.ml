@@ -29,6 +29,21 @@ let irf_store = create (module Irmin_fs.Make)
 let http_store = create (module Irmin_http.Make)
 let git_store = create (module Irmin_git.FS)
 
+let mk_store = function
+  | `Mem  -> mem_store
+  | `Irf  -> irf_store
+  | `Http -> http_store
+  | `Git  -> git_store
+
+let store_kinds = [
+  ("git" , `Git);
+  ("irf" , `Irf);
+  ("http", `Http);
+  ("mem" , `Mem);
+]
+
+let default_store = `Git
+
 let flag_key k =
   let doc = Irmin.Private.Conf.doc k in
   let docs = Irmin.Private.Conf.docs k in
@@ -68,43 +83,33 @@ let config_term =
         opt_key Irmin_git.head $
         opt_key Irmin_http.uri)
 
-let kinds = [
-  ("git" , git_store);
-  ("irf" , irf_store);
-  ("http", http_store);
-  ("mem" , mem_store);
-]
-
-let default = git_store
-
 let mk_contents k: contents = match k with
   | `String  -> (module Irmin.Contents.String)
   | `Json    -> (module Irmin.Contents.Json)
   | `Cstruct -> (module Irmin.Contents.Cstruct)
 
-let string = mk_contents `String
-
 let contents_kinds = [
-  "string" , string;
-  "json"   , mk_contents `Json;
-  "cstruct", mk_contents `Cstruct
+  "string" , `String;
+  "json"   , `Json;
+  "cstruct", `Cstruct;
 ]
+
+let default_contents = `String
 
 let contents =
   let kind =
     let doc = Arg.info ~doc:"The type of user-defined contents." ["contents";"c"] in
-    Arg.(value & opt (enum contents_kinds) (mk_contents `String) & doc)
+    Arg.(value & opt (enum contents_kinds) default_contents & doc)
   in
-  Term.(pure (fun x -> x) $ kind)
+  Term.(pure mk_contents $ kind)
 
 let store_term =
   let store =
     let doc = Arg.info ~doc:"The kind of backend stores." ["s";"store"] in
-    Arg.(value & opt (some (enum kinds)) None & doc)
+    Arg.(value & opt (some (enum store_kinds)) None & doc)
   in
-  let create store contents =
-    match store with
-    | Some s -> Some (s contents)
+  let create store contents = match store with
+    | Some s -> Some (mk_store s contents)
     | None   -> None
   in
   Term.(pure create $ store $ contents)
@@ -130,14 +135,20 @@ let read_config_file (): t option =
     in
     let assoc name fn = try Some (fn (List.assoc name lines)) with Not_found -> None in
     let contents =
-      match assoc "contents" (fun x -> List.assoc x contents_kinds) with
-      | None   -> string
-      | Some c -> c
+      let kind =
+        match assoc "contents" (fun x -> List.assoc x contents_kinds) with
+        | None   -> default_contents
+        | Some c -> c
+      in
+      mk_contents kind
     in
     let store =
-      match assoc "store" (fun x -> (List.assoc x kinds) contents) with
-      | None   -> default contents
-      | Some s -> s
+      let kind =
+        match assoc "store" (fun x -> List.assoc x store_kinds) with
+        | None   -> default_store
+        | Some s -> s
+      in
+      mk_store kind contents
     in
     let module S = (val store) in
     let branch = assoc "branch" (fun x -> S.Tag.of_hum x) in
