@@ -1,3 +1,6 @@
+0.9.2
+* Fix `irmin init --help` (#103)
+
 0.9.1 (2014-12-26)
 * Port to Cohttp 0.14.0+ HTTP interface (#102)
 
