@@ -484,7 +484,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       && t.git_head = Git.Reference.Ref (git_of_tag r)
       then (
         Log.debug "write cache (%s)" (T.to_hum r);
-        G.write_cache t.t gk
+        G.write_index t.t gk
       ) else
         return_unit
 
