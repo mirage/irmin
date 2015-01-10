@@ -41,6 +41,10 @@ depends: [
   "cohttp" {test}
   "alcotest" {test}
 ]
+depopts: [
+  "git"
+  "cohttp"
+]
 conflicts: [
   "git"    {< "1.4.2"}
   "cohttp" {< "0.14.0"}
