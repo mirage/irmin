@@ -206,6 +206,7 @@ module type GRAPH = sig
   type contents
   type node
   type step
+  type path
 
   val empty: t -> node Lwt.t
   val create: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
@@ -217,30 +218,37 @@ module type GRAPH = sig
   val iter_contents: t -> node -> (step -> contents -> unit) -> unit Lwt.t
   val iter_succ: t -> node -> (step -> node -> unit) -> unit Lwt.t
 
-  val mem_contents: t -> node -> step list -> bool Lwt.t
-  val read_contents: t -> node -> step list -> contents option Lwt.t
-  val read_contents_exn: t -> node -> step list -> contents Lwt.t
-  val add_contents: t -> node -> step list -> contents -> node Lwt.t
-  val remove_contents: t -> node -> step list -> node Lwt.t
+  val mem_contents: t -> node -> path -> bool Lwt.t
+  val read_contents: t -> node -> path -> contents option Lwt.t
+  val read_contents_exn: t -> node -> path -> contents Lwt.t
+  val add_contents: t -> node -> path -> contents -> node Lwt.t
+  val remove_contents: t -> node -> path -> node Lwt.t
 
-  val mem_node: t -> node -> step list -> bool Lwt.t
-  val read_node: t -> node -> step list -> node option Lwt.t
-  val read_node_exn: t -> node -> step list -> node Lwt.t
-  val add_node: t -> node -> step list -> node -> node Lwt.t
-  val remove_node: t -> node -> step list -> node Lwt.t
+  val mem_node: t -> node -> path -> bool Lwt.t
+  val read_node: t -> node -> path -> node option Lwt.t
+  val read_node_exn: t -> node -> path -> node Lwt.t
+  val add_node: t -> node -> path -> node -> node Lwt.t
+  val remove_node: t -> node -> path -> node Lwt.t
 
   val merge: t -> node Ir_merge.t
   val closure: t -> min:node list -> max:node list -> node list Lwt.t
-  module Store: Ir_contents.STORE with type t = t and type key = node
+  module Store: Ir_contents.STORE
+    with type t = t
+     and type key = node
+     and type Path.t = path
+     and type Path.step = step
 end
 
-module Graph (C: Ir_contents.STORE) (S: STORE with type Val.contents = C.key) =
+module Graph (C: Ir_contents.STORE)
+    (S: STORE with type Val.contents = C.key and module Path = C.Path) =
 struct
 
+  module Path = S.Path
   module Step = S.Path.Step
   type step = Step.t
   type contents = C.key
   type node = S.key
+  type path = Path.t
 
   module Store = struct
 
@@ -273,7 +281,8 @@ struct
       S.Val.iter_succ t (fun s c -> r := (s, c) :: !r);
       List.rev !r
 
-    let merge_value (c, _) merge_key =
+    let merge_value path (c, _) merge_key =
+      Log.debug "merge_value %a" force (show (module Path) path);
       let explode t = all_contents t, all_succ t in
       let implode (contents, succ) =
         let xs = List.map (fun (s, c) -> s, `Contents c) contents in
@@ -282,28 +291,31 @@ struct
       in
       let merge_pair =
         Ir_merge.pair (module XContents) (module XParents)
-        (Ir_merge.alist (module Step) (module C.Key) (C.merge c))
-        (Ir_merge.alist (module Step) (module S.Key) merge_key)
+        (Ir_merge.alist (module Step) (module C.Key)
+           (fun k -> C.merge (Path.rcons path k) c))
+        (Ir_merge.alist (module Step) (module S.Key)
+           (fun k -> merge_key (Path.rcons path k)))
       in
       Ir_merge.biject (module S.Val) merge_pair explode implode
 
-    let merge t ~old x y =
-      let rec merge_key () =
-        Log.debug "merge";
-        let merge = merge_value t (Ir_merge.apply merge_key ()) in
+    let merge path t ~old x y =
+      let rec merge_key path =
+        let merge = merge_value path t merge_key in
         Ir_merge.biject' (module S.Key) merge (read_exn t) (add t)
       in
-      merge_key () ~old x y
+      merge_key path ~old x y
 
     module Key = S.Key
     module Val = struct
       include S.Val
-      let merge ~old:_ _ _ = conflict "Node.Val"
+      let merge _path ~old:_ _ _ = conflict "Node.Val"
+      module Path = Path
     end
+    module Path = Path
   end
 
   type t = Store.t
-  let merge = Store.merge
+  let merge = Store.merge Path.empty
 
   let empty (_, t) = S.add t S.Val.empty
 
@@ -379,9 +391,10 @@ struct
     Log.debug "read_node_exn %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    let rec aux node = function
-      | []    -> return node
-      | h::tl ->
+    let rec aux node path =
+      match Path.decons path with
+      | None         -> return node
+      | Some (h, tl) ->
         succ t node h >>= function
         | None      -> fail Not_found
         | Some node -> aux node tl
@@ -396,8 +409,9 @@ struct
       (function Not_found -> return_none | e -> fail e)
 
   let mk_path path =
-    try Ir_misc.list_end path
-    with Not_found -> [], Step.of_hum "__root__"
+    match Path.rdecons path with
+    | Some (l,t) -> l, t
+    | None -> Path.empty, Step.of_hum "__root__"
 
   let read_contents_exn t node path =
    Log.debug "read_contents_exn %a %a"
@@ -472,9 +486,10 @@ struct
     Log.debug "map %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    let rec aux node = function
-      | []      -> return (f node)
-      | h :: tl -> map_one t node (fun node -> aux node tl) h
+    let rec aux node path =
+      match Path.decons path with
+      | None         -> return (f node)
+      | Some (h, tl) -> map_one t node (fun node -> aux node tl) h
     in
     begin Store.read t node >>= function
       | None   -> return S.Val.empty
@@ -492,9 +507,8 @@ struct
 
   let add_node t node path n = update_node t node path (Some n)
   let remove_node t node path =
-    match path with
-    | [] -> empty t
-    | _  -> update_node t node path None
+    if Path.is_empty path then empty t
+    else update_node t node path None
 
   let update_contents t node path c =
     Log.debug "update_contents %a %a"

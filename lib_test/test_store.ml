@@ -48,6 +48,7 @@ module Make (S: Irmin.S) = struct
   module Tag = S.Private.Tag
 
   let l = S.Key.Step.of_hum
+  let p k = S.Key.create (List.map l k)
 
   let create x = S.create x.config task
 
@@ -127,7 +128,7 @@ module Make (S: Irmin.S) = struct
     let rec aux = function
       | 0 -> []
       | n -> S.Key.Step.of_hum (short ()) :: aux (n-1) in
-    aux path
+    S.Key.create (aux path)
 
   let random_node x ~label ~path ~value =
     random_path ~label ~path, random_value x value
@@ -188,7 +189,7 @@ module Make (S: Irmin.S) = struct
       Node.read_exn (n "t2") k2 >>= fun t2 ->
       Node.add (n "k2''") t2 >>= fun k2''->
       assert_equal (module KN) "k2.2" k2 k2'';
-      Graph.read_node_exn (g "k1'''") k2 [l "b"] >>= fun k1''' ->
+      Graph.read_node_exn (g "k1'''") k2 (p ["b"]) >>= fun k1''' ->
       assert_equal (module KN) "k1.3" k1 k1''';
 
       (* Create the node t3 -a-> t2 -b-> t1 -x-> (v1) *)
@@ -198,18 +199,21 @@ module Make (S: Irmin.S) = struct
       Node.read_exn (n "t3") k3 >>= fun t3 ->
       Node.add (n "k3''") t3 >>= fun k3''->
       assert_equal (module KN) "k3.2" k3 k3'';
-      Graph.read_node_exn (g "t2'") k3 [l "a"] >>= fun k2'' ->
+      Graph.read_node_exn (g "t2'") k3 (p ["a"]) >>= fun k2'' ->
       assert_equal (module KN) "k2.3" k2 k2'';
-      Graph.read_node_exn (g "t1'") k2' [l "b"] >>= fun k1'''' ->
+      Graph.read_node_exn (g "t1'") k2' (p ["b"]) >>= fun k1'''' ->
       assert_equal (module KN) "t1.2" k1 k1'''';
-      Graph.read_node (g "t1'") k3 [l "a";l "b"] >>= fun k1'''''->
+      Graph.read_node (g "t1'") k3 (p ["a";"b"]) >>= fun k1'''''->
       assert_equal (module Tc.Option(KN)) "t1.3" (Some k1) k1''''';
 
-      Graph.read_contents (g "read_contents k1:/x") k1 [l "x"] >>= fun kv11 ->
+      Graph.read_contents (g "read_contents k1:/x") k1 (p ["x"])
+      >>= fun kv11 ->
       assert_equal (module Tc.Option(KV)) "v1.1" (Some kv1) kv11;
-      Graph.read_contents (g "read_contents k2:/b/x") k2 [l "b"; l "x"] >>= fun kv12 ->
+      Graph.read_contents (g "read_contents k2:/b/x") k2 (p ["b";"x"])
+      >>= fun kv12 ->
       assert_equal (module Tc.Option(KV)) "v1.2" (Some kv1) kv12;
-      Graph.read_contents (g "read_contents k3:a/b/x") k3 [l "a"; l "b"; l "x"] >>= fun kv13 ->
+      Graph.read_contents (g "read_contents k3:a/b/x") k3 (p ["a";"b";"x"])
+      >>= fun kv13 ->
       assert_equal (module Tc.Option(KV)) "v1" (Some kv1) kv13;
 
       (* Create the node t6 -a-> t5 -b-> t1 -x-> (v1)
@@ -218,7 +222,7 @@ module Make (S: Irmin.S) = struct
       Graph.create (g "k4") [l "x", `Contents kv2] >>= fun k4 ->
       Graph.create (g "k5") [l "b", `Node k1; l "c", `Node k4] >>= fun k5 ->
       Graph.create (g "k6") [l "a", `Node k5] >>= fun k6 ->
-      Graph.add_contents (g "k6") k3 [l "a"; l "c";l "x"] kv2 >>= fun k6' ->
+      Graph.add_contents (g "k6") k3 (p ["a";"c";"x"]) kv2 >>= fun k6' ->
       Node.read_exn (n "") k6' >>= fun n6' ->
       Node.read_exn (n "") k6  >>= fun n6 ->
       assert_equal (module N) "node n6" n6 n6';
@@ -315,9 +319,9 @@ module Make (S: Irmin.S) = struct
       (* merge contents *)
 
       let v = S.Private.contents_t (t "contents_t") in
-      Contents.merge v ~old:kv1 kv1 kv1 >>= fun kv1' ->
+      Contents.merge (p []) v ~old:kv1 kv1 kv1 >>= fun kv1' ->
       assert_equal (module RV) "merge kv1" (`Ok kv1) kv1';
-      Contents.merge v ~old:kv1 kv1 kv2 >>= fun kv2' ->
+      Contents.merge (p []) v ~old:kv1 kv1 kv2 >>= fun kv2' ->
       assert_equal (module RV) "merge kv2" (`Ok kv2) kv2';
 
       (* merge nodes *)
@@ -388,52 +392,52 @@ module Make (S: Irmin.S) = struct
     let test () =
       create x >>= fun t ->
       let v1 = v1 x in
-      S.update (t "update") [l "a";l "b"] v1 >>= fun () ->
+      S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
 
-      S.mem (t "mem1") [l "a";l "b"] >>= fun b1 ->
+      S.mem (t "mem1") (p ["a";"b"]) >>= fun b1 ->
       assert_equal (module Tc.Bool) "mem1" true b1;
-      S.mem (t "mem2") [l "a"] >>= fun b2 ->
+      S.mem (t "mem2") (p ["a"]) >>= fun b2 ->
       assert_equal (module Tc.Bool) "mem2" false b2;
-      S.read_exn (t "read1") [l "a";l "b"] >>= fun v1' ->
+      S.read_exn (t "read1") (p ["a";"b"]) >>= fun v1' ->
       assert_equal (module V) "v1.1" v1 v1';
 
       Snapshot.create (t "snapshot") >>= fun r1 ->
 
       let v2 = v2 x in
-      S.update (t "update") [l "a";l "c"] v2 >>= fun () ->
-      S.mem (t "mem3") [l "a";l "b"] >>= fun b1 ->
+      S.update (t "update") (p ["a";"c"]) v2 >>= fun () ->
+      S.mem (t "mem3") (p ["a";"b"]) >>= fun b1 ->
       assert_equal (module Tc.Bool) "mem3" true b1;
-      S.mem (t "mem4") [l "a"] >>= fun b2 ->
+      S.mem (t "mem4") (p ["a"]) >>= fun b2 ->
       assert_equal (module Tc.Bool) "mem4" false b2;
-      S.read_exn (t "read2") [l "a";l "b"] >>= fun v1' ->
+      S.read_exn (t "read2") (p ["a";"b"]) >>= fun v1' ->
       assert_equal (module V) "v1.1" v1 v1';
-      S.mem (t "mem5") [l "a";l "c"] >>= fun b1 ->
+      S.mem (t "mem5") (p ["a";"c"]) >>= fun b1 ->
       assert_equal (module Tc.Bool) "mem5" true b1;
-      S.read_exn (t "read3") [l "a";l "c"] >>= fun v2' ->
+      S.read_exn (t "read3") (p ["a";"c"]) >>= fun v2' ->
       assert_equal (module V) "v1.1" v2 v2';
 
-      S.remove (t "remove") [l "a";l "b"] >>= fun () ->
-      S.read (t "read4") [l "a";l "b"] >>= fun v1''->
+      S.remove (t "remove") (p ["a";"b"]) >>= fun () ->
+      S.read (t "read4") (p ["a";"b"]) >>= fun v1''->
       assert_equal (module Tc.Option(V)) "v1.2" None v1'';
       Snapshot.revert (t "revert") r1 >>= fun () ->
-      S.read (t "read") [l "a";l "b"] >>= fun v1''->
+      S.read (t "read") (p ["a";"b"]) >>= fun v1''->
       assert_equal (module Tc.Option(V)) "v1.3" (Some v1) v1'';
-      S.list (t "list") [l "a"] >>= fun ks ->
-      assert_equal (module Set(K)) "path" [[l "a";l "b"]] ks;
+      S.list (t "list") (p ["a"]) >>= fun ks ->
+      assert_equal (module Set(K)) "path" [p ["a";"b"]] ks;
 
-      S.update (t "update2") [l "a"; l long_random_string] v1 >>= fun () ->
+      S.update (t "update2") (p ["a"; long_random_string]) v1 >>= fun () ->
 
-      S.remove_rec (t "remove rec") [l "a"] >>= fun () ->
-      S.list (t "list") [] >>= fun dirs ->
+      S.remove_rec (t "remove rec") (p ["a"]) >>= fun () ->
+      S.list (t "list") (p []) >>= fun dirs ->
       assert_equal (module Set(K)) "remove rec" [] dirs;
 
-      S.update (t "update root") [] v1 >>= fun () ->
-      S.read_exn (t "read root") [] >>= fun v1' ->
+      S.update (t "update root") (p []) v1 >>= fun () ->
+      S.read_exn (t "read root") (p []) >>= fun v1' ->
       assert_equal (module V) "read root" v1 v1';
 
-      S.update (t "update") [l "a"] v1 >>= fun () ->
-      S.remove_rec (t "remove rec --all") [] >>= fun () ->
-      S.list (t "list") [] >>= fun dirs ->
+      S.update (t "update") (p ["a"]) v1 >>= fun () ->
+      S.remove_rec (t "remove rec --all") (p []) >>= fun () ->
+      S.list (t "list") (p []) >>= fun dirs ->
 
 
       assert_equal (module Set(K)) "remove rec root" [] dirs;
@@ -453,24 +457,24 @@ module Make (S: Irmin.S) = struct
 
       View.create task >>= fun v0 ->
 
-      View.update (v0 "/") [] foo1 >>= fun () ->
-      View.read (v0 "read /") [] >>= fun foo1' ->
+      View.update (v0 "/") (p []) foo1 >>= fun () ->
+      View.read (v0 "read /") (p []) >>= fun foo1' ->
       assert_equal (module Tc.Option(V)) "read /" (Some foo1) foo1';
 
-      View.update (v0 "foo/1") [l "foo";l "1"] foo1 >>= fun () ->
-      View.read (v0 "read foo/1") [l "foo"; l "1"] >>= fun foo1' ->
+      View.update (v0 "foo/1") (p ["foo";"1"]) foo1 >>= fun () ->
+      View.read (v0 "read foo/1") (p ["foo";"1"]) >>= fun foo1' ->
       assert_equal (module Tc.Option(V)) "read foo/1" (Some foo1) foo1';
 
-      View.update (v0 "foo/2") [l "foo";l "2"] foo2 >>= fun () ->
-      View.read (v0 "read foo/2") [l "foo"; l "2"] >>= fun foo2' ->
+      View.update (v0 "foo/2") (p ["foo";"2"]) foo2 >>= fun () ->
+      View.read (v0 "read foo/2") (p ["foo";"2"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "read foo/2" (Some foo2) foo2';
 
       let check_view v =
-        View.list (v "list foo/") [l "foo"] >>= fun ls ->
-        assert_equal (module Set(K)) "path1" [ [l "foo";l "1"]; [l "foo";l "2"] ] ls;
-        View.read (v "read foo/1") [l "foo";l "1"] >>= fun foo1' ->
+        View.list (v "list foo/") (p ["foo"]) >>= fun ls ->
+        assert_equal (module Set(K)) "path1" [p ["foo";"1"]; p ["foo";"2"] ] ls;
+        View.read (v "read foo/1") (p ["foo";"1"]) >>= fun foo1' ->
         assert_equal (module Tc.Option(V)) "foo1" (Some foo1) foo1';
-        View.read (v "read foo/2") [l "foo";l "2"] >>= fun foo2' ->
+        View.read (v "read foo/2") (p ["foo";"2"]) >>= fun foo2' ->
         assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
         return_unit in
 
@@ -479,32 +483,33 @@ module Make (S: Irmin.S) = struct
         ) nodes >>= fun () ->
       check_view v0 >>= fun () ->
 
-      View.update_path "update_path b/" t [l "b"] v0 >>= fun () ->
-      View.update_path "update_path a/" t [l "a"] v0 >>= fun () ->
+      View.update_path "update_path b/" t (p ["b"]) v0 >>= fun () ->
+      View.update_path "update_path a/" t (p ["a"]) v0 >>= fun () ->
 
-      S.list (t "list") [l "b";l "foo"] >>= fun ls ->
-      assert_equal (module Set(K)) "path2" [ [l "b";l "foo";l "1"]; [l "b";l "foo";l "2"] ] ls;
-      S.read (t "read foo1") [l "b";l "foo";l "1"] >>= fun foo1' ->
+      S.list (t "list") (p ["b";"foo"]) >>= fun ls ->
+      assert_equal (module Set(K)) "path2" [ p ["b";"foo";"1"];
+                                             p ["b";"foo";"2"] ] ls;
+      S.read (t "read foo1") (p ["b";"foo";"1"]) >>= fun foo1' ->
       assert_equal (module Tc.Option(V)) "foo1" (Some foo1) foo1';
-      S.read (t "read foo2") [l "a";l "foo";l "2"] >>= fun foo2' ->
+      S.read (t "read foo2") (p ["a";"foo";"2"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
 
-      View.of_path task (t "of_path") [l "b"] >>= fun v1 ->
+      View.of_path task (t "of_path") (p ["b"]) >>= fun v1 ->
       check_view v1 >>= fun () ->
 
-      S.update (t "update b/x") [l "b";l "x"] foo1 >>= fun () ->
-      View.update (v1 "update y") [l "y"] foo2 >>= fun () ->
-      View.merge_path_exn "merge_path" t [l "b"] v1 >>= fun () ->
-      S.read (t "read b/x") [l "b";l "x"] >>= fun foo1' ->
-      S.read (t "read b/y") [l "b";l "y"] >>= fun foo2' ->
+      S.update (t "update b/x") (p ["b";"x"]) foo1 >>= fun () ->
+      View.update (v1 "update y") (p ["y"]) foo2 >>= fun () ->
+      View.merge_path_exn "merge_path" t (p ["b"]) v1 >>= fun () ->
+      S.read (t "read b/x") (p ["b";"x"]) >>= fun foo1' ->
+      S.read (t "read b/y") (p ["b";"y"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "merge: b/x" (Some foo1) foo1';
       assert_equal (module Tc.Option(V)) "merge: b/y" (Some foo2) foo2';
 
       Lwt_list.iteri_s (fun i (k, v) ->
-          let p = String.concat "/" (List.map S.Key.Step.to_hum k) in
-          S.read_exn (t @@ "read a/"^p) (l "a"::k) >>= fun v' ->
+          let path = String.concat "/" (S.Key.map k S.Key.Step.to_hum) in
+          S.read_exn (t @@ "read a/"^path) (S.Key.cons (l "a") k) >>= fun v' ->
           assert_equal (module V) ("a"^string_of_int i) v v';
-          S.read_exn (t @@ "read b/"^p) (l "b"::k) >>= fun v' ->
+          S.read_exn (t @@ "read b/"^path) (S.Key.cons (l "b") k) >>= fun v' ->
           assert_equal (module V) ("b"^string_of_int i) v v';
           return_unit
         ) nodes >>= fun () ->
@@ -521,11 +526,11 @@ module Make (S: Irmin.S) = struct
       let v1 = v1 x in
       let v2 = v2 x in
 
-      S.update (t1 "update a/b") [l "a";l "b"] v1 >>= fun () ->
+      S.update (t1 "update a/b") (p ["a";"b"]) v1 >>= fun () ->
       Snapshot.create (t1 "snapshot 1") >>= fun _r1 ->
-      S.update (t1 "update a/c") [l "a";l "c"] v2 >>= fun () ->
+      S.update (t1 "update a/c") (p ["a";"c"]) v2 >>= fun () ->
       Snapshot.create (t1 "snapshot 2") >>= fun r2 ->
-      S.update (t1 "update a/d") [l "a";l "d"] v1 >>= fun () ->
+      S.update (t1 "update a/d") (p ["a";"d"]) v1 >>= fun () ->
       Snapshot.create (t1 "snapshot 3") >>= fun _r3 ->
 
       let remote = Irmin.remote_store (module S) (t1 "remote") in
@@ -538,24 +543,24 @@ module Make (S: Irmin.S) = struct
       S.of_tag x.config task tag >>= fun t2 ->
       S.update_head (t2 "partial update") partial >>= fun () ->
 
-      S.mem (t2 "mem a/b") [l "a";l "b"] >>= fun b1 ->
+      S.mem (t2 "mem a/b") (p ["a";"b"]) >>= fun b1 ->
       assert_equal (module Tc.Bool) "mem-ab" true b1;
 
-      S.mem (t2 "mem a/c") [l "a";l "c"] >>= fun b2 ->
+      S.mem (t2 "mem a/c") (p ["a";"c"]) >>= fun b2 ->
       assert_equal (module Tc.Bool) "mem-ac" true b2;
 
-      S.mem (t2 "mem a/d") [l "a";l "d"] >>= fun b3 ->
+      S.mem (t2 "mem a/d") (p ["a";"d"]) >>= fun b3 ->
       assert_equal (module Tc.Bool) "mem-ad" true b3;
-      S.read_exn (t2 "read a/d") [l "a";l "d"] >>= fun v1' ->
+      S.read_exn (t2 "read a/d") (p ["a";"d"]) >>= fun v1' ->
       assert_equal (module V) "v1" v1' v1;
 
       Snapshot.revert (t2 "revert to t2") r2 >>= fun () ->
-      S.mem (t2 "mem a/b") [l "a";l "d"] >>= fun b4 ->
+      S.mem (t2 "mem a/b") (p ["a";"d"]) >>= fun b4 ->
       assert_equal (module Tc.Bool) "mem-ab" false b4;
 
       S.update_head (t2 "full update") full >>= fun () ->
       Snapshot.revert (t2 "revert to r2") r2 >>= fun () ->
-      S.mem (t2 "mem a/d") [l "a";l "d"] >>= fun b4 ->
+      S.mem (t2 "mem a/d") (p ["a";"d"]) >>= fun b4 ->
       assert_equal (module Tc.Bool) "mem-ad" false b4;
       return_unit
     in
@@ -583,25 +588,25 @@ module Make (S: Irmin.S) = struct
 
       create x >>= fun t1 ->
 
-      S.update (t1 "update a/b/a") [l "a";l "b";l "a"] v1 >>= fun () ->
-      S.update (t1 "update a/b/b") [l "a";l "b";l "b"] v2 >>= fun () ->
-      S.update (t1 "update a/b/c") [l "a";l "b";l "c"] v3 >>= fun () ->
+      S.update (t1 "update a/b/a") (p ["a";"b";"a"]) v1 >>= fun () ->
+      S.update (t1 "update a/b/b") (p ["a";"b";"b"]) v2 >>= fun () ->
+      S.update (t1 "update a/b/c") (p ["a";"b";"c"]) v3 >>= fun () ->
 
       let test = S.Tag.of_hum "test" in
 
       S.clone_force task (t1 "clone master into test") test >>= fun t2 ->
 
-      S.update (t1 "update master:a/b/b") [l "a";l "b";l "b"] v1 >>= fun () ->
-      S.update (t1 "update master:a/b/b") [l "a";l "b";l "b"] v3 >>= fun () ->
-      S.update (t2 "update test:a/b/c")   [l "a";l "b";l "c"] v1 >>= fun () ->
+      S.update (t1 "update master:a/b/b") (p ["a";"b";"b"]) v1 >>= fun () ->
+      S.update (t1 "update master:a/b/b") (p ["a";"b";"b"]) v3 >>= fun () ->
+      S.update (t2 "update test:a/b/c")   (p ["a";"b";"c"]) v1 >>= fun () ->
 
       output_file (t1 "before.dot") "before" >>= fun () ->
       S.merge_exn "merge test into master" t2 ~into:t1 >>= fun () ->
       output_file (t1 "after.dot") "after" >>= fun () ->
 
-      S.read_exn (t1 "read master:a/b/c") [l "a";l "b";l "c"] >>= fun v1' ->
-      S.read_exn (t2 "read test:a/b/c")   [l "a";l "b";l "b"] >>= fun v2' ->
-      S.read_exn (t1 "read master:a/b/b") [l "a";l "b";l "b"] >>= fun v3' ->
+      S.read_exn (t1 "read master:a/b/c") (p ["a";"b";"c"]) >>= fun v1' ->
+      S.read_exn (t2 "read test:a/b/c")   (p ["a";"b";"b"]) >>= fun v2' ->
+      S.read_exn (t1 "read master:a/b/b") (p ["a";"b";"b"]) >>= fun v3' ->
 
       assert_equal (module V) "v1" v1 v1';
       assert_equal (module V) "v2" v2 v2';

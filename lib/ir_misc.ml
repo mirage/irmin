@@ -234,8 +234,3 @@ let tag buf i =
 
 let untag buf =
   Mstruct.get_uint8 buf
-
-let list_end l =
-  match List.rev l with
-  | []   -> raise Not_found
-  | h::t -> List.rev t, h

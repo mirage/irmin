@@ -198,7 +198,7 @@ let merge_elt (type k) (type a)
       return (Some v1)
     else match old key with
       | Some ov -> begin
-          merge_v ~old:ov v1 v2 >>= function
+          merge_v key ~old:ov v1 v2 >>= function
           | `Conflict msg -> fail (C msg)
           | `Ok x         -> return (Some x)
         end

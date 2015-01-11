@@ -385,7 +385,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let dyn_node list child = DNode { list; child }
 
   let store =
-    let step': S.step Irmin.Hum.t = (module S.Key.Step) in
+    let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
@@ -425,18 +425,19 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t >>=
       ok
     in
+    let l f t list = f t (S.Key.create list) in
     let bc t = [
       (* rw *)
-      mknp0bf "read"   S.read     t step' (Tc.option value);
-      mknp0bf "mem"    S.mem      t step' Tc.bool;
+      mknp0bf "read"   (l S.read)     t step' (Tc.option value);
+      mknp0bf "mem"    (l S.mem)      t step' Tc.bool;
       mk0p0bs "iter"   (stream key S.iter) t key;
-      mknp1bf "update" s_update   t step' value head;
-      mknp0bf "remove" s_remove   t step' head;
-      mknp0bs "watch"  S.watch    t step' (Tc.option value);
+      mknp1bf "update" (l s_update)   t step' value head;
+      mknp0bf "remove" (l s_remove)   t step' head;
+      mknp0bs "watch"  (l S.watch)    t step' (Tc.option value);
 
       (* hrw *)
-      mknp0bf "list"       S.list       t step' (Tc.list key);
-      mknp0bf "remove-rec" s_remove_rec t step' head;
+      mknp0bf "list"       (l S.list)       t step' (Tc.list key);
+      mknp0bf "remove-rec" (l s_remove_rec) t step' head;
 
       (* more *)
       mk1p0bf "rename-tag"  S.rename_tag t tag' ok_or_duplicated_tag;
@@ -447,7 +448,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" S.update_head t head' Tc.unit;
       mk1p0bf "merge-head"  s_merge_head t head' (merge head);
-      mknp0bs "watch-head"  S.watch_head t step' (Tc.pair key head);
+      mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key head);
       mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
       mk0p1bf "export"      s_export t export slice;

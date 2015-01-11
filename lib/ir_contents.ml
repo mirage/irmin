@@ -20,17 +20,22 @@ module Log = Log.Make(struct let section = "CONTENTS" end)
 
 module type S = sig
   include Tc.S0
-  val merge: t Ir_merge.t
+  module Path: Ir_path.S
+  val merge: Path.t -> t Ir_merge.t
 end
 
 module type STORE = sig
   include Ir_ao.STORE
-  val merge: t -> key Ir_merge.t
+  module Path: Ir_path.S
+  val merge: Path.t -> t -> key Ir_merge.t
   module Key: Ir_hash.S with type t = key
-  module Val: S with type t = value
+  module Val: S with type t = value and module Path = Path
 end
 
 module Json = struct
+
+  (* FIXME: we want maybe something more structured here. *)
+  module Path = Ir_path.String_list
 
   module V = struct
 
@@ -96,32 +101,40 @@ module Json = struct
 
   include T
 
-  let rec merge_values ~old x y =
+  let rec merge_values path ~old x y =
     match old, x, y with
     | `O old, `O x, `O y ->
-      Ir_merge.alist (module Tc.String) (module V) merge_values ~old:old x y >>| fun x ->
+      Ir_merge.alist (module Tc.String) (module V)
+        (fun s -> merge_values (Path.rcons path s))
+        ~old:old x y
+      >>| fun x ->
       ok (`O x)
     | _ -> conflict "JSON values"
 
-  let merge ~old x y =
+  let merge path ~old x y =
     match old, x, y with
     | `O old, `O x, `O y ->
-      Ir_merge.alist (module Tc.String) (module V) merge_values ~old:old x y >>| fun x ->
+      Ir_merge.alist (module Tc.String) (module V)
+        (fun s -> merge_values (Path.rcons path s))
+        ~old:old x y
+      >>| fun x ->
       ok (`O x)
     | _ -> conflict "JSON documents"
-
 
 end
 
 module String = struct
   include Tc.String
+  module Path = Ir_path.String_list
   let size_of t = String.length t
   let read buf = Mstruct.to_string buf
   let write t buf =
     let len = String.length t in
     Cstruct.blit_from_string t 0 buf 0 len;
     Cstruct.shift buf len
-  let merge = Ir_merge.default (module Tc.String)
+  let merge =
+    let f = Ir_merge.default (module Tc.String) in
+    fun _path -> f
 end
 
 module Cstruct = struct
@@ -144,7 +157,10 @@ module Cstruct = struct
       Cstruct.shift buf len
   end
   include S
-  let merge = Ir_merge.default (module S)
+  module Path = Ir_path.String_list
+  let merge =
+    let f = Ir_merge.default (module S) in
+    fun _path -> f
 end
 
 module Make
@@ -155,5 +171,7 @@ module Make
      end) =
 struct
   include S
-  let merge t = Ir_merge.biject' (module Key) Val.merge (read_exn t) (add t)
+  module Path = S.Val.Path
+  let merge path t =
+    Ir_merge.biject' (module Key) (Val.merge path) (read_exn t) (add t)
 end

@@ -131,8 +131,7 @@ module Internal (Node: NODE) = struct
   module Path = Node.Path
   module PathSet = Ir_misc.Set(Path)
 
-  type step = Path.step
-  type key = step list
+  type key = Path.t
   type value = Node.contents
 
   module Action = Action(Path)(Node.Contents)
@@ -158,9 +157,10 @@ module Internal (Node: NODE) = struct
   let task t = t.task
 
   let sub t path =
-    let rec aux node = function
-      | []   -> return (Some node)
-      | h::p ->
+    let rec aux node path =
+      match Path.decons path with
+      | None        -> return (Some node)
+      | Some (h, p) ->
         Node.read node >>= function
         | None -> return_none
         | Some t ->
@@ -171,7 +171,9 @@ module Internal (Node: NODE) = struct
     aux t.view path
 
   let mk_path k =
-    try Ir_misc.list_end k with Not_found -> [], Path.Step.of_hum "__root__"
+    match Path.rdecons k with
+    | Some (l, t) -> l, t
+    | None -> Path.empty, Path.Step.of_hum "__root__"
 
   let read_contents t path =
     Log.debug "read_contents %a" force (show (module Path) path);
@@ -202,7 +204,7 @@ module Internal (Node: NODE) = struct
       Node.steps n >>= fun steps ->
       let paths =
         List.fold_left (fun set p ->
-            PathSet.add (path @ [p]) set
+            PathSet.add (Path.rcons path p) set
           ) PathSet.empty steps
       in
       return (PathSet.to_list paths)
@@ -223,13 +225,14 @@ module Internal (Node: NODE) = struct
         fn path >>= fun () ->
         aux todo
     in
-    list t [] >>= aux
+    list t Path.empty >>= aux
 
   let update_contents_aux t k v =
     let path, file = mk_path k in
-    let rec aux view = function
-      | [] -> Node.with_contents view file v
-      | h::p   ->
+    let rec aux view path =
+      match Path.decons path with
+      | None        -> Node.with_contents view file v
+      | Some (h, p) ->
         Node.read view >>= function
         | None   -> if v = None then return_unit else fail Not_found (* XXX ?*)
         | Some n ->
@@ -254,19 +257,23 @@ module Internal (Node: NODE) = struct
   let remove t k =
     update_contents t k None
 
-  let remove_rec t k = match k with
-    | [] -> return_unit
-    | _  ->
-      let rec aux view = function
-        | []    -> assert false
-        | [dir] -> Node.with_succ view dir None
-        | h::p ->
-          Node.read view >>= function
-          | None   -> return_unit
-          | Some n ->
-            match Node.read_succ n h with
-            | None       -> return_unit
-            | Some child -> aux child p
+  let remove_rec t k =
+    match Path.decons k with
+    | None -> return_unit
+    | _    ->
+      let rec aux view path =
+        match Path.decons path with
+        | None       -> assert false
+        | Some (h,p) ->
+          if Path.is_empty p then
+            Node.with_succ view h None
+          else
+            Node.read view >>= function
+            | None   -> return_unit
+            | Some n ->
+              match Node.read_succ n h with
+              | None       -> return_unit
+              | Some child -> aux child p
       in
       t.ops <- `Rmdir k :: t.ops;
       aux t.view k
@@ -638,7 +645,7 @@ module Make (S: Ir_s.STORE) = struct
   let rebase_path a db path view =
     Log.debug "merge_view %a" force (show (module Path) path);
     let db = db a and view = view a in
-    P.mem_node db [] >>= function
+    P.mem_node db Path.empty >>= function
     | false -> fail Not_found
     | true  ->
       of_path (fun () -> S.task db) db path >>= fun head_view ->
@@ -652,7 +659,7 @@ module Make (S: Ir_s.STORE) = struct
   let merge_path a db path view =
     Log.debug "merge_view %a" force (show (module Path) path);
     let db = db a and view = view a in
-    P.read_node db [] >>= function
+    P.read_node db Path.empty >>= function
     | None           -> fail Not_found
     | Some head_node ->
       (* First, we check than we can rebase the view on the current

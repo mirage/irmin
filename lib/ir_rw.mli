@@ -25,8 +25,7 @@ module type STORE = sig
 end
 
 module type HIERARCHICAL = sig
-  type step
-  include STORE with type key = step list
+  include STORE
   val list: t -> key -> key list Lwt.t
   val remove_rec: t -> key -> unit Lwt.t
 end

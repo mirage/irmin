@@ -64,7 +64,6 @@ val list_partition_map: ('a -> [ `Fst of 'b | `Snd of 'c ]) ->
 val list_pretty: ('a -> string) -> 'a list -> string
 val list_filter_map: ('a -> 'b option) -> 'a list -> 'b list
 val list_dedup: ?compare:'a Tc.compare -> 'a list -> 'a list
-val list_end: 'a list -> 'a list * 'a
 
 val alist_merge_lwt:
   ('key -> 'key -> int) ->

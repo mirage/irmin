@@ -19,13 +19,17 @@
 module type STEP = Ir_hum.S
 
 module type S = sig
+  include Ir_hum.S
   type step
+  val empty: t
+  val create: step list -> t
+  val is_empty: t -> bool
+  val cons: step -> t -> t
+  val rcons: t -> step -> t
+  val decons: t -> (step * t) option
+  val rdecons: t -> (t * step) option
+  val map: t -> (step -> 'a) -> 'a list
   module Step: STEP with type t = step
-  include Tc.S0 with type t = step list
-  val to_hum: t -> string
-  val of_hum: string -> t
 end
 
-module Make (S: STEP): S with type step = S.t
-
-module String_list: S with type step = string
+module String_list: S with type step = string and type t = string list

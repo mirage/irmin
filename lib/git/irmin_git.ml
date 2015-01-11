@@ -16,7 +16,6 @@
 
 open Lwt
 
-module I = Irmin
 module Log = Log.Make(struct let section = "GIT" end)
 
 let (/) = Filename.concat
@@ -62,7 +61,6 @@ let config ?root ?head ?bare () =
   config
 
 module Make (IO: Git.Sync.IO) (G: Git.Store.S)
-    (P: Irmin.Path.S)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S)
@@ -71,8 +69,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
   let () =
     if not (H.has_kind `SHA1) then
       failwith "The Git backend only support SHA1 hashes."
-
-  module S = P.Step
 
   module GK = struct
     type t = Git.SHA.t
@@ -103,8 +99,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
     type t = {
       t: G.t;
-      task: I.task;
-      config: I.config;
+      task: Irmin.task;
+      config: Irmin.config;
     }
 
     type key = K.t
@@ -166,13 +162,14 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
   module XNode = struct
     module Key = GK
-    module Path = P
+    module Path = C.Path
     module Val = struct
+      module S = C.Path.Step
 
       type t = Git.Tree.t
       type contents = GK.t
       type node = GK.t
-      type step = P.step
+      type step = Path.step
 
       let compare = Git.Tree.compare
       let equal = Git.Tree.equal
@@ -258,7 +255,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         | [] -> true
         | _  -> false
 
-      module N = Irmin.Private.Node.Make (GK)(GK)(P)
+      module N = Irmin.Private.Node.Make (GK)(GK)(C.Path)
 
       (* FIXME: handle executable files *)
       let alist t =
@@ -324,7 +321,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
           | [date;_] -> Int64.of_string date
           | _        -> 0L in
         let uid = Int64.of_int (Hashtbl.hash (author, message, git)) in
-        I.Task.create ~date ~owner:id ~uid message
+        Irmin.Task.create ~date ~owner:id ~uid message
 
       let of_git g =
         let { Git.Commit.tree; parents; author; message; _ } = g in
@@ -345,13 +342,13 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         in
         let parents = List.map git_of_commit_key parents in
         let parents = List.sort Git.SHA.Commit.compare parents in
-        let date = Int64.to_string (I.Task.date task) ^ " +0000" in
+        let date = Int64.to_string (Irmin.Task.date task) ^ " +0000" in
         let author =
-          Git.User.({ name  = I.Task.owner task;
+          Git.User.({ name  = Irmin.Task.owner task;
                       email = "irmin@openmirage.org";
                       date;
                     }) in
-        let message = String.concat "\n" (I.Task.messages task) in
+        let message = String.concat "\n" (Irmin.Task.messages task) in
         { Git.Commit.tree; parents; author; committer = author; message }
 
       let create task ?node ~parents = to_git task node parents
@@ -399,8 +396,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     module W = Irmin.Private.Watch.Make(Key)(Val)
 
     type t = {
-      task: I.task;
-      config: I.config;
+      task: Irmin.task;
+      config: Irmin.config;
       git_root: string;
       git_head: Git.Reference.head_contents;
       t: G.t;
@@ -580,9 +577,10 @@ end
 module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   module V = struct
     include V
-    let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
+    let merge _path ~old:_ _ _ = failwith "Irmin_git.AO.merge"
+    module Path = Irmin.Path.String_list
   end
-  module M = Make (FakeIO)(G)(Irmin.Path.String_list)(V)(Irmin.Tag.String)(K)
+  module M = Make (FakeIO)(G)(V)(Irmin.Tag.String)(K)
   include M.AO(K)(M.GitContents)
 end
 
@@ -591,7 +589,7 @@ module RW (G: Git.Store.S) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
     include K
     let master = K.of_hum "master"
   end
-  module M = Make (FakeIO)(G)(Irmin.Path.String_list)(Irmin.Contents.String)(K)(V)
+  module M = Make (FakeIO)(G)(Irmin.Contents.String)(K)(V)
   include M.XTag
 end
 

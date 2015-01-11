@@ -244,7 +244,7 @@ module Merge: sig
       adding and removal of similar bindings themselves, by using the
       appropriate {{!Merge.MSet}multi-sets}. *)
 
-  val alist: 'a Tc.t -> 'b Tc.t -> 'b t -> ('a * 'b) list t
+  val alist: 'a Tc.t -> 'b Tc.t -> ('a -> 'b t) -> ('a * 'b) list t
   (** Lift the merge functions to association lists. *)
 
   (** Lift the merge functions to maps. *)
@@ -252,7 +252,7 @@ module Merge: sig
 
     (** {1 Merging Maps} *)
 
-    val merge: 'a Tc.t -> 'a t -> 'a M.t t
+    val merge: 'a Tc.t -> (M.key -> 'a t) -> 'a M.t t
     (** Lift to [X.t] maps. *)
 
   end
@@ -378,10 +378,7 @@ module type HRW = sig
       {{!Path.S.t}paths} as keys. They are a very simplified
       abstraction of filesystems. *)
 
-  type step
-  (** The type for step values. A step is a path component. *)
-
-  include RW with type key = step list
+  include RW
 
   val list: t -> key -> key list Lwt.t
   (** [list t k] list the sub-paths of the path [k] in [t]. *)
@@ -584,22 +581,41 @@ module Path: sig
 
     (** {1 Path} *)
 
-    type step
-    (** Type type for basic steps. *)
-
-    type t = step list
+    include Hum.S
     (** The type for path values. *)
 
-    module Step: STEP with type t = step
+    type step
+    (** Type type for path's steps. *)
 
-    include Hum.S with type t := t
+    val empty: t
+    (** The empty path. *)
+
+    val create: step list -> t
+    (** Create a path from a list of steps. *)
+
+    val is_empty: t -> bool
+    (** Check if the path is empty. *)
+
+    val cons: step -> t -> t
+    (** Prepend a step to the path. *)
+
+    val rcons: t -> step -> t
+    (** Append a step to the path. *)
+
+    val decons: t -> (step * t) option
+    (** Deconstruct the first element of the path. Return [None] if
+        the path is empty. *)
+
+    val rdecons: t -> (t * step) option
+    (** Deconstruct the last element of the path. Return [None] if the
+        path is empty. *)
+
+    val map: t -> (step -> 'a) -> 'a list
+    module Step: STEP with type t = step
 
   end
 
-  module Make (S: STEP): S with type step = S.t
-  (** A list of steps, representing keys in an Irmin store. *)
-
-  module String_list: S with type step = string
+  module String_list: S with type step = string and type t = string list
   (** An implementation of paths as string lists. *)
 
 end
@@ -675,23 +691,26 @@ module Contents: sig
     include Tc.S0
     (** Base functions on contents. *)
 
-    val merge: t Merge.t
+    module Path: Path.S
+    (** The type for store paths. *)
+
+    val merge: Path.t -> t Merge.t
     (** Merge function. Evaluates to [`Conflict] if the values cannot be
         merged properly. *)
 
   end
 
-  module String: S with type t = string
+  module String: S with type t = string and module Path = Path.String_list
   (** String values where only the last modified value is kept on
       merge. If the value has been modified concurrently, the [merge]
       function raises [Conflict]. *)
 
-  module Json: S with type t = Ezjsonm.t
+  module Json: S with type t = Ezjsonm.t and module Path = Path.String_list
   (** JSON values where only the last modified value is kept on
       merge. If the value has been modified concurrently, the [merge]
       function raises [Conflict]. *)
 
-  module Cstruct: S with type t = Cstruct.t
+  module Cstruct: S with type t = Cstruct.t and module Path = Path.String_list
   (** Cstruct values where only the last modified value is kept on
       merge. If the value has been modified concurrently, then this is a
       conflict. *)
@@ -701,7 +720,10 @@ module Contents: sig
 
     include AO
 
-    val merge: t -> key Merge.t
+    module Path: Path.S
+    (** The type for store paths. *)
+
+    val merge: Path.t -> t -> key Merge.t
     (** [merge t] lifts the merge functions defined on contents
         values to contents key. The merge function will: {e (i)} read
         the values associated with the given keys, {e (ii)} use the
@@ -713,7 +735,7 @@ module Contents: sig
     module Key: Hash.S with type t = key
     (** [Key] provides base functions for user-defined contents keys. *)
 
-    module Val: S with type t = value
+    module Val: S with type t = value and module Path = Path
     (** [Val] provides base function for user-defined contents values. *)
 
   end
@@ -724,7 +746,10 @@ module Contents: sig
                  module Key: Hash.S with type t = key
                  module Val: S with type t = value
                end):
-    STORE with type t = S.t and type key = S.key and type value = S.value
+    STORE with type t = S.t
+           and type key = S.key
+           and type value = S.value
+           and module Path = S.Val.Path
 
 end
 
@@ -1096,19 +1121,26 @@ module Private: sig
 
       type step
       (** The type of steps. A step is used to pass from one node to an
-          other. A list of steps forms a path. *)
+          other. *)
+
+      type path
+      (** The type of store paths. A path is composed of
+          {{!step}steps}. *)
 
       val empty: t -> node Lwt.t
       (** The empty node. *)
 
-      val create: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
+      val create: t -> (step * [`Contents of contents | `Node of node]) list
+        -> node Lwt.t
       (** Create a new node. *)
 
       val contents: t -> node -> step -> contents option Lwt.t
-      (** [contents t n s] is [n]'s contents in [t], associated to the step [s]. *)
+      (** [contents t n s] is [n]'s contents in [t], associated to the
+          step [s]. *)
 
       val succ: t -> node -> step -> node option Lwt.t
-      (** [succ t n s] is [n]'s successors in [t], associated to the step [s]. *)
+      (** [succ t n s] is [n]'s successors in [t], associated to the
+          step [s]. *)
 
       val steps: t -> node -> step list Lwt.t
       (** [steps t n] is the list of steps leaving the node [t]. *)
@@ -1121,48 +1153,48 @@ module Private: sig
 
       (** {1 Contents} *)
 
-      val mem_contents: t -> node -> step list -> bool Lwt.t
+      val mem_contents: t -> node -> path -> bool Lwt.t
       (** [mem_contents t n path] checks if there is a path labeled by
           [path] from [n] to a valid contents in [t].  *)
 
-      val read_contents: t -> node -> step list -> contents option Lwt.t
+      val read_contents: t -> node -> path -> contents option Lwt.t
       (** [read_contents t n path] is the contents at the end of the
           path starting from [n] and labeled by [path] in [t]. Return
           [None] if no such contents exists.*)
 
-      val read_contents_exn: t -> node -> step list -> contents Lwt.t
+      val read_contents_exn: t -> node -> path -> contents Lwt.t
       (** Same as {!read_contents} by raise [Not_found] if there is no
           valid contents. *)
 
-      val add_contents: t -> node -> step list -> contents -> node Lwt.t
+      val add_contents: t -> node -> path -> contents -> node Lwt.t
       (** [add_contents t n path c] adds the contents [c] as the end of
           the path starting from [n] and labeled by [path] in [t]. *)
 
-      val remove_contents: t -> node -> step list -> node Lwt.t
+      val remove_contents: t -> node -> path -> node Lwt.t
       (** [remove_contents t n path] removes the contents at the end of
           the path of the path starting from [n] and labeled by [path]
           in [t]. *)
 
       (** {1 Nodes} *)
 
-      val mem_node: t -> node -> step list -> bool Lwt.t
+      val mem_node: t -> node -> path -> bool Lwt.t
       (** [mem_node t n] checks if there is a path labeled by [path]
           from [n] to a valid node in [t]. *)
 
-      val read_node: t -> node -> step list -> node option Lwt.t
+      val read_node: t -> node -> path -> node option Lwt.t
       (** [read_node t n path] is the node at the end of the path
           starting from [n] and labeled by [path] in [t]. Return
           [None] if no such node exists. *)
 
-      val read_node_exn: t -> node -> step list -> node Lwt.t
+      val read_node_exn: t -> node -> path -> node Lwt.t
       (** Same as {{!Node.GRAPH.read_node}read_node} but raise
           [Not_found] if the path is invalid. *)
 
-      val add_node: t -> node -> step list -> node -> node Lwt.t
+      val add_node: t -> node -> path -> node -> node Lwt.t
       (** [add_node t n path c] adds the node [c] as the end of the
           path starting from [n] and labeled by [path] in [t]. *)
 
-      val remove_node: t -> node -> step list -> node Lwt.t
+      val remove_node: t -> node -> path -> node Lwt.t
       (** [remove_node t n path] removes the node at the end of the
           path of the path starting from [n] and labeled by [path] in
           [t]. *)
@@ -1183,16 +1215,22 @@ module Private: sig
 
           {B Note:} Both [min] and [max] are subsets of [c].*)
 
-      module Store: Contents.STORE with type t = t and type key = node
+      module Store: Contents.STORE
+        with type t = t
+         and type key = node
+         and type Path.t = path
+         and type Path.step = step
       (** Graph nodes forms a {{!Contents.STORE}contents store}. *)
 
     end
 
-    module Graph (C: Contents.STORE) (S: STORE with type Val.contents = C.key)
+    module Graph (C: Contents.STORE)
+        (S: STORE with type Val.contents = C.key and module Path = C.Path)
       : GRAPH with type t = C.t * S.t
                and type contents = C.key
                and type node = S.key
-               and type step = S.Val.step
+               and type path = S.Path.t
+               and type step = S.Path.step
 
   end
 
@@ -1409,7 +1447,8 @@ module Private: sig
     module Contents: Contents.STORE
 
     (** Private nodes. *)
-    module Node: Node.STORE with type Val.contents = Contents.key
+    module Node: Node.STORE
+      with type Val.contents = Contents.key and module Path = Contents.Path
 
     (** Private commits. *)
     module Commit: Commit.STORE with type Val.node = Node.key
@@ -1436,8 +1475,8 @@ module type S = sig
 
   include BC
 
-  module Key: Path.S with type step = step
-  (** [Key] provides base functions on step lists. *)
+  module Key: Path.S with type t = key
+  (** [Key] provides base functions on paths.. *)
 
   module Val: Contents.S with type t = value
   (** [Val] provides base functions on user-defined, mergeable
@@ -1452,8 +1491,8 @@ module type S = sig
   (** Private functions, which might be used by the backends. *)
   module Private: sig
     include Private.S
-      with type Node.Path.step = step
-       and type Contents.value = value
+      with type Contents.value = value
+       and module Contents.Path = Key
        and type Commit.key = head
        and type Tag.key = tag
        and type Slice.t = slice
@@ -1476,11 +1515,10 @@ end
     store heads. It does not use any native synchronization
     primitives. *)
 module type S_MAKER =
-  functor (P: Path.S) ->
   functor (C: Contents.S) ->
   functor (T: Tag.S) ->
   functor (H: Hash.S) ->
-    S with type step = P.step
+    S with type key = C.Path.t
        and type value = C.t
        and type tag = T.t
        and type head = H.t
@@ -1499,131 +1537,138 @@ module type S_MAKER =
 *)
 
 
-module type BASIC = S with type step = string
-                       and type tag = string
-                       and type head = Hash.SHA1.t
+module type BASIC = S with type tag = string and type head = Hash.SHA1.t
 (** The signature of basic stores. *)
 
-module Basic (B: S_MAKER) (C: Contents.S): BASIC with type value = C.t
+module Basic (B: S_MAKER) (C: Contents.S):
+  BASIC with type key = C.Path.t and type value = C.t
 (** Generate a basic store using [B] as backend and [C] as
     user-provided contents. *)
 
-type 'a basic = (module BASIC with type value = 'a)
+type ('k,'v) basic = (module BASIC with type key = 'k and type value = 'v)
 (** The type for basic stores. *)
 
-val basic: (module S_MAKER) -> (module Contents.S with type t = 'a) -> 'a basic
+type ('k,'v) contents = (module Contents.S with type t = 'v and type Path.t = 'k)
+(** The type for basic contents of type ['a]. *)
+
+val basic: (module S_MAKER) -> ('k,'v) contents -> ('k,'v) basic
 (** [basic backend contents] is a basic Irmin implementation using
     [backend] as a backend and containing values defined by
     [contents]. *)
 
-type 'a t
-(** The type for default store. *)
+type ('k,'v) t
+(** The type for default store, with keys of type ['k] and values of
+    type ['v]. *)
 
-val create: 'a basic -> config -> ('m -> task) -> ('m -> 'a t) Lwt.t
+val create: ('k,'v) basic -> config -> ('m -> task) -> ('m -> ('k,'v) t) Lwt.t
 (** See {!RO.create}. Needs a backend as first argument. *)
 
-val of_tag: 'a basic -> config -> ('m -> task) -> string -> ('m -> 'a t) Lwt.t
+val of_tag: ('k,'v) basic -> config -> ('m -> task) -> string
+  -> ('m -> ('k,'v) t) Lwt.t
 (** See {!BC.of_tag}. Needs a backend as first argument. *)
 
-val of_head: 'a basic -> config -> ('m -> task) -> Hash.SHA1.t -> ('m -> 'a t) Lwt.t
+val of_head: ('k,'v) basic -> config -> ('m -> task) -> Hash.SHA1.t
+  -> ('m -> ('k,'v) t) Lwt.t
 (** See {!BC.of_head}. Needs a backend as first argument. *)
 
 (** {2 Base Operations} *)
 
-val read: 'a t -> string list -> 'a option Lwt.t
+val read: ('k,'v) t -> 'k -> 'v option Lwt.t
 (** See {!RO.read}. *)
 
-val read_exn: 'a t -> string list -> 'a Lwt.t
+val read_exn: ('k,'v) t -> 'k -> 'v Lwt.t
 (** See {!RO.read_exn}. *)
 
-val mem: 'a t -> string list -> bool Lwt.t
+val mem: ('k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
-val iter: 'a t -> (string list -> unit Lwt.t) -> unit Lwt.t
+val iter: ('k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
 (** See {!RW.iter}. *)
 
-val update: 'a t -> string list -> 'a -> unit Lwt.t
+val update: ('k,'v) t -> 'k -> 'v -> unit Lwt.t
 (** See {!RW.update}. *)
 
-val remove: 'a t -> string list -> unit Lwt.t
+val remove: ('k,'v) t -> 'k -> unit Lwt.t
 (** See {!RW.remove}. *)
 
-val watch: 'a t -> string list -> 'a option Lwt_stream.t
+val watch: ('k,'v) t -> 'k -> 'v option Lwt_stream.t
 (** See {!RW.watch}. *)
 
-val list: 'a t -> string list -> string list list Lwt.t
+val list: ('k,'v) t -> 'k -> 'k list Lwt.t
 (** See {!HRW.list}. *)
 
-val remove_rec: 'a t -> string list -> unit Lwt.t
+val remove_rec: ('k,'v) t -> 'k -> unit Lwt.t
 (** See {!HRW.remove_rec}. *)
 
 (** {2 Tags} *)
 
-val tag: 'a t -> string option
+val tag: ('k,'v) t -> string option
 (** See {!BC.tag}. *)
 
-val tag_exn: 'a t -> string
+val tag_exn: ('k,'v) t -> string
 (** See {!BC.tag_exn}. *)
 
-val tags: 'a t -> string list Lwt.t
+val tags: ('k,'v) t -> string list Lwt.t
 (** See {!BC.tags}. *)
 
-val rename_tag: 'a t -> string -> [`Ok | `Duplicated_tag] Lwt.t
+val rename_tag: ('k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
 (** See {!BC.rename_tag}. *)
 
-val update_tag: 'a t -> string -> unit Lwt.t
+val update_tag: ('k,'v) t -> string -> unit Lwt.t
 (** See {!BC.update_tag}. *)
 
-val merge_tag: 'a t -> string -> unit Merge.result Lwt.t
+val merge_tag: ('k,'v) t -> string -> unit Merge.result Lwt.t
 (** See {!BC.merge_tag}. *)
 
-val merge_tag_exn: 'a t -> string -> unit Lwt.t
+val merge_tag_exn: ('k,'v) t -> string -> unit Lwt.t
 (** See {!BC.merge_tag_exn}. *)
 
-val switch: 'a t -> string -> unit Lwt.t
+val switch: ('k,'v) t -> string -> unit Lwt.t
 (** See {!BC.switch}. *)
 
 (** {2 Heads} *)
 
-val head: 'a t -> Hash.SHA1.t option Lwt.t
+val head: ('k,'v) t -> Hash.SHA1.t option Lwt.t
 (** See {!BC.head}. *)
 
-val head_exn: 'a t -> Hash.SHA1.t Lwt.t
+val head_exn: ('k,'v) t -> Hash.SHA1.t Lwt.t
 (** See {!BC.head_exn}. *)
 
-val branch: 'a t -> [`Tag of string | `Head of Hash.SHA1.t]
+val branch: ('k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t]
 (** See {!BC.branch}. *)
 
-val heads: 'a t -> Hash.SHA1.t list Lwt.t
+val heads: ('k,'v) t -> Hash.SHA1.t list Lwt.t
 (** See {!BC.heads}. *)
 
-val detach: 'a t -> unit Lwt.t
+val detach: ('k,'v) t -> unit Lwt.t
 (** See {!BC.detach}. *)
 
-val update_head: 'a t -> Hash.SHA1.t -> unit Lwt.t
+val update_head: ('k,'v) t -> Hash.SHA1.t -> unit Lwt.t
 (** See {!BC.update_head}. *)
 
-val merge_head: 'a t -> Hash.SHA1.t -> unit Merge.result Lwt.t
+val merge_head: ('k,'v) t -> Hash.SHA1.t -> unit Merge.result Lwt.t
 (** See {!BC.merge_head}. *)
 
-val merge_head_exn: 'a t -> Hash.SHA1.t -> unit Lwt.t
+val merge_head_exn: ('k,'v) t -> Hash.SHA1.t -> unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
 
-val watch_head: 'a t -> string list -> (string list * Hash.SHA1.t) Lwt_stream.t
+val watch_head: ('k,'v) t -> 'k -> ('k * Hash.SHA1.t) Lwt_stream.t
 (** See {!BC.watch_head}. *)
 
 (** {2 Clones and Merges} *)
 
-val clone: ('m -> task) -> 'a t -> string -> [`Ok of ('m -> 'a t) | `Duplicated_tag] Lwt.t
+val clone: ('m -> task) -> ('k,'v) t -> string
+  -> [`Ok of ('m -> ('k,'v) t) | `Duplicated_tag] Lwt.t
 (** See {!BC.clone}. *)
 
-val clone_force: ('m -> task) -> 'a t -> string -> ('m -> 'a t) Lwt.t
+val clone_force: ('m -> task) -> ('k,'v) t -> string -> ('m -> ('k,'v) t) Lwt.t
 (** See {!BC.clone_force}. *)
 
-val merge: 'm -> ('m -> 'a t) -> into:('m -> 'a t) -> unit Merge.result Lwt.t
+val merge: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t)
+  -> unit Merge.result Lwt.t
 (** See {!BC.merge}. *)
 
-val merge_exn: 'm -> ('m -> 'a t) -> into:('m -> 'a t) -> unit Lwt.t
+val merge_exn: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t) -> unit Lwt.t
 (** See {!BC.merge_exn}. *)
 
 (** {1:examples Examples}
@@ -1646,7 +1691,6 @@ open Irmin_unix
 module S = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
 module Sync = Irmin.Sync(S)
 
-(* FIXME: only git:// uri are supported. *)
 let upstream =
   if Array.length Sys.argv = 2 then (Irmin.remote_uri Sys.argv.(1))
   else (Printf.eprintf "Usage: sync [uri]\n%!"; exit 1)
@@ -1685,6 +1729,7 @@ let () =
 
 {[
   module Log: Irmin.Contents.S with type t = Entry.t list = struct
+    module Path = Irmin.Path.String_list
     include Tc.List(Entry)
 
     (* Get the timestamp of the latest entry. *)
@@ -1701,7 +1746,7 @@ let () =
       in
       aux [] entries
 
-    let merge ~old t1 t2 =
+    let merge _path ~old t1 t2 =
       let open Irmin.Merge.OP in
       let ts = timestamp old in
       let t1 = newer_than ts t1 in
@@ -1851,7 +1896,7 @@ module View (S: S): sig
   type db = S.t
   (** The type for store handles. *)
 
-  include HRW with type step = S.Key.step and type value = S.Val.t
+  include HRW with type key = S.Key.t and type value = S.Val.t
   (** A view is a read-write temporary store, mirroring the main
       store. *)
 
@@ -2054,7 +2099,8 @@ module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 
 (** Advanced store creator. *)
 module Make_ext (P: Private.S): S
-  with type step = P.Node.Path.step
+  with type key = P.Contents.Path.t
    and type value = P.Contents.value
    and type tag = P.Tag.key
    and type head = P.Tag.value
+   and type Key.step = P.Contents.Path.step

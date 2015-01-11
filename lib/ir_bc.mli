@@ -51,25 +51,28 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (K: Ir_path.S) ->
   functor (C: Ir_contents.S) ->
   functor (T: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
-    STORE with type step = K.step
+    STORE with type key = C.Path.t
            and type value = C.t
            and type head = H.t
            and type tag = T.t
 
 module type PRIVATE = sig
   module Contents: Ir_contents.STORE
-  module Node: Ir_node.STORE with type Val.contents = Contents.key
-  module Commit: Ir_commit.STORE with type Val.node = Node.key
-  module Tag: Ir_tag.STORE with type value = Commit.key
+  module Node: Ir_node.STORE
+    with type Val.contents = Contents.key and module Path = Contents.Path
+  module Commit: Ir_commit.STORE
+    with type Val.node = Node.key
+  module Tag: Ir_tag.STORE
+    with type value = Commit.key
   module Slice: Ir_slice.S
     with type contents = Contents.key * Contents.value
      and type node = Node.key * Node.value
      and type commit = Commit.key * Commit.value
-  module Sync: Ir_sync.S with type head = Commit.key and type tag = Tag.key
+  module Sync: Ir_sync.S
+    with type head = Commit.key and type tag = Tag.key
 end
 
 module Make (X: Ir_ao.MAKER) (Y: Ir_rw.MAKER): MAKER
@@ -83,7 +86,7 @@ module type STORE_EXT = sig
 
   include STORE
 
-  module Key: Ir_path.S with type step = step
+  module Key: Ir_path.S with type t = key
   (** Base functions over keys. *)
 
   module Val: Ir_contents.S with type t = value
@@ -91,11 +94,10 @@ module type STORE_EXT = sig
 
   module Private: PRIVATE
     with type Contents.value = value
-     and type Node.Path.step = step
+     and module Contents.Path = Key
      and type Commit.key = head
      and type Tag.key = tag
      and type Slice.t = slice
-     and module Node.Path = Key
 
   val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
@@ -117,13 +119,10 @@ module type STORE_EXT = sig
 end
 
 module Make_ext (P: PRIVATE): STORE_EXT
-  with type step = P.Node.Path.step
+  with type key = P.Contents.Path.t
    and type value = P.Contents.value
    and type tag = P.Tag.key
    and type head = P.Commit.key
    and type slice = P.Slice.t
-   and module Private.Contents = P.Contents
-   and module Private.Node = P.Node
-   and module Private.Commit = P.Commit
-   and module Private.Tag = P.Tag
-   and module Private.Slice = P.Slice
+   and module Key = P.Contents.Path
+   and module Private = P

@@ -43,5 +43,5 @@ end
 
 module Make (S: Ir_s.STORE):
   S with type db = S.t
-     and type step = S.step
+     and type key = S.key
      and type value = S.value

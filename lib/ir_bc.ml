@@ -57,7 +57,8 @@ end
 
 module type PRIVATE = sig
   module Contents: Ir_contents.STORE
-  module Node: Ir_node.STORE with type Val.contents = Contents.key
+  module Node: Ir_node.STORE
+    with type Val.contents = Contents.key and module Path = Contents.Path
   module Commit: Ir_commit.STORE with type Val.node = Node.key
   module Tag: Ir_tag.STORE with type value = Commit.key
   module Slice: Ir_slice.S
@@ -69,15 +70,14 @@ end
 
 module type STORE_EXT = sig
   include STORE
-  module Key: Ir_path.S with type step = step
+  module Key: Ir_path.S with type t = key
   module Val: Ir_contents.S with type t = value
   module Private: PRIVATE
     with type Contents.value = value
-     and type Node.Path.step = step
+     and module Contents.Path = Key
      and type Commit.key = head
      and type Tag.key = tag
      and type Slice.t = slice
-     and module Node.Path = Key
   val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
   val node_t: t -> Private.Node.t
@@ -101,8 +101,6 @@ module Make_ext (P: PRIVATE) = struct
 
   module Val = P.Contents.Val
   type value = Val.t
-
-  type step = P.Node.Path.step
 
   module Head = P.Commit.Key
   type head = Head.t
@@ -324,7 +322,7 @@ module Make_ext (P: PRIVATE) = struct
       | None      -> return_nil
       | Some node ->
         Graph.steps (graph_t t) node >>= fun steps ->
-        let paths = List.map (fun c -> path @ [c]) steps in
+        let paths = List.map (fun c -> Key.rcons path c) steps in
         return paths
 
   let iter t fn =
@@ -337,7 +335,7 @@ module Make_ext (P: PRIVATE) = struct
         fn path >>= fun () ->
         aux todo
     in
-    list t [] >>= aux
+    list t Key.empty >>= aux
 
   (* Merge two commits:
      - Search for common ancestors
@@ -478,7 +476,9 @@ module Make_ext (P: PRIVATE) = struct
   (* watch contents changes. *)
   let watch t path =
     let path, file =
-      try Ir_misc.list_end path with Not_found -> [], Key.Step.of_hum "__root__"
+      match Key.rdecons path with
+      | Some (l, t) -> l, t
+      | None -> Key.empty, Key.Step.of_hum "__root__"
     in
     let get_contents n = Graph.contents (graph_t t) n file in
     Ir_watch.lwt_stream_lift (
@@ -604,11 +604,10 @@ module Make_ext (P: PRIVATE) = struct
 end
 
 module type MAKER =
-  functor (K: Ir_path.S) ->
   functor (C: Ir_contents.S) ->
   functor (T: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
-    STORE with type step = K.step
+    STORE with type key = C.Path.t
            and type value = C.t
            and type head = H.t
            and type tag = T.t
@@ -616,7 +615,6 @@ module type MAKER =
 module Make
     (AO: Ir_ao.MAKER)
     (RW: Ir_rw.MAKER)
-    (P: Ir_path.S)
     (C: Ir_contents.S)
     (T: Ir_tag.S)
     (H: Ir_hash.S) =
@@ -629,8 +627,8 @@ struct
       end)
     module Node = struct
       module Key = H
-      module Val = Ir_node.Make (H)(H)(P)
-      module Path = P
+      module Val = Ir_node.Make (H)(H)(C.Path)
+      module Path = C.Path
       include AO (Key)(Val)
     end
     module Commit = struct
