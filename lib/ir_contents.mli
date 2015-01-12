@@ -19,7 +19,7 @@
 module type S = sig
   include Tc.S0
   module Path: Ir_path.S
-  val merge: Path.t -> t Ir_merge.t
+  val merge: Path.t -> t option Ir_merge.t
 end
 
 module String: S with type t = string and module Path = Ir_path.String_list
@@ -29,7 +29,7 @@ module Cstruct: S with type t = Cstruct.t and module Path = Ir_path.String_list
 module type STORE = sig
   include Ir_ao.STORE
   module Path: Ir_path.S
-  val merge: Path.t -> t -> key Ir_merge.t
+  val merge: Path.t -> t -> key option Ir_merge.t
   module Key: Ir_hash.S with type t = key
   module Val: S with type t = value and module Path = Path
 end

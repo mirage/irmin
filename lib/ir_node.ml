@@ -281,6 +281,17 @@ struct
       S.Val.iter_succ t (fun s c -> r := (s, c) :: !r);
       List.rev !r
 
+    let merge_xcontents path c =
+      Ir_merge.alist (module Step) (module C.Key) (fun k ->
+          C.merge (Path.rcons path k) c
+        )
+
+    let merge_xparents path merge_key =
+      Ir_merge.alist (module Step) (module S.Key) (fun k ->
+          let merge = merge_key (Path.rcons path k) in
+          Ir_merge.option (module S.Key) merge
+        )
+
     let merge_value path (c, _) merge_key =
       Log.debug "merge_value %a" force (show (module Path) path);
       let explode t = all_contents t, all_succ t in
@@ -289,21 +300,20 @@ struct
         let ys = List.map (fun (s, n) -> s, `Node n) succ in
         S.Val.create (xs @ ys)
       in
-      let merge_pair =
+      let merge =
         Ir_merge.pair (module XContents) (module XParents)
-        (Ir_merge.alist (module Step) (module C.Key)
-           (fun k -> C.merge (Path.rcons path k) c))
-        (Ir_merge.alist (module Step) (module S.Key)
-           (fun k -> merge_key (Path.rcons path k)))
+          (merge_xcontents path c) (merge_xparents path merge_key)
       in
-      Ir_merge.biject (module S.Val) merge_pair explode implode
+      Ir_merge.biject (module S.Val) merge explode implode
 
-    let merge path t ~old x y =
+    let merge_node path t ~old x y =
       let rec merge_key path =
         let merge = merge_value path t merge_key in
         Ir_merge.biject' (module S.Key) merge (read_exn t) (add t)
       in
       merge_key path ~old x y
+
+    let merge path t = Ir_merge.option (module S.Key) (merge_node path t)
 
     module Key = S.Key
     module Val = struct
@@ -315,7 +325,7 @@ struct
   end
 
   type t = Store.t
-  let merge = Store.merge Path.empty
+  let merge = Store.merge_node Path.empty
 
   let empty (_, t) = S.add t S.Val.empty
 

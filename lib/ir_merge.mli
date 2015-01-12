@@ -51,12 +51,12 @@ module MSet (M: Map.S): sig
   val merge: counter M.t t
 end
 
-val some: 'a Tc.t -> 'a t -> 'a option t
+val option: 'a Tc.t -> 'a t -> 'a option t
 val set: (module Set.S with type t = 'a) -> 'a t
 
-val alist: 'a Tc.t -> 'b Tc.t -> ('a -> 'b t) -> ('a * 'b) list t
+val alist: 'a Tc.t -> 'b Tc.t -> ('a -> 'b option t) -> ('a * 'b) list t
 module Map (M: Map.S) (K: Tc.S0 with type t = M.key): sig
-  val merge: 'a Tc.t -> (M.key -> 'a t) -> 'a M.t t
+  val merge: 'a Tc.t -> (M.key -> 'a option t) -> 'a M.t t
 end
 
 val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t

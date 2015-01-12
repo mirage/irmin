@@ -122,9 +122,9 @@ struct
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
     let read_exn (_, t) = S.read_exn t
-    let merge_node path (n, _) = Ir_merge.some (module N.Key) (N.merge path n)
+    let merge_node path (n, _) = N.merge path n
 
-    let merge path t ~old k1 k2 =
+    let merge_commit path t ~old k1 k2 =
       read_exn t old >>= fun vold ->
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
@@ -134,6 +134,8 @@ struct
       let commit = S.Val.create ?node ~parents (task t) in
       add t commit >>= fun key ->
       ok key
+
+    let merge path t = Ir_merge.option (module S.Key) (merge_commit path t)
 
     module Key = S.Key
     module Val = struct
@@ -145,7 +147,7 @@ struct
   end
 
   type t = Store.t
-  let merge = Store.merge N.Path.empty
+  let merge = Store.merge_commit N.Path.empty
 
   let node t c =
     Log.debug "node %a" force (show (module S.Key) c);

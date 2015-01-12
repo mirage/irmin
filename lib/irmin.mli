@@ -144,7 +144,8 @@ module Merge: sig
   (** {1 Merge Combinators} *)
 
   type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
-  (** Signature of a merge function.
+  (** Signature of a merge function. [old] is the value of the
+      least-common ancestor.
 
       {v
               /----> t1 ----\
@@ -189,7 +190,7 @@ module Merge: sig
   (** The default string merge function. Do not anything clever, just
       compare the strings using the [default] merge function. *)
 
-  val some: 'a Tc.t -> 'a t -> 'a option t
+  val option: 'a Tc.t -> 'a t -> 'a option t
   (** Lift a merge function to optional values of the same type. If all
       the provided values are inhabited, then call the provided merge
       function, otherwise use the same behavior as [create]. *)
@@ -244,7 +245,7 @@ module Merge: sig
       adding and removal of similar bindings themselves, by using the
       appropriate {{!Merge.MSet}multi-sets}. *)
 
-  val alist: 'a Tc.t -> 'b Tc.t -> ('a -> 'b t) -> ('a * 'b) list t
+  val alist: 'a Tc.t -> 'b Tc.t -> ('a -> 'b option t) -> ('a * 'b) list t
   (** Lift the merge functions to association lists. *)
 
   (** Lift the merge functions to maps. *)
@@ -252,7 +253,7 @@ module Merge: sig
 
     (** {1 Merging Maps} *)
 
-    val merge: 'a Tc.t -> (M.key -> 'a t) -> 'a M.t t
+    val merge: 'a Tc.t -> (M.key -> 'a option t) -> 'a M.t t
     (** Lift to [X.t] maps. *)
 
   end
@@ -694,9 +695,13 @@ module Contents: sig
     module Path: Path.S
     (** The type for store paths. *)
 
-    val merge: Path.t -> t Merge.t
-    (** Merge function. Evaluates to [`Conflict] if the values cannot be
-        merged properly. *)
+    val merge: Path.t -> t option Merge.t
+    (** Merge function. Evaluates to [`Conflict] if the values cannot
+        be merged properly. The arguments of the merge function can
+        take [None] to mean that the key does not exists for either
+        the least-common ancestor or one of the two merging
+        points. The merge function returns [None] when the key's value
+        should be deleted. *)
 
   end
 
@@ -723,12 +728,13 @@ module Contents: sig
     module Path: Path.S
     (** The type for store paths. *)
 
-    val merge: Path.t -> t -> key Merge.t
-    (** [merge t] lifts the merge functions defined on contents
-        values to contents key. The merge function will: {e (i)} read
-        the values associated with the given keys, {e (ii)} use the
-        merge function defined on values and {e (iii)} write the
-        resulting values into the store to get the resulting key.
+    val merge: Path.t -> t -> key option Merge.t
+    (** [merge t] lifts the merge functions defined on contents values
+        to contents key. The merge function will: {e (i)} read the
+        values associated with the given keys, {e (ii)} use the merge
+        function defined on values and {e (iii)} write the resulting
+        values into the store to get the resulting key. See
+        {!Contents.S.merge}.
 
         If any of these operation fails, return [`Conflict]. *)
 
@@ -1201,7 +1207,8 @@ module Private: sig
 
       val merge: t -> node Merge.t
       (** [merge t] is the 3-way merge function for nodes. FIXME: give
-          semantics*)
+          semantics, especially when a node does not have
+          sub-contents. *)
 
       val closure: t -> min:node list -> max:node list -> node list Lwt.t
       (** [closure t ~min ~max] is the transitive closure [c] of [t]'s nodes such that:
@@ -1730,7 +1737,8 @@ let () =
 {[
   module Log: Irmin.Contents.S with type t = Entry.t list = struct
     module Path = Irmin.Path.String_list
-    include Tc.List(Entry)
+    module S = Tc.List(Entry)
+    include S
 
     (* Get the timestamp of the latest entry. *)
     let timestamp = function
@@ -1746,13 +1754,16 @@ let () =
       in
       aux [] entries
 
-    let merge _path ~old t1 t2 =
+    let merge_log _path ~old t1 t2 =
       let open Irmin.Merge.OP in
       let ts = timestamp old in
       let t1 = newer_than ts t1 in
       let t2 = newer_than ts t2 in
       let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
       ok (List.rev_append t3 old)
+
+    let merge path = Irmin.Merge.option (module S) (merge_log path)
+
   end
 ]}
 
