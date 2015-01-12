@@ -46,7 +46,7 @@ let help_sections = [
   `P "Thomas Gazagnaire   <thomas@gazagnaire.org>";
 
   `S "BUGS";
-  `P "Check bug reports at https://github.com/samoht/irminsule/issues.";
+  `P "Check bug reports at https://github.com/mirage/irmin/issues.";
 ]
 
 let global =
