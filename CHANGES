@@ -1,9 +1,10 @@
 0.9.2
+* Expose synchronisation functions for basic Irmin stores
 * The user-provided merge function now takes optional values. The
   function is now called much more often during recursive merges
   (even if one of the 3 buckets of the 3-way merge function is not
   filled -- in that case, it uses `None`).
-* Also expose the type of the keys in the basic Irmin type. Use
+* Also expose the type of the keys in the type basic Irmin stores. Use
   `('key, 'value) Irmint.t` instead of `'value Irmin.t`
 * The user-defined `merge` functions now take the current filename being
   merged as an additional argument.
