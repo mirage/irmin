@@ -66,6 +66,8 @@ module Log = struct
     let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
     ok (List.rev_append t3 old)
 
+  let merge path = Irmin.Merge.option (module Tc.List(Entry)) (merge path)
+
 end
 
 let log_file = [ "local"; "debug" ]
