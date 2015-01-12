@@ -214,3 +214,55 @@ let merge (type a) (type b):
 let merge_exn (type a) (type b):
   'a -> ('a -> (a, b) t) -> into:('a -> (a, b) t) -> unit Lwt.t =
   fun a t ~into -> merge a t ~into >>= Merge.exn
+
+let remote_basic (type a) (type b): (a, b) t -> remote =
+  function T ((module M), t) -> remote_store (module M) t
+
+let fetch (type a) (type b):
+  (a, b) t -> ?depth:int -> remote -> Hash.SHA1.t option Lwt.t =
+  fun t ?depth remote -> match t with
+    | T ((module M), t) ->
+      let module S = Sync(M) in
+      S.fetch t ?depth remote
+
+let fetch_exn (type a) (type b):
+  (a, b) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t =
+  fun t ?depth remote -> match t with
+    | T ((module M), t) ->
+      let module S = Sync(M) in
+      S.fetch_exn t ?depth remote
+
+let pull (type a) (type b):
+  (a, b) t -> ?depth:int -> remote -> [`Merge | `Update] ->
+  unit Merge.result Lwt.t =
+  fun t ?depth remote k -> match t with
+    | T ((module M), t) ->
+      let module S = Sync(M) in
+      S.pull t ?depth remote k
+
+let pull_exn (type a) (type b):
+  (a, b) t -> ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t =
+  fun t ?depth remote k -> match t with
+    | T ((module M), t) ->
+      let module S = Sync(M) in
+      S.pull_exn t ?depth remote k
+
+let push (type a) (type b):
+  (a, b) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t =
+  fun t ?depth remote -> match t with
+    | T ((module M), t) ->
+      let module S = Sync(M) in
+      S.push t ?depth remote
+
+let push_exn (type a) (type b):
+  (a, b) t -> ?depth:int -> remote -> unit Lwt.t =
+  fun t ?depth remote -> match t with
+    | T ((module M), t) ->
+      let module S = Sync(M) in
+      S.push_exn t ?depth remote
+
+type 'a proj = < f: 't . (module S with type t = 't) -> 't -> 'a >
+
+let with_store (type a) (type b): (a,b) t -> 'a proj -> 'a =
+  fun t f -> match t with
+    | T ((module M), t) -> f#f (module M) t

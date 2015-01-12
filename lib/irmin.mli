@@ -1678,6 +1678,55 @@ val merge: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t)
 val merge_exn: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t) -> unit Lwt.t
 (** See {!BC.merge_exn}. *)
 
+(** {2 Synchronisation} *)
+
+type remote
+(** The type for remote stores. *)
+
+val remote_uri: string -> remote
+(** [remote_uri s] is the remote store located at [uri]. Use the
+    optimized native synchronization protocol when available for the
+    given backend. *)
+
+val remote_basic: ('k,'v) t -> remote
+(** Same as {!remote_store} but for basic stores. *)
+
+val fetch: ('k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t option Lwt.t
+(** See {!Sync.fetch}. *)
+
+val fetch_exn: ('k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t
+(** See {!Sync.fetch_exn}. *)
+
+val pull: ('k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
+  unit Merge.result Lwt.t
+(** See {!Sync.pull}. *)
+
+val pull_exn: ('k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
+  unit Lwt.t
+(** See {!Sync.pull_exn}. *)
+
+val push: ('k,'v) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+(** See {!Sync.push}. *)
+
+val push_exn: ('k,'v) t -> ?depth:int -> remote -> unit Lwt.t
+(** See {!Sync.push_exn}. *)
+
+(** {2 Projections} *)
+
+type 'a proj = < f: 't . (module S with type t = 't) -> 't -> 'a >
+(** Project a base store to its actual implementation and state. *)
+
+val with_store: ('k,'v) t -> 'a proj  -> 'a
+(** [with_store t fn] applies [fn] on the underlying store
+    implementation of the base store [t]. For instance, it can be used
+    to build a {{!View}views} as follows:
+
+{v
+   with_store t < f (module M) t =
+   let module V = Irmin.View(M) in
+   ...
+   > *)
+
 (** {1:examples Examples}
 
     These examples are in the [examples] directory of the
@@ -1695,18 +1744,17 @@ val merge_exn: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t) -> unit Lwt.t
 open Lwt
 open Irmin_unix
 
-module S = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
-module Sync = Irmin.Sync(S)
+let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+let config = Irmin_git.config ~root:"/tmp/test" ()
 
 let upstream =
   if Array.length Sys.argv = 2 then (Irmin.remote_uri Sys.argv.(1))
   else (Printf.eprintf "Usage: sync [uri]\n%!"; exit 1)
 
 let test () =
-  let config = Irmin_git.config ~root:"/tmp/test" () in
-  S.create config task
-  >>= fun t  -> Sync.pull_exn (t "Syncing with upstream store") upstream `Update
-  >>= fun () -> S.read_exn (t "get the README") ["README.md"]
+  Irmin.create store config task
+  >>= fun t  -> Irmin.pull_exn (t "Syncing with upstream store") upstream `Update
+  >>= fun () -> Irmin.read_exn (t "get the README") ["README.md"]
   >>= fun r  -> Printf.printf "%s\n%!" r; return_unit
 
 let () =
@@ -1827,14 +1875,6 @@ let () =
 *)
 
 (** {1 Helpers} *)
-
-type remote
-(** The type for remote stores. *)
-
-val remote_uri: string -> remote
-(** [remote_uri s] is the remote store located at [uri]. Use the
-    optimized native synchronization protocol when available for the
-    given backend. *)
 
 val remote_store: (module S with type t = 'a) -> 'a -> remote
 (** [remote_store t] is the remote corresponding to the local store
