@@ -310,19 +310,50 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_merges x () =
-    let test () =
-      create x >>= fun t ->
 
+    (* simple merges *)
+    let check () =
+      let open Irmin.Merge.OP in
+      let merge_skip  ~old:_ _ _ = ok None in
+      let merge_left ~old:_ x _ = ok x in
+      let merge_right ~old:_ _ y = ok y in
+      let merge_default = Irmin.Merge.default (module Tc.Option(Tc.Int)) in
+      let merge = function
+        | "left" -> merge_left
+        | "right" -> merge_right
+        | "skip" -> merge_skip
+        | _ -> merge_default
+      in
+      let module X = Tc.List(Tc.Pair(Tc.String)(Tc.Int)) in
+      let merge_x =
+        Irmin.Merge.alist (module Tc.String) (module Tc.Int) merge
+      in
+      let old = [ "left", 1; "foo"  , 2; ] in
+      let x =   [ "left", 2; "right", 0] in
+      let y =   [ "left", 1; "bar"  , 3; "skip", 0 ] in
+      let m =   [ "left", 2; "bar"  , 3] in
+      merge_x ~old x y >>= function
+      | `Ok m' ->
+        assert_equal (module X) "compound merge" m m';
+        return_unit
+      | `Conflict c ->
+        OUnit.assert_bool (Printf.sprintf "compound merge: %s" c) false;
+        return_unit
+    in
+
+    let test () =
+      check () >>= fun () ->
+      create x >>= fun t ->
       kv1 x >>= fun kv1 ->
       kv2 x >>= fun kv2 ->
 
       (* merge contents *)
 
       let v = S.Private.contents_t (t "contents_t") in
-      Contents.merge (p []) v ~old:kv1 kv1 kv1 >>= fun kv1' ->
-      assert_equal (module RV) "merge kv1" (`Ok kv1) kv1';
-      Contents.merge (p []) v ~old:kv1 kv1 kv2 >>= fun kv2' ->
-      assert_equal (module RV) "merge kv2" (`Ok kv2) kv2';
+      Contents.merge (p []) v ~old:(Some kv1) (Some kv1) (Some kv1) >>= fun kv1' ->
+      assert_equal (module RV) "merge kv1" (`Ok (Some kv1)) kv1';
+      Contents.merge (p []) v ~old:(Some kv1) (Some kv1) (Some kv2) >>= fun kv2' ->
+      assert_equal (module RV) "merge kv2" (`Ok (Some kv2)) kv2';
 
       (* merge nodes *)
 
