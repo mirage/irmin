@@ -100,7 +100,7 @@ let path =
 
 let depth =
   let doc =
-    Arg.info ~docv:"DEPTH" ~doc:"Limit the dump depth." ["d";"depth"] in
+    Arg.info ~docv:"DEPTH" ~doc:"Limit the history depth." ["d";"depth"] in
   Arg.(value & opt (some int) None & doc)
 
 let run t =
@@ -390,7 +390,7 @@ let watch = {
 
 (* DOT *)
 let dot = {
-  name = "dump";
+  name = "dot";
   doc  = "Dump the contents of the store as a Graphviz file.";
   man  = [];
   term =
@@ -401,13 +401,13 @@ let dot = {
     let no_dot_call =
       let doc =
         Arg.info ~doc:"Do not call the `dot' utility on the generated `.dot` file."
-          ["--no-dot-call"] in
+          ["no-dot-call"] in
       Arg.(value & flag & doc) in
     let full =
       let doc =
         Arg.info ~doc:"Show the full graph of objects, including the filesystem \
                        nodes and the content blobs."
-          ["--full"] in
+          ["full"] in
       Arg.(value & flag & doc) in
     let dot (S ((module S), store)) basename depth no_dot_call full =
       let module Dot = Irmin.Dot(S) in

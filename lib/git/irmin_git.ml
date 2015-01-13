@@ -50,7 +50,7 @@ module Conf = struct
   let bare =
     Irmin.Private.Conf.key
       ~doc:"Do not expand the filesystem on the disk."
-      "root" Irmin.Private.Conf.bool false
+      "bare" Irmin.Private.Conf.bool false
 
 end
 
