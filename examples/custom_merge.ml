@@ -36,6 +36,8 @@ end
 (* A log file *)
 module Log = struct
 
+  module Path = Irmin.Path.String_list
+
   (* A log file is a list of timestamped message (one per line). *)
   include Tc.List(Entry)
 
@@ -56,13 +58,15 @@ module Log = struct
     in
     aux [] file
 
-  let merge ~old t1 t2 =
+  let merge _path ~old t1 t2 =
     let open Irmin.Merge.OP in
     let ts = timestamp old in
     let t1 = newer_than ts t1 in
     let t2 = newer_than ts t2 in
     let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
     ok (List.rev_append t3 old)
+
+  let merge path = Irmin.Merge.option (module Tc.List(Entry)) (merge path)
 
 end
 

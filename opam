@@ -41,8 +41,12 @@ depends: [
   "cohttp" {test}
   "alcotest" {test}
 ]
+depopts: [
+  "git"
+  "cohttp"
+]
 conflicts: [
-  "git"    {< "1.4.2"}
+  "git"    {< "1.4.3"}
   "cohttp" {< "0.14.0"}
 ]
 available: [ocaml-version >= "4.01.0"]

@@ -18,7 +18,7 @@ end
 
 let fmt t x = Printf.ksprintf (fun str -> t str) x
 
-module Contents = struct
+module File = struct
 
   type t =
     | String of string
@@ -46,10 +46,16 @@ module Contents = struct
   let write = Tc.write t
   let read = Tc.read t
 
+end
+
+module Contents = struct
+  include File
+  module Path = Irmin.Path.String_list
+
   let (++) = StringSet.union
   let (--) = StringSet.diff
 
-  let merge ~old t1 t2 =
+  let merge _path ~old t1 t2 =
     match old, t1, t2 with
     | Set old, Set s1, Set s2 ->
       Irmin.Merge.set (module StringSet) ~old s1 s2 >>| fun s3 ->
@@ -58,6 +64,8 @@ module Contents = struct
       Irmin.Merge.string ~old x1 x2 >>| fun x3 ->
       ok (String x3)
     | _ -> conflict "unmergeable contents"
+
+  let merge path = Irmin.Merge.option (module File) (merge path)
 
 end
 

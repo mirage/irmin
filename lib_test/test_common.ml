@@ -78,7 +78,7 @@ module Make (S: Irmin.S) = struct
   module KN = S.Private.Node.Key
   module KC = S.Head
 
-  module RV = Tc.App1(Irmin.Merge.Result)(KV)
+  module RV = Tc.App1(Irmin.Merge.Result)(Tc.Option(KV))
   module RN = Tc.App1(Irmin.Merge.Result)(KN)
   module RC = Tc.App1(Irmin.Merge.Result)(KC)
 

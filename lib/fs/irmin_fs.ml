@@ -170,14 +170,13 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 end
 
 module Make_ext (IO: IO) (Obj: Config) (Ref: Config)
-    (P: Ir_path.S)
     (C: Ir_contents.S)
     (T: Ir_tag.S)
     (H: Ir_hash.S)
 = struct
   module AO = AO_ext(IO)(Obj)
   module RW = RW_ext(IO)(Ref)
-  include Irmin.Make(AO)(RW)(P)(C)(T)(H)
+  include Irmin.Make(AO)(RW)(C)(T)(H)
 end
 
 

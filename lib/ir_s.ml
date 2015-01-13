@@ -16,17 +16,17 @@
 
 module type STORE = sig
   include Ir_bc.STORE
-  module Key: Ir_path.S with type step = step
+  module Key: Ir_path.S with type t = key
   module Val: Ir_contents.S with type t = value
   module Tag: Ir_tag.S with type t = tag
   module Head: Ir_hash.S with type t = head
   module Private: sig
     include Ir_bc.PRIVATE
       with type Contents.value = value
-       and type Node.Path.step = step
+       and module Contents.Path = Key
        and type Commit.key = head
-       and type Tag.key = tag
        and type Slice.t = slice
+       and type Tag.key = tag
     val config: t -> Ir_conf.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
@@ -39,11 +39,10 @@ module type STORE = sig
 end
 
 module type MAKER =
-  functor (P: Ir_path.S) ->
   functor (C: Ir_contents.S) ->
   functor (T: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
-    STORE with type step = P.step
+    STORE with type key = C.Path.t
            and type value = C.t
            and type tag = T.t
            and type head = H.t
@@ -69,7 +68,6 @@ end
 module Make
     (AO: Ir_ao.MAKER)
     (RW: Ir_rw.MAKER)
-    (P: Ir_path.S)
     (C: Ir_contents.S)
     (T: Ir_tag.S)
     (H: Ir_hash.S) =
@@ -82,8 +80,8 @@ struct
       end)
     module Node = struct
       module Key = H
-      module Val = Ir_node.Make (H)(H)(P)
-      module Path = P
+      module Val = Ir_node.Make (H)(H)(C.Path)
+      module Path = C.Path
       include AO (Key)(Val)
     end
     module Commit = struct
@@ -102,5 +100,4 @@ struct
   include Make_ext(X)
 end
 
-module Default (S: MAKER) (C: Ir_contents.S) =
-  S(Ir_path.String_list)(C)(Ir_tag.String)(Ir_hash.SHA1)
+module Default (S: MAKER) (C: Ir_contents.S) = S(C)(Ir_tag.String)(Ir_hash.SHA1)

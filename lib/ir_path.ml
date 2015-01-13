@@ -17,40 +17,64 @@
 module type STEP = Ir_hum.S
 
 module type S = sig
+  include Ir_hum.S
   type step
+  val empty: t
+  val create: step list -> t
+  val is_empty: t -> bool
+  val cons: step -> t -> t
+  val rcons: t -> step -> t
+  val decons: t -> (step * t) option
+  val rdecons: t -> (t * step) option
+  val map: t -> (step -> 'a) -> 'a list
   module Step: STEP with type t = step
-  include Tc.S0 with type t = Step.t list
-  val to_hum: t -> string
-  val of_hum: string -> t
 end
 
-module Make (S: STEP) = struct
-  module Step = S
-  include Tc.List(S)
-  type step = S.t
+exception Invalid of string
+
+module String_list = struct
+
+  type step = string
+
+  module Step = struct
+    include Tc.String
+    let to_hum s = s
+    let of_hum = function
+      | "" -> raise (Invalid "Empty step!")
+      | s  -> s
+  end
+
+  include Tc.List(Step)
+
+  let empty = []
+  let is_empty l = (l = [])
+  let cons s t = s :: t
+  let rcons t s = t @ [s]
+
+  let decons = function
+    | []   -> None
+    | h::t -> Some (h, t)
+
+  let rdecons l =
+    match List.rev l with
+    | []   -> None
+    | h::t -> Some (List.rev t, h)
+
+  let map l f = List.map f l
+  let create x = x
 
   let to_hum t =
-    let len = List.fold_left (fun acc s -> 1 + acc + S.size_of s) 1 t in
+    let len = List.fold_left (fun acc s -> 1 + acc + Step.size_of s) 1 t in
     let buf = Buffer.create len in
     List.iter (fun s ->
         Buffer.add_char buf '/';
-        Buffer.add_string buf (S.to_hum s)
+        Buffer.add_string buf (Step.to_hum s)
       ) t;
     Buffer.contents buf
 
   (* XXX: slow *)
   let of_hum s =
     List.filter ((<>)"") (Stringext.split s ~on:'/')
-    |> List.map S.of_hum
+    |> List.map Step.of_hum
 
 end
-
-exception Invalid of string
-
-module String_list = Make(struct
-    include Tc.String
-    let to_hum s = s
-    let of_hum = function
-      | "" -> raise (Invalid "Empty step!")
-      | s  -> s
-  end)

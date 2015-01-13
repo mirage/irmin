@@ -126,7 +126,6 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 end
 
 module Low (Client: Cohttp_lwt.Client)
-    (P: Irmin.Path.S)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S) =
@@ -208,8 +207,8 @@ struct
       end)
     module Node = struct
       module Key = H
-      module Path = P
-      module Val = Irmin.Private.Node.Make(H)(H)(P)
+      module Path = C.Path
+      module Val = Irmin.Private.Node.Make(H)(H)(C.Path)
       include AO(struct let suffix = Some "node" end)(Key)(Val)
     end
     module Commit = struct
@@ -233,9 +232,10 @@ end
 module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   module V = struct
     include V
-    let merge ~old:_ _ _ = failwith "Irmin_git.AO.merge"
+    let merge _path ~old:_ _ _ = failwith "Irmin_git.AO.merge"
+    module Path = Irmin.Path.String_list
   end
-  module M = Low (Client)(Irmin.Path.String_list)(V)(Irmin.Tag.String)(K)
+  module M = Low (Client)(V)(Irmin.Tag.String)(K)
   include M.X.Contents
 end
 
@@ -244,12 +244,11 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struc
     include K
     let master = K.of_hum "master"
   end
-  module M = Low (Client)(Irmin.Path.String_list)(Irmin.Contents.String)(K)(V)
+  module M = Low (Client)(Irmin.Contents.String)(K)(V)
   include M.X.Tag
 end
 
 module Make (Client: Cohttp_lwt.Client)
-    (P: Irmin.Path.S)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S) =
@@ -263,14 +262,15 @@ struct
 
   module P = struct
 
-    include P
+    include C.Path
 
     let to_hum t =
-      String.concat "/" (List.map (fun x -> Uri.pct_encode (Step.to_hum x)) t)
+      String.concat "/" (C.Path.map t (fun x -> Uri.pct_encode (Step.to_hum x)))
 
     let of_hum t =
       List.filter ((<>)"") (Stringext.split t ~on:'/')
       |> List.map (fun x -> Step.of_hum (Uri.pct_decode x))
+      |> C.Path.create
 
   end
 
@@ -289,7 +289,7 @@ struct
   (* The high-level bindings: every high-level operation is simply
      forwarded to the HTTP server. *much* more efficient than using
      [L]. *)
-  module L = Low(Client)(P)(C)(T)(H)
+  module L = Low(Client)(C)(T)(H)
   module LP = L.Private
   module S = L.RW(struct let suffix = None end)(P)(C)
 
@@ -537,7 +537,6 @@ struct
   let list t dir =
     get (uri t) ["list"; P.to_hum dir] (module Tc.List(P))
 
-  type step = P.step
   module Key = P
   module Val = C
   module Tag = T

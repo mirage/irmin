@@ -60,6 +60,7 @@ module type GRAPH = sig
   type contents
   type node
   type step
+  type path
 
   val empty: t -> node Lwt.t
   val create: t -> (step * [`Contents of contents | `Node of node]) list -> node Lwt.t
@@ -71,26 +72,32 @@ module type GRAPH = sig
   val iter_contents: t -> node -> (step -> contents -> unit) -> unit Lwt.t
   val iter_succ: t -> node -> (step -> node -> unit) -> unit Lwt.t
 
-  val mem_contents: t -> node -> step list -> bool Lwt.t
-  val read_contents: t -> node -> step list -> contents option Lwt.t
-  val read_contents_exn: t -> node -> step list -> contents Lwt.t
-  val add_contents: t -> node -> step list -> contents -> node Lwt.t
-  val remove_contents: t -> node -> step list -> node Lwt.t
+  val mem_contents: t -> node -> path -> bool Lwt.t
+  val read_contents: t -> node -> path -> contents option Lwt.t
+  val read_contents_exn: t -> node -> path -> contents Lwt.t
+  val add_contents: t -> node -> path -> contents -> node Lwt.t
+  val remove_contents: t -> node -> path -> node Lwt.t
 
-  val mem_node: t -> node -> step list -> bool Lwt.t
-  val read_node: t -> node -> step list -> node option Lwt.t
-  val read_node_exn: t -> node -> step list -> node Lwt.t
-  val add_node: t -> node -> step list -> node -> node Lwt.t
-  val remove_node: t -> node -> step list -> node Lwt.t
+  val mem_node: t -> node -> path -> bool Lwt.t
+  val read_node: t -> node -> path -> node option Lwt.t
+  val read_node_exn: t -> node -> path -> node Lwt.t
+  val add_node: t -> node -> path -> node -> node Lwt.t
+  val remove_node: t -> node -> path -> node Lwt.t
 
   val merge: t -> node Ir_merge.t
   val closure: t -> min:node list -> max:node list -> node list Lwt.t
 
-  module Store: Ir_contents.STORE with type t = t and type key = node
+  module Store: Ir_contents.STORE
+    with type t = t
+     and type key = node
+     and type Path.t = path
+     and type Path.step = step
 end
 
-module Graph (C: Ir_contents.STORE) (S: STORE with type Val.contents = C.key)
+module Graph (C: Ir_contents.STORE)
+    (S: STORE with type Val.contents = C.key and module Path = C.Path)
   : GRAPH with type t = C.t * S.t
            and type contents = C.key
            and type node = S.key
-           and type step = S.Val.step
+           and type step = S.Path.step
+           and type path = S.Path.t

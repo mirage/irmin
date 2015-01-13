@@ -15,9 +15,7 @@ let path =
   else
     "git://github.com/mirage/ocaml-git.git"
 
-module S = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
-
-module Sync = Irmin.Sync(S)
+let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
 
 let upstream =
   (* Note: https:// and http:// are not yet supported *)
@@ -25,9 +23,9 @@ let upstream =
 
 let test () =
   let config = Irmin_git.config ~root:"/tmp/test" () in
-  S.create config task >>= fun t ->
-  Sync.pull_exn (t "Syncing with upstream store") upstream `Update >>= fun () ->
-  S.read_exn (t "get the README") ["README.md"]>>= fun readme ->
+  Irmin.create store config task >>= fun t ->
+  Irmin.pull_exn (t "Syncing with upstream store") upstream `Update >>= fun () ->
+  Irmin.read_exn (t "get the README") ["README.md"]>>= fun readme ->
   Printf.printf "%s\n%!" readme;
   return_unit
 

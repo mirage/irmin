@@ -18,18 +18,20 @@
 
 module type S = sig
   include Tc.S0
-  val merge: t Ir_merge.t
+  module Path: Ir_path.S
+  val merge: Path.t -> t option Ir_merge.t
 end
 
-module String: S with type t = string
-module Json: S with type t = Ezjsonm.t
-module Cstruct: S with type t = Cstruct.t
+module String: S with type t = string and module Path = Ir_path.String_list
+module Json: S with type t = Ezjsonm.t and module Path = Ir_path.String_list
+module Cstruct: S with type t = Cstruct.t and module Path = Ir_path.String_list
 
 module type STORE = sig
   include Ir_ao.STORE
-  val merge: t -> key Ir_merge.t
+  module Path: Ir_path.S
+  val merge: Path.t -> t -> key option Ir_merge.t
   module Key: Ir_hash.S with type t = key
-  module Val: S with type t = value
+  module Val: S with type t = value and module Path = Path
 end
 
 module Make
@@ -38,4 +40,7 @@ module Make
        module Key: Ir_hash.S with type t = key
        module Val: S with type t = value
      end):
-  STORE with type t = S.t and type key = S.key and type value = S.value
+  STORE with type t = S.t
+         and type key = S.key
+         and type value = S.value
+         and module Path =  S.Val.Path
