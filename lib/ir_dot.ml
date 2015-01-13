@@ -49,8 +49,8 @@ module Make (S: Ir_s.STORE) = struct
     let edges = ref [] in
     let add_edge v1 l v2 =
       edges := (v1, l, v2) :: !edges in
-    let string_of_key m k =
-      let s = Tc.show m k in
+    let string_of_key (type t) (module M: Ir_hum.S with type t = t) (k:t) =
+      let s = M.to_hum k in
       if String.length s <= 8 then s else String.sub s 0 8 in
     let string_of_contents s =
       let s =
@@ -113,10 +113,9 @@ module Make (S: Ir_s.STORE) = struct
     let label_of_tag t =
       let s =
         if html then
-          sprintf "<div class='tag'>%s</div>"
-            (Tc.show (module Tag.Key) t)
+          sprintf "<div class='tag'>%s</div>" (Tag.Key.to_hum t)
         else
-          Tc.show (module Tag.Key) t
+          Tag.Key.to_hum t
       in
       `Label s in
     Slice.iter_contents slice (fun (k, b) ->

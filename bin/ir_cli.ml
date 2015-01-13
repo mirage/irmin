@@ -419,8 +419,9 @@ let dot = {
         store >>= fun t ->
         let call_dot = not no_dot_call in
         let buf = Buffer.create 1024 in
-        Dot.output_buffer (t "output dot file") ?depth ~full ~date buf >>= fun () ->
-        let oc = open_out_bin basename in
+        Dot.output_buffer ~html:false (t "output dot file") ?depth ~full ~date
+          buf >>= fun () ->
+        let oc = open_out_bin (basename ^ ".dot") in
         Lwt.finalize
           (fun () -> output_string oc (Buffer.contents buf); return_unit)
           (fun () -> close_out oc; return_unit)
