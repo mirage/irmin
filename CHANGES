@@ -1,4 +1,5 @@
 0.9.2
+* The [head] argument of [Git_unix.config] now has a proper type.
 * Expose synchronisation functions for basic Irmin stores
 * The user-provided merge function now takes optional values. The
   function is now called much more often during recursive merges
