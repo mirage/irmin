@@ -18,7 +18,7 @@ open Lwt
 open Ir_merge.OP
 open Ir_misc.OP
 
-module Log = Log.Make(struct let section = "BRANCH" end)
+module Log = Log.Make(struct let section = "BC" end)
 
 module StringMap = Map.Make(String)
 
@@ -249,7 +249,7 @@ module Make_ext (P: PRIVATE) = struct
     | None   -> return false
     | Some n -> Graph.mem_node (graph_t t) n path
 
-  let apply t ~f =
+  let with_commit t ~f =
     read_head_commit t >>= fun commit ->
     begin match commit with
       | None   -> Graph.empty (graph_t t)
@@ -259,18 +259,14 @@ module Make_ext (P: PRIVATE) = struct
         | Some n -> return n
     end >>= fun old_node ->
     f old_node >>= fun node ->
-    if P.Node.Key.equal node old_node then return_unit
-    else (
-      let parents = parents_of_commit commit in
-      History.create (history_t t) ~node ~parents >>= fun key ->
-      (* XXX: the head might have changed since we started the operation *)
-      match branch t with
-      | `Head _  -> t.branch := `Head key; return_unit
-      | `Tag tag -> Tag.update (tag_t t) tag key
-    )
+    let parents = parents_of_commit commit in
+    History.create (history_t t) ~node ~parents >>= fun key ->
+    match branch t with
+    | `Head _  -> t.branch := `Head key; return_unit
+    | `Tag tag -> Tag.update (tag_t t) tag key
 
- let update_node t path node =
-    apply t ~f:(fun head ->
+  let update_node t path node =
+    with_commit t ~f:(fun head ->
         Graph.add_node (graph_t t) head path node
       )
 
@@ -290,17 +286,17 @@ module Make_ext (P: PRIVATE) = struct
   let update t path contents =
     Log.debug "update %a" force (show (module Key) path);
     P.Contents.add (contents_t t) contents >>= fun contents ->
-    apply t ~f:(fun node ->
+    with_commit t ~f:(fun node ->
         Graph.add_contents (graph_t t) node path contents
       )
 
   let remove t path =
-    apply t ~f:(fun node ->
+    with_commit t ~f:(fun node ->
         Graph.remove_contents (graph_t t) node path
       )
 
   let remove_rec t path =
-    apply t ~f:(fun node ->
+    with_commit t ~f:(fun node ->
         Graph.remove_node (graph_t t) node path
       )
 
