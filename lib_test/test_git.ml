@@ -35,5 +35,7 @@ let suite k =
     init   = init_disk;
     clean  = none;
     store  = git_store k;
-    config = Irmin_git.config ~root:test_db ~head:"test" ~bare:true ()
+    config =
+      let head = Git.Reference.of_raw "refs/heads/test" in
+      Irmin_git.config ~root:test_db ~head ~bare:true ()
   }

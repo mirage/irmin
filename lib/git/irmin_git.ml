@@ -37,10 +37,15 @@ module Conf = struct
 
   let root = Irmin.Private.Conf.root
 
+  let reference =
+  let parse str = `Ok (Git.Reference.of_raw str) in
+  let print ppf name = Format.pp_print_string ppf (Git.Reference.to_raw name) in
+  parse, print
+
   let head =
     Irmin.Private.Conf.key
       ~doc:"The main branch of the Git repository."
-      "head" Irmin.Private.Conf.(some string) None
+      "head" Irmin.Private.Conf.(some reference) None
 
   let bare =
     Irmin.Private.Conf.key
@@ -448,7 +453,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         return head
       in
       begin match head with
-        | Some h -> write_head (git_of_tag_string h)
+        | Some h -> write_head h
         | None   ->
           G.read_head t >>= function
           | Some h -> return h

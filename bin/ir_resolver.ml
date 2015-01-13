@@ -158,7 +158,7 @@ let read_config_file (): t option =
         | None   -> Irmin.Private.Conf.default Irmin_git.bare
         | Some b -> b
       in
-      let head = assoc "head" (fun x -> x) in
+      let head = assoc "head" (fun x -> Git.Reference.of_raw x) in
       let uri = assoc "uri" Uri.of_string in
       let add k v config = Irmin.Private.Conf.add config k v in
       Irmin.Private.Conf.empty
