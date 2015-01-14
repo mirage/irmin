@@ -664,7 +664,7 @@ module Make (S: Ir_s.STORE) = struct
     Log.debug "merge_path %a" force (show (module Path) path);
     let db = db_ a and view = view_ a in
     P.read_node db Path.empty >>= function
-    | None           -> fail Not_found
+    | None           -> update_path a db_ path view_ >>= ok
     | Some head_node ->
       (* First, we check than we can rebase the view on the current
          HEAD. *)
