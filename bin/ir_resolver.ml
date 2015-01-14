@@ -181,24 +181,26 @@ let store =
     Arg.(value & opt (some string) None & doc)
   in
   let create store config branch =
-    let conf = match store with
-      | Some s ->
+    match store with
+    | Some s ->
+      let module S = (val s: Irmin.S) in
+      (* first look at the command-line options *)
+      let t = match branch with
+        | None   -> S.create config task
+        | Some t -> S.of_tag config task (S.Tag.of_hum t)
+      in
+      S ((module S), t)
+    | None ->
+      (* then look at the config file options *)
+      match read_config_file () with
+      | Some c -> c
+      | None   ->
+        let s = mk_store `Git (mk_contents `String) in
         let module S = (val s: Irmin.S) in
-        (* first look at the command-line options *)
-        let t = match branch with
-          | None   -> S.create config task
-          | Some t -> S.of_tag config task (S.Tag.of_hum t)
-        in
-        Some (S ((module S), t))
-      | None ->
-        (* then look at the config file options *)
-        read_config_file ()
-    in
-    match conf with
-    | None   -> `Error (false, "Missing store configuration.")
-    | Some c -> `Ok c
+        let t = S.create config task in
+        S ((module S), t)
   in
-  Term.(ret (pure create $ store_term $ config_term $ branch))
+  Term.(pure create $ store_term $ config_term $ branch)
 
 (* FIXME: read the remote configuration in a file *)
 let (/) = Filename.concat
