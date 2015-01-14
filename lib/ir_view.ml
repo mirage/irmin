@@ -307,7 +307,6 @@ module Internal (Node: NODE) = struct
 
   let rebase a t1 ~into =
     let t1 = t1 a and into = into a in
-    Log.debug "XXX rebase %d %d" (List.length !(t1.ops)) (List.length !(into.ops));
     Ir_merge.iter (apply into) (actions t1) >>| fun () ->
     into.parents := Ir_misc.list_dedup (!(t1.parents) @ !(into.parents));
     ok ()
@@ -641,8 +640,8 @@ module Make (S: Ir_s.STORE) = struct
       | Some h -> return [h]
     end >>= fun parents ->
     P.read_node db path >>= function
-    | None   -> Log.debug "XXX 1"; create_with_parents task parents
-    | Some n -> Log.debug "XXX 2"; import task db ~parents n
+    | None   -> create_with_parents task parents
+    | Some n -> import task db ~parents n
 
   let update_path a db path view =
     Log.debug "update_path %a" force (show (module Path) path);
@@ -665,8 +664,8 @@ module Make (S: Ir_s.STORE) = struct
     Log.debug "merge_path %a" force (show (module Path) path);
     let db = db_ a and view = view_ a in
     P.read_node db Path.empty >>= function
-    | None           -> Log.debug "XXX 3"; fail Not_found
-    | Some head_node -> Log.debug "XXX 4";
+    | None           -> fail Not_found
+    | Some head_node ->
       (* First, we check than we can rebase the view on the current
          HEAD. *)
       of_path (fun () -> S.task db) db path >>= fun head_view ->
