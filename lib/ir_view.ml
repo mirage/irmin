@@ -140,8 +140,8 @@ module Internal (Node: NODE) = struct
   type t = {
     task: Ir_task.t;
     view: Node.t;
-    mutable ops: action list;
-    mutable parents: Node.commit list;
+    ops: action list ref;
+    parents: Node.commit list ref;
   }
 
   module CO = Tc.Option(Node.Contents)
@@ -150,8 +150,8 @@ module Internal (Node: NODE) = struct
   let create task =
     Log.debug "create";
     let view = Node.empty () in
-    let ops = [] in
-    let parents = [] in
+    let ops = ref [] in
+    let parents = ref [] in
     return (fun a -> { task = task a; parents; view; ops })
 
   let task t = t.task
@@ -184,7 +184,7 @@ module Internal (Node: NODE) = struct
 
   let read t k =
     read_contents t k >>= fun v ->
-    t.ops <- `Read (k, v) :: t.ops;
+    t.ops := `Read (k, v) :: !(t.ops);
     return v
 
   let read_exn t k =
@@ -212,7 +212,7 @@ module Internal (Node: NODE) = struct
   let list t path =
     Log.debug "list %a" force (show (module Path) path);
     list_aux t path >>= fun result ->
-    t.ops <- `List (path, result) :: t.ops;
+    t.ops := `List (path, result) :: !(t.ops);
     return result
 
   let iter t fn =
@@ -248,7 +248,7 @@ module Internal (Node: NODE) = struct
     aux t.view path
 
   let update_contents t k v =
-    t.ops <- `Write (k, v) :: t.ops;
+    t.ops := `Write (k, v) :: !(t.ops);
     update_contents_aux t k v
 
   let update t k v =
@@ -275,7 +275,7 @@ module Internal (Node: NODE) = struct
               | None       -> return_unit
               | Some child -> aux child p
       in
-      t.ops <- `Rmdir k :: t.ops;
+      t.ops := `Rmdir k :: !(t.ops);
       aux t.view k
 
   let watch _ =
@@ -303,12 +303,13 @@ module Internal (Node: NODE) = struct
         let many = Ir_misc.list_pretty one in
         conflict "list %s: got %s, expecting %s" (one l) (many r') (many r)
 
-  let actions t = List.rev t.ops
+  let actions t = List.rev !(t.ops)
 
   let rebase a t1 ~into =
     let t1 = t1 a and into = into a in
-    Ir_merge.iter (apply into) (List.rev t1.ops) >>| fun () ->
-    into.parents <- Ir_misc.list_dedup (t1.parents @ into.parents);
+    Log.debug "XXX rebase %d %d" (List.length !(t1.ops)) (List.length !(into.ops));
+    Ir_merge.iter (apply into) (actions t1) >>| fun () ->
+    into.parents := Ir_misc.list_dedup (!(t1.parents) @ !(into.parents));
     ok ()
 
   let rebase_exn a t1 ~into = rebase a t1 ~into >>= Ir_merge.exn
@@ -565,14 +566,22 @@ module Make (S: Ir_s.STORE) = struct
 
   type db = S.t
 
+  let create_with_parents task parents =
+    Log.debug "create_with_parents";
+    let view = Node.empty () in
+    let ops = ref [] in
+    let parents = ref parents in
+    return (fun a -> { task = task a; parents; view; ops })
+
   let import task db ~parents key =
     Log.debug "import %a" force (show (module P.Node.Key) key);
-    P.Node.read (P.node_t db) key >>= function
-    | None   -> fail Not_found
-    | Some n ->
-      let view = Node.both db key (Node.import db n) in
-      let ops = [] in
-      return (fun a -> { task = task a; parents; view; ops })
+    begin P.Node.read (P.node_t db) key >>= function
+    | None   -> return (Node.empty ())
+    | Some n -> return (Node.both db key (Node.import db n))
+    end >>= fun view ->
+    let ops = ref [] in
+    let parents = ref parents in
+    return (fun a -> { task = task a; parents; view; ops })
 
   let export db t =
     Log.debug "export";
@@ -626,42 +635,38 @@ module Make (S: Ir_s.STORE) = struct
     return (Node.export t.view)
 
   let of_path task db path =
-    Log.debug "read_view %a" force (show (module Path) path);
+    Log.debug "of_path %a" force (show (module Path) path);
+    begin S.head db >>= function
+      | None   -> return_nil
+      | Some h -> return [h]
+    end >>= fun parents ->
     P.read_node db path >>= function
-    | None   -> create task
-    | Some n ->
-      begin S.head db >>= function
-        | None   -> return_nil
-        | Some h -> return [h]
-      end >>= fun parents ->
-      import task db ~parents n
+    | None   -> Log.debug "XXX 1"; create_with_parents task parents
+    | Some n -> Log.debug "XXX 2"; import task db ~parents n
 
   let update_path a db path view =
-    Log.debug "update_view %a" force (show (module Path) path);
+    Log.debug "update_path %a" force (show (module Path) path);
     let db = db a and view = view a in
     export db view >>= fun node ->
     P.update_node db path node
 
   let rebase_path a db path view =
-    Log.debug "merge_view %a" force (show (module Path) path);
+    Log.debug "rebase_path %a" force (show (module Path) path);
     let db = db a and view = view a in
-    P.mem_node db Path.empty >>= function
-    | false -> fail Not_found
-    | true  ->
-      of_path (fun () -> S.task db) db path >>= fun head_view ->
-      rebase () (fun () -> view) ~into:head_view >>| fun () ->
-      update_path () (fun () -> db) path head_view >>= fun () ->
-      ok ()
+    of_path (fun () -> S.task db) db path >>= fun head_view ->
+    rebase () (fun () -> view) ~into:head_view >>| fun () ->
+    update_path () (fun () -> db) path head_view >>= fun () ->
+    ok ()
 
   let rebase_path_exn a db path view =
     rebase_path a db path view >>= Ir_merge.exn
 
-  let merge_path a db path view =
-    Log.debug "merge_view %a" force (show (module Path) path);
-    let db = db a and view = view a in
+  let merge_path a db_ path view_ =
+    Log.debug "merge_path %a" force (show (module Path) path);
+    let db = db_ a and view = view_ a in
     P.read_node db Path.empty >>= function
-    | None           -> fail Not_found
-    | Some head_node ->
+    | None           -> Log.debug "XXX 3"; fail Not_found
+    | Some head_node -> Log.debug "XXX 4";
       (* First, we check than we can rebase the view on the current
          HEAD. *)
       of_path (fun () -> S.task db) db path >>= fun head_view ->
@@ -672,19 +677,14 @@ module Make (S: Ir_s.STORE) = struct
       export db view >>= fun view_node ->
       (* Create a commit with the contents of the view *)
       Graph.add_node (graph_t db) head_node path view_node >>= fun new_node ->
-      let parents = view.parents in
-      History.create (history_t db) ~node:new_node ~parents >>= fun k ->
-      (* We want to avoid to create a merge commit when the HEAD has
-         not been updated since the view has been created. *)
-      S.head db >>= function
-      | None ->
-        (* The store is empty, create a fresh commit. *)
-        S.update_head db k >>= ok
-      | Some head ->
-        if List.mem head view.parents then
-          S.update_head db k >>= ok
-        else
-          S.merge_head db k
+      match !(view.parents) with
+      | [] ->
+        Log.debug "No parents!";
+        rebase_path a db_ path view_
+      | parents ->
+        Log.debug "Parents: %a" force (shows (module S.Head) parents);
+        History.create (history_t db) ~node:new_node ~parents >>= fun k ->
+        S.merge_head db k
 
   let merge_path_exn a db path t = merge_path a db path t >>= Ir_merge.exn
 
