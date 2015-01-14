@@ -512,8 +512,13 @@ struct
     Log.debug "update_node %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    let path, file = mk_path path in
-    map t node path (fun node -> S.Val.with_succ node file n)
+    if Path.is_empty path then
+      match n with
+      | None   -> empty t
+      | Some n -> return n
+    else
+      let path, file = mk_path path in
+      map t node path (fun node -> S.Val.with_succ node file n)
 
   let add_node t node path n = update_node t node path (Some n)
   let remove_node t node path =

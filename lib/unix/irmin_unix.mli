@@ -95,7 +95,8 @@ module Irmin_git: sig
 
   (** {1 Git Store} *)
 
-  val config: ?root:string -> ?head:string -> ?bare:bool -> unit -> Irmin.config
+  val config:
+    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
   (** Create a configuration value.
 
       {ul
@@ -109,7 +110,7 @@ module Irmin_git: sig
       each update. This might cause some performance issues.}
       } *)
 
-  val head: string option Irmin.Private.Conf.key
+  val head: Git.Reference.t option Irmin.Private.Conf.key
   (** The configuration key to set the local Git repository's current
       branch. See {!Irmin_git.config}. *)
 

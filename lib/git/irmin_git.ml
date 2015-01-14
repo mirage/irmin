@@ -37,15 +37,20 @@ module Conf = struct
 
   let root = Irmin.Private.Conf.root
 
+  let reference =
+  let parse str = `Ok (Git.Reference.of_raw str) in
+  let print ppf name = Format.pp_print_string ppf (Git.Reference.to_raw name) in
+  parse, print
+
   let head =
     Irmin.Private.Conf.key
       ~doc:"The main branch of the Git repository."
-      "head" Irmin.Private.Conf.(some string) None
+      "head" Irmin.Private.Conf.(some reference) None
 
   let bare =
     Irmin.Private.Conf.key
       ~doc:"Do not expand the filesystem on the disk."
-      "root" Irmin.Private.Conf.bool false
+      "bare" Irmin.Private.Conf.bool false
 
 end
 
@@ -444,15 +449,27 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let git_root = G.root t / ".git" in
       let write_head head =
         let head = Git.Reference.Ref head in
-        G.write_head t head >>= fun () ->
+        let bare = Irmin.Private.Conf.get config Conf.bare in
+        begin
+          if G.kind = `Disk && not bare then G.write_head t head
+          else return_unit
+        end >>= fun () ->
         return head
       in
-      begin match head with
-        | Some h -> write_head (git_of_tag_string h)
-        | None   ->
-          G.read_head t >>= function
-          | Some h -> return h
-          | None   -> write_head (git_of_tag T.master)
+      begin
+        G.read_head t >>= function
+        | Some (Git.Reference.Ref current_head) ->
+          begin match head with
+            | None   -> write_head (git_of_tag T.master)
+            | Some h ->
+              if h = current_head then return (Git.Reference.Ref h)
+              else write_head h
+          end
+        | _ ->
+          begin match head with
+            | None   -> write_head (git_of_tag T.master)
+            | Some h -> write_head h
+          end
       end >>= fun git_head ->
       let w = W.create () in
       return (fun a -> { task = task a; git_head; config; t; w; git_root })
@@ -471,19 +488,27 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
     let git_of_head k =
       Git.SHA.to_commit (GK.of_raw (H.to_raw k))
 
+    let write_index t gr gk =
+      Log.debug "write_index";
+      if G.kind = `Disk then (
+        let bare = Irmin.Private.Conf.get t.config Conf.bare in
+        let git_head = Git.Reference.Ref gr in
+        Log.debug "write_index/if bare=%b head=%s" bare (Git.Reference.pretty gr);
+        if not bare && git_head = t.git_head then (
+          Log.debug "write cache (%s)" (Git.Reference.pretty gr);
+          G.write_index t.t gk
+        ) else
+          return_unit
+      ) else
+        return_unit
+
     let update t r k =
+      Log.debug "update %s" (Tc.show (module T) r);
       let gr = git_of_tag r in
       let gk = git_of_head k in
       G.write_reference t.t gr gk >>= fun () ->
       W.notify t.w r (Some k);
-      if G.kind = `Disk
-      && not (Irmin.Private.Conf.get t.config Conf.bare)
-      && t.git_head = Git.Reference.Ref (git_of_tag r)
-      then (
-        Log.debug "write cache (%s)" (T.to_hum r);
-        G.write_index t.t gk
-      ) else
-        return_unit
+      write_index t gr gk
 
     let remove t r =
       G.remove_reference t.t (git_of_tag r) >>= fun () ->

@@ -82,10 +82,14 @@ module Helper (Client: Cohttp_lwt.Client) = struct
         M.of_json j
       ) stream
 
+  let headers = Cohttp.Header.of_list [
+      "Connection", "Keep-Alive"
+    ]
+
   let map_get t path fn =
     let uri = uri_append t path in
     Log.debug "get %s" (Uri.path uri);
-    Client.get uri >>= fun r ->
+    Client.get ~headers uri >>= fun r ->
     fn r
 
   let get t path fn =
@@ -120,7 +124,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     in
     Log.debug "post %s %s" (Uri.path uri) short_body;
     let body = Cohttp_lwt_body.of_string body in
-    Client.post ~body uri >>=
+    Client.post ~body ~headers uri >>=
     map_string_response fn
 
 end

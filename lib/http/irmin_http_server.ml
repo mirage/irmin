@@ -284,7 +284,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let depth = param "depth" int_of_string in
       let full = param "full" ((<>) "0") in
       let buffer = Buffer.create 1024 in
-      Dot.output_buffer dump ?depth ?full ~date:D.pretty buffer
+      Dot.output_buffer dump ~html:true ?depth ?full ~date:D.pretty buffer
       >>= fun () ->
       let str = Buffer.contents buffer in
       (* Fix the OCamlGraph output (XXX: open an issue upstream) *)

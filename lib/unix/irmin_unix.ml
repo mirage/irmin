@@ -19,8 +19,6 @@ module IB = Irmin.Private
 
 module Log = Log.Make(struct let section = "UNIX" end)
 
-let (/) = Filename.concat
-
 module IO = Git_unix.FS.IO
 
 module Irmin_fs = struct
@@ -91,7 +89,7 @@ let install_dir_polling_listener delay =
 
       let read_files () =
         IO.rec_files dir >>= fun new_files ->
-        let new_files = List.map (fun f -> let f = dir / f in f, Digest.file f) new_files in
+        let new_files = List.map (fun f -> f, Digest.file f) new_files in
         return (S.of_list new_files)
       in
 

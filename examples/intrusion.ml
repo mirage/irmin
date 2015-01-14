@@ -18,16 +18,14 @@ let () =
 module Store = Irmin.Basic(Irmin_git.FS)(Irmin.Contents.String)
 module View = Irmin.View(Store)
 
-let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
+let config =
+  let head = Git.Reference.of_raw "refs/heads/upstream" in
+  Irmin_git.config ~root:"/tmp/irmin/test" ~head ~bare:false ()
 
 let task ~user msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let owner = user in
   Irmin.Task.create ~date ~owner msg
-
-let fin () =
-  let _ = Sys.command "cd /tmp/irmin/test && git reset HEAD --hard" in
-  return_unit
 
 (* 1. Cloning the gold image. *)
 let provision () =
@@ -47,7 +45,6 @@ let provision () =
     "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
   >>= fun () ->
   View.merge_path_exn "Cloning Ubuntu 14.04 Gold Image." t [] view
-  >>= fin
 
   (* 2. VM configuration. *)
 let configure () =
@@ -72,7 +69,6 @@ let configure () =
   >>= fun () ->
 
   View.merge_path_exn "Network configuration." t [] view
-  >>= fin
 
 let attack () =
 
@@ -93,7 +89,6 @@ let attack () =
   Store.update (t "$ gcc -c /tmp/sh.c -o /bin/sh")
     ["bin";"sh"]
     "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
-  >>= fin
 
 let () =
   let error () =

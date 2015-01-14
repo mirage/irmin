@@ -100,7 +100,7 @@ let path =
 
 let depth =
   let doc =
-    Arg.info ~docv:"DEPTH" ~doc:"Limit the dump depth." ["d";"depth"] in
+    Arg.info ~docv:"DEPTH" ~doc:"Limit the history depth." ["d";"depth"] in
   Arg.(value & opt (some int) None & doc)
 
 let run t =
@@ -137,7 +137,7 @@ let init = {
         if daemon then
           let uri = Uri.of_string uri in
           Log.info "daemon: %s" (Uri.to_string uri);
-          HTTP.listen (t "Initialising the HTTP server.") uri
+          HTTP.listen ~timeout:3600 (t "Initialising the HTTP server.") uri
         else return_unit
       end
     in
@@ -390,7 +390,7 @@ let watch = {
 
 (* DOT *)
 let dot = {
-  name = "dump";
+  name = "dot";
   doc  = "Dump the contents of the store as a Graphviz file.";
   man  = [];
   term =
@@ -401,13 +401,13 @@ let dot = {
     let no_dot_call =
       let doc =
         Arg.info ~doc:"Do not call the `dot' utility on the generated `.dot` file."
-          ["--no-dot-call"] in
+          ["no-dot-call"] in
       Arg.(value & flag & doc) in
     let full =
       let doc =
         Arg.info ~doc:"Show the full graph of objects, including the filesystem \
                        nodes and the content blobs."
-          ["--full"] in
+          ["full"] in
       Arg.(value & flag & doc) in
     let dot (S ((module S), store)) basename depth no_dot_call full =
       let module Dot = Irmin.Dot(S) in
@@ -419,8 +419,9 @@ let dot = {
         store >>= fun t ->
         let call_dot = not no_dot_call in
         let buf = Buffer.create 1024 in
-        Dot.output_buffer (t "output dot file") ?depth ~full ~date buf >>= fun () ->
-        let oc = open_out_bin basename in
+        Dot.output_buffer ~html:false (t "output dot file") ?depth ~full ~date
+          buf >>= fun () ->
+        let oc = open_out_bin (basename ^ ".dot") in
         Lwt.finalize
           (fun () -> output_string oc (Buffer.contents buf); return_unit)
           (fun () -> close_out oc; return_unit)
