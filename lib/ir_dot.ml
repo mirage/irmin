@@ -88,6 +88,7 @@ module Make (S: Ir_s.STORE) = struct
             \  <div class='author'>%s</div>\n\
             \  <div class='date'>%s</div>\n\
             \  <div class='message'>%s</div>\n\
+            \  <div>&nbsp</div>\n\
              </div>"
         else
           sprintf "%s %s %s %s")
@@ -103,9 +104,8 @@ module Make (S: Ir_s.STORE) = struct
         if html then
           sprintf "<div class='contents'>\n\
                   \  <div class='sha1'>%s</div>\n\
-                  \  <div class='blob'><pre>%s</pre></div>\n\
-                   </div>"
-            k (Tc.show (module S.Val) v)
+                  \  <div>&nbsp</div>\n\
+                   </div>" k
         else
            let v = string_of_contents (Tc.show (module S.Val) v) in
            sprintf "%s (%s)" k (String.escaped v) in
