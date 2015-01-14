@@ -137,7 +137,7 @@ let init = {
         if daemon then
           let uri = Uri.of_string uri in
           Log.info "daemon: %s" (Uri.to_string uri);
-          HTTP.listen (t "Initialising the HTTP server.") uri
+          HTTP.listen ~timeout:3600 (t "Initialising the HTTP server.") uri
         else return_unit
       end
     in
