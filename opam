@@ -24,7 +24,7 @@ remove: [
 depends: [
   "ezjsonm" {>= "0.4.0"}
   "ocamlgraph"
-  "lwt" {>= "2.4.5"}
+  "lwt" {>= "2.4.7"}
   "nocrypto" {>= "0.2.2"}
   "dolog" {>= "0.4"}
   "cstruct" {>= "1.0.1"}
