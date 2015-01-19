@@ -449,9 +449,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       let git_root = G.root t / ".git" in
       let write_head head =
         let head = Git.Reference.Ref head in
-        let bare = Irmin.Private.Conf.get config Conf.bare in
         begin
-          if G.kind = `Disk && not bare then G.write_head t head
+          if G.kind = `Disk then G.write_head t head
           else return_unit
         end >>= fun () ->
         return head

@@ -31,7 +31,6 @@ depends: [
   "mirage-tc" {>= "0.3.0"}
   "mstruct"
   "uri" {>= "1.3.12"}
-  "bin_prot"
   "stringext"
   "hex"
   "re"
@@ -46,7 +45,7 @@ depopts: [
   "cohttp"
 ]
 conflicts: [
-  "git"    {< "1.4.3"}
+  "git"    {< "1.4.4"}
   "cohttp" {< "0.14.0"}
 ]
 available: [ocaml-version >= "4.01.0"]

@@ -1,4 +1,5 @@
 0.9.2
+* Fix `S.of_head` for the HTTP client (regression introduced in 0.9.0)
 * Fix regression in displaying the store's graph over HTTP introduced by
   0.9.0.
 * Fix regression in watch handling introduced in 0.9.0.

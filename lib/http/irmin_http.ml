@@ -333,13 +333,10 @@ struct
   type head = L.head
   type tag = L.tag
 
-  let create config task =
-    S.create config task >>= fun h ->
-    L.create config task >>= fun l ->
+  let create_aux branch config h l =
     let fn a =
       let h = h a in
       let l = l a in
-      let branch = `Tag T.master in
       let contents_t = LP.contents_t l in
       let node_t = LP.node_t l in
       let commit_t = LP.commit_t l in
@@ -352,32 +349,20 @@ struct
     in
     return fn
 
+  let create config task =
+    S.create config task >>= fun h ->
+    L.create config task >>= fun l ->
+    create_aux (`Tag T.master) config h l
+
   let of_tag config task tag =
-    create config task >>= fun t ->
-    return (fun a ->
-        let t = t a in
-        set_tag t tag;
-        t
-      )
+    S.create config task >>= fun h ->
+    L.of_tag config task tag >>= fun l ->
+    create_aux (`Tag tag) config h l
 
   let of_head config task head =
     S.create config task >>= fun h ->
     L.of_head config task head >>= fun l ->
-    let fn a =
-      let h = h a in
-      let l = l a in
-      let branch = `Tag T.master in
-      let contents_t = LP.contents_t l in
-      let node_t = LP.node_t l in
-      let commit_t = LP.commit_t l in
-      let tag_t = LP.tag_t l in
-      let read_node = LP.read_node l in
-      let mem_node = LP.mem_node l in
-      let update_node = LP.update_node l in
-      { branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; config; }
-    in
-    return fn
+    create_aux (`Head head) config h l
 
   let read t key =
     get (uri t) ["read"; P.to_hum key] (module Tc.Option(C))

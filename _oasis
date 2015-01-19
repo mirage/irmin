@@ -33,7 +33,7 @@ Library irmin
                    Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync, Ir_sync_ext
   Modules:         Irmin
   BuildDepends:    ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct, tc,
-                   mstruct, uri, bin_prot, stringext, hex
+                   mstruct, uri, stringext, hex
 
 Library "irmin-mem"
   Path:          lib/mem

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: dbfce4585a7b3713b549fa1a4d7b5441)
+# DO NOT EDIT (digest: 6f0bfe2122bd6278429c76a101e2fd3a)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -16,7 +16,6 @@ true: annot, bin_annot
 "_darcs": not_hygienic
 # Library irmin
 "lib/irmin.cmxs": use_irmin
-<lib/*.ml{,i,y}>: pkg_bin_prot
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_dolog
 <lib/*.ml{,i,y}>: pkg_ezjsonm
@@ -30,7 +29,6 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_uri
 # Library irmin-mem
 "lib/mem/irmin-mem.cmxs": use_irmin-mem
-<lib/mem/*.ml{,i,y}>: pkg_bin_prot
 <lib/mem/*.ml{,i,y}>: pkg_cstruct
 <lib/mem/*.ml{,i,y}>: pkg_dolog
 <lib/mem/*.ml{,i,y}>: pkg_ezjsonm
@@ -45,7 +43,6 @@ true: annot, bin_annot
 <lib/mem/*.ml{,i,y}>: use_irmin
 # Library irmin-git
 "lib/git/irmin-git.cmxs": use_irmin-git
-<lib/git/*.ml{,i,y}>: pkg_bin_prot
 <lib/git/*.ml{,i,y}>: pkg_cstruct
 <lib/git/*.ml{,i,y}>: pkg_dolog
 <lib/git/*.ml{,i,y}>: pkg_ezjsonm
@@ -61,7 +58,6 @@ true: annot, bin_annot
 <lib/git/*.ml{,i,y}>: use_irmin
 # Library irmin-fs
 "lib/fs/irmin-fs.cmxs": use_irmin-fs
-<lib/fs/*.ml{,i,y}>: pkg_bin_prot
 <lib/fs/*.ml{,i,y}>: pkg_cstruct
 <lib/fs/*.ml{,i,y}>: pkg_dolog
 <lib/fs/*.ml{,i,y}>: pkg_ezjsonm
@@ -76,7 +72,6 @@ true: annot, bin_annot
 <lib/fs/*.ml{,i,y}>: use_irmin
 # Library irmin-http
 "lib/http/irmin-http.cmxs": use_irmin-http
-<lib/http/*.ml{,i,y}>: pkg_bin_prot
 <lib/http/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <lib/http/*.ml{,i,y}>: pkg_cstruct
 <lib/http/*.ml{,i,y}>: pkg_dolog
@@ -96,7 +91,6 @@ true: annot, bin_annot
 <lib/http/*.ml{,i,y}>: use_irmin
 # Library irmin-unix
 "lib/unix/irmin-unix.cmxs": use_irmin-unix
-<lib/unix/*.ml{,i,y}>: pkg_bin_prot
 <lib/unix/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib/unix/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <lib/unix/*.ml{,i,y}>: pkg_cstruct
@@ -122,7 +116,6 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: use_irmin-http
 <lib/unix/*.ml{,i,y}>: use_irmin-mem
 # Executable irmin
-<bin/main.{native,byte}>: pkg_bin_prot
 <bin/main.{native,byte}>: pkg_cmdliner
 <bin/main.{native,byte}>: pkg_cohttp.lwt
 <bin/main.{native,byte}>: pkg_cohttp.lwt-core
@@ -149,7 +142,6 @@ true: annot, bin_annot
 <bin/main.{native,byte}>: use_irmin-http
 <bin/main.{native,byte}>: use_irmin-mem
 <bin/main.{native,byte}>: use_irmin-unix
-<bin/*.ml{,i,y}>: pkg_bin_prot
 <bin/*.ml{,i,y}>: pkg_cmdliner
 <bin/*.ml{,i,y}>: pkg_cohttp.lwt
 <bin/*.ml{,i,y}>: pkg_cohttp.lwt-core
@@ -178,7 +170,6 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: use_irmin-unix
 # Executable test_irmin
 <lib_test/test.{native,byte}>: pkg_alcotest
-<lib_test/test.{native,byte}>: pkg_bin_prot
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt-core
 <lib_test/test.{native,byte}>: pkg_cstruct
@@ -205,7 +196,6 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: use_irmin-mem
 <lib_test/test.{native,byte}>: use_irmin-unix
 <lib_test/*.ml{,i,y}>: pkg_alcotest
-<lib_test/*.ml{,i,y}>: pkg_bin_prot
 <lib_test/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib_test/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <lib_test/*.ml{,i,y}>: pkg_cstruct
@@ -232,7 +222,6 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_irmin-mem
 <lib_test/*.ml{,i,y}>: use_irmin-unix
 # Executable test_git_store
-<examples/git_store.{native,byte}>: pkg_bin_prot
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt-core
 <examples/git_store.{native,byte}>: pkg_cstruct
@@ -259,7 +248,6 @@ true: annot, bin_annot
 <examples/git_store.{native,byte}>: use_irmin-mem
 <examples/git_store.{native,byte}>: use_irmin-unix
 # Executable test_custom_merge
-<examples/custom_merge.{native,byte}>: pkg_bin_prot
 <examples/custom_merge.{native,byte}>: pkg_cohttp.lwt
 <examples/custom_merge.{native,byte}>: pkg_cohttp.lwt-core
 <examples/custom_merge.{native,byte}>: pkg_cstruct
@@ -286,7 +274,6 @@ true: annot, bin_annot
 <examples/custom_merge.{native,byte}>: use_irmin-mem
 <examples/custom_merge.{native,byte}>: use_irmin-unix
 # Executable test_views
-<examples/views.{native,byte}>: pkg_bin_prot
 <examples/views.{native,byte}>: pkg_cohttp.lwt
 <examples/views.{native,byte}>: pkg_cohttp.lwt-core
 <examples/views.{native,byte}>: pkg_cstruct
@@ -313,7 +300,6 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: use_irmin-mem
 <examples/views.{native,byte}>: use_irmin-unix
 # Executable test_contatcs
-<examples/contacts.{native,byte}>: pkg_bin_prot
 <examples/contacts.{native,byte}>: pkg_cohttp.lwt
 <examples/contacts.{native,byte}>: pkg_cohttp.lwt-core
 <examples/contacts.{native,byte}>: pkg_cstruct
@@ -340,7 +326,6 @@ true: annot, bin_annot
 <examples/contacts.{native,byte}>: use_irmin-mem
 <examples/contacts.{native,byte}>: use_irmin-unix
 # Executable test_intrusion
-<examples/intrusion.{native,byte}>: pkg_bin_prot
 <examples/intrusion.{native,byte}>: pkg_cohttp.lwt
 <examples/intrusion.{native,byte}>: pkg_cohttp.lwt-core
 <examples/intrusion.{native,byte}>: pkg_cstruct
@@ -367,7 +352,6 @@ true: annot, bin_annot
 <examples/intrusion.{native,byte}>: use_irmin-mem
 <examples/intrusion.{native,byte}>: use_irmin-unix
 # Executable test_process
-<examples/process.{native,byte}>: pkg_bin_prot
 <examples/process.{native,byte}>: pkg_cohttp.lwt
 <examples/process.{native,byte}>: pkg_cohttp.lwt-core
 <examples/process.{native,byte}>: pkg_cstruct
@@ -394,7 +378,6 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: use_irmin-mem
 <examples/process.{native,byte}>: use_irmin-unix
 # Executable test_sync
-<examples/sync.{native,byte}>: pkg_bin_prot
 <examples/sync.{native,byte}>: pkg_cohttp.lwt
 <examples/sync.{native,byte}>: pkg_cohttp.lwt-core
 <examples/sync.{native,byte}>: pkg_cstruct
@@ -420,7 +403,6 @@ true: annot, bin_annot
 <examples/sync.{native,byte}>: use_irmin-http
 <examples/sync.{native,byte}>: use_irmin-mem
 <examples/sync.{native,byte}>: use_irmin-unix
-<examples/*.ml{,i,y}>: pkg_bin_prot
 <examples/*.ml{,i,y}>: pkg_cohttp.lwt
 <examples/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <examples/*.ml{,i,y}>: pkg_cstruct
