@@ -1,4 +1,9 @@
 0.9.3
+* The user-defined merge functions now takes an `unit -> 'a result
+  Lwt.t` argument for `~old` (instead of `'a`). Evalutating the
+  function will compute the least-common ancestors. Merge functions
+  which ignore the `old` argument don't have to pay the cost of
+  computing the lcas anymore.
 * Expose `S.lca` to get the least common ancestors
 * Update to ocaml-git 1.4.6
 
