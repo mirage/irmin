@@ -139,6 +139,8 @@ module Make (S: Irmin.S) = struct
       | n -> aux (random_node x ~label ~path ~value :: acc) (n-1) in
     aux [] n
 
+  let old k () = Lwt.return (`Ok k)
+
   let test_contents x () =
     let test () =
       create x >>= fun t ->
@@ -328,7 +330,7 @@ module Make (S: Irmin.S) = struct
       let merge_x =
         Irmin.Merge.alist (module Tc.String) (module Tc.Int) merge
       in
-      let old = [ "left", 1; "foo"  , 2; ] in
+      let old () = ok [ "left", 1; "foo", 2; ] in
       let x =   [ "left", 2; "right", 0] in
       let y =   [ "left", 1; "bar"  , 3; "skip", 0 ] in
       let m =   [ "left", 2; "bar"  , 3] in
@@ -350,9 +352,11 @@ module Make (S: Irmin.S) = struct
       (* merge contents *)
 
       let v = S.Private.contents_t (t "contents_t") in
-      Contents.merge (p []) v ~old:(Some kv1) (Some kv1) (Some kv1) >>= fun kv1' ->
+      Contents.merge (p []) v ~old:(old (Some kv1)) (Some kv1) (Some kv1)
+      >>= fun kv1' ->
       assert_equal (module RV) "merge kv1" (`Ok (Some kv1)) kv1';
-      Contents.merge (p []) v ~old:(Some kv1) (Some kv1) (Some kv2) >>= fun kv2' ->
+      Contents.merge (p []) v ~old:(old (Some kv1)) (Some kv1) (Some kv2)
+      >>= fun kv2' ->
       assert_equal (module RV) "merge kv2" (`Ok (Some kv2)) kv2';
 
       (* merge nodes *)
@@ -374,7 +378,7 @@ module Make (S: Irmin.S) = struct
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
-      Graph.merge (g "merge: k4") ~old:k0 k2 k3 >>= fun k4 ->
+      Graph.merge (g "merge: k4") ~old:(old k0) k2 k3 >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
 
       let succ = ref [] in
@@ -394,7 +398,7 @@ module Make (S: Irmin.S) = struct
       History.create (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
       History.create (h 1) ~node:k2 ~parents:[kr0] >>= fun kr1 ->
       History.create (h 2) ~node:k3 ~parents:[kr0] >>= fun kr2 ->
-      History.merge (h 3) ~old:kr0 kr1 kr2 >>= fun kr3 ->
+      History.merge (h 3) ~old:(old kr0) kr1 kr2 >>= fun kr3 ->
       Irmin.Merge.exn kr3 >>= fun kr3 ->
       History.create (h 3) ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
 
