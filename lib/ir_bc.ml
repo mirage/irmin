@@ -49,6 +49,9 @@ module type STORE = sig
   val clone_force: ('a -> Ir_task.t) -> t ->  tag -> ('a -> t) Lwt.t
   val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
   val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  val lca: 'a -> ('a -> t) -> ('a -> t) -> head list Lwt.t
+  val lca_tag: t -> tag -> head list Lwt.t
+  val lca_head: t -> head -> head list Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
@@ -332,6 +335,21 @@ module Make_ext (P: PRIVATE) = struct
         aux todo
     in
     list t Key.empty >>= aux
+
+  let lca a t1 t2 =
+    let t1 = t1 a and t2 = t2 a in
+    head_exn t1 >>= fun h1 ->
+    head_exn t2 >>= fun h2 ->
+    History.lca (history_t t1) h1 h2
+
+  let lca_head t head =
+    head_exn t >>= fun h ->
+    History.lca (history_t t) h head
+
+  let lca_tag t tag =
+    head_exn t >>= fun h ->
+    head_exn { t with branch = ref (`Tag tag) } >>= fun head ->
+    History.lca (history_t t) h head
 
   (* Merge two commits:
      - Search for common ancestors

@@ -534,6 +534,16 @@ module type BC = sig
   (** Same as {{!BC.merge}merge} but raise {!Merge.Conflict} in case
       of a conflict. *)
 
+  val lca: 'a -> ('a -> t) -> ('a -> t) -> head list Lwt.t
+  (** [lca msg t1 t2] returns the collection of least common ancestors
+      of the store tips [t1] and [t2]. *)
+
+  val lca_tag: t -> tag -> head list Lwt.t
+  (** Same as {!lca} but takes a tag as argument. *)
+
+  val lca_head: t -> head -> head list Lwt.t
+  (** Same as {!lca} but takes an head as argument. *)
+
   (** {2 Slices} *)
 
   type slice

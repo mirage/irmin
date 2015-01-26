@@ -500,6 +500,17 @@ struct
 
   let merge_exn a t ~into = merge a t ~into >>= Irmin.Merge.exn
 
+  let lca_tag t tag =
+    get (uri t) ["lca-tag"; T.to_hum tag] (Tc.list (module H))
+
+  let lca_head t head =
+    get (uri t) ["lca-head"; H.to_hum head] (Tc.list (module H))
+
+  let lca a t1 t2 =
+    match branch (t2 a) with
+    | `Tag tag   -> lca_tag (t1 a) tag
+    | `Head head -> lca_head (t1 a) head
+
   module E = Tc.Pair
       (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))
       (Tc.Pair (Tc.List(H)) (Tc.List(H)))

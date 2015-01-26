@@ -454,6 +454,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p1bf "export"      s_export t export slice;
       mk0p1bf "import"      S.import t slice Tc.unit;
 
+      (* lca *)
+      mk1p0bf "lca-tag"  S.lca_tag  t tag'  (Tc.list head);
+      mk1p0bf "lca-head" S.lca_head t head' (Tc.list head);
+
       (* extra *)
       mk0p0bh "graph" s_graph t;
     ] in

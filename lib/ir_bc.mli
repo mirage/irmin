@@ -44,6 +44,9 @@ module type STORE = sig
   val clone_force: ('a -> Ir_task.t) -> t -> tag -> ('a -> t) Lwt.t
   val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
   val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  val lca: 'a -> ('a -> t) -> ('a -> t) -> head list Lwt.t
+  val lca_tag: t -> tag -> head list Lwt.t
+  val lca_head: t -> head -> head list Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
