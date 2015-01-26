@@ -60,6 +60,7 @@ module Log = struct
 
   let merge _path ~old t1 t2 =
     let open Irmin.Merge.OP in
+    old () >>| fun old ->
     let ts = timestamp old in
     let t1 = newer_than ts t1 in
     let t2 = newer_than ts t2 in

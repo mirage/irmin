@@ -56,11 +56,14 @@ module Contents = struct
   let (--) = StringSet.diff
 
   let merge _path ~old t1 t2 =
+    old () >>| fun old ->
     match old, t1, t2 with
     | Set old, Set s1, Set s2 ->
+      let old () = ok old in
       Irmin.Merge.set (module StringSet) ~old s1 s2 >>| fun s3 ->
       ok (Set s3)
     | String old, String x1, String x2 ->
+      let old () = ok old in
       Irmin.Merge.string ~old x1 x2 >>| fun x3 ->
       ok (String x3)
     | _ -> conflict "unmergeable contents"
