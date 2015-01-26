@@ -1,4 +1,6 @@
 0.9.3
+* Expose the task of previous commits. This let the user access
+  the Git timestamp and other info such as the committer name (#90)
 * The user-defined merge functions now takes an `unit -> 'a result
   Lwt.t` argument for `~old` (instead of `'a`). Evalutating the
   function will compute the least-common ancestors. Merge functions
