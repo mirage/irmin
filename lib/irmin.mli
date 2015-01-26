@@ -143,7 +143,12 @@ module Merge: sig
 
   (** {1 Merge Combinators} *)
 
-  type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
+  type 'a promise = unit -> 'a result Lwt.t
+  (** An ['a] promise is a function which, when called, will
+      eventually return a value type of ['a]. A promise is a lazy and
+      non-blocking value. *)
+
+  type 'a t = old:'a promise -> 'a -> 'a -> 'a result Lwt.t
   (** Signature of a merge function. [old] is the value of the
       least-common ancestor.
 
@@ -1814,6 +1819,7 @@ let () =
 
     let merge_log _path ~old t1 t2 =
       let open Irmin.Merge.OP in
+      old () >>| fun old ->
       let ts = timestamp old in
       let t1 = newer_than ts t1 in
       let t2 = newer_than ts t2 in

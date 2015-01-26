@@ -102,8 +102,13 @@ module Json = struct
   include T
 
   let rec merge_values path ~old x y =
-    match old, x, y with
-    | `O old, `O x, `O y ->
+    let old () =
+      old () >>| function
+      | `O old -> ok old
+      | _      -> ok []
+    in
+    match x, y with
+    | `O x, `O y ->
       Ir_merge.alist (module Tc.String) (module V)
         (fun s -> merge_values_opt (Path.rcons path s))
         ~old:old x y
@@ -116,8 +121,13 @@ module Json = struct
     | x -> ok x
 
   let merge_t path ~old x y =
-    match old, x, y with
-    | `O old, `O x, `O y ->
+    let old () =
+      old () >>| function
+      | `O old -> ok old
+      | _      -> ok []
+    in
+    match x, y with
+    | `O x, `O y ->
       Ir_merge.alist (module Tc.String) (module V)
         (fun s -> merge_values_opt (Path.rcons path s))
         ~old:old x y

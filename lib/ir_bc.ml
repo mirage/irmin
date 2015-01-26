@@ -368,8 +368,10 @@ module Make_ext (P: PRIVATE) = struct
           three_way_merge t acc old >>| fun acc ->
           aux acc olds
       in
-      aux old olds >>| fun old ->
-      History.merge (history_t t) ~old c1 c2
+      let old () = aux old olds in
+      try History.merge (history_t t) ~old c1 c2
+      with Ir_merge.Conflict msg ->
+        conflict "Recursive merging of common ancestors: %s" msg
 
   let update_head t c =
     match branch t with

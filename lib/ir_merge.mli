@@ -36,7 +36,9 @@ end
 
 (** {1 Merge functions} *)
 
-type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
+type 'a promise = unit -> 'a result Lwt.t
+
+type 'a t = old:'a promise -> 'a -> 'a -> 'a result Lwt.t
 
 val seq: 'a t list -> 'a t
 val apply: ('a -> 'b t) -> 'a -> 'b t

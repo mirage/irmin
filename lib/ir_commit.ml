@@ -125,10 +125,14 @@ struct
     let merge_node path (n, _) = N.merge path n
 
     let merge_commit path t ~old k1 k2 =
-      read_exn t old >>= fun vold ->
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
-      merge_node path t ~old:(S.Val.node vold) (S.Val.node v1) (S.Val.node v2)
+      let old () =
+        old () >>| fun old ->
+        read_exn t old >>= fun vold ->
+        ok (S.Val.node vold)
+      in
+      merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
       >>| fun node ->
       let parents = [k1; k2] in
       let commit = S.Val.create ?node ~parents (task t) in
