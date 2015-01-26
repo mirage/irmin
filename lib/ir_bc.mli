@@ -47,6 +47,7 @@ module type STORE = sig
   val lca: 'a -> ('a -> t) -> ('a -> t) -> head list Lwt.t
   val lca_tag: t -> tag -> head list Lwt.t
   val lca_head: t -> head -> head list Lwt.t
+  val task_of_head: t -> head -> Ir_task.t Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t

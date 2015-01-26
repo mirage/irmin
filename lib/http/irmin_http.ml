@@ -511,6 +511,10 @@ struct
     | `Tag tag   -> lca_tag (t1 a) tag
     | `Head head -> lca_head (t1 a) head
 
+  let task_of_head t head =
+    LP.Commit.read_exn t.commit_t head >>= fun commit ->
+    Lwt.return (LP.Commit.Val.task commit)
+
   module E = Tc.Pair
       (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))
       (Tc.Pair (Tc.List(H)) (Tc.List(H)))

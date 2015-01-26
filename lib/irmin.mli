@@ -549,6 +549,10 @@ module type BC = sig
   val lca_head: t -> head -> head list Lwt.t
   (** Same as {!lca} but takes an head as argument. *)
 
+  val task_of_head: t -> head -> task Lwt.t
+  (** [task_of_head t h] is the task which created [h]. Useful to
+      retrieve the commit date and the committer name. *)
+
   (** {2 Slices} *)
 
   type slice

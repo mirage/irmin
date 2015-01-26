@@ -52,6 +52,7 @@ module type STORE = sig
   val lca: 'a -> ('a -> t) -> ('a -> t) -> head list Lwt.t
   val lca_tag: t -> tag -> head list Lwt.t
   val lca_head: t -> head -> head list Lwt.t
+  val task_of_head: t -> head -> Ir_task.t Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
@@ -350,6 +351,10 @@ module Make_ext (P: PRIVATE) = struct
     head_exn t >>= fun h ->
     head_exn { t with branch = ref (`Tag tag) } >>= fun head ->
     History.lca (history_t t) h head
+
+  let task_of_head t head =
+    P.Commit.read_exn (commit_t t) head >>= fun commit ->
+    Lwt.return (P.Commit.Val.task commit)
 
   (* Merge two commits:
      - Search for common ancestors
