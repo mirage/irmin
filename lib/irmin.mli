@@ -1709,6 +1709,25 @@ val lca_head: ('k, 'v) t -> Hash.SHA1.t -> Hash.SHA1.t list Lwt.t
 val task_of_head: ('k, 'v) t -> Hash.SHA1.t -> task Lwt.t
 (** See {!BC.task_of_head}. *)
 
+(** {2 Views} *)
+
+type ('t, 'k, 'v) rw =
+  (module RW with type t = 't and type key = 'k and type value = 'v)
+(** The type or read-write stores. *)
+
+type ('k, 'v) rw_op = < f: 'a . ('a, 'k, 'v) rw -> 'a -> unit Lwt.t >
+(** Sequence of operations on a read-write store. *)
+
+val with_rw_view: ('k, 'v) t ->
+  ?path:'k -> [`Update | `Rebase | `Merge] -> ('k, 'v) rw_op ->
+  unit Merge.result Lwt.t
+(** [with_rw_view t task ?path strat ops] applies [ops] to an
+    in-memory, temporary and mutable view of the store [t]. If [path]
+    is set, all operations in the transaction are relative the that
+    path, otherwise use the full tree. The [strat] strategy decides
+    which merging strategy to use: see {!View.update_paht},
+    {!View.rebase_path} and {!View.merge_path}. *)
+
 (** {2 Synchronisation} *)
 
 type remote
