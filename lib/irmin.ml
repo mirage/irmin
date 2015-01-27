@@ -21,6 +21,7 @@ module Merge = Ir_merge
 module Tag = Ir_tag
 module Task = Ir_task
 module View = Ir_view.Make
+module type VIEW = Ir_view.S
 module Snapshot = Ir_snapshot.Make
 module Dot = Ir_dot.Make
 module type S = Ir_s.STORE

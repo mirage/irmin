@@ -1972,42 +1972,42 @@ end
     needed. The most important feature of views is that they keep
     track of reads: {e i.e.} you can have a conflict if a view reads a
     key which has been modified concurrently by someone else.  *)
-module View (S: S): sig
+module type VIEW = sig
 
   (** {1 Views} *)
 
-  type db = S.t
+  type db
   (** The type for store handles. *)
 
-  include HRW with type key = S.Key.t and type value = S.Val.t
+  include HRW
   (** A view is a read-write temporary store, mirroring the main
       store. *)
 
-  val create: ('a -> task) -> ('a -> t) Lwt.t
+  val empty: unit -> t Lwt.t
   (** Create an empty view. Empty views do not have associated backend
       configuration values, as they can perform in-memory operation,
       independently of any given backend. *)
 
-  val rebase: 'a -> ('a -> t) -> into:('a -> t) -> unit Merge.result Lwt.t
+  val rebase: t -> into:t -> unit Merge.result Lwt.t
   (** [rebase x t i] rebases the actions done on the view [t x] into
       the view [i x]. If a read operation doesn't return the same
       result, return [Conflict]. Only the view [i] is updated. *)
 
-  val rebase_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  val rebase_exn: t -> into:t -> unit Lwt.t
   (** Same as {!rebase} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  val of_path: ('a -> task) -> db -> key -> ('a -> t) Lwt.t
+  val of_path: db -> key -> t Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,
       all the real reads operation will be done on-demand when the
       view is used. *)
 
-  val update_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
+  val update_path: db -> key -> t -> unit Lwt.t
   (** [update_path x t path v] {e replaces} the sub-tree under [path]
       in the store [t x] by the contents of the view [v x]. See
       {!merge_path} for more details. *)
 
-  val rebase_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Merge.result Lwt.t
+  val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
   (** [rebase_path x t path v] {e rebases} the view [v x] on top of
       the contents of [t x]'s sub-tree pointed by the path
       [path]. Rebasing means re-applying every {{!Action.t}actions}
@@ -2015,11 +2015,11 @@ module View (S: S): sig
       if one of the action cannot apply cleanly. See {!merge_path} for
       more details.  *)
 
-  val rebase_path_exn: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
+  val rebase_path_exn: db -> key -> t -> unit Lwt.t
   (** Same as {!rebase_path} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  val merge_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Merge.result Lwt.t
+  val merge_path: db -> key -> t -> unit Merge.result Lwt.t
   (** [merge_path x t path v] {e merges} the view [v x] with the
       contents of [t x]'s sub-tree pointed by the path [path]. Merging
       means applying the {{!Merge.Map}merge function for map} between
@@ -2035,7 +2035,7 @@ module View (S: S): sig
       prefix trees, based on {!Merge.Map.merge}.}
       } *)
 
-  val merge_path_exn: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
+  val merge_path_exn: db -> key -> t -> unit Lwt.t
   (** Same as {!merge_path} but raise {!Merge.Conflict} in case of
       conflicts. *)
 
@@ -2077,6 +2077,11 @@ module View (S: S): sig
       creation. *)
 
 end
+
+module View (S: S): VIEW with type db = S.t
+                          and type key = S.Key.t
+                          and type value = S.Val.t
+(** Create views. *)
 
 (** [Snapshot] provides read-only, space-efficient, checkpoints of a
     store. It also provides functions to rollback to a previous
