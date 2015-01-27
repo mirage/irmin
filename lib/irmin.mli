@@ -1697,6 +1697,18 @@ val merge: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t)
 val merge_exn: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t) -> unit Lwt.t
 (** See {!BC.merge_exn}. *)
 
+val lca: 'm -> ('m -> ('k,'v) t) -> ('m -> ('k,'v) t) -> Hash.SHA1.t list Lwt.t
+(** See {!BC.lca}. *)
+
+val lca_tag: ('k, 'v) t -> string -> Hash.SHA1.t list Lwt.t
+(** See {!BC.lca_tag}. *)
+
+val lca_head: ('k, 'v) t -> Hash.SHA1.t -> Hash.SHA1.t list Lwt.t
+(** See {!BC.lca_head}. *)
+
+val task_of_head: ('k, 'v) t -> Hash.SHA1.t -> task Lwt.t
+(** See {!BC.task_of_head}. *)
+
 (** {2 Synchronisation} *)
 
 type remote

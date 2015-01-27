@@ -215,6 +215,24 @@ let merge_exn (type a) (type b):
   'a -> ('a -> (a, b) t) -> into:('a -> (a, b) t) -> unit Lwt.t =
   fun a t ~into -> merge a t ~into >>= Merge.exn
 
+let lca (type a) (type b):
+  'a -> ('a -> (a, b) t) -> ('a -> (a, b) t) -> Hash.SHA1.t list Lwt.t =
+  fun a t1 t2 -> match t1 a, t2 a with
+    | T ((module M), t1), T ((module I), t2) ->
+      (* XXX: not ideal ... *)
+      match I.branch t2 with
+      | `Tag tag -> M.lca_tag t1 tag
+      | `Head h  -> M.lca_head t1 h
+
+let lca_tag (type a) (type b) (t: (a, b) t) = match t with
+  | T ((module M), t) -> M.lca_tag t
+
+let lca_head (type a) (type b) (t: (a, b) t) = match t with
+  | T ((module M), t) -> M.lca_head t
+
+let task_of_head (type a) (type b) (t: (a, b) t) = match t with
+  | T ((module M), t) -> M.task_of_head t
+
 let remote_basic (type a) (type b): (a, b) t -> remote =
   function T ((module M), t) -> remote_store (module M) t
 
