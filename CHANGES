@@ -1,8 +1,10 @@
 0.9.3
+* The `~old` argument of a merge function can now be optional to
+  signify that there is no common ancestor.
 * Expose `Irmin.with_rw_view` to create a temporary, in-memory and
   mutable view of the store. This can be used to perform atomic
   operations in the store (ie. non-persistent transactions).
-* Simplify the merge API again
+* Simplify the view API again
 * Expose the task of previous commits. This let the user access
   the Git timestamp and other info such as the committer name (#90)
 * The user-defined merge functions now takes an `unit -> 'a result
