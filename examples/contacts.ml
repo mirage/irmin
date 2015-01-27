@@ -86,14 +86,12 @@ module Contact = struct
   let view_of_t t =
     let name = Contents.String t.name in
     let phones = Contents.Set t.phones in
-    View.create task >>= fun v ->
-    let v = v "Contact.view_of_t" in
+    View.empty () >>= fun v ->
     View.update v [t.id; "name"  ] name >>= fun () ->
     View.update v [t.id; "phones"] phones >>= fun () ->
-    return (fun _ -> v)
+    return v
 
   let t_of_view id v =
-    let v = fmt v "Contact.t_of_view[%s]" id in
     View.read_exn v ["name"  ] >>= fun name ->
     View.read_exn v ["phones"] >>= fun phones ->
     let name = match name with
@@ -106,7 +104,7 @@ module Contact = struct
 
   let add t contact =
     view_of_t contact >>= fun view ->
-    View.merge_path_exn "ContactStore.add" t ["contacts"] view
+    View.merge_path_exn (t "ContactStore.add") ["contacts"] view
 
   let add_phone contact phone =
     let phones = StringSet.add phone contact.phones in
@@ -119,7 +117,7 @@ module Contact = struct
     let t = t "Contact.list" in
     Store.list t ["contacts"] >>= fun paths ->
     Lwt_list.map_s (fun path ->
-        View.of_path task t path >>= fun view ->
+        View.of_path t path >>= fun view ->
         let id = List.hd (List.rev path) in
         t_of_view id view
       ) paths
