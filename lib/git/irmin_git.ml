@@ -338,7 +338,6 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         try
           let i = String.rindex name ' ' in
           let email = String.sub name (i+1) (String.length name - i - 1) in
-          Printf.printf "%S" email;
           if String.length email > 0
              && email.[0] = '<'
              && email.[String.length email - 1] = '>'
