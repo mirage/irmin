@@ -139,7 +139,7 @@ module Make (S: Irmin.S) = struct
       | n -> aux (random_node x ~label ~path ~value :: acc) (n-1) in
     aux [] n
 
-  let old k () = Lwt.return (`Ok k)
+  let old k () = Lwt.return (`Ok (Some k))
 
   let test_contents x () =
     let test () =
@@ -330,7 +330,7 @@ module Make (S: Irmin.S) = struct
       let merge_x =
         Irmin.Merge.alist (module Tc.String) (module Tc.Int) merge
       in
-      let old () = ok [ "left", 1; "foo", 2; ] in
+      let old () = ok (Some [ "left", 1; "foo", 2; ]) in
       let x =   [ "left", 2; "right", 0] in
       let y =   [ "left", 1; "bar"  , 3; "skip", 0 ] in
       let m =   [ "left", 2; "bar"  , 3] in
