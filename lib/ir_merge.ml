@@ -69,7 +69,7 @@ let exn = function
 
 module R (A: Tc.S0) = Tc.App1(Result)(A)
 
-type 'a promise = unit -> 'a result Lwt.t
+type 'a promise = unit -> 'a option result Lwt.t
 
 let memo fn =
   let r = ref None in
@@ -119,10 +119,13 @@ let default (type a) (module A: Tc.S0 with type t = a) =
       force (show (module A) t1)
       force (show (module A) t2);
     if A.equal t1 t2 then ok t1
-    else old () >>| fun old ->
-      if A.equal old t1 then ok t2
-      else if A.equal old t2 then ok t1
-      else conflict "default"
+    else old () >>| function
+      | None     -> conflict "default: add/add and no common ancestor"
+      | Some old ->
+        Log.debug "default old=%a" force (show (module A) t1);
+        if A.equal old t1 then ok t2
+        else if A.equal old t2 then ok t1
+        else conflict "default"
 
 let seq = function
   | []         -> fun ~old:_ _ _ -> conflict "nothing to merge"
@@ -134,22 +137,39 @@ let seq = function
           | `Conflict _ -> merge ~old v1 v2
         ) (`Conflict "nothing to merge") ts
 
-let option (type a) (module T: Tc.S0 with type t = a) t =
+let option (type a) (module T: Tc.S0 with type t = a) (t: a t): a option t =
   let module S = Tc.Option(T) in
-  fun ~old t1 t2 ->
+  fun ~old t1 t2->
     Log.debug "some %a | %a"
       force (show (module S) t1)
       force (show (module S) t2);
     default (module S) ~old t1 t2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
-      old () >>| fun old ->
-      match old, t1, t2 with
-      | Some o, Some v1, Some v2 ->
-        let old () = ok o in
+      match t1, t2 with
+      | None   , None    -> ok None
+      | Some v1, Some v2 ->
+        let old: a promise = fun () ->
+          old () >>| function
+          | None   -> ok None
+          | Some o ->
+            Log.debug "option old=%a" force (show (module S) o);
+            ok o
+        in
         t ~old v1 v2 >>| fun x ->
         ok (Some x)
-      | _ -> conflict "some"
+      | Some x , None
+      | None   , Some x ->
+        old () >>| function
+        | None
+        | Some None     -> ok (Some x)
+        | Some (Some o) ->
+          Log.debug "option old=%a" force (show (module T) o);
+          if T.equal x o then ok (Some x) else conflict "option: add/del"
+
+let omap f = function
+  | None   -> ok None
+  | Some x -> ok (Some (f x))
 
 let pair
     (type a) (module A: Tc.S0 with type t = a)
@@ -161,8 +181,9 @@ let pair
       force (show (module S) x)
       force (show (module S) y);
     let (a1, b1), (a2, b2) = x, y in
-    let o1 () = old () >>| fun (o1, _) -> ok o1 in
-    let o2 () = old () >>| fun (_, o2) -> ok o2 in
+    let ret m x = Log.debug "pair obj=%a" force (show m x); x in
+    let o1 () = old () >>| omap (fun (o1, _) -> ret (module A) o1) in
+    let o2 () = old () >>| omap (fun (_, o2) -> ret (module B) o2) in
     a ~old:o1 a1 a2 >>| fun a3 ->
     b ~old:o2 b1 b2 >>| fun b3 ->
     ok (a3, b3)
@@ -178,9 +199,10 @@ let triple
       force (show (module S) x)
       force (show (module S) y);
     let (a1, b1, c1), (a2, b2, c2) = x, y in
-    let o1 () = old () >>| fun (o1, _, _) -> ok o1 in
-    let o2 () = old () >>| fun (_, o2, _) -> ok o2 in
-    let o3 () = old () >>| fun (_, _, o3) -> ok o3 in
+    let ret m x = Log.debug "triple old=%a" force (show m x); x in
+    let o1 () = old () >>| omap (fun (o1, _, _) -> ret (module A) o1) in
+    let o2 () = old () >>| omap (fun (_, o2, _) -> ret (module B) o2) in
+    let o3 () = old () >>| omap (fun (_, _, o3) -> ret (module C) o3) in
     a ~old:o1 a1 a2 >>| fun a3 ->
     b ~old:o2 b1 b2 >>| fun b3 ->
     c ~old:o3 c1 c2 >>| fun c3 ->
@@ -212,8 +234,11 @@ let alist
   let x = sort x in
   let y = sort y in
   let old k =
-    old () >>| fun old ->
-    ok (try Some (List.assoc k old) with Not_found -> None)
+    old () >>| function
+    | None     -> ok None
+    | Some old ->
+      let old = try Some (List.assoc k old) with Not_found -> None in
+      ok (Some old)
   in
   Lwt.catch (fun () ->
       Ir_misc.alist_merge_lwt A.compare
@@ -234,6 +259,7 @@ module MSet (M: Map.S) = struct
     let add k v m = set k (v + get k m) m in
     let keys = ref M.empty in
     old () >>| fun old ->
+    let old = match old with None -> M.empty | Some o -> o in
     M.iter (fun k v -> keys := add k (-v) !keys) old;
     M.iter (fun k v -> keys := add k v !keys) m1;
     M.iter (fun k v -> keys := add k v !keys) m2;
@@ -253,8 +279,12 @@ module Map (M: Map.S) (S: Tc.S0 with type t = M.key) = struct
         force (show (module X) m2);
       Lwt.catch (fun () ->
           let old key =
-            old () >>| fun old ->
-            ok (try Some (SM.find key old) with Not_found -> None)
+            old () >>| function
+            | None     -> ok None
+            | Some old ->
+              Log.debug "assoc old=%a" force (show (module X) old);
+              let old = try Some (SM.find key old) with Not_found -> None in
+              ok (Some old)
           in
           SM.Lwt.merge (merge_elt (module S) (module A) t old) m1 m2
           >>= ok)
@@ -275,7 +305,10 @@ let biject
       let b1  = a_to_b a1 in
       let b2  = a_to_b a2 in
       let old =
-        memo (fun () -> old () >>| fun a -> ok (a_to_b a))
+        memo (fun () ->
+            old () >>| omap (fun a ->
+            Log.debug "biject old=%a" force (show (module A) a);
+            a_to_b a))
       in
       t ~old b1 b2 >>| fun b3 ->
       ok (b_to_a b3)
@@ -294,9 +327,12 @@ let biject'
       a_to_b a1  >>= fun b1 ->
       a_to_b a2  >>= fun b2 ->
       let old = memo (fun () ->
-          old () >>| fun a ->
-          a_to_b a >>= fun a ->
-          ok a)
+          old () >>| function
+          | None   -> ok None
+          | Some a ->
+            Log.debug "biject' old=%a" force (show (module A) a);
+            a_to_b a >>= fun b ->
+            ok (Some b))
       in
       t ~old b1 b2 >>| fun b3 ->
       b_to_a b3 >>=
@@ -309,6 +345,7 @@ let string ~old x y =
 
 let set (type t) (module S: Set.S with type t = t) ~old x y =
   old () >>| fun old ->
+  let old = match old with None -> S.empty | Some o -> o in
   let (++) = S.union and (--) = S.diff in
   let to_add = (x -- old) ++ (y -- old) in
   let to_del = (old -- x) ++ (old -- y) in
@@ -318,7 +355,13 @@ type counter = int
 
 let counter ~old x y =
   old () >>| fun old ->
+  let old = match old with None -> 0 | Some o -> o in
   ok (x + y - old)
 
 let apply f x ~old a b =
   f x ~old a b
+
+let with_conflict rewrite f ~old x y =
+  f ~old x y >>= function
+  | `Conflict msg -> conflict "%s" (rewrite msg)
+  | `Ok x -> ok x

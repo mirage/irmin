@@ -128,9 +128,11 @@ struct
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
       let old () =
-        old () >>| fun old ->
-        read_exn t old >>= fun vold ->
-        ok (S.Val.node vold)
+        old () >>| function
+        | None     -> ok None
+        | Some old ->
+          read_exn t old >>= fun vold ->
+          ok (Some (S.Val.node vold))
       in
       merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
       >>| fun node ->

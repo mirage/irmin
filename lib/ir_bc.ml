@@ -363,20 +363,21 @@ module Make_ext (P: PRIVATE) = struct
     Log.debug "3-way merge between %a and %a"
       force (show (module Head) c1)
       force (show (module Head) c2);
-    History.lca (history_t t) c1 c2 >>= function
-    | [] -> conflict "No common ancestor between %s and %s"
-              (Head.to_hum c1) (Head.to_hum c2)
-    | old :: olds ->
-      let rec aux acc = function
-        | []        -> ok acc
-        | old::olds ->
-          three_way_merge t acc old >>| fun acc ->
-          aux acc olds
-      in
-      let old () = aux old olds in
-      try History.merge (history_t t) ~old c1 c2
-      with Ir_merge.Conflict msg ->
-        conflict "Recursive merging of common ancestors: %s" msg
+    History.lca (history_t t) c1 c2 >>= fun lcas ->
+    let old () = match lcas with
+      | []          -> ok None
+      | old :: olds ->
+        let rec aux acc = function
+          | []        -> ok (Some acc)
+          | old::olds ->
+            three_way_merge t acc old >>| fun acc ->
+            aux acc olds
+        in
+        aux old olds
+    in
+    try History.merge (history_t t) ~old c1 c2
+    with Ir_merge.Conflict msg ->
+      conflict "Recursive merging of common ancestors: %s" msg
 
   let update_head t c =
     match branch t with

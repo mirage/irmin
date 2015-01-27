@@ -104,8 +104,9 @@ module Json = struct
   let rec merge_values path ~old x y =
     let old () =
       old () >>| function
-      | `O old -> ok old
-      | _      -> ok []
+      | None          -> ok None
+      | Some (`O old) -> ok (Some old)
+      | _             -> conflict "record"
     in
     match x, y with
     | `O x, `O y ->
@@ -123,8 +124,9 @@ module Json = struct
   let merge_t path ~old x y =
     let old () =
       old () >>| function
-      | `O old -> ok old
-      | _      -> ok []
+      | None          -> ok None
+      | Some (`O old) -> ok (Some old)
+      | _             -> conflict "record"
     in
     match x, y with
     | `O x, `O y ->
@@ -199,7 +201,9 @@ struct
     | Some v -> add t v >>= fun k -> Lwt.return (Some k)
 
   let merge path t =
-    Ir_merge.biject' (module Tc.Option(Key))
-      (Val.merge path) (read_opt t) (add_opt t)
+    Ir_merge.with_conflict
+      (fun s -> Printf.sprintf "%s: %s" (Path.to_hum path) s)
+      (Ir_merge.biject' (module Tc.Option(Key))
+         (Val.merge path) (read_opt t) (add_opt t))
 
 end
