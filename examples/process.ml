@@ -16,67 +16,141 @@ let () =
 let () =
   install_dir_polling_listener 0.5
 
-let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
-let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
 let fmt t x = ksprintf (fun s -> t s) x
 
 let fin () =
   let _ = Sys.command "cd /tmp/irmin/test && git reset HEAD --hard" in
   return_unit
 
-let commands = [|
-  "Getting an incoming connection";
-  "Reading the contents of the cache";
-  "sudo apt-get upgrade";
-  "rsync filer://myfiles.com/me";
-|]
+type action = {
+  message: string;
+  files  : (string list * (unit -> string)) list;
+}
 
-let branches = [|
-  "12345/cron";
-  "112323/maildir";
-  "1333/apache";
-|]
+type image = {
+  name   : string;
+  actions: action list;
+}
 
-let master = branches.(0)
+let ubuntu = {
+  name    = "official-images/ubuntu:14.04";
+  actions = [
+    { message = "Updating source lists";
+      files   = [ ["etc";"source.list"],
+                 fun () -> sprintf "deb %d" (Random.int 10)]; };
+    { message = "grep -v '^#' /etc/apt/sources.list";
+      files   = []; };
+    { message = "cat /etc/issue";
+      files = []; }
+  ]}
+
+let wordpress = {
+  name    = "official-images/wordpress:latest";
+  actions = [
+    { message = "user logging";
+      files   = [["wordpress";"wp-users.php"],
+                 fun () -> sprintf "<?php ...%d" (Random.int 10)] };
+    { message = "configuration updates";
+      files   = [["wordpress";"wp-settings.php"],
+                 fun () -> sprintf "<?php .. %d" (Random.int 10) ] };
+  ]
+}
+
+let mysql = {
+  name    = "my-images/mysql:5.5.41";
+  actions = [
+    { message = "Reading table wp_users";
+      files   = []; };
+    { message = "Writing table wp_users";
+      files   = [ ["var";"lib";"mysql"],
+                  fun () -> sprintf "X%duYYt" (Random.int 10) ]};
+    { message = "Reading table wp_posts";
+      files   = []; };
+    { message = "Writing table wp_posts";
+      files   = [ ["var";"lib";"mysql"],
+                  fun () -> sprintf "X%dxYYt" (Random.int 10) ]};
+  ]
+}
+
+let branch image =
+  String.map (function
+      | ':' -> '/'
+      | c   -> c
+    ) image.name
+
+let images = [| (*ubuntu; *) wordpress; mysql |]
+
+let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+let config = Irmin_git.config
+    ~root:"/tmp/irmin/test"
+    ~bare:true
+    ~head:(Git.Reference.of_raw ("refs/heads/" ^ branch images.(0)))
+    ()
+
+let task image msg =
+  let date = Int64.of_float (Unix.gettimeofday ()) in
+  let owner = image.name in
+  Irmin.Task.create ~date ~owner msg
+
+let master = branch images.(0)
 
 let init () =
   let _ = Sys.command "rm -rf /tmp/irmin/test" in
   let _ = Sys.command "mkdir -p /tmp/irmin/test" in
-  Irmin.of_tag store config task master >>= fun t ->
-  Irmin.update (t "Updateing log/%s/0") ["log"; master; "0"] (master ^ ":0")
-  >>= fun () ->
-  Lwt_list.iter_s (fun tag ->
-      Irmin.of_tag store config task tag >>= fun t ->
-      let b = branches.(0) in
-      Irmin.switch (fmt t "Switching to %s" b) b
-    ) (Array.to_list branches)
+  Irmin.of_tag store config (task images.(0)) master >>= fun t ->
+  Irmin.update (t "init") ["0"] "0" >>= fun () ->
+  Lwt_list.iter_s (fun i ->
+      Irmin.clone_force (task images.(0)) (t "Cloning") (branch i) >>= fun _ ->
+      Lwt.return_unit
+    ) (Array.to_list images)
 
 let random_array a =
   a.(Random.int (Array.length a))
 
-let rec process ~id count =
-  Irmin.of_tag store config task id >>= fun t ->
-  Irmin.update (t (random_array commands))
-    ["log"; id; string_of_int count]
-    (id ^ ":" ^ (string_of_int count))
-  >>= fun () ->
+let random_list l = random_array (Array.of_list l)
 
-  begin if Random.int 2 = 0 then
-    let branch = random_array branches in
-    Irmin.merge_tag_exn (fmt t "Merging %s with %s" branch id) branch
+let rec process image =
+  let id = branch image in
+  Printf.printf "Processing %s\n%!" id;
+  let actions = random_list image.actions in
+  let key, value =
+    try random_list actions.files
+    with _ -> ["log"; id; "0"], fun () -> id ^ string_of_int (Random.int 10)
+  in
+  Irmin.of_tag store config (task image) id >>= fun t ->
+  Irmin.update (t actions.message) key (value ()) >>= fun () ->
+
+  begin if Random.int 3 = 0 then
+    let branch = branch (random_array images) in
+    if id = master && branch <> id then (
+      Printf.printf "Merging ...%!";
+      Irmin.merge_tag_exn (fmt t "Merging with %s" branch) branch >>= fun () ->
+      Printf.printf "ok!\n%!";
+      Lwt.return_unit
+    ) else
+      Lwt.return_unit
   else
     return_unit
   end >>= fun () ->
 
-  Lwt_unix.sleep (Random.float 10.)
-  >>= fun () ->
-  process ~id (count+1)
+  Lwt_unix.sleep (max 1. (Random.float 4.)) >>= fun () ->
+  process image
+
+let rec protect fn x =
+  Lwt.catch
+    (fun () -> fn x)
+    (fun e  ->
+       Printf.eprintf "error: %s" (Printexc.to_string e);
+       protect fn x)
+
+let rec watchdog () =
+  Printf.printf "I'm alive!\n%!";
+  Lwt_unix.sleep 1. >>= fun () ->
+  watchdog ()
 
 let () =
   let aux () =
     init () >>= fun () ->
-    Lwt.join (List.map
-                (fun id -> process ~id 1)
-                (Array.to_list branches))
+    Lwt.join (watchdog () :: List.map (protect process) (Array.to_list images))
   in
   Lwt_unix.run (aux ())
