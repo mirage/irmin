@@ -43,12 +43,13 @@ module Make (S: Ir_s.STORE) = struct
       html
       (match full with None -> "<none>" | Some b -> string_of_bool b);
     S.export ?full ?depth t >>= fun slice ->
-    let vertex = ref [] in
-    let add_vertex v l =
-      vertex := (v, l) :: !vertex in
+    let vertex = Hashtbl.create 102 in
+    let add_vertex v l = Hashtbl.add vertex v l in
+    let mem_vertex v = Hashtbl.mem vertex v in
     let edges = ref [] in
     let add_edge v1 l v2 =
-      edges := (v1, l, v2) :: !edges in
+      if mem_vertex v1 && mem_vertex v2 then edges := (v1, l, v2) :: !edges
+    in
     let string_of_key (type t) (module M: Ir_hum.S with type t = t) (k:t) =
       let s = M.to_hum k in
       if String.length s <= 8 then s else String.sub s 0 8 in
@@ -81,7 +82,7 @@ module Make (S: Ir_s.STORE) = struct
       let k = string_of_key (module Commit.Key) k in
       let o = Commit.Val.task c in
       let s =
-        (if html then
+        if html then
           sprintf
             "<div class='commit'>\n\
             \  <div class='sha1'>%s</div>\n\
@@ -90,12 +91,12 @@ module Make (S: Ir_s.STORE) = struct
             \  <div class='message'>%s</div>\n\
             \  <div>&nbsp</div>\n\
              </div>"
+            k
+            (Ir_task.owner o)
+            (date (Ir_task.date o))
+            (String.concat "\n" (Ir_task.messages o))
         else
-          sprintf "%s %s %s %s")
-          k
-          (Ir_task.owner o)
-          (date (Ir_task.date o))
-          (String.concat "\n" (Ir_task.messages o))
+          sprintf "%s" k
       in
       `Label s in
     let label_of_contents k v =
@@ -124,6 +125,13 @@ module Make (S: Ir_s.STORE) = struct
       ) >>= fun () ->
     Slice.iter_nodes slice (fun (k, t) ->
         add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
+        return_unit
+      ) >>= fun () ->
+    Slice.iter_commits slice (fun (k, r) ->
+        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
+        return_unit
+      ) >>= fun () ->
+    Slice.iter_nodes slice (fun (k, t) ->
         Node.Val.iter_contents t (fun l v ->
             add_edge (`Node k) [`Style `Dotted; label_of_step l] (`Contents v)
           );
@@ -133,7 +141,6 @@ module Make (S: Ir_s.STORE) = struct
         return_unit
       ) >>= fun () ->
     Slice.iter_commits slice (fun (k, r) ->
-        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
         List.iter (fun c ->
             add_edge (`Commit k) [`Style `Bold] (`Commit c)
           ) (Commit.Val.parents r);
@@ -150,7 +157,8 @@ module Make (S: Ir_s.STORE) = struct
         add_edge (`Tag r) [`Style `Bold] (`Commit k);
         return_unit
       ) >>= fun () ->
-    return (fun ppf -> Graph.output ppf !vertex !edges name)
+    let vertex = Hashtbl.fold (fun k v acc -> (k, v) :: acc) vertex [] in
+    return (fun ppf -> Graph.output ppf vertex !edges name)
 
   let output_buffer t ?html ?depth ?full ~date buf =
     fprintf t ?depth ?full ?html ~date "graph" >>= fun fprintf ->

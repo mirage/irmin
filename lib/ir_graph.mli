@@ -78,10 +78,10 @@ end
 
 (** Build a graph. *)
 module Make
-    (Contents: Tc.S0)
-    (Node: Tc.S0)
-    (Commit: Tc.S0)
-    (Tag: Tc.S0):
+    (Contents: Ir_hum.S)
+    (Node: Ir_hum.S)
+    (Commit: Ir_hum.S)
+    (Tag: Ir_hum.S):
   S with type V.t =
   [ `Contents of Contents.t
   | `Node of Node.t
