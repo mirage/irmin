@@ -122,7 +122,7 @@ let rec process image =
 
   begin if Random.int 3 = 0 then
     let branch = branch (random_array images) in
-    if id = master && branch <> id then (
+    if branch <> id then (
       Printf.printf "Merging ...%!";
       Irmin.merge_tag_exn (fmt t "Merging with %s" branch) branch >>= fun () ->
       Printf.printf "ok!\n%!";
@@ -133,7 +133,7 @@ let rec process image =
     return_unit
   end >>= fun () ->
 
-  Lwt_unix.sleep (max 1. (Random.float 4.)) >>= fun () ->
+  Lwt_unix.sleep (max 0.1 (Random.float 0.3)) >>= fun () ->
   process image
 
 let rec protect fn x =
