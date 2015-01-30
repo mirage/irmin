@@ -25,18 +25,25 @@ Irmin comes with a command-line tool called `irmin`. See `irmin
 To get the full capabilites of Irmin, use the API:
 
 ```ocaml
-$ ledit ocaml
-# #require "irmin.unix";;
-# open Lwt;;
-# let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String);;
-# let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ();;
-# let prog =
-    Irmin.create store config >>= fun t ->
-    Irmin.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!" >>= fun () ->
-    Irmin.read_exn (t "Reading foo/bar") ["foo"; "bar"] >>= fun x ->
-    Printf.printf "Read: %s\n%!" x;
-    return_unit;;
-# let () = Lwt_main.run prog;;
+open Lwt
+open Irmin_unix
+let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
+let prog =
+  Irmin.create store config task >>= fun t ->
+  Irmin.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!" >>= fun () ->
+  Irmin.read_exn (t "Reading foo/bar") ["foo"; "bar"] >>= fun x ->
+  Printf.printf "Read: %s\n%!" x;
+  return_unit
+let () = Lwt_main.run prog
+```
+
+To compile the example above, save it to a file called `example.ml`. Install irmin and git with opam (`opam install irmin git`) and run
+
+```ocaml
+$ ocamlfind ocamlopt example.ml -o example -package lwt,irmin.unix,lwt.unix -linkpkg
+$ ./example
+Read: hi!
 ```
 
 ### Tutorial
