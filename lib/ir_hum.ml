@@ -21,3 +21,9 @@ module type S = sig
 end
 
 type 'a t = (module S with type t = 'a)
+
+module Unit: S with type t = unit = struct
+  include Tc.Unit
+  let to_hum () = "unit"
+  let of_hum = function "unit" -> () | _ -> failwith "Unit.of_hum"
+end
