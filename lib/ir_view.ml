@@ -664,7 +664,7 @@ module Make (S: Ir_s.STORE) = struct
   let rebase_path_exn db path view =
     rebase_path db path view >>= Ir_merge.exn
 
-  let merge_path db path view =
+  let merge_path db ?max_depth ?n path view =
     Log.debug "merge_path %a" force (show (module Path) path);
     P.read_node db Path.empty >>= function
     | None           -> update_path db path view >>= ok
@@ -686,9 +686,10 @@ module Make (S: Ir_s.STORE) = struct
       | parents ->
         Log.debug "Parents: %a" force (shows (module S.Head) parents);
         History.create (history_t db) ~node:new_node ~parents >>= fun k ->
-        S.merge_head db k
+        S.merge_head db ?max_depth ?n k
 
-  let merge_path_exn db path t = merge_path db path t >>= Ir_merge.exn
+  let merge_path_exn db ?max_depth ?n path t =
+    merge_path db ?max_depth ?n path t >>= Ir_merge.exn
 
 end
 
@@ -702,8 +703,9 @@ module type S = sig
   val update_path: db -> key -> t -> unit Lwt.t
   val rebase_path: db -> key -> t -> unit Ir_merge.result Lwt.t
   val rebase_path_exn: db -> key -> t -> unit Lwt.t
-  val merge_path: db -> key -> t -> unit Ir_merge.result Lwt.t
-  val merge_path_exn: db -> key -> t -> unit Lwt.t
+  val merge_path: db -> ?max_depth:int -> ?n:int -> key -> t ->
+    unit Ir_merge.result Lwt.t
+  val merge_path_exn: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Lwt.t
   module Action: sig
     type t =
       [ `Read of (key * value option)

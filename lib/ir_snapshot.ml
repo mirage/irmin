@@ -26,8 +26,8 @@ module type S = sig
   val of_hum: db -> string -> t
   val create: db -> t Lwt.t
   val revert: db -> t -> unit Lwt.t
-  val merge: db -> t -> unit Ir_merge.result Lwt.t
-  val merge_exn: db -> t -> unit Lwt.t
+  val merge: db -> ?max_depth:int -> ?n:int -> t -> unit Ir_merge.result Lwt.t
+  val merge_exn: db -> ?max_depth:int -> ?n:int -> t -> unit Lwt.t
   val watch: db -> key -> (key * t) Lwt_stream.t
 end
 
@@ -101,14 +101,12 @@ module Make (S: Ir_s.STORE) = struct
     pre_revert db s >>= fun k ->
     S.update_head db k
 
-  let merge db (_, s) =
+  let merge db ?max_depth ?n (_, s) =
     Log.debug "merge %a" force (show (module N.Key) s);
     pre_revert db s >>= fun k ->
-    S.merge_head db k
+    S.merge_head db ?max_depth ?n k
 
-  let merge_exn t s =
-    merge t s >>=
-    Ir_merge.exn
+  let merge_exn t ?max_depth ?n s = merge t ?max_depth ?n s >>= Ir_merge.exn
 
   let watch db path =
     let stream = S.watch_head db path in

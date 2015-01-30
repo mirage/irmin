@@ -86,14 +86,18 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       "Connection", "Keep-Alive"
     ]
 
-  let map_get t path fn =
+  let map_get t path ?query fn =
     let uri = uri_append t path in
+    let uri = match query with
+      | None   -> uri
+      | Some q -> Uri.with_query uri q
+    in
     Log.debug "get %s" (Uri.path uri);
     Client.get ~headers uri >>= fun r ->
     fn r
 
-  let get t path fn =
-    map_get t path (map_string_response fn)
+  let get t path ?query fn =
+    map_get t path ?query (map_string_response fn)
 
   let get_stream t path fn  =
     let (stream: 'a Lwt_stream.t option ref) = ref None in
@@ -452,15 +456,28 @@ struct
 
   module M = Tc.App1 (Irmin.Merge.Result) (H)
 
-  let merge_head t head =
-    get (uri t) ["merge-head"; H.to_hum head] (module M) >>| fun h ->
+  let mk_query ?max_depth ?n () =
+    let max_depth = match max_depth with
+      | None   -> []
+      | Some i -> ["depth", [string_of_int i]]
+    in
+    let n = match n with
+      | None   -> []
+      | Some i -> ["n", [string_of_int i]]
+    in
+    match max_depth @ n with
+    | [] -> None
+    | q  -> Some q
+
+  let merge_head t ?max_depth ?n head =
+    let query = mk_query ?max_depth ?n () in
+    get (uri t) ?query ["merge-head"; H.to_hum head] (module M) >>| fun h ->
     match t.branch with
     | `Head _ -> set_head t h; ok ()
     | `Tag _  -> ok ()
 
-  let merge_head_exn t head =
-    merge_head t head >>=
-    Irmin.Merge.exn
+  let merge_head_exn t ?max_depth ?n head =
+    merge_head t ?max_depth ?n head >>= Irmin.Merge.exn
 
   module W = Tc.Pair (P)(H)
 
@@ -484,32 +501,54 @@ struct
     get (uri t) ["clone-force"; T.to_hum tag] Tc.unit >>= fun () ->
     of_tag t.config task tag
 
-  let merge_tag t tag =
-    get (uri t) ["merge-tag"; T.to_hum tag] (module M) >>| fun h ->
+  let merge_tag t ?max_depth ?n tag =
+    let query = mk_query ?max_depth ?n () in
+    get (uri t) ?query ["merge-tag"; T.to_hum tag] (module M) >>| fun h ->
     match t.branch with
     | `Head _ -> set_head t h; ok ()
     | `Tag _  -> ok ()
 
-  let merge_tag_exn t tag = merge_tag t tag >>= Irmin.Merge.exn
+  let merge_tag_exn t ?max_depth ?n tag =
+    merge_tag t ?max_depth ?n tag >>= Irmin.Merge.exn
 
-  let merge a t ~into =
+  let merge a ?max_depth ?n t ~into =
     let t = t a and into = into a in
     match branch t with
-    | `Tag tag -> merge_tag into tag
-    | `Head h  -> merge_head into h
+    | `Tag tag -> merge_tag into ?max_depth ?n tag
+    | `Head h  -> merge_head into ?max_depth ?n h
 
-  let merge_exn a t ~into = merge a t ~into >>= Irmin.Merge.exn
+  let merge_exn a ?max_depth ?n t ~into =
+    merge a ?max_depth ?n t ~into >>= Irmin.Merge.exn
 
-  let lca_tag t tag =
-    get (uri t) ["lca-tag"; T.to_hum tag] (Tc.list (module H))
+  module LCA = struct
+    module HL = Tc.List(H)
+    type t = [`Ok of H.t list | `Max_depth_reached | `Too_many_lcas]
+    let hash = Hashtbl.hash
+    let compare = Pervasives.compare
+    let equal = (=)
+    let of_json = function
+      | `O [ "ok", j ] -> `Ok (HL.of_json j)
+      | `A [`String "max-depth-reached" ] -> `Max_depth_reached
+      | `A [`String "too-many-lcas"] -> `Too_many_lcas
+      | j -> Ezjsonm.parse_error j "LCA.of_json"
+    let to_json _ = failwith "TODO"
+    let read _ = failwith "TODO"
+    let write _ = failwith "TODO"
+    let size_of _ = failwith "TODO"
+  end
 
-  let lca_head t head =
-    get (uri t) ["lca-head"; H.to_hum head] (Tc.list (module H))
+  let lca_tag t ?max_depth ?n tag =
+    let query = mk_query ?max_depth ?n () in
+    get (uri t) ?query ["lca-tag"; T.to_hum tag] (module LCA)
 
-  let lca a t1 t2 =
+  let lca_head t ?max_depth ?n head =
+    let query = mk_query ?max_depth ?n () in
+    get (uri t) ?query ["lca-head"; H.to_hum head] (module LCA)
+
+  let lca a ?max_depth ?n t1 t2 =
     match branch (t2 a) with
-    | `Tag tag   -> lca_tag (t1 a) tag
-    | `Head head -> lca_head (t1 a) head
+    | `Tag tag   -> lca_tag  (t1 a) ?max_depth ?n tag
+    | `Head head -> lca_head (t1 a) ?max_depth ?n head
 
   let task_of_head t head =
     LP.Commit.read_exn t.commit_t head >>= fun commit ->

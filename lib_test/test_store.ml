@@ -416,6 +416,7 @@ module Make (S: Irmin.S) = struct
       S.of_head x.config task kr3 >>= fun t1 ->
       S.of_head x.config task kr4 >>= fun t2 ->
       S.lca 5 t1 t2  >>= fun lcas ->
+      let lcas = match lcas with `Ok x -> x | _ -> failwith "lcas" in
       assert_equal (module Set(KC)) "lca" [kr1; kr2] lcas;
       S.merge_exn 4 t1 ~into:t2   >>= fun () ->
 

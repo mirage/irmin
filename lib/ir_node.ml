@@ -354,7 +354,7 @@ struct
       S.Val.iter_succ n (fun l _ -> steps := StepSet.add l !steps);
       return (StepSet.to_list !steps)
 
-  module Graph = Ir_graph.Make(C.Key)(S.Key)(Tc.Unit)(Tc.Unit)
+  module Graph = Ir_graph.Make(C.Key)(S.Key)(Ir_hum.Unit)(Ir_hum.Unit)
 
   let edges t =
     let edges = ref [] in

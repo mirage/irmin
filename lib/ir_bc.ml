@@ -31,8 +31,8 @@ module type STORE = sig
   val tags: t -> tag list Lwt.t
   val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag: t -> tag -> unit Lwt.t
-  val merge_tag: t -> tag -> unit Ir_merge.result Lwt.t
-  val merge_tag_exn: t -> tag -> unit Lwt.t
+  val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
+  val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
   type head
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
@@ -42,16 +42,21 @@ module type STORE = sig
   val heads: t -> head list Lwt.t
   val detach: t -> unit Lwt.t
   val update_head: t -> head -> unit Lwt.t
-  val merge_head: t -> head -> unit Ir_merge.result Lwt.t
-  val merge_head_exn: t -> head -> unit Lwt.t
+  val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
+  val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   val watch_head: t -> key -> (key * head) Lwt_stream.t
   val clone: ('a -> Ir_task.t) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   val clone_force: ('a -> Ir_task.t) -> t ->  tag -> ('a -> t) Lwt.t
-  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
-  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
-  val lca: 'a -> ('a -> t) -> ('a -> t) -> head list Lwt.t
-  val lca_tag: t -> tag -> head list Lwt.t
-  val lca_head: t -> head -> head list Lwt.t
+  val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
+    unit Ir_merge.result Lwt.t
+  val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
+    unit Lwt.t
+  val lca: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  val lca_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  val lca_head: t -> ?max_depth:int -> ?n:int -> head ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   val task_of_head: t -> head -> Ir_task.t Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
@@ -337,20 +342,20 @@ module Make_ext (P: PRIVATE) = struct
     in
     list t Key.empty >>= aux
 
-  let lca a t1 t2 =
+  let lca a ?max_depth ?n t1 t2 =
     let t1 = t1 a and t2 = t2 a in
     head_exn t1 >>= fun h1 ->
     head_exn t2 >>= fun h2 ->
-    History.lca (history_t t1) h1 h2
+    History.lca (history_t t1) ?max_depth ?n h1 h2
 
-  let lca_head t head =
+  let lca_head t ?max_depth ?n head =
     head_exn t >>= fun h ->
-    History.lca (history_t t) h head
+    History.lca (history_t t) ?max_depth ?n h head
 
-  let lca_tag t tag =
+  let lca_tag t ?max_depth ?n tag =
     head_exn t >>= fun h ->
     head_exn { t with branch = ref (`Tag tag) } >>= fun head ->
-    History.lca (history_t t) h head
+    History.lca (history_t t) ?max_depth ?n h head
 
   let task_of_head t head =
     P.Commit.read_exn (commit_t t) head >>= fun commit ->
@@ -359,14 +364,16 @@ module Make_ext (P: PRIVATE) = struct
   (* Merge two commits:
      - Search for common ancestors
      - Perform recursive 3-way merges *)
-  let rec three_way_merge t c1 c2 =
+  let rec three_way_merge t ?max_depth ?n c1 c2 =
     Log.debug "3-way merge between %a and %a"
       force (show (module Head) c1)
       force (show (module Head) c2);
-    History.lca (history_t t) c1 c2 >>= fun lcas ->
+    History.lca (history_t t) ?max_depth ?n c1 c2 >>= fun lcas ->
     let old () = match lcas with
-      | []          -> ok None
-      | old :: olds ->
+      | `Too_many_lcas     -> conflict "Too many lcas"
+      | `Max_depth_reached -> conflict "Max depth reached"
+      | `Ok []             -> ok None (* no common ancestor *)
+      | `Ok (old :: olds)  ->
         let rec aux acc = function
           | []        -> ok (Some acc)
           | old::olds ->
@@ -408,9 +415,9 @@ module Make_ext (P: PRIVATE) = struct
     | Some c -> update_head t c
     | None   -> fail Not_found
 
-  let merge_head t c1 =
+  let merge_head t ?max_depth ?n c1 =
     let aux c2 =
-      three_way_merge t c1 c2 >>| fun c3 ->
+      three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
       update_head t c3 >>= ok
     in
     match branch t with
@@ -420,9 +427,8 @@ module Make_ext (P: PRIVATE) = struct
       | None    -> update_head t c1 >>= ok
       | Some c2 -> aux c2
 
-  let merge_head_exn t c1 =
-    merge_head t c1 >>=
-    Ir_merge.exn
+  let merge_head_exn t ?max_depth ?n c1 =
+    merge_head t ?max_depth ?n c1 >>= Ir_merge.exn
 
   let clone_force task t tag =
     Log.debug "clone_force %a" force (show (module Tag.Key) tag);
@@ -436,21 +442,23 @@ module Make_ext (P: PRIVATE) = struct
     | true  -> return `Duplicated_tag
     | false -> clone_force task t tag >>= fun t -> return (`Ok t)
 
-  let merge_tag t tag =
+  let merge_tag t ?max_depth ?n tag =
     Log.debug "merge_tag %a" force (show (module Tag.Key) tag);
     Tag.read_exn (tag_t t) tag >>= fun c ->
-    merge_head t c
+    merge_head t ?max_depth ?n c
 
-  let merge_tag_exn t tag = merge_tag t tag >>= Ir_merge.exn
+  let merge_tag_exn t ?max_depth ?n tag =
+    merge_tag t ?max_depth ?n tag >>= Ir_merge.exn
 
-  let merge a t ~into =
+  let merge a ?max_depth ?n t ~into =
     Log.debug "merge";
     let t = t a and into = into a in
     match branch t with
-    | `Tag tag -> merge_tag into tag
-    | `Head h  -> merge_head into h
+    | `Tag tag -> merge_tag into ?max_depth ?n tag
+    | `Head h  -> merge_head into ?max_depth ?n h
 
-  let merge_exn a t ~into = merge a t ~into >>= Ir_merge.exn
+  let merge_exn a ?max_depth ?n t ~into =
+    merge a ?max_depth ?n t ~into >>= Ir_merge.exn
 
   module ONode = Tc.Option(P.Node.Key)
 
@@ -534,7 +542,6 @@ module Make_ext (P: PRIVATE) = struct
       in
       return stream
     )
-
 
   type slice = P.Slice.t
 

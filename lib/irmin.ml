@@ -163,10 +163,10 @@ let rename_tag (type a) (type b): (a, b) t -> string -> [`Ok | `Duplicated_tag] 
 let update_tag (type a) (type b): (a, b) t -> string -> unit Lwt.t =
   function T ((module M), _, t) -> M.update_tag t
 
-let merge_tag (type a) (type b): (a, b) t -> string -> unit Merge.result Lwt.t =
+let merge_tag (type a) (type b): (a, b) t -> ?max_depth:int -> ?n:int -> string -> 'a =
   function T ((module M), _, t) -> M.merge_tag t
 
-let merge_tag_exn (type a) (type b): (a, b) t -> string -> unit Lwt.t =
+let merge_tag_exn (type a) (type b): (a, b) t -> ?max_depth:int -> ?n:int -> string -> 'a =
   function T ((module M), _, t) -> M.merge_tag_exn t
 
 let switch (type a) (type b): (a, b) t -> string -> unit Lwt.t =
@@ -191,10 +191,11 @@ let update_head (type a) (type b): (a, b) t -> Hash.SHA1.t -> unit Lwt.t =
   function T ((module M), _, t) -> M.update_head t
 
 let merge_head (type a) (type b):
-  (a, b) t -> Hash.SHA1.t -> unit Merge.result Lwt.t =
+  (a, b) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -> 'a =
   function T ((module M), _, t) -> M.merge_head t
 
-let merge_head_exn (type a) (type b): (a, b) t -> Hash.SHA1.t -> unit Lwt.t =
+let merge_head_exn (type a) (type b):
+  (a, b) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -> 'a =
   function T ((module M), _, t) -> M.merge_head_exn t
 
 let watch_head (type a) (type b):
@@ -218,26 +219,26 @@ let clone_force (type a) (type b):
       return (fun a -> T ((module M), v, t a))
 
 let merge (type a) (type b):
-  'a -> ('a -> (a, b) t) -> into:('a -> (a, b) t) -> unit Merge.result Lwt.t =
-  fun a t ~into -> match t a, into a with
+  'a -> ?max_depth:int -> ?n:int -> ('a -> (a, b) t) -> into:('a -> (a, b) t) -> 'b =
+  fun a ?max_depth ?n t ~into -> match t a, into a with
     | T ((module M), _, t), T ((module I), _, into) ->
       (* XXX: not ideal ... *)
       match M.branch t with
-      | `Tag tag -> I.merge_tag into tag
-      | `Head h  -> I.merge_head into h
+      | `Tag tag -> I.merge_tag into ?max_depth ?n tag
+      | `Head h  -> I.merge_head into ?max_depth ?n h
 
 let merge_exn (type a) (type b):
-  'a -> ('a -> (a, b) t) -> into:('a -> (a, b) t) -> unit Lwt.t =
-  fun a t ~into -> merge a t ~into >>= Merge.exn
+  'a -> ?max_depth:int -> ?n:int -> ('a -> (a, b) t) -> into:('a -> (a, b) t) -> 'b =
+  fun a ?max_depth ?n t ~into -> merge a ?max_depth ?n t ~into >>= Merge.exn
 
 let lca (type a) (type b):
-  'a -> ('a -> (a, b) t) -> ('a -> (a, b) t) -> Hash.SHA1.t list Lwt.t =
-  fun a t1 t2 -> match t1 a, t2 a with
+  'a -> ?max_depth:int -> ?n:int -> ('a -> (a, b) t) -> ('a -> (a, b) t) -> 'b =
+  fun a ?max_depth ?n t1 t2 -> match t1 a, t2 a with
     | T ((module M), _, t1), T ((module I), _, t2) ->
       (* XXX: not ideal ... *)
       match I.branch t2 with
-      | `Tag tag -> M.lca_tag t1 tag
-      | `Head h  -> M.lca_head t1 h
+      | `Tag tag -> M.lca_tag t1 ?max_depth ?n tag
+      | `Head h  -> M.lca_head t1 ?max_depth ?n h
 
 let lca_tag (type a) (type b) (t: (a, b) t) = match t with
   | T ((module M), _, t) -> M.lca_tag t

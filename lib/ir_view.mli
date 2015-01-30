@@ -26,8 +26,8 @@ module type S = sig
   val update_path: db -> key -> t -> unit Lwt.t
   val rebase_path: db -> key -> t -> unit Ir_merge.result Lwt.t
   val rebase_path_exn: db -> key -> t -> unit Lwt.t
-  val merge_path: db -> key -> t -> unit Ir_merge.result Lwt.t
-  val merge_path_exn: db -> key -> t -> unit Lwt.t
+  val merge_path: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Ir_merge.result Lwt.t
+  val merge_path_exn: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Lwt.t
   module Action: sig
     type t =
       [ `Read of (key * value option)

@@ -26,8 +26,8 @@ module type STORE = sig
   val tags: t -> tag list Lwt.t
   val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag: t -> tag -> unit Lwt.t
-  val merge_tag: t -> tag -> unit Ir_merge.result Lwt.t
-  val merge_tag_exn: t -> tag -> unit Lwt.t
+  val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
+  val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   val switch: t -> tag -> unit Lwt.t
   type head
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
@@ -37,16 +37,23 @@ module type STORE = sig
   val heads: t -> head list Lwt.t
   val detach: t -> unit Lwt.t
   val update_head: t -> head -> unit Lwt.t
-  val merge_head: t -> head -> unit Ir_merge.result Lwt.t
-  val merge_head_exn: t -> head -> unit Lwt.t
+  val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
+    unit Ir_merge.result Lwt.t
+  val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   val watch_head: t -> key -> (key * head) Lwt_stream.t
-  val clone: ('a -> Ir_task.t) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone: ('a -> Ir_task.t) -> t -> tag ->
+    [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   val clone_force: ('a -> Ir_task.t) -> t -> tag -> ('a -> t) Lwt.t
-  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
-  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
-  val lca: 'a -> ('a -> t) -> ('a -> t) -> head list Lwt.t
-  val lca_tag: t -> tag -> head list Lwt.t
-  val lca_head: t -> head -> head list Lwt.t
+  val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
+    unit Ir_merge.result Lwt.t
+  val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
+    unit Lwt.t
+  val lca: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  val lca_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  val lca_head: t -> ?max_depth:int -> ?n:int -> head ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   val task_of_head: t -> head -> Ir_task.t Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
