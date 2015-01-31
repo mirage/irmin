@@ -322,9 +322,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
       let task_of_git author message git =
         let id = author.Git.User.name in
-        let date = match Stringext.split ~on:' ' author.Git.User.date with
-          | [date;_] -> Int64.of_string date
-          | _        -> 0L in
+        let date,_ = author.Git.User.date in
         let uid = Int64.of_int (Hashtbl.hash (author, message, git)) in
         Irmin.Task.create ~date ~owner:id ~uid message
 
@@ -347,7 +345,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         in
         let parents = List.map git_of_commit_key parents in
         let parents = List.sort Git.SHA.Commit.compare parents in
-        let date = Int64.to_string (Irmin.Task.date task) ^ " +0000" in
+        let date = (Irmin.Task.date task), None in
         let author =
           Git.User.({ name  = Irmin.Task.owner task;
                       email = "irmin@openmirage.org";
