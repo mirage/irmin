@@ -47,10 +47,10 @@ module type S = sig
 end
 
 module Make
-    (Contents: Tc.S0)
-    (Node: Tc.S0)
-    (Commit: Tc.S0)
-    (Tag: Tc.S0)
+    (Contents: Ir_hum.S)
+    (Node: Ir_hum.S)
+    (Commit: Ir_hum.S)
+    (Tag: Ir_hum.S)
 = struct
 
   module X = struct
@@ -113,6 +113,13 @@ module Make
       | 2 -> `Commit (Commit.read buf)
       | 3 -> `Tag (Tag.read buf)
       | n -> Tc.Reader.error "Vertex.read parse error (tag=%d)" n
+
+    let to_hum = function
+      | `Contents x -> Contents.to_hum x
+      | `Node x -> Node.to_hum x
+      | `Commit x -> Commit.to_hum x
+      | `Tag x -> Tag.to_hum x
+
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)
@@ -183,7 +190,7 @@ module Make
       include G
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
-      let vertex_name k = Printf.sprintf "%S" (Tc.show (module X) k)
+      let vertex_name k = Printf.sprintf "%S" (X.to_hum k)
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None

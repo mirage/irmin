@@ -35,8 +35,7 @@ let provision () =
 
   Store.of_tag config task "upstream" >>= fun t ->
 
-  View.create task >>= fun view ->
-  let v = view "Provision the VM" in
+  View.empty () >>= fun v ->
   View.update v ["etc"; "manpath"]
     "/usr/share/man\n\
      /usr/local/share/man"
@@ -44,7 +43,7 @@ let provision () =
   View.update v ["bin"; "sh"]
     "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
   >>= fun () ->
-  View.merge_path_exn "Cloning Ubuntu 14.04 Gold Image." t [] view
+  View.merge_path_exn (t "Cloning Ubuntu 14.04 Gold Image.") [] v
 
   (* 2. VM configuration. *)
 let configure () =
@@ -52,8 +51,7 @@ let configure () =
   Store.of_tag config task "local" >>= fun t ->
   Lwt_unix.sleep 2.                >>= fun () ->
   Store.switch (t "Switching to upstream") "upstream" >>= fun () ->
-  View.create task                 >>= fun view ->
-  let v = view "Configuration" in
+  View.empty ()                    >>= fun v ->
 
 (*
   Store.View.update v ["etc";"passwd"]
@@ -68,7 +66,7 @@ let configure () =
      nameserver 128.221.130.23"
   >>= fun () ->
 
-  View.merge_path_exn "Network configuration." t [] view
+  View.merge_path_exn (t "Network configuration.") [] v
 
 let attack () =
 

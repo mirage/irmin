@@ -36,7 +36,9 @@ end
 
 (** {1 Merge functions} *)
 
-type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
+type 'a promise = unit -> 'a option result Lwt.t
+
+type 'a t = old:'a promise -> 'a -> 'a -> 'a result Lwt.t
 
 val seq: 'a t list -> 'a t
 val apply: ('a -> 'b t) -> 'a -> 'b t
@@ -64,3 +66,5 @@ val triple: 'a Tc.t -> 'b Tc.t -> 'c Tc.t -> 'a t -> 'b t -> 'c t -> ('a * 'b * 
 
 val biject:  'a Tc.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
 val biject': 'a Tc.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
+
+val with_conflict: (string -> string) -> 'a t -> 'a t

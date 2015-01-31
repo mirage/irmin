@@ -26,6 +26,11 @@ let test () =
   Irmin.create store config task >>= fun t ->
   Irmin.pull_exn (t "Syncing with upstream store") upstream `Update >>= fun () ->
   Irmin.read_exn (t "get the README") ["README.md"]>>= fun readme ->
+  Irmin.with_hrw_view (t "Updating BAR and FOO") `Merge (fun view ->
+      Irmin.update view ["BAR.md"] "Hoho!" >>= fun () ->
+      Irmin.update view ["FOO.md"] "Hihi!" >>= fun () ->
+      Lwt.return_unit
+    ) >>= Irmin.Merge.exn >>= fun () ->
   Printf.printf "%s\n%!" readme;
   return_unit
 

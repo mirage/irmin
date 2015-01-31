@@ -18,16 +18,16 @@
 
 module type S = sig
   include Ir_rw.HIERARCHICAL
-  val create: ('a -> Ir_task.t) -> ('a -> t) Lwt.t
-  val rebase: 'a -> ('a -> t) -> into:('a -> t) -> unit Ir_merge.result Lwt.t
-  val rebase_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  val empty: unit -> t Lwt.t
+  val rebase: t -> into:t -> unit Ir_merge.result Lwt.t
+  val rebase_exn: t -> into:t -> unit Lwt.t
   type db
-  val of_path: ('a -> Ir_task.t) -> db -> key -> ('a -> t) Lwt.t
-  val update_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
-  val rebase_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Ir_merge.result Lwt.t
-  val rebase_path_exn: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
-  val merge_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Ir_merge.result Lwt.t
-  val merge_path_exn: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
+  val of_path: db -> key -> t Lwt.t
+  val update_path: db -> key -> t -> unit Lwt.t
+  val rebase_path: db -> key -> t -> unit Ir_merge.result Lwt.t
+  val rebase_path_exn: db -> key -> t -> unit Lwt.t
+  val merge_path: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Ir_merge.result Lwt.t
+  val merge_path_exn: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Lwt.t
   module Action: sig
     type t =
       [ `Read of (key * value option)
