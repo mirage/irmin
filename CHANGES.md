@@ -1,4 +1,4 @@
-0.9.3
+## 0.9.3
 * Add `Irmin.with_hrw_view` to easily use transactions.
 * Add a phantom type to `Irmin.t` to denote the store capabilities
   read-only, read-write or branch-consistent.
@@ -18,7 +18,7 @@
 * Expose `S.lca` to get the least common ancestors
 * Update to ocaml-git 1.4.6
 
-0.9.2 (2015-01-19)
+## 0.9.2 (2015-01-19)
 * Fix `S.of_head` for the HTTP client (regression introduced in 0.9.0)
 * Fix regression in displaying the store's graph over HTTP introduced by
   0.9.0.
@@ -42,10 +42,10 @@
   the resulting Irmin store will be of type `Path.t`.
 * Fix `irmin init --help`. (#103)
 
-0.9.1 (2014-12-26)
+## 0.9.1 (2014-12-26)
 * Port to Cohttp 0.14.0+ HTTP interface (#102)
 
-0.9.0 (2014-12-20)
+## 0.9.0 (2014-12-20)
 * Improve the efficiency of the Git backend
 * Expose a cleaner API for the Unix backends
 * Expose a cleaner public API
@@ -60,7 +60,7 @@
 * Fix writing contents at the root of the store (#73)
 * More efficient synchronization protocol between Irmin stores (#11)
 
-0.8.3 (2014-06-25)
+## 0.8.3 (2014-06-25)
 * Views now keep track of their parent commits - this makes
   View.merge_path looks like a merge between branches. All the
   view operations are squashed in a unique commit.
@@ -71,7 +71,7 @@
   command-line. `dot` does not like big graphs, but that's
   still useful to have the `.dot` file to analyze it.
 
-0.8.2: (2014-06-11)
+## 0.8.2 (2014-06-11)
 * Support backend specific protocols for push/pull
 * The Irmin Git backend can now sync with remote Git repositories
 * Simplify the organisation of the libraries: irmin, irmin.backend,
@@ -80,7 +80,7 @@
   at the top of your file and use less functor in your code (again,
   check the examples)
 
-0.8.1: (2014-06-02)
+## 0.8.1 (2014-06-02)
 * Fix the behavior of `IrminMemory.Make` to return an hanlder to a
   shared datastore instead of creating a fresh one. Add
   `IrminMemory.Fresh` to return a fresh in-memory datastore maker.
@@ -90,7 +90,7 @@
   everything by `refs/heads/` anymore)
 * Partial support for recursive stores (WIP)
 
-0.8.0: (2014-05-27)
+## 0.8.0 (2014-05-27)
 * Spring clean-ups in the API. Separation in IrminBranch for
   fork/join operations, IrminSnapshot for snapshot/revert
   operations and IrminDump for import/export operations.
@@ -106,7 +106,7 @@
   an already existing branch
 * Fix order of arguments in Irmin.merge
 
-0.7.0 (2014-05-02):
+## 0.7.0 (2014-05-02)
 * Feature: support for in-memory transactions. They are built
   on top of views.
 * Feature: add support for views: these are temporary stores with
@@ -126,7 +126,7 @@
 * Speed-up IrminValue.Mux
 * Deps: use ocaml-sha instead of cryptokit
 
-0.6.0: (2014-04-12)
+## 0.6.0 (2014-04-12)
 * Support for user-defined contents (with custom merge operators)
 * Support for merge operations
 * Rename `IrminTree` to `IrminNode` to reflect the fact that we
@@ -136,10 +136,10 @@
   we also support structured contents (as JSON objects)
 * Support for linking the library without linking to camlp4 as well (#23)
 
-0.5.1: (2014-03-02)
+## 0.5.1 (2014-03-02)
 * Port to use Cohttp 0.10.0 interface.
 
-0.5.0:
+## 0.5.0
 * More consistent support for notifications. `irmin watch` works
   now for all backends.
 * Support for different blob formats on the command-line
@@ -153,7 +153,7 @@
 * Improve the output graph when objects of different kinds might have
   the same SHA1
 
-0.4: (2014-01-21)
+## 0.4 (2014-01-21)
 * The command-line tool now looks in the environment for the variable
   `IRMIN` to configure its default backend
 * Add a Git backend
@@ -167,13 +167,13 @@
 * Use `mstruct` (mutable buffers on top of `cstruct`) which is now
   released independently
 
-0.3: (2013-12-13)
+## 0.3 (2013-12-13)
 * Fix a fd leak in the filesystem bakend
 * Functorize the CRUD interface over the HTTP client implementation
 * Use oasis to build the project
 * Use the now released separately `ezjsonm` and `alcotest` libraries
 
-0.2: (2013-11-23)
+## 0.2 (2013-11-23)
 * Fix the HTTP server responses
 * More high-level tests
 * Add unit-tests for the client CRUD interfaces (over memory and/or filesystem)
@@ -186,7 +186,7 @@
 * Improve and make the CLI easier to use
 * Implement clone/pull/push/snapshot/revert in the CLI
 
-0.1: (2013-10-30)
+## 0.1 (2013-10-30)
 * Use an HTTP server as a front-end
 * Initial support for in-memory and filesystem backends
 * Simple signature for backends
