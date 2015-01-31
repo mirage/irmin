@@ -1,4 +1,5 @@
 ## 0.9.3
+* Fix `Irmin.push`
 * Add `Irmin.with_hrw_view` to easily use transactions.
 * Add a phantom type to `Irmin.t` to denote the store capabilities
   read-only, read-write or branch-consistent.
