@@ -118,13 +118,17 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     Client.delete uri >>=
     map_string_response fn
 
-  let post t path body fn =
+  let post t path ?query body fn =
     let body =
       let params = `O [ "params", body ] in
       Ezjsonm.to_string params in
     let uri = uri_append t path in
     let short_body =
       if String.length body > 80 then String.sub body 0 80 ^ ".." else body
+    in
+    let uri = match query with
+      | None   -> uri
+      | Some q -> Uri.with_query uri q
     in
     Log.debug "post %s %s" (Uri.path uri) short_body;
     let body = Cohttp_lwt_body.of_string body in
@@ -554,16 +558,25 @@ struct
     LP.Commit.read_exn t.commit_t head >>= fun commit ->
     Lwt.return (LP.Commit.Val.task commit)
 
-  module E = Tc.Pair
-      (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))
-      (Tc.Pair (Tc.List(H)) (Tc.List(H)))
+  module E = Tc.Pair (Tc.List(H)) (Tc.List(H))
 
   type slice = L.slice
 
   module Slice = L.Private.Slice
 
   let export ?full ?depth ?(min=[]) ?(max=[]) t =
-    post (uri t) ["export"] (E.to_json ((full, depth), (min, max)))
+    let query =
+      let full = match full with
+        | None   -> []
+        | Some x -> ["full", [string_of_bool x]]
+      in
+      let depth = match depth with
+        | None   -> []
+        | Some x -> ["depth", [string_of_int x]]
+      in
+      match full @ depth with [] -> None | l -> Some l
+    in
+    post (uri t) ?query ["export"] (E.to_json (min, max))
       (module L.Private.Slice)
 
   module I = Tc.List(T)

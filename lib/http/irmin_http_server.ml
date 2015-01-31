@@ -226,6 +226,17 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         return (Tc.to_json o r)
       )
 
+  (* 1 argument in the body + query *)
+  let mk0p1bfq name fn db i1 o =
+    name,
+    Fixed (fun t path params query ->
+        mk0p name path;
+        let x = mk1b name i1 params in
+        db t >>= fun t ->
+        fn t x query >>= fun r ->
+        return (Tc.to_json o r)
+      )
+
   (* 1 argument in the path, 1 argument in the body, fixed answer *)
   let mk1p1bf name fn db i1 i2 o =
     name,
@@ -383,10 +394,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let key: S.key Tc.t = (module S.Key)
   let head: S.head Tc.t = (module S.Head)
 
-  let export =
-    Tc.pair
-      (Tc.pair (Tc.option Tc.bool) (Tc.option Tc.int))
-      (Tc.pair (Tc.list head) (Tc.list head))
+  let export = Tc.pair (Tc.list head) (Tc.list head)
 
   let merge (type x) (x:x Tc.t): x Irmin.Merge.result Tc.t =
     let module X = (val x: Tc.S0 with type t = x) in
@@ -395,17 +403,22 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let dyn_node list child = DNode { list; child }
 
-  let mk_query query =
-    let get n =
-      try match List.assoc n query with
-        | [i] -> (try Some (int_of_string i) with Failure _ -> None)
-        | _ -> None
-      with Not_found ->
-        None
-    in
-    let max_depth = get "depth" in
-    let n = get "n" in
+  let get_query query fn n =
+    try match List.assoc n query with
+      | [i] -> (try Some (fn i) with Failure _ -> None)
+      | _ -> None
+    with Not_found ->
+      None
+
+  let mk_merge_query query =
+    let max_depth = get_query query int_of_string "depth" in
+    let n = get_query query int_of_string "n" in
     max_depth, n
+
+  let mk_export_query query =
+    let full = get_query query bool_of_string "full" in
+    let depth = get_query query int_of_string "depth" in
+    full, depth
 
   module LCA = struct
     module HL = Tc.List(S.Head)
@@ -429,7 +442,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
     let slice: S.slice Tc.t = (module S.Private.Slice) in
-    let s_export t ((full, depth), (min, max)) =
+    let s_export t (min, max) query =
+      let full, depth = mk_export_query query in
       S.export ?full ?depth ~min ~max t
     in
     let s_graph t = graph_of_dump t in
@@ -455,23 +469,23 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t
     in
     let s_merge_head t k query =
-      let max_depth, n = mk_query query in
+      let max_depth, n = mk_merge_query query in
       S.merge_head t ?max_depth ?n k >>| fun () ->
       S.head_exn t >>=
       ok
     in
     let s_merge_tag t k query =
-      let max_depth, n = mk_query query in
+      let max_depth, n = mk_merge_query query in
       S.merge_tag t ?max_depth ?n k >>| fun () ->
       S.head_exn t >>=
       ok
     in
     let s_lca_tag t tag query =
-      let max_depth, n = mk_query query in
+      let max_depth, n = mk_merge_query query in
       S.lca_tag t ?max_depth ?n tag
     in
     let s_lca_head t head query =
-      let max_depth, n = mk_query query in
+      let max_depth, n = mk_merge_query query in
       S.lca_head t ?max_depth ?n head
     in
     let l f t list = f t (S.Key.create list) in
@@ -491,16 +505,16 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       (* more *)
       mk1p0bf "rename-tag"  S.rename_tag t tag' ok_or_duplicated_tag;
       mk1p0bf "update-tag"  S.update_tag t tag' Tc.unit;
-      mk1p0bfq "merge-tag"   s_merge_tag t tag' (merge head);
+      mk1p0bfq "merge-tag"  s_merge_tag t tag' (merge head);
       mk1p0bf "switch"      S.switch t tag' Tc.unit;
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" S.update_head t head' Tc.unit;
-      mk1p0bfq "merge-head"  s_merge_head t head' (merge head);
+      mk1p0bfq "merge-head" s_merge_head t head' (merge head);
       mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key head);
       mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
-      mk0p1bf "export"      s_export t export slice;
+      mk0p1bfq "export"     s_export t export slice;
       mk0p1bf "import"      S.import t slice Tc.unit;
 
       (* lca *)
