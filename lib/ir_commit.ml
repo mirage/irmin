@@ -128,19 +128,24 @@ struct
     let merge_commit path t ~old k1 k2 =
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
-      let old () =
-        old () >>| function
-        | None     -> ok None
-        | Some old ->
-          read_exn t old >>= fun vold ->
-          ok (Some (S.Val.node vold))
-      in
-      merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
-      >>| fun node ->
-      let parents = [k1; k2] in
-      let commit = S.Val.create ?node ~parents (task t) in
-      add t commit >>= fun key ->
-      ok key
+      if List.mem k1 (S.Val.parents v2) then ok k2
+      else if List.mem k2 (S.Val.parents v1) then ok k1
+      else
+        (* FIXME: check that old<>k1 and old<>k2 and don't create a
+           new commit in that case. *)
+        let old () =
+          old () >>| function
+          | None     -> ok None
+          | Some old ->
+            read_exn t old >>= fun vold ->
+            ok (Some (S.Val.node vold))
+        in
+        merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
+        >>| fun node ->
+        let parents = [k1; k2] in
+        let commit = S.Val.create ?node ~parents (task t) in
+        add t commit >>= fun key ->
+        ok key
 
     let merge path t = Ir_merge.option (module S.Key) (merge_commit path t)
 
