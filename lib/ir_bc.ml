@@ -444,8 +444,13 @@ module Make_ext (P: PRIVATE) = struct
 
   let merge_tag t ?max_depth ?n tag =
     Log.debug "merge_tag %a" force (show (module Tag.Key) tag);
-    Tag.read_exn (tag_t t) tag >>= fun c ->
-    merge_head t ?max_depth ?n c
+    Tag.read (tag_t t) tag >>= function
+    | None  ->
+      let str =
+        Printf.sprintf "merge_tag: %s is not a valid tag" (Tag.Key.to_hum tag)
+      in
+      Lwt.fail (Failure str)
+    | Some c -> merge_head t ?max_depth ?n c
 
   let merge_tag_exn t ?max_depth ?n tag =
     merge_tag t ?max_depth ?n tag >>= Ir_merge.exn
