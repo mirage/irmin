@@ -285,7 +285,7 @@ module Internal (Node: NODE) = struct
       t.ops := `Rmdir k :: !(t.ops);
       aux t.view k
 
-  let watch _ =
+  let watch _ _ =
     failwith "TODO: View.watch"
 
   let apply t a =
