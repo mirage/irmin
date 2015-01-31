@@ -1786,7 +1786,7 @@ val push_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> unit Lwt.t
 type 'a proj = { f: 't . (module S with type t = 't) -> 't -> 'a }
 (** Project a base store to its actual implementation and state. *)
 
-val with_store: ([`BC],'k,'v) t -> 'a proj  -> 'a
+val with_store: ([`BC],'k,'v) t -> 'a proj -> 'a
 (** [with_store t fn] applies [fn] on the underlying store
     implementation of the base store [t]. For instance, it can be used
     to build a {{!View}views} as follows:
