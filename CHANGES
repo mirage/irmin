@@ -1,4 +1,7 @@
 0.9.3
+* Add `Irmin.with_hrw_view` to easily use transactions.
+* Add a phantom type to `Irmin.t` to denote the store capabilities
+  read-only, read-write or branch-consistent.
 * The `~old` argument of a merge function can now be optional to
   signify that there is no common ancestor.
 * Expose `Irmin.with_rw_view` to create a temporary, in-memory and
