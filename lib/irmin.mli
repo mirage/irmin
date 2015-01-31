@@ -1622,7 +1622,7 @@ val read: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt.t
 val read_exn: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v Lwt.t
 (** See {!RO.read_exn}. *)
 
-val mem: ([`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
+val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
 val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
