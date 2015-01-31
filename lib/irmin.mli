@@ -1598,152 +1598,149 @@ val basic: (module S_MAKER) -> ('k,'v) contents -> ('k,'v) basic
     [backend] as a backend and containing values defined by
     [contents]. *)
 
-type ('k,'v) t
+type ('a, 'k, 'v) t
 (** The type for default store, with keys of type ['k] and values of
-    type ['v]. *)
+    type ['v]. ['a] is a phantom type representing the store's kind:
+    read-only, read-write or branch-consistent. *)
 
-val create: ('k,'v) basic -> config -> ('m -> task) -> ('m -> ('k,'v) t) Lwt.t
+val create: ('k,'v) basic -> config -> ('m -> task) -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!RO.create}. Needs a backend as first argument. *)
 
 val of_tag: ('k,'v) basic -> config -> ('m -> task) -> string
-  -> ('m -> ('k,'v) t) Lwt.t
+  -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.of_tag}. Needs a backend as first argument. *)
 
 val of_head: ('k,'v) basic -> config -> ('m -> task) -> Hash.SHA1.t
-  -> ('m -> ('k,'v) t) Lwt.t
+  -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.of_head}. Needs a backend as first argument. *)
 
 (** {2 Base Operations} *)
 
-val read: ('k,'v) t -> 'k -> 'v option Lwt.t
+val read: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt.t
 (** See {!RO.read}. *)
 
-val read_exn: ('k,'v) t -> 'k -> 'v Lwt.t
+val read_exn: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v Lwt.t
 (** See {!RO.read_exn}. *)
 
-val mem: ('k,'v) t -> 'k -> bool Lwt.t
+val mem: ([`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
-val iter: ('k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
-(** See {!RW.iter}. *)
+val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
+(** See {!RO.watch}. *)
 
-val update: ('k,'v) t -> 'k -> 'v -> unit Lwt.t
+val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
+(** See {!RO.iter}. *)
+
+val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
+(** See {!HRO.list}. *)
+
+val update: ([<`HRW|`BC],'k,'v) t -> 'k -> 'v -> unit Lwt.t
 (** See {!RW.update}. *)
 
-val remove: ('k,'v) t -> 'k -> unit Lwt.t
+val remove: ([<`HRW|`BC],'k,'v) t -> 'k -> unit Lwt.t
 (** See {!RW.remove}. *)
 
-val watch: ('k,'v) t -> 'k -> 'v option Lwt_stream.t
-(** See {!RW.watch}. *)
-
-val list: ('k,'v) t -> 'k -> 'k list Lwt.t
-(** See {!HRW.list}. *)
-
-val remove_rec: ('k,'v) t -> 'k -> unit Lwt.t
+val remove_rec: ([<`HRW|`BC],'k,'v) t -> 'k -> unit Lwt.t
 (** See {!HRW.remove_rec}. *)
 
 (** {2 Tags} *)
 
-val tag: ('k,'v) t -> string option
+val tag: ([`BC],'k,'v) t -> string option
 (** See {!BC.tag}. *)
 
-val tag_exn: ('k,'v) t -> string
+val tag_exn: ([`BC],'k,'v) t -> string
 (** See {!BC.tag_exn}. *)
 
-val tags: ('k,'v) t -> string list Lwt.t
+val tags: ([`BC],'k,'v) t -> string list Lwt.t
 (** See {!BC.tags}. *)
 
-val rename_tag: ('k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
+val rename_tag: ([`BC],'k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
 (** See {!BC.rename_tag}. *)
 
-val update_tag: ('k,'v) t -> string -> unit Lwt.t
+val update_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
 (** See {!BC.update_tag}. *)
 
-val merge_tag: ('k,'v) t -> ?max_depth:int -> ?n:int -> string ->
+val merge_tag: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string ->
   unit Merge.result Lwt.t
 (** See {!BC.merge_tag}. *)
 
-val merge_tag_exn: ('k,'v) t -> ?max_depth:int -> ?n:int -> string -> unit Lwt.t
+val merge_tag_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string -> unit Lwt.t
 (** See {!BC.merge_tag_exn}. *)
 
-val switch: ('k,'v) t -> string -> unit Lwt.t
+val switch: ([`BC],'k,'v) t -> string -> unit Lwt.t
 (** See {!BC.switch}. *)
 
 (** {2 Heads} *)
 
-val head: ('k,'v) t -> Hash.SHA1.t option Lwt.t
+val head: ([`BC],'k,'v) t -> Hash.SHA1.t option Lwt.t
 (** See {!BC.head}. *)
 
-val head_exn: ('k,'v) t -> Hash.SHA1.t Lwt.t
+val head_exn: ([`BC],'k,'v) t -> Hash.SHA1.t Lwt.t
 (** See {!BC.head_exn}. *)
 
-val branch: ('k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t]
+val branch: ([`BC],'k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t]
 (** See {!BC.branch}. *)
 
-val heads: ('k,'v) t -> Hash.SHA1.t list Lwt.t
+val heads: ([`BC],'k,'v) t -> Hash.SHA1.t list Lwt.t
 (** See {!BC.heads}. *)
 
-val detach: ('k,'v) t -> unit Lwt.t
+val detach: ([`BC],'k,'v) t -> unit Lwt.t
 (** See {!BC.detach}. *)
 
-val update_head: ('k,'v) t -> Hash.SHA1.t -> unit Lwt.t
+val update_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
 (** See {!BC.update_head}. *)
 
-val merge_head: ('k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+val merge_head: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   unit Merge.result Lwt.t
 (** See {!BC.merge_head}. *)
 
-val merge_head_exn: ('k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
 
-val watch_head: ('k,'v) t -> 'k -> ('k * Hash.SHA1.t) Lwt_stream.t
+val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t) Lwt_stream.t
 (** See {!BC.watch_head}. *)
 
 (** {2 Clones and Merges} *)
 
-val clone: ('m -> task) -> ('k,'v) t -> string
-  -> [`Ok of ('m -> ('k,'v) t) | `Duplicated_tag] Lwt.t
+val clone: ('m -> task) -> ([`BC],'k,'v) t -> string
+  -> [`Ok of ('m -> ([`BC],'k,'v) t) | `Duplicated_tag] Lwt.t
 (** See {!BC.clone}. *)
 
-val clone_force: ('m -> task) -> ('k,'v) t -> string -> ('m -> ('k,'v) t) Lwt.t
+val clone_force: ('m -> task) -> ([`BC],'k,'v) t -> string
+  -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.clone_force}. *)
 
 val merge: 'm -> ?max_depth:int -> ?n:int ->
-  ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t) -> unit Merge.result Lwt.t
+  ('m -> ([`BC],'k,'v) t) -> into:('m -> ([`BC],'k,'v) t)
+  -> unit Merge.result Lwt.t
 (** See {!BC.merge}. *)
 
 val merge_exn: 'm -> ?max_depth:int -> ?n:int ->
-  ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t) -> unit Lwt.t
+  ('m -> ([`BC],'k,'v) t) -> into:('m -> ([`BC],'k,'v) t) -> unit Lwt.t
 (** See {!BC.merge_exn}. *)
 
-val lca: 'm -> ?max_depth:int -> ?n:int -> ('m -> ('k,'v) t) -> ('m -> ('k,'v) t) ->
+val lca: 'm -> ?max_depth:int -> ?n:int ->
+  ('m -> ([`BC],'k,'v) t) -> ('m -> ([`BC],'k,'v) t) ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca}. *)
 
-val lca_tag: ('k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
+val lca_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca_tag}. *)
 
-val lca_head: ('k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+val lca_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca_head}. *)
 
-val task_of_head: ('k, 'v) t -> Hash.SHA1.t -> task Lwt.t
+val task_of_head: ([`BC],'k, 'v) t -> Hash.SHA1.t -> task Lwt.t
 (** See {!BC.task_of_head}. *)
 
 (** {2 Views} *)
 
-type ('t, 'k, 'v) rw =
-  (module RW with type t = 't and type key = 'k and type value = 'v)
-(** The type or read-write stores. *)
-
-type ('k, 'v) rw_op = < f: 'a . ('a, 'k, 'v) rw -> 'a -> unit Lwt.t >
-(** Sequence of operations on a read-write store. *)
-
-val with_rw_view: ('k, 'v) t ->
-  ?path:'k -> [`Update | `Rebase | `Merge] -> ('k, 'v) rw_op ->
-  unit Merge.result Lwt.t
+val with_hrw_view:
+  ([`BC],'k, 'v) t -> ?path:'k -> [`Update | `Rebase | `Merge] ->
+  (([`HRW], 'k, 'v) t -> unit Lwt.t) -> unit Merge.result Lwt.t
 (** [with_rw_view t task ?path strat ops] applies [ops] to an
     in-memory, temporary and mutable view of the store [t]. If [path]
     is set, all operations in the transaction are relative the that
@@ -1761,35 +1758,35 @@ val remote_uri: string -> remote
     optimized native synchronization protocol when available for the
     given backend. *)
 
-val remote_basic: ('k,'v) t -> remote
+val remote_basic: ([`BC],'k,'v) t -> remote
 (** Same as {!remote_store} but for basic stores. *)
 
-val fetch: ('k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t option Lwt.t
+val fetch: ([`BC],'k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t option Lwt.t
 (** See {!Sync.fetch}. *)
 
-val fetch_exn: ('k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t
+val fetch_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t
 (** See {!Sync.fetch_exn}. *)
 
-val pull: ('k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
+val pull: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
   unit Merge.result Lwt.t
 (** See {!Sync.pull}. *)
 
-val pull_exn: ('k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
+val pull_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
   unit Lwt.t
 (** See {!Sync.pull_exn}. *)
 
-val push: ('k,'v) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+val push: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
 (** See {!Sync.push}. *)
 
-val push_exn: ('k,'v) t -> ?depth:int -> remote -> unit Lwt.t
+val push_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> unit Lwt.t
 (** See {!Sync.push_exn}. *)
 
 (** {2 Projections} *)
 
-type 'a proj = < f: 't . (module S with type t = 't) -> 't -> 'a >
+type 'a proj = { f: 't . (module S with type t = 't) -> 't -> 'a }
 (** Project a base store to its actual implementation and state. *)
 
-val with_store: ('k,'v) t -> 'a proj  -> 'a
+val with_store: ([`BC],'k,'v) t -> 'a proj  -> 'a
 (** [with_store t fn] applies [fn] on the underlying store
     implementation of the base store [t]. For instance, it can be used
     to build a {{!View}views} as follows:

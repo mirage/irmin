@@ -95,231 +95,234 @@ type ('t, 'k, 'v) s =
              and type key = 'k
              and type value = 'v)
 
-type ('t, 'k, 'v) view =
-  (module VIEW with type db = 't
-                and type key = 'k
-                and type value = 'v)
+type ('k, 'v) pack = E: ('t, 'k, 'v) s * 't -> ('k, 'v) pack
 
-type ('a, 'b) t =
-  | T: ('t, 'a, 'b) s * ('t, 'a, 'b) view * 't -> ('a, 'b) t
+type ('a, 'k, 'v) t = {
+  read: 'k -> 'v option Lwt.t;
+  read_exn: 'k -> 'v Lwt.t;
+  mem: 'k -> bool Lwt.t;
+  iter: ('k -> unit Lwt.t) -> unit Lwt.t;
+  update: 'k -> 'v -> unit Lwt.t;
+  remove: 'k -> unit Lwt.t;
+  watch: 'k -> 'v option Lwt_stream.t;
+  list: 'k -> 'k list Lwt.t;
+  remove_rec: 'k -> unit Lwt.t;
+  extend: ('a, 'k, 'v) ext;
+}
+
+and (_, 'k, 'v) ext =
+  | HRW: ([>`HRW], 'k, 'v) ext
+  | BC: ('k, 'v) bc -> ([>`BC], 'k, 'v) ext
+
+and ('k, 'v) bc = {
+  pack: ('k, 'v) pack;
+  tag: unit -> string option;
+  tag_exn: unit -> string;
+  tags: unit -> string list Lwt.t;
+  rename_tag: string -> [`Ok | `Duplicated_tag] Lwt.t;
+  update_tag: string -> unit Lwt.t;
+  merge_tag: ?max_depth:int -> ?n:int -> string -> unit Merge.result Lwt.t;
+  merge_tag_exn: ?max_depth:int -> ?n:int -> string -> unit Lwt.t;
+  switch: string -> unit Lwt.t;
+  head: unit -> Hash.SHA1.t option Lwt.t;
+  head_exn: unit -> Hash.SHA1.t Lwt.t;
+  branch: unit -> [`Tag of string | `Head of Hash.SHA1.t];
+  heads: unit -> Hash.SHA1.t list Lwt.t;
+  detach: unit -> unit Lwt.t;
+  update_head: Hash.SHA1.t -> unit Lwt.t;
+  merge_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Merge.result Lwt.t;
+  merge_head_exn: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Lwt.t;
+  watch_head: 'k -> ('k * Hash.SHA1.t) Lwt_stream.t;
+  clone: 'm. ('m -> task) -> string -> [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag] Lwt.t;
+  clone_force: 'm. ('m -> task) -> string -> ('m -> ([`BC], 'k, 'v) t) Lwt.t;
+  merge: ?max_depth:int -> ?n:int -> into:([`BC], 'k, 'v) t ->
+    unit Merge.result Lwt.t;
+  merge_exn: ?max_depth:int -> ?n:int -> into:([`BC], 'k, 'v) t -> unit Lwt.t;
+  lca: ?max_depth:int -> ?n:int -> ([`BC], 'k, 'v) t ->
+    [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
+  lca_tag: ?max_depth:int -> ?n:int -> string ->
+    [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
+  lca_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
+  task_of_head: Hash.SHA1.t -> task Lwt.t;
+  remote_basic: unit -> remote;
+  fetch: ?depth:int -> remote -> Hash.SHA1.t option Lwt.t;
+  fetch_exn: ?depth:int -> remote -> Hash.SHA1.t Lwt.t;
+  pull: ?depth:int -> remote -> [`Merge | `Update] -> unit Merge.result Lwt.t;
+  pull_exn: ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t;
+  push: ?depth:int -> remote -> [`Ok | `Error] Lwt.t;
+  push_exn: ?depth:int -> remote -> unit Lwt.t;
+}
+
+(* HRW *)
+let read t = t.read
+let read_exn t = t.read_exn
+let mem t = t.mem
+let iter t = t.iter
+let update t = t.update
+let remove t = t.remove
+let watch t = t.watch
+let list t = t.list
+let remove_rec t = t.remove_rec
+
+(* BC *)
+let bc (t: ([`BC],'k,'v) t) fn = fn t.extend
+
+let tag t = bc t (function BC t -> t.tag ())
+let tag_exn t = bc t (function BC t -> t.tag_exn ())
+let tags t = bc t (function BC t -> t.tags ())
+let rename_tag t = bc t (function BC t -> t.rename_tag)
+let update_tag t = bc t (function BC t -> t.update_tag)
+let merge_tag t = bc t (function BC t -> t.merge_tag)
+let merge_tag_exn t = bc t (function BC t -> t.merge_tag_exn)
+let switch t = bc t (function BC t -> t.switch)
+let head t = bc t (function BC t -> t.head ())
+let head_exn t = bc t (function BC t -> t.head_exn ())
+let branch t = bc t (function BC t -> t.branch ())
+let heads t = bc t (function BC t -> t.heads ())
+let detach t = bc t (function BC t -> t.detach ())
+let update_head t = bc t (function BC t -> t.update_head)
+let merge_head t = bc t (function BC t -> t.merge_head)
+let merge_head_exn t = bc t (function BC t -> t.merge_head_exn)
+let watch_head t = bc t (function BC t -> t.watch_head)
+let clone task t = bc t (function BC t -> t.clone task)
+let clone_force task t = bc t (function BC t -> t.clone_force task)
+let merge a ?max_depth ?n t ~into =
+  bc (t a) (function BC t -> t.merge ?max_depth ?n ~into:(into a))
+let merge_exn a ?max_depth ?n t ~into =
+  bc (t a) (function BC t -> t.merge_exn ?max_depth ?n ~into:(into a))
+let lca a ?max_depth ?n t1 t2 =
+  bc (t1 a) (function BC t1 -> t1.lca ?max_depth ?n (t2 a))
+let lca_tag t = bc t (function BC t -> t.lca_tag)
+let lca_head t = bc t (function BC t -> t.lca_head)
+let task_of_head t = bc t (function BC t -> t.task_of_head)
+
+(* sync *)
+let remote_basic t = bc t (function BC t -> t.remote_basic ())
+let fetch t = bc t (function BC t -> t.fetch)
+let fetch_exn t = bc t (function BC t -> t.fetch_exn)
+let pull t = bc t (function BC t -> t.pull)
+let pull_exn t = bc t (function BC t -> t.pull_exn)
+let push t = bc t (function BC t -> t.push)
+let push_exn t = bc t (function BC t -> t.push_exn)
+
+let pack_hrw (type x) (type k) (type v)
+    (module M: HRW with type t = x
+                    and type key = k
+                    and type value = v)
+    (t:x): ([`HRW], k, v) t =
+{
+  read = M.read t;
+  read_exn = M.read_exn t;
+  mem = M.mem t;
+  iter = M.iter t;
+  update = M.update t;
+  remove = M.remove t;
+  watch = M.watch t;
+  list = M.list t;
+  remove_rec = M.remove_rec t;
+  extend = HRW;
+}
+
+let pack_s (type x) (type k) (type v)
+    (module M: BASIC with type t = x and type key = k and type value = v)
+    (t:'a -> x): 'a -> ([`BC], k, v) t =
+  let module S = Sync(M) in
+  let merge t ?max_depth ?n ~(into:([`BC], k, v) t) =
+    match M.branch t, into.extend with
+    | `Tag tag, BC i -> i.merge_tag  ?max_depth ?n tag
+    | `Head h , BC i -> i.merge_head ?max_depth ?n h
+  in
+  let rec aux t =
+    let hrw = pack_hrw (module M) t in
+    let bc = {
+        pack = E ((module M), t);
+        tag = (fun () -> M.tag t);
+        tag_exn = (fun () -> M.tag_exn t);
+        tags = (fun () -> M.tags t);
+        rename_tag = M.rename_tag t;
+        update_tag = M.update_tag t;
+        merge_tag = M.merge_tag t;
+        merge_tag_exn = M.merge_tag_exn t;
+        switch = M.switch t;
+        head = (fun () -> M.head t);
+        head_exn = (fun () -> M.head_exn t);
+        branch = (fun () -> M.branch t);
+        heads = (fun () -> M.heads t);
+        detach = (fun () -> M.detach t);
+        update_head = M.update_head t;
+        merge_head = M.merge_head t;
+        merge_head_exn = M.merge_head_exn t;
+        watch_head = M.watch_head t;
+        clone = (fun task tag ->
+            M.clone task t tag >>= function
+            | `Ok x           -> Lwt.return (`Ok (fun a -> aux (x a)))
+            | `Duplicated_tag -> Lwt.return `Duplicated_tag
+          );
+        clone_force = (fun task tag ->
+            M.clone_force task t tag >>= fun x ->
+            Lwt.return (fun a -> aux (x a))
+          );
+        merge = merge t;
+        merge_exn = (fun ?max_depth ?n ~into ->
+            merge t ?max_depth ?n ~into >>= Ir_merge.exn
+          );
+        lca = (fun ?max_depth ?n i ->
+            let BC i = i.extend in
+            match i.branch () with
+            | `Tag tag -> M.lca_tag t ?max_depth ?n tag
+            | `Head h  -> M.lca_head t ?max_depth ?n h
+          );
+        lca_tag = M.lca_tag t;
+        lca_head = M.lca_head t;
+        task_of_head = M.task_of_head t;
+        remote_basic = (fun () -> remote_store (module M) t);
+        fetch = S.fetch t;
+        fetch_exn = S.fetch_exn t;
+        pull = S.pull t;
+        pull_exn = S.pull_exn t;
+        push = S.push t;
+        push_exn = S.push_exn t;
+    }
+    in
+    { hrw with extend = BC bc }
+  in
+  fun a -> aux (t a)
 
 let create (type a) (type b) (t: (a, b) basic) config task =
   let (module T) = t in
-  let module View = View(T) in
   T.create config task >>= fun t ->
-  return (fun a -> T ((module T), (module View), t a))
+  return (pack_s (module T) t)
 
 let of_tag (type a) (type b) (t: (a, b) basic) config task tag =
   let (module T) = t in
-  let module View = View(T) in
   T.of_tag config task tag >>= fun t ->
-  return (fun a -> T ((module T), (module View), t a))
+  return (pack_s (module T) t)
 
 let of_head (type a) (type b) (t: (a, b) basic) config task h =
   let (module T) = t in
   let module View = View(T) in
   T.of_head config task h >>= fun t ->
-  return (fun a -> T ((module T), (module View), t a))
+  return (pack_s (module T) t)
 
-let read (type a) (type b): (a, b) t -> a -> b option Lwt.t =
-  function T ((module M), _, t) -> M.read t
+type 'a proj = { f: 't . (module S with type t = 't) -> 't -> 'a }
 
-let read_exn (type a) (type b): (a, b) t -> a -> b Lwt.t =
-  function T ((module M), _, t) -> M.read_exn t
+let with_store (type a) (type b): ([`BC], a, b) t -> 'a proj -> 'a =
+  fun t f -> match t.extend with
+    | BC { pack = E ((module M), t); _ } -> f.f (module M) t
 
-let mem (type a) (type b): (a, b) t -> a -> bool Lwt.t =
-  function T ((module M), _, t) -> M.mem t
-
-let iter (type a) (type b): (a, b) t -> (a -> unit Lwt.t) -> unit Lwt.t =
-  function T ((module M), _, t) -> M.iter t
-
-let update (type a) (type b): (a, b) t -> a -> b -> unit Lwt.t =
-  function T ((module M), _, t) -> M.update t
-
-let remove (type a) (type b): (a, b) t -> a -> unit Lwt.t =
-  function T ((module M), _, t) -> M.remove t
-
-let watch (type a) (type b): (a, b) t -> a -> b option Lwt_stream.t =
-  function T ((module M), _, t) -> M.watch t
-
-let list (type a) (type b): (a, b) t -> a -> a list Lwt.t =
-  function T ((module M), _, t) -> M.list t
-
-let remove_rec (type a) (type b): (a, b) t -> a -> unit Lwt.t =
-  function T ((module M), _, t) -> M.remove_rec t
-
-let tag (type a) (type b): (a, b) t -> string option =
-  function T ((module M), _, t) -> M.tag t
-
-let tag_exn (type a) (type b): (a, b) t -> string =
-  function T ((module M), _, t) -> M.tag_exn t
-
-let tags (type a) (type b): (a, b) t -> string list Lwt.t =
-  function T ((module M), _, t) -> M.tags t
-
-let rename_tag (type a) (type b): (a, b) t -> string -> [`Ok | `Duplicated_tag] Lwt.t =
-  function T ((module M), _, t) -> M.rename_tag t
-
-let update_tag (type a) (type b): (a, b) t -> string -> unit Lwt.t =
-  function T ((module M), _, t) -> M.update_tag t
-
-let merge_tag (type a) (type b): (a, b) t -> ?max_depth:int -> ?n:int -> string -> 'a =
-  function T ((module M), _, t) -> M.merge_tag t
-
-let merge_tag_exn (type a) (type b): (a, b) t -> ?max_depth:int -> ?n:int -> string -> 'a =
-  function T ((module M), _, t) -> M.merge_tag_exn t
-
-let switch (type a) (type b): (a, b) t -> string -> unit Lwt.t =
-  function T ((module M), _, t) -> M.switch t
-
-let head (type a) (type b): (a, b) t -> Hash.SHA1.t option Lwt.t =
-  function T ((module M), _, t) -> M.head t
-
-let head_exn (type a) (type b): (a, b) t -> Hash.SHA1.t Lwt.t =
-  function T ((module M), _, t) -> M.head_exn t
-
-let branch (type a) (type b): (a, b) t -> [`Tag of string | `Head of Hash.SHA1.t] =
-  function T ((module M), _, t) -> M.branch t
-
-let heads (type a) (type b): (a, b) t -> Hash.SHA1.t list Lwt.t =
-  function T ((module M), _, t) -> M.heads t
-
-let detach (type a) (type b): (a, b) t -> unit Lwt.t =
-  function T ((module M), _, t) -> M.detach t
-
-let update_head (type a) (type b): (a, b) t -> Hash.SHA1.t -> unit Lwt.t =
-  function T ((module M), _, t) -> M.update_head t
-
-let merge_head (type a) (type b):
-  (a, b) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -> 'a =
-  function T ((module M), _, t) -> M.merge_head t
-
-let merge_head_exn (type a) (type b):
-  (a, b) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -> 'a =
-  function T ((module M), _, t) -> M.merge_head_exn t
-
-let watch_head (type a) (type b):
-  (a, b) t -> a -> (a * Hash.SHA1.t) Lwt_stream.t =
-  function T ((module M), _, t) -> M.watch_head t
-
-let clone (type a) (type b):
-  ('m -> task) -> (a, b) t -> string ->
-  [`Ok of ('m -> (a, b) t) | `Duplicated_tag] Lwt.t =
-  fun x t y -> match t with
-    | T ((module M), v, t) ->
-      M.clone x t y >>= function
-      | `Ok t -> return (`Ok (fun a -> T ((module M), v, t a)))
-      | `Duplicated_tag -> return `Duplicated_tag
-
-let clone_force (type a) (type b):
-  ('m -> task) -> (a, b) t -> string -> ('m -> (a, b) t) Lwt.t =
-  fun x t y -> match t with
-    | T ((module M), v, t) ->
-      M.clone_force x t y >>= fun t ->
-      return (fun a -> T ((module M), v, t a))
-
-let merge (type a) (type b):
-  'a -> ?max_depth:int -> ?n:int -> ('a -> (a, b) t) -> into:('a -> (a, b) t) -> 'b =
-  fun a ?max_depth ?n t ~into -> match t a, into a with
-    | T ((module M), _, t), T ((module I), _, into) ->
-      (* XXX: not ideal ... *)
-      match M.branch t with
-      | `Tag tag -> I.merge_tag into ?max_depth ?n tag
-      | `Head h  -> I.merge_head into ?max_depth ?n h
-
-let merge_exn (type a) (type b):
-  'a -> ?max_depth:int -> ?n:int -> ('a -> (a, b) t) -> into:('a -> (a, b) t) -> 'b =
-  fun a ?max_depth ?n t ~into -> merge a ?max_depth ?n t ~into >>= Merge.exn
-
-let lca (type a) (type b):
-  'a -> ?max_depth:int -> ?n:int -> ('a -> (a, b) t) -> ('a -> (a, b) t) -> 'b =
-  fun a ?max_depth ?n t1 t2 -> match t1 a, t2 a with
-    | T ((module M), _, t1), T ((module I), _, t2) ->
-      (* XXX: not ideal ... *)
-      match I.branch t2 with
-      | `Tag tag -> M.lca_tag t1 ?max_depth ?n tag
-      | `Head h  -> M.lca_head t1 ?max_depth ?n h
-
-let lca_tag (type a) (type b) (t: (a, b) t) = match t with
-  | T ((module M), _, t) -> M.lca_tag t
-
-let lca_head (type a) (type b) (t: (a, b) t) = match t with
-  | T ((module M), _, t) -> M.lca_head t
-
-let task_of_head (type a) (type b) (t: (a, b) t) = match t with
-  | T ((module M), _, t) -> M.task_of_head t
-
-let remote_basic (type a) (type b): (a, b) t -> remote =
-  function T ((module M), _, t) -> remote_store (module M) t
-
-let fetch (type a) (type b):
-  (a, b) t -> ?depth:int -> remote -> Hash.SHA1.t option Lwt.t =
-  fun t ?depth remote -> match t with
-    | T ((module M), _, t) ->
-      let module S = Sync(M) in
-      S.fetch t ?depth remote
-
-let fetch_exn (type a) (type b):
-  (a, b) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t =
-  fun t ?depth remote -> match t with
-    | T ((module M), _, t) ->
-      let module S = Sync(M) in
-      S.fetch_exn t ?depth remote
-
-let pull (type a) (type b):
-  (a, b) t -> ?depth:int -> remote -> [`Merge | `Update] ->
-  unit Merge.result Lwt.t =
-  fun t ?depth remote k -> match t with
-    | T ((module M), _, t) ->
-      let module S = Sync(M) in
-      S.pull t ?depth remote k
-
-let pull_exn (type a) (type b):
-  (a, b) t -> ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t =
-  fun t ?depth remote k -> match t with
-    | T ((module M), _, t) ->
-      let module S = Sync(M) in
-      S.pull_exn t ?depth remote k
-
-let push (type a) (type b):
-  (a, b) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t =
-  fun t ?depth remote -> match t with
-    | T ((module M), _, t) ->
-      let module S = Sync(M) in
-      S.push t ?depth remote
-
-let push_exn (type a) (type b):
-  (a, b) t -> ?depth:int -> remote -> unit Lwt.t =
-  fun t ?depth remote -> match t with
-    | T ((module M), _, t) ->
-      let module S = Sync(M) in
-      S.push_exn t ?depth remote
-
-type 'a proj = < f: 't . (module S with type t = 't) -> 't -> 'a >
-
-let with_store (type a) (type b): (a,b) t -> 'a proj -> 'a =
-  fun t f -> match t with
-    | T ((module M), _, t) -> f#f (module M) t
-
-type ('t, 'k, 'v) rw =
-  (module RW with type t = 't and type key = 'k and type value = 'v)
-
-type ('k, 'v) rw_op = < f: 'a . ('a, 'k, 'v) rw -> 'a -> unit Lwt.t >
-
-let with_rw_view (type a) (type b) (t :(a, b) t) ?path strat (ops:(a, b) rw_op) =
-  match t with
-  | T ((module M), (module V), t) ->
+let with_hrw_view (type a) (type b)
+    (t :([`BC], a, b) t) ?path strat (ops: ([`HRW], a, b) t -> unit Lwt.t) =
+  match t.extend with
+  | BC { pack = E ((module M), t); _ } ->
+    let module V = View(M) in
     let path = match path with
       | Some p -> p
       | None   -> M.Key.empty
     in
-    let module RW: RW with type t = V.t
-                       and type key = V.key
-                       and type value = V.value
-      = V
-    in
     V.of_path t path >>= fun view ->
-    ops#f (module RW) view >>= fun () ->
+    let v = pack_hrw (module V) view in
+    ops v >>= fun () ->
     match strat with
     | `Update -> V.update_path t path view >>= fun () -> Merge.OP.ok ()
     | `Rebase -> V.rebase_path t path view
