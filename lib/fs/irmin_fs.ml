@@ -32,7 +32,7 @@ module type IO = sig
   val remove: string -> unit Lwt.t
   val rec_files: string -> string list Lwt.t
   val read_file: string -> Cstruct.t Lwt.t
-  val write_file: string -> Cstruct.t -> unit Lwt.t
+  val write_file: string -> ?temp_dir:string -> Cstruct.t -> unit Lwt.t
 end
 
 (* ~path *)
