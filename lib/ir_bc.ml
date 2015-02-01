@@ -369,12 +369,14 @@ module Make_ext (P: PRIVATE) = struct
     Log.debug "3-way merge between %a and %a"
       force (show (module Head) c1)
       force (show (module Head) c2);
-    History.lca (history_t t) ?max_depth ?n c1 c2 >>= fun lcas ->
-    let old () = match lcas with
-      | `Too_many_lcas     -> conflict "Too many lcas"
-      | `Max_depth_reached -> conflict "Max depth reached"
-      | `Ok []             -> ok None (* no common ancestor *)
-      | `Ok (old :: olds)  ->
+    if Head.equal c1 c2 then ok c1
+    else (
+      History.lca (history_t t) ?max_depth ?n c1 c2 >>= fun lcas ->
+      let old () = match lcas with
+        | `Too_many_lcas     -> conflict "Too many lcas"
+        | `Max_depth_reached -> conflict "Max depth reached"
+        | `Ok []             -> ok None (* no common ancestor *)
+        | `Ok (old :: olds)  ->
         let rec aux acc = function
           | []        -> ok (Some acc)
           | old::olds ->
@@ -382,10 +384,11 @@ module Make_ext (P: PRIVATE) = struct
             aux acc olds
         in
         aux old olds
-    in
-    try History.merge (history_t t) ~old c1 c2
-    with Ir_merge.Conflict msg ->
-      conflict "Recursive merging of common ancestors: %s" msg
+      in
+      try History.merge (history_t t) ~old c1 c2
+      with Ir_merge.Conflict msg ->
+        conflict "Recursive merging of common ancestors: %s" msg
+    )
 
   let update_head t c =
     match branch t with
