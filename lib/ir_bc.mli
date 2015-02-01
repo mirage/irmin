@@ -40,7 +40,8 @@ module type STORE = sig
   val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
     unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val watch_head: t -> key -> (key * head) Lwt_stream.t
+  val watch_head: t -> key -> (key * head option) Lwt_stream.t
+  val watch_tags: t -> (tag * head option) Lwt_stream.t
   val clone: ('a -> Ir_task.t) -> t -> tag ->
     [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   val clone_force: ('a -> Ir_task.t) -> t -> tag -> ('a -> t) Lwt.t

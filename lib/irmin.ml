@@ -105,6 +105,7 @@ type ('a, 'k, 'v) t = {
   update: 'k -> 'v -> unit Lwt.t;
   remove: 'k -> unit Lwt.t;
   watch: 'k -> 'v option Lwt_stream.t;
+  watch_all: unit -> ('k * 'v option) Lwt_stream.t;
   list: 'k -> 'k list Lwt.t;
   remove_rec: 'k -> unit Lwt.t;
   extend: ('a, 'k, 'v) ext;
@@ -132,7 +133,8 @@ and ('k, 'v) bc = {
   update_head: Hash.SHA1.t -> unit Lwt.t;
   merge_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Merge.result Lwt.t;
   merge_head_exn: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Lwt.t;
-  watch_head: 'k -> ('k * Hash.SHA1.t) Lwt_stream.t;
+  watch_head: 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t;
+  watch_tags: unit -> (string * Hash.SHA1.t option) Lwt_stream.t;
   clone: 'm. ('m -> task) -> string -> [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag] Lwt.t;
   clone_force: 'm. ('m -> task) -> string -> ('m -> ([`BC], 'k, 'v) t) Lwt.t;
   merge: ?max_depth:int -> ?n:int -> into:([`BC], 'k, 'v) t ->
@@ -162,6 +164,7 @@ let iter t = t.iter
 let update t = t.update
 let remove t = t.remove
 let watch t = t.watch
+let watch_all t = t.watch_all ()
 let list t = t.list
 let remove_rec t = t.remove_rec
 
@@ -185,6 +188,7 @@ let update_head t = bc t (function BC t -> t.update_head)
 let merge_head t = bc t (function BC t -> t.merge_head)
 let merge_head_exn t = bc t (function BC t -> t.merge_head_exn)
 let watch_head t = bc t (function BC t -> t.watch_head)
+let watch_tags t = bc t (function BC t -> t.watch_tags ())
 let clone task t = bc t (function BC t -> t.clone task)
 let clone_force task t = bc t (function BC t -> t.clone_force task)
 let merge a ?max_depth ?n t ~into =
@@ -219,6 +223,7 @@ let pack_hrw (type x) (type k) (type v)
   update = M.update t;
   remove = M.remove t;
   watch = M.watch t;
+  watch_all = (fun () -> M.watch_all t);
   list = M.list t;
   remove_rec = M.remove_rec t;
   extend = HRW;
@@ -254,6 +259,7 @@ let pack_s (type x) (type k) (type v)
         merge_head = M.merge_head t;
         merge_head_exn = M.merge_head_exn t;
         watch_head = M.watch_head t;
+        watch_tags = (fun () -> M.watch_tags t);
         clone = (fun task tag ->
             M.clone task t tag >>= function
             | `Ok x           -> Lwt.return (`Ok (fun a -> aux (x a)))

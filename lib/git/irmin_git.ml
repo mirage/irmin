@@ -539,6 +539,13 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         return (W.watch t.w r k)
       )
 
+    let watch_all t: (key * value option) Lwt_stream.t =
+      if G.kind = `Disk then
+        W.listen_dir t.w (t.git_root / "refs/heads")
+          ~key:(ref_of_file ~git_root:t.git_root)
+          ~value:(read t);
+      W.watch_all t.w
+
   end
 
   module XSync = struct

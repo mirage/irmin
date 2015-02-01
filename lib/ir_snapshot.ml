@@ -110,9 +110,12 @@ module Make (S: Ir_s.STORE) = struct
 
   let watch db path =
     let stream = S.watch_head db path in
-    Lwt_stream.map_s (fun (path, h) ->
-        of_head db h >>= fun n ->
-        return (path, n)
+    Lwt_stream.filter_map_s (fun (path, h) ->
+        match h with
+        | None   -> Lwt.return_none
+        | Some h ->
+          of_head db h >>= fun n ->
+          return (Some (path, n))
       ) stream
 
 end

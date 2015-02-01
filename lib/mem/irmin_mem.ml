@@ -93,6 +93,8 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
       return (W.watch t.w key value)
     )
 
+  let watch_all t = W.watch_all t.w
+
 end
 
 let config () = Irmin.Private.Conf.empty

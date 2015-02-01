@@ -371,6 +371,10 @@ module type RW = sig
       stream return a new value every time the bindings is modified in
       [t]. It return [None] if the binding is removed. *)
 
+  val watch_all: t -> (key * value option) Lwt_stream.t
+  (** [watch_all t] watches for key creation and deletions. Use
+      {!watch} if you are interested in a particular key. *)
+
   (** FIXME: add move *)
 
 end
@@ -516,10 +520,13 @@ module type BC = sig
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
 
-  val watch_head: t -> key -> (key * head) Lwt_stream.t
+  val watch_head: t -> key -> (key * head option) Lwt_stream.t
   (** Watch changes for a given collection of keys and the ones they
       have recursive access. Return the stream of heads corresponding
       to the modified keys. *)
+
+  val watch_tags: t -> (tag * head option) Lwt_stream.t
+  (** Watch for creation and deletion of tags. *)
 
   (** {2 Clones and Merges} *)
 
@@ -1031,6 +1038,9 @@ module Private: sig
       (** Create a stream of value notifications. Need to provide the
           initial value, or [None] if the key does not have associated
           contents yet.  *)
+
+      val watch_all: t -> (key * value option) Lwt_stream.t
+      (** Watch for creation and deletion of keys. *)
 
       val listen_dir: t -> string
         -> key:(string -> key option)
@@ -1626,13 +1636,16 @@ val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
 val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
-(** See {!RO.watch}. *)
+(** See {!RW.watch}. *)
+
+val watch_all: ([<`RO|`HRW|`BC],'k,'v) t -> ('k * 'v option) Lwt_stream.t
+(** See {!RW.watch_all} *)
 
 val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
-(** See {!RO.iter}. *)
+(** See {!RW.iter}. *)
 
 val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
-(** See {!HRO.list}. *)
+(** See {!HRW.list}. *)
 
 val update: ([<`HRW|`BC],'k,'v) t -> 'k -> 'v -> unit Lwt.t
 (** See {!RW.update}. *)
@@ -1698,8 +1711,11 @@ val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
 
-val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t) Lwt_stream.t
+val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t
 (** See {!BC.watch_head}. *)
+
+val watch_tags: ([`BC],'k,'v) t -> (string * Hash.SHA1.t option) Lwt_stream.t
+(** See {!BC.watch_tags}. *)
 
 (** {2 Clones and Merges} *)
 

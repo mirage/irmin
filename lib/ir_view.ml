@@ -288,6 +288,9 @@ module Internal (Node: NODE) = struct
   let watch _ _ =
     failwith "TODO: View.watch"
 
+  let watch_all _ =
+    failwith "TODO: View.watch_all"
+
   let apply t a =
     Log.debug "apply %a" force (show (module Action) a);
     match a with

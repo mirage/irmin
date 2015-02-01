@@ -44,7 +44,8 @@ module type STORE = sig
   val update_head: t -> head -> unit Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val watch_head: t -> key -> (key * head) Lwt_stream.t
+  val watch_head: t -> key -> (key * head option) Lwt_stream.t
+  val watch_tags: t -> (tag * head option) Lwt_stream.t
   val clone: ('a -> Ir_task.t) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   val clone_force: ('a -> Ir_task.t) -> t ->  tag -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
@@ -467,6 +468,10 @@ module Make_ext (P: PRIVATE) = struct
 
   module ONode = Tc.Option(P.Node.Key)
 
+  let watch_all _t =
+    Log.info" watch all";
+    failwith "BC.wath_all: TODO"
+
   let watch_node t path =
     Log.info "Adding a watch on %a" force (show (module Key) path);
     match branch t with
@@ -502,11 +507,11 @@ module Make_ext (P: PRIVATE) = struct
   module OContents = Tc.Option(P.Contents.Key)
 
   let watch_head t path =
-    Lwt_stream.filter_map (fun (k, h, _) ->
-        match h with
-        | None -> None
-        | Some h -> Some (k, h)
-      ) (watch_node t path)
+    Lwt_stream.map (fun (k, h, _) -> k, h) (watch_node t path)
+
+  let watch_tags t =
+    Log.info "Adding a watch on all tags";
+    Tag.watch_all (tag_t t)
 
   (* watch contents changes. *)
   let watch t path =

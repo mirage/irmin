@@ -439,6 +439,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let store =
     let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
+    let tag: S.tag Tc.t = (module S.Tag) in
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
     let slice: S.slice Tc.t = (module S.Private.Slice) in
@@ -511,7 +512,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" S.update_head t head' Tc.unit;
       mk1p0bfq "merge-head" s_merge_head t head' (merge head);
-      mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key head);
+      mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key (Tc.option head));
+      mk0p0bs "watch-tags"  S.watch_tags t (Tc.pair tag (Tc.option head));
       mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
       mk0p1bfq "export"     s_export t export slice;

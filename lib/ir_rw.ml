@@ -20,6 +20,7 @@ module type STORE = sig
   val update: t -> key -> value -> unit Lwt.t
   val remove: t -> key -> unit Lwt.t
   val watch: t -> key -> value option Lwt_stream.t
+  val watch_all: t -> (key * value option) Lwt_stream.t
 end
 
 module type HIERARCHICAL = sig

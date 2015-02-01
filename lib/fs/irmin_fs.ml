@@ -167,6 +167,10 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       return (W.watch t.w key value)
     )
 
+  let watch_all t =
+    W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
+    W.watch_all t.w
+
 end
 
 module Make_ext (IO: IO) (Obj: Config) (Ref: Config)

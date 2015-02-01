@@ -209,6 +209,9 @@ struct
     let watch { uri; _ } path =
       get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
 
+    let watch_all { uri; _ } =
+      get_stream uri ["watch-all"] (module Tc.Pair(K)(Tc.Option(V)))
+
   end
 
   module X = struct
@@ -389,6 +392,9 @@ struct
   let watch t path =
     get_stream (uri t) ["watch"; P.to_hum path] (module Tc.Option(C))
 
+  let watch_all t =
+    get_stream (uri t) ["watch-all";] (module Tc.Pair(P)(Tc.Option(C)))
+
   let update t key value =
     post (uri t) ["update"; P.to_hum key] (C.to_json value) (module H)
     >>= fun h ->
@@ -483,16 +489,22 @@ struct
   let merge_head_exn t ?max_depth ?n head =
     merge_head t ?max_depth ?n head >>= Irmin.Merge.exn
 
-  module W = Tc.Pair (P)(H)
-
   let watch_head t key =
     match t.branch with
     | `Head _ -> Lwt_stream.of_list []
     | `Tag _  ->
+      let module W = Tc.Pair (P)(Tc.Option(H)) in
       Irmin.Private.Watch.lwt_stream_lift (
         let s = get_stream (uri t) ["watch-head"; P.to_hum key] (module W) in
         return s
       )
+
+  let watch_tags t =
+    let module W = Tc.Pair (T)(Tc.Option(H)) in
+    Irmin.Private.Watch.lwt_stream_lift (
+      let s = get_stream (uri t) ["watch-tags"] (module W) in
+      return s
+    )
 
   let clone task t tag =
     get (uri t) ["clone"; T.to_hum tag] Tc.string >>= function
