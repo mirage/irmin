@@ -42,16 +42,16 @@ module Make (S: Ir_s.STORE) = struct
   type db = S.t
   type head = S.head
 
+  let conv (type x) (type y)
+      (module X: Tc.S0 with type t = x) (module Y: Tc.S0 with type t = y)
+      (x:x): y =
+    Y.of_json (X.to_json x)
+
   let convert_slice (type r) (type s)
       (module RP: Ir_bc.PRIVATE with type Slice.t = r)
       (module SP: Ir_bc.PRIVATE with type Slice.t = s)
       r
     =
-    let conv (type x) (type y)
-        (module X: Tc.S0 with type t = x) (module Y: Tc.S0 with type t = y)
-        (x:x): y =
-      Y.of_json (X.to_json x)
-    in
     SP.Slice.create () >>= fun s ->
     RP.Slice.iter_contents r (fun (k, v) ->
         let k = conv (module RP.Contents.Key) (module SP.Contents.Key) k in
@@ -85,14 +85,14 @@ module Make (S: Ir_s.STORE) = struct
     | Store ((module R), r) ->
       Log.debug "fetch store";
       S.heads t >>= fun min ->
-      let min = List.map (fun r -> R.Head.of_raw (S.Head.to_raw r)) min in
+      let min = List.map (conv (module S.Head) (module R.Head) ) min in
       R.export r ?depth ~min >>= fun r_slice ->
       convert_slice (module R.Private) (module S.Private) r_slice
       >>= fun s_slice -> S.import t s_slice >>= fun () ->
       R.head r >>= function
       | None   -> return_none
       | Some h ->
-        let h = S.Head.of_raw (R.Head.to_raw h) in
+        let h = conv (module R.Head) (module S.Head) h in
         return (Some h)
 
   let fetch_exn t ?depth remote =
@@ -131,11 +131,11 @@ module Make (S: Ir_s.STORE) = struct
       | Some h ->
         Log.debug "push store";
         R.heads r >>= fun min ->
-        let min = List.map (fun r -> S.Head.of_raw (R.Head.to_raw r)) min in
+        let min = List.map (conv (module R.Head) (module S.Head)) min in
         S.export t ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
         >>= fun r_slice -> R.import r r_slice >>= fun () ->
-        let h = R.Head.of_raw (S.Head.to_raw h) in
+        let h = conv (module S.Head) (module R.Head) h in
         R.update_head r h >>= fun () ->
         return `Ok
 
