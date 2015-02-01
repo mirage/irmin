@@ -143,7 +143,12 @@ module Merge: sig
 
   (** {1 Merge Combinators} *)
 
-  type 'a t = old:'a -> 'a -> 'a -> 'a result Lwt.t
+  type 'a promise = unit -> 'a option result Lwt.t
+  (** An ['a] promise is a function which, when called, will
+      eventually return a value type of ['a]. A promise is an
+      optional, lazy and non-blocking value. *)
+
+  type 'a t = old:'a promise -> 'a -> 'a -> 'a result Lwt.t
   (** Signature of a merge function. [old] is the value of the
       least-common ancestor.
 
@@ -445,12 +450,12 @@ module type BC = sig
   (** [update_tag t tag] updates [t]'s current branch with the
       contents of the branch named [tag]. *)
 
-  val merge_tag: t -> tag -> unit Merge.result Lwt.t
+  val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Merge.result Lwt.t
   (** [merge_tag t tag] merges the contents of the branch named [tag]
       into [t]'s current branch. The two branches are still
       independent. *)
 
-  val merge_tag_exn: t -> tag -> unit Lwt.t
+  val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   (** Same as {!merge_tag} but raise {!Merge.Conflict} in case of a
       conflict. *)
 
@@ -503,10 +508,11 @@ module type BC = sig
   val update_head: t -> head -> unit Lwt.t
   (** Set the commit head. *)
 
-  val merge_head: t -> head -> unit Merge.result Lwt.t
+  val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
+    unit Merge.result Lwt.t
   (** Merge a commit with the current branch. *)
 
-  val merge_head_exn: t -> head -> unit Lwt.t
+  val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
 
@@ -525,14 +531,42 @@ module type BC = sig
   (** Same as {{!BC.clone}clone} but delete and update the existing
       branch if a branch with the same name already exists. *)
 
-  val merge: 'a -> ('a -> t) -> into:('a -> t) -> unit Merge.result Lwt.t
+  val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
+    unit Merge.result Lwt.t
   (** [merge x t i] merges [t x]'s current branch into [i x]'s current
       branch. After that operation, the two stores are still
       independent. *)
 
-  val merge_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
+    unit Lwt.t
   (** Same as {{!BC.merge}merge} but raise {!Merge.Conflict} in case
       of a conflict. *)
+
+  val lca: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  (** [lca ?max_depth ?n msg t1 t2] returns the collection of least
+      common ancestors of the store tips [t1] and [t2].
+
+      {ul
+      {- [max_depth] is the maximum depth of the exploration (default
+      is 250). Return [`Max_depth_reached] is this depth is exceeded.}
+      {- [n] is the maximum expected number of lcas. Stop the
+      exploration as soon as [n] lcas are found. Return
+      [`Too_many_lcas] if more [lcas] are found. }
+      }
+  *)
+
+  val lca_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+  (** Same as {!lca} but takes a tag as argument. *)
+
+  val lca_head: t -> ?max_depth:int -> ?n:int -> head ->
+    [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+  (** Same as {!lca} but takes an head as argument. *)
+
+  val task_of_head: t -> head -> task Lwt.t
+  (** [task_of_head t h] is the task which created [h]. Useful to
+      retrieve the commit date and the committer name. *)
 
   (** {2 Slices} *)
 
@@ -1337,7 +1371,8 @@ module Private: sig
       val merge: t -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
-      val lca: t -> commit -> commit -> commit list Lwt.t
+      val lca: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+        [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
       (** Find the least common ancestors
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
@@ -1563,120 +1598,155 @@ val basic: (module S_MAKER) -> ('k,'v) contents -> ('k,'v) basic
     [backend] as a backend and containing values defined by
     [contents]. *)
 
-type ('k,'v) t
+type ('a, 'k, 'v) t
 (** The type for default store, with keys of type ['k] and values of
-    type ['v]. *)
+    type ['v]. ['a] is a phantom type representing the store's kind:
+    read-only, read-write or branch-consistent. *)
 
-val create: ('k,'v) basic -> config -> ('m -> task) -> ('m -> ('k,'v) t) Lwt.t
+val create: ('k,'v) basic -> config -> ('m -> task) -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!RO.create}. Needs a backend as first argument. *)
 
 val of_tag: ('k,'v) basic -> config -> ('m -> task) -> string
-  -> ('m -> ('k,'v) t) Lwt.t
+  -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.of_tag}. Needs a backend as first argument. *)
 
 val of_head: ('k,'v) basic -> config -> ('m -> task) -> Hash.SHA1.t
-  -> ('m -> ('k,'v) t) Lwt.t
+  -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.of_head}. Needs a backend as first argument. *)
 
 (** {2 Base Operations} *)
 
-val read: ('k,'v) t -> 'k -> 'v option Lwt.t
+val read: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt.t
 (** See {!RO.read}. *)
 
-val read_exn: ('k,'v) t -> 'k -> 'v Lwt.t
+val read_exn: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v Lwt.t
 (** See {!RO.read_exn}. *)
 
-val mem: ('k,'v) t -> 'k -> bool Lwt.t
+val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
-val iter: ('k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
-(** See {!RW.iter}. *)
+val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
+(** See {!RO.watch}. *)
 
-val update: ('k,'v) t -> 'k -> 'v -> unit Lwt.t
+val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
+(** See {!RO.iter}. *)
+
+val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
+(** See {!HRO.list}. *)
+
+val update: ([<`HRW|`BC],'k,'v) t -> 'k -> 'v -> unit Lwt.t
 (** See {!RW.update}. *)
 
-val remove: ('k,'v) t -> 'k -> unit Lwt.t
+val remove: ([<`HRW|`BC],'k,'v) t -> 'k -> unit Lwt.t
 (** See {!RW.remove}. *)
 
-val watch: ('k,'v) t -> 'k -> 'v option Lwt_stream.t
-(** See {!RW.watch}. *)
-
-val list: ('k,'v) t -> 'k -> 'k list Lwt.t
-(** See {!HRW.list}. *)
-
-val remove_rec: ('k,'v) t -> 'k -> unit Lwt.t
+val remove_rec: ([<`HRW|`BC],'k,'v) t -> 'k -> unit Lwt.t
 (** See {!HRW.remove_rec}. *)
 
 (** {2 Tags} *)
 
-val tag: ('k,'v) t -> string option
+val tag: ([`BC],'k,'v) t -> string option
 (** See {!BC.tag}. *)
 
-val tag_exn: ('k,'v) t -> string
+val tag_exn: ([`BC],'k,'v) t -> string
 (** See {!BC.tag_exn}. *)
 
-val tags: ('k,'v) t -> string list Lwt.t
+val tags: ([`BC],'k,'v) t -> string list Lwt.t
 (** See {!BC.tags}. *)
 
-val rename_tag: ('k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
+val rename_tag: ([`BC],'k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
 (** See {!BC.rename_tag}. *)
 
-val update_tag: ('k,'v) t -> string -> unit Lwt.t
+val update_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
 (** See {!BC.update_tag}. *)
 
-val merge_tag: ('k,'v) t -> string -> unit Merge.result Lwt.t
+val merge_tag: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string ->
+  unit Merge.result Lwt.t
 (** See {!BC.merge_tag}. *)
 
-val merge_tag_exn: ('k,'v) t -> string -> unit Lwt.t
+val merge_tag_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string -> unit Lwt.t
 (** See {!BC.merge_tag_exn}. *)
 
-val switch: ('k,'v) t -> string -> unit Lwt.t
+val switch: ([`BC],'k,'v) t -> string -> unit Lwt.t
 (** See {!BC.switch}. *)
 
 (** {2 Heads} *)
 
-val head: ('k,'v) t -> Hash.SHA1.t option Lwt.t
+val head: ([`BC],'k,'v) t -> Hash.SHA1.t option Lwt.t
 (** See {!BC.head}. *)
 
-val head_exn: ('k,'v) t -> Hash.SHA1.t Lwt.t
+val head_exn: ([`BC],'k,'v) t -> Hash.SHA1.t Lwt.t
 (** See {!BC.head_exn}. *)
 
-val branch: ('k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t]
+val branch: ([`BC],'k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t]
 (** See {!BC.branch}. *)
 
-val heads: ('k,'v) t -> Hash.SHA1.t list Lwt.t
+val heads: ([`BC],'k,'v) t -> Hash.SHA1.t list Lwt.t
 (** See {!BC.heads}. *)
 
-val detach: ('k,'v) t -> unit Lwt.t
+val detach: ([`BC],'k,'v) t -> unit Lwt.t
 (** See {!BC.detach}. *)
 
-val update_head: ('k,'v) t -> Hash.SHA1.t -> unit Lwt.t
+val update_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
 (** See {!BC.update_head}. *)
 
-val merge_head: ('k,'v) t -> Hash.SHA1.t -> unit Merge.result Lwt.t
+val merge_head: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+  unit Merge.result Lwt.t
 (** See {!BC.merge_head}. *)
 
-val merge_head_exn: ('k,'v) t -> Hash.SHA1.t -> unit Lwt.t
+val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+  unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
 
-val watch_head: ('k,'v) t -> 'k -> ('k * Hash.SHA1.t) Lwt_stream.t
+val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t) Lwt_stream.t
 (** See {!BC.watch_head}. *)
 
 (** {2 Clones and Merges} *)
 
-val clone: ('m -> task) -> ('k,'v) t -> string
-  -> [`Ok of ('m -> ('k,'v) t) | `Duplicated_tag] Lwt.t
+val clone: ('m -> task) -> ([`BC],'k,'v) t -> string
+  -> [`Ok of ('m -> ([`BC],'k,'v) t) | `Duplicated_tag] Lwt.t
 (** See {!BC.clone}. *)
 
-val clone_force: ('m -> task) -> ('k,'v) t -> string -> ('m -> ('k,'v) t) Lwt.t
+val clone_force: ('m -> task) -> ([`BC],'k,'v) t -> string
+  -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.clone_force}. *)
 
-val merge: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t)
+val merge: 'm -> ?max_depth:int -> ?n:int ->
+  ('m -> ([`BC],'k,'v) t) -> into:('m -> ([`BC],'k,'v) t)
   -> unit Merge.result Lwt.t
 (** See {!BC.merge}. *)
 
-val merge_exn: 'm -> ('m -> ('k,'v) t) -> into:('m -> ('k,'v) t) -> unit Lwt.t
+val merge_exn: 'm -> ?max_depth:int -> ?n:int ->
+  ('m -> ([`BC],'k,'v) t) -> into:('m -> ([`BC],'k,'v) t) -> unit Lwt.t
 (** See {!BC.merge_exn}. *)
+
+val lca: 'm -> ?max_depth:int -> ?n:int ->
+  ('m -> ([`BC],'k,'v) t) -> ('m -> ([`BC],'k,'v) t) ->
+  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
+(** See {!BC.lca}. *)
+
+val lca_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
+  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
+(** See {!BC.lca_tag}. *)
+
+val lca_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
+(** See {!BC.lca_head}. *)
+
+val task_of_head: ([`BC],'k, 'v) t -> Hash.SHA1.t -> task Lwt.t
+(** See {!BC.task_of_head}. *)
+
+(** {2 Views} *)
+
+val with_hrw_view:
+  ([`BC],'k, 'v) t -> ?path:'k -> [`Update | `Rebase | `Merge] ->
+  (([`HRW], 'k, 'v) t -> unit Lwt.t) -> unit Merge.result Lwt.t
+(** [with_rw_view t task ?path strat ops] applies [ops] to an
+    in-memory, temporary and mutable view of the store [t]. If [path]
+    is set, all operations in the transaction are relative the that
+    path, otherwise use the full tree. The [strat] strategy decides
+    which merging strategy to use: see {!View.update_paht},
+    {!View.rebase_path} and {!View.merge_path}. *)
 
 (** {2 Synchronisation} *)
 
@@ -1688,35 +1758,35 @@ val remote_uri: string -> remote
     optimized native synchronization protocol when available for the
     given backend. *)
 
-val remote_basic: ('k,'v) t -> remote
+val remote_basic: ([`BC],'k,'v) t -> remote
 (** Same as {!remote_store} but for basic stores. *)
 
-val fetch: ('k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t option Lwt.t
+val fetch: ([`BC],'k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t option Lwt.t
 (** See {!Sync.fetch}. *)
 
-val fetch_exn: ('k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t
+val fetch_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t
 (** See {!Sync.fetch_exn}. *)
 
-val pull: ('k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
+val pull: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
   unit Merge.result Lwt.t
 (** See {!Sync.pull}. *)
 
-val pull_exn: ('k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
+val pull_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
   unit Lwt.t
 (** See {!Sync.pull_exn}. *)
 
-val push: ('k,'v) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+val push: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
 (** See {!Sync.push}. *)
 
-val push_exn: ('k,'v) t -> ?depth:int -> remote -> unit Lwt.t
+val push_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> unit Lwt.t
 (** See {!Sync.push_exn}. *)
 
 (** {2 Projections} *)
 
-type 'a proj = < f: 't . (module S with type t = 't) -> 't -> 'a >
+type 'a proj = { f: 't . (module S with type t = 't) -> 't -> 'a }
 (** Project a base store to its actual implementation and state. *)
 
-val with_store: ('k,'v) t -> 'a proj  -> 'a
+val with_store: ([`BC],'k,'v) t -> 'a proj -> 'a
 (** [with_store t fn] applies [fn] on the underlying store
     implementation of the base store [t]. For instance, it can be used
     to build a {{!View}views} as follows:
@@ -1804,6 +1874,8 @@ let () =
 
     let merge_log _path ~old t1 t2 =
       let open Irmin.Merge.OP in
+      old () >>| fun old ->
+      let old = match old with None -> [] | Some o -> o in
       let ts = timestamp old in
       let t1 = newer_than ts t1 in
       let t2 = newer_than ts t2 in
@@ -1940,42 +2012,42 @@ end
     needed. The most important feature of views is that they keep
     track of reads: {e i.e.} you can have a conflict if a view reads a
     key which has been modified concurrently by someone else.  *)
-module View (S: S): sig
+module type VIEW = sig
 
   (** {1 Views} *)
 
-  type db = S.t
+  type db
   (** The type for store handles. *)
 
-  include HRW with type key = S.Key.t and type value = S.Val.t
+  include HRW
   (** A view is a read-write temporary store, mirroring the main
       store. *)
 
-  val create: ('a -> task) -> ('a -> t) Lwt.t
+  val empty: unit -> t Lwt.t
   (** Create an empty view. Empty views do not have associated backend
       configuration values, as they can perform in-memory operation,
       independently of any given backend. *)
 
-  val rebase: 'a -> ('a -> t) -> into:('a -> t) -> unit Merge.result Lwt.t
+  val rebase: t -> into:t -> unit Merge.result Lwt.t
   (** [rebase x t i] rebases the actions done on the view [t x] into
       the view [i x]. If a read operation doesn't return the same
       result, return [Conflict]. Only the view [i] is updated. *)
 
-  val rebase_exn: 'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t
+  val rebase_exn: t -> into:t -> unit Lwt.t
   (** Same as {!rebase} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  val of_path: ('a -> task) -> db -> key -> ('a -> t) Lwt.t
+  val of_path: db -> key -> t Lwt.t
   (** Read a view from a path in the store. This is a cheap operation,
       all the real reads operation will be done on-demand when the
       view is used. *)
 
-  val update_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
+  val update_path: db -> key -> t -> unit Lwt.t
   (** [update_path x t path v] {e replaces} the sub-tree under [path]
       in the store [t x] by the contents of the view [v x]. See
       {!merge_path} for more details. *)
 
-  val rebase_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Merge.result Lwt.t
+  val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
   (** [rebase_path x t path v] {e rebases} the view [v x] on top of
       the contents of [t x]'s sub-tree pointed by the path
       [path]. Rebasing means re-applying every {{!Action.t}actions}
@@ -1983,11 +2055,12 @@ module View (S: S): sig
       if one of the action cannot apply cleanly. See {!merge_path} for
       more details.  *)
 
-  val rebase_path_exn: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
+  val rebase_path_exn: db -> key -> t -> unit Lwt.t
   (** Same as {!rebase_path} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  val merge_path: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Merge.result Lwt.t
+  val merge_path: db -> ?max_depth:int -> ?n:int -> key -> t ->
+    unit Merge.result Lwt.t
   (** [merge_path x t path v] {e merges} the view [v x] with the
       contents of [t x]'s sub-tree pointed by the path [path]. Merging
       means applying the {{!Merge.Map}merge function for map} between
@@ -2001,9 +2074,9 @@ module View (S: S): sig
       preexisting sub-tree.}
       {- {!merge_path} is state based. Is is an efficient 3-way merge operators between
       prefix trees, based on {!Merge.Map.merge}.}
-      } *)
+     } *)
 
-  val merge_path_exn: 'a -> ('a -> db) -> key -> ('a -> t) -> unit Lwt.t
+  val merge_path_exn: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Lwt.t
   (** Same as {!merge_path} but raise {!Merge.Conflict} in case of
       conflicts. *)
 
@@ -2046,6 +2119,11 @@ module View (S: S): sig
 
 end
 
+module View (S: S): VIEW with type db = S.t
+                          and type key = S.Key.t
+                          and type value = S.Val.t
+(** Create views. *)
+
 (** [Snapshot] provides read-only, space-efficient, checkpoints of a
     store. It also provides functions to rollback to a previous
     state. *)
@@ -2068,11 +2146,11 @@ module Snapshot (S: S): sig
   val revert: S.t -> t -> unit Lwt.t
   (** Revert the store to a previous state. *)
 
-  val merge: S.t -> t -> unit Merge.result Lwt.t
+  val merge: S.t -> ?max_depth:int -> ?n:int -> t -> unit Merge.result Lwt.t
   (** Merge the given snapshot into the current branch of the
       store. *)
 
-  val merge_exn: S.t -> t -> unit Lwt.t
+  val merge_exn: S.t -> ?max_depth:int -> ?n:int -> t -> unit Lwt.t
   (** Same as {!merge} but raise {!Merge.Conflict} in case of
       conflict. *)
 

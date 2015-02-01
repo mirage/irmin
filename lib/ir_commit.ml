@@ -95,7 +95,8 @@ module type HISTORY = sig
   val node: t -> commit -> node option Lwt.t
   val parents: t -> commit -> commit list Lwt.t
   val merge: t -> commit Ir_merge.t
-  val lca: t -> commit -> commit -> commit list Lwt.t
+  val lca: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas] Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
   module Store: Ir_contents.STORE with type t = t and type key = commit
 end
@@ -125,15 +126,26 @@ struct
     let merge_node path (n, _) = N.merge path n
 
     let merge_commit path t ~old k1 k2 =
-      read_exn t old >>= fun vold ->
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
-      merge_node path t ~old:(S.Val.node vold) (S.Val.node v1) (S.Val.node v2)
-      >>| fun node ->
-      let parents = [k1; k2] in
-      let commit = S.Val.create ?node ~parents (task t) in
-      add t commit >>= fun key ->
-      ok key
+      if List.mem k1 (S.Val.parents v2) then ok k2
+      else if List.mem k2 (S.Val.parents v1) then ok k1
+      else
+        (* FIXME: check that old<>k1 and old<>k2 and don't create a
+           new commit in that case. *)
+        let old () =
+          old () >>| function
+          | None     -> ok None
+          | Some old ->
+            read_exn t old >>= fun vold ->
+            ok (Some (S.Val.node vold))
+        in
+        merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
+        >>| fun node ->
+        let parents = [k1; k2] in
+        let commit = S.Val.create ?node ~parents (task t) in
+        add t commit >>= fun key ->
+        ok key
 
     let merge path t = Ir_merge.option (module S.Key) (merge_commit path t)
 
@@ -166,7 +178,7 @@ struct
     | None   -> return_nil
     | Some c -> return (S.Val.parents c)
 
-  module Graph = Ir_graph.Make(Tc.Unit)(N.Key)(S.Key)(Tc.Unit)
+  module Graph = Ir_graph.Make(Ir_hum.Unit)(N.Key)(S.Key)(Ir_hum.Unit)
 
   let edges t =
     Log.debug "edges";
@@ -191,38 +203,158 @@ struct
     return keys
 
   module KSet = Ir_misc.Set(S.Key)
-  let (--) = KSet.diff
   let (++) = KSet.union
+  let (--) = KSet.diff
   let ( ** ) = KSet.inter
 
-  (* FIXME: pretty dumb and inefficient *)
-  let lca t c1 c2 =
-    Log.debug "lca %a %a"
-      force (show (module S.Key) c1)
-      force (show (module S.Key) c2);
-    let rec aux (seen1, todo1) (seen2, todo2) =
-      if KSet.is_empty todo1 && KSet.is_empty todo2 then (
-        Log.debug "lca stats: %d/%d/%d"
-          (KSet.cardinal seen1)
-          (KSet.cardinal seen2)
-          (KSet.cardinal (seen1 ++ seen2));
-        return (seen1 ** seen2)
-      ) else
-        let seen1' = seen1 ++ todo1 in
-        let seen2' = seen2 ++ todo2 in
-        (* Compute the immediate parents *)
-        let parents todo =
-          let parents_of_commit seen c =
-            Store.read_exn t c >>= fun v ->
-            let parents = KSet.of_list (S.Val.parents v) in
-            return (KSet.diff parents seen) in
-          Lwt_list.fold_left_s parents_of_commit todo (KSet.to_list todo)
+  let proj g suffix =
+    let g' = Graph.create ~size:(KSet.cardinal suffix) () in
+    KSet.iter (fun k -> Graph.add_vertex g' (`Commit k)) suffix;
+    KSet.iter (fun k ->
+        let succ = Graph.succ g (`Commit k) in
+        let succ =
+          List.filter (function
+              | `Commit k -> KSet.mem k suffix
+              | _ -> false
+            ) succ
         in
-        parents (todo1 -- seen2') >>= fun todo1' ->
-        parents (todo2 -- seen1') >>= fun todo2' ->
-        aux (seen1', todo1') (seen2', todo2')
+        List.iter (fun s -> Graph.add_edge g' (`Commit k) s) succ
+      ) suffix;
+    g'
+
+  let add g (x, y) = Graph.add_edge g (`Commit x) (`Commit y)
+  let output edges = edges |> List.map snd |> KSet.of_list
+  let next t edges =
+    let read_parents k =
+      Store.read_exn t k >>= fun v ->
+      S.Val.parents v
+      |> List.map (fun p -> (k, p))
+      |> Lwt.return
     in
-    aux (KSet.empty, KSet.singleton c1) (KSet.empty, KSet.singleton c2)
-    >>= fun s -> return (KSet.to_list s)
+    let edges = KSet.to_list edges in
+    Lwt_list.map_p read_parents edges >>= fun edges ->
+    Lwt.return (List.flatten edges)
+
+  type prefix = {
+    n: int;
+    g: Graph.t;
+    seen1 : KSet.t;
+    seen2 : KSet.t;
+    shared: KSet.t;
+    todo1 : KSet.t;
+    todo2 : KSet.t;
+  }
+
+  let pr_keys keys =
+    let key x = String.sub (S.Key.to_hum x) 0 4 in
+    let keys = KSet.to_list keys in
+    String.concat " " (List.map key keys)
+
+  let empty_prefix () = {
+    n = 0;
+    g = Graph.create ();
+    seen1  = KSet.empty;
+    seen2  = KSet.empty;
+    shared = KSet.empty;
+    todo1  = KSet.empty;
+    todo2  = KSet.empty;
+  }
+
+  (* compute the shared frontier
+
+     An element is in the shared frontier if
+     - it is in the active shared frontier (prefix.shared)
+     - it is seen by both vertices
+     - it is on the frontier (ie. it doens't have predecessors in the
+       shared frontier)
+  *)
+  let shared_frontier p =
+    let seen = p.shared ++ (p.seen1 ** p.seen2) in
+    let proj = proj p.g seen in
+    Graph.min proj
+    |> List.fold_left (fun acc ->
+        function `Commit k -> KSet.add k acc | _ -> acc
+      ) KSet.empty
+
+  let pr_prefix ({n; seen1; seen2; shared; todo1; todo2; _ } as p) =
+    Printf.sprintf "n:%d seen1:%s, seen2:%s, s:%s, 1:%s, 2:%s, res:%s" n
+      (pr_keys seen1) (pr_keys seen2) (pr_keys shared)
+      (pr_keys todo1) (pr_keys todo2) (pr_keys (shared_frontier p))
+
+  let show_prefix p = lazy (pr_prefix p)
+
+  (* compute the next prefix state.
+
+     Invariants:
+       - at step n: [n] is at least the depth of [g]
+       - seen1: the prefix of [g] known by [p1]
+       - seen2: the prefix of [g] known by [p2]
+       - shared: max([g]) dominated by both [p1] and [p2]
+       - todo1: max([g]) dominated by [p1]
+       - todo2: max([g]) dominated by [p2]
+  *)
+  let check_prefix p =
+    assert (p.todo1 ** p.todo2 = KSet.empty);
+    assert (p.todo1 ** p.shared = KSet.empty);
+    assert (p.todo1 ** p.seen1 = KSet.empty);
+    assert (p.todo1 ** p.seen2 = KSet.empty);
+    assert (p.todo2 ** p.shared = KSet.empty);
+    assert (p.todo2 ** p.shared = KSet.empty);
+    assert (p.todo2 ** p.seen1 = KSet.empty);
+    assert (p.todo2 ** p.seen2 = KSet.empty)
+
+  let next_prefix t p =
+    check_prefix p;
+
+    next t p.todo1  >>= fun edges1 ->
+    next t p.todo2  >>= fun edges2 ->
+    next t p.shared >>= fun edgess ->
+    List.iter (add p.g) edges1;
+    List.iter (add p.g) edges2;
+    List.iter (add p.g) edgess;
+
+    let output1 = output edges1 in
+    let output2 = output edges2 in
+    let outputs = output edgess in
+
+    let seen1_ = p.shared ++ p.todo1 ++ p.seen1 in
+    let seen2_ = p.shared ++ p.todo2 ++ p.seen2 in
+    let not_fresh = outputs ++ seen1_ ++ seen2_ in
+
+    (* enforce invariants *)
+    let todo1 = output1 -- output2 -- not_fresh in
+    let todo2 = output2 -- output1 -- not_fresh in
+    let seen1 = seen1_ ++ (output1 ** not_fresh) in
+    let seen2 = seen2_ ++ (output2 ** not_fresh) in
+
+    let shared =
+      outputs ++ output1 ++ output2 -- todo1 -- todo2 -- seen1 -- seen2
+    in
+    Lwt.return { p with n = p.n + 1; seen1; seen2; shared; todo1; todo2 }
+
+  let lca_calls = ref 0
+  let lca t ?(max_depth=256) ?n c1 c2 =
+    incr lca_calls;
+    let ok set = Lwt.return (`Ok (KSet.to_list set)) in
+    let rec aux prefix =
+      Log.debug "lca %d %a" !lca_calls force (show_prefix prefix);
+      if prefix.n > max_depth then Lwt.return `Max_depth_reached
+      else if KSet.is_empty prefix.todo1 && KSet.is_empty prefix.todo2 then
+        ok (shared_frontier prefix)
+      else
+        match n with
+        | None   -> next_prefix t prefix >>= aux
+        | Some n ->
+          let r = shared_frontier prefix in
+          let c = KSet.cardinal r in
+          if c = n then ok r
+          else if c > n then Lwt.return `Too_many_lcas
+          else next_prefix t prefix >>= aux
+    in
+    let prefix = empty_prefix () in
+    let prefix =
+      { prefix with todo1 = KSet.singleton c1; todo2 = KSet.singleton c2 }
+    in
+    aux prefix
 
 end

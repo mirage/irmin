@@ -56,11 +56,23 @@ module Contents = struct
   let (--) = StringSet.diff
 
   let merge _path ~old t1 t2 =
-    match old, t1, t2 with
-    | Set old, Set s1, Set s2 ->
+    match t1, t2 with
+    | Set s1, Set s2 ->
+      let old () =
+        old () >>| function
+        | Some (Set s) -> ok (Some s)
+        | None         -> ok (Some StringSet.empty)
+        | _ -> conflict "unmergeable set ancestor"
+      in
       Irmin.Merge.set (module StringSet) ~old s1 s2 >>| fun s3 ->
       ok (Set s3)
-    | String old, String x1, String x2 ->
+    | String x1, String x2 ->
+      let old () =
+        old () >>| function
+        | Some (String x) -> ok (Some x)
+        | None            -> ok None
+        | _ -> conflict "unmergable string ancestor"
+      in
       Irmin.Merge.string ~old x1 x2 >>| fun x3 ->
       ok (String x3)
     | _ -> conflict "unmergeable contents"
@@ -83,14 +95,12 @@ module Contact = struct
   let view_of_t t =
     let name = Contents.String t.name in
     let phones = Contents.Set t.phones in
-    View.create task >>= fun v ->
-    let v = v "Contact.view_of_t" in
+    View.empty () >>= fun v ->
     View.update v [t.id; "name"  ] name >>= fun () ->
     View.update v [t.id; "phones"] phones >>= fun () ->
-    return (fun _ -> v)
+    return v
 
   let t_of_view id v =
-    let v = fmt v "Contact.t_of_view[%s]" id in
     View.read_exn v ["name"  ] >>= fun name ->
     View.read_exn v ["phones"] >>= fun phones ->
     let name = match name with
@@ -103,7 +113,7 @@ module Contact = struct
 
   let add t contact =
     view_of_t contact >>= fun view ->
-    View.merge_path_exn "ContactStore.add" t ["contacts"] view
+    View.merge_path_exn (t "ContactStore.add") ["contacts"] view
 
   let add_phone contact phone =
     let phones = StringSet.add phone contact.phones in
@@ -116,7 +126,7 @@ module Contact = struct
     let t = t "Contact.list" in
     Store.list t ["contacts"] >>= fun paths ->
     Lwt_list.map_s (fun path ->
-        View.of_path task t path >>= fun view ->
+        View.of_path t path >>= fun view ->
         let id = List.hd (List.rev path) in
         t_of_view id view
       ) paths

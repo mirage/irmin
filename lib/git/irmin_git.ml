@@ -322,9 +322,7 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
 
       let task_of_git author message git =
         let id = author.Git.User.name in
-        let date = match Stringext.split ~on:' ' author.Git.User.date with
-          | [date;_] -> Int64.of_string date
-          | _        -> 0L in
+        let date, _ = author.Git.User.date in
         let uid = Int64.of_int (Hashtbl.hash (author, message, git)) in
         Irmin.Task.create ~date ~owner:id ~uid message
 
@@ -334,6 +332,23 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         let node = Some (node_key_of_git tree) in
         let task = task_of_git author message g in
         (task, node, parents)
+
+      let name_email name =
+        let name = String.trim name in
+        try
+          let i = String.rindex name ' ' in
+          let email = String.sub name (i+1) (String.length name - i - 1) in
+          if String.length email > 0
+             && email.[0] = '<'
+             && email.[String.length email - 1] = '>'
+          then
+            let email = String.sub email 1 (String.length email - 2) in
+            let name = String.trim (String.sub name 0 i) in
+            name, email
+          else
+            name, "irmin@openmirage.org"
+        with Not_found ->
+          name, "irmin@openmirage.org"
 
       let to_git task node parents =
         let git_of_commit_key k = Git.SHA.to_commit (GK.of_raw (H.to_raw k)) in
@@ -347,11 +362,11 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
         in
         let parents = List.map git_of_commit_key parents in
         let parents = List.sort Git.SHA.Commit.compare parents in
-        let date = Int64.to_string (Irmin.Task.date task) ^ " +0000" in
         let author =
-          Git.User.({ name  = Irmin.Task.owner task;
-                      email = "irmin@openmirage.org";
-                      date;
+          let date = Irmin.Task.date task in
+          let name, email = name_email (Irmin.Task.owner task) in
+          Git.User.({ name; email;
+                      date  = date, None;
                     }) in
         let message = String.concat "\n" (Irmin.Task.messages task) in
         { Git.Commit.tree; parents; author; committer = author; message }

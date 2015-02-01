@@ -139,6 +139,8 @@ module Make (S: Irmin.S) = struct
       | n -> aux (random_node x ~label ~path ~value :: acc) (n-1) in
     aux [] n
 
+  let old k () = Lwt.return (`Ok (Some k))
+
   let test_contents x () =
     let test () =
       create x >>= fun t ->
@@ -328,7 +330,7 @@ module Make (S: Irmin.S) = struct
       let merge_x =
         Irmin.Merge.alist (module Tc.String) (module Tc.Int) merge
       in
-      let old = [ "left", 1; "foo"  , 2; ] in
+      let old () = ok (Some [ "left", 1; "foo", 2; ]) in
       let x =   [ "left", 2; "right", 0] in
       let y =   [ "left", 1; "bar"  , 3; "skip", 0 ] in
       let m =   [ "left", 2; "bar"  , 3] in
@@ -350,9 +352,11 @@ module Make (S: Irmin.S) = struct
       (* merge contents *)
 
       let v = S.Private.contents_t (t "contents_t") in
-      Contents.merge (p []) v ~old:(Some kv1) (Some kv1) (Some kv1) >>= fun kv1' ->
+      Contents.merge (p []) v ~old:(old (Some kv1)) (Some kv1) (Some kv1)
+      >>= fun kv1' ->
       assert_equal (module RV) "merge kv1" (`Ok (Some kv1)) kv1';
-      Contents.merge (p []) v ~old:(Some kv1) (Some kv1) (Some kv2) >>= fun kv2' ->
+      Contents.merge (p []) v ~old:(old (Some kv1)) (Some kv1) (Some kv2)
+      >>= fun kv2' ->
       assert_equal (module RV) "merge kv2" (`Ok (Some kv2)) kv2';
 
       (* merge nodes *)
@@ -374,7 +378,7 @@ module Make (S: Irmin.S) = struct
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
-      Graph.merge (g "merge: k4") ~old:k0 k2 k3 >>= fun k4 ->
+      Graph.merge (g "merge: k4") ~old:(old k0) k2 k3 >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
 
       let succ = ref [] in
@@ -394,7 +398,7 @@ module Make (S: Irmin.S) = struct
       History.create (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
       History.create (h 1) ~node:k2 ~parents:[kr0] >>= fun kr1 ->
       History.create (h 2) ~node:k3 ~parents:[kr0] >>= fun kr2 ->
-      History.merge (h 3) ~old:kr0 kr1 kr2 >>= fun kr3 ->
+      History.merge (h 3) ~old:(old kr0) kr1 kr2 >>= fun kr3 ->
       Irmin.Merge.exn kr3 >>= fun kr3 ->
       History.create (h 3) ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
 
@@ -411,6 +415,9 @@ module Make (S: Irmin.S) = struct
       History.create (h 4) ~node:k0 ~parents:[kr1; kr2] >>= fun kr4 ->
       S.of_head x.config task kr3 >>= fun t1 ->
       S.of_head x.config task kr4 >>= fun t2 ->
+      S.lca 5 t1 t2  >>= fun lcas ->
+      let lcas = match lcas with `Ok x -> x | _ -> failwith "lcas" in
+      assert_equal (module Set(KC)) "lca" [kr1; kr2] lcas;
       S.merge_exn 4 t1 ~into:t2   >>= fun () ->
 
       return_unit
@@ -486,36 +493,36 @@ module Make (S: Irmin.S) = struct
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
 
-      View.create task >>= fun v0 ->
+      View.empty () >>= fun v0 ->
 
-      View.update (v0 "/") (p []) foo1 >>= fun () ->
-      View.read (v0 "read /") (p []) >>= fun foo1' ->
+      View.update v0 (p []) foo1 >>= fun () ->
+      View.read   v0 (p []) >>= fun foo1' ->
       assert_equal (module Tc.Option(V)) "read /" (Some foo1) foo1';
 
-      View.update (v0 "foo/1") (p ["foo";"1"]) foo1 >>= fun () ->
-      View.read (v0 "read foo/1") (p ["foo";"1"]) >>= fun foo1' ->
+      View.update v0 (p ["foo";"1"]) foo1 >>= fun () ->
+      View.read   v0 (p ["foo";"1"]) >>= fun foo1' ->
       assert_equal (module Tc.Option(V)) "read foo/1" (Some foo1) foo1';
 
-      View.update (v0 "foo/2") (p ["foo";"2"]) foo2 >>= fun () ->
-      View.read (v0 "read foo/2") (p ["foo";"2"]) >>= fun foo2' ->
+      View.update v0 (p ["foo";"2"]) foo2 >>= fun () ->
+      View.read   v0 (p ["foo";"2"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "read foo/2" (Some foo2) foo2';
 
       let check_view v =
-        View.list (v "list foo/") (p ["foo"]) >>= fun ls ->
+        View.list v (p ["foo"]) >>= fun ls ->
         assert_equal (module Set(K)) "path1" [p ["foo";"1"]; p ["foo";"2"] ] ls;
-        View.read (v "read foo/1") (p ["foo";"1"]) >>= fun foo1' ->
+        View.read v (p ["foo";"1"]) >>= fun foo1' ->
         assert_equal (module Tc.Option(V)) "foo1" (Some foo1) foo1';
-        View.read (v "read foo/2") (p ["foo";"2"]) >>= fun foo2' ->
+        View.read v (p ["foo";"2"]) >>= fun foo2' ->
         assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
         return_unit in
 
       Lwt_list.iter_s (fun (k,v) ->
-          View.update (v0 "init") k v
+          View.update v0 k v
         ) nodes >>= fun () ->
       check_view v0 >>= fun () ->
 
-      View.update_path "update_path b/" t (p ["b"]) v0 >>= fun () ->
-      View.update_path "update_path a/" t (p ["a"]) v0 >>= fun () ->
+      View.update_path (t "update_path b/") (p ["b"]) v0 >>= fun () ->
+      View.update_path (t "update_path a/") (p ["a"]) v0 >>= fun () ->
 
       S.list (t "list") (p ["b";"foo"]) >>= fun ls ->
       assert_equal (module Set(K)) "path2" [ p ["b";"foo";"1"];
@@ -525,12 +532,12 @@ module Make (S: Irmin.S) = struct
       S.read (t "read foo2") (p ["a";"foo";"2"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "foo2" (Some foo2) foo2';
 
-      View.of_path task (t "of_path") (p ["b"]) >>= fun v1 ->
+      View.of_path (t "of_path") (p ["b"]) >>= fun v1 ->
       check_view v1 >>= fun () ->
 
       S.update (t "update b/x") (p ["b";"x"]) foo1 >>= fun () ->
-      View.update (v1 "update y") (p ["y"]) foo2 >>= fun () ->
-      View.merge_path_exn "merge_path" t (p ["b"]) v1 >>= fun () ->
+      View.update v1 (p ["y"]) foo2 >>= fun () ->
+      View.merge_path_exn (t "merge_path") (p ["b"]) v1 >>= fun () ->
       S.read (t "read b/x") (p ["b";"x"]) >>= fun foo1' ->
       S.read (t "read b/y") (p ["b";"y"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "merge: b/x" (Some foo1) foo1';

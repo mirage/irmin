@@ -23,8 +23,8 @@ module type S = sig
   val of_hum: db -> string -> t
   val create: db -> t Lwt.t
   val revert: db -> t -> unit Lwt.t
-  val merge: db -> t -> unit Ir_merge.result Lwt.t
-  val merge_exn: db -> t -> unit Lwt.t
+  val merge: db -> ?max_depth:int -> ?n:int -> t -> unit Ir_merge.result Lwt.t
+  val merge_exn: db -> ?max_depth:int -> ?n:int -> t -> unit Lwt.t
   val watch: db -> key -> (key * t) Lwt_stream.t
 end
 
