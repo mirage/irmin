@@ -1,4 +1,5 @@
 ## 0.9.3
+* Add `Irmin.watch_tags` to monitor tag creation and desctructions.
 * Fix `Irmin.push`
 * Add `Irmin.with_hrw_view` to easily use transactions.
 * Add a phantom type to `Irmin.t` to denote the store capabilities
