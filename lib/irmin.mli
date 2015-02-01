@@ -1051,7 +1051,7 @@ module Private: sig
 
     end
 
-    val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
+    val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> unit) -> unit
     (** Register a function which looks for file changes in a
         directory. Could use [inotify] when available, or use an active
         stats file polling.*)

@@ -35,7 +35,10 @@ module type S = sig
 end
 
 let listen_dir_hook =
-  ref (fun _dir _fn -> ())
+  ref (fun _id _dir _fn ->
+      Log.error "Listen hook not set!";
+      assert false
+    )
 
 let set_listen_dir_hook fn =
   listen_dir_hook := fn
@@ -145,8 +148,9 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     t.all <- (id, push) :: t.all;
     stream
 
-  let listen_dir t dir ~key ~value =
-    !listen_dir_hook dir (fun file ->
+  let listen_dir (t:t) dir ~key ~value =
+    let id = id () in
+    !listen_dir_hook id dir (fun file ->
         Log.debug "listen_dir_hook: %s" file;
         match key file with
         | None     -> return_unit
