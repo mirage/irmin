@@ -144,6 +144,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     | None   -> error "%s: empty body" name
     | Some b  -> Tc.of_json i b
 
+  let with_lock lock fn = match lock with
+    | None   -> fn ()
+    | Some l -> Lwt_mutex.with_lock l fn
+
   (* no arguments, fixed answer *)
   let mk0p0bf name fn db o =
     name,
@@ -180,37 +184,37 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       )
 
   (* 1 argument in the path, fixed answer *)
-  let mk1p0bf name fn db i1 o =
+  let mk1p0bf name ?lock fn db i1 o =
     name,
     Fixed (fun t path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        fn t x >>= fun r ->
+        with_lock lock (fun () -> fn t x) >>= fun r ->
         return (Tc.to_json o r)
       )
 
   (* 1 argument in the path, fixed answer and parameters in the query *)
-  let mk1p0bfq name fn db i1 o =
+  let mk1p0bfq name ?lock fn db i1 o =
     name,
     Fixed (fun t path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
         db t >>= fun t ->
-        fn t x query >>= fun r ->
+        with_lock lock (fun () -> fn t x query) >>= fun r ->
         return (Tc.to_json o r)
       )
 
   (* n argument in the path, fixed answer *)
-  let mknp0bf name fn db i1 o =
+  let mknp0bf name ?lock fn db i1 o =
     name,
     Fixed (fun t path params query ->
         let x = mknp i1 path in
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        fn t x >>= fun r ->
+        with_lock lock (fun () -> fn t x) >>= fun r ->
         return (Tc.to_json o r)
       )
 
@@ -238,26 +242,26 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       )
 
   (* 1 argument in the path, 1 argument in the body, fixed answer *)
-  let mk1p1bf name fn db i1 i2 o =
+  let mk1p1bf name ?lock fn db i1 i2 o =
     name,
     Fixed (fun t path params query ->
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
         db t >>= fun t ->
-        fn t x1 x2 >>= fun r ->
+        with_lock lock (fun () -> fn t x1 x2) >>= fun r ->
         return (Tc.to_json o r)
       )
 
   (* n arguments in the path, 1 argument in the body, fixed answer *)
-  let mknp1bf name fn db i1 i2 o =
+  let mknp1bf name ?lock fn db i1 i2 o =
     name,
     Fixed (fun t path params query ->
         let x1 = mknp i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
         db t >>= fun t ->
-        fn t x1 x2 >>= fun r ->
+        with_lock lock (fun () -> fn t x1 x2) >>= fun r ->
         return (Tc.to_json o r)
       )
 
@@ -359,7 +363,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       return stream
     )
 
-  let tag_store =
+  let tag_store lock =
     let open S.Private.Tag in
     let tag_t t = return (S.Private.tag_t t) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
@@ -369,8 +373,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p0bf "read"   read   tag_t tag' (Tc.option head);
       mk1p0bf "mem"    mem    tag_t tag' Tc.bool;
       mk0p0bs "iter"   (stream tag iter) tag_t tag;
-      mk1p1bf "update" update tag_t tag' head Tc.unit;
-      mk1p0bf "remove" remove tag_t tag' Tc.unit;
+      mk1p1bf "update" ~lock update tag_t tag' head Tc.unit;
+      mk1p0bf "remove" ~lock remove tag_t tag' Tc.unit;
       mk1p0bs "watch"  watch  tag_t tag' (Tc.option head);
     ]
 
@@ -437,6 +441,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   end
 
   let store =
+    let lock = Lwt_mutex.create () in
     let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
@@ -495,23 +500,23 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mknp0bf "read"   (l S.read)     t step' (Tc.option value);
       mknp0bf "mem"    (l S.mem)      t step' Tc.bool;
       mk0p0bs "iter"   (stream key S.iter) t key;
-      mknp1bf "update" (l s_update)   t step' value head;
-      mknp0bf "remove" (l s_remove)   t step' head;
+      mknp1bf "update" ~lock (l s_update) t step' value head;
+      mknp0bf "remove" ~lock (l s_remove) t step' head;
       mknp0bs "watch"  (l S.watch)    t step' (Tc.option value);
 
       (* hrw *)
       mknp0bf "list"       (l S.list)       t step' (Tc.list key);
-      mknp0bf "remove-rec" (l s_remove_rec) t step' head;
+      mknp0bf "remove-rec" ~lock (l s_remove_rec) t step' head;
 
       (* more *)
-      mk1p0bf "rename-tag"  S.rename_tag t tag' ok_or_duplicated_tag;
-      mk1p0bf "update-tag"  S.update_tag t tag' Tc.unit;
-      mk1p0bfq "merge-tag"  s_merge_tag t tag' (merge head);
-      mk1p0bf "switch"      S.switch t tag' Tc.unit;
+      mk1p0bf "rename-tag"  ~lock S.rename_tag t tag' ok_or_duplicated_tag;
+      mk1p0bf "update-tag"  ~lock S.update_tag t tag' Tc.unit;
+      mk1p0bfq "merge-tag"  ~lock s_merge_tag t tag' (merge head);
+      mk1p0bf "switch"      ~lock S.switch t tag' Tc.unit;
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
-      mk1p0bf "update-head" S.update_head t head' Tc.unit;
-      mk1p0bfq "merge-head" s_merge_head t head' (merge head);
+      mk1p0bf "update-head" ~lock S.update_head t head' Tc.unit;
+      mk1p0bfq "merge-head" ~lock s_merge_head t head' (merge head);
       mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key (Tc.option head));
       mk0p0bs "watch-tags"  S.watch_tags t (Tc.pair tag (Tc.option head));
       mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
@@ -534,7 +539,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         "contents", contents_store;
         "node"    , node_store;
         "commit"  , commit_store;
-        "tag"     , tag_store;
+        "tag"     , tag_store lock;
       ] @ [
         "tree"    , dyn_node
         (fun t ->
@@ -614,7 +619,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let path = List.filter ((<>) "") path in
       catch
         (fun () -> process t req body path)
-        (fun e  -> respond_error e) in
+        (fun e  -> respond_error e)
+    in
     let conn_closed (_, conn_id) =
       Log.debug "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
     in
