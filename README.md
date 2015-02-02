@@ -46,6 +46,13 @@ $ ./example
 Read: hi!
 ```
 
+The `examples` directory contains more examples. To build them, run
+
+```ocaml
+$ ./configure --enable-examples
+$ make
+```
+
 ### Tutorial
 
 A tutorial is available on the [wiki](https://github.com/mirage/irmin/wiki/Getting-Started).
