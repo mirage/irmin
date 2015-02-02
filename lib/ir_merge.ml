@@ -297,7 +297,7 @@ let biject
     (type a) (module A: Tc.S0 with type t = a)
     t a_to_b b_to_a
   =
-  fun ~old a1 a2 ->
+  let merge ~old a1 a2 =
     Log.debug "biject %a | %a"
       force (show (module A) a1)
       force (show (module A) a2);
@@ -314,12 +314,17 @@ let biject
       ok (b_to_a b3)
     with Not_found ->
       conflict "biject"
+  in
+  seq [
+    default (module A);
+    merge;
+  ]
 
 let biject'
     (type a) (module A: Tc.S0 with type t = a)
     t a_to_b b_to_a
   =
-  fun ~old a1 a2 ->
+  let merge ~old a1 a2 =
     Log.debug "biject' %a | %a"
       force (show (module A) a1)
       force (show (module A) a2);
@@ -339,6 +344,11 @@ let biject'
       ok
     with Not_found ->
       conflict "biject'"
+  in
+  seq [
+    default (module A);
+    merge;
+  ]
 
 let string ~old x y =
   default (module Tc.String) ~old x y
