@@ -378,8 +378,9 @@ module Make (S: Irmin.S) = struct
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
-      Graph.merge (g "merge: k4") ~old:(old k0) k2 k3 >>= fun k4 ->
+      Graph.merge (g "merge: k4") ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
+      let k4 = match k4 with Some k -> k | None -> failwith "k4" in
 
       let succ = ref [] in
       Graph.iter_succ (g "iter") k4 (fun l v -> succ := (l, v) :: !succ) >>= fun () ->
@@ -424,9 +425,9 @@ module Make (S: Irmin.S) = struct
       History.create (h 4) ~node:k0 ~parents:[kr1; kr2] >>= fun kr4 ->
       S.of_head x.config task kr3 >>= fun t1 ->
       S.of_head x.config task kr4 >>= fun t2 ->
-      S.lca 5 t1 t2  >>= fun lcas ->
+      S.lcas 5 t1 t2  >>= fun lcas ->
       let lcas = match lcas with `Ok x -> x | _ -> failwith "lcas" in
-      assert_equal (module Set(KC)) "lca" [kr1; kr2] lcas;
+      assert_equal (module Set(KC)) "lcas" [kr1; kr2] lcas;
       S.merge_exn 4 t1 ~into:t2   >>= fun () ->
 
       return_unit

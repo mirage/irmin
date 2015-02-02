@@ -553,18 +553,18 @@ struct
     let size_of _ = failwith "TODO"
   end
 
-  let lca_tag t ?max_depth ?n tag =
+  let lcas_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["lca-tag"; T.to_hum tag] (module LCA)
+    get (uri t) ?query ["lcas-tag"; T.to_hum tag] (module LCA)
 
-  let lca_head t ?max_depth ?n head =
+  let lcas_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["lca-head"; H.to_hum head] (module LCA)
+    get (uri t) ?query ["lcas-head"; H.to_hum head] (module LCA)
 
-  let lca a ?max_depth ?n t1 t2 =
+  let lcas a ?max_depth ?n t1 t2 =
     match branch (t2 a) with
-    | `Tag tag   -> lca_tag  (t1 a) ?max_depth ?n tag
-    | `Head head -> lca_head (t1 a) ?max_depth ?n head
+    | `Tag tag   -> lcas_tag  (t1 a) ?max_depth ?n tag
+    | `Head head -> lcas_head (t1 a) ?max_depth ?n head
 
   let task_of_head t head =
     LP.Commit.read_exn t.commit_t head >>= fun commit ->

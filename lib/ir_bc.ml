@@ -52,11 +52,11 @@ module type STORE = sig
     unit Ir_merge.result Lwt.t
   val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Lwt.t
-  val lca: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
+  val lcas: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  val lca_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+  val lcas_tag: t -> ?max_depth:int -> ?n:int -> tag ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  val lca_head: t -> ?max_depth:int -> ?n:int -> head ->
+  val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   val task_of_head: t -> head -> Ir_task.t Lwt.t
   type slice
@@ -343,20 +343,20 @@ module Make_ext (P: PRIVATE) = struct
     in
     list t Key.empty >>= aux
 
-  let lca a ?max_depth ?n t1 t2 =
+  let lcas a ?max_depth ?n t1 t2 =
     let t1 = t1 a and t2 = t2 a in
     head_exn t1 >>= fun h1 ->
     head_exn t2 >>= fun h2 ->
-    History.lca (history_t t1) ?max_depth ?n h1 h2
+    History.lcas (history_t t1) ?max_depth ?n h1 h2
 
-  let lca_head t ?max_depth ?n head =
+  let lcas_head t ?max_depth ?n head =
     head_exn t >>= fun h ->
-    History.lca (history_t t) ?max_depth ?n h head
+    History.lcas (history_t t) ?max_depth ?n h head
 
-  let lca_tag t ?max_depth ?n tag =
+  let lcas_tag t ?max_depth ?n tag =
     head_exn t >>= fun h ->
     head_exn { t with branch = ref (`Tag tag) } >>= fun head ->
-    History.lca (history_t t) ?max_depth ?n h head
+    History.lcas (history_t t) ?max_depth ?n h head
 
   let task_of_head t head =
     P.Commit.read_exn (commit_t t) head >>= fun commit ->
@@ -365,30 +365,8 @@ module Make_ext (P: PRIVATE) = struct
   (* Merge two commits:
      - Search for common ancestors
      - Perform recursive 3-way merges *)
-  let rec three_way_merge t ?max_depth ?n c1 c2 =
-    Log.debug "3-way merge between %a and %a"
-      force (show (module Head) c1)
-      force (show (module Head) c2);
-    if Head.equal c1 c2 then ok c1
-    else (
-      History.lca (history_t t) ?max_depth ?n c1 c2 >>= fun lcas ->
-      let old () = match lcas with
-        | `Too_many_lcas     -> conflict "Too many lcas"
-        | `Max_depth_reached -> conflict "Max depth reached"
-        | `Ok []             -> ok None (* no common ancestor *)
-        | `Ok (old :: olds)  ->
-        let rec aux acc = function
-          | []        -> ok (Some acc)
-          | old::olds ->
-            three_way_merge t acc old >>| fun acc ->
-            aux acc olds
-        in
-        aux old olds
-      in
-      try History.merge (history_t t) ~old c1 c2
-      with Ir_merge.Conflict msg ->
-        conflict "Recursive merging of common ancestors: %s" msg
-    )
+  let three_way_merge t ?max_depth ?n c1 c2 =
+    History.three_way_merge (history_t t) ?max_depth ?n c1 c2
 
   let update_head t c =
     match branch t with

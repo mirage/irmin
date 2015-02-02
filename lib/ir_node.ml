@@ -230,7 +230,7 @@ module type GRAPH = sig
   val add_node: t -> node -> path -> node -> node Lwt.t
   val remove_node: t -> node -> path -> node Lwt.t
 
-  val merge: t -> node Ir_merge.t
+  val merge: t -> node option Ir_merge.t
   val closure: t -> min:node list -> max:node list -> node list Lwt.t
   module Store: Ir_contents.STORE
     with type t = t
@@ -288,8 +288,7 @@ struct
 
     let merge_xparents path merge_key =
       Ir_merge.alist (module Step) (module S.Key) (fun k ->
-          let merge = merge_key (Path.rcons path k) in
-          Ir_merge.option (module S.Key) merge
+          merge_key (Path.rcons path k)
         )
 
     let merge_value path (c, _) merge_key =
@@ -306,14 +305,20 @@ struct
       in
       Ir_merge.biject (module S.Val) merge explode implode
 
-    let merge_node path t ~old x y =
+    let merge path t ~old x y =
       let rec merge_key path =
         let merge = merge_value path t merge_key in
-        Ir_merge.biject' (module S.Key) merge (read_exn t) (add t)
+        let read = function
+          | None   -> Lwt.return S.Val.empty
+          | Some k -> read_exn t k
+        in
+        let add v =
+          if S.Val.is_empty v then Lwt.return_none
+          else add t v >>= fun k -> Lwt.return (Some k)
+        in
+        Ir_merge.biject' (module Tc.Option(S.Key)) merge read add
       in
       merge_key path ~old x y
-
-    let merge path t = Ir_merge.option (module S.Key) (merge_node path t)
 
     module Key = S.Key
     module Val = struct
@@ -325,7 +330,7 @@ struct
   end
 
   type t = Store.t
-  let merge = Store.merge_node Path.empty
+  let merge = Store.merge Path.empty
 
   let empty (_, t) = S.add t S.Val.empty
 

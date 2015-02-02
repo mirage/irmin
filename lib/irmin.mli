@@ -549,7 +549,7 @@ module type BC = sig
   (** Same as {{!BC.merge}merge} but raise {!Merge.Conflict} in case
       of a conflict. *)
 
-  val lca: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
+  val lcas: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   (** [lca ?max_depth ?n msg t1 t2] returns the collection of least
       common ancestors of the store tips [t1] and [t2].
@@ -563,11 +563,11 @@ module type BC = sig
       }
   *)
 
-  val lca_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+  val lcas_tag: t -> ?max_depth:int -> ?n:int -> tag ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
   (** Same as {!lca} but takes a tag as argument. *)
 
-  val lca_head: t -> ?max_depth:int -> ?n:int -> head ->
+  val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
   (** Same as {!lca} but takes an head as argument. *)
 
@@ -1249,7 +1249,7 @@ module Private: sig
           path of the path starting from [n] and labeled by [path] in
           [t]. *)
 
-      val merge: t -> node Merge.t
+      val merge: t -> node option Merge.t
       (** [merge t] is the 3-way merge function for nodes. FIXME: give
           semantics, especially when a node does not have
           sub-contents. *)
@@ -1381,11 +1381,26 @@ module Private: sig
       val merge: t -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
-      val lca: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+      val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
         [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-      (** Find the least common ancestors
+      (** Find the lowest common ancestors
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
+
+      val lca: t -> ?max_depth:int -> ?n:int -> commit list ->
+        commit option Merge.result Lwt.t
+      (** Compute the lowest common ancestors ancestor of a list of
+          commits by recursively calling {!lcas} and merging the
+          results.
+
+          If one of the merges results in a conflict, or if a call to
+          {!lcas} returns either [`Max_depth_reached] or
+          [`Too_many_lcas] then the function returns [None]. *)
+
+      val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+        commit Merge.result Lwt.t
+      (** Compute the {!lca} of the two commit and 3-way merge the
+          result. *)
 
       val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
       (** Same as {{!Private.Node.GRAPH.closure}GRAPH.closure} but for
@@ -1736,16 +1751,16 @@ val merge_exn: 'm -> ?max_depth:int -> ?n:int ->
   ('m -> ([`BC],'k,'v) t) -> into:('m -> ([`BC],'k,'v) t) -> unit Lwt.t
 (** See {!BC.merge_exn}. *)
 
-val lca: 'm -> ?max_depth:int -> ?n:int ->
+val lcas: 'm -> ?max_depth:int -> ?n:int ->
   ('m -> ([`BC],'k,'v) t) -> ('m -> ([`BC],'k,'v) t) ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca}. *)
 
-val lca_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
+val lcas_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca_tag}. *)
 
-val lca_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+val lcas_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca_head}. *)
 
@@ -1799,10 +1814,12 @@ val push_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> unit Lwt.t
 
 (** {2 Projections} *)
 
-type 'a proj = { f: 't . (module S with type t = 't) -> 't -> 'a }
+type ('a, 'k, 'v) proj =
+  { proj: 't . (module S with type t = 't and type key = 'k and type value = 'v)
+      -> 't -> 'a }
 (** Project a base store to its actual implementation and state. *)
 
-val with_store: ([`BC],'k,'v) t -> 'a proj -> 'a
+val with_store: ([`BC],'k,'v) t -> ('a, 'k, 'v) proj -> 'a
 (** [with_store t fn] applies [fn] on the underlying store
     implementation of the base store [t]. For instance, it can be used
     to build a {{!View}views} as follows:

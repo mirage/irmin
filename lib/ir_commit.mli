@@ -46,8 +46,10 @@ module type HISTORY = sig
   val node: t -> commit -> node option Lwt.t
   val parents: t -> commit -> commit list Lwt.t
   val merge: t -> commit Ir_merge.t
-  val lca: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+  val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
     [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  val lca: t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
+  val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
   module Store: Ir_contents.STORE with type t = t and type key = commit
 end

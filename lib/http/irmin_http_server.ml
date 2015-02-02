@@ -486,13 +486,13 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t >>=
       ok
     in
-    let s_lca_tag t tag query =
+    let s_lcas_tag t tag query =
       let max_depth, n = mk_merge_query query in
-      S.lca_tag t ?max_depth ?n tag
+      S.lcas_tag t ?max_depth ?n tag
     in
-    let s_lca_head t head query =
+    let s_lcas_head t head query =
       let max_depth, n = mk_merge_query query in
-      S.lca_head t ?max_depth ?n head
+      S.lcas_head t ?max_depth ?n head
     in
     let l f t list = f t (S.Key.create list) in
     let bc t = [
@@ -525,8 +525,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p1bf "import"      S.import t slice Tc.unit;
 
       (* lca *)
-      mk1p0bfq "lca-tag"  s_lca_tag  t tag'  (module LCA);
-      mk1p0bfq "lca-head" s_lca_head t head' (module LCA);
+      mk1p0bfq "lcas-tag"  s_lcas_tag  t tag'  (module LCA);
+      mk1p0bfq "lcas-head" s_lcas_head t head' (module LCA);
 
       (* extra *)
       mk0p0bh "graph" s_graph t;

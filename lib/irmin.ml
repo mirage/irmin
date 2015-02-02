@@ -140,11 +140,11 @@ and ('k, 'v) bc = {
   merge: ?max_depth:int -> ?n:int -> into:([`BC], 'k, 'v) t ->
     unit Merge.result Lwt.t;
   merge_exn: ?max_depth:int -> ?n:int -> into:([`BC], 'k, 'v) t -> unit Lwt.t;
-  lca: ?max_depth:int -> ?n:int -> ([`BC], 'k, 'v) t ->
+  lcas: ?max_depth:int -> ?n:int -> ([`BC], 'k, 'v) t ->
     [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
-  lca_tag: ?max_depth:int -> ?n:int -> string ->
+  lcas_tag: ?max_depth:int -> ?n:int -> string ->
     [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
-  lca_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+  lcas_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
   task_of_head: Hash.SHA1.t -> task Lwt.t;
   remote_basic: unit -> remote;
@@ -195,10 +195,10 @@ let merge a ?max_depth ?n t ~into =
   bc (t a) (function BC t -> t.merge ?max_depth ?n ~into:(into a))
 let merge_exn a ?max_depth ?n t ~into =
   bc (t a) (function BC t -> t.merge_exn ?max_depth ?n ~into:(into a))
-let lca a ?max_depth ?n t1 t2 =
-  bc (t1 a) (function BC t1 -> t1.lca ?max_depth ?n (t2 a))
-let lca_tag t = bc t (function BC t -> t.lca_tag)
-let lca_head t = bc t (function BC t -> t.lca_head)
+let lcas a ?max_depth ?n t1 t2 =
+  bc (t1 a) (function BC t1 -> t1.lcas ?max_depth ?n (t2 a))
+let lcas_tag t = bc t (function BC t -> t.lcas_tag)
+let lcas_head t = bc t (function BC t -> t.lcas_head)
 let task_of_head t = bc t (function BC t -> t.task_of_head)
 
 (* sync *)
@@ -273,14 +273,14 @@ let pack_s (type x) (type k) (type v)
         merge_exn = (fun ?max_depth ?n ~into ->
             merge t ?max_depth ?n ~into >>= Ir_merge.exn
           );
-        lca = (fun ?max_depth ?n i ->
+        lcas = (fun ?max_depth ?n i ->
             let BC i = i.extend in
             match i.branch () with
-            | `Tag tag -> M.lca_tag t ?max_depth ?n tag
-            | `Head h  -> M.lca_head t ?max_depth ?n h
+            | `Tag tag -> M.lcas_tag t ?max_depth ?n tag
+            | `Head h  -> M.lcas_head t ?max_depth ?n h
           );
-        lca_tag = M.lca_tag t;
-        lca_head = M.lca_head t;
+        lcas_tag = M.lcas_tag t;
+        lcas_head = M.lcas_head t;
         task_of_head = M.task_of_head t;
         remote_basic = (fun () -> remote_store (module M) t);
         fetch = S.fetch t;
@@ -311,11 +311,13 @@ let of_head (type a) (type b) (t: (a, b) basic) config task h =
   T.of_head config task h >>= fun t ->
   return (pack_s (module T) t)
 
-type 'a proj = { f: 't . (module S with type t = 't) -> 't -> 'a }
+type ('a, 'k, 'v) proj =
+  { proj: 't . (module S with type t = 't and type key = 'k and type value = 'v)
+      -> 't -> 'a }
 
-let with_store (type a) (type b): ([`BC], a, b) t -> 'a proj -> 'a =
+let with_store (type a) (type b): ([`BC], a, b) t -> ('a, a, b) proj -> 'a =
   fun t f -> match t.extend with
-    | BC { pack = E ((module M), t); _ } -> f.f (module M) t
+    | BC { pack = E ((module M), t); _ } -> f.proj (module M) t
 
 let with_hrw_view (type a) (type b)
     (t :([`BC], a, b) t) ?path strat (ops: ([`HRW], a, b) t -> unit Lwt.t) =
