@@ -131,9 +131,16 @@ struct
       if List.mem k1 (S.Val.parents v2) then ok k2
       else if List.mem k2 (S.Val.parents v1) then ok k1
       else
-        old () >>| fun old ->
-        (* FIXME: lazy loading or old or not lazy loading,
-           this is the question... *)
+        (* If we get an error while looking the the lca, then we
+           assume that there is no common ancestor. Maybe we want to
+           expose this to the user in a more structured way. But maybe
+           that's too much low-level details. *)
+        begin old () >>= function
+          | `Conflict msg ->
+            Log.debug "old: conflict %s" msg;
+            Lwt.return None
+          | `Ok o -> Lwt.return o
+        end >>= fun old ->
         if Tc.O1.equal S.Key.equal old (Some k1) then ok k2
         else if Tc.O1.equal S.Key.equal old (Some k2) then ok k1
         else
