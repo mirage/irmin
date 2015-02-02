@@ -131,15 +131,18 @@ struct
       if List.mem k1 (S.Val.parents v2) then ok k2
       else if List.mem k2 (S.Val.parents v1) then ok k1
       else
-        (* FIXME: check that old<>k1 and old<>k2 and don't create a
-           new commit in that case. *)
-        let old () =
-          old () >>| function
-          | None     -> ok None
-          | Some old ->
-            read_exn t old >>= fun vold ->
-            ok (Some (S.Val.node vold))
-        in
+        old () >>| fun old ->
+        (* FIXME: lazy loading or old or not lazy loading,
+           this is the question... *)
+        if Tc.O1.equal S.Key.equal old (Some k1) then ok k2
+        else if Tc.O1.equal S.Key.equal old (Some k2) then ok k1
+        else
+          let old () = match old with
+            | None     -> ok None
+            | Some old ->
+              read_exn t old >>= fun vold ->
+              ok (Some (S.Val.node vold))
+          in
         merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
         >>| fun node ->
         let parents = [k1; k2] in
