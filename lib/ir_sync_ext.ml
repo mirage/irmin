@@ -42,37 +42,33 @@ module Make (S: Ir_s.STORE) = struct
   type db = S.t
   type head = S.head
 
-  (* sync objects *)
-  let sync (type s) (type r)
-      (module S: Ir_s.STORE with type t = s)
-      (module R: Ir_s.STORE with type t = r)
-      ?depth l (r:r)
+  let conv (type x) (type y)
+      (module X: Tc.S0 with type t = x) (module Y: Tc.S0 with type t = y)
+      (x:x): y =
+    Y.of_json (X.to_json x)
+
+  let convert_slice (type r) (type s)
+      (module RP: Ir_bc.PRIVATE with type Slice.t = r)
+      (module SP: Ir_bc.PRIVATE with type Slice.t = s)
+      r
     =
-    R.heads r >>= fun min ->
-    let min = List.map (fun r -> S.Head.of_raw (R.Head.to_raw r)) min in
-    S.export l ?depth ~min >>= fun s_slice ->
-    let module SP = S.Private in
-    let module RP = R.Private in
-    RP.Slice.create () >>= fun r_slice ->
-    SP.Slice.iter_contents s_slice (fun (k, v) ->
-        let k = RP.Contents.Key.of_raw (SP.Contents.Key.to_raw k) in
-        let v = Tc.read_cstruct (module RP.Contents.Val)
-            (Tc.write_cstruct (module SP.Contents.Val) v) in
-        RP.Slice.add_contents r_slice (k, v)
+    SP.Slice.create () >>= fun s ->
+    RP.Slice.iter_contents r (fun (k, v) ->
+        let k = conv (module RP.Contents.Key) (module SP.Contents.Key) k in
+        let v = conv (module RP.Contents.Val) (module SP.Contents.Val) v in
+        SP.Slice.add_contents s (k, v)
       ) >>= fun () ->
-    SP.Slice.iter_nodes s_slice (fun (k, v) ->
-        let k = RP.Node.Key.of_raw (SP.Node.Key.to_raw k) in
-        let v = Tc.read_cstruct (module RP.Node.Val)
-            (Tc.write_cstruct (module SP.Node.Val) v) in
-        RP.Slice.add_node r_slice (k, v)
+    RP.Slice.iter_nodes r (fun (k, v) ->
+        let k = conv (module RP.Node.Key) (module SP.Node.Key) k in
+        let v = conv (module RP.Node.Val) (module SP.Node.Val) v in
+        SP.Slice.add_node s (k, v)
       ) >>= fun () ->
-    SP.Slice.iter_commits s_slice (fun (k, v) ->
-        let k = RP.Commit.Key.of_raw (SP.Commit.Key.to_raw k) in
-        let v = Tc.read_cstruct (module RP.Commit.Val)
-            (Tc.write_cstruct (module SP.Commit.Val) v) in
-        RP.Slice.add_commit r_slice (k, v)
+    RP.Slice.iter_commits r (fun (k, v) ->
+        let k = conv (module RP.Commit.Key) (module SP.Commit.Key) k in
+        let v = conv (module RP.Commit.Val) (module SP.Commit.Val) v in
+        SP.Slice.add_commit s (k, v)
       ) >>= fun () ->
-    R.import r r_slice
+    Lwt.return s
 
   let fetch t ?depth remote =
     match remote with
@@ -88,11 +84,15 @@ module Make (S: Ir_s.STORE) = struct
       end
     | Store ((module R), r) ->
       Log.debug "fetch store";
-      sync (module S) (module R) ?depth t r >>= fun () ->
+      S.heads t >>= fun min ->
+      let min = List.map (conv (module S.Head) (module R.Head) ) min in
+      R.export r ?depth ~min >>= fun r_slice ->
+      convert_slice (module R.Private) (module S.Private) r_slice
+      >>= fun s_slice -> S.import t s_slice >>= fun () ->
       R.head r >>= function
       | None   -> return_none
       | Some h ->
-        let h = S.Head.of_raw (R.Head.to_raw h) in
+        let h = conv (module R.Head) (module S.Head) h in
         return (Some h)
 
   let fetch_exn t ?depth remote =
@@ -129,8 +129,13 @@ module Make (S: Ir_s.STORE) = struct
       S.head t >>= function
       | None   -> return `Error
       | Some h ->
-        sync (module R) (module S) ?depth r t >>= fun () ->
-        let h = R.Head.of_raw (S.Head.to_raw h) in
+        Log.debug "push store";
+        R.heads r >>= fun min ->
+        let min = List.map (conv (module R.Head) (module S.Head)) min in
+        S.export t ?depth ~min >>= fun s_slice ->
+        convert_slice (module S.Private) (module R.Private) s_slice
+        >>= fun r_slice -> R.import r r_slice >>= fun () ->
+        let h = conv (module S.Head) (module R.Head) h in
         R.update_head r h >>= fun () ->
         return `Ok
 

@@ -39,7 +39,7 @@ module type IO = sig
   val read_file: string -> Cstruct.t Lwt.t
   (** Read the contents of a file using mmap. *)
 
-  val write_file: string -> Cstruct.t -> unit Lwt.t
+  val write_file: string -> ?temp_dir:string -> Cstruct.t -> unit Lwt.t
   (** Write some contents to a new file. *)
 
 end

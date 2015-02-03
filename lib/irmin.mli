@@ -371,6 +371,10 @@ module type RW = sig
       stream return a new value every time the bindings is modified in
       [t]. It return [None] if the binding is removed. *)
 
+  val watch_all: t -> (key * value option) Lwt_stream.t
+  (** [watch_all t] watches for key creation and deletions. Use
+      {!watch} if you are interested in a particular key. *)
+
   (** FIXME: add move *)
 
 end
@@ -516,10 +520,13 @@ module type BC = sig
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
 
-  val watch_head: t -> key -> (key * head) Lwt_stream.t
+  val watch_head: t -> key -> (key * head option) Lwt_stream.t
   (** Watch changes for a given collection of keys and the ones they
       have recursive access. Return the stream of heads corresponding
       to the modified keys. *)
+
+  val watch_tags: t -> (tag * head option) Lwt_stream.t
+  (** Watch for creation and deletion of tags. *)
 
   (** {2 Clones and Merges} *)
 
@@ -542,7 +549,7 @@ module type BC = sig
   (** Same as {{!BC.merge}merge} but raise {!Merge.Conflict} in case
       of a conflict. *)
 
-  val lca: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
+  val lcas: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   (** [lca ?max_depth ?n msg t1 t2] returns the collection of least
       common ancestors of the store tips [t1] and [t2].
@@ -556,11 +563,11 @@ module type BC = sig
       }
   *)
 
-  val lca_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+  val lcas_tag: t -> ?max_depth:int -> ?n:int -> tag ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
   (** Same as {!lca} but takes a tag as argument. *)
 
-  val lca_head: t -> ?max_depth:int -> ?n:int -> head ->
+  val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
   (** Same as {!lca} but takes an head as argument. *)
 
@@ -1032,6 +1039,9 @@ module Private: sig
           initial value, or [None] if the key does not have associated
           contents yet.  *)
 
+      val watch_all: t -> (key * value option) Lwt_stream.t
+      (** Watch for creation and deletion of keys. *)
+
       val listen_dir: t -> string
         -> key:(string -> key option)
         -> value:(key -> value option Lwt.t)
@@ -1041,7 +1051,7 @@ module Private: sig
 
     end
 
-    val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
+    val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> unit) -> unit
     (** Register a function which looks for file changes in a
         directory. Could use [inotify] when available, or use an active
         stats file polling.*)
@@ -1239,7 +1249,7 @@ module Private: sig
           path of the path starting from [n] and labeled by [path] in
           [t]. *)
 
-      val merge: t -> node Merge.t
+      val merge: t -> node option Merge.t
       (** [merge t] is the 3-way merge function for nodes. FIXME: give
           semantics, especially when a node does not have
           sub-contents. *)
@@ -1371,11 +1381,26 @@ module Private: sig
       val merge: t -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
-      val lca: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+      val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
         [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-      (** Find the least common ancestors
+      (** Find the lowest common ancestors
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
+
+      val lca: t -> ?max_depth:int -> ?n:int -> commit list ->
+        commit option Merge.result Lwt.t
+      (** Compute the lowest common ancestors ancestor of a list of
+          commits by recursively calling {!lcas} and merging the
+          results.
+
+          If one of the merges results in a conflict, or if a call to
+          {!lcas} returns either [`Max_depth_reached] or
+          [`Too_many_lcas] then the function returns [None]. *)
+
+      val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+        commit Merge.result Lwt.t
+      (** Compute the {!lca} of the two commit and 3-way merge the
+          result. *)
 
       val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
       (** Same as {{!Private.Node.GRAPH.closure}GRAPH.closure} but for
@@ -1603,6 +1628,9 @@ type ('a, 'k, 'v) t
     type ['v]. ['a] is a phantom type representing the store's kind:
     read-only, read-write or branch-consistent. *)
 
+val impl: ([`BC],'k,'v) t -> ('k, 'v) basic
+(** [impl t] is the store implementation of [t]. *)
+
 val create: ('k,'v) basic -> config -> ('m -> task) -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!RO.create}. Needs a backend as first argument. *)
 
@@ -1626,13 +1654,16 @@ val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
 val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
-(** See {!RO.watch}. *)
+(** See {!RW.watch}. *)
+
+val watch_all: ([<`RO|`HRW|`BC],'k,'v) t -> ('k * 'v option) Lwt_stream.t
+(** See {!RW.watch_all} *)
 
 val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
-(** See {!RO.iter}. *)
+(** See {!RW.iter}. *)
 
 val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
-(** See {!HRO.list}. *)
+(** See {!HRW.list}. *)
 
 val update: ([<`HRW|`BC],'k,'v) t -> 'k -> 'v -> unit Lwt.t
 (** See {!RW.update}. *)
@@ -1698,8 +1729,11 @@ val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
 
-val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t) Lwt_stream.t
+val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t
 (** See {!BC.watch_head}. *)
+
+val watch_tags: ([`BC],'k,'v) t -> (string * Hash.SHA1.t option) Lwt_stream.t
+(** See {!BC.watch_tags}. *)
 
 (** {2 Clones and Merges} *)
 
@@ -1720,16 +1754,16 @@ val merge_exn: 'm -> ?max_depth:int -> ?n:int ->
   ('m -> ([`BC],'k,'v) t) -> into:('m -> ([`BC],'k,'v) t) -> unit Lwt.t
 (** See {!BC.merge_exn}. *)
 
-val lca: 'm -> ?max_depth:int -> ?n:int ->
+val lcas: 'm -> ?max_depth:int -> ?n:int ->
   ('m -> ([`BC],'k,'v) t) -> ('m -> ([`BC],'k,'v) t) ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca}. *)
 
-val lca_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
+val lcas_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca_tag}. *)
 
-val lca_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
+val lcas_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lca_head}. *)
 
@@ -1780,22 +1814,6 @@ val push: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
 
 val push_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> unit Lwt.t
 (** See {!Sync.push_exn}. *)
-
-(** {2 Projections} *)
-
-type 'a proj = { f: 't . (module S with type t = 't) -> 't -> 'a }
-(** Project a base store to its actual implementation and state. *)
-
-val with_store: ([`BC],'k,'v) t -> 'a proj -> 'a
-(** [with_store t fn] applies [fn] on the underlying store
-    implementation of the base store [t]. For instance, it can be used
-    to build a {{!View}views} as follows:
-
-{v
-   with_store t < f (module M) t =
-   let module V = Irmin.View(M) in
-   ...
-   > *)
 
 (** {1:examples Examples}
 

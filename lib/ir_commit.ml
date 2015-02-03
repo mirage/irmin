@@ -95,8 +95,10 @@ module type HISTORY = sig
   val node: t -> commit -> node option Lwt.t
   val parents: t -> commit -> commit list Lwt.t
   val merge: t -> commit Ir_merge.t
-  val lca: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+  val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
     [`Ok of commit list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+  val lca: t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
+  val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
   module Store: Ir_contents.STORE with type t = t and type key = commit
 end
@@ -131,15 +133,25 @@ struct
       if List.mem k1 (S.Val.parents v2) then ok k2
       else if List.mem k2 (S.Val.parents v1) then ok k1
       else
-        (* FIXME: check that old<>k1 and old<>k2 and don't create a
-           new commit in that case. *)
-        let old () =
-          old () >>| function
-          | None     -> ok None
-          | Some old ->
-            read_exn t old >>= fun vold ->
-            ok (Some (S.Val.node vold))
-        in
+        (* If we get an error while looking the the lca, then we
+           assume that there is no common ancestor. Maybe we want to
+           expose this to the user in a more structured way. But maybe
+           that's too much low-level details. *)
+        begin old () >>= function
+          | `Conflict msg ->
+            Log.debug "old: conflict %s" msg;
+            Lwt.return None
+          | `Ok o -> Lwt.return o
+        end >>= fun old ->
+        if Tc.O1.equal S.Key.equal old (Some k1) then ok k2
+        else if Tc.O1.equal S.Key.equal old (Some k2) then ok k1
+        else
+          let old () = match old with
+            | None     -> ok None
+            | Some old ->
+              read_exn t old >>= fun vold ->
+              ok (Some (S.Val.node vold))
+          in
         merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
         >>| fun node ->
         let parents = [k1; k2] in
@@ -333,7 +345,7 @@ struct
     Lwt.return { p with n = p.n + 1; seen1; seen2; shared; todo1; todo2 }
 
   let lca_calls = ref 0
-  let lca t ?(max_depth=256) ?n c1 c2 =
+  let lcas t ?(max_depth=256) ?n c1 c2 =
     incr lca_calls;
     let ok set = Lwt.return (`Ok (KSet.to_list set)) in
     let rec aux prefix =
@@ -356,5 +368,57 @@ struct
       { prefix with todo1 = KSet.singleton c1; todo2 = KSet.singleton c2 }
     in
     aux prefix
+
+  let rec three_way_merge t ?max_depth ?n c1 c2 =
+    Log.debug "3-way merge between %a and %a"
+      force (show (module S.Key) c1)
+      force (show (module S.Key) c2);
+    if S.Key.equal c1 c2 then ok c1
+    else (
+      lcas t ?max_depth ?n c1 c2 >>= fun lcas ->
+      let old () = match lcas with
+        | `Too_many_lcas     -> conflict "Too many lcas"
+        | `Max_depth_reached -> conflict "Max depth reached"
+        | `Ok []             -> ok None (* no common ancestor *)
+        | `Ok (old :: olds)  ->
+        let rec aux acc = function
+          | []        -> ok (Some acc)
+          | old::olds ->
+            three_way_merge t acc old >>| fun acc ->
+            aux acc olds
+        in
+        aux old olds
+      in
+      try merge t ~old c1 c2
+      with Ir_merge.Conflict msg ->
+        conflict "Recursive merging of common ancestors: %s" msg
+    )
+
+  let lca_aux t ?max_depth ?n c1 c2 =
+    if S.Key.equal c1 c2 then ok (Some c1)
+    else (
+      lcas t ?max_depth ?n c1 c2 >>= function
+      | `Too_many_lcas     -> conflict "Too many lcas"
+      | `Max_depth_reached -> conflict "Max depth reached"
+      | `Ok []             -> ok None (* no common ancestor *)
+      | `Ok [x]            -> ok (Some x)
+      | `Ok (c :: cs)  ->
+        let rec aux acc = function
+          | []    -> ok (Some acc)
+          | c::cs ->
+            three_way_merge t ?max_depth ?n acc c >>= function
+            | `Conflict _ -> ok None
+            | `Ok acc     -> aux acc cs
+        in
+        aux c cs
+    )
+
+  let rec lca t ?max_depth ?n = function
+    | []  -> conflict "History.lca: empty"
+    | [c] -> ok (Some c)
+    | c1::c2::cs ->
+      lca_aux t ?max_depth ?n c1 c2 >>| function
+      | None   -> ok None
+      | Some c -> lca t ?max_depth ?n (c::cs)
 
 end

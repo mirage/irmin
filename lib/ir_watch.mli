@@ -18,32 +18,14 @@
 
 module type S = sig
 
-  (** Collection of listeners. *)
-
   type key
-  (** Keys. *)
-
   type value
-  (** Values. *)
-
   type t
-  (** Listeners state. *)
-
   val notify: t -> key -> value option -> unit
-  (** Notifity all listeners that a key has changed. If the argument
-      is [None], this means the key has been removed. *)
-
   val create: unit -> t
-  (** Create in-memory notifications. *)
-
   val clear: t -> unit
-  (** Clear all watches. *)
-
   val watch: t -> key -> value option -> value option Lwt_stream.t
-  (** Create a stream of event notifications. Need to provide the
-      initial value (or [None] if the key does not have associated
-      contents yet).  *)
-
+  val watch_all: t -> (key * value option) Lwt_stream.t
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
@@ -55,6 +37,6 @@ end
 
 module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
-val set_listen_dir_hook: (string -> (string -> unit Lwt.t) -> unit) -> unit
+val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> unit) -> unit
 
 val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t

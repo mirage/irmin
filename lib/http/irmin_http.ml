@@ -118,13 +118,17 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     Client.delete uri >>=
     map_string_response fn
 
-  let post t path body fn =
+  let post t path ?query body fn =
     let body =
       let params = `O [ "params", body ] in
       Ezjsonm.to_string params in
     let uri = uri_append t path in
     let short_body =
       if String.length body > 80 then String.sub body 0 80 ^ ".." else body
+    in
+    let uri = match query with
+      | None   -> uri
+      | Some q -> Uri.with_query uri q
     in
     Log.debug "post %s %s" (Uri.path uri) short_body;
     let body = Cohttp_lwt_body.of_string body in
@@ -204,6 +208,9 @@ struct
 
     let watch { uri; _ } path =
       get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
+
+    let watch_all { uri; _ } =
+      get_stream uri ["watch-all"] (module Tc.Pair(K)(Tc.Option(V)))
 
   end
 
@@ -385,6 +392,9 @@ struct
   let watch t path =
     get_stream (uri t) ["watch"; P.to_hum path] (module Tc.Option(C))
 
+  let watch_all t =
+    get_stream (uri t) ["watch-all";] (module Tc.Pair(P)(Tc.Option(C)))
+
   let update t key value =
     post (uri t) ["update"; P.to_hum key] (C.to_json value) (module H)
     >>= fun h ->
@@ -479,16 +489,22 @@ struct
   let merge_head_exn t ?max_depth ?n head =
     merge_head t ?max_depth ?n head >>= Irmin.Merge.exn
 
-  module W = Tc.Pair (P)(H)
-
   let watch_head t key =
     match t.branch with
     | `Head _ -> Lwt_stream.of_list []
     | `Tag _  ->
+      let module W = Tc.Pair (P)(Tc.Option(H)) in
       Irmin.Private.Watch.lwt_stream_lift (
         let s = get_stream (uri t) ["watch-head"; P.to_hum key] (module W) in
         return s
       )
+
+  let watch_tags t =
+    let module W = Tc.Pair (T)(Tc.Option(H)) in
+    Irmin.Private.Watch.lwt_stream_lift (
+      let s = get_stream (uri t) ["watch-tags"] (module W) in
+      return s
+    )
 
   let clone task t tag =
     get (uri t) ["clone"; T.to_hum tag] Tc.string >>= function
@@ -537,33 +553,42 @@ struct
     let size_of _ = failwith "TODO"
   end
 
-  let lca_tag t ?max_depth ?n tag =
+  let lcas_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["lca-tag"; T.to_hum tag] (module LCA)
+    get (uri t) ?query ["lcas-tag"; T.to_hum tag] (module LCA)
 
-  let lca_head t ?max_depth ?n head =
+  let lcas_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["lca-head"; H.to_hum head] (module LCA)
+    get (uri t) ?query ["lcas-head"; H.to_hum head] (module LCA)
 
-  let lca a ?max_depth ?n t1 t2 =
+  let lcas a ?max_depth ?n t1 t2 =
     match branch (t2 a) with
-    | `Tag tag   -> lca_tag  (t1 a) ?max_depth ?n tag
-    | `Head head -> lca_head (t1 a) ?max_depth ?n head
+    | `Tag tag   -> lcas_tag  (t1 a) ?max_depth ?n tag
+    | `Head head -> lcas_head (t1 a) ?max_depth ?n head
 
   let task_of_head t head =
     LP.Commit.read_exn t.commit_t head >>= fun commit ->
     Lwt.return (LP.Commit.Val.task commit)
 
-  module E = Tc.Pair
-      (Tc.Pair (Tc.Option(Tc.Bool)) (Tc.Option(Tc.Int)))
-      (Tc.Pair (Tc.List(H)) (Tc.List(H)))
+  module E = Tc.Pair (Tc.List(H)) (Tc.List(H))
 
   type slice = L.slice
 
   module Slice = L.Private.Slice
 
   let export ?full ?depth ?(min=[]) ?(max=[]) t =
-    post (uri t) ["export"] (E.to_json ((full, depth), (min, max)))
+    let query =
+      let full = match full with
+        | None   -> []
+        | Some x -> ["full", [string_of_bool x]]
+      in
+      let depth = match depth with
+        | None   -> []
+        | Some x -> ["depth", [string_of_int x]]
+      in
+      match full @ depth with [] -> None | l -> Some l
+    in
+    post (uri t) ?query ["export"] (E.to_json (min, max))
       (module L.Private.Slice)
 
   module I = Tc.List(T)

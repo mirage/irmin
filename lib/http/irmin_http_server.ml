@@ -36,9 +36,12 @@ let http_headers = Cohttp.Header.of_list []
 
 exception Invalid
 
+type hooks = { update: unit -> unit Lwt.t }
+let no_hooks = { update = fun () -> Lwt.return_unit }
+
 module type S = sig
   type t
-  val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+  val listen: t -> ?timeout:int -> ?hooks:hooks -> Uri.t -> unit Lwt.t
 end
 
 module type SERVER = sig
@@ -144,6 +147,21 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     | None   -> error "%s: empty body" name
     | Some b  -> Tc.of_json i b
 
+  let id = let c = ref 0 in fun () -> incr c; !c
+
+  let with_lock lock fn = match lock with
+    | None   -> fn ()
+    | Some l ->
+      let id = id () in
+      Log.debug "Lock %d taken" id;
+      Lwt_mutex.with_lock l fn >>= fun r ->
+      Log.debug "Lock %d released" id;
+      Lwt.return r
+
+  let run_hooks lock = function
+    | None   -> Lwt.return_unit
+    | Some f -> with_lock lock f
+
   (* no arguments, fixed answer *)
   let mk0p0bf name fn db o =
     name,
@@ -180,37 +198,40 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       )
 
   (* 1 argument in the path, fixed answer *)
-  let mk1p0bf name fn db i1 o =
+  let mk1p0bf name ?lock ?hooks fn db i1 o =
     name,
     Fixed (fun t path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        fn t x >>= fun r ->
+        with_lock lock (fun () -> fn t x) >>= fun r ->
+        run_hooks lock hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
   (* 1 argument in the path, fixed answer and parameters in the query *)
-  let mk1p0bfq name fn db i1 o =
+  let mk1p0bfq name ?lock ?hooks fn db i1 o =
     name,
     Fixed (fun t path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
         db t >>= fun t ->
-        fn t x query >>= fun r ->
+        with_lock lock (fun () -> fn t x query) >>= fun r ->
+        run_hooks lock hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
   (* n argument in the path, fixed answer *)
-  let mknp0bf name fn db i1 o =
+  let mknp0bf name ?lock ?hooks fn db i1 o =
     name,
     Fixed (fun t path params query ->
         let x = mknp i1 path in
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        fn t x >>= fun r ->
+        with_lock lock (fun () -> fn t x) >>= fun r ->
+        run_hooks lock hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
@@ -226,27 +247,40 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         return (Tc.to_json o r)
       )
 
+  (* 1 argument in the body + query *)
+  let mk0p1bfq name fn db i1 o =
+    name,
+    Fixed (fun t path params query ->
+        mk0p name path;
+        let x = mk1b name i1 params in
+        db t >>= fun t ->
+        fn t x query >>= fun r ->
+        return (Tc.to_json o r)
+      )
+
   (* 1 argument in the path, 1 argument in the body, fixed answer *)
-  let mk1p1bf name fn db i1 i2 o =
+  let mk1p1bf name ?lock ?hooks fn db i1 i2 o =
     name,
     Fixed (fun t path params query ->
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
         db t >>= fun t ->
-        fn t x1 x2 >>= fun r ->
+        with_lock lock (fun () -> fn t x1 x2) >>= fun r ->
+        run_hooks lock hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
   (* n arguments in the path, 1 argument in the body, fixed answer *)
-  let mknp1bf name fn db i1 i2 o =
+  let mknp1bf name ?lock ?hooks fn db i1 i2 o =
     name,
     Fixed (fun t path params query ->
         let x1 = mknp i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
         db t >>= fun t ->
-        fn t x1 x2 >>= fun r ->
+        with_lock lock (fun () -> fn t x1 x2) >>= fun r ->
+        run_hooks lock hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
@@ -383,10 +417,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let key: S.key Tc.t = (module S.Key)
   let head: S.head Tc.t = (module S.Head)
 
-  let export =
-    Tc.pair
-      (Tc.pair (Tc.option Tc.bool) (Tc.option Tc.int))
-      (Tc.pair (Tc.list head) (Tc.list head))
+  let export = Tc.pair (Tc.list head) (Tc.list head)
 
   let merge (type x) (x:x Tc.t): x Irmin.Merge.result Tc.t =
     let module X = (val x: Tc.S0 with type t = x) in
@@ -395,17 +426,22 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let dyn_node list child = DNode { list; child }
 
-  let mk_query query =
-    let get n =
-      try match List.assoc n query with
-        | [i] -> (try Some (int_of_string i) with Failure _ -> None)
-        | _ -> None
-      with Not_found ->
-        None
-    in
-    let max_depth = get "depth" in
-    let n = get "n" in
+  let get_query query fn n =
+    try match List.assoc n query with
+      | [i] -> (try Some (fn i) with Failure _ -> None)
+      | _ -> None
+    with Not_found ->
+      None
+
+  let mk_merge_query query =
+    let max_depth = get_query query int_of_string "depth" in
+    let n = get_query query int_of_string "n" in
     max_depth, n
+
+  let mk_export_query query =
+    let full = get_query query bool_of_string "full" in
+    let depth = get_query query int_of_string "depth" in
+    full, depth
 
   module LCA = struct
     module HL = Tc.List(S.Head)
@@ -423,13 +459,15 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let size_of _ = failwith "TODO"
   end
 
-  let store =
+  let store lock hooks =
     let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
+    let tag: S.tag Tc.t = (module S.Tag) in
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
     let slice: S.slice Tc.t = (module S.Private.Slice) in
-    let s_export t ((full, depth), (min, max)) =
+    let s_export t (min, max) query =
+      let full, depth = mk_export_query query in
       S.export ?full ?depth ~min ~max t
     in
     let s_graph t = graph_of_dump t in
@@ -455,57 +493,59 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t
     in
     let s_merge_head t k query =
-      let max_depth, n = mk_query query in
+      let max_depth, n = mk_merge_query query in
       S.merge_head t ?max_depth ?n k >>| fun () ->
       S.head_exn t >>=
       ok
     in
     let s_merge_tag t k query =
-      let max_depth, n = mk_query query in
+      let max_depth, n = mk_merge_query query in
       S.merge_tag t ?max_depth ?n k >>| fun () ->
       S.head_exn t >>=
       ok
     in
-    let s_lca_tag t tag query =
-      let max_depth, n = mk_query query in
-      S.lca_tag t ?max_depth ?n tag
+    let s_lcas_tag t tag query =
+      let max_depth, n = mk_merge_query query in
+      S.lcas_tag t ?max_depth ?n tag
     in
-    let s_lca_head t head query =
-      let max_depth, n = mk_query query in
-      S.lca_head t ?max_depth ?n head
+    let s_lcas_head t head query =
+      let max_depth, n = mk_merge_query query in
+      S.lcas_head t ?max_depth ?n head
     in
     let l f t list = f t (S.Key.create list) in
+    let hooks = hooks.update in
     let bc t = [
       (* rw *)
       mknp0bf "read"   (l S.read)     t step' (Tc.option value);
       mknp0bf "mem"    (l S.mem)      t step' Tc.bool;
       mk0p0bs "iter"   (stream key S.iter) t key;
-      mknp1bf "update" (l s_update)   t step' value head;
-      mknp0bf "remove" (l s_remove)   t step' head;
+      mknp1bf "update" ~lock ~hooks (l s_update) t step' value head;
+      mknp0bf "remove" ~lock ~hooks (l s_remove) t step' head;
       mknp0bs "watch"  (l S.watch)    t step' (Tc.option value);
 
       (* hrw *)
       mknp0bf "list"       (l S.list)       t step' (Tc.list key);
-      mknp0bf "remove-rec" (l s_remove_rec) t step' head;
+      mknp0bf "remove-rec" ~lock (l s_remove_rec) t step' head;
 
       (* more *)
-      mk1p0bf "rename-tag"  S.rename_tag t tag' ok_or_duplicated_tag;
-      mk1p0bf "update-tag"  S.update_tag t tag' Tc.unit;
-      mk1p0bfq "merge-tag"   s_merge_tag t tag' (merge head);
-      mk1p0bf "switch"      S.switch t tag' Tc.unit;
+      mk1p0bf "rename-tag"  ~lock ~hooks S.rename_tag t tag' ok_or_duplicated_tag;
+      mk1p0bf "update-tag"  ~lock ~hooks S.update_tag t tag' Tc.unit;
+      mk1p0bfq "merge-tag"  ~lock ~hooks s_merge_tag t tag' (merge head);
+      mk1p0bf "switch"      ~lock ~hooks S.switch t tag' Tc.unit;
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
-      mk1p0bf "update-head" S.update_head t head' Tc.unit;
-      mk1p0bfq "merge-head"  s_merge_head t head' (merge head);
-      mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key head);
+      mk1p0bf "update-head" ~lock ~hooks S.update_head t head' Tc.unit;
+      mk1p0bfq "merge-head" ~lock ~hooks s_merge_head t head' (merge head);
+      mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key (Tc.option head));
+      mk0p0bs "watch-tags"  S.watch_tags t (Tc.pair tag (Tc.option head));
       mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
-      mk0p1bf "export"      s_export t export slice;
+      mk0p1bfq "export"     s_export t export slice;
       mk0p1bf "import"      S.import t slice Tc.unit;
 
       (* lca *)
-      mk1p0bfq "lca-tag"  s_lca_tag  t tag'  (module LCA);
-      mk1p0bfq "lca-head" s_lca_head t head' (module LCA);
+      mk1p0bfq "lcas-tag"  s_lcas_tag  t tag'  (module LCA);
+      mk1p0bfq "lcas-head" s_lcas_head t head' (module LCA);
 
       (* extra *)
       mk0p0bh "graph" s_graph t;
@@ -537,7 +577,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
              return (SNode (bc (fun t -> app S.of_tag t (S.Tag.of_hum n)))))
       ])
 
-  let process t req body path =
+  let process t store req body path =
     begin match Cohttp.Request.meth req with
       | `DELETE
       | `GET       -> return_none
@@ -580,7 +620,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   type t = S.t
 
-  let listen t ?timeout uri =
+  let listen t ?timeout ?(hooks=no_hooks) uri =
     let uri = match Uri.host uri with
       | None   -> Uri.with_host uri (Some "localhost")
       | Some _ -> uri in
@@ -588,6 +628,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       | None   -> 8080, Uri.with_port uri (Some 8080)
       | Some p -> p   , uri in
     Printf.printf "Server started on port %d.\n%!" port;
+    let lock = Lwt_mutex.create () in
+    let store = store lock hooks in
     let callback (_, conn_id) req body =
       let path = Uri.path (Cohttp.Request.uri req) in
       Log.info "Connection %s: %s %s"
@@ -597,8 +639,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let path = Stringext.split path ~on:'/' in
       let path = List.filter ((<>) "") path in
       catch
-        (fun () -> process t req body path)
-        (fun e  -> respond_error e) in
+        (fun () -> process t store req body path)
+        (fun e  -> respond_error e)
+    in
     let conn_closed (_, conn_id) =
       Log.debug "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
     in

@@ -288,6 +288,9 @@ module Internal (Node: NODE) = struct
   let watch _ _ =
     failwith "TODO: View.watch"
 
+  let watch_all _ =
+    failwith "TODO: View.watch_all"
+
   let apply t a =
     Log.debug "apply %a" force (show (module Action) a);
     match a with
@@ -678,15 +681,34 @@ module Make (S: Ir_s.STORE) = struct
          on a branch, and we merge the branch back into the store. *)
       export db view >>= fun view_node ->
       (* Create a commit with the contents of the view *)
-      Graph.add_node (graph_t db) head_node path view_node >>= fun new_node ->
-      match !(view.parents) with
-      | [] ->
-        Log.debug "No parents!";
-        rebase_path db path view
-      | parents ->
-        Log.debug "Parents: %a" force (shows (module S.Head) parents);
-        History.create (history_t db) ~node:new_node ~parents >>= fun k ->
-        S.merge_head db ?max_depth ?n k
+      Graph.read_node (graph_t db) head_node path >>= fun current_node ->
+      S.head_exn db >>= fun head ->
+      let parents = head :: !(view.parents) in
+      let old () = match !(view.parents) with
+        | []      -> ok None
+        | parents ->
+          History.lca (history_t db) ?max_depth ?n parents
+          >>| function
+          | None   -> ok None
+          | Some c ->
+            History.node (history_t db) c >>= function
+            | None   -> ok None
+            | Some n ->
+              Graph.read_node (graph_t db) n path >>= fun n ->
+              ok (Some n)
+      in
+      Graph.merge (graph_t db) ~old current_node (Some view_node)
+      >>| fun merge_node ->
+      if Tc.O1.equal P.Node.Key.equal merge_node current_node then ok ()
+      else (
+        begin match merge_node with
+          | None   -> Graph.remove_node (graph_t db) head_node path
+          | Some n -> Graph.add_node (graph_t db) head_node path n
+        end >>= fun new_head_node ->
+        History.create (history_t db) ~node:new_head_node ~parents >>= fun h ->
+        S.update_head db h >>= fun () ->
+        ok ()
+      )
 
   let merge_path_exn db ?max_depth ?n path t =
     merge_path db ?max_depth ?n path t >>= Ir_merge.exn

@@ -16,12 +16,16 @@
 
 (** HTTP server *)
 
+type hooks = {
+  update: unit -> unit Lwt.t;
+}
+
 module type S = sig
 
   type t
   (** Database type. *)
 
-  val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+  val listen: t -> ?timeout:int -> ?hooks:hooks -> Uri.t -> unit Lwt.t
   (** [start_server t uri] start a server serving the contents of [t]
       at the address [uri]. *)
 

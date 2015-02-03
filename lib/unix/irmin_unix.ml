@@ -65,6 +65,7 @@ module Irmin_http_server = struct
       let tm = Unix.localtime (Int64.to_float d) in
       Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
   end
+  type hooks = Irmin_http_server.hooks = { update: unit -> unit Lwt.t }
   module type S = Irmin_http_server.S
   module Make = Irmin_http_server.Make (X)(Y)
 end
@@ -85,7 +86,7 @@ end
 
 let install_dir_polling_listener delay =
 
-  Irmin.Private.Watch.set_listen_dir_hook (fun dir fn ->
+  Irmin.Private.Watch.set_listen_dir_hook (fun id dir fn ->
 
       let read_files () =
         IO.rec_files dir >>= fun new_files ->
@@ -99,9 +100,13 @@ let install_dir_polling_listener delay =
         read_files () >>= fun new_files ->
         let diff = S.diff files new_files in
         if not (S.is_empty diff) then
-          Log.debug "polling %s: diff:%s" dir (to_string diff);
+          Log.debug "polling %d %s: diff:%s" id dir (to_string diff)
+        else
+          Log.debug "polling %d no changes!" id;
         Lwt_list.iter_p (fun (f, _) -> fn f) (S.to_list diff) >>= fun () ->
+        Log.debug "XXX SLEEP(%2f) %d" delay id;
         Lwt_unix.sleep delay >>= fun () ->
+        Log.debug "XXX WAKE-UP %d" id;
         loop new_files
       in
 

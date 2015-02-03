@@ -180,13 +180,18 @@ module Irmin_http_server: sig
 
   (** {1 HTTP server} *)
 
+  type hooks = {
+    update: unit -> unit Lwt.t;
+  }
+  (** Server hooks. *)
+
   (** Server Signature. *)
   module type S = sig
 
     type t
     (** The type for store handles. *)
 
-    val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+    val listen: t -> ?timeout:int -> ?hooks:hooks -> Uri.t -> unit Lwt.t
     (** [start_server t uri] start a server serving the contents of
         [t] at the address [uri]. Close clients' connections after
         [timeout] seconds of inactivity. *)
