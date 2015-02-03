@@ -99,9 +99,13 @@ let install_dir_polling_listener delay =
         read_files () >>= fun new_files ->
         let diff = S.diff files new_files in
         if not (S.is_empty diff) then
-          Log.debug "polling %d %s: diff:%s" id dir (to_string diff);
+          Log.debug "polling %d %s: diff:%s" id dir (to_string diff)
+        else
+          Log.debug "polling %d no changes!" id;
         Lwt_list.iter_p (fun (f, _) -> fn f) (S.to_list diff) >>= fun () ->
+        Log.debug "XXX SLEEP(%2f) %d" delay id;
         Lwt_unix.sleep delay >>= fun () ->
+        Log.debug "XXX WAKE-UP %d" id;
         loop new_files
       in
 
