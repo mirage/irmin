@@ -35,13 +35,17 @@ module type S = sig
 end
 
 let listen_dir_hook =
-  ref (fun _id _dir _fn ->
+  ref (fun _dir _fn ->
       Log.error "Listen hook not set!";
       assert false
     )
 
 let set_listen_dir_hook fn =
   listen_dir_hook := fn
+
+let id =
+  let c = ref 0 in
+  fun () -> incr c; !c
 
 module Make (K: Tc.S0) (V: Tc.S0) = struct
 
@@ -53,19 +57,21 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   type all_notifier = int * ((key * value option) option -> unit)
 
   type t = {
+    id: int;
     keys: (K.t,  key_notifier list) Hashtbl.t;
     mutable all: all_notifier list;
   }
 
   let to_string t =
-    Printf.sprintf "(%s | %d)"
+    Printf.sprintf "[%d|%s|%d]"
+      t.id
       (String.concat " "
          (let l = Hashtbl.fold (fun k _ l -> k :: l) t.keys [] in
           List.map (Tc.show (module K)) l))
       (List.length t.all)
 
   let create () =
-    { keys = Hashtbl.create 42; all = [] }
+    { id = id (); keys = Hashtbl.create 42; all = [] }
 
   let clear t =
     Hashtbl.clear t.keys;
@@ -92,10 +98,12 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       let ws =
         List.fold_left (fun acc (id, old_value, f as w) ->
             if not (OV.equal old_value value) then (
-              Log.debug "firing key-watch %a:%d" force (show (module K) key) id;
+              Log.debug "firing key-watch id=%d.%d %a"
+                t.id id force (show (module K) key);
               try f (Some value); (id, value, f) :: acc
               with e ->
-                Log.error "notify-key: %s" (Printexc.to_string e);
+                Log.error "notify-key: id=%d.%d %s" t.id id
+                  (Printexc.to_string e);
                 unwatch_keys t key id;
                 acc
             ) else w :: acc
@@ -114,10 +122,11 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   let notify_all (t:t) key value =
     let all =
       List.fold_left (fun acc (id, f) ->
-          Log.debug "firing all-watch %a:%d" force (show (module K) key) id;
+          Log.debug "firing all-watch id=%d.%d %a" t.id id force
+            (show (module K) key);
           try f (Some (key, value)); (id, f) :: acc
           with e ->
-            Log.debug "notify-all: %s" (Printexc.to_string e);
+            Log.debug "notify-all: id=%d.%d %s" t.id id (Printexc.to_string e);
             unwatch_all t id;
             acc
         ) [] t.all
@@ -126,32 +135,29 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     t.all <- all
 
   let notify t key value =
-    Log.debug "notify %s %a" (to_string t) force (show (module K) key);
+    Log.debug "notify %s %a" (to_string t) force
+      (show (module K) key);
     notify_keys t key value;
     notify_all t key value
 
-  let id =
-    let c = ref 0 in
-    fun () -> incr c; !c
-
   let watch (t:t) key value =
-    Log.debug "watch %a" force (show (module K) key);
+    Log.debug "watch %s %a" (to_string t) force (show (module K) key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
     Ir_misc.hashtbl_add_multi t.keys key (id, value, push);
     stream
 
   let watch_all (t:t) =
-    Log.debug "watch all";
+    Log.debug "watch all %s" (to_string t);
     let stream, push = Lwt_stream.create () in
     let id = id () in
     t.all <- (id, push) :: t.all;
     stream
 
   let listen_dir (t:t) dir ~key ~value =
-    let id = id () in
-    !listen_dir_hook id dir (fun file ->
-        Log.debug "listen_dir_hook: %s" file;
+    Log.debug "Add a listen hook for %s" (to_string t);
+    !listen_dir_hook t.id dir (fun file ->
+        Log.debug "listen_dir_hook: %s %s" (to_string t) file;
         match key file with
         | None     -> return_unit
         | Some key ->
