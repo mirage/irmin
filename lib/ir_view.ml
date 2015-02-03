@@ -119,10 +119,18 @@ module type NODE = sig
   val read: t -> node option Lwt.t
 
   val read_contents: t -> Path.step -> contents option Lwt.t
-  val with_contents: t -> Path.step -> contents option -> unit Lwt.t
+
+  val with_contents: t -> Path.step -> contents option -> bool Lwt.t
+  (* Return [true] iff the contents has actually changed. Used for
+     invalidating the view cache if needed. *)
+
+  val clear_cache: t -> unit
 
   val read_succ: node -> Path.step -> t option
-  val with_succ: t -> Path.step -> t option -> unit Lwt.t
+
+  val with_succ: t -> Path.step -> t option -> bool Lwt.t
+  (* Return [true] iff the successors has actually changes. Used for
+     invalidating the view cache if needed. *)
 
   val steps: t -> Path.step list Lwt.t
 end
@@ -240,19 +248,24 @@ module Internal (Node: NODE) = struct
       | Some (h, p) ->
         Node.read view >>= function
         | None   ->
-          if v = None then Lwt.return_unit
+          if v = None then Lwt.return false
           else Lwt.fail Not_found (* XXX ?*)
         | Some n ->
           match Node.read_succ n h with
-          | Some child -> aux child p
+          | Some child ->
+            aux child p >>= fun changed ->
+            if changed then Node.clear_cache view;
+            Lwt.return changed
           | None ->
-            if v = None then Lwt.return_unit
+            if v = None then Lwt.return false
             else
               let child = Node.empty () in
-              Node.with_succ view h (Some child) >>= fun () ->
+              Node.with_succ view h (Some child) >>= fun _ ->
               aux child p
     in
-    aux t.view path
+    aux t.view path >>= fun changed ->
+    Log.debug "update_contents: %s change=%b" (Path.to_hum k) changed;
+    Lwt.return_unit
 
   let update_contents t k v =
     t.ops := `Write (k, v) :: !(t.ops);
@@ -272,18 +285,24 @@ module Internal (Node: NODE) = struct
         match Path.decons path with
         | None       -> assert false
         | Some (h,p) ->
-          if Path.is_empty p then
-            Node.with_succ view h None
-          else
+          if Path.is_empty p then (
+            Node.with_succ view h None >>= fun changed ->
+            if changed then Node.clear_cache view;
+            Lwt.return true
+          ) else
             Node.read view >>= function
-            | None   -> Lwt.return_unit
+            | None   -> Lwt.return false
             | Some n ->
               match Node.read_succ n h with
-              | None       -> Lwt.return_unit
-              | Some child -> aux child p
+              | None       -> Lwt.return false
+              | Some child ->
+                aux child p >>= fun changed ->
+                if changed then Node.clear_cache view;
+                Lwt.return true
       in
       t.ops := `Rmdir k :: !(t.ops);
-      aux t.view k
+      aux t.view k >>= fun _ ->
+      Lwt.return_unit
 
   let watch _ _ =
     failwith "TODO: View.watch"
@@ -295,7 +314,7 @@ module Internal (Node: NODE) = struct
     Log.debug "apply %a" force (show (module Action) a);
     match a with
     | `Rmdir _ -> ok ()
-    | `Write (k, v) -> update_contents t k v >>= ok
+    | `Write (k, v) -> update_contents t k v >>= fun _ -> ok ()
     | `Read (k, v)  ->
       read t k >>= fun v' ->
       if Tc.equal (module CO) v v' then ok ()
@@ -371,7 +390,10 @@ module Make (S: Ir_s.STORE) = struct
           t := Both (key, c);
           Lwt.return (Some c)
 
-    let equal (x:t) (y:t) = match !x, !y with
+    let equal (x:t) (y:t) =
+      x == y
+      ||
+      match !x, !y with
       | (Key (_,x) | Both ((_,x),_)), (Key (_,y) | Both ((_,y),_)) ->
         P.Contents.Key.equal x y
       | (Contents x | Both (_, x)), (Contents y | Both (_, y)) ->
@@ -409,7 +431,10 @@ module Make (S: Ir_s.STORE) = struct
     (* Similir to [Node.t] but using where all of the values can just
        be keys. *)
 
-    let rec equal (x:t) (y:t) = match !x, !y with
+    let rec equal (x:t) (y:t) =
+      x == y
+      ||
+      match !x, !y with
       | (Key (_,x) | Both ((_,x),_)), (Key (_,y) | Both ((_,y),_)) ->
         P.Node.Key.equal x y
       | (Node x | Both (_, x)), (Node y | Both (_, y)) ->
@@ -445,6 +470,11 @@ module Make (S: Ir_s.STORE) = struct
 
     let both db k v =
       ref (Both ((db, k), v))
+
+    let clear_cache (t:t) =
+      match !t with
+      | Key _ | Node _ -> ()
+      | Both (_, n) -> t:= Node n
 
     let empty () = create []
 
@@ -514,12 +544,11 @@ module Make (S: Ir_s.STORE) = struct
         force (show (module Tc.Option(S.Val)) contents);
       let mk c = `Contents (Contents.create c) in
       read t >>= function
-      | None   ->
-        let () = match contents with
-          | None   -> ()
-          | Some c -> t := Node (create_node [ step, mk c ])
-        in
-        Lwt.return_unit
+      | None -> begin
+          match contents with
+          | None   -> Lwt.return false
+          | Some c -> t := Node (create_node [ step, mk c ]); Lwt.return true
+        end
       | Some n ->
         let rec aux acc = function
           | (s, `Contents x as h) :: l ->
@@ -535,26 +564,29 @@ module Make (S: Ir_s.STORE) = struct
             | Some c -> List.rev ((step, mk c) :: acc)
         in
         let alist = aux [] n.alist in
-        if n.alist != alist then t := Node (create_node alist);
-        Lwt.return_unit
+        if n.alist != alist then (
+          t := Node (create_node alist);
+          Lwt.return true
+        ) else
+          Lwt.return false
 
     (* FIXME: code duplication with Ir_node.Make.with_succ *)
     let with_succ t step succ =
+      Log.debug "with_succ %a" force (show (module Step) step);
       let mk c = `Node c in
       read t >>= function
-      | None   ->
-        let () = match succ with
-          | None   -> ()
-          | Some c -> t := Node (create_node [ step, mk c ])
-        in
-        Lwt.return_unit
+      | None   -> begin
+          match succ with
+          | None   -> Lwt.return false
+          | Some c -> t := Node (create_node [ step, mk c ]); Lwt.return true
+        end
       | Some n ->
         let rec aux acc = function
           | (s, `Node x as h) :: l ->
             if Step.equal step s then match succ with
               | None   -> List.rev_append acc l
               | Some c ->
-                if equal c x then n.alist
+                if equal c x then (Log.debug "with_succ: equal!"; n.alist)
                 else List.rev_append acc ((s, mk c) :: l)
             else aux (h :: acc) l
           | h::t -> aux (h :: acc) t
@@ -563,8 +595,11 @@ module Make (S: Ir_s.STORE) = struct
             | Some c -> List.rev ((step, mk c) :: acc)
         in
         let alist = aux [] n.alist in
-        if n.alist != alist then t := Node (create_node alist);
-        Lwt.return_unit
+        if n.alist != alist then (
+          t := Node (create_node alist);
+          Lwt.return true;
+        ) else
+          Lwt.return false
 
     module Contents = P.Contents.Val
 
