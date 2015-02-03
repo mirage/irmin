@@ -65,6 +65,7 @@ module Irmin_http_server = struct
       let tm = Unix.localtime (Int64.to_float d) in
       Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
   end
+  type hooks = Irmin_http_server.hooks = { update: unit -> unit Lwt.t }
   module type S = Irmin_http_server.S
   module Make = Irmin_http_server.Make (X)(Y)
 end
