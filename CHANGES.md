@@ -1,4 +1,5 @@
 ## 0.9.3
+* Add post-commit hooks for the HTTP server.
 * Add `Irmin.watch_tags` to monitor tag creation and desctructions.
 * Fix `Irmin.push`
 * Add `Irmin.with_hrw_view` to easily use transactions.
