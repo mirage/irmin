@@ -1628,6 +1628,9 @@ type ('a, 'k, 'v) t
     type ['v]. ['a] is a phantom type representing the store's kind:
     read-only, read-write or branch-consistent. *)
 
+val impl: ([`BC],'k,'v) t -> ('k, 'v) basic
+(** [impl t] is the store implementation of [t]. *)
+
 val create: ('k,'v) basic -> config -> ('m -> task) -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!RO.create}. Needs a backend as first argument. *)
 
@@ -1811,24 +1814,6 @@ val push: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
 
 val push_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> unit Lwt.t
 (** See {!Sync.push_exn}. *)
-
-(** {2 Projections} *)
-
-type ('a, 'k, 'v) proj =
-  { proj: 't . (module S with type t = 't and type key = 'k and type value = 'v)
-      -> 't -> 'a }
-(** Project a base store to its actual implementation and state. *)
-
-val with_store: ([`BC],'k,'v) t -> ('a, 'k, 'v) proj -> 'a
-(** [with_store t fn] applies [fn] on the underlying store
-    implementation of the base store [t]. For instance, it can be used
-    to build a {{!View}views} as follows:
-
-{v
-   with_store t < f (module M) t =
-   let module V = Irmin.View(M) in
-   ...
-   > *)
 
 (** {1:examples Examples}
 

@@ -311,13 +311,9 @@ let of_head (type a) (type b) (t: (a, b) basic) config task h =
   T.of_head config task h >>= fun t ->
   return (pack_s (module T) t)
 
-type ('a, 'k, 'v) proj =
-  { proj: 't . (module S with type t = 't and type key = 'k and type value = 'v)
-      -> 't -> 'a }
-
-let with_store (type a) (type b): ([`BC], a, b) t -> ('a, a, b) proj -> 'a =
-  fun t f -> match t.extend with
-    | BC { pack = E ((module M), t); _ } -> f.proj (module M) t
+let impl (type a) (type b): ([`BC], a, b) t -> (a, b) basic =
+  fun t -> match t.extend with
+    | BC { pack = E ((module M), _); _ } -> (module M)
 
 let with_hrw_view (type a) (type b)
     (t :([`BC], a, b) t) ?path strat (ops: ([`HRW], a, b) t -> unit Lwt.t) =
