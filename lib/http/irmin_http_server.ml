@@ -64,6 +64,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let respond_error e =
     let json = `O [ "error", Ezjsonm.encode_string (Printexc.to_string e) ] in
     let body = Ezjsonm.to_string json in
+    Log.error "server error: %s" body;
     HTTP.respond_string
       ~headers:json_headers
       ~status:`Internal_server_error
@@ -639,7 +640,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let path = Stringext.split path ~on:'/' in
       let path = List.filter ((<>) "") path in
       catch
-        (fun () -> process t store req body path)
+        (fun () -> try process t store req body path with e -> fail e)
         (fun e  -> respond_error e)
     in
     let conn_closed (_, conn_id) =

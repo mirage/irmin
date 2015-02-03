@@ -562,6 +562,20 @@ module Make (S: Irmin.S) = struct
           return_unit
         ) nodes >>= fun () ->
 
+      View.of_path (t "v2") (p ["b"]) >>= fun v2 ->
+      View.read   v2 (p ["foo"; "1"]) >>= fun _ ->
+      View.update v2 (p ["foo"; "1"]) foo2 >>= fun () ->
+      View.update_path (t "v2") (p ["b"]) v2 >>= fun () ->
+      S.read (t "read after v2") (p ["b";"foo";"1"]) >>= fun foo2' ->
+      assert_equal (module Tc.Option(V)) "update view" (Some foo2) foo2';
+
+      View.of_path (t "v3") (p ["b"]) >>= fun v3 ->
+      View.read   v3 (p ["foo"; "1"]) >>= fun _ ->
+      View.remove v3 (p ["foo"; "1"]) >>= fun () ->
+      View.update_path (t "v3") (p ["b"]) v3 >>= fun () ->
+      S.read (t "read after v3") (p ["b";"foo";"1"]) >>= fun foo2' ->
+      assert_equal (module Tc.Option(V)) "remove view" None foo2';
+
       return_unit
     in
     run x test

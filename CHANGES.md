@@ -1,4 +1,8 @@
 ## 0.9.3
+* Fix the invalidation of the view caches (report by @gregtatcam).
+  This was causing some confusing issues where views' sub-keys where
+  not properly updated to to their new values when the view is merged
+  back to the store. The issues is a regression introduced in 0.9.0.
 * Add post-commit hooks for the HTTP server.
 * Add `Irmin.watch_tags` to monitor tag creation and desctructions.
 * Fix `Irmin.push`
