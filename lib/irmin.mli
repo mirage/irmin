@@ -565,11 +565,11 @@ module type BC = sig
 
   val lcas_tag: t -> ?max_depth:int -> ?n:int -> tag ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
-  (** Same as {!lca} but takes a tag as argument. *)
+  (** Same as {!lcas} but takes a tag as argument. *)
 
   val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
-  (** Same as {!lca} but takes an head as argument. *)
+  (** Same as {!lcas} but takes an head as argument. *)
 
   val task_of_head: t -> head -> task Lwt.t
   (** [task_of_head t h] is the task which created [h]. Useful to
@@ -623,8 +623,10 @@ module Path: sig
 
     (** {1 Path} *)
 
-    include Hum.S
+    type t
     (** The type for path values. *)
+
+    include Hum.S with type t := t
 
     type step
     (** Type type for path's steps. *)
@@ -1399,7 +1401,7 @@ module Private: sig
 
       val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
         commit Merge.result Lwt.t
-      (** Compute the {!lca} of the two commit and 3-way merge the
+      (** Compute the {!lcas} of the two commit and 3-way merge the
           result. *)
 
       val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
@@ -1757,15 +1759,15 @@ val merge_exn: 'm -> ?max_depth:int -> ?n:int ->
 val lcas: 'm -> ?max_depth:int -> ?n:int ->
   ('m -> ([`BC],'k,'v) t) -> ('m -> ([`BC],'k,'v) t) ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
-(** See {!BC.lca}. *)
+(** See {!BC.lcas}. *)
 
 val lcas_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
-(** See {!BC.lca_tag}. *)
+(** See {!BC.lcas_tag}. *)
 
 val lcas_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
-(** See {!BC.lca_head}. *)
+(** See {!BC.lcas_head}. *)
 
 val task_of_head: ([`BC],'k, 'v) t -> Hash.SHA1.t -> task Lwt.t
 (** See {!BC.task_of_head}. *)
@@ -1779,8 +1781,8 @@ val with_hrw_view:
     in-memory, temporary and mutable view of the store [t]. If [path]
     is set, all operations in the transaction are relative the that
     path, otherwise use the full tree. The [strat] strategy decides
-    which merging strategy to use: see {!View.update_paht},
-    {!View.rebase_path} and {!View.merge_path}. *)
+    which merging strategy to use: see {!VIEW.update_path},
+    {!VIEW.rebase_path} and {!VIEW.merge_path}. *)
 
 (** {2 Synchronisation} *)
 
@@ -2085,13 +2087,13 @@ module type VIEW = sig
       the view's contents and [t]'s sub-tree.
 
       {ul
-      {- {!update_path} discards any preexisting sub-tree.}
-      {- {!rebase_path} is operation based. It keeps track of read
+      {- {!VIEW.update_path} discards any preexisting sub-tree.}
+      {- {!VIEW.rebase_path} is operation based. It keeps track of read
       operations which can lead to {{!Merge.Conflict}conflicts}. It
       replays the full operation history of the view on top of any
       preexisting sub-tree.}
-      {- {!merge_path} is state based. Is is an efficient 3-way merge operators between
-      prefix trees, based on {!Merge.Map.merge}.}
+      {- {!VIEW.merge_path} is state based. Is is an efficient 3-way merge
+      operators between prefix trees, based on {!Merge.Map.merge}.}
      } *)
 
   val merge_path_exn: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Lwt.t
@@ -2101,7 +2103,7 @@ module type VIEW = sig
   (** [Action] provides information about operations performed on a
       view.
 
-      Each view stores the list of {{!View.Action.t}actions} that
+      Each view stores the list of {{!VIEW.Action.t}actions} that
       have already been performed on it. These actions are useful
       when the view needs to be rebased: write operations are
       replayed while read results are checked against the original
