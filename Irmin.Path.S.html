@@ -29,18 +29,49 @@ Signature for path implementations.<br>
 <br>
 <h1 id="1_Path">Path</h1><br>
 
-<pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
-<div class="info ">
-Type type for basic steps.<br>
-</div>
-
-
-<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type"><a href="Irmin.Path.S.html#TYPEstep">step</a> list</code> </pre>
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
 <div class="info ">
 The type for path values.<br>
 </div>
 
 
-<pre><span class="keyword">module</span> <a href="Irmin.Path.S.Step.html">Step</a>: <code class="type"><a href="Irmin.Path.STEP.html">Irmin.Path.STEP</a></code><code class="type">  with type t = step</code></pre>
 <pre><span class="keyword">include</span> <a href="Irmin.Hum.S.html">Irmin.Hum.S</a></pre>
-</body></html>
+
+<pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
+<div class="info ">
+Type type for path's steps.<br>
+</div>
+
+
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type"><a href="Irmin.Path.S.html#TYPEt">t</a></code></pre><div class="info ">
+The empty path.<br>
+</div>
+
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.Path.S.html#TYPEstep">step</a> list -> <a href="Irmin.Path.S.html#TYPEt">t</a></code></pre><div class="info ">
+Create a path from a list of steps.<br>
+</div>
+
+<pre><span id="VALis_empty"><span class="keyword">val</span> is_empty</span> : <code class="type"><a href="Irmin.Path.S.html#TYPEt">t</a> -> bool</code></pre><div class="info ">
+Check if the path is empty.<br>
+</div>
+
+<pre><span id="VALcons"><span class="keyword">val</span> cons</span> : <code class="type"><a href="Irmin.Path.S.html#TYPEstep">step</a> -> <a href="Irmin.Path.S.html#TYPEt">t</a> -> <a href="Irmin.Path.S.html#TYPEt">t</a></code></pre><div class="info ">
+Prepend a step to the path.<br>
+</div>
+
+<pre><span id="VALrcons"><span class="keyword">val</span> rcons</span> : <code class="type"><a href="Irmin.Path.S.html#TYPEt">t</a> -> <a href="Irmin.Path.S.html#TYPEstep">step</a> -> <a href="Irmin.Path.S.html#TYPEt">t</a></code></pre><div class="info ">
+Append a step to the path.<br>
+</div>
+
+<pre><span id="VALdecons"><span class="keyword">val</span> decons</span> : <code class="type"><a href="Irmin.Path.S.html#TYPEt">t</a> -> (<a href="Irmin.Path.S.html#TYPEstep">step</a> * <a href="Irmin.Path.S.html#TYPEt">t</a>) option</code></pre><div class="info ">
+Deconstruct the first element of the path. Return <code class="code"><span class="constructor">None</span></code> if
+        the path is empty.<br>
+</div>
+
+<pre><span id="VALrdecons"><span class="keyword">val</span> rdecons</span> : <code class="type"><a href="Irmin.Path.S.html#TYPEt">t</a> -> (<a href="Irmin.Path.S.html#TYPEt">t</a> * <a href="Irmin.Path.S.html#TYPEstep">step</a>) option</code></pre><div class="info ">
+Deconstruct the last element of the path. Return <code class="code"><span class="constructor">None</span></code> if the
+        path is empty.<br>
+</div>
+
+<pre><span id="VALmap"><span class="keyword">val</span> map</span> : <code class="type"><a href="Irmin.Path.S.html#TYPEt">t</a> -> (<a href="Irmin.Path.S.html#TYPEstep">step</a> -> 'a) -> 'a list</code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Path.S.Step.html">Step</a>: <code class="type"><a href="Irmin.Path.STEP.html">Irmin.Path.STEP</a></code><code class="type">  with type t = step</code></pre></body></html>

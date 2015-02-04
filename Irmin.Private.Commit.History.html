@@ -78,10 +78,26 @@ Get the commit parents.
 <code class="code">merge t</code> is the 3-way merge function for commit.<br>
 </div>
 
-<pre><span id="VALlca"><span class="keyword">val</span> lca</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list Lwt.t</code></pre><div class="info ">
-Find the least common ancestors
+<pre><span id="VALlcas"><span class="keyword">val</span> lcas</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       [ `Max_depth_reached<br>       | `Ok of <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list<br>       | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
+Find the lowest common ancestors
           <a href="http://en.wikipedia.org/wiki/Lowest_common_ancestor">lca</a>
           between two commits.<br>
+</div>
+
+<pre><span id="VALlca"><span class="keyword">val</span> lca</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> option <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+Compute the lowest common ancestors ancestor of a list of
+          commits by recursively calling <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.lcas</code></a> and merging the
+          results.
+<p>
+
+          If one of the merges results in a conflict, or if a call to
+          <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.lcas</code></a> returns either <code class="code"><span class="keywordsign">`</span><span class="constructor">Max_depth_reached</span></code> or
+          <code class="code"><span class="keywordsign">`</span><span class="constructor">Too_many_lcas</span></code> then the function returns <code class="code"><span class="constructor">None</span></code>.<br>
+</div>
+
+<pre><span id="VALthree_way_merge"><span class="keyword">val</span> three_way_merge</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+Compute the <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Commit</span>.<span class="constructor">HISTORY</span>.lcas</code></a> of the two commit and 3-way merge the
+          result.<br>
 </div>
 
 <pre><span id="VALclosure"><span class="keyword">val</span> closure</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       min:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       max:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list Lwt.t</code></pre><div class="info ">

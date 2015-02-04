@@ -53,7 +53,14 @@ The type for node values.<br>
 <pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
 <div class="info ">
 The type of steps. A step is used to pass from one node to an
-          other. A list of steps forms a path.<br>
+          other.<br>
+</div>
+
+
+<pre><span id="TYPEpath"><span class="keyword">type</span> <code class="type"></code>path</span> </pre>
+<div class="info ">
+The type of store paths. A path is composed of
+          <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">steps</a>.<br>
 </div>
 
 
@@ -66,11 +73,13 @@ Create a new node.<br>
 </div>
 
 <pre><span id="VALcontents"><span class="keyword">val</span> contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> option Lwt.t</code></pre><div class="info ">
-<code class="code">contents t n s</code> is <code class="code">n</code>'s contents in <code class="code">t</code>, associated to the step <code class="code">s</code>.<br>
+<code class="code">contents t n s</code> is <code class="code">n</code>'s contents in <code class="code">t</code>, associated to the
+          step <code class="code">s</code>.<br>
 </div>
 
 <pre><span id="VALsucc"><span class="keyword">val</span> succ</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> option Lwt.t</code></pre><div class="info ">
-<code class="code">succ t n s</code> is <code class="code">n</code>'s successors in <code class="code">t</code>, associated to the step <code class="code">s</code>.<br>
+<code class="code">succ t n s</code> is <code class="code">n</code>'s successors in <code class="code">t</code>, associated to the
+          step <code class="code">s</code>.<br>
 </div>
 
 <pre><span id="VALsteps"><span class="keyword">val</span> steps</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list Lwt.t</code></pre><div class="info ">
@@ -87,28 +96,28 @@ Create a new node.<br>
 <br>
 <h1 id="1_Contents">Contents</h1><br>
 
-<pre><span id="VALmem_contents"><span class="keyword">val</span> mem_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -> bool Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmem_contents"><span class="keyword">val</span> mem_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> bool Lwt.t</code></pre><div class="info ">
 <code class="code">mem_contents t n path</code> checks if there is a path labeled by
           <code class="code">path</code> from <code class="code">n</code> to a valid contents in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALread_contents"><span class="keyword">val</span> read_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> option Lwt.t</code></pre><div class="info ">
+<pre><span id="VALread_contents"><span class="keyword">val</span> read_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">read_contents t n path</code> is the contents at the end of the
           path starting from <code class="code">n</code> and labeled by <code class="code">path</code> in <code class="code">t</code>. Return
           <code class="code"><span class="constructor">None</span></code> if no such contents exists.<br>
 </div>
 
-<pre><span id="VALread_contents_exn"><span class="keyword">val</span> read_contents_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -> <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALread_contents_exn"><span class="keyword">val</span> read_contents_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">GRAPH</span>.read_contents</code></a> by raise <code class="code"><span class="constructor">Not_found</span></code> if there is no
           valid contents.<br>
 </div>
 
-<pre><span id="VALadd_contents"><span class="keyword">val</span> add_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALadd_contents"><span class="keyword">val</span> add_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
 <code class="code">add_contents t n path c</code> adds the contents <code class="code">c</code> as the end of
           the path starting from <code class="code">n</code> and labeled by <code class="code">path</code> in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALremove_contents"><span class="keyword">val</span> remove_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALremove_contents"><span class="keyword">val</span> remove_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
 <code class="code">remove_contents t n path</code> removes the contents at the end of
           the path of the path starting from <code class="code">n</code> and labeled by <code class="code">path</code>
           in <code class="code">t</code>.<br>
@@ -116,36 +125,37 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="co
 <br>
 <h1 id="1_Nodes">Nodes</h1><br>
 
-<pre><span id="VALmem_node"><span class="keyword">val</span> mem_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -> bool Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmem_node"><span class="keyword">val</span> mem_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> bool Lwt.t</code></pre><div class="info ">
 <code class="code">mem_node t n</code> checks if there is a path labeled by <code class="code">path</code>
           from <code class="code">n</code> to a valid node in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALread_node"><span class="keyword">val</span> read_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> option Lwt.t</code></pre><div class="info ">
+<pre><span id="VALread_node"><span class="keyword">val</span> read_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> option Lwt.t</code></pre><div class="info ">
 <code class="code">read_node t n path</code> is the node at the end of the path
           starting from <code class="code">n</code> and labeled by <code class="code">path</code> in <code class="code">t</code>. Return
           <code class="code"><span class="constructor">None</span></code> if no such node exists.<br>
 </div>
 
-<pre><span id="VALread_node_exn"><span class="keyword">val</span> read_node_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALread_node_exn"><span class="keyword">val</span> read_node_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_node">read_node</a> but raise
           <code class="code"><span class="constructor">Not_found</span></code> if the path is invalid.<br>
 </div>
 
-<pre><span id="VALadd_node"><span class="keyword">val</span> add_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALadd_node"><span class="keyword">val</span> add_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
 <code class="code">add_node t n path c</code> adds the node <code class="code">c</code> as the end of the
           path starting from <code class="code">n</code> and labeled by <code class="code">path</code> in <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALremove_node"><span class="keyword">val</span> remove_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> list -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALremove_node"><span class="keyword">val</span> remove_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
 <code class="code">remove_node t n path</code> removes the node at the end of the
           path of the path starting from <code class="code">n</code> and labeled by <code class="code">path</code> in
           <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> option <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
 <code class="code">merge t</code> is the 3-way merge function for nodes. FIXME: give
-          semantics<br>
+          semantics, especially when a node does not have
+          sub-contents.<br>
 </div>
 
 <pre><span id="VALclosure"><span class="keyword">val</span> closure</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       min:<a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> list -><br>       max:<a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> list Lwt.t</code></pre><div class="info ">
@@ -164,7 +174,11 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_node">read_node</a> but r
            Both <code class="code">min</code> and <code class="code">max</code> are subsets of <code class="code">c</code>.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.GRAPH.Store.html">Store</a>: <code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="type">  with type t = t and type key = node</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.GRAPH.Store.html">Store</a>: <code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="type"> 
+        with type t = t
+         and type key = node
+         and type Path.t = path
+         and type Path.step = step</code></pre><div class="info">
 Graph nodes forms a <a href="Irmin.Contents.STORE.html">contents store</a>.
 </div>
 </body></html>

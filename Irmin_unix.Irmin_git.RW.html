@@ -66,6 +66,11 @@ Embed a read-write store into a Git repository. Contents will be
       stream return a new value every time the bindings is modified in
       <code class="code">t</code>. It return <code class="code"><span class="constructor">None</span></code> if the binding is removed.<br>
 </div>
+
+<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type">t -> (key * value option) Lwt_stream.t</code></pre><div class="info ">
+<code class="code">watch_all t</code> watches for key creation and deletions. Use
+      <a href="Irmin.RW.html#VALwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.watch</code></a> if you are interested in a particular key.<br>
+</div>
 <br>
 FIXME: add move<br>
 </body></html>

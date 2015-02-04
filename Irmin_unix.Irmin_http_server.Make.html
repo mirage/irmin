@@ -45,7 +45,7 @@ The type for store handles.<br>
 </div>
 
 
-<pre><span id="VALlisten"><span class="keyword">val</span> listen</span> : <code class="type"><a href="Irmin_unix.Irmin_http_server.S.html#TYPEt">t</a> -> ?timeout:int -> Uri.t -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALlisten"><span class="keyword">val</span> listen</span> : <code class="type"><a href="Irmin_unix.Irmin_http_server.S.html#TYPEt">t</a> -><br>       ?timeout:int -><br>       ?hooks:<a href="Irmin_unix.Irmin_http_server.html#TYPEhooks">Irmin_unix.Irmin_http_server.hooks</a> -> Uri.t -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">start_server t uri</code> start a server serving the contents of
         <code class="code">t</code> at the address <code class="code">uri</code>. Close clients' connections after
         <code class="code">timeout</code> seconds of inactivity.<br>

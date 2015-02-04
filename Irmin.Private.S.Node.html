@@ -23,7 +23,8 @@
 </div>
 <h1>Module <a href="type_Irmin.Private.S.Node.html">Irmin.Private.S.Node</a></h1>
 
-<pre><span class="keyword">module</span> Node: <code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="type">  with type Val.contents = Contents.key</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Node: <code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="type"> 
+      with type Val.contents = Contents.key and module Path = Contents.Path</code></pre><div class="info module top">
 Private nodes.<br>
 </div>
 <hr width="100%">

@@ -35,12 +35,6 @@ Hierarchical read-write stores are read-write stores using
       <a href="Irmin.Path.S.html#TYPEt">paths</a> as keys. They are a very simplified
       abstraction of filesystems.<br>
 
-<pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
-<div class="info ">
-The type for step values. A step is a path component.<br>
-</div>
-
-
 <pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
 
 <pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type">t -> key -> key list Lwt.t</code></pre><div class="info ">

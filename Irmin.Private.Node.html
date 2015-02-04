@@ -54,7 +54,8 @@
 <code class="code"><span class="constructor">Graph</span></code> specifies the signature for node graphs.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.Graph.html">Graph</a> <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">STORE</a></code><code class="type">  with type Val.contents = C.key</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Node.GRAPH.html">GRAPH</a></code><code class="type">  with type t = C.t * S.t
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.Graph.html">Graph</a> <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">STORE</a></code><code class="type">  with type Val.contents = C.key and module Path = C.Path</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Node.GRAPH.html">GRAPH</a></code><code class="type">  with type t = C.t * S.t
                and type contents = C.key
                and type node = S.key
-               and type step = S.Val.step</code></pre></body></html>
+               and type path = S.Path.t
+               and type step = S.Path.step</code></pre></body></html>

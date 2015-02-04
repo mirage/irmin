@@ -29,6 +29,21 @@ Server-side of the REST API over HTTP.<br>
 <br>
 <h1 id="1_HTTPserver">HTTP server</h1><br>
 
+<pre><code><span id="TYPEhooks"><span class="keyword">type</span> <code class="type"></code>hooks</span> = {</code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELThooks.update">update</span>&nbsp;: <code class="type">unit -> unit Lwt.t</code>;</code></td>
+
+</tr></table>
+}
+
+<div class="info ">
+Server hooks.<br>
+</div>
+
+
 <pre><span class="keyword">module type</span> <a href="Irmin_unix.Irmin_http_server.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_http_server.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Server Signature.
 </div>

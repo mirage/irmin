@@ -65,6 +65,10 @@ Create a stream of value notifications. Need to provide the
           contents yet.<br>
 </div>
 
+<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       (<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> * <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option) Lwt_stream.t</code></pre><div class="info ">
+Watch for creation and deletion of keys.<br>
+</div>
+
 <pre><span id="VALlisten_dir"><span class="keyword">val</span> listen_dir</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       string -><br>       key:(string -> <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> option) -><br>       value:(<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option Lwt.t) -><br>       unit</code></pre><div class="info ">
 Register a fsevents/inotify thread to look for changes in
             the given directory.<br>

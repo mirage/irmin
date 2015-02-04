@@ -61,9 +61,18 @@ Convert <code class="code"><span class="keywordsign">`</span><span class="constr
 <br>
 <h1 id="1_MergeCombinators">Merge Combinators</h1><br>
 
-<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> = <code class="type">old:'a -> 'a -> 'a -> 'a <a href="Irmin.Merge.html#TYPEresult">result</a> Lwt.t</code> </pre>
+<pre><span id="TYPEpromise"><span class="keyword">type</span> <code class="type">'a</code> promise</span> = <code class="type">unit -> 'a option <a href="Irmin.Merge.html#TYPEresult">result</a> Lwt.t</code> </pre>
 <div class="info ">
-Signature of a merge function.
+An <code class="code"><span class="keywordsign">'</span>a</code> promise is a function which, when called, will
+      eventually return a value type of <code class="code"><span class="keywordsign">'</span>a</code>. A promise is an
+      optional, lazy and non-blocking value.<br>
+</div>
+
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> = <code class="type">old:'a <a href="Irmin.Merge.html#TYPEpromise">promise</a> -> 'a -> 'a -> 'a <a href="Irmin.Merge.html#TYPEresult">result</a> Lwt.t</code> </pre>
+<div class="info ">
+Signature of a merge function. <code class="code">old</code> is the value of the
+      least-common ancestor.
 <p>
 
       <pre class="verbatim">              /----&gt; t1 ----\
@@ -114,7 +123,7 @@ The default string merge function. Do not anything clever, just
       compare the strings using the <code class="code">default</code> merge function.<br>
 </div>
 
-<pre><span id="VALsome"><span class="keyword">val</span> some</span> : <code class="type">'a Tc.t -> 'a <a href="Irmin.Merge.html#TYPEt">t</a> -> 'a option <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<pre><span id="VALoption"><span class="keyword">val</span> option</span> : <code class="type">'a Tc.t -> 'a <a href="Irmin.Merge.html#TYPEt">t</a> -> 'a option <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
 Lift a merge function to optional values of the same type. If all
       the provided values are inhabited, then call the provided merge
       function, otherwise use the same behavior as <code class="code">create</code>.<br>
@@ -177,7 +186,7 @@ We consider that the only valid operations for maps and
       adding and removal of similar bindings themselves, by using the
       appropriate <a href="Irmin.Merge.MSet.html">multi-sets</a>.<br>
 
-<pre><span id="VALalist"><span class="keyword">val</span> alist</span> : <code class="type">'a Tc.t -> 'b Tc.t -> 'b <a href="Irmin.Merge.html#TYPEt">t</a> -> ('a * 'b) list <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
+<pre><span id="VALalist"><span class="keyword">val</span> alist</span> : <code class="type">'a Tc.t -><br>       'b Tc.t -> ('a -> 'b option <a href="Irmin.Merge.html#TYPEt">t</a>) -> ('a * 'b) list <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
 Lift the merge functions to association lists.<br>
 </div>
 

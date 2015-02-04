@@ -100,13 +100,13 @@ Change the current tag name. Fail if a tag with the same name
       contents of the branch named <code class="code">tag</code>.<br>
 </div>
 
-<pre><span id="VALmerge_tag"><span class="keyword">val</span> merge_tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_tag"><span class="keyword">val</span> merge_tag</span> : <code class="type">t -><br>       ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 <code class="code">merge_tag t tag</code> merges the contents of the branch named <code class="code">tag</code>
       into <code class="code">t</code>'s current branch. The two branches are still
       independent.<br>
 </div>
 
-<pre><span id="VALmerge_tag_exn"><span class="keyword">val</span> merge_tag_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_tag_exn"><span class="keyword">val</span> merge_tag_exn</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of a
       conflict.<br>
 </div>
@@ -172,19 +172,23 @@ Detach the current branch, <em>i.e.</em> it is not associated to a
 Set the commit head.<br>
 </div>
 
-<pre><span id="VALmerge_head"><span class="keyword">val</span> merge_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_head"><span class="keyword">val</span> merge_head</span> : <code class="type">t -><br>       ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Merge a commit with the current branch.<br>
 </div>
 
-<pre><span id="VALmerge_head_exn"><span class="keyword">val</span> merge_head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_head_exn"><span class="keyword">val</span> merge_head_exn</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.BC.html#VALmerge_head">merge_head</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a>
       in case of a conflict.<br>
 </div>
 
-<pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">t -> key -> (key * <a href="Irmin.BC.html#TYPEhead">head</a>) Lwt_stream.t</code></pre><div class="info ">
+<pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">t -> key -> (key * <a href="Irmin.BC.html#TYPEhead">head</a> option) Lwt_stream.t</code></pre><div class="info ">
 Watch changes for a given collection of keys and the ones they
       have recursive access. Return the stream of heads corresponding
       to the modified keys.<br>
+</div>
+
+<pre><span id="VALwatch_tags"><span class="keyword">val</span> watch_tags</span> : <code class="type">t -> (<a href="Irmin.BC.html#TYPEtag">tag</a> * <a href="Irmin.BC.html#TYPEhead">head</a> option) Lwt_stream.t</code></pre><div class="info ">
+Watch for creation and deletion of tags.<br>
 </div>
 <br>
 <h2 id="2_ClonesandMerges">Clones and Merges</h2><br>
@@ -199,15 +203,43 @@ Same as <a href="Irmin.BC.html#VALclone">clone</a> but delete and update the exi
       branch if a branch with the same name already exists.<br>
 </div>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">'a -><br>       ?max_depth:int -><br>       ?n:int -> ('a -> t) -> into:('a -> t) -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 <code class="code">merge x t i</code> merges <code class="code">t x</code>'s current branch into <code class="code">i x</code>'s current
       branch. After that operation, the two stores are still
       independent.<br>
 </div>
 
-<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">'a -> ('a -> t) -> into:('a -> t) -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) -> unit Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case
       of a conflict.<br>
+</div>
+
+<pre><span id="VALlcas"><span class="keyword">val</span> lcas</span> : <code class="type">'a -><br>       ?max_depth:int -><br>       ?n:int -><br>       ('a -> t) -><br>       ('a -> t) -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEhead">head</a> list | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
+<code class="code">lca ?max_depth ?n msg t1 t2</code> returns the collection of least
+      common ancestors of the store tips <code class="code">t1</code> and <code class="code">t2</code>.
+<p>
+
+      <ul>
+<li><code class="code">max_depth</code> is the maximum depth of the exploration (default
+      is 250). Return <code class="code"><span class="keywordsign">`</span><span class="constructor">Max_depth_reached</span></code> is this depth is exceeded.</li>
+<li><code class="code">n</code> is the maximum expected number of lcas. Stop the
+      exploration as soon as <code class="code">n</code> lcas are found. Return
+      <code class="code"><span class="keywordsign">`</span><span class="constructor">Too_many_lcas</span></code> if more <code class="code">lcas</code> are found. </li>
+</ul>
+<br>
+</div>
+
+<pre><span id="VALlcas_tag"><span class="keyword">val</span> lcas_tag</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.BC.html#TYPEtag">tag</a> -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEhead">head</a> list | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes a tag as argument.<br>
+</div>
+
+<pre><span id="VALlcas_head"><span class="keyword">val</span> lcas_head</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.BC.html#TYPEhead">head</a> -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEhead">head</a> list | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes an head as argument.<br>
+</div>
+
+<pre><span id="VALtask_of_head"><span class="keyword">val</span> task_of_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> <a href="Irmin.html#TYPEtask">Irmin.task</a> Lwt.t</code></pre><div class="info ">
+<code class="code">task_of_head t h</code> is the task which created <code class="code">h</code>. Useful to
+      retrieve the commit date and the committer name.<br>
 </div>
 <br>
 <h2 id="2_Slices">Slices</h2><br>

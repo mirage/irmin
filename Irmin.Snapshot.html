@@ -67,12 +67,12 @@ Snapshot the current state of the store.<br>
 Revert the store to a previous state.<br>
 </div>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">Irmin.S.t -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">Irmin.S.t -><br>       ?max_depth:int -> ?n:int -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 Merge the given snapshot into the current branch of the
       store.<br>
 </div>
 
-<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">Irmin.S.t -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">Irmin.S.t -> ?max_depth:int -> ?n:int -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit Lwt.t</code></pre><div class="info ">
 Same as <code class="code">merge</code> but raise <code class="code"><span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code> in case of
       conflict.<br>
 </div>

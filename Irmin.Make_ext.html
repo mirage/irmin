@@ -23,10 +23,11 @@
 <h1>Functor <a href="type_Irmin.Make_ext.html">Irmin.Make_ext</a></h1>
 
 <pre><span class="keyword">module</span> Make_ext <code class="code">(</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.S.html">Private.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.S.html">S</a></code><code class="type"> 
-  with type step = P.Node.Path.step
+  with type key = P.Contents.Path.t
    and type value = P.Contents.value
    and type tag = P.Tag.key
-   and type head = P.Tag.value</code></pre><div class="info module top">
+   and type head = P.Tag.value
+   and type Key.step = P.Contents.Path.step</code></pre><div class="info module top">
 Advanced store creator.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
@@ -49,8 +50,8 @@ Advanced store creator.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.BC.html">Irmin.BC</a></pre>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type step = step</code></pre><div class="info">
-<code class="code"><span class="constructor">Key</span></code> provides base functions on step lists.
+<pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
+<code class="code"><span class="constructor">Key</span></code> provides base functions on paths..
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">

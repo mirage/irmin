@@ -5,7 +5,7 @@
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.S_MAKER.html">
-<link rel="next" href="Irmin.AO_MAKER.html">
+<link rel="next" href="Irmin.VIEW.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -20,13 +20,11 @@
 <body>
 <div class="navbar"><a class="pre" href="Irmin.S_MAKER.html" title="Irmin.S_MAKER">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
-&nbsp;<a class="post" href="Irmin.AO_MAKER.html" title="Irmin.AO_MAKER">Next</a>
+&nbsp;<a class="post" href="Irmin.VIEW.html" title="Irmin.VIEW">Next</a>
 </div>
 <h1>Module type <a href="type_Irmin.BASIC.html">Irmin.BASIC</a></h1>
 
-<pre><span class="keyword">module type</span> BASIC = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type step = string
-                       and type tag = string
-                       and type head = Hash.SHA1.t</code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> BASIC = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type tag = string and type head = Hash.SHA1.t</code></pre><div class="info modtype top">
 The signature of basic stores.<br>
 </div>
 <hr width="100%">
@@ -35,8 +33,8 @@ The signature of basic stores.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.BC.html">Irmin.BC</a></pre>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type step = step</code></pre><div class="info">
-<code class="code"><span class="constructor">Key</span></code> provides base functions on step lists.
+<pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
+<code class="code"><span class="constructor">Key</span></code> provides base functions on paths..
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">

@@ -26,12 +26,17 @@ An history forms a <a href="Irmin.Contents.STORE.html">contents store</a>.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">t -> key <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
-<code class="code">merge t</code> lifts the merge functions defined on contents
-        values to contents key. The merge function will: <em>(i)</em> read
-        the values associated with the given keys, <em>(ii)</em> use the
-        merge function defined on values and <em>(iii)</em> write the
-        resulting values into the store to get the resulting key.
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Path.html">Path</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type"> </code></pre><div class="info">
+The type for store paths.
+</div>
+
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">Path.t -> t -> key option <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
+<code class="code">merge t</code> lifts the merge functions defined on contents values
+        to contents key. The merge function will: <em>(i)</em> read the
+        values associated with the given keys, <em>(ii)</em> use the merge
+        function defined on values and <em>(iii)</em> write the resulting
+        values into the store to get the resulting key. See
+        <a href="Irmin.Contents.S.html#VALmerge"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">S</span>.merge</code></a>.
 <p>
 
         If any of these operation fails, return <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span></code>.<br>
@@ -41,7 +46,7 @@ An history forms a <a href="Irmin.Contents.STORE.html">contents store</a>.<br>
 <code class="code"><span class="constructor">Key</span></code> provides base functions for user-defined contents keys.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value and module Path = Path</code></pre><div class="info">
 <code class="code"><span class="constructor">Val</span></code> provides base function for user-defined contents values.
 </div>
 </body></html>
