@@ -51,7 +51,11 @@ $(SFILE): $(SFILES)
 
 
 doc/html/.git:
-	cd doc/html && git init && git remote add origin git@github.com:samoht/irmin.git
+	cd doc/html && (\
+		git init && \
+		git remote add origin git@github.com:mirage/irmin.git && \
+		git checkout -b gh-pages \
+	)
 
 gh-pages: doc/html/.git
 	cd doc/html && git checkout gh-pages
