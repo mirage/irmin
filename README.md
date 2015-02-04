@@ -13,8 +13,11 @@ to Xen unikernels.
 Irmin is packaged with [opam](https://opam.ocaml.org):
 
 ```
-opam install irmin
+opam install irmin git cohttp
 ```
+
+The `git` and `cohttp` packages are needed to compile and install the
+`irmin` command-line tool.
 
 ### Usage
 
