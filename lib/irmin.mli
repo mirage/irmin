@@ -466,7 +466,7 @@ module type BC = sig
   val update_tag: t -> tag -> unit Lwt.t
   (** [update_tag t tag] updates [t]'s contents with the contents of
       the branch named [tag]. Can cause data losses as it discard the
-      current contents. Similar to {i git reset --hard <tag>}. } *)
+      current contents. Similar to {i git reset --hard <tag>}. *)
 
   val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Merge.result Lwt.t
   (** [merge_tag t tag] merges the contents of the branch named [tag]
@@ -1723,7 +1723,7 @@ val tags: ([`BC],'k,'v) t -> string list Lwt.t
 (** See {!BC.tags}. *)
 
 val remove_tag: ([`BC],'k,'v) t -> unit Lwt.t
-(** See {!BC.delete_tag}. *)
+(** See {!BC.remove_tag}. *)
 
 val rename_tag: ([`BC],'k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
 (** See {!BC.rename_tag}. *)
