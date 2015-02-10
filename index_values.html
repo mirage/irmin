@@ -125,7 +125,7 @@ Monadic bind for results.
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALbranch">branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">branch t</code> is the current branch of the store <code class="code">t</code>.
+<code class="code">branch t</code> is a representation of <code class="code">t</code>'s branch.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALbranch">branch</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -141,7 +141,7 @@ Clear all register listeners in the given watch state.
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALclone">clone</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Fork the store <code class="code">t</code>, using the given branch name.
+Clone the store <code class="code">t</code>, using the given branch name.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALclone">clone</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -313,7 +313,8 @@ Create a default merge function.
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALdetach">detach</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Detach the current branch, <em>i.e.</em>
+<code class="code">detach t</code> transform the persistent branch <code class="code">t</code> into a temporary
+      branch with the same contents.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALdetach">detach</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -443,7 +444,7 @@ The configuration key to set the local Git repository's current
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALhead">head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Return the head commit.
+<code class="code">head t</code> is the current head of the branch <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALhead">head</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -453,8 +454,8 @@ See <a href="Irmin.BC.html#VALhead"><code class="code"><span class="constructor"
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALhead_exn">head_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Same as <code class="code">read_head</code> but raise <code class="code"><span class="constructor">Not_found</span></code> if the commit does
-      not exist.
+Same as <code class="code">read_head</code> but raise <code class="code"><span class="constructor">Not_found</span></code> if the branch does not
+      have any contents.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALhead_exn">head_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -464,7 +465,7 @@ See <a href="Irmin.BC.html#VALhead_exn"><code class="code"><span class="construc
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALheads">heads</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-The list of all the heads of the store.
+<code class="code">heads t</code> is the list of all the heads in <code class="code">t</code>'s store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALheads">heads</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -576,7 +577,7 @@ Compute the lowest common ancestors ancestor of a list of
 <tr><td><a href="Irmin.BC.html#VALlcas">lcas</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">lca ?max_depth ?n msg t1 t2</code> returns the collection of least
-      common ancestors of the store tips <code class="code">t1</code> and <code class="code">t2</code>.
+      common ancestors between the heads of <code class="code">t1</code> and <code class="code">t2</code> branches.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#VALlcas">lcas</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
@@ -722,7 +723,7 @@ See <a href="Irmin.BC.html#VALmerge"><code class="code"><span class="constructor
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_exn">merge_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case
+FIXME Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case
       of a conflict.
 </div>
 </td></tr>
@@ -739,7 +740,8 @@ See <a href="Irmin.BC.html#VALmerge_exn"><code class="code"><span class="constru
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_head">merge_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Merge a commit with the current branch.
+<code class="code">merge_head t ?max_head ?n head</code> merges the contents of the
+      temporary branch associated to <code class="code">head</code> into <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALmerge_head">merge_head</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -773,7 +775,7 @@ Same as <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="
 <tr><td><a href="Irmin.BC.html#VALmerge_tag">merge_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">merge_tag t tag</code> merges the contents of the branch named <code class="code">tag</code>
-      into <code class="code">t</code>'s current branch.
+      into <code class="code">t</code>'s.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALmerge_tag">merge_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -783,7 +785,7 @@ See <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constru
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_tag_exn">merge_tag_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of a
+Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
       conflict.
 </div>
 </td></tr>
@@ -824,8 +826,7 @@ Notify all listeners in the given watch state that a key has
 <tr><td align="left"><br>O</td></tr>
 <tr><td><a href="Irmin.BC.html#VALof_head">of_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Create a temporary store handle, which will not persist as it
-      has no associated to any persistent tag name.
+Create a temporary branch, using the given <code class="code">head</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALof_head">of_head</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -856,7 +857,7 @@ Abstract an hash value.
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALof_tag">of_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">create t tag</code> is a persistent store handle.
+<code class="code">create t tag</code> is the persistent branch named <code class="code">tag</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALof_tag">of_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -1109,9 +1110,20 @@ Same as <a href="Irmin.RW.html#VALremove">RW.remove</a> but removes all the sub-
 See <a href="Irmin.HRW.html#VALremove_rec"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">HRW</span>.remove_rec</code></a>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.BC.html#VALremove_tag">remove_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+<code class="code">remove_tag t</code> removes <code class="code">t</code>'s name from the local store.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.html#VALremove_tag">remove_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+See <a href="Irmin.BC.html#VALremove_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.remove_tag</code></a>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALrename_tag">rename_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Change the current tag name.
+<code class="code">rename_tag t tag</code> renames the branch <code class="code">t</code> to <code class="code">tag</code>, without
+      changing its contents.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALrename_tag">rename_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -1182,21 +1194,32 @@ The default string merge function.
 <code class="code">succ t s</code> is <code class="code">s</code>'s successor in <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALswitch">switch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.html#VALswitch_head">switch_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Switch the store contents the be same as the contents of the
-      given branch name.
+<code class="code">switch t h</code> changes <code class="code">t</code>'s head to be <code class="code">h</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALswitch">switch</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin.html#VALswitch_head">switch_head</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-See <a href="Irmin.BC.html#VALswitch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.switch</code></a>.
+Seee <a href="Irmin.BC.html#VALswitch_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.switch_head</code></a>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.BC.html#VALswitch_tag">switch_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+<code class="code">switch_tag t tag</code> switches the current branch name to be <code class="code">tag</code>
+      and the contents of the current branch to be <code class="code">tag</code>'s
+      contents.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.html#VALswitch_tag">switch_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+See <a href="Irmin.BC.html#VALswitch_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.switch_tag</code></a>.
 </div>
 </td></tr>
 <tr><td align="left"><br>T</td></tr>
 <tr><td><a href="Irmin.BC.html#VALtag">tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">tag t</code> is the tag associated to the store handle <code class="code">t</code>.
+<code class="code">tag t</code> is <code class="code">t</code>'s name.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALtag">tag</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -1206,8 +1229,7 @@ See <a href="Irmin.BC.html#VALtag"><code class="code"><span class="constructor">
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALtag_exn">tag_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Same as <code class="code">tag</code> but raise <code class="code"><span class="constructor">Not_found</span></code> if the store handle is not
-      persistent.
+Same as <code class="code">tag</code> but raise <code class="code"><span class="constructor">Not_found</span></code> if <code class="code">t</code> is not persistent.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALtag_exn">tag_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -1219,7 +1241,7 @@ See <a href="Irmin.BC.html#VALtag_exn"><code class="code"><span class="construct
 <td></td></tr>
 <tr><td><a href="Irmin.BC.html#VALtags">tags</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-The list of all the tags of the store.
+The list of all persistent branch 's names.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALtags">tags</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -1299,7 +1321,8 @@ See <a href="Irmin.RW.html#VALupdate"><code class="code"><span class="constructo
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALupdate_head">update_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Set the commit head.
+<code class="code">update_head t h</code> updates <code class="code">t</code>'s contents with the contents of
+      the head <code class="code">h</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALupdate_head">update_head</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -1317,8 +1340,8 @@ See <a href="Irmin.BC.html#VALupdate_head"><code class="code"><span class="const
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALupdate_tag">update_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">update_tag t tag</code> updates <code class="code">t</code>'s current branch with the
-      contents of the branch named <code class="code">tag</code>.
+<code class="code">update_tag t tag</code> updates <code class="code">t</code>'s contents with the contents of
+      the branch named <code class="code">tag</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALupdate_tag">update_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -1382,7 +1405,7 @@ See <a href="Irmin.RW.html#VALwatch_all"><code class="code"><span class="constru
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALwatch_head">watch_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Watch changes for a given collection of keys and the ones they
+FIXME Watch changes for a given collection of keys and the ones they
       have recursive access.
 </div>
 </td></tr>
@@ -1393,7 +1416,7 @@ See <a href="Irmin.BC.html#VALwatch_head"><code class="code"><span class="constr
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALwatch_tags">watch_tags</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Watch for creation and deletion of tags.
+FIXME Watch for creation and deletion of tags.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#VALwatch_tags">watch_tags</a> [<a href="Irmin.html">Irmin</a>]</td>
