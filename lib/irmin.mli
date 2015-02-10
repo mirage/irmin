@@ -404,134 +404,169 @@ module type BC = sig
 
   (** {1 Branch-consistent Store}
 
-      They are two kinds of branch consistent stores: the
-      {{!persistent}persistent} and the {{!temporary}temporary} ones.
+      Branch-consistent stores are hierarchical read-write stores with
+      extended capabilities. They allow an application (or a
+      collection of applications) to work with multiple local states,
+      which can be forked and merged programmatically, whithout having
+      to rely on a global state. In a way very similar to version
+      control systems, Irmin local states are called {i branches}.
 
-      {2:persistent Persistent Stores}
+      They are two kinds of branches in Irmin: the
+      {{!persistent}persistent} branches and the
+      {{!temporary}temporary} ones. Branches exists relatively to a
+      local, larger (and shared) store, and have some (shared)
+      contents. This is exactly the same as usual version control
+      systems, that the informed user can see as an implicit purely
+      functional data-structure.
 
-      The persistent stores are associated to a branch name, or
-      {{!BC.tag}tag}. The tag value is updated every time the
-      store is updated, so every handle connected or which will be
-      connected to the same tag will see the changes.
+      {2:persistent Persistent Branches}
 
-      These stores can be created using the
-      {{!BC.of_tag}of_tag} functions. *)
+      A persistent branch always has a name. In Irmin, branch names
+      are called {{!BC.tag}tags}. Thus, in order to use a persistent
+      branch, you need to provide its name: see the {{!BC.of_tag}of_tag}
+      function. *)
 
   include HRW
   (** A branch-consistent store is a hierarchical read-write store.
 
-      [create config task] is a persistent store handle on the
-      [master] branch. This operation is cheap, can be repeated
-      multiple times and is expected to be done for every new user
-      task. *)
+      [create config task] is a persistent branch using the
+      {Tag.S.master} branch. This operation is cheap, can be repeated
+      multiple times. *)
 
   type tag
-  (** Type for branch names, or tags. Tags usually share a common
+  (** Type for persistent branch names. Tags usually share a common
       global namespace and that's the user responsibility to avoid
       name-clashes. *)
 
   val of_tag: config -> ('a -> task) -> tag -> ('a -> t) Lwt.t
-  (** [create t tag] is a persistent store handle. Similar to
-      [create], but use the [tag] branch instead of the [master]
-      one. *)
+  (** [create t tag] is the persistent branch named [tag]. Similar to
+      [create], but use [tag] instead {!Tag.S.master}. *)
 
   val tag: t -> tag option
-  (** [tag t] is the tag associated to the store handle [t]. [None]
-      means that the branch is not persistent. *)
-
-  val tag_exn: t -> tag
-  (** Same as [tag] but raise [Not_found] if the store handle is not
+  (** [tag t] is [t]'s name. Return [None] if [t] is not
       persistent. *)
 
+  val tag_exn: t -> tag
+  (** Same as [tag] but raise [Not_found] if [t] is not persistent. *)
+
   val tags: t -> tag list Lwt.t
-  (** The list of all the tags of the store. *)
+  (** The list of all persistent branch 's names. Similar to to {i git
+      branch -a}.*)
+
+  val remove_tag: t -> unit Lwt.t
+  (** [remove_tag t] removes [t]'s name from the local store. Do
+      nothing if [t] is not persistent. Similar to {i git branch -D
+      <current-branch>} *)
 
   val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-  (** Change the current tag name. Fail if a tag with the same name
-      already exists. The head is unchanged. *)
+  (** [rename_tag t tag] renames the branch [t] to [tag], without
+      changing its contents. Fail if a branch with the same name
+      already exists. Similar to {i git branch -M <tag>}. *)
 
   val update_tag: t -> tag -> unit Lwt.t
-  (** [update_tag t tag] updates [t]'s current branch with the
-      contents of the branch named [tag]. *)
+  (** [update_tag t tag] updates [t]'s contents with the contents of
+      the branch named [tag]. Can cause data losses as it discard the
+      current contents. Similar to {i git reset --hard <tag>}. } *)
 
   val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Merge.result Lwt.t
   (** [merge_tag t tag] merges the contents of the branch named [tag]
-      into [t]'s current branch. The two branches are still
-      independent. *)
+      into [t]'s. Similar to {i git merge <tag>}. *)
 
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
-  (** Same as {!merge_tag} but raise {!Merge.Conflict} in case of a
+  (** Same as {!merge_tag} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  val switch: t -> tag -> unit Lwt.t
-  (** Switch the store contents the be same as the contents of the
-      given branch name. The two branches are still independent. *)
+  val switch_tag: t -> tag -> unit Lwt.t
+  (** [switch_tag t tag] switches the current branch name to be [tag]
+      and the contents of the current branch to be [tag]'s
+      contents. If [tag] does not exit, create a new branch
+      name. Similar to {i git checkout [-b] <tag>}. *)
 
-  (** {2:temporary Temporary Stores}
+  (** {2:temporary Temporary Branches}
 
-      The temporary stores do not use global branch names. Instead,
-      the operations are relative to a given store revision: a
-      {{!BC.head}head}. Every operation updates the store as a
-      normal persistent store, but the value of head is only kept
-      into the local store handle and it is not persisted into the
-      store -- this means it cannot be easily shared by concurrent
-      processes or loaded back in the future. In the Git
-      terminology, these store handle are said to be {i detached
-      heads}. *)
+      Temporary branches do not have stable names: instead they can be
+      adressed using the hash of the current commit. These hashes are
+      called {{!BC.head}heads} in Irmin. Temporary branches are
+      similar to Git's detached heads. In a temporary branch, all the
+      operations are done relatively to the current head and update
+      operations can modify the current head: the branch current's
+      head will automatically become the new head obtained while
+      performing the update.
+
+      Temporary branches are created using the {!BC.of_head}
+      function. *)
 
   type head
-  (** Type for head values. *)
+  (** Type for temporary branches names. Similar to Git's commit
+      SHA1s. *)
 
   val of_head: config -> ('a -> task) -> head -> ('a -> t) Lwt.t
-  (** Create a temporary store handle, which will not persist as it
-      has no associated to any persistent tag name. *)
+  (** Create a temporary branch, using the given [head]. The branch
+      will not persist as it has no persistent branch name. *)
 
   val head: t -> head option Lwt.t
-  (** Return the head commit. This works for both persistent and
-      temporary stores. In the case of a persistent store, this
-      involves looking into the value associated to the branch tag,
-      so this might blocks. In the case of a temporary store, it is
-      a simple (non-blocking) look-up in the store handle local
-      state. *)
+  (** [head t] is the current head of the branch [t]. This works for
+      both persistent and temporary branches. In the case of a
+      persistent branch, this involves getting the the head associated
+      with the branch's tag, so this might blocks. In the case of a
+      temporary branch, simply return the current branch head. Return
+      [None] is the branch has no contents. Similar to {i git
+      rev-parse HEAD}. *)
 
   val head_exn: t -> head Lwt.t
-  (** Same as [read_head] but raise [Not_found] if the commit does
-      not exist. *)
+  (** Same as [read_head] but raise [Not_found] if the branch does not
+      have any contents. *)
 
   val branch: t -> [`Tag of tag | `Head of head]
-  (** [branch t] is the current branch of the store [t]. Can either be
-      a persistent store with a [tag] name or a detached [head]. *)
+  (** [branch t] is a representation of [t]'s branch. Can either be a
+      persistent branch with a [tag] name or a temporary branch with a
+      [head] commit. *)
 
   val heads: t -> head list Lwt.t
-  (** The list of all the heads of the store. *)
+  (** [heads t] is the list of all the heads in [t]'s store. Similar
+      to {i git rev-list --all}. *)
 
   val detach: t -> unit Lwt.t
-  (** Detach the current branch, {e i.e.} it is not associated to a
-      tag anymore. *)
+  (** [detach t] transform the persistent branch [t] into a temporary
+      branch with the same contents. Do nothing if the branch is
+      already a temporary one. Similar to {i git checkout --detach
+      <current-tag>}. *)
 
   val update_head: t -> head -> unit Lwt.t
-  (** Set the commit head. *)
+  (** [update_head t h] updates [t]'s contents with the contents of
+      the head [h]. Can cause data losses as it discards the current
+      contents. Similar to {i git reset --hard <SHA1>}. *)
 
   val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
     unit Merge.result Lwt.t
-  (** Merge a commit with the current branch. *)
+  (** [merge_head t ?max_head ?n head] merges the contents of the
+      temporary branch associated to [head] into [t]. [max_depth] is
+      the maximal depth used for getting the lowest common
+      ancestor. [n] is the maximum number of lowest common
+      ancestors. Both [max_depth] and [n] are used to drive the common
+      ancestor exploration when the user knows about the history's
+      partial-order shape. *)
 
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
 
+  val switch_head: t -> head -> unit Lwt.t
+  (** [switch t h] changes [t]'s head to be [h]. Similar to {i git
+      checkout <sha1>}.  *)
+
   val watch_head: t -> key -> (key * head option) Lwt_stream.t
-  (** Watch changes for a given collection of keys and the ones they
+  (** FIXME Watch changes for a given collection of keys and the ones they
       have recursive access. Return the stream of heads corresponding
       to the modified keys. *)
 
   val watch_tags: t -> (tag * head option) Lwt_stream.t
-  (** Watch for creation and deletion of tags. *)
+  (** FIXME Watch for creation and deletion of tags. *)
 
   (** {2 Clones and Merges} *)
 
   val clone: ('a -> task) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
-  (** Fork the store [t], using the given branch name. Return [None]
+  (** Clone the store [t], using the given branch name. Return [None]
       if a branch with the same name already exists. *)
 
   val clone_force: ('a -> task) -> t -> tag -> ('a -> t) Lwt.t
@@ -542,17 +577,17 @@ module type BC = sig
     unit Merge.result Lwt.t
   (** [merge x t i] merges [t x]'s current branch into [i x]'s current
       branch. After that operation, the two stores are still
-      independent. *)
+      independent. Similar to {i git merge}. *)
 
   val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Lwt.t
-  (** Same as {{!BC.merge}merge} but raise {!Merge.Conflict} in case
+  (** FIXME Same as {{!BC.merge}merge} but raise {!Merge.Conflict} in case
       of a conflict. *)
 
   val lcas: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   (** [lca ?max_depth ?n msg t1 t2] returns the collection of least
-      common ancestors of the store tips [t1] and [t2].
+      common ancestors between the heads of [t1] and [t2] branches.
 
       {ul
       {- [max_depth] is the maximum depth of the exploration (default
@@ -1687,6 +1722,9 @@ val tag_exn: ([`BC],'k,'v) t -> string
 val tags: ([`BC],'k,'v) t -> string list Lwt.t
 (** See {!BC.tags}. *)
 
+val remove_tag: ([`BC],'k,'v) t -> unit Lwt.t
+(** See {!BC.delete_tag}. *)
+
 val rename_tag: ([`BC],'k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
 (** See {!BC.rename_tag}. *)
 
@@ -1700,8 +1738,8 @@ val merge_tag: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string ->
 val merge_tag_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string -> unit Lwt.t
 (** See {!BC.merge_tag_exn}. *)
 
-val switch: ([`BC],'k,'v) t -> string -> unit Lwt.t
-(** See {!BC.switch}. *)
+val switch_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
+(** See {!BC.switch_tag}. *)
 
 (** {2 Heads} *)
 
@@ -1730,6 +1768,9 @@ val merge_head: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
 val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
+
+val switch_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
+(** Seee {!BC.switch_head}. *)
 
 val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t
 (** See {!BC.watch_head}. *)

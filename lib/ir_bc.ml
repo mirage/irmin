@@ -29,11 +29,12 @@ module type STORE = sig
   val tag: t -> tag option
   val tag_exn: t -> tag
   val tags: t -> tag list Lwt.t
+  val remove_tag: t -> unit Lwt.t
   val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag: t -> tag -> unit Lwt.t
   val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
-  val switch: t -> tag -> unit Lwt.t
+  val switch_tag: t -> tag -> unit Lwt.t
   type head
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
@@ -44,6 +45,7 @@ module type STORE = sig
   val update_head: t -> head -> unit Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
+  val switch_head: t -> head -> unit Lwt.t
   val watch_head: t -> key -> (key * head option) Lwt_stream.t
   val watch_tags: t -> (tag * head option) Lwt_stream.t
   val clone: ('a -> Ir_task.t) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
@@ -373,6 +375,11 @@ module Make_ext (P: PRIVATE) = struct
     | `Head _  -> t.branch := `Head c; return_unit
     | `Tag tag -> Tag.update (tag_t t) tag c
 
+  let remove_tag t =
+    match branch t with
+    | `Head _  -> Lwt.return_unit
+    | `Tag tag -> Tag.remove (tag_t t) tag
+
   let rename_tag t tag =
     Tag.mem (tag_t t) tag >>= function
     | true  -> return `Duplicated_tag
@@ -391,12 +398,6 @@ module Make_ext (P: PRIVATE) = struct
     Tag.read_exn (tag_t t) tag >>= fun k ->
     update_head t k
 
-  let switch t branch =
-    Log.debug "switch %a" force (show (module Tag.Key) branch);
-    Tag.read (tag_t t) branch >>= function
-    | Some c -> update_head t c
-    | None   -> fail Not_found
-
   let merge_head t ?max_depth ?n c1 =
     let aux c2 =
       three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
@@ -411,6 +412,9 @@ module Make_ext (P: PRIVATE) = struct
 
   let merge_head_exn t ?max_depth ?n c1 =
     merge_head t ?max_depth ?n c1 >>= Ir_merge.exn
+
+  let switch_tag t tag = t.branch := `Tag tag; Lwt.return_unit
+  let switch_head t head = t.branch := `Head head; Lwt.return_unit
 
   let clone_force task t tag =
     Log.debug "clone_force %a" force (show (module Tag.Key) tag);

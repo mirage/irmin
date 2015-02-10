@@ -164,14 +164,15 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     | Some f -> with_lock lock f
 
   (* no arguments, fixed answer *)
-  let mk0p0bf name fn db o =
+  let mk0p0bf ?lock ?hooks name fn db o =
     name,
     Fixed (fun t path params query ->
         mk0p name path;
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        fn t >>= fun r ->
+        with_lock lock (fun () -> fn t) >>= fun r ->
+        run_hooks lock hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
@@ -529,10 +530,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mknp0bf "remove-rec" ~lock (l s_remove_rec) t step' head;
 
       (* more *)
+      mk0p0bf "remove-tag"  ~lock ~hooks S.remove_tag t Tc.unit;
       mk1p0bf "rename-tag"  ~lock ~hooks S.rename_tag t tag' ok_or_duplicated_tag;
       mk1p0bf "update-tag"  ~lock ~hooks S.update_tag t tag' Tc.unit;
       mk1p0bfq "merge-tag"  ~lock ~hooks s_merge_tag t tag' (merge head);
-      mk1p0bf "switch"      ~lock ~hooks S.switch t tag' Tc.unit;
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" ~lock ~hooks S.update_head t head' Tc.unit;

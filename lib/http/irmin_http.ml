@@ -440,13 +440,13 @@ struct
     set_tag t tag;
     return_unit
 
-  let switch t tag =
+  let remove_tag t =
     match t.branch with
-    | `Head _ -> set_tag t tag; return_unit
-    | `Tag _  ->
-      get (uri t) ["switch"; T.to_hum tag] Tc.unit >>= fun () ->
-      set_tag t tag;
-      return_unit
+    | `Head _  -> Lwt.return_unit
+    | `Tag _   -> get (uri t) ["remove-tag"] Tc.unit
+
+  let switch_tag t tag = set_tag t tag; Lwt.return_unit
+  let switch_head t head = set_head t head; Lwt.return_unit
 
   let heads t =
     get (uri t) ["heads"] (module Tc.List(H))
