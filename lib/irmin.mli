@@ -450,27 +450,27 @@ module type BC = sig
   (** Same as [tag] but raise [Not_found] if [t] is not persistent. *)
 
   val tags: t -> tag list Lwt.t
-  (** The list of all persistent branch 's names. Similar to to {i git
-      branch -a}.*)
+  (** The list of all persistent branch 's names. Similar to to [git
+      branch -a].*)
 
   val remove_tag: t -> unit Lwt.t
   (** [remove_tag t] removes [t]'s name from the local store. Do
-      nothing if [t] is not persistent. Similar to {i git branch -D
-      <current-branch>} *)
+      nothing if [t] is not persistent. Similar to [git branch -D
+      <current-branch>] *)
 
   val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   (** [rename_tag t tag] renames the branch [t] to [tag], without
       changing its contents. Fail if a branch with the same name
-      already exists. Similar to {i git branch -M <tag>}. *)
+      already exists. Similar to [git branch -M <tag>]. *)
 
   val update_tag: t -> tag -> unit Lwt.t
   (** [update_tag t tag] updates [t]'s contents with the contents of
       the branch named [tag]. Can cause data losses as it discard the
-      current contents. Similar to {i git reset --hard <tag>}. *)
+      current contents. Similar to [git reset --hard <tag>]. *)
 
   val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Merge.result Lwt.t
   (** [merge_tag t tag] merges the contents of the branch named [tag]
-      into [t]'s. Similar to {i git merge <tag>}. *)
+      into [t]'s. Similar to [git merge <tag>]. *)
 
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   (** Same as {!merge_tag} but raise {!Merge.Conflict} in case of
@@ -480,7 +480,7 @@ module type BC = sig
   (** [switch_tag t tag] switches the current branch name to be [tag]
       and the contents of the current branch to be [tag]'s
       contents. If [tag] does not exit, create a new branch
-      name. Similar to {i git checkout [-b] <tag>}. *)
+      name. Similar to [git checkout [-b] <tag>]. *)
 
   (** {2:temporary Temporary Branches}
 
@@ -510,8 +510,8 @@ module type BC = sig
       persistent branch, this involves getting the the head associated
       with the branch's tag, so this might blocks. In the case of a
       temporary branch, simply return the current branch head. Return
-      [None] is the branch has no contents. Similar to {i git
-      rev-parse HEAD}. *)
+      [None] is the branch has no contents. Similar to [git
+      rev-parse HEAD]. *)
 
   val head_exn: t -> head Lwt.t
   (** Same as [read_head] but raise [Not_found] if the branch does not
@@ -524,18 +524,18 @@ module type BC = sig
 
   val heads: t -> head list Lwt.t
   (** [heads t] is the list of all the heads in [t]'s store. Similar
-      to {i git rev-list --all}. *)
+      to [git rev-list --all]. *)
 
   val detach: t -> unit Lwt.t
   (** [detach t] transform the persistent branch [t] into a temporary
       branch with the same contents. Do nothing if the branch is
-      already a temporary one. Similar to {i git checkout --detach
-      <current-tag>}. *)
+      already a temporary one. Similar to [git checkout --detach
+      <current-tag>]. *)
 
   val update_head: t -> head -> unit Lwt.t
   (** [update_head t h] updates [t]'s contents with the contents of
       the head [h]. Can cause data losses as it discards the current
-      contents. Similar to {i git reset --hard <SHA1>}. *)
+      contents. Similar to [git reset --hard <hash>]. *)
 
   val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
     unit Merge.result Lwt.t
@@ -552,8 +552,8 @@ module type BC = sig
       in case of a conflict. *)
 
   val switch_head: t -> head -> unit Lwt.t
-  (** [switch t h] changes [t]'s head to be [h]. Similar to {i git
-      checkout <sha1>}.  *)
+  (** [switch t h] changes [t]'s head to be [h]. Similar to [git
+      checkout <sha1>].  *)
 
   val watch_head: t -> key -> (key * head option) Lwt_stream.t
   (** FIXME Watch changes for a given collection of keys and the ones they
@@ -577,7 +577,7 @@ module type BC = sig
     unit Merge.result Lwt.t
   (** [merge x t i] merges [t x]'s current branch into [i x]'s current
       branch. After that operation, the two stores are still
-      independent. Similar to {i git merge}. *)
+      independent. Similar to [git merge <branch>]. *)
 
   val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Lwt.t
