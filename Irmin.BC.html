@@ -93,31 +93,31 @@ Same as <code class="code">tag</code> but raise <code class="code"><span class="
 </div>
 
 <pre><span id="VALtags"><span class="keyword">val</span> tags</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> list Lwt.t</code></pre><div class="info ">
-The list of all persistent branch 's names. Similar to to <i>git
-      branch -a</i>.<br>
+The list of all persistent branch 's names. Similar to to <code class="code">git
+      branch -a</code>.<br>
 </div>
 
 <pre><span id="VALremove_tag"><span class="keyword">val</span> remove_tag</span> : <code class="type">t -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">remove_tag t</code> removes <code class="code">t</code>'s name from the local store. Do
-      nothing if <code class="code">t</code> is not persistent. Similar to <i>git branch -D
-      &lt;current-branch&gt;</i><br>
+      nothing if <code class="code">t</code> is not persistent. Similar to <code class="code">git branch -<span class="constructor">D</span>
+      &lt;current-branch&gt;</code><br>
 </div>
 
 <pre><span id="VALrename_tag"><span class="keyword">val</span> rename_tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> [ `Duplicated_tag | `Ok ] Lwt.t</code></pre><div class="info ">
 <code class="code">rename_tag t tag</code> renames the branch <code class="code">t</code> to <code class="code">tag</code>, without
       changing its contents. Fail if a branch with the same name
-      already exists. Similar to <i>git branch -M &lt;tag&gt;</i>.<br>
+      already exists. Similar to <code class="code">git branch -<span class="constructor">M</span> &lt;tag&gt;</code>.<br>
 </div>
 
 <pre><span id="VALupdate_tag"><span class="keyword">val</span> update_tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">update_tag t tag</code> updates <code class="code">t</code>'s contents with the contents of
       the branch named <code class="code">tag</code>. Can cause data losses as it discard the
-      current contents. Similar to <i>git reset --hard &lt;tag&gt;</i>.<br>
+      current contents. Similar to <code class="code">git reset --hard &lt;tag&gt;</code>.<br>
 </div>
 
 <pre><span id="VALmerge_tag"><span class="keyword">val</span> merge_tag</span> : <code class="type">t -><br>       ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 <code class="code">merge_tag t tag</code> merges the contents of the branch named <code class="code">tag</code>
-      into <code class="code">t</code>'s. Similar to <i>git merge &lt;tag&gt;</i>.<br>
+      into <code class="code">t</code>'s. Similar to <code class="code">git merge &lt;tag&gt;</code>.<br>
 </div>
 
 <pre><span id="VALmerge_tag_exn"><span class="keyword">val</span> merge_tag_exn</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
@@ -129,7 +129,7 @@ Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="con
 <code class="code">switch_tag t tag</code> switches the current branch name to be <code class="code">tag</code>
       and the contents of the current branch to be <code class="code">tag</code>'s
       contents. If <code class="code">tag</code> does not exit, create a new branch
-      name. Similar to <i>git checkout <code class="code">-b</code> &lt;tag&gt;</i>.<br>
+      name. Similar to <code class="code">git checkout [-b] &lt;tag&gt;</code>.<br>
 </div>
 <br>
 <h2 id="temporary">Temporary Branches</h2>
@@ -166,8 +166,8 @@ Create a temporary branch, using the given <code class="code">head</code>. The b
       persistent branch, this involves getting the the head associated
       with the branch's tag, so this might blocks. In the case of a
       temporary branch, simply return the current branch head. Return
-      <code class="code"><span class="constructor">None</span></code> is the branch has no contents. Similar to <i>git
-      rev-parse HEAD</i>.<br>
+      <code class="code"><span class="constructor">None</span></code> is the branch has no contents. Similar to <code class="code">git
+      rev-parse <span class="constructor">HEAD</span></code>.<br>
 </div>
 
 <pre><span id="VALhead_exn"><span class="keyword">val</span> head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> Lwt.t</code></pre><div class="info ">
@@ -183,20 +183,20 @@ Same as <code class="code">read_head</code> but raise <code class="code"><span c
 
 <pre><span id="VALheads"><span class="keyword">val</span> heads</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> list Lwt.t</code></pre><div class="info ">
 <code class="code">heads t</code> is the list of all the heads in <code class="code">t</code>'s store. Similar
-      to <i>git rev-list --all</i>.<br>
+      to <code class="code">git rev-list --all</code>.<br>
 </div>
 
 <pre><span id="VALdetach"><span class="keyword">val</span> detach</span> : <code class="type">t -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">detach t</code> transform the persistent branch <code class="code">t</code> into a temporary
       branch with the same contents. Do nothing if the branch is
-      already a temporary one. Similar to <i>git checkout --detach
-      &lt;current-tag&gt;</i>.<br>
+      already a temporary one. Similar to <code class="code">git checkout --detach
+      &lt;current-tag&gt;</code>.<br>
 </div>
 
 <pre><span id="VALupdate_head"><span class="keyword">val</span> update_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">update_head t h</code> updates <code class="code">t</code>'s contents with the contents of
       the head <code class="code">h</code>. Can cause data losses as it discards the current
-      contents. Similar to <i>git reset --hard &lt;SHA1&gt;</i>.<br>
+      contents. Similar to <code class="code">git reset --hard &lt;hash&gt;</code>.<br>
 </div>
 
 <pre><span id="VALmerge_head"><span class="keyword">val</span> merge_head</span> : <code class="type">t -><br>       ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
@@ -215,8 +215,8 @@ Same as <a href="Irmin.BC.html#VALmerge_head">merge_head</a> but raise <a href="
 </div>
 
 <pre><span id="VALswitch_head"><span class="keyword">val</span> switch_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">switch t h</code> changes <code class="code">t</code>'s head to be <code class="code">h</code>. Similar to <i>git
-      checkout &lt;sha1&gt;</i>.<br>
+<code class="code">switch t h</code> changes <code class="code">t</code>'s head to be <code class="code">h</code>. Similar to <code class="code">git
+      checkout &lt;sha1&gt;</code>.<br>
 </div>
 
 <pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">t -> key -> (key * <a href="Irmin.BC.html#TYPEhead">head</a> option) Lwt_stream.t</code></pre><div class="info ">
@@ -244,7 +244,7 @@ Same as <a href="Irmin.BC.html#VALclone">clone</a> but delete and update the exi
 <pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">'a -><br>       ?max_depth:int -><br>       ?n:int -> ('a -> t) -> into:('a -> t) -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
 <code class="code">merge x t i</code> merges <code class="code">t x</code>'s current branch into <code class="code">i x</code>'s current
       branch. After that operation, the two stores are still
-      independent. Similar to <i>git merge</i>.<br>
+      independent. Similar to <code class="code">git merge &lt;branch&gt;</code>.<br>
 </div>
 
 <pre><span id="VALmerge_exn"><span class="keyword">val</span> merge_exn</span> : <code class="type">'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) -> unit Lwt.t</code></pre><div class="info ">
