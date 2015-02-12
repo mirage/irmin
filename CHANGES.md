@@ -1,3 +1,7 @@
+## 0.9.4
+* Add `Irmin.remove_tag` to delete a tag.
+* Add `Irmin.history` to get the branch history as a DAG of heads (#140).
+
 ## 0.9.3
 * Fix the invalidation of the view caches (report by @gregtatcam).
   This was causing some confusing issues where views' sub-keys where
