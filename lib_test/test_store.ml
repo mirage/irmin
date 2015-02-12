@@ -588,12 +588,18 @@ module Make (S: Irmin.S) = struct
       let v1 = v1 x in
       let v2 = v2 x in
 
+
       S.update (t1 "update a/b") (p ["a";"b"]) v1 >>= fun () ->
+      S.head_exn (t1 "head") >>= fun h ->
       Snapshot.create (t1 "snapshot 1") >>= fun _r1 ->
       S.update (t1 "update a/c") (p ["a";"c"]) v2 >>= fun () ->
       Snapshot.create (t1 "snapshot 2") >>= fun r2 ->
       S.update (t1 "update a/d") (p ["a";"d"]) v1 >>= fun () ->
       Snapshot.create (t1 "snapshot 3") >>= fun _r3 ->
+
+      S.history (t1 "history") ~min:[h] >>= fun h ->
+      assert_equal (module Tc.Int) "history-v" 3 (S.History.nb_vertex h);
+      assert_equal (module Tc.Int) "history-e" 2 (S.History.nb_edges h);
 
       let remote = Irmin.remote_store (module S) (t1 "remote") in
 

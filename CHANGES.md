@@ -1,3 +1,10 @@
+## 0.9.4
+* Rename `Irmin.switch` into `Irmin.switch_tag` to switch the current branch
+  to a different tag.
+* Add `Irmin.switch_head` to switch the current branch to a different head.
+* Add `Irmin.remove_tag` to delete a tag.
+* Add `Irmin.history` to get the branch history as a DAG of heads (#140).
+
 ## 0.9.3
 * Fix the invalidation of the view caches (report by @gregtatcam).
   This was causing some confusing issues where views' sub-keys where

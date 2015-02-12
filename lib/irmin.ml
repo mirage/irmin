@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -58,6 +58,8 @@ module Private = struct
 end
 
 let version = Ir_version.current
+
+module History = Graph.Persistent.Digraph.ConcreteBidirectional(Hash.SHA1)
 
 module Sync = Ir_sync_ext.Make
 
@@ -120,11 +122,12 @@ and ('k, 'v) bc = {
   tag: unit -> string option;
   tag_exn: unit -> string;
   tags: unit -> string list Lwt.t;
+  remove_tag: unit -> unit Lwt.t;
   rename_tag: string -> [`Ok | `Duplicated_tag] Lwt.t;
   update_tag: string -> unit Lwt.t;
   merge_tag: ?max_depth:int -> ?n:int -> string -> unit Merge.result Lwt.t;
   merge_tag_exn: ?max_depth:int -> ?n:int -> string -> unit Lwt.t;
-  switch: string -> unit Lwt.t;
+  switch_tag: string -> unit Lwt.t;
   head: unit -> Hash.SHA1.t option Lwt.t;
   head_exn: unit -> Hash.SHA1.t Lwt.t;
   branch: unit -> [`Tag of string | `Head of Hash.SHA1.t];
@@ -133,6 +136,7 @@ and ('k, 'v) bc = {
   update_head: Hash.SHA1.t -> unit Lwt.t;
   merge_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Merge.result Lwt.t;
   merge_head_exn: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Lwt.t;
+  switch_head: Hash.SHA1.t -> unit Lwt.t;
   watch_head: 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t;
   watch_tags: unit -> (string * Hash.SHA1.t option) Lwt_stream.t;
   clone: 'm. ('m -> task) -> string -> [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag] Lwt.t;
@@ -145,7 +149,9 @@ and ('k, 'v) bc = {
   lcas_tag: ?max_depth:int -> ?n:int -> string ->
     [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
   lcas_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
-  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
+    [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
+  history: ?depth:int -> ?min:Hash.SHA1.t list -> ?max:Hash.SHA1.t list ->
+    unit -> History.t Lwt.t;
   task_of_head: Hash.SHA1.t -> task Lwt.t;
   remote_basic: unit -> remote;
   fetch: ?depth:int -> remote -> Hash.SHA1.t option Lwt.t;
@@ -174,11 +180,12 @@ let bc (t: ([`BC],'k,'v) t) fn = fn t.extend
 let tag t = bc t (function BC t -> t.tag ())
 let tag_exn t = bc t (function BC t -> t.tag_exn ())
 let tags t = bc t (function BC t -> t.tags ())
+let remove_tag t = bc t (function BC t -> t.remove_tag ())
 let rename_tag t = bc t (function BC t -> t.rename_tag)
 let update_tag t = bc t (function BC t -> t.update_tag)
 let merge_tag t = bc t (function BC t -> t.merge_tag)
 let merge_tag_exn t = bc t (function BC t -> t.merge_tag_exn)
-let switch t = bc t (function BC t -> t.switch)
+let switch_tag t = bc t (function BC t -> t.switch_tag)
 let head t = bc t (function BC t -> t.head ())
 let head_exn t = bc t (function BC t -> t.head_exn ())
 let branch t = bc t (function BC t -> t.branch ())
@@ -187,6 +194,7 @@ let detach t = bc t (function BC t -> t.detach ())
 let update_head t = bc t (function BC t -> t.update_head)
 let merge_head t = bc t (function BC t -> t.merge_head)
 let merge_head_exn t = bc t (function BC t -> t.merge_head_exn)
+let switch_head t = bc t (function BC t -> t.switch_head)
 let watch_head t = bc t (function BC t -> t.watch_head)
 let watch_tags t = bc t (function BC t -> t.watch_tags ())
 let clone task t = bc t (function BC t -> t.clone task)
@@ -199,6 +207,8 @@ let lcas a ?max_depth ?n t1 t2 =
   bc (t1 a) (function BC t1 -> t1.lcas ?max_depth ?n (t2 a))
 let lcas_tag t = bc t (function BC t -> t.lcas_tag)
 let lcas_head t = bc t (function BC t -> t.lcas_head)
+let history ?depth ?min ?max t =
+  bc t (function BC t -> t.history ?depth ?min ?max ())
 let task_of_head t = bc t (function BC t -> t.task_of_head)
 
 (* sync *)
@@ -245,11 +255,12 @@ let pack_s (type x) (type k) (type v)
         tag = (fun () -> M.tag t);
         tag_exn = (fun () -> M.tag_exn t);
         tags = (fun () -> M.tags t);
+        remove_tag = (fun () -> M.remove_tag t);
         rename_tag = M.rename_tag t;
         update_tag = M.update_tag t;
         merge_tag = M.merge_tag t;
         merge_tag_exn = M.merge_tag_exn t;
-        switch = M.switch t;
+        switch_tag = M.switch_tag t;
         head = (fun () -> M.head t);
         head_exn = (fun () -> M.head_exn t);
         branch = (fun () -> M.branch t);
@@ -258,6 +269,7 @@ let pack_s (type x) (type k) (type v)
         update_head = M.update_head t;
         merge_head = M.merge_head t;
         merge_head_exn = M.merge_head_exn t;
+        switch_head = M.switch_head t;
         watch_head = M.watch_head t;
         watch_tags = (fun () -> M.watch_tags t);
         clone = (fun task tag ->
@@ -281,6 +293,12 @@ let pack_s (type x) (type k) (type v)
           );
         lcas_tag = M.lcas_tag t;
         lcas_head = M.lcas_head t;
+        history = (fun ?depth ?min ?max () ->
+            M.history ?depth ?min ?max t >>= fun g ->
+            History.empty
+            |> M.History.fold_vertex (fun x g' -> History.add_vertex g' x) g
+            |> M.History.fold_edges (fun x y g' -> History.add_edge g' x y) g
+            |> Lwt.return);
         task_of_head = M.task_of_head t;
         remote_basic = (fun () -> remote_store (module M) t);
         fetch = S.fetch t;

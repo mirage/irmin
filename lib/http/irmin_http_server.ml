@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -164,14 +164,15 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     | Some f -> with_lock lock f
 
   (* no arguments, fixed answer *)
-  let mk0p0bf name fn db o =
+  let mk0p0bf ?lock ?hooks name fn db o =
     name,
     Fixed (fun t path params query ->
         mk0p name path;
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        fn t >>= fun r ->
+        with_lock lock (fun () -> fn t) >>= fun r ->
+        run_hooks lock hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
@@ -444,6 +445,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let depth = get_query query int_of_string "depth" in
     full, depth
 
+  let mk_history_query query =
+    let depth = get_query query int_of_string "depth" in
+    depth
+
   module LCA = struct
     module HL = Tc.List(S.Head)
     type t = [`Ok of S.Head.t list | `Max_depth_reached | `Too_many_lcas]
@@ -460,6 +465,20 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let size_of _ = failwith "TODO"
   end
 
+  module G = Tc.Pair (Tc.List (S.Head)) (Tc.List (Tc.Pair (S.Head)(S.Head)))
+  module Conv = struct
+    type t = S.History.t
+    let to_t (vertices, edges) =
+      let t = S.History.empty in
+      let t = List.fold_left S.History.add_vertex t vertices in
+      List.fold_left (fun t (x, y) -> S.History.add_edge t x y) t edges
+    let of_t t =
+      let vertices = S.History.fold_vertex (fun v l -> v :: l) t [] in
+      let edges = S.History.fold_edges (fun x y l -> (x, y) :: l) t [] in
+      vertices, edges
+  end
+  module HTC = Tc.Biject (G)(Conv)
+
   let store lock hooks =
     let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
@@ -467,9 +486,17 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
     let slice: S.slice Tc.t = (module S.Private.Slice) in
+    let min_max: (S.head list option * S.head list option) Tc.t =
+      let module M = Tc.Option(Tc.List(S.Head)) in
+      (module Tc.Pair(M)(M))
+    in
     let s_export t (min, max) query =
       let full, depth = mk_export_query query in
       S.export ?full ?depth ~min ~max t
+    in
+    let s_history t (min, max) query =
+      let depth = mk_history_query query in
+      S.history ?depth ?min ?max t
     in
     let s_graph t = graph_of_dump t in
     let s_clone t tag =
@@ -529,10 +556,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mknp0bf "remove-rec" ~lock (l s_remove_rec) t step' head;
 
       (* more *)
+      mk0p0bf "remove-tag"  ~lock ~hooks S.remove_tag t Tc.unit;
       mk1p0bf "rename-tag"  ~lock ~hooks S.rename_tag t tag' ok_or_duplicated_tag;
       mk1p0bf "update-tag"  ~lock ~hooks S.update_tag t tag' Tc.unit;
       mk1p0bfq "merge-tag"  ~lock ~hooks s_merge_tag t tag' (merge head);
-      mk1p0bf "switch"      ~lock ~hooks S.switch t tag' Tc.unit;
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" ~lock ~hooks S.update_head t head' Tc.unit;
@@ -543,6 +570,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
       mk0p1bfq "export"     s_export t export slice;
       mk0p1bf "import"      S.import t slice Tc.unit;
+      mk0p1bfq "history"    s_history t min_max (module HTC);
 
       (* lca *)
       mk1p0bfq "lcas-tag"  s_lcas_tag  t tag'  (module LCA);

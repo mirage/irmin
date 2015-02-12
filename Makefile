@@ -51,7 +51,11 @@ $(SFILE): $(SFILES)
 
 
 doc/html/.git:
-	cd doc/html && git init && git remote add origin git@github.com:samoht/irmin.git
+	cd doc/html && (\
+		git init && \
+		git remote add origin git@github.com:mirage/irmin.git && \
+		git checkout -b gh-pages \
+	)
 
 gh-pages: doc/html/.git
 	cd doc/html && git checkout gh-pages
@@ -71,4 +75,4 @@ release:
 
 pr:
 	opam publish prepare $(NAME).$(VERSION) $(ARCHIVE)
-	opam publish submit $(NAME).$(VERSION) && rm -rf $(NAME).$(VERSION)
+	OPAMPUBLISHBYPASSCHECKS=1 OPAMYES=1 opam publish submit $(NAME).$(VERSION) && rm -rf $(NAME).$(VERSION)

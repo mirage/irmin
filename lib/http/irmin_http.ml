@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -440,13 +440,13 @@ struct
     set_tag t tag;
     return_unit
 
-  let switch t tag =
+  let remove_tag t =
     match t.branch with
-    | `Head _ -> set_tag t tag; return_unit
-    | `Tag _  ->
-      get (uri t) ["switch"; T.to_hum tag] Tc.unit >>= fun () ->
-      set_tag t tag;
-      return_unit
+    | `Head _  -> Lwt.return_unit
+    | `Tag _   -> get (uri t) ["remove-tag"] Tc.unit
+
+  let switch_tag t tag = set_tag t tag; Lwt.return_unit
+  let switch_head t head = set_head t head; Lwt.return_unit
 
   let heads t =
     get (uri t) ["heads"] (module Tc.List(H))
@@ -604,6 +604,32 @@ struct
 
   let list t dir =
     get (uri t) ["list"; P.to_hum dir] (module Tc.List(P))
+
+  module History = Graph.Persistent.Digraph.ConcreteBidirectional(H)
+  module G = Tc.Pair (Tc.List (H))(Tc.List (Tc.Pair(H)(H)))
+  module Conv = struct
+    type t = History.t
+    let to_t (vertices, edges) =
+      let t = History.empty in
+      let t = List.fold_left History.add_vertex t vertices in
+      List.fold_left (fun t (x, y) -> History.add_edge t x y) t edges
+    let of_t t =
+      let vertices = History.fold_vertex (fun v l -> v :: l) t [] in
+      let edges = History.fold_edges (fun x y l -> (x, y) :: l) t [] in
+      vertices, edges
+  end
+  module HTC = Tc.Biject (G)(Conv)
+  module EO = Tc.Pair (Tc.Option(Tc.List(H))) (Tc.Option(Tc.List(H)))
+
+  let history ?depth ?min ?max t =
+    let query =
+      let depth = match depth with
+        | None   -> []
+        | Some x -> ["depth", [string_of_int x]]
+      in
+      match depth with [] -> None | l -> Some l
+    in
+   post (uri t) ?query ["history"] (EO.to_json (min, max)) (module HTC)
 
   module Key = P
   module Val = C

@@ -25,7 +25,7 @@ Irmin comes with a command-line tool called `irmin`. See `irmin
  --help` for further reading. Use either `irmin <command> --help` or
  `irmin help <command>` for more information on a specific command.
 
-To get the full capabilites of Irmin, use the API:
+To get the full capabilites of Irmin, use the [API](https://mirage.github.io/irmin):
 
 ```ocaml
 open Lwt
@@ -41,7 +41,9 @@ let prog =
 let () = Lwt_main.run prog
 ```
 
-To compile the example above, save it to a file called `example.ml`. Install irmin and git with opam (`opam install irmin git`) and run
+To compile the example above, save it to a file called
+`example.ml`. Install irmin and git with opam (`opam install irmin
+git`) and run
 
 ```ocaml
 $ ocamlfind ocamlopt example.ml -o example -package lwt,irmin.unix,lwt.unix -linkpkg
@@ -58,8 +60,10 @@ $ make
 
 ### Tutorial
 
-A tutorial is available on the [wiki](https://github.com/mirage/irmin/wiki/Getting-Started).
+Tutorials are available on the
+[wiki](https://github.com/mirage/irmin/wiki/).
 
 ### Issues
 
-To report any issues please use the [bugtracker on Github](https://github.com/mirage/irmin/issues).
+To report any issues please use the [bugtracker on
+Github](https://github.com/mirage/irmin/issues).

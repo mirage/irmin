@@ -1,6 +1,6 @@
 (*
  * Copyright (c) 2013      Louis Gesbert     <louis.gesbert@ocamlpro.com>
- * Copyright (c) 2013-2014 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
