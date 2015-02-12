@@ -59,6 +59,8 @@ end
 
 let version = Ir_version.current
 
+module History = Graph.Persistent.Digraph.ConcreteBidirectional(Hash.SHA1)
+
 module Sync = Ir_sync_ext.Make
 
 type remote = Ir_sync_ext.remote
@@ -147,7 +149,9 @@ and ('k, 'v) bc = {
   lcas_tag: ?max_depth:int -> ?n:int -> string ->
     [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
   lcas_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
-  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
+    [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t;
+  history: ?depth:int -> ?min:Hash.SHA1.t list -> ?max:Hash.SHA1.t list ->
+    unit -> History.t Lwt.t;
   task_of_head: Hash.SHA1.t -> task Lwt.t;
   remote_basic: unit -> remote;
   fetch: ?depth:int -> remote -> Hash.SHA1.t option Lwt.t;
@@ -203,6 +207,8 @@ let lcas a ?max_depth ?n t1 t2 =
   bc (t1 a) (function BC t1 -> t1.lcas ?max_depth ?n (t2 a))
 let lcas_tag t = bc t (function BC t -> t.lcas_tag)
 let lcas_head t = bc t (function BC t -> t.lcas_head)
+let history ?depth ?min ?max t =
+  bc t (function BC t -> t.history ?depth ?min ?max ())
 let task_of_head t = bc t (function BC t -> t.task_of_head)
 
 (* sync *)
@@ -287,6 +293,12 @@ let pack_s (type x) (type k) (type v)
           );
         lcas_tag = M.lcas_tag t;
         lcas_head = M.lcas_head t;
+        history = (fun ?depth ?min ?max () ->
+            M.history ?depth ?min ?max t >>= fun g ->
+            History.empty
+            |> M.History.fold_vertex (fun x g' -> History.add_vertex g' x) g
+            |> M.History.fold_edges (fun x y g' -> History.add_edge g' x y) g
+            |> Lwt.return);
         task_of_head = M.task_of_head t;
         remote_basic = (fun () -> remote_store (module M) t);
         fetch = S.fetch t;

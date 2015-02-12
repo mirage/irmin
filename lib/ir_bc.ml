@@ -60,6 +60,8 @@ module type STORE = sig
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  module History: Graph.Sig.P with type V.t = head
+  val history: ?depth:int -> ?min:head list -> ?max:head list -> t -> History.t Lwt.t
   val task_of_head: t -> head -> Ir_task.t Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
@@ -119,8 +121,9 @@ module Make_ext (P: PRIVATE) = struct
 
   type branch = [ `Tag of tag | `Head of head ]
 
+  module OCamlGraph = Graph
   module Graph = Ir_node.Graph(P.Contents)(P.Node)
-  module History = Ir_commit.History(Graph.Store)(P.Commit)
+  module H = Ir_commit.History(Graph.Store)(P.Commit)
 
   module KGraph =
     Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Tag.Key)
@@ -245,7 +248,7 @@ module Make_ext (P: PRIVATE) = struct
     Log.debug "read_head_node";
     read_head_commit t >>= function
     | None   -> return_none
-    | Some h -> History.node (history_t t) h
+    | Some h -> H.node (history_t t) h
 
   let parents_of_commit = function
     | None   -> []
@@ -266,13 +269,13 @@ module Make_ext (P: PRIVATE) = struct
     begin match commit with
       | None   -> Graph.empty (graph_t t)
       | Some h ->
-        History.node (history_t t) h >>= function
+        H.node (history_t t) h >>= function
         | None   -> Graph.empty (graph_t t)
         | Some n -> return n
     end >>= fun old_node ->
     f old_node >>= fun node ->
     let parents = parents_of_commit commit in
-    History.create (history_t t) ~node ~parents >>= fun key ->
+    H.create (history_t t) ~node ~parents >>= fun key ->
     match branch t with
     | `Head _  -> t.branch := `Head key; return_unit
     | `Tag tag -> Tag.update (tag_t t) tag key
@@ -349,16 +352,16 @@ module Make_ext (P: PRIVATE) = struct
     let t1 = t1 a and t2 = t2 a in
     head_exn t1 >>= fun h1 ->
     head_exn t2 >>= fun h2 ->
-    History.lcas (history_t t1) ?max_depth ?n h1 h2
+    H.lcas (history_t t1) ?max_depth ?n h1 h2
 
   let lcas_head t ?max_depth ?n head =
     head_exn t >>= fun h ->
-    History.lcas (history_t t) ?max_depth ?n h head
+    H.lcas (history_t t) ?max_depth ?n h head
 
   let lcas_tag t ?max_depth ?n tag =
     head_exn t >>= fun h ->
     head_exn { t with branch = ref (`Tag tag) } >>= fun head ->
-    History.lcas (history_t t) ?max_depth ?n h head
+    H.lcas (history_t t) ?max_depth ?n h head
 
   let task_of_head t head =
     P.Commit.read_exn (commit_t t) head >>= fun commit ->
@@ -368,7 +371,7 @@ module Make_ext (P: PRIVATE) = struct
      - Search for common ancestors
      - Perform recursive 3-way merges *)
   let three_way_merge t ?max_depth ?n c1 c2 =
-    History.three_way_merge (history_t t) ?max_depth ?n c1 c2
+    H.three_way_merge (history_t t) ?max_depth ?n c1 c2
 
   let update_head t c =
     match branch t with
@@ -475,7 +478,7 @@ module Make_ext (P: PRIVATE) = struct
               )
             | Some head ->
               Log.debug "watch: %a" force (show (module Head) head);
-              begin History.node (history_t t) head >>= function
+              begin H.node (history_t t) head >>= function
                 | None      -> Graph.empty (graph_t t)
                 | Some node -> return node
               end >>= fun node ->
@@ -554,7 +557,7 @@ module Make_ext (P: PRIVATE) = struct
     let min = List.map (fun x -> `Commit x) min in
     let pred = function
       | `Commit k ->
-        History.parents (history_t t) k >>= fun parents ->
+        H.parents (history_t t) k >>= fun parents ->
         return (List.map (fun x -> `Commit x) parents)
       | _ -> return_nil in
     KGraph.closure ?depth ~pred ~min ~max () >>= fun g ->
@@ -624,6 +627,48 @@ module Make_ext (P: PRIVATE) = struct
     aux "Commit"
       (module P.Commit) (module P.Commit.Key)
       (P.Slice.iter_commits s) commit_t
+
+  module History =
+    OCamlGraph.Persistent.Digraph.ConcreteBidirectional(P.Commit.Key)
+
+  module Gmap = struct
+    include OCamlGraph.Gmap.Vertex(KGraph)(struct
+        include History
+        let empty () = History.empty
+      end)
+
+    let filter_map f g =
+      let t = filter_map f g in
+      KGraph.fold_edges (fun x y t ->
+          match f x, f y with
+          | Some x, Some y -> History.add_edge t x y
+          | _ -> t
+        ) g t
+
+    let _map f g =
+      let t = map f g in
+      KGraph.fold_edges (fun x y t ->
+          History.add_edge t (f x) (f y)
+        ) g t
+
+  end
+
+  let history ?depth ?(min=[]) ?max t =
+    Log.debug "history";
+    let pred = function
+      | `Commit k ->
+        H.parents (history_t t) k >>= fun parents ->
+        return (List.map (fun x -> `Commit x) parents)
+      | _ -> return_nil in
+    begin head t >>= function
+      | Some h -> Lwt.return [h]
+      | None   -> match max with None -> Lwt.return_nil | Some m -> Lwt.return m
+    end >>= fun max ->
+    let max = List.map (fun k -> `Commit k) max in
+    let min = List.map (fun k -> `Commit k) min in
+    KGraph.closure ?depth ~min ~max ~pred () >>= fun g ->
+    let h = Gmap.filter_map (function `Commit k -> Some k | _ -> None) g in
+    Lwt.return h
 
 end
 

@@ -606,6 +606,17 @@ module type BC = sig
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
   (** Same as {!lcas} but takes an head as argument. *)
 
+  (** {2 History} *)
+
+  module History: Graph.Sig.P with type V.t = head
+  (** An history is a DAG of heads. *)
+
+  val history: ?depth:int -> ?min:head list -> ?max:head list -> t -> History.t Lwt.t
+  (** [history ?depth ?min ?max t] is a view of the history of the
+      branch [t], of depth at most [depth], starting from the [max]
+      (or from the [t]'s head if the list of heads is empty) and
+      stoping at [min] if specified. *)
+
   val task_of_head: t -> head -> task Lwt.t
   (** [task_of_head t h] is the task which created [h]. Useful to
       retrieve the commit date and the committer name. *)
@@ -1809,6 +1820,15 @@ val lcas_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
 val lcas_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
 (** See {!BC.lcas_head}. *)
+
+(** {2 History} *)
+
+module History: Graph.Sig.P with type V.t = Hash.SHA1.t
+(** See {!BC.History}. *)
+
+val history: ?depth:int -> ?min:Hash.SHA1.t list -> ?max:Hash.SHA1.t list
+  -> ([`BC], 'k, 'v) t -> History.t Lwt.t
+(** See {!BC.history}. *)
 
 val task_of_head: ([`BC],'k, 'v) t -> Hash.SHA1.t -> task Lwt.t
 (** See {!BC.task_of_head}. *)

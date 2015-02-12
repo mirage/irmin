@@ -605,6 +605,32 @@ struct
   let list t dir =
     get (uri t) ["list"; P.to_hum dir] (module Tc.List(P))
 
+  module History = Graph.Persistent.Digraph.ConcreteBidirectional(H)
+  module G = Tc.Pair (Tc.List (H))(Tc.List (Tc.Pair(H)(H)))
+  module Conv = struct
+    type t = History.t
+    let to_t (vertices, edges) =
+      let t = History.empty in
+      let t = List.fold_left History.add_vertex t vertices in
+      List.fold_left (fun t (x, y) -> History.add_edge t x y) t edges
+    let of_t t =
+      let vertices = History.fold_vertex (fun v l -> v :: l) t [] in
+      let edges = History.fold_edges (fun x y l -> (x, y) :: l) t [] in
+      vertices, edges
+  end
+  module HTC = Tc.Biject (G)(Conv)
+  module EO = Tc.Pair (Tc.Option(Tc.List(H))) (Tc.Option(Tc.List(H)))
+
+  let history ?depth ?min ?max t =
+    let query =
+      let depth = match depth with
+        | None   -> []
+        | Some x -> ["depth", [string_of_int x]]
+      in
+      match depth with [] -> None | l -> Some l
+    in
+   post (uri t) ?query ["history"] (EO.to_json (min, max)) (module HTC)
+
   module Key = P
   module Val = C
   module Tag = T

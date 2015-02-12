@@ -57,6 +57,8 @@ module type STORE = sig
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  module History: Graph.Sig.P with type V.t = head
+  val history: ?depth:int -> ?min:head list -> ?max:head list -> t -> History.t Lwt.t
   val task_of_head: t -> head -> Ir_task.t Lwt.t
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
