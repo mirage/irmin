@@ -60,8 +60,8 @@ $ make
 
 ### Tutorial
 
-An (outdated) tutorial is available on the
-[wiki](https://github.com/mirage/irmin/wiki/Getting-Started).
+Tutorials are available on the
+[wiki](https://github.com/mirage/irmin/wiki/).
 
 ### Issues
 
