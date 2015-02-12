@@ -18,6 +18,7 @@
 <link title="Persistent Branches" rel="Subsection" href="#persistent">
 <link title="Temporary Branches" rel="Subsection" href="#temporary">
 <link title="Clones and Merges" rel="Subsection" href="#2_ClonesandMerges">
+<link title="History" rel="Subsection" href="#2_History">
 <link title="Slices" rel="Subsection" href="#2_Slices">
 <title>Irmin.BC</title>
 </head>
@@ -273,6 +274,19 @@ Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="construc
 
 <pre><span id="VALlcas_head"><span class="keyword">val</span> lcas_head</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.BC.html#TYPEhead">head</a> -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEhead">head</a> list | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes an head as argument.<br>
+</div>
+<br>
+<h2 id="2_History">History</h2><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.BC.History.html">History</a>: <code class="type">Graph.Sig.P</code><code class="type">  with type V.t = head</code></pre><div class="info">
+An history is a DAG of heads.
+</div>
+
+<pre><span id="VALhistory"><span class="keyword">val</span> history</span> : <code class="type">?depth:int -><br>       ?min:<a href="Irmin.BC.html#TYPEhead">head</a> list -><br>       ?max:<a href="Irmin.BC.html#TYPEhead">head</a> list -> t -> History.t Lwt.t</code></pre><div class="info ">
+<code class="code">history ?depth ?min ?max t</code> is a view of the history of the
+      branch <code class="code">t</code>, of depth at most <code class="code">depth</code>, starting from the <code class="code">max</code>
+      (or from the <code class="code">t</code>'s head if the list of heads is empty) and
+      stoping at <code class="code">min</code> if specified.<br>
 </div>
 
 <pre><span id="VALtask_of_head"><span class="keyword">val</span> task_of_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> <a href="Irmin.html#TYPEtask">Irmin.task</a> Lwt.t</code></pre><div class="info ">

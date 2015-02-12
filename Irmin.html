@@ -25,6 +25,7 @@
 <link title="Tags" rel="Subsection" href="#2_Tags">
 <link title="Heads" rel="Subsection" href="#2_Heads">
 <link title="Clones and Merges" rel="Subsection" href="#2_ClonesandMerges">
+<link title="History" rel="Subsection" href="#2_History">
 <link title="Views" rel="Subsection" href="#2_Views">
 <link title="Synchronisation" rel="Subsection" href="#2_Synchronisation">
 <title>Irmin</title>
@@ -410,6 +411,16 @@ See <a href="Irmin.BC.html#VALlcas_tag"><code class="code"><span class="construc
 
 <pre><span id="VALlcas_head"><span class="keyword">val</span> lcas_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       ?max_depth:int -><br>       ?n:int -><br>       Hash.SHA1.t -><br>       [ `Max_depth_reached | `Ok of Hash.SHA1.t list | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALlcas_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas_head</code></a>.<br>
+</div>
+<br>
+<h2 id="2_History">History</h2><br>
+
+<pre><span class="keyword">module</span> <a href="Irmin.History.html">History</a>: <code class="type">Graph.Sig.P</code><code class="type">  with type V.t = Hash.SHA1.t</code></pre><div class="info">
+See <a href="Irmin.BC.History.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.<span class="constructor">History</span></code></a>.
+</div>
+
+<pre><span id="VALhistory"><span class="keyword">val</span> history</span> : <code class="type">?depth:int -><br>       ?min:Hash.SHA1.t list -><br>       ?max:Hash.SHA1.t list -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> History.t Lwt.t</code></pre><div class="info ">
+See <a href="Irmin.BC.html#VALhistory"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.history</code></a>.<br>
 </div>
 
 <pre><span id="VALtask_of_head"><span class="keyword">val</span> task_of_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> Hash.SHA1.t -> <a href="Irmin.html#TYPEtask">task</a> Lwt.t</code></pre><div class="info ">
