@@ -21,8 +21,8 @@ module type STORE = sig
   include Ir_rw.HIERARCHICAL
   type tag
   val of_tag: Ir_conf.t -> ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
-  val tag: t -> tag option
-  val tag_exn: t -> tag
+  val tag: t -> tag option Lwt.t
+  val tag_exn: t -> tag Lwt.t
   val tags: t -> tag list Lwt.t
   val remove_tag: t -> unit Lwt.t
   val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t

@@ -442,12 +442,12 @@ module type BC = sig
   (** [create t tag] is the persistent branch named [tag]. Similar to
       [create], but use [tag] instead {!Tag.S.master}. *)
 
-  val tag: t -> tag option
+  val tag: t -> tag option Lwt.t
   (** [tag t] is [t]'s name. Return [None] if [t] is not
       persistent. *)
 
-  val tag_exn: t -> tag
-  (** Same as [tag] but raise [Not_found] if [t] is not persistent. *)
+  val tag_exn: t -> tag Lwt.t
+  (** Same as [tag] but raise [Failure] if [t] is not persistent. *)
 
   val tags: t -> tag list Lwt.t
   (** The list of all persistent branch 's names. Similar to to [git
@@ -1724,10 +1724,10 @@ val remove_rec: ([<`HRW|`BC],'k,'v) t -> 'k -> unit Lwt.t
 
 (** {2 Tags} *)
 
-val tag: ([`BC],'k,'v) t -> string option
+val tag: ([`BC],'k,'v) t -> string option Lwt.t
 (** See {!BC.tag}. *)
 
-val tag_exn: ([`BC],'k,'v) t -> string
+val tag_exn: ([`BC],'k,'v) t -> string Lwt.t
 (** See {!BC.tag_exn}. *)
 
 val tags: ([`BC],'k,'v) t -> string list Lwt.t
