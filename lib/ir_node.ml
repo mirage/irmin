@@ -402,6 +402,9 @@ struct
     | None   -> return_none
     | Some n -> return (S.Val.succ n step)
 
+  let err_not_found n =
+    fail (Invalid_argument (Printf.sprintf "Irmin.%s: not found" n))
+
   let read_node_exn t node path =
     Log.debug "read_node_exn %a %a"
       force (show (module S.Key) node)
@@ -417,11 +420,16 @@ struct
     aux node path
 
   let read_node t node path =
-    catch
+    Lwt.catch
       (fun () ->
          read_node_exn t node path >>= fun node ->
          return (Some node))
       (function Not_found -> return_none | e -> fail e)
+
+  let read_node_exn t node path =
+    Lwt.catch
+      (fun () -> read_node_exn t node path)
+      (function Not_found -> err_not_found "read_node" | e -> fail e)
 
   let mk_path path =
     match Path.rdecons path with
@@ -432,15 +440,11 @@ struct
    Log.debug "read_contents_exn %a %a"
      force (show (module S.Key) node)
      force (show (module S.Path) path);
-     let path, file = mk_path path in
-     read_node t node path >>= function
-     | None      ->
-       Log.debug "subpath not found";
-       fail Not_found
-     | Some node ->
-       contents t node file >>= function
-       | None   -> fail Not_found
-       | Some c -> return c
+   let path, file = mk_path path in
+   read_node_exn t node path >>= fun node ->
+   contents t node file >>= function
+   | None   -> err_not_found "read_contents"
+   | Some c -> return c
 
   let read_contents t node path =
     Log.debug "read_contents %a %a"

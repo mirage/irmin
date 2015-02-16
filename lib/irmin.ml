@@ -119,8 +119,8 @@ and (_, 'k, 'v) ext =
 
 and ('k, 'v) bc = {
   pack: ('k, 'v) pack;
-  tag: unit -> string option;
-  tag_exn: unit -> string;
+  tag: unit -> string option Lwt.t;
+  tag_exn: unit -> string Lwt.t;
   tags: unit -> string list Lwt.t;
   remove_tag: unit -> unit Lwt.t;
   rename_tag: string -> [`Ok | `Duplicated_tag] Lwt.t;

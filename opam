@@ -12,7 +12,8 @@ build: [
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
       "--%{base-unix:enable}%-unix"
-      "--%{cohttp+git+alcotest:enable}%-tests"]
+      "--%{cohttp+git+alcotest:enable}%-tests"
+      "--%{cohttp+git+alcotest:enable}%-examples"]
   [make]
 ]
 build-test: [make "test"]

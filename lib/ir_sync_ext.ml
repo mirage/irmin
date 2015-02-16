@@ -74,7 +74,7 @@ module Make (S: Ir_s.STORE) = struct
     match remote with
     | URI uri ->
       Log.debug "fetch URI %s" uri;
-      begin match S.tag t with
+      begin S.tag t >>= function
         | None     -> return_none
         | Some tag ->
           B.create (S.Private.config t) >>= fun g ->
@@ -119,7 +119,7 @@ module Make (S: Ir_s.STORE) = struct
     Log.debug "push";
     match remote with
     | URI uri ->
-      begin match S.tag t with
+      begin S.tag t >>= function
         | None     -> return `Error
         | Some tag ->
           B.create (S.Private.config t) >>= fun g ->

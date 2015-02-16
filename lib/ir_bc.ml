@@ -26,8 +26,8 @@ module type STORE = sig
   include Ir_rw.HIERARCHICAL
   type tag
   val of_tag: Ir_conf.t -> ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
-  val tag: t -> tag option
-  val tag_exn: t -> tag
+  val tag: t -> tag option Lwt.t
+  val tag_exn: t -> tag Lwt.t
   val tags: t -> tag list Lwt.t
   val remove_tag: t -> unit Lwt.t
   val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
@@ -149,12 +149,15 @@ module Make_ext (P: PRIVATE) = struct
   let branch t = ! (t.branch)
 
   let tag t = match branch t with
-    | `Tag t  -> Some t
-    | `Head _ -> None
+    | `Tag t  -> Lwt.return (Some t)
+    | `Head _ -> Lwt.return_none
+
+  let err_not_found n =
+    fail (Invalid_argument (Printf.sprintf "Irmin.%s: not found" n))
 
   let tag_exn t = match branch t with
-    | `Tag t  -> t
-    | `Head _ -> raise Not_found
+    | `Tag t  -> Lwt.return t
+    | `Head _ -> err_not_found "tag"
 
   let tags t =
     let tags = ref [] in
@@ -181,7 +184,7 @@ module Make_ext (P: PRIVATE) = struct
 
   let head_exn t =
     head t >>= function
-    | None   -> fail Not_found
+    | None   -> err_not_found "head"
     | Some k -> return k
 
   let detach t =

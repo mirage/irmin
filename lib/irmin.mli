@@ -168,10 +168,9 @@ module Merge: sig
       building a complex merge function. *)
 
   val biject: 'a Tc.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
-  (** Use the merge function defined in another domain. The domain
-      converting functions might be partial: in that case the {e
-      convention} is that they raise [Not_found] on undefined
-      entries. *)
+  (** Use the merge function defined in another domain. If the
+      converting functions raise any exception the merge is a
+      conflict. *)
 
   val biject': 'a Tc.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
   (** Same as {{!Merge.biject}biject} but with blocking domain
@@ -327,7 +326,7 @@ module type RO = sig
   (** Read a value from the store. *)
 
   val read_exn: t -> key -> value Lwt.t
-  (** Same as [read] but raise [Not_found] if the key does not
+  (** Same as [read] but raise [Failure] if the key does not
       exist. *)
 
   val mem: t -> key -> bool Lwt.t
@@ -442,12 +441,12 @@ module type BC = sig
   (** [create t tag] is the persistent branch named [tag]. Similar to
       [create], but use [tag] instead {!Tag.S.master}. *)
 
-  val tag: t -> tag option
+  val tag: t -> tag option Lwt.t
   (** [tag t] is [t]'s name. Return [None] if [t] is not
       persistent. *)
 
-  val tag_exn: t -> tag
-  (** Same as [tag] but raise [Not_found] if [t] is not persistent. *)
+  val tag_exn: t -> tag Lwt.t
+  (** Same as [tag] but raise [Failure] if [t] is not persistent. *)
 
   val tags: t -> tag list Lwt.t
   (** The list of all persistent branch 's names. Similar to to [git
@@ -514,7 +513,7 @@ module type BC = sig
       rev-parse HEAD]. *)
 
   val head_exn: t -> head Lwt.t
-  (** Same as [read_head] but raise [Not_found] if the branch does not
+  (** Same as [read_head] but raise [Failure] if the branch does not
       have any contents. *)
 
   val branch: t -> [`Tag of tag | `Head of head]
@@ -1261,7 +1260,7 @@ module Private: sig
           [None] if no such contents exists.*)
 
       val read_contents_exn: t -> node -> path -> contents Lwt.t
-      (** Same as {!read_contents} by raise [Not_found] if there is no
+      (** Same as {!read_contents} by raise [Failure] if there is no
           valid contents. *)
 
       val add_contents: t -> node -> path -> contents -> node Lwt.t
@@ -1286,7 +1285,7 @@ module Private: sig
 
       val read_node_exn: t -> node -> path -> node Lwt.t
       (** Same as {{!Node.GRAPH.read_node}read_node} but raise
-          [Not_found] if the path is invalid. *)
+          [Failure] if the path is invalid. *)
 
       val add_node: t -> node -> path -> node -> node Lwt.t
       (** [add_node t n path c] adds the node [c] as the end of the
@@ -1724,10 +1723,10 @@ val remove_rec: ([<`HRW|`BC],'k,'v) t -> 'k -> unit Lwt.t
 
 (** {2 Tags} *)
 
-val tag: ([`BC],'k,'v) t -> string option
+val tag: ([`BC],'k,'v) t -> string option Lwt.t
 (** See {!BC.tag}. *)
 
-val tag_exn: ([`BC],'k,'v) t -> string
+val tag_exn: ([`BC],'k,'v) t -> string Lwt.t
 (** See {!BC.tag_exn}. *)
 
 val tags: ([`BC],'k,'v) t -> string list Lwt.t
