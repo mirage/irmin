@@ -50,7 +50,7 @@ let configure () =
   let task = task ~user:"Bob the sysadmin" in
   Store.of_tag config task "local" >>= fun t ->
   Lwt_unix.sleep 2.                >>= fun () ->
-  Store.switch (t "Switching to upstream") "upstream" >>= fun () ->
+  Store.switch_tag (t "Switching to upstream") "upstream" >>= fun () ->
   View.empty ()                    >>= fun v ->
 
 (*
