@@ -29,6 +29,9 @@ let uri =
 let config x =
   Irmin.Private.Conf.singleton uri (Some x)
 
+let err_not_found n =
+  Lwt.fail (Invalid_argument (Printf.sprintf "Irmin_http.%s: not found" n))
+
 module type Config = sig val suffix: string option end
 
 module Helper (Client: Cohttp_lwt.Client) = struct
@@ -176,7 +179,7 @@ struct
 
     let read_exn t key =
       read t key >>= function
-      | None   -> fail Not_found
+      | None   -> err_not_found "read"
       | Some v -> return v
 
     let mem { uri; _ } key =
@@ -380,7 +383,7 @@ struct
 
   let read_exn t key =
     read t key >>= function
-    | None   -> fail Not_found
+    | None   -> err_not_found "read"
     | Some v -> return v
 
   let mem t key =
@@ -411,12 +414,12 @@ struct
     | `Tag _  -> return_unit
 
   let tag t = match t.branch with
-    | `Head _ -> None
-    | `Tag t  -> Some t
+    | `Head _ -> Lwt.return_none
+    | `Tag t  -> Lwt.return (Some t)
 
-  let tag_exn t = match tag t with
-    | None   -> raise Not_found
-    | Some t -> t
+  let tag_exn t = tag t >>= function
+    | None   -> err_not_found "tag"
+    | Some t -> Lwt.return t
 
   let tags t =
     get (uri t) ["tags"] (module Tc.List(T))
@@ -427,7 +430,7 @@ struct
 
   let head_exn t =
     head t >>= function
-    | None   -> fail Not_found
+    | None   -> err_not_found "head"
     | Some h -> return h
 
   let rename_tag t tag =

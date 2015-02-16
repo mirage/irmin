@@ -149,12 +149,15 @@ module Make_ext (P: PRIVATE) = struct
   let branch t = ! (t.branch)
 
   let tag t = match branch t with
-    | `Tag t  -> Some t
-    | `Head _ -> None
+    | `Tag t  -> Lwt.return (Some t)
+    | `Head _ -> Lwt.return_none
+
+  let err_not_found n =
+    fail (Invalid_argument (Printf.sprintf "Irmin.%s: not found" n))
 
   let tag_exn t = match branch t with
-    | `Tag t  -> t
-    | `Head _ -> raise Not_found
+    | `Tag t  -> Lwt.return t
+    | `Head _ -> err_not_found "tag"
 
   let tags t =
     let tags = ref [] in
@@ -181,7 +184,7 @@ module Make_ext (P: PRIVATE) = struct
 
   let head_exn t =
     head t >>= function
-    | None   -> fail Not_found
+    | None   -> err_not_found "head"
     | Some k -> return k
 
   let detach t =
