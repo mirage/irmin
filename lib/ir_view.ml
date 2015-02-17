@@ -200,12 +200,12 @@ module Internal (Node: NODE) = struct
     t.ops := `Read (k, v) :: !(t.ops);
     Lwt.return v
 
-  let err_not_found n =
-    Lwt.fail (Invalid_argument (Printf.sprintf "Irmin.View.%s: not found" n))
+  let err_not_found n k =
+    Ir_misc.invalid_arg "Irmin.View.%s: %s not found" n (Path.to_hum k)
 
   let read_exn t k =
     read t k >>= function
-    | None   -> err_not_found "read"
+    | None   -> err_not_found "read" k
     | Some v -> Lwt.return v
 
   let mem t k =
@@ -252,7 +252,7 @@ module Internal (Node: NODE) = struct
         Node.read view >>= function
         | None   ->
           if v = None then Lwt.return false
-          else err_not_found "update_contents" (* XXX ?*)
+          else err_not_found "update_contents" k (* XXX ?*)
         | Some n ->
           match Node.read_succ n h with
           | Some child ->

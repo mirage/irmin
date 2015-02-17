@@ -18,12 +18,13 @@ open Lwt
 
 module Log = Log.Make(struct let section = "MEM" end)
 
-let err_not_found n =
-  Lwt.fail (Invalid_argument (Printf.sprintf "Irmin_mem.%s: not found" n))
-
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
-  module W = Irmin.Private.Watch.Make(K)(V)
+  let err_not_found n k =
+    let str = Printf.sprintf "Irmin_mem.%s: %s not found" n (K.to_hum k) in
+    Lwt.fail (Invalid_argument str)
+
+module W = Irmin.Private.Watch.Make(K)(V)
 
   type key = K.t
 
@@ -49,7 +50,7 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let read_exn { t; _ } key =
     try return (Hashtbl.find t key)
-    with Not_found -> err_not_found "read"
+    with Not_found -> err_not_found "read" key
 
   let mem { t; _ } key =
     return (Hashtbl.mem t key)

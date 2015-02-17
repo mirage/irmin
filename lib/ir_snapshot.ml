@@ -57,18 +57,20 @@ module Make (S: Ir_s.STORE) = struct
   let to_hum (_, k) = N.Key.to_hum k
   let of_hum db s = (db, N.Key.of_hum s)
 
-  let err_not_found n =
-    fail (Invalid_argument (Printf.sprintf "Irmin.Snapshot.%s: not found" n))
+  let err_not_found n k =
+    Ir_misc.invalid_arg "Irmin.Snapshot.%s: %s not found" n (S.Key.to_hum k)
+
+  let err_no_head = Ir_misc.invalid_arg "Irmin.Snapshot.%s: no head"
 
   let of_head db c =
     C.read_exn (P.commit_t db) c >>= fun c ->
     match C.Val.node c with
-    | None   -> err_not_found "of_head"
+    | None   -> err_no_head "of_head"
     | Some k -> return (db, k)
 
   let create db =
     S.head db >>= function
-    | None   -> err_not_found "create"
+    | None   -> err_no_head "create"
     | Some c -> of_head db c
 
   let graph_t db =
@@ -84,7 +86,7 @@ module Make (S: Ir_s.STORE) = struct
 
   let read_exn t path =
     read t path >>= function
-    | None   -> err_not_found "read"
+    | None   -> err_not_found "read" path
     | Some x -> return x
 
   let mem t path =

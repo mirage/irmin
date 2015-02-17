@@ -234,3 +234,7 @@ let tag buf i =
 
 let untag buf =
   Mstruct.get_uint8 buf
+
+let invalid_arg fmt =
+  let fail str = Lwt.fail (Invalid_argument str) in
+  Printf.ksprintf fail fmt
