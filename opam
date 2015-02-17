@@ -26,7 +26,7 @@ depends: [
   "ezjsonm" {>= "0.4.0"}
   "ocamlgraph"
   "lwt" {>= "2.4.7"}
-  "nocrypto" {>= "0.2.2"}
+  "nocrypto" {test & >= "0.2.2"}
   "dolog" {>= "0.4"}
   "cstruct" {>= "1.0.1"}
   "mirage-tc" {>= "0.3.0"}
@@ -44,6 +44,7 @@ depends: [
 depopts: [
   "git"
   "cohttp"
+  "nocrypto"
 ]
 conflicts: [
   "git"    {< "1.4.10"}

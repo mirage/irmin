@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6f0bfe2122bd6278429c76a101e2fd3a)
+# DO NOT EDIT (digest: 61de81f1f1f4fab41b3fc8942cccac61)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -22,7 +22,6 @@ true: annot, bin_annot
 <lib/*.ml{,i,y}>: pkg_hex
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mstruct
-<lib/*.ml{,i,y}>: pkg_nocrypto
 <lib/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/*.ml{,i,y}>: pkg_stringext
 <lib/*.ml{,i,y}>: pkg_tc
@@ -35,7 +34,6 @@ true: annot, bin_annot
 <lib/mem/*.ml{,i,y}>: pkg_hex
 <lib/mem/*.ml{,i,y}>: pkg_lwt
 <lib/mem/*.ml{,i,y}>: pkg_mstruct
-<lib/mem/*.ml{,i,y}>: pkg_nocrypto
 <lib/mem/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/mem/*.ml{,i,y}>: pkg_stringext
 <lib/mem/*.ml{,i,y}>: pkg_tc
@@ -50,7 +48,6 @@ true: annot, bin_annot
 <lib/git/*.ml{,i,y}>: pkg_hex
 <lib/git/*.ml{,i,y}>: pkg_lwt
 <lib/git/*.ml{,i,y}>: pkg_mstruct
-<lib/git/*.ml{,i,y}>: pkg_nocrypto
 <lib/git/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/git/*.ml{,i,y}>: pkg_stringext
 <lib/git/*.ml{,i,y}>: pkg_tc
@@ -64,7 +61,6 @@ true: annot, bin_annot
 <lib/fs/*.ml{,i,y}>: pkg_hex
 <lib/fs/*.ml{,i,y}>: pkg_lwt
 <lib/fs/*.ml{,i,y}>: pkg_mstruct
-<lib/fs/*.ml{,i,y}>: pkg_nocrypto
 <lib/fs/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/fs/*.ml{,i,y}>: pkg_stringext
 <lib/fs/*.ml{,i,y}>: pkg_tc
@@ -80,7 +76,6 @@ true: annot, bin_annot
 <lib/http/*.ml{,i,y}>: pkg_hex
 <lib/http/*.ml{,i,y}>: pkg_lwt
 <lib/http/*.ml{,i,y}>: pkg_mstruct
-<lib/http/*.ml{,i,y}>: pkg_nocrypto
 <lib/http/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/http/*.ml{,i,y}>: pkg_re
 <lib/http/*.ml{,i,y}>: pkg_re.pcre
@@ -102,7 +97,6 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: pkg_hex
 <lib/unix/*.ml{,i,y}>: pkg_lwt
 <lib/unix/*.ml{,i,y}>: pkg_mstruct
-<lib/unix/*.ml{,i,y}>: pkg_nocrypto
 <lib/unix/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/unix/*.ml{,i,y}>: pkg_re
 <lib/unix/*.ml{,i,y}>: pkg_re.pcre
@@ -128,7 +122,6 @@ true: annot, bin_annot
 <bin/main.{native,byte}>: pkg_hex
 <bin/main.{native,byte}>: pkg_lwt
 <bin/main.{native,byte}>: pkg_mstruct
-<bin/main.{native,byte}>: pkg_nocrypto
 <bin/main.{native,byte}>: pkg_ocamlgraph
 <bin/main.{native,byte}>: pkg_re
 <bin/main.{native,byte}>: pkg_re.pcre
@@ -154,7 +147,6 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: pkg_hex
 <bin/*.ml{,i,y}>: pkg_lwt
 <bin/*.ml{,i,y}>: pkg_mstruct
-<bin/*.ml{,i,y}>: pkg_nocrypto
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
 <bin/*.ml{,i,y}>: pkg_re
 <bin/*.ml{,i,y}>: pkg_re.pcre
@@ -233,7 +225,6 @@ true: annot, bin_annot
 <examples/git_store.{native,byte}>: pkg_hex
 <examples/git_store.{native,byte}>: pkg_lwt
 <examples/git_store.{native,byte}>: pkg_mstruct
-<examples/git_store.{native,byte}>: pkg_nocrypto
 <examples/git_store.{native,byte}>: pkg_ocamlgraph
 <examples/git_store.{native,byte}>: pkg_re
 <examples/git_store.{native,byte}>: pkg_re.pcre
@@ -259,7 +250,6 @@ true: annot, bin_annot
 <examples/custom_merge.{native,byte}>: pkg_hex
 <examples/custom_merge.{native,byte}>: pkg_lwt
 <examples/custom_merge.{native,byte}>: pkg_mstruct
-<examples/custom_merge.{native,byte}>: pkg_nocrypto
 <examples/custom_merge.{native,byte}>: pkg_ocamlgraph
 <examples/custom_merge.{native,byte}>: pkg_re
 <examples/custom_merge.{native,byte}>: pkg_re.pcre
@@ -285,7 +275,6 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: pkg_hex
 <examples/views.{native,byte}>: pkg_lwt
 <examples/views.{native,byte}>: pkg_mstruct
-<examples/views.{native,byte}>: pkg_nocrypto
 <examples/views.{native,byte}>: pkg_ocamlgraph
 <examples/views.{native,byte}>: pkg_re
 <examples/views.{native,byte}>: pkg_re.pcre
@@ -311,7 +300,6 @@ true: annot, bin_annot
 <examples/contacts.{native,byte}>: pkg_hex
 <examples/contacts.{native,byte}>: pkg_lwt
 <examples/contacts.{native,byte}>: pkg_mstruct
-<examples/contacts.{native,byte}>: pkg_nocrypto
 <examples/contacts.{native,byte}>: pkg_ocamlgraph
 <examples/contacts.{native,byte}>: pkg_re
 <examples/contacts.{native,byte}>: pkg_re.pcre
@@ -337,7 +325,6 @@ true: annot, bin_annot
 <examples/intrusion.{native,byte}>: pkg_hex
 <examples/intrusion.{native,byte}>: pkg_lwt
 <examples/intrusion.{native,byte}>: pkg_mstruct
-<examples/intrusion.{native,byte}>: pkg_nocrypto
 <examples/intrusion.{native,byte}>: pkg_ocamlgraph
 <examples/intrusion.{native,byte}>: pkg_re
 <examples/intrusion.{native,byte}>: pkg_re.pcre
@@ -363,7 +350,6 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: pkg_hex
 <examples/process.{native,byte}>: pkg_lwt
 <examples/process.{native,byte}>: pkg_mstruct
-<examples/process.{native,byte}>: pkg_nocrypto
 <examples/process.{native,byte}>: pkg_ocamlgraph
 <examples/process.{native,byte}>: pkg_re
 <examples/process.{native,byte}>: pkg_re.pcre
@@ -389,7 +375,6 @@ true: annot, bin_annot
 <examples/sync.{native,byte}>: pkg_hex
 <examples/sync.{native,byte}>: pkg_lwt
 <examples/sync.{native,byte}>: pkg_mstruct
-<examples/sync.{native,byte}>: pkg_nocrypto
 <examples/sync.{native,byte}>: pkg_ocamlgraph
 <examples/sync.{native,byte}>: pkg_re
 <examples/sync.{native,byte}>: pkg_re.pcre
@@ -414,7 +399,6 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: pkg_hex
 <examples/*.ml{,i,y}>: pkg_lwt
 <examples/*.ml{,i,y}>: pkg_mstruct
-<examples/*.ml{,i,y}>: pkg_nocrypto
 <examples/*.ml{,i,y}>: pkg_ocamlgraph
 <examples/*.ml{,i,y}>: pkg_re
 <examples/*.ml{,i,y}>: pkg_re.pcre
