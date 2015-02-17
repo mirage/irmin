@@ -24,7 +24,7 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     let str = Printf.sprintf "Irmin_mem.%s: %s not found" n (K.to_hum k) in
     Lwt.fail (Invalid_argument str)
 
-module W = Irmin.Private.Watch.Make(K)(V)
+  module W = Irmin.Private.Watch.Make(K)(V)
 
   type key = K.t
 
