@@ -197,7 +197,7 @@ module Merge: sig
   val option: 'a Tc.t -> 'a t -> 'a option t
   (** Lift a merge function to optional values of the same type. If all
       the provided values are inhabited, then call the provided merge
-      function, otherwise use the same behavior as [create]. *)
+      function, otherwise use the same behavior as {!default}. *)
 
   val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t
   (** Lift merge functions to pair of elements. *)
@@ -276,7 +276,7 @@ module Merge: sig
     (** Return [`Conflict str]. *)
 
     val (>>|): 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
-    (** Same as [bind]. *)
+    (** Same as {!bind}. *)
 
   end
 
@@ -326,7 +326,7 @@ module type RO = sig
   (** Read a value from the store. *)
 
   val read_exn: t -> key -> value Lwt.t
-  (** Same as [read] but raise [Invalid_argument] if the key does not
+  (** Same as {!read} but raise [Invalid_argument] if the key does not
       exist. *)
 
   val mem: t -> key -> bool Lwt.t
@@ -446,7 +446,7 @@ module type BC = sig
       persistent. *)
 
   val tag_exn: t -> tag Lwt.t
-  (** Same as [tag] but raise [Invalid_argument] if [t] is not
+  (** Same as {!tag} but raise [Invalid_argument] if [t] is not
       persistent. *)
 
   val tags: t -> tag list Lwt.t
@@ -514,8 +514,8 @@ module type BC = sig
       rev-parse HEAD]. *)
 
   val head_exn: t -> head Lwt.t
-  (** Same as [read_head] but raise [Invalid_argument] if the branch
-      does not have any contents. *)
+  (** Same as {!head} but raise [Invalid_argument] if the branch does
+      not have any contents. *)
 
   val branch: t -> [`Tag of tag | `Head of head]
   (** [branch t] is a representation of [t]'s branch. Can either be a
