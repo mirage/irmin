@@ -197,7 +197,7 @@ module Merge: sig
   val option: 'a Tc.t -> 'a t -> 'a option t
   (** Lift a merge function to optional values of the same type. If all
       the provided values are inhabited, then call the provided merge
-      function, otherwise use the same behavior as [create]. *)
+      function, otherwise use the same behavior as {!default}. *)
 
   val pair: 'a Tc.t -> 'b Tc.t -> 'a t -> 'b t -> ('a * 'b) t
   (** Lift merge functions to pair of elements. *)
@@ -276,7 +276,7 @@ module Merge: sig
     (** Return [`Conflict str]. *)
 
     val (>>|): 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
-    (** Same as [bind]. *)
+    (** Same as {!bind}. *)
 
   end
 
@@ -326,7 +326,7 @@ module type RO = sig
   (** Read a value from the store. *)
 
   val read_exn: t -> key -> value Lwt.t
-  (** Same as [read] but raise [Failure] if the key does not
+  (** Same as {!read} but raise [Invalid_argument] if the key does not
       exist. *)
 
   val mem: t -> key -> bool Lwt.t
@@ -446,7 +446,8 @@ module type BC = sig
       persistent. *)
 
   val tag_exn: t -> tag Lwt.t
-  (** Same as [tag] but raise [Failure] if [t] is not persistent. *)
+  (** Same as {!tag} but raise [Invalid_argument] if [t] is not
+      persistent. *)
 
   val tags: t -> tag list Lwt.t
   (** The list of all persistent branch 's names. Similar to to [git
@@ -513,8 +514,8 @@ module type BC = sig
       rev-parse HEAD]. *)
 
   val head_exn: t -> head Lwt.t
-  (** Same as [read_head] but raise [Failure] if the branch does not
-      have any contents. *)
+  (** Same as {!head} but raise [Invalid_argument] if the branch does
+      not have any contents. *)
 
   val branch: t -> [`Tag of tag | `Head of head]
   (** [branch t] is a representation of [t]'s branch. Can either be a
@@ -1260,8 +1261,8 @@ module Private: sig
           [None] if no such contents exists.*)
 
       val read_contents_exn: t -> node -> path -> contents Lwt.t
-      (** Same as {!read_contents} by raise [Failure] if there is no
-          valid contents. *)
+      (** Same as {!read_contents} by raise [Invalid_argument] if
+          there is no valid contents. *)
 
       val add_contents: t -> node -> path -> contents -> node Lwt.t
       (** [add_contents t n path c] adds the contents [c] as the end of
@@ -1285,7 +1286,7 @@ module Private: sig
 
       val read_node_exn: t -> node -> path -> node Lwt.t
       (** Same as {{!Node.GRAPH.read_node}read_node} but raise
-          [Failure] if the path is invalid. *)
+          [Invalid_argument] if the path is invalid. *)
 
       val add_node: t -> node -> path -> node -> node Lwt.t
       (** [add_node t n path c] adds the node [c] as the end of the
@@ -2048,8 +2049,8 @@ module Sync (S: S): sig
       local or remote store do not have a valid head. *)
 
   val fetch_exn: S.t -> ?depth:int -> remote -> S.head Lwt.t
-  (** Same as {!fetch} but raise [Failure] if either the local or
-      remote store do not have a valid head. *)
+  (** Same as {!fetch} but raise [Invalid_argument] if either the
+      local or remote store do not have a valid head. *)
 
   val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
     unit Merge.result Lwt.t
@@ -2075,7 +2076,8 @@ module Sync (S: S): sig
       head if more recent. This is not the case in {e Irmin}. *)
 
   val push_exn: S.t -> ?depth:int -> remote -> unit Lwt.t
-  (** Same as {!push} but raise [Failure] if an error happen. *)
+  (** Same as {!push} but raise [Invalid_argument] if an error
+      happen. *)
 
 end
 

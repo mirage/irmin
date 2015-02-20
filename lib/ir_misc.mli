@@ -77,3 +77,5 @@ val is_valid_utf8: string -> bool
 val tag: Cstruct.t -> int -> Cstruct.t
 
 val untag: Mstruct.t -> int
+
+val invalid_arg: ('a, unit, string, 'b Lwt.t) format4 -> 'a

@@ -1,6 +1,7 @@
 ## 0.9.4
 * Add `Lwt.t` to the return type of `Irmin.tag` and `Irmin.tag_exn`
-* Do not throw [Not_found]. Now all the `_exn` function raise `Failure` (#144)
+* Do not throw [Not_found]. Now all the `_exn` function raise `Invalid_argument`
+  (#144)
 * Rename `Irmin.switch` into `Irmin.switch_tag` to switch the current branch
   to a different tag.
 * Add `Irmin.switch_head` to switch the current branch to a different head.

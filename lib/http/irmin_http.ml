@@ -29,8 +29,8 @@ let uri =
 let config x =
   Irmin.Private.Conf.singleton uri (Some x)
 
-let err_not_found n =
-  Lwt.fail (Invalid_argument (Printf.sprintf "Irmin_http.%s: not found" n))
+let invalid_arg fmt =
+  Printf.ksprintf (fun str -> Lwt.fail (Invalid_argument str)) fmt
 
 module type Config = sig val suffix: string option end
 
@@ -177,9 +177,12 @@ struct
     let read { uri; _ } key =
       get uri ["read"; K.to_hum key] (module Tc.Option(V))
 
+    let err_not_found n k =
+      invalid_arg "Irmin_http.%s: %s not found" n (K.to_hum k)
+
     let read_exn t key =
       read t key >>= function
-      | None   -> err_not_found "read"
+      | None   -> err_not_found "read" key
       | Some v -> return v
 
     let mem { uri; _ } key =
@@ -381,9 +384,15 @@ struct
   let read t key =
     get (uri t) ["read"; P.to_hum key] (module Tc.Option(C))
 
+  let err_not_found n k =
+    invalid_arg "Irmin_http.%s: %s not found" n (P.to_hum k)
+
+  let err_no_head = invalid_arg "Irmin_http.%s: no head"
+  let err_not_persistent = invalid_arg "Irmin_http.%s: not a persistent branch"
+
   let read_exn t key =
     read t key >>= function
-    | None   -> err_not_found "read"
+    | None   -> err_not_found "read" key
     | Some v -> return v
 
   let mem t key =
@@ -418,7 +427,7 @@ struct
     | `Tag t  -> Lwt.return (Some t)
 
   let tag_exn t = tag t >>= function
-    | None   -> err_not_found "tag"
+    | None   -> err_not_persistent "tag"
     | Some t -> Lwt.return t
 
   let tags t =
@@ -430,7 +439,7 @@ struct
 
   let head_exn t =
     head t >>= function
-    | None   -> err_not_found "head"
+    | None   -> err_no_head "head"
     | Some h -> return h
 
   let rename_tag t tag =

@@ -402,8 +402,8 @@ struct
     | None   -> return_none
     | Some n -> return (S.Val.succ n step)
 
-  let err_not_found n =
-    fail (Invalid_argument (Printf.sprintf "Irmin.%s: not found" n))
+  let err_not_found n k =
+    Ir_misc.invalid_arg "Irmin.%s: %s not found" n (Path.to_hum k)
 
   let read_node_exn t node path =
     Log.debug "read_node_exn %a %a"
@@ -429,7 +429,7 @@ struct
   let read_node_exn t node path =
     Lwt.catch
       (fun () -> read_node_exn t node path)
-      (function Not_found -> err_not_found "read_node" | e -> fail e)
+      (function Not_found -> err_not_found "read_node" path | e -> fail e)
 
   let mk_path path =
     match Path.rdecons path with
@@ -443,7 +443,7 @@ struct
    let path, file = mk_path path in
    read_node_exn t node path >>= fun node ->
    contents t node file >>= function
-   | None   -> err_not_found "read_contents"
+   | None   -> err_not_found "read_contents" path
    | Some c -> return c
 
   let read_contents t node path =
