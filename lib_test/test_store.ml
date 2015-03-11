@@ -430,6 +430,18 @@ module Make (S: Irmin.S) = struct
       assert_equal (module Set(KC)) "lcas" [kr1; kr2] lcas;
       S.merge_exn 4 t1 ~into:t2   >>= fun () ->
 
+      (* test that we don't compute too many lcas *)
+      History.create (h 0) ~node:k0 ~parents:[]    >>= fun kr0 ->
+      History.create (h 1) ~node:k0 ~parents:[kr0] >>= fun kr1 ->
+      History.create (h 2) ~node:k0 ~parents:[kr1] >>= fun kr2 ->
+      History.create (h 3) ~node:k0 ~parents:[kr2] >>= fun kr3 ->
+      History.create (h 4) ~node:k0 ~parents:[kr3] >>= fun kr4 ->
+      S.of_head x.config task kr3 >>= fun t3 ->
+      S.of_head x.config task kr4 >>= fun t4 ->
+      S.lcas ~max_depth:2 3 t3 t4 >>= fun lcas ->
+      let lcas = match lcas with `Ok x -> x | _ -> failwith "lcas" in
+      assert_equal (module Set(KC)) "lcas" [kr3] lcas;
+
       return_unit
     in
     run x test
