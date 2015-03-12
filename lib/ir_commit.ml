@@ -215,6 +215,7 @@ struct
     return keys
 
   module KSet = Ir_misc.Set(S.Key)
+  let (++) = KSet.union
   let (--) = KSet.diff
 
   let proj g suffix =
@@ -249,6 +250,7 @@ struct
     n: int;                                               (* the search depth *)
     g: Graph.t;    (* transitive closure of the ancestors of the max elements *)
     max : KSet.t;                                             (* max elements *)
+    seen: KSet.t; (* the set of ancestors of at least ONE of the max elements *)
     shared: KSet.t;                   (* ancestors of ALL of the max elements *)
     todo  : KSet.t;      (* min ancestors on at least ONE of the max elements *)
   }
@@ -257,6 +259,7 @@ struct
     n      = 0;
     g      = Graph.create ();
     max    = KSet.empty;
+    seen   = KSet.empty;
     shared = KSet.empty;
     todo   = KSet.empty;
   }
@@ -281,8 +284,7 @@ struct
     let keys = KSet.to_list keys in
     Printf.sprintf "[%s]" @@ String.concat " " (List.map key keys)
 
-  let pr_prefix ({n; g; max; shared; todo} as p) =
-    let seen = kset (Graph.vertex g) in
+  let pr_prefix ({n; max; shared; todo; seen; _} as p) =
     let res  = lcas_of_prefix p in
     Printf.sprintf "n:%d max:%s seen:%s shared:%s todo:%s res:%s" n
       (pr_keys max)
@@ -299,6 +301,7 @@ struct
     List.iter (add p.g) edges;
     let g = Graph.transitive_closure p.g in
     let output = output edges in
+    let seen = p.seen ++ output in
     let shared =
       KSet.fold (fun o acc ->
           if KSet.for_all (fun i ->
@@ -308,8 +311,8 @@ struct
           else acc
         ) output p.shared
     in
-    let todo = output -- shared in
-    Lwt.return { p with n = p.n + 1; todo; shared; g }
+    let todo = output -- shared -- p.seen in
+    Lwt.return { n = p.n + 1; todo; shared; seen; g; max = p.max }
 
   let lca_calls = ref 0
   let lcas t ?(max_depth=256) ?n c1 c2 =
