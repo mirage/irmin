@@ -71,6 +71,8 @@ module R (A: Tc.S0) = Tc.App1(Result)(A)
 
 type 'a promise = unit -> 'a option result Lwt.t
 
+let promise t: 'a promise = fun () -> Lwt.return (`Ok (Some t))
+
 let memo fn =
   let r = ref None in
   fun () ->
@@ -91,8 +93,20 @@ let conflict fmt =
 
 let bind x f =
   x >>= function
-  | `Conflict _ as x -> return x
+  | `Conflict _ as x -> Lwt.return x
   | `Ok x            -> f x
+
+let promise_map f t () =
+  t () >>= function
+  | `Conflict _ as x -> Lwt.return x
+  | `Ok None         -> Lwt.return @@ `Ok None
+  | `Ok (Some a)     -> Lwt.return @@ `Ok (Some (f a))
+
+let promise_bind t f () =
+  t () >>= function
+  | `Conflict _ as x -> Lwt.return x
+  | `Ok None         -> Lwt.return @@ `Ok None
+  | `Ok (Some a)     -> f a ()
 
 module OP = struct
 
@@ -101,6 +115,8 @@ module OP = struct
   let conflict: ('a, unit, string, 'b result Lwt.t) format4 -> 'a = conflict
 
   let (>>|) = bind
+
+  let (>?|) = promise_bind
 
 end
 

@@ -215,9 +215,7 @@ struct
     return keys
 
   module KSet = Ir_misc.Set(S.Key)
-  let (++) = KSet.union
   let (--) = KSet.diff
-  let ( ** ) = KSet.inter
 
   let proj g suffix =
     let g' = Graph.create ~size:(KSet.cardinal suffix) () in
@@ -248,101 +246,70 @@ struct
     Lwt.return (List.flatten edges)
 
   type prefix = {
-    n: int;
-    g: Graph.t;
-    seen1 : KSet.t;
-    seen2 : KSet.t;
-    shared: KSet.t;
-    todo1 : KSet.t;
-    todo2 : KSet.t;
+    n: int;                                               (* the search depth *)
+    g: Graph.t;    (* transitive closure of the ancestors of the max elements *)
+    max : KSet.t;                                             (* max elements *)
+    shared: KSet.t;                   (* ancestors of ALL of the max elements *)
+    todo  : KSet.t;      (* min ancestors on at least ONE of the max elements *)
   }
+
+  let empty_prefix () = {
+    n      = 0;
+    g      = Graph.create ();
+    max    = KSet.empty;
+    shared = KSet.empty;
+    todo   = KSet.empty;
+  }
+
+  let kset vs =
+    List.fold_left (fun acc ->
+        function `Commit k -> KSet.add k acc | _ -> acc
+      ) KSet.empty vs
+
+  (* compute the lcas of a prefix
+
+     A commit is in the lcas of a prefix if:
+     - it is an ancestor of p1 AND p2 iff. it is in [shared]
+     - it doens't have successors which are ancestors of both p1 and p2
+  *)
+  let lcas_of_prefix p =
+    let proj = proj p.g p.shared in
+    kset (Graph.min proj)
 
   let pr_keys keys =
     let key x = String.sub (S.Key.to_hum x) 0 4 in
     let keys = KSet.to_list keys in
-    String.concat " " (List.map key keys)
+    Printf.sprintf "[%s]" @@ String.concat " " (List.map key keys)
 
-  let empty_prefix () = {
-    n = 0;
-    g = Graph.create ();
-    seen1  = KSet.empty;
-    seen2  = KSet.empty;
-    shared = KSet.empty;
-    todo1  = KSet.empty;
-    todo2  = KSet.empty;
-  }
-
-  (* compute the shared frontier
-
-     An element is in the shared frontier if
-     - it is in the active shared frontier (prefix.shared)
-     - it is seen by both vertices
-     - it is on the frontier (ie. it doens't have predecessors in the
-       shared frontier)
-  *)
-  let shared_frontier p =
-    let seen = p.shared ++ (p.seen1 ** p.seen2) in
-    let proj = proj p.g seen in
-    Graph.min proj
-    |> List.fold_left (fun acc ->
-        function `Commit k -> KSet.add k acc | _ -> acc
-      ) KSet.empty
-
-  let pr_prefix ({n; seen1; seen2; shared; todo1; todo2; _ } as p) =
-    Printf.sprintf "n:%d seen1:%s, seen2:%s, s:%s, 1:%s, 2:%s, res:%s" n
-      (pr_keys seen1) (pr_keys seen2) (pr_keys shared)
-      (pr_keys todo1) (pr_keys todo2) (pr_keys (shared_frontier p))
+  let pr_prefix ({n; g; max; shared; todo} as p) =
+    let seen = kset (Graph.vertex g) in
+    let res  = lcas_of_prefix p in
+    Printf.sprintf "n:%d max:%s seen:%s shared:%s todo:%s res:%s" n
+      (pr_keys max)
+      (pr_keys seen)
+      (pr_keys shared)
+      (pr_keys todo)
+      (pr_keys res)
 
   let show_prefix p = lazy (pr_prefix p)
 
-  (* compute the next prefix state.
-
-     Invariants:
-       - at step n: [n] is at least the depth of [g]
-       - seen1: the prefix of [g] known by [p1]
-       - seen2: the prefix of [g] known by [p2]
-       - shared: max([g]) dominated by both [p1] and [p2]
-       - todo1: max([g]) dominated by [p1]
-       - todo2: max([g]) dominated by [p2]
-  *)
-  let check_prefix p =
-    assert (p.todo1 ** p.todo2 = KSet.empty);
-    assert (p.todo1 ** p.shared = KSet.empty);
-    assert (p.todo1 ** p.seen1 = KSet.empty);
-    assert (p.todo1 ** p.seen2 = KSet.empty);
-    assert (p.todo2 ** p.shared = KSet.empty);
-    assert (p.todo2 ** p.shared = KSet.empty);
-    assert (p.todo2 ** p.seen1 = KSet.empty);
-    assert (p.todo2 ** p.seen2 = KSet.empty)
-
+  (* compute the next prefix state. *)
   let next_prefix t p =
-    check_prefix p;
-
-    next t p.todo1  >>= fun edges1 ->
-    next t p.todo2  >>= fun edges2 ->
-    next t p.shared >>= fun edgess ->
-    List.iter (add p.g) edges1;
-    List.iter (add p.g) edges2;
-    List.iter (add p.g) edgess;
-
-    let output1 = output edges1 in
-    let output2 = output edges2 in
-    let outputs = output edgess in
-
-    let seen1_ = p.shared ++ p.todo1 ++ p.seen1 in
-    let seen2_ = p.shared ++ p.todo2 ++ p.seen2 in
-    let not_fresh = outputs ++ seen1_ ++ seen2_ in
-
-    (* enforce invariants *)
-    let todo1 = output1 -- output2 -- not_fresh in
-    let todo2 = output2 -- output1 -- not_fresh in
-    let seen1 = seen1_ ++ (output1 ** not_fresh) in
-    let seen2 = seen2_ ++ (output2 ** not_fresh) in
-
+    next t p.todo >>= fun edges ->
+    List.iter (add p.g) edges;
+    let g = Graph.transitive_closure p.g in
+    let output = output edges in
     let shared =
-      outputs ++ output1 ++ output2 -- todo1 -- todo2 -- seen1 -- seen2
+      KSet.fold (fun o acc ->
+          if KSet.for_all (fun i ->
+              S.Key.equal i o || Graph.mem_edge g (`Commit i) (`Commit o)
+            ) p.max
+          then KSet.add o acc
+          else acc
+        ) output p.shared
     in
-    Lwt.return { p with n = p.n + 1; seen1; seen2; shared; todo1; todo2 }
+    let todo = output -- shared in
+    Lwt.return { p with n = p.n + 1; todo; shared; g }
 
   let lca_calls = ref 0
   let lcas t ?(max_depth=256) ?n c1 c2 =
@@ -351,22 +318,21 @@ struct
     let rec aux prefix =
       Log.debug "lca %d %a" !lca_calls force (show_prefix prefix);
       if prefix.n > max_depth then Lwt.return `Max_depth_reached
-      else if KSet.is_empty prefix.todo1 && KSet.is_empty prefix.todo2 then
-        ok (shared_frontier prefix)
+      else if KSet.is_empty prefix.todo then
+        ok (lcas_of_prefix prefix)
       else
         match n with
         | None   -> next_prefix t prefix >>= aux
         | Some n ->
-          let r = shared_frontier prefix in
+          let r = lcas_of_prefix prefix in
           let c = KSet.cardinal r in
           if c = n then ok r
           else if c > n then Lwt.return `Too_many_lcas
           else next_prefix t prefix >>= aux
     in
     let prefix = empty_prefix () in
-    let prefix =
-      { prefix with todo1 = KSet.singleton c1; todo2 = KSet.singleton c2 }
-    in
+    let max = KSet.of_list [c1; c2] in
+    let prefix = { prefix with max; todo = max } in
     aux prefix
 
   let rec three_way_merge t ?max_depth ?n c1 c2 =

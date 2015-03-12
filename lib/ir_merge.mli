@@ -28,17 +28,16 @@ val iter: ('a -> unit result Lwt.t) -> 'a list -> unit result Lwt.t
 exception Conflict of string
 val exn: 'a result -> 'a Lwt.t
 
-module OP: sig
-  val ok: 'a -> 'a result Lwt.t
-  val conflict: ('a, unit, string, 'b result Lwt.t) format4 -> 'a
-  val (>>|): 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
-end
-
 (** {1 Merge functions} *)
 
 type 'a promise = unit -> 'a option result Lwt.t
 
 type 'a t = old:'a promise -> 'a -> 'a -> 'a result Lwt.t
+
+val promise: 'a -> 'a promise
+val promise_map: ('a -> 'b) -> 'a promise -> 'b promise
+val promise_bind: 'a promise -> ('a -> 'b promise) -> 'b promise
+
 
 val seq: 'a t list -> 'a t
 val apply: ('a -> 'b t) -> 'a -> 'b t
@@ -68,3 +67,10 @@ val biject:  'a Tc.t -> 'b t -> ('a -> 'b) -> ('b -> 'a) -> 'a t
 val biject': 'a Tc.t -> 'b t -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a t
 
 val with_conflict: (string -> string) -> 'a t -> 'a t
+
+module OP: sig
+  val ok: 'a -> 'a result Lwt.t
+  val conflict: ('a, unit, string, 'b result Lwt.t) format4 -> 'a
+  val (>>|): 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
+  val (>?|): 'a promise -> ('a -> 'b promise) -> 'b promise
+end

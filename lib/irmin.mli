@@ -148,6 +148,17 @@ module Merge: sig
       eventually return a value type of ['a]. A promise is an
       optional, lazy and non-blocking value. *)
 
+  val promise: 'a -> 'a promise
+  (** [promise a] is the promise containing [a]. *)
+
+  val promise_map: ('a -> 'b) -> 'a promise -> 'b promise
+  (** promise_map f a] is the promise containing [f] applied to what
+      is promised by [b]. *)
+
+  val promise_bind: 'a promise -> ('a -> 'b promise) -> 'b promise
+  (** [promise_bind a f] is the promise returned by [f] applied to
+      what is promised by [a]. *)
+
   type 'a t = old:'a promise -> 'a -> 'a -> 'a result Lwt.t
   (** Signature of a merge function. [old] is the value of the
       least-common ancestor.
@@ -277,6 +288,9 @@ module Merge: sig
 
     val (>>|): 'a result Lwt.t -> ('a -> 'b result Lwt.t) -> 'b result Lwt.t
     (** Same as {!bind}. *)
+
+    val (>?|): 'a promise -> ('a -> 'b promise) -> 'b promise
+    (** Same as {!promise_bind}. *)
 
   end
 
