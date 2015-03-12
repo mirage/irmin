@@ -157,11 +157,9 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let update t key value =
     Log.debug "update";
-    remove t key >>= fun () ->
     let temp_dir = temp_dir t in
     let raw_value = Tc.write_cstruct (module V) value in
-    IO.write_file ~temp_dir (file_of_key t key) raw_value
-    >>= fun () ->
+    IO.write_file ~temp_dir (file_of_key t key) raw_value >>= fun () ->
     W.notify t.w key (Some value);
     return_unit
 
@@ -192,7 +190,6 @@ module Make_ext (IO: IO) (Obj: Config) (Ref: Config)
   module RW = RW_ext(IO)(Ref)
   include Irmin.Make(AO)(RW)(C)(T)(H)
 end
-
 
 let string_chop_prefix ~prefix str =
   let len = String.length prefix in
