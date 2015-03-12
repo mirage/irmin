@@ -215,6 +215,7 @@ struct
     return keys
 
   module KSet = Ir_misc.Set(S.Key)
+  let (++) = KSet.union
   let (--) = KSet.diff
 
   let proj g suffix =
@@ -249,6 +250,7 @@ struct
     n: int;                                               (* the search depth *)
     g: Graph.t;    (* transitive closure of the ancestors of the max elements *)
     max : KSet.t;                                             (* max elements *)
+    seen: KSet.t; (* the set of ancestors of at least ONE of the max elements *)
     shared: KSet.t;                   (* ancestors of ALL of the max elements *)
     todo  : KSet.t;      (* min ancestors on at least ONE of the max elements *)
   }
@@ -257,6 +259,7 @@ struct
     n      = 0;
     g      = Graph.create ();
     max    = KSet.empty;
+    seen   = KSet.empty;
     shared = KSet.empty;
     todo   = KSet.empty;
   }
@@ -281,8 +284,7 @@ struct
     let keys = KSet.to_list keys in
     Printf.sprintf "[%s]" @@ String.concat " " (List.map key keys)
 
-  let pr_prefix ({n; g; max; shared; todo} as p) =
-    let seen = kset (Graph.vertex g) in
+  let pr_prefix ({n; max; shared; todo; seen; _} as p) =
     let res  = lcas_of_prefix p in
     Printf.sprintf "n:%d max:%s seen:%s shared:%s todo:%s res:%s" n
       (pr_keys max)
@@ -299,6 +301,7 @@ struct
     List.iter (add p.g) edges;
     let g = Graph.transitive_closure p.g in
     let output = output edges in
+    let seen = p.seen ++ output in
     let shared =
       KSet.fold (fun o acc ->
           if KSet.for_all (fun i ->
@@ -308,8 +311,10 @@ struct
           else acc
         ) output p.shared
     in
-    let todo = output -- shared in
-    Lwt.return { p with n = p.n + 1; todo; shared; g }
+    let todo = output -- p.seen in
+    Lwt.return { n = p.n + 1; todo; shared; seen; g; max = p.max }
+
+  let is_complete p = KSet.subset p.todo p.shared
 
   let lca_calls = ref 0
   let lcas t ?(max_depth=256) ?n c1 c2 =
@@ -318,7 +323,7 @@ struct
     let rec aux prefix =
       Log.debug "lca %d %a" !lca_calls force (show_prefix prefix);
       if prefix.n > max_depth then Lwt.return `Max_depth_reached
-      else if KSet.is_empty prefix.todo then
+      else if is_complete prefix then
         ok (lcas_of_prefix prefix)
       else
         match n with
@@ -330,10 +335,12 @@ struct
           else if c > n then Lwt.return `Too_many_lcas
           else next_prefix t prefix >>= aux
     in
-    let prefix = empty_prefix () in
-    let max = KSet.of_list [c1; c2] in
-    let prefix = { prefix with max; todo = max } in
-    aux prefix
+    if S.Key.equal c1 c2 then
+      ok (KSet.singleton c1)
+    else
+      let prefix = empty_prefix () in
+      let max = KSet.of_list [c1; c2] in
+      aux { prefix with max; todo = max }
 
   let rec three_way_merge t ?max_depth ?n c1 c2 =
     Log.debug "3-way merge between %a and %a"

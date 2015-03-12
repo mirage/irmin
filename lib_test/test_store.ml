@@ -417,30 +417,119 @@ module Make (S: Irmin.S) = struct
       assert_equal (module C) "r3" r3 r3';
       assert_equal (module KC) "kr3" kr3 kr3';
 
-      (* test for multiple lca *)
-      History.create (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
-      History.create (h 1) ~node:k0 ~parents:[kr0] >>= fun kr1 ->
-      History.create (h 2) ~node:k0 ~parents:[kr0] >>= fun kr2 ->
-      History.create (h 3) ~node:k0 ~parents:[kr1; kr2] >>= fun kr3 ->
-      History.create (h 4) ~node:k0 ~parents:[kr1; kr2] >>= fun kr4 ->
-      S.of_head x.config task kr3 >>= fun t1 ->
-      S.of_head x.config task kr4 >>= fun t2 ->
-      S.lcas 5 t1 t2  >>= fun lcas ->
-      let lcas = match lcas with `Ok x -> x | _ -> failwith "lcas" in
-      assert_equal (module Set(KC)) "lcas" [kr1; kr2] lcas;
-      S.merge_exn 4 t1 ~into:t2   >>= fun () ->
+      let assert_lcas msg l1 l2 =
+        let l2 = match l2 with `Ok x -> x | _ -> failwith msg in
+        assert_equal (module Set(KC)) msg l1 l2
+      in
 
-      (* test that we don't compute too many lcas *)
+      (* test that we don't compute too many lcas
+
+         0->1->2->3->4
+
+      *)
       History.create (h 0) ~node:k0 ~parents:[]    >>= fun kr0 ->
       History.create (h 1) ~node:k0 ~parents:[kr0] >>= fun kr1 ->
       History.create (h 2) ~node:k0 ~parents:[kr1] >>= fun kr2 ->
       History.create (h 3) ~node:k0 ~parents:[kr2] >>= fun kr3 ->
       History.create (h 4) ~node:k0 ~parents:[kr3] >>= fun kr4 ->
+      S.of_head x.config task kr0 >>= fun _t0 ->
+      S.of_head x.config task kr1 >>= fun t1 ->
+      S.of_head x.config task kr2 >>= fun t2 ->
       S.of_head x.config task kr3 >>= fun t3 ->
       S.of_head x.config task kr4 >>= fun t4 ->
-      S.lcas ~max_depth:2 3 t3 t4 >>= fun lcas ->
-      let lcas = match lcas with `Ok x -> x | _ -> failwith "lcas" in
-      assert_equal (module Set(KC)) "lcas" [kr3] lcas;
+
+      S.lcas ~max_depth:1 3 t3 t4 >>= fun lcas ->
+      assert_lcas "line lcas 1" [kr3] lcas;
+
+      S.lcas ~max_depth:2 3 t2 t4 >>= fun lcas ->
+      assert_lcas "line lcas 2" [kr2] lcas;
+
+      S.lcas ~max_depth:2 3 t2 t4 >>= fun lcas ->
+      assert_lcas "line lcas 3" [kr2] lcas;
+
+      S.lcas ~max_depth:3 3 t1 t4 >>= fun lcas ->
+      assert_lcas "line lcas 4" [kr1] lcas;
+
+      (* test for multiple lca
+
+         4->10--->11-->13-->15
+             |      \______/___
+             |       ____/     \
+             |      /           \
+             \--->12-->14-->16-->17
+
+      *)
+      History.create (h 10) ~node:k0 ~parents:[kr4]        >>= fun kr10 ->
+      History.create (h 11) ~node:k0 ~parents:[kr10]       >>= fun kr11 ->
+      History.create (h 12) ~node:k0 ~parents:[kr10]       >>= fun kr12 ->
+      History.create (h 13) ~node:k0 ~parents:[kr11]       >>= fun kr13 ->
+      History.create (h 14) ~node:k0 ~parents:[kr12]       >>= fun kr14 ->
+      History.create (h 15) ~node:k0 ~parents:[kr12; kr13] >>= fun kr15 ->
+      History.create (h 16) ~node:k0 ~parents:[kr14]       >>= fun kr16 ->
+      History.create (h 17) ~node:k0 ~parents:[kr11; kr16] >>= fun kr17 ->
+      S.of_head x.config task kr10 >>= fun t10 ->
+      S.of_head x.config task kr11 >>= fun t11 ->
+      S.of_head x.config task kr12 >>= fun t12 ->
+      S.of_head x.config task kr13 >>= fun t13 ->
+      S.of_head x.config task kr14 >>= fun t14 ->
+      S.of_head x.config task kr15 >>= fun t15 ->
+      S.of_head x.config task kr16 >>= fun t16 ->
+      S.of_head x.config task kr17 >>= fun t17 ->
+
+      S.lcas ~max_depth:0 5 t10 t10 >>= fun lcas ->
+      assert_lcas "lcas 0" [kr10] lcas;
+
+      S.lcas ~max_depth:0 5 t14 t14  >>= fun lcas ->
+      assert_lcas "lcas 1" [kr14] lcas;
+
+      S.lcas ~max_depth:1 5 t10 t11 >>= fun lcas ->
+      assert_lcas "lcas 2" [kr10] lcas;
+
+      S.lcas ~max_depth:2 5 t12 t16 >>= fun lcas ->
+      assert_lcas "lcas 3" [kr12] lcas;
+
+      S.lcas ~max_depth:2 5 t10 t13 >>= fun lcas ->
+      assert_lcas "lcas 4" [kr10] lcas;
+
+      S.lcas ~max_depth:2 5 t13 t14  >>= fun lcas ->
+      assert_lcas "lcas 5" [kr10] lcas;
+
+      S.lcas ~max_depth:3 5 t15 t16  >>= fun lcas ->
+      assert_lcas "lcas 6" [kr12] lcas;
+
+      S.lcas ~max_depth:3 5 t15 t17  >>= fun lcas ->
+      assert_lcas "lcas 7" [kr11; kr12] lcas;
+
+      (* lcas on non transitive reduced graphs
+
+         4->10->11->12->13->14->15
+                 |        \--|--/
+                 \-----------/
+      *)
+      History.create (h 10) ~node:k0 ~parents:[kr4]       >>= fun kr10 ->
+      History.create (h 11) ~node:k0 ~parents:[kr10]      >>= fun kr11 ->
+      History.create (h 12) ~node:k0 ~parents:[kr11]      >>= fun kr12 ->
+      History.create (h 13) ~node:k0 ~parents:[kr12]      >>= fun kr13 ->
+      History.create (h 14) ~node:k0 ~parents:[kr11;kr13] >>= fun kr14 ->
+      History.create (h 15) ~node:k0 ~parents:[kr13;kr14] >>= fun kr15 ->
+      S.of_head x.config task kr10 >>= fun _t10 ->
+      S.of_head x.config task kr11 >>= fun t11 ->
+      S.of_head x.config task kr12 >>= fun t12 ->
+      S.of_head x.config task kr13 >>= fun t13 ->
+      S.of_head x.config task kr14 >>= fun t14 ->
+      S.of_head x.config task kr15 >>= fun t15 ->
+
+      S.lcas ~max_depth:1 3 t14 t15 >>= fun lcas ->
+      assert_lcas "weird lcas 1" [kr14] lcas;
+
+      S.lcas ~max_depth:2 3 t13 t15 >>= fun lcas ->
+      assert_lcas "weird lcas 2" [kr13] lcas;
+
+      S.lcas ~max_depth:3 3 t12 t15 >>= fun lcas ->
+      assert_lcas "weird lcas 3" [kr12] lcas;
+
+      S.lcas ~max_depth:4 3 t11 t15 >>= fun lcas ->
+      assert_lcas "weird lcas 4" [kr11] lcas;
 
       return_unit
     in
