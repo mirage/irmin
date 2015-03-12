@@ -55,6 +55,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     task: Irmin.task;
   }
 
+  let temp_dir t = t.path / "tmp"
   let task t = t.task
 
   let create config task =
@@ -123,9 +124,12 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     let value = Tc.write_cstruct (module V) value in
     let key = K.digest value in
     let file = file_of_key t key in
+    let temp_dir = temp_dir t in
     begin
-      if Sys.file_exists file then return_unit
-      else catch (fun () -> IO.write_file file value) (fun e -> fail e)
+      if Sys.file_exists file then
+        return_unit
+      else
+        catch (fun () -> IO.write_file ~temp_dir file value) (fun e -> fail e)
     end >>= fun () ->
     return key
 
@@ -154,7 +158,9 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let update t key value =
     Log.debug "update";
     remove t key >>= fun () ->
-    IO.write_file (file_of_key t key) (Tc.write_cstruct (module V) value)
+    let temp_dir = temp_dir t in
+    let raw_value = Tc.write_cstruct (module V) value in
+    IO.write_file ~temp_dir (file_of_key t key) raw_value
     >>= fun () ->
     W.notify t.w key (Some value);
     return_unit
