@@ -785,6 +785,52 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_concurrent_low x () =
+    let test () =
+      let k = t1 in
+      r1 x >>= fun v ->
+      create x >>= fun t ->
+      let tag_t = S.Private.tag_t (t "tag") in
+
+      let rec write = function
+        | 0 -> return_unit
+        | i -> Tag.update tag_t k v <&> write (i-1)
+      in
+      let rec read = function
+        | 0 -> return_unit
+        | i ->
+          Tag.read_exn tag_t k >>= fun v' ->
+          assert_equal (module S.Head) "test low-level concurrency" v v';
+          read (i-1)
+      in
+      write 1 >>= fun () ->
+      Lwt.join [ write 500; read 1000; write 1000; read 500; ]
+    in
+    run x test
+
+  let test_concurrent_high x () =
+    let test () =
+      let k = p ["a";"b";"c"] in
+      let v = string x "X1" in
+      create x >>= fun t ->
+
+      let t x = Printf.ksprintf t x in
+      let rec write = function
+        | 0 -> return_unit
+        | i -> S.update (t "write %d" i) k v <&> write (i-1)
+      in
+      let rec read = function
+        | 0 -> return_unit
+        | i ->
+          S.read_exn (t "read %d" i) k >>= fun v' ->
+          assert_equal (module V) "test low-level concurrency" v v';
+          read (i-1)
+      in
+      write 1 >>= fun () ->
+      Lwt.join [ write 500; read 1000; write 1000; read 500; ]
+    in
+    run x test
+
 end
 
 let suite (speed, x) =
@@ -792,15 +838,17 @@ let suite (speed, x) =
   let module T = Make(S) in
   x.name,
   [
-    "Basic operations on contents"    , speed, T.test_contents   x;
-    "Basic operations on nodes"       , speed, T.test_nodes      x;
-    "Basic operations on commits"     , speed, T.test_commits    x;
+    "Basic operations on contents"    , speed, T.test_contents x;
+    "Basic operations on nodes"       , speed, T.test_nodes x;
+    "Basic operations on commits"     , speed, T.test_commits x;
     "Basic operations on tags"        , speed, T.test_tags x;
-    "Basic merge operations"          , speed, T.test_merges     x;
-    "High-level store operations"     , speed, T.test_stores     x;
-    "High-level operations in views"  , speed, T.test_views      x;
-    "High-level store synchronisation", speed, T.test_sync       x;
-    "High-level store merges"         , speed, T.test_merge_api  x;
+    "Basic merge operations"          , speed, T.test_merges x;
+    "High-level store operations"     , speed, T.test_stores x;
+    "High-level operations on views"  , speed, T.test_views x;
+    "High-level store synchronisation", speed, T.test_sync x;
+    "High-level store merges"         , speed, T.test_merge_api x;
+    "Low-level concurrency"           , speed, T.test_concurrent_low x;
+    "High-level concurrency"          , speed, T.test_concurrent_high x;
   ]
 
 let run name tl =
