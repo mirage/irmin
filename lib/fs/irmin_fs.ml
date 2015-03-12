@@ -78,10 +78,14 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Log.debug "file=%s" file;
     return (Sys.file_exists file)
 
-  let read_exn t key =
-    mem t key >>= function
-    | false -> fail Not_found
-    | true  -> IO.read_file (file_of_key t key) >>= fun x -> return (mk_value x)
+   let err_not_found n k =
+     let str = Printf.sprintf "Irmin_fs.%s: %s not found" n (K.to_hum k) in
+     Lwt.fail (Invalid_argument str)
+
+   let read_exn t key =
+     mem t key >>= function
+     | false -> err_not_found "read" key
+     | true  -> IO.read_file (file_of_key t key) >>= fun x -> return (mk_value x)
 
   let read t key =
     Log.debug "read";
@@ -121,7 +125,7 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     let file = file_of_key t key in
     begin
       if Sys.file_exists file then return_unit
-      else catch (fun () -> IO.write_file file value) (fun e -> Log.debug "XXX"; fail e)
+      else catch (fun () -> IO.write_file file value) (fun e -> fail e)
     end >>= fun () ->
     return key
 

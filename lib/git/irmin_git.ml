@@ -136,9 +136,13 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | None   -> return_none
       | Some v -> return (V.of_git v)
 
+    let err_not_found n k =
+      let str = Printf.sprintf "Irmin_git.%s: %s not found" n (K.to_hum k) in
+      Lwt.fail (Invalid_argument str)
+
     let read_exn t key =
       read t key >>= function
-      | None   -> fail Not_found
+      | None   -> err_not_found "read" key
       | Some v -> return v
 
     let add { t; _ } v =
