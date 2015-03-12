@@ -311,8 +311,10 @@ struct
           else acc
         ) output p.shared
     in
-    let todo = output -- shared -- p.seen in
+    let todo = output -- p.seen in
     Lwt.return { n = p.n + 1; todo; shared; seen; g; max = p.max }
+
+  let is_complete p = KSet.subset p.todo p.shared
 
   let lca_calls = ref 0
   let lcas t ?(max_depth=256) ?n c1 c2 =
@@ -321,7 +323,7 @@ struct
     let rec aux prefix =
       Log.debug "lca %d %a" !lca_calls force (show_prefix prefix);
       if prefix.n > max_depth then Lwt.return `Max_depth_reached
-      else if KSet.is_empty prefix.todo then
+      else if is_complete prefix then
         ok (lcas_of_prefix prefix)
       else
         match n with
