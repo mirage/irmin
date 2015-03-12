@@ -330,10 +330,12 @@ struct
           else if c > n then Lwt.return `Too_many_lcas
           else next_prefix t prefix >>= aux
     in
-    let prefix = empty_prefix () in
-    let max = KSet.of_list [c1; c2] in
-    let prefix = { prefix with max; todo = max } in
-    aux prefix
+    if S.Key.equal c1 c2 then
+      ok (KSet.singleton c1)
+    else
+      let prefix = empty_prefix () in
+      let max = KSet.of_list [c1; c2] in
+      aux { prefix with max; todo = max }
 
   let rec three_way_merge t ?max_depth ?n c1 c2 =
     Log.debug "3-way merge between %a and %a"
