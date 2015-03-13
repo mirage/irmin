@@ -150,11 +150,13 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
             | None   -> Hashtbl.remove t.t key
             | Some v -> Hashtbl.replace t.t key v
           in
-          W.notify t.w key v;
           Lwt.return true
         ) else
           Lwt.return false
-      )
+      ) >>= fun updated ->
+    if updated then W.notify t.w key set;
+    Lwt.return updated
+
 
   let watch t key =
     Irmin.Private.Watch.lwt_stream_lift (
