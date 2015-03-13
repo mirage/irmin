@@ -17,6 +17,7 @@
 open Lwt
 open Test_common
 open Irmin_unix
+open Printf
 
 let random_string n =
   let t  = Unix.gettimeofday () in
@@ -339,7 +340,7 @@ module Make (S: Irmin.S) = struct
         assert_equal (module X) "compound merge" m m';
         return_unit
       | `Conflict c ->
-        OUnit.assert_bool (Printf.sprintf "compound merge: %s" c) false;
+        OUnit.assert_bool (sprintf "compound merge: %s" c) false;
         return_unit
     in
 
@@ -741,7 +742,7 @@ module Make (S: Irmin.S) = struct
     let buf = Buffer.create 1024 in
     let date d =
       let tm = Unix.localtime (Int64.to_float d) in
-      Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+      sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     in
     Dot.output_buffer t ~date buf >>= fun () ->
     let oc = open_out_bin (file ^ ".dot") in
@@ -785,51 +786,68 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+
+  let rec write fn = function
+    | 0 -> return_unit
+    | i -> fn i <&> write fn (i-1)
+
+  let rec read fn check = function
+    | 0 -> return_unit
+    | i ->
+      fn i >>= fun v ->
+      check i v;
+      read fn check (i-1)
+
   let test_concurrent_low x () =
-    let test () =
+    let test_tags () =
       let k = t1 in
       r1 x >>= fun v ->
       create x >>= fun t ->
-      let tag_t = S.Private.tag_t (t "tag") in
-
-      let rec write = function
-        | 0 -> return_unit
-        | i -> Tag.update tag_t k v <&> write (i-1)
-      in
-      let rec read = function
-        | 0 -> return_unit
-        | i ->
-          Tag.read_exn tag_t k >>= fun v' ->
-          assert_equal (module S.Head) "test low-level concurrency" v v';
-          read (i-1)
+      let t = S.Private.tag_t (t "tag") in
+      let write = write (fun _i -> Tag.update t k v) in
+      let read =
+        read
+          (fun _i -> Tag.read_exn t k)
+          (fun i  -> assert_equal (module S.Head) (sprintf "test %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 500; read 1000; write 1000; read 500; ]
+      Lwt.join [ write 500; read 100; write 100; read 500; ]
     in
-    run x test
+    let test_contents () =
+      kv1 x >>= fun k ->
+      let v = v1 x in
+      create x >>= fun t ->
+      let t = S.Private.contents_t (t "contents") in
+      let write =
+        write (fun _i -> Contents.add t v >>= fun _ -> Lwt.return_unit)
+      in
+      let read =
+        read
+          (fun _i -> Contents.read_exn t k)
+          (fun i  -> assert_equal (module V) (sprintf "test %d" i) v)
+      in
+      write 1 >>= fun () ->
+      Lwt.join [ write 50; read 100; write 100; read 50; ]
+    in
+    run x (fun () -> Lwt.join [test_tags (); test_contents ()])
 
   let test_concurrent_high x () =
-    let test () =
+    let test_one () =
       let k = p ["a";"b";"c"] in
       let v = string x "X1" in
       create x >>= fun t ->
 
-      let t x = Printf.ksprintf t x in
-      let rec write = function
-        | 0 -> return_unit
-        | i -> S.update (t "write %d" i) k v <&> write (i-1)
-      in
-      let rec read = function
-        | 0 -> return_unit
-        | i ->
-          S.read_exn (t "read %d" i) k >>= fun v' ->
-          assert_equal (module V) "test low-level concurrency" v v';
-          read (i-1)
+      let t x = ksprintf t x in
+      let write = write (fun i -> S.update (t "write %d" i) k v) in
+      let read =
+        read
+          (fun i -> S.read_exn (t "read %d" i) k)
+          (fun i -> assert_equal (module V) (sprintf "test %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 500; read 1000; write 1000; read 500; ]
+      Lwt.join [ write 500; read 100; write 100; read 500; ]
     in
-    run x test
+    run x test_one
 
 end
 
