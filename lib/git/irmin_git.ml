@@ -528,6 +528,8 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       W.notify t.w r (Some k);
       write_index t gr gk
 
+    let compare_and_set _ = failwith "Irmin_git.compare_and_set"
+
     let remove t r =
       G.remove_reference t.t (git_of_tag r) >>= fun () ->
       W.notify t.w r None;

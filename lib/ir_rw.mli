@@ -20,6 +20,7 @@ module type STORE = sig
   include Ir_ro.STORE
   val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
   val update: t -> key -> value -> unit Lwt.t
+  val compare_and_set: t -> key -> test:value option -> set:value option -> bool Lwt.t
   val remove: t -> key -> unit Lwt.t
   val watch: t -> key -> value option Lwt_stream.t
   val watch_all: t -> (key * value option) Lwt_stream.t

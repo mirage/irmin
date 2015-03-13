@@ -27,4 +27,4 @@ val head: Git.Reference.t option Irmin.Private.Conf.key
 module AO (G: Git.Store.S): Irmin.AO_MAKER
 module RW (G: Git.Store.S): Irmin.RW_MAKER
 module Memory (IO: Git.Sync.IO): Irmin.S_MAKER
-module FS (IO: Git.Sync.IO) (G: Git.FS.IO): Irmin.S_MAKER
+module FS (IO: Git.Sync.IO) (FS: Git.FS.IO): Irmin.S_MAKER

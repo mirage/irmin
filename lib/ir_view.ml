@@ -150,6 +150,7 @@ module Internal (Node: NODE) = struct
     view: Node.t;
     ops: action list ref;
     parents: Node.commit list ref;
+    lock: Lwt_mutex.t;
   }
 
   module CO = Tc.Option(Node.Contents)
@@ -160,7 +161,8 @@ module Internal (Node: NODE) = struct
     let view = Node.empty () in
     let ops = ref [] in
     let parents = ref [] in
-    Lwt.return { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    Lwt.return { parents; view; ops; lock }
 
   let create _conf _task =
     Log.debug "create";
@@ -275,10 +277,20 @@ module Internal (Node: NODE) = struct
     update_contents_aux t k v
 
   let update t k v =
-    update_contents t k (Some v)
+    Lwt_mutex.with_lock t.lock (fun () -> update_contents t k (Some v))
 
   let remove t k =
-    update_contents t k None
+    Lwt_mutex.with_lock t.lock (fun () -> update_contents t k None)
+
+  let compare_and_set t k ~test ~set =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        read t k >>= fun v ->
+        if Tc.O1.equal Node.Contents.equal test v then
+          update_contents t k set >>= fun () ->
+          Lwt.return true
+        else
+          Lwt.return false
+      )
 
   let remove_rec t k =
     match Path.decons k with
@@ -617,7 +629,8 @@ module Make (S: Ir_s.STORE) = struct
     let view = Node.empty () in
     let ops = ref [] in
     let parents = ref parents in
-    { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    { parents; view; ops; lock }
 
   let import db ~parents key =
     Log.debug "import %a" force (show (module P.Node.Key) key);
@@ -627,7 +640,8 @@ module Make (S: Ir_s.STORE) = struct
     end >>= fun view ->
     let ops = ref [] in
     let parents = ref parents in
-    Lwt.return { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    Lwt.return { parents; view; ops; lock }
 
   let export db t =
     Log.debug "export";

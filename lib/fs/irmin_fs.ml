@@ -155,6 +155,8 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     W.notify t.w key None;
     return_unit
 
+  let compare_and_set _ = failwith "Irmim_fs.compare_and_set: TODO"
+
   let watch t key =
     W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
     Irmin.Private.Watch.lwt_stream_lift (

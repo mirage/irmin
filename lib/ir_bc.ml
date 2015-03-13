@@ -268,7 +268,7 @@ module Make_ext (P: PRIVATE) = struct
     | None   -> return false
     | Some n -> Graph.mem_node (graph_t t) n path
 
-  let with_commit t ~f =
+  let rec with_commit t ~f =
     read_head_commit t >>= fun commit ->
     begin match commit with
       | None   -> Graph.empty (graph_t t)
@@ -281,8 +281,16 @@ module Make_ext (P: PRIVATE) = struct
     let parents = parents_of_commit commit in
     H.create (history_t t) ~node ~parents >>= fun key ->
     match branch t with
-    | `Head _  -> t.branch := `Head key; return_unit
-    | `Tag tag -> Tag.update (tag_t t) tag key
+    | `Head h  ->
+      if Tc.O1.equal Head.equal commit (Some h) then (
+        t.branch := `Head key;
+        Lwt.return_unit
+      ) else
+        with_commit t ~f
+    | `Tag tag ->
+      Tag.compare_and_set (tag_t t) tag ~test:commit ~set:(Some key) >>= function
+      | true  -> Lwt.return_unit
+      | false -> with_commit t ~f
 
   let update_node t path node =
     with_commit t ~f:(fun head ->
@@ -326,6 +334,8 @@ module Make_ext (P: PRIVATE) = struct
 
   let mem t path =
     map t path ~f:Graph.mem_contents
+
+  let compare_and_set _ = failwith "Irmin.compare_and_set: TODO"
 
   (* Return the subpaths. *)
   let list t path =

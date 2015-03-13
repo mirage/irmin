@@ -25,6 +25,43 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.fail (Invalid_argument str)
 
   module W = Irmin.Private.Watch.Make(K)(V)
+  module L = struct
+
+    type t = {
+      global: Lwt_mutex.t;
+      locks : (K.t, Lwt_mutex.t) Hashtbl.t;
+    }
+
+    let create () = {
+      global = Lwt_mutex.create ();
+      locks  = Hashtbl.create 1024;
+    }
+
+    let lock t key () =
+      let lock =
+        try Hashtbl.find t.locks key
+        with Not_found ->
+          let lock = Lwt_mutex.create () in
+          Hashtbl.add t.locks key lock;
+          lock
+      in
+      Lwt.return lock
+
+    let unlock t key () =
+      let () =
+        if Hashtbl.mem t.locks key then
+          let lock = Hashtbl.find t.locks key in
+          if Lwt_mutex.is_empty lock then Hashtbl.remove t.locks key
+      in
+      Lwt.return_unit
+
+    let with_lock t k fn =
+      Lwt_mutex.with_lock t.global (lock t k) >>= fun lock ->
+      Lwt_mutex.with_lock lock fn >>= fun r ->
+      Lwt_mutex.with_lock t.global (unlock t k) >>= fun () ->
+      Lwt.return r
+
+  end
 
   type key = K.t
 
@@ -35,14 +72,16 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     w: W.t;
     task: Irmin.task;
     config: Irmin.config;
+    lock: L.t;
   }
 
   let task t = t.task
   let table = Hashtbl.create 23
   let watches = W.create ()
+  let lock = L.create ()
 
   let create config task =
-    return (fun a -> { t = table; w = watches; task = task a; config })
+    return (fun a -> { t = table; w = watches; task = task a; config; lock })
 
   let read { t; _ } key =
     Log.debug "read";
@@ -86,15 +125,36 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let update t key value =
     Log.debug "update";
-    Hashtbl.replace t.t key value;
+    L.with_lock t.lock key (fun () ->
+        Hashtbl.replace t.t key value;
+        Lwt.return_unit
+      ) >>= fun () ->
     W.notify t.w key (Some value);
     return_unit
 
   let remove t key =
     Log.debug "remove";
-    Hashtbl.remove t.t key;
+    L.with_lock t.lock key (fun () ->
+        Hashtbl.remove t.t key;
+        Lwt.return_unit
+      ) >>= fun () ->
     W.notify t.w key None;
     return_unit
+
+  let compare_and_set t key ~test ~set =
+    Log.debug "compare_and_set";
+    L.with_lock t.lock key (fun () ->
+        read t key >>= fun v ->
+        if Tc.O1.equal V.equal test v then (
+          let () = match set with
+            | None   -> Hashtbl.remove t.t key
+            | Some v -> Hashtbl.replace t.t key v
+          in
+          W.notify t.w key v;
+          Lwt.return true
+        ) else
+          Lwt.return false
+      )
 
   let watch t key =
     Irmin.Private.Watch.lwt_stream_lift (

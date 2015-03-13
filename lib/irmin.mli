@@ -376,6 +376,15 @@ module type RW = sig
   (** [update t k v] replaces the contents of [k] by [v] in [t]. If
       [k] is not already defined in [t], create a fresh binding. *)
 
+  val compare_and_set: t -> key -> test:value option -> set:value option -> bool Lwt.t
+  (** [comapre_and_set t k ~test ~set] set [t] to [set] only if the
+      current value of [t] is [test] and in that case return
+      [true]. If the current value of [key] is different, return
+      [false]. [None] means that the value does not have exist or that
+      the value is removed.
+
+      {b Note:} The operation is guaranteed to be atomic. *)
+
   val remove: t -> key -> unit Lwt.t
   (** [remove t k] remove the key [k] in [t]. *)
 

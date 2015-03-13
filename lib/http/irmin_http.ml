@@ -212,6 +212,12 @@ struct
     let remove { uri; _ } key =
       delete uri ["remove"; K.to_hum key] Tc.unit
 
+    module CS = Tc.Pair(Tc.Option(V))(Tc.Option(V))
+
+    let compare_and_set { uri; _ } key ~test ~set =
+      post uri ["compare-and-set"; K.to_hum key] (CS.to_json (test, set))
+        Tc.bool
+
     let watch { uri; _ } path =
       get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
 
@@ -416,11 +422,17 @@ struct
     in
     return_unit
 
-  let remove t  key =
+  let remove t key =
     delete (uri t) ["remove"; P.to_hum key] (module H) >>= fun h ->
     match t.branch with
     | `Head _ -> set_head t h; return_unit
     | `Tag _  -> return_unit
+
+  module CS = Tc.Pair(Tc.Option(C))(Tc.Option(C))
+
+  let compare_and_set t key ~test ~set =
+    post (uri t) ["compare-and-set"; P.to_hum key] (CS.to_json (test, set))
+      Tc.bool
 
   let tag t = match t.branch with
     | `Head _ -> Lwt.return_none
