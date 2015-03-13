@@ -45,17 +45,21 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     return (fun a -> { t = table; w = watches; task = task a; config })
 
   let read { t; _ } key =
+    Log.debug "read";
     try return (Some (Hashtbl.find t key))
     with Not_found -> Lwt.return_none
 
   let read_exn { t; _ } key =
+    Log.debug "read";
     try return (Hashtbl.find t key)
     with Not_found -> err_not_found "read" key
 
   let mem { t; _ } key =
+    Log.debug "mem";
     return (Hashtbl.mem t key)
 
   let iter { t; _ } fn =
+    Log.debug "iter";
     let todo = ref [] in
     Hashtbl.iter (fun k _ -> todo := (fn k) :: !todo) t;
     Lwt_list.iter_p (fun x -> x) !todo
@@ -67,6 +71,7 @@ module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
   include RO(K)(V)
 
   let add { t; _ } value =
+    Log.debug "add";
     (* XXX: hook to choose the serialization format / key generator
        ? *)
     let key = K.digest (Tc.write_cstruct (module V) value) in
@@ -80,13 +85,13 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   include RO(K)(V)
 
   let update t key value =
-    Log.debug "update %s %s"
-      (Tc.show (module K) key) (Tc.show (module V) value);
+    Log.debug "update";
     Hashtbl.replace t.t key value;
     W.notify t.w key (Some value);
     return_unit
 
   let remove t key =
+    Log.debug "remove";
     Hashtbl.remove t.t key;
     W.notify t.w key None;
     return_unit
