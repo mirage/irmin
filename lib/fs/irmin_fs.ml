@@ -141,20 +141,6 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let key_of_file file = Some (K.of_hum (S.key_of_file file))
 
-  let create config task =
-    let w = W.create () in
-    let path = match Irmin.Private.Conf.get config root_key with
-      | None   -> IO.getcwd ()
-      | Some p -> return p
-    in
-    path >>= fun path ->
-    IO.mkdir path >>= fun () ->
-    return (fun a -> { path; w; task = task a })
-
-  let remove t key =
-    let file = file_of_key t key in
-    IO.remove file
-
   let update t key value =
     Log.debug "update";
     let temp_dir = temp_dir t in
@@ -164,7 +150,8 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     return_unit
 
   let remove t key =
-    remove t key >>= fun () ->
+    let file = file_of_key t key in
+    IO.remove file >>= fun () ->
     W.notify t.w key None;
     return_unit
 
@@ -199,8 +186,7 @@ let string_chop_prefix ~prefix str =
 module Ref = struct
   let dir p = p / "refs"
   let file_of_key key = "refs" / key
-  let key_of_file file =
-    string_chop_prefix ~prefix:("refs" / "") file
+  let key_of_file file = string_chop_prefix ~prefix:("refs" / "") file
 end
 
 module Obj = struct
