@@ -808,10 +808,10 @@ module Make (S: Irmin.S) = struct
       let read =
         read
           (fun _i -> Tag.read_exn t k)
-          (fun i  -> assert_equal (module S.Head) (sprintf "test %d" i) v)
+          (fun i  -> assert_equal (module S.Head) (sprintf "tag %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 50; read 100; write 100; read 50; ]
+      Lwt.join [ write 50; read 10; write 10; read 50; ]
     in
     let test_contents () =
       kv2 x >>= fun k ->
@@ -824,49 +824,77 @@ module Make (S: Irmin.S) = struct
       let read =
         read
           (fun _i -> Contents.read_exn t k)
-          (fun i  -> assert_equal (module V) (sprintf "test %d" i) v)
+          (fun i  -> assert_equal (module V) (sprintf "contents %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 50; read 100; write 100; read 50; ]
+      Lwt.join [ write 50; read 10; write 10; read 50; ]
     in
     run x (fun () -> Lwt.join [test_tags (); test_contents ()])
 
-  let test_concurrent_high x () =
+  let test_concurrent_updates x () =
     let test_one () =
       let k = p ["a";"b";"c"] in
       let v = string x "X1" in
       create x >>= fun t1 ->
       create x >>= fun t2 ->
       let mk t x = ksprintf t x in
-      let write t = write (fun i -> S.update (mk t "write %d" i) k v) in
+      let write t = write (fun i -> S.update (mk t "update: one %d" i) k v) in
       let read t =
         read
           (fun i -> S.read_exn (mk t "read %d" i) k)
-          (fun i -> assert_equal (module V) (sprintf "test %d" i) v)
+          (fun i -> assert_equal (module V) (sprintf "update: one %d" i) v)
       in
-      Lwt.join [ write t1 100; write t2 100 ] >>= fun () ->
-      Lwt.join [ read t1 100 ]
+      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
+      Lwt.join [ read t1 50 ]
     in
     let test_multi () =
       let k i = p ["a";"b";"c"; string_of_int i ] in
       let v i = string x (sprintf "X%d" i) in
-      create x >>= fun t ->
-
-      let t x = ksprintf t x in
-      let write = write (fun i -> S.update (t "write %d" i) (k i) (v i)) in
-      let read =
-        read
-          (fun i -> S.read_exn (t "read %d" i) (k i))
-          (fun i -> assert_equal (module V) (sprintf "test %d" i) (v i))
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t =
+        write (fun i -> S.update (mk t "update: multi %d" i) (k i) (v i))
       in
-      Lwt.join [ write 25 ] >>= fun () ->
-      Lwt.join [ read  25 ]
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) (k i))
+          (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
+      in
+      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
+      Lwt.join [ read t1 50 ]
     in
     run x (fun () ->
         test_one   () >>= fun () ->
         test_multi () >>= fun () ->
         Lwt.return_unit
       )
+
+  let test_concurrent_merges x () =
+    let test () =
+      let k i = p ["a";"b";"c"; string_of_int i ] in
+      let v i = string x (sprintf "X%d" i) in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t =
+        write (fun i ->
+            let tag = S.Tag.of_hum (sprintf "tmp%d" i) in
+            S.clone_force task (mk t "cloning") tag >>= fun m ->
+            S.update (m "update") (k i) (v i) >>= fun () ->
+            S.merge (sprintf "update: multi %d" i) m ~into:t >>=
+            Irmin.Merge.exn
+          )
+      in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) (k i))
+          (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
+      in
+      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
+      Lwt.join [ read t1 50 ]
+    in
+    run x test
 
 end
 
@@ -885,7 +913,8 @@ let suite (speed, x) =
     "High-level store synchronisation", speed, T.test_sync x;
     "High-level store merges"         , speed, T.test_merge_api x;
     "Low-level concurrency"           , speed, T.test_concurrent_low x;
-    "High-level concurrency"          , speed, T.test_concurrent_high x;
+    "Concurrent updates"              , speed, T.test_concurrent_updates x;
+    "Concurrent merges"               , speed, T.test_concurrent_merges x;
   ]
 
 let run name tl =
