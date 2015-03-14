@@ -882,12 +882,12 @@ module Make (S: Irmin.S) = struct
       create x >>= fun t1 ->
       create x >>= fun t2 ->
       let mk t x = ksprintf t x in
-      let write t =
+      let write t n =
         write (fun i ->
-            let tag = S.Tag.of_hum (sprintf "tmp%d" i) in
+            let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
             S.clone_force task (mk t "cloning") tag >>= fun m ->
             S.update (m "update") (k i) (v i) >>= fun () ->
-            S.merge (sprintf "update: multi %d" i) m ~into:t >>=
+            S.merge (sprintf "update: multi %d" i) ~n:1 m ~into:t >>=
             Irmin.Merge.exn
           )
       in
@@ -896,7 +896,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> S.read_exn (mk t "read %d" i) (k i))
           (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
       in
-      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
+      S.update (t1 "update") (k 0) (v 0) >>= fun () ->
+      Lwt.join [ write t1 1 50; write t2 2 50 ] >>= fun () ->
       Lwt.join [ read t1 50 ]
     in
     run x test
