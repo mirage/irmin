@@ -811,7 +811,7 @@ module Make (S: Irmin.S) = struct
           (fun i  -> assert_equal (module S.Head) (sprintf "test %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 500; read 100; write 100; read 500; ]
+      Lwt.join [ write 50; read 100; write 100; read 50; ]
     in
     let test_contents () =
       kv2 x >>= fun k ->
