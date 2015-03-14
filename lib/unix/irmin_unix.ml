@@ -86,9 +86,9 @@ module Irmin_git = struct
   let head = Irmin_git.head
   let bare = Irmin_git.bare
   module AO = Irmin_git.AO
-  module RW = Irmin_git.RW
+  module RW = Irmin_git.RW(Lock)
   module Memory = Irmin_git.Memory(Git_unix.Sync.IO)
-  module FS = Irmin_git.FS(Git_unix.Sync.IO)(IO)
+  module FS = Irmin_git.FS(Git_unix.Sync.IO)(Lock)(IO)
 end
 
 module Irmin_http = struct
