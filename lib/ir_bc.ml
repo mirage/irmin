@@ -401,17 +401,45 @@ module Make_ext (P: PRIVATE) = struct
     Tag.read_exn (tag_t t) tag >>= fun k ->
     update_head t k
 
-  let merge_head t ?max_depth ?n c1 =
-    let aux c2 =
-      three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
-      update_head t c3 >>= ok
+  let compare_and_set_head t ~test ~set =
+    match t.branch with
+    | `Head head ->
+      let set = match set with
+        | None   -> failwith "Irmin.compare_and_set_head: empty set"
+        | Some s -> s
+      in
+      Lwt_mutex.with_lock t.lock (fun () ->
+          if Some !head = test then (
+            head := set;
+            Lwt.return true
+          ) else
+            Lwt.return false)
+    | `Tag tag -> Tag.compare_and_set (tag_t t) tag ~test ~set
+
+  let retry_merge name fn =
+    let rec aux i =
+      fn () >>= function
+      | `Conflict _ as c -> Lwt.return c
+      | `Ok true  -> ok ()
+      | `Ok false ->
+        Log.debug "Irmin.%s: conflict, retrying (%d)." name i;
+        aux (i+1)
     in
-    match branch t with
-    | `Head c2 -> aux c2
-    | `Tag tag ->
-      Tag.read (tag_t t) tag >>= function
-      | None    -> update_head t c1 >>= ok
-      | Some c2 -> aux c2
+    aux 1
+
+  let merge_head t ?max_depth ?n c1 =
+    let aux () =
+      read_head_commit t >>= fun head ->
+      match head with
+      | None    ->
+        compare_and_set_head t ~test:None ~set:(Some c1) >>=
+        ok
+      | Some c2 ->
+        three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
+        compare_and_set_head t ~test:head ~set:(Some c3) >>=
+        ok
+    in
+    retry_merge "merge_head" aux
 
   let merge_head_exn t ?max_depth ?n c1 =
     merge_head t ?max_depth ?n c1 >>= Ir_merge.exn
