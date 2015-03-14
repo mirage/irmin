@@ -541,6 +541,9 @@ module Make (S: Irmin.S) = struct
   let test_stores x () =
     let test () =
       create x >>= fun t ->
+
+      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
+
       let v1 = v1 x in
       S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
 
@@ -552,6 +555,8 @@ module Make (S: Irmin.S) = struct
       assert_equal (module V) "v1.1" v1 v1';
 
       Snapshot.create (t "snapshot") >>= fun r1 ->
+
+      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
 
       let v2 = v2 x in
       S.update (t "update") (p ["a";"c"]) v2 >>= fun () ->
