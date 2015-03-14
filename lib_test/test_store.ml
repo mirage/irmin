@@ -835,16 +835,17 @@ module Make (S: Irmin.S) = struct
     let test_one () =
       let k = p ["a";"b";"c"] in
       let v = string x "X1" in
-      create x >>= fun t ->
-      let t x = ksprintf t x in
-      let write = write (fun i -> S.update (t "write %d" i) k v) in
-      let read =
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t = write (fun i -> S.update (mk t "write %d" i) k v) in
+      let read t =
         read
-          (fun i -> S.read_exn (t "read %d" i) k)
+          (fun i -> S.read_exn (mk t "read %d" i) k)
           (fun i -> assert_equal (module V) (sprintf "test %d" i) v)
       in
-      Lwt.join [ write 25 ] >>= fun () ->
-      Lwt.join [ read  25 ]
+      Lwt.join [ write t1 100; write t2 100 ] >>= fun () ->
+      Lwt.join [ read t1 100 ]
     in
     let test_multi () =
       let k i = p ["a";"b";"c"; string_of_int i ] in
