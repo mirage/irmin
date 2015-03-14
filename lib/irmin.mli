@@ -481,11 +481,6 @@ module type BC = sig
       nothing if [t] is not persistent. Similar to [git branch -D
       <current-branch>] *)
 
-  val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-  (** [rename_tag t tag] renames the branch [t] to [tag], without
-      changing its contents. Fail if a branch with the same name
-      already exists. Similar to [git branch -M <tag>]. *)
-
   val update_tag: t -> tag -> unit Lwt.t
   (** [update_tag t tag] updates [t]'s contents with the contents of
       the branch named [tag]. Can cause data losses as it discard the
@@ -498,12 +493,6 @@ module type BC = sig
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   (** Same as {!merge_tag} but raise {!Merge.Conflict} in case of
       conflict. *)
-
-  val switch_tag: t -> tag -> unit Lwt.t
-  (** [switch_tag t tag] switches the current branch name to be [tag]
-      and the contents of the current branch to be [tag]'s
-      contents. If [tag] does not exit, create a new branch
-      name. Similar to [git checkout [-b] <tag>]. *)
 
   (** {2:temporary Temporary Branches}
 
@@ -549,12 +538,6 @@ module type BC = sig
   (** [heads t] is the list of all the heads in [t]'s store. Similar
       to [git rev-list --all]. *)
 
-  val detach: t -> unit Lwt.t
-  (** [detach t] transform the persistent branch [t] into a temporary
-      branch with the same contents. Do nothing if the branch is
-      already a temporary one. Similar to [git checkout --detach
-      <current-tag>]. *)
-
   val update_head: t -> head -> unit Lwt.t
   (** [update_head t h] updates [t]'s contents with the contents of
       the head [h]. Can cause data losses as it discards the current
@@ -573,10 +556,6 @@ module type BC = sig
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
-
-  val switch_head: t -> head -> unit Lwt.t
-  (** [switch t h] changes [t]'s head to be [h]. Similar to [git
-      checkout <sha1>].  *)
 
   val watch_head: t -> key -> (key * head option) Lwt_stream.t
   (** FIXME Watch changes for a given collection of keys and the ones they
@@ -1784,9 +1763,6 @@ val tags: ([`BC],'k,'v) t -> string list Lwt.t
 val remove_tag: ([`BC],'k,'v) t -> unit Lwt.t
 (** See {!BC.remove_tag}. *)
 
-val rename_tag: ([`BC],'k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
-(** See {!BC.rename_tag}. *)
-
 val update_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
 (** See {!BC.update_tag}. *)
 
@@ -1796,9 +1772,6 @@ val merge_tag: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string ->
 
 val merge_tag_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string -> unit Lwt.t
 (** See {!BC.merge_tag_exn}. *)
-
-val switch_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
-(** See {!BC.switch_tag}. *)
 
 (** {2 Heads} *)
 
@@ -1814,9 +1787,6 @@ val branch: ([`BC],'k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t]
 val heads: ([`BC],'k,'v) t -> Hash.SHA1.t list Lwt.t
 (** See {!BC.heads}. *)
 
-val detach: ([`BC],'k,'v) t -> unit Lwt.t
-(** See {!BC.detach}. *)
-
 val update_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
 (** See {!BC.update_head}. *)
 
@@ -1827,9 +1797,6 @@ val merge_head: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
 val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
-
-val switch_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
-(** Seee {!BC.switch_head}. *)
 
 val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t
 (** See {!BC.watch_head}. *)

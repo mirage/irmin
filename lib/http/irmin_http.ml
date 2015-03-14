@@ -454,11 +454,6 @@ struct
     | None   -> err_no_head "head"
     | Some h -> return h
 
-  let rename_tag t tag =
-    get (uri t) ["rename-tag"; T.to_hum tag] Tc.string >>= function
-    | "ok" -> set_tag t tag; return `Ok
-    | _    -> return `Duplicated_tag
-
   let update_tag t tag =
     get (uri t) ["update-tag"; T.to_hum tag] Tc.unit >>= fun () ->
     set_tag t tag;
@@ -469,19 +464,8 @@ struct
     | `Head _  -> Lwt.return_unit
     | `Tag _   -> get (uri t) ["remove-tag"] Tc.unit
 
-  let switch_tag t tag = set_tag t tag; Lwt.return_unit
-  let switch_head t head = set_head t head; Lwt.return_unit
-
   let heads t =
     get (uri t) ["heads"] (module Tc.List(H))
-
-  let detach t =
-    match t.branch with
-    | `Head _ -> return_unit
-    | `Tag _  ->
-      head t >>= function
-      | None   -> return_unit
-      | Some h -> set_head t h; return_unit
 
   let update_head t head =
     match t.branch with

@@ -557,7 +557,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
       (* more *)
       mk0p0bf "remove-tag"  ~lock ~hooks S.remove_tag t Tc.unit;
-      mk1p0bf "rename-tag"  ~lock ~hooks S.rename_tag t tag' ok_or_duplicated_tag;
       mk1p0bf "update-tag"  ~lock ~hooks S.update_tag t tag' Tc.unit;
       mk1p0bfq "merge-tag"  ~lock ~hooks s_merge_tag t tag' (merge head);
       mk0p0bf "head"        S.head t (Tc.option head);

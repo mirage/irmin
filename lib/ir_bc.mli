@@ -25,23 +25,19 @@ module type STORE = sig
   val tag_exn: t -> tag Lwt.t
   val tags: t -> tag list Lwt.t
   val remove_tag: t -> unit Lwt.t
-  val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
   val update_tag: t -> tag -> unit Lwt.t
   val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
-  val switch_tag: t -> tag -> unit Lwt.t
   type head
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
   val branch: t -> [`Tag of tag | `Head of head]
   val heads: t -> head list Lwt.t
-  val detach: t -> unit Lwt.t
   val update_head: t -> head -> unit Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
     unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val switch_head: t -> head -> unit Lwt.t
   val watch_head: t -> key -> (key * head option) Lwt_stream.t
   val watch_tags: t -> (tag * head option) Lwt_stream.t
   val clone: ('a -> Ir_task.t) -> t -> tag ->
