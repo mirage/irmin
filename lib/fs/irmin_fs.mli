@@ -44,9 +44,19 @@ module type IO = sig
 
 end
 
+module type LOCK = sig
+
+  (** {1 Filesystem {i dotlocking}} *)
+
+  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+  (** [with_lock file fn] runs [fn] while holding a lock on the file
+      [file]. *)
+
+end
+
 module AO (IO: IO): Irmin.AO_MAKER
-module RW (IO: IO): Irmin.RW_MAKER
-module Make (IO: IO): Irmin.S_MAKER
+module RW (IO: IO) (L: LOCK): Irmin.RW_MAKER
+module Make (IO: IO) (L: LOCK): Irmin.S_MAKER
 
 (** {2 Advanced configuration} *)
 
@@ -67,5 +77,5 @@ module type Config = sig
 end
 
 module AO_ext (IO: IO) (C: Config): Irmin.AO_MAKER
-module RW_ext (IO: IO) (C: Config): Irmin.RW_MAKER
-module Make_ext (IO: IO) (Obj: Config) (Ref: Config): Irmin.S_MAKER
+module RW_ext (IO: IO) (L: LOCK) (C: Config): Irmin.RW_MAKER
+module Make_ext (IO: IO) (L: LOCK) (Obj: Config) (Ref: Config): Irmin.S_MAKER

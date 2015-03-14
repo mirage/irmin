@@ -833,6 +833,20 @@ module Make (S: Irmin.S) = struct
 
   let test_concurrent_high x () =
     let test_one () =
+      let k = p ["a";"b";"c"] in
+      let v = string x "X1" in
+      create x >>= fun t ->
+      let t x = ksprintf t x in
+      let write = write (fun i -> S.update (t "write %d" i) k v) in
+      let read =
+        read
+          (fun i -> S.read_exn (t "read %d" i) k)
+          (fun i -> assert_equal (module V) (sprintf "test %d" i) v)
+      in
+      Lwt.join [ write 25 ] >>= fun () ->
+      Lwt.join [ read  25 ]
+    in
+    let test_multi () =
       let k i = p ["a";"b";"c"; string_of_int i ] in
       let v i = string x (sprintf "X%d" i) in
       create x >>= fun t ->
@@ -844,10 +858,14 @@ module Make (S: Irmin.S) = struct
           (fun i -> S.read_exn (t "read %d" i) (k i))
           (fun i -> assert_equal (module V) (sprintf "test %d" i) (v i))
       in
-      Lwt.join [ write 500; write 100; ] >>= fun () ->
-      Lwt.join [ read 500 ]
+      Lwt.join [ write 25 ] >>= fun () ->
+      Lwt.join [ read  25 ]
     in
-    run x test_one
+    run x (fun () ->
+        test_one   () >>= fun () ->
+        test_multi () >>= fun () ->
+        Lwt.return_unit
+      )
 
 end
 

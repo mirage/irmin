@@ -209,3 +209,16 @@ val install_dir_polling_listener: float -> unit
     is the thread sleep time. Prefer
     {{:https://opam.ocaml.org/packages/inotify/inotify.2.0/}inotify}
     if it works on your system. *)
+
+module type LOCK = sig
+
+  (** {1 Filesystem {i dotlocking}} *)
+
+  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+  (** [with_lock file fn] runs [fn] while holding a lock on the file
+      [file]. *)
+
+end
+
+module Lock: LOCK
+(** An implementation of filesystem dotlocking. *)

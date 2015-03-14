@@ -290,7 +290,9 @@ module Make_ext (P: PRIVATE) = struct
     | `Tag tag ->
       Tag.compare_and_set (tag_t t) tag ~test:commit ~set:(Some key) >>= function
       | true  -> Lwt.return_unit
-      | false -> with_commit t ~f
+      | false ->
+        Log.debug "conflict! replaying the operation";
+        with_commit t ~f
 
   let update_node t path node =
     with_commit t ~f:(fun head ->

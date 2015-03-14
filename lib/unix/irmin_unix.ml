@@ -21,15 +21,64 @@ module Log = Log.Make(struct let section = "UNIX" end)
 
 module IO = Git_unix.FS.IO
 
+module type LOCK = Irmin_fs.LOCK
+
+module Lock = struct
+
+  let is_stale max_age file =
+    IO.file_exists file >>= fun exists ->
+    if exists then (
+      Lwt_unix.stat file >>= fun s ->
+      let stale = Unix.gettimeofday () -. s.Unix.st_mtime > max_age in
+      Lwt.return stale
+    ) else
+      Lwt.return false
+
+  let unlock file =
+    IO.remove file
+
+  let lock ?(max_age = 2.) ?(sleep = 0.001) file =
+    let rec aux i =
+      Log.debug "lock %d" i;
+      is_stale max_age file >>= fun is_stale ->
+      if is_stale then (
+        Log.error "%s is stale, removing it." file;
+        unlock file >>= fun () ->
+        aux 1
+      ) else
+        let create () =
+          let pid = Unix.getpid () in
+          IO.mkdir (Filename.dirname file) >>= fun () ->
+          Lwt_unix.openfile file [Unix.O_CREAT; Unix.O_RDWR; Unix.O_EXCL] 0o600
+          >>= fun fd ->
+          let oc = Lwt_io.of_fd ~mode:Lwt_io.Output fd in
+          Lwt_io.write_int oc pid >>= fun () ->
+          Lwt_unix.close fd
+        in
+        Lwt.catch create (function
+            | Unix.Unix_error(Unix.EEXIST, _, _) ->
+              let backoff = 1. +. Random.float (let i = float i in i *. i) in
+              Lwt_unix.sleep (sleep *. backoff) >>= fun () ->
+              aux (i+1)
+            | e -> Lwt.fail e)
+    in
+    aux 1
+
+  let with_lock file fn =
+    lock file >>= fun () ->
+    Lwt.finalize fn (fun () -> unlock file)
+
+end
+
 module Irmin_fs = struct
   let config = Irmin_fs.config
   module AO = Irmin_fs.AO(IO)
-  module RW = Irmin_fs.RW(IO)
-  module Make = Irmin_fs.Make(IO)
+  module RW = Irmin_fs.RW(IO)(Lock)
+  module Make = Irmin_fs.Make(IO)(Lock)
   module type Config = Irmin_fs.Config
   module AO_ext = Irmin_fs.AO_ext(IO)
-  module RW_ext = Irmin_fs.RW_ext(IO)
-  module Make_ext = Irmin_fs.Make_ext(IO)
+  module RW_ext = Irmin_fs.RW_ext(IO)(Lock)
+  module Make_ext = Irmin_fs.Make_ext(IO)(Lock)
 end
 
 module Irmin_git = struct

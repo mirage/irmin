@@ -41,6 +41,10 @@ let root_key = Irmin.Private.Conf.root
 let config ?root () =
   Irmin.Private.Conf.singleton root_key root
 
+module type LOCK = sig
+  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+end
+
 module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type key = K.t
@@ -79,9 +83,9 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Log.debug "file=%s" file;
     return (Sys.file_exists file)
 
-   let err_not_found n k =
-     let str = Printf.sprintf "Irmin_fs.%s: %s not found" n (K.to_hum k) in
-     Lwt.fail (Invalid_argument str)
+  let err_not_found n k =
+    let str = Printf.sprintf "Irmin_fs.%s: %s not found" n (K.to_hum k) in
+    Lwt.fail (Invalid_argument str)
 
    let read_exn t key =
      mem t key >>= function
@@ -135,27 +139,58 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
 end
 
-module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
+module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   include RO_ext(IO)(S)(K)(V)
 
   let key_of_file file = Some (K.of_hum (S.key_of_file file))
 
+  let lock_file t key = t.path / "lock" / K.to_hum key
+
   let update t key value =
     Log.debug "update";
-    let temp_dir = temp_dir t in
-    let raw_value = Tc.write_cstruct (module V) value in
-    IO.write_file ~temp_dir (file_of_key t key) raw_value >>= fun () ->
+    let write () =
+      let temp_dir = temp_dir t in
+      let raw_value = Tc.write_cstruct (module V) value in
+      let file = file_of_key t key in
+      IO.write_file ~temp_dir file raw_value
+    in
+    let lock = lock_file t key in
+    L.with_lock lock write >>= fun () ->
     W.notify t.w key (Some value);
     return_unit
 
   let remove t key =
-    let file = file_of_key t key in
-    IO.remove file >>= fun () ->
+    Log.debug "remove";
+    let remove () =
+      let file = file_of_key t key in
+      IO.remove file
+    in
+    let lock = lock_file t key in
+    L.with_lock lock remove >>= fun () ->
     W.notify t.w key None;
     return_unit
 
-  let compare_and_set _ = failwith "Irmim_fs.compare_and_set: TODO"
+  let compare_and_set t key ~test ~set =
+    Log.debug "compare_and_set";
+    let write () =
+      read t key >>= fun v ->
+      if Tc.O1.equal V.equal test v then (
+        let file = file_of_key t key in
+        let action () = match set with
+          | None   -> IO.remove file
+          | Some v ->
+            let temp_dir = temp_dir t in
+            let raw_value = Tc.write_cstruct (module V) v in
+            IO.write_file ~temp_dir file raw_value
+        in
+        action () >>= fun () ->
+        Lwt.return true
+      ) else
+        Lwt.return false
+    in
+    let lock = lock_file t key in
+    L.with_lock lock write
 
   let watch t key =
     W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
@@ -170,13 +205,13 @@ module RW_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
 end
 
-module Make_ext (IO: IO) (Obj: Config) (Ref: Config)
+module Make_ext (IO: IO) (L: LOCK) (Obj: Config) (Ref: Config)
     (C: Ir_contents.S)
     (T: Ir_tag.S)
     (H: Ir_hash.S)
 = struct
   module AO = AO_ext(IO)(Obj)
-  module RW = RW_ext(IO)(Ref)
+  module RW = RW_ext(IO)(L)(Ref)
   include Irmin.Make(AO)(RW)(C)(T)(H)
 end
 
@@ -211,5 +246,5 @@ module Obj = struct
 end
 
 module AO (IO: IO) = AO_ext (IO)(Obj)
-module RW (IO: IO) = RW_ext (IO)(Ref)
-module Make (IO: IO) = Make_ext (IO)(Obj)(Ref)
+module RW (IO: IO) (L: LOCK) = RW_ext (IO)(L)(Ref)
+module Make (IO: IO) (L: LOCK) = Make_ext (IO)(L)(Obj)(Ref)
