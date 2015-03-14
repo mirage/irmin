@@ -128,6 +128,8 @@ module Make_ext (P: PRIVATE) = struct
   module KGraph =
     Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Tag.Key)
 
+  module Lock = Ir_lock.Make(Tag.Key)
+
   type t = {
     config: Ir_conf.t;
     task: Ir_task.t;
@@ -136,6 +138,7 @@ module Make_ext (P: PRIVATE) = struct
     commit: P.Commit.t;
     tag: Tag.t;
     branch: branch ref;
+    lock: Lock.t;
   }
 
   let config t = t.config
@@ -201,6 +204,7 @@ module Make_ext (P: PRIVATE) = struct
     P.Node.create config task     >>= fun node ->
     P.Commit.create config task   >>= fun commit ->
     Tag.create config task        >>= fun tag ->
+    let lock = Lock.create () in
     (* [branch] is created outside of the closure as we want the
        branch to be shared by every invocation of the function return
        by [of_tag]. *)
@@ -212,7 +216,7 @@ module Make_ext (P: PRIVATE) = struct
           tag      = tag a;
           task     = task a;
           config   = config;
-          branch }
+          lock; branch }
       )
 
   let create config task =
@@ -223,6 +227,7 @@ module Make_ext (P: PRIVATE) = struct
     P.Node.create config task     >>= fun node ->
     P.Commit.create config task   >>= fun commit ->
     Tag.create config task        >>= fun tag ->
+    let lock = Lock.create () in
     (* the branch is created outside of the closure. Every call to the
        function return by [of_head] *must* share the same branch
        reference. *)
@@ -234,7 +239,7 @@ module Make_ext (P: PRIVATE) = struct
           tag      = tag a;
           task     = task a;
           config   = config;
-          branch }
+          branch; lock }
       )
 
   let read_head_commit t =
@@ -315,9 +320,16 @@ module Make_ext (P: PRIVATE) = struct
   let update t path contents =
     Log.debug "update %a" force (show (module Key) path);
     P.Contents.add (contents_t t) contents >>= fun contents ->
-    with_commit t ~f:(fun node ->
-        Graph.add_contents (graph_t t) node path contents
-      )
+    let fn () =
+      with_commit t ~f:(fun node ->
+          Graph.add_contents (graph_t t) node path contents
+        )
+    in
+    match branch t with
+    | `Head _   -> fn ()
+    | `Tag tag ->
+      (* FIXME: disallow modifying the current branch *)
+      Lock.with_lock t.lock tag fn
 
   let remove t path =
     with_commit t ~f:(fun node ->

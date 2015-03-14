@@ -25,43 +25,7 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.fail (Invalid_argument str)
 
   module W = Irmin.Private.Watch.Make(K)(V)
-  module L = struct
-
-    type t = {
-      global: Lwt_mutex.t;
-      locks : (K.t, Lwt_mutex.t) Hashtbl.t;
-    }
-
-    let create () = {
-      global = Lwt_mutex.create ();
-      locks  = Hashtbl.create 1024;
-    }
-
-    let lock t key () =
-      let lock =
-        try Hashtbl.find t.locks key
-        with Not_found ->
-          let lock = Lwt_mutex.create () in
-          Hashtbl.add t.locks key lock;
-          lock
-      in
-      Lwt.return lock
-
-    let unlock t key () =
-      let () =
-        if Hashtbl.mem t.locks key then
-          let lock = Hashtbl.find t.locks key in
-          if Lwt_mutex.is_empty lock then Hashtbl.remove t.locks key
-      in
-      Lwt.return_unit
-
-    let with_lock t k fn =
-      Lwt_mutex.with_lock t.global (lock t k) >>= fun lock ->
-      Lwt_mutex.with_lock lock fn >>= fun r ->
-      Lwt_mutex.with_lock t.global (unlock t k) >>= fun () ->
-      Lwt.return r
-
-  end
+  module L = Irmin.Private.Lock.Make(K)
 
   type key = K.t
 

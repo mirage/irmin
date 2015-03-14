@@ -55,6 +55,7 @@ module Private = struct
   module Sync = Ir_sync
   module type S = Ir_bc.PRIVATE
   module Watch = Ir_watch
+  module Lock = Ir_lock
 end
 
 let version = Ir_version.current

@@ -1135,6 +1135,31 @@ module Private: sig
 
   end
 
+  module Lock: sig
+    (** {1 Process locking helpers} *)
+
+    module type S = sig
+
+      type t
+      (** The type for lock manager. *)
+
+      type key
+      (** The type for key to be locked. *)
+
+      val create: unit -> t
+      (** Create a lock manager. *)
+
+      val with_lock: t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+      (** [with_lock t k f] executes [f ()] while hodling the exclusive
+          lock associated to the key [k]. *)
+
+    end
+
+    module Make (K: Tc.S0): S with type key = K.t
+    (** Create a lock manager implementation. *)
+
+  end
+
   (** [Node] provides functions to describe the graph-like structured
       values.
 
