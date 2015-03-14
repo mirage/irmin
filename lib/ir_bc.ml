@@ -446,10 +446,7 @@ module Make_ext (P: PRIVATE) = struct
 
   let clone_force task t tag =
     Log.debug "clone_force %a" force (show (module Tag.Key) tag);
-    let return () =
-      let branch = `Tag tag in
-      return (fun a -> { t with branch; task = task a; })
-    in
+    let return () = of_tag t.config task tag in
     head t >>= function
     | None   -> return ()
     | Some h -> Tag.update (tag_t t) tag h >>= return
