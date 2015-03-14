@@ -408,12 +408,9 @@ module Make_ext (P: PRIVATE) = struct
         | None   -> failwith "Irmin.compare_and_set_head: empty set"
         | Some s -> s
       in
-      Lwt_mutex.with_lock t.lock (fun () ->
-          if Some !head = test then (
-            head := set;
-            Lwt.return true
-          ) else
-            Lwt.return false)
+      (* [t.lock] is held *)
+      if Some !head = test then (head := set; Lwt.return true)
+      else Lwt.return false
     | `Tag tag -> Tag.compare_and_set (tag_t t) tag ~test ~set
 
   let retry_merge name fn =
@@ -428,18 +425,19 @@ module Make_ext (P: PRIVATE) = struct
     aux 1
 
   let merge_head t ?max_depth ?n c1 =
+    Log.debug "merge_head";
     let aux () =
       read_head_commit t >>= fun head ->
       match head with
       | None    ->
-        compare_and_set_head t ~test:None ~set:(Some c1) >>=
+        compare_and_set_head t ~test:head ~set:(Some c1) >>=
         ok
       | Some c2 ->
         three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
         compare_and_set_head t ~test:head ~set:(Some c3) >>=
         ok
     in
-    retry_merge "merge_head" aux
+    Lwt_mutex.with_lock t.lock (fun () -> retry_merge "merge_head" aux)
 
   let merge_head_exn t ?max_depth ?n c1 =
     merge_head t ?max_depth ?n c1 >>= Ir_merge.exn
@@ -473,7 +471,7 @@ module Make_ext (P: PRIVATE) = struct
     Log.debug "merge";
     let t = t a and into = into a in
     match branch t with
-    | `Tag tag -> merge_tag into ?max_depth ?n tag
+    | `Tag tag -> merge_tag  into ?max_depth ?n tag
     | `Head h  -> merge_head into ?max_depth ?n h
 
   let merge_exn a ?max_depth ?n t ~into =
