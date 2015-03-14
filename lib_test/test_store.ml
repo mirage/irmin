@@ -814,8 +814,8 @@ module Make (S: Irmin.S) = struct
       Lwt.join [ write 500; read 100; write 100; read 500; ]
     in
     let test_contents () =
-      kv1 x >>= fun k ->
-      let v = v1 x in
+      kv2 x >>= fun k ->
+      let v = v2 x in
       create x >>= fun t ->
       let t = S.Private.contents_t (t "contents") in
       let write =
