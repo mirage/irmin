@@ -124,8 +124,6 @@ module Make_ext (P: PRIVATE) = struct
   module KGraph =
     Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Tag.Key)
 
-  module Lock = Ir_lock.Make(Tag.Key)
-
   type t = {
     config: Ir_conf.t;
     task: Ir_task.t;
@@ -134,7 +132,7 @@ module Make_ext (P: PRIVATE) = struct
     commit: P.Commit.t;
     tag: Tag.t;
     branch: branch;
-    lock: Lock.t;
+    lock: Lwt_mutex.t;
   }
 
   let config t = t.config
@@ -214,7 +212,7 @@ module Make_ext (P: PRIVATE) = struct
     P.Node.create config task     >>= fun node ->
     P.Commit.create config task   >>= fun commit ->
     Tag.create config task        >>= fun tag ->
-    let lock = Lock.create () in
+    let lock = Lwt_mutex.create () in
     (* the branch is created outside of the closure. Every call to the
        function return by [of_head] *must* share the same branch
        reference. *)
@@ -257,34 +255,45 @@ module Make_ext (P: PRIVATE) = struct
     | None   -> return false
     | Some n -> Graph.mem_node (graph_t t) n path
 
-  let rec with_commit t ~f =
-    read_head_commit t >>= fun commit ->
-    begin match commit with
-      | None   -> Graph.empty (graph_t t)
-      | Some h ->
-        H.node (history_t t) h >>= function
-        | None   -> Graph.empty (graph_t t)
-        | Some n -> return n
-    end >>= fun old_node ->
-    f old_node >>= fun node ->
-    let parents = parents_of_commit commit in
-    H.create (history_t t) ~node ~parents >>= fun key ->
-    match branch t with
-    | `Head h  ->
-      if Tc.O1.equal Head.equal commit (Some h) then (
-        t.branch := `Head key;
-        Lwt.return_unit
-      ) else
-        with_commit t ~f
-    | `Tag tag ->
-      Tag.compare_and_set (tag_t t) tag ~test:commit ~set:(Some key) >>= function
+  (* Retry an operation until the optimistic lock is happy. *)
+  let retry name fn =
+    let rec aux i =
+      fn () >>= function
       | true  -> Lwt.return_unit
       | false ->
-        Log.debug "conflict! replaying the operation";
-        with_commit t ~f
+        Log.debug "Irmin.%s: conflict, retrying (%d)." name i;
+        aux (i+1)
+    in
+    aux 1
+
+  let with_commit t path ~f =
+    let aux () =
+      read_head_commit t >>= fun commit ->
+      begin match commit with
+        | None   -> Graph.empty (graph_t t)
+        | Some h ->
+          H.node (history_t t) h >>= function
+          | None   -> Graph.empty (graph_t t)
+          | Some n -> return n
+      end >>= fun old_node ->
+      f old_node >>= fun node ->
+      let parents = parents_of_commit commit in
+      H.create (history_t t) ~node ~parents >>= fun key ->
+      match t.branch with
+      | `Head head ->
+        (* [t.lock] is held, nobody else can modify the reference *)
+        head := key;
+        Lwt.return true
+      | `Tag tag   ->
+        (* concurrent handle and/or process can modify the tag. Need to check
+           that we are still working on the same head. *)
+        Tag.compare_and_set (tag_t t) tag ~test:commit ~set:(Some key)
+    in
+    let msg = Printf.sprintf "with_commit(%s)" (Tc.show (module Key) path) in
+    Lwt_mutex.with_lock t.lock (fun () -> retry msg aux)
 
   let update_node t path node =
-    with_commit t ~f:(fun head ->
+    with_commit t path ~f:(fun head ->
         Graph.add_node (graph_t t) head path node
       )
 
@@ -304,24 +313,17 @@ module Make_ext (P: PRIVATE) = struct
   let update t path contents =
     Log.debug "update %a" force (show (module Key) path);
     P.Contents.add (contents_t t) contents >>= fun contents ->
-    let fn () =
-      with_commit t ~f:(fun node ->
-          Graph.add_contents (graph_t t) node path contents
-        )
-    in
-    match branch t with
-    | `Head _   -> fn ()
-    | `Tag tag ->
-      (* FIXME: disallow modifying the current branch *)
-      Lock.with_lock t.lock tag fn
+    with_commit t path ~f:(fun node ->
+        Graph.add_contents (graph_t t) node path contents
+      )
 
   let remove t path =
-    with_commit t ~f:(fun node ->
+    with_commit t path ~f:(fun node ->
         Graph.remove_contents (graph_t t) node path
       )
 
   let remove_rec t path =
-    with_commit t ~f:(fun node ->
+    with_commit t path ~f:(fun node ->
         Graph.remove_node (graph_t t) node path
       )
 
