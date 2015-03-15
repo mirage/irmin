@@ -410,6 +410,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
     let head: S.head Tc.t = (module S.Head) in
+    let compare_and_set t tag (test, set) = compare_and_set t tag ~test ~set in
     SNode [
       mk1p0bf' "read"   read   tag_t tag' (Tc.option head);
       mk1p0bf' "mem"    mem    tag_t tag' Tc.bool;
@@ -417,6 +418,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p1bf  "update" update tag_t tag' head Tc.unit;
       mk1p0bf' "remove" remove tag_t tag' Tc.unit;
       mk1p0bs  "watch"  watch  tag_t tag' (Tc.option head);
+      mk1p1bf  "compare-and-set" compare_and_set tag_t tag'
+        (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
     ]
 
   let ok_or_duplicated_tag =
@@ -560,6 +563,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let max_depth, n = mk_merge_query query in
       S.lcas_head t ?max_depth ?n head
     in
+    let s_compare_and_set t key (test, set) =
+      S.compare_and_set t key ~test ~set
+    in
     let l f t list = f t (S.Key.create list) in
     let hooks = hooks.update in
     let lock = true in
@@ -571,6 +577,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mknp1bf "update" ~lock ~hooks (l s_update) t step' value head;
       mknp0bf "remove" ~lock ~hooks (l s_remove) t step' head;
       mknp0bs "watch"  (l S.watch)    t step' (Tc.option value);
+      mknp1bf "compare-and-set" ~lock ~hooks (l s_compare_and_set) t step'
+        (Tc.pair (Tc.option value) (Tc.option value)) Tc.bool;
 
       (* hrw *)
       mknp0bf "list"       (l S.list)       t step' (Tc.list key);
