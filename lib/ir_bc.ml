@@ -424,6 +424,8 @@ module Make_ext (P: PRIVATE) = struct
     in
     aux 1
 
+  (* FIXME: we might want to keep the new commit in case of conflict,
+     and use it as a base for the next merge. *)
   let merge_head t ?max_depth ?n c1 =
     Log.debug "merge_head";
     let aux () =
