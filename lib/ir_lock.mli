@@ -14,23 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type STORE = sig
-  include Ir_ro.STORE
-  val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
-  val update: t -> key -> value -> unit Lwt.t
-  val compare_and_set: t -> key -> test:value option -> set:value option -> bool Lwt.t
-  val remove: t -> key -> unit Lwt.t
-  val watch: t -> key -> value option Lwt_stream.t
-  val watch_all: t -> (key * value option) Lwt_stream.t
+module type S = sig
+  type key
+  type t
+  val create: unit -> t
+  val with_lock: t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module type HIERARCHICAL = sig
-  include STORE
-  val list: t -> key -> key list Lwt.t
-  val remove_rec: t -> key -> unit Lwt.t
-end
-
-module type MAKER =
-  functor (K: Ir_hum.S) ->
-  functor (V: Ir_hash.S) ->
-    STORE with type key = K.t and type value = V.t
+module Make (K: Tc.S0): S with type key = K.t

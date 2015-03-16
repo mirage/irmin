@@ -54,9 +54,13 @@ module Make (S: Irmin.S) = struct
   let cmp_list eq comp l1 l2 =
     cmp_list eq (List.sort comp l1) (List.sort comp l2)
 
-  let aux cmp printer msg =
+  let error msg expected got =
+    let msg = Printf.sprintf "Fail %s: expecting %s, got %s" msg expected got in
+    failwith msg
+
+  let aux cmp printer msg x y =
     line msg;
-    OUnit.assert_equal ~msg ~cmp ~printer
+    if not (cmp x y) then error msg (printer x) (printer y)
 
   let assert_equal (type t) (module S: Tc.S0 with type t = t) msg =
     aux S.equal (Tc.show (module S)) msg

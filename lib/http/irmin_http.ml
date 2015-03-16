@@ -212,6 +212,12 @@ struct
     let remove { uri; _ } key =
       delete uri ["remove"; K.to_hum key] Tc.unit
 
+    module CS = Tc.Pair(Tc.Option(V))(Tc.Option(V))
+
+    let compare_and_set { uri; _ } key ~test ~set =
+      post uri ["compare-and-set"; K.to_hum key] (CS.to_json (test, set))
+        Tc.bool
+
     let watch { uri; _ } path =
       get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
 
@@ -416,11 +422,17 @@ struct
     in
     return_unit
 
-  let remove t  key =
+  let remove t key =
     delete (uri t) ["remove"; P.to_hum key] (module H) >>= fun h ->
     match t.branch with
     | `Head _ -> set_head t h; return_unit
     | `Tag _  -> return_unit
+
+  module CS = Tc.Pair(Tc.Option(C))(Tc.Option(C))
+
+  let compare_and_set t key ~test ~set =
+    post (uri t) ["compare-and-set"; P.to_hum key] (CS.to_json (test, set))
+      Tc.bool
 
   let tag t = match t.branch with
     | `Head _ -> Lwt.return_none
@@ -442,11 +454,6 @@ struct
     | None   -> err_no_head "head"
     | Some h -> return h
 
-  let rename_tag t tag =
-    get (uri t) ["rename-tag"; T.to_hum tag] Tc.string >>= function
-    | "ok" -> set_tag t tag; return `Ok
-    | _    -> return `Duplicated_tag
-
   let update_tag t tag =
     get (uri t) ["update-tag"; T.to_hum tag] Tc.unit >>= fun () ->
     set_tag t tag;
@@ -457,19 +464,8 @@ struct
     | `Head _  -> Lwt.return_unit
     | `Tag _   -> get (uri t) ["remove-tag"] Tc.unit
 
-  let switch_tag t tag = set_tag t tag; Lwt.return_unit
-  let switch_head t head = set_head t head; Lwt.return_unit
-
   let heads t =
     get (uri t) ["heads"] (module Tc.List(H))
-
-  let detach t =
-    match t.branch with
-    | `Head _ -> return_unit
-    | `Tag _  ->
-      head t >>= function
-      | None   -> return_unit
-      | Some h -> set_head t h; return_unit
 
   let update_head t head =
     match t.branch with

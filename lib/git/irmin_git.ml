@@ -65,7 +65,11 @@ let config ?root ?head ?bare () =
   let config = C.add config Conf.head head in
   config
 
-module Make (IO: Git.Sync.IO) (G: Git.Store.S)
+module type LOCK = sig
+  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+end
+
+module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S)
@@ -136,9 +140,13 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       | None   -> return_none
       | Some v -> return (V.of_git v)
 
+    let err_not_found n k =
+      let str = Printf.sprintf "Irmin_git.%s: %s not found" n (K.to_hum k) in
+      Lwt.fail (Invalid_argument str)
+
     let read_exn t key =
       read t key >>= function
-      | None   -> fail Not_found
+      | None   -> err_not_found "read" key
       | Some v -> return v
 
     let add { t; _ } v =
@@ -516,18 +524,56 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
       ) else
         return_unit
 
+    let lock_file t r = t.git_root / "lock" / Key.to_hum r
+
     let update t r k =
       Log.debug "update %s" (Tc.show (module T) r);
       let gr = git_of_tag r in
       let gk = git_of_head k in
-      G.write_reference t.t gr gk >>= fun () ->
+      let lock = lock_file t r in
+      let write () = G.write_reference t.t gr gk in
+      L.with_lock lock write >>= fun () ->
       W.notify t.w r (Some k);
       write_index t gr gk
 
     let remove t r =
-      G.remove_reference t.t (git_of_tag r) >>= fun () ->
+      Log.debug "remove %s" (Tc.show (module T) r);
+      let lock = lock_file t r in
+      let remove () = G.remove_reference t.t (git_of_tag r) in
+      L.with_lock lock remove >>= fun () ->
       W.notify t.w r None;
       return_unit
+
+    let compare_and_set t r ~test ~set =
+      Log.debug "compare_and_set";
+      let gr = git_of_tag r in
+      let lock = lock_file t r in
+      L.with_lock lock (fun () ->
+          read t r >>= fun v ->
+          if Tc.O1.equal Val.equal v test then (
+            let action () = match set with
+              | None   -> G.remove_reference t.t gr
+              | Some v -> G.write_reference t.t gr (git_of_head v)
+            in
+            action () >>= fun () ->
+            Lwt.return true
+          ) else
+            Lwt.return false
+        ) >>= fun updated ->
+      W.notify t.w r set;
+      begin
+        (* We do not protect [write_index] because it can took a log
+           time and we don't want to hold the lock for too long. Would
+           be safer to grab a lock, although the expanded filesystem
+           is not critical for Irmin consistency (it's only a
+           convenience for the user). *)
+        if updated then match set with
+          | None   -> Lwt.return_unit
+          | Some v -> write_index t gr (git_of_head v)
+        else
+          Lwt.return_unit
+      end >>= fun () ->
+      Lwt.return updated
 
     let watch t (r:key): value option Lwt_stream.t =
       if G.kind = `Disk then
@@ -607,8 +653,12 @@ module Make (IO: Git.Sync.IO) (G: Git.Store.S)
   include Irmin.Make_ext(P)
 end
 
-module Memory (IO: Git.Sync.IO) = Make (IO) (Git.Memory)
-module FS (IO: Git.Sync.IO) (FS: Git.FS.IO) = Make (IO) (Git.FS.Make(FS))
+module NoL = struct
+  let with_lock _ f = f ()
+end
+module Memory (IO: Git.Sync.IO) = Make (IO) (NoL) (Git.Memory)
+module FS (IO: Git.Sync.IO) (L: LOCK) (FS: Git.FS.IO) =
+  Make (IO) (L) (Git.FS.Make(FS))
 
 module FakeIO = struct
   type ic = unit
@@ -627,16 +677,16 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     let merge _path ~old:_ _ _ = failwith "Irmin_git.AO.merge"
     module Path = Irmin.Path.String_list
   end
-  module M = Make (FakeIO)(G)(V)(Irmin.Tag.String)(K)
+  module M = Make (FakeIO)(NoL)(G)(V)(Irmin.Tag.String)(K)
   include M.AO(K)(M.GitContents)
 end
 
-module RW (G: Git.Store.S) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
+module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
   module K = struct
     include K
     let master = K.of_hum "master"
   end
-  module M = Make (FakeIO)(G)(Irmin.Contents.String)(K)(V)
+  module M = Make (FakeIO)(L)(G)(Irmin.Contents.String)(K)(V)
   include M.XTag
 end
 

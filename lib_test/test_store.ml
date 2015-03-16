@@ -17,6 +17,7 @@
 open Lwt
 open Test_common
 open Irmin_unix
+open Printf
 
 let random_string n =
   let t  = Unix.gettimeofday () in
@@ -339,7 +340,7 @@ module Make (S: Irmin.S) = struct
         assert_equal (module X) "compound merge" m m';
         return_unit
       | `Conflict c ->
-        OUnit.assert_bool (Printf.sprintf "compound merge: %s" c) false;
+        OUnit.assert_bool (sprintf "compound merge: %s" c) false;
         return_unit
     in
 
@@ -540,6 +541,9 @@ module Make (S: Irmin.S) = struct
   let test_stores x () =
     let test () =
       create x >>= fun t ->
+
+      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
+
       let v1 = v1 x in
       S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
 
@@ -551,6 +555,8 @@ module Make (S: Irmin.S) = struct
       assert_equal (module V) "v1.1" v1 v1';
 
       Snapshot.create (t "snapshot") >>= fun r1 ->
+
+      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
 
       let v2 = v2 x in
       S.update (t "update") (p ["a";"c"]) v2 >>= fun () ->
@@ -741,7 +747,7 @@ module Make (S: Irmin.S) = struct
     let buf = Buffer.create 1024 in
     let date d =
       let tm = Unix.localtime (Int64.to_float d) in
-      Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+      sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     in
     Dot.output_buffer t ~date buf >>= fun () ->
     let oc = open_out_bin (file ^ ".dot") in
@@ -785,6 +791,117 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+
+  let rec write fn = function
+    | 0 -> return_unit
+    | i -> fn i <&> write fn (i-1)
+
+  let rec read fn check = function
+    | 0 -> return_unit
+    | i ->
+      fn i >>= fun v ->
+      check i v;
+      read fn check (i-1)
+
+  let test_concurrent_low x () =
+    let test_tags () =
+      let k = t1 in
+      r1 x >>= fun v ->
+      create x >>= fun t ->
+      let t = S.Private.tag_t (t "tag") in
+      let write = write (fun _i -> Tag.update t k v) in
+      let read =
+        read
+          (fun _i -> Tag.read_exn t k)
+          (fun i  -> assert_equal (module S.Head) (sprintf "tag %d" i) v)
+      in
+      write 1 >>= fun () ->
+      Lwt.join [ write 50; read 10; write 10; read 50; ]
+    in
+    let test_contents () =
+      kv2 x >>= fun k ->
+      let v = v2 x in
+      create x >>= fun t ->
+      let t = S.Private.contents_t (t "contents") in
+      let write =
+        write (fun _i -> Contents.add t v >>= fun _ -> Lwt.return_unit)
+      in
+      let read =
+        read
+          (fun _i -> Contents.read_exn t k)
+          (fun i  -> assert_equal (module V) (sprintf "contents %d" i) v)
+      in
+      write 1 >>= fun () ->
+      Lwt.join [ write 50; read 10; write 10; read 50; ]
+    in
+    run x (fun () -> Lwt.join [test_tags (); test_contents ()])
+
+  let test_concurrent_updates x () =
+    let test_one () =
+      let k = p ["a";"b";"c"] in
+      let v = string x "X1" in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t = write (fun i -> S.update (mk t "update: one %d" i) k v) in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) k)
+          (fun i -> assert_equal (module V) (sprintf "update: one %d" i) v)
+      in
+      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
+      Lwt.join [ read t1 50 ]
+    in
+    let test_multi () =
+      let k i = p ["a";"b";"c"; string_of_int i ] in
+      let v i = string x (sprintf "X%d" i) in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t =
+        write (fun i -> S.update (mk t "update: multi %d" i) (k i) (v i))
+      in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) (k i))
+          (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
+      in
+      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
+      Lwt.join [ read t1 50 ]
+    in
+    run x (fun () ->
+        test_one   () >>= fun () ->
+        test_multi () >>= fun () ->
+        Lwt.return_unit
+      )
+
+  let test_concurrent_merges x () =
+    let test () =
+      let k i = p ["a";"b";"c"; string_of_int i ] in
+      let v i = string x (sprintf "X%d" i) in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t n =
+        write (fun i ->
+            let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
+            S.clone_force task (mk t "cloning") tag >>= fun m ->
+            S.update (m "update") (k i) (v i) >>= fun () ->
+            S.merge (sprintf "update: multi %d" i) ~n:1 m ~into:t >>=
+            Irmin.Merge.exn
+          )
+      in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) (k i))
+          (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
+      in
+      S.update (t1 "update") (k 0) (v 0) >>= fun () ->
+      Lwt.join [ write t1 1 50; write t2 2 50 ] >>= fun () ->
+      Lwt.join [ read t1 50 ]
+    in
+    run x test
+
 end
 
 let suite (speed, x) =
@@ -792,15 +909,18 @@ let suite (speed, x) =
   let module T = Make(S) in
   x.name,
   [
-    "Basic operations on contents"    , speed, T.test_contents   x;
-    "Basic operations on nodes"       , speed, T.test_nodes      x;
-    "Basic operations on commits"     , speed, T.test_commits    x;
+    "Basic operations on contents"    , speed, T.test_contents x;
+    "Basic operations on nodes"       , speed, T.test_nodes x;
+    "Basic operations on commits"     , speed, T.test_commits x;
     "Basic operations on tags"        , speed, T.test_tags x;
-    "Basic merge operations"          , speed, T.test_merges     x;
-    "High-level store operations"     , speed, T.test_stores     x;
-    "High-level operations in views"  , speed, T.test_views      x;
-    "High-level store synchronisation", speed, T.test_sync       x;
-    "High-level store merges"         , speed, T.test_merge_api  x;
+    "Basic merge operations"          , speed, T.test_merges x;
+    "High-level store operations"     , speed, T.test_stores x;
+    "High-level operations on views"  , speed, T.test_views x;
+    "High-level store synchronisation", speed, T.test_sync x;
+    "High-level store merges"         , speed, T.test_merge_api x;
+    "Low-level concurrency"           , speed, T.test_concurrent_low x;
+    "Concurrent updates"              , speed, T.test_concurrent_updates x;
+    "Concurrent merges"               , speed, T.test_concurrent_merges x;
   ]
 
 let run name tl =
