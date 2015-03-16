@@ -301,11 +301,11 @@ See <a href="Irmin.HRW.html#VALremove_rec"><code class="code"><span class="const
 <br>
 <h2 id="2_Tags">Tags</h2><br>
 
-<pre><span id="VALtag"><span class="keyword">val</span> tag</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> string option</code></pre><div class="info ">
+<pre><span id="VALtag"><span class="keyword">val</span> tag</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> string option Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALtag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tag</code></a>.<br>
 </div>
 
-<pre><span id="VALtag_exn"><span class="keyword">val</span> tag_exn</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> string</code></pre><div class="info ">
+<pre><span id="VALtag_exn"><span class="keyword">val</span> tag_exn</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> string Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALtag_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tag_exn</code></a>.<br>
 </div>
 
@@ -315,10 +315,6 @@ See <a href="Irmin.BC.html#VALtags"><code class="code"><span class="constructor"
 
 <pre><span id="VALremove_tag"><span class="keyword">val</span> remove_tag</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> unit Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALremove_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.remove_tag</code></a>.<br>
-</div>
-
-<pre><span id="VALrename_tag"><span class="keyword">val</span> rename_tag</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> string -> [ `Duplicated_tag | `Ok ] Lwt.t</code></pre><div class="info ">
-See <a href="Irmin.BC.html#VALrename_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.rename_tag</code></a>.<br>
 </div>
 
 <pre><span id="VALupdate_tag"><span class="keyword">val</span> update_tag</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> string -> unit Lwt.t</code></pre><div class="info ">
@@ -331,10 +327,6 @@ See <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constru
 
 <pre><span id="VALmerge_tag_exn"><span class="keyword">val</span> merge_tag_exn</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> ?max_depth:int -> ?n:int -> string -> unit Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALmerge_tag_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag_exn</code></a>.<br>
-</div>
-
-<pre><span id="VALswitch_tag"><span class="keyword">val</span> switch_tag</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> string -> unit Lwt.t</code></pre><div class="info ">
-See <a href="Irmin.BC.html#VALswitch_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.switch_tag</code></a>.<br>
 </div>
 <br>
 <h2 id="2_Heads">Heads</h2><br>
@@ -355,10 +347,6 @@ See <a href="Irmin.BC.html#VALbranch"><code class="code"><span class="constructo
 See <a href="Irmin.BC.html#VALheads"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.heads</code></a>.<br>
 </div>
 
-<pre><span id="VALdetach"><span class="keyword">val</span> detach</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> unit Lwt.t</code></pre><div class="info ">
-See <a href="Irmin.BC.html#VALdetach"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.detach</code></a>.<br>
-</div>
-
 <pre><span id="VALupdate_head"><span class="keyword">val</span> update_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> Hash.SHA1.t -> unit Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALupdate_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.update_head</code></a>.<br>
 </div>
@@ -369,10 +357,6 @@ See <a href="Irmin.BC.html#VALmerge_head"><code class="code"><span class="constr
 
 <pre><span id="VALmerge_head_exn"><span class="keyword">val</span> merge_head_exn</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALmerge_head_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_head_exn</code></a>.<br>
-</div>
-
-<pre><span id="VALswitch_head"><span class="keyword">val</span> switch_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> Hash.SHA1.t -> unit Lwt.t</code></pre><div class="info ">
-Seee <a href="Irmin.BC.html#VALswitch_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.switch_head</code></a>.<br>
 </div>
 
 <pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t</code></pre><div class="info ">

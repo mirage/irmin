@@ -69,6 +69,20 @@ An <code class="code"><span class="keywordsign">'</span>a</code> promise is a fu
 </div>
 
 
+<pre><span id="VALpromise"><span class="keyword">val</span> promise</span> : <code class="type">'a -> 'a <a href="Irmin.Merge.html#TYPEpromise">promise</a></code></pre><div class="info ">
+<code class="code">promise a</code> is the promise containing <code class="code">a</code>.<br>
+</div>
+
+<pre><span id="VALpromise_map"><span class="keyword">val</span> promise_map</span> : <code class="type">('a -> 'b) -> 'a <a href="Irmin.Merge.html#TYPEpromise">promise</a> -> 'b <a href="Irmin.Merge.html#TYPEpromise">promise</a></code></pre><div class="info ">
+<code class="code">promise_map f a</code> is the promise containing <code class="code">f</code> applied to what
+      is promised by <code class="code">b</code>.<br>
+</div>
+
+<pre><span id="VALpromise_bind"><span class="keyword">val</span> promise_bind</span> : <code class="type">'a <a href="Irmin.Merge.html#TYPEpromise">promise</a> -><br>       ('a -> 'b <a href="Irmin.Merge.html#TYPEpromise">promise</a>) -> 'b <a href="Irmin.Merge.html#TYPEpromise">promise</a></code></pre><div class="info ">
+<code class="code">promise_bind a f</code> is the promise returned by <code class="code">f</code> applied to
+      what is promised by <code class="code">a</code>.<br>
+</div>
+
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> = <code class="type">old:'a <a href="Irmin.Merge.html#TYPEpromise">promise</a> -> 'a -> 'a -> 'a <a href="Irmin.Merge.html#TYPEresult">result</a> Lwt.t</code> </pre>
 <div class="info ">
 Signature of a merge function. <code class="code">old</code> is the value of the
@@ -92,9 +106,9 @@ The <code class="code">apply</code> combinator is useful to untie recursive loop
 </div>
 
 <pre><span id="VALbiject"><span class="keyword">val</span> biject</span> : <code class="type">'a Tc.t -> 'b <a href="Irmin.Merge.html#TYPEt">t</a> -> ('a -> 'b) -> ('b -> 'a) -> 'a <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
-Use the merge function defined in another domain. The domain
-      converting functions might be partial: in that case the <em>      convention</em> is that they raise <code class="code"><span class="constructor">Not_found</span></code> on undefined
-      entries.<br>
+Use the merge function defined in another domain. If the
+      converting functions raise any exception the merge is a
+      conflict.<br>
 </div>
 
 <pre><span id="VALbiject'"><span class="keyword">val</span> biject'</span> : <code class="type">'a Tc.t -><br>       'b <a href="Irmin.Merge.html#TYPEt">t</a> -> ('a -> 'b Lwt.t) -> ('b -> 'a Lwt.t) -> 'a <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
@@ -126,7 +140,7 @@ The default string merge function. Do not anything clever, just
 <pre><span id="VALoption"><span class="keyword">val</span> option</span> : <code class="type">'a Tc.t -> 'a <a href="Irmin.Merge.html#TYPEt">t</a> -> 'a option <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
 Lift a merge function to optional values of the same type. If all
       the provided values are inhabited, then call the provided merge
-      function, otherwise use the same behavior as <code class="code">create</code>.<br>
+      function, otherwise use the same behavior as <a href="Irmin.Merge.html#VALdefault"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.default</code></a>.<br>
 </div>
 
 <pre><span id="VALpair"><span class="keyword">val</span> pair</span> : <code class="type">'a Tc.t -><br>       'b Tc.t -> 'a <a href="Irmin.Merge.html#TYPEt">t</a> -> 'b <a href="Irmin.Merge.html#TYPEt">t</a> -> ('a * 'b) <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">

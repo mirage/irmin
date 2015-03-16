@@ -1,0 +1,31 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="Up" href="Irmin_unix.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Filesystem dotlocking" rel="Section" href="#1_Filesystemdotlocking">
+<title>Irmin_unix.LOCK</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Irmin_unix.html" title="Irmin_unix">Up</a>
+&nbsp;</div>
+<h1>Module type <a href="type_Irmin_unix.LOCK.html">Irmin_unix.LOCK</a></h1>
+
+<pre><span class="keyword">module type</span> LOCK = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.LOCK.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<br>
+<h1 id="1_Filesystemdotlocking">Filesystem <i>dotlocking</i></h1><br>
+
+<pre><span id="VALwith_lock"><span class="keyword">val</span> with_lock</span> : <code class="type">string -> (unit -> 'a Lwt.t) -> 'a Lwt.t</code></pre><div class="info ">
+<code class="code">with_lock file fn</code> runs <code class="code">fn</code> while holding a lock on the file
+      <code class="code">file</code>.<br>
+</div>
+</body></html>

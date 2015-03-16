@@ -64,7 +64,7 @@ Read a value from the store.<br>
 </div>
 
 <pre><span id="VALread_exn"><span class="keyword">val</span> read_exn</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEvalue">value</a> Lwt.t</code></pre><div class="info ">
-Same as <code class="code">read</code> but raise <code class="code"><span class="constructor">Not_found</span></code> if the key does not
+Same as <a href="Irmin.RO.html#VALread"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.read</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the key does not
       exist.<br>
 </div>
 

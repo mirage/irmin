@@ -54,8 +54,8 @@
 </div>
 
 <pre><span id="VALfetch_exn"><span class="keyword">val</span> fetch_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> Irmin.S.head Lwt.t</code></pre><div class="info ">
-Same as <code class="code">fetch</code> but raise <code class="code"><span class="constructor">Failure</span></code> if either the local or
-      remote store do not have a valid head.<br>
+Same as <code class="code">fetch</code> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if either the
+      local or remote store do not have a valid head.<br>
 </div>
 
 <pre><span id="VALpull"><span class="keyword">val</span> pull</span> : <code class="type">Irmin.S.t -><br>       ?depth:int -><br>       <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> [ `Merge | `Update ] -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
@@ -87,6 +87,7 @@ Same as <code class="code">pull</code> but raise <code class="code"><span class=
 </div>
 
 <pre><span id="VALpush_exn"><span class="keyword">val</span> push_exn</span> : <code class="type">Irmin.S.t -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> unit Lwt.t</code></pre><div class="info ">
-Same as <code class="code">push</code> but raise <code class="code"><span class="constructor">Failure</span></code> if an error happen.<br>
+Same as <code class="code">push</code> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if an error
+      happen.<br>
 </div>
 </body></html>

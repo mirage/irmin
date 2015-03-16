@@ -72,4 +72,7 @@
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;install_dir_polling_listener&nbsp;:&nbsp;float&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit<br>
+&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="keyword">type</span>&nbsp;<span class="constructor">LOCK</span>&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">sig</span>&nbsp;<span class="keyword">val</span>&nbsp;with_lock&nbsp;:&nbsp;string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(unit&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;<span class="constructor">Lwt</span>.t)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;<span class="constructor">Lwt</span>.t&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Lock</span>&nbsp;:&nbsp;<span class="constructor">LOCK</span><br>
 <span class="keyword">end</span></code></body></html>

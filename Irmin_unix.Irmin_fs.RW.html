@@ -42,6 +42,17 @@ Read-write store maker.<br>
       <code class="code">k</code> is not already defined in <code class="code">t</code>, create a fresh binding.<br>
 </div>
 
+<pre><span id="VALcompare_and_set"><span class="keyword">val</span> compare_and_set</span> : <code class="type">t -> key -> test:value option -> set:value option -> bool Lwt.t</code></pre><div class="info ">
+<code class="code">comapre_and_set t k ~test ~set</code> set <code class="code">t</code> to <code class="code">set</code> only if the
+      current value of <code class="code">t</code> is <code class="code">test</code> and in that case return
+      <code class="code"><span class="keyword">true</span></code>. If the current value of <code class="code">key</code> is different, return
+      <code class="code"><span class="keyword">false</span></code>. <code class="code"><span class="constructor">None</span></code> means that the value does not have exist or that
+      the value is removed.
+<p>
+
+      <b>Note:</b> The operation is guaranteed to be atomic.<br>
+</div>
+
 <pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">t -> key -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">remove t k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.<br>
 </div>

@@ -108,8 +108,8 @@ Create a new node.<br>
 </div>
 
 <pre><span id="VALread_contents_exn"><span class="keyword">val</span> read_contents_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">GRAPH</span>.read_contents</code></a> by raise <code class="code"><span class="constructor">Not_found</span></code> if there is no
-          valid contents.<br>
+Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">GRAPH</span>.read_contents</code></a> by raise <code class="code"><span class="constructor">Invalid_argument</span></code> if
+          there is no valid contents.<br>
 </div>
 
 <pre><span id="VALadd_contents"><span class="keyword">val</span> add_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
@@ -138,7 +138,7 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="co
 
 <pre><span id="VALread_node_exn"><span class="keyword">val</span> read_node_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_node">read_node</a> but raise
-          <code class="code"><span class="constructor">Not_found</span></code> if the path is invalid.<br>
+          <code class="code"><span class="constructor">Invalid_argument</span></code> if the path is invalid.<br>
 </div>
 
 <pre><span id="VALadd_node"><span class="keyword">val</span> add_node</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
