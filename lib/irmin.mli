@@ -152,7 +152,7 @@ module Merge: sig
   (** [promise a] is the promise containing [a]. *)
 
   val promise_map: ('a -> 'b) -> 'a promise -> 'b promise
-  (** promise_map f a] is the promise containing [f] applied to what
+  (** [promise_map f a] is the promise containing [f] applied to what
       is promised by [b]. *)
 
   val promise_bind: 'a promise -> ('a -> 'b promise) -> 'b promise
