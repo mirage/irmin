@@ -1,4 +1,5 @@
 ## 0.9.4
+* Ensure that `Irmin.update` and `Irmin.merge` are atomic.
 * Fix `Irmin.clone` of an empty branch
 * Add `Irmin.RW.compare_and_test` that the backends now have to implement
   to guarantee atomicity of Irmin's high-level operations.
