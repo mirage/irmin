@@ -7,6 +7,7 @@ depend on external C stubs; it aims is to run everywhere, from Linux
 to Xen unikernels.
 
 [![Build Status](https://travis-ci.org/mirage/irmin.png?branch=master)](https://travis-ci.org/mirage/irmin)
+[docs](https://mirage.github.io/irmin/)
 
 ### Install
 
