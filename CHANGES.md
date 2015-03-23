@@ -11,6 +11,7 @@
 * Remove `Irmin.switch` and `Irmin.detach`
 * Add `Irmin.history` to get the branch history as a DAG of heads (#140).
 * Fix performance of lcas computation (#160)
+* Add `Irmin.Merge.promise` combinators
 
 ## 0.9.3
 * Fix the invalidation of the view caches (report by @gregtatcam).
