@@ -1,0 +1,27 @@
+opam-version: "1.2"
+maintainer:   "thomas@gazagnaire.org"
+authors:      "Thomas Gazagnaire"
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "https://github.com/mirage/irmin.git"
+
+depends: [
+  "ezjsonm" {>= "0.4.0"}
+  "ocamlgraph"
+  "lwt" {>= "2.4.7"}
+  "nocrypto" {>= "0.2.2"}
+  "dolog" {>= "0.4"}
+  "cstruct" {>= "1.0.1"}
+  "mirage-tc" {>= "0.3.0"}
+  "mstruct"
+  "uri" {>= "1.3.12"}
+  "stringext" {>= "1.1.0"}
+  "hex"
+  "re"
+  "cmdliner"
+  "crunch"
+  "git"    {>= "1.4.10"}
+  "cohttp" {>= "0.14.0"}
+]
+available: [ocaml-version >= "4.01.0"]
