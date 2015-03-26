@@ -1,3 +1,7 @@
+## master
+* Simplify the RW_MAKER signature (#158)
+* Fix Irmin_git.RW_MAKER (#159)
+
 ## 0.9.4
 * Ensure that `Irmin.update` and `Irmin.merge` are atomic.
 * Fix `Irmin.clone` of an empty branch
