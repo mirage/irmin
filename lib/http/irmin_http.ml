@@ -32,7 +32,9 @@ let config x =
 let invalid_arg fmt =
   Printf.ksprintf (fun str -> Lwt.fail (Invalid_argument str)) fmt
 
-module type Config = sig val suffix: string option end
+module type Config = sig
+  val suffix: string option
+end
 
 module Helper (Client: Cohttp_lwt.Client) = struct
 
@@ -140,139 +142,121 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
 end
 
+
+module XRO (Client: Cohttp_lwt.Client) (C: Config) (K: Irmin.Hum.S) (V: Tc.S0) =
+struct
+
+  include Helper (Client)
+
+  type t = {
+    mutable uri: Uri.t;
+    task: Irmin.task;
+  }
+
+  let task t = t.task
+
+  type key = K.t
+  type value = V.t
+
+  let create_aux config task =
+    let uri = match Irmin.Private.Conf.get config uri with
+      | None   -> failwith "Irmin_http.create: No URI specified"
+      | Some u -> u
+    in
+    let uri = match C.suffix with
+      | None   -> uri
+      | Some p -> uri_append uri [p]
+    in
+    { uri; task = task }
+
+  let create config task =
+    return (fun a -> create_aux config (task a))
+
+  let read { uri; _ } key =
+    get uri ["read"; K.to_hum key] (module Tc.Option(V))
+
+  let err_not_found n k =
+    invalid_arg "Irmin_http.%s: %s not found" n (K.to_hum k)
+
+  let read_exn t key =
+    read t key >>= function
+    | None   -> err_not_found "read" key
+    | Some v -> return v
+
+  let mem { uri; _ } key =
+    get uri ["mem"; K.to_hum key] Tc.bool
+
+  let iter { uri; _ } fn =
+    Lwt_stream.iter_p fn (get_stream uri ["iter"] (module K))
+
+end
+
+module XAO (Client: Cohttp_lwt.Client) (C: Config) (K: Irmin.Hash.S) (V: Tc.S0) =
+struct
+
+  include XRO (Client)(C)(K)(V)
+
+  let add { uri; _ } value =
+    post uri ["add"] (V.to_json value) (module K)
+
+end
+
+module XRW (Client: Cohttp_lwt.Client) (C: Config) (K: Irmin.Hum.S) (V: Tc.S0) =
+struct
+
+  include XRO (Client)(C)(K)(V)
+
+  let update { uri; _ } key value =
+    post uri ["update"; K.to_hum key] (V.to_json value) Tc.unit
+
+  let remove { uri; _ } key =
+    delete uri ["remove"; K.to_hum key] Tc.unit
+
+  module CS = Tc.Pair(Tc.Option(V))(Tc.Option(V))
+
+  let compare_and_set { uri; _ } key ~test ~set =
+    post uri ["compare-and-set"; K.to_hum key] (CS.to_json (test, set))
+      Tc.bool
+
+  let watch { uri; _ } path =
+    get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
+
+  let watch_all { uri; _ } =
+    get_stream uri ["watch-all"] (module Tc.Pair(K)(Tc.Option(V)))
+
+end
+
 module Low (Client: Cohttp_lwt.Client)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S) =
 struct
-
-  include Helper (Client)
-
-  module RO (C: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
-
-    type t = {
-      mutable uri: Uri.t;
-      task: Irmin.task;
-    }
-
-    let task t = t.task
-
-    type key = K.t
-    type value = V.t
-
-    let create_aux config task =
-      let uri = match Irmin.Private.Conf.get config uri with
-        | None   -> failwith "Irmin_http.create: No URI specified"
-        | Some u -> u
-      in
-      let uri = match C.suffix with
-        | None   -> uri
-        | Some p -> uri_append uri [p]
-      in
-      { uri; task = task }
-
-    let create config task =
-      return (fun a -> create_aux config (task a))
-
-    let read { uri; _ } key =
-      get uri ["read"; K.to_hum key] (module Tc.Option(V))
-
-    let err_not_found n k =
-      invalid_arg "Irmin_http.%s: %s not found" n (K.to_hum k)
-
-    let read_exn t key =
-      read t key >>= function
-      | None   -> err_not_found "read" key
-      | Some v -> return v
-
-    let mem { uri; _ } key =
-      get uri ["mem"; K.to_hum key] Tc.bool
-
-    let iter { uri; _ } fn =
-      Lwt_stream.iter_p fn (get_stream uri ["iter"] (module K))
-
-  end
-
-  module AO (C: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
-
-    include RO (C)(K)(V)
-
-    let add { uri; _ } value =
-      post uri ["add"] (V.to_json value) (module K)
-
-  end
-
-  module RW (C: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
-
-    include RO (C)(K)(V)
-
-    let update { uri; _ } key value =
-      post uri ["update"; K.to_hum key] (V.to_json value) Tc.unit
-
-    let remove { uri; _ } key =
-      delete uri ["remove"; K.to_hum key] Tc.unit
-
-    module CS = Tc.Pair(Tc.Option(V))(Tc.Option(V))
-
-    let compare_and_set { uri; _ } key ~test ~set =
-      post uri ["compare-and-set"; K.to_hum key] (CS.to_json (test, set))
-        Tc.bool
-
-    let watch { uri; _ } path =
-      get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
-
-    let watch_all { uri; _ } =
-      get_stream uri ["watch-all"] (module Tc.Pair(K)(Tc.Option(V)))
-
-  end
-
   module X = struct
     module Contents = Irmin.Contents.Make(struct
         module Key = H
         module Val = C
-        include AO(struct let suffix = Some "contents" end)(H)(C)
+        include XAO(Client)(struct let suffix = Some "contents" end)(H)(C)
       end)
     module Node = struct
       module Key = H
       module Path = C.Path
       module Val = Irmin.Private.Node.Make(H)(H)(C.Path)
-      include AO(struct let suffix = Some "node" end)(Key)(Val)
+      include XAO(Client)(struct let suffix = Some "node" end)(Key)(Val)
     end
     module Commit = struct
       module Key = H
       module Val = Irmin.Private.Commit.Make(H)(H)
-      include AO(struct let suffix = Some "commit" end)(Key)(Val)
+      include XAO(Client)(struct let suffix = Some "commit" end)(Key)(Val)
     end
     module Tag = struct
       module Key = T
       module Val = H
-      include RW(struct let suffix = Some "tag" end)(Key)(Val)
+      include XRW(Client)(struct let suffix = Some "tag" end)(Key)(Val)
     end
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = Irmin.Private.Sync.None(H)(T)
   end
-
   include Irmin.Make_ext(X)
-end
-
-
-module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
-  module V = struct
-    include V
-    let merge _path ~old:_ _ _ = failwith "Irmin_git.AO.merge"
-    module Path = Irmin.Path.String_list
-  end
-  module M = Low (Client)(V)(Irmin.Tag.String)(K)
-  include M.X.Contents
-end
-
-module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
-  module K = struct
-    include K
-    let master = K.of_hum "master"
-  end
-  module M = Low (Client)(Irmin.Contents.String)(K)(V)
-  include M.X.Tag
 end
 
 module Make (Client: Cohttp_lwt.Client)
@@ -318,7 +302,7 @@ struct
      [L]. *)
   module L = Low(Client)(C)(T)(H)
   module LP = L.Private
-  module S = L.RW(struct let suffix = None end)(P)(C)
+  module S  = XRW(Client)(struct let suffix = None end)(P)(C)
 
   (* [t.s.uri] always point to the right location:
        - `$uri/` if branch = `Tag T.master
@@ -655,3 +639,6 @@ struct
     let mem_node t = t.mem_node
   end
 end
+
+module AO (C: Cohttp_lwt.Client) = XAO(C)(struct let suffix = Some "contents" end)
+module RW (C: Cohttp_lwt.Client) = XRW(C)(struct let suffix = None end)

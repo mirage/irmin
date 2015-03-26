@@ -29,6 +29,8 @@ module type LOCK = sig
 end
 
 module AO (G: Git.Store.S): Irmin.AO_MAKER
-module RW (L: LOCK) (G: Git.Store.S): Irmin.RW_MAKER
+module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S):
+  Irmin.RW with type key = K.t and type value = V.t
+
 module Memory (IO: Git.Sync.IO): Irmin.S_MAKER
 module FS (IO: Git.Sync.IO) (L: LOCK) (FS: Git.FS.IO): Irmin.S_MAKER
