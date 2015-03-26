@@ -887,7 +887,7 @@ module Make (S: Irmin.S) = struct
             let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
             S.clone_force task (mk t "cloning") tag >>= fun m ->
             S.update (m "update") (k i) (v i) >>= fun () ->
-            S.merge (sprintf "update: multi %d" i) ~n:1 m ~into:t >>=
+            S.merge (sprintf "update: multi %d" i) m ~into:t >>=
             Irmin.Merge.exn
           )
       in
