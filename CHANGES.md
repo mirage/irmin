@@ -1,4 +1,5 @@
 ## 0.9.5
+* Add Irmin.compare_and_set_head (#171)
 * Simplify the RW_MAKER signature (#158)
 * Fix Irmin_git.RW_MAKER (#159)
 * Improve the efficiency of the LCA computation (#174, with @talex5 help)
