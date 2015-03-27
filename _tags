@@ -430,6 +430,6 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: use_irmin-unix
 # OASIS_STOP
 true: bin_annot, debug
-true: warn_error_A, warn(A-4-41-44)
+true: warn_error(+1..49), warn(A-4-41-44)
 true: short_paths
 "bench": -traverse
