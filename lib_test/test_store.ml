@@ -871,6 +871,7 @@ module Make (S: Irmin.S) = struct
             let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
             S.clone_force task (mk t "cloning") tag >>= fun m ->
             S.update (m "update") (k i) (v i) >>= fun () ->
+            Lwt_unix.yield () >>= fun () ->
             S.merge (sprintf "update: multi %d" i) m ~into:t >>=
             Irmin.Merge.exn
           )
@@ -881,8 +882,45 @@ module Make (S: Irmin.S) = struct
           (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
       in
       S.update (t1 "update") (k 0) (v 0) >>= fun () ->
-      Lwt.join [ write t1 1 50; write t2 2 50 ] >>= fun () ->
-      Lwt.join [ read t1 50 ]
+      Lwt.join [ write t1 1 20; write t2 2 20 ] >>= fun () ->
+      Lwt.join [ read t1 20 ]
+    in
+    run x test
+
+  let test_concurrent_head_updates x () =
+    let test () =
+      let k i = p ["a";"b";"c"; string_of_int i ] in
+      let v i = string x (sprintf "X%d" i) in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let retry d fn =
+        let rec aux i =
+          fn () >>= function
+          | true  -> Log.debug "%d: ok!" d; Lwt.return_unit
+          | false -> Log.debug "%d: conflict, retrying (%d)." d i; aux (i+1)
+        in
+        aux 1
+      in
+      let write t n =
+        write (fun i -> retry i (fun () ->
+            S.head (t "head") >>= fun test ->
+            let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
+            S.clone_force task (mk t "cloning") tag >>= fun m ->
+            S.update (m "update") (k i) (v i) >>= fun () ->
+            S.head (m "head") >>= fun set ->
+            Lwt_unix.yield () >>= fun () ->
+            S.compare_and_set_head (t "compare_and_set") ~test ~set
+          ))
+      in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) (k i))
+          (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
+      in
+      S.update (t1 "update") (k 0) (v 0) >>= fun () ->
+      Lwt.join [ write t1 1 10; write t2 2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
     in
     run x test
 
@@ -904,6 +942,7 @@ let suite (speed, x) =
     "High-level store merges"         , speed, T.test_merge_api x;
     "Low-level concurrency"           , speed, T.test_concurrent_low x;
     "Concurrent updates"              , speed, T.test_concurrent_updates x;
+    "Concurrent head updates"         , speed, T.test_concurrent_head_updates x;
     "Concurrent merges"               , speed, T.test_concurrent_merges x;
   ]
 
