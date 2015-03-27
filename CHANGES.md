@@ -1,6 +1,7 @@
 ## master
 * Simplify the RW_MAKER signature (#158)
 * Fix Irmin_git.RW_MAKER (#159)
+* Improve the efficiency of the LCA computation (#174, with @talex5 help)
 
 ## 0.9.4
 * Ensure that `Irmin.update` and `Irmin.merge` are atomic.
