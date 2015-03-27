@@ -418,11 +418,36 @@ module Make (S: Irmin.S) = struct
       assert_equal (module C) "r3" r3 r3';
       assert_equal (module KC) "kr3" kr3 kr3';
 
+      let fail fmt =
+        Printf.ksprintf (fun str -> OUnit.assert_string str; assert false) fmt
+      in
+      let assert_lcas_err msg err l2 =
+        let str = function
+          | `Too_many_lcas -> "Too_many_lcas"
+          | `Max_depth_reached -> "Max_depth_reached"
+        in
+        let l2 = match l2 with
+          | `Ok x -> fail "%s: %s" msg (Tc.show (module Tc.List(KC)) x)
+          | `Too_many_lcas | `Max_depth_reached as x -> str x
+        in
+        assert_equal Tc.string msg (str err) l2
+      in
       let assert_lcas msg l1 l2 =
-        let l2 = match l2 with `Ok x -> x | _ -> failwith msg in
+        let l2 = match l2 with
+          | `Ok x -> x
+          | `Too_many_lcas -> fail "%s: Too many LCAs" msg
+          | `Max_depth_reached -> fail"%s: max depth reached" msg
+        in
         assert_equal (module Set(KC)) msg l1 l2
       in
-
+      let assert_lcas msg ~max_depth n x y expected =
+        S.lcas ~max_depth n x y >>= fun lcas ->
+        assert_lcas msg expected lcas;
+        S.lcas ~max_depth:(max_depth - 1) n x y >>= fun lcas ->
+        let msg = Printf.sprintf "%s [max-depth=%d]" msg (max_depth - 1) in
+        assert_lcas_err msg `Max_depth_reached lcas;
+        Lwt.return_unit
+      in
       (* test that we don't compute too many lcas
 
          0->1->2->3->4
@@ -439,17 +464,9 @@ module Make (S: Irmin.S) = struct
       S.of_head x.config task kr3 >>= fun t3 ->
       S.of_head x.config task kr4 >>= fun t4 ->
 
-      S.lcas ~max_depth:1 3 t3 t4 >>= fun lcas ->
-      assert_lcas "line lcas 1" [kr3] lcas;
-
-      S.lcas ~max_depth:2 3 t2 t4 >>= fun lcas ->
-      assert_lcas "line lcas 2" [kr2] lcas;
-
-      S.lcas ~max_depth:2 3 t2 t4 >>= fun lcas ->
-      assert_lcas "line lcas 3" [kr2] lcas;
-
-      S.lcas ~max_depth:3 3 t1 t4 >>= fun lcas ->
-      assert_lcas "line lcas 4" [kr1] lcas;
+      assert_lcas "line lcas 1" ~max_depth:0 3 t3 t4 [kr3] >>= fun () ->
+      assert_lcas "line lcas 2" ~max_depth:1 3 t2 t4 [kr2] >>= fun () ->
+      assert_lcas "line lcas 3" ~max_depth:2 3 t1 t4 [kr1] >>= fun () ->
 
       (* test for multiple lca
 
@@ -477,32 +494,19 @@ module Make (S: Irmin.S) = struct
       S.of_head x.config task kr16 >>= fun t16 ->
       S.of_head x.config task kr17 >>= fun t17 ->
 
-      S.lcas ~max_depth:0 5 t10 t10 >>= fun lcas ->
-      assert_lcas "lcas 0" [kr10] lcas;
-
-      S.lcas ~max_depth:0 5 t14 t14  >>= fun lcas ->
-      assert_lcas "lcas 1" [kr14] lcas;
-
-      S.lcas ~max_depth:1 5 t10 t11 >>= fun lcas ->
-      assert_lcas "lcas 2" [kr10] lcas;
-
-      S.lcas ~max_depth:2 5 t12 t16 >>= fun lcas ->
-      assert_lcas "lcas 3" [kr12] lcas;
-
-      S.lcas ~max_depth:2 5 t10 t13 >>= fun lcas ->
-      assert_lcas "lcas 4" [kr10] lcas;
-
-      S.lcas ~max_depth:2 5 t13 t14  >>= fun lcas ->
-      assert_lcas "lcas 5" [kr10] lcas;
-
-      S.lcas ~max_depth:3 5 t15 t16  >>= fun lcas ->
-      assert_lcas "lcas 6" [kr12] lcas;
-
-      S.lcas ~max_depth:3 5 t15 t17  >>= fun lcas ->
-      assert_lcas "lcas 7" [kr11; kr12] lcas;
+      assert_lcas "x lcas 0" ~max_depth:0 5 t10 t10 [kr10] >>= fun () ->
+      assert_lcas "x lcas 1" ~max_depth:0 5 t14 t14 [kr14] >>= fun () ->
+      assert_lcas "x lcas 2" ~max_depth:0 5 t10 t11 [kr10] >>= fun () ->
+      assert_lcas "x lcas 3" ~max_depth:1 5 t12 t16 [kr12] >>= fun () ->
+      assert_lcas "x lcas 4" ~max_depth:1 5 t10 t13 [kr10] >>= fun () ->
+      assert_lcas "x lcas 5" ~max_depth:2 5 t13 t14 [kr10] >>= fun () ->
+      assert_lcas "x lcas 6" ~max_depth:3 5 t15 t16 [kr12] >>= fun () ->
+      assert_lcas "x lcas 7" ~max_depth:3 5 t15 t17 [kr11; kr12] >>= fun () ->
 
       (* lcas on non transitive reduced graphs
 
+                  /->16
+                 |
          4->10->11->12->13->14->15
                  |        \--|--/
                  \-----------/
@@ -513,24 +517,20 @@ module Make (S: Irmin.S) = struct
       History.create (h 13) ~node:k0 ~parents:[kr12]      >>= fun kr13 ->
       History.create (h 14) ~node:k0 ~parents:[kr11;kr13] >>= fun kr14 ->
       History.create (h 15) ~node:k0 ~parents:[kr13;kr14] >>= fun kr15 ->
+      History.create (h 16) ~node:k0 ~parents:[kr11]      >>= fun kr16 ->
       S.of_head x.config task kr10 >>= fun _t10 ->
       S.of_head x.config task kr11 >>= fun t11 ->
       S.of_head x.config task kr12 >>= fun t12 ->
       S.of_head x.config task kr13 >>= fun t13 ->
       S.of_head x.config task kr14 >>= fun t14 ->
       S.of_head x.config task kr15 >>= fun t15 ->
+      S.of_head x.config task kr16 >>= fun t16 ->
 
-      S.lcas ~max_depth:1 3 t14 t15 >>= fun lcas ->
-      assert_lcas "weird lcas 1" [kr14] lcas;
-
-      S.lcas ~max_depth:2 3 t13 t15 >>= fun lcas ->
-      assert_lcas "weird lcas 2" [kr13] lcas;
-
-      S.lcas ~max_depth:3 3 t12 t15 >>= fun lcas ->
-      assert_lcas "weird lcas 3" [kr12] lcas;
-
-      S.lcas ~max_depth:4 3 t11 t15 >>= fun lcas ->
-      assert_lcas "weird lcas 4" [kr11] lcas;
+      assert_lcas "weird lcas 1" ~max_depth:0 3 t14 t15 [kr14] >>= fun () ->
+      assert_lcas "weird lcas 2" ~max_depth:0 3 t13 t15 [kr13] >>= fun () ->
+      assert_lcas "weird lcas 3" ~max_depth:1 3 t12 t15 [kr12] >>= fun () ->
+      assert_lcas "weird lcas 4" ~max_depth:1 3 t11 t15 [kr11] >>= fun () ->
+      assert_lcas "weird lcas 4" ~max_depth:3 3 t15 t16 [kr11] >>= fun () ->
 
       return_unit
     in
@@ -887,7 +887,7 @@ module Make (S: Irmin.S) = struct
             let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
             S.clone_force task (mk t "cloning") tag >>= fun m ->
             S.update (m "update") (k i) (v i) >>= fun () ->
-            S.merge (sprintf "update: multi %d" i) ~n:1 m ~into:t >>=
+            S.merge (sprintf "update: multi %d" i) m ~into:t >>=
             Irmin.Merge.exn
           )
       in

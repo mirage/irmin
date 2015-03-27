@@ -453,7 +453,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       G.mem_reference t (git_of_tag r)
 
     let head_of_git k =
-      H.of_raw (GK.to_raw (Git.SHA.of_commit k))
+      Val.of_raw (GK.to_raw (Git.SHA.of_commit k))
 
     let read { t; _ } r =
       G.read_reference t (git_of_tag r) >>= function
@@ -508,7 +508,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         ) refs
 
     let git_of_head k =
-      Git.SHA.to_commit (GK.of_raw (H.to_raw k))
+      Git.SHA.to_commit (GK.of_raw (Val.to_raw k))
 
     let write_index t gr gk =
       Log.debug "write_index";
@@ -681,7 +681,7 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   include M.AO(K)(M.GitContents)
 end
 
-module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
+module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S) = struct
   module K = struct
     include K
     let master = K.of_hum "master"

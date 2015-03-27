@@ -123,7 +123,8 @@ module Irmin_git: sig
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module RW (G: Git.Store.S): Irmin.RW_MAKER
+  module RW (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S): Irmin.RW
+    with type key = K.t and type value = V.t
   (** Embed a read-write store into a Git repository. Contents will be
       written in {i .git/refs}. *)
 

@@ -32,5 +32,5 @@ end
 
 module type MAKER =
   functor (K: Ir_hum.S) ->
-  functor (V: Ir_hash.S) ->
+  functor (V: Tc.S0) ->
     STORE with type key = K.t and type value = V.t

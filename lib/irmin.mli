@@ -2316,7 +2316,7 @@ module type AO_MAKER =
     the implementation of values.*)
 module type RW_MAKER =
   functor (K: Hum.S) ->
-  functor (V: Hash.S) ->
+  functor (V: Tc.S0) ->
     RW with type key = K.t and type value = V.t
 
 module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
