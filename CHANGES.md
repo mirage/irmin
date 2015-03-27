@@ -1,7 +1,9 @@
-## master
+## 0.9.5
 * Simplify the RW_MAKER signature (#158)
 * Fix Irmin_git.RW_MAKER (#159)
 * Improve the efficiency of the LCA computation (#174, with @talex5 help)
+* By default, explore the full graph when computing the LCAs. The previous
+  behavior was to limit the depth of the exploration to be 256 by default.
 
 ## 0.9.4
 * Ensure that `Irmin.update` and `Irmin.merge` are atomic.
