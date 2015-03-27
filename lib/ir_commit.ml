@@ -383,7 +383,7 @@ struct
     else if t.lcas = n || t.complete then `Stop
     else `Continue
 
-  let lcas t ?(max_depth=256) ?(n=max_int) c1 c2 =
+  let lcas t ?(max_depth=max_int) ?(n=max_int) c1 c2 =
     incr lca_calls;
     if max_depth < 0 then Lwt.return `Max_depth_reached
     else if n <= 0 then Lwt.return `Too_many_lcas
