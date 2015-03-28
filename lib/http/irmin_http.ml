@@ -456,6 +456,11 @@ struct
     | `Head _ -> set_head t head; return_unit
     | `Tag _  -> get (uri t) ["update-head"; H.to_hum head] Tc.unit
 
+  module CSH = Tc.Pair(Tc.Option(H))(Tc.Option(H))
+
+  let compare_and_set_head t ~test ~set =
+    post (uri t) ["compare-and-set-head"] (CSH.to_json (test, set)) Tc.bool
+
   module M = Tc.App1 (Irmin.Merge.Result) (H)
 
   let mk_query ?max_depth ?n () =

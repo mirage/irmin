@@ -259,7 +259,20 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       )
 
   (* 1 argument in the body *)
-  let mk0p1bf name fn db i1 o =
+  let mk0p1bf name ?lock ?hooks fn db i1 o =
+    name,
+    Fixed (fun t path params query ->
+        mk0p name path;
+        mk0q name query;
+        let x = mk1b name i1 params in
+        db t >>= fun t ->
+        with_lock t lock (fun () -> fn t x) >>= fun r ->
+        run_hooks hooks >>= fun () ->
+        return (Tc.to_json o r)
+      )
+
+    (* 1 argument in the body *)
+  let mk0p1bf' name fn db i1 o =
     name,
     Fixed (fun t path params query ->
         mk0p name path;
@@ -371,7 +384,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     SNode [
       mk1p0bf' "read" M.read fn key' (Tc.option value);
       mk1p0bf' "mem"  M.mem  fn key' Tc.bool;
-      mk0p1bf  "add"  M.add  fn value key;
+      mk0p1bf' "add"  M.add  fn value key;
     ]
 
   let contents_store = ao_store
@@ -566,6 +579,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let s_compare_and_set t key (test, set) =
       S.compare_and_set t key ~test ~set
     in
+    let s_compare_and_set_head t (test, set) =
+      S.compare_and_set_head t ~test ~set
+    in
     let l f t list = f t (S.Key.create list) in
     let hooks = hooks.update in
     let lock = true in
@@ -591,6 +607,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" ~lock ~hooks S.update_head t head' Tc.unit;
+      mk0p1bf "compare-and-set-head" ~lock ~hooks s_compare_and_set_head t
+        (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
       mk1p0bfq "merge-head" ~lock ~hooks s_merge_head t head' (merge head);
       mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key (Tc.option head));
       mk0p0bs "watch-tags"  S.watch_tags t (Tc.pair tag (Tc.option head));

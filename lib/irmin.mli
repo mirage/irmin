@@ -543,6 +543,11 @@ module type BC = sig
       the head [h]. Can cause data losses as it discards the current
       contents. Similar to [git reset --hard <hash>]. *)
 
+  val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
+  (** Same as {!update_head} but check that the value is [test] before
+      updating to [set]. Use {!update} or {!merge} instead if
+      possible. *)
+
   val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
     unit Merge.result Lwt.t
   (** [merge_head t ?max_head ?n head] merges the contents of the
@@ -1789,6 +1794,10 @@ val heads: ([`BC],'k,'v) t -> Hash.SHA1.t list Lwt.t
 
 val update_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
 (** See {!BC.update_head}. *)
+
+val compare_and_set_head: ([`BC],'k,'v) t ->
+  test:Hash.SHA1.t option -> set:Hash.SHA1.t option -> bool Lwt.t
+(** See {!BC.compare_and_set_head}. *)
 
 val merge_head: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   unit Merge.result Lwt.t

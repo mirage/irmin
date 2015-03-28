@@ -132,6 +132,7 @@ and ('k, 'v) bc = {
   branch: unit -> [`Tag of string | `Head of Hash.SHA1.t];
   heads: unit -> Hash.SHA1.t list Lwt.t;
   update_head: Hash.SHA1.t -> unit Lwt.t;
+  compare_and_set_head: test:Hash.SHA1.t option -> set:Hash.SHA1.t option -> bool Lwt.t;
   merge_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Merge.result Lwt.t;
   merge_head_exn: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Lwt.t;
   watch_head: 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t;
@@ -186,6 +187,7 @@ let head_exn t = bc t (function BC t -> t.head_exn ())
 let branch t = bc t (function BC t -> t.branch ())
 let heads t = bc t (function BC t -> t.heads ())
 let update_head t = bc t (function BC t -> t.update_head)
+let compare_and_set_head t = bc t (function BC t -> t.compare_and_set_head)
 let merge_head t = bc t (function BC t -> t.merge_head)
 let merge_head_exn t = bc t (function BC t -> t.merge_head_exn)
 let watch_head t = bc t (function BC t -> t.watch_head)
@@ -257,6 +259,7 @@ let pack_s (type x) (type k) (type v)
         branch = (fun () -> M.branch t);
         heads = (fun () -> M.heads t);
         update_head = M.update_head t;
+        compare_and_set_head = M.compare_and_set_head t;
         merge_head = M.merge_head t;
         merge_head_exn = M.merge_head_exn t;
         watch_head = M.watch_head t;
