@@ -35,6 +35,7 @@ module type STORE = sig
   val branch: t -> [`Tag of tag | `Head of head]
   val heads: t -> head list Lwt.t
   val update_head: t -> head -> unit Lwt.t
+  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
     unit Ir_merge.result Lwt.t

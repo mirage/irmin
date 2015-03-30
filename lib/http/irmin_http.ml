@@ -476,6 +476,10 @@ struct
     | [] -> None
     | q  -> Some q
 
+  let fast_forward_head t ?max_depth ?n head =
+    let query = mk_query ?max_depth ?n () in
+    get (uri t) ?query ["fast-forward-head"; H.to_hum head] Tc.bool
+
   let merge_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
     get (uri t) ?query ["merge-head"; H.to_hum head] (module M) >>| fun h ->

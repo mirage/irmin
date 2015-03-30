@@ -543,6 +543,13 @@ module type BC = sig
       the head [h]. Can cause data losses as it discards the current
       contents. Similar to [git reset --hard <hash>]. *)
 
+  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
+  (** [fast_forward_head t h] is similar to {!update_head} but the
+      [t]'s head is updated to [h] only if [h] is stricly in the
+      future of [t]'s current head. Return [false] if it is not the
+      case. If present, [max_depth] or [n] are used to limit the
+      search space of the lowest common ancestors (see {!lcas}). *)
+
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   (** Same as {!update_head} but check that the value is [test] before
       updating to [set]. Use {!update} or {!merge} instead if

@@ -40,6 +40,7 @@ module type STORE = sig
   val branch: t -> [`Tag of tag | `Head of head]
   val heads: t -> head list Lwt.t
   val update_head: t -> head -> unit Lwt.t
+  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
@@ -417,6 +418,25 @@ module Make_ext (P: PRIVATE) = struct
     Lwt_mutex.with_lock t.lock (fun () ->
         compare_and_set_head_unsafe t ~test ~set
       )
+
+  let fast_forward_head t ?max_depth ?n new_head =
+    head t >>= function
+    | None  -> compare_and_set_head t ~test:None ~set:(Some new_head)
+    | Some old_head ->
+      let pp = show (module Head) in
+      Log.debug "fast-forward-head old=%a new=%a"
+        force (pp old_head) force (pp new_head);
+      if Head.equal new_head old_head then
+        (* we only update if there is a change *)
+        Lwt.return_false
+      else
+        H.lcas (history_t t) ?max_depth ?n new_head old_head >>= function
+        | `Ok [x] when Head.equal x old_head ->
+          (* we only update if new_head > old_head *)
+          compare_and_set_head t ~test:(Some old_head) ~set:(Some new_head)
+        | `Too_many_lcas -> Log.debug "ff: too many LCAs"; Lwt.return false
+        | `Max_depth_reached -> Log.debug "ff: max depth reached"; Lwt.return false
+        | `Ok _ -> Lwt.return false
 
   let retry_merge name fn =
     let rec aux i =
