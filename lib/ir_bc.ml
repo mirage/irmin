@@ -282,9 +282,8 @@ module Make_ext (P: PRIVATE) = struct
       H.create (history_t t) ~node ~parents >>= fun key ->
       match t.branch with
       | `Head head ->
-        (* [t.lock] is held, nobody else can modify the reference *)
-        head := key;
-        Lwt.return true
+        (* [head] is protected by [t.lock] *)
+        head := key; Lwt.return true
       | `Tag tag   ->
         (* concurrent handle and/or process can modify the tag. Need to check
            that we are still working on the same head. *)
@@ -402,17 +401,22 @@ module Make_ext (P: PRIVATE) = struct
     Tag.read_exn (tag_t t) tag >>= fun k ->
     update_head t k
 
-  let compare_and_set_head t ~test ~set =
+  let compare_and_set_head_unsafe t ~test ~set =
     match t.branch with
     | `Head head ->
       let set = match set with
         | None   -> failwith "Irmin.compare_and_set_head: empty set"
         | Some s -> s
       in
-      (* [t.lock] is held *)
+      (* [head] is protected by [t.lock]. *)
       if Some !head = test then (head := set; Lwt.return true)
       else Lwt.return false
     | `Tag tag -> Tag.compare_and_set (tag_t t) tag ~test ~set
+
+  let compare_and_set_head t ~test ~set =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        compare_and_set_head_unsafe t ~test ~set
+      )
 
   let retry_merge name fn =
     let rec aux i =
@@ -433,11 +437,11 @@ module Make_ext (P: PRIVATE) = struct
       read_head_commit t >>= fun head ->
       match head with
       | None    ->
-        compare_and_set_head t ~test:head ~set:(Some c1) >>=
+        compare_and_set_head_unsafe t ~test:head ~set:(Some c1) >>=
         ok
       | Some c2 ->
         three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
-        compare_and_set_head t ~test:head ~set:(Some c3) >>=
+        compare_and_set_head_unsafe t ~test:head ~set:(Some c3) >>=
         ok
     in
     Lwt_mutex.with_lock t.lock (fun () -> retry_merge "merge_head" aux)
