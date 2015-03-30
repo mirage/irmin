@@ -543,6 +543,13 @@ module type BC = sig
       the head [h]. Can cause data losses as it discards the current
       contents. Similar to [git reset --hard <hash>]. *)
 
+  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
+  (** [fast_forward_head t h] is similar to {!update_head} but the
+      [t]'s head is updated to [h] only if [h] is stricly in the
+      future of [t]'s current head. Return [false] if it is not the
+      case. If present, [max_depth] or [n] are used to limit the
+      search space of the lowest common ancestors (see {!lcas}). *)
+
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   (** Same as {!update_head} but check that the value is [test] before
       updating to [set]. Use {!update} or {!merge} instead if
@@ -554,9 +561,8 @@ module type BC = sig
       temporary branch associated to [head] into [t]. [max_depth] is
       the maximal depth used for getting the lowest common
       ancestor. [n] is the maximum number of lowest common
-      ancestors. Both [max_depth] and [n] are used to drive the common
-      ancestor exploration when the user knows about the history's
-      partial-order shape. *)
+      ancestors. If present, [max_depth] or [n] are used to limit the
+      search space of the lowest common ancestors (see {!lcas}). *)
 
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
@@ -598,7 +604,8 @@ module type BC = sig
 
       {ul
       {- [max_depth] is the maximum depth of the exploration (default
-      is 250). Return [`Max_depth_reached] is this depth is exceeded.}
+      is [max_int]). Return [`Max_depth_reached] is this depth is
+      exceeded.}
       {- [n] is the maximum expected number of lcas. Stop the
       exploration as soon as [n] lcas are found. Return
       [`Too_many_lcas] if more [lcas] are found. }
@@ -2222,6 +2229,17 @@ module type VIEW = sig
   val actions: t -> Action.t list
   (** Return the list of actions performed on this view since its
       creation. *)
+
+  (** {2 Parents} *)
+
+  type head
+  (** The type for commit heads. *)
+
+  val parents: t -> head list
+  (** [parents t] are [t]'s parent commits. *)
+
+  val set_parents: t -> head list -> unit
+  (** [set_parents t hs] set [t]'s parents to be [hs]. *)
 
 end
 

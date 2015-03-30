@@ -582,6 +582,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let s_compare_and_set_head t (test, set) =
       S.compare_and_set_head t ~test ~set
     in
+    let s_fast_forward_head t head query =
+      let max_depth, n = mk_merge_query query in
+      S.fast_forward_head t ?max_depth ?n head
+    in
     let l f t list = f t (S.Key.create list) in
     let hooks = hooks.update in
     let lock = true in
@@ -607,6 +611,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" ~lock ~hooks S.update_head t head' Tc.unit;
+      mk1p0bfq "fast-forward-head" ~lock ~hooks s_fast_forward_head t head' Tc.bool;
       mk0p1bf "compare-and-set-head" ~lock ~hooks s_compare_and_set_head t
         (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
       mk1p0bfq "merge-head" ~lock ~hooks s_merge_head t head' (merge head);

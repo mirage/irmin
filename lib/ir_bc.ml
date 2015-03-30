@@ -40,6 +40,7 @@ module type STORE = sig
   val branch: t -> [`Tag of tag | `Head of head]
   val heads: t -> head list Lwt.t
   val update_head: t -> head -> unit Lwt.t
+  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
@@ -282,9 +283,8 @@ module Make_ext (P: PRIVATE) = struct
       H.create (history_t t) ~node ~parents >>= fun key ->
       match t.branch with
       | `Head head ->
-        (* [t.lock] is held, nobody else can modify the reference *)
-        head := key;
-        Lwt.return true
+        (* [head] is protected by [t.lock] *)
+        head := key; Lwt.return true
       | `Tag tag   ->
         (* concurrent handle and/or process can modify the tag. Need to check
            that we are still working on the same head. *)
@@ -402,17 +402,41 @@ module Make_ext (P: PRIVATE) = struct
     Tag.read_exn (tag_t t) tag >>= fun k ->
     update_head t k
 
-  let compare_and_set_head t ~test ~set =
+  let compare_and_set_head_unsafe t ~test ~set =
     match t.branch with
     | `Head head ->
       let set = match set with
         | None   -> failwith "Irmin.compare_and_set_head: empty set"
         | Some s -> s
       in
-      (* [t.lock] is held *)
+      (* [head] is protected by [t.lock]. *)
       if Some !head = test then (head := set; Lwt.return true)
       else Lwt.return false
     | `Tag tag -> Tag.compare_and_set (tag_t t) tag ~test ~set
+
+  let compare_and_set_head t ~test ~set =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        compare_and_set_head_unsafe t ~test ~set
+      )
+
+  let fast_forward_head t ?max_depth ?n new_head =
+    head t >>= function
+    | None  -> compare_and_set_head t ~test:None ~set:(Some new_head)
+    | Some old_head ->
+      let pp = show (module Head) in
+      Log.debug "fast-forward-head old=%a new=%a"
+        force (pp old_head) force (pp new_head);
+      if Head.equal new_head old_head then
+        (* we only update if there is a change *)
+        Lwt.return_false
+      else
+        H.lcas (history_t t) ?max_depth ?n new_head old_head >>= function
+        | `Ok [x] when Head.equal x old_head ->
+          (* we only update if new_head > old_head *)
+          compare_and_set_head t ~test:(Some old_head) ~set:(Some new_head)
+        | `Too_many_lcas -> Log.debug "ff: too many LCAs"; Lwt.return false
+        | `Max_depth_reached -> Log.debug "ff: max depth reached"; Lwt.return false
+        | `Ok _ -> Lwt.return false
 
   let retry_merge name fn =
     let rec aux i =
@@ -433,11 +457,11 @@ module Make_ext (P: PRIVATE) = struct
       read_head_commit t >>= fun head ->
       match head with
       | None    ->
-        compare_and_set_head t ~test:head ~set:(Some c1) >>=
+        compare_and_set_head_unsafe t ~test:head ~set:(Some c1) >>=
         ok
       | Some c2 ->
         three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
-        compare_and_set_head t ~test:head ~set:(Some c3) >>=
+        compare_and_set_head_unsafe t ~test:head ~set:(Some c3) >>=
         ok
     in
     Lwt_mutex.with_lock t.lock (fun () -> retry_merge "merge_head" aux)

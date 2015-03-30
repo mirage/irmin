@@ -39,6 +39,9 @@ module type S = sig
     val prettys: t list -> string
   end
   val actions: t -> Action.t list
+  type head
+  val parents: t -> head list
+  val set_parents: t -> head list -> unit
 end
 
 module Make (S: Ir_s.STORE):
