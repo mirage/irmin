@@ -525,6 +525,21 @@ module Make (S: Irmin.S) = struct
       assert_lcas "weird lcas 4" ~max_depth:1 3 k11 k15 [k11] >>= fun () ->
       assert_lcas "weird lcas 4" ~max_depth:3 3 k15 k16 [k11] >>= fun () ->
 
+      (* fast-forward *)
+      S.of_head x.config task k12     >>= fun t12  ->
+      S.fast_forward_head (t12 0) k16 >>= fun b1 ->
+      assert_equal Tc.bool "ff 1" false b1;
+      S.head_exn (t12 0)              >>= fun k12' ->
+      assert_equal (module S.Head) "ff 1'" k12 k12';
+
+      S.fast_forward_head (t12 0) ~n:1 k14 >>= fun b2 ->
+      assert_equal Tc.bool "ff 2" false b2;
+
+      S.fast_forward_head (t12 0) k14 >>= fun b3 ->
+      assert_equal Tc.bool "ff 2" true b3;
+      S.head_exn (t12 0)              >>= fun k14' ->
+      assert_equal (module S.Head) "ff 2'" k14 k14';
+
       return_unit
     in
     run x test
