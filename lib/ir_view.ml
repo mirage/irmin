@@ -153,6 +153,10 @@ module Internal (Node: NODE) = struct
     lock: Lwt_mutex.t;
   }
 
+  type head = Node.commit
+  let parents t = !(t.parents)
+  let set_parents t parents = t.parents := parents
+
   module CO = Tc.Option(Node.Contents)
   module PL = Tc.List(Path)
 
@@ -791,4 +795,7 @@ module type S = sig
     val prettys: t list -> string
   end
   val actions: t -> Action.t list
+  type head
+  val parents: t -> head list
+  val set_parents: t -> head list -> unit
 end

@@ -2230,6 +2230,17 @@ module type VIEW = sig
   (** Return the list of actions performed on this view since its
       creation. *)
 
+  (** {2 Parents} *)
+
+  type head
+  (** The type for commit heads. *)
+
+  val parents: t -> head list
+  (** [parents t] are [t]'s parent commits. *)
+
+  val set_parents: t -> head list -> unit
+  (** [set_parents t hs] set [t]'s parents to be [hs]. *)
+
 end
 
 module View (S: S): VIEW with type db = S.t
