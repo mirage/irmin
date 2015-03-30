@@ -554,9 +554,8 @@ module type BC = sig
       temporary branch associated to [head] into [t]. [max_depth] is
       the maximal depth used for getting the lowest common
       ancestor. [n] is the maximum number of lowest common
-      ancestors. Both [max_depth] and [n] are used to drive the common
-      ancestor exploration when the user knows about the history's
-      partial-order shape. *)
+      ancestors. If present, [max_depth] or [n] are used to limit the
+      search space of the lowest common ancestors (see {!lcas}). *)
 
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
@@ -598,7 +597,8 @@ module type BC = sig
 
       {ul
       {- [max_depth] is the maximum depth of the exploration (default
-      is 250). Return [`Max_depth_reached] is this depth is exceeded.}
+      is [max_int]). Return [`Max_depth_reached] is this depth is
+      exceeded.}
       {- [n] is the maximum expected number of lcas. Stop the
       exploration as soon as [n] lcas are found. Return
       [`Too_many_lcas] if more [lcas] are found. }
