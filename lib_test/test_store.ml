@@ -312,7 +312,7 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-  let test_merges x () =
+  let test_simple_merges x () =
 
     (* simple merges *)
     let check () =
@@ -387,8 +387,6 @@ module Make (S: Irmin.S) = struct
       Graph.iter_succ (g "iter") k4 (fun l v -> succ := (l, v) :: !succ) >>= fun () ->
       assert_equal (module Succ) "k4"[ (l "b", k1); (l "c", k1) ] !succ;
 
-      (* merge commits *)
-
       let task date =
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
@@ -417,7 +415,19 @@ module Make (S: Irmin.S) = struct
       Commit.read_exn (c 0) kr3' >>= fun r3' ->
       assert_equal (module C) "r3" r3 r3';
       assert_equal (module KC) "kr3" kr3 kr3';
+      Lwt.return_unit
+    in
+    run x test
 
+  let test_history x () =
+    let test () =
+      let task date =
+        let i = Int64.of_int date in
+        Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
+      in
+      S.create x.config task >>= fun t ->
+      let h = h t in
+      Graph.create (g t 0) [] >>= fun node ->
       let fail fmt =
         Printf.ksprintf (fun str -> OUnit.assert_string str; assert false) fmt
       in
@@ -450,7 +460,6 @@ module Make (S: Irmin.S) = struct
         assert_lcas_err msg `Max_depth_reached lcas;
         Lwt.return_unit
       in
-      let node = k0 in
 
       (* test that we don't compute too many lcas
 
@@ -739,7 +748,7 @@ module Make (S: Irmin.S) = struct
     close_out oc;
     return_unit
 
-  let test_merge_api x () =
+  let test_merge x () =
     let test () =
       let v1 = string x "X1" in
       let v2 = string x "X2" in
@@ -935,11 +944,12 @@ let suite (speed, x) =
     "Basic operations on nodes"       , speed, T.test_nodes x;
     "Basic operations on commits"     , speed, T.test_commits x;
     "Basic operations on tags"        , speed, T.test_tags x;
-    "Basic merge operations"          , speed, T.test_merges x;
+    "Basic merge operations"          , speed, T.test_simple_merges x;
+    "Complex histories"               , speed, T.test_history x;
     "High-level store operations"     , speed, T.test_stores x;
     "High-level operations on views"  , speed, T.test_views x;
     "High-level store synchronisation", speed, T.test_sync x;
-    "High-level store merges"         , speed, T.test_merge_api x;
+    "High-level store merges"         , speed, T.test_merge x;
     "Low-level concurrency"           , speed, T.test_concurrent_low x;
     "Concurrent updates"              , speed, T.test_concurrent_updates x;
     "Concurrent head updates"         , speed, T.test_concurrent_head_updates x;
