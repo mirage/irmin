@@ -346,6 +346,10 @@ module type RO = sig
   val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
+  val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  (** [iter t fn] call the function [fn] on all [t]'s keys and
+      values. *)
+
 end
 
 (** Append-only store. *)
@@ -368,9 +372,6 @@ module type RW = sig
   (** {1 Read-write stores} *)
 
   include RO
-
-  val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
-  (** [iter t fn] call the function [fn] on all [t]'s keys. *)
 
   val update: t -> key -> value -> unit Lwt.t
   (** [update t k v] replaces the contents of [k] by [v] in [t]. If
@@ -1744,7 +1745,7 @@ val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
 val watch_all: ([<`RO|`HRW|`BC],'k,'v) t -> ('k * 'v option) Lwt_stream.t
 (** See {!RW.watch_all} *)
 
-val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
+val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t
 (** See {!RW.iter}. *)
 
 val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t

@@ -161,6 +161,8 @@ struct
 
     let merge path t = Ir_merge.option (module S.Key) (merge_commit path t)
 
+    let iter (_, t) fn = S.iter t fn
+
     module Key = S.Key
     module Val = struct
       include S.Val

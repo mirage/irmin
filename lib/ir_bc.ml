@@ -163,7 +163,7 @@ module Make_ext (P: PRIVATE) = struct
 
   let tags t =
     let tags = ref [] in
-    Tag.iter (tag_t t) (fun t -> tags := t :: !tags; return_unit) >>= fun () ->
+    Tag.iter (tag_t t) (fun t _ -> tags := t :: !tags; return_unit) >>= fun () ->
     return !tags
 
   let head t = match t.branch with
@@ -172,10 +172,8 @@ module Make_ext (P: PRIVATE) = struct
 
   let heads t =
     let heads = ref [] in
-    Tag.iter (tag_t t) (fun k ->
-        Tag.read (tag_t t) k >>= function
-        | None   -> return_unit
-        | Some h -> heads := h :: !heads; return_unit
+    Tag.iter (tag_t t) (fun _ h ->
+        h >>= fun h -> heads := h :: !heads; return_unit
       ) >>= fun () ->
     head t >>= function
     | None   -> return !heads
@@ -358,7 +356,8 @@ module Make_ext (P: PRIVATE) = struct
       | path::tl ->
         list t path >>= fun childs ->
         let todo = childs @ tl in
-        fn path >>= fun () ->
+        let v = read_exn t path in
+        fn path v >>= fun () ->
         aux todo
     in
     list t Key.empty >>= aux

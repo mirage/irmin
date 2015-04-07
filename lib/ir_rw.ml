@@ -16,7 +16,6 @@
 
 module type STORE = sig
   include Ir_ro.STORE
-  val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
   val update: t -> key -> value -> unit Lwt.t
   val compare_and_set: t -> key -> test:value option -> set:value option -> bool Lwt.t
   val remove: t -> key -> unit Lwt.t

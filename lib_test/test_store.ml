@@ -298,7 +298,7 @@ module Make (S: Irmin.S) = struct
 
       let list t =
         let tags = ref [] in
-        Tag.iter t (fun t -> tags := t :: !tags; return_unit) >>= fun () ->
+        Tag.iter t (fun t _ -> tags := t :: !tags; return_unit) >>= fun () ->
         return !tags
       in
       list tag >>= fun ts ->

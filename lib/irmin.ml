@@ -103,7 +103,7 @@ type ('a, 'k, 'v) t = {
   read: 'k -> 'v option Lwt.t;
   read_exn: 'k -> 'v Lwt.t;
   mem: 'k -> bool Lwt.t;
-  iter: ('k -> unit Lwt.t) -> unit Lwt.t;
+  iter: ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t;
   update: 'k -> 'v -> unit Lwt.t;
   remove: 'k -> unit Lwt.t;
   watch: 'k -> 'v option Lwt_stream.t;

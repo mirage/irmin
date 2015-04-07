@@ -153,6 +153,14 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       G.write t (V.to_git v) >>= fun k ->
       return (key_of_git k)
 
+    let iter { t; _ } fn =
+      G.contents t >>= fun contents ->
+      Lwt_list.iter_s (fun (k, v) ->
+          match V.of_git v with
+          | None   -> Lwt.return_unit
+          | Some v -> fn (key_of_git k) (Lwt.return v)
+        ) contents
+
   end
 
   module GitContents = struct
@@ -502,9 +510,11 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
 
     let iter { t; _ } fn =
       G.references t >>= fun refs ->
-      Lwt_list.iter_p (fun r -> match tag_of_git r with
+      Lwt_list.iter_p (fun r ->
+          let v = G.read_reference_exn t r >|= head_of_git in
+          match tag_of_git r with
           | None   -> return_unit
-          | Some r -> fn r
+          | Some r -> fn r v
         ) refs
 
     let git_of_head k =

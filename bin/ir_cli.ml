@@ -191,10 +191,8 @@ let tree = {
     run begin
       store >>= fun t ->
       let all = ref [] in
-      S.iter (t "tree") (fun k ->
-          S.read (t "value") k >>= function
-          | None   -> return_unit
-          | Some v -> all := (k, v) :: !all; return_unit
+      S.iter (t "tree") (fun k v ->
+          v >>= fun v -> all := (k, v) :: !all; return_unit
         )>>= fun () ->
       let all = !all in
       let all =

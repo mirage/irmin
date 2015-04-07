@@ -186,8 +186,9 @@ struct
   let mem { uri; _ } key =
     get uri ["mem"; K.to_hum key] Tc.bool
 
-  let iter { uri; _ } fn =
-    Lwt_stream.iter_p fn (get_stream uri ["iter"] (module K))
+  let iter t fn =
+    let fn key = fn key (read_exn t key) in
+    Lwt_stream.iter_p fn (get_stream t.uri ["iter"] (module K))
 
 end
 
@@ -389,6 +390,7 @@ struct
     get (uri t) ["mem"; P.to_hum key] Tc.bool
 
   let iter t fn =
+    let fn key = fn key (read_exn t key) in
     Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module P))
 
   let watch t path =

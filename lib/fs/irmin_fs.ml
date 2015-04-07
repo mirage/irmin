@@ -115,7 +115,10 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       ) files
 
   let iter t fn =
-    keys_of_dir t (fun k -> fn k)
+    keys_of_dir t (fun k ->
+        let v = read_exn t k in
+        fn k v
+      )
 
 end
 
