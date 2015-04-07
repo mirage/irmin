@@ -619,22 +619,22 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       end >>= fun () ->
       Lwt.return updated
 
-    let watch t (r:key): value option Lwt_stream.t =
+    let watch_key t (r:key): value option Lwt_stream.t =
       if G.kind = `Disk then
         W.listen_dir t.w (t.git_root / "refs/heads")
           ~key:(ref_of_file ~git_root:t.git_root)
           ~value:(read t);
       Irmin.Private.Watch.lwt_stream_lift (
         read t r >>= fun k ->
-        return (W.watch t.w r k)
+        return (W.watch_key t.w r k)
       )
 
-    let watch_all t: (key * value option) Lwt_stream.t =
+    let watch t: (key * value option) Lwt_stream.t =
       if G.kind = `Disk then
         W.listen_dir t.w (t.git_root / "refs/heads")
           ~key:(ref_of_file ~git_root:t.git_root)
           ~value:(read t);
-      W.watch_all t.w
+      W.watch t.w
 
   end
 

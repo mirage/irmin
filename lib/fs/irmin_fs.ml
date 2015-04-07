@@ -195,16 +195,16 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     let lock = lock_file t key in
     L.with_lock lock write
 
-  let watch t key =
+  let watch_key t key =
     W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
     Irmin.Private.Watch.lwt_stream_lift (
       read t key >>= fun value ->
-      return (W.watch t.w key value)
+      return (W.watch_key t.w key value)
     )
 
-  let watch_all t =
+  let watch t =
     W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
-    W.watch_all t.w
+    W.watch t.w
 
 end
 

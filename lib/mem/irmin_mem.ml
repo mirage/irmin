@@ -122,13 +122,13 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.return updated
 
 
-  let watch t key =
+  let watch_key t key =
     Irmin.Private.Watch.lwt_stream_lift (
       read t key >>= fun value ->
-      return (W.watch t.w key value)
+      return (W.watch_key t.w key value)
     )
 
-  let watch_all t = W.watch_all t.w
+  let watch t = W.watch t.w
 
 end
 

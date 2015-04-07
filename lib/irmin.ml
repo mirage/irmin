@@ -106,8 +106,8 @@ type ('a, 'k, 'v) t = {
   iter: ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t;
   update: 'k -> 'v -> unit Lwt.t;
   remove: 'k -> unit Lwt.t;
-  watch: 'k -> 'v option Lwt_stream.t;
-  watch_all: unit -> ('k * 'v option) Lwt_stream.t;
+  watch_key: 'k -> 'v option Lwt_stream.t;
+  watch: unit -> ('k * 'v option) Lwt_stream.t;
   list: 'k -> 'k list Lwt.t;
   remove_rec: 'k -> unit Lwt.t;
   extend: ('a, 'k, 'v) ext;
@@ -166,8 +166,8 @@ let mem t = t.mem
 let iter t = t.iter
 let update t = t.update
 let remove t = t.remove
-let watch t = t.watch
-let watch_all t = t.watch_all ()
+let watch_key t = t.watch_key
+let watch t = t.watch ()
 let list t = t.list
 let remove_rec t = t.remove_rec
 
@@ -226,8 +226,8 @@ let pack_hrw (type x) (type k) (type v)
   iter = M.iter t;
   update = M.update t;
   remove = M.remove t;
-  watch = M.watch t;
-  watch_all = (fun () -> M.watch_all t);
+  watch_key = M.watch_key t;
+  watch = (fun () -> M.watch t);
   list = M.list t;
   remove_rec = M.remove_rec t;
   extend = HRW;

@@ -392,14 +392,14 @@ module type RW = sig
   val remove: t -> key -> unit Lwt.t
   (** [remove t k] remove the key [k] in [t]. *)
 
-  val watch: t -> key -> value option Lwt_stream.t
-  (** [watch t k] is the stream values associated to the key [k]. The
+  val watch_key: t -> key -> value option Lwt_stream.t
+  (** [watch_key t k] is the stream values associated to the key [k]. The
       stream return a new value every time the bindings is modified in
       [t]. It return [None] if the binding is removed. *)
 
-  val watch_all: t -> (key * value option) Lwt_stream.t
-  (** [watch_all t] watches for key creation and deletions. Use
-      {!watch} if you are interested in a particular key. *)
+  val watch: t -> (key * value option) Lwt_stream.t
+  (** [watch t] watches for key creation and deletions. Use
+      {!watch_key} if you are interested in a particular key. *)
 
   (** FIXME: add move *)
 
@@ -577,12 +577,15 @@ module type BC = sig
       in case of a conflict. *)
 
   val watch_head: t -> key -> (key * head option) Lwt_stream.t
-  (** FIXME Watch changes for a given collection of keys and the ones they
-      have recursive access. Return the stream of heads corresponding
-      to the modified keys. *)
+  (** [watch_head t p] is the stream of changes of the path [p].
+      The stream contains:
+      {ul
+      {- The subpath of [p] which has been modified.}
+      {- The commit id corresponding to change.}}
+  *)
 
   val watch_tags: t -> (tag * head option) Lwt_stream.t
-  (** FIXME Watch for creation and deletion of tags. *)
+  (** [watch_tags t] is the stream of tag changes. *)
 
   (** {2 Clones and Merges} *)
 
@@ -1091,6 +1094,9 @@ module Private: sig
       type t
       (** The type for watch state. *)
 
+      val stats: t -> int * int
+      (** Watcher stats. *)
+
       val notify: t -> key -> value option -> unit
       (** Notify all listeners in the given watch state that a key has
           changed, with the new value associated to this key. If the
@@ -1102,12 +1108,12 @@ module Private: sig
       val clear: t -> unit
       (** Clear all register listeners in the given watch state. *)
 
-      val watch: t -> key -> value option -> value option Lwt_stream.t
+      val watch_key: t -> key -> value option -> value option Lwt_stream.t
       (** Create a stream of value notifications. Need to provide the
           initial value, or [None] if the key does not have associated
           contents yet.  *)
 
-      val watch_all: t -> (key * value option) Lwt_stream.t
+      val watch: t -> (key * value option) Lwt_stream.t
       (** Watch for creation and deletion of keys. *)
 
       val listen_dir: t -> string
@@ -1750,10 +1756,10 @@ val read_exn: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v Lwt.t
 val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
-val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
+val watch_key: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
 (** See {!RW.watch}. *)
 
-val watch_all: ([<`RO|`HRW|`BC],'k,'v) t -> ('k * 'v option) Lwt_stream.t
+val watch: ([<`RO|`HRW|`BC],'k,'v) t -> ('k * 'v option) Lwt_stream.t
 (** See {!RW.watch_all} *)
 
 val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t

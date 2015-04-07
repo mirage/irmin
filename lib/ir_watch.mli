@@ -21,11 +21,12 @@ module type S = sig
   type key
   type value
   type t
+  val stats: t -> int * int
   val notify: t -> key -> value option -> unit
   val create: unit -> t
   val clear: t -> unit
-  val watch: t -> key -> value option -> value option Lwt_stream.t
-  val watch_all: t -> (key * value option) Lwt_stream.t
+  val watch_key: t -> key -> value option -> value option Lwt_stream.t
+  val watch: t -> (key * value option) Lwt_stream.t
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)

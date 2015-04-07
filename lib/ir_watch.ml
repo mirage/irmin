@@ -23,11 +23,12 @@ module type S = sig
   type key
   type value
   type t
+  val stats: t -> int * int
   val notify: t -> key -> value option -> unit
   val create: unit -> t
   val clear: t -> unit
-  val watch: t -> key -> value option -> value option Lwt_stream.t
-  val watch_all: t -> (key * value option) Lwt_stream.t
+  val watch_key: t -> key -> value option -> value option Lwt_stream.t
+  val watch: t -> (key * value option) Lwt_stream.t
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
@@ -69,6 +70,10 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
          (let l = Hashtbl.fold (fun k _ l -> k :: l) t.keys [] in
           List.map (Tc.show (module K)) l))
       (List.length t.all)
+
+  let stats t =
+    Hashtbl.fold (fun _ v acc -> List.length v + acc) t.keys 0,
+    List.length t.all
 
   let create () =
     { id = id (); keys = Hashtbl.create 42; all = [] }
@@ -140,15 +145,15 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     notify_keys t key value;
     notify_all t key value
 
-  let watch (t:t) key value =
-    Log.debug "watch %s %a" (to_string t) force (show (module K) key);
+  let watch_key (t:t) key value =
+    Log.debug "watch_key%s %a" (to_string t) force (show (module K) key);
     let stream, push = Lwt_stream.create () in
     let id = id () in
     Ir_misc.hashtbl_add_multi t.keys key (id, value, push);
     stream
 
-  let watch_all (t:t) =
-    Log.debug "watch all %s" (to_string t);
+  let watch (t:t) =
+    Log.debug "watch %s" (to_string t);
     let stream, push = Lwt_stream.create () in
     let id = id () in
     t.all <- (id, push) :: t.all;

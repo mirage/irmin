@@ -219,11 +219,11 @@ struct
     post uri ["compare-and-set"; K.to_hum key] (CS.to_json (test, set))
       Tc.bool
 
-  let watch { uri; _ } path =
-    get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
+  let watch_key { uri; _ } path =
+    get_stream uri ["watch-key"; K.to_hum path] (module Tc.Option(V))
 
-  let watch_all { uri; _ } =
-    get_stream uri ["watch-all"] (module Tc.Pair(K)(Tc.Option(V)))
+  let watch { uri; _ } =
+    get_stream uri ["watch"] (module Tc.Pair(K)(Tc.Option(V)))
 
 end
 
@@ -408,11 +408,11 @@ struct
     let fn key = fn key (read_exn t key) in
     Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module P))
 
-  let watch t path =
-    get_stream (uri t) ["watch"; P.to_hum path] (module Tc.Option(C))
+  let watch_key t path =
+    get_stream (uri t) ["watch-key"; P.to_hum path] (module Tc.Option(C))
 
-  let watch_all t =
-    get_stream (uri t) ["watch-all";] (module Tc.Pair(P)(Tc.Option(C)))
+  let watch t =
+    get_stream (uri t) ["watch";] (module Tc.Pair(P)(Tc.Option(C)))
 
   let update t key value =
     post (uri t) ["update"; P.to_hum key] (C.to_json value) (module H)

@@ -336,10 +336,10 @@ module Internal (Node: NODE) = struct
       aux t.view k >>= fun _ ->
       Lwt.return_unit
 
-  let watch _ _ =
+  let watch_key _ _ =
     failwith "TODO: View.watch"
 
-  let watch_all _ =
+  let watch _ =
     failwith "TODO: View.watch_all"
 
   let apply t a =

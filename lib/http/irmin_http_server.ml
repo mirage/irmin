@@ -432,7 +432,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bs  "iter"   (stream tag t_iter) tag_t tag;
       mk1p1bf  "update" T.update tag_t tag' head Tc.unit;
       mk1p0bf' "remove" T.remove tag_t tag' Tc.unit;
-      mk1p0bs  "watch"  T.watch  tag_t tag' (Tc.option head);
+      mk1p0bs  "watch-key"  T.watch_key  tag_t tag' (Tc.option head);
       mk1p1bf  "compare-and-set" t_cs tag_t tag' tc_cs Tc.bool;
     ]
 
@@ -598,7 +598,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bs "iter"   (stream key s_iter) t key;
       mknp1bf "update" ~lock ~hooks (l s_update) t step' value head;
       mknp0bf "remove" ~lock ~hooks (l s_remove) t step' head;
-      mknp0bs "watch"  (l S.watch)    t step' (Tc.option value);
+      mknp0bs "watch-key" (l S.watch_key) t step' (Tc.option value);
       mknp1bf "compare-and-set" ~lock ~hooks (l s_compare_and_set) t step'
         (Tc.pair (Tc.option value) (Tc.option value)) Tc.bool;
 

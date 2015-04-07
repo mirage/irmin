@@ -502,7 +502,7 @@ module Make_ext (P: PRIVATE) = struct
 
   module ONode = Tc.Option(P.Node.Key)
 
-  let watch_all _t =
+  let watch _t =
     Log.info" watch all";
     failwith "BC.wath_all: TODO"
 
@@ -512,7 +512,7 @@ module Make_ext (P: PRIVATE) = struct
     | `Empty
     | `Head _  -> Lwt_stream.of_list []
     | `Tag tag ->
-      let stream = Tag.watch (tag_t t) tag in
+      let stream = Tag.watch_key (tag_t t) tag in
       Ir_watch.lwt_stream_lift (
         read_node t path >>= fun node ->
         let old_node = ref node in
@@ -546,10 +546,10 @@ module Make_ext (P: PRIVATE) = struct
 
   let watch_tags t =
     Log.info "Adding a watch on all tags";
-    Tag.watch_all (tag_t t)
+    Tag.watch (tag_t t)
 
   (* watch contents changes. *)
-  let watch t path =
+  let watch_key t path =
     let path, file =
       match Key.rdecons path with
       | Some (l, t) -> l, t
