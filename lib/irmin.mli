@@ -929,8 +929,6 @@ end
     fashion very similar to Git.}
     {- Efficient {{!View}staging areas} for fast, transient,
     in-memory operations.}
-    {- Space efficient {{!Snapshot}snapshots} and fast and consistent
-    rollback operations.}
     {- Fast {{!Sync}synchronization} primitives between remote
     stores, using native backend protocols (as the Git protocol) when
     available.}
@@ -2247,43 +2245,6 @@ module View (S: S): VIEW with type db = S.t
                           and type key = S.Key.t
                           and type value = S.Val.t
 (** Create views. *)
-
-(** [Snapshot] provides read-only, space-efficient, checkpoints of a
-    store. It also provides functions to rollback to a previous
-    state. *)
-module Snapshot (S: S): sig
-
-  (** {1 Snapshots} *)
-
-  include RO with type key = S.Key.t and type value = S.Val.t
-  (** A snapshot is a read-only store, mirroring the main store. *)
-
-  val to_hum: t -> string
-  (** Pretty-print a snapshot value. *)
-
-  val of_hum: S.t -> string -> t
-  (** Read a pretty-printed snapshot value. *)
-
-  val create: S.t -> t Lwt.t
-  (** Snapshot the current state of the store. *)
-
-  val revert: S.t -> t -> unit Lwt.t
-  (** Revert the store to a previous state. *)
-
-  val merge: S.t -> ?max_depth:int -> ?n:int -> t -> unit Merge.result Lwt.t
-  (** Merge the given snapshot into the current branch of the
-      store. *)
-
-  val merge_exn: S.t -> ?max_depth:int -> ?n:int -> t -> unit Lwt.t
-  (** Same as {!merge} but raise {!Merge.Conflict} in case of
-      conflict. *)
-
-  val watch: S.t -> key -> (key * t) Lwt_stream.t
-  (** Subscribe to the stream of modification events attached to a
-      given path. Takes and returns a new snapshot every time a
-      sub-path is modified. *)
-
-end
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
     format. *)
