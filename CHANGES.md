@@ -1,4 +1,10 @@
 ## 0.9.5
+* Use a pure OCaml implementation of SHA1, do not depend on nocrypto anymore
+  (#183, by @talex5)
+* Remove `Irmin.Snapshot`. Nobody was using it and it can be easily replaced by
+  `Irmin.head`, `Irmin.watch_head` and `Irmin.update_head`.
+* Change signature of `Irmin.iter` to include the values and move it into
+  the `Irmin.RO` signature.
 * Add `Irmin.fast_forward_head` (#172)
 * Add `Irmin.compare_and_set_head` (#171)
 * Simplify the RW_MAKER signature (#158)

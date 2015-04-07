@@ -346,6 +346,10 @@ module type RO = sig
   val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
+  val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  (** [iter t fn] call the function [fn] on all [t]'s keys and
+      values. *)
+
 end
 
 (** Append-only store. *)
@@ -368,9 +372,6 @@ module type RW = sig
   (** {1 Read-write stores} *)
 
   include RO
-
-  val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
-  (** [iter t fn] call the function [fn] on all [t]'s keys. *)
 
   val update: t -> key -> value -> unit Lwt.t
   (** [update t k v] replaces the contents of [k] by [v] in [t]. If
@@ -929,8 +930,6 @@ end
     fashion very similar to Git.}
     {- Efficient {{!View}staging areas} for fast, transient,
     in-memory operations.}
-    {- Space efficient {{!Snapshot}snapshots} and fast and consistent
-    rollback operations.}
     {- Fast {{!Sync}synchronization} primitives between remote
     stores, using native backend protocols (as the Git protocol) when
     available.}
@@ -1746,7 +1745,7 @@ val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
 val watch_all: ([<`RO|`HRW|`BC],'k,'v) t -> ('k * 'v option) Lwt_stream.t
 (** See {!RW.watch_all} *)
 
-val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
+val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t
 (** See {!RW.iter}. *)
 
 val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
@@ -2247,43 +2246,6 @@ module View (S: S): VIEW with type db = S.t
                           and type key = S.Key.t
                           and type value = S.Val.t
 (** Create views. *)
-
-(** [Snapshot] provides read-only, space-efficient, checkpoints of a
-    store. It also provides functions to rollback to a previous
-    state. *)
-module Snapshot (S: S): sig
-
-  (** {1 Snapshots} *)
-
-  include RO with type key = S.Key.t and type value = S.Val.t
-  (** A snapshot is a read-only store, mirroring the main store. *)
-
-  val to_hum: t -> string
-  (** Pretty-print a snapshot value. *)
-
-  val of_hum: S.t -> string -> t
-  (** Read a pretty-printed snapshot value. *)
-
-  val create: S.t -> t Lwt.t
-  (** Snapshot the current state of the store. *)
-
-  val revert: S.t -> t -> unit Lwt.t
-  (** Revert the store to a previous state. *)
-
-  val merge: S.t -> ?max_depth:int -> ?n:int -> t -> unit Merge.result Lwt.t
-  (** Merge the given snapshot into the current branch of the
-      store. *)
-
-  val merge_exn: S.t -> ?max_depth:int -> ?n:int -> t -> unit Lwt.t
-  (** Same as {!merge} but raise {!Merge.Conflict} in case of
-      conflict. *)
-
-  val watch: S.t -> key -> (key * t) Lwt_stream.t
-  (** Subscribe to the stream of modification events attached to a
-      given path. Takes and returns a new snapshot every time a
-      sub-path is modified. *)
-
-end
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
     format. *)

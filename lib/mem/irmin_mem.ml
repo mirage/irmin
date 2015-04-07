@@ -64,7 +64,7 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let iter { t; _ } fn =
     Log.debug "iter";
     let todo = ref [] in
-    Hashtbl.iter (fun k _ -> todo := (fn k) :: !todo) t;
+    Hashtbl.iter (fun k v -> todo := (fn k (Lwt.return v)) :: !todo) t;
     Lwt_list.iter_p (fun x -> x) !todo
 
 end

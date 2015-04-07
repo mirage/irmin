@@ -22,7 +22,6 @@ module Tag = Ir_tag
 module Task = Ir_task
 module View = Ir_view.Make
 module type VIEW = Ir_view.S
-module Snapshot = Ir_snapshot.Make
 module Dot = Ir_dot.Make
 module type S = Ir_s.STORE
 
@@ -104,7 +103,7 @@ type ('a, 'k, 'v) t = {
   read: 'k -> 'v option Lwt.t;
   read_exn: 'k -> 'v Lwt.t;
   mem: 'k -> bool Lwt.t;
-  iter: ('k -> unit Lwt.t) -> unit Lwt.t;
+  iter: ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t;
   update: 'k -> 'v -> unit Lwt.t;
   remove: 'k -> unit Lwt.t;
   watch: 'k -> 'v option Lwt_stream.t;

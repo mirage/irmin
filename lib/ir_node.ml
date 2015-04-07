@@ -320,6 +320,8 @@ struct
       in
       merge_key path ~old x y
 
+    let iter (_, t) fn = S.iter t fn
+
     module Key = S.Key
     module Val = struct
       include S.Val

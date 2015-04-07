@@ -418,21 +418,22 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     )
 
   let tag_store =
-    let open S.Private.Tag in
+    let module T = S.Private.Tag in
     let tag_t t = return (S.Private.tag_t t) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
     let head: S.head Tc.t = (module S.Head) in
-    let compare_and_set t tag (test, set) = compare_and_set t tag ~test ~set in
+    let t_cs t tag (test, set) = T.compare_and_set t tag ~test ~set in
+    let tc_cs = Tc.pair (Tc.option head) (Tc.option head) in
+    let t_iter t fn = T.iter t (fun k _ -> fn k) in
     SNode [
-      mk1p0bf' "read"   read   tag_t tag' (Tc.option head);
-      mk1p0bf' "mem"    mem    tag_t tag' Tc.bool;
-      mk0p0bs  "iter"   (stream tag iter) tag_t tag;
-      mk1p1bf  "update" update tag_t tag' head Tc.unit;
-      mk1p0bf' "remove" remove tag_t tag' Tc.unit;
-      mk1p0bs  "watch"  watch  tag_t tag' (Tc.option head);
-      mk1p1bf  "compare-and-set" compare_and_set tag_t tag'
-        (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
+      mk1p0bf' "read"   T.read   tag_t tag' (Tc.option head);
+      mk1p0bf' "mem"    T.mem    tag_t tag' Tc.bool;
+      mk0p0bs  "iter"   (stream tag t_iter) tag_t tag;
+      mk1p1bf  "update" T.update tag_t tag' head Tc.unit;
+      mk1p0bf' "remove" T.remove tag_t tag' Tc.unit;
+      mk1p0bs  "watch"  T.watch  tag_t tag' (Tc.option head);
+      mk1p1bf  "compare-and-set" t_cs tag_t tag' tc_cs Tc.bool;
     ]
 
   let ok_or_duplicated_tag =
@@ -586,6 +587,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let max_depth, n = mk_merge_query query in
       S.fast_forward_head t ?max_depth ?n head
     in
+    let s_iter t fn = S.iter t (fun k _ -> fn k) in
     let l f t list = f t (S.Key.create list) in
     let hooks = hooks.update in
     let lock = true in
@@ -593,7 +595,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       (* rw *)
       mknp0bf "read"   (l S.read)     t step' (Tc.option value);
       mknp0bf "mem"    (l S.mem)      t step' Tc.bool;
-      mk0p0bs "iter"   (stream key S.iter) t key;
+      mk0p0bs "iter"   (stream key s_iter) t key;
       mknp1bf "update" ~lock ~hooks (l s_update) t step' value head;
       mknp0bf "remove" ~lock ~hooks (l s_remove) t step' head;
       mknp0bs "watch"  (l S.watch)    t step' (Tc.option value);

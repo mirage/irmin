@@ -244,7 +244,8 @@ module Internal (Node: NODE) = struct
       | path::tl ->
         list t path >>= fun childs ->
         let todo = childs @ tl in
-        fn path >>= fun () ->
+        let v = read_exn t path in
+        fn path v >>= fun () ->
         aux todo
     in
     list t Path.empty >>= aux

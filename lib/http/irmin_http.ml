@@ -186,8 +186,9 @@ struct
   let mem { uri; _ } key =
     get uri ["mem"; K.to_hum key] Tc.bool
 
-  let iter { uri; _ } fn =
-    Lwt_stream.iter_p fn (get_stream uri ["iter"] (module K))
+  let iter t fn =
+    let fn key = fn key (read_exn t key) in
+    Lwt_stream.iter_p fn (get_stream t.uri ["iter"] (module K))
 
 end
 
@@ -309,7 +310,7 @@ struct
        - `$uri/tree/$tag` if branch = `Tag tag
        - `$uri/tree/$key if key = `Key key *)
   type t = {
-    mutable branch: [`Tag of T.t | `Head of H.t ];
+    branch: [`Tag of T.t | `Head of H.t ] ref;
     mutable h: S.t;
     config: Irmin.config;
     contents_t: LP.Contents.t;
@@ -319,11 +320,14 @@ struct
     read_node: L.key -> LP.Node.key option Lwt.t;
     mem_node: L.key -> bool Lwt.t;
     update_node: L.key -> LP.Node.key -> unit Lwt.t;
+    lock: Lwt_mutex.t;
   }
+
+  let branch t = !(t.branch)
 
   let uri t =
     let base = t.h.S.uri in
-    match t.branch with
+    match branch t with
     | `Tag tag ->
       if T.equal tag T.master then base
       else uri_append base ["tree"; T.to_hum tag]
@@ -331,9 +335,8 @@ struct
       uri_append base ["tree"; H.to_hum h]
 
   let task t = S.task t.h
-  let branch t = t.branch
-  let set_tag t tag = t.branch <- `Tag tag
-  let set_head t head = t.branch <- `Head head
+  let set_tag t tag = t.branch := `Tag tag
+  let set_head t head = t.branch := `Head head
 
   type key = S.key
   type value = S.value
@@ -351,25 +354,30 @@ struct
       let read_node = LP.read_node l in
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
+      let lock = Lwt_mutex.create () in
       { branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; config; }
+        read_node; mem_node; update_node; config;
+        lock; }
     in
     return fn
 
   let create config task =
     S.create config task >>= fun h ->
     L.create config task >>= fun l ->
-    create_aux (`Tag T.master) config h l
+    let branch = ref (`Tag T.master) in
+    create_aux branch config h l
 
   let of_tag config task tag =
     S.create config task >>= fun h ->
     L.of_tag config task tag >>= fun l ->
-    create_aux (`Tag tag) config h l
+    let branch = ref (`Tag tag) in
+    create_aux branch config h l
 
   let of_head config task head =
     S.create config task >>= fun h ->
     L.of_head config task head >>= fun l ->
-    create_aux (`Head head) config h l
+    let branch = ref (`Head head) in
+    create_aux branch config h l
 
   let read t key =
     get (uri t) ["read"; P.to_hum key] (module Tc.Option(C))
@@ -389,6 +397,7 @@ struct
     get (uri t) ["mem"; P.to_hum key] Tc.bool
 
   let iter t fn =
+    let fn key = fn key (read_exn t key) in
     Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module P))
 
   let watch t path =
@@ -400,7 +409,7 @@ struct
   let update t key value =
     post (uri t) ["update"; P.to_hum key] (C.to_json value) (module H)
     >>= fun h ->
-    let () = match t.branch with
+    let () = match branch t with
       | `Head _ -> set_head t h
       | `Tag  _ -> ()
     in
@@ -408,7 +417,7 @@ struct
 
   let remove t key =
     delete (uri t) ["remove"; P.to_hum key] (module H) >>= fun h ->
-    match t.branch with
+    match branch t with
     | `Head _ -> set_head t h; return_unit
     | `Tag _  -> return_unit
 
@@ -418,7 +427,7 @@ struct
     post (uri t) ["compare-and-set"; P.to_hum key] (CS.to_json (test, set))
       Tc.bool
 
-  let tag t = match t.branch with
+  let tag t = match branch t with
     | `Head _ -> Lwt.return_none
     | `Tag t  -> Lwt.return (Some t)
 
@@ -429,7 +438,7 @@ struct
   let tags t =
     get (uri t) ["tags"] (module Tc.List(T))
 
-  let head t = match t.branch with
+  let head t = match branch t with
     | `Head h -> return (Some h)
     | `Tag _  -> get (uri t) ["head"] (module Tc.Option(H))
 
@@ -443,23 +452,34 @@ struct
     set_tag t tag;
     return_unit
 
-  let remove_tag t =
-    match t.branch with
+  let remove_tag t = match branch t with
     | `Head _  -> Lwt.return_unit
     | `Tag _   -> get (uri t) ["remove-tag"] Tc.unit
 
   let heads t =
     get (uri t) ["heads"] (module Tc.List(H))
 
-  let update_head t head =
-    match t.branch with
+  let update_head t head = match branch t with
     | `Head _ -> set_head t head; return_unit
     | `Tag _  -> get (uri t) ["update-head"; H.to_hum head] Tc.unit
 
   module CSH = Tc.Pair(Tc.Option(H))(Tc.Option(H))
 
+  let compare_and_set_head_unsafe t ~test ~set = match branch t with
+    | `Tag _  ->
+      post (uri t) ["compare-and-set-head"] (CSH.to_json (test, set)) Tc.bool
+    | `Head h ->
+      let set = match set with
+        | None   -> failwith "Irmin.compare_and_set_head: empty set"
+        | Some s -> s
+      in
+      if Some h = test then (set_head t set; Lwt.return true)
+      else Lwt.return false
+
   let compare_and_set_head t ~test ~set =
-    post (uri t) ["compare-and-set-head"] (CSH.to_json (test, set)) Tc.bool
+    Lwt_mutex.with_lock t.lock (fun () ->
+        compare_and_set_head_unsafe t ~test ~set
+      )
 
   module M = Tc.App1 (Irmin.Merge.Result) (H)
 
@@ -476,14 +496,22 @@ struct
     | [] -> None
     | q  -> Some q
 
-  let fast_forward_head t ?max_depth ?n head =
+  let fast_forward_head_unsafe t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["fast-forward-head"; H.to_hum head] Tc.bool
+    get (uri t) ?query ["fast-forward-head"; H.to_hum head] Tc.bool >>= fun b ->
+    match branch t with
+    | `Tag _  -> Lwt.return b
+    | `Head _ -> if b then set_head t head; Lwt.return b
+
+  let fast_forward_head t ?max_depth ?n head =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        fast_forward_head_unsafe t ?max_depth ?n head
+      )
 
   let merge_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
     get (uri t) ?query ["merge-head"; H.to_hum head] (module M) >>| fun h ->
-    match t.branch with
+    match branch t with
     | `Head _ -> set_head t h; ok ()
     | `Tag _  -> ok ()
 
@@ -491,7 +519,7 @@ struct
     merge_head t ?max_depth ?n head >>= Irmin.Merge.exn
 
   let watch_head t key =
-    match t.branch with
+    match branch t with
     | `Head _ -> Lwt_stream.of_list []
     | `Tag _  ->
       let module W = Tc.Pair (P)(Tc.Option(H)) in
@@ -521,7 +549,7 @@ struct
   let merge_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
     get (uri t) ?query ["merge-tag"; T.to_hum tag] (module M) >>| fun h ->
-    match t.branch with
+    match branch t with
     | `Head _ -> set_head t h; ok ()
     | `Tag _  -> ok ()
 
@@ -599,7 +627,7 @@ struct
 
   let remove_rec t dir =
     get (uri t) ["remove-rec"; P.to_hum dir] (module H) >>= fun h ->
-    match t.branch with
+    match branch t with
     | `Head _ -> set_head t h; return_unit
     | `Tag _  -> return_unit
 

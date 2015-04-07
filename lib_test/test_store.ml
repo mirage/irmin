@@ -298,7 +298,7 @@ module Make (S: Irmin.S) = struct
 
       let list t =
         let tags = ref [] in
-        Tag.iter t (fun t -> tags := t :: !tags; return_unit) >>= fun () ->
+        Tag.iter t (fun t _ -> tags := t :: !tags; return_unit) >>= fun () ->
         return !tags
       in
       list tag >>= fun ts ->
@@ -528,23 +528,23 @@ module Make (S: Irmin.S) = struct
       (* fast-forward *)
       S.of_head x.config task k12     >>= fun t12  ->
       S.fast_forward_head (t12 0) k16 >>= fun b1 ->
-      assert_equal Tc.bool "ff 1" false b1;
+      assert_equal Tc.bool "ff 1.1" false b1;
       S.head_exn (t12 0)              >>= fun k12' ->
-      assert_equal (module S.Head) "ff 1'" k12 k12';
+      assert_equal (module S.Head) "ff 1.2" k12 k12';
 
       S.fast_forward_head (t12 0) ~n:1 k14 >>= fun b2 ->
-      assert_equal Tc.bool "ff 2" false b2;
+      assert_equal Tc.bool "ff 2.1" false b2;
+      S.head_exn (t12 0)              >>= fun k12'' ->
+      assert_equal (module S.Head) "ff 2.3" k12 k12'';
 
       S.fast_forward_head (t12 0) k14 >>= fun b3 ->
-      assert_equal Tc.bool "ff 2" true b3;
+      assert_equal Tc.bool "ff 2.2" true b3;
       S.head_exn (t12 0)              >>= fun k14' ->
-      assert_equal (module S.Head) "ff 2'" k14 k14';
+      assert_equal (module S.Head) "ff 2.3" k14 k14';
 
       return_unit
     in
     run x test
-
-  module Snapshot = Irmin.Snapshot(S)
 
   let test_stores x () =
     let test () =
@@ -562,7 +562,7 @@ module Make (S: Irmin.S) = struct
       S.read_exn (t "read1") (p ["a";"b"]) >>= fun v1' ->
       assert_equal (module V) "v1.1" v1 v1';
 
-      Snapshot.create (t "snapshot") >>= fun r1 ->
+      S.head_exn (t "snapshot") >>= fun r1 ->
 
       S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
 
@@ -582,7 +582,7 @@ module Make (S: Irmin.S) = struct
       S.remove (t "remove") (p ["a";"b"]) >>= fun () ->
       S.read (t "read4") (p ["a";"b"]) >>= fun v1''->
       assert_equal (module Tc.Option(V)) "v1.2" None v1'';
-      Snapshot.revert (t "revert") r1 >>= fun () ->
+      S.update_head (t "revert") r1 >>= fun () ->
       S.read (t "read") (p ["a";"b"]) >>= fun v1''->
       assert_equal (module Tc.Option(V)) "v1.3" (Some v1) v1'';
       S.list (t "list") (p ["a"]) >>= fun ks ->
@@ -706,11 +706,11 @@ module Make (S: Irmin.S) = struct
 
       S.update (t1 "update a/b") (p ["a";"b"]) v1 >>= fun () ->
       S.head_exn (t1 "head") >>= fun h ->
-      Snapshot.create (t1 "snapshot 1") >>= fun _r1 ->
+      S.head_exn (t1 "snapshot 1") >>= fun _r1 ->
       S.update (t1 "update a/c") (p ["a";"c"]) v2 >>= fun () ->
-      Snapshot.create (t1 "snapshot 2") >>= fun r2 ->
+      S.head_exn (t1 "snapshot 2") >>= fun r2 ->
       S.update (t1 "update a/d") (p ["a";"d"]) v1 >>= fun () ->
-      Snapshot.create (t1 "snapshot 3") >>= fun _r3 ->
+      S.head_exn (t1 "snapshot 3") >>= fun _r3 ->
 
       S.history (t1 "history") ~min:[h] >>= fun h ->
       assert_equal (module Tc.Int) "history-v" 3 (S.History.nb_vertex h);
@@ -737,12 +737,12 @@ module Make (S: Irmin.S) = struct
       S.read_exn (t2 "read a/d") (p ["a";"d"]) >>= fun v1' ->
       assert_equal (module V) "v1" v1' v1;
 
-      Snapshot.revert (t2 "revert to t2") r2 >>= fun () ->
+      S.update_head (t2 "revert to t2") r2 >>= fun () ->
       S.mem (t2 "mem a/b") (p ["a";"d"]) >>= fun b4 ->
       assert_equal (module Tc.Bool) "mem-ab" false b4;
 
       S.update_head (t2 "full update") full >>= fun () ->
-      Snapshot.revert (t2 "revert to r2") r2 >>= fun () ->
+      S.update_head (t2 "revert to r2") r2 >>= fun () ->
       S.mem (t2 "mem a/d") (p ["a";"d"]) >>= fun b4 ->
       assert_equal (module Tc.Bool) "mem-ad" false b4;
       return_unit
