@@ -2245,6 +2245,7 @@ end
 module View (S: S): VIEW with type db = S.t
                           and type key = S.Key.t
                           and type value = S.Val.t
+                          and type head = S.head
 (** Create views. *)
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
