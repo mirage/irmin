@@ -370,18 +370,21 @@ let watch = {
   doc  = "Watch the contents of a store and be notified on updates.";
   man  = [];
   term =
-    let watch (S ((module S), store)) path =
+    (* FIXME: use path? *)
+    let watch (S ((module S), store)) _path =
       run begin
         store >>= fun t ->
-        let stream = S.watch_head (t "watch") (S.Key.of_hum path) in
-        Lwt_stream.iter_s (fun (path, head) ->
-            let head = match head with
-              | None   -> "<none>"
-              | Some s -> S.Head.to_hum s
+        S.watch_tag (t "watch") (fun head ->
+            let pr = S.Head.to_hum in
+            let () = match head with
+              | `Updated (x, y) -> print "%s -> %s" (pr x) (pr y)
+              | `Added x        -> print "<none> -> %s" (pr x)
+              | `Removed x      -> printf "%s -> <none>" (pr x)
             in
-            print "%s %s" (S.Key.to_hum path) head;
             return_unit
-          ) stream
+          ) >>= fun _ ->
+        let t, _ = Lwt.task () in
+        t
       end
     in
     Term.(mk watch $ store $ path)
