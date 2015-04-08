@@ -30,7 +30,9 @@ Library irmin
                    Ir_ro, Ir_ao, Ir_rw, Ir_conf, Ir_s,
                    Ir_commit, Ir_tag, Ir_contents, Ir_hum,
                    Ir_node, Ir_version, Ir_dot, Ir_path, Ir_watch,
-                   Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync, Ir_sync_ext
+                   Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync, Ir_sync_ext,
+                   Irmin_krypto_conf, Irmin_kryptonite
+
   Modules:         Irmin
   BuildDepends:    ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct, tc,
                    mstruct, uri, stringext, hex
@@ -77,6 +79,18 @@ Library "irmin-unix"
   BuildDepends:  irmin, irmin.mem, irmin.git, irmin.fs, irmin.http,
                  git.unix, cohttp.lwt
   Modules:       Irmin_unix
+
+
+Library "irmin-krypto"
+  Build$:        flag(unix) && flag(http) && flag(git)
+  Install$:      flag(unix) && flag(http) && flag(git)
+  Path:          lib/irmin-
+  Findlibname:   unix
+  FindlibParent: irmin
+  BuildDepends:  irmin, irmin.mem, irmin.git, irmin.fs, irmin.http,
+                 git.unix, cohttp.lwt
+  Modules:       Irmin_unix
+
 
 Document irmin
   Title:                Irmin docs
