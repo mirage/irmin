@@ -45,8 +45,10 @@ module type STORE = sig
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val watch_tag: t -> (head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  val watch_tags: t -> (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_tag: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
+    (unit -> unit Lwt.t) Lwt.t
+  val watch_tags: t -> ?init:(tag * head) list ->
+    (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val clone: 'a Ir_task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   val clone_force: 'a Ir_task.f -> t ->  tag -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
@@ -496,18 +498,22 @@ module Make_ext (P: PRIVATE) = struct
   let merge_exn a ?max_depth ?n t ~into =
     merge a ?max_depth ?n t ~into >>= Ir_merge.exn
 
-  let watch_tag t fn =
+  let watch_tag t ?init fn =
     tag t >>= function
     | None       -> Lwt.return (fun () -> Lwt.return_unit)
     | Some tag0 ->
-      Tag.watch (tag_t t) (fun tag head ->
+      let init = match init with
+        | None       -> None
+        | Some head0 -> Some [tag0, head0]
+      in
+      Tag.watch (tag_t t) ?init (fun tag head ->
           if Tag.Key.equal tag0 tag then fn head else Lwt.return_unit
         ) >>= fun id ->
       Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
 
-  let watch_tags t fn =
+  let watch_tags t ?init fn =
     Log.info "Adding a watch on all tags";
-    Tag.watch (tag_t t) fn >>= fun id ->
+    Tag.watch (tag_t t) ?init fn >>= fun id ->
     Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
 
   type slice = P.Slice.t

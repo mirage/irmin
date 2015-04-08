@@ -478,6 +478,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
     type value = Val.t
     type watch = W.watch
     let task t = t.task
+    let watch_key t = W.watch_key t.w
     let watch t = W.watch t.w
     let unwatch t = W.unwatch t.w
 

@@ -219,11 +219,8 @@ struct
     post uri ["compare-and-set"; K.to_hum key] (CS.to_json (test, set))
       Tc.bool
 
-  let watch_key { uri; _ } path =
-    get_stream uri ["watch-key"; K.to_hum path] (module Tc.Option(V))
-
-  let watch { uri; _ } =
-    get_stream uri ["watch"] (module Tc.Pair(K)(Tc.Option(V)))
+  let watch { uri; _ } path =
+    get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
 
 end
 

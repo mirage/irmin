@@ -162,6 +162,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
   let iter t = RO.iter t.t
+  let watch_key t = W.watch_key t.w
   let watch t = W.watch t.w
   let unwatch t = W.unwatch t.w
 

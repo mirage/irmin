@@ -40,8 +40,10 @@ module type STORE = sig
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val watch_tag: t -> (head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  val watch_tags: t -> (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_tag: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
+    (unit -> unit Lwt.t) Lwt.t
+  val watch_tags: t -> ?init:(tag * head) list ->
+    (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val clone: 'a Ir_task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   val clone_force: 'a Ir_task.f -> t -> tag -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->

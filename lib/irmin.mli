@@ -433,9 +433,19 @@ module type RRW = sig
   type watch
   (** The type of watch handlers. *)
 
-  val watch: t -> (key -> value diff -> unit Lwt.t) -> watch Lwt.t
-  (** [watch t f] adds [f] to the list of [t]'s watch handlers and
-      return the watch handler to be used with {!unwatch}. *)
+  val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) ->
+    watch Lwt.t
+  (** [watch_key t k ?init f] adds [f] to the list of [t]'s watch
+      handlers for the key [k] and return the watch handler to be used
+      with {!unwatch}. [init] is the optional initial value of the
+      key. *)
+
+  val watch: t -> ?init:(key * value) list -> (key -> value diff -> unit Lwt.t) ->
+    watch Lwt.t
+  (** [watch t ?init f] adds [f] to the list of [t]'s watch handlers
+      and return the watch handler to be used with {!unwatch}. [init]
+      is the optional initial values. It is more efficient to use
+      {!watch_key} to watch only a single given key.*)
 
   val unwatch: t -> watch -> unit Lwt.t
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
@@ -592,7 +602,8 @@ module type BC = sig
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
 
-  val watch_tag: t -> (head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_tag: t -> ?init:head -> (head diff -> unit Lwt.t) ->
+    (unit -> unit Lwt.t) Lwt.t
   (** [watch_tag t f] calls [f] everytime the contents of [t]'s tag is
       updated. Do nothing if [t] is not persistent. Return a clean-up
       function to remove the watch handler.
@@ -602,7 +613,8 @@ module type BC = sig
       sequence, so we ensure that the previous one ended before
       calling the next one. *)
 
-  val watch_tags: t -> (tag -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_tags: t -> ?init:(tag * head) list ->
+    (tag -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   (** [watch_tags t f] calls [f] to the watch handlers of {b all} tag
       changes in the local store. Return a function to remove the
       handler. *)
@@ -1117,8 +1129,10 @@ module Private: sig
       type t
       (** The type for watch state. *)
 
-      val stats: t -> int
-      (** Watcher stats. *)
+      val stats: t -> int * int
+      (** [stats t] is a tuple [(k,a)] represeting watch stats. [k] is
+          the number of single key watchers for the store [t] and [a] the
+          number of global watchers for [t]. *)
 
       val notify: t -> key -> value option -> unit Lwt.t
       (** Notify all listeners in the given watch state that a key has
@@ -1131,8 +1145,14 @@ module Private: sig
       val clear: t -> unit
       (** Clear all register listeners in the given watch state. *)
 
-      val watch: t -> (key -> value diff -> unit Lwt.t) -> watch Lwt.t
-      (** Add a watch handler. *)
+      val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) ->
+        watch Lwt.t
+      (** Watch a given key for changes. More efficient than {!watch}. *)
+
+      val watch: t -> ?init:(key * value) list ->
+        (key -> value diff -> unit Lwt.t) -> watch Lwt.t
+      (** Add a watch handler. To watch a specific key, use
+          {!watch_key} which is more efficient. *)
 
       val unwatch: t -> watch -> unit Lwt.t
       (** Remove a watch handler. *)
@@ -1844,11 +1864,12 @@ val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
 
-val watch_tag: ([`BC],'k,'v) t -> (Hash.SHA1.t diff -> unit Lwt.t) ->
-  (unit -> unit Lwt.t) Lwt.t
+val watch_tag: ([`BC],'k,'v) t -> ?init:Hash.SHA1.t ->
+  (Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 (** See {!BC.watch_tag}. *)
 
-val watch_tags: ([`BC],'k,'v) t -> (string -> Hash.SHA1.t diff -> unit Lwt.t) ->
+val watch_tags: ([`BC],'k,'v) t -> ?init:(string * Hash.SHA1.t) list ->
+  (string -> Hash.SHA1.t diff -> unit Lwt.t) ->
   (unit -> unit Lwt.t) Lwt.t
 (** See {!BC.watch_tags}. *)
 

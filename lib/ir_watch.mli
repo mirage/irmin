@@ -23,11 +23,13 @@ module type S = sig
   type value
   type watch
   type t
-  val stats: t -> int
+  val stats: t -> int * int
   val notify: t -> key -> value option -> unit Lwt.t
   val create: unit -> t
   val clear: t -> unit
-  val watch: t -> (key -> value diff -> unit Lwt.t) -> watch Lwt.t
+  val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) -> watch Lwt.t
+  val watch: t -> ?init:(key * value) list ->
+    (key -> value diff -> unit Lwt.t) -> watch Lwt.t
   val unwatch: t -> watch -> unit Lwt.t
   val listen_dir: t -> string
     -> key:(string -> key option)

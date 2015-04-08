@@ -26,7 +26,10 @@ end
 module type REACTIVE = sig
   include STORE
   type watch
-  val watch  : t -> (key -> value Ir_watch.diff -> unit Lwt.t) -> watch Lwt.t
+  val watch_key: t -> key -> ?init:value -> (value Ir_watch.diff -> unit Lwt.t) ->
+    watch Lwt.t
+  val watch  : t -> ?init:(key * value) list ->
+    (key -> value Ir_watch.diff -> unit Lwt.t) -> watch Lwt.t
   val unwatch: t -> watch -> unit Lwt.t
 end
 
