@@ -17,7 +17,6 @@
 module Log = Log.Make(struct let section = "WATCH" end)
 
 let (>>=) = Lwt.(>>=)
-let (>|=) = Lwt.(>|=)
 
 type 'a diff = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
 
@@ -55,6 +54,27 @@ let id () =
 
 let global = id ()
 
+let scheduler () =
+  let p = ref None in
+  let niet () = () in
+  let c = ref niet in
+  let push elt = match !p with
+    | Some p -> p elt
+    | None ->
+      let stream, push = Lwt_stream.create () in
+      Lwt.async (fun () ->
+          (* FIXME: we would like to skip some updates if more recent ones
+             are at the back of the queue. *)
+          Lwt_stream.iter_s (fun f -> f ()) stream
+        );
+      p := Some push;
+      c := (fun () -> push None);
+      push elt
+  in
+  let clean () = !c (); c := niet; p := None in
+  let enqueue v = push (Some v) in
+  clean, enqueue
+
 module Make (K: Tc.S0) (V: Tc.S0) = struct
 
   type key = K.t
@@ -68,48 +88,41 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   type all_handler = key -> value diff -> unit Lwt.t
 
   type t = {
-    id: int;
-    lock: Lwt_mutex.t;
-    mutable next: int;
-    mutable keys: (key * value option * key_handler) IMap.t;
-    mutable all : (value KMap.t * all_handler) IMap.t;
-    enqueue: ((unit -> unit Lwt.t) -> unit Lwt.t) Lazy.t;
+    id: int;                                      (* unique watch manager id. *)
+    lock: Lwt_mutex.t;                           (* protect [keys] and [glb]. *)
+    mutable next: int;                (* next id, to identify watch handlers. *)
+    mutable keys: (key * value option * key_handler) IMap.t; (* key handlers. *)
+    mutable glob: (value KMap.t * all_handler) IMap.t;    (* global handlers. *)
+    enqueue: (unit -> unit Lwt.t) -> unit;          (* enqueue notifications. *)
+    clean: unit -> unit;                  (* destroy the notification thread. *)
   }
 
-  let stats t = IMap.cardinal t.keys, IMap.cardinal t.all
+  let stats t = IMap.cardinal t.keys, IMap.cardinal t.glob
   let to_string t = let k, a = stats t in Printf.sprintf "%d: %dk/%da" t.id k a
   let next t = let id = t.next in t.next <- id + 1; id
+  let is_empty t = IMap.is_empty t.keys && IMap.is_empty t.glob
 
   let clear t =
     t.keys <- IMap.empty;
-    t.all  <- IMap.empty;
+    t.glob <- IMap.empty;
     t.next <- 0
 
-  let enqueue () = lazy (
-    let stream, push = Lwt_stream.create () in
-    Lwt.async (fun () -> Lwt_stream.iter_s (fun f -> f ()) stream);
-    function v ->
-      let t, u = Lwt.task () in
-      let todo () = v () >|= Lwt.wakeup u in
-      push (Some todo);
-      t
-  )
-
-  let create () = {
-    lock = Lwt_mutex.create (); enqueue = enqueue ();
-    id = global (); next = 0;
-    keys = IMap.empty; all = IMap.empty;
-  }
+  let create () =
+    let lock = Lwt_mutex.create () in
+    let clean, enqueue = scheduler () in
+    { lock; clean; enqueue; id = global (); next = 0;
+      keys = IMap.empty; glob = IMap.empty; }
 
   let unwatch_unsafe t id =
-    let all  = IMap.remove id t.all in
+    let glob = IMap.remove id t.glob in
     let keys = IMap.remove id t.keys in
-    t.all  <- all;
+    t.glob <- glob;
     t.keys <- keys
 
   let unwatch t id =
     Lwt_mutex.with_lock t.lock (fun () ->
         unwatch_unsafe t id;
+        if is_empty t then t.clean ();
         Lwt.return_unit
       )
 
@@ -119,11 +132,9 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     | None  , Some v -> `Added v
     | Some x, Some y -> `Updated (x, y)
 
-  let enqueue t = Lazy.force t.enqueue
-
   let notify_all t key value =
     let todo = ref [] in
-    let all = IMap.fold (fun id (init, f as arg) acc ->
+    let glob = IMap.fold (fun id (init, f as arg) acc ->
         let old_value = try Some (KMap.find key init) with Not_found -> None in
         if OV.equal old_value value then (
           Log.debug "notify-all: same value, skipping.";
@@ -137,10 +148,11 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
           in
           IMap.add id (init, f) acc
         )
-      ) t.all IMap.empty
+      ) t.glob IMap.empty
     in
-    t.all <- all;
-    enqueue t (fun () -> Lwt_list.iter_p (fun x -> x ()) !todo)
+    t.glob <- glob;
+    if !todo = [] then ()
+    else t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) !todo)
 
   let notify_key t key value =
     let todo = ref [] in
@@ -157,10 +169,18 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       ) t.keys IMap.empty
     in
     t.keys <- keys;
-    enqueue t (fun () -> Lwt_list.iter_p (fun x -> x()) !todo)
+    if !todo = [] then ()
+    else t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) !todo)
 
   let notify t key value =
-    Lwt.join [notify_all t key value; notify_key t key value]
+    Lwt_mutex.with_lock t.lock
+      (fun () ->
+         if is_empty t then Lwt.return_unit
+         else (
+           notify_all t key value;
+           notify_key t key value;
+           Lwt.return_unit)
+      )
 
   let watch_key_unsafe t key ?init f =
     Log.debug "watch-key %s" (to_string t);
@@ -177,7 +197,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   let watch_unsafe t ?(init=[]) f =
     Log.debug "watch %s" (to_string t);
     let id = next t in
-    t.all <- IMap.add id (KMap.of_alist init, f) t.all;
+    t.glob <- IMap.add id (KMap.of_alist init, f) t.glob;
     id
 
   let watch t ?init f =
