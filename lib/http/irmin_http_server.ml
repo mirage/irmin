@@ -220,6 +220,20 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
            return stream)
       )
 
+  (* 1 argument in the body, return a stream *)
+  let mk0p1bs name fn db i1 o =
+    name,
+    Stream (fun t path params query ->
+        mk0p name path;
+        mk0q name query;
+        let x = mk1b name i1 params in
+        lwt_stream_lift
+          (db t >>= fun t ->
+           let stream = fn t x in
+           let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
+           return stream)
+      )
+
   (* 1 argument in the path, fixed answer *)
   let mk1p0bf' name fn db i1 o =
     name,
@@ -331,30 +345,16 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         return (Tc.to_json o r)
       )
 
-  (* 1 of arguments in the path, no body, streamed response *)
-  let mk1p0bs name fn db i1 o =
+  (* 1 of arguments in the path, 1 body, streamed response *)
+  let mk1p1bs name fn db i1 i2 o =
     name,
-    Stream (fun t path _params query ->
+    Stream (fun t path params query ->
         let x1 = mk1p name i1 path in
         mk0q name query;
-        (* mk0b name params; *)
+        let x2 = mk1b name i2 params in
         lwt_stream_lift
           (db t >>= fun t ->
-           let stream = fn t x1 in
-           let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
-           return stream)
-      )
-
-  (* list of arguments in the path, no body, streamed response *)
-  let mknp0bs name fn db i1 o =
-    name,
-    Stream (fun t path _params query ->
-        let x1 = mknp i1 path in
-        mk0q name query;
-        (* mk0b name params; *)
-        lwt_stream_lift
-          (db t >>= fun t ->
-           let stream = fn t x1 in
+           let stream = fn t x1 x2 in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
            return stream)
       )
@@ -438,14 +438,37 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let t_cs t tag (test, set) = T.compare_and_set t tag ~test ~set in
     let tc_cs = Tc.pair (Tc.option head) (Tc.option head) in
     let t_iter t fn = T.iter t (fun k _ -> fn k) in
+    let mk = function
+      | `Updated (_, y)
+      | `Added y   -> Some y
+      | `Removed _ -> None
+    in
+    let t_watch t init =
+      let stream, push = Lwt_stream.create () in
+      lwt_stream_lift (
+        T.watch t ?init (fun k v -> push (Some (k, mk v)); Lwt.return_unit)
+        >>= fun _ -> Lwt.return stream
+      )
+    in
+    let t_watch_key t tag init =
+      let stream, push = Lwt_stream.create () in
+      lwt_stream_lift (
+        T.watch_key t ?init tag (fun v -> push (Some (mk v)); Lwt.return_unit)
+        >>= fun _ -> Lwt.return stream
+      )
+    in
+    let tc_watch_i = Tc.option (Tc.list (Tc.pair tag head)) in
+    let tc_watch_s = Tc.pair tag (Tc.option head) in
+    let tc_ho = Tc.option head in
     SNode [
-      mk1p0bf' "read"   T.read   tag_t tag' (Tc.option head);
-      mk1p0bf' "mem"    T.mem    tag_t tag' Tc.bool;
-      mk0p0bs  "iter"   (stream tag t_iter) tag_t tag;
+      mk1p0bf' "read" T.read tag_t tag' tc_ho;
+      mk1p0bf' "mem" T.mem tag_t tag' Tc.bool;
+      mk0p0bs  "iter" (stream tag t_iter) tag_t tag;
       mk1p1bf  "update" T.update tag_t tag' head Tc.unit;
       mk1p0bf' "remove" T.remove tag_t tag' Tc.unit;
-      mk1p0bs  "watch-key"  T.watch_key  tag_t tag' (Tc.option head);
       mk1p1bf  "compare-and-set" t_cs tag_t tag' tc_cs Tc.bool;
+      mk0p1bs  "watch" t_watch tag_t tc_watch_i tc_watch_s;
+      mk1p1bs  "watch-key" t_watch_key tag_t tag' tc_ho tc_ho;
     ]
 
   let ok_or_duplicated_tag =
@@ -531,7 +554,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let store hooks =
     let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
-    let tag: S.tag Tc.t = (module S.Tag) in
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
     let slice: S.slice Tc.t = (module S.Private.Slice) in
@@ -610,7 +632,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p0bs "iter"   (stream key s_iter) t key;
       mknp1bf "update" ~lock ~hooks (l s_update) t step' value head;
       mknp0bf "remove" ~lock ~hooks (l s_remove) t step' head;
-      mknp0bs "watch-key" (l S.watch_key) t step' (Tc.option value);
       mknp1bf "compare-and-set" ~lock ~hooks (l s_compare_and_set) t step'
         (Tc.pair (Tc.option value) (Tc.option value)) Tc.bool;
 
@@ -619,7 +640,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mknp0bf "remove-rec" ~lock (l s_remove_rec) t step' head;
 
       (* more *)
-      mk0p0bf "remove-tag"  ~lock ~hooks S.remove_tag t Tc.unit;
+      mk1p0bf "remove-tag"  ~lock ~hooks S.remove_tag t tag' Tc.unit;
       mk1p0bf "update-tag"  ~lock ~hooks S.update_tag t tag' Tc.unit;
       mk1p0bfq "merge-tag"  ~lock ~hooks s_merge_tag t tag' (merge head);
       mk0p0bf "head"        S.head t (Tc.option head);
@@ -629,8 +650,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p1bf "compare-and-set-head" ~lock ~hooks s_compare_and_set_head t
         (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
       mk1p0bfq "merge-head" ~lock ~hooks s_merge_head t head' (merge head);
-      mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key (Tc.option head));
-      mk0p0bs "watch-tags"  S.watch_tags t (Tc.pair tag (Tc.option head));
       mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
       mk0p1bfq "export"     s_export t export slice;
