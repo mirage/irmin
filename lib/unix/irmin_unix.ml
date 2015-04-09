@@ -137,6 +137,7 @@ let stop = ref (fun () -> ())
 
 let install_dir_polling_listener delay =
   let s, u = Lwt.task () in
+  !stop ();
   stop := Lwt.wakeup u;
 
   Irmin.Private.Watch.set_listen_dir_hook (fun id dir fn ->
