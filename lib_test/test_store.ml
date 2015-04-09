@@ -691,6 +691,23 @@ module Make (S: Irmin.S) = struct
       S.read (t "read after v3") (p ["b";"foo";"1"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "remove view" None foo2';
 
+      r1 x >>= fun r1 ->
+      r2 x >>= fun r2 ->
+      let ta = Irmin.Task.empty in
+      View.make_head (t "mk-head") ta ~parents:[r1;r2] ~contents:v3 >>= fun h ->
+
+      S.task_of_head (t "task") h >>= fun ta' ->
+      assert_equal (module Irmin.Task) "task" ta ta';
+
+      S.of_head x.config task h >>= fun tt ->
+      S.history (tt "history") >>= fun g ->
+      let pred = S.History.pred g h in
+      let s = List.sort S.Head.compare in
+      assert_equal (module Tc.List(S.Head)) "head" (s [r1;r2]) (s pred);
+
+      S.read (tt "read tt") (p ["b";"foo";"1"]) >>= fun foo2'' ->
+      assert_equal (module (Tc.Option(V))) "remove tt" None foo2'';
+
       return_unit
     in
     run x test
