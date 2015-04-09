@@ -32,6 +32,7 @@ let suite k =
   {
     name   = "GIT" ^ string_of_kind k;
     kind   = k;
+    disk   = true;
     init   = init_disk;
     clean  = none;
     store  = git_store k;

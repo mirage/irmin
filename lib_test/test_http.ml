@@ -64,6 +64,7 @@ let suite k server =
     end;
 
     kind = k;
+    disk = server.disk;
 
     clean = begin fun () ->
       Unix.kill !server_pid 9;

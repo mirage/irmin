@@ -113,6 +113,7 @@ let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
 type t = {
   name  : string;
   kind  : [`Json | `String];
+  disk  : bool;
   init  : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config: Irmin.config;

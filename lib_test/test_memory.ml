@@ -20,6 +20,7 @@ let suite k =
   {
     name   = "MEM" ^ string_of_kind k;
     kind   = k;
+    disk   = false;
     init   = none;
     clean  = none;
     config = Irmin_mem.config ();

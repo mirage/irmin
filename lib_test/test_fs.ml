@@ -14,24 +14,28 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Test_common
 
 let test_db = "test-db"
 
 let init () =
+  Irmin_unix.install_dir_polling_listener 0.1;
   if Sys.file_exists test_db then begin
     let cmd = Printf.sprintf "rm -rf %s" test_db in
     let _ = Sys.command cmd in ()
   end;
-  return_unit
+  Lwt.return_unit
+
+let clean () =
+  Irmin_unix.uninstall_dir_polling_listener ();
+  Lwt.return_unit
 
 let suite k =
   {
     name = "FS" ^ string_of_kind k;
     kind = k;
-    init;
-    clean  = none;
+    disk = true;
+    init; clean;
     config = Irmin_fs.config ~root:test_db ();
     store  =  irf_store k;
   }

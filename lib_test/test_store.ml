@@ -313,6 +313,77 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_watches x () =
+    let test () =
+      create x >>= fun t ->
+      let adds    = ref 0 in
+      let updates = ref 0 in
+      let removes = ref 0 in
+      let process head =
+        let () = match head with
+          | `Added _h  -> adds    := !adds + 1
+          | `Updated _ -> updates := !updates + 1
+          | `Removed _ -> removes := !removes + 1
+        in
+        Lwt.return_unit
+      in
+      let stops = ref [] in
+      let rec loop = function
+        | 0 -> Lwt.return_unit
+        | n ->
+          S.watch_head (t "watch") process >>= fun s ->
+          stops := s :: !stops;
+          loop (n-1)
+      in
+      let sleep () =
+        (* sleep duration is arbiratry set to 2 * polling time. *)
+        if x.disk then Lwt_unix.sleep 1. else Lwt.return_unit in
+      let check msg w x y =
+        let printer (a, u, r) =
+          Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
+        in
+        let w_msg = sprintf "%s: %d worker(s)" msg w in
+        assert_equal Tc.int w_msg w (Irmin.Private.Watch.workers ());
+        line msg;
+        if x <> y then error msg (printer x) (printer y)
+      in
+      let state () = !adds, !updates, !removes in
+      let v1 = string x "X1" in
+
+      S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
+      S.remove_tag (t "remove-tag") Tag.Key.master >>= fun () ->
+      sleep () >>= fun () ->
+      check "init" 0 (0, 0, 0) (state ());
+      S.head_exn (t "head") >>= fun _ ->
+
+      loop 100 >>= fun () ->
+
+      check "watches on" 0 (0, 0, 0) (state ());
+
+      S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
+      sleep () >>= fun () ->
+      check "adds" 1 (100, 0, 0) (state ());
+
+      S.update (t "update") (p ["a";"c"]) v1 >>= fun () ->
+      sleep () >>= fun () ->
+      check "updates" 1 (100, 100, 0) (state ());
+
+      assert_equal Tc.int "1 worker" 1 (Irmin.Private.Watch.workers ());
+
+      S.remove_tag (t "remove-tag") Tag.Key.master >>= fun () ->
+      sleep () >>= fun () ->
+      check "removes" 1 (100, 100, 100) (state ());
+
+      assert_equal Tc.int "1 worker" 1 (Irmin.Private.Watch.workers ());
+
+      Lwt_list.iter_s (fun f -> f ()) !stops >>= fun () ->
+      S.update (t "update") (p ["a"]) v1 >>= fun () ->
+      check "watches off" 0 (100, 100, 100) (state ());
+
+      Lwt.return_unit
+    in
+    run x test
+
   let test_simple_merges x () =
 
     (* simple merges *)
@@ -1021,6 +1092,7 @@ let suite (speed, x) =
     "Basic operations on nodes"       , speed, T.test_nodes x;
     "Basic operations on commits"     , speed, T.test_commits x;
     "Basic operations on tags"        , speed, T.test_tags x;
+    "Basic operations on watches"     , speed, T.test_watches x;
     "Basic merge operations"          , speed, T.test_simple_merges x;
     "Complex histories"               , speed, T.test_history x;
     "Empty stores"                    , speed, T.test_empty x;
