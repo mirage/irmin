@@ -2232,7 +2232,7 @@ module type VIEW = sig
   (** Return the list of actions performed on this view since its
       creation. *)
 
-  (** {2 Parents} *)
+  (** {2 Heads} *)
 
   type head
   (** The type for commit heads. *)
@@ -2240,8 +2240,10 @@ module type VIEW = sig
   val parents: t -> head list
   (** [parents t] are [t]'s parent commits. *)
 
-  val set_parents: t -> head list -> unit
-  (** [set_parents t hs] set [t]'s parents to be [hs]. *)
+  val make_head: db -> task -> parents:head list -> contents:t -> head Lwt.t
+  (** [make_head db t ~parents ~contents] is the id of the commit
+      having [t] as task, [parents] as parents and [contents] as
+      contents. That function discards the current parents of [t]. *)
 
 end
 
