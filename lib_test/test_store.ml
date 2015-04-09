@@ -354,7 +354,6 @@ module Make (S: Irmin.S) = struct
       S.remove_tag (t "remove-tag") Tag.Key.master >>= fun () ->
       sleep () >>= fun () ->
       check "init" 0 (0, 0, 0) (state ());
-      S.head_exn (t "head") >>= fun _ ->
 
       loop 100 >>= fun () ->
 
