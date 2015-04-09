@@ -133,10 +133,13 @@ module S = struct
   include Tc.As_L0 (X)
 end
 
+let stop = ref (fun () -> ())
+
 let install_dir_polling_listener delay =
+  let s, u = Lwt.task () in
+  stop := Lwt.wakeup u;
 
   Irmin.Private.Watch.set_listen_dir_hook (fun id dir fn ->
-
       let read_files () =
         IO.rec_files dir >>= fun new_files ->
         let new_files = List.map (fun f -> f, Digest.file f) new_files in
@@ -153,19 +156,18 @@ let install_dir_polling_listener delay =
         else
           Log.debug "polling %d no changes!" id;
         Lwt_list.iter_p (fun (f, _) -> fn f) (S.to_list diff) >>= fun () ->
-        Log.debug "XXX SLEEP(%2f) %d" delay id;
         Lwt_unix.sleep delay >>= fun () ->
-        Log.debug "XXX WAKE-UP %d" id;
         loop new_files
       in
 
-      let t () =
-        read_files () >>= fun new_files ->
-        loop new_files
-      in
+      let t = read_files () >>= loop in
 
-      Lwt.async t
+      Lwt.async (fun () -> Lwt.pick [s; t])
     )
+
+let uninstall_dir_polling_listener () =
+  !stop ();
+  stop := (fun () -> ())
 
 let task msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
