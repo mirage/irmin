@@ -21,6 +21,8 @@ type t = {
   mutable msgs: string list;
 }
 
+type 'a f = 'a -> t
+
 let to_json t =
   `O [ ("date"    , Ezjsonm.string (Int64.to_string t.date));
        ("uid"     , Ezjsonm.string (Int64.to_string t.uid));

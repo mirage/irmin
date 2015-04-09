@@ -16,28 +16,27 @@
 
 (** Watches *)
 
-module type S = sig
+type 'a diff = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
 
+module type S = sig
   type key
   type value
+  type watch
   type t
-  val stats: t -> int * int
-  val notify: t -> key -> value option -> unit
+  val stats: t -> int
+  val notify: t -> key -> value option -> unit Lwt.t
   val create: unit -> t
   val clear: t -> unit
-  val watch_key: t -> key -> value option -> value option Lwt_stream.t
-  val watch: t -> (key * value option) Lwt_stream.t
+  val watch: t -> (key -> value diff -> unit Lwt.t) -> watch Lwt.t
+  val unwatch: t -> watch -> unit Lwt.t
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
     -> unit
   (** Register a fsevents/inotify thread to look for changes in the
       given directory. *)
-
 end
 
 module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
 val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> unit) -> unit
-
-val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t

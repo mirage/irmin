@@ -17,6 +17,7 @@
 (** Provenance tracking. *)
 
 include Tc.S0
+type 'a f = 'a -> t
 val create: date:int64 -> owner:string -> ?uid:int64 -> string -> t
 val date: t -> int64
 val uid: t -> int64

@@ -336,12 +336,6 @@ module Internal (Node: NODE) = struct
       aux t.view k >>= fun _ ->
       Lwt.return_unit
 
-  let watch_key _ _ =
-    failwith "TODO: View.watch"
-
-  let watch _ =
-    failwith "TODO: View.watch_all"
-
   let apply t a =
     Log.debug "apply %a" force (show (module Action) a);
     match a with
