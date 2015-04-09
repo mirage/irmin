@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6f0bfe2122bd6278429c76a101e2fd3a)
+# DO NOT EDIT (digest: 15af4608babc1ac71d33f9f2bb415e23)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -115,6 +115,20 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: use_irmin-git
 <lib/unix/*.ml{,i,y}>: use_irmin-http
 <lib/unix/*.ml{,i,y}>: use_irmin-mem
+# Library irmin-krypto
+"lib/krypto/irmin-krypto.cmxs": use_irmin-krypto
+<lib/krypto/*.ml{,i,y}>: pkg_cstruct
+<lib/krypto/*.ml{,i,y}>: pkg_dolog
+<lib/krypto/*.ml{,i,y}>: pkg_ezjsonm
+<lib/krypto/*.ml{,i,y}>: pkg_hex
+<lib/krypto/*.ml{,i,y}>: pkg_lwt
+<lib/krypto/*.ml{,i,y}>: pkg_mstruct
+<lib/krypto/*.ml{,i,y}>: pkg_nocrypto
+<lib/krypto/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/krypto/*.ml{,i,y}>: pkg_stringext
+<lib/krypto/*.ml{,i,y}>: pkg_tc
+<lib/krypto/*.ml{,i,y}>: pkg_uri
+<lib/krypto/*.ml{,i,y}>: use_irmin
 # Executable irmin
 <bin/main.{native,byte}>: pkg_cmdliner
 <bin/main.{native,byte}>: pkg_cohttp.lwt
