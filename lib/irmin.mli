@@ -118,6 +118,9 @@ module Task: sig
   (** Add a message to the task messages list. See
       {{!Task.messages}messages} for more details. *)
 
+  val empty: t
+  (** The empty task. *)
+
 end
 
 (** [Merge] provides functions to build custom 3-way merge operators
