@@ -1,4 +1,7 @@
 ## 0.9.5
+* Allow to create a new head from a view and a list of parents with
+  `View.make_head` (#188)
+* Allow to create an empty temporary branch with `Irmin.empty` (#161)
 * Use a pure OCaml implementation of SHA1, do not depend on nocrypto anymore
   (#183, by @talex5)
 * Remove `Irmin.Snapshot`. Nobody was using it and it can be easily replaced by
