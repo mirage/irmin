@@ -76,9 +76,6 @@ module Task: sig
 
   include Tc.S0
 
-  type 'a f = 'a -> t
-  (** The type for user-defined task functions. *)
-
   val create: date:int64 -> owner:string -> ?uid:int64 -> string -> t
   (** Create a new task. *)
 
@@ -123,6 +120,14 @@ module Task: sig
 
   val empty: t
   (** The empty task. *)
+
+  (** {1 Task creators} *)
+
+  type 'a f = 'a -> t
+  (** The type for user-defined task creators. *)
+
+  val none: unit f
+  (** The empty task creator. *)
 
 end
 

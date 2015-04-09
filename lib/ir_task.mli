@@ -17,7 +17,6 @@
 (** Provenance tracking. *)
 
 include Tc.S0
-type 'a f = 'a -> t
 val create: date:int64 -> owner:string -> ?uid:int64 -> string -> t
 val date: t -> int64
 val uid: t -> int64
@@ -25,3 +24,6 @@ val owner: t -> string
 val messages: t -> string list
 val add: t -> string -> unit
 val empty: t
+
+type 'a f = 'a -> t
+val none: unit f
