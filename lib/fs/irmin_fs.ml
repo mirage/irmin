@@ -58,12 +58,13 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let task t = t.task
 
+  let get_path config =
+    match Irmin.Private.Conf.get config root_key with
+    | None   -> IO.getcwd ()
+    | Some p -> return p
+
   let create config task =
-    let path = match Irmin.Private.Conf.get config root_key with
-      | None   -> IO.getcwd ()
-      | Some p -> return p
-    in
-    path >>= fun path ->
+    get_path config >>= fun path ->
     IO.mkdir path >>= fun () ->
     return (fun a -> { path; task = task a })
 
@@ -163,8 +164,16 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let mem t = RO.mem t.t
   let iter t = RO.iter t.t
   let watch_key t = W.watch_key t.w
-  let watch t = W.watch t.w
-  let unwatch t = W.unwatch t.w
+
+  let watch t ?init f =
+    (* FIXME: cache the notification thread *)
+    let key file = Some (K.of_hum (S.key_of_file file)) in
+    W.listen_dir t.w (S.dir t.t.RO.path) ~key ~value:(RO.read t.t);
+    W.watch t.w ?init f
+
+  let unwatch t =
+    (* FIXME: clean-up the notification thread *)
+    W.unwatch t.w
 
   let update t key value =
     Log.debug "update";
