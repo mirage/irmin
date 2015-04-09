@@ -577,7 +577,7 @@ struct
   let merge_head_exn t ?max_depth ?n head =
     merge_head t ?max_depth ?n head >>= Irmin.Merge.exn
 
-  let watch_tag t = L.watch_tag t.l
+  let watch_head t = L.watch_head t.l
   let watch_tags t = L.watch_tags t.l
 
   let clone task t tag =

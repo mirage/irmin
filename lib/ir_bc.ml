@@ -45,7 +45,7 @@ module type STORE = sig
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val watch_tag: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
+  val watch_head: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
   val watch_tags: t -> ?init:(tag * head) list ->
     (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
@@ -498,9 +498,11 @@ module Make_ext (P: PRIVATE) = struct
   let merge_exn a ?max_depth ?n t ~into =
     merge a ?max_depth ?n t ~into >>= Ir_merge.exn
 
-  let watch_tag t ?init fn =
+  let watch_head t ?init fn =
     tag t >>= function
-    | None       -> Lwt.return (fun () -> Lwt.return_unit)
+    | None       ->
+      (* FIXME: start a local watcher on the detached branch *)
+      Lwt.return (fun () -> Lwt.return_unit)
     | Some tag0 ->
       let init = match init with
         | None       -> None

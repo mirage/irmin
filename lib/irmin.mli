@@ -602,7 +602,7 @@ module type BC = sig
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
 
-  val watch_tag: t -> ?init:head -> (head diff -> unit Lwt.t) ->
+  val watch_head: t -> ?init:head -> (head diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
   (** [watch_tag t f] calls [f] everytime the contents of [t]'s tag is
       updated. Do nothing if [t] is not persistent. Return a clean-up
@@ -1864,9 +1864,9 @@ val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
 
-val watch_tag: ([`BC],'k,'v) t -> ?init:Hash.SHA1.t ->
+val watch_head: ([`BC],'k,'v) t -> ?init:Hash.SHA1.t ->
   (Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-(** See {!BC.watch_tag}. *)
+(** See {!BC.watch_head}. *)
 
 val watch_tags: ([`BC],'k,'v) t -> ?init:(string * Hash.SHA1.t) list ->
   (string -> Hash.SHA1.t diff -> unit Lwt.t) ->

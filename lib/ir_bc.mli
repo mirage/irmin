@@ -40,7 +40,7 @@ module type STORE = sig
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val watch_tag: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
+  val watch_head: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
   val watch_tags: t -> ?init:(tag * head) list ->
     (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t

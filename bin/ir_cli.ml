@@ -374,7 +374,7 @@ let watch = {
     let watch (S ((module S), store)) _path =
       run begin
         store >>= fun t ->
-        S.watch_tag (t "watch") (fun head ->
+        S.watch_head (t "watch") (fun head ->
             let pr = S.Head.to_hum in
             let () = match head with
               | `Updated (x, y) -> print "%s -> %s" (pr x) (pr y)

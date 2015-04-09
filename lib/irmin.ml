@@ -135,7 +135,7 @@ and ('k, 'v) bc = {
   compare_and_set_head: test:Hash.SHA1.t option -> set:Hash.SHA1.t option -> bool Lwt.t;
   merge_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Merge.result Lwt.t;
   merge_head_exn: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Lwt.t;
-  watch_tag: Hash.SHA1.t option -> (Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t;
+  watch_head: Hash.SHA1.t option -> (Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t;
   watch_tags: (string * Hash.SHA1.t) list -> (string -> Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t;
   clone: 'm. 'm Task.f -> string -> [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag] Lwt.t;
   clone_force: 'm. 'm Task.f -> string -> ('m -> ([`BC], 'k, 'v) t) Lwt.t;
@@ -189,7 +189,7 @@ let update_head t = bc t (function BC t -> t.update_head)
 let compare_and_set_head t = bc t (function BC t -> t.compare_and_set_head)
 let merge_head t = bc t (function BC t -> t.merge_head)
 let merge_head_exn t = bc t (function BC t -> t.merge_head_exn)
-let watch_tag t ?init = bc t (function BC t -> t.watch_tag init)
+let watch_head t ?init = bc t (function BC t -> t.watch_head init)
 let watch_tags t ?(init=[]) = bc t (function BC t -> t.watch_tags init)
 let clone task t = bc t (function BC t -> t.clone task)
 let clone_force task t = bc t (function BC t -> t.clone_force task)
@@ -261,7 +261,7 @@ let pack_s (type x) (type k) (type v)
         compare_and_set_head = M.compare_and_set_head t;
         merge_head = M.merge_head t;
         merge_head_exn = M.merge_head_exn t;
-        watch_tag = (fun init -> M.watch_tag ?init t);
+        watch_head = (fun init -> M.watch_head ?init t);
         watch_tags = (fun init -> M.watch_tags ~init t);
         clone = (fun task tag ->
             M.clone task t tag >>= function
