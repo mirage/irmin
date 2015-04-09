@@ -1171,6 +1171,10 @@ module Private: sig
 
     end
 
+    val workers: unit -> int
+    (** [workers ()] is the number of background worker threads
+        managing event notification currently active. *)
+
     val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> unit) -> unit
     (** Register a function which looks for file changes in a
         directory. Could use [inotify] when available, or use an active

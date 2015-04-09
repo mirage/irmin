@@ -15,7 +15,6 @@
  *)
 
 module Log = Log.Make(struct let section = "WATCH" end)
-
 let (>>=) = Lwt.(>>=)
 
 type 'a diff = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
@@ -54,6 +53,9 @@ let id () =
 
 let global = id ()
 
+let workers_r = ref 0
+let workers () = !workers_r
+
 let scheduler () =
   let p = ref None in
   let niet () = () in
@@ -62,6 +64,7 @@ let scheduler () =
     | Some p -> p elt
     | None ->
       let stream, push = Lwt_stream.create () in
+      incr workers_r;
       Lwt.async (fun () ->
           (* FIXME: we would like to skip some updates if more recent ones
              are at the back of the queue. *)
@@ -71,7 +74,7 @@ let scheduler () =
       c := (fun () -> push None);
       push elt
   in
-  let clean () = !c (); c := niet; p := None in
+  let clean () = !c (); decr workers_r; c := niet; p := None in
   let enqueue v = push (Some v) in
   clean, enqueue
 

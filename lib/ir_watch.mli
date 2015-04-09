@@ -42,3 +42,4 @@ end
 module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
 val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> unit) -> unit
+val workers: unit -> int
