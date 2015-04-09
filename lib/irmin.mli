@@ -2241,9 +2241,10 @@ module type VIEW = sig
   (** [parents t] are [t]'s parent commits. *)
 
   val make_head: db -> task -> parents:head list -> contents:t -> head Lwt.t
-  (** [make_head db t ~parents ~contents] is the id of the commit
-      having [t] as task, [parents] as parents and [contents] as
-      contents. That function discards the current parents of [t]. *)
+  (** [make_head db t ~parents ~contents] creates a new commit into
+      the store [db] and return its id (of type {!head}). The new
+      commit has [t] as task and the given [parents] and
+      [contents]. The actual parents of [contents] are not used. *)
 
 end
 
