@@ -39,6 +39,18 @@ exception Invalid
 type hooks = { update: unit -> unit Lwt.t }
 let no_hooks = { update = fun () -> Lwt.return_unit }
 
+let lwt_stream_lift s =
+  let (stream: 'a Lwt_stream.t option ref) = ref None in
+  let rec get () =
+    match !stream with
+    | Some s -> Lwt_stream.get s
+    | None   ->
+      s >>= fun s ->
+      stream := Some s;
+      get ()
+  in
+  Lwt_stream.from get
+
 module type S = sig
   type t
   val listen: t -> ?timeout:int -> ?hooks:hooks -> Uri.t -> unit Lwt.t
@@ -201,7 +213,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         mk0p name path;
         mk0b name params;
         mk0q name query;
-        Irmin.Private.Watch.lwt_stream_lift
+        lwt_stream_lift
           (db t >>= fun t ->
            let stream = fn t in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
@@ -326,7 +338,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         let x1 = mk1p name i1 path in
         mk0q name query;
         (* mk0b name params; *)
-        Irmin.Private.Watch.lwt_stream_lift
+        lwt_stream_lift
           (db t >>= fun t ->
            let stream = fn t x1 in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
@@ -340,7 +352,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         let x1 = mknp i1 path in
         mk0q name query;
         (* mk0b name params; *)
-        Irmin.Private.Watch.lwt_stream_lift
+        lwt_stream_lift
           (db t >>= fun t ->
            let stream = fn t x1 in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
@@ -407,7 +419,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let stream m fn t =
     let stream, push = Lwt_stream.create () in
-    Irmin.Private.Watch.lwt_stream_lift (
+    lwt_stream_lift (
       fn t (fun k ->
           Log.debug "stream push %s" (Tc.show m k);
           push (Some k);
