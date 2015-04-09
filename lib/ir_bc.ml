@@ -34,10 +34,11 @@ module type STORE = sig
   val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   type head
+  val empty: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
-  val branch: t -> [`Tag of tag | `Head of head]
+  val branch: t -> [`Tag of tag | `Head of head | `Empty]
   val heads: t -> head list Lwt.t
   val update_head: t -> head -> unit Lwt.t
   val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
@@ -117,7 +118,7 @@ module Make_ext (P: PRIVATE) = struct
   module Head = P.Commit.Key
   type head = Head.t
 
-  type branch = [ `Tag of tag | `Head of head ref ]
+  type branch = [ `Tag of tag | `Head of head option ref ]
 
   module OCamlGraph = Graph
   module Graph = Ir_node.Graph(P.Contents)(P.Node)
@@ -147,11 +148,13 @@ module Make_ext (P: PRIVATE) = struct
   let history_t t = graph_t t, t.commit
   let branch t = match t.branch with
     | `Tag t  -> `Tag t
-    | `Head h -> `Head !h
+    | `Head h -> match !h with None -> `Empty | Some h -> `Head h
 
   let tag t = match branch t with
     | `Tag t  -> Lwt.return (Some t)
+    | `Empty
     | `Head _ -> Lwt.return_none
+
 
   let err_no_head = Ir_misc.invalid_arg "Irmin.%s: no head"
   let err_not_persistent =
@@ -159,6 +162,7 @@ module Make_ext (P: PRIVATE) = struct
 
   let tag_exn t = match branch t with
     | `Tag t  -> Lwt.return t
+    | `Empty
     | `Head _ -> err_not_persistent "tag"
 
   let tags t =
@@ -167,7 +171,7 @@ module Make_ext (P: PRIVATE) = struct
     return !tags
 
   let head t = match t.branch with
-    | `Head key -> return (Some !key)
+    | `Head key -> return !key
     | `Tag tag  -> Tag.read (tag_t t) tag
 
   let heads t =
@@ -184,7 +188,7 @@ module Make_ext (P: PRIVATE) = struct
     | None   -> err_no_head "head"
     | Some k -> return k
 
-  let of_tag config task t =
+  let of_branch config task branch =
     P.Contents.create config task >>= fun contents ->
     P.Node.create config task     >>= fun node ->
     P.Commit.create config task   >>= fun commit ->
@@ -193,7 +197,6 @@ module Make_ext (P: PRIVATE) = struct
     (* [branch] is created outside of the closure as we want the
        branch to be shared by every invocation of the function return
        by [of_tag]. *)
-    let branch = `Tag t in
     return (fun a ->
         { contents = contents a;
           node     = node a;
@@ -204,34 +207,24 @@ module Make_ext (P: PRIVATE) = struct
           lock; branch }
       )
 
+  let of_tag config task t =
+    of_branch config task (`Tag t)
+
   let create config task =
     of_tag config task Tag.Key.master
 
+  let empty config task =
+    of_branch config task (`Head (ref None))
+
   let of_head config task key =
-    P.Contents.create config task >>= fun contents ->
-    P.Node.create config task     >>= fun node ->
-    P.Commit.create config task   >>= fun commit ->
-    Tag.create config task        >>= fun tag ->
-    let lock = Lwt_mutex.create () in
-    (* the branch is created outside of the closure. Every call to the
-       function return by [of_head] *must* share the same branch
-       reference. *)
-    let branch = `Head (ref key) in
-    return (fun a ->
-        { contents = contents a;
-          node     = node a;
-          commit   = commit a;
-          tag      = tag a;
-          task     = task a;
-          config   = config;
-          branch; lock }
-      )
+    of_branch config task (`Head (ref (Some key)))
 
   let read_head_commit t =
     Log.debug "read_head_commit";
     match branch t with
     | `Head key -> return (Some key)
-    | `Tag tag ->
+    | `Empty    -> Lwt.return_none
+    | `Tag tag  ->
       Tag.read (tag_t t) tag >>= function
       | None   -> return_none
       | Some k -> return (Some k)
@@ -282,7 +275,7 @@ module Make_ext (P: PRIVATE) = struct
       match t.branch with
       | `Head head ->
         (* [head] is protected by [t.lock] *)
-        head := key; Lwt.return true
+        head := Some key; Lwt.return true
       | `Tag tag   ->
         (* concurrent handle and/or process can modify the tag. Need to check
            that we are still working on the same head. *)
@@ -389,11 +382,12 @@ module Make_ext (P: PRIVATE) = struct
 
   let update_head t c =
     match t.branch with
-    | `Head h  -> h := c; return_unit
+    | `Head h  -> h := Some c; return_unit
     | `Tag tag -> Tag.update (tag_t t) tag c
 
   let remove_tag t =
     match branch t with
+    | `Empty
     | `Head _  -> Lwt.return_unit
     | `Tag tag -> Tag.remove (tag_t t) tag
 
@@ -404,12 +398,8 @@ module Make_ext (P: PRIVATE) = struct
   let compare_and_set_head_unsafe t ~test ~set =
     match t.branch with
     | `Head head ->
-      let set = match set with
-        | None   -> failwith "Irmin.compare_and_set_head: empty set"
-        | Some s -> s
-      in
       (* [head] is protected by [t.lock]. *)
-      if Some !head = test then (head := set; Lwt.return true)
+      if !head = test then (head := set; Lwt.return true)
       else Lwt.return false
     | `Tag tag -> Tag.compare_and_set (tag_t t) tag ~test ~set
 
@@ -499,6 +489,7 @@ module Make_ext (P: PRIVATE) = struct
     match branch t with
     | `Tag tag -> merge_tag  into ?max_depth ?n tag
     | `Head h  -> merge_head into ?max_depth ?n h
+    | `Empty   -> ok ()
 
   let merge_exn a ?max_depth ?n t ~into =
     merge a ?max_depth ?n t ~into >>= Ir_merge.exn
@@ -512,6 +503,7 @@ module Make_ext (P: PRIVATE) = struct
   let watch_node t path =
     Log.info "Adding a watch on %a" force (show (module Key) path);
     match branch t with
+    | `Empty
     | `Head _  -> Lwt_stream.of_list []
     | `Tag tag ->
       let stream = Tag.watch (tag_t t) tag in

@@ -41,10 +41,11 @@ module type S = sig
   val actions: t -> Action.t list
   type head
   val parents: t -> head list
-  val set_parents: t -> head list -> unit
+  val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
 end
 
 module Make (S: Ir_s.STORE):
   S with type db = S.t
      and type key = S.key
      and type value = S.value
+     and type head = S.head

@@ -118,6 +118,9 @@ module Task: sig
   (** Add a message to the task messages list. See
       {{!Task.messages}messages} for more details. *)
 
+  val empty: t
+  (** The empty task. *)
+
 end
 
 (** [Merge] provides functions to build custom 3-way merge operators
@@ -513,6 +516,10 @@ module type BC = sig
   (** Type for temporary branches names. Similar to Git's commit
       SHA1s. *)
 
+  val empty: config -> ('a -> task) -> ('a -> t) Lwt.t
+  (** [empty config task] is a temporary, empty branch. Become a
+      normal temporary branch after the first update. *)
+
   val of_head: config -> ('a -> task) -> head -> ('a -> t) Lwt.t
   (** Create a temporary branch, using the given [head]. The branch
       will not persist as it has no persistent branch name. *)
@@ -530,10 +537,10 @@ module type BC = sig
   (** Same as {!head} but raise [Invalid_argument] if the branch does
       not have any contents. *)
 
-  val branch: t -> [`Tag of tag | `Head of head]
+  val branch: t -> [`Tag of tag | `Head of head | `Empty]
   (** [branch t] is a representation of [t]'s branch. Can either be a
-      persistent branch with a [tag] name or a temporary branch with a
-      [head] commit. *)
+      persistent branch with a [tag] name, a temporary branch with a
+      [head] commit or an empty temporary branch. *)
 
   val heads: t -> head list Lwt.t
   (** [heads t] is the list of all the heads in [t]'s store. Similar
@@ -1728,6 +1735,10 @@ val of_head: ('k,'v) basic -> config -> ('m -> task) -> Hash.SHA1.t
   -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.of_head}. Needs a backend as first argument. *)
 
+val empty: ('k,'v) basic -> config -> ('m -> task) ->
+  ('m -> ([`BC],'k,'v) t) Lwt.t
+(** See {!BC.empty}. Needs a backend as first argument. *)
+
 (** {2 Base Operations} *)
 
 val read: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt.t
@@ -1792,7 +1803,7 @@ val head: ([`BC],'k,'v) t -> Hash.SHA1.t option Lwt.t
 val head_exn: ([`BC],'k,'v) t -> Hash.SHA1.t Lwt.t
 (** See {!BC.head_exn}. *)
 
-val branch: ([`BC],'k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t]
+val branch: ([`BC],'k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t | `Empty]
 (** See {!BC.branch}. *)
 
 val heads: ([`BC],'k,'v) t -> Hash.SHA1.t list Lwt.t
@@ -2229,7 +2240,7 @@ module type VIEW = sig
   (** Return the list of actions performed on this view since its
       creation. *)
 
-  (** {2 Parents} *)
+  (** {2 Heads} *)
 
   type head
   (** The type for commit heads. *)
@@ -2237,14 +2248,18 @@ module type VIEW = sig
   val parents: t -> head list
   (** [parents t] are [t]'s parent commits. *)
 
-  val set_parents: t -> head list -> unit
-  (** [set_parents t hs] set [t]'s parents to be [hs]. *)
+  val make_head: db -> task -> parents:head list -> contents:t -> head Lwt.t
+  (** [make_head db t ~parents ~contents] creates a new commit into
+      the store [db] and return its id (of type {!head}). The new
+      commit has [t] as task and the given [parents] and
+      [contents]. The actual parents of [contents] are not used. *)
 
 end
 
 module View (S: S): VIEW with type db = S.t
                           and type key = S.Key.t
                           and type value = S.Val.t
+                          and type head = S.head
 (** Create views. *)
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`

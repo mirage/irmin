@@ -155,7 +155,6 @@ module Internal (Node: NODE) = struct
 
   type head = Node.commit
   let parents t = !(t.parents)
-  let set_parents t parents = t.parents := parents
 
   module CO = Tc.Option(Node.Contents)
   module PL = Tc.List(Path)
@@ -770,6 +769,11 @@ module Make (S: Ir_s.STORE) = struct
   let merge_path_exn db ?max_depth ?n path t =
     merge_path db ?max_depth ?n path t >>= Ir_merge.exn
 
+  let make_head db task ~parents ~contents =
+    export db contents >>= fun node ->
+    let commit = S.Private.Commit.Val.create task ~parents ~node in
+    S.Private.Commit.add (S.Private.commit_t db) commit
+
 end
 
 module type S = sig
@@ -798,5 +802,5 @@ module type S = sig
   val actions: t -> Action.t list
   type head
   val parents: t -> head list
-  val set_parents: t -> head list -> unit
+  val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
 end

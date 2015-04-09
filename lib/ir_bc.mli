@@ -29,10 +29,11 @@ module type STORE = sig
   val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   type head
+  val empty: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
-  val branch: t -> [`Tag of tag | `Head of head]
+  val branch: t -> [`Tag of tag | `Head of head | `Empty]
   val heads: t -> head list Lwt.t
   val update_head: t -> head -> unit Lwt.t
   val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t

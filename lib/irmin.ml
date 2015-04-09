@@ -128,7 +128,7 @@ and ('k, 'v) bc = {
   merge_tag_exn: ?max_depth:int -> ?n:int -> string -> unit Lwt.t;
   head: unit -> Hash.SHA1.t option Lwt.t;
   head_exn: unit -> Hash.SHA1.t Lwt.t;
-  branch: unit -> [`Tag of string | `Head of Hash.SHA1.t];
+  branch: unit -> [`Tag of string | `Head of Hash.SHA1.t | `Empty];
   heads: unit -> Hash.SHA1.t list Lwt.t;
   update_head: Hash.SHA1.t -> unit Lwt.t;
   compare_and_set_head: test:Hash.SHA1.t option -> set:Hash.SHA1.t option -> bool Lwt.t;
@@ -241,6 +241,7 @@ let pack_s (type x) (type k) (type v)
     match M.branch t, into.extend with
     | `Tag tag, BC i -> i.merge_tag  ?max_depth ?n tag
     | `Head h , BC i -> i.merge_head ?max_depth ?n h
+    | `Empty  , BC _ -> Ir_merge.OP.ok ()
   in
   let rec aux t =
     let hrw = pack_hrw (module M) t in
@@ -281,6 +282,7 @@ let pack_s (type x) (type k) (type v)
             match i.branch () with
             | `Tag tag -> M.lcas_tag t ?max_depth ?n tag
             | `Head h  -> M.lcas_head t ?max_depth ?n h
+            | `Empty   -> Lwt.return (`Ok [])
           );
         lcas_tag = M.lcas_tag t;
         lcas_head = M.lcas_head t;
@@ -316,9 +318,13 @@ let of_tag (type a) (type b) (t: (a, b) basic) config task tag =
 
 let of_head (type a) (type b) (t: (a, b) basic) config task h =
   let (module T) = t in
-  let module View = View(T) in
   T.of_head config task h >>= fun t ->
   return (pack_s (module T) t)
+
+let empty (type a) (type b) (t: (a, b) basic) config task =
+  let (module T) = t in
+  T.empty config task >>= fun t ->
+  Lwt.return (pack_s (module T) t)
 
 let impl (type a) (type b): ([`BC], a, b) t -> (a, b) basic =
   fun t -> match t.extend with

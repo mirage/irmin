@@ -53,11 +53,12 @@ module Make (S: Irmin.S) = struct
 
   let create x = S.create x.config task
 
+  let dummy_task =
+    let t = Irmin.Task.empty in
+    fun () -> t
+
   let create_dummy x =
-    let task () =
-      Irmin.Task.create ~date:0L ~owner:"test" "Very useful tracking information"
-    in
-    S.create x.config task
+    S.create x.config dummy_task
 
   let string x str = match x.kind with
     | `String -> Tc.read_string (module V) str
@@ -546,6 +547,26 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_empty x () =
+    let test () =
+      S.empty x.config dummy_task >>= fun t ->
+
+      S.head (t ()) >>= fun h ->
+      assert_equal (module Tc.Option(S.Head)) "empty" None h;
+
+      let v1 = v1 x in
+      r1 x >>= fun r1 ->
+
+      S.update (t ()) (p ["b"; "x"]) v1 >>= fun () ->
+
+      S.head (t ()) >>= fun h ->
+      assert_equal (module Tc.Option(S.Head)) "not empty" (Some r1) h;
+
+      Lwt.return_unit
+
+    in
+    run x test
+
   let test_stores x () =
     let test () =
       create x >>= fun t ->
@@ -690,6 +711,23 @@ module Make (S: Irmin.S) = struct
       View.update_path (t "v3") (p ["b"]) v3 >>= fun () ->
       S.read (t "read after v3") (p ["b";"foo";"1"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "remove view" None foo2';
+
+      r1 x >>= fun r1 ->
+      r2 x >>= fun r2 ->
+      let ta = Irmin.Task.empty in
+      View.make_head (t "mk-head") ta ~parents:[r1;r2] ~contents:v3 >>= fun h ->
+
+      S.task_of_head (t "task") h >>= fun ta' ->
+      assert_equal (module Irmin.Task) "task" ta ta';
+
+      S.of_head x.config task h >>= fun tt ->
+      S.history (tt "history") >>= fun g ->
+      let pred = S.History.pred g h in
+      let s = List.sort S.Head.compare in
+      assert_equal (module Tc.List(S.Head)) "head" (s [r1;r2]) (s pred);
+
+      S.read (tt "read tt") (p ["b";"foo";"1"]) >>= fun foo2'' ->
+      assert_equal (module (Tc.Option(V))) "remove tt" None foo2'';
 
       return_unit
     in
@@ -961,6 +999,7 @@ let suite (speed, x) =
     "Basic operations on tags"        , speed, T.test_tags x;
     "Basic merge operations"          , speed, T.test_simple_merges x;
     "Complex histories"               , speed, T.test_history x;
+    "Empty stores"                    , speed, T.test_empty x;
     "High-level store operations"     , speed, T.test_stores x;
     "High-level operations on views"  , speed, T.test_views x;
     "High-level store synchronisation", speed, T.test_sync x;
