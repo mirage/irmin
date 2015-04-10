@@ -76,7 +76,6 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let mem t key =
     let file = file_of_key t key in
-    Log.debug "file=%s" file;
     return (Sys.file_exists file)
 
   let err_not_found n k =
@@ -96,7 +95,6 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
 
   let keys_of_dir t fn =
-    Log.debug "keys_of_dir";
     IO.rec_files (S.dir t.path) >>= fun files ->
     let files  =
       let p = String.length t.path in
@@ -111,6 +109,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       ) files
 
   let iter t fn =
+    Log.debug "iter";
     keys_of_dir t (fun k ->
         let v = read_exn t k in
         fn k v
@@ -165,15 +164,9 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let iter t = RO.iter t.t
 
   let listen_dir t =
-    let key file =
-      let k = S.key_of_file ~root:t.t.RO.path file in
-      Log.debug "YYY file=%s key=%s" file k;
-      Some (K.of_hum k)
-    in
+    let key file = Some (K.of_hum (S.key_of_file ~root:t.t.RO.path file)) in
     let dir = S.dir t.t.RO.path in
-    W.listen_dir t.w dir ~key ~value:(fun k ->
-        Log.debug "XXX %s" (K.to_hum k);
-        RO.read t.t k)
+    W.listen_dir t.w dir ~key ~value:(RO.read t.t)
 
   let watch_key t key ?init f =
     let stop = listen_dir t in
