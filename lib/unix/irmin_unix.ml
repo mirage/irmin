@@ -143,14 +143,41 @@ let read_files dir =
   let new_files = List.map (fun f -> f, Digest.file f) new_files in
   return (S.of_list new_files)
 
+let with_cancel t =
+  Lwt.catch t (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
+
 let install_dir_polling_listener delay =
   let s, u = Lwt.task () in
   !stop ();
   stop := Lwt.wakeup u;
 
+  (* map directory names to list of callbacks *)
   let listeners = Hashtbl.create 10 in
 
-  let listen id dir fn =
+  let listen_dir id dir fn =
+
+    (* add the listener *)
+    let add_listener () =
+      let fns = try Hashtbl.find listeners dir with Not_found -> [] in
+      let fns = (id, fn) :: fns in
+      Hashtbl.replace listeners dir fns
+    in
+
+    (* remove the listener *)
+    let remove_listener () =
+      let fns = try Hashtbl.find listeners dir with Not_found -> [] in
+      let fns = List.filter (fun (x,_) -> x <> id) fns in
+      if fns = [] then Hashtbl.remove listeners dir
+      else Hashtbl.replace listeners dir fns
+    in
+
+    (* call the callbacks on the file *)
+    let callback file =
+      let fns = try Hashtbl.find listeners dir with Not_found -> [] in
+      Lwt_list.iter_p (fun (id, f) -> Log.debug "callback %d" id; f file) fns
+    in
+
+    (* active polling *)
     let rec loop files =
       read_files dir >>= fun new_files ->
       let diff = S.sdiff files new_files in
@@ -158,28 +185,38 @@ let install_dir_polling_listener delay =
         Log.debug "polling %d %s: diff:%s" id dir (to_string diff)
       else
         Log.debug "polling %d no changes!" id;
-      Lwt_list.iter_p (fun (f, _) -> fn f) (S.to_list diff) >>= fun () ->
+      Lwt_list.iter_p (fun (f, _) -> callback f) (S.to_list diff) >>= fun () ->
       Lwt_unix.sleep delay >>= fun () ->
       loop new_files
     in
 
-    if Hashtbl.mem listeners dir then (fun () -> ())
-    else (
-      Log.debug "Adding a new listener for %s" dir;
-      let t = Lwt.catch
-          (fun () -> read_files dir >>= loop)
-          (function
-            | Lwt.Canceled ->
-              Log.debug "Stopping the listener for %s" dir;
-              Lwt.return_unit
-            | e -> Lwt.fail e)
-      in
-      Hashtbl.add listeners dir t;
-      Lwt.async (fun () -> Lwt.pick [s; t]);
-      (fun () -> Hashtbl.remove listeners dir; Lwt.cancel t)
-    )
+    let listen () = with_cancel (fun () -> read_files dir >>= loop) in
+
+    let tr = ref None in
+
+    let start_watchdog () =
+      if not (Hashtbl.mem listeners dir) then (
+        Log.debug "Start watchdog for %s" dir;
+        let t = listen () in
+        tr := Some t;
+        Lwt.async (fun () -> Lwt.pick [s; t])
+      )
+    in
+    let stop_watchdog () =
+      match Hashtbl.length listeners, !tr with
+      | 0, Some t ->
+        Log.debug "Stop watchdog for %s" dir;
+        tr := None;
+        Lwt.cancel t
+      | _ -> ()
+    in
+    (* run the background thread if it is not already running. *)
+    start_watchdog ();
+    add_listener ();
+    (fun () -> remove_listener (); stop_watchdog ())
+
   in
-  Irmin.Private.Watch.set_listen_dir_hook listen
+  Irmin.Private.Watch.set_listen_dir_hook listen_dir
 
 let uninstall_dir_polling_listener () =
   !stop ();

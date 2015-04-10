@@ -174,8 +174,8 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.return (w, stop)
 
   let watch t ?init f =
-    W.watch t.w ?init f >>= fun w ->
     let stop = listen_dir t in
+    W.watch t.w ?init f >>= fun w ->
     Lwt.return (w, stop)
 
   let unwatch t (id, stop) =
@@ -191,7 +191,8 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       IO.write_file ~temp_dir file raw_value
     in
     let lock = lock_file t key in
-    L.with_lock lock write
+    L.with_lock lock write >>= fun () ->
+    W.notify t.w key (Some value)
 
   let remove t key =
     Log.debug "remove";
@@ -200,7 +201,8 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       IO.remove file
     in
     let lock = lock_file t key in
-    L.with_lock lock remove
+    L.with_lock lock remove >>= fun () ->
+    W.notify t.w key None
 
   let compare_and_set t key ~test ~set =
     Log.debug "compare_and_set";
@@ -221,7 +223,9 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
         Lwt.return false
     in
     let lock = lock_file t key in
-    L.with_lock lock write
+    L.with_lock lock write >>= fun b ->
+    (if b then W.notify t.w key set else Lwt.return_unit) >>= fun () ->
+    Lwt.return b
 
 end
 

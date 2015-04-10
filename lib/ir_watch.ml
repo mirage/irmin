@@ -94,6 +94,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     mutable glob: (value KMap.t * all_handler) IMap.t;    (* global handlers. *)
     enqueue: (unit -> unit Lwt.t) -> unit;          (* enqueue notifications. *)
     clean: unit -> unit;                  (* destroy the notification thread. *)
+    mutable listeners: int;                           (* number of listeners. *)
+    mutable stop_listening: unit -> unit     (* clean-up listening resources. *)
   }
 
   let stats t = IMap.cardinal t.keys, IMap.cardinal t.glob
@@ -110,7 +112,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     let lock = Lwt_mutex.create () in
     let clean, enqueue = scheduler () in
     { lock; clean; enqueue; id = global (); next = 0;
-      keys = IMap.empty; glob = IMap.empty; }
+      keys = IMap.empty; glob = IMap.empty;
+      listeners = 0; stop_listening = (fun () -> ()); }
 
   let unwatch_unsafe t id =
     Log.debug "unwatch %s: id=%d" (to_string t) id;
@@ -136,7 +139,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     let todo = ref [] in
     let glob = IMap.fold (fun id (init, f as arg) acc ->
         let fire old_value =
-          Log.debug "notify-all: firing %d.%d!" t.id id;
+          Log.debug "notify-all[%d.%d]: firing!" t.id id;
           todo := (fun () -> f key (mk old_value value)) :: !todo;
           let init = match value with
             | None   -> KMap.remove key init
@@ -145,8 +148,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
           IMap.add id (init, f) acc
         in
         let old_value = try Some (KMap.find key init) with Not_found -> None in
-        if old_value <> None && OV.equal old_value value then (
-          Log.debug "notify-all: same value, skipping.";
+        if OV.equal old_value value then (
+          Log.debug "notify-all[%d:%d]: same value, skipping." t.id id;
           IMap.add id arg acc
         ) else
           fire old_value
@@ -161,10 +164,10 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     let keys = IMap.fold (fun id (k, old_value, f as arg) acc ->
         if not (K.equal key k) then IMap.add id arg acc
         else if OV.equal value old_value then (
-          Log.debug "notify-key: same value, skipping.";
+          Log.debug "notify-key[%d.%d]: same value, skipping." t.id id;
           IMap.add id arg acc
         ) else (
-          Log.debug "notify-key: firing %d.%d!" t.id id;
+          Log.debug "notify-key[%d:%d] firing!" t.id id;
           todo := (fun () -> f (mk old_value value)) :: !todo;
           IMap.add id (k, value, f) acc
         )
@@ -208,12 +211,18 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
         Lwt.return id
       )
 
-  let listen_dir (t:t) dir ~key ~value =
-    !listen_dir_hook t.id dir (fun file ->
-        Log.debug "listen_dir_hook: %s %s" (to_string t) file;
-        match key file with
-        | None     -> Lwt.return_unit
-        | Some key -> value key >>= notify t key
-      )
+  let listen_dir t dir ~key ~value =
+    if t.listeners = 0 then (
+      t.stop_listening <-
+        !listen_dir_hook t.id dir (fun file ->
+            match key file with
+            | None     -> Lwt.return_unit
+            | Some key -> value key >>= notify t key
+          )
+    );
+    t.listeners <- t.listeners + 1;
+    function () ->
+      t.listeners <- t.listeners - 1;
+      t.stop_listening ()
 
 end
