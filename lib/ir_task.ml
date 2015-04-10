@@ -76,8 +76,6 @@ let uid t = t.uid
 let owner t = t.owner
 let messages t = List.rev t.msgs
 
-let empty = create ~date:0L ~owner:"<none>" "None"
-
 let add t msg =
   if t = empty then ()
   else t.msgs <- msg :: t.msgs
