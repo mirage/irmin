@@ -337,7 +337,7 @@ module Make (S: Irmin.S) = struct
       in
       let sleep () =
         (* sleep duration is arbiratry set to 2 * polling time. *)
-        if x.disk then Lwt_unix.sleep 1. else Lwt.return_unit in
+        if x.disk then Lwt_unix.sleep Test_fs.polling else Lwt.return_unit in
       let check msg w x y =
         let printer (a, u, r) =
           Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
@@ -930,7 +930,6 @@ module Make (S: Irmin.S) = struct
       return_unit
     in
     run x test
-
 
   let rec write fn = function
     | 0 -> return_unit

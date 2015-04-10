@@ -18,8 +18,10 @@ open Test_common
 
 let test_db = "test-db"
 
+let polling = 0.01
+
 let init () =
-  Irmin_unix.install_dir_polling_listener 0.1;
+  Irmin_unix.install_dir_polling_listener polling;
   if Sys.file_exists test_db then begin
     let cmd = Printf.sprintf "rm -rf %s" test_db in
     let _ = Sys.command cmd in ()
