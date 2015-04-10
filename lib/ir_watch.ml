@@ -35,17 +35,13 @@ module type S = sig
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
-    -> unit
+    -> (unit -> unit)
 end
 
 let listen_dir_hook =
-  ref (fun _dir _fn ->
-      Log.error "Listen hook not set!";
-      assert false
-    )
+  ref (fun _dir _fn -> Log.error "Listen hook not set!"; assert false)
 
-let set_listen_dir_hook fn =
-  listen_dir_hook := fn
+let set_listen_dir_hook fn = listen_dir_hook := fn
 
 let id () =
   let c = ref 0 in
@@ -101,7 +97,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   }
 
   let stats t = IMap.cardinal t.keys, IMap.cardinal t.glob
-  let to_string t = let k, a = stats t in Printf.sprintf "%d: %dk/%da" t.id k a
+  let to_string t = let k,a = stats t in Printf.sprintf "[%d: %dk/%dg]" t.id k a
   let next t = let id = t.next in t.next <- id + 1; id
   let is_empty t = IMap.is_empty t.keys && IMap.is_empty t.glob
 
@@ -117,6 +113,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       keys = IMap.empty; glob = IMap.empty; }
 
   let unwatch_unsafe t id =
+    Log.debug "unwatch %s: id=%d" (to_string t) id;
     let glob = IMap.remove id t.glob in
     let keys = IMap.remove id t.keys in
     t.glob <- glob;
@@ -138,11 +135,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   let notify_all t key value =
     let todo = ref [] in
     let glob = IMap.fold (fun id (init, f as arg) acc ->
-        let old_value = try Some (KMap.find key init) with Not_found -> None in
-        if OV.equal old_value value then (
-          Log.debug "notify-all: same value, skipping.";
-          IMap.add id arg acc
-        ) else (
+        let fire old_value =
           Log.debug "notify-all: firing %d.%d!" t.id id;
           todo := (fun () -> f key (mk old_value value)) :: !todo;
           let init = match value with
@@ -150,7 +143,13 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
             | Some v -> KMap.add key v init
           in
           IMap.add id (init, f) acc
-        )
+        in
+        let old_value = try Some (KMap.find key init) with Not_found -> None in
+        if old_value <> None && OV.equal old_value value then (
+          Log.debug "notify-all: same value, skipping.";
+          IMap.add id arg acc
+        ) else
+          fire old_value
       ) t.glob IMap.empty
     in
     t.glob <- glob;
@@ -186,8 +185,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       )
 
   let watch_key_unsafe t key ?init f =
-    Log.debug "watch-key %s" (to_string t);
     let id = next t in
+    Log.debug "watch-key %s: id=%d" (to_string t) id;
     t.keys <- IMap.add id (key, init, f) t.keys;
     id
 
@@ -198,8 +197,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       )
 
   let watch_unsafe t ?(init=[]) f =
-    Log.debug "watch %s" (to_string t);
     let id = next t in
+    Log.debug "watch %s: id=%d" (to_string t) id;
     t.glob <- IMap.add id (KMap.of_alist init, f) t.glob;
     id
 
@@ -210,7 +209,6 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       )
 
   let listen_dir (t:t) dir ~key ~value =
-    Log.debug "Add a listen hook for %s" (to_string t);
     !listen_dir_hook t.id dir (fun file ->
         Log.debug "listen_dir_hook: %s %s" (to_string t) file;
         match key file with

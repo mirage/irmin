@@ -128,6 +128,7 @@ module S = struct
     let of_list l = List.fold_left (fun set elt -> add elt set) empty l
     let to_list = elements
     module K = Tc.Pair(Tc.String)(Tc.String)
+    let sdiff x y = union (diff x y) (diff y x)
   end
   include X
   include Tc.As_L0 (X)
@@ -135,36 +136,50 @@ end
 
 let stop = ref (fun () -> ())
 
+let to_string set = Tc.show (module S) set
+
+let read_files dir =
+  IO.rec_files dir >>= fun new_files ->
+  let new_files = List.map (fun f -> f, Digest.file f) new_files in
+  return (S.of_list new_files)
+
 let install_dir_polling_listener delay =
   let s, u = Lwt.task () in
   !stop ();
   stop := Lwt.wakeup u;
 
-  Irmin.Private.Watch.set_listen_dir_hook (fun id dir fn ->
-      let read_files () =
-        IO.rec_files dir >>= fun new_files ->
-        let new_files = List.map (fun f -> f, Digest.file f) new_files in
-        return (S.of_list new_files)
+  let listeners = Hashtbl.create 10 in
+
+  let listen id dir fn =
+    let rec loop files =
+      read_files dir >>= fun new_files ->
+      let diff = S.sdiff files new_files in
+      if not (S.is_empty diff) then
+        Log.debug "polling %d %s: diff:%s" id dir (to_string diff)
+      else
+        Log.debug "polling %d no changes!" id;
+      Lwt_list.iter_p (fun (f, _) -> fn f) (S.to_list diff) >>= fun () ->
+      Lwt_unix.sleep delay >>= fun () ->
+      loop new_files
+    in
+
+    if Hashtbl.mem listeners dir then (fun () -> ())
+    else (
+      Log.debug "Adding a new listener for %s" dir;
+      let t = Lwt.catch
+          (fun () -> read_files dir >>= loop)
+          (function
+            | Lwt.Canceled ->
+              Log.debug "Stopping the listener for %s" dir;
+              Lwt.return_unit
+            | e -> Lwt.fail e)
       in
-
-      let to_string set = Tc.show (module S) set in
-
-      let rec loop files =
-        read_files () >>= fun new_files ->
-        let diff = S.diff files new_files in
-        if not (S.is_empty diff) then
-          Log.debug "polling %d %s: diff:%s" id dir (to_string diff)
-        else
-          Log.debug "polling %d no changes!" id;
-        Lwt_list.iter_p (fun (f, _) -> fn f) (S.to_list diff) >>= fun () ->
-        Lwt_unix.sleep delay >>= fun () ->
-        loop new_files
-      in
-
-      let t = read_files () >>= loop in
-
-      Lwt.async (fun () -> Lwt.pick [s; t])
+      Hashtbl.add listeners dir t;
+      Lwt.async (fun () -> Lwt.pick [s; t]);
+      (fun () -> Hashtbl.remove listeners dir; Lwt.cancel t)
     )
+  in
+  Irmin.Private.Watch.set_listen_dir_hook listen
 
 let uninstall_dir_polling_listener () =
   !stop ();

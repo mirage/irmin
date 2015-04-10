@@ -23,7 +23,7 @@ let (/) = Filename.concat
 module type Config = sig
   val dir: string -> string
   val file_of_key: string -> string
-  val key_of_file: string -> string
+  val key_of_file: root:string -> string -> string
 end
 
 module type IO = sig
@@ -61,7 +61,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let get_path config =
     match Irmin.Private.Conf.get config root_key with
     | None   -> IO.getcwd ()
-    | Some p -> return p
+    | Some p -> Lwt.return p
 
   let create config task =
     get_path config >>= fun path ->
@@ -106,7 +106,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
         ) files
     in
     Lwt_list.iter_p (fun file ->
-        let k = K.of_hum (S.key_of_file file) in
+        let k = K.of_hum (S.key_of_file ~root:"" file) in
         fn k
       ) files
 
@@ -148,7 +148,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   type t = { t: RO.t; w: W.t }
   type key = RO.key
   type value = RO.value
-  type watch = W.watch
+  type watch = W.watch * (unit -> unit)
 
   let temp_dir t = t.t.RO.path / "tmp"
   let lock_file t key = t.t.RO.path / "lock" / K.to_hum key
@@ -163,17 +163,31 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
   let iter t = RO.iter t.t
-  let watch_key t = W.watch_key t.w
+
+  let listen_dir t =
+    let key file =
+      let k = S.key_of_file ~root:t.t.RO.path file in
+      Log.debug "YYY file=%s key=%s" file k;
+      Some (K.of_hum k)
+    in
+    let dir = S.dir t.t.RO.path in
+    W.listen_dir t.w dir ~key ~value:(fun k ->
+        Log.debug "XXX %s" (K.to_hum k);
+        RO.read t.t k)
+
+  let watch_key t key ?init f =
+    let stop = listen_dir t in
+    W.watch_key t.w key ?init f >>= fun w ->
+    Lwt.return (w, stop)
 
   let watch t ?init f =
-    (* FIXME: cache the notification thread *)
-    let key file = Some (K.of_hum (S.key_of_file file)) in
-    W.listen_dir t.w (S.dir t.t.RO.path) ~key ~value:(RO.read t.t);
-    W.watch t.w ?init f
+    W.watch t.w ?init f >>= fun w ->
+    let stop = listen_dir t in
+    Lwt.return (w, stop)
 
-  let unwatch t =
-    (* FIXME: clean-up the notification thread *)
-    W.unwatch t.w
+  let unwatch t (id, stop) =
+    stop ();
+    W.unwatch t.w id
 
   let update t key value =
     Log.debug "update";
@@ -184,8 +198,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       IO.write_file ~temp_dir file raw_value
     in
     let lock = lock_file t key in
-    L.with_lock lock write >>= fun () ->
-    W.notify t.w key (Some value)
+    L.with_lock lock write
 
   let remove t key =
     Log.debug "remove";
@@ -194,8 +207,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       IO.remove file
     in
     let lock = lock_file t key in
-    L.with_lock lock remove >>= fun () ->
-    W.notify t.w key None
+    L.with_lock lock remove
 
   let compare_and_set t key ~test ~set =
     Log.debug "compare_and_set";
@@ -238,7 +250,8 @@ let string_chop_prefix ~prefix str =
 module Ref = struct
   let dir p = p / "refs"
   let file_of_key key = "refs" / key
-  let key_of_file file = string_chop_prefix ~prefix:("refs" / "") file
+  let key_of_file ~root file =
+    string_chop_prefix ~prefix:(root / "refs" / "") file
 end
 
 module Obj = struct
@@ -251,9 +264,8 @@ module Obj = struct
     let suf = String.sub k 2 (len - 2) in
     "objects" / pre / suf
 
-  let key_of_file path =
-    Log.debug "key_of_file %s" path;
-    let path = string_chop_prefix ~prefix:("objects" / "") path in
+  let key_of_file ~root path =
+    let path = string_chop_prefix ~prefix:(root / "objects" / "") path in
     let path = Stringext.split ~on:'/' path in
     let path = String.concat "" path in
     path

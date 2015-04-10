@@ -34,12 +34,10 @@ module type S = sig
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
-    -> unit
-  (** Register a fsevents/inotify thread to look for changes in the
-      given directory. *)
+    -> (unit -> unit)
 end
 
 module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
-val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> unit) -> unit
+val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> (unit -> unit)) -> unit
 val workers: unit -> int
