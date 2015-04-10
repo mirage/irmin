@@ -315,7 +315,9 @@ module Make (S: Irmin.S) = struct
 
   let test_watches x () =
     let test () =
-      create x >>= fun t ->
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+
       let adds    = ref 0 in
       let updates = ref 0 in
       let removes = ref 0 in
@@ -331,6 +333,7 @@ module Make (S: Irmin.S) = struct
       let rec loop = function
         | 0 -> Lwt.return_unit
         | n ->
+          let t = if n mod 2 = 0 then t1 else t2 in
           S.watch_head (t "watch") process >>= fun s ->
           stops := s :: !stops;
           loop (n-1)
@@ -338,20 +341,21 @@ module Make (S: Irmin.S) = struct
       let sleep () =
         (* sleep duration is arbiratry set to 2 * polling time. *)
         if x.disk then Lwt_unix.sleep Test_fs.polling else Lwt.return_unit in
-      let check msg w x y =
+      let check msg w a b =
         let printer (a, u, r) =
           Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
         in
+        let w = if x.disk || w = 0 then w else 1 in
         let w_msg = sprintf "%s: %d worker(s)" msg w in
         assert_equal Tc.int w_msg w (Irmin.Private.Watch.workers ());
         line msg;
-        if x <> y then error msg (printer x) (printer y)
+        if a <> b then error msg (printer a) (printer b)
       in
       let state () = !adds, !updates, !removes in
       let v1 = string x "X1" in
 
-      S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
-      S.remove_tag (t "remove-tag") Tag.Key.master >>= fun () ->
+      S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
+      S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
       sleep () >>= fun () ->
       check "init" 0 (0, 0, 0) (state ());
 
@@ -359,24 +363,20 @@ module Make (S: Irmin.S) = struct
 
       check "watches on" 0 (0, 0, 0) (state ());
 
-      S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
+      S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
       sleep () >>= fun () ->
-      check "adds" 1 (100, 0, 0) (state ());
+      check "adds" 2 (100, 0, 0) (state ());
 
-      S.update (t "update") (p ["a";"c"]) v1 >>= fun () ->
+      S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
       sleep () >>= fun () ->
-      check "updates" 1 (100, 100, 0) (state ());
+      check "updates" 2 (100, 100, 0) (state ());
 
-      assert_equal Tc.int "1 worker" 1 (Irmin.Private.Watch.workers ());
-
-      S.remove_tag (t "remove-tag") Tag.Key.master >>= fun () ->
+      S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
       sleep () >>= fun () ->
-      check "removes" 1 (100, 100, 100) (state ());
-
-      assert_equal Tc.int "1 worker" 1 (Irmin.Private.Watch.workers ());
+      check "removes" 2 (100, 100, 100) (state ());
 
       Lwt_list.iter_s (fun f -> f ()) !stops >>= fun () ->
-      S.update (t "update") (p ["a"]) v1 >>= fun () ->
+      S.update (t2 "update") (p ["a"]) v1 >>= fun () ->
       check "watches off" 0 (100, 100, 100) (state ());
 
       Lwt.return_unit
