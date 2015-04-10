@@ -934,7 +934,7 @@ module Make (S: Irmin.S) = struct
 
   let rec write fn = function
     | 0 -> return_unit
-    | i -> fn i <&> write fn (i-1)
+    | i -> (fn i >>= Lwt_unix.yield) <&> write fn (i-1)
 
   let rec read fn check = function
     | 0 -> return_unit
@@ -956,7 +956,7 @@ module Make (S: Irmin.S) = struct
           (fun i  -> assert_equal (module S.Head) (sprintf "tag %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 50; read 10; write 10; read 50; ]
+      Lwt.join [ write 10; read 10; write 10; read 10; ]
     in
     let test_contents () =
       kv2 x >>= fun k ->
@@ -972,7 +972,7 @@ module Make (S: Irmin.S) = struct
           (fun i  -> assert_equal (module V) (sprintf "contents %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 50; read 10; write 10; read 50; ]
+      Lwt.join [ write 10; read 10; write 10; read 10; ]
     in
     run x (fun () -> Lwt.join [test_tags (); test_contents ()])
 
@@ -989,8 +989,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> S.read_exn (mk t "read %d" i) k)
           (fun i -> assert_equal (module V) (sprintf "update: one %d" i) v)
       in
-      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
-      Lwt.join [ read t1 50 ]
+      Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
     in
     let test_multi () =
       let k i = p ["a";"b";"c"; string_of_int i ] in
@@ -1006,8 +1006,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> S.read_exn (mk t "read %d" i) (k i))
           (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
       in
-      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
-      Lwt.join [ read t1 50 ]
+      Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
     in
     run x (fun () ->
         test_one   () >>= fun () ->
@@ -1038,8 +1038,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
       in
       S.update (t1 "update") (k 0) (v 0) >>= fun () ->
-      Lwt.join [ write t1 1 20; write t2 2 20 ] >>= fun () ->
-      Lwt.join [ read t1 20 ]
+      Lwt.join [ write t1 1 10; write t2 2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
     in
     run x test
 
@@ -1075,8 +1075,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
       in
       S.update (t1 "update") (k 0) (v 0) >>= fun () ->
-      Lwt.join [ write t1 1 10; write t2 2 10 ] >>= fun () ->
-      Lwt.join [ read t1 10 ]
+      Lwt.join [ write t1 1 5; write t2 2 5 ] >>= fun () ->
+      Lwt.join [ read t1 5 ]
     in
     run x test
 
