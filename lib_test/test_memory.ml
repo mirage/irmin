@@ -15,14 +15,21 @@
  *)
 
 open Test_common
+let (>>=) = Lwt.(>>=)
+
+let clean config (module S: Irmin.S) () =
+  S.empty config Irmin.Task.none  >>= fun t ->
+  S.tags (t ()) >>= fun tags ->
+  Lwt_list.iter_p (S.remove_tag (t ())) tags
 
 let suite k =
+  let config = Irmin_mem.config () in
+  let store = mem_store k in
   {
     name   = "MEM" ^ string_of_kind k;
     kind   = k;
     disk   = false;
     init   = none;
-    clean  = none;
-    config = Irmin_mem.config ();
-    store  = mem_store k;
+    clean  = clean config store;
+    config; store;
 }
