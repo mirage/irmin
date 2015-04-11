@@ -71,7 +71,7 @@ module type Config = sig
   val file_of_key: string -> string
   (** Convert a key to a filename. *)
 
-  val key_of_file: root:string -> string -> string
+  val key_of_file: string -> string
     (** Convert a filename to a key. *)
 
 end

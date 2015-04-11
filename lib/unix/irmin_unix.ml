@@ -138,9 +138,26 @@ let stop = ref (fun () -> ())
 
 let to_string set = Tc.show (module S) set
 
+let string_chop_prefix t ~prefix =
+  let lt = String.length t in
+  let lp = String.length prefix in
+  if lt < lp then None else
+    let p = String.sub t 0 lp in
+    if String.compare p prefix <> 0 then None
+    else Some (String.sub t lp (lt - lp))
+
+let string_chop_prefix_exn t ~prefix = match string_chop_prefix t ~prefix with
+  | None   -> failwith "string_chop_prefix"
+  | Some s -> s
+
+let (/) = Filename.concat
+
 let read_files dir =
   IO.rec_files dir >>= fun new_files ->
-  let new_files = List.map (fun f -> f, Digest.file f) new_files in
+  let prefix = dir / "" in
+  let new_files =
+    List.map (fun f -> string_chop_prefix_exn f ~prefix, Digest.file f) new_files
+  in
   return (S.of_list new_files)
 
 let with_cancel t =

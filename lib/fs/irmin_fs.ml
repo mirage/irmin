@@ -23,7 +23,7 @@ let (/) = Filename.concat
 module type Config = sig
   val dir: string -> string
   val file_of_key: string -> string
-  val key_of_file: root:string -> string -> string
+  val key_of_file: string -> string
 end
 
 module type IO = sig
@@ -103,10 +103,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
           if n <= p + 1 then "" else String.sub file (p+1) (n - p - 1)
         ) files
     in
-    Lwt_list.iter_p (fun file ->
-        let k = K.of_hum (S.key_of_file ~root:"" file) in
-        fn k
-      ) files
+    Lwt_list.iter_p (fun file -> fn @@ K.of_hum (S.key_of_file file)) files
 
   let iter t fn =
     Log.debug "iter";
@@ -164,8 +161,8 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let iter t = RO.iter t.t
 
   let listen_dir t =
-    let key file = Some (K.of_hum (S.key_of_file ~root:t.t.RO.path file)) in
     let dir = S.dir t.t.RO.path in
+    let key file = Some (K.of_hum file) in
     W.listen_dir t.w dir ~key ~value:(RO.read t.t)
 
   let watch_key t key ?init f =
@@ -247,8 +244,7 @@ let string_chop_prefix ~prefix str =
 module Ref = struct
   let dir p = p / "refs"
   let file_of_key key = "refs" / key
-  let key_of_file ~root file =
-    string_chop_prefix ~prefix:(root / "refs" / "") file
+  let key_of_file file = string_chop_prefix ~prefix:("refs" / "") file
 end
 
 module Obj = struct
@@ -261,8 +257,8 @@ module Obj = struct
     let suf = String.sub k 2 (len - 2) in
     "objects" / pre / suf
 
-  let key_of_file ~root path =
-    let path = string_chop_prefix ~prefix:(root / "objects" / "") path in
+  let key_of_file path =
+    let path = string_chop_prefix ~prefix:("objects" / "") path in
     let path = Stringext.split ~on:'/' path in
     let path = String.concat "" path in
     path
