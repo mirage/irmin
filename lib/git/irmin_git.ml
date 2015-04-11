@@ -476,11 +476,8 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
 
     type key = Key.t
     type value = Val.t
-    type watch = W.watch
+    type watch = W.watch * (unit -> unit)
     let task t = t.task
-    let watch_key t = W.watch_key t.w
-    let watch t = W.watch t.w
-    let unwatch t = W.unwatch t.w
 
     let tag_of_git r =
       let str = Git.Reference.to_raw r in
@@ -504,6 +501,28 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       G.read_reference t (git_of_tag r) >>= function
       | None   -> return_none
       | Some k -> return (Some (head_of_git k))
+
+    let listen_dir t =
+      if G.kind = `Disk then
+        let dir = t.git_root / "refs" / "heads" in
+        let key file = Some (Key.of_hum file) in
+        W.listen_dir t.w dir ~key ~value:(read t)
+      else
+        fun () -> ()
+
+    let watch_key t key ?init f =
+      let stop = listen_dir t in
+      W.watch_key t.w key ?init f >>= fun w ->
+      Lwt.return (w, stop)
+
+    let watch t ?init f =
+      let stop = listen_dir t in
+      W.watch t.w ?init f >>= fun w ->
+      Lwt.return (w, stop)
+
+    let unwatch t (w, stop) =
+      stop;
+      W.unwatch t.w w
 
     let create config task =
       let root = Irmin.Private.Conf.get config Conf.root in
@@ -601,7 +620,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
           ) else
             Lwt.return false
         ) >>= fun updated ->
-      W.notify t.w r set >>= fun () ->
+      (if updated then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
       begin
         (* We do not protect [write_index] because it can took a log
            time and we don't want to hold the lock for too long. Would
