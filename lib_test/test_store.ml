@@ -329,18 +329,21 @@ module Make (S: Irmin.S) = struct
         in
         Lwt.return_unit
       in
-      let stops = ref [] in
+      let stops_0 = ref [] in
+      let stops_1 = ref [] in
       let rec loop = function
         | 0 -> Lwt.return_unit
         | n ->
           let t = if n mod 2 = 0 then t1 else t2 in
           S.watch_head (t "watch") process >>= fun s ->
-          stops := s :: !stops;
+          if n mod 2 = 0 then stops_0 := s :: !stops_0
+          else stops_1 := s :: !stops_1;
           loop (n-1)
       in
       let sleep () =
         (* sleep duration is arbiratry set to 2 * polling time. *)
-        if x.disk then Lwt_unix.sleep Test_fs.polling else Lwt.return_unit in
+        if x.disk then Lwt_unix.sleep (2. *. Test_fs.polling) else Lwt.return_unit
+      in
       let check msg w a b =
         let printer (a, u, r) =
           Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
@@ -353,6 +356,7 @@ module Make (S: Irmin.S) = struct
       in
       let state () = !adds, !updates, !removes in
       let v1 = string x "X1" in
+      let v2 = string x "X2" in
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
@@ -375,9 +379,15 @@ module Make (S: Irmin.S) = struct
       sleep () >>= fun () ->
       check "removes" 2 (100, 100, 100) (state ());
 
-      Lwt_list.iter_s (fun f -> f ()) !stops >>= fun () ->
+      Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
       S.update (t2 "update") (p ["a"]) v1 >>= fun () ->
-      check "watches off" 0 (100, 100, 100) (state ());
+      sleep () >>= fun () ->
+      check "watches half off" 1 (150, 100, 100) (state ());
+
+      Lwt_list.iter_s (fun f -> f ()) !stops_1 >>= fun () ->
+      S.update (t1 "update") (p ["a"]) v2 >>= fun () ->
+      sleep () >>= fun () ->
+      check "watches off" 0 (150, 100, 100) (state ());
 
       Lwt.return_unit
     in
