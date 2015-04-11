@@ -213,6 +213,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
 
   let listen_dir t dir ~key ~value =
     if t.listeners = 0 then (
+      Log.debug "%s: start listening to %s" (to_string t) dir;
       t.stop_listening <-
         !listen_dir_hook t.id dir (fun file ->
             match key file with
@@ -222,7 +223,10 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     );
     t.listeners <- t.listeners + 1;
     function () ->
-      t.listeners <- t.listeners - 1;
-      t.stop_listening ()
+      if t.listeners > 0 then t.listeners <- t.listeners - 1;
+      if t.listeners = 0 then (
+        Log.debug "%s: stop listening to %s" (to_string t) dir;
+        t.stop_listening ();
+      )
 
 end
