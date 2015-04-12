@@ -343,9 +343,11 @@ module Make (S: Irmin.S) = struct
           loop (n-1)
       in
       let sleep () =
-        (* sleep duration is arbiratry set to 2 * polling time. *)
-        if x.disk then Lwt_unix.sleep (2. *. (max sleep_t Test_fs.polling))
-        else Lwt.return_unit
+        let sleep_t =
+          (* sleep duration is 2*max(polling time, callback sleep time) *)
+          2. *. if x.disk then (max sleep_t Test_fs.polling) else sleep_t
+        in
+        Lwt_unix.sleep sleep_t
       in
       let check msg w a b =
         let printer (a, u, r) =
