@@ -321,7 +321,9 @@ module Make (S: Irmin.S) = struct
       let adds    = ref 0 in
       let updates = ref 0 in
       let removes = ref 0 in
+      let sleep_t = 0.02 in
       let process head =
+        Lwt_unix.sleep sleep_t >>= fun () ->
         let () = match head with
           | `Added _h  -> adds    := !adds + 1
           | `Updated _ -> updates := !updates + 1
@@ -342,7 +344,8 @@ module Make (S: Irmin.S) = struct
       in
       let sleep () =
         (* sleep duration is arbiratry set to 2 * polling time. *)
-        if x.disk then Lwt_unix.sleep (2. *. Test_fs.polling) else Lwt.return_unit
+        if x.disk then Lwt_unix.sleep (2. *. (max sleep_t Test_fs.polling))
+        else Lwt.return_unit
       in
       let check msg w a b =
         let printer (a, u, r) =
