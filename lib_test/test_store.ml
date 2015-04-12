@@ -891,7 +891,7 @@ module Make (S: Irmin.S) = struct
 
   let test_concurrent_updates x () =
     let test_one () =
-      let k = p ["a";"b";"c"] in
+      let k = p ["a";"b";"d"] in
       let v = string x "X1" in
       create x >>= fun t1 ->
       create x >>= fun t2 ->
