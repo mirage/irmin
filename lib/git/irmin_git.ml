@@ -15,6 +15,7 @@
  *)
 
 open Lwt
+open Printf
 
 module Log = Log.Make(struct let section = "GIT" end)
 
@@ -141,7 +142,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       | Some v -> return (V.of_git v)
 
     let err_not_found n k =
-      let str = Printf.sprintf "Irmin_git.%s: %s not found" n (K.to_hum k) in
+      let str = sprintf "Irmin_git.%s: %s not found" n (K.to_hum k) in
       Lwt.fail (Invalid_argument str)
 
     let read_exn t key =
@@ -230,40 +231,71 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         with Not_found ->
           None
 
+      (* FIXME: is it true? *)
+      let compare_names = String.compare
+
+      let compare_entries {Git.Tree.name = n1; _} {Git.Tree.name = n2; _} =
+        compare_names n1 n2
+
+      let err_file_is_dir n =
+        let str = sprintf
+            "Cannot add the file %s as it is already a directory name." n
+        in
+        raise (Invalid_argument str)
+
+      let err_dir_is_file n =
+        let str = sprintf
+            "Cannot add the directory %s as it is already a filename." n
+        in
+        raise (Invalid_argument str)
+
       let with_succ t step succ =
         let step = S.to_hum step in
+        let return ~acc rest = match succ with
+          | None   -> t
+          | Some c ->
+            let e = { Git.Tree.perm = `Dir; name = step; node = c} in
+            List.rev_append acc (e :: rest)
+        in
         let rec aux acc = function
-          | { Git.Tree.perm; name; node } as h :: l when perm = `Dir ->
-            if name = step then match succ with
-              | None   -> List.rev_append acc l
-              | Some c ->
-                if Git.SHA.equal c node then t
-                else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
-            else aux (h :: acc) l
-          | h::t -> aux (h :: acc) t
-          | []   -> match succ with
-            | None   -> t
-            | Some c ->
-              List.rev ({ Git.Tree.perm = `Dir; name = step; node = c} :: acc)
+          | [] -> return ~acc []
+          | { Git.Tree.perm; name; node } as h :: l ->
+            if compare_names step name > 0 then
+              aux (h :: acc) l
+            else if compare_names name step = 0 then (
+              if perm = `Dir then match succ with
+                | None   -> List.rev_append acc l
+                | Some c ->
+                  if Git.SHA.equal c node then t
+                  else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
+              else err_dir_is_file name
+            ) else return ~acc:(h::acc) l
         in
         let new_t = aux [] t in
         if t == new_t then t else new_t
 
       let with_contents t step contents =
         let step = S.to_hum step in
-        let rec aux acc = function
-          | { Git.Tree.perm; name; node } as h :: l when perm <> `Dir ->
-            if name = step then match contents with
-              | None   -> List.rev_append acc l
-              | Some c ->
-                if Git.SHA.equal c node then t
-                else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
-            else aux (h :: acc) l
-          | h::t -> aux (h :: acc) t
-          | []   -> match contents with
-            | None   -> t
-            | Some c ->
-              List.rev ({ Git.Tree.perm = `Normal; name = step; node = c} :: acc)
+        let return ~acc rest = match contents with
+          | None   -> t
+          | Some c ->
+            let e = { Git.Tree.perm = `Normal; name = step; node = c} in
+            List.rev_append acc (e :: rest)
+        in
+        let rec aux acc entries =
+          match entries with
+          | [] -> return ~acc []
+          | { Git.Tree.perm; name; node } as h :: l ->
+            if compare_names step name > 0 then (
+              aux (h :: acc) l
+            ) else if compare_names name step = 0 then (
+              if perm <> `Dir then match contents with
+                | None   -> List.rev_append acc l
+                | Some c ->
+                  if Git.SHA.equal c node then t
+                  else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
+              else err_file_is_dir name
+            ) else return ~acc:(h::acc) l
         in
         let new_t = aux [] t in
         if t == new_t then t else new_t
@@ -289,11 +321,13 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         N.create (alist t)
 
      let create alist =
-       List.map (fun (l, x) ->
+       let alist = List.map (fun (l, x) ->
            match x with
            | `Contents c -> to_git `Normal (l, c)
            | `Node n     -> to_git `Dir (l, n)
          ) alist
+       in
+       List.fast_sort compare_entries alist
 
       let of_n n = create (N.alist n)
       let to_json t = N.to_json (to_n t)
@@ -377,7 +411,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
           | Some n -> git_of_node_key n
         in
         let parents = List.map git_of_commit_key parents in
-        let parents = List.sort Git.SHA.Commit.compare parents in
+        let parents = List.fast_sort Git.SHA.Commit.compare parents in
         let author =
           let date = Irmin.Task.date task in
           let name, email = name_email (Irmin.Task.owner task) in
