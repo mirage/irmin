@@ -576,6 +576,13 @@ module Make (S: Irmin.S) = struct
       let v1 = v1 x in
       S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
 
+      S.iter (t "iter") (fun k v ->
+          v >>= fun v ->
+          assert_equal (module K) "iter key" (p ["a";"b"]) k;
+          assert_equal (module V) "iter value" v1 v;
+          Lwt.return_unit;
+        ) >>= fun () ->
+
       S.mem (t "mem1") (p ["a";"b"]) >>= fun b1 ->
       assert_equal (module Tc.Bool) "mem1" true b1;
       S.mem (t "mem2") (p ["a"]) >>= fun b2 ->
