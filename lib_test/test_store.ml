@@ -345,7 +345,7 @@ module Make (S: Irmin.S) = struct
       let sleep () =
         let sleep_t =
           (* sleep duration is 2*max(polling time, callback sleep time) *)
-          2. *. if x.disk then (max sleep_t Test_fs.polling) else sleep_t
+          3. *. if x.disk then (max sleep_t Test_fs.polling) else sleep_t
         in
         Lwt_unix.sleep sleep_t
       in
