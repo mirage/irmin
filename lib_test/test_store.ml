@@ -353,9 +353,19 @@ module Make (S: Irmin.S) = struct
         in
         let w = if x.kind <> `Mem || w = 0 then w else 1 in
         let w_msg = sprintf "%s: %d worker(s)" msg w in
-        assert_equal Tc.int w_msg w (Irmin.Private.Watch.workers ());
+        let rec wait = function
+          | 0 ->
+            assert_equal Tc.int w_msg w (Irmin.Private.Watch.workers ());
+            Lwt.return_unit
+          | n ->
+            sleep () >>= fun () ->
+            if w <> Irmin.Private.Watch.workers () then wait (n-1)
+            else Lwt.return_unit
+        in
+        wait 10 >>= fun () ->
         line msg;
-        if a <> b then error msg (printer a) (printer b)
+        if a <> b then error msg (printer a) (printer b);
+        Lwt.return_unit
       in
       let state () = !adds, !updates, !removes in
       let v1 = string x "X1" in
@@ -364,33 +374,33 @@ module Make (S: Irmin.S) = struct
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
       sleep () >>= fun () ->
-      check "init" 0 (0, 0, 0) (state ());
+      check "init" 0 (0, 0, 0) (state ()) >>= fun () ->
 
       loop 100 >>= fun () ->
 
-      check "watches on" 0 (0, 0, 0) (state ());
+      check "watches on" 0 (0, 0, 0) (state ()) >>= fun () ->
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
       sleep () >>= fun () ->
-      check "adds" 2 (100, 0, 0) (state ());
+      check "adds" 2 (100, 0, 0) (state ()) >>= fun () ->
 
       S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
       sleep () >>= fun () ->
-      check "updates" 2 (100, 100, 0) (state ());
+      check "updates" 2 (100, 100, 0) (state ()) >>= fun () ->
 
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
       sleep () >>= fun () ->
-      check "removes" 2 (100, 100, 100) (state ());
+      check "removes" 2 (100, 100, 100) (state ()) >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
       S.update (t2 "update") (p ["a"]) v1 >>= fun () ->
       sleep () >>= fun () ->
-      check "watches half off" 1 (150, 100, 100) (state ());
+      check "watches half off" 1 (150, 100, 100) (state ()) >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_1 >>= fun () ->
       S.update (t1 "update") (p ["a"]) v2 >>= fun () ->
       sleep () >>= fun () ->
-      check "watches off" 0 (150, 100, 100) (state ());
+      check "watches off" 0 (150, 100, 100) (state ()) >>= fun () ->
 
       Lwt.return_unit
     in
