@@ -92,7 +92,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let stream = Ezjsonm_lwt.from_stream stream in
     let stream = Lwt_stream.map result_of_json stream in
     Lwt_stream.map (fun j ->
-        Log.debug "stream get %s" Ezjsonm.(to_string (wrap j));
+        Log.debug "stream: got %s" Ezjsonm.(to_string (wrap j));
         M.of_json j
       ) stream
 
@@ -100,26 +100,27 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       "Connection", "Keep-Alive"
     ]
 
-  let map_get t path ?query fn =
+  let make_uri t path query =
     let uri = uri_append t path in
-    let uri = match query with
-      | None   -> uri
-      | Some q -> Uri.with_query uri q
-    in
+    match query with
+    | None   -> uri
+    | Some q -> Uri.with_query uri q
+
+  let map_get t path ?query fn =
+    let uri = make_uri t path query in
     Log.debug "get %s" (Uri.path uri);
-    Client.get ~headers uri >>= fun r ->
-    fn r
+    Client.get ~headers uri >>= fn
 
   let get t path ?query fn =
     map_get t path ?query (map_string_response fn)
 
-  let get_stream t path fn  =
+  let get_stream t path ?query fn  =
     let (stream: 'a Lwt_stream.t option ref) = ref None in
     let rec get () =
       match !stream with
       | Some s -> Lwt_stream.get s
       | None   ->
-        map_get t path (fun b ->
+        map_get t path ?query (fun b ->
             let s = map_stream_response fn b in
             stream := Some s;
             Lwt.return_unit) >>= fun () ->
@@ -129,30 +130,44 @@ module Helper (Client: Cohttp_lwt.Client) = struct
   let delete t path fn =
     let uri = uri_append t path in
     Log.debug "delete %s" (Uri.path uri);
-    Client.delete uri >>=
-    map_string_response fn
+    Client.delete uri >>= map_string_response fn
 
-  let post t path ?query body fn =
+  let make_body body =
     let body = match body with
       | None   -> None
       | Some b -> Some (Ezjsonm.to_string (`O [ "params", b ]))
     in
-    let uri = uri_append t path in
     let short_body = match body with
       | None   -> "<none>"
       | Some b -> if String.length b > 80 then String.sub b 0 80 ^ ".." else b
     in
-    let uri = match query with
-      | None   -> uri
-      | Some q -> Uri.with_query uri q
-    in
-    Log.debug "post %s %s" (Uri.path uri) short_body;
     let body = match body with
       | None   -> None
       | Some b -> Some (Cohttp_lwt_body.of_string b)
     in
-    Client.post ?body ~headers uri >>=
-    map_string_response fn
+    short_body, body
+
+  let map_post t path ?query body fn =
+    let uri = make_uri t path query in
+    let short_body, body = make_body body in
+    Log.debug "post %s %s" (Uri.path uri) short_body;
+    Client.post ?body ~headers uri >>= fn
+
+  let post t path ?query body fn =
+    map_post t path ?query body (map_string_response fn)
+
+  let post_stream t path ?query ?body fn  =
+    let (stream: 'a Lwt_stream.t option ref) = ref None in
+    let rec get () =
+      match !stream with
+      | Some s -> Lwt_stream.get s
+      | None   ->
+        map_post t path ?query body (fun b ->
+            let s = map_stream_response fn b in
+            stream := Some s;
+            Lwt.return_unit) >>= fun () ->
+        get () in
+    Lwt_stream.from get
 
 end
 
@@ -219,7 +234,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let post t = RO.post (RO.uri t.t)
   let delete t = RO.delete (RO.uri t.t)
-  let get_stream t = RO.get_stream (RO.uri t.t)
+  let post_stream t = RO.post_stream (RO.uri t.t)
 
   let create config task =
     RO.create config task >>= fun t ->
@@ -249,21 +264,31 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let nb_keys t = fst (W.stats t.w)
   let nb_glob t = snd (W.stats t.w)
 
-  let watch_key t key ?init f =
+  module OV = Tc.Option (V)
+
+let with_cancel t =
+  Lwt.catch t (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
+
+let watch_key t key ?init f =
     if nb_keys t = 0 then (
-      let s = get_stream t ["watch-key"] (module Tc.Option(V)) in
-      let worker = Lwt_stream.iter_s (fun v -> W.notify t.w key v) s in
+      let body = OV.to_json init in
+      let s = post_stream t ~body ["watch-key"] (module OV) in
+      let worker = Lwt_stream.iter_s (W.notify t.w key) s in
       t.keys.worker <- worker;
-      Lwt.async (fun () -> worker)
+      Lwt.async (fun () -> with_cancel (fun () -> worker))
     );
     W.watch_key t.w key ?init f
 
+  module WI = Tc.Option (Tc.List (Tc.Pair (K) (V)))
+  module WS = Tc.Pair (K) (Tc.Option (V))
+
   let watch t ?init f =
     if nb_glob t  = 0 then (
-      let s = get_stream t ["watch"] (module Tc.Pair(K)(Tc.Option(V))) in
+      let body = WI.to_json init in
+      let s = post_stream t ~body ["watch"] (module WS) in
       let worker = Lwt_stream.iter_s (fun (k, v) -> W.notify t.w k v) s in
       t.glob.worker <- worker;
-      Lwt.async (fun () -> worker);
+      Lwt.async (fun () -> with_cancel (fun () -> worker));
     );
     W.watch t.w ?init f
 
