@@ -646,6 +646,23 @@ module Make (S: Irmin.S) = struct
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
 
+      View.empty () >>= fun v1 ->
+
+      View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
+      View.update v1 (p ["foo";"2"]) foo2 >>= fun () ->
+      View.remove v1 (p ["foo";"1"]) >>= fun () ->
+      View.remove v1 (p ["foo";"2"]) >>= fun () ->
+
+      View.update_path (t "empty view") (p []) v1 >>= fun () ->
+      S.head_exn (t "empty view") >>= fun head   ->
+      Commit.read_exn (ct t "empty view") head >>= fun commit ->
+      let node = match Commit.Val.node commit with
+        | None -> failwith "empty node"
+        | Some n -> n
+      in
+      Node.read_exn (n t "empty view") node >>= fun node ->
+      assert_equal (module Node.Val) "empty view" Node.Val.empty node;
+
       View.empty () >>= fun v0 ->
 
       View.update v0 (p []) foo1 >>= fun () ->
