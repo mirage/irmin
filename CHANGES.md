@@ -1,4 +1,5 @@
 ## 0.9.5
+* Fix `View.remove` to clean-up empty directories (#190)
 * Fix the ordering of tree entries in the Git backend (#190)
 * Allow to create a new head from a view and a list of parents with
   `View.make_head` (#188)
