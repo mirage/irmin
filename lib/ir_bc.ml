@@ -344,16 +344,22 @@ module Make_ext (P: PRIVATE) = struct
 
   let iter t fn =
     Log.debug "iter";
-    let rec aux = function
-      | []       -> return_unit
-      | path::tl ->
-        list t path >>= fun childs ->
-        let todo = childs @ tl in
-        let v = read_exn t path in
-        fn path v >>= fun () ->
-        aux todo
+    head t >>= function
+    | None   -> Lwt.return_unit
+    | Some h ->
+      (* we avoid races here by freezing the store head. *)
+      of_head t.config (fun () -> t.task) h >>= fun t ->
+      let t = t () in
+      let rec aux acc = function
+        | []       -> Lwt_list.iter_p (fun (path, v) -> fn path v) acc
+        | path::tl ->
+          list t path >>= fun childs ->
+          let todo = childs @ tl in
+          mem t path >>= fun exists ->
+          if not exists then aux acc todo
+          else aux ((path, read_exn t path) :: acc) todo
     in
-    list t Key.empty >>= aux
+    list t Key.empty >>= aux []
 
   let lcas a ?max_depth ?n t1 t2 =
     let t1 = t1 a and t2 = t2 a in

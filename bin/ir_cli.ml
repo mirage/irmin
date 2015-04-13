@@ -208,7 +208,7 @@ let tree = {
           let dots =
             String.make (pad - String.length k - String.length v) '.'
           in
-          print "/%s%s%s" k dots v
+          print "%s%s%s" k dots v
         ) all;
       return_unit
     end
