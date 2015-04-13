@@ -132,10 +132,14 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     Log.debug "delete %s" (Uri.path uri);
     Client.delete uri >>= map_string_response fn
 
-  let make_body body =
-    let body = match body with
-      | None   -> None
-      | Some b -> Some (Ezjsonm.to_string (`O [ "params", b ]))
+  let make_body ?task body =
+    let str l = Ezjsonm.to_string (`O l) in
+    let str_t = Irmin.Task.to_json in
+    let body = match body, task with
+      | None  , None   -> None
+      | None  , Some t -> Some (str ["task"  , str_t t])
+      | Some b, None   -> Some (str ["params", b])
+      | Some b, Some t -> Some (str ["task", str_t t; "params", b])
     in
     let short_body = match body with
       | None   -> "<none>"
@@ -147,22 +151,22 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     in
     short_body, body
 
-  let map_post t path ?query body fn =
+  let map_post t ~task path ?query body fn =
     let uri = make_uri t path query in
-    let short_body, body = make_body body in
+    let short_body, body = make_body ?task body in
     Log.debug "post %s %s" (Uri.path uri) short_body;
     Client.post ?body ~headers uri >>= fn
 
-  let post t path ?query body fn =
-    map_post t path ?query body (map_string_response fn)
+  let post t ~task path ?query body fn =
+    map_post t ~task path ?query body (map_string_response fn)
 
-  let post_stream t path ?query ?body fn  =
+  let post_stream t ~task path ?query body fn  =
     let (stream: 'a Lwt_stream.t option ref) = ref None in
     let rec get () =
       match !stream with
       | Some s -> Lwt_stream.get s
       | None   ->
-        map_post t path ?query body (fun b ->
+        map_post t ~task path ?query body (fun b ->
             let s = map_stream_response fn b in
             stream := Some s;
             Lwt.return_unit) >>= fun () ->
@@ -211,7 +215,8 @@ module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
   let post t = post t.uri
 
-  let add t value = post t ["add"] (some @@ V.to_json value) (module K)
+  let add t value =
+    post t ~task:None ["add"] (some @@ V.to_json value) (module K)
 
 end
 
@@ -251,41 +256,45 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let iter t = RO.iter t.t
 
   let update t key value =
-    post t ["update"; K.to_hum key] (some @@ V.to_json value) Tc.unit
+    post t ~task:None ["update"; K.to_hum key] (some @@ V.to_json value) Tc.unit
 
   let remove t key = delete t ["remove"; K.to_hum key] Tc.unit
 
   module CS = Tc.Pair(Tc.Option(V))(Tc.Option(V))
 
   let compare_and_set t key ~test ~set =
-    post t ["compare-and-set"; K.to_hum key] (some @@ CS.to_json (test, set))
-      Tc.bool
+    post ~task:None t ["compare-and-set"; K.to_hum key]
+      (some @@ CS.to_json (test, set)) Tc.bool
 
   let nb_keys t = fst (W.stats t.w)
   let nb_glob t = snd (W.stats t.w)
 
-  module OV = Tc.Option (V)
+  let with_cancel t =
+    Lwt.catch t (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
 
-let with_cancel t =
-  Lwt.catch t (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
+  let make_body (type t) (module V: Tc.S0 with type t=t) = function
+    | None   -> None
+    | Some v -> Some (V.to_json v)
 
-let watch_key t key ?init f =
+  let watch_key t key ?init f =
     if nb_keys t = 0 then (
-      let body = OV.to_json init in
-      let s = post_stream t ~body ["watch-key"] (module OV) in
+      let task = Some (task t) in
+      let body = make_body (module V) init in
+      let s = post_stream t ~task ["watch-key"] body (module Tc.Option(V)) in
       let worker = Lwt_stream.iter_s (W.notify t.w key) s in
       t.keys.worker <- worker;
       Lwt.async (fun () -> with_cancel (fun () -> worker))
     );
     W.watch_key t.w key ?init f
 
-  module WI = Tc.Option (Tc.List (Tc.Pair (K) (V)))
+  module WI = Tc.List (Tc.Pair (K) (V))
   module WS = Tc.Pair (K) (Tc.Option (V))
 
   let watch t ?init f =
     if nb_glob t  = 0 then (
-      let body = WI.to_json init in
-      let s = post_stream t ~body ["watch"] (module WS) in
+      let task = Some (task t) in
+      let body = make_body (module WI) init in
+      let s = post_stream t ~task ["watch"] body (module WS) in
       let worker = Lwt_stream.iter_s (fun (k, v) -> W.notify t.w k v) s in
       t.glob.worker <- worker;
       Lwt.async (fun () -> with_cancel (fun () -> worker));
@@ -408,7 +417,7 @@ struct
     | `Tag tag ->
       if T.equal tag T.master then base
       else uri_append base ["tree"; T.to_hum tag]
-    | `Empty  -> failwith "TODO"
+    | `Empty  -> uri_append base ["empty"]
     | `Head h -> uri_append base ["tree"; H.to_hum h]
 
   let task t = S.task t.h
@@ -471,8 +480,11 @@ struct
   let err_not_persistent = invalid_arg "Irmin_http.%s: not a persistent branch"
 
   let get t = get (uri t)
-  let post t = post (uri t)
   let delete t = delete (uri t)
+
+  let post t path ?query body =
+    let task = Some (task t) in
+    post (uri t) ~task path ?query body
 
   let read t key = get t ["read"; P.to_hum key] (module Tc.Option(C))
   let mem t key = get t ["mem"; P.to_hum key] Tc.bool
@@ -549,7 +561,8 @@ struct
 
   module CSH = Tc.Pair(Tc.Option(H))(Tc.Option(H))
 
-  let compare_and_set_head_unsafe t ~test ~set = match branch t with
+  let compare_and_set_head_unsafe t ~test ~set =
+    match branch t with
     | `Tag _  ->
       post t ["compare-and-set-head"] (some @@ CSH.to_json (test, set)) Tc.bool
     | `Empty ->

@@ -102,16 +102,20 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let body = Cohttp_lwt_body.of_stream stream in
     HTTP.respond ~headers:json_headers ~status:`OK ~body ()
 
-  type 'a leaf = S.t -> string list -> Ezjsonm.value option -> (string * string list) list -> 'a
+  type 'a leaf =
+      S.t -> Irmin.task option -> string list -> Ezjsonm.value option ->
+      (string * string list) list -> 'a
+
+  type json = Ezjsonm.value
 
   type dynamic_node = {
-    list: S.t -> string list Lwt.t;
+    list : S.t -> string list Lwt.t;
     child: S.t -> string -> response Lwt.t;
   }
 
   and response =
-    | Fixed  of Ezjsonm.value Lwt.t leaf
-    | Stream of Ezjsonm.value Lwt_stream.t leaf
+    | Fixed  of json Lwt.t leaf
+    | Stream of json Lwt_stream.t leaf
     | SNode  of (string * response) list
     | DNode  of dynamic_node
     | Html   of string Lwt.t leaf
@@ -160,7 +164,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let mk1b name i = function
     | None   -> error "%s: empty body" name
-    | Some b  -> Tc.of_json i b
+    | Some b -> Tc.of_json i b
+
+  let mk1bo _name i = function
+    | None   -> None
+    | Some b -> Some (Tc.of_json i b)
 
   let id = let c = ref 0 in fun () -> incr c; !c
 
@@ -187,11 +195,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* no arguments, fixed answer *)
   let mk0p0bf ?lock ?hooks name fn db o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         mk0p name path;
         mk0b name params;
         mk0q name query;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         with_lock t lock (fun () -> fn t) >>= fun r ->
         run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
@@ -200,21 +208,21 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 0 argument, return an html page. *)
   let mk0p0bh name fn db =
     name,
-    Html (fun t path params query ->
+    Html (fun t task path params query ->
         mk0b name params;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         fn t path query
       )
 
   (* 0 arguments, return a stream *)
   let mk0p0bs name fn db o =
     name,
-    Stream (fun t path params query ->
+    Stream (fun t task path params query ->
         mk0p name path;
         mk0b name params;
         mk0q name query;
         lwt_stream_lift
-          (db t >>= fun t ->
+          (db t task >>= fun t ->
            let stream = fn t in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
            return stream)
@@ -223,12 +231,12 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 1 argument in the body, return a stream *)
   let mk0p1bs name fn db i1 o =
     name,
-    Stream (fun t path params query ->
+    Stream (fun t task path params query ->
         mk0p name path;
         mk0q name query;
-        let x = mk1b name i1 params in
+        let x = mk1bo name i1 params in
         lwt_stream_lift
-          (db t >>= fun t ->
+          (db t task >>= fun t ->
            let stream = fn t x in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
            return stream)
@@ -237,11 +245,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 1 argument in the path, fixed answer *)
   let mk1p0bf' name fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
         mk0q name query;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         fn t x >>= fun r ->
         return (Tc.to_json o r)
       )
@@ -249,11 +257,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 1 argument in the path, fixed answer with locks *)
   let mk1p0bf name ?lock ?hooks fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
         mk0q name query;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         with_lock t lock (fun () -> fn t x) >>= fun r ->
         run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
@@ -262,10 +270,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 1 argument in the path, fixed answer and parameters in the query *)
   let mk1p0bfq name ?lock ?hooks fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         with_lock t lock (fun () -> fn t x query) >>= fun r ->
         run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
@@ -274,11 +282,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* n argument in the path, fixed answer *)
   let mknp0bf name ?lock ?hooks fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x = mknp i1 path in
         mk0b name params;
         mk0q name query;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         with_lock t lock (fun () -> fn t x) >>= fun r ->
         run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
@@ -287,11 +295,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 1 argument in the body *)
   let mk0p1bf name ?lock ?hooks fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         mk0p name path;
         mk0q name query;
         let x = mk1b name i1 params in
-        db t >>= fun t ->
+        db t task >>= fun t ->
         with_lock t lock (fun () -> fn t x) >>= fun r ->
         run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
@@ -300,11 +308,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     (* 1 argument in the body *)
   let mk0p1bf' name fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         mk0p name path;
         mk0q name query;
         let x = mk1b name i1 params in
-        db t >>= fun t ->
+        db t task >>= fun t ->
         fn t x >>= fun r ->
         return (Tc.to_json o r)
       )
@@ -312,10 +320,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 1 argument in the body + query *)
   let mk0p1bfq name fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         mk0p name path;
         let x = mk1b name i1 params in
-        db t >>= fun t ->
+        db t task >>= fun t ->
         fn t x query >>= fun r ->
         return (Tc.to_json o r)
       )
@@ -323,11 +331,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     (* 1 argument in the path, 1 argument in the body, fixed answer *)
   let mk1p1bf name fn db i1 i2 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         fn t x1 x2 >>= fun r ->
         return (Tc.to_json o r)
       )
@@ -335,11 +343,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* n arguments in the path, 1 argument in the body, fixed answer with locks *)
   let mknp1bf name ?lock ?hooks fn db i1 i2 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x1 = mknp i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         with_lock t lock (fun () -> fn t x1 x2) >>= fun r ->
         run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
@@ -348,12 +356,12 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 1 of arguments in the path, 1 body, streamed response *)
   let mk1p1bs name fn db i1 i2 o =
     name,
-    Stream (fun t path params query ->
+    Stream (fun t task path params query ->
         let x1 = mk1p name i1 path in
         mk0q name query;
-        let x2 = mk1b name i2 params in
+        let x2 = mk1bo name i2 params in
         lwt_stream_lift
-          (db t >>= fun t ->
+          (db t task >>= fun t ->
            let stream = fn t x1 x2 in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
            return stream)
@@ -393,6 +401,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let key': M.key Irmin.Hum.t = (module K) in
     let key: M.key Tc.t = (module K) in
     let value: M.value Tc.t = (module V) in
+    let fn x _ = fn x in
     SNode [
       mk1p0bf' "read" M.read fn key' (Tc.option value);
       mk1p0bf' "mem"  M.mem  fn key' Tc.bool;
@@ -431,7 +440,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let tag_store =
     let module T = S.Private.Tag in
-    let tag_t t = return (S.Private.tag_t t) in
+    let tag_t t _ = return (S.Private.tag_t t) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
     let head: S.head Tc.t = (module S.Head) in
@@ -457,7 +466,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         >>= fun _ -> Lwt.return stream
       )
     in
-    let tc_watch_i = Tc.option (Tc.list (Tc.pair tag head)) in
+    let tc_watch_i = Tc.list (Tc.pair tag head) in
     let tc_watch_s = Tc.pair tag (Tc.option head) in
     let tc_ho = Tc.option head in
     SNode [
@@ -468,7 +477,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p0bf' "remove" T.remove tag_t tag' Tc.unit;
       mk1p1bf  "compare-and-set" t_cs tag_t tag' tc_cs Tc.bool;
       mk0p1bs  "watch" t_watch tag_t tc_watch_i tc_watch_s;
-      mk1p1bs  "watch-key" t_watch_key tag_t tag' tc_ho tc_ho;
+      mk1p1bs  "watch-key" t_watch_key tag_t tag' head tc_ho;
     ]
 
   let ok_or_duplicated_tag =
@@ -550,6 +559,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       vertices, edges
   end
   module HTC = Tc.Biject (G)(Conv)
+
+  let mk_task t = function
+    | None   -> S.task t
+    | Some t -> t
 
   let store hooks =
     let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
@@ -665,7 +678,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     ] in
 
     SNode (
-      bc (fun x -> return x)
+      bc (fun x task ->
+          S.create (S.Private.config x) (fun () -> mk_task x task) >>= fun x ->
+          Lwt.return (x ()))
       @ [
         (* subdirs *)
         "contents", contents_store;
@@ -673,14 +688,18 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         "commit"  , commit_store;
         "tag"     , tag_store;
       ] @ [
+        "empty"   , SNode (bc (fun t task ->
+            S.empty (S.Private.config t) (fun () -> mk_task t task) >>= fun t ->
+            return (t ())))
+      ] @ [
         "tree"    , dyn_node
         (fun t ->
           S.tags t  >>= fun tags ->
           S.heads t >>= fun heads ->
           return (List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads))
         (fun _ n ->
-           let app fn t x =
-             fn (S.Private.config t) (fun () -> S.task t) x >>= fun t ->
+           let app fn t x task =
+             fn (S.Private.config t) (fun () -> mk_task t task) x >>= fun t ->
              return (t ())
            in
            try
@@ -691,13 +710,14 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       ])
 
   let process t store req body path =
+    let return_dnone = Lwt.return (None, None) in
     begin match Cohttp.Request.meth req with
       | `DELETE
-      | `GET       -> return_none
+      | `GET  -> return_dnone
       | `POST ->
         Cohttp_lwt_body.length body >>= fun (len, body) ->
         if len = 0L then
-          return_none
+          return_dnone
         else begin
           Cohttp_lwt_body.to_string body >>= fun b ->
           let short_body =
@@ -706,18 +726,19 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           Log.debug "process: length=%Ld body=%S" len short_body;
           try match Ezjsonm.from_string b with
             | `O l ->
-              if List.mem_assoc "params" l then (
-                try return (Some (List.assoc "params" l))
-                with Not_found -> return_none
-              ) else
-                error "process: wrong request"
+              let params = try Some (List.assoc "params" l) with Not_found -> None in
+              let task =
+                try Some (Irmin.Task.of_json @@ List.assoc "task" l)
+                with Not_found -> None
+              in
+              Lwt.return (task, params)
             | _    ->
               error "process: wrong parameters"
           with e ->
             error "process: not a valid JSON body %S [%s]" b (Printexc.to_string e)
         end
       | _ -> fail Invalid
-    end >>= fun params ->
+    end >>= fun (task, params) ->
     let query = Uri.query (Cohttp.Request.uri req) in
     let rec aux actions path =
       Log.debug "aux %s" (String.concat "/" path);
@@ -725,9 +746,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       | []      -> json_of_response t actions >>= respond_json
       | h::path ->
         child t h actions >>= function
-        | Fixed fn  -> fn t path params query >>= respond_json
-        | Stream fn -> respond_json_stream (fn t path params query)
-        | Html fn   -> fn t path params query >>= respond ~headers:http_headers
+        | Fixed fn  -> fn t task path params query >>= respond_json
+        | Stream fn -> respond_json_stream (fn t task path params query)
+        | Html fn   -> fn t task path params query >>= respond ~headers:http_headers
         | actions   -> aux actions path in
     aux store path
 
