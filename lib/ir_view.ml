@@ -243,10 +243,14 @@ module Internal (Node: NODE) = struct
       | path::tl ->
         list t path >>= fun childs ->
         let todo = childs @ tl in
-        let v = read_exn t path in
-        fn path v >>= fun () ->
+        mem t path >>= fun exists ->
+        begin
+          if not exists then Lwt.return_unit
+          else fn path (read_exn t path)
+        end >>= fun () ->
         aux todo
     in
+    (* FIXME take lock? *)
     list t Path.empty >>= aux
 
   let update_contents_aux t k v =
