@@ -116,6 +116,8 @@ module type NODE = sig
   module Path: Ir_path.S
 
   val empty: unit -> t
+  val is_empty: t -> bool Lwt.t
+
   val read: t -> node option Lwt.t
 
   val read_contents: t -> Path.step -> contents option Lwt.t
@@ -267,6 +269,13 @@ module Internal (Node: NODE) = struct
           match Node.read_succ n h with
           | Some child ->
             aux child p >>= fun changed ->
+            (* remove empty dirs *)
+            begin if changed && v = None then
+                Node.is_empty child >>= function
+                | false -> Lwt.return false
+                | true  -> Node.with_succ view h None
+              else Lwt.return false
+            end >>= fun _ ->
             if changed then Node.clear_cache view;
             Lwt.return changed
           | None ->
@@ -536,6 +545,11 @@ module Make (S: Ir_s.STORE) = struct
           let n = import db n in
           t := Both ((db, k), n);
           Lwt.return (Some n)
+
+    let is_empty t =
+      read t >>= function
+      | None   -> Lwt.return false
+      | Some n -> Lwt.return (n.alist = [])
 
     let steps t =
       Log.debug "steps";
