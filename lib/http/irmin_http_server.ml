@@ -710,6 +710,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       ])
 
   let process t store req body path =
+    let uri = Cohttp.Request.uri req in
+    let query = Uri.query uri in
     let return_dnone = Lwt.return (None, None) in
     begin match Cohttp.Request.meth req with
       | `DELETE
@@ -739,17 +741,29 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         end
       | _ -> fail Invalid
     end >>= fun (task, params) ->
-    let query = Uri.query (Cohttp.Request.uri req) in
-    let rec aux actions path =
-      Log.debug "aux %s" (String.concat "/" path);
-      match path with
+    let rec aux actions = function
       | []      -> json_of_response t actions >>= respond_json
       | h::path ->
-        child t h actions >>= function
-        | Fixed fn  -> fn t task path params query >>= respond_json
-        | Stream fn -> respond_json_stream (fn t task path params query)
-        | Html fn   -> fn t task path params query >>= respond ~headers:http_headers
-        | actions   -> aux actions path in
+        let f = function
+          | Fixed fn  -> fn t task path params query >>= respond_json
+          | Stream fn -> respond_json_stream (fn t task path params query)
+          | Html fn   -> fn t task path params query >>= respond ~headers:http_headers
+          | actions   -> aux actions path
+        in
+        Lwt.catch
+          (fun () -> child t h actions >>= f)
+          (fun e ->
+             let query =
+               List.map (fun (k, v) -> k ^ "=" ^ String.concat "." v) query
+               |> String.concat ","
+             in
+             Log.debug "uri=%s path=%s query=%s error=%s"
+               (Uri.to_string uri)
+               (String.concat "/" path)
+               query
+               (Printexc.to_string e);
+             Lwt.fail e)
+    in
     aux store path
 
   type t = S.t
