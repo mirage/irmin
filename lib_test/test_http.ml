@@ -37,7 +37,7 @@ let rec wait_for_the_server_to_start () =
     Lwt_unix.sleep 0.1 >>= fun () ->
     wait_for_the_server_to_start ()
 
-let suite k server =
+let suite server =
   let server_pid = ref 0 in
   { name = Printf.sprintf "HTTP.%s" server.name;
 
@@ -63,8 +63,8 @@ let suite k server =
         wait_for_the_server_to_start ()
     end;
 
-    kind = k;
-    disk = server.disk;
+    cont = server.cont;
+    kind = `Http server.kind;
 
     clean = begin fun () ->
       Unix.kill !server_pid 9;
@@ -75,5 +75,5 @@ let suite k server =
     end;
 
     config = Irmin_http.config uri;
-    store = http_store k;
+    store = http_store server.cont;
   }

@@ -26,9 +26,9 @@ let suite k =
   let config = Irmin_mem.config () in
   let store = mem_store k in
   {
-    name   = "MEM" ^ string_of_kind k;
-    kind   = k;
-    disk   = false;
+    name   = "MEM" ^ string_of_contents k;
+    kind   = `Mem;
+    cont   = k;
     init   = none;
     clean  = clean config store;
     config; store;

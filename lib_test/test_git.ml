@@ -35,9 +35,9 @@ let clean () =
 
 let suite k =
   {
-    name   = "GIT" ^ string_of_kind k;
-    kind   = k;
-    disk   = true;
+    name   = "GIT" ^ string_of_contents k;
+    cont   = k;
+    kind   = `Git;
     init   = init_disk;
     clean  = clean;
     store  = git_store k;

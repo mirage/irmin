@@ -19,8 +19,8 @@ let () =
     `Quick, Test_memory.suite k;
     `Quick, Test_fs.suite k;
     `Quick, Test_git.suite k;
-    `Quick, Test_http.suite k (Test_memory.suite k);
-    `Slow , Test_http.suite k (Test_fs.suite k);
-    `Slow , Test_http.suite k (Test_git.suite k);
+    `Quick, Test_http.suite (Test_memory.suite k);
+    `Slow , Test_http.suite (Test_fs.suite k);
+    `Slow , Test_http.suite (Test_git.suite k);
   ] in
   Test_store.run "irmin" (suite `String @ suite `Json)

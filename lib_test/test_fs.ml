@@ -34,9 +34,9 @@ let clean () =
 
 let suite k =
   {
-    name = "FS" ^ string_of_kind k;
-    kind = k;
-    disk = true;
+    name = "FS" ^ string_of_contents k;
+    kind = `Fs;
+    cont = k;
     init; clean;
     config = Irmin_fs.config ~root:test_db ();
     store  =  irf_store k;

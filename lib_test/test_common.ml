@@ -110,10 +110,12 @@ let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
     in
     let module S = Irmin.Basic(B)(C) in (module S)
 
+type kind = [`Mem | `Fs | `Git | `Http of kind]
+
 type t = {
   name  : string;
-  kind  : [`Json | `String];
-  disk  : bool;
+  kind  : kind;
+  cont  : [`Json | `String];
   init  : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config: Irmin.config;
@@ -123,7 +125,7 @@ type t = {
 let none () =
   return_unit
 
-let string_of_kind = function
+let string_of_contents = function
   | `Json   -> "-json"
   | `String -> ""
 

@@ -60,14 +60,14 @@ module Make (S: Irmin.S) = struct
   let create_dummy x =
     S.create x.config dummy_task
 
-  let string x str = match x.kind with
+  let string x str = match x.cont with
     | `String -> Tc.read_string (module V) str
     | `Json -> V.of_json (
         (`O [ "foo", Ezjsonm.encode_string str ])
       )
   let v1 x = string x long_random_string
 
-  let v2 x = match x.kind with
+  let v2 x = match x.cont with
     | `String -> Tc.read_string (module V) ""
     | `Json -> V.of_json (`A[])
 
@@ -343,17 +343,15 @@ module Make (S: Irmin.S) = struct
           loop (n-1)
       in
       let sleep () =
-        let sleep_t =
-          (* sleep duration is 2*max(polling time, callback sleep time) *)
-          3. *. if x.disk then (max sleep_t Test_fs.polling) else sleep_t
-        in
+        (* sleep duration is 2*max(polling time, callback sleep time) *)
+        let sleep_t = 3. *. (max sleep_t Test_fs.polling) in
         Lwt_unix.sleep sleep_t
       in
       let check msg w a b =
         let printer (a, u, r) =
           Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
         in
-        let w = if x.disk || w = 0 then w else 1 in
+        let w = if x.kind <> `Mem || w = 0 then w else 1 in
         let w_msg = sprintf "%s: %d worker(s)" msg w in
         assert_equal Tc.int w_msg w (Irmin.Private.Watch.workers ());
         line msg;
