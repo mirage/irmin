@@ -402,6 +402,40 @@ module Make (S: Irmin.S) = struct
       sleep () >>= fun () ->
       check "watches off" 0 (150, 100, 100) (state ()) >>= fun () ->
 
+      let tags = ref 0 in
+      let rec add = function
+        | 0 -> Lwt.return_unit
+        | n ->
+          let tag = S.Tag.of_hum (sprintf "t%d" n) in
+          r1 x >>= fun head ->
+          S.Private.Tag.update (S.Private.tag_t @@ t1 "tag") tag head >>= fun () ->
+          add (n-1)
+      in
+      let rec remove = function
+        | 0 -> Lwt.return_unit
+        | n ->
+          let tag = S.Tag.of_hum (sprintf "t%d" n) in
+          S.Private.Tag.remove (S.Private.tag_t @@ t1 "tag") tag >>= fun () ->
+          remove (n-1)
+      in
+
+      S.watch_tags (t1 "watch-tags") (function _tag -> function
+          | `Removed _ -> decr tags; Lwt.return_unit
+          | `Added _   -> incr tags; Lwt.return_unit
+          | _          -> Lwt.return_unit
+        ) >>= fun unwatch ->
+
+      add 10   >>= fun () ->
+      remove 5 >>= fun () ->
+      sleep () >>= fun () ->
+      assert_equal Tc.int "watch all on" 5 !tags;
+
+      unwatch () >>= fun () ->
+      add 5      >>= fun () ->
+      remove 10  >>= fun () ->
+      sleep ()   >>= fun () ->
+      assert_equal Tc.int "watch all off" 5 !tags;
+
       Lwt.return_unit
     in
     run x test
