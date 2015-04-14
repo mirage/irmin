@@ -49,6 +49,8 @@ module type STORE = sig
     (unit -> unit Lwt.t) Lwt.t
   val watch_tags: t -> ?init:(tag * head) list ->
     (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_key: t -> key -> ?init:(head * value) ->
+    ((head * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val clone: 'a Ir_task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   val clone_force: 'a Ir_task.f -> t ->  tag -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
@@ -499,6 +501,7 @@ module Make_ext (P: PRIVATE) = struct
     merge a ?max_depth ?n t ~into >>= Ir_merge.exn
 
   let watch_head t ?init fn =
+    Log.debug "watch-head";
     tag t >>= function
     | None       ->
       (* FIXME: start a local watcher on the detached branch *)
@@ -514,9 +517,40 @@ module Make_ext (P: PRIVATE) = struct
       Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
 
   let watch_tags t ?init fn =
-    Log.info "Adding a watch on all tags";
+    Log.debug "watch-tags";
     Tag.watch (tag_t t) ?init fn >>= fun id ->
     Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
+
+  let watch_key t key ?init fn =
+    Log.info "watch-key %a" force (show (module Key) key);
+    let init_head = match init with
+      | None        -> None
+      | Some (h, _) -> Some h
+    in
+    let value_of_head h =
+      of_head (config t) (fun () -> task t) h >>= fun t ->
+      read (t ()) key
+    in
+    watch_head t ?init:init_head (function
+        | `Removed x -> begin
+            value_of_head x >>= function
+            | None   -> Lwt.return_unit
+            | Some v -> fn @@ `Removed (x, v)
+          end
+        | `Added x -> begin
+            value_of_head x >>= function
+            | None   -> Lwt.return_unit
+            | Some v -> fn @@ `Added (x, v)
+          end
+        | `Updated (x, y) ->
+          value_of_head x >>= fun vx ->
+          value_of_head y >>= fun vy ->
+          match vx, vy with
+          | None   ,  None   -> Lwt.return_unit
+          | Some vx, None    -> fn @@ `Removed (x, vx)
+          | None   , Some vy -> fn @@ `Added (y, vy)
+          | Some vx, Some vy -> fn @@ `Updated ( (x, vx), (y, vy) )
+      )
 
   type slice = P.Slice.t
 

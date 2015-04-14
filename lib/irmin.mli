@@ -609,7 +609,7 @@ module type BC = sig
 
   val watch_head: t -> ?init:head -> (head diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
-  (** [watch_tag t f] calls [f] everytime the contents of [t]'s tag is
+  (** [watch_tag t f] calls [f] every time the contents of [t]'s tag is
       updated. Do nothing if [t] is not persistent. Return a clean-up
       function to remove the watch handler.
 
@@ -620,9 +620,14 @@ module type BC = sig
 
   val watch_tags: t -> ?init:(tag * head) list ->
     (tag -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  (** [watch_tags t f] calls [f] to the watch handlers of {b all} tag
-      changes in the local store. Return a function to remove the
+  (** [watch_tags t f] calls [f] every time a tag is added, removed or
+      updated in the local store. Return a function to remove the
       handler. *)
+
+  val watch_key: t -> key -> ?init:(head * value) ->
+    ((head * value) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  (** [watch_key t key f] calls [f] every time the [key]'s value is
+      added, removed or updated. *)
 
   (** {2 Clones and Merges} *)
 

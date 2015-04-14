@@ -618,6 +618,10 @@ struct
   let watch_head t = L.watch_head t.l
   let watch_tags t = L.watch_tags t.l
 
+  (* FIXME: this could be improved quite a bit by having a separate
+     stream per path. *)
+  let watch_key t = L.watch_key t.l
+
   let clone task t tag =
     post t ["clone"; T.to_hum tag] None Tc.string >>= function
     | "ok" -> of_tag t.config task tag >|= fun t -> `Ok t
