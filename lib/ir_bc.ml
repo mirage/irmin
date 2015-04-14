@@ -543,13 +543,16 @@ module Make_ext (P: PRIVATE) = struct
             | Some v -> fn @@ `Added (x, v)
           end
         | `Updated (x, y) ->
+          assert (not (Head.equal x y));
           value_of_head x >>= fun vx ->
           value_of_head y >>= fun vy ->
           match vx, vy with
           | None   ,  None   -> Lwt.return_unit
           | Some vx, None    -> fn @@ `Removed (x, vx)
           | None   , Some vy -> fn @@ `Added (y, vy)
-          | Some vx, Some vy -> fn @@ `Updated ( (x, vx), (y, vy) )
+          | Some vx, Some vy ->
+            if Val.equal vx vy then Lwt.return_unit
+            else fn @@ `Updated ( (x, vx), (y, vy) )
       )
 
   type slice = P.Slice.t
