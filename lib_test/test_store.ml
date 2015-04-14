@@ -415,7 +415,7 @@ module Make (S: Irmin.S) = struct
         | 0 -> Lwt.return_unit
         | n ->
           let tag = S.Tag.of_hum (sprintf "t%d" n) in
-          S.Private.Tag.remove (S.Private.tag_t @@ t1 "tag") tag >>= fun () ->
+          S.Private.Tag.remove (S.Private.tag_t @@ t2 "tag") tag >>= fun () ->
           remove (n-1)
       in
 
@@ -435,6 +435,42 @@ module Make (S: Irmin.S) = struct
       remove 10  >>= fun () ->
       sleep ()   >>= fun () ->
       assert_equal Tc.int "watch all off" 5 !tags;
+
+      let keys = ref 0 in
+      let path1 = p ["a"; "b"; "c"] in
+      let path2 = p ["a"; "d"] in
+      let path3 = p ["a"; "b"; "d"] in
+      let rec set i =
+        let v = string x (string_of_int i) in
+        S.update (t2 "update1") path1 v >>= fun () ->
+        S.update (t2 "update2") path2 v >>= fun () ->
+        S.update (t2 "update3") path3 v >>= fun () ->
+        if i > 1 then set (i-1) else Lwt.return_unit
+      in
+      let remove () =
+        S.remove (t1 "remove1") path1 >>= fun () ->
+        S.remove (t1 "remove2") path2 >>= fun () ->
+        S.remove (t1 "remove3") path3 >>= fun () ->
+        Lwt.return_unit
+      in
+
+      S.remove_rec (t1 "clean") (p []) >>= fun () ->
+
+      S.watch_key (t1 "watch-keys") path1 (function
+          | `Removed _ -> decr keys; Lwt.return_unit
+          | `Added _   -> incr keys; Lwt.return_unit
+          | `Updated _ -> incr keys; Lwt.return_unit
+        ) >>= fun unwatch ->
+
+      set 10    >>= fun () ->
+      remove () >>= fun () ->
+      sleep ()  >>= fun () ->
+      assert_equal Tc.int "watch key on" 9 !keys;
+
+      unwatch () >>= fun () ->
+      set 5      >>= fun () ->
+      remove ()  >>= fun () ->
+      assert_equal Tc.int "watch key off" 9 !keys;
 
       Lwt.return_unit
     in
