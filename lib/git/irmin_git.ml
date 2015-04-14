@@ -239,13 +239,13 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
 
       let err_file_is_dir n =
         let str = sprintf
-            "Cannot add the file %s as it is already a directory name." n
+            "Cannot add the file '%s' as it is already a directory name." n
         in
         raise (Invalid_argument str)
 
       let err_dir_is_file n =
         let str = sprintf
-            "Cannot add the directory %s as it is already a filename." n
+            "Cannot add the directory '%s' as it is already a filename." n
         in
         raise (Invalid_argument str)
 
