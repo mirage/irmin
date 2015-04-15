@@ -320,13 +320,18 @@ module Make (S: Irmin.S) = struct
       create x >>= fun t2 ->
 
       let sleep ?(sleep_t=0.) () =
+        let sleep_t = max sleep_t (match x.kind with
+            | `Http _ -> 0.1
+            | `Fs | `Git -> 0.01
+            | `Mem -> 0.)
+        in
         (* sleep duration is 2*max(polling time, sleep_t) *)
         let sleep_t = 3. *. (max sleep_t Test_fs.polling) in
         Lwt_unix.yield () >>= fun () ->
         Lwt_unix.sleep sleep_t
       in
 
-      let rec retry ?(tries=10) ?sleep_t fn =
+      let rec retry ?(tries=20) ?sleep_t fn =
         match tries with
         | 0 -> fn (); Lwt.return_unit
         | i ->
@@ -336,11 +341,14 @@ module Make (S: Irmin.S) = struct
             retry ~tries:(i-1) ?sleep_t fn
       in
 
-      let check_workers ?(tries=10) msg w =
+      let check_workers ?(tries=20) msg p w =
         let w = if x.kind <> `Mem || w = 0 then w else 1 in
-        let msg = sprintf "%s: %d worker(s)" msg w in
+        let p = match x.kind with `Mem | `Http _ -> 0 | _ -> p in
+        let msg_w = sprintf "%s: %d worker(s)" msg w in
+        let msg_p = sprintf "%s: %d polling thread(s)" msg p in
         retry ~tries (fun () ->
-            assert_equal Tc.int msg w (Irmin.Private.Watch.workers ())
+            assert_equal Tc.int msg_p p (Irmin_unix.polling_threads ());
+            assert_equal Tc.int msg_w w (Irmin.Private.Watch.workers ());
           )
       in
 
@@ -369,11 +377,11 @@ module Make (S: Irmin.S) = struct
           else stops_1 := s :: !stops_1;
           loop (n-1)
       in
-      let check msg w a b =
+      let check msg (p, w) a b =
         let printer (a, u, r) =
           Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
         in
-        check_workers msg w >>= fun () ->
+        check_workers msg p w >>= fun () ->
         line msg;
         retry ~sleep_t (fun () ->
             let b = b () in
@@ -386,28 +394,28 @@ module Make (S: Irmin.S) = struct
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
-      check "init" 0 (0, 0, 0) state >>= fun () ->
+      check "init" (0, 0) (0, 0, 0) state >>= fun () ->
 
       loop 100 >>= fun () ->
 
-      check "watches on" 0 (0, 0, 0) state >>= fun () ->
+      check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
-      check "adds" 2 (100, 0, 0) state >>= fun () ->
+      check "adds" (1, 2) (100, 0, 0) state >>= fun () ->
 
       S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
-      check "updates" 2 (100, 100, 0) state >>= fun () ->
+      check "updates" (1, 2) (100, 100, 0) state >>= fun () ->
 
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
-      check "removes" 2 (100, 100, 100) state >>= fun () ->
+      check "removes" (1, 2) (100, 100, 100) state >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
       S.update (t2 "update") (p ["a"]) v1 >>= fun () ->
-      check "watches half off" 1 (150, 100, 100) state  >>= fun () ->
+      check "watches half off" (1, 1) (150, 100, 100) state  >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_1 >>= fun () ->
       S.update (t1 "update") (p ["a"]) v2 >>= fun () ->
-      check "watches off" 0 (150, 100, 100) state >>= fun () ->
+      check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
 
       (* test [Irmin.watch_tags] *)
       let tags = ref 0 in
@@ -434,6 +442,7 @@ module Make (S: Irmin.S) = struct
         ) >>= fun unwatch ->
 
       add 10   >>= fun () ->
+      sleep () >>= fun () ->
       remove 5 >>= fun () ->
       retry (fun () -> assert_equal Tc.int "watch all on" 5 !tags) >>= fun () ->
 
@@ -479,7 +488,7 @@ module Make (S: Irmin.S) = struct
       sleep ()   >>= fun () ->
       retry (fun () -> assert_equal Tc.int "watch key off" 9 !keys) >>= fun () ->
 
-      check_workers "watch key off" 0 >>= fun () ->
+      check_workers "watch key off" 0 0 >>= fun () ->
 
       (* test [View.watch_path] *)
       let path = ref 0 in
