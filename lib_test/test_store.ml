@@ -320,10 +320,17 @@ module Make (S: Irmin.S) = struct
       create x >>= fun t2 ->
 
       let sleep ?(sleep_t=0.) () =
-        let sleep_t = max sleep_t (match x.kind with
+        let sleep_t =
+          let k = match x.kind with
             | `Http _ -> 0.1
             | `Fs | `Git -> 0.01
-            | `Mem -> 0.)
+            | `Mem -> 0.
+          in
+          let c = match x.cont with
+            | `String -> 0.
+            | `Json   -> 0.02
+          in
+          max sleep_t (c +. k)
         in
         (* sleep duration is 2*max(polling time, sleep_t) *)
         let sleep_t = 3. *. (max sleep_t Test_fs.polling) in
@@ -344,8 +351,8 @@ module Make (S: Irmin.S) = struct
       let check_workers ?(tries=20) msg p w =
         let w = if x.kind <> `Mem || w = 0 then w else 1 in
         let p = match x.kind with `Mem | `Http _ -> 0 | _ -> p in
-        let msg_w = sprintf "%s: %d worker(s)" msg w in
-        let msg_p = sprintf "%s: %d polling thread(s)" msg p in
+        let msg_w = sprintf "%s: worker (%d)" msg tries in
+        let msg_p = sprintf "%s: polling thread (%d)" msg tries in
         retry ~tries (fun () ->
             assert_equal Tc.int msg_p p (Irmin_unix.polling_threads ());
             assert_equal Tc.int msg_w w (Irmin.Private.Watch.workers ());
