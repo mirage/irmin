@@ -1,180 +1,60 @@
+
 (*
 
   The Kryptonite : Irmin Crypto Backend
 
+   TODO :
+   Padding into blobs, and cut blobs on a defined size block -> We don't want to guess the size of content
+
 *)
 
 
+open Lwt
 
-open Nocrypto
-open Nocrypto.Uncommon
-
-
-(* Logs *)
 module Log = Log.Make(struct let section = "KRYPO" end)
 
-(* Exceptions *)
-exception Error of string
+
+module type CIPHER_BLOCK = Krypto_cipher.MAKER
+module type AO_MAKER = Irmin.AO_MAKER
 
 
-(* Retreiving Method *)
-type retriving_method =
-  | File of string
-  | Debug_Test (* must be removed after ... *)
-(* | mirageOS ... *)
+module KRYPTO_AO (C: CIPHER_BLOCK) (H: Irmin.Hash.S) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
-(* TODO : change *)
-type cipher = int
+    module AO = S(K)(V)
 
+    type key = AO.key
 
+    type value = AO.value
 
-
-module type KEY_STORE = sig
-    val init_key_hash : cipher_hash:cipher -> method_hash:retriving_method -> Cstruct.t
-    val init_key_content : cipher_content:cipher -> method_content:retriving_method -> Cstruct.t
-  end
-
-
-(* Key Store module : we can improve that... *)
-module KeyStore : KEY_STORE = struct
-
-
-    (* Temp stuff : generate "constant" keys randomly by size *)
-    let gen_key length =
-      let gen() = match Random.int(26+26+10) with
-        | n when n < 26 -> int_of_char 'a' + n
-        | n when n < 26 + 26 -> int_of_char 'A' + n - 26
-        | n -> int_of_char '0' + n - 26 - 26 in
-      let gen _ = String.make 1 (char_of_int(gen())) in
-      String.concat "" (Array.to_list (Array.init length gen));;
-
-
-    (* Retriving... | File -> .. open and read file .. *)
-    let retreive_key m c =
-      match m with
-      | Debug_Test -> gen_key 24
-      | _ -> gen_key 24
-
-
-    (* Initialization of hash key store TODO: try...catch *)
-    let init_key_hash ~cipher_hash ~method_hash =
-    let hk = retreive_key method_hash cipher_hash in
-               Cstruct.(of_string hk);;
-
-
-    (* Initialization of content key store TODO: try...catch *)
-    let init_key_content ~cipher_content ~method_content =
-      let ck = retreive_key method_content cipher_content in
-      Cstruct.(of_string ck);;
-
-    (* TEMP for CBC *)
-    let get_iv =
-      (Cstruct.of_string "1234abcd1234abcd")
-
-  end
-
-
-module type KEY_DERIVATION = sig
-    val derivate Cstruct.t -> Cstruct.t -> Cstruct.t -> Cstruct.t
-  end
-
-
-(* Key derivation module *)
-module KeyDerivation = struct
-
-    (* Derviate key TODO : Key Derivation algorithm *)
-    let derivate ukey mkey ~password =
-      match password with
-      | None -> ukey lxor mkey
-      | Some x -> ukey lxor mkey lxor password
-
-  end
-
-
-(* Cipher content module *)
-module CipherContent (KS: KEY_STORE) (KD:KEY_DERIVATION) (C:Cipher_block): CIPHER_CONTENT = struct
-
-    let master_key = C.of_secret KS.init_key_content
-    let iv = KS.get_iv
-
-    type t_hash
-    type t_user_password
-    type t_content
-
-    (** Encryption function with optional password, encrypted hash of blob, and the content *)
-    let encrypt ~hash:t_hash
-                ~content:t_content
-                ?password:t_user_password =
-      let key = KD.derivate master_key hash password in
-       C.encrypt ~key ~iv content
-
-    (** Decryption function with optional password, encrypted hash of blob, and the content *)
-    let decrypt ~hash:t_hash
-                ~content:t_content
-                ?password:t_user_password =
-      let key = KD.derivate master_key hash password in
-       C.decrypt ~key ~iv content
-
-  end
-
-
-module CipherHash (KS: KEY_STORE) = struct
-
-    let key = C.of_secret KS.init_key_content
-    let iv = KS.get_iv
-
-    type t_hash
-    type t_user_password
-    type t_content
-
-    (** Encryption function *)
-    let encrypt value =
-      C.encrypt ~key ~iv value
-
-    (** Decryption function *)
-    let decrypt value =
-      C.decrypt ~key ~iv value
-
-  end
-
-
-
-module KRYPTO_AO (CC: CIPHER_CONTENT) (CH: CIPHER_HASH) (H: Irmin.Hash.S) (S:AO) = struct
-
-    type t
-
-    type key
-
-    type value
+    let to_cstruct x = Tc.write_cstruct (module V) x
+    let of_cstruct x = Tc.read_cstruct (module V) x
 
     let create config task =
-      S.create config task
+      AO.create config task
 
     let task t =
-      S.task t
+      AO.task t
 
     let read t key =
-      let ekey = CH.encrypt key in
-      let content = S.read t ekey in
-      C.decrypt ~hash:dkey ~content:v
+      AO.read t key >>= function
+      | None -> return_none
+      | Some v -> return (Some (of_cstruct (C.decrypt (to_cstruct v))))
+
 
     let read_exn t key =
-      let ekey = CH.ecrypt ekey in
       try
-        let content = S.read_exn t ekey in
-        CC.decrypt ~hash:dkey ~content:v
+        AO.read_exn t key >>= function x -> return (of_cstruct (C.decrypt (to_cstruct x)))
       with
       | Not_found -> fail Not_found
 
     let mem t k =
-      let ekey = CH.encrypt key in
-      S.mem t ekey
+      AO.mem t k
 
     let add t v =
-      let h = H.digest v in
-      let eh = CH.encrypt h in
-      let ev = CC.encrypt ~hash:eh ~content:v in
-      let _ = S.add t ev in
-      H.of_raw h
+      to_cstruct v |> C.encrypt |> of_cstruct |> AO.add t
 
   end
+
+
+
+module STORE (AO : AO_MAKER)  (RW : RW_MAKER) : S_MAKER = Make (AO) (RW)

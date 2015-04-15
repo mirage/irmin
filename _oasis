@@ -81,8 +81,6 @@ Library "irmin-unix"
 
 
 Library "irmin-krypto"
-  Build$:        flag(unix) && flag(http) && flag(git)
-  Install$:      flag(unix) && flag(http) && flag(git)
   Path:          lib/krypto
   Findlibname:   krypto
   FindlibParent: irmin
