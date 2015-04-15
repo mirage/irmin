@@ -204,6 +204,8 @@ let callback dir file =
   let fns = try Hashtbl.find listeners dir with Not_found -> [] in
   Lwt_list.iter_p (fun (id, f) -> Log.debug "callback %d" id; f file) fns
 
+let realdir dir = if Filename.is_relative dir then Sys.getcwd () / dir else dir
+
 let start_watchdog ~delay dir =
   match watchdog dir with
   | Some _ -> assert (nb_listeners dir <> 0)
@@ -241,6 +243,7 @@ let uninstall_dir_polling_listener () =
 let install_dir_polling_listener delay =
   uninstall_dir_polling_listener ();
   let listen_dir id dir fn =
+    let dir = realdir dir in
     start_watchdog ~delay dir;
     add_listener id dir fn;
     function () ->
