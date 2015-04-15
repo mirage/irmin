@@ -134,7 +134,10 @@ module S = struct
   include Tc.As_L0 (X)
 end
 
-module StringSet = Set.Make(Tc.String)
+module StringSet = struct
+  include Set.Make(Tc.String)
+  let of_list l = List.fold_left (fun acc e -> add e acc) empty l
+end
 
 let to_string set = Tc.show (module S) set
 
