@@ -1,4 +1,15 @@
 ## 0.9.5
+* Add `Task.empty` (the empty task) and `Task.none` (the empty task constructor)
+* Completely rewrite the notification mechanism. All the watch functions now
+  take a callback as argument and return a de-allocation function. The callbacks
+  receive a heads values (the last and current ones) and diff values. (#187)
+  - Add `Irmin.watch_head` to watch for the changes of the current branch's head
+  - Add `Irmin.watch_tags` to watch for the changes of all the tags in the store
+  - Add `Irmin.watch_key` to watch for the changes of the values associated to a
+    given key (this is not recursive anymore).
+  - Add `View.watch_path` to watch for the changes in a subtree. The function
+    return views and the user can use `View.diff` to compute differences between
+    views if needed.
 * Transfer the HTTP client task to the server to make the commit messages
   relative to the client state (and not the server's) (#136)
 * Fix `View.remove` to clean-up empty directories (#190)
