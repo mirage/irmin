@@ -2200,7 +2200,7 @@ module type VIEW = sig
   (** {1 Views} *)
 
   type db
-  (** The type for store handles. *)
+  (** The type for branch handles. *)
 
   include HRW
   (** A view is a read-write temporary store, mirroring the main
@@ -2221,22 +2221,22 @@ module type VIEW = sig
       conflict. *)
 
   val of_path: db -> key -> t Lwt.t
-  (** Read a view from a path in the store. This is a cheap operation,
-      all the real reads operation will be done on-demand when the
-      view is used. *)
+  (** [of_path t p] reads the view from a path [p] in the branch
+      [t]. This is a cheap operation, all the real reads operation
+      will be done on-demand when the view is used. *)
 
   val update_path: db -> key -> t -> unit Lwt.t
-  (** [update_path x t path v] {e replaces} the sub-tree under [path]
-      in the store [t x] by the contents of the view [v x]. See
-      {!merge_path} for more details. *)
+  (** [update_path t p v] {e replaces} the sub-tree under [p] in the
+      branch [t] by the contents of the view [v]. See {!merge_path}
+      for more details. *)
 
   val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
-  (** [rebase_path x t path v] {e rebases} the view [v x] on top of
-      the contents of [t x]'s sub-tree pointed by the path
-      [path]. Rebasing means re-applying every {{!Action.t}actions}
-      stored in [t], including the {e reads}. Return {!Merge.Conflict}
-      if one of the action cannot apply cleanly. See {!merge_path} for
-      more details.  *)
+  (** [rebase_path t p v] {e rebases} the view [v] on top of the
+      contents of the sub-tree under [p] in the branch [t]. Rebasing
+      means re-applying every {{!Action.t}actions} stored in [v],
+      including the {e reads}. Return {!Merge.Conflict} if one of the
+      action cannot apply cleanly. See {!merge_path} for more
+      details.  *)
 
   val rebase_path_exn: db -> key -> t -> unit Lwt.t
   (** Same as {!rebase_path} but raise {!Merge.Conflict} in case of
@@ -2244,10 +2244,10 @@ module type VIEW = sig
 
   val merge_path: db -> ?max_depth:int -> ?n:int -> key -> t ->
     unit Merge.result Lwt.t
-  (** [merge_path x t path v] {e merges} the view [v x] with the
-      contents of [t x]'s sub-tree pointed by the path [path]. Merging
-      means applying the {{!Merge.Map}merge function for map} between
-      the view's contents and [t]'s sub-tree.
+  (** [merge_path t path v] {e merges} the view [v] with the contents
+      of the sub-tree under [p] in the branch [t]. Merging means
+      applying the {{!Merge.Map}merge function for map} between the
+      view's contents and [t]'s sub-tree.
 
       {ul
       {- {!VIEW.update_path} discards any preexisting sub-tree.}
@@ -2257,7 +2257,7 @@ module type VIEW = sig
       preexisting sub-tree.}
       {- {!VIEW.merge_path} is state based. Is is an efficient 3-way merge
       operators between prefix trees, based on {!Merge.Map.merge}.}
-     } *)
+      } *)
 
   val merge_path_exn: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Lwt.t
   (** Same as {!merge_path} but raise {!Merge.Conflict} in case of
