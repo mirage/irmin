@@ -621,9 +621,41 @@ struct
   let watch_head t = L.watch_head t.l
   let watch_tags t = L.watch_tags t.l
 
-  (* FIXME: this could be improved quite a bit by having a separate
-     stream per path. *)
-  let watch_key t = L.watch_key t.l
+  (* FIXME: duplicated code from Ir_bc.lift *)
+  let lift value_of_head fn = function
+    | `Removed x -> begin
+        value_of_head x >>= function
+        | None   -> Lwt.return_unit
+        | Some v -> fn @@ `Removed (x, v)
+      end
+    | `Added x -> begin
+        value_of_head x >>= function
+        | None   -> Lwt.return_unit
+        | Some v -> fn @@ `Added (x, v)
+      end
+    | `Updated (x, y) ->
+      assert (not (Head.equal x y));
+      value_of_head x >>= fun vx ->
+      value_of_head y >>= fun vy ->
+      match vx, vy with
+      | None   ,  None   -> Lwt.return_unit
+      | Some vx, None    -> fn @@ `Removed (x, vx)
+      | None   , Some vy -> fn @@ `Added (y, vy)
+      | Some vx, Some vy ->
+        if Val.equal vx vy then Lwt.return_unit
+        else fn @@ `Updated ( (x, vx), (y, vy) )
+
+  (* FIXME: duplicated code from Ir_bc.lift *)
+  let watch_key t key ?init fn =
+    let init_head = match init with
+      | None        -> None
+      | Some (h, _) -> Some h
+    in
+    let value_of_head h =
+      of_head t.config (fun () -> task t) h >>= fun t ->
+      read (t ()) key
+    in
+    watch_head t ?init:init_head (lift value_of_head fn)
 
   let clone task t tag =
     post t ["clone"; Tag.to_hum tag] None Tc.string >>= function
