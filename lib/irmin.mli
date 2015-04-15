@@ -2304,6 +2304,9 @@ module type VIEW = sig
   (** Return the list of actions performed on this view since its
       creation. *)
 
+  val diff: t -> t -> (key * value diff) list Lwt.t
+  (** Compute the diff between two views. *)
+
   (** {2 Heads} *)
 
   type head
@@ -2313,10 +2316,17 @@ module type VIEW = sig
   (** [parents t] are [t]'s parent commits. *)
 
   val make_head: db -> task -> parents:head list -> contents:t -> head Lwt.t
-  (** [make_head db t ~parents ~contents] creates a new commit into
-      the store [db] and return its id (of type {!head}). The new
-      commit has [t] as task and the given [parents] and
-      [contents]. The actual parents of [contents] are not used. *)
+  (** [make_head t task ~parents ~contents] creates a new commit into
+      the store where the branch [t] is stored and return its id (of
+      type {!head}). The new commit has [task] as task and the given
+      [parents] and [contents]. The actual parents of [contents] are
+      not used. *)
+
+  val watch_path: db -> key -> ?init:(head * t) ->
+    ((head * t) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  (** [watch_head t p f] calls [f] every time subpaths of [p] are
+      updated in the branch [t]. The callback parameters contains
+      branch's current head and the corresponding view. *)
 
 end
 
