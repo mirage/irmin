@@ -352,13 +352,13 @@ module Make (Client: Cohttp_lwt.Client)
     (H: Irmin.Hash.S) =
 struct
 
-  module T = struct
+  module Tag = struct
     include T
     let to_hum t = Uri.pct_encode (to_hum t)
     let of_hum t = of_hum (Uri.pct_decode t)
   end
 
-  module P = struct
+  module Key = struct
 
     include C.Path
 
@@ -371,6 +371,9 @@ struct
       |> C.Path.create
 
   end
+
+  module Head = H
+  module Val = C
 
   include Helper (Client)
 
@@ -387,16 +390,16 @@ struct
   (* The high-level bindings: every high-level operation is simply
      forwarded to the HTTP server. *much* more efficient than using
      [L]. *)
-  module L = Low(Client)(C)(T)(H)
+  module L = Low(Client)(Val)(Tag)(Head)
   module LP = L.Private
-  module S  = RW(Client)(P)(C)
+  module S  = RW(Client)(Key)(Val)
 
   (* [t.s.uri] always point to the right location:
        - `$uri/` if branch = `Tag T.master
        - `$uri/tree/$tag` if branch = `Tag tag
        - `$uri/tree/$key if key = `Key key *)
   type t = {
-    branch: [`Tag of T.t | `Head of H.t | `Empty] ref;
+    branch: [`Tag of Tag.t | `Head of Head.t | `Empty] ref;
     mutable h: S.t; l: L.t;
     config: Irmin.config;
     contents_t: LP.Contents.t;
@@ -415,10 +418,10 @@ struct
     let base = S.uri t.h in
     match branch t with
     | `Tag tag ->
-      if T.equal tag T.master then base
-      else uri_append base ["tree"; T.to_hum tag]
+      if Tag.equal tag Tag.master then base
+      else uri_append base ["tree"; Tag.to_hum tag]
     | `Empty  -> uri_append base ["empty"]
-    | `Head h -> uri_append base ["tree"; H.to_hum h]
+    | `Head h -> uri_append base ["tree"; Head.to_hum h]
 
   let task t = S.task t.h
   let set_tag t tag = t.branch := `Tag tag
@@ -452,7 +455,7 @@ struct
   let create config task =
     S.create config task >>= fun h ->
     L.create config task >>= fun l ->
-    let branch = ref (`Tag T.master) in
+    let branch = ref (`Tag Tag.master) in
     create_aux branch config h l
 
   let of_tag config task tag =
@@ -474,7 +477,7 @@ struct
     create_aux branch config h l
 
   let err_not_found n k =
-    invalid_arg "Irmin_http.%s: %s not found" n (P.to_hum k)
+    invalid_arg "Irmin_http.%s: %s not found" n (Key.to_hum k)
 
   let err_no_head = invalid_arg "Irmin_http.%s: no head"
   let err_not_persistent = invalid_arg "Irmin_http.%s: not a persistent branch"
@@ -486,8 +489,8 @@ struct
     let task = Some (task t) in
     post (uri t) ~task path ?query body
 
-  let read t key = get t ["read"; P.to_hum key] (module Tc.Option(C))
-  let mem t key = get t ["mem"; P.to_hum key] Tc.bool
+  let read t key = get t ["read"; Key.to_hum key] (module Tc.Option(Val))
+  let mem t key = get t ["mem"; Key.to_hum key] Tc.bool
 
   let read_exn t key =
     read t key >>= function
@@ -497,10 +500,10 @@ struct
   (* The server sends a stream of keys *)
   let iter t fn =
     let fn key = fn key (read_exn t key) in
-    Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module P))
+    Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module Key))
 
   let update t key value =
-    post t ["update"; P.to_hum key] (some @@ C.to_json value) (module H)
+    post t ["update"; Key.to_hum key] (some @@ Val.to_json value) (module Head)
     >>= fun h ->
     let () = match branch t with
       | `Empty
@@ -510,7 +513,7 @@ struct
     Lwt.return_unit
 
   let remove t key =
-    delete t ["remove"; P.to_hum key] (module H) >>= fun h ->
+    delete t ["remove"; Key.to_hum key] (module Head) >>= fun h ->
     let () = match branch t with
       | `Empty
       | `Head _ -> set_head t (Some h)
@@ -518,10 +521,10 @@ struct
     in
     Lwt.return_unit
 
-  module CS = Tc.Pair(Tc.Option(C))(Tc.Option(C))
+  module CS = Tc.Pair(Tc.Option(Val))(Tc.Option(Val))
 
   let compare_and_set t key ~test ~set =
-    post t ["compare-and-set"; P.to_hum key] (some @@ CS.to_json (test, set))
+    post t ["compare-and-set"; Key.to_hum key] (some @@ CS.to_json (test, set))
       Tc.bool
 
   let tag t = match branch t with
@@ -533,12 +536,12 @@ struct
     | None   -> err_not_persistent "tag"
     | Some t -> Lwt.return t
 
-  let tags t = get t ["tags"] (module Tc.List(T))
+  let tags t = get t ["tags"] (module Tc.List(Tag))
 
   let head t = match branch t with
     | `Empty  -> Lwt.return_none
     | `Head h -> Lwt.return (Some h)
-    | `Tag _  -> get t ["head"] (module Tc.Option(H))
+    | `Tag _  -> get t ["head"] (module Tc.Option(Head))
 
   let head_exn t =
     head t >>= function
@@ -546,20 +549,20 @@ struct
     | Some h -> Lwt.return h
 
   let update_tag t tag =
-    post t ["update-tag"; T.to_hum tag] None Tc.unit >>= fun () ->
+    post t ["update-tag"; Tag.to_hum tag] None Tc.unit >>= fun () ->
     set_tag t tag;
     Lwt.return_unit
 
-  let remove_tag t tag = delete t ["remove-tag"; T.to_hum tag] Tc.unit
+  let remove_tag t tag = delete t ["remove-tag"; Tag.to_hum tag] Tc.unit
 
-  let heads t = get t ["heads"] (module Tc.List(H))
+  let heads t = get t ["heads"] (module Tc.List(Head))
 
   let update_head t head = match branch t with
     | `Empty
     | `Head _ -> set_head t (Some head); Lwt.return_unit
-    | `Tag _  -> get t ["update-head"; H.to_hum head] Tc.unit
+    | `Tag _  -> get t ["update-head"; Head.to_hum head] Tc.unit
 
-  module CSH = Tc.Pair(Tc.Option(H))(Tc.Option(H))
+  module CSH = Tc.Pair(Tc.Option(Head))(Tc.Option(Head))
 
   let compare_and_set_head_unsafe t ~test ~set =
     match branch t with
@@ -576,7 +579,7 @@ struct
         compare_and_set_head_unsafe t ~test ~set
       )
 
-  module M = Tc.App1 (Irmin.Merge.Result) (H)
+  module M = Tc.App1 (Irmin.Merge.Result) (Head)
 
   let mk_query ?max_depth ?n () =
     let max_depth = match max_depth with
@@ -593,7 +596,7 @@ struct
 
   let fast_forward_head_unsafe t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    post t ?query ["fast-forward-head"; H.to_hum head] None Tc.bool >>= fun b ->
+    post t ?query ["fast-forward-head"; Head.to_hum head] None Tc.bool >>= fun b ->
     match branch t with
     | `Tag _  -> Lwt.return b
     | `Empty
@@ -606,7 +609,7 @@ struct
 
   let merge_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    post t ?query ["merge-head"; H.to_hum head] None (module M) >>| fun h ->
+    post t ?query ["merge-head"; Head.to_hum head] None (module M) >>| fun h ->
     match branch t with
     | `Empty
     | `Head _ -> set_head t (Some h); ok ()
@@ -623,17 +626,17 @@ struct
   let watch_key t = L.watch_key t.l
 
   let clone task t tag =
-    post t ["clone"; T.to_hum tag] None Tc.string >>= function
+    post t ["clone"; Tag.to_hum tag] None Tc.string >>= function
     | "ok" -> of_tag t.config task tag >|= fun t -> `Ok t
     | _    -> Lwt.return `Duplicated_tag
 
   let clone_force task t tag =
-    post t ["clone-force"; T.to_hum tag] None Tc.unit >>= fun () ->
+    post t ["clone-force"; Tag.to_hum tag] None Tc.unit >>= fun () ->
     of_tag t.config task tag
 
   let merge_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
-    post t ?query ["merge-tag"; T.to_hum tag] None (module M) >>| fun h ->
+    post t ?query ["merge-tag"; Tag.to_hum tag] None (module M) >>| fun h ->
     match branch t with
     | `Empty
     | `Head _ -> set_head t (Some h); ok ()
@@ -653,8 +656,8 @@ struct
     merge a ?max_depth ?n t ~into >>= Irmin.Merge.exn
 
   module LCA = struct
-    module HL = Tc.List(H)
-    type t = [`Ok of H.t list | `Max_depth_reached | `Too_many_lcas]
+    module HL = Tc.List(Head)
+    type t = [`Ok of Head.t list | `Max_depth_reached | `Too_many_lcas]
     let hash = Hashtbl.hash
     let compare = Pervasives.compare
     let equal = (=)
@@ -671,11 +674,11 @@ struct
 
   let lcas_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
-    get t ?query ["lcas-tag"; T.to_hum tag] (module LCA)
+    get t ?query ["lcas-tag"; Tag.to_hum tag] (module LCA)
 
   let lcas_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    get t ?query ["lcas-head"; H.to_hum head] (module LCA)
+    get t ?query ["lcas-head"; Head.to_hum head] (module LCA)
 
   let lcas a ?max_depth ?n t1 t2 =
     match branch (t2 a) with
@@ -687,7 +690,7 @@ struct
     LP.Commit.read_exn t.commit_t head >>= fun commit ->
     Lwt.return (LP.Commit.Val.task commit)
 
-  module E = Tc.Pair (Tc.List(H)) (Tc.List(H))
+  module E = Tc.Pair (Tc.List(Head)) (Tc.List(Head))
 
   type slice = L.slice
 
@@ -709,13 +712,13 @@ struct
     post t ?query ["export"] (some @@ E.to_json (min, max))
       (module L.Private.Slice)
 
-  module I = Tc.List(T)
+  module I = Tc.List(Tag)
 
   let import t slice =
     post t ["import"] (some @@ Slice.to_json slice) Tc.unit
 
   let remove_rec t dir =
-    delete t ["remove-rec"; P.to_hum dir] (module H) >>= fun h ->
+    delete t ["remove-rec"; Key.to_hum dir] (module Head) >>= fun h ->
     let () = match branch t with
       | `Empty
       | `Head _ -> set_head t (Some h)
@@ -724,10 +727,10 @@ struct
     Lwt.return_unit
 
   let list t dir =
-    get t ["list"; P.to_hum dir] (module Tc.List(P))
+    get t ["list"; Key.to_hum dir] (module Tc.List(Key))
 
-  module History = Graph.Persistent.Digraph.ConcreteBidirectional(H)
-  module G = Tc.Pair (Tc.List (H))(Tc.List (Tc.Pair(H)(H)))
+  module History = Graph.Persistent.Digraph.ConcreteBidirectional(Head)
+  module G = Tc.Pair (Tc.List (Head))(Tc.List (Tc.Pair(Head)(Head)))
   module Conv = struct
     type t = History.t
     let to_t (vertices, edges) =
@@ -740,7 +743,7 @@ struct
       vertices, edges
   end
   module HTC = Tc.Biject (G)(Conv)
-  module EO = Tc.Pair (Tc.Option(Tc.List(H))) (Tc.Option(Tc.List(H)))
+  module EO = Tc.Pair (Tc.Option(Tc.List(Head))) (Tc.Option(Tc.List(Head)))
 
   let history ?depth ?min ?max t =
     let query =
@@ -753,10 +756,6 @@ struct
     (* FIXME: this should be a GET *)
     post t ?query ["history"] (some @@ EO.to_json (min, max)) (module HTC)
 
-  module Key = P
-  module Val = C
-  module Tag = T
-  module Head = H
   module Private = struct
     include L.Private
     let config t = t.config
