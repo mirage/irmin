@@ -521,7 +521,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       Lwt.return (w, stop)
 
     let unwatch t (w, stop) =
-      stop;
+      stop ();
       W.unwatch t.w w
 
     let create config task =
