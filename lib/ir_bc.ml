@@ -501,7 +501,6 @@ module Make_ext (P: PRIVATE) = struct
     merge a ?max_depth ?n t ~into >>= Ir_merge.exn
 
   let watch_head t ?init fn =
-    Log.debug "watch-head";
     tag t >>= function
     | None       ->
       (* FIXME: start a local watcher on the detached branch *)
@@ -517,7 +516,6 @@ module Make_ext (P: PRIVATE) = struct
       Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
 
   let watch_tags t ?init fn =
-    Log.debug "watch-tags";
     Tag.watch (tag_t t) ?init fn >>= fun id ->
     Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
 
