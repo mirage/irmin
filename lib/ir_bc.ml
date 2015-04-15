@@ -521,7 +521,30 @@ module Make_ext (P: PRIVATE) = struct
     Tag.watch (tag_t t) ?init fn >>= fun id ->
     Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
 
-  let watch_key t key ?init fn =
+  let lift value_of_head fn = function
+    | `Removed x -> begin
+        value_of_head x >>= function
+        | None   -> Lwt.return_unit
+        | Some v -> fn @@ `Removed (x, v)
+      end
+    | `Added x -> begin
+        value_of_head x >>= function
+        | None   -> Lwt.return_unit
+        | Some v -> fn @@ `Added (x, v)
+      end
+    | `Updated (x, y) ->
+      assert (not (Head.equal x y));
+      value_of_head x >>= fun vx ->
+      value_of_head y >>= fun vy ->
+      match vx, vy with
+      | None   ,  None   -> Lwt.return_unit
+      | Some vx, None    -> fn @@ `Removed (x, vx)
+      | None   , Some vy -> fn @@ `Added (y, vy)
+      | Some vx, Some vy ->
+        if Val.equal vx vy then Lwt.return_unit
+        else fn @@ `Updated ( (x, vx), (y, vy) )
+
+let watch_key t key ?init fn =
     Log.info "watch-key %a" force (show (module Key) key);
     let init_head = match init with
       | None        -> None
@@ -531,29 +554,7 @@ module Make_ext (P: PRIVATE) = struct
       of_head (config t) (fun () -> task t) h >>= fun t ->
       read (t ()) key
     in
-    watch_head t ?init:init_head (function
-        | `Removed x -> begin
-            value_of_head x >>= function
-            | None   -> Lwt.return_unit
-            | Some v -> fn @@ `Removed (x, v)
-          end
-        | `Added x -> begin
-            value_of_head x >>= function
-            | None   -> Lwt.return_unit
-            | Some v -> fn @@ `Added (x, v)
-          end
-        | `Updated (x, y) ->
-          assert (not (Head.equal x y));
-          value_of_head x >>= fun vx ->
-          value_of_head y >>= fun vy ->
-          match vx, vy with
-          | None   ,  None   -> Lwt.return_unit
-          | Some vx, None    -> fn @@ `Removed (x, vx)
-          | None   , Some vy -> fn @@ `Added (y, vy)
-          | Some vx, Some vy ->
-            if Val.equal vx vy then Lwt.return_unit
-            else fn @@ `Updated ( (x, vx), (y, vy) )
-      )
+    watch_head t ?init:init_head (lift value_of_head fn)
 
   type slice = P.Slice.t
 
