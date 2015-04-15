@@ -134,6 +134,8 @@ module S = struct
   include Tc.As_L0 (X)
 end
 
+module StringSet = Set.Make(Tc.String)
+
 let to_string set = Tc.show (module S) set
 
 let string_chop_prefix t ~prefix =
@@ -168,11 +170,16 @@ let stoppable t =
 let rec poll ~callback ~delay dir files =
   read_files dir >>= fun new_files ->
   let diff = S.sdiff files new_files in
-  if not (S.is_empty diff) then
-    Log.debug "polling %s: diff:%s" dir (to_string diff)
-  else
-    Log.debug "polling %s: no changes!" dir;
-  Lwt_list.iter_p (fun (f, _) -> callback dir f) (S.to_list diff) >>= fun () ->
+  begin if S.is_empty diff then (
+      Log.debug "polling %s: no changes!" dir;
+      Lwt.return_unit
+    ) else (
+      Log.debug "polling %s: diff:%s" dir (to_string diff);
+      let files =
+        S.to_list diff |> List.map fst |> StringSet.of_list |> StringSet.elements
+      in
+      Lwt_list.iter_p (callback dir) files)
+  end >>= fun () ->
   Lwt_unix.sleep delay >>= fun () ->
   poll ~callback ~delay dir new_files
 
