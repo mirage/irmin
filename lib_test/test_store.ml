@@ -318,6 +318,31 @@ module Make (S: Irmin.S) = struct
       create x >>= fun t1 ->
       create x >>= fun t2 ->
 
+      let sleep ?(sleep_t=0.) () =
+        (* sleep duration is 2*max(polling time, sleep_t) *)
+        let sleep_t = 3. *. (max sleep_t Test_fs.polling) in
+        Lwt_unix.sleep sleep_t
+      in
+
+      let rec retry ?(tries=10) ?sleep_t fn =
+        match tries with
+        | 0 -> fn (); Lwt.return_unit
+        | i ->
+          try fn (); Lwt.return_unit
+          with _e ->
+            sleep ?sleep_t () >>= fun () ->
+            retry ~tries:(i-1) ?sleep_t fn
+      in
+
+      let check_workers ?(tries=10) msg w =
+        let w = if x.kind <> `Mem || w = 0 then w else 1 in
+        let msg = sprintf "%s: %d worker(s)" msg w in
+        retry ~tries (fun () ->
+            assert_equal Tc.int msg w (Irmin.Private.Watch.workers ())
+          )
+      in
+
+      (* test [Irmin.watch] *)
       let adds    = ref 0 in
       let updates = ref 0 in
       let removes = ref 0 in
@@ -342,30 +367,16 @@ module Make (S: Irmin.S) = struct
           else stops_1 := s :: !stops_1;
           loop (n-1)
       in
-      let sleep () =
-        (* sleep duration is 2*max(polling time, callback sleep time) *)
-        let sleep_t = 3. *. (max sleep_t Test_fs.polling) in
-        Lwt_unix.sleep sleep_t
-      in
       let check msg w a b =
         let printer (a, u, r) =
           Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
         in
-        let w = if x.kind <> `Mem || w = 0 then w else 1 in
-        let w_msg = sprintf "%s: %d worker(s)" msg w in
-        let rec wait = function
-          | 0 ->
-            assert_equal Tc.int w_msg w (Irmin.Private.Watch.workers ());
-            Lwt.return_unit
-          | n ->
-            sleep () >>= fun () ->
-            if w <> Irmin.Private.Watch.workers () then wait (n-1)
-            else Lwt.return_unit
-        in
-        wait 10 >>= fun () ->
+        check_workers msg w >>= fun () ->
         line msg;
-        if a <> b then error msg (printer a) (printer b);
-        Lwt.return_unit
+        retry ~sleep_t (fun () ->
+            let b = b () in
+            if a <> b then error msg (printer a) (printer b)
+          )
       in
       let state () = !adds, !updates, !removes in
       let v1 = string x "X1" in
@@ -373,35 +384,30 @@ module Make (S: Irmin.S) = struct
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
-      sleep () >>= fun () ->
-      check "init" 0 (0, 0, 0) (state ()) >>= fun () ->
+      check "init" 0 (0, 0, 0) state >>= fun () ->
 
       loop 100 >>= fun () ->
 
-      check "watches on" 0 (0, 0, 0) (state ()) >>= fun () ->
+      check "watches on" 0 (0, 0, 0) state >>= fun () ->
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
-      sleep () >>= fun () ->
-      check "adds" 2 (100, 0, 0) (state ()) >>= fun () ->
+      check "adds" 2 (100, 0, 0) state >>= fun () ->
 
       S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
-      sleep () >>= fun () ->
-      check "updates" 2 (100, 100, 0) (state ()) >>= fun () ->
+      check "updates" 2 (100, 100, 0) state >>= fun () ->
 
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
-      sleep () >>= fun () ->
-      check "removes" 2 (100, 100, 100) (state ()) >>= fun () ->
+      check "removes" 2 (100, 100, 100) state >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
       S.update (t2 "update") (p ["a"]) v1 >>= fun () ->
-      sleep () >>= fun () ->
-      check "watches half off" 1 (150, 100, 100) (state ()) >>= fun () ->
+      check "watches half off" 1 (150, 100, 100) state  >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_1 >>= fun () ->
       S.update (t1 "update") (p ["a"]) v2 >>= fun () ->
-      sleep () >>= fun () ->
-      check "watches off" 0 (150, 100, 100) (state ()) >>= fun () ->
+      check "watches off" 0 (150, 100, 100) state >>= fun () ->
 
+      (* test [Irmin.watch_tags] *)
       let tags = ref 0 in
       let rec add = function
         | 0 -> Lwt.return_unit
@@ -427,15 +433,14 @@ module Make (S: Irmin.S) = struct
 
       add 10   >>= fun () ->
       remove 5 >>= fun () ->
-      sleep () >>= fun () ->
-      assert_equal Tc.int "watch all on" 5 !tags;
+      retry (fun () -> assert_equal Tc.int "watch all on" 5 !tags) >>= fun () ->
 
       unwatch () >>= fun () ->
       add 5      >>= fun () ->
       remove 10  >>= fun () ->
-      sleep ()   >>= fun () ->
-      assert_equal Tc.int "watch all off" 5 !tags;
+      retry (fun () -> assert_equal Tc.int "watch all off" 5 !tags) >>= fun () ->
 
+      (* test [Irmin.watch_keys] *)
       let keys = ref 0 in
       let path1 = p ["a"; "b"; "c"] in
       let path2 = p ["a"; "d"] in
@@ -464,14 +469,15 @@ module Make (S: Irmin.S) = struct
 
       set 10    >>= fun () ->
       remove () >>= fun () ->
-      sleep ()  >>= fun () ->
-      assert_equal Tc.int "watch key on" 9 !keys;
+      retry (fun () -> assert_equal Tc.int "watch key on" 9 !keys) >>= fun () ->
 
       unwatch () >>= fun () ->
       set 5      >>= fun () ->
       remove ()  >>= fun () ->
-      assert_equal Tc.int "watch key off" 9 !keys;
+      sleep ()   >>= fun () ->
+      retry (fun () -> assert_equal Tc.int "watch key off" 9 !keys) >>= fun () ->
 
+      check_workers "watch key off" 0 >>= fun () ->
       Lwt.return_unit
     in
     run x test
