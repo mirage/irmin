@@ -321,6 +321,7 @@ module Make (S: Irmin.S) = struct
       let sleep ?(sleep_t=0.) () =
         (* sleep duration is 2*max(polling time, sleep_t) *)
         let sleep_t = 3. *. (max sleep_t Test_fs.polling) in
+        Lwt_unix.yield () >>= fun () ->
         Lwt_unix.sleep sleep_t
       in
 
@@ -815,6 +816,8 @@ module Make (S: Irmin.S) = struct
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
 
+      (* Testing [View.remove] *)
+
       View.empty () >>= fun v1 ->
 
       View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
@@ -831,6 +834,50 @@ module Make (S: Irmin.S) = struct
       in
       Node.read_exn (n t "empty view") node >>= fun node ->
       assert_equal (module Node.Val) "empty view" Node.Val.empty node;
+
+      (* Testing [View.diff] *)
+
+      let printer_diff = function
+        | k, `Added v ->
+          sprintf "%s: added %s" (S.Key.to_hum k) (Tc.show (module V) v)
+        | k, `Removed v ->
+          sprintf "%s: removed %s" (S.Key.to_hum k) (Tc.show (module V) v)
+        | k, `Updated (v1, v2) ->
+          sprintf "%s: updated %s -> %s"
+            (S.Key.to_hum k) (Tc.show (module V) v1) (Tc.show (module V) v2)
+      in
+      let cmp_diff x y = match x, y with
+        | (s, `Added x), (t, `Added y) -> S.Key.equal s t && V.equal x y
+        | (s, `Removed x), (t, `Removed y) -> S.Key.equal s t && V.equal x y
+        | (s, `Updated (a,b)), (t, `Updated (c,d)) ->
+          S.Key.equal s t && V.equal a c && V.equal b d
+        | _ -> false
+      in
+      let check_diffs msg x y =
+        let cmp = cmp_list cmp_diff Pervasives.compare in
+        let printer = printer_list printer_diff in
+        line msg;
+        if not (cmp x y) then error msg (printer x) (printer y)
+      in
+
+      View.empty () >>= fun v0 ->
+      View.empty () >>= fun v1 ->
+      View.empty () >>= fun v2 ->
+      View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
+      View.update v2 (p ["foo";"1"]) foo2 >>= fun () ->
+      View.update v2 (p ["foo";"2"]) foo1 >>= fun () ->
+
+      View.diff v0 v1 >>= fun d1 ->
+      check_diffs "diff 1" [ (p ["foo";"1"]), `Added foo1 ] d1;
+
+      View.diff v1 v0 >>= fun d2 ->
+      check_diffs "diff 2" [ (p ["foo";"1"]), `Removed foo1 ] d2;
+
+      View.diff v1 v2 >>= fun d3 ->
+      check_diffs "diff 2" [ (p ["foo";"1"]), `Updated (foo1, foo2);
+                             (p ["foo";"2"]), `Added foo1] d3;
+
+      (* Testing other View operations. *)
 
       View.empty () >>= fun v0 ->
 
