@@ -16,9 +16,10 @@ module Log = Log.Make(struct let section = "KRYPO" end)
 
 module type CIPHER_BLOCK = Krypto_cipher.MAKER
 module type AO_MAKER = Irmin.AO_MAKER
+module type AO = Ir_ao.STORE
+module type RW = Ir_rw.STORE
 
-
-module KRYPTO_AO (C: CIPHER_BLOCK) (H: Irmin.Hash.S) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
     module AO = S(K)(V)
 
@@ -57,4 +58,5 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (H: Irmin.Hash.S) (S:AO_MAKER) (K: Irmin.Hash
 
 
 
-module STORE (AO : AO_MAKER)  (RW : RW_MAKER) : S_MAKER = Make (AO) (RW)
+module Make (CB:CIPHER_BLOCK) (AO: AO) (RW:RW) (C: Irmin.Contents.S) (T: Irmin.Tag.S) (H: Irmin.Hash.S) =
+  Irmin.Make(KRYPTO_AO(CB)(AO))(RW)(C)(T)(H)
