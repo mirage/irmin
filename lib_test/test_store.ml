@@ -37,6 +37,7 @@ module Make (S: Irmin.S) = struct
   module Contents = S.Private.Contents
   module Graph = Irmin.Private.Node.Graph(Contents)(S.Private.Node)
   module History = Irmin.Private.Commit.History(Graph.Store)(S.Private.Commit)
+  module View = Irmin.View(S)
 
   let v t a = S.Private.contents_t (t a)
   let n t a = S.Private.node_t (t a)
@@ -479,6 +480,35 @@ module Make (S: Irmin.S) = struct
       retry (fun () -> assert_equal Tc.int "watch key off" 9 !keys) >>= fun () ->
 
       check_workers "watch key off" 0 >>= fun () ->
+
+      (* test [View.watch_path] *)
+      let path = ref 0 in
+      let rec set i =
+        let v = string x (string_of_int i) in
+        let path1 i = p ["a"; "b"; "c"; string_of_int i; "1"] in
+        let path2 i = p ["a"; "x"; "c"; string_of_int i; "1"] in
+        let path3 i = p ["a"; "y"; "c"; string_of_int i; "1"] in
+        S.update (t2 "update1") (path1 i) v >>= fun () ->
+        S.update (t2 "update2") (path2 i) v >>= fun () ->
+        S.update (t2 "update3") (path3 i) v >>= fun () ->
+        if i > 1 then set (i-1) else Lwt.return_unit
+      in
+
+      View.watch_path (t1 "wath-path") (p ["a";"b"]) (function
+          | `Updated _
+          | `Added _   -> incr path; Lwt.return_unit
+          | `Removed _ -> decr path; Lwt.return_unit
+        ) >>= fun unwatch ->
+
+      set 10 >>= fun () ->
+      set 10 >>= fun () ->
+      retry (fun () -> assert_equal Tc.int "watch path on" 10 !path) >>= fun () ->
+
+      unwatch () >>= fun () ->
+      set 5      >>= fun () ->
+      sleep ()   >>= fun () ->
+      retry (fun () -> assert_equal Tc.int "watch path off" 10 !path) >>= fun () ->
+
       Lwt.return_unit
     in
     run x test
@@ -806,8 +836,6 @@ module Make (S: Irmin.S) = struct
       return_unit
     in
     run x test
-
-  module View = Irmin.View(S)
 
   let test_views x () =
     let test () =
