@@ -252,6 +252,8 @@ let install_dir_polling_listener delay =
   in
   Irmin.Private.Watch.set_listen_dir_hook listen_dir
 
+let polling_threads () = Hashtbl.length watchdogs
+
 let task msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let owner =
