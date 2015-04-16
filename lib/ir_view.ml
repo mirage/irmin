@@ -116,6 +116,8 @@ module type NODE = sig
   module Path: Ir_path.S
 
   val empty: unit -> t
+  val is_empty: t -> bool Lwt.t
+
   val read: t -> node option Lwt.t
 
   val read_contents: t -> Path.step -> contents option Lwt.t
@@ -150,7 +152,11 @@ module Internal (Node: NODE) = struct
     view: Node.t;
     ops: action list ref;
     parents: Node.commit list ref;
+    lock: Lwt_mutex.t;
   }
+
+  type head = Node.commit
+  let parents t = !(t.parents)
 
   module CO = Tc.Option(Node.Contents)
   module PL = Tc.List(Path)
@@ -160,7 +166,8 @@ module Internal (Node: NODE) = struct
     let view = Node.empty () in
     let ops = ref [] in
     let parents = ref [] in
-    Lwt.return { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    Lwt.return { parents; view; ops; lock }
 
   let create _conf _task =
     Log.debug "create";
@@ -238,9 +245,14 @@ module Internal (Node: NODE) = struct
       | path::tl ->
         list t path >>= fun childs ->
         let todo = childs @ tl in
-        fn path >>= fun () ->
+        mem t path >>= fun exists ->
+        begin
+          if not exists then Lwt.return_unit
+          else fn path (read_exn t path)
+        end >>= fun () ->
         aux todo
     in
+    (* FIXME take lock? *)
     list t Path.empty >>= aux
 
   let update_contents_aux t k v =
@@ -257,6 +269,13 @@ module Internal (Node: NODE) = struct
           match Node.read_succ n h with
           | Some child ->
             aux child p >>= fun changed ->
+            (* remove empty dirs *)
+            begin if changed && v = None then
+                Node.is_empty child >>= function
+                | false -> Lwt.return false
+                | true  -> Node.with_succ view h None
+              else Lwt.return false
+            end >>= fun _ ->
             if changed then Node.clear_cache view;
             Lwt.return changed
           | None ->
@@ -275,10 +294,20 @@ module Internal (Node: NODE) = struct
     update_contents_aux t k v
 
   let update t k v =
-    update_contents t k (Some v)
+    Lwt_mutex.with_lock t.lock (fun () -> update_contents t k (Some v))
 
   let remove t k =
-    update_contents t k None
+    Lwt_mutex.with_lock t.lock (fun () -> update_contents t k None)
+
+  let compare_and_set t k ~test ~set =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        read t k >>= fun v ->
+        if Tc.O1.equal Node.Contents.equal test v then
+          update_contents t k set >>= fun () ->
+          Lwt.return true
+        else
+          Lwt.return false
+      )
 
   let remove_rec t k =
     match Path.decons k with
@@ -517,6 +546,11 @@ module Make (S: Ir_s.STORE) = struct
           t := Both ((db, k), n);
           Lwt.return (Some n)
 
+    let is_empty t =
+      read t >>= function
+      | None   -> Lwt.return false
+      | Some n -> Lwt.return (n.alist = [])
+
     let steps t =
       Log.debug "steps";
       read t >>= function
@@ -617,7 +651,8 @@ module Make (S: Ir_s.STORE) = struct
     let view = Node.empty () in
     let ops = ref [] in
     let parents = ref parents in
-    { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    { parents; view; ops; lock }
 
   let import db ~parents key =
     Log.debug "import %a" force (show (module P.Node.Key) key);
@@ -627,7 +662,8 @@ module Make (S: Ir_s.STORE) = struct
     end >>= fun view ->
     let ops = ref [] in
     let parents = ref parents in
-    Lwt.return { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    Lwt.return { parents; view; ops; lock }
 
   let export db t =
     Log.debug "export";
@@ -751,6 +787,11 @@ module Make (S: Ir_s.STORE) = struct
   let merge_path_exn db ?max_depth ?n path t =
     merge_path db ?max_depth ?n path t >>= Ir_merge.exn
 
+  let make_head db task ~parents ~contents =
+    export db contents >>= fun node ->
+    let commit = S.Private.Commit.Val.create task ~parents ~node in
+    S.Private.Commit.add (S.Private.commit_t db) commit
+
 end
 
 module type S = sig
@@ -777,4 +818,7 @@ module type S = sig
     val prettys: t list -> string
   end
   val actions: t -> Action.t list
+  type head
+  val parents: t -> head list
+  val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
 end

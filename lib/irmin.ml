@@ -22,7 +22,6 @@ module Tag = Ir_tag
 module Task = Ir_task
 module View = Ir_view.Make
 module type VIEW = Ir_view.S
-module Snapshot = Ir_snapshot.Make
 module Dot = Ir_dot.Make
 module type S = Ir_s.STORE
 
@@ -55,6 +54,7 @@ module Private = struct
   module Sync = Ir_sync
   module type S = Ir_bc.PRIVATE
   module Watch = Ir_watch
+  module Lock = Ir_lock
 end
 
 let version = Ir_version.current
@@ -103,7 +103,7 @@ type ('a, 'k, 'v) t = {
   read: 'k -> 'v option Lwt.t;
   read_exn: 'k -> 'v Lwt.t;
   mem: 'k -> bool Lwt.t;
-  iter: ('k -> unit Lwt.t) -> unit Lwt.t;
+  iter: ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t;
   update: 'k -> 'v -> unit Lwt.t;
   remove: 'k -> unit Lwt.t;
   watch: 'k -> 'v option Lwt_stream.t;
@@ -123,20 +123,17 @@ and ('k, 'v) bc = {
   tag_exn: unit -> string Lwt.t;
   tags: unit -> string list Lwt.t;
   remove_tag: unit -> unit Lwt.t;
-  rename_tag: string -> [`Ok | `Duplicated_tag] Lwt.t;
   update_tag: string -> unit Lwt.t;
   merge_tag: ?max_depth:int -> ?n:int -> string -> unit Merge.result Lwt.t;
   merge_tag_exn: ?max_depth:int -> ?n:int -> string -> unit Lwt.t;
-  switch_tag: string -> unit Lwt.t;
   head: unit -> Hash.SHA1.t option Lwt.t;
   head_exn: unit -> Hash.SHA1.t Lwt.t;
-  branch: unit -> [`Tag of string | `Head of Hash.SHA1.t];
+  branch: unit -> [`Tag of string | `Head of Hash.SHA1.t | `Empty];
   heads: unit -> Hash.SHA1.t list Lwt.t;
-  detach: unit -> unit Lwt.t;
   update_head: Hash.SHA1.t -> unit Lwt.t;
+  compare_and_set_head: test:Hash.SHA1.t option -> set:Hash.SHA1.t option -> bool Lwt.t;
   merge_head: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Merge.result Lwt.t;
   merge_head_exn: ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit Lwt.t;
-  switch_head: Hash.SHA1.t -> unit Lwt.t;
   watch_head: 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t;
   watch_tags: unit -> (string * Hash.SHA1.t option) Lwt_stream.t;
   clone: 'm. ('m -> task) -> string -> [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag] Lwt.t;
@@ -181,20 +178,17 @@ let tag t = bc t (function BC t -> t.tag ())
 let tag_exn t = bc t (function BC t -> t.tag_exn ())
 let tags t = bc t (function BC t -> t.tags ())
 let remove_tag t = bc t (function BC t -> t.remove_tag ())
-let rename_tag t = bc t (function BC t -> t.rename_tag)
 let update_tag t = bc t (function BC t -> t.update_tag)
 let merge_tag t = bc t (function BC t -> t.merge_tag)
 let merge_tag_exn t = bc t (function BC t -> t.merge_tag_exn)
-let switch_tag t = bc t (function BC t -> t.switch_tag)
 let head t = bc t (function BC t -> t.head ())
 let head_exn t = bc t (function BC t -> t.head_exn ())
 let branch t = bc t (function BC t -> t.branch ())
 let heads t = bc t (function BC t -> t.heads ())
-let detach t = bc t (function BC t -> t.detach ())
 let update_head t = bc t (function BC t -> t.update_head)
+let compare_and_set_head t = bc t (function BC t -> t.compare_and_set_head)
 let merge_head t = bc t (function BC t -> t.merge_head)
 let merge_head_exn t = bc t (function BC t -> t.merge_head_exn)
-let switch_head t = bc t (function BC t -> t.switch_head)
 let watch_head t = bc t (function BC t -> t.watch_head)
 let watch_tags t = bc t (function BC t -> t.watch_tags ())
 let clone task t = bc t (function BC t -> t.clone task)
@@ -247,6 +241,7 @@ let pack_s (type x) (type k) (type v)
     match M.branch t, into.extend with
     | `Tag tag, BC i -> i.merge_tag  ?max_depth ?n tag
     | `Head h , BC i -> i.merge_head ?max_depth ?n h
+    | `Empty  , BC _ -> Ir_merge.OP.ok ()
   in
   let rec aux t =
     let hrw = pack_hrw (module M) t in
@@ -256,20 +251,17 @@ let pack_s (type x) (type k) (type v)
         tag_exn = (fun () -> M.tag_exn t);
         tags = (fun () -> M.tags t);
         remove_tag = (fun () -> M.remove_tag t);
-        rename_tag = M.rename_tag t;
         update_tag = M.update_tag t;
         merge_tag = M.merge_tag t;
         merge_tag_exn = M.merge_tag_exn t;
-        switch_tag = M.switch_tag t;
         head = (fun () -> M.head t);
         head_exn = (fun () -> M.head_exn t);
         branch = (fun () -> M.branch t);
         heads = (fun () -> M.heads t);
-        detach = (fun () -> M.detach t);
         update_head = M.update_head t;
+        compare_and_set_head = M.compare_and_set_head t;
         merge_head = M.merge_head t;
         merge_head_exn = M.merge_head_exn t;
-        switch_head = M.switch_head t;
         watch_head = M.watch_head t;
         watch_tags = (fun () -> M.watch_tags t);
         clone = (fun task tag ->
@@ -290,6 +282,7 @@ let pack_s (type x) (type k) (type v)
             match i.branch () with
             | `Tag tag -> M.lcas_tag t ?max_depth ?n tag
             | `Head h  -> M.lcas_head t ?max_depth ?n h
+            | `Empty   -> Lwt.return (`Ok [])
           );
         lcas_tag = M.lcas_tag t;
         lcas_head = M.lcas_head t;
@@ -325,9 +318,13 @@ let of_tag (type a) (type b) (t: (a, b) basic) config task tag =
 
 let of_head (type a) (type b) (t: (a, b) basic) config task h =
   let (module T) = t in
-  let module View = View(T) in
   T.of_head config task h >>= fun t ->
   return (pack_s (module T) t)
+
+let empty (type a) (type b) (t: (a, b) basic) config task =
+  let (module T) = t in
+  T.empty config task >>= fun t ->
+  Lwt.return (pack_s (module T) t)
 
 let impl (type a) (type b): ([`BC], a, b) t -> (a, b) basic =
   fun t -> match t.extend with

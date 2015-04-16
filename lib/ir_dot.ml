@@ -151,8 +151,8 @@ module Make (S: Ir_s.STORE) = struct
           return_unit
       ) >>= fun () ->
     let tag_t = S.Private.tag_t t in
-    Tag.iter tag_t (fun r ->
-        Tag.read_exn tag_t r >>= fun k ->
+    Tag.iter tag_t (fun r k ->
+        k >>= fun k ->
         add_vertex (`Tag r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
         add_edge (`Tag r) [`Style `Bold] (`Commit k);
         return_unit

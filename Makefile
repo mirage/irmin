@@ -66,7 +66,7 @@ gh-pages: doc/html/.git
 	cd doc/html && git push origin gh-pages
 
 NAME    = $(shell grep 'Name:' _oasis    | sed 's/Name: *//')
-ARCHIVE = https://github.com/mirage/$(NAME)/archive/$(VERSION).tar.gz
+ARCHIVE = https://github.com/mirage/irmin/archive/$(VERSION).tar.gz
 
 release:
 	git tag -a $(VERSION) -m "Version $(VERSION)."

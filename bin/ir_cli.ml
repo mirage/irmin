@@ -191,10 +191,8 @@ let tree = {
     run begin
       store >>= fun t ->
       let all = ref [] in
-      S.iter (t "tree") (fun k ->
-          S.read (t "value") k >>= function
-          | None   -> return_unit
-          | Some v -> all := (k, v) :: !all; return_unit
+      S.iter (t "tree") (fun k v ->
+          v >>= fun v -> all := (k, v) :: !all; return_unit
         )>>= fun () ->
       let all = !all in
       let all =
@@ -210,7 +208,7 @@ let tree = {
           let dots =
             String.make (pad - String.length k - String.length v) '.'
           in
-          print "/%s%s%s" k dots v
+          print "%s%s%s" k dots v
         ) all;
       return_unit
     end
@@ -338,11 +336,10 @@ let snapshot = {
   man  = [];
   term =
     let snapshot (S ((module S), store)) =
-      let module Snapshot = Irmin.Snapshot(S) in
       run begin
         store >>= fun t ->
-        Snapshot.create (t "Snapshot.") >>= fun k ->
-        print "%s" (Snapshot.to_hum k);
+        S.head_exn (t "Snapshot") >>= fun k ->
+        print "%s" (S.Head.to_hum k);
         return_unit
       end
     in
@@ -359,11 +356,10 @@ let revert = {
       let doc = Arg.info ~docv:"SNAPSHOT" ~doc:"The snapshot to revert to." [] in
       Arg.(required & pos 0 (some string) None & doc) in
     let revert (S ((module S), store)) snapshot =
-      let module Snapshot = Irmin.Snapshot (S) in
       run begin
         store >>= fun t ->
-        let s = Snapshot.of_hum (t "snapshot") snapshot in
-        Snapshot.revert (t "Revert") s
+        let s = S.Head.of_hum snapshot in
+        S.update_head (t "Revert") s
       end
     in
     Term.(mk revert $ store $ snapshot)
@@ -375,12 +371,15 @@ let watch = {
   man  = [];
   term =
     let watch (S ((module S), store)) path =
-      let module Snapshot = Irmin.Snapshot (S) in
       run begin
         store >>= fun t ->
-        let stream = Snapshot.watch (t "watch") (S.Key.of_hum path) in
-        Lwt_stream.iter_s (fun (path, s) ->
-            print "%s %s" (S.Key.to_hum path) (Snapshot.to_hum s);
+        let stream = S.watch_head (t "watch") (S.Key.of_hum path) in
+        Lwt_stream.iter_s (fun (path, head) ->
+            let head = match head with
+              | None   -> "<none>"
+              | Some s -> S.Head.to_hum s
+            in
+            print "%s %s" (S.Key.to_hum path) head;
             return_unit
           ) stream
       end

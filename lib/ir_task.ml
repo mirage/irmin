@@ -53,7 +53,7 @@ let equal x y = X.equal (explode x) (explode y)
 
 let uid_ref = ref 0L
 
-let create ~date ~owner ?uid msg =
+let create_aux ~date ~owner ?uid msg =
   let uid = match uid with
     | Some u -> u
     | None   ->
@@ -63,10 +63,17 @@ let create ~date ~owner ?uid msg =
   in
   { date; uid; owner; msgs = [msg]}
 
+let empty = { date=0L; uid=0L; owner=""; msgs=[]}
+
+let create ~date ~owner ?uid msg =
+  if date = 0L && owner = "" && msg = "" then empty
+  else create_aux ~date ~owner ?uid msg
+
 let date t = t.date
 let uid t = t.uid
 let owner t = t.owner
 let messages t = List.rev t.msgs
 
 let add t msg =
-  t.msgs <- msg :: t.msgs
+  if t = empty then ()
+  else t.msgs <- msg :: t.msgs

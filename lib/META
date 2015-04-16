@@ -1,16 +1,16 @@
 # OASIS_START
-# DO NOT EDIT (digest: fff17c576d8691cf561f7118de4271ff)
-version = "0.9.4"
+# DO NOT EDIT (digest: b54f3469dd525228a58cf0671682a4cb)
+version = "0.9.5"
 description = "A Distributed Version Control Database"
 requires =
-"ezjsonm ocamlgraph lwt nocrypto dolog cstruct tc mstruct uri stringext hex"
+"ezjsonm ocamlgraph lwt dolog cstruct tc mstruct uri stringext hex"
 archive(byte) = "irmin.cma"
 archive(byte, plugin) = "irmin.cma"
 archive(native) = "irmin.cmxa"
 archive(native, plugin) = "irmin.cmxs"
 exists_if = "irmin.cma"
 package "unix" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires =
  "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
@@ -22,7 +22,7 @@ package "unix" (
 )
 
 package "mem" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin-mem.cma"
@@ -33,7 +33,7 @@ package "mem" (
 )
 
 package "krypto" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin_krypto.cma"
@@ -42,7 +42,7 @@ package "krypto" (
  archive(native, plugin) = "irmin_krypto.cmxs"
  exists_if = "irmin_krypto.cma"
  package "krypto_km" (
-  version = "0.9.4"
+  version = "0.9.5"
   description = "A Distributed Version Control Database"
   requires = "irmin"
   archive(byte) = "krypto_km.cma"
@@ -53,7 +53,7 @@ package "krypto" (
  )
  
  package "krypto_cipher" (
-  version = "0.9.4"
+  version = "0.9.5"
   description = "A Distributed Version Control Database"
   requires = "irmin"
   archive(byte) = "krypto_cipher.cma"
@@ -65,7 +65,7 @@ package "krypto" (
 )
 
 package "http" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
  archive(byte) = "irmin-http.cma"
@@ -76,7 +76,7 @@ package "http" (
 )
 
 package "git" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin git"
  archive(byte) = "irmin-git.cma"
@@ -87,7 +87,7 @@ package "git" (
 )
 
 package "fs" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin-fs.cma"
