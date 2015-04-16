@@ -18,7 +18,9 @@ open Test_common
 
 let test_db = "test-db"
 
-let polling = 0.01
+let polling =
+  try float_of_string (Sys.getenv "IRMIN_FS_POLLING")
+  with Not_found | Failure _ -> 0.01
 
 let init () =
   Irmin_unix.install_dir_polling_listener polling;

@@ -142,6 +142,27 @@ module Make (S: Irmin.S) = struct
       | n -> aux (random_node x ~label ~path ~value :: acc) (n-1) in
     aux [] n
 
+  let sleep ?(sleep_t=0.01) () =
+    let sleep_t = min sleep_t 1. in
+    Lwt_unix.yield () >>= fun () ->
+    Lwt_unix.sleep sleep_t
+
+  let retry ?(timeout=5. *. 60.) ?(sleep_t=0.) fn =
+    let sleep_t = max sleep_t 0.001 in
+    let time = Unix.gettimeofday in
+    let t = time () in
+    let str i = sprintf "%d, %.3fs" i (time () -. t) in
+    let rec aux i =
+      if time () -. t > timeout then fn (str i);
+      try fn (str i); Lwt.return_unit
+      with _e ->
+        let sleep_t = sleep_t *. (1. +. float i ** 2.) in
+        sleep ~sleep_t () >>= fun () ->
+        Log.debug "Test.retry %s" (str i);
+        aux (i+1)
+    in
+    aux 0
+
   let old k () = Lwt.return (`Ok (Some k))
 
   let test_contents x () =
@@ -315,220 +336,244 @@ module Make (S: Irmin.S) = struct
     run x test
 
   let test_watches x () =
+
+    let watch_threads () =
+      Irmin_unix.polling_threads (), Irmin.Private.Watch.workers ()
+    in
+
+    let pp_w (p, w) = sprintf "%d/%d" p w in
+
+    let check_workers msg p w =
+      let w = if x.kind <> `Mem || w = 0 then w else 1 in
+      let p = match x.kind with `Mem | `Http _ -> 0 | _ -> p in
+      retry (fun s ->
+          let got = watch_threads () in
+          let exp = p, w in
+          let msg = sprintf "workers: %s %s (%s)" msg (pp_w got) s in
+          if got = exp then line msg
+          else (
+            Log.debug "check-worker: expected %s, got %s" (pp_w exp) (pp_w got);
+            error msg (pp_w got) (pp_w exp)
+          ))
+    in
+
+    let module State = struct
+      type t = {
+        mutable adds: int;
+        mutable updates: int;
+        mutable removes: int;
+      }
+      let empty () = { adds=0; updates=0; removes=0; }
+      let add t = t.adds <- t.adds + 1
+      let update t = t.updates <- t.updates + 1
+      let remove t = t.removes <- t.removes + 1
+      let pretty t = sprintf "%d/%d/%d" t.adds t.updates t.removes
+      let xpp (a, u, r) = sprintf "%d/%d/%d" a u r
+      let xadd (a, u, r) = (a+1, u, r)
+      let xupdate (a, u, r) = (a, u+1, r)
+      let xremove (a, u, r) = (a, u, r+1)
+
+      let check ?sleep_t msg (p, w) a b =
+        let printer (a, u, r) =
+          Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
+        in
+        check_workers msg p w >>= fun () ->
+        retry ?sleep_t (fun s ->
+            let b = b.adds, b.updates, b.removes in
+            let msg = sprintf "state: %s (%s)" msg s in
+            if a = b then line msg
+            else error msg (printer a) (printer b)
+          )
+
+      let process ?sleep_t t =
+        function head ->
+          begin match sleep_t with
+            | None   -> Lwt.return_unit
+            | Some s -> Lwt_unix.sleep s
+          end >>= fun () ->
+          let () = match head with
+            | `Added _   -> add t
+            | `Updated _ -> update t
+            | `Removed _ -> remove t
+          in
+          Lwt.return_unit
+
+      let apply msg state kind fn ?(first=false) on s n =
+        let msg mode n w s =
+          let kind = match kind with
+            | `Add    -> "add"
+            | `Update -> "update"
+            | `Remove -> "remove"
+          in
+          let mode = match mode with `Pre -> "[pre-condition]" | `Post -> "" in
+          sprintf "%s %s %s %d:%b x=%s:%s s=%s:%s" mode msg kind n on
+            (xpp s) (pp_w w)
+            (pretty state) (pp_w (watch_threads ()))
+        in
+        let check mode n w s = check (msg mode n w s) w s state in
+        let incr = match kind with
+          | `Add -> xadd
+          | `Update -> xupdate
+          | `Remove -> xremove
+        in
+        let rec aux pre = function
+          | 0 -> Lwt.return_unit
+          | i ->
+            let pre_w =
+              if on then 1, (if i = n && first then 0 else 1) else 0, 0
+            in
+            let post_w = if on then 1, 1 else 0, 0 in
+            let post = if on then incr pre else pre in
+            check `Pre (n-i) pre_w pre >>= fun () -> (* check pre-condition *)
+            Log.debug "[waiting for] %s" (msg `Post (n-i) post_w post);
+            fn (n-i) >>= fun () ->
+            check `Post (n-i) post_w post >>= fun () -> (* check post-condition *)
+            aux post (i-1)
+        in
+        aux s n
+
+    end in
+
     let test () =
       create x >>= fun t1 ->
       create x >>= fun t2 ->
 
-      let sleep ?(sleep_t=0.01) () =
-        (* sleep duration is 2*max(polling time, sleep_t) *)
-        Lwt_unix.yield () >>= fun () ->
-        Lwt_unix.sleep sleep_t
-      in
-
-      let retry ?(tries=40) ?(sleep_t=0.) fn =
-        let s =
-          let k = match x.kind with
-            | `Http _ -> 0.1
-            | `Fs | `Git -> 0.01
-            | `Mem -> 0.001
-          in
-          let c = match x.cont with
-            | `String -> 0.001
-            | `Json   -> 0.02
-          in
-          c +. k
-        in
-        let t = Sys.time () in
-        let rec aux = function
-          | 0 ->
-            Log.debug "timeout: %.3fs" (Sys.time () -. t);
-            fn (); Lwt.return_unit
-          | i ->
-            try fn (); Lwt.return_unit
-            with _e ->
-              let n = float (tries - i) in
-              let sleep_t = (s +. max sleep_t Test_fs.polling) *. (n ** 2.) in
-              sleep ~sleep_t () >>= fun () ->
-              aux (i-1)
-        in
-        aux tries
-      in
-
-      let check_workers ?(tries=40) msg p w =
-        let w = if x.kind <> `Mem || w = 0 then w else 1 in
-        let p = match x.kind with `Mem | `Http _ -> 0 | _ -> p in
-        let msg_w = sprintf "%s: worker (%d)" msg tries in
-        let msg_p = sprintf "%s: polling thread (%d)" msg tries in
-        retry ~tries (fun () ->
-            assert_equal Tc.int msg_p p (Irmin_unix.polling_threads ());
-            assert_equal Tc.int msg_w w (Irmin.Private.Watch.workers ());
-          )
-      in
-
       (* test [Irmin.watch] *)
-      let adds    = ref 0 in
-      let updates = ref 0 in
-      let removes = ref 0 in
+      Log.debug "WATCH";
+      let state = State.empty () in
       let sleep_t = 0.02 in
-      let process head =
-        Lwt_unix.sleep sleep_t >>= fun () ->
-        let () = match head with
-          | `Added _h  -> adds    := !adds + 1
-          | `Updated _ -> updates := !updates + 1
-          | `Removed _ -> removes := !removes + 1
-        in
-        Lwt.return_unit
-      in
+      let process = State.process ~sleep_t state in
       let stops_0 = ref [] in
       let stops_1 = ref [] in
-      let rec loop = function
+      let rec watch = function
         | 0 -> Lwt.return_unit
         | n ->
           let t = if n mod 2 = 0 then t1 else t2 in
           S.watch_head (t "watch") process >>= fun s ->
           if n mod 2 = 0 then stops_0 := s :: !stops_0
           else stops_1 := s :: !stops_1;
-          loop (n-1)
+          watch (n-1)
       in
-      let check msg (p, w) a b =
-        let printer (a, u, r) =
-          Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
-        in
-        check_workers msg p w >>= fun () ->
-        line msg;
-        retry ~sleep_t (fun () ->
-            let b = b () in
-            if a <> b then error msg (printer a) (printer b)
-          )
-      in
-      let state () = !adds, !updates, !removes in
       let v1 = string x "X1" in
       let v2 = string x "X2" in
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
-      check "init" (0, 0) (0, 0, 0) state >>= fun () ->
+      State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
 
-      loop 100 >>= fun () ->
+      watch 100 >>= fun () ->
 
-      check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
+      State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
-      check "adds" (1, 2) (100, 0, 0) state >>= fun () ->
+      State.check "watches adds" (1, 2) (100, 0, 0) state >>= fun () ->
 
       S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
-      check "updates" (1, 2) (100, 100, 0) state >>= fun () ->
+      State.check "watches updates" (1, 2) (100, 100, 0) state >>= fun () ->
 
       S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
-      check "removes" (1, 2) (100, 100, 100) state >>= fun () ->
+      State.check "watches removes" (1, 2) (100, 100, 100) state >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
       S.update (t2 "update") (p ["a"]) v1 >>= fun () ->
-      check "watches half off" (1, 1) (150, 100, 100) state  >>= fun () ->
+      State.check "watches half off" (1, 1) (150, 100, 100) state  >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_1 >>= fun () ->
       S.update (t1 "update") (p ["a"]) v2 >>= fun () ->
-      check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
+      State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
 
       (* test [Irmin.watch_tags] *)
-      let tags = ref 0 in
-      let rec add = function
-        | 0 -> Lwt.return_unit
-        | n ->
-          let tag = S.Tag.of_hum (sprintf "t%d" n) in
-          r1 x >>= fun head ->
-          S.Private.Tag.update (S.Private.tag_t @@ t1 "tag") tag head >>= fun () ->
-          add (n-1)
-      in
-      let rec remove = function
-        | 0 -> Lwt.return_unit
-        | n ->
-          let tag = S.Tag.of_hum (sprintf "t%d" n) in
-          S.Private.Tag.remove (S.Private.tag_t @@ t2 "tag") tag >>= fun () ->
-          remove (n-1)
-      in
+      Log.debug "WATCH-TAGS";
+      let state = State.empty () in
 
-      S.watch_tags (t1 "watch-tags") (function _tag -> function
-          | `Removed _ -> decr tags; Lwt.return_unit
-          | `Added _   -> incr tags; Lwt.return_unit
-          | _          -> Lwt.return_unit
-        ) >>= fun unwatch ->
+      r1 x >>= fun head ->
+      let add = State.apply "watch-tag" state `Add (fun n ->
+          let tag = S.Tag.of_hum (sprintf "t%d" n) in
+          S.Private.Tag.update (S.Private.tag_t @@ t1 "tag") tag head
+        ) in
+      let remove = State.apply "watch-tag" state `Remove (fun n ->
+          let tag = S.Tag.of_hum (sprintf "t%d" n) in
+          S.Private.Tag.remove (S.Private.tag_t @@ t2 "tag") tag
+        ) in
 
-      add 10   >>= fun () ->
-      remove 5 >>= fun () ->
-      retry (fun () -> assert_equal Tc.int "watch all on" 5 !tags) >>= fun () ->
+      S.watch_tags (t1 "watch-tags") (fun _ -> State.process state)
+      >>= fun unwatch ->
+
+      add    true (0,  0, 0) 10 ~first:true >>= fun () ->
+      remove true (10, 0, 0) 5 >>= fun () ->
 
       unwatch () >>= fun () ->
-      add 5      >>= fun () ->
-      remove 10  >>= fun () ->
-      retry (fun () -> assert_equal Tc.int "watch all off" 5 !tags) >>= fun () ->
+      add    false (10, 0, 5) 4 >>= fun () ->
+      remove false (10, 0, 5) 4 >>= fun () ->
 
       (* test [Irmin.watch_keys] *)
-      let keys = ref 0 in
+      Log.debug "WATCH-KEYS";
+      let state = State.empty () in
       let path1 = p ["a"; "b"; "c"] in
       let path2 = p ["a"; "d"] in
       let path3 = p ["a"; "b"; "d"] in
-      let rec set i =
-        let v = string x (string_of_int i) in
-        S.update (t2 "update1") path1 v >>= fun () ->
-        S.update (t2 "update2") path2 v >>= fun () ->
-        S.update (t2 "update3") path3 v >>= fun () ->
-        if i > 1 then set (i-1) else Lwt.return_unit
-      in
-      let remove () =
-        S.remove (t1 "remove1") path1 >>= fun () ->
-        S.remove (t1 "remove2") path2 >>= fun () ->
-        S.remove (t1 "remove3") path3 >>= fun () ->
-        Lwt.return_unit
-      in
+      let add = State.apply "watch-key" state `Add (fun _ ->
+          let v = string x "" in
+          S.update (t1 "remove1") path1 v >>= fun () ->
+          S.update (t1 "remove2") path2 v >>= fun () ->
+          S.update (t1 "remove3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
+      let update = State.apply "watch-key" state `Update (fun n ->
+          let v = string x (string_of_int n) in
+          S.update (t2 "update1") path1 v >>= fun () ->
+          S.update (t2 "update2") path2 v >>= fun () ->
+          S.update (t2 "update3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
+      let remove = State.apply "watch-key" state `Remove (fun _ ->
+          S.remove (t1 "remove1") path1 >>= fun () ->
+          S.remove (t1 "remove2") path2 >>= fun () ->
+          S.remove (t1 "remove3") path3 >>= fun () ->
+          Lwt.return_unit
+        ) in
 
       S.remove_rec (t1 "clean") (p []) >>= fun () ->
 
-      S.watch_key (t1 "watch-keys") path1 (function
-          | `Removed _ -> decr keys; Lwt.return_unit
-          | `Added _   -> incr keys; Lwt.return_unit
-          | `Updated _ -> incr keys; Lwt.return_unit
-        ) >>= fun unwatch ->
+      S.watch_key (t1 "watch-keys") path1 (State.process state)
+      >>= fun unwatch ->
 
-      set 10    >>= fun () ->
-      remove () >>= fun () ->
-      retry (fun () -> assert_equal Tc.int "watch key on" 9 !keys) >>= fun () ->
+      add    true (0, 0 , 0) 1  ~first:true >>= fun () ->
+      update true (1, 0 , 0) 10 >>= fun () ->
+      remove true (1, 10, 0) 1  >>= fun () ->
 
       unwatch () >>= fun () ->
-      set 5      >>= fun () ->
-      remove ()  >>= fun () ->
-      sleep ~sleep_t:0.1 ()   >>= fun () ->
-      retry (fun () -> assert_equal Tc.int "watch key off" 9 !keys) >>= fun () ->
 
-      check_workers "watch key off" 0 0 >>= fun () ->
+      add    false (1, 10, 1) 3 >>= fun () ->
+      update false (1, 10, 1) 5 >>= fun () ->
+      remove false (1, 10, 1) 4 >>= fun () ->
 
       (* test [View.watch_path] *)
-      let path = ref 0 in
-      let rec set i =
-        let v = string x (string_of_int i) in
-        let path1 i = p ["a"; "b"; "c"; string_of_int i; "1"] in
-        let path2 i = p ["a"; "x"; "c"; string_of_int i; "1"] in
-        let path3 i = p ["a"; "y"; "c"; string_of_int i; "1"] in
-        S.update (t2 "update1") (path1 i) v >>= fun () ->
-        S.update (t2 "update2") (path2 i) v >>= fun () ->
-        S.update (t2 "update3") (path3 i) v >>= fun () ->
-        if i > 1 then set (i-1) else Lwt.return_unit
-      in
+      Log.debug "WATCH-PATH";
+      let state = State.empty () in
 
-      View.watch_path (t1 "wath-path") (p ["a";"b"]) (function
-          | `Updated _
-          | `Added _   -> incr path; Lwt.return_unit
-          | `Removed _ -> decr path; Lwt.return_unit
-        ) >>= fun unwatch ->
+      let update = State.apply "watch-view" state `Update (fun n ->
+          let v = string x (string_of_int n) in
+          let path1 = p ["a"; "b"; "c"; string_of_int n; "1"] in
+          let path2 = p ["a"; "x"; "c"; string_of_int n; "1"] in
+          let path3 = p ["a"; "y"; "c"; string_of_int n; "1"] in
+          S.update (t2 "update1") path1 v >>= fun () ->
+          S.update (t2 "update2") path2 v >>= fun () ->
+          S.update (t2 "update3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
 
-      set 10 >>= fun () ->
-      set 10 >>= fun () ->
-      retry (fun () -> assert_equal Tc.int "watch path on" 10 !path) >>= fun () ->
+      S.remove_rec (t1 "fresh") (p ["a"]) >>= fun () ->
 
+      S.head_exn (t1 "head") >>= fun h ->
+      let init = h, View.empty () in
+
+      View.watch_path (t2 "wath-path") ~init (p ["a";"b"]) (State.process state)
+      >>= fun unwatch ->
+
+      update true (0, 0, 0) 10 ~first:true >>= fun () ->
       unwatch () >>= fun () ->
-      set 5      >>= fun () ->
-      sleep ~sleep_t:0.1 ()   >>= fun () ->
-      retry (fun () -> assert_equal Tc.int "watch path off" 10 !path) >>= fun () ->
+      update false (0, 10, 0) 10 >>= fun () ->
 
       Lwt.return_unit
     in
