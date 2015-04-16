@@ -370,17 +370,28 @@ let watch = {
   doc  = "Watch the contents of a store and be notified on updates.";
   man  = [];
   term =
-    (* FIXME: use path? *)
-    let watch (S ((module S), store)) _path =
+    let watch (S ((module S), store)) path =
+      let path = S.Key.of_hum path in
+      let module View = Irmin.View(S) in
       run begin
         store >>= fun t ->
-        S.watch_head (t "watch") (fun head ->
-            let pr = S.Head.to_hum in
-            let () = match head with
-              | `Updated (x, y) -> print "%s -> %s" (pr x) (pr y)
-              | `Added x        -> print "<none> -> %s" (pr x)
-              | `Removed x      -> printf "%s -> <none>" (pr x)
+        View.watch_path (t "watch") path (fun d ->
+            let pr (k, v) =
+              let k = S.Key.to_hum k in
+              let v = match v with
+                | `Updated _ -> "*"
+                | `Added _   -> "+"
+                | `Removed _ -> "-"
+              in
+              printf "%s%s" v k
             in
+            let x, y = match d with
+              | `Updated (x, y) -> snd x, snd y
+              | `Added x        -> View.empty (), snd x
+              | `Removed x      -> snd x, View.empty ()
+            in
+            View.diff x y >>= fun diff ->
+            List.iter pr diff;
             return_unit
           ) >>= fun _ ->
         let t, _ = Lwt.task () in
