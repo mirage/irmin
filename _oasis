@@ -79,26 +79,12 @@ Library "irmin-unix"
                  git.unix, cohttp.lwt
   Modules:       Irmin_unix
 
-Library irmin_krypto
+Library "irmin-krypto"
   Path:             lib/krypto
   Findlibname:      krypto
   FindlibParent:    irmin
-  BuildDepends:     irmin
-  Modules:          Irmin_krypto
-
-Library krypto_cipher
-  Path:             lib/krypto
-  Findlibname:      krypto_cipher
-  FindlibParent:    irmin_krypto
-  BuildDepends:     irmin
-  Modules:          Krypto_cipher
-
-Library krypto_km
-  Path:             lib/krypto
-  Findlibname:      krypto_km
-  FindlibParent:    irmin_krypto
-  BuildDepends:     irmin
-  Modules:          Krypto_km
+  BuildDepends:     irmin, nocrypto
+  Modules:          Irmin_krypto, Irmin_krypto_cipher, Irmin_krypto_km
 
 Document irmin
   Title:                Irmin docs
@@ -135,7 +121,7 @@ Executable test_krypto_git
   Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.unix
+  BuildDepends:   irmin, irmin.unix, irmin.krypto
 
 Executable test_git_store
   Path:           examples/

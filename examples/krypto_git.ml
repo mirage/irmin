@@ -26,9 +26,11 @@ module GIT_AO = Irmin_git.AO (Git_unix.FS)
 
 module GIT_RW = Irmin_git.RW (Git_unix.FS)
 
-module KRYPTO_KM = Irmin_krypto.Make_KM
+module KRYPTO_KM = Irmin_krypto.Make_km
 
-module KRYPTO_AES = Irmin_krypto.Make_Cipher (KRYPTO_KM) (Nocrypto.Cipher_block.AES.CTR)
+module AES_CTR = Nocrypto.Cipher_block.AES.CTR (Nocrypto.Cipher_block.Counters.Inc_LE)
+
+module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES_CTR)
 
 module KRYPTO_GIT_STORE = Irmin_krypto.Make (KRYPTO_AES) (GIT_AO) (GIT_RW)
 

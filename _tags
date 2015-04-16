@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 91cb3cdb6fc4f5dfa11bb33a75cbb3dc)
+# DO NOT EDIT (digest: 4587033df317292426c1f34d48e9866b)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -109,18 +109,15 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: use_irmin-git
 <lib/unix/*.ml{,i,y}>: use_irmin-http
 <lib/unix/*.ml{,i,y}>: use_irmin-mem
-# Library irmin_krypto
-"lib/krypto/irmin_krypto.cmxs": use_irmin_krypto
-# Library krypto_cipher
-"lib/krypto/krypto_cipher.cmxs": use_krypto_cipher
-# Library krypto_km
-"lib/krypto/krypto_km.cmxs": use_krypto_km
+# Library irmin-krypto
+"lib/krypto/irmin-krypto.cmxs": use_irmin-krypto
 <lib/krypto/*.ml{,i,y}>: pkg_cstruct
 <lib/krypto/*.ml{,i,y}>: pkg_dolog
 <lib/krypto/*.ml{,i,y}>: pkg_ezjsonm
 <lib/krypto/*.ml{,i,y}>: pkg_hex
 <lib/krypto/*.ml{,i,y}>: pkg_lwt
 <lib/krypto/*.ml{,i,y}>: pkg_mstruct
+<lib/krypto/*.ml{,i,y}>: pkg_nocrypto
 <lib/krypto/*.ml{,i,y}>: pkg_ocamlgraph
 <lib/krypto/*.ml{,i,y}>: pkg_stringext
 <lib/krypto/*.ml{,i,y}>: pkg_tc
@@ -242,6 +239,7 @@ true: annot, bin_annot
 <examples/krypto_git.{native,byte}>: pkg_hex
 <examples/krypto_git.{native,byte}>: pkg_lwt
 <examples/krypto_git.{native,byte}>: pkg_mstruct
+<examples/krypto_git.{native,byte}>: pkg_nocrypto
 <examples/krypto_git.{native,byte}>: pkg_ocamlgraph
 <examples/krypto_git.{native,byte}>: pkg_re
 <examples/krypto_git.{native,byte}>: pkg_re.pcre
@@ -253,8 +251,11 @@ true: annot, bin_annot
 <examples/krypto_git.{native,byte}>: use_irmin-fs
 <examples/krypto_git.{native,byte}>: use_irmin-git
 <examples/krypto_git.{native,byte}>: use_irmin-http
+<examples/krypto_git.{native,byte}>: use_irmin-krypto
 <examples/krypto_git.{native,byte}>: use_irmin-mem
 <examples/krypto_git.{native,byte}>: use_irmin-unix
+<examples/*.ml{,i,y}>: pkg_nocrypto
+<examples/*.ml{,i,y}>: use_irmin-krypto
 # Executable test_git_store
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt-core

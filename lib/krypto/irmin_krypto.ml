@@ -15,14 +15,16 @@ open Lwt
 
 module Log = Log.Make(struct let section = "KRYPO" end)
 
-module type CIPHER_BLOCK = Krypto_cipher.MAKER
+module type CIPHER_BLOCK = Irmin_krypto_cipher.MAKER
 module type AO_MAKER = Irmin.AO_MAKER
 module type RW_MAKER = Irmin.RW_MAKER
+
 module type AO = Irmin.AO
 module type RW = Irmin.RW
+module type STORE = Irmin.S
 
-module Make_KM = Krypto_km.Make
-module Make_Cipher = Krypto_cipher.Make
+module Make_km = Irmin_krypto_km.Make
+module Make_cipher = Irmin_krypto_cipher.Make
 
 
 module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = struct
@@ -66,6 +68,8 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = s
 
     let add t v =
       to_cstruct v |> C.encrypt ~ctr |> of_cstruct |> AO.add t
+
+    let iter = failwith "TODO"
 
   end
 

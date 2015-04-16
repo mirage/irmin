@@ -1,6 +1,6 @@
 
 
-module type KEY_MANAGEMENT = Krypto_km.KEY_MANAGEMENT
+module type KEY_MANAGEMENT = Irmin_krypto_km.KEY_MANAGEMENT
 
 module type CIPHER_BLOCK = sig
 
