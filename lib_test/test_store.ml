@@ -866,7 +866,7 @@ module Make (S: Irmin.S) = struct
 
       (* Testing [View.remove] *)
 
-      View.empty () >>= fun v1 ->
+      let v1 = View.empty () in
 
       View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
       View.update v1 (p ["foo";"2"]) foo2 >>= fun () ->
@@ -908,9 +908,9 @@ module Make (S: Irmin.S) = struct
         if not (cmp x y) then error msg (printer x) (printer y)
       in
 
-      View.empty () >>= fun v0 ->
-      View.empty () >>= fun v1 ->
-      View.empty () >>= fun v2 ->
+      let v0 = View.empty () in
+      let v1 = View.empty () in
+      let v2 = View.empty () in
       View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
       View.update v2 (p ["foo";"1"]) foo2 >>= fun () ->
       View.update v2 (p ["foo";"2"]) foo1 >>= fun () ->
@@ -927,7 +927,7 @@ module Make (S: Irmin.S) = struct
 
       (* Testing other View operations. *)
 
-      View.empty () >>= fun v0 ->
+      let v0 = View.empty () in
 
       View.update v0 (p []) foo1 >>= fun () ->
       View.read   v0 (p []) >>= fun foo1' ->
