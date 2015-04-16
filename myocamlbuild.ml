@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 231c72889689b4c5e1c2da185ef61025) *)
+(* DO NOT EDIT (digest: 8fb7fe1edc7a474d5262958b39577692) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -614,7 +614,10 @@ let package_default =
           ("irmin-git", ["lib/git"], []);
           ("irmin-fs", ["lib/fs"], []);
           ("irmin-http", ["lib/http"], []);
-          ("irmin-unix", ["lib/unix"], [])
+          ("irmin-unix", ["lib/unix"], []);
+          ("irmin_krypto", ["lib/krypto"], []);
+          ("krypto_cipher", ["lib/krypto"], []);
+          ("krypto_km", ["lib/krypto"], [])
        ];
      lib_c = [];
      flags = [];
@@ -623,6 +626,7 @@ let package_default =
           ("lib_test", ["lib"; "lib/mem"; "lib/unix"]);
           ("lib/unix", ["lib"; "lib/fs"; "lib/git"; "lib/http"; "lib/mem"]);
           ("lib/mem", ["lib"]);
+          ("lib/krypto", ["lib"]);
           ("lib/http", ["lib"]);
           ("lib/git", ["lib"]);
           ("lib/fs", ["lib"]);
@@ -636,7 +640,7 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 640 "myocamlbuild.ml"
+# 644 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
 (* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)

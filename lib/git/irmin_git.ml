@@ -87,7 +87,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
     let equal = (=)
     let to_json t = Ezjsonm.string (Git.SHA.to_hex t)
     let of_json j = Git.SHA.of_hex (Ezjsonm.get_string j)
-    let size_of _ = 20
+    let size_of _ = 20 (* ???? MOUNIR ????? *)
     let write t = Tc.String.write (Git.SHA.to_raw t)
     let read b = Git.SHA.of_raw (Tc.String.read b)
     let digest = Git.SHA.of_cstruct
