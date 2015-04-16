@@ -319,40 +319,42 @@ module Make (S: Irmin.S) = struct
       create x >>= fun t1 ->
       create x >>= fun t2 ->
 
-      let sleep ?(sleep_t=0.) () =
-        let sleep_t =
-          let k = match x.kind with
-            | `Http _ -> 0.1
-            | `Fs | `Git -> 0.01
-            | `Mem -> 0.
-          in
-          let c = match x.cont with
-            | `String -> 0.
-            | `Json   -> 0.02
-          in
-          max sleep_t (c +. k)
-        in
+      let sleep ?(sleep_t=0.01) () =
         (* sleep duration is 2*max(polling time, sleep_t) *)
-        let sleep_t = 3. *. (max sleep_t Test_fs.polling) in
         Lwt_unix.yield () >>= fun () ->
         Lwt_unix.sleep sleep_t
       in
 
-      let retry ?(tries=20) ?(sleep_t=0.) fn =
+      let retry ?(tries=40) ?(sleep_t=0.) fn =
+        let s =
+          let k = match x.kind with
+            | `Http _ -> 0.1
+            | `Fs | `Git -> 0.01
+            | `Mem -> 0.001
+          in
+          let c = match x.cont with
+            | `String -> 0.001
+            | `Json   -> 0.02
+          in
+          c +. k
+        in
+        let t = Sys.time () in
         let rec aux = function
-          | 0 -> fn (); Lwt.return_unit
+          | 0 ->
+            Log.debug "timeout: %.3fs" (Sys.time () -. t);
+            fn (); Lwt.return_unit
           | i ->
             try fn (); Lwt.return_unit
             with _e ->
               let n = float (tries - i) in
-              let sleep_t = sleep_t +. 0.01 *. n *. n in
+              let sleep_t = (s +. max sleep_t Test_fs.polling) *. (n ** 2.) in
               sleep ~sleep_t () >>= fun () ->
               aux (i-1)
         in
         aux tries
       in
 
-      let check_workers ?(tries=20) msg p w =
+      let check_workers ?(tries=40) msg p w =
         let w = if x.kind <> `Mem || w = 0 then w else 1 in
         let p = match x.kind with `Mem | `Http _ -> 0 | _ -> p in
         let msg_w = sprintf "%s: worker (%d)" msg tries in
@@ -453,7 +455,6 @@ module Make (S: Irmin.S) = struct
         ) >>= fun unwatch ->
 
       add 10   >>= fun () ->
-      sleep () >>= fun () ->
       remove 5 >>= fun () ->
       retry (fun () -> assert_equal Tc.int "watch all on" 5 !tags) >>= fun () ->
 
@@ -496,7 +497,7 @@ module Make (S: Irmin.S) = struct
       unwatch () >>= fun () ->
       set 5      >>= fun () ->
       remove ()  >>= fun () ->
-      sleep ()   >>= fun () ->
+      sleep ~sleep_t:0.1 ()   >>= fun () ->
       retry (fun () -> assert_equal Tc.int "watch key off" 9 !keys) >>= fun () ->
 
       check_workers "watch key off" 0 0 >>= fun () ->
@@ -526,7 +527,7 @@ module Make (S: Irmin.S) = struct
 
       unwatch () >>= fun () ->
       set 5      >>= fun () ->
-      sleep ()   >>= fun () ->
+      sleep ~sleep_t:0.1 ()   >>= fun () ->
       retry (fun () -> assert_equal Tc.int "watch path off" 10 !path) >>= fun () ->
 
       Lwt.return_unit
