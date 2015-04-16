@@ -383,7 +383,7 @@ let watch = {
                 | `Added _   -> "+"
                 | `Removed _ -> "-"
               in
-              printf "%s%s" v k
+              printf "%s%s\n%!" v k
             in
             let x, y = match d with
               | `Updated (x, y) -> snd x, snd y
