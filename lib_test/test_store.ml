@@ -338,14 +338,18 @@ module Make (S: Irmin.S) = struct
         Lwt_unix.sleep sleep_t
       in
 
-      let rec retry ?(tries=20) ?sleep_t fn =
-        match tries with
-        | 0 -> fn (); Lwt.return_unit
-        | i ->
-          try fn (); Lwt.return_unit
-          with _e ->
-            sleep ?sleep_t () >>= fun () ->
-            retry ~tries:(i-1) ?sleep_t fn
+      let retry ?(tries=20) ?(sleep_t=0.) fn =
+        let rec aux = function
+          | 0 -> fn (); Lwt.return_unit
+          | i ->
+            try fn (); Lwt.return_unit
+            with _e ->
+              let n = float (tries - i) in
+              let sleep_t = sleep_t +. 0.01 *. n *. n in
+              sleep ~sleep_t () >>= fun () ->
+              aux (i-1)
+        in
+        aux tries
       in
 
       let check_workers ?(tries=20) msg p w =
