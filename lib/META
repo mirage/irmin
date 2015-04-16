@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e56772fa62e3e84c63139691d98be227)
+# DO NOT EDIT (digest: fff17c576d8691cf561f7118de4271ff)
 version = "0.9.4"
 description = "A Distributed Version Control Database"
 requires =
@@ -36,11 +36,32 @@ package "krypto" (
  version = "0.9.4"
  description = "A Distributed Version Control Database"
  requires = "irmin"
- archive(byte) = "irmin-krypto.cma"
- archive(byte, plugin) = "irmin-krypto.cma"
- archive(native) = "irmin-krypto.cmxa"
- archive(native, plugin) = "irmin-krypto.cmxs"
- exists_if = "irmin-krypto.cma"
+ archive(byte) = "irmin_krypto.cma"
+ archive(byte, plugin) = "irmin_krypto.cma"
+ archive(native) = "irmin_krypto.cmxa"
+ archive(native, plugin) = "irmin_krypto.cmxs"
+ exists_if = "irmin_krypto.cma"
+ package "krypto_km" (
+  version = "0.9.4"
+  description = "A Distributed Version Control Database"
+  requires = "irmin"
+  archive(byte) = "krypto_km.cma"
+  archive(byte, plugin) = "krypto_km.cma"
+  archive(native) = "krypto_km.cmxa"
+  archive(native, plugin) = "krypto_km.cmxs"
+  exists_if = "krypto_km.cma"
+ )
+ 
+ package "krypto_cipher" (
+  version = "0.9.4"
+  description = "A Distributed Version Control Database"
+  requires = "irmin"
+  archive(byte) = "krypto_cipher.cma"
+  archive(byte, plugin) = "krypto_cipher.cma"
+  archive(native) = "krypto_cipher.cmxa"
+  archive(native, plugin) = "krypto_cipher.cmxs"
+  exists_if = "krypto_cipher.cma"
+ )
 )
 
 package "http" (

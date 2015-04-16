@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 15af4608babc1ac71d33f9f2bb415e23)
+# DO NOT EDIT (digest: 1cd38cbc11dd01dbfa0418792c95f300)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -115,8 +115,12 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: use_irmin-git
 <lib/unix/*.ml{,i,y}>: use_irmin-http
 <lib/unix/*.ml{,i,y}>: use_irmin-mem
-# Library irmin-krypto
-"lib/krypto/irmin-krypto.cmxs": use_irmin-krypto
+# Library irmin_krypto
+"lib/krypto/irmin_krypto.cmxs": use_irmin_krypto
+# Library krypto_cipher
+"lib/krypto/krypto_cipher.cmxs": use_krypto_cipher
+# Library krypto_km
+"lib/krypto/krypto_km.cmxs": use_krypto_km
 <lib/krypto/*.ml{,i,y}>: pkg_cstruct
 <lib/krypto/*.ml{,i,y}>: pkg_dolog
 <lib/krypto/*.ml{,i,y}>: pkg_ezjsonm
@@ -235,6 +239,32 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_irmin-http
 <lib_test/*.ml{,i,y}>: use_irmin-mem
 <lib_test/*.ml{,i,y}>: use_irmin-unix
+# Executable test_krypto_git
+<examples/krypto_git.{native,byte}>: pkg_cohttp.lwt
+<examples/krypto_git.{native,byte}>: pkg_cohttp.lwt-core
+<examples/krypto_git.{native,byte}>: pkg_cstruct
+<examples/krypto_git.{native,byte}>: pkg_dolog
+<examples/krypto_git.{native,byte}>: pkg_ezjsonm
+<examples/krypto_git.{native,byte}>: pkg_ezjsonm.lwt
+<examples/krypto_git.{native,byte}>: pkg_git
+<examples/krypto_git.{native,byte}>: pkg_git.unix
+<examples/krypto_git.{native,byte}>: pkg_hex
+<examples/krypto_git.{native,byte}>: pkg_lwt
+<examples/krypto_git.{native,byte}>: pkg_mstruct
+<examples/krypto_git.{native,byte}>: pkg_nocrypto
+<examples/krypto_git.{native,byte}>: pkg_ocamlgraph
+<examples/krypto_git.{native,byte}>: pkg_re
+<examples/krypto_git.{native,byte}>: pkg_re.pcre
+<examples/krypto_git.{native,byte}>: pkg_re.perl
+<examples/krypto_git.{native,byte}>: pkg_stringext
+<examples/krypto_git.{native,byte}>: pkg_tc
+<examples/krypto_git.{native,byte}>: pkg_uri
+<examples/krypto_git.{native,byte}>: use_irmin
+<examples/krypto_git.{native,byte}>: use_irmin-fs
+<examples/krypto_git.{native,byte}>: use_irmin-git
+<examples/krypto_git.{native,byte}>: use_irmin-http
+<examples/krypto_git.{native,byte}>: use_irmin-mem
+<examples/krypto_git.{native,byte}>: use_irmin-unix
 # Executable test_git_store
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt-core

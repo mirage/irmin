@@ -3,36 +3,25 @@
 
 
 (* Logs *)
-(* module Log = Log.Make(struct let section = "KRYPO[RETREIVING]" end) *)
 
-module type KEY = sig
-    type t
-  end
+ module Log = Log.Make(struct let section = "KRYPO[RETREIVING]" end)
 
-module type RESULT = sig
-    type t
-
-    val of_string: ?allocator:(int -> t) -> string -> t
-  end
 
 
 module type KEY_MANAGEMENT = sig
-    type k
-    type result
+
     type retriving_method =
       | File of string
       | Debug_Test (* must be removed after ... | mirageOS ... *)
 
-    val init_key: way:retriving_method -> result
-    val get_iv: result (* To be more generic with others mode operator *)
+    val init_key: way:retriving_method -> Cstruct.t
+    val get_iv: Cstruct.t
   end
 
 
 (* Key Store module : we can improve that... *)
-module Make (K:KEY) (R:RESULT) : KEY_MANAGEMENT = struct
+module Make : KEY_MANAGEMENT = struct
 
-    type k = K.t
-    type result = R.t
 
     type retriving_method =
       | File of string
@@ -56,10 +45,10 @@ module Make (K:KEY) (R:RESULT) : KEY_MANAGEMENT = struct
     (** Initialization of hash key store TODO: try...catch *)
     let init_key ~way =
       let hk = retreive_key way in
-      R.(of_string hk);;
+      Cstruct.(of_string hk);;
 
     (** TEMP for CBC *)
     let get_iv =
-      (R.of_string "1234abcd1234abcd")
+      (Cstruct.of_string "1234abcd1234abcd")
 
   end

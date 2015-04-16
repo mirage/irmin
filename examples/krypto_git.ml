@@ -21,10 +21,18 @@ let () =
       Log.set_log_level Log.DEBUG
   with Not_found -> ()
 
-(* ECB JUST FOR TEST ! DON'T USE IT *)
-let git_store = Irmin_krypto.Make (Nocrypto.Cipher_block.AES.ECB) (Irimn_git.IO) (Git.FS.Make(FS))
 
-let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+module GIT_AO = Irmin_git.AO (Git.FS.Make(Git_unix.FS))
+
+module GIT_RW = (Irmin_unix.Lock) (Git.FS.Make(Git_unix.FS))
+
+module KRYPTO_KM = Irmin_krypto.Make_KM
+
+module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (Nocrypto.Cipher_block.AES.CTR)
+
+module KRYPTO_GIT_STORE = Irmin_krypto.Make (KRYPTO_AES) (GIT_AO) (GIT_RW)
+
+let store = Irmin.basic (KRYPTO_GIT_STORE) (module Irmin.Contents.String)
 
 let main () =
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true () in
