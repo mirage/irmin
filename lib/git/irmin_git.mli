@@ -24,7 +24,13 @@ val config:
 val bare: bool Irmin.Private.Conf.key
 val head: Git.Reference.t option Irmin.Private.Conf.key
 
+module type LOCK = sig
+  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+end
+
 module AO (G: Git.Store.S): Irmin.AO_MAKER
-module RW (G: Git.Store.S): Irmin.RW_MAKER
+module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S):
+  Irmin.RW with type key = K.t and type value = V.t
+
 module Memory (IO: Git.Sync.IO): Irmin.S_MAKER
-module FS (IO: Git.Sync.IO) (G: Git.FS.IO): Irmin.S_MAKER
+module FS (IO: Git.Sync.IO) (L: LOCK) (FS: Git.FS.IO): Irmin.S_MAKER

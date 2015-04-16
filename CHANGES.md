@@ -1,12 +1,37 @@
+## 0.9.5
+* Fix `View.remove` to clean-up empty directories (#190)
+* Fix the ordering of tree entries in the Git backend (#190)
+* Allow to create a new head from a view and a list of parents with
+  `View.make_head` (#188)
+* Allow to create an empty temporary branch with `Irmin.empty` (#161)
+* Use a pure OCaml implementation of SHA1, do not depend on nocrypto anymore
+  (#183, by @talex5)
+* Remove `Irmin.Snapshot`. Nobody was using it and it can be easily replaced by
+  `Irmin.head`, `Irmin.watch_head` and `Irmin.update_head`.
+* Change signature of `Irmin.iter` to include the values and move it into
+  the `Irmin.RO` signature.
+* Add `Irmin.fast_forward_head` (#172)
+* Add `Irmin.compare_and_set_head` (#171)
+* Simplify the RW_MAKER signature (#158)
+* Fix Irmin_git.RW_MAKER (#159)
+* Improve the efficiency of the LCA computation (#174, with @talex5 help)
+* By default, explore the full graph when computing the LCAs. The previous
+  behavior was to limit the depth of the exploration to be 256 by default.
+
 ## 0.9.4
+* Ensure that `Irmin.update` and `Irmin.merge` are atomic.
+* Fix `Irmin.clone` of an empty branch
+* Add `Irmin.RW.compare_and_test` that the backends now have to implement
+  to guarantee atomicity of Irmin's high-level operations.
+* Add `Irmin.Private.Lock` to provide per-handler, per-key locking. This
+  can be used by backend to implement simple locking policies.
 * Add `Lwt.t` to the return type of `Irmin.tag` and `Irmin.tag_exn`
 * Do not throw [Not_found]. Now all the `_exn` function raise `Invalid_argument`
   (#144)
-* Rename `Irmin.switch` into `Irmin.switch_tag` to switch the current branch
-  to a different tag.
-* Add `Irmin.switch_head` to switch the current branch to a different head.
-* Add `Irmin.remove_tag` to delete a tag.
+* Remove `Irmin.switch` and `Irmin.detach`
 * Add `Irmin.history` to get the branch history as a DAG of heads (#140).
+* Fix performance of lcas computation (#160)
+* Add `Irmin.Merge.promise` combinators
 
 ## 0.9.3
 * Fix the invalidation of the view caches (report by @gregtatcam).

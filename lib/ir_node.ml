@@ -320,6 +320,8 @@ struct
       in
       merge_key path ~old x y
 
+    let iter (_, t) fn = S.iter t fn
+
     module Key = S.Key
     module Val = struct
       include S.Val
@@ -403,7 +405,7 @@ struct
     | Some n -> return (S.Val.succ n step)
 
   let err_not_found n k =
-    Ir_misc.invalid_arg "Irmin.%s: %s not found" n (Path.to_hum k)
+    Ir_misc.invalid_arg "Irmin.Node.%s: %s not found" n (Path.to_hum k)
 
   let read_node_exn t node path =
     Log.debug "read_node_exn %a %a"
@@ -436,14 +438,14 @@ struct
     | Some (l,t) -> l, t
     | None -> Path.empty, Step.of_hum "__root__"
 
-  let read_contents_exn t node path =
+  let read_contents_exn t node path0 =
    Log.debug "read_contents_exn %a %a"
      force (show (module S.Key) node)
-     force (show (module S.Path) path);
-   let path, file = mk_path path in
+     force (show (module S.Path) path0);
+   let path, file = mk_path path0 in
    read_node_exn t node path >>= fun node ->
    contents t node file >>= function
-   | None   -> err_not_found "read_contents" path
+   | None   -> err_not_found "read_contents" path0
    | Some c -> return c
 
   let read_contents t node path =

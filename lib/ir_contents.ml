@@ -159,6 +159,8 @@ module Cstruct = struct
     type t = Cstruct.t
 
     let hash = Hashtbl.hash
+
+    (* FIXME use Cstruct.compare *)
     let equal x y = Cstruct.to_bigarray x = Cstruct.to_bigarray y
     let compare x y =
       Pervasives.compare (Cstruct.to_bigarray x) (Cstruct.to_bigarray y)

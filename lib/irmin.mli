@@ -118,6 +118,9 @@ module Task: sig
   (** Add a message to the task messages list. See
       {{!Task.messages}messages} for more details. *)
 
+  val empty: t
+  (** The empty task. *)
+
 end
 
 (** [Merge] provides functions to build custom 3-way merge operators
@@ -152,7 +155,7 @@ module Merge: sig
   (** [promise a] is the promise containing [a]. *)
 
   val promise_map: ('a -> 'b) -> 'a promise -> 'b promise
-  (** promise_map f a] is the promise containing [f] applied to what
+  (** [promise_map f a] is the promise containing [f] applied to what
       is promised by [b]. *)
 
   val promise_bind: 'a promise -> ('a -> 'b promise) -> 'b promise
@@ -346,6 +349,10 @@ module type RO = sig
   val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
+  val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  (** [iter t fn] call the function [fn] on all [t]'s keys and
+      values. *)
+
 end
 
 (** Append-only store. *)
@@ -369,12 +376,18 @@ module type RW = sig
 
   include RO
 
-  val iter: t -> (key -> unit Lwt.t) -> unit Lwt.t
-  (** [iter t fn] call the function [fn] on all [t]'s keys. *)
-
   val update: t -> key -> value -> unit Lwt.t
   (** [update t k v] replaces the contents of [k] by [v] in [t]. If
       [k] is not already defined in [t], create a fresh binding. *)
+
+  val compare_and_set: t -> key -> test:value option -> set:value option -> bool Lwt.t
+  (** [comapre_and_set t k ~test ~set] set [t] to [set] only if the
+      current value of [t] is [test] and in that case return
+      [true]. If the current value of [key] is different, return
+      [false]. [None] means that the value does not have exist or that
+      the value is removed.
+
+      {b Note:} The operation is guaranteed to be atomic. *)
 
   val remove: t -> key -> unit Lwt.t
   (** [remove t k] remove the key [k] in [t]. *)
@@ -472,11 +485,6 @@ module type BC = sig
       nothing if [t] is not persistent. Similar to [git branch -D
       <current-branch>] *)
 
-  val rename_tag: t -> tag -> [`Ok | `Duplicated_tag] Lwt.t
-  (** [rename_tag t tag] renames the branch [t] to [tag], without
-      changing its contents. Fail if a branch with the same name
-      already exists. Similar to [git branch -M <tag>]. *)
-
   val update_tag: t -> tag -> unit Lwt.t
   (** [update_tag t tag] updates [t]'s contents with the contents of
       the branch named [tag]. Can cause data losses as it discard the
@@ -489,12 +497,6 @@ module type BC = sig
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   (** Same as {!merge_tag} but raise {!Merge.Conflict} in case of
       conflict. *)
-
-  val switch_tag: t -> tag -> unit Lwt.t
-  (** [switch_tag t tag] switches the current branch name to be [tag]
-      and the contents of the current branch to be [tag]'s
-      contents. If [tag] does not exit, create a new branch
-      name. Similar to [git checkout [-b] <tag>]. *)
 
   (** {2:temporary Temporary Branches}
 
@@ -514,6 +516,10 @@ module type BC = sig
   (** Type for temporary branches names. Similar to Git's commit
       SHA1s. *)
 
+  val empty: config -> ('a -> task) -> ('a -> t) Lwt.t
+  (** [empty config task] is a temporary, empty branch. Become a
+      normal temporary branch after the first update. *)
+
   val of_head: config -> ('a -> task) -> head -> ('a -> t) Lwt.t
   (** Create a temporary branch, using the given [head]. The branch
       will not persist as it has no persistent branch name. *)
@@ -531,25 +537,31 @@ module type BC = sig
   (** Same as {!head} but raise [Invalid_argument] if the branch does
       not have any contents. *)
 
-  val branch: t -> [`Tag of tag | `Head of head]
+  val branch: t -> [`Tag of tag | `Head of head | `Empty]
   (** [branch t] is a representation of [t]'s branch. Can either be a
-      persistent branch with a [tag] name or a temporary branch with a
-      [head] commit. *)
+      persistent branch with a [tag] name, a temporary branch with a
+      [head] commit or an empty temporary branch. *)
 
   val heads: t -> head list Lwt.t
   (** [heads t] is the list of all the heads in [t]'s store. Similar
       to [git rev-list --all]. *)
 
-  val detach: t -> unit Lwt.t
-  (** [detach t] transform the persistent branch [t] into a temporary
-      branch with the same contents. Do nothing if the branch is
-      already a temporary one. Similar to [git checkout --detach
-      <current-tag>]. *)
-
   val update_head: t -> head -> unit Lwt.t
   (** [update_head t h] updates [t]'s contents with the contents of
       the head [h]. Can cause data losses as it discards the current
       contents. Similar to [git reset --hard <hash>]. *)
+
+  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
+  (** [fast_forward_head t h] is similar to {!update_head} but the
+      [t]'s head is updated to [h] only if [h] is stricly in the
+      future of [t]'s current head. Return [false] if it is not the
+      case. If present, [max_depth] or [n] are used to limit the
+      search space of the lowest common ancestors (see {!lcas}). *)
+
+  val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
+  (** Same as {!update_head} but check that the value is [test] before
+      updating to [set]. Use {!update} or {!merge} instead if
+      possible. *)
 
   val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
     unit Merge.result Lwt.t
@@ -557,17 +569,12 @@ module type BC = sig
       temporary branch associated to [head] into [t]. [max_depth] is
       the maximal depth used for getting the lowest common
       ancestor. [n] is the maximum number of lowest common
-      ancestors. Both [max_depth] and [n] are used to drive the common
-      ancestor exploration when the user knows about the history's
-      partial-order shape. *)
+      ancestors. If present, [max_depth] or [n] are used to limit the
+      search space of the lowest common ancestors (see {!lcas}). *)
 
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
-
-  val switch_head: t -> head -> unit Lwt.t
-  (** [switch t h] changes [t]'s head to be [h]. Similar to [git
-      checkout <sha1>].  *)
 
   val watch_head: t -> key -> (key * head option) Lwt_stream.t
   (** FIXME Watch changes for a given collection of keys and the ones they
@@ -605,7 +612,8 @@ module type BC = sig
 
       {ul
       {- [max_depth] is the maximum depth of the exploration (default
-      is 250). Return [`Max_depth_reached] is this depth is exceeded.}
+      is [max_int]). Return [`Max_depth_reached] is this depth is
+      exceeded.}
       {- [n] is the maximum expected number of lcas. Stop the
       exploration as soon as [n] lcas are found. Return
       [`Too_many_lcas] if more [lcas] are found. }
@@ -929,8 +937,6 @@ end
     fashion very similar to Git.}
     {- Efficient {{!View}staging areas} for fast, transient,
     in-memory operations.}
-    {- Space efficient {{!Snapshot}snapshots} and fast and consistent
-    rollback operations.}
     {- Fast {{!Sync}synchronization} primitives between remote
     stores, using native backend protocols (as the Git protocol) when
     available.}
@@ -1123,6 +1129,31 @@ module Private: sig
 
     (** [Make] builds an implementation of watch helpers. *)
     module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
+
+  end
+
+  module Lock: sig
+    (** {1 Process locking helpers} *)
+
+    module type S = sig
+
+      type t
+      (** The type for lock manager. *)
+
+      type key
+      (** The type for key to be locked. *)
+
+      val create: unit -> t
+      (** Create a lock manager. *)
+
+      val with_lock: t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+      (** [with_lock t k f] executes [f ()] while hodling the exclusive
+          lock associated to the key [k]. *)
+
+    end
+
+    module Make (K: Tc.S0): S with type key = K.t
+    (** Create a lock manager implementation. *)
 
   end
 
@@ -1704,6 +1735,10 @@ val of_head: ('k,'v) basic -> config -> ('m -> task) -> Hash.SHA1.t
   -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.of_head}. Needs a backend as first argument. *)
 
+val empty: ('k,'v) basic -> config -> ('m -> task) ->
+  ('m -> ([`BC],'k,'v) t) Lwt.t
+(** See {!BC.empty}. Needs a backend as first argument. *)
+
 (** {2 Base Operations} *)
 
 val read: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt.t
@@ -1721,7 +1756,7 @@ val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
 val watch_all: ([<`RO|`HRW|`BC],'k,'v) t -> ('k * 'v option) Lwt_stream.t
 (** See {!RW.watch_all} *)
 
-val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> unit Lwt.t) -> unit Lwt.t
+val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t
 (** See {!RW.iter}. *)
 
 val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
@@ -1750,9 +1785,6 @@ val tags: ([`BC],'k,'v) t -> string list Lwt.t
 val remove_tag: ([`BC],'k,'v) t -> unit Lwt.t
 (** See {!BC.remove_tag}. *)
 
-val rename_tag: ([`BC],'k,'v) t -> string -> [`Ok | `Duplicated_tag] Lwt.t
-(** See {!BC.rename_tag}. *)
-
 val update_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
 (** See {!BC.update_tag}. *)
 
@@ -1763,9 +1795,6 @@ val merge_tag: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string ->
 val merge_tag_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string -> unit Lwt.t
 (** See {!BC.merge_tag_exn}. *)
 
-val switch_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
-(** See {!BC.switch_tag}. *)
-
 (** {2 Heads} *)
 
 val head: ([`BC],'k,'v) t -> Hash.SHA1.t option Lwt.t
@@ -1774,17 +1803,18 @@ val head: ([`BC],'k,'v) t -> Hash.SHA1.t option Lwt.t
 val head_exn: ([`BC],'k,'v) t -> Hash.SHA1.t Lwt.t
 (** See {!BC.head_exn}. *)
 
-val branch: ([`BC],'k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t]
+val branch: ([`BC],'k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t | `Empty]
 (** See {!BC.branch}. *)
 
 val heads: ([`BC],'k,'v) t -> Hash.SHA1.t list Lwt.t
 (** See {!BC.heads}. *)
 
-val detach: ([`BC],'k,'v) t -> unit Lwt.t
-(** See {!BC.detach}. *)
-
 val update_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
 (** See {!BC.update_head}. *)
+
+val compare_and_set_head: ([`BC],'k,'v) t ->
+  test:Hash.SHA1.t option -> set:Hash.SHA1.t option -> bool Lwt.t
+(** See {!BC.compare_and_set_head}. *)
 
 val merge_head: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   unit Merge.result Lwt.t
@@ -1793,9 +1823,6 @@ val merge_head: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
 val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
-
-val switch_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
-(** Seee {!BC.switch_head}. *)
 
 val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t
 (** See {!BC.watch_head}. *)
@@ -2213,49 +2240,27 @@ module type VIEW = sig
   (** Return the list of actions performed on this view since its
       creation. *)
 
+  (** {2 Heads} *)
+
+  type head
+  (** The type for commit heads. *)
+
+  val parents: t -> head list
+  (** [parents t] are [t]'s parent commits. *)
+
+  val make_head: db -> task -> parents:head list -> contents:t -> head Lwt.t
+  (** [make_head db t ~parents ~contents] creates a new commit into
+      the store [db] and return its id (of type {!head}). The new
+      commit has [t] as task and the given [parents] and
+      [contents]. The actual parents of [contents] are not used. *)
+
 end
 
 module View (S: S): VIEW with type db = S.t
                           and type key = S.Key.t
                           and type value = S.Val.t
+                          and type head = S.head
 (** Create views. *)
-
-(** [Snapshot] provides read-only, space-efficient, checkpoints of a
-    store. It also provides functions to rollback to a previous
-    state. *)
-module Snapshot (S: S): sig
-
-  (** {1 Snapshots} *)
-
-  include RO with type key = S.Key.t and type value = S.Val.t
-  (** A snapshot is a read-only store, mirroring the main store. *)
-
-  val to_hum: t -> string
-  (** Pretty-print a snapshot value. *)
-
-  val of_hum: S.t -> string -> t
-  (** Read a pretty-printed snapshot value. *)
-
-  val create: S.t -> t Lwt.t
-  (** Snapshot the current state of the store. *)
-
-  val revert: S.t -> t -> unit Lwt.t
-  (** Revert the store to a previous state. *)
-
-  val merge: S.t -> ?max_depth:int -> ?n:int -> t -> unit Merge.result Lwt.t
-  (** Merge the given snapshot into the current branch of the
-      store. *)
-
-  val merge_exn: S.t -> ?max_depth:int -> ?n:int -> t -> unit Lwt.t
-  (** Same as {!merge} but raise {!Merge.Conflict} in case of
-      conflict. *)
-
-  val watch: S.t -> key -> (key * t) Lwt_stream.t
-  (** Subscribe to the stream of modification events attached to a
-      given path. Takes and returns a new snapshot every time a
-      sub-path is modified. *)
-
-end
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
     format. *)
@@ -2315,7 +2320,7 @@ module type AO_MAKER =
     the implementation of values.*)
 module type RW_MAKER =
   functor (K: Hum.S) ->
-  functor (V: Hash.S) ->
+  functor (V: Tc.S0) ->
     RW with type key = K.t and type value = V.t
 
 module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER

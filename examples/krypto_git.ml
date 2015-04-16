@@ -22,13 +22,13 @@ let () =
   with Not_found -> ()
 
 
-module GIT_AO = Irmin_git.AO (Git.FS.Make(Git_unix.FS))
+module GIT_AO = Irmin_git.AO (Git_unix.FS)
 
-module GIT_RW = (Irmin_unix.Lock) (Git.FS.Make(Git_unix.FS))
+module GIT_RW = Irmin_git.RW (Git_unix.FS)
 
 module KRYPTO_KM = Irmin_krypto.Make_KM
 
-module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (Nocrypto.Cipher_block.AES.CTR)
+module KRYPTO_AES = Irmin_krypto.Make_Cipher (KRYPTO_KM) (Nocrypto.Cipher_block.AES.CTR)
 
 module KRYPTO_GIT_STORE = Irmin_krypto.Make (KRYPTO_AES) (GIT_AO) (GIT_RW)
 

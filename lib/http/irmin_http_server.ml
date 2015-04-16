@@ -56,6 +56,8 @@ end
 
 module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
+  module Lock = Irmin.Private.Lock.Make(S.Tag)
+
   let read_exn file =
     match Irmin_http_static.read file with
     | None   -> error "%s: not found" file
@@ -150,18 +152,25 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let id = let c = ref 0 in fun () -> incr c; !c
 
-  let with_lock lock fn = match lock with
-    | None   -> fn ()
-    | Some l ->
+  (* global lock manager *)
+  let lockm = Lock.create ()
+
+  let with_lock t lock fn =
+    match lock with
+    | None | Some false -> fn ()
+    | Some true ->
       let id = id () in
       Log.debug "Lock %d taken" id;
-      Lwt_mutex.with_lock l fn >>= fun r ->
-      Log.debug "Lock %d released" id;
-      Lwt.return r
+      S.tag t >>= function
+      | None     -> fn ()
+      | Some tag ->
+        Lock.with_lock lockm tag fn >>= fun r ->
+        Log.debug "Lock %d released" id;
+        Lwt.return r
 
-  let run_hooks lock = function
+  let run_hooks = function
     | None   -> Lwt.return_unit
-    | Some f -> with_lock lock f
+    | Some f -> f ()
 
   (* no arguments, fixed answer *)
   let mk0p0bf ?lock ?hooks name fn db o =
@@ -171,8 +180,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        with_lock lock (fun () -> fn t) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        with_lock t lock (fun () -> fn t) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
@@ -200,6 +209,18 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       )
 
   (* 1 argument in the path, fixed answer *)
+  let mk1p0bf' name fn db i1 o =
+    name,
+    Fixed (fun t path params query ->
+        let x = mk1p name i1 path in
+        mk0b name params;
+        mk0q name query;
+        db t >>= fun t ->
+        fn t x >>= fun r ->
+        return (Tc.to_json o r)
+      )
+
+  (* 1 argument in the path, fixed answer with locks *)
   let mk1p0bf name ?lock ?hooks fn db i1 o =
     name,
     Fixed (fun t path params query ->
@@ -207,8 +228,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        with_lock lock (fun () -> fn t x) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        with_lock t lock (fun () -> fn t x) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
@@ -219,8 +240,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         let x = mk1p name i1 path in
         mk0b name params;
         db t >>= fun t ->
-        with_lock lock (fun () -> fn t x query) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        with_lock t lock (fun () -> fn t x query) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
@@ -232,13 +253,26 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         mk0b name params;
         mk0q name query;
         db t >>= fun t ->
-        with_lock lock (fun () -> fn t x) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        with_lock t lock (fun () -> fn t x) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
   (* 1 argument in the body *)
-  let mk0p1bf name fn db i1 o =
+  let mk0p1bf name ?lock ?hooks fn db i1 o =
+    name,
+    Fixed (fun t path params query ->
+        mk0p name path;
+        mk0q name query;
+        let x = mk1b name i1 params in
+        db t >>= fun t ->
+        with_lock t lock (fun () -> fn t x) >>= fun r ->
+        run_hooks hooks >>= fun () ->
+        return (Tc.to_json o r)
+      )
+
+    (* 1 argument in the body *)
+  let mk0p1bf' name fn db i1 o =
     name,
     Fixed (fun t path params query ->
         mk0p name path;
@@ -260,20 +294,19 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         return (Tc.to_json o r)
       )
 
-  (* 1 argument in the path, 1 argument in the body, fixed answer *)
-  let mk1p1bf name ?lock ?hooks fn db i1 i2 o =
+    (* 1 argument in the path, 1 argument in the body, fixed answer *)
+  let mk1p1bf name fn db i1 i2 o =
     name,
     Fixed (fun t path params query ->
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
         db t >>= fun t ->
-        with_lock lock (fun () -> fn t x1 x2) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        fn t x1 x2 >>= fun r ->
         return (Tc.to_json o r)
       )
 
-  (* n arguments in the path, 1 argument in the body, fixed answer *)
+  (* n arguments in the path, 1 argument in the body, fixed answer with locks *)
   let mknp1bf name ?lock ?hooks fn db i1 i2 o =
     name,
     Fixed (fun t path params query ->
@@ -281,8 +314,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         let x2 = mk1b name i2 params in
         mk0q name query;
         db t >>= fun t ->
-        with_lock lock (fun () -> fn t x1 x2) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        with_lock t lock (fun () -> fn t x1 x2) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
@@ -349,9 +382,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let key: M.key Tc.t = (module K) in
     let value: M.value Tc.t = (module V) in
     SNode [
-      mk1p0bf "read" M.read fn key' (Tc.option value);
-      mk1p0bf "mem"  M.mem  fn key' Tc.bool;
-      mk0p1bf "add"  M.add  fn value key;
+      mk1p0bf' "read" M.read fn key' (Tc.option value);
+      mk1p0bf' "mem"  M.mem  fn key' Tc.bool;
+      mk0p1bf' "add"  M.add  fn value key;
     ]
 
   let contents_store = ao_store
@@ -385,18 +418,22 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     )
 
   let tag_store =
-    let open S.Private.Tag in
+    let module T = S.Private.Tag in
     let tag_t t = return (S.Private.tag_t t) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
     let head: S.head Tc.t = (module S.Head) in
+    let t_cs t tag (test, set) = T.compare_and_set t tag ~test ~set in
+    let tc_cs = Tc.pair (Tc.option head) (Tc.option head) in
+    let t_iter t fn = T.iter t (fun k _ -> fn k) in
     SNode [
-      mk1p0bf "read"   read   tag_t tag' (Tc.option head);
-      mk1p0bf "mem"    mem    tag_t tag' Tc.bool;
-      mk0p0bs "iter"   (stream tag iter) tag_t tag;
-      mk1p1bf "update" update tag_t tag' head Tc.unit;
-      mk1p0bf "remove" remove tag_t tag' Tc.unit;
-      mk1p0bs "watch"  watch  tag_t tag' (Tc.option head);
+      mk1p0bf' "read"   T.read   tag_t tag' (Tc.option head);
+      mk1p0bf' "mem"    T.mem    tag_t tag' Tc.bool;
+      mk0p0bs  "iter"   (stream tag t_iter) tag_t tag;
+      mk1p1bf  "update" T.update tag_t tag' head Tc.unit;
+      mk1p0bf' "remove" T.remove tag_t tag' Tc.unit;
+      mk1p0bs  "watch"  T.watch  tag_t tag' (Tc.option head);
+      mk1p1bf  "compare-and-set" t_cs tag_t tag' tc_cs Tc.bool;
     ]
 
   let ok_or_duplicated_tag =
@@ -479,7 +516,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   end
   module HTC = Tc.Biject (G)(Conv)
 
-  let store lock hooks =
+  let store hooks =
     let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
@@ -540,16 +577,30 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let max_depth, n = mk_merge_query query in
       S.lcas_head t ?max_depth ?n head
     in
+    let s_compare_and_set t key (test, set) =
+      S.compare_and_set t key ~test ~set
+    in
+    let s_compare_and_set_head t (test, set) =
+      S.compare_and_set_head t ~test ~set
+    in
+    let s_fast_forward_head t head query =
+      let max_depth, n = mk_merge_query query in
+      S.fast_forward_head t ?max_depth ?n head
+    in
+    let s_iter t fn = S.iter t (fun k _ -> fn k) in
     let l f t list = f t (S.Key.create list) in
     let hooks = hooks.update in
+    let lock = true in
     let bc t = [
       (* rw *)
       mknp0bf "read"   (l S.read)     t step' (Tc.option value);
       mknp0bf "mem"    (l S.mem)      t step' Tc.bool;
-      mk0p0bs "iter"   (stream key S.iter) t key;
+      mk0p0bs "iter"   (stream key s_iter) t key;
       mknp1bf "update" ~lock ~hooks (l s_update) t step' value head;
       mknp0bf "remove" ~lock ~hooks (l s_remove) t step' head;
       mknp0bs "watch"  (l S.watch)    t step' (Tc.option value);
+      mknp1bf "compare-and-set" ~lock ~hooks (l s_compare_and_set) t step'
+        (Tc.pair (Tc.option value) (Tc.option value)) Tc.bool;
 
       (* hrw *)
       mknp0bf "list"       (l S.list)       t step' (Tc.list key);
@@ -557,12 +608,14 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
       (* more *)
       mk0p0bf "remove-tag"  ~lock ~hooks S.remove_tag t Tc.unit;
-      mk1p0bf "rename-tag"  ~lock ~hooks S.rename_tag t tag' ok_or_duplicated_tag;
       mk1p0bf "update-tag"  ~lock ~hooks S.update_tag t tag' Tc.unit;
       mk1p0bfq "merge-tag"  ~lock ~hooks s_merge_tag t tag' (merge head);
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" ~lock ~hooks S.update_head t head' Tc.unit;
+      mk1p0bfq "fast-forward-head" ~lock ~hooks s_fast_forward_head t head' Tc.bool;
+      mk0p1bf "compare-and-set-head" ~lock ~hooks s_compare_and_set_head t
+        (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
       mk1p0bfq "merge-head" ~lock ~hooks s_merge_head t head' (merge head);
       mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key (Tc.option head));
       mk0p0bs "watch-tags"  S.watch_tags t (Tc.pair tag (Tc.option head));
@@ -655,10 +708,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       | Some _ -> uri in
     let port, uri = match Uri.port uri with
       | None   -> 8080, Uri.with_port uri (Some 8080)
-      | Some p -> p   , uri in
+      | Some p -> p, uri in
     Printf.printf "Server started on port %d.\n%!" port;
-    let lock = Lwt_mutex.create () in
-    let store = store lock hooks in
+    let store = store hooks in
     let callback (_, conn_id) req body =
       let path = Uri.path (Cohttp.Request.uri req) in
       Log.info "Connection %s: %s %s"
