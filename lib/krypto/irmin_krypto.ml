@@ -21,13 +21,19 @@ module Make_km = Irmin_krypto_km.Make
 module Make_cipher = Irmin_krypto_cipher.Make
 
 
-module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+module type AO_MAKER_RAW =
+  functor (K: Hash.S) ->
+  functor (V: Tc.S0 with type t = Cstruct.t) ->
+  AO with type key = K.t and type value = V.t
+
+
+module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
     module AO = S(K)(V)
 
     type key = AO.key
 
-    type value = AO.value
+    type value = V.t (*AO.t*)
 
     type t = AO.t
 
@@ -46,14 +52,13 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = s
     let read t key =
       AO.read t key >>= function
       | None -> return_none
-      | Some v -> return (Some (of_cstruct (C.decrypt ~ctr (to_cstruct v))))
-
+      | Some v -> return (Some (of_cstruct (C.decrypt ~ctr v)))
 
     let read_exn t key =
       try
         AO.read_exn t key >>=
           function x ->
-                   return (of_cstruct (C.decrypt ~ctr (to_cstruct x)))
+                   return (of_cstruct (C.decrypt ~ctr x))
       with
       | Not_found -> fail Not_found
 
@@ -61,12 +66,13 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = s
       AO.mem t k
 
     let add t v =
-      to_cstruct v |> C.encrypt ~ctr |> of_cstruct |> AO.add t
+      to_cstruct v |> C.encrypt ~ctr |> AO.add t
 
     let iter  t fn =
       AO.iter t fn
 
   end
+
 
 
 module Make (CB:CIPHER_BLOCK) (AO: AO_MAKER) (RW:RW_MAKER) : S_MAKER = Irmin.Make (KRYPTO_AO(CB)(AO)) (RW)
