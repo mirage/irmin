@@ -121,7 +121,7 @@ Executable test_krypto
   Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.unix, irmin.krypto
+  BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem
 
 Executable test_git_store
   Path:           examples/

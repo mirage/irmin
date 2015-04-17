@@ -40,17 +40,23 @@ let main () =
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true () in
   Irmin.create store config task >>= fun t ->
 
-  Irmin.update (t "t: Update 1.txt") ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
-  Irmin.update (t "t: Update 2.txt") ["root";"misc";"2.txt"] "Hi!" >>= fun () ->
-  Irmin.update (t "t: Update 3.txt") ["root";"misc";"3.txt"] "How are you ?" >>= fun () ->
+  let content1 = "Hello world! azjfnekjnekjfnekfjnekjfnezkrfjnezkrfjnekrzfj" in
+
+  Irmin.update (t "t: Update 1.txt") ["root";"misc";"1.txt"] content1 >>= fun () ->
+
+  Irmin.read_exn (t "t: Read 2.txt") ["root";"misc";"1.txt"] >>= fun file1 ->
+  Printf.printf "Plain text: 1:%s %s\n%!" content1 file1;
+
+  Irmin.update (t "t: Update 2.txt") ["root";"misc";"2.txt"] "Hi! erfeljrfnejnfekfjnekzrfelrmknf " >>= fun () ->
+  Irmin.update (t "t: Update 3.txt") ["root";"misc";"3.txt"] "How are you ? erlfnejfnekjfnekzf" >>= fun () ->
 
   Irmin.read_exn (t "t: Read 2.txt") ["root";"misc";"2.txt"] >>= fun file ->
   Printf.printf "I've just read: %s\n%!" file;
 
   Irmin.clone_force task (t "x: Cloning 't'") "test" >>= fun x ->
 
-  Irmin.update (t "t: Update 3.txt") ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
-  Irmin.update (x "x: Update 2.txt") ["root";"misc";"2.txt"] "HELP!"  >>= fun () ->
+  Irmin.update (t "t: Update 3.txt") ["root";"misc";"3.txt"] "Hohoho eljrzfnekjfneklfnekljfnelzf" >>= fun () ->
+  Irmin.update (x "x: Update 2.txt") ["root";"misc";"2.txt"] "HELP! lemrkzfnlerfnleknrfklenflekrnflkezr"  >>= fun () ->
 
   Irmin.merge_exn "t: Merge with 'x'" x ~into:t >>= fun () ->
 
