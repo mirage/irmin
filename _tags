@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4587033df317292426c1f34d48e9866b)
+# DO NOT EDIT (digest: 34305b6f87bdb8ce77aae831afa99e03)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -227,7 +227,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_irmin-http
 <lib_test/*.ml{,i,y}>: use_irmin-mem
 <lib_test/*.ml{,i,y}>: use_irmin-unix
-# Executable test_krypto_git
+# Executable test_krypto
 <examples/krypto_git.{native,byte}>: pkg_cohttp.lwt
 <examples/krypto_git.{native,byte}>: pkg_cohttp.lwt-core
 <examples/krypto_git.{native,byte}>: pkg_cstruct

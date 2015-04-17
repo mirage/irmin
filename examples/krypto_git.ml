@@ -22,9 +22,9 @@ let () =
   with Not_found -> ()
 
 
-module GIT_AO = Irmin_git.AO (Git_unix.FS)
+module GIT_AO = Irmin_mem.AO (*Irmin_git.AO (Git_unix.FS)*)
 
-module GIT_RW = Irmin_git.RW (Git_unix.FS)
+module MEM_RW = Irmin_mem.RW (* (Git_unix.FS) *)
 
 module KRYPTO_KM = Irmin_krypto.Make_km
 
@@ -32,9 +32,9 @@ module AES_CTR = Nocrypto.Cipher_block.AES.CTR (Nocrypto.Cipher_block.Counters.I
 
 module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES_CTR)
 
-module KRYPTO_GIT_STORE = Irmin_krypto.Make (KRYPTO_AES) (GIT_AO) (GIT_RW)
+module MY_STORE = Irmin_krypto.Make (KRYPTO_AES) (GIT_AO) (MEM_RW)
 
-let store = Irmin.basic (KRYPTO_GIT_STORE) (module Irmin.Contents.String)
+let store = Irmin.basic (module MY_STORE) (module Irmin.Contents.String)
 
 let main () =
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true () in

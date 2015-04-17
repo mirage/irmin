@@ -115,7 +115,7 @@ Test test_irmin
   Command:          $test_irmin -q
   WorkingDirectory: lib_test
 
-Executable test_krypto_git
+Executable test_krypto
   Path:           examples/
   MainIs:         krypto_git.ml
   Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)

@@ -16,6 +16,7 @@
 
 let () =
   let suite k = [
+    `Quick, Test_krypto.suite k;
     `Quick, Test_memory.suite k;
     `Quick, Test_fs.suite k;
     `Quick, Test_git.suite k;

@@ -1,4 +1,3 @@
-
 (**
 
   Krypto : Irmin Crypto Backend
@@ -16,12 +15,14 @@ open Lwt
 module Log = Log.Make(struct let section = "KRYPO" end)
 
 module type CIPHER_BLOCK = Irmin_krypto_cipher.MAKER
+
 module type AO_MAKER = Irmin.AO_MAKER
 module type RW_MAKER = Irmin.RW_MAKER
+module type STORE_MAKER = Irmin.S_MAKER
 
+module type STORE = Irmin.S
 module type AO = Irmin.AO
 module type RW = Irmin.RW
-module type STORE = Irmin.S
 
 module Make_km = Irmin_krypto_km.Make
 module Make_cipher = Irmin_krypto_cipher.Make
@@ -69,10 +70,10 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER) (K: Irmin.Hash.S) (V: Tc.S0) = s
     let add t v =
       to_cstruct v |> C.encrypt ~ctr |> of_cstruct |> AO.add t
 
-    let iter = failwith "TODO"
+    let iter  t fn =
+      AO.iter t fn
 
   end
 
 
-module Make (CB:CIPHER_BLOCK) (AO: AO_MAKER) (RW:RW_MAKER) (C: Irmin.Contents.S) (T: Irmin.Tag.S) (H: Irmin.Hash.S) =
-  Irmin.Make(KRYPTO_AO(CB)(AO))(RW)(C)(T)(H)
+module Make (CB:CIPHER_BLOCK) (AO: AO_MAKER) (RW:RW_MAKER) (C: Irmin.Contents.S) (T: Irmin.Tag.S) (H: Irmin.Hash.S) : STORE_MAKER  = Irmin.Make (KRYPTO_AO(CB)(AO)) (RW) (C) (T) (H)
