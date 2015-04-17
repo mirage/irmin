@@ -231,9 +231,9 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   (* cache the stream connections to the server: we open only one
      connection per stream kind. *)
-  type cache = { mutable worker: unit Lwt.t; }
+  type cache = { mutable stop: unit -> unit; }
 
-  let empty_cache () = { worker = Lwt.return_unit; }
+  let empty_cache () = { stop = fun () -> (); }
 
   type t = { t: RO.t; w: W.t; keys: cache; glob: cache }
 
@@ -269,8 +269,11 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let nb_keys t = fst (W.stats t.w)
   let nb_glob t = snd (W.stats t.w)
 
-  let with_cancel t =
-    Lwt.catch t (function Lwt.Canceled -> Lwt.return_unit | e -> Lwt.fail e)
+  (* run [t] and returns an handler to stop the task. *)
+  let stoppable t =
+    let s, u = Lwt.task () in
+    Lwt.async (fun () -> Lwt.pick ([s; t ()]));
+    function () -> Lwt.wakeup u ()
 
   let make_body (type t) (module V: Tc.S0 with type t=t) = function
     | None   -> None
@@ -281,9 +284,8 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       let task = Some (task t) in
       let body = make_body (module V) init in
       let s = post_stream t ~task ["watch-key"] body (module Tc.Option(V)) in
-      let worker = Lwt_stream.iter_s (W.notify t.w key) s in
-      t.keys.worker <- worker;
-      Lwt.async (fun () -> with_cancel (fun () -> worker))
+      let stop () = Lwt_stream.iter_s (W.notify t.w key) s in
+      t.keys.stop <- stoppable stop;
     );
     W.watch_key t.w key ?init f
 
@@ -295,16 +297,19 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       let task = Some (task t) in
       let body = make_body (module WI) init in
       let s = post_stream t ~task ["watch"] body (module WS) in
-      let worker = Lwt_stream.iter_s (fun (k, v) -> W.notify t.w k v) s in
-      t.glob.worker <- worker;
-      Lwt.async (fun () -> with_cancel (fun () -> worker));
+      let stop () = Lwt_stream.iter_s (fun (k, v) -> W.notify t.w k v) s in
+      t.glob.stop <- stoppable stop;
     );
     W.watch t.w ?init f
 
+  let stop x =
+    let () = try x.stop () with _e -> () in
+    x.stop <- fun () -> ()
+
   let unwatch t id =
     W.unwatch t.w id >>= fun () ->
-    if nb_keys t = 0 then Lwt.cancel t.keys.worker;
-    if nb_glob t = 0 then Lwt.cancel t.glob.worker;
+    if nb_keys t = 0 then stop t.keys;
+    if nb_glob t = 0 then stop t.glob;
     Lwt.return_unit
 
 end
