@@ -28,6 +28,9 @@ module Make (KM: KEY_MANAGEMENT) (C:CIPHER_BLOCK) : MAKER = struct
 
     let key = C.of_secret (KM.init_key ~way:KM.Debug_Test)
 
+    let _ =
+      Printf.printf "%s\n"
+
     (** Encryption function *)
     let encrypt ~ctr value =
        C.encrypt ~key ~ctr value

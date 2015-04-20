@@ -29,16 +29,16 @@ module type AO_MAKER_RAW =
 
 module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
-    module AO = S(K)(V)
+    module AO = S(K)(Irmin.Contents.Cstruct)
 
     type key = AO.key
 
-    type value = V.t (*AO.t*)
+    type value = V.t
 
     type t = AO.t
 
     (* Cstruct blit for storing ctr into blob, and retreiving from blob *)
-    let ctr = Cstruct.of_string "abcd1234abcd1234"
+    (*    let ctr () = Cstruct.of_string "abcd1234abcd1234" *)
 
     let to_cstruct x = Tc.write_cstruct (module V) x
     let of_cstruct x = Tc.read_cstruct (module V) x
@@ -52,12 +52,15 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0)
     let read t key =
       AO.read t key >>= function
       | None -> return_none
-      | Some v -> return (Some (of_cstruct (C.decrypt ~ctr v)))
+      | Some v ->
+         let ctr = Cstruct.of_string "1234abcd1234abcd" in
+         return (Some (of_cstruct (C.decrypt ~ctr v)))
 
     let read_exn t key =
       try
         AO.read_exn t key >>=
           function x ->
+                   let ctr = Cstruct.of_string "1234abcd1234abcd" in
                    return (of_cstruct (C.decrypt ~ctr x))
       with
       | Not_found -> fail Not_found
@@ -66,12 +69,17 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0)
       AO.mem t k
 
     let add t v =
+      let ctr = Cstruct.of_string "1234abcd1234abcd" in
       to_cstruct v |> C.encrypt ~ctr |> AO.add t
 
-    let iter  t fn =
-      AO.iter t fn
 
-  end
+    let iter t (fn : key -> value Lwt.t -> unit Lwt.t) =
+      AO.iter t (fun k v ->
+                 let ctr = Cstruct.of_string "1234abcd1234abcd" in
+                 let v = v >|= fun v -> of_cstruct (C.decrypt ~ctr v) in
+                 fn k v)
+
+end
 
 
 

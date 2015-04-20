@@ -11,6 +11,8 @@
 
 open Lwt
 open Irmin_unix
+open Nocrypto.Cipher_block
+
 
 (* Enable debug outputs if DEBUG is set *)
 let () =
@@ -22,13 +24,13 @@ let () =
   with Not_found -> ()
 
 
-module GIT_AO = Irmin_mem.AO (*Irmin_git.AO (Git_unix.FS)*)
+module GIT_AO = Irmin_fs.AO (* Irmin_mem.AO (*Irmin_git.AO (Git_unix.FS)*) *)
 
 module MEM_RW = Irmin_mem.RW (* (Git_unix.FS) *)
 
 module KRYPTO_KM = Irmin_krypto.Make_km
 
-module AES_CTR = Nocrypto.Cipher_block.AES.CTR (Nocrypto.Cipher_block.Counters.Inc_LE)
+module AES_CTR = AES.CTR (Counters.Inc_LE)
 
 module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES_CTR)
 
@@ -40,15 +42,15 @@ let main () =
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true () in
   Irmin.create store config task >>= fun t ->
 
-  let content1 = "Hello world! azjfnekjnekjfnekfjnekjfnezkrfjnezkrfjnekrzfj" in
+  let content1 = "Hello world ! 11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111 " in
 
   Irmin.update (t "t: Update 1.txt") ["root";"misc";"1.txt"] content1 >>= fun () ->
 
-  Irmin.read_exn (t "t: Read 2.txt") ["root";"misc";"1.txt"] >>= fun file1 ->
+  Irmin.read_exn (t "t: Read 1.txt") ["root";"misc";"1.txt"] >>= fun file1 ->
   Printf.printf "Plain text: 1:%s %s\n%!" content1 file1;
 
-  Irmin.update (t "t: Update 2.txt") ["root";"misc";"2.txt"] "Hi! erfeljrfnejnfekfjnekzrfelrmknf " >>= fun () ->
-  Irmin.update (t "t: Update 3.txt") ["root";"misc";"3.txt"] "How are you ? erlfnejfnekjfnekzf" >>= fun () ->
+  Irmin.update (t "t: Update 2.txt") ["root";"misc";"2.txt"] "Hi! 222222222222222222222222222222222222222222222222222222222222222222222222222222 " >>= fun () ->
+  Irmin.update (t "t: Update 3.txt") ["root";"misc";"3.txt"] "How are you ? 333333333333333333333333333333333333333333333333333333333333333333333333333 " >>= fun () ->
 
   Irmin.read_exn (t "t: Read 2.txt") ["root";"misc";"2.txt"] >>= fun file ->
   Printf.printf "I've just read: %s\n%!" file;
