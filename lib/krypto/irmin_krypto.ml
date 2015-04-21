@@ -37,11 +37,31 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0)
 
     type t = AO.t
 
-    (* Cstruct blit for storing ctr into blob, and retreiving from blob *)
-    (*    let ctr () = Cstruct.of_string "abcd1234abcd1234" *)
-
     let to_cstruct x = Tc.write_cstruct (module V) x
     let of_cstruct x = Tc.read_cstruct (module V) x
+
+    let hash_size = Nocrypto.Hash.SHA1.digest_size
+
+    let compute_ctr v = Nocrypto.Hash.SHA1.digest v
+
+    let inject_ctr ~ctr blob =
+      let len_blob = Cstruct.len blob in
+      let res = Cstruct.create (hash_size + len_blob) in
+      Cstruct.blit ctr 0 res 0 hash_size;
+      Cstruct.blit blob 0 res hash_size len_blob;
+      res
+
+    let extract_ctr blob =
+      let res = Cstruct.create hash_size in
+      Cstruct.blit blob 0 res 0 hash_size;
+      res
+
+    let extract_value blob =
+      let len_blob = Cstruct.len blob in
+      let len = len_blob - hash_size in
+      let res = Cstruct.create len in
+      Cstruct.blit blob hash_size res 0 len;
+      res
 
     let create config task =
       AO.create config task
@@ -53,15 +73,17 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0)
       AO.read t key >>= function
       | None -> return_none
       | Some v ->
-         let ctr = Cstruct.of_string "1234abcd1234abcd" in
-         return (Some (of_cstruct (C.decrypt ~ctr v)))
+         let ctr = extract_ctr v in
+         let value = extract_value v in
+         return (Some (of_cstruct (C.decrypt ~ctr value)))
 
     let read_exn t key =
       try
         AO.read_exn t key >>=
           function x ->
-                   let ctr = Cstruct.of_string "1234abcd1234abcd" in
-                   return (of_cstruct (C.decrypt ~ctr x))
+                   let ctr = extract_ctr x in
+                   let value = extract_value x in
+                   return (of_cstruct ( (C.decrypt ~ctr value)))
       with
       | Not_found -> fail Not_found
 
@@ -69,10 +91,12 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0)
       AO.mem t k
 
     let add t v =
-      let ctr = Cstruct.of_string "1234abcd1234abcd" in
-      to_cstruct v |> C.encrypt ~ctr |> AO.add t
+      let value = to_cstruct v in
+      let ctr = compute_ctr value in
+      let ctr2 = compute_ctr value in (* Temporary : there is a side effect into nocrypto *)
+      C.encrypt ~ctr value |> inject_ctr ~ctr:ctr2 |> AO.add t
 
-
+    (* TODO iter .... *)
     let iter t (fn : key -> value Lwt.t -> unit Lwt.t) =
       AO.iter t (fun k v ->
                  let ctr = Cstruct.of_string "1234abcd1234abcd" in
