@@ -29,7 +29,7 @@ module String = struct
 end
 
 module type STORE = sig
-  include Ir_rw.STORE
+  include Ir_rw.REACTIVE
   module Key: S with type t = key
   module Val: Ir_hash.S with type t = value
 end

@@ -371,17 +371,32 @@ let watch = {
   man  = [];
   term =
     let watch (S ((module S), store)) path =
+      let path = S.Key.of_hum path in
+      let module View = Irmin.View(S) in
       run begin
         store >>= fun t ->
-        let stream = S.watch_head (t "watch") (S.Key.of_hum path) in
-        Lwt_stream.iter_s (fun (path, head) ->
-            let head = match head with
-              | None   -> "<none>"
-              | Some s -> S.Head.to_hum s
+        View.watch_path (t "watch") path (fun d ->
+            let pr (k, v) =
+              let k = S.Key.to_hum k in
+              let v = match v with
+                | `Updated _ -> "*"
+                | `Added _   -> "+"
+                | `Removed _ -> "-"
+              in
+              printf "%s%s\n%!" v k
             in
-            print "%s %s" (S.Key.to_hum path) head;
+            let x, y = match d with
+              | `Updated (x, y) -> Lwt.return (snd x), Lwt.return (snd y)
+              | `Added x        -> View.empty (), Lwt.return (snd x)
+              | `Removed x      -> Lwt.return (snd x), View.empty ()
+            in
+            x >>= fun x -> y >>= fun y ->
+            View.diff x y >>= fun diff ->
+            List.iter pr diff;
             return_unit
-          ) stream
+          ) >>= fun _ ->
+        let t, _ = Lwt.task () in
+        t
       end
     in
     Term.(mk watch $ store $ path)

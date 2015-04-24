@@ -121,6 +121,14 @@ module Task: sig
   val empty: t
   (** The empty task. *)
 
+  (** {1 Task creators} *)
+
+  type 'a f = 'a -> t
+  (** The type for user-defined task creators. *)
+
+  val none: unit f
+  (** The empty task creator. *)
+
 end
 
 (** [Merge] provides functions to build custom 3-way merge operators
@@ -310,6 +318,9 @@ type config
     Every backend has different configuration options, which are kept
     abstract to the user. *)
 
+type 'a diff = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
+(** The type for representing differences betwen values. *)
+
 (** An Irmin store is automatically built from a number of lower-level
     stores, implementing fewer operations, such as {{!AO}append-only}
     and {{!RW}read-write} stores. These low-level stores are provided
@@ -329,14 +340,14 @@ module type RO = sig
   type value
   (** Type for values. *)
 
-  val create: config -> ('a -> task) -> ('a -> t) Lwt.t
+  val create: config -> 'a Task.f -> ('a -> t) Lwt.t
   (** [create config task] is a function returning fresh store
       handles, with the configuration [config] and fresh tasks
       computed using [task]. [config] is provided by the backend and
       [task] is the provided by the user. The operation might be
       blocking, depending on the backend. *)
 
-  val task: t -> task
+  val task: t -> Task.t
   (** [task t] is the task associated to the store handle [t]. *)
 
   val read: t -> key -> value option Lwt.t
@@ -392,17 +403,6 @@ module type RW = sig
   val remove: t -> key -> unit Lwt.t
   (** [remove t k] remove the key [k] in [t]. *)
 
-  val watch: t -> key -> value option Lwt_stream.t
-  (** [watch t k] is the stream values associated to the key [k]. The
-      stream return a new value every time the bindings is modified in
-      [t]. It return [None] if the binding is removed. *)
-
-  val watch_all: t -> (key * value option) Lwt_stream.t
-  (** [watch_all t] watches for key creation and deletions. Use
-      {!watch} if you are interested in a particular key. *)
-
-  (** FIXME: add move *)
-
 end
 
 (** Hierarchical read-write stores. *)
@@ -422,6 +422,38 @@ module type HRW = sig
   val remove_rec: t -> key -> unit Lwt.t
   (** Same as {{!RW.remove}RW.remove} but removes all the sub-paths
       recursively. *)
+
+end
+
+(** Reactive read-write store *)
+module type RRW = sig
+
+  (** {1 Reactive read-write stores} *)
+
+  (** Reactive read-write stores are read-write stores with reactive
+      capabilities. *)
+
+  include RW
+
+  type watch
+  (** The type of watch handlers. *)
+
+  val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) ->
+    watch Lwt.t
+  (** [watch_key t k ?init f] adds [f] to the list of [t]'s watch
+      handlers for the key [k] and return the watch handler to be used
+      with {!unwatch}. [init] is the optional initial value of the
+      key. *)
+
+  val watch: t -> ?init:(key * value) list -> (key -> value diff -> unit Lwt.t) ->
+    watch Lwt.t
+  (** [watch t ?init f] adds [f] to the list of [t]'s watch handlers
+      and return the watch handler to be used with {!unwatch}. [init]
+      is the optional initial values. It is more efficient to use
+      {!watch_key} to watch only a single given key.*)
+
+  val unwatch: t -> watch -> unit Lwt.t
+  (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
 
 end
 
@@ -464,7 +496,7 @@ module type BC = sig
       global namespace and that's the user responsibility to avoid
       name-clashes. *)
 
-  val of_tag: config -> ('a -> task) -> tag -> ('a -> t) Lwt.t
+  val of_tag: config -> 'a Task.f -> tag -> ('a -> t) Lwt.t
   (** [create t tag] is the persistent branch named [tag]. Similar to
       [create], but use [tag] instead {!Tag.S.master}. *)
 
@@ -480,10 +512,9 @@ module type BC = sig
   (** The list of all persistent branch 's names. Similar to to [git
       branch -a].*)
 
-  val remove_tag: t -> unit Lwt.t
-  (** [remove_tag t] removes [t]'s name from the local store. Do
-      nothing if [t] is not persistent. Similar to [git branch -D
-      <current-branch>] *)
+  val remove_tag: t -> tag -> unit Lwt.t
+  (** [remove_tag t tag] removes the tag [tag] from the local store.
+      Similar to [git branch -D <tag>] *)
 
   val update_tag: t -> tag -> unit Lwt.t
   (** [update_tag t tag] updates [t]'s contents with the contents of
@@ -516,11 +547,11 @@ module type BC = sig
   (** Type for temporary branches names. Similar to Git's commit
       SHA1s. *)
 
-  val empty: config -> ('a -> task) -> ('a -> t) Lwt.t
+  val empty: config -> 'a Task.f -> ('a -> t) Lwt.t
   (** [empty config task] is a temporary, empty branch. Become a
       normal temporary branch after the first update. *)
 
-  val of_head: config -> ('a -> task) -> head -> ('a -> t) Lwt.t
+  val of_head: config -> 'a Task.f -> head -> ('a -> t) Lwt.t
   (** Create a temporary branch, using the given [head]. The branch
       will not persist as it has no persistent branch name. *)
 
@@ -543,7 +574,7 @@ module type BC = sig
       [head] commit or an empty temporary branch. *)
 
   val heads: t -> head list Lwt.t
-  (** [heads t] is the list of all the heads in [t]'s store. Similar
+  (** [heads t] is the list of all the heads in local store. Similar
       to [git rev-list --all]. *)
 
   val update_head: t -> head -> unit Lwt.t
@@ -576,21 +607,35 @@ module type BC = sig
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
 
-  val watch_head: t -> key -> (key * head option) Lwt_stream.t
-  (** FIXME Watch changes for a given collection of keys and the ones they
-      have recursive access. Return the stream of heads corresponding
-      to the modified keys. *)
+  val watch_head: t -> ?init:head -> (head diff -> unit Lwt.t) ->
+    (unit -> unit Lwt.t) Lwt.t
+  (** [watch_tag t f] calls [f] every time the contents of [t]'s tag is
+      updated. Do nothing if [t] is not persistent. Return a clean-up
+      function to remove the watch handler.
 
-  val watch_tags: t -> (tag * head option) Lwt_stream.t
-  (** FIXME Watch for creation and deletion of tags. *)
+      {b Note:} even [f] might skip some head updates, it will never
+      be called concurrently: all consecutive calls to [f] are done in
+      sequence, so we ensure that the previous one ended before
+      calling the next one. *)
+
+  val watch_tags: t -> ?init:(tag * head) list ->
+    (tag -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  (** [watch_tags t f] calls [f] every time a tag is added, removed or
+      updated in the local store. Return a function to remove the
+      handler. *)
+
+  val watch_key: t -> key -> ?init:(head * value) ->
+    ((head * value) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  (** [watch_key t key f] calls [f] every time the [key]'s value is
+      added, removed or updated. *)
 
   (** {2 Clones and Merges} *)
 
-  val clone: ('a -> task) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone: 'a Task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
   (** Clone the store [t], using the given branch name. Return [None]
       if a branch with the same name already exists. *)
 
-  val clone_force: ('a -> task) -> t -> tag -> ('a -> t) Lwt.t
+  val clone_force: 'a Task.f -> t -> tag -> ('a -> t) Lwt.t
   (** Same as {{!BC.clone}clone} but delete and update the existing
       branch if a branch with the same name already exists. *)
 
@@ -898,9 +943,9 @@ module Tag: sig
 
   (** [STORE] specifies the signature of tag stores.
 
-      A {i tag store} is a key / value store, where keys are names
-      created by users (and/or global names created by convention) and
-      values are keys from the block store.
+      A {i tag store} is a mutable and reactive key / value store,
+      where keys are names created by users (and/or global names
+      created by convention) and values are keys from the block store.
 
       A typical Irmin application should have a very low number of
       keys in the tag store. *)
@@ -908,7 +953,7 @@ module Tag: sig
 
     (** {1 Tag Store} *)
 
-    include RW
+    include RRW
 
     module Key: S with type t = key
     (** Base functions on keys. *)
@@ -1088,13 +1133,21 @@ module Private: sig
       type value
       (** The type for store values. *)
 
+      type watch
+      (** The type for watch handlers. *)
+
       type t
       (** The type for watch state. *)
 
-      val notify: t -> key -> value option -> unit
+      val stats: t -> int * int
+      (** [stats t] is a tuple [(k,a)] represeting watch stats. [k] is
+          the number of single key watchers for the store [t] and [a] the
+          number of global watchers for [t]. *)
+
+      val notify: t -> key -> value option -> unit Lwt.t
       (** Notify all listeners in the given watch state that a key has
-          changed, with the new value associated to this key. If the
-          argument is [None], this means the key has been removed. *)
+          changed, with the new value associated to this key. [None]
+          means the key has been removed. *)
 
       val create: unit -> t
       (** Create a watch state. *)
@@ -1102,30 +1155,38 @@ module Private: sig
       val clear: t -> unit
       (** Clear all register listeners in the given watch state. *)
 
-      val watch: t -> key -> value option -> value option Lwt_stream.t
-      (** Create a stream of value notifications. Need to provide the
-          initial value, or [None] if the key does not have associated
-          contents yet.  *)
+      val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) ->
+        watch Lwt.t
+      (** Watch a given key for changes. More efficient than {!watch}. *)
 
-      val watch_all: t -> (key * value option) Lwt_stream.t
-      (** Watch for creation and deletion of keys. *)
+      val watch: t -> ?init:(key * value) list ->
+        (key -> value diff -> unit Lwt.t) -> watch Lwt.t
+      (** Add a watch handler. To watch a specific key, use
+          {!watch_key} which is more efficient. *)
+
+      val unwatch: t -> watch -> unit Lwt.t
+      (** Remove a watch handler. *)
 
       val listen_dir: t -> string
         -> key:(string -> key option)
         -> value:(key -> value option Lwt.t)
-        -> unit
-        (** Register a fsevents/inotify thread to look for changes in
-            the given directory. *)
+        -> (unit -> unit)
+      (** Register a thread looking for changes in the given directory
+          and return a function to stop watching and free up
+          resources. *)
 
     end
 
-    val set_listen_dir_hook: (int -> string -> (string -> unit Lwt.t) -> unit) -> unit
-    (** Register a function which looks for file changes in a
-        directory. Could use [inotify] when available, or use an active
-        stats file polling.*)
+    val workers: unit -> int
+    (** [workers ()] is the number of background worker threads
+        managing event notification currently active. *)
 
-    val lwt_stream_lift: 'a Lwt_stream.t Lwt.t -> 'a Lwt_stream.t
-    (** Lift a stream out of the monad. *)
+    val set_listen_dir_hook:
+      (int -> string -> (string -> unit Lwt.t) -> (unit -> unit)) -> unit
+    (** Register a function which looks for file changes in a
+        directory and return a function to stop watching. Could use
+        [inotify] when available or {!Irmin_unix.set_listen_dir_hook}
+        to use active file polling. *)
 
     (** [Make] builds an implementation of watch helpers. *)
     module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
@@ -1724,22 +1785,24 @@ type ('a, 'k, 'v) t
 val impl: ([`BC],'k,'v) t -> ('k, 'v) basic
 (** [impl t] is the store implementation of [t]. *)
 
-val create: ('k,'v) basic -> config -> ('m -> task) -> ('m -> ([`BC],'k,'v) t) Lwt.t
+val create: ('k,'v) basic -> config -> 'm Task.f -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!RO.create}. Needs a backend as first argument. *)
 
-val of_tag: ('k,'v) basic -> config -> ('m -> task) -> string
+val of_tag: ('k,'v) basic -> config -> 'm Task.f -> string
   -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.of_tag}. Needs a backend as first argument. *)
 
-val of_head: ('k,'v) basic -> config -> ('m -> task) -> Hash.SHA1.t
+val of_head: ('k,'v) basic -> config -> 'm Task.f -> Hash.SHA1.t
   -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.of_head}. Needs a backend as first argument. *)
 
-val empty: ('k,'v) basic -> config -> ('m -> task) ->
-  ('m -> ([`BC],'k,'v) t) Lwt.t
+val empty: ('k,'v) basic -> config -> 'm Task.f -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.empty}. Needs a backend as first argument. *)
 
 (** {2 Base Operations} *)
+
+val task: ([`BC],'k,'v) t -> task
+(** See {!RO.task}. *)
 
 val read: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt.t
 (** See {!RO.read}. *)
@@ -1749,12 +1812,6 @@ val read_exn: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v Lwt.t
 
 val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
-
-val watch: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt_stream.t
-(** See {!RW.watch}. *)
-
-val watch_all: ([<`RO|`HRW|`BC],'k,'v) t -> ('k * 'v option) Lwt_stream.t
-(** See {!RW.watch_all} *)
 
 val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t
 (** See {!RW.iter}. *)
@@ -1782,7 +1839,7 @@ val tag_exn: ([`BC],'k,'v) t -> string Lwt.t
 val tags: ([`BC],'k,'v) t -> string list Lwt.t
 (** See {!BC.tags}. *)
 
-val remove_tag: ([`BC],'k,'v) t -> unit Lwt.t
+val remove_tag: ([`BC],'k,'v) t ->  string -> unit Lwt.t
 (** See {!BC.remove_tag}. *)
 
 val update_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
@@ -1824,19 +1881,26 @@ val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t -
   unit Lwt.t
 (** See {!BC.merge_head_exn}. *)
 
-val watch_head: ([`BC],'k,'v) t -> 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t
+val watch_head: ([`BC],'k,'v) t -> ?init:Hash.SHA1.t ->
+  (Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 (** See {!BC.watch_head}. *)
 
-val watch_tags: ([`BC],'k,'v) t -> (string * Hash.SHA1.t option) Lwt_stream.t
+val watch_tags: ([`BC],'k,'v) t -> ?init:(string * Hash.SHA1.t) list ->
+  (string -> Hash.SHA1.t diff -> unit Lwt.t) ->
+  (unit -> unit Lwt.t) Lwt.t
 (** See {!BC.watch_tags}. *)
+
+val watch_key: ([`BC],'k,'v) t -> 'k -> ?init:(Hash.SHA1.t * 'v) ->
+  ((Hash.SHA1.t * 'v) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+(** See {!BC.watch_key}. *)
 
 (** {2 Clones and Merges} *)
 
-val clone: ('m -> task) -> ([`BC],'k,'v) t -> string
+val clone: 'm Task.f -> ([`BC],'k,'v) t -> string
   -> [`Ok of ('m -> ([`BC],'k,'v) t) | `Duplicated_tag] Lwt.t
 (** See {!BC.clone}. *)
 
-val clone_force: ('m -> task) -> ([`BC],'k,'v) t -> string
+val clone_force: 'm Task.f -> ([`BC],'k,'v) t -> string
   -> ('m -> ([`BC],'k,'v) t) Lwt.t
 (** See {!BC.clone_force}. *)
 
@@ -2140,7 +2204,7 @@ module type VIEW = sig
   (** {1 Views} *)
 
   type db
-  (** The type for store handles. *)
+  (** The type for branch handles. *)
 
   include HRW
   (** A view is a read-write temporary store, mirroring the main
@@ -2161,22 +2225,22 @@ module type VIEW = sig
       conflict. *)
 
   val of_path: db -> key -> t Lwt.t
-  (** Read a view from a path in the store. This is a cheap operation,
-      all the real reads operation will be done on-demand when the
-      view is used. *)
+  (** [of_path t p] reads the view from a path [p] in the branch
+      [t]. This is a cheap operation, all the real reads operation
+      will be done on-demand when the view is used. *)
 
   val update_path: db -> key -> t -> unit Lwt.t
-  (** [update_path x t path v] {e replaces} the sub-tree under [path]
-      in the store [t x] by the contents of the view [v x]. See
-      {!merge_path} for more details. *)
+  (** [update_path t p v] {e replaces} the sub-tree under [p] in the
+      branch [t] by the contents of the view [v]. See {!merge_path}
+      for more details. *)
 
   val rebase_path: db -> key -> t -> unit Merge.result Lwt.t
-  (** [rebase_path x t path v] {e rebases} the view [v x] on top of
-      the contents of [t x]'s sub-tree pointed by the path
-      [path]. Rebasing means re-applying every {{!Action.t}actions}
-      stored in [t], including the {e reads}. Return {!Merge.Conflict}
-      if one of the action cannot apply cleanly. See {!merge_path} for
-      more details.  *)
+  (** [rebase_path t p v] {e rebases} the view [v] on top of the
+      contents of the sub-tree under [p] in the branch [t]. Rebasing
+      means re-applying every {{!Action.t}actions} stored in [v],
+      including the {e reads}. Return {!Merge.Conflict} if one of the
+      action cannot apply cleanly. See {!merge_path} for more
+      details.  *)
 
   val rebase_path_exn: db -> key -> t -> unit Lwt.t
   (** Same as {!rebase_path} but raise {!Merge.Conflict} in case of
@@ -2184,10 +2248,10 @@ module type VIEW = sig
 
   val merge_path: db -> ?max_depth:int -> ?n:int -> key -> t ->
     unit Merge.result Lwt.t
-  (** [merge_path x t path v] {e merges} the view [v x] with the
-      contents of [t x]'s sub-tree pointed by the path [path]. Merging
-      means applying the {{!Merge.Map}merge function for map} between
-      the view's contents and [t]'s sub-tree.
+  (** [merge_path t path v] {e merges} the view [v] with the contents
+      of the sub-tree under [p] in the branch [t]. Merging means
+      applying the {{!Merge.Map}merge function for map} between the
+      view's contents and [t]'s sub-tree.
 
       {ul
       {- {!VIEW.update_path} discards any preexisting sub-tree.}
@@ -2197,7 +2261,7 @@ module type VIEW = sig
       preexisting sub-tree.}
       {- {!VIEW.merge_path} is state based. Is is an efficient 3-way merge
       operators between prefix trees, based on {!Merge.Map.merge}.}
-     } *)
+      } *)
 
   val merge_path_exn: db -> ?max_depth:int -> ?n:int -> key -> t -> unit Lwt.t
   (** Same as {!merge_path} but raise {!Merge.Conflict} in case of
@@ -2240,6 +2304,9 @@ module type VIEW = sig
   (** Return the list of actions performed on this view since its
       creation. *)
 
+  val diff: t -> t -> (key * value diff) list Lwt.t
+  (** Compute the diff between two views. *)
+
   (** {2 Heads} *)
 
   type head
@@ -2249,10 +2316,17 @@ module type VIEW = sig
   (** [parents t] are [t]'s parent commits. *)
 
   val make_head: db -> task -> parents:head list -> contents:t -> head Lwt.t
-  (** [make_head db t ~parents ~contents] creates a new commit into
-      the store [db] and return its id (of type {!head}). The new
-      commit has [t] as task and the given [parents] and
-      [contents]. The actual parents of [contents] are not used. *)
+  (** [make_head t task ~parents ~contents] creates a new commit into
+      the store where the branch [t] is stored and return its id (of
+      type {!head}). The new commit has [task] as task and the given
+      [parents] and [contents]. The actual parents of [contents] are
+      not used. *)
+
+  val watch_path: db -> key -> ?init:(head * t) ->
+    ((head * t) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  (** [watch_head t p f] calls [f] every time subpaths of [p] are
+      updated in the branch [t]. The callback parameters contains
+      branch's current head and the corresponding view. *)
 
 end
 
@@ -2316,12 +2390,12 @@ module type AO_MAKER =
     AO with type key = K.t and type value = V.t
 
 (** [RW_MAKER] is the signature exposed by any backend providing
-    read-write stores. [K] is the implementation of keys and [V] is
-    the implementation of values.*)
+    reactive read-write stores. [K] is the implementation of keys and
+    [V] is the implementation of values.*)
 module type RW_MAKER =
   functor (K: Hum.S) ->
   functor (V: Tc.S0) ->
-    RW with type key = K.t and type value = V.t
+    RRW with type key = K.t and type value = V.t
 
 module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 (** Simple store creator. Use the same type of all of the internal

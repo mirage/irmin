@@ -211,6 +211,12 @@ val install_dir_polling_listener: float -> unit
     {{:https://opam.ocaml.org/packages/inotify/inotify.2.0/}inotify}
     if it works on your system. *)
 
+val uninstall_dir_polling_listener: unit -> unit
+(** Stop the thread started by {!install_dir_polling_listener}. *)
+
+val polling_threads: unit -> int
+(** The number of polling threads. *)
+
 module type LOCK = sig
 
   (** {1 Filesystem {i dotlocking}} *)
