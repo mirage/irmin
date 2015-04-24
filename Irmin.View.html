@@ -15,6 +15,7 @@
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Views" rel="Section" href="#1_Views">
+<link title="Heads" rel="Subsection" href="#2_Heads">
 <title>Irmin.VIEW</title>
 </head>
 <body>
@@ -46,7 +47,7 @@
 
 <pre><span id="TYPEdb"><span class="keyword">type</span> <code class="type"></code>db</span> </pre>
 <div class="info ">
-The type for store handles.<br>
+The type for branch handles.<br>
 </div>
 
 
@@ -73,24 +74,24 @@ Same as <a href="Irmin.VIEW.html#VALrebase"><code class="code"><span class="cons
 </div>
 
 <pre><span id="VALof_path"><span class="keyword">val</span> of_path</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -> key -> <a href="Irmin.html#TYPEt">Irmin.t</a> Lwt.t</code></pre><div class="info ">
-Read a view from a path in the store. This is a cheap operation,
-      all the real reads operation will be done on-demand when the
-      view is used.<br>
+<code class="code">of_path t p</code> reads the view from a path <code class="code">p</code> in the branch
+      <code class="code">t</code>. This is a cheap operation, all the real reads operation
+      will be done on-demand when the view is used.<br>
 </div>
 
 <pre><span id="VALupdate_path"><span class="keyword">val</span> update_path</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -> key -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">update_path x t path v</code> <em>replaces</em> the sub-tree under <code class="code">path</code>
-      in the store <code class="code">t x</code> by the contents of the view <code class="code">v x</code>. See
-      <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.merge_path</code></a> for more details.<br>
+<code class="code">update_path t p v</code> <em>replaces</em> the sub-tree under <code class="code">p</code> in the
+      branch <code class="code">t</code> by the contents of the view <code class="code">v</code>. See <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.merge_path</code></a>
+      for more details.<br>
 </div>
 
 <pre><span id="VALrebase_path"><span class="keyword">val</span> rebase_path</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -> key -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-<code class="code">rebase_path x t path v</code> <em>rebases</em> the view <code class="code">v x</code> on top of
-      the contents of <code class="code">t x</code>'s sub-tree pointed by the path
-      <code class="code">path</code>. Rebasing means re-applying every <a href="Irmin.VIEW.Action.html#TYPEt">actions</a>
-      stored in <code class="code">t</code>, including the <em>reads</em>. Return <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a>
-      if one of the action cannot apply cleanly. See <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.merge_path</code></a> for
-      more details.<br>
+<code class="code">rebase_path t p v</code> <em>rebases</em> the view <code class="code">v</code> on top of the
+      contents of the sub-tree under <code class="code">p</code> in the branch <code class="code">t</code>. Rebasing
+      means re-applying every <a href="Irmin.VIEW.Action.html#TYPEt">actions</a> stored in <code class="code">v</code>,
+      including the <em>reads</em>. Return <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> if one of the
+      action cannot apply cleanly. See <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.merge_path</code></a> for more
+      details.<br>
 </div>
 
 <pre><span id="VALrebase_path_exn"><span class="keyword">val</span> rebase_path_exn</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -> key -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit Lwt.t</code></pre><div class="info ">
@@ -99,10 +100,10 @@ Same as <a href="Irmin.VIEW.html#VALrebase_path"><code class="code"><span class=
 </div>
 
 <pre><span id="VALmerge_path"><span class="keyword">val</span> merge_path</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -><br>       ?max_depth:int -> ?n:int -> key -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-<code class="code">merge_path x t path v</code> <em>merges</em> the view <code class="code">v x</code> with the
-      contents of <code class="code">t x</code>'s sub-tree pointed by the path <code class="code">path</code>. Merging
-      means applying the <a href="Irmin.Merge.Map.html">merge function for map</a> between
-      the view's contents and <code class="code">t</code>'s sub-tree.
+<code class="code">merge_path t path v</code> <em>merges</em> the view <code class="code">v</code> with the contents
+      of the sub-tree under <code class="code">p</code> in the branch <code class="code">t</code>. Merging means
+      applying the <a href="Irmin.Merge.Map.html">merge function for map</a> between the
+      view's contents and <code class="code">t</code>'s sub-tree.
 <p>
 
       <ul>
@@ -130,5 +131,35 @@ Same as <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="
 <pre><span id="VALactions"><span class="keyword">val</span> actions</span> : <code class="type"><a href="Irmin.html#TYPEt">Irmin.t</a> -> <a href="Irmin.VIEW.Action.html#TYPEt">Action.t</a> list</code></pre><div class="info ">
 Return the list of actions performed on this view since its
       creation.<br>
+</div>
+
+<pre><span id="VALdiff"><span class="keyword">val</span> diff</span> : <code class="type"><a href="Irmin.html#TYPEt">Irmin.t</a> -> <a href="Irmin.html#TYPEt">Irmin.t</a> -> (key * value <a href="Irmin.html#TYPEdiff">Irmin.diff</a>) list Lwt.t</code></pre><div class="info ">
+Compute the diff between two views.<br>
+</div>
+<br>
+<h2 id="2_Heads">Heads</h2><br>
+
+<pre><span id="TYPEhead"><span class="keyword">type</span> <code class="type"></code>head</span> </pre>
+<div class="info ">
+The type for commit heads.<br>
+</div>
+
+
+<pre><span id="VALparents"><span class="keyword">val</span> parents</span> : <code class="type"><a href="Irmin.html#TYPEt">Irmin.t</a> -> <a href="Irmin.VIEW.html#TYPEhead">head</a> list</code></pre><div class="info ">
+<code class="code">parents t</code> are <code class="code">t</code>'s parent commits.<br>
+</div>
+
+<pre><span id="VALmake_head"><span class="keyword">val</span> make_head</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -><br>       <a href="Irmin.html#TYPEtask">Irmin.task</a> -><br>       parents:<a href="Irmin.VIEW.html#TYPEhead">head</a> list -> contents:<a href="Irmin.html#TYPEt">Irmin.t</a> -> <a href="Irmin.VIEW.html#TYPEhead">head</a> Lwt.t</code></pre><div class="info ">
+<code class="code">make_head t task ~parents ~contents</code> creates a new commit into
+      the store where the branch <code class="code">t</code> is stored and return its id (of
+      type <a href="Irmin.VIEW.html#TYPEhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.head</code></a>). The new commit has <code class="code">task</code> as task and the given
+      <code class="code">parents</code> and <code class="code">contents</code>. The actual parents of <code class="code">contents</code> are
+      not used.<br>
+</div>
+
+<pre><span id="VALwatch_path"><span class="keyword">val</span> watch_path</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -><br>       key -><br>       ?init:<a href="Irmin.VIEW.html#TYPEhead">head</a> * <a href="Irmin.html#TYPEt">Irmin.t</a> -><br>       ((<a href="Irmin.VIEW.html#TYPEhead">head</a> * <a href="Irmin.html#TYPEt">Irmin.t</a>) <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
+<code class="code">watch_head t p f</code> calls <code class="code">f</code> every time subpaths of <code class="code">p</code> are
+      updated in the branch <code class="code">t</code>. The callback parameters contains
+      branch's current head and the corresponding view.<br>
 </div>
 </body></html>

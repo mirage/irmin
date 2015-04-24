@@ -77,6 +77,14 @@ Install the directory listener using active polling. The parameter
     if it works on your system.<br>
 </div>
 
+<pre><span id="VALuninstall_dir_polling_listener"><span class="keyword">val</span> uninstall_dir_polling_listener</span> : <code class="type">unit -> unit</code></pre><div class="info ">
+Stop the thread started by <a href="Irmin_unix.html#VALinstall_dir_polling_listener"><code class="code"><span class="constructor">Irmin_unix</span>.install_dir_polling_listener</code></a>.<br>
+</div>
+
+<pre><span id="VALpolling_threads"><span class="keyword">val</span> polling_threads</span> : <code class="type">unit -> int</code></pre><div class="info ">
+The number of polling threads.<br>
+</div>
+
 <pre><span class="keyword">module type</span> <a href="Irmin_unix.LOCK.html">LOCK</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.LOCK.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Lock.html">Lock</a>: <code class="type"><a href="Irmin_unix.LOCK.html">LOCK</a></code><code class="type"> </code></pre><div class="info">
 An implementation of filesystem dotlocking.

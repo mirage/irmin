@@ -13,7 +13,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Read-write stores" rel="Section" href="#1_Readwritestores">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Reactive read-write stores" rel="Section" href="#1_Reactivereadwritestores">
 <title>Irmin.RW_MAKER</title>
 </head>
 <body>
@@ -22,10 +22,10 @@
 &nbsp;</div>
 <h1>Module type <a href="type_Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></h1>
 
-<pre><span class="keyword">module type</span> RW_MAKER = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.RW.html">RW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> RW_MAKER = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="type"><a href="Irmin.RRW.html">RRW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info modtype top">
 <code class="code"><span class="constructor">RW_MAKER</span></code> is the signature exposed by any backend providing
-    read-write stores. <code class="code"><span class="constructor">K</span></code> is the implementation of keys and <code class="code"><span class="constructor">V</span></code> is
-    the implementation of values.<br>
+    reactive read-write stores. <code class="code"><span class="constructor">K</span></code> is the implementation of keys and
+    <code class="code"><span class="constructor">V</span></code> is the implementation of values.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -41,51 +41,41 @@
 <td align="center" valign="top" width="15%">
 <code>V</code></td>
 <td align="center" valign="top">:</td>
-<td><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code>
+<td><code class="type">Tc.S0</code>
 </table>
 </td>
 </tr>
 </table>
 <hr width="100%">
 <br>
-<h1 id="1_Readwritestores">Read-write stores</h1><br>
-
-<pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
-
-<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">t -> (key -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">iter t fn</code> call the function <code class="code">fn</code> on all <code class="code">t</code>'s keys.<br>
-</div>
-
-<pre><span id="VALupdate"><span class="keyword">val</span> update</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">update t k v</code> replaces the contents of <code class="code">k</code> by <code class="code">v</code> in <code class="code">t</code>. If
-      <code class="code">k</code> is not already defined in <code class="code">t</code>, create a fresh binding.<br>
-</div>
-
-<pre><span id="VALcompare_and_set"><span class="keyword">val</span> compare_and_set</span> : <code class="type">t -> key -> test:value option -> set:value option -> bool Lwt.t</code></pre><div class="info ">
-<code class="code">comapre_and_set t k ~test ~set</code> set <code class="code">t</code> to <code class="code">set</code> only if the
-      current value of <code class="code">t</code> is <code class="code">test</code> and in that case return
-      <code class="code"><span class="keyword">true</span></code>. If the current value of <code class="code">key</code> is different, return
-      <code class="code"><span class="keyword">false</span></code>. <code class="code"><span class="constructor">None</span></code> means that the value does not have exist or that
-      the value is removed.
-<p>
-
-      <b>Note:</b> The operation is guaranteed to be atomic.<br>
-</div>
-
-<pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">t -> key -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">remove t k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.<br>
-</div>
-
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -> key -> value option Lwt_stream.t</code></pre><div class="info ">
-<code class="code">watch t k</code> is the stream values associated to the key <code class="code">k</code>. The
-      stream return a new value every time the bindings is modified in
-      <code class="code">t</code>. It return <code class="code"><span class="constructor">None</span></code> if the binding is removed.<br>
-</div>
-
-<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type">t -> (key * value option) Lwt_stream.t</code></pre><div class="info ">
-<code class="code">watch_all t</code> watches for key creation and deletions. Use
-      <a href="Irmin.RW.html#VALwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.watch</code></a> if you are interested in a particular key.<br>
-</div>
+<h1 id="1_Reactivereadwritestores">Reactive read-write stores</h1><br>
 <br>
-FIXME: add move<br>
+Reactive read-write stores are read-write stores with reactive
+      capabilities.<br>
+
+<pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
+
+<pre><span id="TYPEwatch"><span class="keyword">type</span> <code class="type"></code>watch</span> </pre>
+<div class="info ">
+The type of watch handlers.<br>
+</div>
+
+
+<pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type">t -><br>       key -><br>       ?init:value -> (value <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.RRW.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch_key t k ?init f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch
+      handlers for the key <code class="code">k</code> and return the watch handler to be used
+      with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>. <code class="code">init</code> is the optional initial value of the
+      key.<br>
+</div>
+
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -><br>       ?init:(key * value) list -><br>       (key -> value <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.RRW.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
+<code class="code">watch t ?init f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch handlers
+      and return the watch handler to be used with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>. <code class="code">init</code>
+      is the optional initial values. It is more efficient to use
+      <a href="Irmin.RRW.html#VALwatch_key"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.watch_key</code></a> to watch only a single given key.<br>
+</div>
+
+<pre><span id="VALunwatch"><span class="keyword">val</span> unwatch</span> : <code class="type">t -> <a href="Irmin.RRW.html#TYPEwatch">watch</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">unwatch t w</code> removes <code class="code">w</code> from <code class="code">t</code>'s watch handlers.<br>
+</div>
 </body></html>

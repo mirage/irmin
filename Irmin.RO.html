@@ -47,7 +47,7 @@ Type for values.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> ('a -> <a href="Irmin.html#TYPEtask">Irmin.task</a>) -> ('a -> <a href="Irmin.RO.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> 'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> ('a -> <a href="Irmin.RO.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 <code class="code">create config task</code> is a function returning fresh store
       handles, with the configuration <code class="code">config</code> and fresh tasks
       computed using <code class="code">task</code>. <code class="code">config</code> is provided by the backend and
@@ -55,7 +55,7 @@ Type for values.<br>
       blocking, depending on the backend.<br>
 </div>
 
-<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.html#TYPEtask">Irmin.task</a></code></pre><div class="info ">
+<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> Irmin.Task.t</code></pre><div class="info ">
 <code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.<br>
 </div>
 
@@ -70,5 +70,10 @@ Same as <a href="Irmin.RO.html#VALread"><code class="code"><span class="construc
 
 <pre><span id="VALmem"><span class="keyword">val</span> mem</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> bool Lwt.t</code></pre><div class="info ">
 Check if a key exists.<br>
+</div>
+
+<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -><br>       (<a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEvalue">value</a> Lwt.t -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">iter t fn</code> call the function <code class="code">fn</code> on all <code class="code">t</code>'s keys and
+      values.<br>
 </div>
 </body></html>

@@ -9,7 +9,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.RW</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.RRW</title>
 </head>
 <body>
 <code class="code"><span class="keyword">sig</span><br>
@@ -26,4 +26,14 @@
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;compare_and_set&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;test:value&nbsp;option&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;set:value&nbsp;option&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;bool&nbsp;<span class="constructor">Lwt</span>.t<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;remove&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;watch<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;watch_key&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;key&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;?init:value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(value&nbsp;<span class="constructor">Irmin</span>.diff&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.watch&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;watch&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;?init:(key&nbsp;*&nbsp;value)&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;(key&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;value&nbsp;<span class="constructor">Irmin</span>.diff&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.watch&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;unwatch&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.watch&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="constructor">Lwt</span>.t<br>
 <span class="keyword">end</span></code></body></html>

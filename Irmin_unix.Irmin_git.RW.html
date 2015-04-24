@@ -24,7 +24,8 @@
 </div>
 <h1>Functor <a href="type_Irmin_unix.Irmin_git.RW.html">Irmin_unix.Irmin_git.RW</a></h1>
 
-<pre><span class="keyword">module</span> RW <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
+<pre><span class="keyword">module</span> RW <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.RW.html">Irmin.RW</a></code><code class="type"> 
+    with type key = K.t and type value = V.t</code></pre><div class="info module top">
 Embed a read-write store into a Git repository. Contents will be
       written in <i>.git/refs</i>.<br>
 </div>
@@ -38,6 +39,16 @@ Embed a read-write store into a Git repository. Contents will be
 <code>G</code></td>
 <td align="center" valign="top">:</td>
 <td><code class="type">Git.Store.S</code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>K</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>V</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code>
 </table>
 </td>
 </tr>
@@ -47,10 +58,6 @@ Embed a read-write store into a Git repository. Contents will be
 <h1 id="1_Readwritestores">Read-write stores</h1><br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
-
-<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">t -> (key -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">iter t fn</code> call the function <code class="code">fn</code> on all <code class="code">t</code>'s keys.<br>
-</div>
 
 <pre><span id="VALupdate"><span class="keyword">val</span> update</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">update t k v</code> replaces the contents of <code class="code">k</code> by <code class="code">v</code> in <code class="code">t</code>. If
@@ -71,17 +78,4 @@ Embed a read-write store into a Git repository. Contents will be
 <pre><span id="VALremove"><span class="keyword">val</span> remove</span> : <code class="type">t -> key -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">remove t k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.<br>
 </div>
-
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -> key -> value option Lwt_stream.t</code></pre><div class="info ">
-<code class="code">watch t k</code> is the stream values associated to the key <code class="code">k</code>. The
-      stream return a new value every time the bindings is modified in
-      <code class="code">t</code>. It return <code class="code"><span class="constructor">None</span></code> if the binding is removed.<br>
-</div>
-
-<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type">t -> (key * value option) Lwt_stream.t</code></pre><div class="info ">
-<code class="code">watch_all t</code> watches for key creation and deletions. Use
-      <a href="Irmin.RW.html#VALwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.watch</code></a> if you are interested in a particular key.<br>
-</div>
-<br>
-FIXME: add move<br>
 </body></html>

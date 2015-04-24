@@ -15,6 +15,7 @@
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Task" rel="Section" href="#1_Task">
+<link title="Task creators" rel="Section" href="#1_Taskcreators">
 <title>Irmin.Task</title>
 </head>
 <body>
@@ -85,5 +86,21 @@ Get the messages associated to the task.
 <pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type">t -> string -> unit</code></pre><div class="info ">
 Add a message to the task messages list. See
       <a href="Irmin.Task.html#VALmessages">messages</a> for more details.<br>
+</div>
+
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type">t</code></pre><div class="info ">
+The empty task.<br>
+</div>
+<br>
+<h1 id="1_Taskcreators">Task creators</h1><br>
+
+<pre><span id="TYPEf"><span class="keyword">type</span> <code class="type">'a</code> f</span> = <code class="type">'a -> t</code> </pre>
+<div class="info ">
+The type for user-defined task creators.<br>
+</div>
+
+
+<pre><span id="VALnone"><span class="keyword">val</span> none</span> : <code class="type">unit <a href="Irmin.Task.html#TYPEf">f</a></code></pre><div class="info ">
+The empty task creator.<br>
 </div>
 </body></html>

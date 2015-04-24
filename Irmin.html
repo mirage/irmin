@@ -101,6 +101,12 @@ The type for backend-specific configuration values.
     abstract to the user.<br>
 </div>
 
+
+<pre><span id="TYPEdiff"><span class="keyword">type</span> <code class="type">'a</code> diff</span> = <code class="type">[ `Added of 'a | `Removed of 'a | `Updated of 'a * 'a ]</code> </pre>
+<div class="info ">
+The type for representing differences betwen values.<br>
+</div>
+
 <br>
 An Irmin store is automatically built from a number of lower-level
     stores, implementing fewer operations, such as <a href="Irmin.AO.html">append-only</a>
@@ -121,6 +127,10 @@ Read-write stores.
 
 <pre><span class="keyword">module type</span> <a href="Irmin.HRW.html">HRW</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.HRW.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 Hierarchical read-write stores.
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin.RRW.html">RRW</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.RRW.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Reactive read-write store
 </div>
 
 <pre><span class="keyword">module type</span> <a href="Irmin.BC.html">BC</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.BC.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
@@ -166,8 +176,6 @@ User-defined tags.
     fashion very similar to Git.</li>
 <li>Efficient <a href="Irmin.View.html">staging areas</a> for fast, transient,
     in-memory operations.</li>
-<li>Space efficient <a href="Irmin.Snapshot.html">snapshots</a> and fast and consistent
-    rollback operations.</li>
 <li>Fast <a href="Irmin.Sync.html">synchronization</a> primitives between remote
     stores, using native backend protocols (as the Git protocol) when
     available.</li>
@@ -245,19 +253,27 @@ The type for default store, with keys of type <code class="code"><span class="ke
 <code class="code">impl t</code> is the store implementation of <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">('k, 'v) <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">('k, 'v) <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> 'm <a href="Irmin.Task.html#TYPEf">Task.f</a> -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.RO.html#VALcreate"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.create</code></a>. Needs a backend as first argument.<br>
 </div>
 
-<pre><span id="VALof_tag"><span class="keyword">val</span> of_tag</span> : <code class="type">('k, 'v) <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -><br>       ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> string -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_tag"><span class="keyword">val</span> of_tag</span> : <code class="type">('k, 'v) <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -><br>       'm <a href="Irmin.Task.html#TYPEf">Task.f</a> -> string -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALof_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.of_tag</code></a>. Needs a backend as first argument.<br>
 </div>
 
-<pre><span id="VALof_head"><span class="keyword">val</span> of_head</span> : <code class="type">('k, 'v) <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -><br>       ('m -> <a href="Irmin.html#TYPEtask">task</a>) -> Hash.SHA1.t -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALof_head"><span class="keyword">val</span> of_head</span> : <code class="type">('k, 'v) <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -><br>       'm <a href="Irmin.Task.html#TYPEf">Task.f</a> -> Hash.SHA1.t -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALof_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.of_head</code></a>. Needs a backend as first argument.<br>
+</div>
+
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type">('k, 'v) <a href="Irmin.html#TYPEbasic">basic</a> -><br>       <a href="Irmin.html#TYPEconfig">config</a> -> 'm <a href="Irmin.Task.html#TYPEf">Task.f</a> -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+See <a href="Irmin.BC.html#VALempty"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.empty</code></a>. Needs a backend as first argument.<br>
 </div>
 <br>
 <h2 id="2_BaseOperations">Base Operations</h2><br>
+
+<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> <a href="Irmin.html#TYPEtask">task</a></code></pre><div class="info ">
+See <a href="Irmin.RO.html#VALtask"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.task</code></a>.<br>
+</div>
 
 <pre><span id="VALread"><span class="keyword">val</span> read</span> : <code class="type">([< `BC | `HRW | `RO ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> 'k -> 'v option Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.RO.html#VALread"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.read</code></a>.<br>
@@ -271,16 +287,8 @@ See <a href="Irmin.RO.html#VALread_exn"><code class="code"><span class="construc
 See <a href="Irmin.RO.html#VALmem"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.mem</code></a>.<br>
 </div>
 
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">([< `BC | `HRW | `RO ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> 'k -> 'v option Lwt_stream.t</code></pre><div class="info ">
-See <a href="Irmin.RW.html#VALwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.watch</code></a>.<br>
-</div>
-
-<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type">([< `BC | `HRW | `RO ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> ('k * 'v option) Lwt_stream.t</code></pre><div class="info ">
-See <a href="Irmin.RW.html#VALwatch_all"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.watch_all</code></a><br>
-</div>
-
-<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">([< `BC | `HRW | `RO ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> ('k -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
-See <a href="Irmin.RW.html#VALiter"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.iter</code></a>.<br>
+<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type">([< `BC | `HRW | `RO ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+See <a href="Irmin.RO.html#VALiter"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.iter</code></a>.<br>
 </div>
 
 <pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type">([< `BC | `HRW | `RO ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> 'k -> 'k list Lwt.t</code></pre><div class="info ">
@@ -313,7 +321,7 @@ See <a href="Irmin.BC.html#VALtag_exn"><code class="code"><span class="construct
 See <a href="Irmin.BC.html#VALtags"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tags</code></a>.<br>
 </div>
 
-<pre><span id="VALremove_tag"><span class="keyword">val</span> remove_tag</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALremove_tag"><span class="keyword">val</span> remove_tag</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> string -> unit Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALremove_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.remove_tag</code></a>.<br>
 </div>
 
@@ -339,7 +347,7 @@ See <a href="Irmin.BC.html#VALhead"><code class="code"><span class="constructor"
 See <a href="Irmin.BC.html#VALhead_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.head_exn</code></a>.<br>
 </div>
 
-<pre><span id="VALbranch"><span class="keyword">val</span> branch</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> [ `Head of Hash.SHA1.t | `Tag of string ]</code></pre><div class="info ">
+<pre><span id="VALbranch"><span class="keyword">val</span> branch</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       [ `Empty | `Head of Hash.SHA1.t | `Tag of string ]</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALbranch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.branch</code></a>.<br>
 </div>
 
@@ -351,6 +359,10 @@ See <a href="Irmin.BC.html#VALheads"><code class="code"><span class="constructor
 See <a href="Irmin.BC.html#VALupdate_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.update_head</code></a>.<br>
 </div>
 
+<pre><span id="VALcompare_and_set_head"><span class="keyword">val</span> compare_and_set_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       test:Hash.SHA1.t option -> set:Hash.SHA1.t option -> bool Lwt.t</code></pre><div class="info ">
+See <a href="Irmin.BC.html#VALcompare_and_set_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.compare_and_set_head</code></a>.<br>
+</div>
+
 <pre><span id="VALmerge_head"><span class="keyword">val</span> merge_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       ?max_depth:int -> ?n:int -> Hash.SHA1.t -> unit <a href="Irmin.Merge.html#TYPEresult">Merge.result</a> Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALmerge_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_head</code></a>.<br>
 </div>
@@ -359,21 +371,25 @@ See <a href="Irmin.BC.html#VALmerge_head"><code class="code"><span class="constr
 See <a href="Irmin.BC.html#VALmerge_head_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_head_exn</code></a>.<br>
 </div>
 
-<pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> 'k -> ('k * Hash.SHA1.t option) Lwt_stream.t</code></pre><div class="info ">
+<pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       ?init:Hash.SHA1.t -><br>       (Hash.SHA1.t <a href="Irmin.html#TYPEdiff">diff</a> -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALwatch_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.watch_head</code></a>.<br>
 </div>
 
-<pre><span id="VALwatch_tags"><span class="keyword">val</span> watch_tags</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -> (string * Hash.SHA1.t option) Lwt_stream.t</code></pre><div class="info ">
+<pre><span id="VALwatch_tags"><span class="keyword">val</span> watch_tags</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       ?init:(string * Hash.SHA1.t) list -><br>       (string -> Hash.SHA1.t <a href="Irmin.html#TYPEdiff">diff</a> -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALwatch_tags"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.watch_tags</code></a>.<br>
+</div>
+
+<pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type">([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       'k -><br>       ?init:Hash.SHA1.t * 'v -><br>       ((Hash.SHA1.t * 'v) Ir_watch.diff -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
+See <a href="Irmin.BC.html#VALwatch_key"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.watch_key</code></a>.<br>
 </div>
 <br>
 <h2 id="2_ClonesandMerges">Clones and Merges</h2><br>
 
-<pre><span id="VALclone"><span class="keyword">val</span> clone</span> : <code class="type">('m -> <a href="Irmin.html#TYPEtask">task</a>) -><br>       ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       string -> [ `Duplicated_tag | `Ok of 'm -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> ] Lwt.t</code></pre><div class="info ">
+<pre><span id="VALclone"><span class="keyword">val</span> clone</span> : <code class="type">'m <a href="Irmin.Task.html#TYPEf">Task.f</a> -><br>       ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       string -> [ `Duplicated_tag | `Ok of 'm -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> ] Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALclone"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.clone</code></a>.<br>
 </div>
 
-<pre><span id="VALclone_force"><span class="keyword">val</span> clone_force</span> : <code class="type">('m -> <a href="Irmin.html#TYPEtask">task</a>) -><br>       ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       string -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALclone_force"><span class="keyword">val</span> clone_force</span> : <code class="type">'m <a href="Irmin.Task.html#TYPEf">Task.f</a> -><br>       ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a> -><br>       string -> ('m -> ([ `BC ], 'k, 'v) <a href="Irmin.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
 See <a href="Irmin.BC.html#VALclone_force"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.clone_force</code></a>.<br>
 </div>
 
@@ -642,13 +658,9 @@ See <a href="Irmin.Sync.html#VALpush_exn"><code class="code"><span class="constr
 
 <pre><span class="keyword">module</span> <a href="Irmin.View.html">View</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.VIEW.html">VIEW</a></code><code class="type">  with type db = S.t
                           and type key = S.Key.t
-                          and type value = S.Val.t</code></pre><div class="info">
+                          and type value = S.Val.t
+                          and type head = S.head</code></pre><div class="info">
 Create views.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Snapshot.html">Snapshot</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Snapshot.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
-<code class="code"><span class="constructor">Snapshot</span></code> provides read-only, space-efficient, checkpoints of a
-    store.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Dot.html">Dot</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Dot.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
@@ -685,9 +697,9 @@ API to create new Irmin backends. A backend is an implementation
     append-only stores.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.RW.html">RW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="type"><a href="Irmin.RRW.html">RRW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
 <code class="code"><span class="constructor">RW_MAKER</span></code> is the signature exposed by any backend providing
-    read-write stores.
+    reactive read-write stores.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">AO</span></code><code class="code"> : </code><code class="type"><a href="Irmin.AO_MAKER.html">AO_MAKER</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">RW</span></code><code class="code"> : </code><code class="type"><a href="Irmin.RW_MAKER.html">RW_MAKER</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></pre><div class="info">

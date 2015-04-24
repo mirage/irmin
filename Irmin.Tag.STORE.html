@@ -26,9 +26,9 @@
 <code class="code"><span class="constructor">STORE</span></code> specifies the signature of tag stores.
 <p>
 
-      A <i>tag store</i> is a key / value store, where keys are names
-      created by users (and/or global names created by convention) and
-      values are keys from the block store.
+      A <i>tag store</i> is a mutable and reactive key / value store,
+      where keys are names created by users (and/or global names
+      created by convention) and values are keys from the block store.
 <p>
 
       A typical Irmin application should have a very low number of
@@ -38,7 +38,7 @@
 <br>
 <h1 id="1_TagStore">Tag Store</h1><br>
 
-<pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.RRW.html">Irmin.RRW</a></pre>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Tag.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
 Base functions on keys.

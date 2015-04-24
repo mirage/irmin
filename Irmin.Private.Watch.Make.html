@@ -58,16 +58,28 @@ The type for store values.<br>
 </div>
 
 
+<pre><span id="TYPEwatch"><span class="keyword">type</span> <code class="type"></code>watch</span> </pre>
+<div class="info ">
+The type for watch handlers.<br>
+</div>
+
+
 <pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> </pre>
 <div class="info ">
 The type for watch state.<br>
 </div>
 
 
-<pre><span id="VALnotify"><span class="keyword">val</span> notify</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option -> unit</code></pre><div class="info ">
+<pre><span id="VALstats"><span class="keyword">val</span> stats</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -> int * int</code></pre><div class="info ">
+<code class="code">stats t</code> is a tuple <code class="code">(k,a)</code> represeting watch stats. <code class="code">k</code> is
+          the number of single key watchers for the store <code class="code">t</code> and <code class="code">a</code> the
+          number of global watchers for <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALnotify"><span class="keyword">val</span> notify</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option -> unit Lwt.t</code></pre><div class="info ">
 Notify all listeners in the given watch state that a key has
-          changed, with the new value associated to this key. If the
-          argument is <code class="code"><span class="constructor">None</span></code>, this means the key has been removed.<br>
+          changed, with the new value associated to this key. <code class="code"><span class="constructor">None</span></code>
+          means the key has been removed.<br>
 </div>
 
 <pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type">unit -> <a href="Irmin.Private.Watch.S.html#TYPEt">t</a></code></pre><div class="info ">
@@ -78,18 +90,22 @@ Create a watch state.<br>
 Clear all register listeners in the given watch state.<br>
 </div>
 
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option -><br>       <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option Lwt_stream.t</code></pre><div class="info ">
-Create a stream of value notifications. Need to provide the
-          initial value, or <code class="code"><span class="constructor">None</span></code> if the key does not have associated
-          contents yet.<br>
+<pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -><br>       ?init:<a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> -><br>       (<a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       <a href="Irmin.Private.Watch.S.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
+Watch a given key for changes. More efficient than <a href="Irmin.Private.Watch.S.html#VALwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Watch</span>.<span class="constructor">S</span>.watch</code></a>.<br>
 </div>
 
-<pre><span id="VALwatch_all"><span class="keyword">val</span> watch_all</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       (<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> * <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option) Lwt_stream.t</code></pre><div class="info ">
-Watch for creation and deletion of keys.<br>
+<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       ?init:(<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> * <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a>) list -><br>       (<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -><br>        <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       <a href="Irmin.Private.Watch.S.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
+Add a watch handler. To watch a specific key, use
+          <a href="Irmin.Private.Watch.S.html#VALwatch_key"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Watch</span>.<span class="constructor">S</span>.watch_key</code></a> which is more efficient.<br>
 </div>
 
-<pre><span id="VALlisten_dir"><span class="keyword">val</span> listen_dir</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       string -><br>       key:(string -> <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> option) -><br>       value:(<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option Lwt.t) -><br>       unit</code></pre><div class="info ">
-Register a fsevents/inotify thread to look for changes in
-            the given directory.<br>
+<pre><span id="VALunwatch"><span class="keyword">val</span> unwatch</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -> <a href="Irmin.Private.Watch.S.html#TYPEwatch">watch</a> -> unit Lwt.t</code></pre><div class="info ">
+Remove a watch handler.<br>
+</div>
+
+<pre><span id="VALlisten_dir"><span class="keyword">val</span> listen_dir</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       string -><br>       key:(string -> <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> option) -><br>       value:(<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option Lwt.t) -><br>       unit -> unit</code></pre><div class="info ">
+Register a thread looking for changes in the given directory
+          and return a function to stop watching and free up
+          resources.<br>
 </div>
 </body></html>

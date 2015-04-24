@@ -62,7 +62,8 @@ The configuration key to set the local Git repository's bare
 Embed an append-only store into a Git repository.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.RW.html">RW</a> <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.RW.html">RW</a> <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.RW.html">Irmin.RW</a></code><code class="type"> 
+    with type key = K.t and type value = V.t</code></pre><div class="info">
 Embed a read-write store into a Git repository.
 </div>
 
