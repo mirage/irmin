@@ -386,10 +386,11 @@ let watch = {
               printf "%s%s\n%!" v k
             in
             let x, y = match d with
-              | `Updated (x, y) -> snd x, snd y
-              | `Added x        -> View.empty (), snd x
-              | `Removed x      -> snd x, View.empty ()
+              | `Updated (x, y) -> Lwt.return (snd x), Lwt.return (snd y)
+              | `Added x        -> View.empty (), Lwt.return (snd x)
+              | `Removed x      -> Lwt.return (snd x), View.empty ()
             in
+            x >>= fun x -> y >>= fun y ->
             View.diff x y >>= fun diff ->
             List.iter pr diff;
             return_unit

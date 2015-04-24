@@ -566,7 +566,8 @@ module Make (S: Irmin.S) = struct
       S.remove_rec (t1 "fresh") (p ["a"]) >>= fun () ->
 
       S.head_exn (t1 "head") >>= fun h ->
-      let init = h, View.empty () in
+      View.empty () >>= fun v ->
+      let init = h, v in
 
       View.watch_path (t2 "wath-path") ~init (p ["a";"b"]) (State.process state)
       >>= fun unwatch ->
@@ -912,7 +913,7 @@ module Make (S: Irmin.S) = struct
 
       (* Testing [View.remove] *)
 
-      let v1 = View.empty () in
+      View.empty () >>= fun v1 ->
 
       View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
       View.update v1 (p ["foo";"2"]) foo2 >>= fun () ->
@@ -954,9 +955,9 @@ module Make (S: Irmin.S) = struct
         if not (cmp x y) then error msg (printer x) (printer y)
       in
 
-      let v0 = View.empty () in
-      let v1 = View.empty () in
-      let v2 = View.empty () in
+      View.empty () >>= fun v0 ->
+      View.empty () >>= fun v1 ->
+      View.empty () >>= fun v2 ->
       View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
       View.update v2 (p ["foo";"1"]) foo2 >>= fun () ->
       View.update v2 (p ["foo";"2"]) foo1 >>= fun () ->
@@ -973,7 +974,7 @@ module Make (S: Irmin.S) = struct
 
       (* Testing other View operations. *)
 
-      let v0 = View.empty () in
+      View.empty () >>= fun v0 ->
 
       View.update v0 (p []) foo1 >>= fun () ->
       View.read   v0 (p []) >>= fun foo1' ->

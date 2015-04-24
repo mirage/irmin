@@ -2210,7 +2210,7 @@ module type VIEW = sig
   (** A view is a read-write temporary store, mirroring the main
       store. *)
 
-  val empty: unit -> t
+  val empty: unit -> t Lwt.t
   (** Create an empty view. Empty views do not have associated backend
       configuration values, as they can perform in-memory operation,
       independently of any given backend. *)

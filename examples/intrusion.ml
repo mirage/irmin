@@ -35,7 +35,7 @@ let provision () =
 
   Store.of_tag config task "upstream" >>= fun t ->
 
-  let v = View.empty () in
+  View.empty () >>= fun v ->
   View.update v ["etc"; "manpath"]
     "/usr/share/man\n\
      /usr/local/share/man"
@@ -52,7 +52,7 @@ let configure () =
   Lwt_unix.sleep 2.                >>= fun () ->
 
   Store.clone_force task (t "Switching to upstream") "upstream" >>= fun t ->
-  let v = View.empty () in
+  View.empty () >>= fun v ->
 
 (*
   Store.View.update v ["etc";"passwd"]

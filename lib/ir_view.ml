@@ -169,11 +169,11 @@ module Internal (Node: NODE) = struct
     let ops = ref [] in
     let parents = ref [] in
     let lock = Lwt_mutex.create () in
-    { parents; view; ops; lock }
+    Lwt.return { parents; view; ops; lock }
 
   let create _conf _task =
     Log.debug "create";
-    let t = empty () in
+    empty () >>= fun t ->
     Lwt.return (fun _ -> t)
 
   let task _ = failwith "Not task for views"
@@ -864,7 +864,7 @@ end
 
 module type S = sig
   include Ir_rw.HIERARCHICAL
-  val empty: unit -> t
+  val empty: unit -> t Lwt.t
   val rebase: t -> into:t -> unit Ir_merge.result Lwt.t
   val rebase_exn: t -> into:t -> unit Lwt.t
   type db

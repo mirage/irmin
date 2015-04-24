@@ -18,7 +18,7 @@
 
 module type S = sig
   include Ir_rw.HIERARCHICAL
-  val empty: unit -> t
+  val empty: unit -> t Lwt.t
   val rebase: t -> into:t -> unit Ir_merge.result Lwt.t
   val rebase_exn: t -> into:t -> unit Lwt.t
   type db

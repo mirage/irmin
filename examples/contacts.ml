@@ -95,7 +95,7 @@ module Contact = struct
   let view_of_t t =
     let name = Contents.String t.name in
     let phones = Contents.Set t.phones in
-    let v = View.empty () in
+    View.empty () >>= fun v ->
     View.update v [t.id; "name"  ] name >>= fun () ->
     View.update v [t.id; "phones"] phones >>= fun () ->
     return v

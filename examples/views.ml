@@ -36,7 +36,7 @@ type t = t2 list
 
 let view_of_t t =
   Log.debug "view_of_t";
-  let v = View.empty () in
+  View.empty () >>= fun v ->
   Lwt_list.iteri_s (fun i t2 ->
       let i = string_of_int i in
       View.update v [i;"x"] t2.x >>= fun () ->
