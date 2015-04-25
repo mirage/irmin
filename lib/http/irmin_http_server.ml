@@ -500,7 +500,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let key: S.key Tc.t = (module S.Key)
   let head: S.head Tc.t = (module S.Head)
 
-  let export = Tc.pair (Tc.list head) (Tc.list head)
+  let export = Tc.pair (Tc.list head) (Tc.option (Tc.list head))
 
   let merge (type x) (x:x Tc.t): x Irmin.Merge.result Tc.t =
     let module X = (val x: Tc.S0 with type t = x) in
@@ -576,7 +576,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     in
     let s_export t (min, max) query =
       let full, depth = mk_export_query query in
-      S.export ?full ?depth ~min ~max t
+      S.export ?full ?depth ~min ?max t
+
     in
     let s_history t (min, max) query =
       let depth = mk_history_query query in
