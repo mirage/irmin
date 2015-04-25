@@ -86,14 +86,14 @@ module Make (S: Ir_s.STORE) = struct
       Log.debug "fetch store";
       S.heads t >>= fun min ->
       let min = List.map (conv (module S.Head) (module R.Head) ) min in
-      R.export r ?depth ~min >>= fun r_slice ->
-      convert_slice (module R.Private) (module S.Private) r_slice
-      >>= fun s_slice -> S.import t s_slice >>= fun () ->
       R.head r >>= function
       | None   -> return_none
       | Some h ->
-        let h = conv (module R.Head) (module S.Head) h in
-        return (Some h)
+         R.export r ?depth ~min ~max:[h] >>= fun r_slice ->
+         convert_slice (module R.Private) (module S.Private) r_slice >>= fun s_slice ->
+         S.import t s_slice >>= fun () ->
+         let h = conv (module R.Head) (module S.Head) h in
+         return (Some h)
 
   let fetch_exn t ?depth remote =
     fetch t ?depth remote >>= function
