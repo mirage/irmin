@@ -727,13 +727,13 @@ struct
     LP.Commit.read_exn t.commit_t head >>= fun commit ->
     Lwt.return (LP.Commit.Val.task commit)
 
-  module E = Tc.Pair (Tc.List(Head)) (Tc.List(Head))
+  module E = Tc.Pair (Tc.List(Head)) (Tc.Option(Tc.List(Head)))
 
   type slice = L.slice
 
   module Slice = L.Private.Slice
 
-  let export ?full ?depth ?(min=[]) ?(max=[]) t =
+  let export ?full ?depth ?(min=[]) ?max t =
     let query =
       let full = match full with
         | None   -> []
