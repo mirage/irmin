@@ -1,4 +1,6 @@
 ## 0.9.5
+* Fix `Irmin.export` for the HTTP backend (#196, patch from Alex Zatelepin)
+* Fix a race in `Irmin.export` (#196, patch from Alex Zatelepin)
 * Add `Task.empty` (the empty task) and `Task.none` (the empty task constructor)
 * Completely rewrite the notification mechanism. All the watch functions now
   take a callback as argument and return a de-allocation function. The callbacks
