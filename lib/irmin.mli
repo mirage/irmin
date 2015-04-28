@@ -1814,7 +1814,7 @@ val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
 val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t
-(** See {!RW.iter}. *)
+(** See {!RO.iter}. *)
 
 val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
 (** See {!HRW.list}. *)
