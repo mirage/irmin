@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 61de81f1f1f4fab41b3fc8942cccac61)
+# DO NOT EDIT (digest: f8bd19587687766cb398cf5ac32a65b8)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -288,31 +288,6 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: use_irmin-http
 <examples/views.{native,byte}>: use_irmin-mem
 <examples/views.{native,byte}>: use_irmin-unix
-# Executable test_contatcs
-<examples/contacts.{native,byte}>: pkg_cohttp.lwt
-<examples/contacts.{native,byte}>: pkg_cohttp.lwt-core
-<examples/contacts.{native,byte}>: pkg_cstruct
-<examples/contacts.{native,byte}>: pkg_dolog
-<examples/contacts.{native,byte}>: pkg_ezjsonm
-<examples/contacts.{native,byte}>: pkg_ezjsonm.lwt
-<examples/contacts.{native,byte}>: pkg_git
-<examples/contacts.{native,byte}>: pkg_git.unix
-<examples/contacts.{native,byte}>: pkg_hex
-<examples/contacts.{native,byte}>: pkg_lwt
-<examples/contacts.{native,byte}>: pkg_mstruct
-<examples/contacts.{native,byte}>: pkg_ocamlgraph
-<examples/contacts.{native,byte}>: pkg_re
-<examples/contacts.{native,byte}>: pkg_re.pcre
-<examples/contacts.{native,byte}>: pkg_re.perl
-<examples/contacts.{native,byte}>: pkg_stringext
-<examples/contacts.{native,byte}>: pkg_tc
-<examples/contacts.{native,byte}>: pkg_uri
-<examples/contacts.{native,byte}>: use_irmin
-<examples/contacts.{native,byte}>: use_irmin-fs
-<examples/contacts.{native,byte}>: use_irmin-git
-<examples/contacts.{native,byte}>: use_irmin-http
-<examples/contacts.{native,byte}>: use_irmin-mem
-<examples/contacts.{native,byte}>: use_irmin-unix
 # Executable test_intrusion
 <examples/intrusion.{native,byte}>: pkg_cohttp.lwt
 <examples/intrusion.{native,byte}>: pkg_cohttp.lwt-core
