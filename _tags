@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f8bd19587687766cb398cf5ac32a65b8)
+# DO NOT EDIT (digest: 81044262e1884659b36c5c395929a161)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -288,31 +288,31 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: use_irmin-http
 <examples/views.{native,byte}>: use_irmin-mem
 <examples/views.{native,byte}>: use_irmin-unix
-# Executable test_intrusion
-<examples/intrusion.{native,byte}>: pkg_cohttp.lwt
-<examples/intrusion.{native,byte}>: pkg_cohttp.lwt-core
-<examples/intrusion.{native,byte}>: pkg_cstruct
-<examples/intrusion.{native,byte}>: pkg_dolog
-<examples/intrusion.{native,byte}>: pkg_ezjsonm
-<examples/intrusion.{native,byte}>: pkg_ezjsonm.lwt
-<examples/intrusion.{native,byte}>: pkg_git
-<examples/intrusion.{native,byte}>: pkg_git.unix
-<examples/intrusion.{native,byte}>: pkg_hex
-<examples/intrusion.{native,byte}>: pkg_lwt
-<examples/intrusion.{native,byte}>: pkg_mstruct
-<examples/intrusion.{native,byte}>: pkg_ocamlgraph
-<examples/intrusion.{native,byte}>: pkg_re
-<examples/intrusion.{native,byte}>: pkg_re.pcre
-<examples/intrusion.{native,byte}>: pkg_re.perl
-<examples/intrusion.{native,byte}>: pkg_stringext
-<examples/intrusion.{native,byte}>: pkg_tc
-<examples/intrusion.{native,byte}>: pkg_uri
-<examples/intrusion.{native,byte}>: use_irmin
-<examples/intrusion.{native,byte}>: use_irmin-fs
-<examples/intrusion.{native,byte}>: use_irmin-git
-<examples/intrusion.{native,byte}>: use_irmin-http
-<examples/intrusion.{native,byte}>: use_irmin-mem
-<examples/intrusion.{native,byte}>: use_irmin-unix
+# Executable test_deploy
+<examples/deploy.{native,byte}>: pkg_cohttp.lwt
+<examples/deploy.{native,byte}>: pkg_cohttp.lwt-core
+<examples/deploy.{native,byte}>: pkg_cstruct
+<examples/deploy.{native,byte}>: pkg_dolog
+<examples/deploy.{native,byte}>: pkg_ezjsonm
+<examples/deploy.{native,byte}>: pkg_ezjsonm.lwt
+<examples/deploy.{native,byte}>: pkg_git
+<examples/deploy.{native,byte}>: pkg_git.unix
+<examples/deploy.{native,byte}>: pkg_hex
+<examples/deploy.{native,byte}>: pkg_lwt
+<examples/deploy.{native,byte}>: pkg_mstruct
+<examples/deploy.{native,byte}>: pkg_ocamlgraph
+<examples/deploy.{native,byte}>: pkg_re
+<examples/deploy.{native,byte}>: pkg_re.pcre
+<examples/deploy.{native,byte}>: pkg_re.perl
+<examples/deploy.{native,byte}>: pkg_stringext
+<examples/deploy.{native,byte}>: pkg_tc
+<examples/deploy.{native,byte}>: pkg_uri
+<examples/deploy.{native,byte}>: use_irmin
+<examples/deploy.{native,byte}>: use_irmin-fs
+<examples/deploy.{native,byte}>: use_irmin-git
+<examples/deploy.{native,byte}>: use_irmin-http
+<examples/deploy.{native,byte}>: use_irmin-mem
+<examples/deploy.{native,byte}>: use_irmin-unix
 # Executable test_process
 <examples/process.{native,byte}>: pkg_cohttp.lwt
 <examples/process.{native,byte}>: pkg_cohttp.lwt-core
