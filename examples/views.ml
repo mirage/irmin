@@ -1,24 +1,5 @@
-(*
-
-  Simple example showing how to create and use a Git store.
-
-  $ make                               # Compile
-  $ ./views                            # Run
-  $ cd /tmp/irmin/test && git log      # Show the Git history
-
-*)
-
 open Lwt
 open Irmin_unix
-
-(* Enable debug outputs if DEBUG is set *)
-let () =
-  try match Sys.getenv "DEBUG" with
-    | "" -> ()
-    | _  ->
-      Log.color_on ();
-      Log.set_log_level Log.DEBUG
-  with Not_found -> ()
 
 module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
 module View = Irmin.View(Store)
