@@ -480,7 +480,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
     let task t = t.task
 
     let tag_of_git r =
-      let str = Git.Reference.to_raw r in
+      let str = String.trim @@ Git.Reference.to_raw r in
       match string_chop_prefix ~prefix:"refs/heads/" str with
       | None   -> None
       | Some r -> Some (Key.of_hum r)
