@@ -1,51 +1,49 @@
-(*
-
-  Simple example showing how to create and use a Git store.
-
-  $ make                               # Compile
-  $ ./git_store                        # Run
-  $ cd /tmp/irmin/test && git log      # Show the Git history
-
-*)
-
-
+(* Simple example of reading and writing in a Git repository *)
 open Lwt
 open Irmin_unix
+open Printf
 
-(* Enable debug outputs if DEBUG is set *)
-let () =
-  try match Sys.getenv "DEBUG" with
-    | "" -> ()
-    | _  ->
-      Log.color_on ();
-      Log.set_log_level Log.DEBUG
-  with Not_found -> ()
-
+let root = "/tmp/irmin/test"
 let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
 
+let update t k v =
+  let msg = sprintf "Updating /%s" (String.concat "/" k) in
+  print_endline msg;
+  Irmin.update (t msg) k v
+
+let read_exn t k =
+  let msg = sprintf "Reading /%s" (String.concat "/" k) in
+  print_endline msg;
+  Irmin.read_exn (t msg) k
+
 let main () =
-  let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true () in
+  let config = Irmin_git.config ~root ~bare:true () in
   Irmin.create store config task >>= fun t ->
 
-  Irmin.update (t "t: Update 1.txt") ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
-  Irmin.update (t "t: Update 2.txt") ["root";"misc";"2.txt"] "Hi!" >>= fun () ->
-  Irmin.update (t "t: Update 3.txt") ["root";"misc";"3.txt"] "How are you ?" >>= fun () ->
-
-  Irmin.read_exn (t "t: Read 2.txt") ["root";"misc";"2.txt"] >>= fun file ->
-  Printf.printf "I've just read: %s\n%!" file;
+  update t ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
+  update t ["root";"misc";"2.txt"] "Hi!" >>= fun () ->
+  update t ["root";"misc";"3.txt"] "How are you ?" >>= fun () ->
+  read_exn t ["root";"misc";"2.txt"] >>= fun _ ->
 
   Irmin.clone_force task (t "x: Cloning 't'") "test" >>= fun x ->
+  print_endline "cloning ...";
 
-  Irmin.update (t "t: Update 3.txt") ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
-  Irmin.update (x "x: Update 2.txt") ["root";"misc";"2.txt"] "HELP!"  >>= fun () ->
+  update t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
+  update x ["root";"misc";"2.txt"] "Cool!"  >>= fun () ->
 
   Irmin.merge_exn "t: Merge with 'x'" x ~into:t >>= fun () ->
+  print_endline "merging ...";
 
-  Irmin.read_exn (t "t: Read 2.txt") ["root";"misc";"2.txt"]  >>= fun file2 ->
-  Irmin.read_exn (t "t: Read 3.txt") ["root";"misc";"3.txt"]  >>= fun file3 ->
-  Printf.printf "I've just read: 2:%s 3:%s\n%!" file2 file3;
+  read_exn t ["root";"misc";"2.txt"]  >>= fun _ ->
+  read_exn t ["root";"misc";"3.txt"]  >>= fun _ ->
 
   return_unit
 
 let () =
-  Lwt_unix.run (main ())
+  Printf.printf
+    "This example creates a Git repository in %s and use it to read \n\
+     and write data:\n" root;
+  let _ = Sys.command (Printf.sprintf "rm -rf %s" root) in
+  Lwt_unix.run (main ());
+  Printf.printf
+    "You can now run `cd %s && tig` to inspect the store.\n" root;
