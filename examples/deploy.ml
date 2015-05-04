@@ -100,8 +100,8 @@ let () =
        to http://127.0.0.1:8080/graph to see the system state evolving in \n\
        real-time during the different phases.\n\
        \n\
-       Using a VCS-style filesystem allows to track file modification, with \n\
-       user origin and dates. It a allows to quickly revert to a consistent \n\
+       Using a VCS-style filesystem allows file modifications to be tracked, with \n\
+       user origin and dates. It also supports quickly reverting to a consistent \n\
        state when needed.\n"
       cmd cmd cmd cmd Config.root
   in
@@ -117,7 +117,7 @@ let () =
     | "configure" ->
       Lwt_unix.run (configure ());
       Printf.printf
-        "The VM is now configured. Run `%s attack to simulate an attack by an \n\
+        "The VM is now configured. Run `%s attack` to simulate an attack by an \n\
          intruder.\n" cmd
 
     | "attack" ->
