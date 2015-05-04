@@ -1,5 +1,5 @@
 let what =
-  "This example demanstrate custom merges.\n\
+  "This example demonstrates custom merges on Irmin datastructures.\n\
    \n\
    It models log files as a sequence of lines, ordered by timestamps.\n\
    \n\
