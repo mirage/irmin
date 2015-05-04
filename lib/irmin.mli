@@ -2328,6 +2328,8 @@ module type VIEW = sig
       updated in the branch [t]. The callback parameters contains
       branch's current head and the corresponding view. *)
 
+  val task: [`Views_do_not_have_task]
+  (** Views do not have tasks. *)
 end
 
 module View (S: S): VIEW with type db = S.t
