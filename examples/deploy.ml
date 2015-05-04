@@ -7,10 +7,9 @@ let () = install_dir_polling_listener 0.5
 module Store = Irmin.Basic(Irmin_git.FS)(Irmin.Contents.String)
 module View = Irmin.View(Store)
 
-let root = "/tmp/irmin/test"
 let config =
   let head = Git.Reference.of_raw "refs/heads/upstream" in
-  Irmin_git.config ~root ~head ~bare:false ()
+  Irmin_git.config ~root:Config.root ~head ~bare:false ()
 
 let task ~user msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
@@ -19,8 +18,7 @@ let task ~user msg =
 
 (* 1. Cloning the gold image. *)
 let provision () =
-  let _ = Sys.command (Printf.sprintf "rm -rf %s" root) in
-  let _ = Sys.command (Printf.sprintf "mkdir -p %s" root) in
+  Config.init ();
   let provision = task ~user:"Automatic VM provisioning" in
 
   Store.of_tag config provision "upstream" >>= fun t ->
@@ -105,7 +103,7 @@ let () =
        Using a VCS-style filesystem allows to track file modification, with \n\
        user origin and dates. It a allows to quickly revert to a consistent \n\
        state when needed.\n"
-      cmd cmd cmd cmd root
+      cmd cmd cmd cmd Config.root
   in
   if Array.length Sys.argv <> 2 then help ()
   else match Sys.argv.(1) with

@@ -41,7 +41,8 @@ let t_of_view v =
   Lwt_list.fold_left_s aux [] t2s
 
 let main () =
-  let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:false () in
+  Config.init ();
+  let config = Irmin_git.config ~root:Config.root ~bare:false () in
   let t = [
     { x = "foo"; y = 3 };
     { x = "bar"; y = 5 };

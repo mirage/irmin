@@ -14,16 +14,6 @@ let what =
 open Lwt
 open Irmin_unix
 
-(* Enable debug outputs if DEBUG is set *)
-let () =
-  try match Sys.getenv "DEBUG" with
-    | "" -> ()
-    | _  ->
-      Log.color_on ();
-      Log.set_log_level Log.DEBUG
-  with Not_found -> ()
-
-
 let time = ref 0
 
 (* A log entry *)
@@ -95,12 +85,10 @@ let print_logs name t =
   Printf.printf "-----------\n%s:\n-----------\n%s%!" name (Log.pretty logs);
   Lwt.return_unit
 
-let root = "/tmp/irmin/test"
-
 let main () =
-  let _ = Sys.command (Printf.sprintf "rm -rf %s" root) in
+  Config.init ();
   let store = Irmin.basic (module Irmin_git.FS) (module Log) in
-  let config = Irmin_git.config ~root ~bare:true () in
+  let config = Irmin_git.config ~root:Config.root ~bare:true () in
   Irmin.create store config task >>= fun t ->
 
   (* populate the log with some random messages *)

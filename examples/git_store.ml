@@ -3,7 +3,6 @@ open Lwt
 open Irmin_unix
 open Printf
 
-let root = "/tmp/irmin/test"
 let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
 
 let update t k v =
@@ -17,7 +16,8 @@ let read_exn t k =
   Irmin.read_exn (t msg) k
 
 let main () =
-  let config = Irmin_git.config ~root ~bare:true () in
+  Config.init ();
+  let config = Irmin_git.config ~root:Config.root ~bare:true () in
   Irmin.create store config task >>= fun t ->
 
   update t ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
@@ -42,8 +42,8 @@ let main () =
 let () =
   Printf.printf
     "This example creates a Git repository in %s and use it to read \n\
-     and write data:\n" root;
-  let _ = Sys.command (Printf.sprintf "rm -rf %s" root) in
+     and write data:\n" Config.root;
+  let _ = Sys.command (Printf.sprintf "rm -rf %s" Config.root) in
   Lwt_unix.run (main ());
   Printf.printf
-    "You can now run `cd %s && tig` to inspect the store.\n" root;
+    "You can now run `cd %s && tig` to inspect the store.\n" Config.root;
