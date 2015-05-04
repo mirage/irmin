@@ -480,7 +480,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
     let task t = t.task
 
     let tag_of_git r =
-      let str = Git.Reference.to_raw r in
+      let str = String.trim @@ Git.Reference.to_raw r in
       match string_chop_prefix ~prefix:"refs/heads/" str with
       | None   -> None
       | Some r -> Some (Key.of_hum r)
@@ -537,20 +537,12 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         end >>= fun () ->
         return head
       in
-      begin
-        G.read_head t >>= function
-        | Some (Git.Reference.Ref current_head) ->
-          begin match head with
-            | None   -> write_head (git_of_tag T.master)
-            | Some h ->
-              if h = current_head then return (Git.Reference.Ref h)
-              else write_head h
-          end
-        | _ ->
-          begin match head with
-            | None   -> write_head (git_of_tag T.master)
-            | Some h -> write_head h
-          end
+      begin match head with
+        | Some h -> write_head h
+        | None   ->
+          G.read_head t >>= function
+          | Some head -> Lwt.return head
+          | None      -> write_head (git_of_tag T.master)
       end >>= fun git_head ->
       let w = W.create () in
       return (fun a -> { task = task a; git_head; config; t; w; git_root })

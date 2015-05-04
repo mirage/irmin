@@ -1,26 +1,18 @@
-(*
-
-  Simple example showing how to define and use a custom merge operator.
-
-  $ make                               # Compile
-  $ ./custom_merge                     # Run
-  $ cd /tmp/irmin/test && git log      # Show the Git history
-
-*)
-
+let what =
+  "This example demanstrate custom merges.\n\
+   \n\
+   It models log files as a sequence of lines, ordered by timestamps.\n\
+   \n\
+   The log files of `branch 1` and `branch 2` are merged by using the following \n\
+   strategy:\n\
+  \  - find the log file corresponding the lowest common ancestor: `lca`\n\
+  \  - remove the prefix `lca` from `branch 1`; this gives `l1`;\n\
+  \  - remove the prefix `lca` from `branch 2`; this gives `l2`;\n\
+  \  - interleave `l1` and `l2` by ordering the timestamps; This gives `l3`;\n\
+  \  - concatenate `lca` and `l3`; This gives the final result."
 
 open Lwt
 open Irmin_unix
-
-(* Enable debug outputs if DEBUG is set *)
-let () =
-  try match Sys.getenv "DEBUG" with
-    | "" -> ()
-    | _  ->
-      Log.color_on ();
-      Log.set_log_level Log.DEBUG
-  with Not_found -> ()
-
 
 let time = ref 0
 
@@ -43,7 +35,7 @@ module Log = struct
 
   let pretty l =
     let buf = Buffer.create 1024 in
-    List.iter (fun (t, m) -> Printf.bprintf buf "%04d: %s\n" t m) l;
+    List.iter (fun (t, m) -> Printf.bprintf buf "%04d: %s\n" t m) (List.rev l);
     Buffer.contents buf
 
   let timestamp = function
@@ -88,9 +80,15 @@ let log t fmt =
       Irmin.update (t "Adding a new entry") log_file logs
     ) fmt
 
+let print_logs name t =
+  all_logs t >>= fun logs ->
+  Printf.printf "-----------\n%s:\n-----------\n%s%!" name (Log.pretty logs);
+  Lwt.return_unit
+
 let main () =
+  Config.init ();
   let store = Irmin.basic (module Irmin_git.FS) (module Log) in
-  let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true () in
+  let config = Irmin_git.config ~root:Config.root ~bare:true () in
   Irmin.create store config task >>= fun t ->
 
   (* populate the log with some random messages *)
@@ -99,9 +97,9 @@ let main () =
     ) [ "first"; "second"; "third"]
   >>= fun () ->
 
-  all_logs t >>= fun logs ->
-  Printf.printf "I've just read:\n-----------\n%s-----------\n%!"
-    (Log.pretty logs);
+  Printf.printf "%s\n\n" what;
+
+  print_logs "lca" t >>= fun () ->
 
   Irmin.clone_force task (t "Cloning the store") "test" >>= fun x ->
 
@@ -109,15 +107,16 @@ let main () =
   log x "Adding more stuff to x" >>= fun () ->
   log x "More. Stuff. To x."     >>= fun () ->
 
+  print_logs "branch 1" x >>= fun () ->
+
   log t "I can add stuff on t also" >>= fun () ->
   log t "Yes. On t!"                >>= fun () ->
 
+  print_logs "branch 2" t >>= fun () ->
+
   Irmin.merge_exn "Merging x into t" x ~into:t  >>= fun () ->
 
-  all_logs t >>= fun logs ->
-  Printf.printf "I've just read:\n%s\n%!" (Log.pretty logs);
-
-  return_unit
+  print_logs "merge" t
 
 let () =
   Lwt_unix.run (main ())

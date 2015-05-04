@@ -176,7 +176,7 @@ module Internal (Node: NODE) = struct
     empty () >>= fun t ->
     Lwt.return (fun _ -> t)
 
-  let task _ = failwith "Not task for views"
+  let task = `Views_do_not_have_task
 
   let sub t path =
     let rec aux node path =
@@ -892,4 +892,5 @@ module type S = sig
   val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
   val watch_path: db -> key -> ?init:(head * t) ->
     ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val task: [`Views_do_not_have_task]
 end

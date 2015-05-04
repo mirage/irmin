@@ -1,14 +1,6 @@
 open Lwt
 open Irmin_unix
 
-let () =
-  try match Sys.getenv "DEBUG" with
-    | "" -> ()
-    | _  ->
-      Log.color_on ();
-      Log.set_log_level Log.DEBUG
-  with Not_found -> ()
-
 let path =
   if Array.length Sys.argv = 2 then
     Sys.argv.(1)
@@ -17,12 +9,11 @@ let path =
 
 let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
 
-let upstream =
-  (* Note: https:// and http:// are not yet supported *)
-  Irmin.remote_uri path
+let upstream = Irmin.remote_uri path
 
 let test () =
-  let config = Irmin_git.config ~root:"/tmp/test" () in
+  Config.init ();
+  let config = Irmin_git.config ~root:Config.root () in
   Irmin.create store config task >>= fun t ->
   Irmin.pull_exn (t "Syncing with upstream store") upstream `Update >>= fun () ->
   Irmin.read_exn (t "get the README") ["README.md"]>>= fun readme ->

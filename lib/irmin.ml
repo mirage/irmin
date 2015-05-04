@@ -102,7 +102,7 @@ type ('t, 'k, 'v) s =
 type ('k, 'v) pack = E: ('t, 'k, 'v) s * 't -> ('k, 'v) pack
 
 type ('a, 'k, 'v) t = {
-  task: Ir_task.t;
+  task: unit -> Ir_task.t;
   read: 'k -> 'v option Lwt.t;
   read_exn: 'k -> 'v Lwt.t;
   mem: 'k -> bool Lwt.t;
@@ -176,7 +176,7 @@ let remove_rec t = t.remove_rec
 let bc (t: ([`BC],'k,'v) t) fn = fn t.extend
 
 let tag t = bc t (function BC t -> t.tag ())
-let task t = t.task
+let task t = t.task ()
 let tag_exn t = bc t (function BC t -> t.tag_exn ())
 let tags t = bc t (function BC t -> t.tags ())
 let remove_tag t = bc t (function BC t -> t.remove_tag)
@@ -223,7 +223,7 @@ let pack_hrw (type x) (type k) (type v)
                     and type value = v)
     (t:x): ([`HRW], k, v) t =
   {
-    task = M.task t;
+    task = (fun () -> M.task t);
     read = M.read t;
     read_exn = M.read_exn t;
     mem = M.mem t;
@@ -343,7 +343,11 @@ let with_hrw_view (type a) (type b)
       | None   -> M.Key.empty
     in
     V.of_path t path >>= fun view ->
-    let v = pack_hrw (module V) view in
+    let module V' = struct
+      include V
+      let task _ = failwith "Views do not have task"
+    end in
+    let v = pack_hrw (module V') view in
     ops v >>= fun () ->
     match strat with
     | `Update -> V.update_path t path view >>= fun () -> Merge.OP.ok ()
