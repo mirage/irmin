@@ -14,7 +14,7 @@ to Xen unikernels.
 Irmin is packaged with [opam](https://opam.ocaml.org):
 
 ```
-opam install irmin git cohttp
+opam install irmin-unix # install all the optional depencies
 ```
 
 The `git` and `cohttp` packages are needed to compile and install the
