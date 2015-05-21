@@ -767,6 +767,9 @@ module Hash: sig
     val of_raw: Cstruct.t -> t
     (** Abstract an hash value. *)
 
+    val length: int
+    (** Bytes length of a hash value *)
+			       
   end
   (** Signature for hash values. *)
 

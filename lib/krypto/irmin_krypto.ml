@@ -15,34 +15,40 @@ open Irmin
 
 module Log = Log.Make(struct let section = "KRYPO" end)
 
-
+		    		    
 module type CIPHER_BLOCK = Irmin_krypto_cipher.MAKER
 module Make_km = Irmin_krypto_km.Make
 module Make_cipher = Irmin_krypto_cipher.Make
 
-
+		    
 module type AO_MAKER_RAW =
   functor (K: Hash.S) ->
   functor (V: Tc.S0 with type t = Cstruct.t) ->
   AO with type key = K.t and type value = V.t
+					       
 
 
-module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+module type AO_MAKER_CSTRUCT =
+  functor (IK: Hash.S) ->
+  functor (K: Hash.S) ->
+  functor (V: Tc.S0 with type t = Cstruct.t) ->
+  AO with type key = IK.t and type value = V.t
+					    
+
+					     
+module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) = struct
 
     module AO = S(K)(Irmin.Contents.Cstruct)
-
+    
     type key = AO.key
 
-    type value = V.t
-
+    type value = AO.value
+     		 
     type t = AO.t
 
-    let to_cstruct x = Tc.write_cstruct (module V) x
-    let of_cstruct x = Tc.read_cstruct (module V) x
+    let hash_size = K.length
 
-    let hash_size = Nocrypto.Hash.SHA1.digest_size
-
-    let compute_ctr v = Nocrypto.Hash.SHA1.digest v
+    let compute_ctr v = Nocrypto.Hash.SHA1.digest v (* MUST TO BE PARAMETRABLE *)
 
     let inject_ctr ~ctr blob =
       let len_blob = Cstruct.len blob in
@@ -75,7 +81,7 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0)
       | Some v ->
          let ctr = extract_ctr v in
          let value = extract_value v in
-         return (Some (of_cstruct (C.decrypt ~ctr value)))
+         return (Some (C.decrypt ~ctr value))
 
     let read_exn t key =
       try
@@ -83,7 +89,7 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0)
           function x ->
                    let ctr = extract_ctr x in
                    let value = extract_value x in
-                   return (of_cstruct ( (C.decrypt ~ctr value)))
+                   return (C.decrypt ~ctr value)
       with
       | Not_found -> fail Not_found
 
@@ -91,20 +97,22 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0)
       AO.mem t k
 
     let add t v =
-      let value = to_cstruct v in
-      let ctr = compute_ctr value in
-      let ctr2 = compute_ctr value in (* Temporary : there is a side effect into nocrypto *)
-      C.encrypt ~ctr value |> inject_ctr ~ctr:ctr2 |> AO.add t
+      let ctr = compute_ctr v in
+      let ctr2 = compute_ctr v in (* Temporary : there is a side effect into nocrypto *)
+      C.encrypt ~ctr v |> inject_ctr ~ctr:ctr2 |> AO.add t
 
     (* TODO iter .... *)
     let iter t (fn : key -> value Lwt.t -> unit Lwt.t) =
-      AO.iter t (fun k v ->
+      failwith "TODO"
+  (* AO.iter t (fun k v ->
                  let ctr = Cstruct.of_string "1234abcd1234abcd" in
-                 let v = v >|= fun v -> of_cstruct (C.decrypt ~ctr v) in
-                 fn k v)
-
+                 let v = v >|= fun v -> (C.decrypt ~ctr v) in
+                 fn k v) *)
+      
 end
 
+													     
+module Make_Krypto_AO (CB:CIPHER_BLOCK) (S: AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) (*: AO_MAKER*) = KRYPTO_AO (CB) (S) 
 
 
-module Make (CB:CIPHER_BLOCK) (AO: AO_MAKER) (RW:RW_MAKER) : S_MAKER = Irmin.Make (KRYPTO_AO(CB)(AO)) (RW)
+															       

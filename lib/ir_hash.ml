@@ -19,13 +19,14 @@ open Sexplib.Std
 exception Invalid of string
 
 module type S = sig
-  include Ir_hum.S
-  val digest: Cstruct.t -> t
-  val has_kind: [> `SHA1] -> bool
-  val to_raw: t -> Cstruct.t
-  val of_raw: Cstruct.t -> t
-end
-
+    include Ir_hum.S	      
+    val digest: Cstruct.t -> t
+    val has_kind: [> `SHA1] -> bool
+    val to_raw: t -> Cstruct.t
+    val of_raw: Cstruct.t -> t
+    val length:int
+  end
+ 
 (* (from uuidm) *)
 (* sha-1 digest. Based on pseudo-code of RFC 3174.
    Slow and ugly but does the job. *)
@@ -141,6 +142,8 @@ module SHA1 = struct
 
   type t = Cstruct.t
 
+  let length = 20
+	     
   let to_hex t =
     let `Hex h = Hex.of_string (Cstruct.to_string t) in
     h

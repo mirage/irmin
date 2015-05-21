@@ -21,9 +21,16 @@ module Make_cipher = Irmin_krypto_cipher.Make
 
 module type AO_MAKER_RAW =
   functor (K: Hash.S) ->
-  functor (V: Tc.S0 with type t = Cstruct.t) ->
+  functor (V: Tc.S0 with type t = Cstruct.t ) ->
   AO with type key = K.t and type value = V.t
 
-module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) : AO
 
-module Make (CB:CIPHER_BLOCK) (K_AO: AO_MAKER) (RW:RW_MAKER) : S_MAKER
+module type AO_MAKER_CSTRUCT =
+  functor (IK: Hash.S) ->
+  functor (K: Hash.S) ->
+  functor (V: Tc.S0 with type t = Cstruct.t) ->
+  AO with type key = IK.t and type value = V.t				     
+					  
+					  
+module Make_Krypto_AO (CB:CIPHER_BLOCK) (S: AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) : AO_MAKER_RAW
+					     

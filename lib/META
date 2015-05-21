@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 5526f71c94d682613bf0222ba8baed7d)
+# DO NOT EDIT (digest: 03af3349ae8d56d97c56b5734ecb5765)
 version = "0.9.5"
 description = "A Distributed Version Control Database"
 requires =
@@ -43,6 +43,17 @@ package "krypto" (
  exists_if = "irmin-krypto.cma"
 )
 
+package "index" (
+ version = "0.9.5"
+ description = "A Distributed Version Control Database"
+ requires = "irmin"
+ archive(byte) = "irmin-index.cma"
+ archive(byte, plugin) = "irmin-index.cma"
+ archive(native) = "irmin-index.cmxa"
+ archive(native, plugin) = "irmin-index.cmxs"
+ exists_if = "irmin-index.cma"
+)
+
 package "http" (
  version = "0.9.5"
  description = "A Distributed Version Control Database"
@@ -74,6 +85,17 @@ package "fs" (
  archive(native) = "irmin-fs.cmxa"
  archive(native, plugin) = "irmin-fs.cmxs"
  exists_if = "irmin-fs.cma"
+)
+
+package "bucheron" (
+ version = "0.9.5"
+ description = "A Distributed Version Control Database"
+ requires = "irmin cstruct"
+ archive(byte) = "irmin-bucheron.cma"
+ archive(byte, plugin) = "irmin-bucheron.cma"
+ archive(native) = "irmin-bucheron.cmxa"
+ archive(native, plugin) = "irmin-bucheron.cmxs"
+ exists_if = "irmin-bucheron.cma"
 )
 # OASIS_STOP
 

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 34305b6f87bdb8ce77aae831afa99e03)
+# DO NOT EDIT (digest: c87cd90678c64c9bf271c605881dbbd0)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -123,6 +123,32 @@ true: annot, bin_annot
 <lib/krypto/*.ml{,i,y}>: pkg_tc
 <lib/krypto/*.ml{,i,y}>: pkg_uri
 <lib/krypto/*.ml{,i,y}>: use_irmin
+# Library irmin-index
+"lib/index/irmin-index.cmxs": use_irmin-index
+<lib/index/*.ml{,i,y}>: pkg_cstruct
+<lib/index/*.ml{,i,y}>: pkg_dolog
+<lib/index/*.ml{,i,y}>: pkg_ezjsonm
+<lib/index/*.ml{,i,y}>: pkg_hex
+<lib/index/*.ml{,i,y}>: pkg_lwt
+<lib/index/*.ml{,i,y}>: pkg_mstruct
+<lib/index/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/index/*.ml{,i,y}>: pkg_stringext
+<lib/index/*.ml{,i,y}>: pkg_tc
+<lib/index/*.ml{,i,y}>: pkg_uri
+<lib/index/*.ml{,i,y}>: use_irmin
+# Library irmin-bucheron
+"lib/bucheron/irmin-bucheron.cmxs": use_irmin-bucheron
+<lib/bucheron/*.ml{,i,y}>: pkg_cstruct
+<lib/bucheron/*.ml{,i,y}>: pkg_dolog
+<lib/bucheron/*.ml{,i,y}>: pkg_ezjsonm
+<lib/bucheron/*.ml{,i,y}>: pkg_hex
+<lib/bucheron/*.ml{,i,y}>: pkg_lwt
+<lib/bucheron/*.ml{,i,y}>: pkg_mstruct
+<lib/bucheron/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/bucheron/*.ml{,i,y}>: pkg_stringext
+<lib/bucheron/*.ml{,i,y}>: pkg_tc
+<lib/bucheron/*.ml{,i,y}>: pkg_uri
+<lib/bucheron/*.ml{,i,y}>: use_irmin
 # Executable irmin
 <bin/main.{native,byte}>: pkg_cmdliner
 <bin/main.{native,byte}>: pkg_cohttp.lwt
@@ -228,33 +254,65 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_irmin-mem
 <lib_test/*.ml{,i,y}>: use_irmin-unix
 # Executable test_krypto
-<examples/krypto_git.{native,byte}>: pkg_cohttp.lwt
-<examples/krypto_git.{native,byte}>: pkg_cohttp.lwt-core
-<examples/krypto_git.{native,byte}>: pkg_cstruct
-<examples/krypto_git.{native,byte}>: pkg_dolog
-<examples/krypto_git.{native,byte}>: pkg_ezjsonm
-<examples/krypto_git.{native,byte}>: pkg_ezjsonm.lwt
-<examples/krypto_git.{native,byte}>: pkg_git
-<examples/krypto_git.{native,byte}>: pkg_git.unix
-<examples/krypto_git.{native,byte}>: pkg_hex
-<examples/krypto_git.{native,byte}>: pkg_lwt
-<examples/krypto_git.{native,byte}>: pkg_mstruct
-<examples/krypto_git.{native,byte}>: pkg_nocrypto
-<examples/krypto_git.{native,byte}>: pkg_ocamlgraph
-<examples/krypto_git.{native,byte}>: pkg_re
-<examples/krypto_git.{native,byte}>: pkg_re.pcre
-<examples/krypto_git.{native,byte}>: pkg_re.perl
-<examples/krypto_git.{native,byte}>: pkg_stringext
-<examples/krypto_git.{native,byte}>: pkg_tc
-<examples/krypto_git.{native,byte}>: pkg_uri
-<examples/krypto_git.{native,byte}>: use_irmin
-<examples/krypto_git.{native,byte}>: use_irmin-fs
-<examples/krypto_git.{native,byte}>: use_irmin-git
-<examples/krypto_git.{native,byte}>: use_irmin-http
-<examples/krypto_git.{native,byte}>: use_irmin-krypto
-<examples/krypto_git.{native,byte}>: use_irmin-mem
-<examples/krypto_git.{native,byte}>: use_irmin-unix
+<examples/krypto.{native,byte}>: pkg_cohttp.lwt
+<examples/krypto.{native,byte}>: pkg_cohttp.lwt-core
+<examples/krypto.{native,byte}>: pkg_cstruct
+<examples/krypto.{native,byte}>: pkg_dolog
+<examples/krypto.{native,byte}>: pkg_ezjsonm
+<examples/krypto.{native,byte}>: pkg_ezjsonm.lwt
+<examples/krypto.{native,byte}>: pkg_git
+<examples/krypto.{native,byte}>: pkg_git.unix
+<examples/krypto.{native,byte}>: pkg_hex
+<examples/krypto.{native,byte}>: pkg_lwt
+<examples/krypto.{native,byte}>: pkg_mstruct
+<examples/krypto.{native,byte}>: pkg_nocrypto
+<examples/krypto.{native,byte}>: pkg_ocamlgraph
+<examples/krypto.{native,byte}>: pkg_re
+<examples/krypto.{native,byte}>: pkg_re.pcre
+<examples/krypto.{native,byte}>: pkg_re.perl
+<examples/krypto.{native,byte}>: pkg_stringext
+<examples/krypto.{native,byte}>: pkg_tc
+<examples/krypto.{native,byte}>: pkg_uri
+<examples/krypto.{native,byte}>: use_irmin
+<examples/krypto.{native,byte}>: use_irmin-fs
+<examples/krypto.{native,byte}>: use_irmin-git
+<examples/krypto.{native,byte}>: use_irmin-http
+<examples/krypto.{native,byte}>: use_irmin-index
+<examples/krypto.{native,byte}>: use_irmin-krypto
+<examples/krypto.{native,byte}>: use_irmin-mem
+<examples/krypto.{native,byte}>: use_irmin-unix
+# Executable test_index_bucheron_krypto
+<examples/index_bucheron_krypto.{native,byte}>: pkg_cohttp.lwt
+<examples/index_bucheron_krypto.{native,byte}>: pkg_cohttp.lwt-core
+<examples/index_bucheron_krypto.{native,byte}>: pkg_cstruct
+<examples/index_bucheron_krypto.{native,byte}>: pkg_dolog
+<examples/index_bucheron_krypto.{native,byte}>: pkg_ezjsonm
+<examples/index_bucheron_krypto.{native,byte}>: pkg_ezjsonm.lwt
+<examples/index_bucheron_krypto.{native,byte}>: pkg_git
+<examples/index_bucheron_krypto.{native,byte}>: pkg_git.unix
+<examples/index_bucheron_krypto.{native,byte}>: pkg_hex
+<examples/index_bucheron_krypto.{native,byte}>: pkg_lwt
+<examples/index_bucheron_krypto.{native,byte}>: pkg_mstruct
+<examples/index_bucheron_krypto.{native,byte}>: pkg_nocrypto
+<examples/index_bucheron_krypto.{native,byte}>: pkg_ocamlgraph
+<examples/index_bucheron_krypto.{native,byte}>: pkg_re
+<examples/index_bucheron_krypto.{native,byte}>: pkg_re.pcre
+<examples/index_bucheron_krypto.{native,byte}>: pkg_re.perl
+<examples/index_bucheron_krypto.{native,byte}>: pkg_stringext
+<examples/index_bucheron_krypto.{native,byte}>: pkg_tc
+<examples/index_bucheron_krypto.{native,byte}>: pkg_uri
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin-bucheron
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin-fs
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin-git
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin-http
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin-index
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin-krypto
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin-mem
+<examples/index_bucheron_krypto.{native,byte}>: use_irmin-unix
 <examples/*.ml{,i,y}>: pkg_nocrypto
+<examples/*.ml{,i,y}>: use_irmin-bucheron
+<examples/*.ml{,i,y}>: use_irmin-index
 <examples/*.ml{,i,y}>: use_irmin-krypto
 # Executable test_git_store
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
@@ -456,3 +514,4 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: use_irmin-mem
 <examples/*.ml{,i,y}>: use_irmin-unix
 # OASIS_STOP
+<lib/bucheron/irmin_bucheron.ml>: pkg_cstruct.syntax

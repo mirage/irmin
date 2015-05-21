@@ -85,6 +85,20 @@ Library "irmin-krypto"
   FindlibParent:    irmin
   BuildDepends:     irmin, nocrypto
   Modules:          Irmin_krypto, Irmin_krypto_cipher, Irmin_krypto_km
+  
+Library "irmin-index"
+  Path:             lib/index
+  Findlibname:      index
+  FindlibParent:    irmin
+  BuildDepends:     irmin
+  Modules:          Irmin_index
+
+Library "irmin-bucheron"
+  Path:             lib/bucheron
+  Findlibname:      bucheron
+  FindlibParent:    irmin
+  BuildDepends:     irmin, cstruct
+  Modules:          Irmin_bucheron
 
 Document irmin
   Title:                Irmin docs
@@ -117,11 +131,19 @@ Test test_irmin
 
 Executable test_krypto
   Path:           examples/
-  MainIs:         krypto_git.ml
+  MainIs:         krypto.ml
   Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem
+  BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index
+
+Executable test_index_bucheron_krypto
+ Path:           examples/
+ MainIs:         index_bucheron_krypto.ml
+ Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
+ CompiledObject: best
+ Install:        false
+ BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index, irmin.bucheron
 
 Executable test_git_store
   Path:           examples/
