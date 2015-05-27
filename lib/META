@@ -1,16 +1,16 @@
 # OASIS_START
-# DO NOT EDIT (digest: bf361fe13af79bd53704cc3f4d40f634)
-version = "0.9.4"
+# DO NOT EDIT (digest: 03af3349ae8d56d97c56b5734ecb5765)
+version = "0.9.5"
 description = "A Distributed Version Control Database"
 requires =
-"ezjsonm ocamlgraph lwt nocrypto dolog cstruct tc mstruct uri stringext hex"
+"ezjsonm ocamlgraph lwt dolog cstruct tc mstruct uri stringext hex"
 archive(byte) = "irmin.cma"
 archive(byte, plugin) = "irmin.cma"
 archive(native) = "irmin.cmxa"
 archive(native, plugin) = "irmin.cmxs"
 exists_if = "irmin.cma"
 package "unix" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires =
  "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
@@ -22,7 +22,7 @@ package "unix" (
 )
 
 package "mem" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin-mem.cma"
@@ -32,8 +32,30 @@ package "mem" (
  exists_if = "irmin-mem.cma"
 )
 
+package "krypto" (
+ version = "0.9.5"
+ description = "A Distributed Version Control Database"
+ requires = "irmin nocrypto"
+ archive(byte) = "irmin-krypto.cma"
+ archive(byte, plugin) = "irmin-krypto.cma"
+ archive(native) = "irmin-krypto.cmxa"
+ archive(native, plugin) = "irmin-krypto.cmxs"
+ exists_if = "irmin-krypto.cma"
+)
+
+package "index" (
+ version = "0.9.5"
+ description = "A Distributed Version Control Database"
+ requires = "irmin"
+ archive(byte) = "irmin-index.cma"
+ archive(byte, plugin) = "irmin-index.cma"
+ archive(native) = "irmin-index.cmxa"
+ archive(native, plugin) = "irmin-index.cmxs"
+ exists_if = "irmin-index.cma"
+)
+
 package "http" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
  archive(byte) = "irmin-http.cma"
@@ -44,7 +66,7 @@ package "http" (
 )
 
 package "git" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin git"
  archive(byte) = "irmin-git.cma"
@@ -55,7 +77,7 @@ package "git" (
 )
 
 package "fs" (
- version = "0.9.4"
+ version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin-fs.cma"
@@ -63,6 +85,17 @@ package "fs" (
  archive(native) = "irmin-fs.cmxa"
  archive(native, plugin) = "irmin-fs.cmxs"
  exists_if = "irmin-fs.cma"
+)
+
+package "bucheron" (
+ version = "0.9.5"
+ description = "A Distributed Version Control Database"
+ requires = "irmin cstruct"
+ archive(byte) = "irmin-bucheron.cma"
+ archive(byte, plugin) = "irmin-bucheron.cma"
+ archive(native) = "irmin-bucheron.cmxa"
+ archive(native, plugin) = "irmin-bucheron.cmxs"
+ exists_if = "irmin-bucheron.cma"
 )
 # OASIS_STOP
 

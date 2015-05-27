@@ -1,12 +1,52 @@
+## 0.9.5
+* Fix `Irmin.export` for the HTTP backend (#196, patch from Alex Zatelepin)
+* Fix a race in `Irmin.export` (#196, patch from Alex Zatelepin)
+* Add `Task.empty` (the empty task) and `Task.none` (the empty task constructor)
+* Completely rewrite the notification mechanism. All the watch functions now
+  take a callback as argument and return a de-allocation function. The callbacks
+  receive a heads values (the last and current ones) and diff values. (#187)
+  - Add `Irmin.watch_head` to watch for the changes of the current branch's head
+  - Add `Irmin.watch_tags` to watch for the changes of all the tags in the store
+  - Add `Irmin.watch_key` to watch for the changes of the values associated to a
+    given key (this is not recursive anymore).
+  - Add `View.watch_path` to watch for the changes in a subtree. The function
+    return views and the user can use `View.diff` to compute differences between
+    views if needed.
+* Transfer the HTTP client task to the server to make the commit messages
+  relative to the client state (and not the server's) (#136)
+* Fix `View.remove` to clean-up empty directories (#190)
+* Fix the ordering of tree entries in the Git backend (#190)
+* Allow to create a new head from a view and a list of parents with
+  `View.make_head` (#188)
+* Allow to create an empty temporary branch with `Irmin.empty` (#161)
+* Use a pure OCaml implementation of SHA1, do not depend on nocrypto anymore
+  (#183, by @talex5)
+* Remove `Irmin.Snapshot`. Nobody was using it and it can be easily replaced by
+  `Irmin.head`, `Irmin.watch_head` and `Irmin.update_head`.
+* Change signature of `Irmin.iter` to include the values and move it into
+  the `Irmin.RO` signature.
+* Add `Irmin.fast_forward_head` (#172)
+* Add `Irmin.compare_and_set_head` (#171)
+* Simplify the RW_MAKER signature (#158)
+* Fix Irmin_git.RW_MAKER (#159)
+* Improve the efficiency of the LCA computation (#174, with @talex5 help)
+* By default, explore the full graph when computing the LCAs. The previous
+  behavior was to limit the depth of the exploration to be 256 by default.
+
 ## 0.9.4
+* Ensure that `Irmin.update` and `Irmin.merge` are atomic.
+* Fix `Irmin.clone` of an empty branch
+* Add `Irmin.RW.compare_and_test` that the backends now have to implement
+  to guarantee atomicity of Irmin's high-level operations.
+* Add `Irmin.Private.Lock` to provide per-handler, per-key locking. This
+  can be used by backend to implement simple locking policies.
 * Add `Lwt.t` to the return type of `Irmin.tag` and `Irmin.tag_exn`
 * Do not throw [Not_found]. Now all the `_exn` function raise `Invalid_argument`
   (#144)
-* Rename `Irmin.switch` into `Irmin.switch_tag` to switch the current branch
-  to a different tag.
-* Add `Irmin.switch_head` to switch the current branch to a different head.
-* Add `Irmin.remove_tag` to delete a tag.
+* Remove `Irmin.switch` and `Irmin.detach`
 * Add `Irmin.history` to get the branch history as a DAG of heads (#140).
+* Fix performance of lcas computation (#160)
+* Add `Irmin.Merge.promise` combinators
 
 ## 0.9.3
 * Fix the invalidation of the view caches (report by @gregtatcam).

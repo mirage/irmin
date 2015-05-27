@@ -161,6 +161,8 @@ struct
 
     let merge path t = Ir_merge.option (module S.Key) (merge_commit path t)
 
+    let iter (_, t) fn = S.iter t fn
+
     module Key = S.Key
     module Val = struct
       include S.Val
@@ -195,8 +197,8 @@ struct
   let edges t =
     Log.debug "edges";
     (match S.Val.node t with
-      | None   -> []
-      | Some k -> [`Node k])
+     | None   -> []
+     | Some k -> [`Node k])
     @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
   let closure t ~min ~max =
@@ -215,159 +217,193 @@ struct
     return keys
 
   module KSet = Ir_misc.Set(S.Key)
-  let (++) = KSet.union
-  let (--) = KSet.diff
-  let ( ** ) = KSet.inter
+  module KHashtbl = Hashtbl.Make(S.Key)
 
-  let proj g suffix =
-    let g' = Graph.create ~size:(KSet.cardinal suffix) () in
-    KSet.iter (fun k -> Graph.add_vertex g' (`Commit k)) suffix;
-    KSet.iter (fun k ->
-        let succ = Graph.succ g (`Commit k) in
-        let succ =
-          List.filter (function
-              | `Commit k -> KSet.mem k suffix
-              | _ -> false
-            ) succ
-        in
-        List.iter (fun s -> Graph.add_edge g' (`Commit k) s) succ
-      ) suffix;
-    g'
+  let read_parents t commit =
+    Store.read_exn t commit >|= fun c ->
+    KSet.of_list (S.Val.parents c)
 
-  let add g (x, y) = Graph.add_edge g (`Commit x) (`Commit y)
-  let output edges = edges |> List.map snd |> KSet.of_list
-  let next t edges =
-    let read_parents k =
-      Store.read_exn t k >>= fun v ->
-      S.Val.parents v
-      |> List.map (fun p -> (k, p))
-      |> Lwt.return
-    in
-    let edges = KSet.to_list edges in
-    Lwt_list.map_p read_parents edges >>= fun edges ->
-    Lwt.return (List.flatten edges)
-
-  type prefix = {
-    n: int;
-    g: Graph.t;
-    seen1 : KSet.t;
-    seen2 : KSet.t;
-    shared: KSet.t;
-    todo1 : KSet.t;
-    todo2 : KSet.t;
-  }
-
-  let pr_keys keys =
-    let key x = String.sub (S.Key.to_hum x) 0 4 in
+  let pp_key k = String.sub (S.Key.to_hum k) 0 4
+  let pp_keys keys =
     let keys = KSet.to_list keys in
-    String.concat " " (List.map key keys)
-
-  let empty_prefix () = {
-    n = 0;
-    g = Graph.create ();
-    seen1  = KSet.empty;
-    seen2  = KSet.empty;
-    shared = KSet.empty;
-    todo1  = KSet.empty;
-    todo2  = KSet.empty;
-  }
-
-  (* compute the shared frontier
-
-     An element is in the shared frontier if
-     - it is in the active shared frontier (prefix.shared)
-     - it is seen by both vertices
-     - it is on the frontier (ie. it doens't have predecessors in the
-       shared frontier)
-  *)
-  let shared_frontier p =
-    let seen = p.shared ++ (p.seen1 ** p.seen2) in
-    let proj = proj p.g seen in
-    Graph.min proj
-    |> List.fold_left (fun acc ->
-        function `Commit k -> KSet.add k acc | _ -> acc
-      ) KSet.empty
-
-  let pr_prefix ({n; seen1; seen2; shared; todo1; todo2; _ } as p) =
-    Printf.sprintf "n:%d seen1:%s, seen2:%s, s:%s, 1:%s, 2:%s, res:%s" n
-      (pr_keys seen1) (pr_keys seen2) (pr_keys shared)
-      (pr_keys todo1) (pr_keys todo2) (pr_keys (shared_frontier p))
-
-  let show_prefix p = lazy (pr_prefix p)
-
-  (* compute the next prefix state.
-
-     Invariants:
-       - at step n: [n] is at least the depth of [g]
-       - seen1: the prefix of [g] known by [p1]
-       - seen2: the prefix of [g] known by [p2]
-       - shared: max([g]) dominated by both [p1] and [p2]
-       - todo1: max([g]) dominated by [p1]
-       - todo2: max([g]) dominated by [p2]
-  *)
-  let check_prefix p =
-    assert (p.todo1 ** p.todo2 = KSet.empty);
-    assert (p.todo1 ** p.shared = KSet.empty);
-    assert (p.todo1 ** p.seen1 = KSet.empty);
-    assert (p.todo1 ** p.seen2 = KSet.empty);
-    assert (p.todo2 ** p.shared = KSet.empty);
-    assert (p.todo2 ** p.shared = KSet.empty);
-    assert (p.todo2 ** p.seen1 = KSet.empty);
-    assert (p.todo2 ** p.seen2 = KSet.empty)
-
-  let next_prefix t p =
-    check_prefix p;
-
-    next t p.todo1  >>= fun edges1 ->
-    next t p.todo2  >>= fun edges2 ->
-    next t p.shared >>= fun edgess ->
-    List.iter (add p.g) edges1;
-    List.iter (add p.g) edges2;
-    List.iter (add p.g) edgess;
-
-    let output1 = output edges1 in
-    let output2 = output edges2 in
-    let outputs = output edgess in
-
-    let seen1_ = p.shared ++ p.todo1 ++ p.seen1 in
-    let seen2_ = p.shared ++ p.todo2 ++ p.seen2 in
-    let not_fresh = outputs ++ seen1_ ++ seen2_ in
-
-    (* enforce invariants *)
-    let todo1 = output1 -- output2 -- not_fresh in
-    let todo2 = output2 -- output1 -- not_fresh in
-    let seen1 = seen1_ ++ (output1 ** not_fresh) in
-    let seen2 = seen2_ ++ (output2 ** not_fresh) in
-
-    let shared =
-      outputs ++ output1 ++ output2 -- todo1 -- todo2 -- seen1 -- seen2
-    in
-    Lwt.return { p with n = p.n + 1; seen1; seen2; shared; todo1; todo2 }
+    Printf.sprintf "[%s]" @@ String.concat " " (List.map pp_key keys)
 
   let lca_calls = ref 0
-  let lcas t ?(max_depth=256) ?n c1 c2 =
-    incr lca_calls;
-    let ok set = Lwt.return (`Ok (KSet.to_list set)) in
-    let rec aux prefix =
-      Log.debug "lca %d %a" !lca_calls force (show_prefix prefix);
-      if prefix.n > max_depth then Lwt.return `Max_depth_reached
-      else if KSet.is_empty prefix.todo1 && KSet.is_empty prefix.todo2 then
-        ok (shared_frontier prefix)
+
+  let rec unqueue todo seen =
+    if Queue.is_empty todo then None
+    else
+      let (_ , commit as pop) = Queue.pop todo in
+      if KSet.mem commit seen then unqueue todo seen
+      else Some pop
+
+  (* Traverse the graph of commits using a breadth first search
+     strategy. Start by visiting the commits in [init] and stops
+     either when [check] returns [`Stop] or when all the ancestors of
+     [init] have been visited. *)
+  let traverse_bfs t ~f ~pp:_ ~check ~init ~return =
+    let todo = Queue.create () in
+    let add_todo d x = Queue.add (d, x) todo in
+    KSet.iter (add_todo 0) init;
+    let rec aux seen = match check () with
+      | `Too_many_lcas | `Max_depth_reached as x -> Lwt.return x
+      | `Stop -> return ()
+      | `Continue ->
+        match unqueue todo seen with
+        | None  -> return ()
+        | Some (depth, commit) ->
+          (* Log.debug "lca %d: %s.%d %a"
+             !lca_calls (pp_key commit) depth force (pp ()); *)
+          let seen = KSet.add commit seen in
+          read_parents t commit >>= fun parents ->
+          let () = f depth commit parents in
+          let parents = KSet.diff parents seen in
+          KSet.iter (add_todo (depth+1)) parents;
+          aux seen
+    in
+    aux KSet.empty
+
+  type mark = Seen1 | Seen2 | SeenBoth | LCA
+
+  let _pp_mark = function
+    | Seen1 -> "seen1" | Seen2 -> "seen2"
+    | SeenBoth -> "seenBoth" | LCA -> "LCA"
+
+  (* Exploration state *)
+  type state = {
+    marks  : mark KHashtbl.t;            (* marks of commits already explored *)
+    parents: KSet.t KHashtbl.t;        (* parents of commits already explored *)
+    layers : (int, KSet.t) Hashtbl.t;    (* layers of commit, sorted by depth *)
+    c1: S.key;                                             (* initial state 1 *)
+    c2: S.key;                                             (* initial state 2 *)
+    mutable depth: int;                      (* the current exploration depth *)
+    mutable lcas : int;                   (* number of commit marked with LCA *)
+    mutable complete : bool;                  (* is the exploration complete? *)
+  }
+
+  let pp_state t = lazy (
+    let pp m =
+      KHashtbl.fold (fun k v acc -> if v = m then pp_key k :: acc else acc)
+        t.marks []
+      |> String.concat " "
+    in
+    Printf.sprintf "d: %d, seen1: %s, seen2: %s, seenboth: %s, lcas: %s (%d) %s"
+      t.depth (pp Seen1) (pp Seen2) (pp SeenBoth) (pp LCA) t.lcas
+      (String.concat " | " (
+          (Hashtbl.fold (fun d ks acc ->
+               Printf.sprintf "(%d: %s)" d (pp_keys ks) :: acc
+             ) t.layers [])))
+  )
+
+  let get_mark_exn t elt = KHashtbl.find t.marks elt
+  let get_mark t elt = try Some (get_mark_exn t elt) with Not_found -> None
+  let set_mark t elt mark = KHashtbl.replace t.marks elt mark
+  let get_layer t d = try Hashtbl.find t.layers d with Not_found -> KSet.empty
+  let add_to_layer t d k = Hashtbl.replace t.layers d (KSet.add k (get_layer t d))
+  let add_parent t c p = KHashtbl.add t.parents c p
+  let get_parent t c = try KHashtbl.find t.parents c with Not_found -> KSet.empty
+  let incr_lcas t = t.lcas <- t.lcas + 1
+  let decr_lcas t = t.lcas <- t.lcas - 1
+
+  let both_seen t k = match get_mark t k with
+    | None | Some Seen1 | Some Seen2 -> false
+    | _ -> true
+
+  let empty_state c1 c2 =
+    let t =  {
+      marks   = KHashtbl.create 10;
+      parents = KHashtbl.create 10;
+      layers  = Hashtbl.create 10;
+      c1; c2; depth = 0; lcas  = 0; complete = false;
+    } in
+    set_mark t c1 Seen1;
+    set_mark t c2 Seen2;
+    t
+
+  (* update the parent mark and keep the number of lcas up-to-date. *)
+  let update_mark t mark commit =
+    let new_mark = match mark, get_mark t commit with
+      | Seen1, Some Seen1 | Seen1, None -> Seen1
+      | Seen2, Some Seen2 | Seen2, None -> Seen2
+      | SeenBoth, Some LCA -> decr_lcas t; SeenBoth
+      | SeenBoth, _ -> SeenBoth
+      | Seen1, Some Seen2 | Seen2, Some Seen1 -> incr_lcas t; LCA
+      | _ ,Some LCA -> LCA
+      | _ -> SeenBoth
+    in
+    (* check for fast-forwards *)
+    let is_init () = S.Key.equal commit t.c1 || S.Key.equal commit t.c2 in
+    let is_shared () = new_mark = SeenBoth || new_mark = LCA in
+    if is_shared () && is_init () then (
+      Log.debug "fast-forward";
+      t.complete <- true;
+    );
+    set_mark t commit new_mark;
+    new_mark
+
+  (* update the ancestors which have already been visisted. *)
+  let update_ancestors_marks t mark commit =
+    let todo = Queue.create () in
+    Queue.add commit todo;
+    let rec loop mark =
+      if Queue.is_empty todo then ()
       else
-        match n with
-        | None   -> next_prefix t prefix >>= aux
-        | Some n ->
-          let r = shared_frontier prefix in
-          let c = KSet.cardinal r in
-          if c = n then ok r
-          else if c > n then Lwt.return `Too_many_lcas
-          else next_prefix t prefix >>= aux
+        let a = Queue.pop todo in
+        let old_mark = get_mark t a  in
+        let mark = update_mark t mark a in
+        let () = match old_mark with
+          | Some (SeenBoth | LCA) -> ()
+          | _ -> KSet.iter (fun x -> Queue.push x todo) (get_parent t a)
+        in
+        loop (if mark = LCA then SeenBoth else mark)
     in
-    let prefix = empty_prefix () in
-    let prefix =
-      { prefix with todo1 = KSet.singleton c1; todo2 = KSet.singleton c2 }
-    in
-    aux prefix
+    loop mark
+
+  let update_parents t depth commit parents =
+    add_parent t commit parents;
+    add_to_layer t depth commit;
+    if depth <> t.depth then (
+      assert (depth = t.depth + 1);
+      (* before starting to explore a new layer, check if we really
+         have some work to do, ie. do we still have a commit seen only
+         by one node? *)
+      let layer = get_layer t t.depth in
+      let complete = KSet.for_all (both_seen t) layer in
+      if complete then t.complete <- true else t.depth <- depth
+    );
+    let mark = get_mark_exn t commit in
+    KSet.iter (update_ancestors_marks t mark) parents
+
+  let lcas t =
+    KHashtbl.fold
+      (fun k v acc -> if v = LCA then k :: acc else acc)
+      t.marks []
+
+  let check ~max_depth ~n t =
+    if t.depth > max_depth then `Max_depth_reached
+    else if t.lcas > n then `Too_many_lcas
+    else if t.lcas = n || t.complete then `Stop
+    else `Continue
+
+  let lcas t ?(max_depth=max_int) ?(n=max_int) c1 c2 =
+    incr lca_calls;
+    if max_depth < 0 then Lwt.return `Max_depth_reached
+    else if n <= 0 then Lwt.return `Too_many_lcas
+    else if S.Key.equal c1 c2 then Lwt.return (`Ok [c1])
+    else (
+      let init = KSet.of_list [c1; c2] in
+      let s = empty_state c1 c2 in
+      let check () = check ~max_depth ~n s in
+      let pp () = pp_state s in
+      let return () = Lwt.return (`Ok (lcas s)) in
+      let t0 = Sys.time () in
+      Lwt.finalize
+        (fun () -> traverse_bfs t ~f:(update_parents s) ~pp ~check ~init ~return)
+        (fun () ->
+           let t1 = Sys.time () -. t0 in
+           Log.debug "lcas %d: depth=%d time=%.4fs" !lca_calls s.depth t1;
+           Lwt.return_unit)
+    )
 
   let rec three_way_merge t ?max_depth ?n c1 c2 =
     Log.debug "3-way merge between %a and %a"

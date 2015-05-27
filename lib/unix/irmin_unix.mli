@@ -123,7 +123,8 @@ module Irmin_git: sig
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module RW (G: Git.Store.S): Irmin.RW_MAKER
+  module RW (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S): Irmin.RW
+    with type key = K.t and type value = V.t
   (** Embed a read-write store into a Git repository. Contents will be
       written in {i .git/refs}. *)
 
@@ -209,3 +210,22 @@ val install_dir_polling_listener: float -> unit
     is the thread sleep time. Prefer
     {{:https://opam.ocaml.org/packages/inotify/inotify.2.0/}inotify}
     if it works on your system. *)
+
+val uninstall_dir_polling_listener: unit -> unit
+(** Stop the thread started by {!install_dir_polling_listener}. *)
+
+val polling_threads: unit -> int
+(** The number of polling threads. *)
+
+module type LOCK = sig
+
+  (** {1 Filesystem {i dotlocking}} *)
+
+  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+  (** [with_lock file fn] runs [fn] while holding a lock on the file
+      [file]. *)
+
+end
+
+module Lock: LOCK
+(** An implementation of filesystem dotlocking. *)

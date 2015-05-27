@@ -14,8 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Irmin.Merge.OP
+let (>>=) = Lwt.(>>=)
+let (>|=) = Lwt.(>|=)
 
 module Log = Log.Make(struct let section = "HTTP" end)
 
@@ -29,27 +30,37 @@ let uri =
 let config x =
   Irmin.Private.Conf.singleton uri (Some x)
 
+let uri_append t path = match Uri.path t :: path with
+  | []   -> t
+  | path ->
+    let buf = Buffer.create 10 in
+    List.iter (function
+        | "" -> ()
+        | s  ->
+          if s.[0] <> '/' then Buffer.add_char buf '/';
+          Buffer.add_string buf s;
+      ) path;
+    let path = Buffer.contents buf in
+    Uri.with_path t path
+
+let err_no_uri () = invalid_arg "Irmin_http.create: No URI specified"
+
+let get_uri config = match Irmin.Private.Conf.get config uri with
+  | None   -> err_no_uri ()
+  | Some u -> u
+
+let add_uri_suffix suffix config =
+  let v = uri_append (get_uri config) [suffix] in
+  Irmin.Private.Conf.add config uri (Some v)
+
 let invalid_arg fmt =
   Printf.ksprintf (fun str -> Lwt.fail (Invalid_argument str)) fmt
 
-module type Config = sig val suffix: string option end
+let some x = Some x
 
 module Helper (Client: Cohttp_lwt.Client) = struct
 
   exception Error of string
-
-  let uri_append t path = match Uri.path t :: path with
-    | []   -> t
-    | path ->
-      let buf = Buffer.create 10 in
-      List.iter (function
-          | "" -> ()
-          | s  ->
-            if s.[0] <> '/' then Buffer.add_char buf '/';
-            Buffer.add_string buf s;
-        ) path;
-      let path = Buffer.contents buf in
-      Uri.with_path t path
 
   let result_of_json json =
     let error =
@@ -72,16 +83,16 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       Ezjsonm.value j
       |> result_of_json
       |> M.of_json
-      |> return
+      |> Lwt.return
     with Error e ->
-      fail (Error e)
+      Lwt.fail (Error e)
 
   let map_stream_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
     let stream = Cohttp_lwt_body.to_stream b in
     let stream = Ezjsonm_lwt.from_stream stream in
     let stream = Lwt_stream.map result_of_json stream in
     Lwt_stream.map (fun j ->
-        Log.debug "stream get %s" Ezjsonm.(to_string (wrap j));
+        Log.debug "stream: got %s" Ezjsonm.(to_string (wrap j));
         M.of_json j
       ) stream
 
@@ -89,54 +100,217 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       "Connection", "Keep-Alive"
     ]
 
-  let map_get t path ?query fn =
+  let make_uri t path query =
     let uri = uri_append t path in
-    let uri = match query with
-      | None   -> uri
-      | Some q -> Uri.with_query uri q
-    in
+    match query with
+    | None   -> uri
+    | Some q -> Uri.with_query uri q
+
+  let map_get t path ?query fn =
+    let uri = make_uri t path query in
     Log.debug "get %s" (Uri.path uri);
-    Client.get ~headers uri >>= fun r ->
-    fn r
+    Client.get ~headers uri >>= fn
 
   let get t path ?query fn =
     map_get t path ?query (map_string_response fn)
 
-  let get_stream t path fn  =
+  let get_stream t path ?query fn  =
     let (stream: 'a Lwt_stream.t option ref) = ref None in
     let rec get () =
       match !stream with
       | Some s -> Lwt_stream.get s
       | None   ->
-        map_get t path (fun b ->
+        map_get t path ?query (fun b ->
             let s = map_stream_response fn b in
             stream := Some s;
-            return_unit) >>= fun () ->
+            Lwt.return_unit) >>= fun () ->
         get () in
     Lwt_stream.from get
 
   let delete t path fn =
     let uri = uri_append t path in
     Log.debug "delete %s" (Uri.path uri);
-    Client.delete uri >>=
-    map_string_response fn
+    Client.delete uri >>= map_string_response fn
 
-  let post t path ?query body fn =
-    let body =
-      let params = `O [ "params", body ] in
-      Ezjsonm.to_string params in
-    let uri = uri_append t path in
-    let short_body =
-      if String.length body > 80 then String.sub body 0 80 ^ ".." else body
+  let make_body ?task body =
+    let str l = Ezjsonm.to_string (`O l) in
+    let str_t = Irmin.Task.to_json in
+    let body = match body, task with
+      | None  , None   -> None
+      | None  , Some t -> Some (str ["task"  , str_t t])
+      | Some b, None   -> Some (str ["params", b])
+      | Some b, Some t -> Some (str ["task", str_t t; "params", b])
     in
-    let uri = match query with
-      | None   -> uri
-      | Some q -> Uri.with_query uri q
+    let short_body = match body with
+      | None   -> "<none>"
+      | Some b -> if String.length b > 80 then String.sub b 0 80 ^ ".." else b
     in
+    let body = match body with
+      | None   -> None
+      | Some b -> Some (Cohttp_lwt_body.of_string b)
+    in
+    short_body, body
+
+  let map_post t ~task path ?query body fn =
+    let uri = make_uri t path query in
+    let short_body, body = make_body ?task body in
     Log.debug "post %s %s" (Uri.path uri) short_body;
-    let body = Cohttp_lwt_body.of_string body in
-    Client.post ~body ~headers uri >>=
-    map_string_response fn
+    Client.post ?body ~headers uri >>= fn
+
+  let post t ~task path ?query body fn =
+    map_post t ~task path ?query body (map_string_response fn)
+
+  let post_stream t ~task path ?query body fn  =
+    let (stream: 'a Lwt_stream.t option ref) = ref None in
+    let rec get () =
+      match !stream with
+      | Some s -> Lwt_stream.get s
+      | None   ->
+        map_post t ~task path ?query body (fun b ->
+            let s = map_stream_response fn b in
+            stream := Some s;
+            Lwt.return_unit) >>= fun () ->
+        get () in
+    Lwt_stream.from get
+
+end
+
+module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
+
+  include Helper (Client)
+
+  type t = { mutable uri: Uri.t; task: Irmin.task; }
+  type key = K.t
+  type value = V.t
+
+  let get t = get t.uri
+  let task t = t.task
+  let uri t = t.uri
+
+  let create config task =
+    let uri = get_uri config in
+    Lwt.return (fun a -> { uri; task = task a})
+
+  let read t key = get t ["read"; K.to_hum key] (module Tc.Option(V))
+
+  let mem t key = get t ["mem"; K.to_hum key] Tc.bool
+
+  let err_not_found n k =
+    invalid_arg "Irmin_http.%s: %s not found" n (K.to_hum k)
+
+  let read_exn t key =
+    read t key >>= function
+    | None   -> err_not_found "read" key
+    | Some v -> Lwt.return v
+
+  let iter t fn =
+    let fn key = fn key (read_exn t key) in
+    Lwt_stream.iter_p fn (get_stream t.uri ["iter"] (module K))
+
+end
+
+module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+
+  include RO (Client)(K)(V)
+
+  let post t = post t.uri
+
+  let add t value =
+    post t ~task:None ["add"] (some @@ V.to_json value) (module K)
+
+end
+
+module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
+
+  module RO = RO (Client)(K)(V)
+  module W  = Irmin.Private.Watch.Make(K)(V)
+
+  type key = RO.key
+  type value = RO.value
+  type watch = W.watch
+
+  (* cache the stream connections to the server: we open only one
+     connection per stream kind. *)
+  type cache = { mutable stop: unit -> unit; }
+
+  let empty_cache () = { stop = fun () -> (); }
+
+  type t = { t: RO.t; w: W.t; keys: cache; glob: cache }
+
+  let post t = RO.post (RO.uri t.t)
+  let delete t = RO.delete (RO.uri t.t)
+  let post_stream t = RO.post_stream (RO.uri t.t)
+
+  let create config task =
+    RO.create config task >>= fun t ->
+    let w = W.create () in
+    let keys = empty_cache () in
+    let glob = empty_cache () in
+    Lwt.return (fun a -> { t = t a; w; keys; glob })
+
+  let uri t = RO.uri t.t
+  let task t = RO.task t.t
+  let read t = RO.read t.t
+  let read_exn t = RO.read_exn t.t
+  let mem t = RO.mem t.t
+  let iter t = RO.iter t.t
+
+  let update t key value =
+    post t ~task:None ["update"; K.to_hum key] (some @@ V.to_json value) Tc.unit
+
+  let remove t key = delete t ["remove"; K.to_hum key] Tc.unit
+
+  module CS = Tc.Pair(Tc.Option(V))(Tc.Option(V))
+
+  let compare_and_set t key ~test ~set =
+    post ~task:None t ["compare-and-set"; K.to_hum key]
+      (some @@ CS.to_json (test, set)) Tc.bool
+
+  let nb_keys t = fst (W.stats t.w)
+  let nb_glob t = snd (W.stats t.w)
+
+  (* run [t] and returns an handler to stop the task. *)
+  let stoppable t =
+    let s, u = Lwt.task () in
+    Lwt.async (fun () -> Lwt.pick ([s; t ()]));
+    function () -> Lwt.wakeup u ()
+
+  let make_body (type t) (module V: Tc.S0 with type t=t) = function
+    | None   -> None
+    | Some v -> Some (V.to_json v)
+
+  let watch_key t key ?init f =
+    if nb_keys t = 0 then (
+      let task = Some (task t) in
+      let body = make_body (module V) init in
+      let s = post_stream t ~task ["watch-key"] body (module Tc.Option(V)) in
+      let stop () = Lwt_stream.iter_s (W.notify t.w key) s in
+      t.keys.stop <- stoppable stop;
+    );
+    W.watch_key t.w key ?init f
+
+  module WI = Tc.List (Tc.Pair (K) (V))
+  module WS = Tc.Pair (K) (Tc.Option (V))
+
+  let watch t ?init f =
+    if nb_glob t  = 0 then (
+      let task = Some (task t) in
+      let body = make_body (module WI) init in
+      let s = post_stream t ~task ["watch"] body (module WS) in
+      let stop () = Lwt_stream.iter_s (fun (k, v) -> W.notify t.w k v) s in
+      t.glob.stop <- stoppable stop;
+    );
+    W.watch t.w ?init f
+
+  let stop x =
+    let () = try x.stop () with _e -> () in
+    x.stop <- fun () -> ()
+
+  let unwatch t id =
+    W.unwatch t.w id >>= fun () ->
+    if nb_keys t = 0 then stop t.keys;
+    if nb_glob t = 0 then stop t.glob;
+    Lwt.return_unit
 
 end
 
@@ -145,128 +319,36 @@ module Low (Client: Cohttp_lwt.Client)
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S) =
 struct
-
-  include Helper (Client)
-
-  module RO (C: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
-
-    type t = {
-      mutable uri: Uri.t;
-      task: Irmin.task;
-    }
-
-    let task t = t.task
-
-    type key = K.t
-    type value = V.t
-
-    let create_aux config task =
-      let uri = match Irmin.Private.Conf.get config uri with
-        | None   -> failwith "Irmin_http.create: No URI specified"
-        | Some u -> u
-      in
-      let uri = match C.suffix with
-        | None   -> uri
-        | Some p -> uri_append uri [p]
-      in
-      { uri; task = task }
-
-    let create config task =
-      return (fun a -> create_aux config (task a))
-
-    let read { uri; _ } key =
-      get uri ["read"; K.to_hum key] (module Tc.Option(V))
-
-    let err_not_found n k =
-      invalid_arg "Irmin_http.%s: %s not found" n (K.to_hum k)
-
-    let read_exn t key =
-      read t key >>= function
-      | None   -> err_not_found "read" key
-      | Some v -> return v
-
-    let mem { uri; _ } key =
-      get uri ["mem"; K.to_hum key] Tc.bool
-
-    let iter { uri; _ } fn =
-      Lwt_stream.iter_p fn (get_stream uri ["iter"] (module K))
-
-  end
-
-  module AO (C: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
-
-    include RO (C)(K)(V)
-
-    let add { uri; _ } value =
-      post uri ["add"] (V.to_json value) (module K)
-
-  end
-
-  module RW (C: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
-
-    include RO (C)(K)(V)
-
-    let update { uri; _ } key value =
-      post uri ["update"; K.to_hum key] (V.to_json value) Tc.unit
-
-    let remove { uri; _ } key =
-      delete uri ["remove"; K.to_hum key] Tc.unit
-
-    let watch { uri; _ } path =
-      get_stream uri ["watch"; K.to_hum path] (module Tc.Option(V))
-
-    let watch_all { uri; _ } =
-      get_stream uri ["watch-all"] (module Tc.Pair(K)(Tc.Option(V)))
-
-  end
-
   module X = struct
     module Contents = Irmin.Contents.Make(struct
         module Key = H
         module Val = C
-        include AO(struct let suffix = Some "contents" end)(H)(C)
+        include AO(Client)(H)(C)
+        let create config task = create (add_uri_suffix "contents" config) task
       end)
     module Node = struct
       module Key = H
       module Path = C.Path
       module Val = Irmin.Private.Node.Make(H)(H)(C.Path)
-      include AO(struct let suffix = Some "node" end)(Key)(Val)
+      include AO(Client)(Key)(Val)
+      let create config task = create (add_uri_suffix "node" config) task
     end
     module Commit = struct
       module Key = H
       module Val = Irmin.Private.Commit.Make(H)(H)
-      include AO(struct let suffix = Some "commit" end)(Key)(Val)
+      include AO(Client)(Key)(Val)
+      let create config task = create (add_uri_suffix "commit" config) task
     end
     module Tag = struct
       module Key = T
       module Val = H
-      include RW(struct let suffix = Some "tag" end)(Key)(Val)
+      include RW(Client)(Key)(Val)
+      let create config task = create (add_uri_suffix "tag" config) task
     end
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = Irmin.Private.Sync.None(H)(T)
   end
-
   include Irmin.Make_ext(X)
-end
-
-
-module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
-  module V = struct
-    include V
-    let merge _path ~old:_ _ _ = failwith "Irmin_git.AO.merge"
-    module Path = Irmin.Path.String_list
-  end
-  module M = Low (Client)(V)(Irmin.Tag.String)(K)
-  include M.X.Contents
-end
-
-module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Irmin.Hash.S) = struct
-  module K = struct
-    include K
-    let master = K.of_hum "master"
-  end
-  module M = Low (Client)(Irmin.Contents.String)(K)(V)
-  include M.X.Tag
 end
 
 module Make (Client: Cohttp_lwt.Client)
@@ -275,13 +357,13 @@ module Make (Client: Cohttp_lwt.Client)
     (H: Irmin.Hash.S) =
 struct
 
-  module T = struct
+  module Tag = struct
     include T
     let to_hum t = Uri.pct_encode (to_hum t)
     let of_hum t = of_hum (Uri.pct_decode t)
   end
 
-  module P = struct
+  module Key = struct
 
     include C.Path
 
@@ -294,6 +376,9 @@ struct
       |> C.Path.create
 
   end
+
+  module Head = H
+  module Val = C
 
   include Helper (Client)
 
@@ -310,17 +395,17 @@ struct
   (* The high-level bindings: every high-level operation is simply
      forwarded to the HTTP server. *much* more efficient than using
      [L]. *)
-  module L = Low(Client)(C)(T)(H)
+  module L = Low(Client)(Val)(Tag)(Head)
   module LP = L.Private
-  module S = L.RW(struct let suffix = None end)(P)(C)
+  module S  = RW(Client)(Key)(Val)
 
   (* [t.s.uri] always point to the right location:
        - `$uri/` if branch = `Tag T.master
        - `$uri/tree/$tag` if branch = `Tag tag
        - `$uri/tree/$key if key = `Key key *)
   type t = {
-    mutable branch: [`Tag of T.t | `Head of H.t ];
-    mutable h: S.t;
+    branch: [`Tag of Tag.t | `Head of Head.t | `Empty] ref;
+    mutable h: S.t; l: L.t;
     config: Irmin.config;
     contents_t: LP.Contents.t;
     node_t: LP.Node.t;
@@ -329,21 +414,25 @@ struct
     read_node: L.key -> LP.Node.key option Lwt.t;
     mem_node: L.key -> bool Lwt.t;
     update_node: L.key -> LP.Node.key -> unit Lwt.t;
+    lock: Lwt_mutex.t;
   }
 
+  let branch t = !(t.branch)
+
   let uri t =
-    let base = t.h.S.uri in
-    match t.branch with
+    let base = S.uri t.h in
+    match branch t with
     | `Tag tag ->
-      if T.equal tag T.master then base
-      else uri_append base ["tree"; T.to_hum tag]
-    | `Head h ->
-      uri_append base ["tree"; H.to_hum h]
+      if Tag.equal tag Tag.master then base
+      else uri_append base ["tree"; Tag.to_hum tag]
+    | `Empty  -> uri_append base ["empty"]
+    | `Head h -> uri_append base ["tree"; Head.to_hum h]
 
   let task t = S.task t.h
-  let branch t = t.branch
-  let set_tag t tag = t.branch <- `Tag tag
-  let set_head t head = t.branch <- `Head head
+  let set_tag t tag = t.branch := `Tag tag
+  let set_head t = function
+    | None   -> t.branch := `Empty
+    | Some h -> t.branch := `Head h
 
   type key = S.key
   type value = S.value
@@ -361,68 +450,90 @@ struct
       let read_node = LP.read_node l in
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
-      { branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; config; }
+      let lock = Lwt_mutex.create () in
+      { l; branch; h; contents_t; node_t; commit_t; tag_t;
+        read_node; mem_node; update_node; config;
+        lock; }
     in
-    return fn
+    Lwt.return fn
 
   let create config task =
     S.create config task >>= fun h ->
     L.create config task >>= fun l ->
-    create_aux (`Tag T.master) config h l
+    let branch = ref (`Tag Tag.master) in
+    create_aux branch config h l
 
   let of_tag config task tag =
     S.create config task >>= fun h ->
     L.of_tag config task tag >>= fun l ->
-    create_aux (`Tag tag) config h l
+    let branch = ref (`Tag tag) in
+    create_aux branch config h l
 
   let of_head config task head =
     S.create config task >>= fun h ->
     L.of_head config task head >>= fun l ->
-    create_aux (`Head head) config h l
+    let branch = ref (`Head head) in
+    create_aux branch config h l
 
-  let read t key =
-    get (uri t) ["read"; P.to_hum key] (module Tc.Option(C))
+  let empty config task =
+    S.create config task >>= fun h ->
+    L.empty config task  >>= fun l ->
+    let branch = ref `Empty in
+    create_aux branch config h l
 
   let err_not_found n k =
-    invalid_arg "Irmin_http.%s: %s not found" n (P.to_hum k)
+    invalid_arg "Irmin_http.%s: %s not found" n (Key.to_hum k)
 
   let err_no_head = invalid_arg "Irmin_http.%s: no head"
   let err_not_persistent = invalid_arg "Irmin_http.%s: not a persistent branch"
 
+  let get t = get (uri t)
+  let delete t = delete (uri t)
+
+  let post t path ?query body =
+    let task = Some (task t) in
+    post (uri t) ~task path ?query body
+
+  let read t key = get t ["read"; Key.to_hum key] (module Tc.Option(Val))
+  let mem t key = get t ["mem"; Key.to_hum key] Tc.bool
+
   let read_exn t key =
     read t key >>= function
     | None   -> err_not_found "read" key
-    | Some v -> return v
+    | Some v -> Lwt.return v
 
-  let mem t key =
-    get (uri t) ["mem"; P.to_hum key] Tc.bool
-
+  (* The server sends a stream of keys *)
   let iter t fn =
-    Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module P))
-
-  let watch t path =
-    get_stream (uri t) ["watch"; P.to_hum path] (module Tc.Option(C))
-
-  let watch_all t =
-    get_stream (uri t) ["watch-all";] (module Tc.Pair(P)(Tc.Option(C)))
+    let fn key = fn key (read_exn t key) in
+    Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module Key))
 
   let update t key value =
-    post (uri t) ["update"; P.to_hum key] (C.to_json value) (module H)
+    post t ["update"; Key.to_hum key] (some @@ Val.to_json value) (module Head)
     >>= fun h ->
-    let () = match t.branch with
-      | `Head _ -> set_head t h
+    let () = match branch t with
+      | `Empty
+      | `Head _ -> set_head t (Some h)
       | `Tag  _ -> ()
     in
-    return_unit
+    Lwt.return_unit
 
-  let remove t  key =
-    delete (uri t) ["remove"; P.to_hum key] (module H) >>= fun h ->
-    match t.branch with
-    | `Head _ -> set_head t h; return_unit
-    | `Tag _  -> return_unit
+  let remove t key =
+    delete t ["remove"; Key.to_hum key] (module Head) >>= fun h ->
+    let () = match branch t with
+      | `Empty
+      | `Head _ -> set_head t (Some h)
+      | `Tag _  -> ()
+    in
+    Lwt.return_unit
 
-  let tag t = match t.branch with
+  module CS = Tc.Pair(Tc.Option(Val))(Tc.Option(Val))
+
+  let compare_and_set t key ~test ~set =
+    post t ["compare-and-set"; Key.to_hum key] (some @@ CS.to_json (test, set))
+      Tc.bool
+
+  let tag t = match branch t with
+    | `Empty
     | `Head _ -> Lwt.return_none
     | `Tag t  -> Lwt.return (Some t)
 
@@ -430,53 +541,50 @@ struct
     | None   -> err_not_persistent "tag"
     | Some t -> Lwt.return t
 
-  let tags t =
-    get (uri t) ["tags"] (module Tc.List(T))
+  let tags t = get t ["tags"] (module Tc.List(Tag))
 
-  let head t = match t.branch with
-    | `Head h -> return (Some h)
-    | `Tag _  -> get (uri t) ["head"] (module Tc.Option(H))
+  let head t = match branch t with
+    | `Empty  -> Lwt.return_none
+    | `Head h -> Lwt.return (Some h)
+    | `Tag _  -> get t ["head"] (module Tc.Option(Head))
 
   let head_exn t =
     head t >>= function
     | None   -> err_no_head "head"
-    | Some h -> return h
-
-  let rename_tag t tag =
-    get (uri t) ["rename-tag"; T.to_hum tag] Tc.string >>= function
-    | "ok" -> set_tag t tag; return `Ok
-    | _    -> return `Duplicated_tag
+    | Some h -> Lwt.return h
 
   let update_tag t tag =
-    get (uri t) ["update-tag"; T.to_hum tag] Tc.unit >>= fun () ->
+    post t ["update-tag"; Tag.to_hum tag] None Tc.unit >>= fun () ->
     set_tag t tag;
-    return_unit
+    Lwt.return_unit
 
-  let remove_tag t =
-    match t.branch with
-    | `Head _  -> Lwt.return_unit
-    | `Tag _   -> get (uri t) ["remove-tag"] Tc.unit
+  let remove_tag t tag = delete t ["remove-tag"; Tag.to_hum tag] Tc.unit
 
-  let switch_tag t tag = set_tag t tag; Lwt.return_unit
-  let switch_head t head = set_head t head; Lwt.return_unit
+  let heads t = get t ["heads"] (module Tc.List(Head))
 
-  let heads t =
-    get (uri t) ["heads"] (module Tc.List(H))
+  let update_head t head = match branch t with
+    | `Empty
+    | `Head _ -> set_head t (Some head); Lwt.return_unit
+    | `Tag _  -> get t ["update-head"; Head.to_hum head] Tc.unit
 
-  let detach t =
-    match t.branch with
-    | `Head _ -> return_unit
+  module CSH = Tc.Pair(Tc.Option(Head))(Tc.Option(Head))
+
+  let compare_and_set_head_unsafe t ~test ~set =
+    match branch t with
     | `Tag _  ->
-      head t >>= function
-      | None   -> return_unit
-      | Some h -> set_head t h; return_unit
+      post t ["compare-and-set-head"] (some @@ CSH.to_json (test, set)) Tc.bool
+    | `Empty ->
+      if None = test then (set_head t set; Lwt.return true) else Lwt.return false
+    | `Head h ->
+      if Some h = test then (set_head t set; Lwt.return true)
+      else Lwt.return false
 
-  let update_head t head =
-    match t.branch with
-    | `Head _ -> set_head t head; return_unit
-    | `Tag _  -> get (uri t) ["update-head"; H.to_hum head] Tc.unit
+  let compare_and_set_head t ~test ~set =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        compare_and_set_head_unsafe t ~test ~set
+      )
 
-  module M = Tc.App1 (Irmin.Merge.Result) (H)
+  module M = Tc.App1 (Irmin.Merge.Result) (Head)
 
   let mk_query ?max_depth ?n () =
     let max_depth = match max_depth with
@@ -491,49 +599,84 @@ struct
     | [] -> None
     | q  -> Some q
 
+  let fast_forward_head_unsafe t ?max_depth ?n head =
+    let query = mk_query ?max_depth ?n () in
+    post t ?query ["fast-forward-head"; Head.to_hum head] None Tc.bool >>= fun b ->
+    match branch t with
+    | `Tag _  -> Lwt.return b
+    | `Empty
+    | `Head _ -> if b then set_head t (Some head); Lwt.return b
+
+  let fast_forward_head t ?max_depth ?n head =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        fast_forward_head_unsafe t ?max_depth ?n head
+      )
+
   let merge_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["merge-head"; H.to_hum head] (module M) >>| fun h ->
-    match t.branch with
-    | `Head _ -> set_head t h; ok ()
+    post t ?query ["merge-head"; Head.to_hum head] None (module M) >>| fun h ->
+    match branch t with
+    | `Empty
+    | `Head _ -> set_head t (Some h); ok ()
     | `Tag _  -> ok ()
 
   let merge_head_exn t ?max_depth ?n head =
     merge_head t ?max_depth ?n head >>= Irmin.Merge.exn
 
-  let watch_head t key =
-    match t.branch with
-    | `Head _ -> Lwt_stream.of_list []
-    | `Tag _  ->
-      let module W = Tc.Pair (P)(Tc.Option(H)) in
-      Irmin.Private.Watch.lwt_stream_lift (
-        let s = get_stream (uri t) ["watch-head"; P.to_hum key] (module W) in
-        return s
-      )
+  let watch_head t = L.watch_head t.l
+  let watch_tags t = L.watch_tags t.l
 
-  let watch_tags t =
-    let module W = Tc.Pair (T)(Tc.Option(H)) in
-    Irmin.Private.Watch.lwt_stream_lift (
-      let s = get_stream (uri t) ["watch-tags"] (module W) in
-      return s
-    )
+  (* FIXME: duplicated code from Ir_bc.lift *)
+  let lift value_of_head fn = function
+    | `Removed x -> begin
+        value_of_head x >>= function
+        | None   -> Lwt.return_unit
+        | Some v -> fn @@ `Removed (x, v)
+      end
+    | `Added x -> begin
+        value_of_head x >>= function
+        | None   -> Lwt.return_unit
+        | Some v -> fn @@ `Added (x, v)
+      end
+    | `Updated (x, y) ->
+      assert (not (Head.equal x y));
+      value_of_head x >>= fun vx ->
+      value_of_head y >>= fun vy ->
+      match vx, vy with
+      | None   ,  None   -> Lwt.return_unit
+      | Some vx, None    -> fn @@ `Removed (x, vx)
+      | None   , Some vy -> fn @@ `Added (y, vy)
+      | Some vx, Some vy ->
+        if Val.equal vx vy then Lwt.return_unit
+        else fn @@ `Updated ( (x, vx), (y, vy) )
+
+  (* FIXME: duplicated code from Ir_bc.lift *)
+  let watch_key t key ?init fn =
+    let init_head = match init with
+      | None        -> None
+      | Some (h, _) -> Some h
+    in
+    let value_of_head h =
+      of_head t.config (fun () -> task t) h >>= fun t ->
+      read (t ()) key
+    in
+    watch_head t ?init:init_head (lift value_of_head fn)
 
   let clone task t tag =
-    get (uri t) ["clone"; T.to_hum tag] Tc.string >>= function
-    | "ok" ->
-      of_tag t.config task tag >>= fun t ->
-      return (`Ok t)
-    | _    -> return `Duplicated_tag
+    post t ["clone"; Tag.to_hum tag] None Tc.string >>= function
+    | "ok" -> of_tag t.config task tag >|= fun t -> `Ok t
+    | _    -> Lwt.return `Duplicated_tag
 
   let clone_force task t tag =
-    get (uri t) ["clone-force"; T.to_hum tag] Tc.unit >>= fun () ->
+    post t ["clone-force"; Tag.to_hum tag] None Tc.unit >>= fun () ->
     of_tag t.config task tag
 
   let merge_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["merge-tag"; T.to_hum tag] (module M) >>| fun h ->
-    match t.branch with
-    | `Head _ -> set_head t h; ok ()
+    post t ?query ["merge-tag"; Tag.to_hum tag] None (module M) >>| fun h ->
+    match branch t with
+    | `Empty
+    | `Head _ -> set_head t (Some h); ok ()
     | `Tag _  -> ok ()
 
   let merge_tag_exn t ?max_depth ?n tag =
@@ -544,13 +687,14 @@ struct
     match branch t with
     | `Tag tag -> merge_tag into ?max_depth ?n tag
     | `Head h  -> merge_head into ?max_depth ?n h
+    | `Empty   -> ok ()
 
   let merge_exn a ?max_depth ?n t ~into =
     merge a ?max_depth ?n t ~into >>= Irmin.Merge.exn
 
   module LCA = struct
-    module HL = Tc.List(H)
-    type t = [`Ok of H.t list | `Max_depth_reached | `Too_many_lcas]
+    module HL = Tc.List(Head)
+    type t = [`Ok of Head.t list | `Max_depth_reached | `Too_many_lcas]
     let hash = Hashtbl.hash
     let compare = Pervasives.compare
     let equal = (=)
@@ -567,28 +711,29 @@ struct
 
   let lcas_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["lcas-tag"; T.to_hum tag] (module LCA)
+    get t ?query ["lcas-tag"; Tag.to_hum tag] (module LCA)
 
   let lcas_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    get (uri t) ?query ["lcas-head"; H.to_hum head] (module LCA)
+    get t ?query ["lcas-head"; Head.to_hum head] (module LCA)
 
   let lcas a ?max_depth ?n t1 t2 =
     match branch (t2 a) with
     | `Tag tag   -> lcas_tag  (t1 a) ?max_depth ?n tag
     | `Head head -> lcas_head (t1 a) ?max_depth ?n head
+    | `Empty     -> Lwt.return (`Ok [])
 
   let task_of_head t head =
     LP.Commit.read_exn t.commit_t head >>= fun commit ->
     Lwt.return (LP.Commit.Val.task commit)
 
-  module E = Tc.Pair (Tc.List(H)) (Tc.List(H))
+  module E = Tc.Pair (Tc.List(Head)) (Tc.Option(Tc.List(Head)))
 
   type slice = L.slice
 
   module Slice = L.Private.Slice
 
-  let export ?full ?depth ?(min=[]) ?(max=[]) t =
+  let export ?full ?depth ?(min=[]) ?max t =
     let query =
       let full = match full with
         | None   -> []
@@ -600,25 +745,29 @@ struct
       in
       match full @ depth with [] -> None | l -> Some l
     in
-    post (uri t) ?query ["export"] (E.to_json (min, max))
+    (* FIXME: this should be a GET *)
+    post t ?query ["export"] (some @@ E.to_json (min, max))
       (module L.Private.Slice)
 
-  module I = Tc.List(T)
+  module I = Tc.List(Tag)
 
   let import t slice =
-    post (uri t) ["import"] (Slice.to_json slice) Tc.unit
+    post t ["import"] (some @@ Slice.to_json slice) Tc.unit
 
   let remove_rec t dir =
-    get (uri t) ["remove-rec"; P.to_hum dir] (module H) >>= fun h ->
-    match t.branch with
-    | `Head _ -> set_head t h; return_unit
-    | `Tag _  -> return_unit
+    delete t ["remove-rec"; Key.to_hum dir] (module Head) >>= fun h ->
+    let () = match branch t with
+      | `Empty
+      | `Head _ -> set_head t (Some h)
+      | `Tag _  -> ()
+    in
+    Lwt.return_unit
 
   let list t dir =
-    get (uri t) ["list"; P.to_hum dir] (module Tc.List(P))
+    get t ["list"; Key.to_hum dir] (module Tc.List(Key))
 
-  module History = Graph.Persistent.Digraph.ConcreteBidirectional(H)
-  module G = Tc.Pair (Tc.List (H))(Tc.List (Tc.Pair(H)(H)))
+  module History = Graph.Persistent.Digraph.ConcreteBidirectional(Head)
+  module G = Tc.Pair (Tc.List (Head))(Tc.List (Tc.Pair(Head)(Head)))
   module Conv = struct
     type t = History.t
     let to_t (vertices, edges) =
@@ -631,7 +780,7 @@ struct
       vertices, edges
   end
   module HTC = Tc.Biject (G)(Conv)
-  module EO = Tc.Pair (Tc.Option(Tc.List(H))) (Tc.Option(Tc.List(H)))
+  module EO = Tc.Pair (Tc.Option(Tc.List(Head))) (Tc.Option(Tc.List(Head)))
 
   let history ?depth ?min ?max t =
     let query =
@@ -641,12 +790,9 @@ struct
       in
       match depth with [] -> None | l -> Some l
     in
-   post (uri t) ?query ["history"] (EO.to_json (min, max)) (module HTC)
+    (* FIXME: this should be a GET *)
+    post t ?query ["history"] (some @@ EO.to_json (min, max)) (module HTC)
 
-  module Key = P
-  module Val = C
-  module Tag = T
-  module Head = H
   module Private = struct
     include L.Private
     let config t = t.config

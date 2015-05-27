@@ -54,9 +54,13 @@ module Make (S: Irmin.S) = struct
   let cmp_list eq comp l1 l2 =
     cmp_list eq (List.sort comp l1) (List.sort comp l2)
 
-  let aux cmp printer msg =
+  let error msg expected got =
+    let msg = Printf.sprintf "Fail %s: expecting %s, got %s" msg expected got in
+    failwith msg
+
+  let aux cmp printer msg x y =
     line msg;
-    OUnit.assert_equal ~msg ~cmp ~printer
+    if not (cmp x y) then error msg (printer x) (printer y)
 
   let assert_equal (type t) (module S: Tc.S0 with type t = t) msg =
     aux S.equal (Tc.show (module S)) msg
@@ -106,9 +110,12 @@ let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
     in
     let module S = Irmin.Basic(B)(C) in (module S)
 
+type kind = [`Mem | `Fs | `Git | `Krypto | `Http of kind]
+
 type t = {
   name  : string;
-  kind  : [`Json | `String];
+  kind  : kind;
+  cont  : [`Json | `String];
   init  : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config: Irmin.config;
@@ -118,7 +125,7 @@ type t = {
 let none () =
   return_unit
 
-let string_of_kind = function
+let string_of_contents = function
   | `Json   -> "-json"
   | `String -> ""
 

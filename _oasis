@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        irmin
-Version:     0.9.4
+Version:     0.9.5
 Synopsis:    A Distributed Version Control Database
 Authors:     Thomas Gazagnaire
 License:     ISC
@@ -26,13 +26,14 @@ Flag examples
 Library irmin
   Path:            lib/
   Findlibname:     irmin
-  InternalModules: Ir_misc, Ir_graph, Ir_hash, Ir_snapshot, Ir_slice,
-                   Ir_ro, Ir_ao, Ir_rw, Ir_conf, Ir_s,
+  InternalModules: Ir_misc, Ir_graph, Ir_hash, Ir_slice,
+                   Ir_ro, Ir_ao, Ir_rw, Ir_conf, Ir_s, Ir_lock,
                    Ir_commit, Ir_tag, Ir_contents, Ir_hum,
                    Ir_node, Ir_version, Ir_dot, Ir_path, Ir_watch,
                    Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync, Ir_sync_ext
+
   Modules:         Irmin
-  BuildDepends:    ezjsonm, ocamlgraph, lwt, nocrypto, dolog, cstruct, tc,
+  BuildDepends:    ezjsonm, ocamlgraph, lwt, dolog, cstruct, tc,
                    mstruct, uri, stringext, hex
 
 Library "irmin-mem"
@@ -78,6 +79,27 @@ Library "irmin-unix"
                  git.unix, cohttp.lwt
   Modules:       Irmin_unix
 
+Library "irmin-krypto"
+  Path:             lib/krypto
+  Findlibname:      krypto
+  FindlibParent:    irmin
+  BuildDepends:     irmin, nocrypto
+  Modules:          Irmin_krypto, Irmin_krypto_cipher, Irmin_krypto_km
+
+Library "irmin-index"
+  Path:             lib/index
+  Findlibname:      index
+  FindlibParent:    irmin
+  BuildDepends:     irmin
+  Modules:          Irmin_index
+
+Library "irmin-bucheron"
+  Path:             lib/bucheron
+  Findlibname:      bucheron
+  FindlibParent:    irmin
+  BuildDepends:     irmin, cstruct
+  Modules:          Irmin_bucheron
+
 Document irmin
   Title:                Irmin docs
   Type:                 OCamlbuild (0.4)
@@ -100,12 +122,28 @@ Executable test_irmin
   Build$:         flag(tests) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.mem, irmin.unix, alcotest
+  BuildDepends:   irmin, irmin.mem, irmin.unix, alcotest, nocrypto
 
 Test test_irmin
   Run$:             flag(tests) && flag(unix) && flag(http) && flag(git)
   Command:          $test_irmin -q
   WorkingDirectory: lib_test
+
+Executable test_krypto
+  Path:           examples/
+  MainIs:         krypto.ml
+  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
+  CompiledObject: best
+  Install:        false
+  BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index
+
+Executable test_index_bucheron_krypto
+ Path:           examples/
+ MainIs:         index_bucheron_krypto.ml
+ Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
+ CompiledObject: best
+ Install:        false
+ BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index, irmin.bucheron
 
 Executable test_git_store
   Path:           examples/
@@ -131,17 +169,9 @@ Executable test_views
   Install:        false
   BuildDepends:   irmin, irmin.unix
 
-Executable test_contatcs
+Executable test_deploy
   Path:           examples/
-  MainIs:         contacts.ml
-  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
-  CompiledObject: best
-  Install:        false
-  BuildDepends:   irmin, irmin.unix
-
-Executable test_intrusion
-  Path:           examples/
-  MainIs:         intrusion.ml
+  MainIs:         deploy.ml
   Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false

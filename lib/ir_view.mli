@@ -39,9 +39,17 @@ module type S = sig
     val prettys: t list -> string
   end
   val actions: t -> Action.t list
+  val diff: t -> t -> (key * value Ir_watch.diff) list Lwt.t
+  type head
+  val parents: t -> head list
+  val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
+  val watch_path: db -> key -> ?init:(head * t) ->
+    ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val task: [`Views_do_not_have_task]
 end
 
 module Make (S: Ir_s.STORE):
   S with type db = S.t
      and type key = S.key
      and type value = S.value
+     and type head = S.head

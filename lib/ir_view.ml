@@ -115,7 +115,10 @@ module type NODE = sig
   module Contents: Tc.S0 with type t = contents
   module Path: Ir_path.S
 
+  val equal: t -> t -> bool
   val empty: unit -> t
+  val is_empty: t -> bool Lwt.t
+
   val read: t -> node option Lwt.t
 
   val read_contents: t -> Path.step -> contents option Lwt.t
@@ -150,7 +153,12 @@ module Internal (Node: NODE) = struct
     view: Node.t;
     ops: action list ref;
     parents: Node.commit list ref;
+    lock: Lwt_mutex.t;
   }
+
+  let equal x y = Node.equal x.view y.view
+  type head = Node.commit
+  let parents t = !(t.parents)
 
   module CO = Tc.Option(Node.Contents)
   module PL = Tc.List(Path)
@@ -160,14 +168,15 @@ module Internal (Node: NODE) = struct
     let view = Node.empty () in
     let ops = ref [] in
     let parents = ref [] in
-    Lwt.return { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    Lwt.return { parents; view; ops; lock }
 
   let create _conf _task =
     Log.debug "create";
     empty () >>= fun t ->
     Lwt.return (fun _ -> t)
 
-  let task _ = failwith "Not task for views"
+  let task = `Views_do_not_have_task
 
   let sub t path =
     let rec aux node path =
@@ -238,9 +247,14 @@ module Internal (Node: NODE) = struct
       | path::tl ->
         list t path >>= fun childs ->
         let todo = childs @ tl in
-        fn path >>= fun () ->
+        mem t path >>= fun exists ->
+        begin
+          if not exists then Lwt.return_unit
+          else fn path (read_exn t path)
+        end >>= fun () ->
         aux todo
     in
+    (* FIXME take lock? *)
     list t Path.empty >>= aux
 
   let update_contents_aux t k v =
@@ -257,6 +271,13 @@ module Internal (Node: NODE) = struct
           match Node.read_succ n h with
           | Some child ->
             aux child p >>= fun changed ->
+            (* remove empty dirs *)
+            begin if changed && v = None then
+                Node.is_empty child >>= function
+                | false -> Lwt.return false
+                | true  -> Node.with_succ view h None
+              else Lwt.return false
+            end >>= fun _ ->
             if changed then Node.clear_cache view;
             Lwt.return changed
           | None ->
@@ -275,10 +296,20 @@ module Internal (Node: NODE) = struct
     update_contents_aux t k v
 
   let update t k v =
-    update_contents t k (Some v)
+    Lwt_mutex.with_lock t.lock (fun () -> update_contents t k (Some v))
 
   let remove t k =
-    update_contents t k None
+    Lwt_mutex.with_lock t.lock (fun () -> update_contents t k None)
+
+  let compare_and_set t k ~test ~set =
+    Lwt_mutex.with_lock t.lock (fun () ->
+        read t k >>= fun v ->
+        if Tc.O1.equal Node.Contents.equal test v then
+          update_contents t k set >>= fun () ->
+          Lwt.return true
+        else
+          Lwt.return false
+      )
 
   let remove_rec t k =
     match Path.decons k with
@@ -307,12 +338,6 @@ module Internal (Node: NODE) = struct
       aux t.view k >>= fun _ ->
       Lwt.return_unit
 
-  let watch _ _ =
-    failwith "TODO: View.watch"
-
-  let watch_all _ =
-    failwith "TODO: View.watch_all"
-
   let apply t a =
     Log.debug "apply %a" force (show (module Action) a);
     match a with
@@ -336,6 +361,54 @@ module Internal (Node: NODE) = struct
         conflict "list %s: got %s, expecting %s" (one l) (many r') (many r)
 
   let actions t = List.rev !(t.ops)
+
+  module KV = Ir_misc.Set(Tc.Pair(Path)(Node.Contents))
+
+  module PathMap = Ir_misc.Map(Path)
+
+  let diff x y =
+    let set t =
+      let acc = ref KV.empty in
+      iter t (fun k v ->
+          v >>= fun v ->
+          acc := KV.add (k, v) !acc;
+          Lwt.return_unit
+        ) >>= fun () ->
+      Lwt.return !acc
+    in
+    (* FIXME very dumb and slow *)
+    set x >>= fun sx ->
+    set y >>= fun sy ->
+    let added     = KV.diff sy sx in
+    let removed   = KV.diff sx sy in
+    let added_l   = KV.elements added in
+    let removed_l = KV.elements removed in
+    let added_m   = PathMap.of_alist added_l in
+    let removed_m = PathMap.of_alist removed_l in
+    let added_p   = PathSet.of_list (List.map fst added_l) in
+    let removed_p = PathSet.of_list (List.map fst removed_l) in
+
+    let updated_p = PathSet.inter added_p removed_p in
+    let added_p   = PathSet.diff added_p updated_p in
+    let removed_p = PathSet.diff removed_p updated_p in
+    let added =
+      PathSet.fold (fun path acc ->
+          (path, `Added (PathMap.find path added_m)) :: acc
+        ) added_p []
+    in
+    let removed =
+      PathSet.fold (fun path acc ->
+          (path, `Removed (PathMap.find path removed_m)) :: acc
+        ) removed_p []
+    in
+    let updated =
+      PathSet.fold (fun path acc ->
+          let x = PathMap.find path removed_m in
+          let y = PathMap.find path added_m in
+          (path, `Updated (x, y)) :: acc
+        ) updated_p []
+    in
+    Lwt.return (added @ updated @ removed)
 
   let rebase t1 ~into =
     Ir_merge.iter (apply into) (actions t1) >>| fun () ->
@@ -517,6 +590,11 @@ module Make (S: Ir_s.STORE) = struct
           t := Both ((db, k), n);
           Lwt.return (Some n)
 
+    let is_empty t =
+      read t >>= function
+      | None   -> Lwt.return false
+      | Some n -> Lwt.return (n.alist = [])
+
     let steps t =
       Log.debug "steps";
       read t >>= function
@@ -617,7 +695,8 @@ module Make (S: Ir_s.STORE) = struct
     let view = Node.empty () in
     let ops = ref [] in
     let parents = ref parents in
-    { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    { parents; view; ops; lock }
 
   let import db ~parents key =
     Log.debug "import %a" force (show (module P.Node.Key) key);
@@ -627,7 +706,8 @@ module Make (S: Ir_s.STORE) = struct
     end >>= fun view ->
     let ops = ref [] in
     let parents = ref parents in
-    Lwt.return { parents; view; ops }
+    let lock = Lwt_mutex.create () in
+    Lwt.return { parents; view; ops; lock }
 
   let export db t =
     Log.debug "export";
@@ -751,6 +831,35 @@ module Make (S: Ir_s.STORE) = struct
   let merge_path_exn db ?max_depth ?n path t =
     merge_path db ?max_depth ?n path t >>= Ir_merge.exn
 
+  let make_head db task ~parents ~contents =
+    export db contents >>= fun node ->
+    let commit = S.Private.Commit.Val.create task ~parents ~node in
+    S.Private.Commit.add (S.Private.commit_t db) commit
+
+  let watch_path db key ?init fn =
+    let view_of_head h =
+        S.of_head (S.Private.config db) (fun () -> S.task db) h >>= fun db ->
+        of_path (db ()) key
+    in
+    let init = match init with
+      | None        -> None
+      | Some (h, _) -> Some h
+    in
+    S.watch_head db ?init (function
+        | `Removed h ->
+          view_of_head h >>= fun v ->
+          fn @@ `Removed (h, v)
+        | `Added h ->
+          view_of_head h >>= fun v ->
+          fn @@ `Added (h, v)
+        | `Updated (x, y) ->
+          assert (not (S.Head.equal x y));
+          view_of_head x >>= fun vx ->
+          view_of_head y >>= fun vy ->
+          if equal vx vy then Lwt.return_unit
+          else fn @@ `Updated ( (x, vx), (y, vy) )
+      )
+
 end
 
 module type S = sig
@@ -777,4 +886,11 @@ module type S = sig
     val prettys: t list -> string
   end
   val actions: t -> Action.t list
+  val diff: t -> t -> (key * value Ir_watch.diff) list Lwt.t
+  type head
+  val parents: t -> head list
+  val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
+  val watch_path: db -> key -> ?init:(head * t) ->
+    ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val task: [`Views_do_not_have_task]
 end

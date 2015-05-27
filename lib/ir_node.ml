@@ -320,6 +320,8 @@ struct
       in
       merge_key path ~old x y
 
+    let iter (_, t) fn = S.iter t fn
+
     module Key = S.Key
     module Val = struct
       include S.Val
@@ -403,7 +405,7 @@ struct
     | Some n -> return (S.Val.succ n step)
 
   let err_not_found n k =
-    Ir_misc.invalid_arg "Irmin.%s: %s not found" n (Path.to_hum k)
+    Ir_misc.invalid_arg "Irmin.Node.%s: %s not found" n (Path.to_hum k)
 
   let read_node_exn t node path =
     Log.debug "read_node_exn %a %a"
@@ -436,20 +438,16 @@ struct
     | Some (l,t) -> l, t
     | None -> Path.empty, Step.of_hum "__root__"
 
-  let read_contents_exn t node path =
-   Log.debug "read_contents_exn %a %a"
-     force (show (module S.Key) node)
-     force (show (module S.Path) path);
-   let path, file = mk_path path in
+  let read_contents_exn t node path0 =
+   Log.debug "read_contents_exn %a" force (show (module S.Path) path0);
+   let path, file = mk_path path0 in
    read_node_exn t node path >>= fun node ->
    contents t node file >>= function
-   | None   -> err_not_found "read_contents" path
+   | None   -> err_not_found "read_contents" path0
    | Some c -> return c
 
   let read_contents t node path =
-    Log.debug "read_contents %a %a"
-      force (show (module S.Key) node)
-      force (show (module S.Path) path);
+    Log.debug "read_contents %a" force (show (module S.Path) path);
     let path, file = mk_path path in
     read_node t node path >>= function
     | None      -> return_none
@@ -459,17 +457,13 @@ struct
       | Some c -> return (Some c)
 
   let mem_node t node path =
-    Log.debug "mem_node %a %a"
-      force (show (module S.Key) node)
-      force (show (module S.Path) path);
+    Log.debug "mem_node %a" force (show (module S.Path) path);
     read_node t node path >>= function
     | None   -> return false
     | Some _ -> return true
 
   let mem_contents t node path =
-    Log.debug "mem_contents %a %a"
-      force (show (module S.Key) node)
-      force (show (module S.Path) path);
+    Log.debug "mem_contents %a" force (show (module S.Path) path);
     let path, file = mk_path path in
     read_node t node path >>= function
     | None   -> return false
@@ -479,9 +473,7 @@ struct
       | Some _ -> return true
 
   let map_one t node f label =
-    Log.debug "map_one %a %a"
-      force (show (module S.Val) node)
-      force (show (module Step) label);
+    Log.debug "map_one %a" force (show (module Step) label);
     let old_key = S.Val.succ node label in
     begin match old_key with
       | None   -> return S.Val.empty

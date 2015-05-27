@@ -14,22 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Manage snapshot/revert capabilities. *)
-
 module type S = sig
-  include Ir_ro.STORE
-  type db
-  val to_hum: t -> string
-  val of_hum: db -> string -> t
-  val create: db -> t Lwt.t
-  val revert: db -> t -> unit Lwt.t
-  val merge: db -> ?max_depth:int -> ?n:int -> t -> unit Ir_merge.result Lwt.t
-  val merge_exn: db -> ?max_depth:int -> ?n:int -> t -> unit Lwt.t
-  val watch: db -> key -> (key * t) Lwt_stream.t
+  type key
+  type t
+  val create: unit -> t
+  val with_lock: t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module Make (S: Ir_s.STORE):
-  S with type db = S.t
-            and type key = S.key
-            and type value = S.value
-(** Add snapshot capabilities to a branch-consistent store. *)
+module Make (K: Tc.S0): S with type key = K.t

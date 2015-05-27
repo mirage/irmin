@@ -39,6 +39,18 @@ exception Invalid
 type hooks = { update: unit -> unit Lwt.t }
 let no_hooks = { update = fun () -> Lwt.return_unit }
 
+let lwt_stream_lift s =
+  let (stream: 'a Lwt_stream.t option ref) = ref None in
+  let rec get () =
+    match !stream with
+    | Some s -> Lwt_stream.get s
+    | None   ->
+      s >>= fun s ->
+      stream := Some s;
+      get ()
+  in
+  Lwt_stream.from get
+
 module type S = sig
   type t
   val listen: t -> ?timeout:int -> ?hooks:hooks -> Uri.t -> unit Lwt.t
@@ -55,6 +67,8 @@ module type DATE = sig
 end
 
 module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
+
+  module Lock = Irmin.Private.Lock.Make(S.Tag)
 
   let read_exn file =
     match Irmin_http_static.read file with
@@ -88,16 +102,20 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let body = Cohttp_lwt_body.of_stream stream in
     HTTP.respond ~headers:json_headers ~status:`OK ~body ()
 
-  type 'a leaf = S.t -> string list -> Ezjsonm.value option -> (string * string list) list -> 'a
+  type 'a leaf =
+      S.t -> Irmin.task option -> string list -> Ezjsonm.value option ->
+      (string * string list) list -> 'a
+
+  type json = Ezjsonm.value
 
   type dynamic_node = {
-    list: S.t -> string list Lwt.t;
+    list : S.t -> string list Lwt.t;
     child: S.t -> string -> response Lwt.t;
   }
 
   and response =
-    | Fixed  of Ezjsonm.value Lwt.t leaf
-    | Stream of Ezjsonm.value Lwt_stream.t leaf
+    | Fixed  of json Lwt.t leaf
+    | Stream of json Lwt_stream.t leaf
     | SNode  of (string * response) list
     | DNode  of dynamic_node
     | Html   of string Lwt.t leaf
@@ -146,105 +164,155 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let mk1b name i = function
     | None   -> error "%s: empty body" name
-    | Some b  -> Tc.of_json i b
+    | Some b -> Tc.of_json i b
+
+  let mk1bo _name i = function
+    | None   -> None
+    | Some b -> Some (Tc.of_json i b)
 
   let id = let c = ref 0 in fun () -> incr c; !c
 
-  let with_lock lock fn = match lock with
-    | None   -> fn ()
-    | Some l ->
+  (* global lock manager *)
+  let lockm = Lock.create ()
+
+  let with_lock t lock fn =
+    match lock with
+    | None | Some false -> fn ()
+    | Some true ->
       let id = id () in
       Log.debug "Lock %d taken" id;
-      Lwt_mutex.with_lock l fn >>= fun r ->
-      Log.debug "Lock %d released" id;
-      Lwt.return r
+      S.tag t >>= function
+      | None     -> fn ()
+      | Some tag ->
+        Lock.with_lock lockm tag fn >>= fun r ->
+        Log.debug "Lock %d released" id;
+        Lwt.return r
 
-  let run_hooks lock = function
+  let run_hooks = function
     | None   -> Lwt.return_unit
-    | Some f -> with_lock lock f
+    | Some f -> f ()
 
   (* no arguments, fixed answer *)
   let mk0p0bf ?lock ?hooks name fn db o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         mk0p name path;
         mk0b name params;
         mk0q name query;
-        db t >>= fun t ->
-        with_lock lock (fun () -> fn t) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        db t task >>= fun t ->
+        with_lock t lock (fun () -> fn t) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
   (* 0 argument, return an html page. *)
   let mk0p0bh name fn db =
     name,
-    Html (fun t path params query ->
+    Html (fun t task path params query ->
         mk0b name params;
-        db t >>= fun t ->
+        db t task >>= fun t ->
         fn t path query
       )
 
   (* 0 arguments, return a stream *)
   let mk0p0bs name fn db o =
     name,
-    Stream (fun t path params query ->
+    Stream (fun t task path params query ->
         mk0p name path;
         mk0b name params;
         mk0q name query;
-        Irmin.Private.Watch.lwt_stream_lift
-          (db t >>= fun t ->
+        lwt_stream_lift
+          (db t task >>= fun t ->
            let stream = fn t in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
            return stream)
       )
 
-  (* 1 argument in the path, fixed answer *)
-  let mk1p0bf name ?lock ?hooks fn db i1 o =
+  (* 1 argument in the body, return a stream *)
+  let mk0p1bs name fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Stream (fun t task path params query ->
+        mk0p name path;
+        mk0q name query;
+        let x = mk1bo name i1 params in
+        lwt_stream_lift
+          (db t task >>= fun t ->
+           let stream = fn t x in
+           let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
+           return stream)
+      )
+
+  (* 1 argument in the path, fixed answer *)
+  let mk1p0bf' name fn db i1 o =
+    name,
+    Fixed (fun t task path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
         mk0q name query;
-        db t >>= fun t ->
-        with_lock lock (fun () -> fn t x) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        db t task >>= fun t ->
+        fn t x >>= fun r ->
+        return (Tc.to_json o r)
+      )
+
+  (* 1 argument in the path, fixed answer with locks *)
+  let mk1p0bf name ?lock ?hooks fn db i1 o =
+    name,
+    Fixed (fun t task path params query ->
+        let x = mk1p name i1 path in
+        mk0b name params;
+        mk0q name query;
+        db t task >>= fun t ->
+        with_lock t lock (fun () -> fn t x) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
   (* 1 argument in the path, fixed answer and parameters in the query *)
   let mk1p0bfq name ?lock ?hooks fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x = mk1p name i1 path in
         mk0b name params;
-        db t >>= fun t ->
-        with_lock lock (fun () -> fn t x query) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        db t task >>= fun t ->
+        with_lock t lock (fun () -> fn t x query) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
   (* n argument in the path, fixed answer *)
   let mknp0bf name ?lock ?hooks fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x = mknp i1 path in
         mk0b name params;
         mk0q name query;
-        db t >>= fun t ->
-        with_lock lock (fun () -> fn t x) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        db t task >>= fun t ->
+        with_lock t lock (fun () -> fn t x) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
   (* 1 argument in the body *)
-  let mk0p1bf name fn db i1 o =
+  let mk0p1bf name ?lock ?hooks fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         mk0p name path;
         mk0q name query;
         let x = mk1b name i1 params in
-        db t >>= fun t ->
+        db t task >>= fun t ->
+        with_lock t lock (fun () -> fn t x) >>= fun r ->
+        run_hooks hooks >>= fun () ->
+        return (Tc.to_json o r)
+      )
+
+    (* 1 argument in the body *)
+  let mk0p1bf' name fn db i1 o =
+    name,
+    Fixed (fun t task path params query ->
+        mk0p name path;
+        mk0q name query;
+        let x = mk1b name i1 params in
+        db t task >>= fun t ->
         fn t x >>= fun r ->
         return (Tc.to_json o r)
       )
@@ -252,64 +320,49 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   (* 1 argument in the body + query *)
   let mk0p1bfq name fn db i1 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         mk0p name path;
         let x = mk1b name i1 params in
-        db t >>= fun t ->
+        db t task >>= fun t ->
         fn t x query >>= fun r ->
         return (Tc.to_json o r)
       )
 
-  (* 1 argument in the path, 1 argument in the body, fixed answer *)
-  let mk1p1bf name ?lock ?hooks fn db i1 i2 o =
+    (* 1 argument in the path, 1 argument in the body, fixed answer *)
+  let mk1p1bf name fn db i1 i2 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x1 = mk1p name i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
-        db t >>= fun t ->
-        with_lock lock (fun () -> fn t x1 x2) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        db t task >>= fun t ->
+        fn t x1 x2 >>= fun r ->
         return (Tc.to_json o r)
       )
 
-  (* n arguments in the path, 1 argument in the body, fixed answer *)
+  (* n arguments in the path, 1 argument in the body, fixed answer with locks *)
   let mknp1bf name ?lock ?hooks fn db i1 i2 o =
     name,
-    Fixed (fun t path params query ->
+    Fixed (fun t task path params query ->
         let x1 = mknp i1 path in
         let x2 = mk1b name i2 params in
         mk0q name query;
-        db t >>= fun t ->
-        with_lock lock (fun () -> fn t x1 x2) >>= fun r ->
-        run_hooks lock hooks >>= fun () ->
+        db t task >>= fun t ->
+        with_lock t lock (fun () -> fn t x1 x2) >>= fun r ->
+        run_hooks hooks >>= fun () ->
         return (Tc.to_json o r)
       )
 
-  (* 1 of arguments in the path, no body, streamed response *)
-  let mk1p0bs name fn db i1 o =
+  (* 1 of arguments in the path, 1 body, streamed response *)
+  let mk1p1bs name fn db i1 i2 o =
     name,
-    Stream (fun t path _params query ->
+    Stream (fun t task path params query ->
         let x1 = mk1p name i1 path in
         mk0q name query;
-        (* mk0b name params; *)
-        Irmin.Private.Watch.lwt_stream_lift
-          (db t >>= fun t ->
-           let stream = fn t x1 in
-           let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
-           return stream)
-      )
-
-  (* list of arguments in the path, no body, streamed response *)
-  let mknp0bs name fn db i1 o =
-    name,
-    Stream (fun t path _params query ->
-        let x1 = mknp i1 path in
-        mk0q name query;
-        (* mk0b name params; *)
-        Irmin.Private.Watch.lwt_stream_lift
-          (db t >>= fun t ->
-           let stream = fn t x1 in
+        let x2 = mk1bo name i2 params in
+        lwt_stream_lift
+          (db t task >>= fun t ->
+           let stream = fn t x1 x2 in
            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
            return stream)
       )
@@ -348,10 +401,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let key': M.key Irmin.Hum.t = (module K) in
     let key: M.key Tc.t = (module K) in
     let value: M.value Tc.t = (module V) in
+    let fn x _ = fn x in
     SNode [
-      mk1p0bf "read" M.read fn key' (Tc.option value);
-      mk1p0bf "mem"  M.mem  fn key' Tc.bool;
-      mk0p1bf "add"  M.add  fn value key;
+      mk1p0bf' "read" M.read fn key' (Tc.option value);
+      mk1p0bf' "mem"  M.mem  fn key' Tc.bool;
+      mk0p1bf' "add"  M.add  fn value key;
     ]
 
   let contents_store = ao_store
@@ -374,7 +428,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   let stream m fn t =
     let stream, push = Lwt_stream.create () in
-    Irmin.Private.Watch.lwt_stream_lift (
+    lwt_stream_lift (
       fn t (fun k ->
           Log.debug "stream push %s" (Tc.show m k);
           push (Some k);
@@ -385,18 +439,45 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     )
 
   let tag_store =
-    let open S.Private.Tag in
-    let tag_t t = return (S.Private.tag_t t) in
+    let module T = S.Private.Tag in
+    let tag_t t _ = return (S.Private.tag_t t) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let tag: S.tag Tc.t = (module S.Tag) in
     let head: S.head Tc.t = (module S.Head) in
+    let t_cs t tag (test, set) = T.compare_and_set t tag ~test ~set in
+    let tc_cs = Tc.pair (Tc.option head) (Tc.option head) in
+    let t_iter t fn = T.iter t (fun k _ -> fn k) in
+    let mk = function
+      | `Updated (_, y)
+      | `Added y   -> Some y
+      | `Removed _ -> None
+    in
+    let t_watch t init =
+      let stream, push = Lwt_stream.create () in
+      lwt_stream_lift (
+        T.watch t ?init (fun k v -> push (Some (k, mk v)); Lwt.return_unit)
+        >>= fun _ -> Lwt.return stream
+      )
+    in
+    let t_watch_key t tag init =
+      let stream, push = Lwt_stream.create () in
+      lwt_stream_lift (
+        T.watch_key t ?init tag (fun v -> push (Some (mk v)); Lwt.return_unit)
+        >>= fun _ -> Lwt.return stream
+      )
+    in
+    let tc_watch_i = Tc.list (Tc.pair tag head) in
+    let tc_watch_s = Tc.pair tag (Tc.option head) in
+    let tc_ho = Tc.option head in
     SNode [
-      mk1p0bf "read"   read   tag_t tag' (Tc.option head);
-      mk1p0bf "mem"    mem    tag_t tag' Tc.bool;
-      mk0p0bs "iter"   (stream tag iter) tag_t tag;
-      mk1p1bf "update" update tag_t tag' head Tc.unit;
-      mk1p0bf "remove" remove tag_t tag' Tc.unit;
-      mk1p0bs "watch"  watch  tag_t tag' (Tc.option head);
+      mk1p0bf' "read" T.read tag_t tag' tc_ho;
+      mk1p0bf' "mem" T.mem tag_t tag' Tc.bool;
+      mk0p0bs  "iter" (stream tag t_iter) tag_t tag;
+      mk1p1bf  "update" T.update tag_t tag' head Tc.unit;
+      mk1p0bf' "remove" T.remove tag_t tag' Tc.unit;
+      mk1p1bf  "compare-and-set" t_cs tag_t tag' tc_cs Tc.bool;
+      mk0p1bs  "watch" t_watch tag_t tc_watch_i tc_watch_s;
+      mk1p1bs  "watch-key" t_watch_key tag_t tag' head tc_ho;
     ]
 
   let ok_or_duplicated_tag =
@@ -419,7 +500,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let key: S.key Tc.t = (module S.Key)
   let head: S.head Tc.t = (module S.Head)
 
-  let export = Tc.pair (Tc.list head) (Tc.list head)
+  let export = Tc.pair (Tc.list head) (Tc.option (Tc.list head))
 
   let merge (type x) (x:x Tc.t): x Irmin.Merge.result Tc.t =
     let module X = (val x: Tc.S0 with type t = x) in
@@ -479,10 +560,13 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   end
   module HTC = Tc.Biject (G)(Conv)
 
-  let store lock hooks =
+  let mk_task t = function
+    | None   -> S.task t
+    | Some t -> t
+
+  let store hooks =
     let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
     let tag': S.tag Irmin.Hum.t = (module S.Tag) in
-    let tag: S.tag Tc.t = (module S.Tag) in
     let head': S.head Irmin.Hum.t = (module S.Head) in
     let value: S.value Tc.t = (module S.Val) in
     let slice: S.slice Tc.t = (module S.Private.Slice) in
@@ -492,7 +576,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     in
     let s_export t (min, max) query =
       let full, depth = mk_export_query query in
-      S.export ?full ?depth ~min ~max t
+      S.export ?full ?depth ~min ?max t
+
     in
     let s_history t (min, max) query =
       let depth = mk_history_query query in
@@ -540,32 +625,45 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let max_depth, n = mk_merge_query query in
       S.lcas_head t ?max_depth ?n head
     in
+    let s_compare_and_set t key (test, set) =
+      S.compare_and_set t key ~test ~set
+    in
+    let s_compare_and_set_head t (test, set) =
+      S.compare_and_set_head t ~test ~set
+    in
+    let s_fast_forward_head t head query =
+      let max_depth, n = mk_merge_query query in
+      S.fast_forward_head t ?max_depth ?n head
+    in
+    let s_iter t fn = S.iter t (fun k _ -> fn k) in
     let l f t list = f t (S.Key.create list) in
     let hooks = hooks.update in
+    let lock = true in
     let bc t = [
       (* rw *)
       mknp0bf "read"   (l S.read)     t step' (Tc.option value);
       mknp0bf "mem"    (l S.mem)      t step' Tc.bool;
-      mk0p0bs "iter"   (stream key S.iter) t key;
+      mk0p0bs "iter"   (stream key s_iter) t key;
       mknp1bf "update" ~lock ~hooks (l s_update) t step' value head;
       mknp0bf "remove" ~lock ~hooks (l s_remove) t step' head;
-      mknp0bs "watch"  (l S.watch)    t step' (Tc.option value);
+      mknp1bf "compare-and-set" ~lock ~hooks (l s_compare_and_set) t step'
+        (Tc.pair (Tc.option value) (Tc.option value)) Tc.bool;
 
       (* hrw *)
       mknp0bf "list"       (l S.list)       t step' (Tc.list key);
       mknp0bf "remove-rec" ~lock (l s_remove_rec) t step' head;
 
       (* more *)
-      mk0p0bf "remove-tag"  ~lock ~hooks S.remove_tag t Tc.unit;
-      mk1p0bf "rename-tag"  ~lock ~hooks S.rename_tag t tag' ok_or_duplicated_tag;
+      mk1p0bf "remove-tag"  ~lock ~hooks S.remove_tag t tag' Tc.unit;
       mk1p0bf "update-tag"  ~lock ~hooks S.update_tag t tag' Tc.unit;
       mk1p0bfq "merge-tag"  ~lock ~hooks s_merge_tag t tag' (merge head);
       mk0p0bf "head"        S.head t (Tc.option head);
       mk0p0bf "heads"       S.heads t (Tc.list head);
       mk1p0bf "update-head" ~lock ~hooks S.update_head t head' Tc.unit;
+      mk1p0bfq "fast-forward-head" ~lock ~hooks s_fast_forward_head t head' Tc.bool;
+      mk0p1bf "compare-and-set-head" ~lock ~hooks s_compare_and_set_head t
+        (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
       mk1p0bfq "merge-head" ~lock ~hooks s_merge_head t head' (merge head);
-      mknp0bs "watch-head"  (l S.watch_head) t step' (Tc.pair key (Tc.option head));
-      mk0p0bs "watch-tags"  S.watch_tags t (Tc.pair tag (Tc.option head));
       mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
       mk0p1bfq "export"     s_export t export slice;
@@ -581,7 +679,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     ] in
 
     SNode (
-      bc (fun x -> return x)
+      bc (fun x task ->
+          S.create (S.Private.config x) (fun () -> mk_task x task) >>= fun x ->
+          Lwt.return (x ()))
       @ [
         (* subdirs *)
         "contents", contents_store;
@@ -589,14 +689,18 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
         "commit"  , commit_store;
         "tag"     , tag_store;
       ] @ [
+        "empty"   , SNode (bc (fun t task ->
+            S.empty (S.Private.config t) (fun () -> mk_task t task) >>= fun t ->
+            return (t ())))
+      ] @ [
         "tree"    , dyn_node
         (fun t ->
           S.tags t  >>= fun tags ->
           S.heads t >>= fun heads ->
           return (List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads))
         (fun _ n ->
-           let app fn t x =
-             fn (S.Private.config t) (fun () -> S.task t) x >>= fun t ->
+           let app fn t x task =
+             fn (S.Private.config t) (fun () -> mk_task t task) x >>= fun t ->
              return (t ())
            in
            try
@@ -607,13 +711,16 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       ])
 
   let process t store req body path =
+    let uri = Cohttp.Request.uri req in
+    let query = Uri.query uri in
+    let return_dnone = Lwt.return (None, None) in
     begin match Cohttp.Request.meth req with
       | `DELETE
-      | `GET       -> return_none
+      | `GET  -> return_dnone
       | `POST ->
         Cohttp_lwt_body.length body >>= fun (len, body) ->
         if len = 0L then
-          return_none
+          return_dnone
         else begin
           Cohttp_lwt_body.to_string body >>= fun b ->
           let short_body =
@@ -622,29 +729,42 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           Log.debug "process: length=%Ld body=%S" len short_body;
           try match Ezjsonm.from_string b with
             | `O l ->
-              if List.mem_assoc "params" l then (
-                try return (Some (List.assoc "params" l))
-                with Not_found -> return_none
-              ) else
-                error "process: wrong request"
+              let params = try Some (List.assoc "params" l) with Not_found -> None in
+              let task =
+                try Some (Irmin.Task.of_json @@ List.assoc "task" l)
+                with Not_found -> None
+              in
+              Lwt.return (task, params)
             | _    ->
               error "process: wrong parameters"
           with e ->
             error "process: not a valid JSON body %S [%s]" b (Printexc.to_string e)
         end
       | _ -> fail Invalid
-    end >>= fun params ->
-    let query = Uri.query (Cohttp.Request.uri req) in
-    let rec aux actions path =
-      Log.debug "aux %s" (String.concat "/" path);
-      match path with
+    end >>= fun (task, params) ->
+    let rec aux actions = function
       | []      -> json_of_response t actions >>= respond_json
       | h::path ->
-        child t h actions >>= function
-        | Fixed fn  -> fn t path params query >>= respond_json
-        | Stream fn -> respond_json_stream (fn t path params query)
-        | Html fn   -> fn t path params query >>= respond ~headers:http_headers
-        | actions   -> aux actions path in
+        let f = function
+          | Fixed fn  -> fn t task path params query >>= respond_json
+          | Stream fn -> respond_json_stream (fn t task path params query)
+          | Html fn   -> fn t task path params query >>= respond ~headers:http_headers
+          | actions   -> aux actions path
+        in
+        Lwt.catch
+          (fun () -> child t h actions >>= f)
+          (fun e ->
+             let query =
+               List.map (fun (k, v) -> k ^ "=" ^ String.concat "." v) query
+               |> String.concat ","
+             in
+             Log.debug "uri=%s path=%s query=%s error=%s"
+               (Uri.to_string uri)
+               (String.concat "/" path)
+               query
+               (Printexc.to_string e);
+             Lwt.fail e)
+    in
     aux store path
 
   type t = S.t
@@ -655,10 +775,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       | Some _ -> uri in
     let port, uri = match Uri.port uri with
       | None   -> 8080, Uri.with_port uri (Some 8080)
-      | Some p -> p   , uri in
+      | Some p -> p, uri in
     Printf.printf "Server started on port %d.\n%!" port;
-    let lock = Lwt_mutex.create () in
-    let store = store lock hooks in
+    let store = store hooks in
     let callback (_, conn_id) req body =
       let path = Uri.path (Cohttp.Request.uri req) in
       Log.info "Connection %s: %s %s"

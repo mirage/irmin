@@ -1,4 +1,5 @@
 PKG lwt sexplib comparelib dolog ezjsonm bin_prot cstruct re uri git tc hex
-PKG nocrypto cohttp.lwt-core cmdliner
+PKG nocrypto cohttp.lwt-core cmdliner ocamlgraph oUnit alcotest mstruct
+PKG git.unix
 B _build/**
 B _build/lib_test

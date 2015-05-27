@@ -17,6 +17,7 @@
 open Lwt
 open Test_common
 open Irmin_unix
+open Printf
 
 let random_string n =
   let t  = Unix.gettimeofday () in
@@ -36,6 +37,7 @@ module Make (S: Irmin.S) = struct
   module Contents = S.Private.Contents
   module Graph = Irmin.Private.Node.Graph(Contents)(S.Private.Node)
   module History = Irmin.Private.Commit.History(Graph.Store)(S.Private.Commit)
+  module View = Irmin.View(S)
 
   let v t a = S.Private.contents_t (t a)
   let n t a = S.Private.node_t (t a)
@@ -52,20 +54,21 @@ module Make (S: Irmin.S) = struct
 
   let create x = S.create x.config task
 
-  let create_dummy x =
-    let task () =
-      Irmin.Task.create ~date:0L ~owner:"test" "Very useful tracking information"
-    in
-    S.create x.config task
+  let dummy_task =
+    let t = Irmin.Task.empty in
+    fun () -> t
 
-  let string x str = match x.kind with
+  let create_dummy x =
+    S.create x.config dummy_task
+
+  let string x str = match x.cont with
     | `String -> Tc.read_string (module V) str
     | `Json -> V.of_json (
         (`O [ "foo", Ezjsonm.encode_string str ])
       )
   let v1 x = string x long_random_string
 
-  let v2 x = match x.kind with
+  let v2 x = match x.cont with
     | `String -> Tc.read_string (module V) ""
     | `Json -> V.of_json (`A[])
 
@@ -138,6 +141,27 @@ module Make (S: Irmin.S) = struct
       | 0 -> acc
       | n -> aux (random_node x ~label ~path ~value :: acc) (n-1) in
     aux [] n
+
+  let sleep ?(sleep_t=0.01) () =
+    let sleep_t = min sleep_t 1. in
+    Lwt_unix.yield () >>= fun () ->
+    Lwt_unix.sleep sleep_t
+
+  let retry ?(timeout=5. *. 60.) ?(sleep_t=0.) fn =
+    let sleep_t = max sleep_t 0.001 in
+    let time = Unix.gettimeofday in
+    let t = time () in
+    let str i = sprintf "%d, %.3fs" i (time () -. t) in
+    let rec aux i =
+      if time () -. t > timeout then fn (str i);
+      try fn (str i); Lwt.return_unit
+      with _e ->
+        let sleep_t = sleep_t *. (1. +. float i ** 2.) in
+        sleep ~sleep_t () >>= fun () ->
+        Log.debug "Test.retry %s" (str i);
+        aux (i+1)
+    in
+    aux 0
 
   let old k () = Lwt.return (`Ok (Some k))
 
@@ -297,7 +321,7 @@ module Make (S: Irmin.S) = struct
 
       let list t =
         let tags = ref [] in
-        Tag.iter t (fun t -> tags := t :: !tags; return_unit) >>= fun () ->
+        Tag.iter t (fun t _ -> tags := t :: !tags; return_unit) >>= fun () ->
         return !tags
       in
       list tag >>= fun ts ->
@@ -311,7 +335,255 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-  let test_merges x () =
+  let test_watches x () =
+
+    let watch_threads () =
+      Irmin_unix.polling_threads (), Irmin.Private.Watch.workers ()
+    in
+
+    let pp_w (p, w) = sprintf "%d/%d" p w in
+
+    let check_workers msg p w =
+      let w = if x.kind <> `Mem || w = 0 then w else 1 in
+      let p = match x.kind with `Mem | `Http _ -> 0 | _ -> p in
+      retry (fun s ->
+          let got = watch_threads () in
+          let exp = p, w in
+          let msg = sprintf "workers: %s %s (%s)" msg (pp_w got) s in
+          if got = exp then line msg
+          else (
+            Log.debug "check-worker: expected %s, got %s" (pp_w exp) (pp_w got);
+            error msg (pp_w got) (pp_w exp)
+          ))
+    in
+
+    let module State = struct
+      type t = {
+        mutable adds: int;
+        mutable updates: int;
+        mutable removes: int;
+      }
+      let empty () = { adds=0; updates=0; removes=0; }
+      let add t = t.adds <- t.adds + 1
+      let update t = t.updates <- t.updates + 1
+      let remove t = t.removes <- t.removes + 1
+      let pretty t = sprintf "%d/%d/%d" t.adds t.updates t.removes
+      let xpp (a, u, r) = sprintf "%d/%d/%d" a u r
+      let xadd (a, u, r) = (a+1, u, r)
+      let xupdate (a, u, r) = (a, u+1, r)
+      let xremove (a, u, r) = (a, u, r+1)
+
+      let check ?sleep_t msg (p, w) a b =
+        let printer (a, u, r) =
+          Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
+        in
+        check_workers msg p w >>= fun () ->
+        retry ?sleep_t (fun s ->
+            let b = b.adds, b.updates, b.removes in
+            let msg = sprintf "state: %s (%s)" msg s in
+            if a = b then line msg
+            else error msg (printer a) (printer b)
+          )
+
+      let process ?sleep_t t =
+        function head ->
+          begin match sleep_t with
+            | None   -> Lwt.return_unit
+            | Some s -> Lwt_unix.sleep s
+          end >>= fun () ->
+          let () = match head with
+            | `Added _   -> add t
+            | `Updated _ -> update t
+            | `Removed _ -> remove t
+          in
+          Lwt.return_unit
+
+      let apply msg state kind fn ?(first=false) on s n =
+        let msg mode n w s =
+          let kind = match kind with
+            | `Add    -> "add"
+            | `Update -> "update"
+            | `Remove -> "remove"
+          in
+          let mode = match mode with `Pre -> "[pre-condition]" | `Post -> "" in
+          sprintf "%s %s %s %d:%b x=%s:%s s=%s:%s" mode msg kind n on
+            (xpp s) (pp_w w)
+            (pretty state) (pp_w (watch_threads ()))
+        in
+        let check mode n w s = check (msg mode n w s) w s state in
+        let incr = match kind with
+          | `Add -> xadd
+          | `Update -> xupdate
+          | `Remove -> xremove
+        in
+        let rec aux pre = function
+          | 0 -> Lwt.return_unit
+          | i ->
+            let pre_w =
+              if on then 1, (if i = n && first then 0 else 1) else 0, 0
+            in
+            let post_w = if on then 1, 1 else 0, 0 in
+            let post = if on then incr pre else pre in
+            check `Pre (n-i) pre_w pre >>= fun () -> (* check pre-condition *)
+            Log.debug "[waiting for] %s" (msg `Post (n-i) post_w post);
+            fn (n-i) >>= fun () ->
+            check `Post (n-i) post_w post >>= fun () -> (* check post-condition *)
+            aux post (i-1)
+        in
+        aux s n
+
+    end in
+
+    let test () =
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+
+      (* test [Irmin.watch] *)
+      Log.debug "WATCH";
+      let state = State.empty () in
+      let sleep_t = 0.02 in
+      let process = State.process ~sleep_t state in
+      let stops_0 = ref [] in
+      let stops_1 = ref [] in
+      let rec watch = function
+        | 0 -> Lwt.return_unit
+        | n ->
+          let t = if n mod 2 = 0 then t1 else t2 in
+          S.watch_head (t "watch") process >>= fun s ->
+          if n mod 2 = 0 then stops_0 := s :: !stops_0
+          else stops_1 := s :: !stops_1;
+          watch (n-1)
+      in
+      let v1 = string x "X1" in
+      let v2 = string x "X2" in
+
+      S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
+      S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
+      State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
+
+      watch 100 >>= fun () ->
+
+      (* FIXME: there is a small race in the HTTP watch code *)
+      sleep () >>= fun () ->
+
+      State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
+
+      S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
+      State.check "watches adds" (1, 2) (100, 0, 0) state >>= fun () ->
+
+      S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
+      State.check "watches updates" (1, 2) (100, 100, 0) state >>= fun () ->
+
+      S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
+      State.check "watches removes" (1, 2) (100, 100, 100) state >>= fun () ->
+
+      Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
+      S.update (t2 "update") (p ["a"]) v1 >>= fun () ->
+      State.check "watches half off" (1, 1) (150, 100, 100) state  >>= fun () ->
+
+      Lwt_list.iter_s (fun f -> f ()) !stops_1 >>= fun () ->
+      S.update (t1 "update") (p ["a"]) v2 >>= fun () ->
+      State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
+
+      (* test [Irmin.watch_tags] *)
+      Log.debug "WATCH-TAGS";
+      let state = State.empty () in
+
+      r1 x >>= fun head ->
+      let add = State.apply "watch-tag" state `Add (fun n ->
+          let tag = S.Tag.of_hum (sprintf "t%d" n) in
+          S.Private.Tag.update (S.Private.tag_t @@ t1 "tag") tag head
+        ) in
+      let remove = State.apply "watch-tag" state `Remove (fun n ->
+          let tag = S.Tag.of_hum (sprintf "t%d" n) in
+          S.Private.Tag.remove (S.Private.tag_t @@ t2 "tag") tag
+        ) in
+
+      S.watch_tags (t1 "watch-tags") (fun _ -> State.process state)
+      >>= fun unwatch ->
+
+      add    true (0,  0, 0) 10 ~first:true >>= fun () ->
+      remove true (10, 0, 0) 5 >>= fun () ->
+
+      unwatch () >>= fun () ->
+      add    false (10, 0, 5) 4 >>= fun () ->
+      remove false (10, 0, 5) 4 >>= fun () ->
+
+      (* test [Irmin.watch_keys] *)
+      Log.debug "WATCH-KEYS";
+      let state = State.empty () in
+      let path1 = p ["a"; "b"; "c"] in
+      let path2 = p ["a"; "d"] in
+      let path3 = p ["a"; "b"; "d"] in
+      let add = State.apply "watch-key" state `Add (fun _ ->
+          let v = string x "" in
+          S.update (t1 "remove1") path1 v >>= fun () ->
+          S.update (t1 "remove2") path2 v >>= fun () ->
+          S.update (t1 "remove3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
+      let update = State.apply "watch-key" state `Update (fun n ->
+          let v = string x (string_of_int n) in
+          S.update (t2 "update1") path1 v >>= fun () ->
+          S.update (t2 "update2") path2 v >>= fun () ->
+          S.update (t2 "update3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
+      let remove = State.apply "watch-key" state `Remove (fun _ ->
+          S.remove (t1 "remove1") path1 >>= fun () ->
+          S.remove (t1 "remove2") path2 >>= fun () ->
+          S.remove (t1 "remove3") path3 >>= fun () ->
+          Lwt.return_unit
+        ) in
+
+      S.remove_rec (t1 "clean") (p []) >>= fun () ->
+
+      S.watch_key (t1 "watch-keys") path1 (State.process state)
+      >>= fun unwatch ->
+
+      add    true (0, 0 , 0) 1  ~first:true >>= fun () ->
+      update true (1, 0 , 0) 10 >>= fun () ->
+      remove true (1, 10, 0) 1  >>= fun () ->
+
+      unwatch () >>= fun () ->
+
+      add    false (1, 10, 1) 3 >>= fun () ->
+      update false (1, 10, 1) 5 >>= fun () ->
+      remove false (1, 10, 1) 4 >>= fun () ->
+
+      (* test [View.watch_path] *)
+      Log.debug "WATCH-PATH";
+      let state = State.empty () in
+
+      let update = State.apply "watch-view" state `Update (fun n ->
+          let v = string x (string_of_int n) in
+          let path1 = p ["a"; "b"; "c"; string_of_int n; "1"] in
+          let path2 = p ["a"; "x"; "c"; string_of_int n; "1"] in
+          let path3 = p ["a"; "y"; "c"; string_of_int n; "1"] in
+          S.update (t2 "update1") path1 v >>= fun () ->
+          S.update (t2 "update2") path2 v >>= fun () ->
+          S.update (t2 "update3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
+
+      S.remove_rec (t1 "fresh") (p ["a"]) >>= fun () ->
+
+      S.head_exn (t1 "head") >>= fun h ->
+      View.empty () >>= fun v ->
+      let init = h, v in
+
+      View.watch_path (t2 "wath-path") ~init (p ["a";"b"]) (State.process state)
+      >>= fun unwatch ->
+
+      update true (0, 0, 0) 10 ~first:true >>= fun () ->
+      unwatch () >>= fun () ->
+      update false (0, 10, 0) 10 >>= fun () ->
+
+      Lwt.return_unit
+    in
+    run x test
+
+  let test_simple_merges x () =
 
     (* simple merges *)
     let check () =
@@ -339,7 +611,7 @@ module Make (S: Irmin.S) = struct
         assert_equal (module X) "compound merge" m m';
         return_unit
       | `Conflict c ->
-        OUnit.assert_bool (Printf.sprintf "compound merge: %s" c) false;
+        OUnit.assert_bool (sprintf "compound merge: %s" c) false;
         return_unit
     in
 
@@ -386,8 +658,6 @@ module Make (S: Irmin.S) = struct
       Graph.iter_succ (g "iter") k4 (fun l v -> succ := (l, v) :: !succ) >>= fun () ->
       assert_equal (module Succ) "k4"[ (l "b", k1); (l "c", k1) ] !succ;
 
-      (* merge commits *)
-
       let task date =
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
@@ -416,31 +686,172 @@ module Make (S: Irmin.S) = struct
       Commit.read_exn (c 0) kr3' >>= fun r3' ->
       assert_equal (module C) "r3" r3 r3';
       assert_equal (module KC) "kr3" kr3 kr3';
+      Lwt.return_unit
+    in
+    run x test
 
-      (* test for multiple lca *)
-      History.create (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
-      History.create (h 1) ~node:k0 ~parents:[kr0] >>= fun kr1 ->
-      History.create (h 2) ~node:k0 ~parents:[kr0] >>= fun kr2 ->
-      History.create (h 3) ~node:k0 ~parents:[kr1; kr2] >>= fun kr3 ->
-      History.create (h 4) ~node:k0 ~parents:[kr1; kr2] >>= fun kr4 ->
-      S.of_head x.config task kr3 >>= fun t1 ->
-      S.of_head x.config task kr4 >>= fun t2 ->
-      S.lcas 5 t1 t2  >>= fun lcas ->
-      let lcas = match lcas with `Ok x -> x | _ -> failwith "lcas" in
-      assert_equal (module Set(KC)) "lcas" [kr1; kr2] lcas;
-      S.merge_exn 4 t1 ~into:t2   >>= fun () ->
+  let test_history x () =
+    let test () =
+      let task date =
+        let i = Int64.of_int date in
+        Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
+      in
+      S.create x.config task >>= fun t ->
+      let h = h t in
+      Graph.create (g t 0) [] >>= fun node ->
+      let fail fmt =
+        Printf.ksprintf (fun str -> OUnit.assert_string str; assert false) fmt
+      in
+      let assert_lcas_err msg err l2 =
+        let str = function
+          | `Too_many_lcas -> "Too_many_lcas"
+          | `Max_depth_reached -> "Max_depth_reached"
+        in
+        let l2 = match l2 with
+          | `Ok x -> fail "%s: %s" msg (Tc.show (module Tc.List(KC)) x)
+          | `Too_many_lcas | `Max_depth_reached as x -> str x
+        in
+        assert_equal Tc.string msg (str err) l2
+      in
+      let assert_lcas msg l1 l2 =
+        let l2 = match l2 with
+          | `Ok x -> x
+          | `Too_many_lcas -> fail "%s: Too many LCAs" msg
+          | `Max_depth_reached -> fail"%s: max depth reached" msg
+        in
+        assert_equal (module Set(KC)) msg l1 l2
+      in
+      let assert_lcas msg ~max_depth n a b expected =
+        S.of_head x.config task a >>= fun a ->
+        S.of_head x.config task b >>= fun b ->
+        S.lcas ~max_depth n a b >>= fun lcas ->
+        assert_lcas msg expected lcas;
+        S.lcas ~max_depth:(max_depth - 1) n a b >>= fun lcas ->
+        let msg = Printf.sprintf "%s [max-depth=%d]" msg (max_depth - 1) in
+        assert_lcas_err msg `Max_depth_reached lcas;
+        Lwt.return_unit
+      in
+
+      (* test that we don't compute too many lcas
+
+         0->1->2->3->4
+
+      *)
+      History.create (h 0) ~node ~parents:[]   >>= fun k0 ->
+      History.create (h 1) ~node ~parents:[k0] >>= fun k1 ->
+      History.create (h 2) ~node ~parents:[k1] >>= fun k2 ->
+      History.create (h 3) ~node ~parents:[k2] >>= fun k3 ->
+      History.create (h 4) ~node ~parents:[k3] >>= fun k4 ->
+
+      assert_lcas "line lcas 1" ~max_depth:0 3 k3 k4 [k3] >>= fun () ->
+      assert_lcas "line lcas 2" ~max_depth:1 3 k2 k4 [k2] >>= fun () ->
+      assert_lcas "line lcas 3" ~max_depth:2 3 k1 k4 [k1] >>= fun () ->
+
+      (* test for multiple lca
+
+         4->10--->11-->13-->15
+             |      \______/___
+             |       ____/     \
+             |      /           \
+             \--->12-->14-->16-->17
+
+      *)
+      History.create (h 10) ~node ~parents:[k4]       >>= fun k10 ->
+      History.create (h 11) ~node ~parents:[k10]      >>= fun k11 ->
+      History.create (h 12) ~node ~parents:[k10]      >>= fun k12 ->
+      History.create (h 13) ~node ~parents:[k11]      >>= fun k13 ->
+      History.create (h 14) ~node ~parents:[k12]      >>= fun k14 ->
+      History.create (h 15) ~node ~parents:[k12; k13] >>= fun k15 ->
+      History.create (h 16) ~node ~parents:[k14]      >>= fun k16 ->
+      History.create (h 17) ~node ~parents:[k11; k16] >>= fun k17 ->
+
+      assert_lcas "x lcas 0" ~max_depth:0 5 k10 k10 [k10]      >>= fun () ->
+      assert_lcas "x lcas 1" ~max_depth:0 5 k14 k14 [k14]      >>= fun () ->
+      assert_lcas "x lcas 2" ~max_depth:0 5 k10 k11 [k10]      >>= fun () ->
+      assert_lcas "x lcas 3" ~max_depth:1 5 k12 k16 [k12]      >>= fun () ->
+      assert_lcas "x lcas 4" ~max_depth:1 5 k10 k13 [k10]      >>= fun () ->
+      assert_lcas "x lcas 5" ~max_depth:2 5 k13 k14 [k10]      >>= fun () ->
+      assert_lcas "x lcas 6" ~max_depth:3 5 k15 k16 [k12]      >>= fun () ->
+      assert_lcas "x lcas 7" ~max_depth:3 5 k15 k17 [k11; k12] >>= fun () ->
+
+      (* lcas on non transitive reduced graphs
+
+                  /->16
+                 |
+         4->10->11->12->13->14->15
+                 |        \--|--/
+                 \-----------/
+      *)
+      History.create (h 10) ~node ~parents:[k4]      >>= fun k10 ->
+      History.create (h 11) ~node ~parents:[k10]     >>= fun k11 ->
+      History.create (h 12) ~node ~parents:[k11]     >>= fun k12 ->
+      History.create (h 13) ~node ~parents:[k12]     >>= fun k13 ->
+      History.create (h 14) ~node ~parents:[k11;k13] >>= fun k14 ->
+      History.create (h 15) ~node ~parents:[k13;k14] >>= fun k15 ->
+      History.create (h 16) ~node ~parents:[k11]     >>= fun k16 ->
+
+      assert_lcas "weird lcas 1" ~max_depth:0 3 k14 k15 [k14] >>= fun () ->
+      assert_lcas "weird lcas 2" ~max_depth:0 3 k13 k15 [k13] >>= fun () ->
+      assert_lcas "weird lcas 3" ~max_depth:1 3 k12 k15 [k12] >>= fun () ->
+      assert_lcas "weird lcas 4" ~max_depth:1 3 k11 k15 [k11] >>= fun () ->
+      assert_lcas "weird lcas 4" ~max_depth:3 3 k15 k16 [k11] >>= fun () ->
+
+      (* fast-forward *)
+      S.of_head x.config task k12     >>= fun t12  ->
+      S.fast_forward_head (t12 0) k16 >>= fun b1 ->
+      assert_equal Tc.bool "ff 1.1" false b1;
+      S.head_exn (t12 0)              >>= fun k12' ->
+      assert_equal (module S.Head) "ff 1.2" k12 k12';
+
+      S.fast_forward_head (t12 0) ~n:1 k14 >>= fun b2 ->
+      assert_equal Tc.bool "ff 2.1" false b2;
+      S.head_exn (t12 0)              >>= fun k12'' ->
+      assert_equal (module S.Head) "ff 2.3" k12 k12'';
+
+      S.fast_forward_head (t12 0) k14 >>= fun b3 ->
+      assert_equal Tc.bool "ff 2.2" true b3;
+      S.head_exn (t12 0)              >>= fun k14' ->
+      assert_equal (module S.Head) "ff 2.3" k14 k14';
 
       return_unit
     in
     run x test
 
-  module Snapshot = Irmin.Snapshot(S)
+  let test_empty x () =
+    let test () =
+      S.empty x.config dummy_task >>= fun t ->
+
+      S.head (t ()) >>= fun h ->
+      assert_equal (module Tc.Option(S.Head)) "empty" None h;
+
+      let v1 = v1 x in
+      r1 x >>= fun r1 ->
+
+      S.update (t ()) (p ["b"; "x"]) v1 >>= fun () ->
+
+      S.head (t ()) >>= fun h ->
+      assert_equal (module Tc.Option(S.Head)) "not empty" (Some r1) h;
+
+      Lwt.return_unit
+
+    in
+    run x test
 
   let test_stores x () =
     let test () =
       create x >>= fun t ->
+
+      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
+
       let v1 = v1 x in
       S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
+
+      S.iter (t "iter") (fun k v ->
+          v >>= fun v ->
+          assert_equal (module K) "iter key" (p ["a";"b"]) k;
+          assert_equal (module V) "iter value" v1 v;
+          Lwt.return_unit;
+        ) >>= fun () ->
 
       S.mem (t "mem1") (p ["a";"b"]) >>= fun b1 ->
       assert_equal (module Tc.Bool) "mem1" true b1;
@@ -449,7 +860,9 @@ module Make (S: Irmin.S) = struct
       S.read_exn (t "read1") (p ["a";"b"]) >>= fun v1' ->
       assert_equal (module V) "v1.1" v1 v1';
 
-      Snapshot.create (t "snapshot") >>= fun r1 ->
+      S.head_exn (t "snapshot") >>= fun r1 ->
+
+      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
 
       let v2 = v2 x in
       S.update (t "update") (p ["a";"c"]) v2 >>= fun () ->
@@ -467,7 +880,7 @@ module Make (S: Irmin.S) = struct
       S.remove (t "remove") (p ["a";"b"]) >>= fun () ->
       S.read (t "read4") (p ["a";"b"]) >>= fun v1''->
       assert_equal (module Tc.Option(V)) "v1.2" None v1'';
-      Snapshot.revert (t "revert") r1 >>= fun () ->
+      S.update_head (t "revert") r1 >>= fun () ->
       S.read (t "read") (p ["a";"b"]) >>= fun v1''->
       assert_equal (module Tc.Option(V)) "v1.3" (Some v1) v1'';
       S.list (t "list") (p ["a"]) >>= fun ks ->
@@ -494,14 +907,75 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-  module View = Irmin.View(S)
-
   let test_views x () =
     let test () =
       create x >>= fun t ->
       let nodes = random_nodes x 100 in
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
+
+      (* Testing [View.remove] *)
+
+      View.empty () >>= fun v1 ->
+
+      View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
+      View.update v1 (p ["foo";"2"]) foo2 >>= fun () ->
+      View.remove v1 (p ["foo";"1"]) >>= fun () ->
+      View.remove v1 (p ["foo";"2"]) >>= fun () ->
+
+      View.update_path (t "empty view") (p []) v1 >>= fun () ->
+      S.head_exn (t "empty view") >>= fun head   ->
+      Commit.read_exn (ct t "empty view") head >>= fun commit ->
+      let node = match Commit.Val.node commit with
+        | None -> failwith "empty node"
+        | Some n -> n
+      in
+      Node.read_exn (n t "empty view") node >>= fun node ->
+      assert_equal (module Node.Val) "empty view" Node.Val.empty node;
+
+      (* Testing [View.diff] *)
+
+      let printer_diff = function
+        | k, `Added v ->
+          sprintf "%s: added %s" (S.Key.to_hum k) (Tc.show (module V) v)
+        | k, `Removed v ->
+          sprintf "%s: removed %s" (S.Key.to_hum k) (Tc.show (module V) v)
+        | k, `Updated (v1, v2) ->
+          sprintf "%s: updated %s -> %s"
+            (S.Key.to_hum k) (Tc.show (module V) v1) (Tc.show (module V) v2)
+      in
+      let cmp_diff x y = match x, y with
+        | (s, `Added x), (t, `Added y) -> S.Key.equal s t && V.equal x y
+        | (s, `Removed x), (t, `Removed y) -> S.Key.equal s t && V.equal x y
+        | (s, `Updated (a,b)), (t, `Updated (c,d)) ->
+          S.Key.equal s t && V.equal a c && V.equal b d
+        | _ -> false
+      in
+      let check_diffs msg x y =
+        let cmp = cmp_list cmp_diff Pervasives.compare in
+        let printer = printer_list printer_diff in
+        line msg;
+        if not (cmp x y) then error msg (printer x) (printer y)
+      in
+
+      View.empty () >>= fun v0 ->
+      View.empty () >>= fun v1 ->
+      View.empty () >>= fun v2 ->
+      View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
+      View.update v2 (p ["foo";"1"]) foo2 >>= fun () ->
+      View.update v2 (p ["foo";"2"]) foo1 >>= fun () ->
+
+      View.diff v0 v1 >>= fun d1 ->
+      check_diffs "diff 1" [ (p ["foo";"1"]), `Added foo1 ] d1;
+
+      View.diff v1 v0 >>= fun d2 ->
+      check_diffs "diff 2" [ (p ["foo";"1"]), `Removed foo1 ] d2;
+
+      View.diff v1 v2 >>= fun d3 ->
+      check_diffs "diff 2" [ (p ["foo";"1"]), `Updated (foo1, foo2);
+                             (p ["foo";"2"]), `Added foo1] d3;
+
+      (* Testing other View operations. *)
 
       View.empty () >>= fun v0 ->
 
@@ -576,6 +1050,23 @@ module Make (S: Irmin.S) = struct
       S.read (t "read after v3") (p ["b";"foo";"1"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "remove view" None foo2';
 
+      r1 x >>= fun r1 ->
+      r2 x >>= fun r2 ->
+      let ta = Irmin.Task.empty in
+      View.make_head (t "mk-head") ta ~parents:[r1;r2] ~contents:v3 >>= fun h ->
+
+      S.task_of_head (t "task") h >>= fun ta' ->
+      assert_equal (module Irmin.Task) "task" ta ta';
+
+      S.of_head x.config task h >>= fun tt ->
+      S.history (tt "history") >>= fun g ->
+      let pred = S.History.pred g h in
+      let s = List.sort S.Head.compare in
+      assert_equal (module Tc.List(S.Head)) "head" (s [r1;r2]) (s pred);
+
+      S.read (tt "read tt") (p ["b";"foo";"1"]) >>= fun foo2'' ->
+      assert_equal (module (Tc.Option(V))) "remove tt" None foo2'';
+
       return_unit
     in
     run x test
@@ -591,11 +1082,11 @@ module Make (S: Irmin.S) = struct
 
       S.update (t1 "update a/b") (p ["a";"b"]) v1 >>= fun () ->
       S.head_exn (t1 "head") >>= fun h ->
-      Snapshot.create (t1 "snapshot 1") >>= fun _r1 ->
+      S.head_exn (t1 "snapshot 1") >>= fun _r1 ->
       S.update (t1 "update a/c") (p ["a";"c"]) v2 >>= fun () ->
-      Snapshot.create (t1 "snapshot 2") >>= fun r2 ->
+      S.head_exn (t1 "snapshot 2") >>= fun r2 ->
       S.update (t1 "update a/d") (p ["a";"d"]) v1 >>= fun () ->
-      Snapshot.create (t1 "snapshot 3") >>= fun _r3 ->
+      S.head_exn (t1 "snapshot 3") >>= fun _r3 ->
 
       S.history (t1 "history") ~min:[h] >>= fun h ->
       assert_equal (module Tc.Int) "history-v" 3 (S.History.nb_vertex h);
@@ -622,12 +1113,12 @@ module Make (S: Irmin.S) = struct
       S.read_exn (t2 "read a/d") (p ["a";"d"]) >>= fun v1' ->
       assert_equal (module V) "v1" v1' v1;
 
-      Snapshot.revert (t2 "revert to t2") r2 >>= fun () ->
+      S.update_head (t2 "revert to t2") r2 >>= fun () ->
       S.mem (t2 "mem a/b") (p ["a";"d"]) >>= fun b4 ->
       assert_equal (module Tc.Bool) "mem-ab" false b4;
 
       S.update_head (t2 "full update") full >>= fun () ->
-      Snapshot.revert (t2 "revert to r2") r2 >>= fun () ->
+      S.update_head (t2 "revert to r2") r2 >>= fun () ->
       S.mem (t2 "mem a/d") (p ["a";"d"]) >>= fun b4 ->
       assert_equal (module Tc.Bool) "mem-ad" false b4;
       return_unit
@@ -640,7 +1131,7 @@ module Make (S: Irmin.S) = struct
     let buf = Buffer.create 1024 in
     let date d =
       let tm = Unix.localtime (Int64.to_float d) in
-      Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+      sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
     in
     Dot.output_buffer t ~date buf >>= fun () ->
     let oc = open_out_bin (file ^ ".dot") in
@@ -648,7 +1139,7 @@ module Make (S: Irmin.S) = struct
     close_out oc;
     return_unit
 
-  let test_merge_api x () =
+  let test_merge x () =
     let test () =
       let v1 = string x "X1" in
       let v2 = string x "X2" in
@@ -684,6 +1175,154 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let rec write fn = function
+    | 0 -> return_unit
+    | i -> (fn i >>= Lwt_unix.yield) <&> write fn (i-1)
+
+  let rec read fn check = function
+    | 0 -> return_unit
+    | i ->
+      fn i >>= fun v ->
+      check i v;
+      read fn check (i-1)
+
+  let test_concurrent_low x () =
+    let test_tags () =
+      let k = t1 in
+      r1 x >>= fun v ->
+      create x >>= fun t ->
+      let t = S.Private.tag_t (t "tag") in
+      let write = write (fun _i -> Tag.update t k v) in
+      let read =
+        read
+          (fun _i -> Tag.read_exn t k)
+          (fun i  -> assert_equal (module S.Head) (sprintf "tag %d" i) v)
+      in
+      write 1 >>= fun () ->
+      Lwt.join [ write 10; read 10; write 10; read 10; ]
+    in
+    let test_contents () =
+      kv2 x >>= fun k ->
+      let v = v2 x in
+      create x >>= fun t ->
+      let t = S.Private.contents_t (t "contents") in
+      let write =
+        write (fun _i -> Contents.add t v >>= fun _ -> Lwt.return_unit)
+      in
+      let read =
+        read
+          (fun _i -> Contents.read_exn t k)
+          (fun i  -> assert_equal (module V) (sprintf "contents %d" i) v)
+      in
+      write 1 >>= fun () ->
+      Lwt.join [ write 10; read 10; write 10; read 10; ]
+    in
+    run x (fun () -> Lwt.join [test_tags (); test_contents ()])
+
+  let test_concurrent_updates x () =
+    let test_one () =
+      let k = p ["a";"b";"d"] in
+      let v = string x "X1" in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t = write (fun i -> S.update (mk t "update: one %d" i) k v) in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) k)
+          (fun i -> assert_equal (module V) (sprintf "update: one %d" i) v)
+      in
+      Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
+    in
+    let test_multi () =
+      let k i = p ["a";"b";"c"; string_of_int i ] in
+      let v i = string x (sprintf "X%d" i) in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t =
+        write (fun i -> S.update (mk t "update: multi %d" i) (k i) (v i))
+      in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) (k i))
+          (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
+      in
+      Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
+    in
+    run x (fun () ->
+        test_one   () >>= fun () ->
+        test_multi () >>= fun () ->
+        Lwt.return_unit
+      )
+
+  let test_concurrent_merges x () =
+    let test () =
+      let k i = p ["a";"b";"c"; string_of_int i ] in
+      let v i = string x (sprintf "X%d" i) in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let write t n =
+        write (fun i ->
+            let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
+            S.clone_force task (mk t "cloning") tag >>= fun m ->
+            S.update (m "update") (k i) (v i) >>= fun () ->
+            Lwt_unix.yield () >>= fun () ->
+            S.merge (sprintf "update: multi %d" i) m ~into:t >>=
+            Irmin.Merge.exn
+          )
+      in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) (k i))
+          (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
+      in
+      S.update (t1 "update") (k 0) (v 0) >>= fun () ->
+      Lwt.join [ write t1 1 10; write t2 2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
+    in
+    run x test
+
+  let test_concurrent_head_updates x () =
+    let test () =
+      let k i = p ["a";"b";"c"; string_of_int i ] in
+      let v i = string x (sprintf "X%d" i) in
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+      let mk t x = ksprintf t x in
+      let retry d fn =
+        let rec aux i =
+          fn () >>= function
+          | true  -> Log.debug "%d: ok!" d; Lwt.return_unit
+          | false -> Log.debug "%d: conflict, retrying (%d)." d i; aux (i+1)
+        in
+        aux 1
+      in
+      let write t n =
+        write (fun i -> retry i (fun () ->
+            S.head (t "head") >>= fun test ->
+            let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
+            S.clone_force task (mk t "cloning") tag >>= fun m ->
+            S.update (m "update") (k i) (v i) >>= fun () ->
+            S.head (m "head") >>= fun set ->
+            Lwt_unix.yield () >>= fun () ->
+            S.compare_and_set_head (t "compare_and_set") ~test ~set
+          ))
+      in
+      let read t =
+        read
+          (fun i -> S.read_exn (mk t "read %d" i) (k i))
+          (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
+      in
+      S.update (t1 "update") (k 0) (v 0) >>= fun () ->
+      Lwt.join [ write t1 1 5; write t2 2 5 ] >>= fun () ->
+      Lwt.join [ read t1 5 ]
+    in
+    run x test
+
 end
 
 let suite (speed, x) =
@@ -691,15 +1330,22 @@ let suite (speed, x) =
   let module T = Make(S) in
   x.name,
   [
-    "Basic operations on contents"    , speed, T.test_contents   x;
-    "Basic operations on nodes"       , speed, T.test_nodes      x;
-    "Basic operations on commits"     , speed, T.test_commits    x;
+    "Basic operations on contents"    , speed, T.test_contents x;
+    "Basic operations on nodes"       , speed, T.test_nodes x;
+    "Basic operations on commits"     , speed, T.test_commits x;
     "Basic operations on tags"        , speed, T.test_tags x;
-    "Basic merge operations"          , speed, T.test_merges     x;
-    "High-level store operations"     , speed, T.test_stores     x;
-    "High-level operations in views"  , speed, T.test_views      x;
-    "High-level store synchronisation", speed, T.test_sync       x;
-    "High-level store merges"         , speed, T.test_merge_api  x;
+    "Basic operations on watches"     , speed, T.test_watches x;
+    "Basic merge operations"          , speed, T.test_simple_merges x;
+    "Complex histories"               , speed, T.test_history x;
+    "Empty stores"                    , speed, T.test_empty x;
+    "High-level store operations"     , speed, T.test_stores x;
+    "High-level operations on views"  , speed, T.test_views x;
+    "High-level store synchronisation", speed, T.test_sync x;
+    "High-level store merges"         , speed, T.test_merge x;
+    "Low-level concurrency"           , speed, T.test_concurrent_low x;
+    "Concurrent updates"              , speed, T.test_concurrent_updates x;
+    "Concurrent head updates"         , speed, T.test_concurrent_head_updates x;
+    "Concurrent merges"               , speed, T.test_concurrent_merges x;
   ]
 
 let run name tl =
