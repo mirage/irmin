@@ -515,3 +515,6 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: use_irmin-unix
 # OASIS_STOP
 <lib/bucheron/irmin_bucheron.ml>: pkg_cstruct.syntax
+true: bin_annot, debug
+true: warn_error(+1..49), warn(A-4-41-44)
+true: short_paths

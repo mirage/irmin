@@ -8,42 +8,31 @@
 
 *)
 
-
 open Lwt
 open Irmin
 
 
 module Log = Log.Make(struct let section = "KRYPO" end)
 
-		    		    
 module type CIPHER_BLOCK = Irmin_krypto_cipher.MAKER
 module Make_km = Irmin_krypto_km.Make
 module Make_cipher = Irmin_krypto_cipher.Make
 
-		    
+module type RAW = Tc.S0 with type t = Cstruct.t
+
 module type AO_MAKER_RAW =
   functor (K: Hash.S) ->
-  functor (V: Tc.S0 with type t = Cstruct.t) ->
+  functor (V: RAW) ->
   AO with type key = K.t and type value = V.t
-					       
 
+module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:RAW) = struct
 
-module type AO_MAKER_CSTRUCT =
-  functor (IK: Hash.S) ->
-  functor (K: Hash.S) ->
-  functor (V: Tc.S0 with type t = Cstruct.t) ->
-  AO with type key = IK.t and type value = V.t
-					    
+    module AO = S(K)(V)
 
-					     
-module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) = struct
-
-    module AO = S(K)(Irmin.Contents.Cstruct)
-    
     type key = AO.key
 
     type value = AO.value
-     		 
+
     type t = AO.t
 
     let hash_size = K.length
@@ -102,17 +91,15 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) =
       C.encrypt ~ctr v |> inject_ctr ~ctr:ctr2 |> AO.add t
 
     (* TODO iter .... *)
-    let iter t (fn : key -> value Lwt.t -> unit Lwt.t) =
+    let iter _t (_fn : key -> value Lwt.t -> unit Lwt.t) =
       failwith "TODO"
   (* AO.iter t (fun k v ->
                  let ctr = Cstruct.of_string "1234abcd1234abcd" in
                  let v = v >|= fun v -> (C.decrypt ~ctr v) in
                  fn k v) *)
-      
+
 end
 
-(*													     
-module Make_Krypto_AO (CB:CIPHER_BLOCK) (S: AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) (*: AO_MAKER*) = KRYPTO_AO (CB) (S) 
+(*
+module Make_Krypto_AO (CB:CIPHER_BLOCK) (S: AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) (*: AO_MAKER*) = KRYPTO_AO (CB) (S)
  *)
-
-															       

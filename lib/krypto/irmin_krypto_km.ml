@@ -27,8 +27,8 @@ module Make : KEY_MANAGEMENT = struct
       | File of string
       | Debug_Test (* must be removed after ... | mirageOS ... *)
 
-    (** Temp stuff : generate "constant" keys randomly by size : work like LFSR with a seed *)
-    let gen_key length =
+    (* Temp stuff : generate "constant" keys randomly by size : work like LFSR with a seed *)
+    let _gen_key length =
       let gen() = match Random.int(26+26+10) with
         | n when n < 26 -> int_of_char 'a' + n
         | n when n < 26 + 26 -> int_of_char 'A' + n - 26
@@ -36,7 +36,7 @@ module Make : KEY_MANAGEMENT = struct
       let gen _ = String.make 1 (char_of_int(gen())) in
       String.concat "" (Array.to_list (Array.init length gen));;
 
-    (** Retriving... | File -> .. open and read file .. *)
+    (* Retriving... | File -> .. open and read file .. *)
     let retreive_key m =
       match m with
       | Debug_Test -> "abcd1234abcd1234" (* gen_key 24*)

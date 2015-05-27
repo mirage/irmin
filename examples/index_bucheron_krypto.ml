@@ -24,30 +24,30 @@ let () =
   with Not_found -> ()
 
 
-(* AO and RW PERSISTANT BACKENDS *)		      
-module FS_AO = Irmin_fs.AO (* Irmin_mem.AO (*Irmin_git.AO (Git_unix.FS)*) *)
-module MEM_RW = Irmin_mem.RW (* (Git_unix.FS) *)
+(* AO and RW PERSISTANT BACKENDS *)
+module AO = Irmin_fs.AO (* Irmin_mem.AO (*Irmin_git.AO (Git_unix.FS)*) *)
+module RW = Irmin_fs.RW
 
-		  
-(* KRYPTO BACKEND *)		  
+
+(* KRYPTO BACKEND *)
 module KRYPTO_KM = Irmin_krypto.Make_km
 module AES_CTR = AES.CTR (Counters.Inc_LE)
 module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES_CTR)
-module KRYPTO = Irmin_krypto.KRYPTO_AO (KRYPTO_AES) (FS_AO)
-					     
+module KRYPTO = Irmin_krypto.KRYPTO_AO (KRYPTO_AES) (AO)
+
 (* BUCHERON BACKEND *)
-module BUCHERON = Irmin_bucheron.BUCHERON_AO (KRYPTO)  					     
-					     
+module BUCHERON = Irmin_bucheron.BUCHERON_AO (KRYPTO)
+
 (* INDEX FOR KEY CONVERGENCE *)
-module INDEX = Irmin_index.HT (Ir_hash.SHA1)
-		   
-(* STORE WITH THE APPLICATION OF FUNCTOR *)		   
-module MY_STORE = Irmin_index.Make (INDEX) (FS_AO) (MEM_RW)
+module INDEX = Irmin_index.HT
+
+(* STORE WITH THE APPLICATION OF FUNCTOR *)
+module MY_STORE = Irmin_index.Make (INDEX) (AO) (RW)
 
 
 
 
-				   
+
 let store = Irmin.basic (module MY_STORE) (module Irmin.Contents.String)
 
 let main () =

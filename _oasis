@@ -85,7 +85,7 @@ Library "irmin-krypto"
   FindlibParent:    irmin
   BuildDepends:     irmin, nocrypto
   Modules:          Irmin_krypto, Irmin_krypto_cipher, Irmin_krypto_km
-  
+
 Library "irmin-index"
   Path:             lib/index
   Findlibname:      index
