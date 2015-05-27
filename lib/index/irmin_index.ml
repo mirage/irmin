@@ -54,15 +54,16 @@ module Symlink (I:H) (E:H) : PERSISTANT_INDEX = struct (* A COMPLETER *)   end
 *)
 
 
+module type RAW = Tc.S0 with type t = Cstruct.t
+
 module type AO_MAKER_RAW =
   functor (K: Irmin.Hash.S) ->
-  functor (V: Tc.S0 with type t = Cstruct.t) ->
+  functor (V: RAW) ->
   AO with type key = K.t and type value = V.t
 
 
 module AOI (P: PERSISTANT_INDEX_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) =
 struct
-
 
     module AO = S(K)(Irmin.Contents.Cstruct)
     module PI = P(K)
@@ -125,5 +126,5 @@ struct
 
 end
 
-module Make (P: PERSISTANT_INDEX_MAKER) (AO: AO_MAKER) (RW:RW_MAKER) =
+module Make (P: PERSISTANT_INDEX_MAKER) (AO: AO_MAKER_RAW) (RW:RW_MAKER) =
   Irmin.Make (AOI(P)(AO)) (RW)

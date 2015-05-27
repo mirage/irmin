@@ -9,10 +9,11 @@ open Irmin
 
 module Log = Log.Make(struct let section = "BUCHERON" end)
 
+module type RAW = Tc.S0 with type t = Cstruct.t
 
 module type AO_MAKER_RAW =
   functor (K: Hash.S) ->
-  functor (V: Tc.S0 with type t = Cstruct.t) ->
+  functor (V: RAW) ->
   AO with type key = K.t and type value = V.t
 
 (*
@@ -23,9 +24,9 @@ module type AO_MAKER_CSTRUCT =
   AO with type key = IK.t and type value = V.t
  *)
 
-module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) = struct
+module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 
-    module AO = S(K)(Irmin.Contents.Cstruct)
+    module AO = S(K)(V)
 
     type key = AO.key
 

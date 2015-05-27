@@ -42,11 +42,7 @@ module BUCHERON = Irmin_bucheron.BUCHERON_AO (KRYPTO)
 module INDEX = Irmin_index.HT
 
 (* STORE WITH THE APPLICATION OF FUNCTOR *)
-module MY_STORE = Irmin_index.Make (INDEX) (AO) (RW)
-
-
-
-
+module MY_STORE = Irmin_index.Make (INDEX) (BUCHERON) (RW)
 
 let store = Irmin.basic (module MY_STORE) (module Irmin.Contents.String)
 
