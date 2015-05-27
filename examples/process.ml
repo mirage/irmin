@@ -4,22 +4,12 @@ open Lwt
 open Irmin_unix
 open Printf
 
-(* Enable debug outputs if DEBUG is set *)
-let () =
-  try match Sys.getenv "DEBUG" with
-    | "" -> ()
-    | _  ->
-      Log.color_on ();
-      Log.set_log_level Log.DEBUG
-  with Not_found -> ()
-
-let () =
-  install_dir_polling_listener 0.5
-
 let fmt t x = ksprintf (fun s -> t s) x
 
 let fin () =
-  let _ = Sys.command "cd /tmp/irmin/test && git reset HEAD --hard" in
+  let _ =
+    Sys.command (sprintf "cd %s && git reset HEAD --hard" Config.root)
+  in
   return_unit
 
 type action = {
@@ -82,7 +72,7 @@ let images = [| (*ubuntu; *) wordpress; mysql |]
 
 let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
 let config = Irmin_git.config
-    ~root:"/tmp/irmin/test"
+    ~root:Config.root
     ~bare:true
     ~head:(Git.Reference.of_raw ("refs/heads/" ^ branch images.(0)))
     ()
@@ -95,8 +85,7 @@ let task image msg =
 let master = branch images.(0)
 
 let init () =
-  let _ = Sys.command "rm -rf /tmp/irmin/test" in
-  let _ = Sys.command "mkdir -p /tmp/irmin/test" in
+  Config.init ();
   Irmin.of_tag store config (task images.(0)) master >>= fun t ->
   Irmin.update (t "init") ["0"] "0" >>= fun () ->
   Lwt_list.iter_s (fun i ->

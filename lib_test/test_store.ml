@@ -463,6 +463,9 @@ module Make (S: Irmin.S) = struct
 
       watch 100 >>= fun () ->
 
+      (* FIXME: there is a small race in the HTTP watch code *)
+      sleep () >>= fun () ->
+
       State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->

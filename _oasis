@@ -169,17 +169,9 @@ Executable test_views
   Install:        false
   BuildDepends:   irmin, irmin.unix
 
-Executable test_contatcs
+Executable test_deploy
   Path:           examples/
-  MainIs:         contacts.ml
-  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
-  CompiledObject: best
-  Install:        false
-  BuildDepends:   irmin, irmin.unix
-
-Executable test_intrusion
-  Path:           examples/
-  MainIs:         intrusion.ml
+  MainIs:         deploy.ml
   Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false

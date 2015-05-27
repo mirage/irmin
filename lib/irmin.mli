@@ -1817,7 +1817,7 @@ val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
 (** See {!RO.mem}. *)
 
 val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t
-(** See {!RW.iter}. *)
+(** See {!RO.iter}. *)
 
 val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
 (** See {!HRW.list}. *)
@@ -2331,6 +2331,8 @@ module type VIEW = sig
       updated in the branch [t]. The callback parameters contains
       branch's current head and the corresponding view. *)
 
+  val task: [`Views_do_not_have_task]
+  (** Views do not have tasks. *)
 end
 
 module View (S: S): VIEW with type db = S.t
