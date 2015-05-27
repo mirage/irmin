@@ -42,6 +42,7 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) = struct
       DATA
     } as uint8_t
 
+    let _ = int_to_datatype, datatype_to_string, string_to_datatype
 
     cstruct chunck {
       uint8_t t;
@@ -49,14 +50,10 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) = struct
       uint8_t data[81920]
     } as little_endian
 
+    let _ = copy_chunck_data, set_chunck_data, blit_chunck_data, hexdump_chunck
 
     let key_to_cstruct x = Tc.write_cstruct (module K) x
     let key_of_cstruct x = Tc.read_cstruct (module K) x
-
-
-    let value_to_cstruct x = Tc.write_cstruct (module V) x
-    let value_of_cstruct x = Tc.read_cstruct (module V) x
-
 
     let create_indirection l =
       let size = sizeof_chunck in
@@ -151,12 +148,12 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) = struct
       let size = value_length - ((nb - 1) * data_length) in
       let dest_chunck = create_chunck size in
       Cstruct.blit v ((nb - 1) * data_length) dest_chunck 0 size;
-      AO.add t dest_chunck >>= (function x -> Lwt.return (Cstruct.blit (key_to_cstruct x) 0 ind ((nb - 1) * hash_length) hash_length));
+      AO.add t dest_chunck >>= fun x ->
+      Cstruct.blit (key_to_cstruct x) 0 ind ((nb - 1) * hash_length) hash_length;
       AO.add t ind
 
-
     (* TODO iter .... *)
-    let iter t (fn : key -> value Lwt.t -> unit Lwt.t) =
+    let iter _t (_fn : key -> value Lwt.t -> unit Lwt.t) =
       failwith "TODO"
       (* AO.iter t (fun k v ->
          let ctr = Cstruct.of_string "1234abcd1234abcd" in
