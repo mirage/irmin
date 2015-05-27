@@ -30,7 +30,11 @@ module type AO_MAKER_CSTRUCT =
   functor (K: Hash.S) ->
   functor (V: Tc.S0 with type t = Cstruct.t) ->
   AO with type key = IK.t and type value = V.t				     
-					  
-					  
+
+
+module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) : AO
+					     
+(*					  
 module Make_Krypto_AO (CB:CIPHER_BLOCK) (S: AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) : AO_MAKER_RAW
 					     
+ *)

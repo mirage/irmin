@@ -111,8 +111,8 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) =
       
 end
 
-													     
+(*													     
 module Make_Krypto_AO (CB:CIPHER_BLOCK) (S: AO_MAKER_RAW) (K:Irmin.Hash.S) (V:Tc.S0) (*: AO_MAKER*) = KRYPTO_AO (CB) (S) 
-
+ *)
 
 															       
