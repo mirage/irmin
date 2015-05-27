@@ -115,6 +115,7 @@ module type NODE = sig
   module Contents: Tc.S0 with type t = contents
   module Path: Ir_path.S
 
+  val equal: t -> t -> bool
   val empty: unit -> t
   val is_empty: t -> bool Lwt.t
 
@@ -155,6 +156,7 @@ module Internal (Node: NODE) = struct
     lock: Lwt_mutex.t;
   }
 
+  let equal x y = Node.equal x.view y.view
   type head = Node.commit
   let parents t = !(t.parents)
 
@@ -336,12 +338,6 @@ module Internal (Node: NODE) = struct
       aux t.view k >>= fun _ ->
       Lwt.return_unit
 
-  let watch _ _ =
-    failwith "TODO: View.watch"
-
-  let watch_all _ =
-    failwith "TODO: View.watch_all"
-
   let apply t a =
     Log.debug "apply %a" force (show (module Action) a);
     match a with
@@ -365,6 +361,54 @@ module Internal (Node: NODE) = struct
         conflict "list %s: got %s, expecting %s" (one l) (many r') (many r)
 
   let actions t = List.rev !(t.ops)
+
+  module KV = Ir_misc.Set(Tc.Pair(Path)(Node.Contents))
+
+  module PathMap = Ir_misc.Map(Path)
+
+  let diff x y =
+    let set t =
+      let acc = ref KV.empty in
+      iter t (fun k v ->
+          v >>= fun v ->
+          acc := KV.add (k, v) !acc;
+          Lwt.return_unit
+        ) >>= fun () ->
+      Lwt.return !acc
+    in
+    (* FIXME very dumb and slow *)
+    set x >>= fun sx ->
+    set y >>= fun sy ->
+    let added     = KV.diff sy sx in
+    let removed   = KV.diff sx sy in
+    let added_l   = KV.elements added in
+    let removed_l = KV.elements removed in
+    let added_m   = PathMap.of_alist added_l in
+    let removed_m = PathMap.of_alist removed_l in
+    let added_p   = PathSet.of_list (List.map fst added_l) in
+    let removed_p = PathSet.of_list (List.map fst removed_l) in
+
+    let updated_p = PathSet.inter added_p removed_p in
+    let added_p   = PathSet.diff added_p updated_p in
+    let removed_p = PathSet.diff removed_p updated_p in
+    let added =
+      PathSet.fold (fun path acc ->
+          (path, `Added (PathMap.find path added_m)) :: acc
+        ) added_p []
+    in
+    let removed =
+      PathSet.fold (fun path acc ->
+          (path, `Removed (PathMap.find path removed_m)) :: acc
+        ) removed_p []
+    in
+    let updated =
+      PathSet.fold (fun path acc ->
+          let x = PathMap.find path removed_m in
+          let y = PathMap.find path added_m in
+          (path, `Updated (x, y)) :: acc
+        ) updated_p []
+    in
+    Lwt.return (added @ updated @ removed)
 
   let rebase t1 ~into =
     Ir_merge.iter (apply into) (actions t1) >>| fun () ->
@@ -792,6 +836,30 @@ module Make (S: Ir_s.STORE) = struct
     let commit = S.Private.Commit.Val.create task ~parents ~node in
     S.Private.Commit.add (S.Private.commit_t db) commit
 
+  let watch_path db key ?init fn =
+    let view_of_head h =
+        S.of_head (S.Private.config db) (fun () -> S.task db) h >>= fun db ->
+        of_path (db ()) key
+    in
+    let init = match init with
+      | None        -> None
+      | Some (h, _) -> Some h
+    in
+    S.watch_head db ?init (function
+        | `Removed h ->
+          view_of_head h >>= fun v ->
+          fn @@ `Removed (h, v)
+        | `Added h ->
+          view_of_head h >>= fun v ->
+          fn @@ `Added (h, v)
+        | `Updated (x, y) ->
+          assert (not (S.Head.equal x y));
+          view_of_head x >>= fun vx ->
+          view_of_head y >>= fun vy ->
+          if equal vx vy then Lwt.return_unit
+          else fn @@ `Updated ( (x, vx), (y, vy) )
+      )
+
 end
 
 module type S = sig
@@ -818,7 +886,10 @@ module type S = sig
     val prettys: t list -> string
   end
   val actions: t -> Action.t list
+  val diff: t -> t -> (key * value Ir_watch.diff) list Lwt.t
   type head
   val parents: t -> head list
   val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
+  val watch_path: db -> key -> ?init:(head * t) ->
+    ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 end

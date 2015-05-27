@@ -2,5 +2,5 @@ language: c
 install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
 script: bash -ex .travis-opam.sh
 env:
-  - OCAML_VERSION=4.01   DEPOPTS="git cohttp" EXTRA_DEPS="conf-gmp"
-  - OCAML_VERSION=latest DEPOPTS="git cohttp" EXTRA_DEPS="conf-gmp"
+  - OCAML_VERSION=4.01   EXTRA_DEPS="conf-gmp"
+  - OCAML_VERSION=latest EXTRA_DEPS="conf-gmp"

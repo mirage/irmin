@@ -51,26 +51,22 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type value = V.t
 
-  module W = Irmin.Private.Watch.Make(K)(V)
-
   type t = {
     path: string;
-    w: W.t;
     task: Irmin.task;
   }
 
-  let temp_dir t = t.path / "tmp"
   let task t = t.task
 
+  let get_path config =
+    match Irmin.Private.Conf.get config root_key with
+    | None   -> IO.getcwd ()
+    | Some p -> Lwt.return p
+
   let create config task =
-    let w = W.create () in
-    let path = match Irmin.Private.Conf.get config root_key with
-      | None   -> IO.getcwd ()
-      | Some p -> return p
-    in
-    path >>= fun path ->
+    get_path config >>= fun path ->
     IO.mkdir path >>= fun () ->
-    return (fun a -> { path; w; task = task a })
+    return (fun a -> { path; task = task a })
 
   let file_of_key { path; _ } key =
     path / S.file_of_key (K.to_hum key)
@@ -80,7 +76,6 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let mem t key =
     let file = file_of_key t key in
-    Log.debug "file=%s" file;
     return (Sys.file_exists file)
 
   let err_not_found n k =
@@ -100,7 +95,6 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
 
   let keys_of_dir t fn =
-    Log.debug "keys_of_dir";
     IO.rec_files (S.dir t.path) >>= fun files ->
     let files  =
       let p = String.length t.path in
@@ -109,12 +103,10 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
           if n <= p + 1 then "" else String.sub file (p+1) (n - p - 1)
         ) files
     in
-    Lwt_list.iter_p (fun file ->
-        let k = K.of_hum (S.key_of_file file) in
-        fn k
-      ) files
+    Lwt_list.iter_p (fun file -> fn @@ K.of_hum (S.key_of_file file)) files
 
   let iter t fn =
+    Log.debug "iter";
     keys_of_dir t (fun k ->
         let v = read_exn t k in
         fn k v
@@ -125,6 +117,8 @@ end
 module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
   include RO_ext(IO)(S)(K)(V)
+
+  let temp_dir t = t.path / "tmp"
 
   let add t value =
     Log.debug "add";
@@ -144,42 +138,75 @@ end
 
 module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
-  include RO_ext(IO)(S)(K)(V)
+  module RO = RO_ext(IO)(S)(K)(V)
+  module W = Irmin.Private.Watch.Make(K)(V)
 
-  let key_of_file file = Some (K.of_hum (S.key_of_file file))
+  type t = { t: RO.t; w: W.t }
+  type key = RO.key
+  type value = RO.value
+  type watch = W.watch * (unit -> unit)
 
-  let lock_file t key = t.path / "lock" / K.to_hum key
+  let temp_dir t = t.t.RO.path / "tmp"
+  let lock_file t key = t.t.RO.path / "lock" / K.to_hum key
+
+  let create config task =
+    RO.create config task >>= fun t ->
+    let w = W.create () in
+    Lwt.return (fun a -> { t = t a; w })
+
+  let task t = RO.task t.t
+  let read t = RO.read t.t
+  let read_exn t = RO.read_exn t.t
+  let mem t = RO.mem t.t
+  let iter t = RO.iter t.t
+
+  let listen_dir t =
+    let dir = S.dir t.t.RO.path in
+    let key file = Some (K.of_hum file) in
+    W.listen_dir t.w dir ~key ~value:(RO.read t.t)
+
+  let watch_key t key ?init f =
+    let stop = listen_dir t in
+    W.watch_key t.w key ?init f >>= fun w ->
+    Lwt.return (w, stop)
+
+  let watch t ?init f =
+    let stop = listen_dir t in
+    W.watch t.w ?init f >>= fun w ->
+    Lwt.return (w, stop)
+
+  let unwatch t (id, stop) =
+    stop ();
+    W.unwatch t.w id
 
   let update t key value =
     Log.debug "update";
     let write () =
       let temp_dir = temp_dir t in
       let raw_value = Tc.write_cstruct (module V) value in
-      let file = file_of_key t key in
+      let file = RO.file_of_key t.t key in
       IO.write_file ~temp_dir file raw_value
     in
     let lock = lock_file t key in
     L.with_lock lock write >>= fun () ->
-    W.notify t.w key (Some value);
-    return_unit
+    W.notify t.w key (Some value)
 
   let remove t key =
     Log.debug "remove";
     let remove () =
-      let file = file_of_key t key in
+      let file = RO.file_of_key t.t key in
       IO.remove file
     in
     let lock = lock_file t key in
     L.with_lock lock remove >>= fun () ->
-    W.notify t.w key None;
-    return_unit
+    W.notify t.w key None
 
   let compare_and_set t key ~test ~set =
     Log.debug "compare_and_set";
     let write () =
       read t key >>= fun v ->
       if Tc.O1.equal V.equal test v then (
-        let file = file_of_key t key in
+        let file = RO.file_of_key t.t key in
         let action () = match set with
           | None   -> IO.remove file
           | Some v ->
@@ -193,18 +220,9 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
         Lwt.return false
     in
     let lock = lock_file t key in
-    L.with_lock lock write
-
-  let watch t key =
-    W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
-    Irmin.Private.Watch.lwt_stream_lift (
-      read t key >>= fun value ->
-      return (W.watch t.w key value)
-    )
-
-  let watch_all t =
-    W.listen_dir t.w t.path ~key:key_of_file ~value:(read t);
-    W.watch_all t.w
+    L.with_lock lock write >>= fun b ->
+    (if b then W.notify t.w key set else Lwt.return_unit) >>= fun () ->
+    Lwt.return b
 
 end
 
@@ -240,7 +258,6 @@ module Obj = struct
     "objects" / pre / suf
 
   let key_of_file path =
-    Log.debug "key_of_file %s" path;
     let path = string_chop_prefix ~prefix:("objects" / "") path in
     let path = Stringext.split ~on:'/' path in
     let path = String.concat "" path in

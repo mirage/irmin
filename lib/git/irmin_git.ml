@@ -240,13 +240,13 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
 
       let err_file_is_dir n =
         let str = sprintf
-            "Cannot add the file %s as it is already a directory name." n
+            "Cannot add the file '%s' as it is already a directory name." n
         in
         raise (Invalid_argument str)
 
       let err_dir_is_file n =
         let str = sprintf
-            "Cannot add the directory %s as it is already a filename." n
+            "Cannot add the directory '%s' as it is already a filename." n
         in
         raise (Invalid_argument str)
 
@@ -477,7 +477,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
 
     type key = Key.t
     type value = Val.t
-
+    type watch = W.watch * (unit -> unit)
     let task t = t.task
 
     let tag_of_git r =
@@ -503,10 +503,27 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       | None   -> return_none
       | Some k -> return (Some (head_of_git k))
 
-    let ref_of_file ~git_root file =
-      match string_chop_prefix ~prefix:(git_root / "refs/heads/") file with
-      | None   -> None
-      | Some r -> Some (T.of_hum r)
+    let listen_dir t =
+      if G.kind = `Disk then
+        let dir = t.git_root / "refs" / "heads" in
+        let key file = Some (Key.of_hum file) in
+        W.listen_dir t.w dir ~key ~value:(read t)
+      else
+        fun () -> ()
+
+    let watch_key t key ?init f =
+      let stop = listen_dir t in
+      W.watch_key t.w key ?init f >>= fun w ->
+      Lwt.return (w, stop)
+
+    let watch t ?init f =
+      let stop = listen_dir t in
+      W.watch t.w ?init f >>= fun w ->
+      Lwt.return (w, stop)
+
+    let unwatch t (w, stop) =
+      stop ();
+      W.unwatch t.w w
 
     let create config task =
       let root = Irmin.Private.Conf.get config Conf.root in
@@ -578,7 +595,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       let lock = lock_file t r in
       let write () = G.write_reference t.t gr gk in
       L.with_lock lock write >>= fun () ->
-      W.notify t.w r (Some k);
+      W.notify t.w r (Some k) >>= fun () ->
       write_index t gr gk
 
     let remove t r =
@@ -586,8 +603,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       let lock = lock_file t r in
       let remove () = G.remove_reference t.t (git_of_tag r) in
       L.with_lock lock remove >>= fun () ->
-      W.notify t.w r None;
-      return_unit
+      W.notify t.w r None
 
     let compare_and_set t r ~test ~set =
       Log.debug "compare_and_set";
@@ -605,7 +621,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
           ) else
             Lwt.return false
         ) >>= fun updated ->
-      W.notify t.w r set;
+      (if updated then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
       begin
         (* We do not protect [write_index] because it can took a log
            time and we don't want to hold the lock for too long. Would
@@ -619,23 +635,6 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
           Lwt.return_unit
       end >>= fun () ->
       Lwt.return updated
-
-    let watch t (r:key): value option Lwt_stream.t =
-      if G.kind = `Disk then
-        W.listen_dir t.w (t.git_root / "refs/heads")
-          ~key:(ref_of_file ~git_root:t.git_root)
-          ~value:(read t);
-      Irmin.Private.Watch.lwt_stream_lift (
-        read t r >>= fun k ->
-        return (W.watch t.w r k)
-      )
-
-    let watch_all t: (key * value option) Lwt_stream.t =
-      if G.kind = `Disk then
-        W.listen_dir t.w (t.git_root / "refs/heads")
-          ~key:(ref_of_file ~git_root:t.git_root)
-          ~value:(read t);
-      W.watch_all t.w
 
   end
 

@@ -24,16 +24,22 @@ let init_disk () =
     failwith "The Git test should be run in the lib_test/ directory."
   else if Sys.file_exists test_db then
     Git_unix.FS.create ~root:test_db () >>= fun t ->
+    Irmin_unix.install_dir_polling_listener Test_fs.polling;
     Git_unix.FS.clear t
   else
     return_unit
 
+let clean () =
+  Irmin_unix.uninstall_dir_polling_listener ();
+  Lwt.return_unit
+
 let suite k =
   {
-    name   = "GIT" ^ string_of_kind k;
-    kind   = k;
+    name   = "GIT" ^ string_of_contents k;
+    cont   = k;
+    kind   = `Git;
     init   = init_disk;
-    clean  = none;
+    clean  = clean;
     store  = git_store k;
     config =
       let head = Git.Reference.of_raw "refs/heads/test" in

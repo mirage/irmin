@@ -37,6 +37,7 @@ module Make (S: Irmin.S) = struct
   module Contents = S.Private.Contents
   module Graph = Irmin.Private.Node.Graph(Contents)(S.Private.Node)
   module History = Irmin.Private.Commit.History(Graph.Store)(S.Private.Commit)
+  module View = Irmin.View(S)
 
   let v t a = S.Private.contents_t (t a)
   let n t a = S.Private.node_t (t a)
@@ -60,14 +61,14 @@ module Make (S: Irmin.S) = struct
   let create_dummy x =
     S.create x.config dummy_task
 
-  let string x str = match x.kind with
+  let string x str = match x.cont with
     | `String -> Tc.read_string (module V) str
     | `Json -> V.of_json (
         (`O [ "foo", Ezjsonm.encode_string str ])
       )
   let v1 x = string x long_random_string
 
-  let v2 x = match x.kind with
+  let v2 x = match x.cont with
     | `String -> Tc.read_string (module V) ""
     | `Json -> V.of_json (`A[])
 
@@ -140,6 +141,27 @@ module Make (S: Irmin.S) = struct
       | 0 -> acc
       | n -> aux (random_node x ~label ~path ~value :: acc) (n-1) in
     aux [] n
+
+  let sleep ?(sleep_t=0.01) () =
+    let sleep_t = min sleep_t 1. in
+    Lwt_unix.yield () >>= fun () ->
+    Lwt_unix.sleep sleep_t
+
+  let retry ?(timeout=5. *. 60.) ?(sleep_t=0.) fn =
+    let sleep_t = max sleep_t 0.001 in
+    let time = Unix.gettimeofday in
+    let t = time () in
+    let str i = sprintf "%d, %.3fs" i (time () -. t) in
+    let rec aux i =
+      if time () -. t > timeout then fn (str i);
+      try fn (str i); Lwt.return_unit
+      with _e ->
+        let sleep_t = sleep_t *. (1. +. float i ** 2.) in
+        sleep ~sleep_t () >>= fun () ->
+        Log.debug "Test.retry %s" (str i);
+        aux (i+1)
+    in
+    aux 0
 
   let old k () = Lwt.return (`Ok (Some k))
 
@@ -310,6 +332,251 @@ module Make (S: Irmin.S) = struct
       list tag >>= fun r2' ->
       assert_equal (module Set(T)) "all-after-remove" [t2] r2';
       return_unit
+    in
+    run x test
+
+  let test_watches x () =
+
+    let watch_threads () =
+      Irmin_unix.polling_threads (), Irmin.Private.Watch.workers ()
+    in
+
+    let pp_w (p, w) = sprintf "%d/%d" p w in
+
+    let check_workers msg p w =
+      let w = if x.kind <> `Mem || w = 0 then w else 1 in
+      let p = match x.kind with `Mem | `Http _ -> 0 | _ -> p in
+      retry (fun s ->
+          let got = watch_threads () in
+          let exp = p, w in
+          let msg = sprintf "workers: %s %s (%s)" msg (pp_w got) s in
+          if got = exp then line msg
+          else (
+            Log.debug "check-worker: expected %s, got %s" (pp_w exp) (pp_w got);
+            error msg (pp_w got) (pp_w exp)
+          ))
+    in
+
+    let module State = struct
+      type t = {
+        mutable adds: int;
+        mutable updates: int;
+        mutable removes: int;
+      }
+      let empty () = { adds=0; updates=0; removes=0; }
+      let add t = t.adds <- t.adds + 1
+      let update t = t.updates <- t.updates + 1
+      let remove t = t.removes <- t.removes + 1
+      let pretty t = sprintf "%d/%d/%d" t.adds t.updates t.removes
+      let xpp (a, u, r) = sprintf "%d/%d/%d" a u r
+      let xadd (a, u, r) = (a+1, u, r)
+      let xupdate (a, u, r) = (a, u+1, r)
+      let xremove (a, u, r) = (a, u, r+1)
+
+      let check ?sleep_t msg (p, w) a b =
+        let printer (a, u, r) =
+          Printf.sprintf "{ adds=%d; updates=%d; removes=%d }" a u r
+        in
+        check_workers msg p w >>= fun () ->
+        retry ?sleep_t (fun s ->
+            let b = b.adds, b.updates, b.removes in
+            let msg = sprintf "state: %s (%s)" msg s in
+            if a = b then line msg
+            else error msg (printer a) (printer b)
+          )
+
+      let process ?sleep_t t =
+        function head ->
+          begin match sleep_t with
+            | None   -> Lwt.return_unit
+            | Some s -> Lwt_unix.sleep s
+          end >>= fun () ->
+          let () = match head with
+            | `Added _   -> add t
+            | `Updated _ -> update t
+            | `Removed _ -> remove t
+          in
+          Lwt.return_unit
+
+      let apply msg state kind fn ?(first=false) on s n =
+        let msg mode n w s =
+          let kind = match kind with
+            | `Add    -> "add"
+            | `Update -> "update"
+            | `Remove -> "remove"
+          in
+          let mode = match mode with `Pre -> "[pre-condition]" | `Post -> "" in
+          sprintf "%s %s %s %d:%b x=%s:%s s=%s:%s" mode msg kind n on
+            (xpp s) (pp_w w)
+            (pretty state) (pp_w (watch_threads ()))
+        in
+        let check mode n w s = check (msg mode n w s) w s state in
+        let incr = match kind with
+          | `Add -> xadd
+          | `Update -> xupdate
+          | `Remove -> xremove
+        in
+        let rec aux pre = function
+          | 0 -> Lwt.return_unit
+          | i ->
+            let pre_w =
+              if on then 1, (if i = n && first then 0 else 1) else 0, 0
+            in
+            let post_w = if on then 1, 1 else 0, 0 in
+            let post = if on then incr pre else pre in
+            check `Pre (n-i) pre_w pre >>= fun () -> (* check pre-condition *)
+            Log.debug "[waiting for] %s" (msg `Post (n-i) post_w post);
+            fn (n-i) >>= fun () ->
+            check `Post (n-i) post_w post >>= fun () -> (* check post-condition *)
+            aux post (i-1)
+        in
+        aux s n
+
+    end in
+
+    let test () =
+      create x >>= fun t1 ->
+      create x >>= fun t2 ->
+
+      (* test [Irmin.watch] *)
+      Log.debug "WATCH";
+      let state = State.empty () in
+      let sleep_t = 0.02 in
+      let process = State.process ~sleep_t state in
+      let stops_0 = ref [] in
+      let stops_1 = ref [] in
+      let rec watch = function
+        | 0 -> Lwt.return_unit
+        | n ->
+          let t = if n mod 2 = 0 then t1 else t2 in
+          S.watch_head (t "watch") process >>= fun s ->
+          if n mod 2 = 0 then stops_0 := s :: !stops_0
+          else stops_1 := s :: !stops_1;
+          watch (n-1)
+      in
+      let v1 = string x "X1" in
+      let v2 = string x "X2" in
+
+      S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
+      S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
+      State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
+
+      watch 100 >>= fun () ->
+
+      State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
+
+      S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
+      State.check "watches adds" (1, 2) (100, 0, 0) state >>= fun () ->
+
+      S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
+      State.check "watches updates" (1, 2) (100, 100, 0) state >>= fun () ->
+
+      S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
+      State.check "watches removes" (1, 2) (100, 100, 100) state >>= fun () ->
+
+      Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
+      S.update (t2 "update") (p ["a"]) v1 >>= fun () ->
+      State.check "watches half off" (1, 1) (150, 100, 100) state  >>= fun () ->
+
+      Lwt_list.iter_s (fun f -> f ()) !stops_1 >>= fun () ->
+      S.update (t1 "update") (p ["a"]) v2 >>= fun () ->
+      State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
+
+      (* test [Irmin.watch_tags] *)
+      Log.debug "WATCH-TAGS";
+      let state = State.empty () in
+
+      r1 x >>= fun head ->
+      let add = State.apply "watch-tag" state `Add (fun n ->
+          let tag = S.Tag.of_hum (sprintf "t%d" n) in
+          S.Private.Tag.update (S.Private.tag_t @@ t1 "tag") tag head
+        ) in
+      let remove = State.apply "watch-tag" state `Remove (fun n ->
+          let tag = S.Tag.of_hum (sprintf "t%d" n) in
+          S.Private.Tag.remove (S.Private.tag_t @@ t2 "tag") tag
+        ) in
+
+      S.watch_tags (t1 "watch-tags") (fun _ -> State.process state)
+      >>= fun unwatch ->
+
+      add    true (0,  0, 0) 10 ~first:true >>= fun () ->
+      remove true (10, 0, 0) 5 >>= fun () ->
+
+      unwatch () >>= fun () ->
+      add    false (10, 0, 5) 4 >>= fun () ->
+      remove false (10, 0, 5) 4 >>= fun () ->
+
+      (* test [Irmin.watch_keys] *)
+      Log.debug "WATCH-KEYS";
+      let state = State.empty () in
+      let path1 = p ["a"; "b"; "c"] in
+      let path2 = p ["a"; "d"] in
+      let path3 = p ["a"; "b"; "d"] in
+      let add = State.apply "watch-key" state `Add (fun _ ->
+          let v = string x "" in
+          S.update (t1 "remove1") path1 v >>= fun () ->
+          S.update (t1 "remove2") path2 v >>= fun () ->
+          S.update (t1 "remove3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
+      let update = State.apply "watch-key" state `Update (fun n ->
+          let v = string x (string_of_int n) in
+          S.update (t2 "update1") path1 v >>= fun () ->
+          S.update (t2 "update2") path2 v >>= fun () ->
+          S.update (t2 "update3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
+      let remove = State.apply "watch-key" state `Remove (fun _ ->
+          S.remove (t1 "remove1") path1 >>= fun () ->
+          S.remove (t1 "remove2") path2 >>= fun () ->
+          S.remove (t1 "remove3") path3 >>= fun () ->
+          Lwt.return_unit
+        ) in
+
+      S.remove_rec (t1 "clean") (p []) >>= fun () ->
+
+      S.watch_key (t1 "watch-keys") path1 (State.process state)
+      >>= fun unwatch ->
+
+      add    true (0, 0 , 0) 1  ~first:true >>= fun () ->
+      update true (1, 0 , 0) 10 >>= fun () ->
+      remove true (1, 10, 0) 1  >>= fun () ->
+
+      unwatch () >>= fun () ->
+
+      add    false (1, 10, 1) 3 >>= fun () ->
+      update false (1, 10, 1) 5 >>= fun () ->
+      remove false (1, 10, 1) 4 >>= fun () ->
+
+      (* test [View.watch_path] *)
+      Log.debug "WATCH-PATH";
+      let state = State.empty () in
+
+      let update = State.apply "watch-view" state `Update (fun n ->
+          let v = string x (string_of_int n) in
+          let path1 = p ["a"; "b"; "c"; string_of_int n; "1"] in
+          let path2 = p ["a"; "x"; "c"; string_of_int n; "1"] in
+          let path3 = p ["a"; "y"; "c"; string_of_int n; "1"] in
+          S.update (t2 "update1") path1 v >>= fun () ->
+          S.update (t2 "update2") path2 v >>= fun () ->
+          S.update (t2 "update3") path3 v >>= fun () ->
+          Lwt.return_unit
+        ) in
+
+      S.remove_rec (t1 "fresh") (p ["a"]) >>= fun () ->
+
+      S.head_exn (t1 "head") >>= fun h ->
+      View.empty () >>= fun v ->
+      let init = h, v in
+
+      View.watch_path (t2 "wath-path") ~init (p ["a";"b"]) (State.process state)
+      >>= fun unwatch ->
+
+      update true (0, 0, 0) 10 ~first:true >>= fun () ->
+      unwatch () >>= fun () ->
+      update false (0, 10, 0) 10 >>= fun () ->
+
+      Lwt.return_unit
     in
     run x test
 
@@ -637,14 +904,14 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-  module View = Irmin.View(S)
-
   let test_views x () =
     let test () =
       create x >>= fun t ->
       let nodes = random_nodes x 100 in
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
+
+      (* Testing [View.remove] *)
 
       View.empty () >>= fun v1 ->
 
@@ -662,6 +929,50 @@ module Make (S: Irmin.S) = struct
       in
       Node.read_exn (n t "empty view") node >>= fun node ->
       assert_equal (module Node.Val) "empty view" Node.Val.empty node;
+
+      (* Testing [View.diff] *)
+
+      let printer_diff = function
+        | k, `Added v ->
+          sprintf "%s: added %s" (S.Key.to_hum k) (Tc.show (module V) v)
+        | k, `Removed v ->
+          sprintf "%s: removed %s" (S.Key.to_hum k) (Tc.show (module V) v)
+        | k, `Updated (v1, v2) ->
+          sprintf "%s: updated %s -> %s"
+            (S.Key.to_hum k) (Tc.show (module V) v1) (Tc.show (module V) v2)
+      in
+      let cmp_diff x y = match x, y with
+        | (s, `Added x), (t, `Added y) -> S.Key.equal s t && V.equal x y
+        | (s, `Removed x), (t, `Removed y) -> S.Key.equal s t && V.equal x y
+        | (s, `Updated (a,b)), (t, `Updated (c,d)) ->
+          S.Key.equal s t && V.equal a c && V.equal b d
+        | _ -> false
+      in
+      let check_diffs msg x y =
+        let cmp = cmp_list cmp_diff Pervasives.compare in
+        let printer = printer_list printer_diff in
+        line msg;
+        if not (cmp x y) then error msg (printer x) (printer y)
+      in
+
+      View.empty () >>= fun v0 ->
+      View.empty () >>= fun v1 ->
+      View.empty () >>= fun v2 ->
+      View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
+      View.update v2 (p ["foo";"1"]) foo2 >>= fun () ->
+      View.update v2 (p ["foo";"2"]) foo1 >>= fun () ->
+
+      View.diff v0 v1 >>= fun d1 ->
+      check_diffs "diff 1" [ (p ["foo";"1"]), `Added foo1 ] d1;
+
+      View.diff v1 v0 >>= fun d2 ->
+      check_diffs "diff 2" [ (p ["foo";"1"]), `Removed foo1 ] d2;
+
+      View.diff v1 v2 >>= fun d3 ->
+      check_diffs "diff 2" [ (p ["foo";"1"]), `Updated (foo1, foo2);
+                             (p ["foo";"2"]), `Added foo1] d3;
+
+      (* Testing other View operations. *)
 
       View.empty () >>= fun v0 ->
 
@@ -861,10 +1172,9 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-
   let rec write fn = function
     | 0 -> return_unit
-    | i -> fn i <&> write fn (i-1)
+    | i -> (fn i >>= Lwt_unix.yield) <&> write fn (i-1)
 
   let rec read fn check = function
     | 0 -> return_unit
@@ -886,7 +1196,7 @@ module Make (S: Irmin.S) = struct
           (fun i  -> assert_equal (module S.Head) (sprintf "tag %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 50; read 10; write 10; read 50; ]
+      Lwt.join [ write 10; read 10; write 10; read 10; ]
     in
     let test_contents () =
       kv2 x >>= fun k ->
@@ -902,7 +1212,7 @@ module Make (S: Irmin.S) = struct
           (fun i  -> assert_equal (module V) (sprintf "contents %d" i) v)
       in
       write 1 >>= fun () ->
-      Lwt.join [ write 50; read 10; write 10; read 50; ]
+      Lwt.join [ write 10; read 10; write 10; read 10; ]
     in
     run x (fun () -> Lwt.join [test_tags (); test_contents ()])
 
@@ -919,8 +1229,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> S.read_exn (mk t "read %d" i) k)
           (fun i -> assert_equal (module V) (sprintf "update: one %d" i) v)
       in
-      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
-      Lwt.join [ read t1 50 ]
+      Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
     in
     let test_multi () =
       let k i = p ["a";"b";"c"; string_of_int i ] in
@@ -936,8 +1246,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> S.read_exn (mk t "read %d" i) (k i))
           (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
       in
-      Lwt.join [ write t1 50; write t2 50 ] >>= fun () ->
-      Lwt.join [ read t1 50 ]
+      Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
     in
     run x (fun () ->
         test_one   () >>= fun () ->
@@ -968,8 +1278,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
       in
       S.update (t1 "update") (k 0) (v 0) >>= fun () ->
-      Lwt.join [ write t1 1 20; write t2 2 20 ] >>= fun () ->
-      Lwt.join [ read t1 20 ]
+      Lwt.join [ write t1 1 10; write t2 2 10 ] >>= fun () ->
+      Lwt.join [ read t1 10 ]
     in
     run x test
 
@@ -1005,8 +1315,8 @@ module Make (S: Irmin.S) = struct
           (fun i -> assert_equal (module V) (sprintf "update: multi %d" i) (v i))
       in
       S.update (t1 "update") (k 0) (v 0) >>= fun () ->
-      Lwt.join [ write t1 1 10; write t2 2 10 ] >>= fun () ->
-      Lwt.join [ read t1 10 ]
+      Lwt.join [ write t1 1 5; write t2 2 5 ] >>= fun () ->
+      Lwt.join [ read t1 5 ]
     in
     run x test
 
@@ -1021,6 +1331,7 @@ let suite (speed, x) =
     "Basic operations on nodes"       , speed, T.test_nodes x;
     "Basic operations on commits"     , speed, T.test_commits x;
     "Basic operations on tags"        , speed, T.test_tags x;
+    "Basic operations on watches"     , speed, T.test_watches x;
     "Basic merge operations"          , speed, T.test_simple_merges x;
     "Complex histories"               , speed, T.test_history x;
     "Empty stores"                    , speed, T.test_empty x;

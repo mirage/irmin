@@ -24,3 +24,6 @@ val owner: t -> string
 val messages: t -> string list
 val add: t -> string -> unit
 val empty: t
+
+type 'a f = 'a -> t
+val none: unit f

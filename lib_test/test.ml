@@ -15,13 +15,15 @@
  *)
 
 let () =
-  let suite k = [
+  let suite k =
+    let depends = if k = `String then `Quick else `Slow in
+    [
     `Quick, Test_krypto.suite k;
-    `Quick, Test_memory.suite k;
-    `Quick, Test_fs.suite k;
-    `Quick, Test_git.suite k;
-    `Slow , Test_http.suite k (Test_memory.suite k);
-    `Slow , Test_http.suite k (Test_fs.suite k);
-    `Slow , Test_http.suite k (Test_git.suite k);
-  ] in
+      `Quick , Test_memory.suite k;
+      `Quick , Test_fs.suite k;
+      `Quick , Test_git.suite k;
+      depends, Test_http.suite k (Test_memory.suite k);
+      `Slow  , Test_http.suite k (Test_fs.suite k);
+      `Slow  , Test_http.suite k (Test_git.suite k);
+    ] in
   Test_store.run "irmin" (suite `String @ suite `Json)

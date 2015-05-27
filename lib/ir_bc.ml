@@ -25,16 +25,16 @@ module StringMap = Map.Make(String)
 module type STORE = sig
   include Ir_rw.HIERARCHICAL
   type tag
-  val of_tag: Ir_conf.t -> ('a -> Ir_task.t) -> tag -> ('a -> t) Lwt.t
+  val of_tag: Ir_conf.t -> 'a Ir_task.f -> tag -> ('a -> t) Lwt.t
   val tag: t -> tag option Lwt.t
   val tag_exn: t -> tag Lwt.t
   val tags: t -> tag list Lwt.t
-  val remove_tag: t -> unit Lwt.t
+  val remove_tag: t -> tag -> unit Lwt.t
   val update_tag: t -> tag -> unit Lwt.t
   val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
   val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
   type head
-  val empty: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
+  val empty: Ir_conf.t -> 'a Ir_task.f -> ('a -> t) Lwt.t
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
@@ -45,10 +45,14 @@ module type STORE = sig
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
   val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val watch_head: t -> key -> (key * head option) Lwt_stream.t
-  val watch_tags: t -> (tag * head option) Lwt_stream.t
-  val clone: ('a -> Ir_task.t) -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
-  val clone_force: ('a -> Ir_task.t) -> t ->  tag -> ('a -> t) Lwt.t
+  val watch_head: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
+    (unit -> unit Lwt.t) Lwt.t
+  val watch_tags: t -> ?init:(tag * head) list ->
+    (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_key: t -> key -> ?init:(head * value) ->
+    ((head * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val clone: 'a Ir_task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone_force: 'a Ir_task.f -> t ->  tag -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Ir_merge.result Lwt.t
   val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
@@ -391,11 +395,7 @@ module Make_ext (P: PRIVATE) = struct
     | `Head h  -> h := Some c; return_unit
     | `Tag tag -> Tag.update (tag_t t) tag c
 
-  let remove_tag t =
-    match branch t with
-    | `Empty
-    | `Head _  -> Lwt.return_unit
-    | `Tag tag -> Tag.remove (tag_t t) tag
+  let remove_tag t tag = Tag.remove (tag_t t) tag
 
   let update_tag t tag =
     Tag.read_exn (tag_t t) tag >>= fun k ->
@@ -500,93 +500,59 @@ module Make_ext (P: PRIVATE) = struct
   let merge_exn a ?max_depth ?n t ~into =
     merge a ?max_depth ?n t ~into >>= Ir_merge.exn
 
-  module ONode = Tc.Option(P.Node.Key)
-
-  let watch_all _t =
-    Log.info" watch all";
-    failwith "BC.wath_all: TODO"
-
-  let watch_node t path =
-    Log.info "Adding a watch on %a" force (show (module Key) path);
-    match branch t with
-    | `Empty
-    | `Head _  -> Lwt_stream.of_list []
-    | `Tag tag ->
-      let stream = Tag.watch (tag_t t) tag in
-      Ir_watch.lwt_stream_lift (
-        read_node t path >>= fun node ->
-        let old_node = ref node in
-        let stream = Lwt_stream.filter_map_s (function
-            | None ->
-              if ONode.equal !old_node None then return_none
-              else (
-                old_node := None;
-                return (Some (path, None, None))
-              )
-            | Some head ->
-              Log.debug "watch: %a" force (show (module Head) head);
-              begin H.node (history_t t) head >>= function
-                | None      -> Graph.empty (graph_t t)
-                | Some node -> return node
-              end >>= fun node ->
-              Graph.read_node (graph_t t) node path >>= fun node ->
-              if ONode.equal !old_node node then return_none
-              else (
-                old_node := node;
-                return (Some (path, Some head, node))
-              )
-          ) stream in
-        return stream
-      )
-
-  module OContents = Tc.Option(P.Contents.Key)
-
-  let watch_head t path =
-    Lwt_stream.map (fun (k, h, _) -> k, h) (watch_node t path)
-
-  let watch_tags t =
-    Log.info "Adding a watch on all tags";
-    Tag.watch_all (tag_t t)
-
-  (* watch contents changes. *)
-  let watch t path =
-    let path, file =
-      match Key.rdecons path with
-      | Some (l, t) -> l, t
-      | None -> Key.empty, Key.Step.of_hum "__root__"
-    in
-    let get_contents n = Graph.contents (graph_t t) n file in
-    Ir_watch.lwt_stream_lift (
-      begin
-        read_node t path >>= function
-        | None   -> return_none
-        | Some n -> get_contents n
-      end >>= fun contents ->
-      let old_contents = ref contents in
-      let stream = watch_node t path in
-      let stream = Lwt_stream.filter_map_s (fun (_, _, n) ->
-          match n with
-          | None ->
-            if OContents.equal !old_contents None then return_none
-            else (
-              old_contents := None;
-              return (Some None)
-            )
-          | Some n ->
-            get_contents n >>= fun contents ->
-            if OContents.equal !old_contents contents then return_none
-            else (
-              old_contents := contents;
-              match contents with
-              | None   -> return (Some None)
-              | Some k ->
-                P.Contents.read (contents_t t) k >>= fun c ->
-                return (Some c)
-            )
-        ) stream
+  let watch_head t ?init fn =
+    tag t >>= function
+    | None       ->
+      (* FIXME: start a local watcher on the detached branch *)
+      Lwt.return (fun () -> Lwt.return_unit)
+    | Some tag0 ->
+      let init = match init with
+        | None       -> None
+        | Some head0 -> Some [tag0, head0]
       in
-      return stream
-    )
+      Tag.watch (tag_t t) ?init (fun tag head ->
+          if Tag.Key.equal tag0 tag then fn head else Lwt.return_unit
+        ) >>= fun id ->
+      Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
+
+  let watch_tags t ?init fn =
+    Tag.watch (tag_t t) ?init fn >>= fun id ->
+    Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
+
+  let lift value_of_head fn = function
+    | `Removed x -> begin
+        value_of_head x >>= function
+        | None   -> Lwt.return_unit
+        | Some v -> fn @@ `Removed (x, v)
+      end
+    | `Added x -> begin
+        value_of_head x >>= function
+        | None   -> Lwt.return_unit
+        | Some v -> fn @@ `Added (x, v)
+      end
+    | `Updated (x, y) ->
+      assert (not (Head.equal x y));
+      value_of_head x >>= fun vx ->
+      value_of_head y >>= fun vy ->
+      match vx, vy with
+      | None   ,  None   -> Lwt.return_unit
+      | Some vx, None    -> fn @@ `Removed (x, vx)
+      | None   , Some vy -> fn @@ `Added (y, vy)
+      | Some vx, Some vy ->
+        if Val.equal vx vy then Lwt.return_unit
+        else fn @@ `Updated ( (x, vx), (y, vy) )
+
+let watch_key t key ?init fn =
+    Log.info "watch-key %a" force (show (module Key) key);
+    let init_head = match init with
+      | None        -> None
+      | Some (h, _) -> Some h
+    in
+    let value_of_head h =
+      of_head (config t) (fun () -> task t) h >>= fun t ->
+      read (t ()) key
+    in
+    watch_head t ?init:init_head (lift value_of_head fn)
 
   type slice = P.Slice.t
 

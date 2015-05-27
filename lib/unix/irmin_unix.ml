@@ -128,44 +128,131 @@ module S = struct
     let of_list l = List.fold_left (fun set elt -> add elt set) empty l
     let to_list = elements
     module K = Tc.Pair(Tc.String)(Tc.String)
+    let sdiff x y = union (diff x y) (diff y x)
   end
   include X
   include Tc.As_L0 (X)
 end
 
-let install_dir_polling_listener delay =
+module StringSet = struct
+  include Set.Make(Tc.String)
+  let of_list l = List.fold_left (fun acc e -> add e acc) empty l
+end
 
-  Irmin.Private.Watch.set_listen_dir_hook (fun id dir fn ->
+let to_string set = Tc.show (module S) set
 
-      let read_files () =
-        IO.rec_files dir >>= fun new_files ->
-        let new_files = List.map (fun f -> f, Digest.file f) new_files in
-        return (S.of_list new_files)
+let string_chop_prefix t ~prefix =
+  let lt = String.length t in
+  let lp = String.length prefix in
+  if lt < lp then None else
+    let p = String.sub t 0 lp in
+    if String.compare p prefix <> 0 then None
+    else Some (String.sub t lp (lt - lp))
+
+let string_chop_prefix_exn t ~prefix = match string_chop_prefix t ~prefix with
+  | None   -> failwith "string_chop_prefix"
+  | Some s -> s
+
+let (/) = Filename.concat
+
+let read_files dir =
+  IO.rec_files dir >>= fun new_files ->
+  let prefix = dir / "" in
+  let new_files =
+    List.map (fun f -> string_chop_prefix_exn f ~prefix, Digest.file f) new_files
+  in
+  return (S.of_list new_files)
+
+(* run [t] and returns an handler to stop the task. *)
+let stoppable t =
+  let s, u = Lwt.task () in
+  Lwt.async (fun () -> Lwt.pick ([s; t ()]));
+  function () -> Lwt.wakeup u ()
+
+(* active polling *)
+let rec poll ~callback ~delay dir files =
+  read_files dir >>= fun new_files ->
+  let diff = S.sdiff files new_files in
+  begin if S.is_empty diff then (
+      Log.debug "polling %s: no changes!" dir;
+      Lwt.return_unit
+    ) else (
+      Log.debug "polling %s: diff:%s" dir (to_string diff);
+      let files =
+        S.to_list diff |> List.map fst |> StringSet.of_list |> StringSet.elements
       in
+      Lwt_list.iter_p (callback dir) files)
+  end >>= fun () ->
+  Lwt_unix.sleep delay >>= fun () ->
+  poll ~callback ~delay dir new_files
 
-      let to_string set = Tc.show (module S) set in
+let listen ~callback ~delay dir =
+  stoppable (fun () -> read_files dir >>= poll ~callback ~delay dir)
 
-      let rec loop files =
-        read_files () >>= fun new_files ->
-        let diff = S.diff files new_files in
-        if not (S.is_empty diff) then
-          Log.debug "polling %d %s: diff:%s" id dir (to_string diff)
-        else
-          Log.debug "polling %d no changes!" id;
-        Lwt_list.iter_p (fun (f, _) -> fn f) (S.to_list diff) >>= fun () ->
-        Log.debug "XXX SLEEP(%2f) %d" delay id;
-        Lwt_unix.sleep delay >>= fun () ->
-        Log.debug "XXX WAKE-UP %d" id;
-        loop new_files
-      in
+(* map directory names to list of callbacks *)
+let listeners = Hashtbl.create 10
+let watchdogs = Hashtbl.create 10
 
-      let t () =
-        read_files () >>= fun new_files ->
-        loop new_files
-      in
+let nb_listeners dir =
+  try List.length (Hashtbl.find listeners dir) with Not_found -> 0
 
-      Lwt.async t
+let watchdog dir =
+  try Some (Hashtbl.find watchdogs dir) with Not_found -> None
+
+(* call all the callbacks on the file *)
+let callback dir file =
+  let fns = try Hashtbl.find listeners dir with Not_found -> [] in
+  Lwt_list.iter_p (fun (id, f) -> Log.debug "callback %d" id; f file) fns
+
+let realdir dir = if Filename.is_relative dir then Sys.getcwd () / dir else dir
+
+let start_watchdog ~delay dir =
+  match watchdog dir with
+  | Some _ -> assert (nb_listeners dir <> 0)
+  | None   ->
+    Log.debug "Start watchdog for %s" dir;
+    let u = listen dir ~delay ~callback in
+    Hashtbl.add watchdogs dir u
+
+let stop_watchdog dir =
+  match watchdog dir with
+  | None      -> assert (nb_listeners dir = 0)
+  | Some stop ->
+    if nb_listeners dir = 0 then (
+      Log.debug "Stop watchdog for %s" dir;
+      Hashtbl.remove watchdogs dir;
+      stop ()
     )
+
+let add_listener id dir fn =
+  let fns = try Hashtbl.find listeners dir with Not_found -> [] in
+  let fns = (id, fn) :: fns in
+  Hashtbl.replace listeners dir fns
+
+let remove_listener id dir =
+  let fns = try Hashtbl.find listeners dir with Not_found -> [] in
+  let fns = List.filter (fun (x,_) -> x <> id) fns in
+  if fns = [] then Hashtbl.remove listeners dir
+  else Hashtbl.replace listeners dir fns
+
+let uninstall_dir_polling_listener () =
+  Hashtbl.iter (fun _dir stop -> stop ()) watchdogs;
+  Hashtbl.clear watchdogs;
+  Hashtbl.clear listeners
+
+let install_dir_polling_listener delay =
+  uninstall_dir_polling_listener ();
+  let listen_dir id dir fn =
+    let dir = realdir dir in
+    start_watchdog ~delay dir;
+    add_listener id dir fn;
+    function () ->
+      remove_listener id dir;
+      stop_watchdog dir
+  in
+  Irmin.Private.Watch.set_listen_dir_hook listen_dir
+
+let polling_threads () = Hashtbl.length watchdogs
 
 let task msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in

@@ -19,8 +19,16 @@ module type STORE = sig
   val update: t -> key -> value -> unit Lwt.t
   val compare_and_set: t -> key -> test:value option -> set:value option -> bool Lwt.t
   val remove: t -> key -> unit Lwt.t
-  val watch: t -> key -> value option Lwt_stream.t
-  val watch_all: t -> (key * value option) Lwt_stream.t
+end
+
+module type REACTIVE = sig
+  include STORE
+  type watch
+  val watch_key: t -> key -> ?init:value -> (value Ir_watch.diff -> unit Lwt.t) ->
+    watch Lwt.t
+  val watch: t -> ?init:(key * value) list ->
+    (key -> value Ir_watch.diff -> unit Lwt.t) -> watch Lwt.t
+  val unwatch: t -> watch -> unit Lwt.t
 end
 
 module type HIERARCHICAL = sig
@@ -32,4 +40,4 @@ end
 module type MAKER =
   functor (K: Ir_hum.S) ->
   functor (V: Tc.S0) ->
-    STORE with type key = K.t and type value = V.t
+    REACTIVE with type key = K.t and type value = V.t

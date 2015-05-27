@@ -52,7 +52,7 @@ let configure () =
   Lwt_unix.sleep 2.                >>= fun () ->
 
   Store.clone_force task (t "Switching to upstream") "upstream" >>= fun t ->
-  View.empty ()                    >>= fun v ->
+  View.empty () >>= fun v ->
 
 (*
   Store.View.update v ["etc";"passwd"]
