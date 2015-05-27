@@ -22,11 +22,11 @@ let test_db = "test_db_git"
 let init_disk () =
   if Filename.basename (Sys.getcwd ()) <> "lib_test" then
     failwith "The Git test should be run in the lib_test/ directory."
-  else if Sys.file_exists test_db then
+  else if Sys.file_exists test_db then (
     Git_unix.FS.create ~root:test_db () >>= fun t ->
     Irmin_unix.install_dir_polling_listener Test_fs.polling;
     Git_unix.FS.clear t
-  else
+  ) else
     return_unit
 
 let clean () =

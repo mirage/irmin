@@ -22,10 +22,11 @@ let test_db = "test_db_krypto"
 let init_disk () =
   if Filename.basename (Sys.getcwd ()) <> "lib_test" then
     failwith "The Git test should be run in the lib_test/ directory."
-  else if Sys.file_exists test_db then
+  else if Sys.file_exists test_db then (
     Git_unix.FS.create ~root:test_db () >>= fun t ->
+    Irmin_unix.install_dir_polling_listener Test_fs.polling;
     Git_unix.FS.clear t
-  else
+  ) else
     return_unit
 
 let suite k =
@@ -37,6 +38,7 @@ let suite k =
     clean  = none;
     store  = git_store k;
     config =
+      (* TODO: test crypto *)
       let head = Git.Reference.of_raw "refs/heads/test" in
       Irmin_git.config ~root:test_db ~head ~bare:true ()
   }
