@@ -30,8 +30,9 @@ let init_disk () =
 
 let suite k =
   {
-    name   = "KRYPTO" ^ string_of_kind k;
-    kind   = k;
+    name   = "KRYPTO" ^ string_of_contents k;
+    kind   = `Krypto;
+    cont   = k;
     init   = init_disk;
     clean  = none;
     store  = git_store k;
