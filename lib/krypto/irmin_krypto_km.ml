@@ -39,8 +39,8 @@ module Make : KEY_MANAGEMENT = struct
     (* Retriving... | File -> .. open and read file .. *)
     let retreive_key m =
       match m with
-      | Debug_Test -> "abcd1234abcd1234" (* gen_key 24*)
-      | _ -> "abcd1234abcd1234" (* gen_key 24 *)
+      | Debug_Test -> "zzcdswtlavgfsdfg" (* gen_key 24*)
+      | _ -> "zzcd1234abcd1234" (* gen_key 24 *)
 
     (** Initialization of hash key store TODO: try...catch *)
     let init_key ~way =

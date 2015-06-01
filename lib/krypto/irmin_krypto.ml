@@ -14,6 +14,7 @@ open Irmin
 
 module Log = Log.Make(struct let section = "KRYPO" end)
 
+		     
 module type CIPHER_BLOCK = Irmin_krypto_cipher.MAKER
 module Make_km = Irmin_krypto_km.Make
 module Make_cipher = Irmin_krypto_cipher.Make
@@ -25,6 +26,8 @@ module type AO_MAKER_RAW =
   functor (V: RAW) ->
   AO with type key = K.t and type value = V.t
 
+
+					    
 module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:RAW) = struct
 
     module AO = S(K)(V)

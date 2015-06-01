@@ -106,14 +106,17 @@ struct
         let k = PI.find index in
         AO.mem t k
       with
-      | Not_found -> return_false (* VERIEFIER LA VALEUR DE RETOUR SI PAS TROUVE *)
+      | Not_found -> return_false 
 
 
     let add t v =
       let value = to_cstruct v in
       let index = PI.digest_index value in
       AO.add t value >>=
-        (fun x -> let _ = PI.add index x in Lwt.return index)
+        (fun x ->
+	 let _ = PI.add index x
+	 in
+	 Lwt.return index)
 
 
     (* TODO iter .... *)
