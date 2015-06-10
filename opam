@@ -12,11 +12,13 @@ build: [
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
       "--%{base-unix:enable}%-unix"
-      "--%{cohttp+git+alcotest:enable}%-tests"
       "--%{cohttp+git+alcotest:enable}%-examples"]
   [make]
 ]
-build-test: [make "test"]
+build-test: [
+  ["./configure" "--enable-tests"]
+  [make "test"]
+]
 install: [make "install"]
 remove: [
   ["ocamlfind" "remove" "irmin"]
