@@ -899,9 +899,12 @@ module Make (S: Irmin.S) = struct
       S.update (t "update") (p ["a"]) v1 >>= fun () ->
       S.remove_rec (t "remove rec --all") (p []) >>= fun () ->
       S.list (t "list") (p []) >>= fun dirs ->
-
-
       assert_equal (module Set(K)) "remove rec root" [] dirs;
+
+      S.update (t "fst one") (p ["fst"]) (string x "ok")            >>= fun () ->
+      S.update (t "snd one") (p ["fst"; "snd"]) (string x "maybe?") >>= fun () ->
+      S.read (t "read") (p ["fst"]) >>= fun x ->
+      assert_equal (module Tc.Option(V)) "data modelling" None x;
 
       return_unit
     in
