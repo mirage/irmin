@@ -901,10 +901,23 @@ module Make (S: Irmin.S) = struct
       S.list (t "list") (p []) >>= fun dirs ->
       assert_equal (module Set(K)) "remove rec root" [] dirs;
 
-      S.update (t "fst one") (p ["fst"]) (string x "ok")            >>= fun () ->
-      S.update (t "snd one") (p ["fst"; "snd"]) (string x "maybe?") >>= fun () ->
+      let a = string x "ok" in
+      let b = string x "maybe?" in
+
+      S.update (t "fst one") (p ["fst"]) a        >>= fun () ->
+      S.update (t "snd one") (p ["fst"; "snd"]) b >>= fun () ->
+
       S.read (t "read") (p ["fst"]) >>= fun x ->
-      assert_equal (module Tc.Option(V)) "data modelling" None x;
+      assert_equal (module Tc.Option(V)) "data model 1" None x;
+      S.read (t "read") (p ["fst"; "snd"]) >>= fun x ->
+      assert_equal (module Tc.Option(V)) "data model 2" (Some b) x;
+
+      S.update (t "fst one") (p ["fst"]) a >>= fun () ->
+
+      S.read (t "read") (p ["fst"]) >>= fun x ->
+      assert_equal (module Tc.Option(V)) "data model 3" (Some a) x;
+      S.read (t "read") (p ["fst"; "snd"]) >>= fun x ->
+      assert_equal (module Tc.Option(V)) "data model 4" None x;
 
       return_unit
     in
