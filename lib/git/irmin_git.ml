@@ -237,18 +237,6 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       let compare_entries {Git.Tree.name = n1; _} {Git.Tree.name = n2; _} =
         compare_names n1 n2
 
-      let err_file_is_dir n =
-        let str = sprintf
-            "Cannot add the file '%s' as it is already a directory name." n
-        in
-        raise (Invalid_argument str)
-
-      let err_dir_is_file n =
-        let str = sprintf
-            "Cannot add the directory '%s' as it is already a filename." n
-        in
-        raise (Invalid_argument str)
-
       let with_succ t step succ =
         let step = S.to_hum step in
         let return ~acc rest = match succ with
@@ -259,16 +247,13 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         in
         let rec aux acc = function
           | [] -> return ~acc []
-          | { Git.Tree.perm; name; node } as h :: l ->
+          | { Git.Tree.name; node; _ } as h :: l ->
             if compare_names step name > 0 then
               aux (h :: acc) l
             else if compare_names name step = 0 then (
-              if perm = `Dir then match succ with
-                | None   -> List.rev_append acc l
-                | Some c ->
-                  if Git.SHA.equal c node then t
-                  else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
-              else err_dir_is_file name
+              match succ with
+              | None   -> List.rev_append acc l (* remove *)
+              | Some c -> if Git.SHA.equal c node then t else return ~acc l
             ) else return ~acc:(h::acc) l
         in
         let new_t = aux [] t in
@@ -285,16 +270,14 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         let rec aux acc entries =
           match entries with
           | [] -> return ~acc []
-          | { Git.Tree.perm; name; node } as h :: l ->
+          | { Git.Tree.name; node; _ } as h :: l ->
             if compare_names step name > 0 then (
               aux (h :: acc) l
             ) else if compare_names name step = 0 then (
-              if perm <> `Dir then match contents with
-                | None   -> List.rev_append acc l
-                | Some c ->
-                  if Git.SHA.equal c node then t
-                  else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
-              else err_file_is_dir name
+              match contents with
+              | None   -> List.rev_append acc l (* remove *)
+              | Some c ->
+                if Git.SHA.equal c node then t else return ~acc l
             ) else return ~acc:(h::acc) l
         in
         let new_t = aux [] t in
