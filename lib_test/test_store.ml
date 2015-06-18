@@ -837,6 +837,22 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_slice x () =
+    let test () =
+      create x >>= fun t ->
+      let a = string x "" in
+      let b = string x "haha" in
+      S.update (t "slice") (p ["x";"a"]) a >>= fun () ->
+      S.update (t "slice") (p ["x";"b"]) b >>= fun () ->
+      S.export (t "export") >>= fun slice ->
+      let str = Tc.write_string (module S.Private.Slice) slice in
+      let slice' = Tc.read_string (module S.Private.Slice) str in
+      assert_equal (module S.Private.Slice) "slices" slice slice';
+
+      Lwt.return_unit
+    in
+    run x test
+
   let test_stores x () =
     let test () =
       create x >>= fun t ->
@@ -1352,6 +1368,7 @@ let suite (speed, x) =
     "Basic operations on tags"        , speed, T.test_tags x;
     "Basic operations on watches"     , speed, T.test_watches x;
     "Basic merge operations"          , speed, T.test_simple_merges x;
+    "Basic operations on slices"      , speed, T.test_slice x;
     "Complex histories"               , speed, T.test_history x;
     "Empty stores"                    , speed, T.test_empty x;
     "High-level store operations"     , speed, T.test_stores x;
