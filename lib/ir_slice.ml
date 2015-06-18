@@ -59,7 +59,19 @@ struct
   let iter_nodes t f = Lwt_list.iter_p f t.nodes
   let iter_commits t f = Lwt_list.iter_p f t.commits
 
-  module M (K: Tc.S0)(V: Tc.S0) = Tc.List( Tc.Pair(K)(V) )
+  module Enc (M: Tc.S0) = struct
+    include M
+    let size_of t =
+      let cstruct = Tc.write_cstruct (module M) t in
+      Tc.Cstruct.size_of cstruct
+    let read buf =
+      let cstruct = Tc.Cstruct.read buf in
+      Tc.read_cstruct (module M) cstruct
+    let write t buf =
+      let cstruct = Tc.write_cstruct (module M) t in
+      Tc.Cstruct.write cstruct buf
+  end
+  module M (K: Tc.S0)(V: Tc.S0) = Tc.List(Tc.Pair(K)(Enc(V)))
   module Ct = M(Contents.Key)(Contents.Val)
   module No = M(Node.Key)(Node.Val)
   module Cm = M(Commit.Key)(Commit.Val)
