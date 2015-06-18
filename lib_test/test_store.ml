@@ -1364,6 +1364,6 @@ let suite (speed, x) =
     "Concurrent merges"               , speed, T.test_concurrent_merges x;
   ]
 
-let run name tl =
+let run name ~misc tl =
   let tl = List.map suite tl in
-  Alcotest.run name tl
+  Alcotest.run name (tl @ misc)
