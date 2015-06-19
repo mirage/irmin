@@ -64,7 +64,7 @@ module type STORE = sig
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
-  val import: t -> slice -> unit Lwt.t
+  val import: t -> slice -> [`Ok | `Error] Lwt.t
 end
 
 module type MAKER =

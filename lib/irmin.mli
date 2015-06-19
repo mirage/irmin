@@ -710,7 +710,7 @@ module type BC = sig
       commits, nodes and contents, is exported, otherwise it is the
       commit history graph only. *)
 
-  val import: t -> slice -> unit Lwt.t
+  val import: t -> slice -> [`Ok | `Error] Lwt.t
   (** [import t s] imports the contents of the slice [s] in [t]. Do
       not modify tags. *)
 
@@ -1641,11 +1641,11 @@ module Private: sig
       (** Create a remote store handle. *)
 
       val fetch: t -> ?depth:int -> uri:string -> tag ->
-        [`Local of head] option Lwt.t
+        [`Head of head | `No_head | `Error] Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
           located at [uri] into the local store [t]. Return the head
           of the remote branch with the same name, which is now in the
-          local store. [None] is no such branch exists. *)
+          local store. [No_head] is no such branch exists. *)
 
       val push: t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
       (** [push t uri] pushes the contents of the local store [t] into
@@ -1963,14 +1963,15 @@ val remote_uri: string -> remote
 val remote_basic: ([`BC],'k,'v) t -> remote
 (** Same as {!remote_store} but for basic stores. *)
 
-val fetch: ([`BC],'k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t option Lwt.t
+val fetch: ([`BC],'k,'v) t -> ?depth:int -> remote ->
+  [`Head of Hash.SHA1.t | `No_head | `Error] Lwt.t
 (** See {!Sync.fetch}. *)
 
 val fetch_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t
 (** See {!Sync.fetch_exn}. *)
 
 val pull: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
-  unit Merge.result Lwt.t
+  [`Ok | `No_head | `Error] Merge.result Lwt.t
 (** See {!Sync.pull}. *)
 
 val pull_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
@@ -2147,7 +2148,8 @@ module Sync (S: S): sig
 
   (** {1 Native Synchronization} *)
 
-  val fetch: S.t -> ?depth:int -> remote -> S.head option Lwt.t
+  val fetch: S.t -> ?depth:int -> remote ->
+    [`Head of S.head | `No_head | `Error] Lwt.t
   (** [fetch t ?depth r] populate the local store [t] with objects for
       the remote store [r], using [t]'s current branch. The [depth]
       parameter limits the history depth. Return [None] if either the
@@ -2158,7 +2160,7 @@ module Sync (S: S): sig
       local or remote store do not have a valid head. *)
 
   val pull: S.t -> ?depth:int -> remote -> [`Merge | `Update] ->
-    unit Merge.result Lwt.t
+    [`Ok | `No_head | `Error] Merge.result Lwt.t
   (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
       also updates [t]'s current branch. [s] is the update strategy:
 

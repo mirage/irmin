@@ -21,7 +21,8 @@ module type S = sig
   type head
   type tag
   val create: Ir_conf.t -> t Lwt.t
-  val fetch: t -> ?depth:int -> uri:string -> tag -> [`Local of head] option Lwt.t
+  val fetch: t -> ?depth:int -> uri:string -> tag ->
+    [`Head of head | `No_head | `Error] Lwt.t
   val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
 end
 

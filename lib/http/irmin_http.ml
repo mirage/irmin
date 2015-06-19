@@ -751,8 +751,25 @@ struct
 
   module I = Tc.List(Tag)
 
+  module Ok_or_error = struct
+    type t  = [`Ok | `Error]
+    let hash = Hashtbl.hash
+    let compare = Pervasives.compare
+    let equal = (=)
+    let of_json = function
+      | `String "ok"    -> `Ok
+      | `String "error" -> `Error
+      | j -> Ezjsonm.parse_error j "Ok_or_error"
+
+    let to_json _ = failwith "TODO"
+    let read _ = failwith "TODO"
+    let write _ = failwith "TODO"
+    let size_of _ = failwith "TODO"
+  end
+  let ok_or_error = (module Ok_or_error: Tc.S0 with type t = Ok_or_error.t)
+
   let import t slice =
-    post t ["import"] (some @@ Slice.to_json slice) Tc.unit
+    post t ["import"] (some @@ Slice.to_json slice) ok_or_error
 
   let remove_rec t dir =
     delete t ["remove-rec"; Key.to_hum dir] (module Head) >>= fun h ->
