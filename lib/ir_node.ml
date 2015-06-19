@@ -153,38 +153,40 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_path.S) = struct
 
   let is_empty e = e.alist = []
 
-  (* FIXME is linear scanning bad here? *)
   let with_contents t step contents =
+    let return ~acc rest = match contents with
+      | None   -> t.alist
+      | Some c -> List.rev_append acc ((step, `Contents c) :: rest)
+    in
     let rec aux acc = function
-      | (s, `Contents x as h) :: l ->
+      | [] -> return ~acc []
+      | (s, x as h) :: l ->
         if P.Step.equal step s then match contents with
-          | None   -> List.rev_append acc l
+          | None   -> List.rev_append acc l (* remove *)
           | Some c ->
-            if K_c.equal c x then t.alist
-            else List.rev_append acc ((s, `Contents c) :: l)
+            match x with
+            | `Contents x -> if K_c.equal c x then t.alist else return ~acc l
+            | `Node _     -> return ~acc l
         else aux (h :: acc) l
-      | h::t -> aux (h :: acc) t
-      | []   -> match contents with
-        | None   -> t.alist
-        | Some c -> List.rev ((step, `Contents c) :: acc)
     in
     let alist = aux [] t.alist in
     if t.alist == alist then t else create alist
 
-  (* FIXME: is linear scanning bad here? *)
   let with_succ t step succ =
+    let return ~acc rest = match succ with
+      | None   -> t.alist
+      | Some s -> List.rev_append acc ((step, `Node s) :: rest)
+    in
     let rec aux acc = function
-      | (s, `Node x as h) :: l ->
+      | [] -> return ~acc []
+      | (s, x as h) :: l ->
         if P.Step.equal step s then match succ with
-          | None   -> List.rev_append acc l
+          | None   -> List.rev_append acc l (* remove *)
           | Some c ->
-            if K_n.equal c x then t.alist
-            else List.rev_append acc ((s, `Node c) :: l)
+            match x with
+            | `Node x     -> if K_n.equal c x then t.alist else return ~acc l
+            | `Contents _ -> return ~acc l
         else aux (h :: acc) l
-      | h::t -> aux (h :: acc) t
-      | []   -> match succ with
-        | None   -> t.alist
-        | Some c -> List.rev ((step, `Node c) :: acc)
     in
     let alist = aux [] t.alist in
     if t.alist == alist then t else create alist

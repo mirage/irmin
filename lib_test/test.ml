@@ -14,15 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+let misc = [
+  Test_git.misc;
+]
+
+let suite k =
+  let depends = if k = `String then `Slow (* `Quick *) else `Slow in
+  [
+    `Quick , Test_memory.suite k;
+    `Quick , Test_fs.suite k;
+    `Quick , Test_git.suite k;
+    depends, Test_http.suite (Test_memory.suite k);
+    `Slow  , Test_http.suite (Test_fs.suite k);
+    `Slow  , Test_http.suite (Test_git.suite k);
+  ]
+
 let () =
-  let suite k =
-    let depends = if k = `String then `Slow (* `Quick *) else `Slow in
-    [
-      `Quick , Test_memory.suite k;
-      `Quick , Test_fs.suite k;
-      `Quick , Test_git.suite k;
-      depends, Test_http.suite (Test_memory.suite k);
-      `Slow  , Test_http.suite (Test_fs.suite k);
-      `Slow  , Test_http.suite (Test_git.suite k);
-    ] in
-  Test_store.run "irmin" (suite `String @ suite `Json)
+  Test_store.run "irmin" ~misc (suite `String @ suite `Json)

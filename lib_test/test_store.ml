@@ -837,6 +837,22 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_slice x () =
+    let test () =
+      create x >>= fun t ->
+      let a = string x "" in
+      let b = string x "haha" in
+      S.update (t "slice") (p ["x";"a"]) a >>= fun () ->
+      S.update (t "slice") (p ["x";"b"]) b >>= fun () ->
+      S.export (t "export") >>= fun slice ->
+      let str = Tc.write_string (module S.Private.Slice) slice in
+      let slice' = Tc.read_string (module S.Private.Slice) str in
+      assert_equal (module S.Private.Slice) "slices" slice slice';
+
+      Lwt.return_unit
+    in
+    run x test
+
   let test_stores x () =
     let test () =
       create x >>= fun t ->
@@ -899,9 +915,25 @@ module Make (S: Irmin.S) = struct
       S.update (t "update") (p ["a"]) v1 >>= fun () ->
       S.remove_rec (t "remove rec --all") (p []) >>= fun () ->
       S.list (t "list") (p []) >>= fun dirs ->
-
-
       assert_equal (module Set(K)) "remove rec root" [] dirs;
+
+      let a = string x "ok" in
+      let b = string x "maybe?" in
+
+      S.update (t "fst one") (p ["fst"]) a        >>= fun () ->
+      S.update (t "snd one") (p ["fst"; "snd"]) b >>= fun () ->
+
+      S.read (t "read") (p ["fst"]) >>= fun x ->
+      assert_equal (module Tc.Option(V)) "data model 1" None x;
+      S.read (t "read") (p ["fst"; "snd"]) >>= fun x ->
+      assert_equal (module Tc.Option(V)) "data model 2" (Some b) x;
+
+      S.update (t "fst one") (p ["fst"]) a >>= fun () ->
+
+      S.read (t "read") (p ["fst"]) >>= fun x ->
+      assert_equal (module Tc.Option(V)) "data model 3" (Some a) x;
+      S.read (t "read") (p ["fst"; "snd"]) >>= fun x ->
+      assert_equal (module Tc.Option(V)) "data model 4" None x;
 
       return_unit
     in
@@ -1336,6 +1368,7 @@ let suite (speed, x) =
     "Basic operations on tags"        , speed, T.test_tags x;
     "Basic operations on watches"     , speed, T.test_watches x;
     "Basic merge operations"          , speed, T.test_simple_merges x;
+    "Basic operations on slices"      , speed, T.test_slice x;
     "Complex histories"               , speed, T.test_history x;
     "Empty stores"                    , speed, T.test_empty x;
     "High-level store operations"     , speed, T.test_stores x;
@@ -1348,6 +1381,6 @@ let suite (speed, x) =
     "Concurrent merges"               , speed, T.test_concurrent_merges x;
   ]
 
-let run name tl =
+let run name ~misc tl =
   let tl = List.map suite tl in
-  Alcotest.run name tl
+  Alcotest.run name (tl @ misc)
