@@ -69,7 +69,7 @@ module type STORE = sig
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
-  val import: t -> slice -> unit Lwt.t
+  val import: t -> slice -> [`Ok | `Error] Lwt.t
 end
 
 module type PRIVATE = sig
@@ -612,6 +612,8 @@ let watch_key t key ?init fn =
         ) (KSet.to_list !contents) >>= fun () ->
       return slice
 
+  exception Import_error
+
   let import t s =
     let aux (type k) (type v)
         name
@@ -623,23 +625,29 @@ let watch_key t key ?init fn =
       =
       fn (fun (k, v) ->
           S.add (s t) v >>= fun k' ->
-          if not (K.equal k k') then
-            Log.warn "%s import error: expected %a, got %a"
+          if not (K.equal k k') then (
+            Log.error "%s import error: expected %a, got %a"
               name force (show (module K) k) force (show (module K) k');
-          return_unit
+            Lwt.fail Import_error
+          )
+          else Lwt.return_unit
         )
     in
-    aux "Contents"
-      (module P.Contents) (module P.Contents.Key)
-      (P.Slice.iter_contents s) contents_t
-    >>= fun () ->
-    aux "Node"
-      (module P.Node) (module P.Node.Key)
-      (P.Slice.iter_nodes s) node_t
-    >>= fun () ->
-    aux "Commit"
-      (module P.Commit) (module P.Commit.Key)
-      (P.Slice.iter_commits s) commit_t
+    Lwt.catch (fun () ->
+        aux "Contents"
+          (module P.Contents) (module P.Contents.Key)
+          (P.Slice.iter_contents s) contents_t
+        >>= fun () ->
+        aux "Node"
+          (module P.Node) (module P.Node.Key)
+          (P.Slice.iter_nodes s) node_t
+        >>= fun () ->
+        aux "Commit"
+          (module P.Commit) (module P.Commit.Key)
+          (P.Slice.iter_commits s) commit_t
+        >>= fun () ->
+        Lwt.return `Ok)
+      (function Import_error -> Lwt.return `Error | e -> Lwt.fail e)
 
   module History =
     OCamlGraph.Persistent.Digraph.ConcreteBidirectional(P.Commit.Key)

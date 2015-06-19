@@ -269,8 +269,9 @@ let clone = {
         store >>= fun t ->
         remote >>= fun remote ->
         Sync.fetch (t "Cloning.") ?depth remote >>= function
-        | Some d -> S.update_head (t "update head after clone") d
-        | None   -> return_unit
+        | `Head d  -> S.update_head (t "update head after clone") d
+        | `No_head -> return_unit
+        | `Error   -> Printf.eprintf "Error!\n"; exit 1
       end
     in
     Term.(mk clone $ store $ remote $ depth);

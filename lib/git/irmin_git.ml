@@ -623,8 +623,8 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
     let head_of_git key = H.of_raw (GK.to_raw (Git.SHA.of_commit key))
 
     let o_head_of_git = function
-      | None   -> return_none
-      | Some k -> return (Some (`Local (head_of_git k)))
+      | None   -> Lwt.return `No_head
+      | Some k -> Lwt.return (`Head (head_of_git k))
 
     let create config =
       let root = Irmin.Private.Conf.get config Conf.root in

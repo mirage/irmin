@@ -560,6 +560,21 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   end
   module HTC = Tc.Biject (G)(Conv)
 
+  module Ok_or_error = struct
+    type t  = [`Ok | `Error]
+    let hash = Hashtbl.hash
+    let compare = Pervasives.compare
+    let equal = (=)
+    let to_json = function
+      | `Ok    -> `String "ok"
+      | `Error -> `String "error"
+    let of_json _ = failwith "TODO"
+    let read _ = failwith "TODO"
+    let write _ = failwith "TODO"
+    let size_of _ = failwith "TODO"
+  end
+  let ok_or_error = (module Ok_or_error: Tc.S0 with type t = Ok_or_error.t)
+
   let mk_task t = function
     | None   -> S.task t
     | Some t -> t
@@ -667,7 +682,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p0bf "clone"       s_clone t tag' ok_or_duplicated_tag;
       mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
       mk0p1bfq "export"     s_export t export slice;
-      mk0p1bf "import"      S.import t slice Tc.unit;
+      mk0p1bf "import"      S.import t slice ok_or_error;
       mk0p1bfq "history"    s_history t min_max (module HTC);
 
       (* lca *)

@@ -154,9 +154,10 @@ and ('k, 'v) bc = {
     unit -> History.t Lwt.t;
   task_of_head: Hash.SHA1.t -> Task.t Lwt.t;
   remote_basic: unit -> remote;
-  fetch: ?depth:int -> remote -> Hash.SHA1.t option Lwt.t;
+  fetch: ?depth:int -> remote -> [`Head of Hash.SHA1.t | `No_head | `Error] Lwt.t;
   fetch_exn: ?depth:int -> remote -> Hash.SHA1.t Lwt.t;
-  pull: ?depth:int -> remote -> [`Merge | `Update] -> unit Merge.result Lwt.t;
+  pull: ?depth:int -> remote -> [`Merge | `Update] ->
+    [`Ok | `No_head | `Error] Merge.result Lwt.t;
   pull_exn: ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t;
   push: ?depth:int -> remote -> [`Ok | `Error] Lwt.t;
   push_exn: ?depth:int -> remote -> unit Lwt.t;

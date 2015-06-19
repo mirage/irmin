@@ -21,7 +21,8 @@ module type S = sig
   type head
   type tag
   val create: Ir_conf.t -> t Lwt.t
-  val fetch: t -> ?depth:int -> uri:string -> tag -> [`Local of head] option Lwt.t
+  val fetch: t -> ?depth:int -> uri:string -> tag ->
+    [`Head of head | `No_head | `Error] Lwt.t
   val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
 end
 
@@ -30,6 +31,6 @@ module None (H: Tc.S0) (T: Tc.S0) = struct
   type head = H.t
   type tag = T.t
   let create _ = return_unit
-  let fetch () ?depth:_ ~uri:_ _tag = return_none
+  let fetch () ?depth:_ ~uri:_ _tag = return `Error
   let push () ?depth:_ ~uri:_ _tag = return `Error
 end
