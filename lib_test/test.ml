@@ -19,7 +19,7 @@ let misc = [
 ]
 
 let suite k =
-  let depends = if k = `String then `Slow (* `Quick *) else `Slow in
+  let depends = if k = `String then `Quick else `Slow in
   [
     `Quick , Test_memory.suite k;
     `Quick , Test_fs.suite k;
