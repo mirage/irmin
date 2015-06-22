@@ -1,6 +1,7 @@
 # OASIS_START
-# DO NOT EDIT (digest: 81cd3c12b98e48edb9b92701947d2045)
+# DO NOT EDIT (digest: 44761dfc05aa3c81da39b8e1c52c2579)
 Irmin_http
 Irmin_http_server
 Irmin_http_static
+Irmin_http_common
 # OASIS_STOP
