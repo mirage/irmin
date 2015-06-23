@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,20 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let misc = [
-  Test_git.misc;
-]
+(** HTTP helpers *)
 
-let suite k =
-  let depends = if k = `String then `Quick else `Slow in
-  [
-    `Quick , Test_memory.suite k;
-    `Quick , Test_fs.suite k;
-    `Quick , Test_git.suite k;
-    depends, Test_http.suite (Test_memory.suite k);
-    `Slow  , Test_http.suite (Test_fs.suite k);
-    `Slow  , Test_http.suite (Test_git.suite k);
-  ]
+val ok_or_error: [`Ok | `Error] Tc.t
+val ok_or_duplicated_tag: [`Ok | `Duplicated_tag] Tc.t
+val lca: 'a Tc.t -> [`Ok of 'a list | `Max_depth_reached | `Too_many_lcas] Tc.t
 
-let () =
-  Test_store.run "irmin" ~misc (suite `String @ suite `Json)
+val start_stream: string

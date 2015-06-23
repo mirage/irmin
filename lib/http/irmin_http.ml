@@ -15,6 +15,8 @@
  *)
 
 open Irmin.Merge.OP
+open Irmin_http_common
+
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
 
@@ -87,14 +89,29 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     with Error e ->
       Lwt.fail (Error e)
 
+  let err_empty_stream () = invalid_arg "the stream is empty!"
+  let err_bad_start j =
+    invalid_arg "bad opening stream: expecting %S, but got %S."
+      start_stream (Ezjsonm.to_string (`A [j]))
+
   let map_stream_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
     let stream = Cohttp_lwt_body.to_stream b in
     let stream = Ezjsonm_lwt.from_stream stream in
+    let stream () =
+      Lwt_stream.get stream >>= function
+      | Some (`String s) when s = start_stream -> Lwt.return stream
+      | None   -> err_empty_stream ()
+      | Some j -> err_bad_start j
+    in
+    stream () >>= function stream ->
     let stream = Lwt_stream.map result_of_json stream in
-    Lwt_stream.map (fun j ->
+    let stream =
+      Lwt_stream.map (fun j ->
         Log.debug "stream: got %s" Ezjsonm.(to_string (wrap j));
         M.of_json j
       ) stream
+    in
+    Lwt.return stream
 
   let headers = Cohttp.Header.of_list [
       "Connection", "Keep-Alive"
@@ -115,17 +132,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     map_get t path ?query (map_string_response fn)
 
   let get_stream t path ?query fn  =
-    let (stream: 'a Lwt_stream.t option ref) = ref None in
-    let rec get () =
-      match !stream with
-      | Some s -> Lwt_stream.get s
-      | None   ->
-        map_get t path ?query (fun b ->
-            let s = map_stream_response fn b in
-            stream := Some s;
-            Lwt.return_unit) >>= fun () ->
-        get () in
-    Lwt_stream.from get
+    map_get t path ?query (map_stream_response fn)
 
   let delete t path fn =
     let uri = uri_append t path in
@@ -161,17 +168,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     map_post t ~task path ?query body (map_string_response fn)
 
   let post_stream t ~task path ?query body fn  =
-    let (stream: 'a Lwt_stream.t option ref) = ref None in
-    let rec get () =
-      match !stream with
-      | Some s -> Lwt_stream.get s
-      | None   ->
-        map_post t ~task path ?query body (fun b ->
-            let s = map_stream_response fn b in
-            stream := Some s;
-            Lwt.return_unit) >>= fun () ->
-        get () in
-    Lwt_stream.from get
+    map_post t ~task path ?query body (map_stream_response fn)
 
 end
 
@@ -205,7 +202,8 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let iter t fn =
     let fn key = fn key (read_exn t key) in
-    Lwt_stream.iter_p fn (get_stream t.uri ["iter"] (module K))
+    get_stream t.uri ["iter"] (module K) >>=
+    Lwt_stream.iter_p fn
 
 end
 
@@ -280,26 +278,35 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | Some v -> Some (V.to_json v)
 
   let watch_key t key ?init f =
-    if nb_keys t = 0 then (
-      let task = Some (task t) in
-      let body = make_body (module V) init in
-      let s = post_stream t ~task ["watch-key"] body (module Tc.Option(V)) in
-      let stop () = Lwt_stream.iter_s (W.notify t.w key) s in
-      t.keys.stop <- stoppable stop;
-    );
+    let init_stream () =
+      if nb_keys t <> 0 then Lwt.return_unit
+      else
+        let task = Some (task t) in
+        let body = make_body (module V) init in
+        let v_option = Tc.option (module V) in
+        post_stream t ~task ["watch-key"] body v_option >>= fun s ->
+        let stop () = Lwt_stream.iter_s (W.notify t.w key) s in
+        t.keys.stop <- stoppable stop;
+        Lwt.return_unit
+    in
+    init_stream () >>= fun () ->
     W.watch_key t.w key ?init f
 
   module WI = Tc.List (Tc.Pair (K) (V))
   module WS = Tc.Pair (K) (Tc.Option (V))
 
   let watch t ?init f =
-    if nb_glob t  = 0 then (
-      let task = Some (task t) in
-      let body = make_body (module WI) init in
-      let s = post_stream t ~task ["watch"] body (module WS) in
-      let stop () = Lwt_stream.iter_s (fun (k, v) -> W.notify t.w k v) s in
-      t.glob.stop <- stoppable stop;
-    );
+    let init_stream () =
+      if nb_glob t <> 0 then Lwt.return_unit
+      else
+        let task = Some (task t) in
+        let body = make_body (module WI) init in
+        post_stream t ~task ["watch"] body (module WS) >>= fun s ->
+        let stop () = Lwt_stream.iter_s (fun (k, v) -> W.notify t.w k v) s in
+        t.glob.stop <- stoppable stop;
+        Lwt.return_unit
+    in
+    init_stream () >>= fun () ->
     W.watch t.w ?init f
 
   let stop x =
@@ -505,7 +512,8 @@ struct
   (* The server sends a stream of keys *)
   let iter t fn =
     let fn key = fn key (read_exn t key) in
-    Lwt_stream.iter_p fn (get_stream (uri t) ["iter"] (module Key))
+    get_stream (uri t) ["iter"] (module Key) >>=
+    Lwt_stream.iter_p fn
 
   let update t key value =
     post t ["update"; Key.to_hum key] (some @@ Val.to_json value) (module Head)
@@ -663,9 +671,9 @@ struct
     watch_head t ?init:init_head (lift value_of_head fn)
 
   let clone task t tag =
-    post t ["clone"; Tag.to_hum tag] None Tc.string >>= function
-    | "ok" -> of_tag t.config task tag >|= fun t -> `Ok t
-    | _    -> Lwt.return `Duplicated_tag
+    post t ["clone"; Tag.to_hum tag] None ok_or_duplicated_tag >>= function
+    | `Ok -> of_tag t.config task tag >|= fun t -> `Ok t
+    | `Duplicated_tag -> Lwt.return `Duplicated_tag
 
   let clone_force task t tag =
     post t ["clone-force"; Tag.to_hum tag] None Tc.unit >>= fun () ->
@@ -692,30 +700,15 @@ struct
   let merge_exn a ?max_depth ?n t ~into =
     merge a ?max_depth ?n t ~into >>= Irmin.Merge.exn
 
-  module LCA = struct
-    module HL = Tc.List(Head)
-    type t = [`Ok of Head.t list | `Max_depth_reached | `Too_many_lcas]
-    let hash = Hashtbl.hash
-    let compare = Pervasives.compare
-    let equal = (=)
-    let of_json = function
-      | `O [ "ok", j ] -> `Ok (HL.of_json j)
-      | `A [`String "max-depth-reached" ] -> `Max_depth_reached
-      | `A [`String "too-many-lcas"] -> `Too_many_lcas
-      | j -> Ezjsonm.parse_error j "LCA.of_json"
-    let to_json _ = failwith "TODO"
-    let read _ = failwith "TODO"
-    let write _ = failwith "TODO"
-    let size_of _ = failwith "TODO"
-  end
+  let lca = lca (module Head)
 
   let lcas_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
-    get t ?query ["lcas-tag"; Tag.to_hum tag] (module LCA)
+    get t ?query ["lcas-tag"; Tag.to_hum tag] lca
 
   let lcas_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    get t ?query ["lcas-head"; Head.to_hum head] (module LCA)
+    get t ?query ["lcas-head"; Head.to_hum head] lca
 
   let lcas a ?max_depth ?n t1 t2 =
     match branch (t2 a) with
@@ -750,23 +743,6 @@ struct
       (module L.Private.Slice)
 
   module I = Tc.List(Tag)
-
-  module Ok_or_error = struct
-    type t  = [`Ok | `Error]
-    let hash = Hashtbl.hash
-    let compare = Pervasives.compare
-    let equal = (=)
-    let of_json = function
-      | `String "ok"    -> `Ok
-      | `String "error" -> `Error
-      | j -> Ezjsonm.parse_error j "Ok_or_error"
-
-    let to_json _ = failwith "TODO"
-    let read _ = failwith "TODO"
-    let write _ = failwith "TODO"
-    let size_of _ = failwith "TODO"
-  end
-  let ok_or_error = (module Ok_or_error: Tc.S0 with type t = Ok_or_error.t)
 
   let import t slice =
     post t ["import"] (some @@ Slice.to_json slice) ok_or_error
