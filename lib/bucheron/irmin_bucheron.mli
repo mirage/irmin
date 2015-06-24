@@ -11,6 +11,10 @@ module type AO_MAKER_RAW =
 
 module BUCHERON_AO (S:AO_MAKER_RAW): AO_MAKER_RAW
 
+				       (*
+val config: ?conf:Irmin.config -> ?size:int -> unit -> Irmin.config
+					*)
+				       
 (*
 module type AO_MAKER_CSTRUCT =
   functor (IK: Hash.S) ->
