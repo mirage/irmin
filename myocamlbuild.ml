@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: ca803d1d99c99de91352dfd823966f03) *)
+(* DO NOT EDIT (digest: 062fd7120f79c4fbd8ce28dbf888ad25) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -617,7 +617,7 @@ let package_default =
           ("irmin-unix", ["lib/unix"], []);
           ("irmin-krypto", ["lib/krypto"], []);
           ("irmin-index", ["lib/index"], []);
-          ("irmin-bucheron", ["lib/bucheron"], [])
+          ("irmin-chunck", ["lib/chunck"], [])
        ];
      lib_c = [];
      flags = [];
@@ -631,11 +631,11 @@ let package_default =
           ("lib/http", ["lib"]);
           ("lib/git", ["lib"]);
           ("lib/fs", ["lib"]);
-          ("lib/bucheron", ["lib"]);
+          ("lib/chunck", ["lib"]);
           ("examples",
             [
                "lib";
-               "lib/bucheron";
+               "lib/chunck";
                "lib/index";
                "lib/krypto";
                "lib/mem";

@@ -14,31 +14,33 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
 open Test_common
 
-let test_db = "test_db_krypto"
+let test_db = "test-db-krypto-chunck"
 
-let init_disk () =
-  if Filename.basename (Sys.getcwd ()) <> "lib_test" then
-    failwith "The Git test should be run in the lib_test/ directory."
-  else if Sys.file_exists test_db then (
-    Git_unix.FS.create ~root:test_db () >>= fun t ->
-    Irmin_unix.install_dir_polling_listener Test_fs.polling;
-    Git_unix.FS.clear t
-  ) else
-    return_unit
+let polling =
+  try float_of_string (Sys.getenv "IRMIN_FS_POLLING")
+  with Not_found | Failure _ -> 0.01
 
+let init () =
+  Irmin_unix.install_dir_polling_listener polling;
+  if Sys.file_exists test_db then begin
+    let cmd = Printf.sprintf "rm -rf %s" test_db in
+    let _ = Sys.command cmd in ()
+  end;
+  Lwt.return_unit
+
+let clean () =
+  Irmin_unix.uninstall_dir_polling_listener ();
+  Lwt.return_unit
+      
 let suite k =
   {
-    name   = "KRYPTO" ^ string_of_contents k;
-    kind   = `Krypto;
+    name   = "CHUNCK" ^ string_of_contents k;
+    kind   = `Krypto_Chunck;
     cont   = k;
-    init   = init_disk;
+    init   = clean;
     clean  = none;
-    store  = git_store k;
-    config =
-      (* TODO: test crypto *)
-      let head = Git.Reference.of_raw "refs/heads/test" in
-      Irmin_git.config ~root:test_db ~head ~bare:true ()
+    store  = irf_store k;
+    config = Irmin_fs.config ~root:test_db ();
   }

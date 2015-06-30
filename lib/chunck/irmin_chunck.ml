@@ -1,5 +1,8 @@
 (**
 
+Chunck Norris Module.
+The module who split your data on same size chuncks.
+
 *)
 
 
@@ -7,7 +10,7 @@ open Lwt
 open Irmin
 
 
-module Log = Log.Make(struct let section = "BUCHERON" end)
+module Log = Log.Make(struct let section = "CHUNCK" end)
 
 module type RAW = Tc.S0 with type t = Cstruct.t
 
@@ -18,7 +21,7 @@ module type AO_MAKER_RAW =
 
 					  
 
-module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
+module CHUNCK_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 
 
     
@@ -54,8 +57,8 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
  *)   		    		  		     
 
     (* Chunck Module 
-      
-      All functions for manipulate chuncks representation, a chunck is represented as above : 
+
+     All functions for manipulate chuncks representation, a chunck is represented as above : 
       --------------------------
      | uint8_t type             | 
      ---------------------------
@@ -68,6 +71,7 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
      Where type define if the chunck contain data or indirection, size represent the data length to 
      consider, and data field is the payload. 
      *)
+	       
     module Chunck = struct 
 	
 	let hash_length = K.length
@@ -80,17 +84,34 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 	let get_chunck_length x = Cstruct.LE.get_uint16 x (l_type)			
 	let set_chunck_length x v = Cstruct.LE.set_uint16 x (l_type) v	
 
-	let l_total_length = 4								    
+	let l_total_length = 4		       	
+(*	let get_total_length x = Cstruct.LE.get_uint32 x (l_type + l_chunck_length)			
+	let set_total_length x v = Cstruct.LE.set_uint32 x (l_type + l_chunck_length) v	
+ *)
+	let head_length = l_type + l_chunck_length + l_total_length 
+			       
+	let offset_payload = head_length - 1
+			       
 (*	let get_chunck_total_length x = Cstruct.LE.get_uint32 x (l_type + l_chunck_length)
 	let set_chunck_total_length x v = Cstruct.LE.set_uint32 x (l_type + l_chunck_length) v
  		 				
 	let get_chunck_data x = Cstruct.sub x (l_type + l_chunck_length + l_total_length ) (get_chunck_length x)
- *)	let get_sub_chunck_data x offset len = Cstruct.sub x (l_type + l_chunck_length + l_total_length + offset) len 
-
+ *)
+					     (*
+	let get_sub_chunck_data x offset len = Cstruct.sub x (offset_payload + offset) len 
+					      *)
+	let get_sub_key x pos =
+	  let offset = offset_payload + (pos * hash_length) in
+	  Cstruct.sub x offset hash_length
+							   
 	(*	let head_size = l_type + l_chunck_length + l_total_length *)
 							   
 	let set_data_from_raw src srcoff dst dstoff len =
-	  Cstruct.blit src srcoff dst (l_type + l_chunck_length + l_total_length + dstoff) len
+	  Cstruct.blit src srcoff dst (offset_payload + dstoff) len
+
+	let set_data_to_raw src srcoff dst dstoff len =
+	  Cstruct.blit src (offset_payload + srcoff) dst dstoff len
+
 	(*	       
 	let extract_size_data x = 
 	  (get_chunck_length x), (get_chunck_data x)
@@ -108,16 +129,18 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 	  | 1 -> Data
 	  | _ -> failwith "Unknow type"	       
 			  
-	let create_indirection t len =
+	let create_indirection t chunck_len =
 	  let c = Cstruct.create t.size in
+	  Cstruct.memset c 0x00;
 	  set_chunck_type c (chunck_type_to_int Indirect);
-	  set_chunck_length c len;
+	  set_chunck_length c chunck_len;
 	  c
 	    
-	let create_chunck t len =
+	let create_chunck t chunck_len =
 	  let c = Cstruct.create t.size in
+	  Cstruct.memset c 0x00;
 	  set_chunck_type c (chunck_type_to_int Data);
-	  set_chunck_length c len;
+	  set_chunck_length c chunck_len;
 	  c
 (*
 	let concat x = Cstruct.concat x 
@@ -134,9 +157,8 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
  *)		      
 
 	let get_child t node pos =
-	  let key = K.of_raw (get_sub_chunck_data node pos t.hash_length) in
-	  AO.read_exn t.db key
-		     		      
+	  let key = K.of_raw (get_sub_key node pos) in
+	  AO.read_exn t.db key		     		      
 		 (*     
 	let aux_height node =
 	  match (int_to_chunck_type (get_chunck_type node)) with 
@@ -156,7 +178,11 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 	let walk_to_list t root =
 	  let rec aux_walk t node =
 	    match (int_to_chunck_type (get_chunck_type node)) with
-	    | Data -> Lwt.return [node]
+	    | Data ->
+	       let dlen = get_chunck_length node in
+	       let leaf = Cstruct.create dlen in
+	       set_data_to_raw node 0 leaf 0 dlen;
+	       Lwt.return [leaf]
 	    | Indirect -> 
 	       let nbr_child = get_chunck_length node in 
 	       let rec loop i accu =
@@ -174,14 +200,14 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 	       loop 0 []
 	  in
 	  aux_walk t root
-
+		   
 
 
 	let rec aux_botom_up t l r =
 	  match l with
 	  | [] -> Lwt.return r
 	  | l ->
-	    
+	   
 	     let nbr =
 	       if (List.length l) >= t.nb_indirect then
 		 t.nb_indirect
@@ -197,7 +223,7 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 	       else
 		 let x = List.hd l in
 		 let rest = List.tl l in 
-		 let offset_hash = i * t.hash_length in  
+		 let offset_hash = i * t.hash_length in
 		 set_data_from_raw (K.to_raw x) 0 indir offset_hash t.hash_length;
 		 loop (i+1) rest
 	     in
@@ -241,51 +267,70 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
     let create config task =
       let open Chunck in 
       let module C = Irmin.Private.Conf in
-      let size = 4092 in (*C.get config Conf.chunck_size in *)
-      let data_length = size - (l_type + l_chunck_length + l_total_length) in
+      let size = 108 in (*C.get config Conf.chunck_size in *)
+      let data_length = size - head_length in
       let nb_indirect = data_length / K.length in
       AO.create config task >>= fun t ->
-	  return (fun a -> {db = t a; size; hash_length; nb_indirect; data_length})
+      return (fun a -> {db = t a; size; hash_length; nb_indirect; data_length})
 		
     let task t =
       AO.task t.db
 
-	      
-    (* Walking tree sequentialy and it might be interesting if we return a Cstruct list *)
+
     let read t key =
+      let open Chunck in
       AO.read_exn t.db key >>=
 	(fun x ->
-	 (Tree.walk_to_list t x) >>=
-	   (fun y -> 
-	    (let result = Cstruct.concat y in
-	     return (Some result)
-	    )
-	   )
+	 match (int_to_chunck_type (get_chunck_type x)) with
+	 | Data ->
+	    let dlen = (get_chunck_length x) in
+	    let result = Cstruct.create dlen in
+	    set_data_to_raw x 0 result 0 dlen;
+	    Lwt.return (Some result)
+	 | Indirect ->
+	    (Tree.walk_to_list t x) >>=
+	      (fun y -> 
+	       let result = Cstruct.concat y in
+	       return (Some result)
+	      )
 	)
-		
-    (* Just one indirection, need to be expanded *) 
+
+	  
     let read_exn t key =
+      let open Chunck in
       AO.read_exn t.db key >>=
 	(fun x ->
-	 (Tree.walk_to_list t x) >>=
-	   (fun y ->
-	    (let result = Cstruct.concat y in
-	     return result
-	    )
-	   )
-	)
+	 match (int_to_chunck_type (get_chunck_type x)) with
+	 | Data ->
+	    let dlen = (get_chunck_length x) in
+	    let result = Cstruct.create dlen in
+	    set_data_to_raw x 0 result 0 dlen;
+	    return result
+	 | Indirect ->
+	    (Tree.walk_to_list t x) >>=
+	      (fun y ->
+	       let result = Cstruct.concat y in
+	       return result
+	      ))
 
 	  
     (* TODO *)
     let mem t k =
       AO.mem t.db k
 
-	     
+	  
     let add t v =
       let open Chunck in
       let value_length = Cstruct.len v in
       let rest_value_length = value_length mod t.data_length in
-      let nbr_data_bloc, last_data_bloc_length =
+ 
+      if value_length <= t.data_length then
+	let chunck = create_chunck t value_length in
+	set_data_from_raw v 0 chunck 0 value_length;  
+	AO.add t.db chunck >>= (fun x -> Lwt.return x)
+
+      else
+	let nbr_data_bloc, last_data_bloc_length =
 	let x =  value_length / t.data_length in
 	if rest_value_length == 0 then
 	  x, t.data_length
@@ -301,51 +346,53 @@ module BUCHERON_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 	  (x + 1), y 
       in
       
-      let split_data_first_level i =
+      let split_data_first_level offset_second_level =
+	
 	let number_chunck =
-	  if i == (nbr_indir_bloc - 1) then
-	    t.nb_indirect
-	  else
+	  if offset_second_level == (nbr_indir_bloc - 1) then
 	    last_indir_bloc_length
+	  else
+	    t.nb_indirect
 	in
 	
 	let indir = create_indirection t number_chunck in
-
-	let rec loop j =
+	
+	let rec loop offset_first_level =
 	  let dlen, max_loop =
-	    if (i == (nbr_indir_bloc - 1)) then
-	      if (j == (last_indir_bloc_length - 1)) then
-		t.data_length, last_indir_bloc_length
+	    if (offset_second_level == (nbr_indir_bloc - 1)) then
+	      if (offset_first_level == (last_indir_bloc_length - 1)) then
+		last_data_bloc_length, last_indir_bloc_length
 	      else
-		last_data_bloc_length, last_indir_bloc_length 
+		t.data_length, last_indir_bloc_length 
 	    else
-	      t.data_length, t.nb_indirect
+	      t.data_length, t.nb_indirect 
 	  in
-	  if j >= max_loop then
+	  
+	  if offset_first_level >= max_loop then
 	    Lwt.return_unit
 	  else
 	    let chunck = create_chunck t dlen in
-	    let offset_hash = j * t.hash_length in
-	    let offset_value =  t.data_length * ( (i * t.nb_indirect) + j)  in
+	    let offset_hash = offset_first_level * t.hash_length in
+	    let offset_value = (offset_second_level * t.nb_indirect * t.data_length) + (offset_first_level * t.data_length) in 	    
 	    set_data_from_raw v offset_value chunck 0 dlen;  
 	    let add_chunck () =
 	      AO.add t.db chunck >>= fun x ->
 	      set_data_from_raw (K.to_raw x) 0 indir offset_hash hash_length;
 	      Lwt.return_unit
 	    in
-	    Lwt.join [add_chunck (); loop (j + 1)]
+	    Lwt.join [add_chunck (); loop (offset_first_level + 1)]
 	in
-	let add_indir () = 
-	  AO.add t.db indir >>= (fun x ->Lwt.return x)
-	in
-	let _ = loop 0 in 
-	add_indir ()
+	loop 0 >>= (fun _ ->
+		    AO.add t.db indir >>=
+		      (fun x ->
+		       Lwt.return x)
+		   )
       in
       
       let main_loop () =
 	let rec first_level i =
 	  match i with
-	  | e when e == (nbr_indir_bloc - 1) ->
+	  | e when e == nbr_indir_bloc -> 
 	      Lwt.return []
 	  | e when e < nbr_indir_bloc ->
 	     (split_data_first_level i) >>=

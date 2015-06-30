@@ -110,7 +110,7 @@ let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
     in
     let module S = Irmin.Basic(B)(C) in (module S)
 
-type kind = [`Mem | `Fs | `Git | `Krypto | `Http of kind]
+type kind = [`Mem | `Fs | `Git | `Krypto_Chunck | `Chunck | `Http of kind]
 
 type t = {
   name  : string;

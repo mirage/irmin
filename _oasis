@@ -93,12 +93,12 @@ Library "irmin-index"
   BuildDepends:     irmin
   Modules:          Irmin_index
 
-Library "irmin-bucheron"
-  Path:             lib/bucheron
-  Findlibname:      bucheron
+Library "irmin-chunck"
+  Path:             lib/chunck
+  Findlibname:      chunck
   FindlibParent:    irmin
   BuildDepends:     irmin, cstruct
-  Modules:          Irmin_bucheron
+  Modules:          Irmin_chunck
 
 Document irmin
   Title:                Irmin docs
@@ -129,21 +129,21 @@ Test test_irmin
   Command:          $test_irmin -q
   WorkingDirectory: lib_test
 
-Executable test_krypto
-  Path:           examples/
-  MainIs:         krypto.ml
-  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
-  CompiledObject: best
-  Install:        false
-  BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index
-
-Executable test_index_bucheron_krypto
+Executable test_index_chunck
  Path:           examples/
- MainIs:         index_bucheron_krypto.ml
+ MainIs:         index_chunck.ml
  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
  CompiledObject: best
  Install:        false
- BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index, irmin.bucheron
+ BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index, irmin.chunck
+
+Executable test_index_chunck_krypto
+ Path:           examples/
+ MainIs:         index_chunck_krypto.ml
+ Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
+ CompiledObject: best
+ Install:        false
+ BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index, irmin.chunck
 
 Executable test_git_store
   Path:           examples/

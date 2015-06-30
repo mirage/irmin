@@ -9,7 +9,7 @@ module type AO_MAKER_RAW =
   AO with type key = K.t and type value = V.t
 
 
-module BUCHERON_AO (S:AO_MAKER_RAW): AO_MAKER_RAW
+module CHUNCK_AO (S:AO_MAKER_RAW): AO_MAKER_RAW
 
 				       (*
 val config: ?conf:Irmin.config -> ?size:int -> unit -> Irmin.config

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9a2895af69c1ebedf7b6cbe2fb4387cd)
+# DO NOT EDIT (digest: b7a6821d356a9385b9bfe1ed137df988)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -136,19 +136,19 @@ true: annot, bin_annot
 <lib/index/*.ml{,i,y}>: pkg_tc
 <lib/index/*.ml{,i,y}>: pkg_uri
 <lib/index/*.ml{,i,y}>: use_irmin
-# Library irmin-bucheron
-"lib/bucheron/irmin-bucheron.cmxs": use_irmin-bucheron
-<lib/bucheron/*.ml{,i,y}>: pkg_cstruct
-<lib/bucheron/*.ml{,i,y}>: pkg_dolog
-<lib/bucheron/*.ml{,i,y}>: pkg_ezjsonm
-<lib/bucheron/*.ml{,i,y}>: pkg_hex
-<lib/bucheron/*.ml{,i,y}>: pkg_lwt
-<lib/bucheron/*.ml{,i,y}>: pkg_mstruct
-<lib/bucheron/*.ml{,i,y}>: pkg_ocamlgraph
-<lib/bucheron/*.ml{,i,y}>: pkg_stringext
-<lib/bucheron/*.ml{,i,y}>: pkg_tc
-<lib/bucheron/*.ml{,i,y}>: pkg_uri
-<lib/bucheron/*.ml{,i,y}>: use_irmin
+# Library irmin-chunck
+"lib/chunck/irmin-chunck.cmxs": use_irmin-chunck
+<lib/chunck/*.ml{,i,y}>: pkg_cstruct
+<lib/chunck/*.ml{,i,y}>: pkg_dolog
+<lib/chunck/*.ml{,i,y}>: pkg_ezjsonm
+<lib/chunck/*.ml{,i,y}>: pkg_hex
+<lib/chunck/*.ml{,i,y}>: pkg_lwt
+<lib/chunck/*.ml{,i,y}>: pkg_mstruct
+<lib/chunck/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/chunck/*.ml{,i,y}>: pkg_stringext
+<lib/chunck/*.ml{,i,y}>: pkg_tc
+<lib/chunck/*.ml{,i,y}>: pkg_uri
+<lib/chunck/*.ml{,i,y}>: use_irmin
 # Executable irmin
 <bin/main.{native,byte}>: pkg_cmdliner
 <bin/main.{native,byte}>: pkg_cohttp.lwt
@@ -253,65 +253,66 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_irmin-http
 <lib_test/*.ml{,i,y}>: use_irmin-mem
 <lib_test/*.ml{,i,y}>: use_irmin-unix
-# Executable test_krypto
-<examples/krypto.{native,byte}>: pkg_cohttp.lwt
-<examples/krypto.{native,byte}>: pkg_cohttp.lwt-core
-<examples/krypto.{native,byte}>: pkg_cstruct
-<examples/krypto.{native,byte}>: pkg_dolog
-<examples/krypto.{native,byte}>: pkg_ezjsonm
-<examples/krypto.{native,byte}>: pkg_ezjsonm.lwt
-<examples/krypto.{native,byte}>: pkg_git
-<examples/krypto.{native,byte}>: pkg_git.unix
-<examples/krypto.{native,byte}>: pkg_hex
-<examples/krypto.{native,byte}>: pkg_lwt
-<examples/krypto.{native,byte}>: pkg_mstruct
-<examples/krypto.{native,byte}>: pkg_nocrypto
-<examples/krypto.{native,byte}>: pkg_ocamlgraph
-<examples/krypto.{native,byte}>: pkg_re
-<examples/krypto.{native,byte}>: pkg_re.pcre
-<examples/krypto.{native,byte}>: pkg_re.perl
-<examples/krypto.{native,byte}>: pkg_stringext
-<examples/krypto.{native,byte}>: pkg_tc
-<examples/krypto.{native,byte}>: pkg_uri
-<examples/krypto.{native,byte}>: use_irmin
-<examples/krypto.{native,byte}>: use_irmin-fs
-<examples/krypto.{native,byte}>: use_irmin-git
-<examples/krypto.{native,byte}>: use_irmin-http
-<examples/krypto.{native,byte}>: use_irmin-index
-<examples/krypto.{native,byte}>: use_irmin-krypto
-<examples/krypto.{native,byte}>: use_irmin-mem
-<examples/krypto.{native,byte}>: use_irmin-unix
-# Executable test_index_bucheron_krypto
-<examples/index_bucheron_krypto.{native,byte}>: pkg_cohttp.lwt
-<examples/index_bucheron_krypto.{native,byte}>: pkg_cohttp.lwt-core
-<examples/index_bucheron_krypto.{native,byte}>: pkg_cstruct
-<examples/index_bucheron_krypto.{native,byte}>: pkg_dolog
-<examples/index_bucheron_krypto.{native,byte}>: pkg_ezjsonm
-<examples/index_bucheron_krypto.{native,byte}>: pkg_ezjsonm.lwt
-<examples/index_bucheron_krypto.{native,byte}>: pkg_git
-<examples/index_bucheron_krypto.{native,byte}>: pkg_git.unix
-<examples/index_bucheron_krypto.{native,byte}>: pkg_hex
-<examples/index_bucheron_krypto.{native,byte}>: pkg_lwt
-<examples/index_bucheron_krypto.{native,byte}>: pkg_mstruct
-<examples/index_bucheron_krypto.{native,byte}>: pkg_nocrypto
-<examples/index_bucheron_krypto.{native,byte}>: pkg_ocamlgraph
-<examples/index_bucheron_krypto.{native,byte}>: pkg_re
-<examples/index_bucheron_krypto.{native,byte}>: pkg_re.pcre
-<examples/index_bucheron_krypto.{native,byte}>: pkg_re.perl
-<examples/index_bucheron_krypto.{native,byte}>: pkg_stringext
-<examples/index_bucheron_krypto.{native,byte}>: pkg_tc
-<examples/index_bucheron_krypto.{native,byte}>: pkg_uri
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin-bucheron
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin-fs
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin-git
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin-http
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin-index
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin-krypto
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin-mem
-<examples/index_bucheron_krypto.{native,byte}>: use_irmin-unix
+# Executable test_index_chunck
+<examples/index_chunck.{native,byte}>: pkg_cohttp.lwt
+<examples/index_chunck.{native,byte}>: pkg_cohttp.lwt-core
+<examples/index_chunck.{native,byte}>: pkg_cstruct
+<examples/index_chunck.{native,byte}>: pkg_dolog
+<examples/index_chunck.{native,byte}>: pkg_ezjsonm
+<examples/index_chunck.{native,byte}>: pkg_ezjsonm.lwt
+<examples/index_chunck.{native,byte}>: pkg_git
+<examples/index_chunck.{native,byte}>: pkg_git.unix
+<examples/index_chunck.{native,byte}>: pkg_hex
+<examples/index_chunck.{native,byte}>: pkg_lwt
+<examples/index_chunck.{native,byte}>: pkg_mstruct
+<examples/index_chunck.{native,byte}>: pkg_nocrypto
+<examples/index_chunck.{native,byte}>: pkg_ocamlgraph
+<examples/index_chunck.{native,byte}>: pkg_re
+<examples/index_chunck.{native,byte}>: pkg_re.pcre
+<examples/index_chunck.{native,byte}>: pkg_re.perl
+<examples/index_chunck.{native,byte}>: pkg_stringext
+<examples/index_chunck.{native,byte}>: pkg_tc
+<examples/index_chunck.{native,byte}>: pkg_uri
+<examples/index_chunck.{native,byte}>: use_irmin
+<examples/index_chunck.{native,byte}>: use_irmin-chunck
+<examples/index_chunck.{native,byte}>: use_irmin-fs
+<examples/index_chunck.{native,byte}>: use_irmin-git
+<examples/index_chunck.{native,byte}>: use_irmin-http
+<examples/index_chunck.{native,byte}>: use_irmin-index
+<examples/index_chunck.{native,byte}>: use_irmin-krypto
+<examples/index_chunck.{native,byte}>: use_irmin-mem
+<examples/index_chunck.{native,byte}>: use_irmin-unix
+# Executable test_index_chunck_krypto
+<examples/index_chunck_krypto.{native,byte}>: pkg_cohttp.lwt
+<examples/index_chunck_krypto.{native,byte}>: pkg_cohttp.lwt-core
+<examples/index_chunck_krypto.{native,byte}>: pkg_cstruct
+<examples/index_chunck_krypto.{native,byte}>: pkg_dolog
+<examples/index_chunck_krypto.{native,byte}>: pkg_ezjsonm
+<examples/index_chunck_krypto.{native,byte}>: pkg_ezjsonm.lwt
+<examples/index_chunck_krypto.{native,byte}>: pkg_git
+<examples/index_chunck_krypto.{native,byte}>: pkg_git.unix
+<examples/index_chunck_krypto.{native,byte}>: pkg_hex
+<examples/index_chunck_krypto.{native,byte}>: pkg_lwt
+<examples/index_chunck_krypto.{native,byte}>: pkg_mstruct
+<examples/index_chunck_krypto.{native,byte}>: pkg_nocrypto
+<examples/index_chunck_krypto.{native,byte}>: pkg_ocamlgraph
+<examples/index_chunck_krypto.{native,byte}>: pkg_re
+<examples/index_chunck_krypto.{native,byte}>: pkg_re.pcre
+<examples/index_chunck_krypto.{native,byte}>: pkg_re.perl
+<examples/index_chunck_krypto.{native,byte}>: pkg_stringext
+<examples/index_chunck_krypto.{native,byte}>: pkg_tc
+<examples/index_chunck_krypto.{native,byte}>: pkg_uri
+<examples/index_chunck_krypto.{native,byte}>: use_irmin
+<examples/index_chunck_krypto.{native,byte}>: use_irmin-chunck
+<examples/index_chunck_krypto.{native,byte}>: use_irmin-fs
+<examples/index_chunck_krypto.{native,byte}>: use_irmin-git
+<examples/index_chunck_krypto.{native,byte}>: use_irmin-http
+<examples/index_chunck_krypto.{native,byte}>: use_irmin-index
+<examples/index_chunck_krypto.{native,byte}>: use_irmin-krypto
+<examples/index_chunck_krypto.{native,byte}>: use_irmin-mem
+<examples/index_chunck_krypto.{native,byte}>: use_irmin-unix
 <examples/*.ml{,i,y}>: pkg_nocrypto
-<examples/*.ml{,i,y}>: use_irmin-bucheron
+<examples/*.ml{,i,y}>: use_irmin-chunck
 <examples/*.ml{,i,y}>: use_irmin-index
 <examples/*.ml{,i,y}>: use_irmin-krypto
 # Executable test_git_store

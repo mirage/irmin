@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 03af3349ae8d56d97c56b5734ecb5765)
+# DO NOT EDIT (digest: 1f978f0cabcbf0864b028c7798886d60)
 version = "0.9.5"
 description = "A Distributed Version Control Database"
 requires =
@@ -87,15 +87,15 @@ package "fs" (
  exists_if = "irmin-fs.cma"
 )
 
-package "bucheron" (
+package "chunck" (
  version = "0.9.5"
  description = "A Distributed Version Control Database"
  requires = "irmin cstruct"
- archive(byte) = "irmin-bucheron.cma"
- archive(byte, plugin) = "irmin-bucheron.cma"
- archive(native) = "irmin-bucheron.cmxa"
- archive(native, plugin) = "irmin-bucheron.cmxs"
- exists_if = "irmin-bucheron.cma"
+ archive(byte) = "irmin-chunck.cma"
+ archive(byte, plugin) = "irmin-chunck.cma"
+ archive(native) = "irmin-chunck.cmxa"
+ archive(native, plugin) = "irmin-chunck.cmxs"
+ exists_if = "irmin-chunck.cma"
 )
 # OASIS_STOP
 
