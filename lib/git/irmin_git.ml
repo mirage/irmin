@@ -491,15 +491,16 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         let key file = Some (Key.of_hum file) in
         W.listen_dir t.w dir ~key ~value:(read t)
       else
-        fun () -> ()
+        let id () = () in
+        Lwt.return id
 
     let watch_key t key ?init f =
-      let stop = listen_dir t in
+      listen_dir t >>= fun stop ->
       W.watch_key t.w key ?init f >>= fun w ->
       Lwt.return (w, stop)
 
     let watch t ?init f =
-      let stop = listen_dir t in
+      listen_dir t >>= fun stop ->
       W.watch t.w ?init f >>= fun w ->
       Lwt.return (w, stop)
 

@@ -1,0 +1,4 @@
+bin: [
+  "?_build/bin/main.byte"   {"irmin"}
+  "?_build/bin/main.native" {"irmin"}
+]
