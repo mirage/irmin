@@ -22,10 +22,10 @@ install: [make "install"]
 remove: ["ocamlfind" "remove" "irmin"]
 
 depends: [
+  "ocamlfind" {build}
   "ezjsonm" {>= "0.4.0"}
   "ocamlgraph"
   "lwt" {>= "2.4.7"}
-  "nocrypto" {test & >= "0.2.2"}
   "dolog" {>= "0.4"}
   "cstruct" {>= "1.0.1"}
   "mirage-tc" {>= "0.3.0"}
@@ -36,12 +36,15 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
-  "git"      {test}
-  "cohttp"   {test}
-  "alcotest" {test}
-  "ounit"    {test}
+  "nocrypto"  {test & >= "0.2.2"}
+  "base-unix" {test}
+  "git"       {test}
+  "cohttp"    {test}
+  "alcotest"  {test}
+  "ounit"     {test}
 ]
 depopts: [
+  "base-unix"
   "git"
   "cohttp"
   "nocrypto"
