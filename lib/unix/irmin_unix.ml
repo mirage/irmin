@@ -187,7 +187,8 @@ let rec poll ~callback ~delay dir files =
   poll ~callback ~delay dir new_files
 
 let listen ~callback ~delay dir =
-  stoppable (fun () -> read_files dir >>= poll ~callback ~delay dir)
+  read_files dir >|= fun files ->
+  stoppable (fun () -> poll ~callback ~delay dir files)
 
 (* map directory names to list of callbacks *)
 let listeners = Hashtbl.create 10
@@ -208,10 +209,10 @@ let realdir dir = if Filename.is_relative dir then Sys.getcwd () / dir else dir
 
 let start_watchdog ~delay dir =
   match watchdog dir with
-  | Some _ -> assert (nb_listeners dir <> 0)
+  | Some _ -> assert (nb_listeners dir <> 0); Lwt.return_unit
   | None   ->
     Log.debug "Start watchdog for %s" dir;
-    let u = listen dir ~delay ~callback in
+    listen dir ~delay ~callback >|= fun u ->
     Hashtbl.add watchdogs dir u
 
 let stop_watchdog dir =
@@ -244,7 +245,7 @@ let install_dir_polling_listener delay =
   uninstall_dir_polling_listener ();
   let listen_dir id dir fn =
     let dir = realdir dir in
-    start_watchdog ~delay dir;
+    start_watchdog ~delay dir >|= fun () ->
     add_listener id dir fn;
     function () ->
       remove_listener id dir;

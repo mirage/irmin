@@ -1170,7 +1170,7 @@ module Private: sig
       val listen_dir: t -> string
         -> key:(string -> key option)
         -> value:(key -> value option Lwt.t)
-        -> (unit -> unit)
+        -> (unit -> unit) Lwt.t
       (** Register a thread looking for changes in the given directory
           and return a function to stop watching and free up
           resources. *)
@@ -1182,7 +1182,7 @@ module Private: sig
         managing event notification currently active. *)
 
     val set_listen_dir_hook:
-      (int -> string -> (string -> unit Lwt.t) -> (unit -> unit)) -> unit
+      (int -> string -> (string -> unit Lwt.t) -> (unit -> unit) Lwt.t) -> unit
     (** Register a function which looks for file changes in a
         directory and return a function to stop watching. Could use
         [inotify] when available or {!Irmin_unix.set_listen_dir_hook}
