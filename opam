@@ -11,19 +11,16 @@ build: [
       "--prefix" prefix
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
-      "--%{base-unix:enable}%-unix"
-      "--%{cohttp+git+alcotest:enable}%-examples"]
+      "--%{base-unix:enable}%-unix"]
   [make]
 ]
 build-test: [
-  ["./configure" "--enable-tests"]
+  ["./configure" "--enable-tests" "--enable-examples"]
   [make "test"]
 ]
 install: [make "install"]
-remove: [
-  ["ocamlfind" "remove" "irmin"]
-  ["rm" "-f" "%{bin}%/irmin"]
-]
+remove: ["ocamlfind" "remove" "irmin"]
+
 depends: [
   "ezjsonm" {>= "0.4.0"}
   "ocamlgraph"
@@ -39,9 +36,10 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
-  "git" {test}
-  "cohttp" {test}
+  "git"      {test}
+  "cohttp"   {test}
   "alcotest" {test}
+  "ounit"    {test}
 ]
 depopts: [
   "git"
