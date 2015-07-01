@@ -66,7 +66,7 @@ Library "irmin-http"
   FindlibParent:   irmin
   BuildDepends:    irmin, cohttp.lwt-core, ezjsonm.lwt, re, re.pcre, re.perl
   InternalModules: Irmin_http_static
-  Modules:         Irmin_http, Irmin_http_server
+  Modules:         Irmin_http, Irmin_http_server, Irmin_http_common
 
 Library "irmin-unix"
   Build$:        flag(unix) && flag(http) && flag(git)
