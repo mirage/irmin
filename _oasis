@@ -100,7 +100,7 @@ Executable test_irmin
   Build$:         flag(tests) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.mem, irmin.unix, alcotest, nocrypto
+  BuildDepends:   irmin, irmin.mem, irmin.unix, alcotest, nocrypto, oUnit
 
 Test test_irmin
   Run$:             flag(tests) && flag(unix) && flag(http) && flag(git)
