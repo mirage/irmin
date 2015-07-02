@@ -7,8 +7,7 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 
 build: [
-  ["./configure"
-      "--prefix" prefix
+  ["./configure" "--prefix" prefix
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
       "--%{base-unix:enable}%-unix"]
@@ -36,18 +35,15 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
-  "nocrypto"  {test & >= "0.2.2"}
   "base-unix" {test}
   "git"       {test}
   "cohttp"    {test}
   "alcotest"  {test}
-  "ounit"     {test}
 ]
 depopts: [
   "base-unix"
   "git"
   "cohttp"
-  "nocrypto"
 ]
 conflicts: [
   "git"    {< "1.4.10"}
