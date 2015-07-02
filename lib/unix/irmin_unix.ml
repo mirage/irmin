@@ -32,7 +32,9 @@ module Lock = struct
           Lwt_unix.stat file >>= fun s ->
           let stale = Unix.gettimeofday () -. s.Unix.st_mtime > max_age in
           Lwt.return stale)
-        (function Unix.Unix_error _ -> Lwt.return false | e -> Lwt.fail e)
+        (function
+          | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return false
+          | e -> Lwt.fail e)
     ) else
       Lwt.return false
 
