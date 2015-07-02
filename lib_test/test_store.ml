@@ -19,15 +19,11 @@ open Test_common
 open Irmin_unix
 open Printf
 
-let random_string n =
-  let t  = Unix.gettimeofday () in
-  let cs = Cstruct.create 8 in
-  Cstruct.BE.set_uint64 cs 0 Int64.(of_float (t *. 1000.)) ;
-  Nocrypto.Rng.reseed cs;
-  Cstruct.to_string (Nocrypto.Rng.generate n)
-
-let long_random_string =
-  random_string 1024_000
+let () = Random.self_init ()
+let random_char () = char_of_int (Random.int 256)
+let random_string n = String.init n (fun _i -> random_char ())
+let long_random_string = random_string 1024_000
+let fail fmt = Printf.ksprintf Alcotest.fail fmt
 
 module Make (S: Irmin.S) = struct
 
@@ -604,12 +600,8 @@ module Make (S: Irmin.S) = struct
       let y =   [ "left", 1; "bar"  , 3; "skip", 0 ] in
       let m =   [ "left", 2; "bar"  , 3] in
       merge_x ~old x y >>= function
-      | `Ok m' ->
-        assert_equal (module X) "compound merge" m m';
-        return_unit
-      | `Conflict c ->
-        OUnit.assert_bool (sprintf "compound merge: %s" c) false;
-        return_unit
+      | `Ok m'      -> assert_equal (module X) "compound merge" m m'; return_unit
+      | `Conflict c -> fail "conflict %s" c
     in
 
     let test () =
@@ -696,9 +688,6 @@ module Make (S: Irmin.S) = struct
       S.create x.config task >>= fun t ->
       let h = h t in
       Graph.create (g t 0) [] >>= fun node ->
-      let fail fmt =
-        Printf.ksprintf (fun str -> OUnit.assert_string str; assert false) fmt
-      in
       let assert_lcas_err msg err l2 =
         let str = function
           | `Too_many_lcas -> "Too_many_lcas"
