@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,6 +21,16 @@ open Printf
 
 let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
+
+(* for OCaml > 4.01 *)
+module String = struct
+  include String
+  let init n f =
+    let buf = Bytes.create n in
+    for i =0 to n-1 do Bytes.set buf i (f i) done;
+    buf
+end
+
 let random_string n = String.init n (fun _i -> random_char ())
 let long_random_string = random_string 1024_000
 let fail fmt = Printf.ksprintf Alcotest.fail fmt
