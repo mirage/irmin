@@ -28,9 +28,11 @@ module Lock = struct
   let is_stale max_age file =
     IO.file_exists file >>= fun exists ->
     if exists then (
-      Lwt_unix.stat file >>= fun s ->
-      let stale = Unix.gettimeofday () -. s.Unix.st_mtime > max_age in
-      Lwt.return stale
+      Lwt.catch (fun () ->
+          Lwt_unix.stat file >>= fun s ->
+          let stale = Unix.gettimeofday () -. s.Unix.st_mtime > max_age in
+          Lwt.return stale)
+        (function Unix.Unix_error _ -> Lwt.return false | e -> Lwt.fail e)
     ) else
       Lwt.return false
 
