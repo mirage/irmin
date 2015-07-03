@@ -46,7 +46,6 @@ depopts: [
   "cohttp"
 ]
 conflicts: [
-  "git"    {< "1.4.10"}
   "cohttp" {< "0.14.0"}
   "cohttp" {= "0.16.1"}
   "git"    {<= "1.5.0"}
