@@ -165,7 +165,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
   let delete t path fn =
     let uri = uri_append t path in
     Log.debug "delete %s" (Uri.path uri);
-    Client.delete uri >>= map_string_response fn
+    Client.delete ~headers uri >>= map_string_response fn
 
   let make_body ?task body =
     let str l = Ezjsonm.to_string (`O l) in
