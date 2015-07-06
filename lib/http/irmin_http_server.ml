@@ -54,7 +54,7 @@ let lwt_stream_lift s =
 
 module type S = sig
   type t
-  val listen: t -> ?timeout:int -> ?hooks:hooks -> Uri.t -> unit Lwt.t
+  val listen: t -> ?timeout:int -> ?strict:bool -> ?hooks:hooks -> Uri.t -> unit Lwt.t
 end
 
 module type SERVER = sig
@@ -76,8 +76,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     | None   -> error "%s: not found" file
     | Some s -> s
 
+  let version = Ezjsonm.encode_string Irmin.version
+
   let respond_error e =
-    let json = `O [ "error", Ezjsonm.encode_string (Printexc.to_string e) ] in
+    let error = Ezjsonm.encode_string (Printexc.to_string e) in
+    let json = `O [ "error", error; "version", version ] in
     let body = Ezjsonm.to_string json in
     Log.error "server error: %s" body;
     HTTP.respond_string
@@ -89,15 +92,17 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     HTTP.respond_string ?headers ~status:`OK ~body ()
 
   let respond_json json =
-    let json = `O [ "result", json ] in
+    let json = `O [ "result", json; "version", version ] in
     let body = Ezjsonm.to_string json in
     respond ~headers:json_headers body
 
   let respond_json_stream stream =
     let (++) = Lwt_stream.append in
+    let elt s = Ezjsonm.to_string s ^ "," in
     let stream =
       (Lwt_stream.of_list ["[ \"" ^ start_stream ^ "\", "])
-      ++ (Lwt_stream.map (fun j -> Ezjsonm.to_string (`O ["result", j]) ^ ",") stream)
+      ++ (Lwt_stream.of_list [elt (`O ["version", version])])
+      ++ (Lwt_stream.map (fun j -> elt (`O ["result", j])) stream)
       ++ (Lwt_stream.of_list [" ]"])
     in
     let body = Cohttp_lwt_body.of_stream stream in
@@ -668,7 +673,18 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
              return (SNode (bc (fun t -> app S.of_tag t (S.Tag.of_hum n)))))
       ])
 
-  let process t store req body path =
+  let err_bad_version v =
+    error "bad client version: expecting %s, but got %s" Irmin.version v
+
+  let process ?(strict=false) t store req body path =
+    let () =
+      let headers = Cohttp.Request.headers req in
+      match Cohttp.Header.get headers irmin_header with
+      | None   ->
+        if strict then err_bad_version "<none>"
+        else Log.info "No Irmin header set, skipping the version check"
+      | Some v -> if v <> Irmin.version then err_bad_version v
+    in
     let uri = Cohttp.Request.uri req in
     let query = Uri.query uri in
     let return_dnone = Lwt.return (None, None) in
@@ -727,7 +743,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   type t = S.t
 
-  let listen t ?timeout ?(hooks=no_hooks) uri =
+  let listen t ?timeout ?strict ?(hooks=no_hooks) uri =
     let uri = match Uri.host uri with
       | None   -> Uri.with_host uri (Some "localhost")
       | Some _ -> uri in
@@ -745,7 +761,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let path = Stringext.split path ~on:'/' in
       let path = List.filter ((<>) "") path in
       catch
-        (fun () -> try process t store req body path with e -> fail e)
+        (fun () -> try process ?strict t store req body path with e -> fail e)
         (fun e  -> respond_error e)
     in
     let conn_closed (_, conn_id) =

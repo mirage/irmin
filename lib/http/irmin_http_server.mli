@@ -25,9 +25,11 @@ module type S = sig
   type t
   (** Database type. *)
 
-  val listen: t -> ?timeout:int -> ?hooks:hooks -> Uri.t -> unit Lwt.t
+  val listen: t -> ?timeout:int -> ?strict:bool -> ?hooks:hooks -> Uri.t -> unit Lwt.t
   (** [start_server t uri] start a server serving the contents of [t]
-      at the address [uri]. *)
+      at the address [uri]. If [strict] is set, incoming connections
+      will fail if they do not have the right {i X-IrminVersion}
+      headers. *)
 
 end
 

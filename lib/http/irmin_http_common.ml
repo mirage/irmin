@@ -91,3 +91,4 @@ let lca (type a) (head: a Tc.t) =
   (module M: Tc.S0 with type t = M.t)
 
 let start_stream = "¡start!"
+let irmin_header = "X-IrminVersion"

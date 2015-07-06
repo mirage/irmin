@@ -64,7 +64,22 @@ module Helper (Client: Cohttp_lwt.Client) = struct
 
   exception Error of string
 
-  let result_of_json json =
+  let raise_bad_version v =
+    let v = match v with None -> "<none>" | Some v -> v in
+    let err = Printf.sprintf
+        "bad server version: expecting {version: %S}, but got %S"
+        Irmin.version v
+    in
+    raise (Error err)
+
+  let result_of_json ~version json =
+    if version then (
+      let version =
+        try Ezjsonm.find json ["version"] |> Ezjsonm.decode_string
+        with Not_found -> None
+      in
+      if version <> Some Irmin.version then raise_bad_version version;
+    );
     let error =
       try Some (Ezjsonm.find json ["error"])
       with Not_found -> None in
@@ -83,7 +98,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let j = Ezjsonm.from_string b in
     try
       Ezjsonm.value j
-      |> result_of_json
+      |> result_of_json ~version:true
       |> M.of_json
       |> Lwt.return
     with Error e ->
@@ -93,18 +108,30 @@ module Helper (Client: Cohttp_lwt.Client) = struct
   let err_bad_start j =
     invalid_arg "bad opening stream: expecting %S, but got %S."
       start_stream (Ezjsonm.to_string (`A [j]))
+  let err_bad_version v =
+    invalid_arg "bad server version: expecting {\"version\": %S}, but got %S"
+      Irmin.version Ezjsonm.(to_string (wrap v))
 
   let map_stream_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
     let stream = Cohttp_lwt_body.to_stream b in
     let stream = Ezjsonm_lwt.from_stream stream in
-    let stream () =
+    let start stream =
       Lwt_stream.get stream >>= function
       | Some (`String s) when s = start_stream -> Lwt.return stream
       | None   -> err_empty_stream ()
       | Some j -> err_bad_start j
     in
-    stream () >>= function stream ->
-    let stream = Lwt_stream.map result_of_json stream in
+    let version stream =
+      Lwt_stream.get stream >>= function
+      | Some (`O ["version", v]) ->
+        if Ezjsonm.decode_string v = Some Irmin.version then Lwt.return stream
+        else err_bad_version v
+      | None   -> err_empty_stream ()
+      | Some j -> err_bad_version j
+    in
+    start stream   >>= fun stream ->
+    version stream >>= fun stream ->
+    let stream = Lwt_stream.map (result_of_json ~version:false) stream in
     let stream =
       Lwt_stream.map (fun j ->
         Log.debug "stream: got %s" Ezjsonm.(to_string (wrap j));
@@ -114,7 +141,8 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     Lwt.return stream
 
   let headers = Cohttp.Header.of_list [
-      "Connection", "Keep-Alive"
+      "Connection", "Keep-Alive";
+      irmin_header, Irmin.version;
     ]
 
   let make_uri t path query =

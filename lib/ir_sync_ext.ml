@@ -139,8 +139,9 @@ module Make (S: Ir_s.STORE) = struct
         S.export t ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
         >>= fun r_slice -> R.import r r_slice >>= function
-        | `Error -> Lwt.return `Error
+        | `Error -> Log.debug "ERROR!"; Lwt.return `Error
         | `Ok    ->
+          Log.debug "OK!";
           let h = conv (module S.Head) (module R.Head) h in
           R.update_head r h >>= fun () ->
           Lwt.return `Ok
