@@ -260,6 +260,40 @@ module Make (S: Irmin.S) = struct
       assert_equal (module N) "node n6" n6 n6';
       assert_equal (module KN) "node k6" k6 k6';
 
+      let assert_no_duplicates n node =
+        let names = ref [] in
+        Graph.iter_succ (g "sorted") node (fun s _ ->
+            if List.mem s !names then fail "%s: duplicate succ!" n
+            else names := s :: !names
+          ) >>= fun () ->
+        Graph.iter_contents (g "sorted") node (fun s _ ->
+            if List.mem s !names then fail "%s: duplicate contents!" n
+            else names := s :: !names
+          ) >>= fun () ->
+        Lwt.return_unit
+      in
+      Graph.create (g "") []                >>= fun n0 ->
+
+      Graph.add_node (g "") n0 (p ["b"]) n0 >>= fun n1 ->
+      Graph.add_node (g "") n1 (p ["a"]) n0 >>= fun n2 ->
+      Graph.add_node (g "") n2 (p ["a"]) n0 >>= fun n3 ->
+      assert_no_duplicates "1" n3 >>= fun () ->
+
+      Graph.add_node (g "") n0 (p ["a"]) n0 >>= fun n1 ->
+      Graph.add_node (g "") n1 (p ["b"]) n0 >>= fun n2 ->
+      Graph.add_node (g "") n2 (p ["a"]) n0 >>= fun n3 ->
+      assert_no_duplicates "2" n3 >>= fun () ->
+
+      Graph.add_contents (g "") n0 (p ["b"]) kv1 >>= fun n1 ->
+      Graph.add_contents (g "") n1 (p ["a"]) kv1 >>= fun n2 ->
+      Graph.add_contents (g "") n2 (p ["a"]) kv1 >>= fun n3 ->
+      assert_no_duplicates "3" n3 >>= fun () ->
+
+      Graph.add_contents (g "") n0 (p ["a"]) kv1 >>= fun n1 ->
+      Graph.add_contents (g "") n1 (p ["b"]) kv1 >>= fun n2 ->
+      Graph.add_contents (g "") n2 (p ["b"]) kv1 >>= fun n3 ->
+      assert_no_duplicates "4" n3 >>= fun () ->
+
       return_unit
     in
     run x test

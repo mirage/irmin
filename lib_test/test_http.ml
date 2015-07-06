@@ -48,7 +48,7 @@ let suite server =
         server.init () >>= fun () ->
         Server.create server.config task >>= fun t  ->
         signal () >>= fun () ->
-        HTTP.listen (t "server") uri
+        HTTP.listen (t "server") ~strict:true uri
       in
       let () =
         try Unix.unlink file
