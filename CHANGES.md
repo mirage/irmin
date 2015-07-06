@@ -1,3 +1,18 @@
+### 0.9.7 (2015-07-06)
+
+* Add a version check for HTTP client and server. The client might add the
+  version in the HTTP headers using the `X-IrminVersion` header - the server
+  might decide to enfore the version check or not. The server always reply
+  with its version in the JSON reply, using a `version` field. The client
+  might use that information to bail out nicely instead of failing because
+  of some random unmarshalling errors due to API changes (#167)
+* Fix a regression in 0.9.5 and 0.9.6 when inserting new child in Git trees.
+  This could cause a tree to have duplicate childs having the same names,
+  which would confuse the merge functions, make `git fsck` and `git gc`
+  complain a lot (with good reasons) and do some fency things with git
+  index. The regression has been introduced while trying to fix #190 (the fix
+  is in #229)
+
 #### 0.9.6 (2015-07-03)
 
 * Fix the datamodel: it is not possible to store data in intermediate nodes
