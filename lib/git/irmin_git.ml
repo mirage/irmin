@@ -254,7 +254,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
               match succ with
               | None   -> List.rev_append acc l (* remove *)
               | Some c -> if Git.SHA.equal c node then t else return ~acc l
-            ) else return ~acc:(h::acc) l
+            ) else return ~acc:acc (h::l)
         in
         let new_t = aux [] t in
         if t == new_t then t else new_t
@@ -278,7 +278,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
               | None   -> List.rev_append acc l (* remove *)
               | Some c ->
                 if Git.SHA.equal c node then t else return ~acc l
-            ) else return ~acc:(h::acc) l
+            ) else return ~acc:acc (h::l)
         in
         let new_t = aux [] t in
         if t == new_t then t else new_t
