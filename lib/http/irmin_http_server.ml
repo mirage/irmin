@@ -549,9 +549,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     in
     let s_graph t = graph_of_dump t in
     let s_clone t tag =
-      S.clone (fun () -> S.task t) t tag >>= function
-      | `Ok _ -> return `Ok
-      | `Duplicated_tag -> return `Duplicated_tag
+      S.clone (fun () -> S.task t) t tag >|= function
+      | `Ok _ -> `Ok
+      | `Duplicated_tag | `Empty_head as x -> x
     in
     let s_clone_force t tag =
       S.clone_force (fun () -> S.task t) t tag >>= fun _ ->

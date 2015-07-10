@@ -139,7 +139,8 @@ and ('k, 'v) bc = {
   watch_tags: (string * Hash.SHA1.t) list -> (string -> Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t;
   watch_key: 'k -> (Hash.SHA1.t * 'v) option ->
     ((Hash.SHA1.t * 'v) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t;
-  clone: 'm. 'm Task.f -> string -> [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag] Lwt.t;
+  clone: 'm. 'm Task.f -> string ->
+    [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag | `Empty_head] Lwt.t;
   clone_force: 'm. 'm Task.f -> string -> ('m -> ([`BC], 'k, 'v) t) Lwt.t;
   merge: ?max_depth:int -> ?n:int -> into:([`BC], 'k, 'v) t ->
     unit Merge.result Lwt.t;
@@ -269,9 +270,9 @@ let pack_s (type x) (type k) (type v)
         watch_tags = (fun init -> M.watch_tags ~init t);
         watch_key  = (fun k init -> M.watch_key t k ?init);
         clone = (fun task tag ->
-            M.clone task t tag >>= function
-            | `Ok x           -> Lwt.return (`Ok (fun a -> aux (x a)))
-            | `Duplicated_tag -> Lwt.return `Duplicated_tag
+            M.clone task t tag >|= function
+            | `Ok x -> `Ok (fun a -> aux (x a))
+            | `Duplicated_tag | `Empty_head as x -> x
           );
         clone_force = (fun task tag ->
             M.clone_force task t tag >>= fun x ->

@@ -701,7 +701,7 @@ struct
   let clone task t tag =
     post t ["clone"; Tag.to_hum tag] None ok_or_duplicated_tag >>= function
     | `Ok -> of_tag t.config task tag >|= fun t -> `Ok t
-    | `Duplicated_tag -> Lwt.return `Duplicated_tag
+    | `Duplicated_tag | `Empty_head as x -> Lwt.return x
 
   let clone_force task t tag =
     post t ["clone-force"; Tag.to_hum tag] None Tc.unit >>= fun () ->
