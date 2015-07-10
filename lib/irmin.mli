@@ -945,7 +945,7 @@ module Tag: sig
   module String: S with type t = string
   (** [String] is an implementation of {{!Tag.S}S} where tags are
       strings. The [master] tag is ["master"]. Valid strings contains
-      only alpha-numeric characters, [-], [_] and [/]. *)
+      only alpha-numeric characters, [-], [_], [.] and [/]. *)
 
   (** [STORE] specifies the signature of tag stores.
 
