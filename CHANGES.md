@@ -5,8 +5,6 @@
 * Fix a race condition in `Irmin.clone`. (#221)
 * Escpate double quotes in the output of commit messages to workaround
   HTML display issues. (#222)
-* Update to the latest version of dagre-d3 to create nicely animated
-  graphs of the store.
 
 ### 0.9.7 (2015-07-06)
 
