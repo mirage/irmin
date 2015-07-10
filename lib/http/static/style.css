@@ -41,8 +41,12 @@ text {
 }
 
 .commit {
-    background-color: #6699FF;
-    padding: 0.5em;
+    background-color: white;
+    border-radius:10px;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    -webkit-box-shadow: 0 3px 2px #777;
+    -moz-box-shadow: 0 3px 2px #777;
+    box-shadow: 0 3px 2px #777;
 }
 
 .updated .commit {
