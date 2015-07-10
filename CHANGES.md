@@ -1,3 +1,8 @@
+### 0.9.8
+
+* Escpate double quotes in the output of commit messages to workaround
+  HTML display issues (#222)
+
 ### 0.9.7 (2015-07-06)
 
 * Add a version check for HTTP client and server. The client might add the
