@@ -212,8 +212,13 @@ module Make_ext (P: PRIVATE) = struct
           lock; branch }
       )
 
+  let err_invalid_tag t =
+    let err = Printf.sprintf "%S is not a valid tag name." (Tag.Key.to_hum t) in
+    Lwt.fail (Invalid_argument err)
+
   let of_tag config task t =
-    of_branch config task (`Tag t)
+    if Tag.Key.is_valid t then of_branch config task (`Tag t)
+    else err_invalid_tag t
 
   let create config task =
     of_tag config task Tag.Key.master

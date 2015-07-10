@@ -937,11 +937,15 @@ module Tag: sig
     val master: t
     (** The name of the master branch. *)
 
+    val is_valid: t -> bool
+    (** Check if the tag is valid. *)
+
   end
 
   module String: S with type t = string
   (** [String] is an implementation of {{!Tag.S}S} where tags are
-      strings. The [master] tag is ["master"]. *)
+      strings. The [master] tag is ["master"]. Valid strings contains
+      only alpha-numeric characters, [-], [_] and [/]. *)
 
   (** [STORE] specifies the signature of tag stores.
 
