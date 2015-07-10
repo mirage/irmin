@@ -88,7 +88,7 @@ module Make (S: Ir_s.STORE) = struct
             \  <div class='sha1'>%s</div>\n\
             \  <div class='author'>%s</div>\n\
             \  <div class='date'>%s</div>\n\
-            \  <div class='message'>%s</div>\n\
+            \  <div class='message'><pre>%s</pre></div>\n\
             \  <div>&nbsp</div>\n\
              </div>"
             k
