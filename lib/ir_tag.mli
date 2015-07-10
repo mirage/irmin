@@ -19,6 +19,7 @@
 module type S = sig
   include Ir_hum.S
   val master: t
+  val is_valid: t -> bool
 end
 
 module String: S with type t = string

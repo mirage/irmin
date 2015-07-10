@@ -19,11 +19,24 @@ module Log = Log.Make(struct let section = "TAG" end)
 module type S = sig
   include Ir_hum.S
   val master: t
+  val is_valid: t -> bool
 end
 
 module String = struct
   include Tc.String
   let master = "master"
+
+  let is_valid s =
+    let ok = ref true in
+    String.iter (function
+        | 'a' .. 'z'
+        | 'A' .. 'Z'
+        | '0' .. '9'
+        | '/' | '-'| '_' -> ()
+        | _ -> ok := false
+      ) s;
+    !ok
+
   let to_hum s = s
   let of_hum s = s
 end

@@ -886,11 +886,30 @@ module Make (S: Irmin.S) = struct
   let test_stores x () =
     let test () =
       create x >>= fun t ->
-
-      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
-
       let v1 = v1 x in
-      S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
+      S.update (t "init") (p ["a";"b"]) v1 >>= fun () ->
+
+      let result = ref None in
+      let get_result () =
+        match !result with None -> assert false | Some t -> t
+      in
+      let clone () =
+        S.clone task (t "clone") (S.Tag.of_hum "test") >|= function
+        | `Ok t ->
+          begin match !result with
+            | None   -> result := Some t
+            | Some _ -> Alcotest.fail "should be duplicated!"
+          end
+        | `Duplicated_tag ->
+          begin match !result with
+          | None   -> Alcotest.fail "should not be duplicated!"
+          | Some _ -> ()
+          end
+        | `Empty_head -> Alcotest.fail "empty head"
+      in
+      S.remove_tag (t "prepare") (S.Tag.of_hum "test") >>= fun () ->
+      Lwt.join [clone (); clone (); clone (); clone ()] >>= fun () ->
+      let t = get_result () in
 
       S.iter (t "iter") (fun k v ->
           v >>= fun v ->

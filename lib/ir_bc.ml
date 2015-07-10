@@ -51,7 +51,8 @@ module type STORE = sig
     (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val watch_key: t -> key -> ?init:(head * value) ->
     ((head * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  val clone: 'a Ir_task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone: 'a Ir_task.f -> t -> tag ->
+    [`Ok of ('a -> t) | `Duplicated_tag | `Empty_head] Lwt.t
   val clone_force: 'a Ir_task.f -> t ->  tag -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Ir_merge.result Lwt.t
@@ -211,8 +212,13 @@ module Make_ext (P: PRIVATE) = struct
           lock; branch }
       )
 
+  let err_invalid_tag t =
+    let err = Printf.sprintf "%S is not a valid tag name." (Tag.Key.to_hum t) in
+    Lwt.fail (Invalid_argument err)
+
   let of_tag config task t =
-    of_branch config task (`Tag t)
+    if Tag.Key.is_valid t then of_branch config task (`Tag t)
+    else err_invalid_tag t
 
   let create config task =
     of_tag config task Tag.Key.master
@@ -472,9 +478,17 @@ module Make_ext (P: PRIVATE) = struct
     | Some h -> Tag.update (tag_t t) tag h >>= return
 
   let clone task t tag =
+    Log.debug "clone %a" force (show (module Tag.Key) tag);
     Tag.mem (tag_t t) tag >>= function
-    | true  -> return `Duplicated_tag
-    | false -> clone_force task t tag >>= fun t -> return (`Ok t)
+    | true  -> Lwt.return `Duplicated_tag
+    | false ->
+      let return () = of_tag t.config task tag >|= fun t -> `Ok t in
+      head t >>= function
+      | None   -> Lwt.return `Empty_head
+      | Some h ->
+        Tag.compare_and_set (tag_t t) tag ~test:None ~set:(Some h) >>= function
+        | true  -> return ()
+        | false -> Lwt.return `Duplicated_tag
 
   let merge_tag t ?max_depth ?n tag =
     Log.debug "merge_tag %a" force (show (module Tag.Key) tag);

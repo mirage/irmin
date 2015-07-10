@@ -17,7 +17,7 @@
 (** HTTP helpers *)
 
 val ok_or_error: [`Ok | `Error] Tc.t
-val ok_or_duplicated_tag: [`Ok | `Duplicated_tag] Tc.t
+val ok_or_duplicated_tag: [`Ok | `Duplicated_tag | `Empty_head] Tc.t
 val lca: 'a Tc.t -> [`Ok of 'a list | `Max_depth_reached | `Too_many_lcas] Tc.t
 
 val start_stream: string

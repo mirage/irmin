@@ -18,7 +18,7 @@ let todo m name = failwith (m ^ "." ^ name ^ ": TODO")
 
 let ok_or_duplicated_tag =
   let module M = struct
-    type t = [ `Ok | `Duplicated_tag ]
+    type t = [ `Ok | `Duplicated_tag | `Empty_head ]
     let compare = Pervasives.compare
     let equal = (=)
     let hash = Hashtbl.hash
@@ -26,11 +26,13 @@ let ok_or_duplicated_tag =
     let to_string = function
       | `Ok -> "ok"
       | `Duplicated_tag -> "duplicated-tag"
+      | `Empty_head -> "empty-head"
     let to_json t = `String (to_string t)
 
     let of_json = function
       | `String "ok" -> `Ok
       | `String "duplicated-tag" -> `Duplicated_tag
+      | `String "empty-head" -> `Empty_head
       | j -> Ezjsonm.parse_error j "ok_or_duplicated_tag"
 
     let todo = todo "ok_or_duplicated_tag"

@@ -631,9 +631,11 @@ module type BC = sig
 
   (** {2 Clones and Merges} *)
 
-  val clone: 'a Task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
-  (** Clone the store [t], using the given branch name. Return [None]
-      if a branch with the same name already exists. *)
+  val clone: 'a Task.f -> t -> tag ->
+    [`Ok of ('a -> t) | `Duplicated_tag | `Empty_head] Lwt.t
+  (** Clone the store [t], using the given branch name. Return
+      [Duplicated_tag] if a branch with the same name already exists
+      and [Empty_head] if [t] has no head. *)
 
   val clone_force: 'a Task.f -> t -> tag -> ('a -> t) Lwt.t
   (** Same as {{!BC.clone}clone} but delete and update the existing
@@ -935,11 +937,15 @@ module Tag: sig
     val master: t
     (** The name of the master branch. *)
 
+    val is_valid: t -> bool
+    (** Check if the tag is valid. *)
+
   end
 
   module String: S with type t = string
   (** [String] is an implementation of {{!Tag.S}S} where tags are
-      strings. The [master] tag is ["master"]. *)
+      strings. The [master] tag is ["master"]. Valid strings contains
+      only alpha-numeric characters, [-], [_] and [/]. *)
 
   (** [STORE] specifies the signature of tag stores.
 
@@ -1897,7 +1903,7 @@ val watch_key: ([`BC],'k,'v) t -> 'k -> ?init:(Hash.SHA1.t * 'v) ->
 (** {2 Clones and Merges} *)
 
 val clone: 'm Task.f -> ([`BC],'k,'v) t -> string
-  -> [`Ok of ('m -> ([`BC],'k,'v) t) | `Duplicated_tag] Lwt.t
+  -> [`Ok of ('m -> ([`BC],'k,'v) t) | `Duplicated_tag | `Empty_head] Lwt.t
 (** See {!BC.clone}. *)
 
 val clone_force: 'm Task.f -> ([`BC],'k,'v) t -> string
