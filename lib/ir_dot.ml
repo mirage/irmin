@@ -83,18 +83,19 @@ module Make (S: Ir_s.STORE) = struct
       let o = Commit.Val.task c in
       let s =
         if html then
+          let escape s = Stringext.replace_all s ~pattern:"\"" ~with_:"\\\"" in
           sprintf
             "<div class='commit'>\n\
             \  <div class='sha1'>%s</div>\n\
             \  <div class='author'>%s</div>\n\
             \  <div class='date'>%s</div>\n\
-            \  <div class='message'>%s</div>\n\
+            \  <div class='message'><pre>%s</pre></div>\n\
             \  <div>&nbsp</div>\n\
              </div>"
             k
             (Ir_task.owner o)
             (date (Ir_task.date o))
-            (String.concat "\n" (Ir_task.messages o))
+            (String.concat "\n" (List.map escape @@ Ir_task.messages o))
         else
           sprintf "%s" k
       in
