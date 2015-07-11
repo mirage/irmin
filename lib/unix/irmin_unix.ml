@@ -116,7 +116,8 @@ module Irmin_http_server = struct
   module Y = struct
     let pretty d =
       let tm = Unix.localtime (Int64.to_float d) in
-      Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+      Printf.sprintf "%02d:%02d:%02d"
+        tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
   end
   type hooks = Irmin_http_server.hooks = { update: unit -> unit Lwt.t }
   module type S = Irmin_http_server.S
