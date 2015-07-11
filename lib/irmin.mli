@@ -1577,6 +1577,7 @@ module Private: sig
                and type commit = S.key
 
   end
+
   (** The signature for slices. *)
   module Slice: sig
 
