@@ -894,17 +894,25 @@ module Make (S: Irmin.S) = struct
         match !result with None -> assert false | Some t -> t
       in
       let clone () =
-        S.clone task (t "clone") (S.Tag.of_hum "test") >|= function
+        S.clone task (t "clone") (S.Tag.of_hum "test") >>= function
         | `Ok t ->
           begin match !result with
             | None   -> result := Some t
             | Some _ -> Alcotest.fail "should be duplicated!"
-          end
+          end;
+          Lwt.return_unit
         | `Duplicated_tag ->
-          begin match !result with
-          | None   -> Alcotest.fail "should not be duplicated!"
-          | Some _ -> ()
-          end
+          let rec wait n =
+            begin match !result with
+              | None   ->
+                if n <= 0 then Alcotest.fail "should not be duplicated!"
+                else
+                  Lwt_unix.sleep 0.1 >>= fun () ->
+                  wait (n-1)
+              | Some _ -> Lwt.return_unit
+            end
+          in
+          wait 10
         | `Empty_head -> Alcotest.fail "empty head"
       in
       S.remove_tag (t "prepare") (S.Tag.of_hum "test") >>= fun () ->
