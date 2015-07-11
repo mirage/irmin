@@ -25,7 +25,7 @@ let init_disk () =
   else if Sys.file_exists test_db then
     Git_unix.FS.create ~root:test_db () >>= fun t ->
     Irmin_unix.install_dir_polling_listener Test_fs.polling;
-    Git_unix.FS.clear t
+    Git_unix.FS.remove t
   else
     return_unit
 

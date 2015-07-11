@@ -29,31 +29,28 @@ text {
 }
 
 .tag {
-    background-color: #00CC66;
-    font-size: 150%;
-    padding: 1em;
+    background-color: #99FF99;
+    font-size: 120%;
+    padding: 0.5em;
+    border: 1px solid rgba(0, 0, 0, 0.3);
 }
 
 .updated .tag {
-    background-color: #FF6600;
-    font-size: 150%;
-    padding: 1em;
+    background-color: #33CC33;
 }
 
 .commit {
-    background-color: white;
-    border-radius:10px;
+    background-color: #99CCFF;
+    padding: 0.2em;
+    border-radius:5px;
     border: 1px solid rgba(0, 0, 0, 0.3);
-    -webkit-box-shadow: 0 3px 2px #777;
-    -moz-box-shadow: 0 3px 2px #777;
-    box-shadow: 0 3px 2px #777;
 }
 
 .updated .commit {
-    background-color: #FF9966;
-    padding: 0.5em;
+    background-color: #00CCFF;
 }
 .commit .message {
+    border-top: 1px solid;
     font-weight: bold;
 }
 

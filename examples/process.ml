@@ -47,7 +47,7 @@ let wordpress = {
 }
 
 let mysql = {
-  name    = "my-images/mysql:5.5.41";
+  name    = "local/mysql:5.5.41";
   actions = [
     { message = "Reading table wp_users";
       files   = []; };
