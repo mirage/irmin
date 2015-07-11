@@ -689,8 +689,29 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let query = Uri.query uri in
     let return_dnone = Lwt.return (None, None) in
     begin match Cohttp.Request.meth req with
-      | `DELETE
       | `GET  -> return_dnone
+      | `DELETE ->
+        Cohttp_lwt_body.length body >>= fun (len, body) ->
+        if len = 0L then
+          return_dnone
+        else begin
+          Cohttp_lwt_body.to_string body >>= fun b ->
+          let short_body =
+            if String.length b > 80 then String.sub b 0 80 ^ ".." else b
+          in
+          Log.debug "process DELETE: length=%Ld body=%S" len short_body;
+          try match Ezjsonm.from_string b with
+            | `O l ->
+              let task =
+                try Some (Irmin.Task.of_json @@ List.assoc "task" l)
+                with Not_found -> None
+              in
+              Lwt.return (task, None)
+            | _    ->
+              error "process: wrong parameters"
+          with e ->
+            error "process: not a valid JSON body %S [%s]" b (Printexc.to_string e)
+        end
       | `POST ->
         Cohttp_lwt_body.length body >>= fun (len, body) ->
         if len = 0L then
@@ -700,7 +721,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           let short_body =
             if String.length b > 80 then String.sub b 0 80 ^ ".." else b
           in
-          Log.debug "process: length=%Ld body=%S" len short_body;
+          Log.debug "process POST: length=%Ld body=%S" len short_body;
           try match Ezjsonm.from_string b with
             | `O l ->
               let params = try Some (List.assoc "params" l) with Not_found -> None in

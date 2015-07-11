@@ -162,11 +162,6 @@ module Helper (Client: Cohttp_lwt.Client) = struct
   let get_stream t path ?query fn  =
     map_get t path ?query (map_stream_response fn)
 
-  let delete t path fn =
-    let uri = uri_append t path in
-    Log.debug "delete %s" (Uri.path uri);
-    Client.delete ~headers uri >>= map_string_response fn
-
   let make_body ?task body =
     let str l = Ezjsonm.to_string (`O l) in
     let str_t = Irmin.Task.to_json in
@@ -185,6 +180,12 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       | Some b -> Some (Cohttp_lwt_body.of_string b)
     in
     short_body, body
+
+  let delete t ~task path fn =
+    let uri = uri_append t path in
+    let short_body, body = make_body ?task None in
+    Log.debug "delete %s %s" (Uri.path uri) short_body;
+    Client.delete ?body ~headers uri >>= map_string_response fn
 
   let map_post t ~task path ?query body fn =
     let uri = make_uri t path query in
@@ -284,7 +285,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let update t key value =
     post t ~task:None ["update"; K.to_hum key] (some @@ V.to_json value) Tc.unit
 
-  let remove t key = delete t ["remove"; K.to_hum key] Tc.unit
+  let remove t key = delete ~task:None t ["remove"; K.to_hum key] Tc.unit
 
   module CS = Tc.Pair(Tc.Option(V))(Tc.Option(V))
 
@@ -523,7 +524,10 @@ struct
   let err_not_persistent = invalid_arg "Irmin_http.%s: not a persistent branch"
 
   let get t = get (uri t)
-  let delete t = delete (uri t)
+
+  let delete t =
+    let task = Some (task t) in
+    delete (uri t) ~task
 
   let post t path ?query body =
     let task = Some (task t) in
