@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 97b64f920a728ebfb1370c98e8e3c8d7)
+# DO NOT EDIT (digest: f598969603d7bcdd5e9b19c3a8db1b17)
 version = "0.9.8"
 description = "A Distributed Version Control Database"
 requires =
@@ -19,6 +19,18 @@ package "unix" (
  archive(native) = "irmin-unix.cmxa"
  archive(native, plugin) = "irmin-unix.cmxs"
  exists_if = "irmin-unix.cma"
+)
+
+package "mirage" (
+ version = "0.9.8"
+ description = "A Distributed Version Control Database"
+ requires =
+ "irmin irmin.mem irmin.git irmin.fs irmin.http cohttp.lwt git.mirage"
+ archive(byte) = "irmin-mirage.cma"
+ archive(byte, plugin) = "irmin-mirage.cma"
+ archive(native) = "irmin-mirage.cmxa"
+ archive(native, plugin) = "irmin-mirage.cmxs"
+ exists_if = "irmin-mirage.cma"
 )
 
 package "mem" (

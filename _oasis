@@ -19,6 +19,10 @@ Flag git
   Description: build the git libraries
   Default: true
 
+Flag mirage
+  Description: build the MirageOS libraries
+  Default: true
+
 Flag examples
   Description: build the examples
   Default: false
@@ -77,6 +81,16 @@ Library "irmin-unix"
   BuildDepends:  irmin, irmin.mem, irmin.git, irmin.fs, irmin.http,
                  git.unix, cohttp.lwt
   Modules:       Irmin_unix
+
+Library "irmin-mirage"
+  Build$:        flag(mirage) && flag(http) && flag(git)
+  Install$:      flag(mirage) && flag(http) && flag(git)
+  Path:          lib/mirage
+  Findlibname:   mirage
+  FindlibParent: irmin
+  BuildDepends:  irmin, irmin.mem, irmin.git, irmin.fs, irmin.http,
+                 cohttp.lwt, git.mirage
+  Modules:       Irmin_mirage
 
 Document irmin
   Title:                Irmin docs
