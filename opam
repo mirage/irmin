@@ -10,7 +10,8 @@ build: [
   ["./configure" "--prefix" prefix
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
-      "--%{base-unix:enable}%-unix"]
+      "--%{base-unix:enable}%-unix"
+      "--%{mirage-git:enable}%-mirage"]
   [make]
 ]
 build-test: [
@@ -44,6 +45,7 @@ depopts: [
   "base-unix"
   "git"
   "cohttp"
+  "mirage-git"
 ]
 conflicts: [
   "cohttp" {< "0.14.0"}

@@ -7,3 +7,7 @@ env:
   matrix:
   - OCAML_VERSION=4.01
   - OCAML_VERSION=4.02
+  - OCAML_VERSIOn=4.01 DEPOTS=cohttp
+  - OCAML_VERSIOn=4.01 DEPOTS=git
+  - OCAML_VERSIOn=4.01 DEPOTS="cohttp git"
+  - OCAML_VERSIOn=4.02 DEPOTS=mirage-git
