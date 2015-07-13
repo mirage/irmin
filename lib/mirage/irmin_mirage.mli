@@ -66,5 +66,14 @@ module Task (N: sig val name: string end)(C: V1.CLOCK): sig
 
 end
 
-module KV_RO (S: Irmin.S): V1_LWT.KV_RO with type t = S.t
 (** Project an Irmin store into a MirageOS' KV_RO store. *)
+module KV_RO (S: Irmin.S): sig
+
+  include V1_LWT.KV_RO with type t = S.t
+
+  val connect: ?depth:int -> ?branch:string -> Uri.t -> S.t Lwt.t
+  (** [connect ?depth ?branch uri] clones the given [uri] using the
+      given [branch] and [depth]. By defaut, [branch] is master and
+      [depth] is [1]. *)
+
+end

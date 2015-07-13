@@ -62,4 +62,15 @@ module KV_RO (S: Irmin.S) = struct
     | None   -> unknown_key path
     | Some v -> ok (Int64.of_int @@ Tc.size_of (module S.Val) v)
 
+  module Sync = Irmin.Sync(S)
+
+  let config = Irmin_mem.config ()
+
+  let connect ?(depth = 1) ?(branch = "master") uri =
+    let uri = Irmin.remote_uri (Uri.to_string uri) in
+    let tag = S.Tag.of_hum branch in
+    S.of_tag config Irmin.Task.none tag >>= fun t ->
+    Sync.pull_exn (t ()) ~depth uri `Update >|= fun () ->
+    t ()
+
 end
