@@ -15,6 +15,7 @@
  *)
 
 (** Bidirectional Git backends. *)
+
 module Irmin_git: sig
 
   (** {1 Git Store} *)
@@ -47,7 +48,10 @@ module Irmin_git: sig
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module Memory: Irmin.S_MAKER
+  module type CONTEXT = sig val v: Git_mirage.Sync.IO.ctx option end
+  (** The context to use for synchronisation. *)
+
+  module Memory (C: CONTEXT): Irmin.S_MAKER
   (** Embed an Irmin store into an in-memory Git repository. *)
 
 end

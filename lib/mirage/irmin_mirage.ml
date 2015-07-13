@@ -14,10 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module IO = Git_mirage.Sync.IO
+
 module Irmin_git = struct
   let config = Irmin_git.config
   let head = Irmin_git.head
   let bare = Irmin_git.bare
   module AO = Irmin_git.AO
-  module Memory = Irmin_git.Memory(Git_mirage.Sync.IO)
+  module type CONTEXT = sig val v: IO.ctx option end
+  module Context (C: CONTEXT) = struct
+    type t = Git_mirage.Sync.IO.ctx
+    let v = C.v
+  end
+  module Memory (C: CONTEXT) = Irmin_git.Memory_ext(Context(C))(IO)
 end

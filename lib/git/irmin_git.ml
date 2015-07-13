@@ -70,7 +70,11 @@ module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
+module type CONTEXT = sig type t val v: t option end
+
+module Make_ext
+    (Ctx: CONTEXT) (IO: Git.Sync.IO with type ctx = Ctx.t)
+    (L: LOCK) (G: Git.Store.S)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S)
@@ -645,7 +649,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         in
         o_head_of_git key
       in
-      Sync.fetch t ?deepen gri >>=
+      Sync.fetch t ?ctx:Ctx.v ?deepen gri >>=
       result
 
     let push t ?depth:_ ~uri tag =
@@ -657,7 +661,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         match r.Git.Sync.Result.result with
         | `Ok      -> return `Ok
         | `Error _ -> return `Error in
-      Sync.push t ~branch gri >>=
+      Sync.push t ?ctx:Ctx.v ~branch gri >>=
       result
 
   end
@@ -675,7 +679,19 @@ end
 module NoL = struct
   let with_lock _ f = f ()
 end
-module Memory (IO: Git.Sync.IO) = Make (IO) (NoL) (Git.Memory)
+
+module Memory_ext (C: CONTEXT) (IO: Git.Sync.IO with type ctx = C.t) =
+  Make_ext (C) (IO) (NoL) (Git.Memory)
+
+module NoC (IO: Git.Sync.IO) = struct
+  type t = IO.ctx
+  let v = None
+end
+
+module Make (IO: Git.Sync.IO) = Make_ext (NoC(IO))(IO)
+
+module Memory (IO: Git.Sync.IO) = Make (IO)(NoL)(Git.Memory)
+
 module FS (IO: Git.Sync.IO) (L: LOCK) (FS: Git.FS.IO) =
   Make (IO) (L) (Git.FS.Make(FS))
 
