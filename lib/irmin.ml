@@ -63,6 +63,7 @@ let version = Ir_version.current
 
 module History = Graph.Persistent.Digraph.ConcreteBidirectional(Hash.SHA1)
 
+module type SYNC = Ir_sync_ext.STORE
 module Sync = Ir_sync_ext.Make
 
 type remote = Ir_sync_ext.remote
