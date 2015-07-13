@@ -55,3 +55,13 @@ module Irmin_git: sig
   (** Embed an Irmin store into an in-memory Git repository. *)
 
 end
+
+module Task (N: sig val name: string end)(C: V1.CLOCK): sig
+
+  (** {1 Task creators} *)
+
+  val f: string Irmin.Task.f
+  (** Task creators, using [N.name] and [C.time ()] provided in the
+      functor arguments. *)
+
+end
