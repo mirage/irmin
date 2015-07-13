@@ -34,3 +34,32 @@ module Task (N: sig val name: string end) (C: V1.CLOCK) = struct
     let date = Int64.of_float (C.time ()) in
     Irmin.Task.create ~date ~owner:N.name msg
 end
+
+module KV_RO (S: Irmin.S) = struct
+
+  open Lwt.Infix
+
+  type error = Unknown_key of string
+  type 'a io = 'a Lwt.t
+  type t = S.t
+  type id
+  let disconnect _ = Lwt.return_unit
+  type page_aligned_buffer = Cstruct.t
+
+  let unknown_key k = Lwt.return (`Error (Unknown_key k))
+  let ok x = Lwt.return (`Ok x)
+
+  let read t path off len =
+    S.read t (S.Key.of_hum path) >>= function
+    | None   -> unknown_key path
+    | Some v ->
+      let buf = Tc.write_cstruct (module S.Val) v in
+      let buf = Cstruct.sub buf off len in
+      ok [buf]
+
+  let size t path =
+    S.read t (S.Key.of_hum path) >>= function
+    | None   -> unknown_key path
+    | Some v -> ok (Int64.of_int @@ Tc.size_of (module S.Val) v)
+
+end
