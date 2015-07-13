@@ -39,9 +39,9 @@ module Conf = struct
   let root = Irmin.Private.Conf.root
 
   let reference =
-  let parse str = `Ok (Git.Reference.of_raw str) in
-  let print ppf name = Format.pp_print_string ppf (Git.Reference.to_raw name) in
-  parse, print
+    let parse str = `Ok (Git.Reference.of_raw str) in
+    let print ppf name = Format.pp_print_string ppf (Git.Reference.to_raw name) in
+    parse, print
 
   let head =
     Irmin.Private.Conf.key
