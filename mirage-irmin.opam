@@ -1,0 +1,13 @@
+opam-version: "1.2"
+maintainer:   "thomas@gazagnaire.org"
+authors:      "Thomas Gazagnaire"
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "https://github.com/mirage/irmin.git"
+
+depends: [
+  "mirage-types-lwt"
+  "mirage-git" {>= "1.6.0"}
+  "irmin"      {>= "0.9.8"}
+]

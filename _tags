@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: b2a0f29f5927309de85d29d8675f4111)
+# DO NOT EDIT (digest: a01627fab461eb4eb18587510bdcbdf2)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -109,6 +109,31 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: use_irmin-git
 <lib/unix/*.ml{,i,y}>: use_irmin-http
 <lib/unix/*.ml{,i,y}>: use_irmin-mem
+# Library irmin-mirage
+"lib/mirage/irmin-mirage.cmxs": use_irmin-mirage
+<lib/mirage/*.ml{,i,y}>: pkg_cohttp.lwt
+<lib/mirage/*.ml{,i,y}>: pkg_cohttp.lwt-core
+<lib/mirage/*.ml{,i,y}>: pkg_cstruct
+<lib/mirage/*.ml{,i,y}>: pkg_dolog
+<lib/mirage/*.ml{,i,y}>: pkg_ezjsonm
+<lib/mirage/*.ml{,i,y}>: pkg_ezjsonm.lwt
+<lib/mirage/*.ml{,i,y}>: pkg_git
+<lib/mirage/*.ml{,i,y}>: pkg_git.mirage
+<lib/mirage/*.ml{,i,y}>: pkg_hex
+<lib/mirage/*.ml{,i,y}>: pkg_lwt
+<lib/mirage/*.ml{,i,y}>: pkg_mstruct
+<lib/mirage/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/mirage/*.ml{,i,y}>: pkg_re
+<lib/mirage/*.ml{,i,y}>: pkg_re.pcre
+<lib/mirage/*.ml{,i,y}>: pkg_re.perl
+<lib/mirage/*.ml{,i,y}>: pkg_stringext
+<lib/mirage/*.ml{,i,y}>: pkg_tc
+<lib/mirage/*.ml{,i,y}>: pkg_uri
+<lib/mirage/*.ml{,i,y}>: use_irmin
+<lib/mirage/*.ml{,i,y}>: use_irmin-fs
+<lib/mirage/*.ml{,i,y}>: use_irmin-git
+<lib/mirage/*.ml{,i,y}>: use_irmin-http
+<lib/mirage/*.ml{,i,y}>: use_irmin-mem
 # Executable irmin
 <bin/main.{native,byte}>: pkg_cmdliner
 <bin/main.{native,byte}>: pkg_cohttp.lwt

@@ -10,7 +10,8 @@ build: [
   ["./configure" "--prefix" prefix
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
-      "--%{base-unix:enable}%-unix"]
+      "--%{base-unix:enable}%-unix"
+      "--%{mirage-git:enable}%-mirage"]
   [make]
 ]
 build-test: [
@@ -44,10 +45,10 @@ depopts: [
   "base-unix"
   "git"
   "cohttp"
+  "mirage-git"
 ]
 conflicts: [
-  "cohttp" {< "0.14.0"}
-  "cohttp" {= "0.16.1"}
+  "cohttp" {< "0.18.3"}
   "git"    {< "1.6.0"}
 ]
 available: [ocaml-version >= "4.01.0"]

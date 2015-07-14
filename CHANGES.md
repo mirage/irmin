@@ -1,10 +1,18 @@
-### 0.9.8
+### 0.9.8 (2015-07-14)
 
+* Initial MirageOS support. Expose `Mirage_irmin.KV_RO` to surface an
+  Irmin store as a read-only key/value store implementing `V1_LWT.KV_RO
+  (#107)
+* Expose `Irmin_git.Memory_ext. This allows the Git memory backend to be
+  configured with a non-empty conduit context.
+* Expose `Irmin.SYNC`
+* Transmit client tasks to the HTTP server on DELETE too (#227, @dsheets)
+* Do note expose private types in the public interface (#234, @koleini)
 * Fix missing zero padding for date pretty-printing (#228, @dsheets)
 * Update the tests to use `ocaml-git.1.6.0`
 * Improve the style of the HTTP commit graph.
 * Constraint the string tags to contain only alpha-numeric characters
-  and few mores (`-`, `_` and `/`) (#186)
+  and few mores (`-`, `_`, '.' and `/`) (#186)
 * Fix a race condition in `Irmin.clone`. (#221)
 * Escpate double quotes in the output of commit messages to workaround
   HTML display issues. (#222)
