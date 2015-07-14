@@ -48,8 +48,7 @@ depopts: [
   "mirage-git"
 ]
 conflicts: [
-  "cohttp" {< "0.14.0"}
-  "cohttp" {= "0.16.1"}
+  "cohttp" {< "0.18.3"}
   "git"    {< "1.6.0"}
 ]
 available: [ocaml-version >= "4.01.0"]
