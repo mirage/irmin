@@ -16,10 +16,7 @@
 
 (** Bidirectional Git backends. *)
 
-module IO = Git_mirage.Sync.IO
-(** The IO module. *)
-
-module type CONTEXT = sig val v: unit -> IO.ctx option Lwt.t end
+module type CONTEXT = sig val v: unit -> Git_mirage.Sync.IO.ctx option Lwt.t end
 (** The context to use for synchronisation. *)
 
 module Irmin_git: sig
