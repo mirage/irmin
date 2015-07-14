@@ -1,5 +1,8 @@
 ### 0.9.8
 
+* Fix missing zero padding for date pretty-printing (#228, @dsheets)
+* Update the tests to use `ocaml-git.1.6.0`
+* Improve the style of the HTTP commit graph.
 * Constraint the string tags to contain only alpha-numeric characters
   and few mores (`-`, `_` and `/`) (#186)
 * Fix a race condition in `Irmin.clone`. (#221)

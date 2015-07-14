@@ -873,7 +873,7 @@ module Contents: sig
 
   module Cstruct: S with type t = Cstruct.t and module Path = Path.String_list
   (** Cstruct values where only the last modified value is kept on
-      merge. If the value has been modified concurrently, the [merge[
+      merge. If the value has been modified concurrently, the [merge]
       function raises [Conflict]. *)
 
   (** Contents store. *)
@@ -1577,6 +1577,7 @@ module Private: sig
                and type commit = S.key
 
   end
+
   (** The signature for slices. *)
   module Slice: sig
 
