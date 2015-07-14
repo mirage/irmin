@@ -74,11 +74,11 @@ module KV_RO (C: CONTEXT): sig
 
   include V1_LWT.KV_RO
 
-  val connect: ?depth:int -> ?branch:string -> ?path:string list ->
+  val connect: ?depth:int -> ?branch:string -> ?path:string ->
     Uri.t -> t Lwt.t
   (** [connect ?depth ?branch ?path uri] clones the given [uri] using
-      the given [branch], [depth] and sub-[path]. By defaut, [branch]
-      is master, [depth] is [1] and [path] is empty, ie. reads will be
-      relative to the root of the repository. *)
+      the given [branch], [depth] and ['/']-separated sub-[path]. By
+      defaut, [branch] is master, [depth] is [1] and [path] is empty,
+      ie. reads will be relative to the root of the repository. *)
 
 end

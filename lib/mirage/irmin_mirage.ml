@@ -103,9 +103,13 @@ module KV_RO (C: CONTEXT) = struct
     | "HEAD" -> size_head t
     | path    -> size_store t path
 
-  let connect ?(depth = 1) ?(branch = "master") ?(path=[]) uri =
+  let connect ?(depth = 1) ?(branch = "master") ?path uri =
     let uri = Irmin.remote_uri (Uri.to_string uri) in
     let tag = S.Tag.of_hum branch in
+    let path = match path with
+      | None -> []
+      | Some s -> List.filter ((<>)"") @@ Stringext.split s ~on:'/'
+    in
     S.of_tag config Irmin.Task.none tag >>= fun t ->
     Sync.pull_exn (t ()) ~depth uri `Update >|= fun () ->
     { t = t (); path }
