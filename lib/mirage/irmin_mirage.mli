@@ -16,6 +16,12 @@
 
 (** Bidirectional Git backends. *)
 
+module IO = Git_mirage.Sync.IO
+(** The IO module. *)
+
+module type CONTEXT = sig val v: unit -> IO.ctx option Lwt.t end
+(** The context to use for synchronisation. *)
+
 module Irmin_git: sig
 
   (** {1 Git Store} *)
@@ -48,9 +54,6 @@ module Irmin_git: sig
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module type CONTEXT = sig val v: Git_mirage.Sync.IO.ctx option end
-  (** The context to use for synchronisation. *)
-
   module Memory (C: CONTEXT): Irmin.S_MAKER
   (** Embed an Irmin store into an in-memory Git repository. *)
 
@@ -66,12 +69,12 @@ module Task (N: sig val name: string end)(C: V1.CLOCK): sig
 
 end
 
-(** Project an Irmin store into a MirageOS' KV_RO store. *)
-module KV_RO (S: Irmin.S): sig
+(** Functor to create a MirageOS' KV_RO store. *)
+module KV_RO (C: CONTEXT): sig
 
-  include V1_LWT.KV_RO with type t = S.t
+  include V1_LWT.KV_RO
 
-  val connect: ?depth:int -> ?branch:string -> Uri.t -> S.t Lwt.t
+  val connect: ?depth:int -> ?branch:string -> Uri.t -> t Lwt.t
   (** [connect ?depth ?branch uri] clones the given [uri] using the
       given [branch] and [depth]. By defaut, [branch] is master and
       [depth] is [1]. *)

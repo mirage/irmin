@@ -35,6 +35,6 @@ module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S):
 module Memory (IO: Git.Sync.IO): Irmin.S_MAKER
 module FS (IO: Git.Sync.IO) (L: LOCK) (FS: Git.FS.IO): Irmin.S_MAKER
 
-module type CONTEXT = sig type t val v: t option end
+module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
 module Memory_ext (C: CONTEXT) (IO: Git.Sync.IO with type ctx = C.t):
   Irmin.S_MAKER

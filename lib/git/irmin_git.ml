@@ -70,7 +70,7 @@ module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module type CONTEXT = sig type t val v: t option end
+module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
 
 module Make_ext
     (Ctx: CONTEXT) (IO: Git.Sync.IO with type ctx = Ctx.t)
@@ -649,7 +649,8 @@ module Make_ext
         in
         o_head_of_git key
       in
-      Sync.fetch t ?ctx:Ctx.v ?deepen gri >>=
+      Ctx.v () >>= fun ctx ->
+      Sync.fetch t ?ctx ?deepen gri >>=
       result
 
     let push t ?depth:_ ~uri tag =
@@ -660,8 +661,10 @@ module Make_ext
         Log.debug "push result: %s" (Git.Sync.Result.pretty_push r);
         match r.Git.Sync.Result.result with
         | `Ok      -> return `Ok
-        | `Error _ -> return `Error in
-      Sync.push t ?ctx:Ctx.v ~branch gri >>=
+        | `Error _ -> return `Error
+      in
+      Ctx.v () >>= fun ctx ->
+      Sync.push t ?ctx ~branch gri >>=
       result
 
   end
@@ -685,7 +688,7 @@ module Memory_ext (C: CONTEXT) (IO: Git.Sync.IO with type ctx = C.t) =
 
 module NoC (IO: Git.Sync.IO) = struct
   type t = IO.ctx
-  let v = None
+  let v () = Lwt.return None
 end
 
 module Make (IO: Git.Sync.IO) = Make_ext (NoC(IO))(IO)

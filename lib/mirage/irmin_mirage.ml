@@ -16,16 +16,17 @@
 
 module IO = Git_mirage.Sync.IO
 
+module type CONTEXT = sig val v: unit -> IO.ctx option Lwt.t end
+module Context (C: CONTEXT) = struct
+  type t = IO.ctx
+  let v = C.v
+end
+
 module Irmin_git = struct
   let config = Irmin_git.config
   let head = Irmin_git.head
   let bare = Irmin_git.bare
   module AO = Irmin_git.AO
-  module type CONTEXT = sig val v: IO.ctx option end
-  module Context (C: CONTEXT) = struct
-    type t = Git_mirage.Sync.IO.ctx
-    let v = C.v
-  end
   module Memory (C: CONTEXT) = Irmin_git.Memory_ext(Context(C))(IO)
 end
 
@@ -35,9 +36,13 @@ module Task (N: sig val name: string end) (C: V1.CLOCK) = struct
     Irmin.Task.create ~date ~owner:N.name msg
 end
 
-module KV_RO (S: Irmin.S) = struct
+module KV_RO (C: CONTEXT) = struct
 
   open Lwt.Infix
+
+  module S = Irmin.Basic(Irmin_git.Memory(C))(Irmin.Contents.Cstruct)
+  module Sync = Irmin.Sync(S)
+  let config = Irmin_mem.config ()
 
   type error = Unknown_key of string
   type 'a io = 'a Lwt.t
@@ -45,7 +50,6 @@ module KV_RO (S: Irmin.S) = struct
   type id
   let disconnect _ = Lwt.return_unit
   type page_aligned_buffer = Cstruct.t
-
   let unknown_key k = Lwt.return (`Error (Unknown_key k))
   let ok x = Lwt.return (`Ok x)
 
@@ -61,10 +65,6 @@ module KV_RO (S: Irmin.S) = struct
     S.read t (S.Key.of_hum path) >>= function
     | None   -> unknown_key path
     | Some v -> ok (Int64.of_int @@ Tc.size_of (module S.Val) v)
-
-  module Sync = Irmin.Sync(S)
-
-  let config = Irmin_mem.config ()
 
   let connect ?(depth = 1) ?(branch = "master") uri =
     let uri = Irmin.remote_uri (Uri.to_string uri) in
