@@ -1896,7 +1896,7 @@ val watch_tags: ([`BC],'k,'v) t -> ?init:(string * Hash.SHA1.t) list ->
 (** See {!BC.watch_tags}. *)
 
 val watch_key: ([`BC],'k,'v) t -> 'k -> ?init:(Hash.SHA1.t * 'v) ->
-  ((Hash.SHA1.t * 'v) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  ((Hash.SHA1.t * 'v) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 (** See {!BC.watch_key}. *)
 
 (** {2 Clones and Merges} *)
