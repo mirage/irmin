@@ -1156,6 +1156,13 @@ module Make (S: Irmin.S) = struct
       S.read (tt "read tt") (p ["b";"foo";"1"]) >>= fun foo2'' ->
       assert_equal (module (Tc.Option(V))) "remove tt" None foo2'';
 
+      let vx = string x "VX" in
+      let px = p ["x";"y";"z"] in
+      S.update (tt "update") px vx >>= fun () ->
+      View.of_path (tt "view") (p []) >>= fun view ->
+      View.read view px >>= fun vx' ->
+      assert_equal (module (Tc.Option(S.Val))) "updates" (Some vx) vx';
+
       return_unit
     in
     run x test
