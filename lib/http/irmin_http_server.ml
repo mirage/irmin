@@ -599,6 +599,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let max_depth, n = mk_merge_query query in
       S.fast_forward_head t ?max_depth ?n head
     in
+    let s_update_tag t tag = S.update_tag t tag >>= fun () -> S.head_exn t in
     let s_iter t fn = S.iter t (fun k _ -> fn k) in
     let l f t list = f t (S.Key.create list) in
     let hooks = hooks.update in
@@ -618,7 +619,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
       (* more *)
       mk1p0bf "remove-tag" ~lock:lock2 ~hooks S.remove_tag t tag' Tc.unit;
-      mk1p0bf "update-tag" ~lock:lock2 ~hooks S.update_tag t tag' Tc.unit;
+      mk1p0bf "update-tag" ~lock:lock2 ~hooks s_update_tag t tag' head;
       mk1p0bfq "merge-tag" ~lock:lock3 ~hooks s_merge_tag t tag' (merge head);
       mk0p0bf "head" S.head t (Tc.option head);
       mk0p0bf "heads" S.heads t (Tc.list head);

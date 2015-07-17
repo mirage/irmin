@@ -1,5 +1,8 @@
 ### 0.9.8 (2015-07-14)
 
+* Fix wrong interaction of in-memory views and temporary branches in the store
+  (#237)
+* Fix `Irmin.update_tag` for HTTP clients
 * Initial MirageOS support. Expose `Mirage_irmin.KV_RO` to surface an
   Irmin store as a read-only key/value store implementing `V1_LWT.KV_RO
   (#107)

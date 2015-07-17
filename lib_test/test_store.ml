@@ -980,17 +980,36 @@ module Make (S: Irmin.S) = struct
       S.update (t "fst one") (p ["fst"]) a        >>= fun () ->
       S.update (t "snd one") (p ["fst"; "snd"]) b >>= fun () ->
 
-      S.read (t "read") (p ["fst"]) >>= fun x ->
-      assert_equal (module Tc.Option(V)) "data model 1" None x;
-      S.read (t "read") (p ["fst"; "snd"]) >>= fun x ->
-      assert_equal (module Tc.Option(V)) "data model 2" (Some b) x;
+      S.read (t "read") (p ["fst"]) >>= fun fst ->
+      assert_equal (module Tc.Option(V)) "data model 1" None fst;
+      S.read (t "read") (p ["fst"; "snd"]) >>= fun snd ->
+      assert_equal (module Tc.Option(V)) "data model 2" (Some b) snd;
 
       S.update (t "fst one") (p ["fst"]) a >>= fun () ->
 
-      S.read (t "read") (p ["fst"]) >>= fun x ->
-      assert_equal (module Tc.Option(V)) "data model 3" (Some a) x;
-      S.read (t "read") (p ["fst"; "snd"]) >>= fun x ->
-      assert_equal (module Tc.Option(V)) "data model 4" None x;
+      S.read (t "read") (p ["fst"]) >>= fun fst ->
+      assert_equal (module Tc.Option(V)) "data model 3" (Some a) fst;
+      S.read (t "read") (p ["fst"; "snd"]) >>= fun snd ->
+      assert_equal (module Tc.Option(V)) "data model 4" None snd;
+
+      let tagx = S.Tag.of_hum "x" in
+      let tagy = S.Tag.of_hum "y" in
+      let xy = p ["x";"y"] in
+      let vx = string x "VX" in
+      S.of_tag x.config task tagx >>= fun tx ->
+      S.of_tag x.config task tagy >>= fun ty ->
+      S.remove_tag (tx "?") tagx >>= fun () ->
+      S.remove_tag (tx "?") tagy >>= fun () ->
+
+      S.update (tx "update") xy vx >>= fun () ->
+      S.update_tag (ty "update-tag") tagx >>= fun () ->
+      S.read (ty "read") xy >>= fun vx' ->
+      assert_equal (module Tc.Option(S.Val)) "update tag" (Some vx) vx';
+
+      S.tag (tx "tx") >>= fun tagx' ->
+      S.tag (ty "ty") >>= fun tagy' ->
+      assert_equal (module Tc.Option(S.Tag)) "tagx" (Some tagx) tagx';
+      assert_equal (module Tc.Option(S.Tag)) "tagy" (Some tagy) tagy';
 
       return_unit
     in
@@ -1155,6 +1174,13 @@ module Make (S: Irmin.S) = struct
 
       S.read (tt "read tt") (p ["b";"foo";"1"]) >>= fun foo2'' ->
       assert_equal (module (Tc.Option(V))) "remove tt" None foo2'';
+
+      let vx = string x "VX" in
+      let px = p ["x";"y";"z"] in
+      S.update (tt "update") px vx >>= fun () ->
+      View.of_path (tt "view") (p []) >>= fun view ->
+      View.read view px >>= fun vx' ->
+      assert_equal (module (Tc.Option(S.Val))) "updates" (Some vx) vx';
 
       return_unit
     in
