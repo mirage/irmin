@@ -1,4 +1,4 @@
-### 0.9.8 (2015-07-14)
+### 0.9.8 (2015-07-17)
 
 * Fix wrong interaction of in-memory views and temporary branches in the store
   (#237)
