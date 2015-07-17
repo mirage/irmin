@@ -465,7 +465,7 @@ struct
     | `Head h -> uri_append base ["tree"; Head.to_hum h]
 
   let task t = S.task t.h
-  let set_tag t tag = t.branch := `Tag tag
+
   let set_head t = function
     | None   -> t.branch := `Empty; Lwt.return_unit
     | Some h -> t.branch := `Head h; L.update_head t.l h
@@ -590,9 +590,10 @@ struct
     | Some h -> Lwt.return h
 
   let update_tag t tag =
-    post t ["update-tag"; Tag.to_hum tag] None Tc.unit >>= fun () ->
-    set_tag t tag;
-    Lwt.return_unit
+    post t ["update-tag"; Tag.to_hum tag] None (module Head) >>= fun h ->
+    match branch t with
+    | `Head _ | `Empty -> set_head t (Some h)
+    | `Tag _ -> Lwt.return_unit
 
   let remove_tag t tag = delete t ["remove-tag"; Tag.to_hum tag] Tc.unit
 
