@@ -441,7 +441,7 @@ struct
        - `$uri/tree/$key if key = `Key key *)
   type t = {
     branch: [`Tag of Tag.t | `Head of Head.t | `Empty] ref;
-    mutable h: S.t; l: L.t;
+    h: S.t; l: L.t;
     config: Irmin.config;
     contents_t: LP.Contents.t;
     node_t: LP.Node.t;
