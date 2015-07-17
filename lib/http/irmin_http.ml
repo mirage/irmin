@@ -467,8 +467,8 @@ struct
   let task t = S.task t.h
   let set_tag t tag = t.branch := `Tag tag
   let set_head t = function
-    | None   -> t.branch := `Empty
-    | Some h -> t.branch := `Head h
+    | None   -> t.branch := `Empty; Lwt.return_unit
+    | Some h -> t.branch := `Head h; L.update_head t.l h
 
   type key = S.key
   type value = S.value
@@ -550,21 +550,17 @@ struct
   let update t key value =
     post t ["update"; Key.to_hum key] (some @@ Val.to_json value) (module Head)
     >>= fun h ->
-    let () = match branch t with
-      | `Empty
-      | `Head _ -> set_head t (Some h)
-      | `Tag  _ -> ()
-    in
-    Lwt.return_unit
+    match branch t with
+    | `Empty
+    | `Head _ -> set_head t (Some h)
+    | `Tag  _ -> Lwt.return_unit
 
   let remove t key =
     delete t ["remove"; Key.to_hum key] (module Head) >>= fun h ->
-    let () = match branch t with
-      | `Empty
-      | `Head _ -> set_head t (Some h)
-      | `Tag _  -> ()
-    in
-    Lwt.return_unit
+    match branch t with
+    | `Empty
+    | `Head _ -> set_head t (Some h)
+    | `Tag _  -> Lwt.return_unit
 
   module CS = Tc.Pair(Tc.Option(Val))(Tc.Option(Val))
 
@@ -604,20 +600,20 @@ struct
 
   let update_head t head = match branch t with
     | `Empty
-    | `Head _ -> set_head t (Some head); Lwt.return_unit
+    | `Head _ -> set_head t (Some head)
     | `Tag _  -> get t ["update-head"; Head.to_hum head] Tc.unit
 
   module CSH = Tc.Pair(Tc.Option(Head))(Tc.Option(Head))
 
   let compare_and_set_head_unsafe t ~test ~set =
+    let true_ () = true in
     match branch t with
     | `Tag _  ->
       post t ["compare-and-set-head"] (some @@ CSH.to_json (test, set)) Tc.bool
     | `Empty ->
-      if None = test then (set_head t set; Lwt.return true) else Lwt.return false
+      if None = test then (set_head t set >|= true_) else Lwt.return false
     | `Head h ->
-      if Some h = test then (set_head t set; Lwt.return true)
-      else Lwt.return false
+      if Some h = test then (set_head t set >|= true_) else Lwt.return false
 
   let compare_and_set_head t ~test ~set =
     Lwt_mutex.with_lock t.lock (fun () ->
@@ -641,11 +637,13 @@ struct
 
   let fast_forward_head_unsafe t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    post t ?query ["fast-forward-head"; Head.to_hum head] None Tc.bool >>= fun b ->
+    post t ?query ["fast-forward-head"; Head.to_hum head] None Tc.bool
+    >>= fun b ->
     match branch t with
     | `Tag _  -> Lwt.return b
     | `Empty
-    | `Head _ -> if b then set_head t (Some head); Lwt.return b
+    | `Head _ ->
+      (if b then set_head t (Some head) else Lwt.return_unit) >|= fun () -> b
 
   let fast_forward_head t ?max_depth ?n head =
     Lwt_mutex.with_lock t.lock (fun () ->
@@ -657,7 +655,7 @@ struct
     post t ?query ["merge-head"; Head.to_hum head] None (module M) >>| fun h ->
     match branch t with
     | `Empty
-    | `Head _ -> set_head t (Some h); ok ()
+    | `Head _ -> set_head t (Some h) >>= ok
     | `Tag _  -> ok ()
 
   let merge_head_exn t ?max_depth ?n head =
@@ -716,7 +714,7 @@ struct
     post t ?query ["merge-tag"; Tag.to_hum tag] None (module M) >>| fun h ->
     match branch t with
     | `Empty
-    | `Head _ -> set_head t (Some h); ok ()
+    | `Head _ -> set_head t (Some h) >>= ok
     | `Tag _  -> ok ()
 
   let merge_tag_exn t ?max_depth ?n tag =
@@ -781,12 +779,10 @@ struct
 
   let remove_rec t dir =
     delete t ["remove-rec"; Key.to_hum dir] (module Head) >>= fun h ->
-    let () = match branch t with
+    match branch t with
       | `Empty
       | `Head _ -> set_head t (Some h)
-      | `Tag _  -> ()
-    in
-    Lwt.return_unit
+      | `Tag _  -> Lwt.return_unit
 
   let list t dir =
     get t ["list"; Key.to_hum dir] (module Tc.List(Key))
