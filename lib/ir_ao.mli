@@ -25,3 +25,17 @@ module type MAKER =
   functor (K: Ir_hash.S) ->
   functor (V: Tc.S0) ->
     STORE with type key = K.t and type value = V.t
+
+module type RAW = Tc.S0 with type t = Cstruct.t					
+module type AO_MAKER_RAW =
+  functor (K: Ir_hash.S) ->
+  functor (V: RAW) ->
+  STORE with type key = K.t and type value = V.t						 
+module type STORE_LINK = sig
+  include Ir_ro.STORE
+  val add: t -> key -> value -> unit Lwt.t
+end
+
+module type AO_LINK_MAKER =
+  functor (K: Ir_hash.S) ->
+  STORE_LINK with type key = K.t and type value = K.t

@@ -378,7 +378,22 @@ module type AO = sig
       responsibility of the append-only store to generate a
       consistent key. *)
 
-end
+  end
+
+(** Append-only store for links *)
+module type AO_LINK = sig
+
+
+  (** {1 Append-only Link stores} *)
+
+  include RO
+
+  val add: t -> key -> value -> unit Lwt.t
+  (** Write the key value to the store with a given
+      index key. *)
+
+  end
+		   
 
 (** Read-write stores. *)
 module type RW = sig
@@ -2394,6 +2409,23 @@ module type AO_MAKER =
   functor (V: Tc.S0) ->
     AO with type key = K.t and type value = V.t
 
+(** [AO_MAKER_RAW] if the signature exposed by any backend providing
+     append-only stores. [K] is the implementation of keys and [V] is
+     the implementation of values, here we constrain the type of the backend 
+     to Cstruct type.*)
+module type RAW = Tc.S0 with type t = Cstruct.t					
+module type AO_MAKER_RAW =
+  functor (K: Hash.S) ->
+  functor (V: RAW) ->
+  AO with type key = K.t and type value = V.t
+
+(** [AO_LINK_MAKER] is the signature exposed by any backend providing
+    append-only stores for linking key. [I] is the implementation of external keys and [K] is
+    the implementation of internal keys. *)
+module type AO_LINK_MAKER =
+  functor (K: Hash.S) ->
+    AO_LINK with type key = K.t and type value = K.t
+					      
 (** [RW_MAKER] is the signature exposed by any backend providing
     reactive read-write stores. [K] is the implementation of keys and
     [V] is the implementation of values.*)

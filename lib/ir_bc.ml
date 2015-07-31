@@ -142,7 +142,7 @@ module Make_ext (P: PRIVATE) = struct
     lock: Lwt_mutex.t;
   }
 
-  let config t = t.config
+  let config t = t.config 
   let task t = t.task
   let tag_t t = t.tag
   let commit_t t = t.commit

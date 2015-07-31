@@ -1,3 +1,19 @@
+(*
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2015 Mounir Nasr Allah <mounir@nasrallah.co>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *)
 
 open Lwt
 open Irmin
@@ -6,105 +22,93 @@ open Irmin
 module Log = Log.Make(struct let section = "AOI" end)
 
 
-module type PERSISTANT_INDEX = sig
-
-    type index
+		     
+module type LINK = sig
     type key
+    type value	   
+    type t
 
-    val find: index -> key
-    val add: index -> key -> unit
+    val create: config -> 'a Task.f -> ('a -> t) Lwt.t
+    val read: t -> key -> value option Lwt.t
+    val add: t -> key -> value -> unit Lwt.t
+    val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+    val mem: t -> key -> bool Lwt.t
     val length_index: int
-    val digest_index: Cstruct.t -> index
+    val digest_index: Cstruct.t -> key
     val length_key: int
-    val digest_key: Cstruct.t -> key
-
+    val digest_key: Cstruct.t -> value
   end
+			  
 
-
-module HT (* (IK:Irmin.Hash.S) *) (K:Irmin.Hash.S) = struct
-
-  type index = K.t
-  type key = K.t
-
-  let ht:(index, key) Hashtbl.t = Hashtbl.create 99
-
-  let find i = Hashtbl.find ht i
-
-  let add i k =
-    Hashtbl.add ht i k
-
-  let length_index = K.length
-
-  let digest_index = K.digest
-
-  let length_key = K.length
-
-  let digest_key = K.digest
-
-end
-
-module type PERSISTANT_INDEX_MAKER =
-  (*  functor (IK:Irmin.Hash.S) -> *)
+module type LINK_MAKER =
   functor (K:Irmin.Hash.S) ->
-  PERSISTANT_INDEX with type index = K.t and type key = K.t
+  LINK with type key = K.t and type value = K.t
 
-
-(*
-module Symlink (I:H) (E:H) : PERSISTANT_INDEX = struct (* A COMPLETER *)   end
-*)
-
-
-module type RAW = Tc.S0 with type t = Cstruct.t
-
-module type AO_MAKER_RAW =
-  functor (K: Irmin.Hash.S) ->
-  functor (V: RAW) ->
-  AO with type key = K.t and type value = V.t
-
-
-module AOI (P: PERSISTANT_INDEX_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) =
-struct
-
+					      
+module MEM (K: Irmin.Hash.S) = struct
+    include Irmin_mem.AO_LINK(K)
+    let length_index = K.length
+    let digest_index = K.digest
+    let length_key = K.length
+    let digest_key = K.digest
+  end
+				 (*
+				 
+module MEM (K: Irmin.Hash.S) (IO:IO) = struct
+    include Irmin_fs.AO_LINK(IO)
+    let length_index = K.length
+    let digest_index = K.digest
+    let length_key = K.length
+    let digest_key = K.digest
+  end				
+				  *)
+					     
+module AOI (I: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+    
     module AO = S(K)(Irmin.Contents.Cstruct)
-    module PI = P(K)
+    module PI = I(K)
+		 
     type key = K.t
-
     type value = V.t
-
-    type t = AO.t
+		   
+    type t = {ao: AO.t; pi: PI.t}
 
     let to_cstruct x = Tc.write_cstruct (module V) x
     let of_cstruct x = Tc.read_cstruct (module V) x
 
     let create config task =
-      AO.create config task
-
+      PI.create config task >>=
+	(fun x ->
+	 AO.create config task >>=
+	   (fun y ->
+	    return (fun a -> {ao = y a; pi = x a})))
+							    
     let task t =
-      AO.task t
+      AO.task t.ao
 
     let read t index =
-      try
-        let k = PI.find index in
-        AO.read t k >>= function
-        | None -> return_none
-        | Some v -> return (Some (of_cstruct v))
-      with
-      | Not_found -> return_none
-
+      PI.read t.pi index >>= fun key -> 
+      match key with
+      | None -> return_none
+      | Some k -> AO.read t.ao k >>= function
+		  | None -> return_none
+		  | Some v -> return (Some (of_cstruct v))
+     
 
     let read_exn t index =
-      try
-        let k = PI.find index in
-        AO.read_exn t k >>=
-          function v -> return (of_cstruct v)
-      with
-      | Not_found -> fail Not_found
+      PI.read t.pi index >>= fun key ->
+      match key with 
+      | None -> fail Not_found 
+      | Some k -> try
+		  AO.read_exn t.ao k >>=
+		    function v -> return (of_cstruct v)
+		with
+		| Not_found -> fail Not_found
 
 
     let mem t index =
       try
-        let k = PI.find index in
-        AO.mem t k
+	PI.mem t.pi index
       with
       | Not_found -> return_false 
 
@@ -112,22 +116,24 @@ struct
     let add t v =
       let value = to_cstruct v in
       let index = PI.digest_index value in
-      AO.add t value >>=
+      AO.add t.ao value >>=
         (fun x ->
-	 let _ = PI.add index x
-	 in
+	 let _ = PI.add t.pi index x in
 	 Lwt.return index)
 
-
-    (* TODO iter .... *)
-    let iter _t (_fn : key -> value Lwt.t -> unit Lwt.t) =
-      failwith "TODO"
-     (* AO.iter t (fun k v ->
-                 let v = v >|= fun v -> of_cstruct v in
-                 fn k v)
-*)
-
+	  
+    let iter t fn =
+      PI.iter t.pi (fun k v ->
+	       try 
+		 v >>= fun x ->
+		 AO.read_exn t.ao x >>= fun y ->
+	         let value = of_cstruct y in
+		 fn k (return value)
+	       with
+	       | Not_found -> fail Not_found
+	      )
+       
 end
 
-module Make (P: PERSISTANT_INDEX_MAKER) (AO: AO_MAKER_RAW) (RW:RW_MAKER) =
-  Irmin.Make (AOI(P)(AO)) (RW)
+  
+module Make (L: LINK_MAKER) (AO: AO_MAKER_RAW) (RW:RW_MAKER) = Irmin.Make (AOI(L)(AO)) (RW)

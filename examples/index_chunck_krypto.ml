@@ -1,4 +1,5 @@
 (*
+(*
 Simple example showing how to create and use a Git store.
 $ make # Compile
 $ ./git_store # Run
@@ -68,3 +69,4 @@ let () =
   Lwt_unix.run (main ())
 
 	       
+ *)

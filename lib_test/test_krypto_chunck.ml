@@ -41,6 +41,6 @@ let suite k =
     cont   = k;
     init   = clean;
     clean  = none;
-    store  = irf_store k;
+    store  = krypto_chunck_store k;
     config = Irmin_fs.config ~root:test_db ();
   }

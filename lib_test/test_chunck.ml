@@ -33,14 +33,18 @@ let init () =
 let clean () =
   Irmin_unix.uninstall_dir_polling_listener ();
   Lwt.return_unit
-      
+    
+let config = Irmin_fs.config ~root:test_db ()
+let config = Irmin_index.config ~conf:config ~size:99 ()
+let config = Irmin_chunck.config ~conf:config ~size:4096 ()
+    
 let suite k =
   {
     name   = "CHUNCK" ^ string_of_contents k;
     kind   = `Chunck;
     cont   = k;
-    init   = clean;
-    clean  = none;
-    store  = irf_store k;
-    config = Irmin_fs.config ~root:test_db ();
+    init   = init;
+    clean  = clean;
+    store  = chunck_store k;
+    config = config;
   }

@@ -90,7 +90,7 @@ Library "irmin-index"
   Path:             lib/index
   Findlibname:      index
   FindlibParent:    irmin
-  BuildDepends:     irmin
+  BuildDepends:     irmin, irmin.fs, irmin.mem
   Modules:          Irmin_index
 
 Library "irmin-chunck"
@@ -106,7 +106,7 @@ Document irmin
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib/
-  XOCamlbuildLibraries: irmin, irmin.mem, irmin.unix
+  XOCamlbuildLibraries: irmin, irmin.mem, irmin.unix, irmin.fs
 
 Executable irmin
   Build$:         flag(unix) && flag(http) && flag(git)
@@ -114,7 +114,7 @@ Executable irmin
   Path:           bin/
   MainIs:         main.ml
   CompiledObject: best
-  BuildDepends:   cmdliner, irmin, irmin.mem, irmin.unix
+  BuildDepends:   cmdliner, irmin, irmin.mem, irmin.unix, irmin.fs
 
 Executable test_irmin
   Path:           lib_test
@@ -122,7 +122,7 @@ Executable test_irmin
   Build$:         flag(tests) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.mem, irmin.unix, alcotest, nocrypto
+  BuildDepends:   irmin, irmin.mem, irmin.fs, irmin.unix, alcotest, nocrypto, irmin.chunck, irmin.krypto, irmin.index
 
 Test test_irmin
   Run$:             flag(tests) && flag(unix) && flag(http) && flag(git)

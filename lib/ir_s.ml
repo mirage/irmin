@@ -15,28 +15,28 @@
  *)
 
 module type STORE = sig
-  include Ir_bc.STORE
-  module Key: Ir_path.S with type t = key
-  module Val: Ir_contents.S with type t = value
-  module Tag: Ir_tag.S with type t = tag
-  module Head: Ir_hash.S with type t = head
-  module Private: sig
-    include Ir_bc.PRIVATE
-      with type Contents.value = value
-       and module Contents.Path = Key
-       and type Commit.key = head
-       and type Slice.t = slice
-       and type Tag.key = tag
-    val config: t -> Ir_conf.t
-    val contents_t: t -> Contents.t
-    val node_t: t -> Node.t
-    val commit_t: t -> Commit.t
-    val tag_t: t -> Tag.t
-    val read_node: t -> key -> Node.key option Lwt.t
-    val mem_node: t -> key -> bool Lwt.t
-    val update_node: t -> key -> Node.key -> unit Lwt.t
+    include Ir_bc.STORE
+    module Key: Ir_path.S with type t = key
+    module Val: Ir_contents.S with type t = value
+    module Tag: Ir_tag.S with type t = tag
+    module Head: Ir_hash.S with type t = head
+    module Private: sig
+	include Ir_bc.PRIVATE
+		with type Contents.value = value
+		 and module Contents.Path = Key
+		 and type Commit.key = head
+		 and type Slice.t = slice
+		 and type Tag.key = tag
+	val config: t -> Ir_conf.t
+	val contents_t: t -> Contents.t
+	val node_t: t -> Node.t
+	val commit_t: t -> Commit.t
+	val tag_t: t -> Tag.t
+	val read_node: t -> key -> Node.key option Lwt.t
+	val mem_node: t -> key -> bool Lwt.t
+	val update_node: t -> key -> Node.key -> unit Lwt.t
+      end
   end
-end
 
 module type MAKER =
   functor (C: Ir_contents.S) ->

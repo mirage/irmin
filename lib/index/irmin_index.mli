@@ -1,47 +1,56 @@
-open Irmin
-
-module type PERSISTANT_INDEX = sig
-  type index
-  type key
-
-  val find: index -> key
-  val add: index -> key -> unit
-  val length_index: int
-  val digest_index: Cstruct.t -> index
-  val length_key: int
-  val digest_key: Cstruct.t -> key
-
-  (*
-    type index
-    type key
-
-    val find: 'a -> 'b
-    val add: 'a -> 'b -> unit
-    val length_index: int
-    val digest_index: Cstruct.t -> 'a
-    val length_key: int
-    val digest_key: Cstruct.t -> 'b
-   *)
-
-end
-
-module type PERSISTANT_INDEX_MAKER =
-  (*  functor (IK:Irmin.Hash.S) -> *)
-  functor (K:Irmin.Hash.S) ->
-  PERSISTANT_INDEX with type index = K.t and type key = K.t
-
-
-module type RAW = Tc.S0 with type t = Cstruct.t
-
-module type AO_MAKER_RAW =
-  functor (K: Irmin.Hash.S) ->
-  functor (V: RAW) ->
-  AO with type key = K.t and type value = V.t
-
 (*
-module AOI (P: PERSISTANT_INDEX_MAKER) (*(IK:Irmin.Hash.S)*) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) : AO
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2015 Mounir Nasr Allah <mounir@nasrallah.co>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Make (P: PERSISTANT_INDEX_MAKER) (AO: AO_MAKER_RAW) (RW:RW_MAKER) : S_MAKER
+open Irmin
 
-module HT: PERSISTANT_INDEX_MAKER
+              
+(** Signature of a general persistant index, allow to find the internal key from an index *)
+module type LINK = sig
+    type key
+    type value	   
+    type t
+	   
+    val create: config -> 'a Task.f -> ('a -> t) Lwt.t
+    val read: t -> key -> value option Lwt.t
+    val add: t -> key -> value -> unit Lwt.t
+    val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+    val mem: t -> key -> bool Lwt.t
+    val length_index: int
+    val digest_index: Cstruct.t -> key
+    val length_key: int
+    val digest_key: Cstruct.t -> value
+end
+
+
+(** Functor for creating a persistant index *)				 
+module type LINK_MAKER =
+  functor (K:Irmin.Hash.S) ->
+  LINK with type key = K.t and type value = K.t
+
+					      
+(** Functor for creating a STORE with an persistant index *)
+module Make (L: LINK_MAKER) (AO: AO_MAKER_RAW) (RW:RW_MAKER) : S_MAKER
+
+									     
+(** Index module (in-memory) implemented with HashTable *)
+module MEM: LINK_MAKER
+
+	      
+(** Index module (file system) *)
+	      (*module FS: LINK_MAKER*)
+
+

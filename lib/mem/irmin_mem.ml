@@ -68,6 +68,17 @@ module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
     Hashtbl.replace t key value;
     Lwt.return key
 
+  end
+					   
+module AO_LINK (K: Irmin.Hash.S) = struct
+    
+  include RO(K)(K)
+
+  let add { t; _ } index key =
+    Log.debug "add link";
+    Hashtbl.replace t index key;
+    Lwt.return_unit
+
 end
 
 module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct

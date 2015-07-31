@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: b7a6821d356a9385b9bfe1ed137df988)
+# DO NOT EDIT (digest: 3af0546281f3da5ed8400bd8370484c1)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -136,6 +136,8 @@ true: annot, bin_annot
 <lib/index/*.ml{,i,y}>: pkg_tc
 <lib/index/*.ml{,i,y}>: pkg_uri
 <lib/index/*.ml{,i,y}>: use_irmin
+<lib/index/*.ml{,i,y}>: use_irmin-fs
+<lib/index/*.ml{,i,y}>: use_irmin-mem
 # Library irmin-chunck
 "lib/chunck/irmin-chunck.cmxs": use_irmin-chunck
 <lib/chunck/*.ml{,i,y}>: pkg_cstruct
@@ -222,9 +224,12 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_tc
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: use_irmin
+<lib_test/test.{native,byte}>: use_irmin-chunck
 <lib_test/test.{native,byte}>: use_irmin-fs
 <lib_test/test.{native,byte}>: use_irmin-git
 <lib_test/test.{native,byte}>: use_irmin-http
+<lib_test/test.{native,byte}>: use_irmin-index
+<lib_test/test.{native,byte}>: use_irmin-krypto
 <lib_test/test.{native,byte}>: use_irmin-mem
 <lib_test/test.{native,byte}>: use_irmin-unix
 <lib_test/*.ml{,i,y}>: pkg_alcotest
@@ -248,9 +253,12 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_tc
 <lib_test/*.ml{,i,y}>: pkg_uri
 <lib_test/*.ml{,i,y}>: use_irmin
+<lib_test/*.ml{,i,y}>: use_irmin-chunck
 <lib_test/*.ml{,i,y}>: use_irmin-fs
 <lib_test/*.ml{,i,y}>: use_irmin-git
 <lib_test/*.ml{,i,y}>: use_irmin-http
+<lib_test/*.ml{,i,y}>: use_irmin-index
+<lib_test/*.ml{,i,y}>: use_irmin-krypto
 <lib_test/*.ml{,i,y}>: use_irmin-mem
 <lib_test/*.ml{,i,y}>: use_irmin-unix
 # Executable test_index_chunck

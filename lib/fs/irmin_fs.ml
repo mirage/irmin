@@ -38,9 +38,16 @@ end
 (* ~path *)
 let root_key = Irmin.Private.Conf.root
 
-let config ?root () =
-  Irmin.Private.Conf.singleton root_key root
+let config ?conf ?root () =
+  let module C = Irmin.Private.Conf in
+  let config =
+    match conf with
+    | None ->  C.empty 
+    | Some v -> v
+  in
+  C.add config root_key root    
 
+	
 module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
@@ -93,7 +100,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | false -> return_none
     | true  ->
       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
-
+							  
   let keys_of_dir t fn =
     IO.rec_files (S.dir t.path) >>= fun files ->
     let files  =
@@ -133,9 +140,31 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
         catch (fun () -> IO.write_file ~temp_dir file value) (fun e -> fail e)
     end >>= fun () ->
     return key
+	   
+  end
 
+								    
+module AO_Link_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) = struct
+
+  include RO_ext(IO)(S)(K)(K)
+
+  let temp_dir t = t.path / "tmp"
+
+  let add t index key =
+    Log.debug "add link";
+    let file = file_of_key t index in
+    let value = K.to_raw key in
+    let temp_dir = temp_dir t in
+    begin
+      if Sys.file_exists file then
+        return_unit
+      else
+        catch (fun () -> IO.write_file ~temp_dir file value) (fun e -> fail e)
+    end >>= fun () ->
+    return_unit
+	   
 end
-
+								    
 module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   module RO = RO_ext(IO)(S)(K)(V)
@@ -225,16 +254,17 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.return b
 
 end
-
+							    
 module Make_ext (IO: IO) (L: LOCK) (Obj: Config) (Ref: Config)
     (C: Ir_contents.S)
     (T: Ir_tag.S)
     (H: Ir_hash.S)
 = struct
-  module AO = AO_ext(IO)(Obj)
-  module RW = RW_ext(IO)(L)(Ref)
-  include Irmin.Make(AO)(RW)(C)(T)(H)
-end
+    module AO = AO_ext(IO)(Obj)
+    module RW = RW_ext(IO)(L)(Ref)
+    include Irmin.Make(AO)(RW)(C)(T)(H)
+  end
+    
 
 let string_chop_prefix ~prefix str =
   let len = String.length prefix in
@@ -245,6 +275,24 @@ module Ref = struct
   let dir p = p / "refs"
   let file_of_key key = "refs" / key
   let key_of_file file = string_chop_prefix ~prefix:("refs" / "") file
+end
+
+module Link = struct
+
+  let dir t = t / "links"
+
+  let file_of_key k =
+    let len = String.length k in
+    let pre = String.sub k 0 2 in
+    let suf = String.sub k 2 (len - 2) in
+    "links" / pre / suf
+
+  let key_of_file path =
+    let path = string_chop_prefix ~prefix:("links" / "") path in
+    let path = Stringext.split ~on:'/' path in
+    let path = String.concat "" path in
+    path
+
 end
 
 module Obj = struct
@@ -266,5 +314,8 @@ module Obj = struct
 end
 
 module AO (IO: IO) = AO_ext (IO)(Obj)
+module AO_LINK (IO: IO) = AO_Link_ext (IO)(Link)
 module RW (IO: IO) (L: LOCK) = RW_ext (IO)(L)(Ref)
-module Make (IO: IO) (L: LOCK) = Make_ext (IO)(L)(Obj)(Ref)
+				      
+module Make (IO: IO) (L: LOCK) = Make_ext (IO)(L)(Obj)(Ref)	  
+

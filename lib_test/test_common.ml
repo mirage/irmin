@@ -133,3 +133,23 @@ let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Irmin_fs.Make)
 let http_store = create (module Irmin_http.Make)
 let git_store = create (module Irmin_git.FS)
+
+module AO = Irmin_fs.AO 
+module RW = Irmin_fs.RW
+
+(* Index store *)
+module INDEX = Irmin_index.HT
+	      
+(* Chunck store *)		       
+module CHUNCK = Irmin_chunck.CHUNCK_AO (AO)
+module MY_CHUNCK_STORE = Irmin_index.Make (INDEX) (CHUNCK) (RW)
+let chunck_store = create (module MY_CHUNCK_STORE)
+
+(* KryptoChunck store *)
+open Nocrypto.Cipher_block
+module KRYPTO_KM = Irmin_krypto.Make_km
+module AES_CTR = AES.CTR (Counters.Inc_LE)
+module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES_CTR)
+module KRYPTO = Irmin_krypto.KRYPTO_AO (KRYPTO_AES) (AO)
+module MY_KRYPTO_CHUNCK_STORE = Irmin_index.Make (INDEX) (CHUNCK) (RW)
+let krypto_chunck_store = create (module MY_KRYPTO_CHUNCK_STORE) 

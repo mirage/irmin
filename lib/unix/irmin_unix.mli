@@ -47,7 +47,7 @@ module Irmin_fs: sig
 
   (** {1 File-system Store} *)
 
-  val config: ?root:string -> unit -> Irmin.config
+  val config: ?conf:Irmin.config -> ?root:string -> unit -> Irmin.config
   (** Create a configuration value. [root] is the location of local
   repository's root.*)
 
@@ -96,7 +96,7 @@ module Irmin_git: sig
   (** {1 Git Store} *)
 
   val config:
-    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
+    ?conf: Irmin.config -> ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
   (** Create a configuration value.
 
       {ul
