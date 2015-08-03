@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 31b9fbea6f1b03f80d05399c1c49a743)
+# DO NOT EDIT (digest: 4a5a76218dcb699f1450dfbc42149ee5)
 version = "0.9.5"
 description = "A Distributed Version Control Database"
 requires =
@@ -46,7 +46,7 @@ package "krypto" (
 package "index" (
  version = "0.9.5"
  description = "A Distributed Version Control Database"
- requires = "irmin irmin.fs irmin.mem"
+ requires = "irmin irmin.mem irmin.unix irmin.fs"
  archive(byte) = "irmin-index.cma"
  archive(byte, plugin) = "irmin-index.cma"
  archive(native) = "irmin-index.cmxa"

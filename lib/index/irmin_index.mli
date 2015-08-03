@@ -29,10 +29,6 @@ module type LINK = sig
     val add: t -> key -> value -> unit Lwt.t
     val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
     val mem: t -> key -> bool Lwt.t
-    val length_index: int
-    val digest_index: Cstruct.t -> key
-    val length_key: int
-    val digest_key: Cstruct.t -> value
 end
 
 
@@ -51,6 +47,6 @@ module MEM: LINK_MAKER
 
 	      
 (** Index module (file system) *)
-	      (*module FS: LINK_MAKER*)
+module FS: LINK_MAKER
 
 

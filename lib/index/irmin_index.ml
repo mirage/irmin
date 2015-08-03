@@ -33,10 +33,6 @@ module type LINK = sig
     val add: t -> key -> value -> unit Lwt.t
     val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
     val mem: t -> key -> bool Lwt.t
-    val length_index: int
-    val digest_index: Cstruct.t -> key
-    val length_key: int
-    val digest_key: Cstruct.t -> value
   end
 			  
 
@@ -45,28 +41,15 @@ module type LINK_MAKER =
   LINK with type key = K.t and type value = K.t
 
 					      
-module MEM (K: Irmin.Hash.S) = struct
-    include Irmin_mem.AO_LINK(K)
-    let length_index = K.length
-    let digest_index = K.digest
-    let length_key = K.length
-    let digest_key = K.digest
-  end
-				 (*
-				 
-module MEM (K: Irmin.Hash.S) (IO:IO) = struct
-    include Irmin_fs.AO_LINK(IO)
-    let length_index = K.length
-    let digest_index = K.digest
-    let length_key = K.length
-    let digest_key = K.digest
-  end				
-				  *)
-					     
-module AOI (I: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+module MEM (K: Irmin.Hash.S) = Irmin_mem.AO_LINK(K)
+
+module FS (K: Irmin.Hash.S) = Irmin_unix.Irmin_fs.AO_LINK(K)
+				
+					      
+module AOI (L: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     
     module AO = S(K)(Irmin.Contents.Cstruct)
-    module PI = I(K)
+    module PI = L(K)
 		 
     type key = K.t
     type value = V.t
@@ -115,7 +98,7 @@ module AOI (I: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struc
 
     let add t v =
       let value = to_cstruct v in
-      let index = PI.digest_index value in
+      let index = K.digest value in
       AO.add t.ao value >>=
         (fun x ->
 	 let _ = PI.add t.pi index x in

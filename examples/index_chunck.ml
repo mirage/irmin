@@ -27,7 +27,7 @@ module CHUNCK = Irmin_chunck.CHUNCK_AO (AO)
 
 					     
 (* INDEX FOR KEY CONVERGENCE *)
-module LINK = Irmin_index.MEM
+module LINK = Irmin_index.FS
 
 		 
 (* STORE WITH THE APPLICATION OF FUNCTOR *)

@@ -45,7 +45,7 @@ let config ?conf ?root () =
     | None ->  C.empty 
     | Some v -> v
   in
-  C.add config root_key root    
+  C.add config root_key root
 
 	
 module type LOCK = sig
@@ -100,7 +100,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | false -> return_none
     | true  ->
       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
-							  
+
   let keys_of_dir t fn =
     IO.rec_files (S.dir t.path) >>= fun files ->
     let files  =
@@ -144,7 +144,7 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   end
 
 								    
-module AO_Link_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) = struct
+module AO_Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
 
   include RO_ext(IO)(S)(K)(K)
 
@@ -316,6 +316,5 @@ end
 module AO (IO: IO) = AO_ext (IO)(Obj)
 module AO_LINK (IO: IO) = AO_Link_ext (IO)(Link)
 module RW (IO: IO) (L: LOCK) = RW_ext (IO)(L)(Ref)
-				      
-module Make (IO: IO) (L: LOCK) = Make_ext (IO)(L)(Obj)(Ref)	  
 
+module Make (IO: IO) (L: LOCK) = Make_ext (IO)(L)(Obj)(Ref)

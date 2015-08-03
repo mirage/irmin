@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 3af0546281f3da5ed8400bd8370484c1)
+# DO NOT EDIT (digest: b68f5560f640e446641d7903a15a7eee)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -125,19 +125,30 @@ true: annot, bin_annot
 <lib/krypto/*.ml{,i,y}>: use_irmin
 # Library irmin-index
 "lib/index/irmin-index.cmxs": use_irmin-index
+<lib/index/*.ml{,i,y}>: pkg_cohttp.lwt
+<lib/index/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <lib/index/*.ml{,i,y}>: pkg_cstruct
 <lib/index/*.ml{,i,y}>: pkg_dolog
 <lib/index/*.ml{,i,y}>: pkg_ezjsonm
+<lib/index/*.ml{,i,y}>: pkg_ezjsonm.lwt
+<lib/index/*.ml{,i,y}>: pkg_git
+<lib/index/*.ml{,i,y}>: pkg_git.unix
 <lib/index/*.ml{,i,y}>: pkg_hex
 <lib/index/*.ml{,i,y}>: pkg_lwt
 <lib/index/*.ml{,i,y}>: pkg_mstruct
 <lib/index/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/index/*.ml{,i,y}>: pkg_re
+<lib/index/*.ml{,i,y}>: pkg_re.pcre
+<lib/index/*.ml{,i,y}>: pkg_re.perl
 <lib/index/*.ml{,i,y}>: pkg_stringext
 <lib/index/*.ml{,i,y}>: pkg_tc
 <lib/index/*.ml{,i,y}>: pkg_uri
 <lib/index/*.ml{,i,y}>: use_irmin
 <lib/index/*.ml{,i,y}>: use_irmin-fs
+<lib/index/*.ml{,i,y}>: use_irmin-git
+<lib/index/*.ml{,i,y}>: use_irmin-http
 <lib/index/*.ml{,i,y}>: use_irmin-mem
+<lib/index/*.ml{,i,y}>: use_irmin-unix
 # Library irmin-chunck
 "lib/chunck/irmin-chunck.cmxs": use_irmin-chunck
 <lib/chunck/*.ml{,i,y}>: pkg_cstruct

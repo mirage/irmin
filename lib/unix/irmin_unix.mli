@@ -54,6 +54,9 @@ module Irmin_fs: sig
   module AO: Irmin.AO_MAKER
   (** Append-only store maker. *)
 
+  module AO_LINK: Irmin.AO_LINK_MAKER
+  (** Append-only store maker for links. *)
+
   module RW: Irmin.RW_MAKER
   (** Read-write store maker. *)
 
@@ -123,6 +126,10 @@ module Irmin_git: sig
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
+(*  module AO_LINK (G: Git.Store.S): Irmin.AO_LINK_MAKER
+  (** Embed an append-only store for links into a Git repository. Contents will
+      be written in {i .git/links/}. *)
+ *)
   module RW (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S): Irmin.RW
     with type key = K.t and type value = V.t
   (** Embed a read-write store into a Git repository. Contents will be
@@ -229,3 +236,5 @@ end
 
 module Lock: LOCK
 (** An implementation of filesystem dotlocking. *)
+
+
