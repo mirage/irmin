@@ -82,12 +82,13 @@ module Task: sig
   val date: t -> int64
   (** Get the task date.
 
-      The date is computed by the user user when calling the
-      {{!Task.create}create} function. When available,
-      [Unix.gettimeofday ()] is a good value for such date. On more
+      The date provided by the user when calling the
+      {{!Task.create}create} function.  Rounding [Unix.gettimeofday ()]
+      (when available) is a good value for such date.  On more
       esoteric platforms, any monotonic counter is a fine value as
-      well. On the Git backend, the date will be translated into the
-      commit {e Date} field. *)
+      well.  On the Git backend, the date is translated into the
+      commit {e Date} field and is expected to be the number of
+      POSIX seconds (thus not counting leap seconds) since the Epoch. *)
 
   val owner: t -> string
   (** Get the task owner.
