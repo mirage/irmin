@@ -18,8 +18,10 @@ let () =
   let suite k =
     let depends = if k = `String then `Quick else `Slow in
     [
-      `Quick, Test_chunck.suite k;
-      `Quick, Test_krypto_chunck.suite k;
+      `Quick, Test_mem_link_chunck.suite k;
+      `Quick, Test_fs_link_chunck.suite k;
+      `Quick, Test_mem_link_chunck_krypto.suite k;
+      `Quick, Test_fs_link_chunck_krypto.suite k;
       `Quick , Test_memory.suite k;
       `Quick , Test_fs.suite k;
       `Quick , Test_git.suite k;

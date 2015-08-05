@@ -110,7 +110,14 @@ let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
     in
     let module S = Irmin.Basic(B)(C) in (module S)
 
-type kind = [`Mem | `Fs | `Git | `Krypto_Chunck | `Chunck | `Http of kind]
+type kind = [`Mem
+	    | `Fs
+	    | `Git
+	    | `Link_FS_Chunck_Krypto
+	    | `Link_MEM_Chunck_Krypto
+	    | `Link_FS_Chunck
+	    | `Link_MEM_Chunck
+	    | `Http of kind]
 
 type t = {
   name  : string;
@@ -130,26 +137,42 @@ let string_of_contents = function
   | `String -> ""
 
 let mem_store = create (module Irmin_mem.Make)
-let irf_store = create (module Irmin_fs.Make)
+let fs_store = create (module Irmin_fs.Make)
 let http_store = create (module Irmin_http.Make)
 let git_store = create (module Irmin_git.FS)
 
 module AO = Irmin_fs.AO 
 module RW = Irmin_fs.RW
 
-(* Index store *)
-module INDEX = Irmin_index.HT
-	      
-(* Chunck store *)		       
-module CHUNCK = Irmin_chunck.CHUNCK_AO (AO)
-module MY_CHUNCK_STORE = Irmin_index.Make (INDEX) (CHUNCK) (RW)
-let chunck_store = create (module MY_CHUNCK_STORE)
+(* Links store with mem *)
+module LINK_MEM = Irmin_link.MEM
 
-(* KryptoChunck store *)
+(* Links store with FS *)
+module LINK_FS = Irmin_link.FS
+	      
+(* Chunck store with mem *)		       
+module CHUNCK = Irmin_chunck.CHUNCK_AO (AO)
+
+(* Links on memory and chunck store*)
+module MEM_CHUNCK_STORE = Irmin_link.Make (LINK_MEM) (CHUNCK) (RW)
+let link_mem_chunck_store = create (module MEM_CHUNCK_STORE)
+
+(* Links on file-system and chunck store*)
+module FS_CHUNCK_STORE = Irmin_link.Make (LINK_FS) (CHUNCK) (RW)
+let link_fs_chunck_store = create (module FS_CHUNCK_STORE)
+			  
+(* Krypto and Chunck *)
 open Nocrypto.Cipher_block
 module KRYPTO_KM = Irmin_krypto.Make_km
 module AES_CTR = AES.CTR (Counters.Inc_LE)
 module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES_CTR)
-module KRYPTO = Irmin_krypto.KRYPTO_AO (KRYPTO_AES) (AO)
-module MY_KRYPTO_CHUNCK_STORE = Irmin_index.Make (INDEX) (CHUNCK) (RW)
-let krypto_chunck_store = create (module MY_KRYPTO_CHUNCK_STORE) 
+module CHUNCK_KRYPTO = Irmin_krypto.KRYPTO_AO (KRYPTO_AES) (CHUNCK)
+
+(* Links on memory, chunck and krypto store*)
+module MEM_KRYPTO_CHUNCK_STORE = Irmin_link.Make (LINK_MEM) (CHUNCK_KRYPTO) (RW)
+let link_mem_chunck_krypto_store = create (module MEM_KRYPTO_CHUNCK_STORE)
+
+(* Links on file-system. chunck and krypto store*)
+module FS_KRYPTO_CHUNCK_STORE = Irmin_link.Make (LINK_FS) (CHUNCK_KRYPTO) (RW)
+let link_fs_chunck_krypto_store = create (module FS_KRYPTO_CHUNCK_STORE)
+

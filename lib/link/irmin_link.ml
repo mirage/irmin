@@ -30,7 +30,7 @@ module type LINK = sig
 
     val create: config -> 'a Task.f -> ('a -> t) Lwt.t
     val read: t -> key -> value option Lwt.t
-    val add: t -> key -> value -> unit Lwt.t
+    val add: t -> key -> value -> key Lwt.t
     val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
     val mem: t -> key -> bool Lwt.t
   end
@@ -101,8 +101,7 @@ module AOI (L: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struc
       let index = K.digest value in
       AO.add t.ao value >>=
         (fun x ->
-	 let _ = PI.add t.pi index x in
-	 Lwt.return index)
+	 PI.add t.pi index x)
 
 	  
     let iter t fn =

@@ -26,7 +26,7 @@ module type LINK = sig
 	   
     val create: config -> 'a Task.f -> ('a -> t) Lwt.t
     val read: t -> key -> value option Lwt.t
-    val add: t -> key -> value -> unit Lwt.t
+    val add: t -> key -> value -> key Lwt.t
     val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
     val mem: t -> key -> bool Lwt.t
 end

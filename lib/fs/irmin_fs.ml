@@ -99,7 +99,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     mem t key >>= function
     | false -> return_none
     | true  ->
-      IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
+       IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
 
   let keys_of_dir t fn =
     IO.rec_files (S.dir t.path) >>= fun files ->
@@ -153,7 +153,7 @@ module AO_Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
   let add t index key =
     Log.debug "add link";
     let file = file_of_key t index in
-    let value = K.to_raw key in
+    let value =  Tc.write_cstruct (module K) key in
     let temp_dir = temp_dir t in
     begin
       if Sys.file_exists file then
@@ -161,7 +161,7 @@ module AO_Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
       else
         catch (fun () -> IO.write_file ~temp_dir file value) (fun e -> fail e)
     end >>= fun () ->
-    return_unit
+    return index
 	   
 end
 								    

@@ -35,16 +35,15 @@ let clean () =
   Lwt.return_unit
     
 let config = Irmin_fs.config ~root:test_db ()
-let config = Irmin_index.config ~conf:config ~size:99 ()
 let config = Irmin_chunck.config ~conf:config ~size:4096 ()
     
 let suite k =
   {
-    name   = "CHUNCK" ^ string_of_contents k;
-    kind   = `Chunck;
+    name   = "LINK FS - CHUNCK" ^ string_of_contents k;
+    kind   = `Link_FS_Chunck;
     cont   = k;
     init   = init;
     clean  = clean;
-    store  = chunck_store k;
+    store  = link_fs_chunck_store k;
     config = config;
   }

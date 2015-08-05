@@ -388,7 +388,7 @@ module type AO_LINK = sig
 
   include RO
 
-  val add: t -> key -> value -> unit Lwt.t
+  val add: t -> key -> value -> key Lwt.t
   (** Write the key value to the store with a given
       index key. *)
 

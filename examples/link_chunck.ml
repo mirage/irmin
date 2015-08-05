@@ -27,11 +27,11 @@ module CHUNCK = Irmin_chunck.CHUNCK_AO (AO)
 
 					     
 (* INDEX FOR KEY CONVERGENCE *)
-module LINK = Irmin_index.FS
+module LINK = Irmin_link.FS
 
 		 
 (* STORE WITH THE APPLICATION OF FUNCTOR *)
-module MY_STORE = Irmin_index.Make (LINK) (CHUNCK) (RW)
+module MY_STORE = Irmin_link.Make (LINK) (CHUNCK) (RW)
 
 let store = Irmin.basic (module MY_STORE) (module Irmin.Contents.String)
 			

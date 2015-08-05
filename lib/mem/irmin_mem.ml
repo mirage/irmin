@@ -77,7 +77,7 @@ module AO_LINK (K: Irmin.Hash.S) = struct
   let add { t; _ } index key =
     Log.debug "add link";
     Hashtbl.replace t index key;
-    Lwt.return_unit
+    Lwt.return index
 
 end
 

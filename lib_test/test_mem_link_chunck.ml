@@ -16,7 +16,7 @@
 
 open Test_common
 
-let test_db = "test-db-krypto-chunck"
+let test_db = "test-db-chunck"
 
 let polling =
   try float_of_string (Sys.getenv "IRMIN_FS_POLLING")
@@ -33,14 +33,17 @@ let init () =
 let clean () =
   Irmin_unix.uninstall_dir_polling_listener ();
   Lwt.return_unit
-      
+    
+let config = Irmin_fs.config ~root:test_db ()
+let config = Irmin_chunck.config ~conf:config ~size:4096 ()
+    
 let suite k =
   {
-    name   = "CHUNCK" ^ string_of_contents k;
-    kind   = `Krypto_Chunck;
+    name   = "LINK MEM - CHUNCK" ^ string_of_contents k;
+    kind   = `Link_MEM_Chunck;
     cont   = k;
-    init   = clean;
-    clean  = none;
-    store  = krypto_chunck_store k;
-    config = Irmin_fs.config ~root:test_db ();
+    init   = init;
+    clean  = clean;
+    store  = link_mem_chunck_store k;
+    config = config;
   }

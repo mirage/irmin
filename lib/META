@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4a5a76218dcb699f1450dfbc42149ee5)
+# DO NOT EDIT (digest: e4fec6323cfea172347ca23f8a9bf9c3)
 version = "0.9.5"
 description = "A Distributed Version Control Database"
 requires =
@@ -32,6 +32,17 @@ package "mem" (
  exists_if = "irmin-mem.cma"
 )
 
+package "link" (
+ version = "0.9.5"
+ description = "A Distributed Version Control Database"
+ requires = "irmin irmin.mem irmin.unix irmin.fs"
+ archive(byte) = "irmin-link.cma"
+ archive(byte, plugin) = "irmin-link.cma"
+ archive(native) = "irmin-link.cmxa"
+ archive(native, plugin) = "irmin-link.cmxs"
+ exists_if = "irmin-link.cma"
+)
+
 package "krypto" (
  version = "0.9.5"
  description = "A Distributed Version Control Database"
@@ -41,17 +52,6 @@ package "krypto" (
  archive(native) = "irmin-krypto.cmxa"
  archive(native, plugin) = "irmin-krypto.cmxs"
  exists_if = "irmin-krypto.cma"
-)
-
-package "index" (
- version = "0.9.5"
- description = "A Distributed Version Control Database"
- requires = "irmin irmin.mem irmin.unix irmin.fs"
- archive(byte) = "irmin-index.cma"
- archive(byte, plugin) = "irmin-index.cma"
- archive(native) = "irmin-index.cmxa"
- archive(native, plugin) = "irmin-index.cmxs"
- exists_if = "irmin-index.cma"
 )
 
 package "http" (

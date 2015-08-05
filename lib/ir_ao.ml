@@ -34,7 +34,7 @@ module type AO_MAKER_RAW =
 
 module type STORE_LINK = sig
   include Ir_ro.STORE
-  val add: t -> key -> value -> unit Lwt.t
+  val add: t -> key -> value -> key Lwt.t
 end
 
 module type AO_LINK_MAKER =

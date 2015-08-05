@@ -86,12 +86,12 @@ Library "irmin-krypto"
   BuildDepends:     irmin, nocrypto
   Modules:          Irmin_krypto, Irmin_krypto_cipher, Irmin_krypto_km
 
-Library "irmin-index"
-  Path:             lib/index
-  Findlibname:      index
+Library "irmin-link"
+  Path:             lib/link
+  Findlibname:      link
   FindlibParent:    irmin
   BuildDepends:     irmin, irmin.mem, irmin.unix, irmin.fs
-  Modules:          Irmin_index
+  Modules:          Irmin_link
 
 Library "irmin-chunck"
   Path:             lib/chunck
@@ -122,28 +122,28 @@ Executable test_irmin
   Build$:         flag(tests) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.mem, irmin.fs, irmin.unix, alcotest, nocrypto, irmin.chunck, irmin.krypto, irmin.index
+  BuildDepends:   irmin, irmin.mem, irmin.fs, irmin.unix, alcotest, nocrypto, irmin.chunck, irmin.krypto, irmin.link
 
 Test test_irmin
   Run$:             flag(tests) && flag(unix) && flag(http) && flag(git)
   Command:          $test_irmin -q
   WorkingDirectory: lib_test
 
-Executable test_index_chunck
+Executable test_link_chunck
  Path:           examples/
- MainIs:         index_chunck.ml
+ MainIs:         link_chunck.ml
  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
  CompiledObject: best
  Install:        false
- BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index, irmin.chunck
+ BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.link, irmin.chunck
 
-Executable test_index_chunck_krypto
+Executable test_link_chunck_krypto
  Path:           examples/
- MainIs:         index_chunck_krypto.ml
+ MainIs:         link_chunck_krypto.ml
  Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
  CompiledObject: best
  Install:        false
- BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.index, irmin.chunck
+ BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.link, irmin.chunck
 
 Executable test_git_store
   Path:           examples/
