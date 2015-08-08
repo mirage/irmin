@@ -194,7 +194,7 @@ module Irmin_http_server: sig
 
     val listen: t -> ?timeout:int -> ?strict:bool -> ?hooks:hooks ->
       Uri.t -> unit Lwt.t
-    (** [start_server t uri] start a server serving the contents of
+    (** [listen t uri] start a server serving the contents of
         [t] at the address [uri]. Close clients' connections after
         [timeout] seconds of inactivity. If [strict] is set (by
         default it is not), incoming connections will fail if they do
