@@ -54,8 +54,10 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   type t = {
     path: string;
     task: Irmin.task;
+    config: Irmin.config;
   }
 
+  let config t = t.config
   let task t = t.task
 
   let get_path config =
@@ -66,7 +68,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let create config task =
     get_path config >>= fun path ->
     IO.mkdir path >>= fun () ->
-    return (fun a -> { path; task = task a })
+    return (fun a -> { config; path; task = task a })
 
   let file_of_key { path; _ } key =
     path / S.file_of_key (K.to_hum key)
@@ -154,6 +156,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     let w = W.create () in
     Lwt.return (fun a -> { t = t a; w })
 
+  let config t = RO.config t.t
   let task t = RO.task t.t
   let read t = RO.read t.t
   let read_exn t = RO.read_exn t.t

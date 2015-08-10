@@ -205,17 +205,18 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   include Helper (Client)
 
-  type t = { mutable uri: Uri.t; task: Irmin.task; }
+  type t = { mutable uri: Uri.t; task: Irmin.task; config: Irmin.config; }
   type key = K.t
   type value = V.t
 
   let get t = get t.uri
+  let config t = t.config
   let task t = t.task
   let uri t = t.uri
 
   let create config task =
     let uri = get_uri config in
-    Lwt.return (fun a -> { uri; task = task a})
+    Lwt.return (fun a -> { config; uri; task = task a})
 
   let read t key = get t ["read"; K.to_hum key] (module Tc.Option(V))
 
@@ -276,6 +277,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.return (fun a -> { t = t a; w; keys; glob })
 
   let uri t = RO.uri t.t
+  let config t = RO.config t.t
   let task t = RO.task t.t
   let read t = RO.read t.t
   let read_exn t = RO.read_exn t.t
@@ -464,6 +466,7 @@ struct
     | `Empty  -> uri_append base ["empty"]
     | `Head h -> uri_append base ["tree"; Head.to_hum h]
 
+  let config t = S.config t.h
   let task t = S.task t.h
 
   let set_head t = function

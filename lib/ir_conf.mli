@@ -47,5 +47,6 @@ val is_empty : t -> bool
 val mem : t -> 'a key -> bool
 val add : t -> 'a key -> 'a -> t
 val rem : t -> 'a key -> t
+val union : t -> t -> t
 val find : t -> 'a key -> 'a option
 val get : t -> 'a key -> 'a

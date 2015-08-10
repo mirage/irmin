@@ -177,6 +177,7 @@ module Internal (Node: NODE) = struct
     Lwt.return (fun _ -> t)
 
   let task = `Views_do_not_have_task
+  let config _ = Ir_conf.empty
 
   let sub t path =
     let rec aux node path =

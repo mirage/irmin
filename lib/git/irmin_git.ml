@@ -122,17 +122,16 @@ module Make_ext
     }
 
     type key = K.t
-
     type value = V.t
+    let task t = t.task
+    let config t = t.config
+    let git_of_key k = GK.of_raw (K.to_raw k)
+    let key_of_git k = K.of_raw (GK.to_raw k)
 
     let create config task =
       let root = Irmin.Private.Conf.get config Conf.root in
       G.create ?root () >>= fun t ->
       return (fun a -> { task = task a; config; t })
-
-    let task t = t.task
-    let git_of_key k = GK.of_raw (K.to_raw k)
-    let key_of_git k = K.of_raw (GK.to_raw k)
 
     let mem { t; _ } key =
       let key = git_of_key key in
@@ -469,6 +468,7 @@ module Make_ext
     type value = Val.t
     type watch = W.watch * (unit -> unit)
     let task t = t.task
+    let config t = t.config
 
     let tag_of_git r =
       let str = String.trim @@ Git.Reference.to_raw r in

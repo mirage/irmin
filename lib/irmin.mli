@@ -348,7 +348,10 @@ module type RO = sig
       [task] is the provided by the user. The operation might be
       blocking, depending on the backend. *)
 
-  val task: t -> Task.t
+  val config: t -> config
+  (** [config t] is [t]'s config. *)
+
+  val task: t -> task
   (** [task t] is the task associated to the store handle [t]. *)
 
   val read: t -> key -> value option Lwt.t
@@ -1093,6 +1096,9 @@ module Private: sig
 
     val rem: t -> 'a key -> t
     (** [rem c k] is [c] with [k] unbound. *)
+
+    val union: t -> t -> t
+    (** [union r s] is the union of the configurations [r] and [s]. *)
 
     val find: t -> 'a key -> 'a option
     (** [find c k] is [k]'s mapping in [c], if any. *)
