@@ -36,11 +36,11 @@ module Task (N: sig val name: string end) (C: V1.CLOCK) = struct
     Irmin.Task.create ~date ~owner:N.name msg
 end
 
-module KV_RO (C: CONTEXT) = struct
+module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
 
   open Lwt.Infix
 
-  module S = Irmin.Basic(Irmin_git.Memory(C))(Irmin.Contents.Cstruct)
+  module S = Irmin.Basic(Irmin_git.Memory(C)(I))(Irmin.Contents.Cstruct)
   module Sync = Irmin.Sync(S)
   let config = Irmin_mem.config ()
 

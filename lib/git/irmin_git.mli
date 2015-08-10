@@ -29,12 +29,18 @@ module type LOCK = sig
 end
 
 module AO (G: Git.Store.S): Irmin.AO_MAKER
+
 module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S):
   Irmin.RW with type key = K.t and type value = V.t
 
-module Memory (IO: Git.Sync.IO): Irmin.S_MAKER
-module FS (IO: Git.Sync.IO) (L: LOCK) (FS: Git.FS.IO): Irmin.S_MAKER
+module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S):
+  Irmin.S_MAKER
+
+module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (L: LOCK) (FS: Git.FS.IO):
+  Irmin.S_MAKER
 
 module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
-module Memory_ext (C: CONTEXT) (IO: Git.Sync.IO with type ctx = C.t):
+
+module Memory_ext (C: CONTEXT)
+    (IO: Git.Sync.IO with type ctx = C.t) (I: Git.Inflate.S):
   Irmin.S_MAKER
