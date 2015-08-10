@@ -333,6 +333,17 @@ module Make (S: Irmin.S) = struct
       History.closure (h 6) ~min:[] ~max:[kr2] >>= fun kr2s ->
       assert_equal (module Set(KC)) "g2" [kr1; kr2] kr2s;
 
+      if x.kind = `Git then (
+        let module I = Irmin_git.Internals(S) in
+        I.commit_of_head (t 0) kr1 >|= function
+        | None   -> Alcotest.fail "cannot read the Git internals"
+        | Some c ->
+          let name = c.Git.Commit.author.Git.User.name in
+          Alcotest.(check string) "author" "test" name;
+      ) else (
+        Lwt.return_unit
+      ) >>= fun () ->
+
       return_unit
     in
     run x test
