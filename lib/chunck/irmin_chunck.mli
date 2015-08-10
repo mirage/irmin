@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2015 Mounir Nasr Allah <mounir@nasrallah.co>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,29 +15,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Append-only stores. *)
+(** Chunck Module 
 
-module type STORE = sig
-  include Ir_ro.STORE
-  val add: t -> value -> key Lwt.t
-end
+     All functions for manipulate chuncks representation, a chunck is represented as above : 
+      --------------------------
+     | uint8_t type             | 
+     ---------------------------
+     | uint16_t chunck_length   |
+     ---------------------------
+     | byte data[data_length]   |
+     ---------------------------
+     Where type define if the chunck contain data or indirection, size represent the data length to 
+     consider, and data field is the payload. 
+ *)
 
-module type MAKER =
-  functor (K: Ir_hash.S) ->
-  functor (V: Tc.S0) ->
-    STORE with type key = K.t and type value = V.t
 
-module type RAW = Tc.S0 with type t = Cstruct.t					
-module type AO_MAKER_RAW =
-  functor (K: Ir_hash.S) ->
-  functor (V: RAW) ->
-  STORE with type key = K.t and type value = V.t						 
+open Irmin
 
-module type STORE_LINK = sig
-  include Ir_ro.STORE
-  val add: t -> key -> value -> key Lwt.t
-end
+					    
+val config: ?conf:Irmin.config -> ?size:int -> unit -> Irmin.config
+(** Configuration values. *)
+ 
+module CHUNCK_AO (S:AO_MAKER_RAW): AO_MAKER_RAW
+				       
 
-module type AO_LINK_MAKER =
-  functor (K: Ir_hash.S) ->
-  STORE_LINK with type key = K.t and type value = K.t

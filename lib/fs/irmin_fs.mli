@@ -16,7 +16,7 @@
 
 (** Disk persistence. *)
 
-val config: ?root:string -> unit -> Irmin.config
+val config: ?conf:Irmin.config -> ?root:string -> unit -> Irmin.config
 
 module type IO = sig
 
@@ -41,7 +41,7 @@ module type IO = sig
 
   val write_file: string -> ?temp_dir:string -> Cstruct.t -> unit Lwt.t
   (** Write some contents to a new file. *)
-
+									
 end
 
 module type LOCK = sig
@@ -55,9 +55,11 @@ module type LOCK = sig
 end
 
 module AO (IO: IO): Irmin.AO_MAKER
+module AO_LINK (IO: IO): Irmin.AO_LINK_MAKER
 module RW (IO: IO) (L: LOCK): Irmin.RW_MAKER
+				
 module Make (IO: IO) (L: LOCK): Irmin.S_MAKER
-
+				  
 (** {2 Advanced configuration} *)
 
 module type Config = sig
@@ -77,5 +79,6 @@ module type Config = sig
 end
 
 module AO_ext (IO: IO) (C: Config): Irmin.AO_MAKER
+module AO_Link_ext (IO: IO) (C: Config): Irmin.AO_LINK_MAKER
 module RW_ext (IO: IO) (L: LOCK) (C: Config): Irmin.RW_MAKER
 module Make_ext (IO: IO) (L: LOCK) (Obj: Config) (Ref: Config): Irmin.S_MAKER

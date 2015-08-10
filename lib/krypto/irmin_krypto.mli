@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2015 Mounir Nasr Allah <mounir@nasrallah.co>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,29 +15,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Append-only stores. *)
+(**
 
-module type STORE = sig
-  include Ir_ro.STORE
-  val add: t -> value -> key Lwt.t
-end
+  Krypto : Irmin Crypto Backend
+  The kryptonite for protect your data of nasties
 
-module type MAKER =
-  functor (K: Ir_hash.S) ->
-  functor (V: Tc.S0) ->
-    STORE with type key = K.t and type value = V.t
+  TODO :
+  Padding into blobs, and cut blobs on a defined size block -> We don't want to guess the size of content
 
-module type RAW = Tc.S0 with type t = Cstruct.t					
-module type AO_MAKER_RAW =
-  functor (K: Ir_hash.S) ->
-  functor (V: RAW) ->
-  STORE with type key = K.t and type value = V.t						 
+*)
 
-module type STORE_LINK = sig
-  include Ir_ro.STORE
-  val add: t -> key -> value -> key Lwt.t
-end
+open Irmin
 
-module type AO_LINK_MAKER =
-  functor (K: Ir_hash.S) ->
-  STORE_LINK with type key = K.t and type value = K.t
+
+module type CIPHER = Irmin_krypto_cipher.CIPHER
+module Make_km = Irmin_krypto_km.Make
+module Make_cipher = Irmin_krypto_cipher.Make_CTR
+
+
+module KRYPTO_AO (C: CIPHER) (S:AO_MAKER_RAW): AO_MAKER_RAW

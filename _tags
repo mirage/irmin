@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a01627fab461eb4eb18587510bdcbdf2)
+# DO NOT EDIT (digest: 0d52d0a83d00bcc276588657d8520dfa)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -109,6 +109,59 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: use_irmin-git
 <lib/unix/*.ml{,i,y}>: use_irmin-http
 <lib/unix/*.ml{,i,y}>: use_irmin-mem
+# Library irmin-krypto
+"lib/krypto/irmin-krypto.cmxs": use_irmin-krypto
+<lib/krypto/*.ml{,i,y}>: pkg_cstruct
+<lib/krypto/*.ml{,i,y}>: pkg_dolog
+<lib/krypto/*.ml{,i,y}>: pkg_ezjsonm
+<lib/krypto/*.ml{,i,y}>: pkg_hex
+<lib/krypto/*.ml{,i,y}>: pkg_lwt
+<lib/krypto/*.ml{,i,y}>: pkg_mstruct
+<lib/krypto/*.ml{,i,y}>: pkg_nocrypto
+<lib/krypto/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/krypto/*.ml{,i,y}>: pkg_stringext
+<lib/krypto/*.ml{,i,y}>: pkg_tc
+<lib/krypto/*.ml{,i,y}>: pkg_uri
+<lib/krypto/*.ml{,i,y}>: use_irmin
+# Library irmin-link
+"lib/link/irmin-link.cmxs": use_irmin-link
+<lib/link/*.ml{,i,y}>: pkg_cohttp.lwt
+<lib/link/*.ml{,i,y}>: pkg_cohttp.lwt-core
+<lib/link/*.ml{,i,y}>: pkg_cstruct
+<lib/link/*.ml{,i,y}>: pkg_dolog
+<lib/link/*.ml{,i,y}>: pkg_ezjsonm
+<lib/link/*.ml{,i,y}>: pkg_ezjsonm.lwt
+<lib/link/*.ml{,i,y}>: pkg_git
+<lib/link/*.ml{,i,y}>: pkg_git.unix
+<lib/link/*.ml{,i,y}>: pkg_hex
+<lib/link/*.ml{,i,y}>: pkg_lwt
+<lib/link/*.ml{,i,y}>: pkg_mstruct
+<lib/link/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/link/*.ml{,i,y}>: pkg_re
+<lib/link/*.ml{,i,y}>: pkg_re.pcre
+<lib/link/*.ml{,i,y}>: pkg_re.perl
+<lib/link/*.ml{,i,y}>: pkg_stringext
+<lib/link/*.ml{,i,y}>: pkg_tc
+<lib/link/*.ml{,i,y}>: pkg_uri
+<lib/link/*.ml{,i,y}>: use_irmin
+<lib/link/*.ml{,i,y}>: use_irmin-fs
+<lib/link/*.ml{,i,y}>: use_irmin-git
+<lib/link/*.ml{,i,y}>: use_irmin-http
+<lib/link/*.ml{,i,y}>: use_irmin-mem
+<lib/link/*.ml{,i,y}>: use_irmin-unix
+# Library irmin-chunck
+"lib/chunck/irmin-chunck.cmxs": use_irmin-chunck
+<lib/chunck/*.ml{,i,y}>: pkg_cstruct
+<lib/chunck/*.ml{,i,y}>: pkg_dolog
+<lib/chunck/*.ml{,i,y}>: pkg_ezjsonm
+<lib/chunck/*.ml{,i,y}>: pkg_hex
+<lib/chunck/*.ml{,i,y}>: pkg_lwt
+<lib/chunck/*.ml{,i,y}>: pkg_mstruct
+<lib/chunck/*.ml{,i,y}>: pkg_ocamlgraph
+<lib/chunck/*.ml{,i,y}>: pkg_stringext
+<lib/chunck/*.ml{,i,y}>: pkg_tc
+<lib/chunck/*.ml{,i,y}>: pkg_uri
+<lib/chunck/*.ml{,i,y}>: use_irmin
 # Library irmin-mirage
 "lib/mirage/irmin-mirage.cmxs": use_irmin-mirage
 <lib/mirage/*.ml{,i,y}>: pkg_cohttp.lwt
@@ -198,6 +251,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_hex
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_mstruct
+<lib_test/test.{native,byte}>: pkg_nocrypto
 <lib_test/test.{native,byte}>: pkg_ocamlgraph
 <lib_test/test.{native,byte}>: pkg_re
 <lib_test/test.{native,byte}>: pkg_re.pcre
@@ -206,9 +260,12 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_tc
 <lib_test/test.{native,byte}>: pkg_uri
 <lib_test/test.{native,byte}>: use_irmin
+<lib_test/test.{native,byte}>: use_irmin-chunck
 <lib_test/test.{native,byte}>: use_irmin-fs
 <lib_test/test.{native,byte}>: use_irmin-git
 <lib_test/test.{native,byte}>: use_irmin-http
+<lib_test/test.{native,byte}>: use_irmin-krypto
+<lib_test/test.{native,byte}>: use_irmin-link
 <lib_test/test.{native,byte}>: use_irmin-mem
 <lib_test/test.{native,byte}>: use_irmin-unix
 <lib_test/*.ml{,i,y}>: pkg_alcotest
@@ -223,6 +280,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_hex
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_mstruct
+<lib_test/*.ml{,i,y}>: pkg_nocrypto
 <lib_test/*.ml{,i,y}>: pkg_ocamlgraph
 <lib_test/*.ml{,i,y}>: pkg_re
 <lib_test/*.ml{,i,y}>: pkg_re.pcre
@@ -231,11 +289,76 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_tc
 <lib_test/*.ml{,i,y}>: pkg_uri
 <lib_test/*.ml{,i,y}>: use_irmin
+<lib_test/*.ml{,i,y}>: use_irmin-chunck
 <lib_test/*.ml{,i,y}>: use_irmin-fs
 <lib_test/*.ml{,i,y}>: use_irmin-git
 <lib_test/*.ml{,i,y}>: use_irmin-http
+<lib_test/*.ml{,i,y}>: use_irmin-krypto
+<lib_test/*.ml{,i,y}>: use_irmin-link
 <lib_test/*.ml{,i,y}>: use_irmin-mem
 <lib_test/*.ml{,i,y}>: use_irmin-unix
+# Executable test_link_chunck
+<examples/link_chunck.{native,byte}>: pkg_cohttp.lwt
+<examples/link_chunck.{native,byte}>: pkg_cohttp.lwt-core
+<examples/link_chunck.{native,byte}>: pkg_cstruct
+<examples/link_chunck.{native,byte}>: pkg_dolog
+<examples/link_chunck.{native,byte}>: pkg_ezjsonm
+<examples/link_chunck.{native,byte}>: pkg_ezjsonm.lwt
+<examples/link_chunck.{native,byte}>: pkg_git
+<examples/link_chunck.{native,byte}>: pkg_git.unix
+<examples/link_chunck.{native,byte}>: pkg_hex
+<examples/link_chunck.{native,byte}>: pkg_lwt
+<examples/link_chunck.{native,byte}>: pkg_mstruct
+<examples/link_chunck.{native,byte}>: pkg_nocrypto
+<examples/link_chunck.{native,byte}>: pkg_ocamlgraph
+<examples/link_chunck.{native,byte}>: pkg_re
+<examples/link_chunck.{native,byte}>: pkg_re.pcre
+<examples/link_chunck.{native,byte}>: pkg_re.perl
+<examples/link_chunck.{native,byte}>: pkg_stringext
+<examples/link_chunck.{native,byte}>: pkg_tc
+<examples/link_chunck.{native,byte}>: pkg_uri
+<examples/link_chunck.{native,byte}>: use_irmin
+<examples/link_chunck.{native,byte}>: use_irmin-chunck
+<examples/link_chunck.{native,byte}>: use_irmin-fs
+<examples/link_chunck.{native,byte}>: use_irmin-git
+<examples/link_chunck.{native,byte}>: use_irmin-http
+<examples/link_chunck.{native,byte}>: use_irmin-krypto
+<examples/link_chunck.{native,byte}>: use_irmin-link
+<examples/link_chunck.{native,byte}>: use_irmin-mem
+<examples/link_chunck.{native,byte}>: use_irmin-unix
+# Executable test_link_chunck_krypto
+<examples/link_chunck_krypto.{native,byte}>: pkg_cohttp.lwt
+<examples/link_chunck_krypto.{native,byte}>: pkg_cohttp.lwt-core
+<examples/link_chunck_krypto.{native,byte}>: pkg_cstruct
+<examples/link_chunck_krypto.{native,byte}>: pkg_dolog
+<examples/link_chunck_krypto.{native,byte}>: pkg_ezjsonm
+<examples/link_chunck_krypto.{native,byte}>: pkg_ezjsonm.lwt
+<examples/link_chunck_krypto.{native,byte}>: pkg_git
+<examples/link_chunck_krypto.{native,byte}>: pkg_git.unix
+<examples/link_chunck_krypto.{native,byte}>: pkg_hex
+<examples/link_chunck_krypto.{native,byte}>: pkg_lwt
+<examples/link_chunck_krypto.{native,byte}>: pkg_mstruct
+<examples/link_chunck_krypto.{native,byte}>: pkg_nocrypto
+<examples/link_chunck_krypto.{native,byte}>: pkg_ocamlgraph
+<examples/link_chunck_krypto.{native,byte}>: pkg_re
+<examples/link_chunck_krypto.{native,byte}>: pkg_re.pcre
+<examples/link_chunck_krypto.{native,byte}>: pkg_re.perl
+<examples/link_chunck_krypto.{native,byte}>: pkg_stringext
+<examples/link_chunck_krypto.{native,byte}>: pkg_tc
+<examples/link_chunck_krypto.{native,byte}>: pkg_uri
+<examples/link_chunck_krypto.{native,byte}>: use_irmin
+<examples/link_chunck_krypto.{native,byte}>: use_irmin-chunck
+<examples/link_chunck_krypto.{native,byte}>: use_irmin-fs
+<examples/link_chunck_krypto.{native,byte}>: use_irmin-git
+<examples/link_chunck_krypto.{native,byte}>: use_irmin-http
+<examples/link_chunck_krypto.{native,byte}>: use_irmin-krypto
+<examples/link_chunck_krypto.{native,byte}>: use_irmin-link
+<examples/link_chunck_krypto.{native,byte}>: use_irmin-mem
+<examples/link_chunck_krypto.{native,byte}>: use_irmin-unix
+<examples/*.ml{,i,y}>: pkg_nocrypto
+<examples/*.ml{,i,y}>: use_irmin-chunck
+<examples/*.ml{,i,y}>: use_irmin-krypto
+<examples/*.ml{,i,y}>: use_irmin-link
 # Executable test_git_store
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt-core

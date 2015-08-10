@@ -14,24 +14,36 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let misc = [
-  Test_git.misc;
-]
+open Test_common
 
+let test_db = "test-db-chunck"
+
+let polling =
+  try float_of_string (Sys.getenv "IRMIN_FS_POLLING")
+  with Not_found | Failure _ -> 0.01
+
+let init () =
+  Irmin_unix.install_dir_polling_listener polling;
+  if Sys.file_exists test_db then begin
+    let cmd = Printf.sprintf "rm -rf %s" test_db in
+    let _ = Sys.command cmd in ()
+  end;
+  Lwt.return_unit
+
+let clean () =
+  Irmin_unix.uninstall_dir_polling_listener ();
+  Lwt.return_unit
+    
+let config = Irmin_fs.config ~root:test_db ()
+let config = Irmin_chunck.config ~conf:config ~size:4096 ()
+    
 let suite k =
-  let depends = if k = `String then `Quick else `Slow in
-  [
-   `Quick, Test_mem_link_chunck.suite k;
-   `Quick, Test_fs_link_chunck.suite k;
-   `Quick, Test_mem_link_chunck_krypto.suite k;
-    `Quick, Test_fs_link_chunck_krypto.suite k;
-    `Quick , Test_memory.suite k;
-    `Quick , Test_fs.suite k;
-    `Quick , Test_git.suite k;
-    depends, Test_http.suite (Test_memory.suite k);
-    `Slow  , Test_http.suite (Test_fs.suite k);
-    `Slow  , Test_http.suite (Test_git.suite k);
-  ]
-
-let () =
-  Test_store.run "irmin" ~misc (suite `String @ suite `Json)
+  {
+    name   = "LINK FS - CHUNCK" ^ string_of_contents k;
+    kind   = `Link_FS_Chunck;
+    cont   = k;
+    init   = init;
+    clean  = clean;
+    store  = link_fs_chunck_store k;
+    config = config;
+  }

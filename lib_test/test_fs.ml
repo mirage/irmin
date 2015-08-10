@@ -41,5 +41,5 @@ let suite k =
     cont = k;
     init; clean;
     config = Irmin_fs.config ~root:test_db ();
-    store  =  irf_store k;
+    store  =  fs_store k;
   }

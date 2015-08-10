@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f598969603d7bcdd5e9b19c3a8db1b17)
+# DO NOT EDIT (digest: 3451199298df165df90c08b68f97ded4)
 version = "0.9.8"
 description = "A Distributed Version Control Database"
 requires =
@@ -44,6 +44,28 @@ package "mem" (
  exists_if = "irmin-mem.cma"
 )
 
+package "link" (
+ version = "0.9.8"
+ description = "A Distributed Version Control Database"
+ requires = "irmin irmin.mem irmin.unix irmin.fs"
+ archive(byte) = "irmin-link.cma"
+ archive(byte, plugin) = "irmin-link.cma"
+ archive(native) = "irmin-link.cmxa"
+ archive(native, plugin) = "irmin-link.cmxs"
+ exists_if = "irmin-link.cma"
+)
+
+package "krypto" (
+ version = "0.9.8"
+ description = "A Distributed Version Control Database"
+ requires = "irmin nocrypto"
+ archive(byte) = "irmin-krypto.cma"
+ archive(byte, plugin) = "irmin-krypto.cma"
+ archive(native) = "irmin-krypto.cmxa"
+ archive(native, plugin) = "irmin-krypto.cmxs"
+ exists_if = "irmin-krypto.cma"
+)
+
 package "http" (
  version = "0.9.8"
  description = "A Distributed Version Control Database"
@@ -75,6 +97,17 @@ package "fs" (
  archive(native) = "irmin-fs.cmxa"
  archive(native, plugin) = "irmin-fs.cmxs"
  exists_if = "irmin-fs.cma"
+)
+
+package "chunck" (
+ version = "0.9.8"
+ description = "A Distributed Version Control Database"
+ requires = "irmin cstruct"
+ archive(byte) = "irmin-chunck.cma"
+ archive(byte, plugin) = "irmin-chunck.cma"
+ archive(native) = "irmin-chunck.cmxa"
+ archive(native, plugin) = "irmin-chunck.cmxs"
+ exists_if = "irmin-chunck.cma"
 )
 # OASIS_STOP
 

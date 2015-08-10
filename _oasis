@@ -35,6 +35,7 @@ Library irmin
                    Ir_commit, Ir_tag, Ir_contents, Ir_hum,
                    Ir_node, Ir_version, Ir_dot, Ir_path, Ir_watch,
                    Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync, Ir_sync_ext
+
   Modules:         Irmin
   BuildDepends:    ezjsonm, ocamlgraph, lwt, dolog, cstruct, tc,
                    mstruct, uri, stringext, hex
@@ -82,6 +83,27 @@ Library "irmin-unix"
                  git.unix, cohttp.lwt
   Modules:       Irmin_unix
 
+Library "irmin-krypto"
+  Path:             lib/krypto
+  Findlibname:      krypto
+  FindlibParent:    irmin
+  BuildDepends:     irmin, nocrypto
+  Modules:          Irmin_krypto, Irmin_krypto_cipher, Irmin_krypto_km
+
+Library "irmin-link"
+  Path:             lib/link
+  Findlibname:      link
+  FindlibParent:    irmin
+  BuildDepends:     irmin, irmin.mem, irmin.unix, irmin.fs
+  Modules:          Irmin_link
+
+Library "irmin-chunck"
+  Path:             lib/chunck
+  Findlibname:      chunck
+  FindlibParent:    irmin
+  BuildDepends:     irmin, cstruct
+  Modules:          Irmin_chunck
+
 Library "irmin-mirage"
   Build$:        flag(mirage) && flag(http) && flag(git)
   Install$:      flag(mirage) && flag(http) && flag(git)
@@ -91,6 +113,7 @@ Library "irmin-mirage"
   BuildDepends:  irmin, irmin.mem, irmin.git, irmin.fs, irmin.http,
                  cohttp.lwt, git.mirage
   Modules:       Irmin_mirage
+  
 
 Document irmin
   Title:                Irmin docs
@@ -98,7 +121,7 @@ Document irmin
   BuildTools+:          ocamldoc
   Install:              true
   XOCamlbuildPath:      lib/
-  XOCamlbuildLibraries: irmin, irmin.mem, irmin.unix
+  XOCamlbuildLibraries: irmin, irmin.mem, irmin.unix, irmin.fs
 
 Executable irmin
   Build$:         flag(unix) && flag(http) && flag(git)
@@ -106,7 +129,7 @@ Executable irmin
   Path:           bin/
   MainIs:         main.ml
   CompiledObject: best
-  BuildDepends:   cmdliner, irmin, irmin.mem, irmin.unix
+  BuildDepends:   cmdliner, irmin, irmin.mem, irmin.unix, irmin.fs
 
 Executable test_irmin
   Path:           lib_test
@@ -114,12 +137,28 @@ Executable test_irmin
   Build$:         flag(tests) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.mem, irmin.unix, alcotest
+  BuildDepends:   irmin, irmin.mem, irmin.fs, irmin.unix, alcotest, nocrypto, irmin.chunck, irmin.krypto, irmin.link
 
 Test test_irmin
   Run$:             flag(tests) && flag(unix) && flag(http) && flag(git)
   Command:          $test_irmin -q
   WorkingDirectory: lib_test
+
+Executable test_link_chunck
+ Path:           examples/
+ MainIs:         link_chunck.ml
+ Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
+ CompiledObject: best
+ Install:        false
+ BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.link, irmin.chunck
+
+Executable test_link_chunck_krypto
+ Path:           examples/
+ MainIs:         link_chunck_krypto.ml
+ Build$:         flag(examples) && flag(unix) && flag(http) && flag(git)
+ CompiledObject: best
+ Install:        false
+ BuildDepends:   irmin, irmin.unix, irmin.krypto, irmin.mem, irmin.link, irmin.chunck
 
 Executable test_git_store
   Path:           examples/

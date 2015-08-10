@@ -22,6 +22,7 @@ type 'a converter = 'a parser * 'a printer
 let parser (p, _) = p
 let printer (_, p) = p
 
+let pr = Format.fprintf
 let str = Printf.sprintf
 let pr_str = Format.pp_print_string
 let quote s = str "`%s'" s
@@ -33,8 +34,32 @@ module Err = struct
 
   let invalid kind s exp = str "invalid %s %s, %s" kind (quote s) exp
   let invalid_val = invalid "value"
+
+  let element kind s exp = str "invalid element in %s (`%s'): %s" kind s exp
+  let sep_miss sep s = invalid_val s (str "missing a `%c' separator" sep)
+				   
 end
 
+let split_left sep s =
+  try
+    let i = String.index s sep in
+    let len = String.length s in
+    Some ((String.sub s 0 i), (String.sub s (i + 1) (len - i - 1)))
+	 with Not_found -> None
+	       
+let pair ?(sep = ',') (pa0, pr0) (pa1, pr1) =
+  let parser s = match split_left sep s with
+    | None -> `Error (Err.sep_miss sep s)
+    | Some (v0, v1) ->
+       match pa0 v0, pa1 v1 with
+       | `Ok v0, `Ok v1 -> `Ok (v0, v1)
+       | `Error e, _ | _, `Error e -> `Error (Err.element "pair" s e)
+  in
+  let printer ppf (v0, v1) = pr ppf "%a%c%a" pr0 v0 sep pr1 v1 in
+  parser, printer
+
+	    
+	    
 let bool =
   (fun s -> try `Ok (bool_of_string s) with Invalid_argument _ ->
      `Error (Err.invalid_val s (Err.alts ["true"; "false"]))),

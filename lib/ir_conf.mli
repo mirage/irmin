@@ -21,6 +21,7 @@ type 'a converter = 'a parser * 'a printer
 
 val parser : 'a converter -> 'a parser
 val printer : 'a converter -> 'a printer
+val pair : ?sep:char -> 'a converter -> 'b converter -> ('a * 'b) converter
 val bool : bool converter
 val int : int converter
 val string : string converter
