@@ -53,6 +53,16 @@ module Conf = struct
       ~doc:"Do not expand the filesystem on the disk."
       "bare" Irmin.Private.Conf.bool false
 
+  let abstract =
+    (fun _ -> `Error "abstract"),
+    (fun fmt _ -> Format.pp_print_string fmt "<abstract>")
+
+  type read_fn = ?root:string -> Git.SHA.t -> Git.Value.t option Lwt.t
+
+  let read_fn: read_fn Irmin.Private.Conf.key =
+    let read_none ?root:_ _ = Lwt.return_none in
+    Irmin.Private.Conf.key "read" abstract read_none
+
 end
 
 let config ?root ?head ?bare () =
@@ -128,8 +138,13 @@ module Make_ext
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
 
+    let read_fn ?root sha1 =
+      G.create ?root () >>= fun t ->
+      G.read t sha1
+
     let create config task =
       let root = Irmin.Private.Conf.get config Conf.root in
+      let config = Irmin.Private.Conf.add config Conf.read_fn read_fn in
       G.create ?root () >>= fun t ->
       return (fun a -> { task = task a; config; t })
 
@@ -749,6 +764,24 @@ module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S) = struct
   end
   module M = Make (FakeIO)(L)(G)(Irmin.Contents.String)(K)(V)
   include M.XTag
+end
+
+module Internals (S: Irmin.S) = struct
+
+  let read config =
+    match Irmin.Private.Conf.find config Conf.read_fn with
+    | None   -> failwith "not a Git store"
+    | Some s -> s
+
+  let commit_of_head t h =
+    let t = S.Private.commit_t t in
+    let h = S.Head.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
+    let config = S.Private.Commit.config t in
+    let root = Irmin.Private.Conf.get config Conf.root in
+    read config ?root h >|= function
+    | Some Git.Value.Commit c -> Some c
+    | _ -> None
+
 end
 
 include Conf

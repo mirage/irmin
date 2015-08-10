@@ -44,3 +44,13 @@ module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
 module Memory_ext (C: CONTEXT)
     (IO: Git.Sync.IO with type ctx = C.t) (I: Git.Inflate.S):
   Irmin.S_MAKER
+
+module Internals (S: Irmin.S): sig
+
+  (** {1 Access to the Git objects} *)
+
+  val commit_of_head: S.t -> S.head -> Git.Commit.t option Lwt.t
+  (** [commit_of_head t h] is the commit corresponding to [h] in the
+      store [t]. *)
+
+end
