@@ -28,9 +28,9 @@
 open Irmin
 
 
-module type CIPHER_BLOCK = Irmin_krypto_cipher.MAKER
+module type CIPHER = Irmin_krypto_cipher.CIPHER
 module Make_km = Irmin_krypto_km.Make
-module Make_cipher = Irmin_krypto_cipher.Make
+module Make_cipher = Irmin_krypto_cipher.Make_CTR
 
 
-module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW): AO_MAKER_RAW
+module KRYPTO_AO (C: CIPHER) (S:AO_MAKER_RAW): AO_MAKER_RAW

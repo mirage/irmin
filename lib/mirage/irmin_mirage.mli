@@ -23,11 +23,11 @@ module Irmin_git: sig
 
   (** {1 Git Store} *)
 
-  val config:
-    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
+ val config: ?conf:Irmin.config -> ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
   (** Create a configuration value.
 
       {ul
+      {- [config] is an optional value of an existing configuration.} 
       {- [root] is the local Git repository's root (the parent of the
       {e .git/} directory).}
       {- [head] is the name of the local Git repository's current

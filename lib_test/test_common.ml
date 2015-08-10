@@ -164,8 +164,7 @@ let link_fs_chunck_store = create (module FS_CHUNCK_STORE)
 (* Krypto and Chunck *)
 open Nocrypto.Cipher_block
 module KRYPTO_KM = Irmin_krypto.Make_km
-module AES_CTR = AES.CTR (Counters.Inc_LE)
-module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES_CTR)
+module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES.CTR)
 module CHUNCK_KRYPTO = Irmin_krypto.KRYPTO_AO (KRYPTO_AES) (CHUNCK)
 
 (* Links on memory, chunck and krypto store*)

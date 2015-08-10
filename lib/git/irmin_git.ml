@@ -55,16 +55,22 @@ module Conf = struct
 
 end
 
-let config ?root ?head ?bare () =
-  let module C = Irmin.Private.Conf in
-  let config = C.empty in
-  let config = C.add config Conf.root root in
-  let config = match bare with
-    | None   -> C.add config Conf.bare (C.default Conf.bare)
-    | Some b -> C.add config Conf.bare b
-  in
-  let config = C.add config Conf.head head in
-  config
+
+let config ?conf ?root ?head ?bare () =
+ let module C = Irmin.Private.Conf in
+ let config =
+   match conf with
+   | None ->  C.empty 
+   | Some v -> v
+ in
+ let config = C.add config Conf.root root in
+ let config = match bare with
+   | None   -> C.add config Conf.bare (C.default Conf.bare)
+   | Some b -> C.add config Conf.bare b
+ in
+ let config = C.add config Conf.head head in
+ config
+
 
 module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
@@ -89,6 +95,7 @@ module Make_ext
     let hash = Git.SHA.hash
     let compare = Git.SHA.compare
     let equal = (=)
+    let length = 20
     let to_json t = Ezjsonm.string (Git.SHA.to_hex t)
     let of_json j = Git.SHA.of_hex (Ezjsonm.get_string j)
     let size_of t = Tc.String.size_of (Git.SHA.to_raw t)

@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: f70e51a1491954df540055fea942ab74) *)
+(* DO NOT EDIT (digest: 1f76f27677fd2f43222669863bdbbdf1) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -615,21 +615,44 @@ let package_default =
           ("irmin-fs", ["lib/fs"], []);
           ("irmin-http", ["lib/http"], []);
           ("irmin-unix", ["lib/unix"], []);
+          ("irmin-krypto", ["lib/krypto"], []);
+          ("irmin-link", ["lib/link"], []);
+          ("irmin-chunck", ["lib/chunck"], []);
           ("irmin-mirage", ["lib/mirage"], [])
        ];
      lib_c = [];
      flags = [];
      includes =
        [
-          ("lib_test", ["lib"; "lib/mem"; "lib/unix"]);
+          ("lib_test",
+            [
+               "lib";
+               "lib/chunck";
+               "lib/fs";
+               "lib/krypto";
+               "lib/link";
+               "lib/mem";
+               "lib/unix"
+            ]);
           ("lib/unix", ["lib"; "lib/fs"; "lib/git"; "lib/http"; "lib/mem"]);
           ("lib/mirage", ["lib"; "lib/fs"; "lib/git"; "lib/http"; "lib/mem"]);
           ("lib/mem", ["lib"]);
+          ("lib/link", ["lib"; "lib/fs"; "lib/mem"; "lib/unix"]);
+          ("lib/krypto", ["lib"]);
           ("lib/http", ["lib"]);
           ("lib/git", ["lib"]);
           ("lib/fs", ["lib"]);
-          ("examples", ["lib"; "lib/unix"]);
-          ("bin", ["lib"; "lib/mem"; "lib/unix"])
+          ("lib/chunck", ["lib"]);
+          ("examples",
+            [
+               "lib";
+               "lib/chunck";
+               "lib/krypto";
+               "lib/link";
+               "lib/mem";
+               "lib/unix"
+            ]);
+          ("bin", ["lib"; "lib/fs"; "lib/mem"; "lib/unix"])
        ]
   }
   ;;
@@ -638,7 +661,7 @@ let conf = {MyOCamlbuildFindlib.no_automatic_syntax = false}
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 
-# 642 "myocamlbuild.ml"
+# 665 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
 (* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)

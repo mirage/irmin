@@ -32,12 +32,12 @@ open Irmin
 module Log = Log.Make(struct let section = "KRYPO" end)
 
 		     
-module type CIPHER_BLOCK = Irmin_krypto_cipher.MAKER
+module type CIPHER = Irmin_krypto_cipher.CIPHER
 module Make_km = Irmin_krypto_km.Make
-module Make_cipher = Irmin_krypto_cipher.Make
+module Make_cipher = Irmin_krypto_cipher.Make_CTR
 
 					    
-module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:RAW) = struct
+module KRYPTO_AO (C: CIPHER) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:RAW) = struct
 
     module AO = S(K)(V)
 
@@ -95,25 +95,18 @@ module KRYPTO_AO (C: CIPHER_BLOCK) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:RAW) = s
       with
       | Not_found -> fail Not_found
 
-    (* let mem t k = AO.mem t k *)
-
-
     let mem t k =
       AO.mem t k
       
 			  
     let add t v =
       let ctr = compute_ctr v in
-      let ctr2 = compute_ctr v in (* Temporary : there is a side effect into nocrypto *)
+      let ctr2 = compute_ctr v in
       C.encrypt ~ctr v |> inject_ctr ~ctr:ctr2 |> AO.add t
 
-    (* TODO iter .... *)
+
     let iter _t (_fn : key -> value Lwt.t -> unit Lwt.t) =
-      failwith "TODO"
-  (* AO.iter t (fun k v ->
-                 let ctr = Cstruct.of_string "1234abcd1234abcd" in
-                 let v = v >|= fun v -> (C.decrypt ~ctr v) in
-                 fn k v) *)
+      failwith "NOT NEEDED"
 
 end
 
