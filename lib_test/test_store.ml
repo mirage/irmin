@@ -16,7 +16,6 @@
 
 open Lwt
 open Test_common
-open Irmin_unix
 open Printf
 
 let () = Random.self_init ()
@@ -58,7 +57,7 @@ module Make (S: Irmin.S) = struct
   let l = S.Key.Step.of_hum
   let p k = S.Key.create (List.map l k)
 
-  let create x = S.create x.config task
+  let create x = S.create x.config Irmin_unix.task
 
   let dummy_task =
     let t = Irmin.Task.empty in
@@ -894,7 +893,7 @@ module Make (S: Irmin.S) = struct
         match !result with None -> assert false | Some t -> t
       in
       let clone () =
-        S.clone task (t "clone") (S.Tag.of_hum "test") >>= function
+        S.clone Irmin_unix.task (t "clone") (S.Tag.of_hum "test") >>= function
         | `Ok t ->
           begin match !result with
             | None   -> result := Some t
@@ -935,7 +934,7 @@ module Make (S: Irmin.S) = struct
 
       S.head_exn (t "snapshot") >>= fun r1 ->
 
-      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
+      S.clone_force Irmin_unix.task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
 
       let v2 = v2 x in
       S.update (t "update") (p ["a";"c"]) v2 >>= fun () ->
@@ -996,8 +995,8 @@ module Make (S: Irmin.S) = struct
       let tagy = S.Tag.of_hum "y" in
       let xy = p ["x";"y"] in
       let vx = string x "VX" in
-      S.of_tag x.config task tagx >>= fun tx ->
-      S.of_tag x.config task tagy >>= fun ty ->
+      S.of_tag x.config Irmin_unix.task tagx >>= fun tx ->
+      S.of_tag x.config Irmin_unix.task tagy >>= fun ty ->
       S.remove_tag (tx "?") tagx >>= fun () ->
       S.remove_tag (tx "?") tagy >>= fun () ->
 
@@ -1166,7 +1165,7 @@ module Make (S: Irmin.S) = struct
       S.task_of_head (t "task") h >>= fun ta' ->
       assert_equal (module Irmin.Task) "task" ta ta';
 
-      S.of_head x.config task h >>= fun tt ->
+      S.of_head x.config Irmin_unix.task h >>= fun tt ->
       S.history (tt "history") >>= fun g ->
       let pred = S.History.pred g h in
       let s = List.sort S.Head.compare in
@@ -1214,7 +1213,7 @@ module Make (S: Irmin.S) = struct
 
       (* Restart a fresh store and import everything in there. *)
       let tag = S.Tag.of_hum "export" in
-      S.of_tag x.config task tag >>= fun t2 ->
+      S.of_tag x.config Irmin_unix.task tag >>= fun t2 ->
       S.update_head (t2 "partial update") partial >>= fun () ->
 
       S.mem (t2 "mem a/b") (p ["a";"b"]) >>= fun b1 ->
@@ -1268,7 +1267,7 @@ module Make (S: Irmin.S) = struct
 
       let test = S.Tag.of_hum "test" in
 
-      S.clone_force task (t1 "clone master into test") test >>= fun t2 ->
+      S.clone_force Irmin_unix.task (t1 "clone master into test") test >>= fun t2 ->
 
       S.update (t1 "update master:a/b/b") (p ["a";"b";"b"]) v1 >>= fun () ->
       S.update (t1 "update master:a/b/b") (p ["a";"b";"b"]) v3 >>= fun () ->
@@ -1383,7 +1382,7 @@ module Make (S: Irmin.S) = struct
       let write t n =
         write (fun i ->
             let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
-            S.clone_force task (mk t "cloning") tag >>= fun m ->
+            S.clone_force Irmin_unix.task (mk t "cloning") tag >>= fun m ->
             S.update (m "update") (k i) (v i) >>= fun () ->
             Lwt_unix.yield () >>= fun () ->
             S.merge (sprintf "update: multi %d" i) m ~into:t >>=
@@ -1420,7 +1419,7 @@ module Make (S: Irmin.S) = struct
         write (fun i -> retry i (fun () ->
             S.head (t "head") >>= fun test ->
             let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
-            S.clone_force task (mk t "cloning") tag >>= fun m ->
+            S.clone_force Irmin_unix.task (mk t "cloning") tag >>= fun m ->
             S.update (m "update") (k i) (v i) >>= fun () ->
             S.head (m "head") >>= fun set ->
             Lwt_unix.yield () >>= fun () ->
