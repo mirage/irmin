@@ -46,7 +46,7 @@ module type STORE = sig
     (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val watch_key: t -> key -> ?init:(head * value) ->
     ((head * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  val clone: 'a Ir_task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag] Lwt.t
+  val clone: 'a Ir_task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag | `Empty_head] Lwt.t
   val clone_force: 'a Ir_task.f -> t -> tag -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Ir_merge.result Lwt.t
@@ -64,7 +64,7 @@ module type STORE = sig
   type slice
   val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
     t -> slice Lwt.t
-  val import: t -> slice -> unit Lwt.t
+  val import: t -> slice -> [`Ok | `Error] Lwt.t
 end
 
 module type MAKER =

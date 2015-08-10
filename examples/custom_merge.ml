@@ -54,7 +54,7 @@ end = struct
 
   let header_len = 19
 
-  let to_timestamp i = Printf.sprintf "%.19d" i
+  let to_timestamp i = Printf.sprintf "%.*d" header_len i
   let of_timestamp s =
     if String.length s <> header_len then err_malformed_timestamp s
     else
@@ -80,7 +80,7 @@ end = struct
     Mstruct.set_char buf ' ';
     Mstruct.set_string buf t.message;
     Mstruct.set_char buf '\n';
-    Cstruct.shift buf0 (String.length timestamp + String.length t.message + 2)
+    Cstruct.shift buf0 (size_of t)
 
   let create message =
     incr time;

@@ -67,6 +67,7 @@ let version = Ir_version.current
 
 module History = Graph.Persistent.Digraph.ConcreteBidirectional(Hash.SHA1)
 
+module type SYNC = Ir_sync_ext.STORE
 module Sync = Ir_sync_ext.Make
 
 type remote = Ir_sync_ext.remote
@@ -143,7 +144,8 @@ and ('k, 'v) bc = {
   watch_tags: (string * Hash.SHA1.t) list -> (string -> Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t;
   watch_key: 'k -> (Hash.SHA1.t * 'v) option ->
     ((Hash.SHA1.t * 'v) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t;
-  clone: 'm. 'm Task.f -> string -> [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag] Lwt.t;
+  clone: 'm. 'm Task.f -> string ->
+    [`Ok of ('m -> ([`BC], 'k, 'v) t) | `Duplicated_tag | `Empty_head] Lwt.t;
   clone_force: 'm. 'm Task.f -> string -> ('m -> ([`BC], 'k, 'v) t) Lwt.t;
   merge: ?max_depth:int -> ?n:int -> into:([`BC], 'k, 'v) t ->
     unit Merge.result Lwt.t;
@@ -158,9 +160,10 @@ and ('k, 'v) bc = {
     unit -> History.t Lwt.t;
   task_of_head: Hash.SHA1.t -> Task.t Lwt.t;
   remote_basic: unit -> remote;
-  fetch: ?depth:int -> remote -> Hash.SHA1.t option Lwt.t;
+  fetch: ?depth:int -> remote -> [`Head of Hash.SHA1.t | `No_head | `Error] Lwt.t;
   fetch_exn: ?depth:int -> remote -> Hash.SHA1.t Lwt.t;
-  pull: ?depth:int -> remote -> [`Merge | `Update] -> unit Merge.result Lwt.t;
+  pull: ?depth:int -> remote -> [`Merge | `Update] ->
+    [`Ok | `No_head | `Error] Merge.result Lwt.t;
   pull_exn: ?depth:int -> remote -> [`Merge | `Update] -> unit Lwt.t;
   push: ?depth:int -> remote -> [`Ok | `Error] Lwt.t;
   push_exn: ?depth:int -> remote -> unit Lwt.t;
@@ -272,9 +275,9 @@ let pack_s (type x) (type k) (type v)
         watch_tags = (fun init -> M.watch_tags ~init t);
         watch_key  = (fun k init -> M.watch_key t k ?init);
         clone = (fun task tag ->
-            M.clone task t tag >>= function
-            | `Ok x           -> Lwt.return (`Ok (fun a -> aux (x a)))
-            | `Duplicated_tag -> Lwt.return `Duplicated_tag
+            M.clone task t tag >|= function
+            | `Ok x -> `Ok (fun a -> aux (x a))
+            | `Duplicated_tag | `Empty_head as x -> x
           );
         clone_force = (fun task tag ->
             M.clone_force task t tag >>= fun x ->

@@ -39,9 +39,9 @@ module Conf = struct
   let root = Irmin.Private.Conf.root
 
   let reference =
-  let parse str = `Ok (Git.Reference.of_raw str) in
-  let print ppf name = Format.pp_print_string ppf (Git.Reference.to_raw name) in
-  parse, print
+    let parse str = `Ok (Git.Reference.of_raw str) in
+    let print ppf name = Format.pp_print_string ppf (Git.Reference.to_raw name) in
+    parse, print
 
   let head =
     Irmin.Private.Conf.key
@@ -55,26 +55,26 @@ module Conf = struct
 
 end
 
-let config ?conf ?root ?head ?bare () =
- let module C = Irmin.Private.Conf in
- let config =
-   match conf with
-   | None ->  C.empty 
-   | Some v -> v
- in
- let config = C.add config Conf.root root in
- let config = match bare with
-   | None   -> C.add config Conf.bare (C.default Conf.bare)
-   | Some b -> C.add config Conf.bare b
- in
- let config = C.add config Conf.head head in
- config
-   
+let config ?root ?head ?bare () =
+  let module C = Irmin.Private.Conf in
+  let config = C.empty in
+  let config = C.add config Conf.root root in
+  let config = match bare with
+    | None   -> C.add config Conf.bare (C.default Conf.bare)
+    | Some b -> C.add config Conf.bare b
+  in
+  let config = C.add config Conf.head head in
+  config
+
 module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
+module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
+
+module Make_ext
+    (Ctx: CONTEXT) (IO: Git.Sync.IO with type ctx = Ctx.t)
+    (L: LOCK) (G: Git.Store.S)
     (C: Irmin.Contents.S)
     (T: Irmin.Tag.S)
     (H: Irmin.Hash.S)
@@ -91,8 +91,7 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
     let equal = (=)
     let to_json t = Ezjsonm.string (Git.SHA.to_hex t)
     let of_json j = Git.SHA.of_hex (Ezjsonm.get_string j)
-    let length = 20
-    let size_of _ = length 
+    let size_of t = Tc.String.size_of (Git.SHA.to_raw t)
     let write t = Tc.String.write (Git.SHA.to_raw t)
     let read b = Git.SHA.of_raw (Tc.String.read b)
     let digest = Git.SHA.of_cstruct
@@ -242,18 +241,6 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
       let compare_entries {Git.Tree.name = n1; _} {Git.Tree.name = n2; _} =
         compare_names n1 n2
 
-      let err_file_is_dir n =
-        let str = sprintf
-            "Cannot add the file '%s' as it is already a directory name." n
-        in
-        raise (Invalid_argument str)
-
-      let err_dir_is_file n =
-        let str = sprintf
-            "Cannot add the directory '%s' as it is already a filename." n
-        in
-        raise (Invalid_argument str)
-
       let with_succ t step succ =
         let step = S.to_hum step in
         let return ~acc rest = match succ with
@@ -264,17 +251,14 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         in
         let rec aux acc = function
           | [] -> return ~acc []
-          | { Git.Tree.perm; name; node } as h :: l ->
+          | { Git.Tree.name; node; _ } as h :: l ->
             if compare_names step name > 0 then
               aux (h :: acc) l
             else if compare_names name step = 0 then (
-              if perm = `Dir then match succ with
-                | None   -> List.rev_append acc l
-                | Some c ->
-                  if Git.SHA.equal c node then t
-                  else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
-              else err_dir_is_file name
-            ) else return ~acc:(h::acc) l
+              match succ with
+              | None   -> List.rev_append acc l (* remove *)
+              | Some c -> if Git.SHA.equal c node then t else return ~acc l
+            ) else return ~acc:acc (h::l)
         in
         let new_t = aux [] t in
         if t == new_t then t else new_t
@@ -290,17 +274,15 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         let rec aux acc entries =
           match entries with
           | [] -> return ~acc []
-          | { Git.Tree.perm; name; node } as h :: l ->
+          | { Git.Tree.name; node; _ } as h :: l ->
             if compare_names step name > 0 then (
               aux (h :: acc) l
             ) else if compare_names name step = 0 then (
-              if perm <> `Dir then match contents with
-                | None   -> List.rev_append acc l
-                | Some c ->
-                  if Git.SHA.equal c node then t
-                  else List.rev_append acc ({ h with Git.Tree.node = c } :: l)
-              else err_file_is_dir name
-            ) else return ~acc:(h::acc) l
+              match contents with
+              | None   -> List.rev_append acc l (* remove *)
+              | Some c ->
+                if Git.SHA.equal c node then t else return ~acc l
+            ) else return ~acc:acc (h::l)
         in
         let new_t = aux [] t in
         if t == new_t then t else new_t
@@ -513,15 +495,16 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         let key file = Some (Key.of_hum file) in
         W.listen_dir t.w dir ~key ~value:(read t)
       else
-        fun () -> ()
+        let id () = () in
+        Lwt.return id
 
     let watch_key t key ?init f =
-      let stop = listen_dir t in
+      listen_dir t >>= fun stop ->
       W.watch_key t.w key ?init f >>= fun w ->
       Lwt.return (w, stop)
 
     let watch t ?init f =
-      let stop = listen_dir t in
+      listen_dir t >>= fun stop ->
       W.watch t.w ?init f >>= fun w ->
       Lwt.return (w, stop)
 
@@ -645,8 +628,8 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
     let head_of_git key = H.of_raw (GK.to_raw (Git.SHA.of_commit key))
 
     let o_head_of_git = function
-      | None   -> return_none
-      | Some k -> return (Some (`Local (head_of_git k)))
+      | None   -> Lwt.return `No_head
+      | Some k -> Lwt.return (`Head (head_of_git k))
 
     let create config =
       let root = Irmin.Private.Conf.get config Conf.root in
@@ -666,7 +649,8 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         in
         o_head_of_git key
       in
-      Sync.fetch t ?deepen gri >>=
+      Ctx.v () >>= fun ctx ->
+      Sync.fetch t ?ctx ?deepen gri >>=
       result
 
     let push t ?depth:_ ~uri tag =
@@ -677,8 +661,10 @@ module Make (IO: Git.Sync.IO) (L: LOCK) (G: Git.Store.S)
         Log.debug "push result: %s" (Git.Sync.Result.pretty_push r);
         match r.Git.Sync.Result.result with
         | `Ok      -> return `Ok
-        | `Error _ -> return `Error in
-      Sync.push t ~branch gri >>=
+        | `Error _ -> return `Error
+      in
+      Ctx.v () >>= fun ctx ->
+      Sync.push t ?ctx ~branch gri >>=
       result
 
   end
@@ -696,7 +682,19 @@ end
 module NoL = struct
   let with_lock _ f = f ()
 end
-module Memory (IO: Git.Sync.IO) = Make (IO) (NoL) (Git.Memory)
+
+module Memory_ext (C: CONTEXT) (IO: Git.Sync.IO with type ctx = C.t) =
+  Make_ext (C) (IO) (NoL) (Git.Memory)
+
+module NoC (IO: Git.Sync.IO) = struct
+  type t = IO.ctx
+  let v () = Lwt.return None
+end
+
+module Make (IO: Git.Sync.IO) = Make_ext (NoC(IO))(IO)
+
+module Memory (IO: Git.Sync.IO) = Make (IO)(NoL)(Git.Memory)
+
 module FS (IO: Git.Sync.IO) (L: LOCK) (FS: Git.FS.IO) =
   Make (IO) (L) (Git.FS.Make(FS))
 

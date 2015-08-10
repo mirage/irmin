@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt.Infix
 module Log = Log.Make(struct let section = "WATCH" end)
-let (>>=) = Lwt.(>>=)
 
 type 'a diff = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
 
@@ -35,7 +35,7 @@ module type S = sig
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
-    -> (unit -> unit)
+    -> (unit -> unit) Lwt.t
 end
 
 let listen_dir_hook =
@@ -212,15 +212,18 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       )
 
   let listen_dir t dir ~key ~value =
-    if t.listeners = 0 then (
+    let init () =
+      if t.listeners = 0 then (
       Log.debug "%s: start listening to %s" (to_string t) dir;
-      t.stop_listening <-
-        !listen_dir_hook t.id dir (fun file ->
-            match key file with
-            | None     -> Lwt.return_unit
-            | Some key -> value key >>= notify t key
-          )
-    );
+      !listen_dir_hook t.id dir (fun file ->
+          match key file with
+          | None     -> Lwt.return_unit
+          | Some key -> value key >>= notify t key
+        ) >|= fun f ->
+      t.stop_listening <- f
+      ) else Lwt.return_unit
+    in
+    init () >|= fun () ->
     t.listeners <- t.listeners + 1;
     function () ->
       if t.listeners > 0 then t.listeners <- t.listeners - 1;

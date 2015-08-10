@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,15 +19,21 @@ open Test_common
 open Irmin_unix
 open Printf
 
-let random_string n =
-  let t  = Unix.gettimeofday () in
-  let cs = Cstruct.create 8 in
-  Cstruct.BE.set_uint64 cs 0 Int64.(of_float (t *. 1000.)) ;
-  Nocrypto.Rng.reseed cs;
-  Cstruct.to_string (Nocrypto.Rng.generate n)
+let () = Random.self_init ()
+let random_char () = char_of_int (Random.int 256)
 
-let long_random_string =
-  random_string 1024_000
+(* for OCaml > 4.01 *)
+module String = struct
+  include String
+  let init n f =
+    let buf = Bytes.create n in
+    for i =0 to n-1 do Bytes.set buf i (f i) done;
+    buf
+end
+
+let random_string n = String.init n (fun _i -> random_char ())
+let long_random_string = random_string 1024_000
+let fail fmt = Printf.ksprintf Alcotest.fail fmt
 
 module Make (S: Irmin.S) = struct
 
@@ -254,6 +260,40 @@ module Make (S: Irmin.S) = struct
       assert_equal (module N) "node n6" n6 n6';
       assert_equal (module KN) "node k6" k6 k6';
 
+      let assert_no_duplicates n node =
+        let names = ref [] in
+        Graph.iter_succ (g "sorted") node (fun s _ ->
+            if List.mem s !names then fail "%s: duplicate succ!" n
+            else names := s :: !names
+          ) >>= fun () ->
+        Graph.iter_contents (g "sorted") node (fun s _ ->
+            if List.mem s !names then fail "%s: duplicate contents!" n
+            else names := s :: !names
+          ) >>= fun () ->
+        Lwt.return_unit
+      in
+      Graph.create (g "") []                >>= fun n0 ->
+
+      Graph.add_node (g "") n0 (p ["b"]) n0 >>= fun n1 ->
+      Graph.add_node (g "") n1 (p ["a"]) n0 >>= fun n2 ->
+      Graph.add_node (g "") n2 (p ["a"]) n0 >>= fun n3 ->
+      assert_no_duplicates "1" n3 >>= fun () ->
+
+      Graph.add_node (g "") n0 (p ["a"]) n0 >>= fun n1 ->
+      Graph.add_node (g "") n1 (p ["b"]) n0 >>= fun n2 ->
+      Graph.add_node (g "") n2 (p ["a"]) n0 >>= fun n3 ->
+      assert_no_duplicates "2" n3 >>= fun () ->
+
+      Graph.add_contents (g "") n0 (p ["b"]) kv1 >>= fun n1 ->
+      Graph.add_contents (g "") n1 (p ["a"]) kv1 >>= fun n2 ->
+      Graph.add_contents (g "") n2 (p ["a"]) kv1 >>= fun n3 ->
+      assert_no_duplicates "3" n3 >>= fun () ->
+
+      Graph.add_contents (g "") n0 (p ["a"]) kv1 >>= fun n1 ->
+      Graph.add_contents (g "") n1 (p ["b"]) kv1 >>= fun n2 ->
+      Graph.add_contents (g "") n2 (p ["b"]) kv1 >>= fun n3 ->
+      assert_no_duplicates "4" n3 >>= fun () ->
+
       return_unit
     in
     run x test
@@ -463,9 +503,6 @@ module Make (S: Irmin.S) = struct
 
       watch 100 >>= fun () ->
 
-      (* FIXME: there is a small race in the HTTP watch code *)
-      sleep () >>= fun () ->
-
       State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
@@ -607,12 +644,8 @@ module Make (S: Irmin.S) = struct
       let y =   [ "left", 1; "bar"  , 3; "skip", 0 ] in
       let m =   [ "left", 2; "bar"  , 3] in
       merge_x ~old x y >>= function
-      | `Ok m' ->
-        assert_equal (module X) "compound merge" m m';
-        return_unit
-      | `Conflict c ->
-        OUnit.assert_bool (sprintf "compound merge: %s" c) false;
-        return_unit
+      | `Ok m'      -> assert_equal (module X) "compound merge" m m'; return_unit
+      | `Conflict c -> fail "conflict %s" c
     in
 
     let test () =
@@ -699,9 +732,6 @@ module Make (S: Irmin.S) = struct
       S.create x.config task >>= fun t ->
       let h = h t in
       Graph.create (g t 0) [] >>= fun node ->
-      let fail fmt =
-        Printf.ksprintf (fun str -> OUnit.assert_string str; assert false) fmt
-      in
       let assert_lcas_err msg err l2 =
         let str = function
           | `Too_many_lcas -> "Too_many_lcas"
@@ -837,14 +867,57 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
+  let test_slice x () =
+    let test () =
+      create x >>= fun t ->
+      let a = string x "" in
+      let b = string x "haha" in
+      S.update (t "slice") (p ["x";"a"]) a >>= fun () ->
+      S.update (t "slice") (p ["x";"b"]) b >>= fun () ->
+      S.export (t "export") >>= fun slice ->
+      let str = Tc.write_string (module S.Private.Slice) slice in
+      let slice' = Tc.read_string (module S.Private.Slice) str in
+      assert_equal (module S.Private.Slice) "slices" slice slice';
+
+      Lwt.return_unit
+    in
+    run x test
+
   let test_stores x () =
     let test () =
       create x >>= fun t ->
-
-      S.clone_force task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
-
       let v1 = v1 x in
-      S.update (t "update") (p ["a";"b"]) v1 >>= fun () ->
+      S.update (t "init") (p ["a";"b"]) v1 >>= fun () ->
+
+      let result = ref None in
+      let get_result () =
+        match !result with None -> assert false | Some t -> t
+      in
+      let clone () =
+        S.clone task (t "clone") (S.Tag.of_hum "test") >>= function
+        | `Ok t ->
+          begin match !result with
+            | None   -> result := Some t
+            | Some _ -> Alcotest.fail "should be duplicated!"
+          end;
+          Lwt.return_unit
+        | `Duplicated_tag ->
+          let rec wait n =
+            begin match !result with
+              | None   ->
+                if n <= 0 then Alcotest.fail "should not be duplicated!"
+                else
+                  Lwt_unix.sleep 0.1 >>= fun () ->
+                  wait (n-1)
+              | Some _ -> Lwt.return_unit
+            end
+          in
+          wait 10
+        | `Empty_head -> Alcotest.fail "empty head"
+      in
+      S.remove_tag (t "prepare") (S.Tag.of_hum "test") >>= fun () ->
+      Lwt.join [clone (); clone (); clone (); clone ()] >>= fun () ->
+      let t = get_result () in
 
       S.iter (t "iter") (fun k v ->
           v >>= fun v ->
@@ -899,9 +972,44 @@ module Make (S: Irmin.S) = struct
       S.update (t "update") (p ["a"]) v1 >>= fun () ->
       S.remove_rec (t "remove rec --all") (p []) >>= fun () ->
       S.list (t "list") (p []) >>= fun dirs ->
-
-
       assert_equal (module Set(K)) "remove rec root" [] dirs;
+
+      let a = string x "ok" in
+      let b = string x "maybe?" in
+
+      S.update (t "fst one") (p ["fst"]) a        >>= fun () ->
+      S.update (t "snd one") (p ["fst"; "snd"]) b >>= fun () ->
+
+      S.read (t "read") (p ["fst"]) >>= fun fst ->
+      assert_equal (module Tc.Option(V)) "data model 1" None fst;
+      S.read (t "read") (p ["fst"; "snd"]) >>= fun snd ->
+      assert_equal (module Tc.Option(V)) "data model 2" (Some b) snd;
+
+      S.update (t "fst one") (p ["fst"]) a >>= fun () ->
+
+      S.read (t "read") (p ["fst"]) >>= fun fst ->
+      assert_equal (module Tc.Option(V)) "data model 3" (Some a) fst;
+      S.read (t "read") (p ["fst"; "snd"]) >>= fun snd ->
+      assert_equal (module Tc.Option(V)) "data model 4" None snd;
+
+      let tagx = S.Tag.of_hum "x" in
+      let tagy = S.Tag.of_hum "y" in
+      let xy = p ["x";"y"] in
+      let vx = string x "VX" in
+      S.of_tag x.config task tagx >>= fun tx ->
+      S.of_tag x.config task tagy >>= fun ty ->
+      S.remove_tag (tx "?") tagx >>= fun () ->
+      S.remove_tag (tx "?") tagy >>= fun () ->
+
+      S.update (tx "update") xy vx >>= fun () ->
+      S.update_tag (ty "update-tag") tagx >>= fun () ->
+      S.read (ty "read") xy >>= fun vx' ->
+      assert_equal (module Tc.Option(S.Val)) "update tag" (Some vx) vx';
+
+      S.tag (tx "tx") >>= fun tagx' ->
+      S.tag (ty "ty") >>= fun tagy' ->
+      assert_equal (module Tc.Option(S.Tag)) "tagx" (Some tagx) tagx';
+      assert_equal (module Tc.Option(S.Tag)) "tagy" (Some tagy) tagy';
 
       return_unit
     in
@@ -1066,6 +1174,13 @@ module Make (S: Irmin.S) = struct
 
       S.read (tt "read tt") (p ["b";"foo";"1"]) >>= fun foo2'' ->
       assert_equal (module (Tc.Option(V))) "remove tt" None foo2'';
+
+      let vx = string x "VX" in
+      let px = p ["x";"y";"z"] in
+      S.update (tt "update") px vx >>= fun () ->
+      View.of_path (tt "view") (p []) >>= fun view ->
+      View.read view px >>= fun vx' ->
+      assert_equal (module (Tc.Option(S.Val))) "updates" (Some vx) vx';
 
       return_unit
     in
@@ -1336,6 +1451,7 @@ let suite (speed, x) =
     "Basic operations on tags"        , speed, T.test_tags x;
     "Basic operations on watches"     , speed, T.test_watches x;
     "Basic merge operations"          , speed, T.test_simple_merges x;
+    "Basic operations on slices"      , speed, T.test_slice x;
     "Complex histories"               , speed, T.test_history x;
     "Empty stores"                    , speed, T.test_empty x;
     "High-level store operations"     , speed, T.test_stores x;
@@ -1348,6 +1464,6 @@ let suite (speed, x) =
     "Concurrent merges"               , speed, T.test_concurrent_merges x;
   ]
 
-let run name tl =
+let run name ~misc tl =
   let tl = List.map suite tl in
-  Alcotest.run name tl
+  Alcotest.run name (tl @ misc)

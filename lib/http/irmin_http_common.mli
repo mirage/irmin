@@ -14,35 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Log = Log.Make(struct let section = "TAG" end)
+(** HTTP helpers *)
 
-module type S = sig
-  include Ir_hum.S
-  val master: t
-  val is_valid: t -> bool
-end
+val ok_or_error: [`Ok | `Error] Tc.t
+val ok_or_duplicated_tag: [`Ok | `Duplicated_tag | `Empty_head] Tc.t
+val lca: 'a Tc.t -> [`Ok of 'a list | `Max_depth_reached | `Too_many_lcas] Tc.t
 
-module String = struct
-  include Tc.String
-  let master = "master"
-
-  let is_valid s =
-    let ok = ref true in
-    String.iter (function
-        | 'a' .. 'z'
-        | 'A' .. 'Z'
-        | '0' .. '9'
-        | '/' | '-'| '_' | '.' -> ()
-        | _ -> ok := false
-      ) s;
-    !ok
-
-  let to_hum s = s
-  let of_hum s = s
-end
-
-module type STORE = sig
-  include Ir_rw.REACTIVE
-  module Key: S with type t = key
-  module Val: Ir_hash.S with type t = value
-end
+val start_stream: string
+val irmin_header: string

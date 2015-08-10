@@ -28,9 +28,11 @@ let remote_uri s = URI s
 module type STORE = sig
   type db
   type head
-  val fetch: db -> ?depth:int -> remote -> head option Lwt.t
+  val fetch: db -> ?depth:int -> remote ->
+    [`Head of head | `No_head | `Error] Lwt.t
   val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
-  val pull: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Ir_merge.result Lwt.t
+  val pull: db -> ?depth:int -> remote -> [`Merge|`Update] ->
+    [`Ok | `No_head | `Error] Ir_merge.result Lwt.t
   val pull_exn: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Lwt.t
   val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
   val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
@@ -75,45 +77,47 @@ module Make (S: Ir_s.STORE) = struct
     | URI uri ->
       Log.debug "fetch URI %s" uri;
       begin S.tag t >>= function
-        | None     -> return_none
+        | None     -> Lwt.return `No_head
         | Some tag ->
           B.create (S.Private.config t) >>= fun g ->
-          B.fetch g ?depth ~uri tag >>= function
-          | None  -> return_none
-          | Some (`Local h) -> return (Some h)
+          B.fetch g ?depth ~uri tag
       end
     | Store ((module R), r) ->
       Log.debug "fetch store";
       S.heads t >>= fun min ->
       let min = List.map (conv (module S.Head) (module R.Head) ) min in
       R.head r >>= function
-      | None   -> return_none
+      | None   -> Lwt.return `No_head
       | Some h ->
          R.export r ?depth ~min ~max:[h] >>= fun r_slice ->
          convert_slice (module R.Private) (module S.Private) r_slice >>= fun s_slice ->
-         S.import t s_slice >>= fun () ->
-         let h = conv (module R.Head) (module S.Head) h in
-         return (Some h)
+         S.import t s_slice >>= function
+         | `Error -> Lwt.return `Error
+         | `Ok    ->
+           let h = conv (module R.Head) (module S.Head) h in
+           return (`Head h)
 
   let fetch_exn t ?depth remote =
     fetch t ?depth remote >>= function
-    | Some h -> return h
-    | None   -> fail (Failure "Sync.fetch_exn")
+    | `Head h  -> Lwt.return h
+    | `No_head -> Lwt.fail (Failure "Sync.fetch_exn: no head!")
+    | `Error   -> Lwt.fail (Failure "Sync.fetch_exn: fetch error!")
 
   let pull t ?depth remote kind =
     let open Ir_merge.OP in
     fetch t ?depth remote >>= function
-    | None -> ok () (* XXX ? *)
-    | Some k ->
+    | `Error   -> ok `Error
+    | `No_head -> ok `No_head
+    | `Head k  ->
       match kind with
-      | `Merge  -> S.merge_head t k
-      | `Update ->
-        S.update_head t k >>= fun () ->
-        ok ()
+      | `Merge  -> S.merge_head t k  >>| fun () -> ok `Ok
+      | `Update -> S.update_head t k >>= fun () -> ok `Ok
 
   let pull_exn t ?depth remote kind =
-    pull t ?depth remote kind >>=
-    Ir_merge.exn
+    pull t ?depth remote kind >>= Ir_merge.exn >>= function
+    | `Ok      -> Lwt.return_unit
+    | `No_head -> Lwt.fail (Failure "Sync.pull_exn: no head!")
+    | `Error   -> Lwt.fail (Failure "Sync.pull_exn: pull error!")
 
   let push t ?depth remote =
     Log.debug "push";
@@ -134,10 +138,13 @@ module Make (S: Ir_s.STORE) = struct
         let min = List.map (conv (module R.Head) (module S.Head)) min in
         S.export t ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
-        >>= fun r_slice -> R.import r r_slice >>= fun () ->
-        let h = conv (module S.Head) (module R.Head) h in
-        R.update_head r h >>= fun () ->
-        return `Ok
+        >>= fun r_slice -> R.import r r_slice >>= function
+        | `Error -> Log.debug "ERROR!"; Lwt.return `Error
+        | `Ok    ->
+          Log.debug "OK!";
+          let h = conv (module S.Head) (module R.Head) h in
+          R.update_head r h >>= fun () ->
+          Lwt.return `Ok
 
   let push_exn t ?depth remote =
     push t ?depth remote >>= function

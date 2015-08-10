@@ -1,4 +1,58 @@
-## 0.9.5
+### 0.9.8 (2015-07-17)
+
+* Fix wrong interaction of in-memory views and temporary branches in the store
+  (#237)
+* Fix `Irmin.update_tag` for HTTP clients
+* Initial MirageOS support. Expose `Mirage_irmin.KV_RO` to surface an
+  Irmin store as a read-only key/value store implementing `V1_LWT.KV_RO
+  (#107)
+* Expose `Irmin_git.Memory_ext. This allows the Git memory backend to be
+  configured with a non-empty conduit context.
+* Expose `Irmin.SYNC`
+* Transmit client tasks to the HTTP server on DELETE too (#227, @dsheets)
+* Do note expose private types in the public interface (#234, @koleini)
+* Fix missing zero padding for date pretty-printing (#228, @dsheets)
+* Update the tests to use `ocaml-git.1.6.0`
+* Improve the style of the HTTP commit graph.
+* Constraint the string tags to contain only alpha-numeric characters
+  and few mores (`-`, `_`, '.' and `/`) (#186)
+* Fix a race condition in `Irmin.clone`. (#221)
+* Escpate double quotes in the output of commit messages to workaround
+  HTML display issues. (#222)
+
+### 0.9.7 (2015-07-06)
+
+* Add a version check for HTTP client and server. The client might add the
+  version in the HTTP headers using the `X-IrminVersion` header - the server
+  might decide to enfore the version check or not. The server always reply
+  with its version in the JSON reply, using a `version` field. The client
+  might use that information to bail out nicely instead of failing because
+  of some random unmarshalling errors due to API changes (#167)
+* Fix a regression in 0.9.5 and 0.9.6 when inserting new child in Git trees.
+  This could cause a tree to have duplicate childs having the same names,
+  which would confuse the merge functions, make `git fsck` and `git gc`
+  complain a lot (with good reasons) and do some fency things with git
+  index. The regression has been introduced while trying to fix #190 (the fix
+  is in #229)
+
+#### 0.9.6 (2015-07-03)
+
+* Fix the datamodel: it is not possible to store data in intermediate nodes
+  anymore (#209)
+* Fix serialization of slices (#204)
+* Do not fail silently when the synchronisation fails (#202)
+* Fix a race in the HTTP backend between adding a watch and updating the store.
+  In some cases, the watch callback wasn't able to see the first few updates
+  (#198)
+* Fix a race for all the on-disk backends between adding a watch and updating
+  the store. This is fixed by making `Irmin.Private.Watch.listen_dir` and
+  `Irmin.Private.Watch.set_listen_dir_hook` synchronous.
+* Update the tests to use `alcotest >= 0.4`. This removes the dependency towards
+  `OUnit` and `nocrypto` for the tests.
+* Make the file-locking code a bit more robust
+
+### 0.9.5 (2015-06-11)
+
 * Fix `Irmin.export` for the HTTP backend (#196, patch from Alex Zatelepin)
 * Fix a race in `Irmin.export` (#196, patch from Alex Zatelepin)
 * Add `Task.empty` (the empty task) and `Task.none` (the empty task constructor)
@@ -33,7 +87,8 @@
 * By default, explore the full graph when computing the LCAs. The previous
   behavior was to limit the depth of the exploration to be 256 by default.
 
-## 0.9.4
+### 0.9.4 (2015-03-16)
+
 * Ensure that `Irmin.update` and `Irmin.merge` are atomic.
 * Fix `Irmin.clone` of an empty branch
 * Add `Irmin.RW.compare_and_test` that the backends now have to implement
@@ -48,7 +103,8 @@
 * Fix performance of lcas computation (#160)
 * Add `Irmin.Merge.promise` combinators
 
-## 0.9.3
+### 0.9.3 (2015-01-04)
+
 * Fix the invalidation of the view caches (report by @gregtatcam).
   This was causing some confusing issues where views' sub-keys where
   not properly updated to to their new values when the view is merged
@@ -75,7 +131,8 @@
 * Expose `S.lca` to get the least common ancestors
 * Update to ocaml-git 1.4.6
 
-## 0.9.2 (2015-01-19)
+### 0.9.2 (2015-01-19)
+
 * Fix `S.of_head` for the HTTP client (regression introduced in 0.9.0)
 * Fix regression in displaying the store's graph over HTTP introduced by
   0.9.0.
@@ -99,10 +156,12 @@
   the resulting Irmin store will be of type `Path.t`.
 * Fix `irmin init --help`. (#103)
 
-## 0.9.1 (2014-12-26)
+### 0.9.1 (2014-12-26)
+
 * Port to Cohttp 0.14.0+ HTTP interface (#102)
 
-## 0.9.0 (2014-12-20)
+### 0.9.0 (2014-12-20)
+
 * Improve the efficiency of the Git backend
 * Expose a cleaner API for the Unix backends
 * Expose a cleaner public API
@@ -117,7 +176,8 @@
 * Fix writing contents at the root of the store (#73)
 * More efficient synchronization protocol between Irmin stores (#11)
 
-## 0.8.3 (2014-06-25)
+### 0.8.3 (2014-06-25)
+
 * Views now keep track of their parent commits - this makes
   View.merge_path looks like a merge between branches. All the
   view operations are squashed in a unique commit.
@@ -128,7 +188,8 @@
   command-line. `dot` does not like big graphs, but that's
   still useful to have the `.dot` file to analyze it.
 
-## 0.8.2 (2014-06-11)
+### 0.8.2 (2014-06-11)
+
 * Support backend specific protocols for push/pull
 * The Irmin Git backend can now sync with remote Git repositories
 * Simplify the organisation of the libraries: irmin, irmin.backend,
@@ -137,7 +198,8 @@
   at the top of your file and use less functor in your code (again,
   check the examples)
 
-## 0.8.1 (2014-06-02)
+### 0.8.1 (2014-06-02)
+
 * Fix the behavior of `IrminMemory.Make` to return an hanlder to a
   shared datastore instead of creating a fresh one. Add
   `IrminMemory.Fresh` to return a fresh in-memory datastore maker.
@@ -147,7 +209,8 @@
   everything by `refs/heads/` anymore)
 * Partial support for recursive stores (WIP)
 
-## 0.8.0 (2014-05-27)
+### 0.8.0 (2014-05-27)
+
 * Spring clean-ups in the API. Separation in IrminBranch for
   fork/join operations, IrminSnapshot for snapshot/revert
   operations and IrminDump for import/export operations.
@@ -163,7 +226,8 @@
   an already existing branch
 * Fix order of arguments in Irmin.merge
 
-## 0.7.0 (2014-05-02)
+### 0.7.0 (2014-05-02)
+
 * Feature: support for in-memory transactions. They are built
   on top of views.
 * Feature: add support for views: these are temporary stores with
@@ -183,7 +247,8 @@
 * Speed-up IrminValue.Mux
 * Deps: use ocaml-sha instead of cryptokit
 
-## 0.6.0 (2014-04-12)
+### 0.6.0 (2014-04-12)
+
 * Support for user-defined contents (with custom merge operators)
 * Support for merge operations
 * Rename `IrminTree` to `IrminNode` to reflect the fact that we
@@ -193,10 +258,12 @@
   we also support structured contents (as JSON objects)
 * Support for linking the library without linking to camlp4 as well (#23)
 
-## 0.5.1 (2014-03-02)
+### 0.5.1 (2014-03-02)
+
 * Port to use Cohttp 0.10.0 interface.
 
-## 0.5.0
+### 0.5.0 (2014-02-21)
+
 * More consistent support for notifications. `irmin watch` works
   now for all backends.
 * Support for different blob formats on the command-line
@@ -210,7 +277,8 @@
 * Improve the output graph when objects of different kinds might have
   the same SHA1
 
-## 0.4 (2014-01-21)
+### 0.4 (2014-01-21)
+
 * The command-line tool now looks in the environment for the variable
   `IRMIN` to configure its default backend
 * Add a Git backend
@@ -224,13 +292,15 @@
 * Use `mstruct` (mutable buffers on top of `cstruct`) which is now
   released independently
 
-## 0.3 (2013-12-13)
+### 0.3 (2013-12-13)
+
 * Fix a fd leak in the filesystem bakend
 * Functorize the CRUD interface over the HTTP client implementation
 * Use oasis to build the project
 * Use the now released separately `ezjsonm` and `alcotest` libraries
 
-## 0.2 (2013-11-23)
+### 0.2 (2013-11-23)
+
 * Fix the HTTP server responses
 * More high-level tests
 * Add unit-tests for the client CRUD interfaces (over memory and/or filesystem)
@@ -243,7 +313,8 @@
 * Improve and make the CLI easier to use
 * Implement clone/pull/push/snapshot/revert in the CLI
 
-## 0.1 (2013-10-30)
+### 0.1 (2013-10-30)
+
 * Use an HTTP server as a front-end
 * Initial support for in-memory and filesystem backends
 * Simple signature for backends

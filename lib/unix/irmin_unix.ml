@@ -28,9 +28,13 @@ module Lock = struct
   let is_stale max_age file =
     IO.file_exists file >>= fun exists ->
     if exists then (
-      Lwt_unix.stat file >>= fun s ->
-      let stale = Unix.gettimeofday () -. s.Unix.st_mtime > max_age in
-      Lwt.return stale
+      Lwt.catch (fun () ->
+          Lwt_unix.stat file >>= fun s ->
+          let stale = Unix.gettimeofday () -. s.Unix.st_mtime > max_age in
+          Lwt.return stale)
+        (function
+          | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return false
+          | e -> Lwt.fail e)
     ) else
       Lwt.return false
 
@@ -114,7 +118,8 @@ module Irmin_http_server = struct
   module Y = struct
     let pretty d =
       let tm = Unix.localtime (Int64.to_float d) in
-      Printf.sprintf "%2d:%2d:%2d" tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
+      Printf.sprintf "%02d:%02d:%02d"
+        tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
   end
   type hooks = Irmin_http_server.hooks = { update: unit -> unit Lwt.t }
   module type S = Irmin_http_server.S
@@ -189,7 +194,8 @@ let rec poll ~callback ~delay dir files =
   poll ~callback ~delay dir new_files
 
 let listen ~callback ~delay dir =
-  stoppable (fun () -> read_files dir >>= poll ~callback ~delay dir)
+  read_files dir >|= fun files ->
+  stoppable (fun () -> poll ~callback ~delay dir files)
 
 (* map directory names to list of callbacks *)
 let listeners = Hashtbl.create 10
@@ -210,10 +216,10 @@ let realdir dir = if Filename.is_relative dir then Sys.getcwd () / dir else dir
 
 let start_watchdog ~delay dir =
   match watchdog dir with
-  | Some _ -> assert (nb_listeners dir <> 0)
+  | Some _ -> assert (nb_listeners dir <> 0); Lwt.return_unit
   | None   ->
     Log.debug "Start watchdog for %s" dir;
-    let u = listen dir ~delay ~callback in
+    listen dir ~delay ~callback >|= fun u ->
     Hashtbl.add watchdogs dir u
 
 let stop_watchdog dir =
@@ -246,7 +252,7 @@ let install_dir_polling_listener delay =
   uninstall_dir_polling_listener ();
   let listen_dir id dir fn =
     let dir = realdir dir in
-    start_watchdog ~delay dir;
+    start_watchdog ~delay dir >|= fun () ->
     add_listener id dir fn;
     function () ->
       remove_listener id dir;

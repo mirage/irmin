@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: e4fec6323cfea172347ca23f8a9bf9c3)
-version = "0.9.5"
+# DO NOT EDIT (digest: f598969603d7bcdd5e9b19c3a8db1b17)
+version = "0.9.8"
 description = "A Distributed Version Control Database"
 requires =
 "ezjsonm ocamlgraph lwt dolog cstruct tc mstruct uri stringext hex"
@@ -10,7 +10,7 @@ archive(native) = "irmin.cmxa"
 archive(native, plugin) = "irmin.cmxs"
 exists_if = "irmin.cma"
 package "unix" (
- version = "0.9.5"
+ version = "0.9.8"
  description = "A Distributed Version Control Database"
  requires =
  "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
@@ -21,8 +21,20 @@ package "unix" (
  exists_if = "irmin-unix.cma"
 )
 
+package "mirage" (
+ version = "0.9.8"
+ description = "A Distributed Version Control Database"
+ requires =
+ "irmin irmin.mem irmin.git irmin.fs irmin.http cohttp.lwt git.mirage"
+ archive(byte) = "irmin-mirage.cma"
+ archive(byte, plugin) = "irmin-mirage.cma"
+ archive(native) = "irmin-mirage.cmxa"
+ archive(native, plugin) = "irmin-mirage.cmxs"
+ exists_if = "irmin-mirage.cma"
+)
+
 package "mem" (
- version = "0.9.5"
+ version = "0.9.8"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin-mem.cma"
@@ -32,30 +44,8 @@ package "mem" (
  exists_if = "irmin-mem.cma"
 )
 
-package "link" (
- version = "0.9.5"
- description = "A Distributed Version Control Database"
- requires = "irmin irmin.mem irmin.unix irmin.fs"
- archive(byte) = "irmin-link.cma"
- archive(byte, plugin) = "irmin-link.cma"
- archive(native) = "irmin-link.cmxa"
- archive(native, plugin) = "irmin-link.cmxs"
- exists_if = "irmin-link.cma"
-)
-
-package "krypto" (
- version = "0.9.5"
- description = "A Distributed Version Control Database"
- requires = "irmin nocrypto"
- archive(byte) = "irmin-krypto.cma"
- archive(byte, plugin) = "irmin-krypto.cma"
- archive(native) = "irmin-krypto.cmxa"
- archive(native, plugin) = "irmin-krypto.cmxs"
- exists_if = "irmin-krypto.cma"
-)
-
 package "http" (
- version = "0.9.5"
+ version = "0.9.8"
  description = "A Distributed Version Control Database"
  requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
  archive(byte) = "irmin-http.cma"
@@ -66,7 +56,7 @@ package "http" (
 )
 
 package "git" (
- version = "0.9.5"
+ version = "0.9.8"
  description = "A Distributed Version Control Database"
  requires = "irmin git"
  archive(byte) = "irmin-git.cma"
@@ -77,7 +67,7 @@ package "git" (
 )
 
 package "fs" (
- version = "0.9.5"
+ version = "0.9.8"
  description = "A Distributed Version Control Database"
  requires = "irmin"
  archive(byte) = "irmin-fs.cma"
@@ -85,17 +75,6 @@ package "fs" (
  archive(native) = "irmin-fs.cmxa"
  archive(native, plugin) = "irmin-fs.cmxs"
  exists_if = "irmin-fs.cma"
-)
-
-package "chunck" (
- version = "0.9.5"
- description = "A Distributed Version Control Database"
- requires = "irmin cstruct"
- archive(byte) = "irmin-chunck.cma"
- archive(byte, plugin) = "irmin-chunck.cma"
- archive(native) = "irmin-chunck.cmxa"
- archive(native, plugin) = "irmin-chunck.cmxs"
- exists_if = "irmin-chunck.cma"
 )
 # OASIS_STOP
 

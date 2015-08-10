@@ -7,26 +7,25 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 
 build: [
-  ["./configure"
-      "--prefix" prefix
+  ["./configure" "--prefix" prefix
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
       "--%{base-unix:enable}%-unix"
-      "--%{cohttp+git+alcotest:enable}%-tests"
-      "--%{cohttp+git+alcotest:enable}%-examples"]
+      "--%{mirage-git:enable}%-mirage"]
   [make]
 ]
-build-test: [make "test"]
-install: [make "install"]
-remove: [
-  ["ocamlfind" "remove" "irmin"]
-  ["rm" "-f" "%{bin}%/irmin"]
+build-test: [
+  ["./configure" "--enable-tests" "--enable-examples"]
+  [make "test"]
 ]
+install: [make "install"]
+remove: ["ocamlfind" "remove" "irmin"]
+
 depends: [
+  "ocamlfind" {build}
   "ezjsonm" {>= "0.4.0"}
   "ocamlgraph"
   "lwt" {>= "2.4.7"}
-  "nocrypto" {test & >= "0.2.2"}
   "dolog" {>= "0.4"}
   "cstruct" {>= "1.0.1"}
   "mirage-tc" {>= "0.3.0"}
@@ -37,18 +36,19 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
-  "git" {test}
-  "cohttp" {test}
-  "alcotest" {test}
+  "base-unix" {test}
+  "git"       {test}
+  "cohttp"    {test}
+  "alcotest"  {test & >="0.4.1"}
 ]
 depopts: [
+  "base-unix"
   "git"
   "cohttp"
-  "nocrypto"
+  "mirage-git"
 ]
 conflicts: [
-  "git"    {< "1.4.10"}
-  "cohttp" {< "0.14.0"}
-  "cohttp" {= "0.16.1"}
+  "cohttp" {< "0.18.3"}
+  "git"    {< "1.6.0"}
 ]
 available: [ocaml-version >= "4.01.0"]

@@ -195,12 +195,12 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     W.listen_dir t.w dir ~key ~value:(RO.read t.t)
 
   let watch_key t key ?init f =
-    let stop = listen_dir t in
+    listen_dir t >>= fun stop ->
     W.watch_key t.w key ?init f >>= fun w ->
     Lwt.return (w, stop)
 
   let watch t ?init f =
-    let stop = listen_dir t in
+    listen_dir t >>= fun stop ->
     W.watch t.w ?init f >>= fun w ->
     Lwt.return (w, stop)
 

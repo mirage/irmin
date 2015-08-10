@@ -22,11 +22,11 @@ let test_db = "test_db_git"
 let init_disk () =
   if Filename.basename (Sys.getcwd ()) <> "lib_test" then
     failwith "The Git test should be run in the lib_test/ directory."
-  else if Sys.file_exists test_db then (
+  else if Sys.file_exists test_db then
     Git_unix.FS.create ~root:test_db () >>= fun t ->
     Irmin_unix.install_dir_polling_listener Test_fs.polling;
-    Git_unix.FS.clear t
-  ) else
+    Git_unix.FS.remove t
+  else
     return_unit
 
 let clean () =
@@ -45,3 +45,20 @@ let suite k =
       let head = Git.Reference.of_raw "refs/heads/test" in
       Irmin_git.config ~root:test_db ~head ~bare:true ()
   }
+
+let test_non_bare () =
+  let open Irmin_unix in
+  init_disk () >>= fun () ->
+  let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String) in
+  let config = Irmin_git.config ~root:test_db ~bare:false () in
+  Irmin.create store config task >>= fun t ->
+  Irmin.update (t "fst one") ["fst"] "ok" >>= fun () ->
+  Irmin.update (t "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
+  Irmin.update (t "fst one") ["fst"] "hoho"
+
+let run f () = Lwt_main.run (f ())
+
+let misc =
+  "GIT.misc", [
+    "Testing git non-bare repostiories", `Quick, run test_non_bare;
+  ]

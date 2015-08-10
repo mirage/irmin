@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        irmin
-Version:     0.9.5
+Version:     0.9.8
 Synopsis:    A Distributed Version Control Database
 Authors:     Thomas Gazagnaire
 License:     ISC
@@ -17,6 +17,10 @@ Flag http
 
 Flag git
   Description: build the git libraries
+  Default: true
+
+Flag mirage
+  Description: build the MirageOS libraries
   Default: true
 
 Flag examples
@@ -67,7 +71,7 @@ Library "irmin-http"
   FindlibParent:   irmin
   BuildDepends:    irmin, cohttp.lwt-core, ezjsonm.lwt, re, re.pcre, re.perl
   InternalModules: Irmin_http_static
-  Modules:         Irmin_http, Irmin_http_server
+  Modules:         Irmin_http, Irmin_http_server, Irmin_http_common
 
 Library "irmin-unix"
   Build$:        flag(unix) && flag(http) && flag(git)
@@ -99,6 +103,17 @@ Library "irmin-chunck"
   FindlibParent:    irmin
   BuildDepends:     irmin, cstruct
   Modules:          Irmin_chunck
+
+Library "irmin-mirage"
+  Build$:        flag(mirage) && flag(http) && flag(git)
+  Install$:      flag(mirage) && flag(http) && flag(git)
+  Path:          lib/mirage
+  Findlibname:   mirage
+  FindlibParent: irmin
+  BuildDepends:  irmin, irmin.mem, irmin.git, irmin.fs, irmin.http,
+                 cohttp.lwt, git.mirage
+  Modules:       Irmin_mirage
+  
 
 Document irmin
   Title:                Irmin docs

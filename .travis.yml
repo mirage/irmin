@@ -1,6 +1,16 @@
 language: c
 install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/master/.travis-opam.sh
 script: bash -ex .travis-opam.sh
+sudo: required
 env:
-  - OCAML_VERSION=4.01   EXTRA_DEPS="conf-gmp"
-  - OCAML_VERSION=latest EXTRA_DEPS="conf-gmp"
+  global:
+  - ALCOTEST_SHOW_ERRORS=1
+  - REVDEPS="irmin-indexeddb"
+  - PACKAGE=irmin
+  matrix:
+  - OCAML_VERSION=4.01
+  - OCAML_VERSION=4.02
+  - OCAML_VERSIOM=4.02 DEPOTS=cohttp
+  - OCAML_VERSIOM=4.01 DEPOTS=git
+  - OCAML_VERSIOM=4.01 DEPOTS="cohttp git"
+  - OCAML_VERSION=4.01 DEPOTS=mirage-git
