@@ -72,6 +72,13 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     in
     raise (Error err)
 
+  let error_of_json j =
+    let string = Ezjsonm.decode_string_exn in
+    match j with
+    | `O ["invalid-argument", s] -> Invalid_argument (string s)
+    | `O ["failure", s]          -> Failure (string s)
+    | _ -> Error (string j)
+
   let result_of_json ~version json =
     if version then (
       let version =
@@ -88,7 +95,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       with Not_found -> None in
     match error, result with
     | None  , None   -> raise (Error "result_of_json")
-    | Some e, None   -> raise (Error (Ezjsonm.decode_string_exn e))
+    | Some e, None   -> raise (error_of_json e)
     | None  , Some r -> r
     | Some _, Some _ -> raise (Error "result_of_json")
 

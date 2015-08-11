@@ -79,7 +79,12 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let version = Ezjsonm.encode_string Irmin.version
 
   let respond_error e =
-    let error = Ezjsonm.encode_string (Printexc.to_string e) in
+    let string = Ezjsonm.encode_string in
+    let error = match e with
+      | Invalid_argument s -> `O ["invalid-argument", string s]
+      | Failure s          -> `O ["failure", string s]
+      | e -> string (Printexc.to_string e)
+    in
     let json = `O [ "error", error; "version", version ] in
     let body = Ezjsonm.to_string json in
     Log.error "server error: %s" body;
