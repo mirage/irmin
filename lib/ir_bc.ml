@@ -104,6 +104,7 @@ module type STORE_EXT = sig
   val read_node: t -> key -> Private.Node.key option Lwt.t
   val mem_node: t -> key -> bool Lwt.t
   val update_node: t -> key -> Private.Node.key -> unit Lwt.t
+  val remove_node: t -> key -> unit Lwt.t
 end
 
 module Make_ext (P: PRIVATE) = struct
@@ -295,9 +296,10 @@ module Make_ext (P: PRIVATE) = struct
     Lwt_mutex.with_lock t.lock (fun () -> retry msg aux)
 
   let update_node t path node =
-    with_commit t path ~f:(fun head ->
-        Graph.add_node (graph_t t) head path node
-      )
+    with_commit t path ~f:(fun h -> Graph.add_node (graph_t t) h path node)
+
+  let remove_node t path =
+    with_commit t path ~f:(fun h -> Graph.remove_node (graph_t t) h path)
 
   let map t path ~f =
     Log.debug "map %a" force (show (module Key) path);

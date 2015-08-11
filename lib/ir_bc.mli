@@ -133,6 +133,9 @@ module type STORE_EXT = sig
   val update_node: t -> key -> Private.Node.key -> unit Lwt.t
   (** Update a node. *)
 
+  val remove_node: t -> key -> unit Lwt.t
+  (** Remove a node. *)
+
 end
 
 module Make_ext (P: PRIVATE): STORE_EXT

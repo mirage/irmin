@@ -35,6 +35,7 @@ module type STORE = sig
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
+    val remove_node: t -> key -> unit Lwt.t
   end
 end
 
@@ -60,6 +61,7 @@ module Make_ext (P: Ir_bc.PRIVATE) = struct
     let commit_t = P.commit_t
     let tag_t = P.tag_t
     let update_node = P.update_node
+    let remove_node = P.remove_node
     let mem_node = P.mem_node
     let read_node = P.read_node
   end
