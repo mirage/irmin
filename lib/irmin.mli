@@ -393,7 +393,9 @@ module type RW = sig
 
   val update: t -> key -> value -> unit Lwt.t
   (** [update t k v] replaces the contents of [k] by [v] in [t]. If
-      [k] is not already defined in [t], create a fresh binding. *)
+      [k] is not already defined in [t], create a fresh binding.
+      Raise [Invalid_argument] if [k] is the {{!Path.empty}empty
+      path}. *)
 
   val compare_and_set: t -> key -> test:value option -> set:value option -> bool Lwt.t
   (** [compare_and_set t key ~test ~set] sets [key] to [set] only if

@@ -436,28 +436,29 @@ struct
       (fun () -> read_node_exn t node path)
       (function Not_found -> err_not_found "read_node" path | e -> Lwt.fail e)
 
-  let mk_path path =
-    match Path.rdecons path with
-    | Some (l,t) -> l, t
-    | None -> Path.empty, Step.of_hum "__root__"
+  let err_empty_path () = invalid_arg "Irmin.node: empty path"
 
   let read_contents_exn t node path0 =
-   Log.debug "read_contents_exn %a" force (show (module S.Path) path0);
-   let path, file = mk_path path0 in
-   read_node_exn t node path >>= fun node ->
-   contents t node file >>= function
-   | None   -> err_not_found "read_contents" path0
-   | Some c -> Lwt.return c
+    Log.debug "read_contents_exn %a" force (show (module S.Path) path0);
+    match Path.rdecons path0 with
+    | None -> err_not_found "read_contents" path0
+    | Some (path, file) ->
+      read_node_exn t node path >>= fun node ->
+      contents t node file >>= function
+      | None   -> err_not_found "read_contents" path0
+      | Some c -> Lwt.return c
 
   let read_contents t node path =
     Log.debug "read_contents %a" force (show (module S.Path) path);
-    let path, file = mk_path path in
-    read_node t node path >>= function
-    | None      -> Lwt.return_none
-    | Some node ->
-      contents t node file >>= function
-      | None   -> Lwt.return_none
-      | Some c -> Lwt.return (Some c)
+    match Path.rdecons path with
+    | None -> Lwt.return_none
+    | Some (path, file) ->
+      read_node t node path >>= function
+      | None      -> Lwt.return_none
+      | Some node ->
+        contents t node file >>= function
+        | None   -> Lwt.return_none
+        | Some c -> Lwt.return (Some c)
 
   let mem_node t node path =
     Log.debug "mem_node %a" force (show (module S.Path) path);
@@ -467,13 +468,15 @@ struct
 
   let mem_contents t node path =
     Log.debug "mem_contents %a" force (show (module S.Path) path);
-    let path, file = mk_path path in
-    read_node t node path >>= function
-    | None   -> Lwt.return_false
-    | Some n ->
-      contents t n file >>= function
+    match Path.rdecons path with
+    | None -> Lwt.return_false
+    | Some (path, file) ->
+      read_node t node path >>= function
       | None   -> Lwt.return_false
-      | Some _ -> Lwt.return_true
+      | Some n ->
+        contents t n file >>= function
+        | None   -> Lwt.return_false
+        | Some _ -> Lwt.return_true
 
   let map_one t node f label =
     Log.debug "map_one %a" force (show (module Step) label);
@@ -516,24 +519,29 @@ struct
     Log.debug "update_node %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    if Path.is_empty path then
+    match Path.rdecons path with
+    | Some (path, file) ->
+      map t node path (fun node -> S.Val.with_succ node file n)
+    | None ->
       match n with
       | None   -> empty t
       | Some n -> Lwt.return n
-    else
-      let path, file = mk_path path in
-      map t node path (fun node -> S.Val.with_succ node file n)
 
   let add_node t node path n = update_node t node path (Some n)
   let remove_node t node path =
     if Path.is_empty path then empty t
     else update_node t node path None
 
+  let rdecons_exn path =
+    match Path.rdecons path with
+    | Some (l,t) -> l, t
+    | None       -> err_empty_path ()
+
   let update_contents t node path c =
     Log.debug "update_contents %a %a"
       force (show (module S.Key) node)
       force (show (module S.Path) path);
-    let path, file = mk_path path in
+    let path, file = rdecons_exn path in
     map t node path (fun node -> S.Val.with_contents node file c)
 
   let add_contents t node path c = update_contents t node path (Some c)
