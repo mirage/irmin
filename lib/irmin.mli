@@ -2250,7 +2250,8 @@ module type VIEW = sig
   val of_path: db -> key -> t Lwt.t
   (** [of_path t p] reads the view from a path [p] in the branch
       [t]. This is a cheap operation, all the real reads operation
-      will be done on-demand when the view is used. *)
+      will be done on-demand when the view is used. If [p] does not
+      exist in [t], the the result is an {!empty} view. *)
 
   val update_path: db -> key -> t -> unit Lwt.t
   (** [update_path t p v] {e replaces} the sub-tree under [p] in the
