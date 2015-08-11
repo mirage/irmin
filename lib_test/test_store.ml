@@ -1087,6 +1087,9 @@ module Make (S: Irmin.S) = struct
       View.empty () >>= fun v1 ->
       View.empty () >>= fun v2 ->
       View.update v1 (p ["foo";"1"]) foo1 >>= fun () ->
+      View.read v1 (p ["foo"; "1"]) >>= fun f ->
+      assert_equal (module Tc.Option(V)) "view udate" (Some foo1) f;
+
       View.update v2 (p ["foo";"1"]) foo2 >>= fun () ->
       View.update v2 (p ["foo";"2"]) foo1 >>= fun () ->
 
@@ -1198,6 +1201,12 @@ module Make (S: Irmin.S) = struct
       View.of_path (tt "view") (p []) >>= fun view ->
       View.read view px >>= fun vx' ->
       assert_equal (module (Tc.Option(S.Val))) "updates" (Some vx) vx';
+
+      View.empty () >>= fun v ->
+      View.update v (p []) vx >>= fun () ->
+      View.update_path (t "update file as view") (p ["a"]) v >>= fun () ->
+      S.read (t "read") (p ["a"]) >>= fun vx' ->
+      assert_equal (module Tc.Option(V)) "update file as view" (Some vx) vx';
 
       return_unit
     in
