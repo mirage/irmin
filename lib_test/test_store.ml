@@ -975,9 +975,16 @@ module Make (S: Irmin.S) = struct
       S.list (t "list") (p []) >>= fun dirs ->
       assert_equal (module Set(K)) "remove rec" [] dirs;
 
-      S.update (t "update root") (p []) v1 >>= fun () ->
-      S.read_exn (t "read root") (p []) >>= fun v1' ->
-      assert_equal (module V) "read root" v1 v1';
+      Lwt.catch
+        (fun () ->
+           S.update (t "update root") (p []) v1 >>= fun () ->
+           Alcotest.fail "update root")
+        (function
+          | Invalid_argument _ -> Lwt.return_unit
+          | e -> Alcotest.fail ("update root: " ^ Printexc.to_string e))
+      >>= fun () ->
+      S.read (t "read root") (p []) >>= fun none ->
+      assert_equal (module Tc.Option(V)) "read root" none None;
 
       S.update (t "update") (p ["a"]) v1 >>= fun () ->
       S.remove_rec (t "remove rec --all") (p []) >>= fun () ->
