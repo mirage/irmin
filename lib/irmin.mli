@@ -348,7 +348,10 @@ module type RO = sig
       [task] is the provided by the user. The operation might be
       blocking, depending on the backend. *)
 
-  val task: t -> Task.t
+  val config: t -> config
+  (** [config t] is [t]'s config. *)
+
+  val task: t -> task
   (** [task t] is the task associated to the store handle [t]. *)
 
   val read: t -> key -> value option Lwt.t
@@ -390,7 +393,9 @@ module type RW = sig
 
   val update: t -> key -> value -> unit Lwt.t
   (** [update t k v] replaces the contents of [k] by [v] in [t]. If
-      [k] is not already defined in [t], create a fresh binding. *)
+      [k] is not already defined in [t], create a fresh binding.
+      Raise [Invalid_argument] if [k] is the {{!Path.empty}empty
+      path}. *)
 
   val compare_and_set: t -> key -> test:value option -> set:value option -> bool Lwt.t
   (** [compare_and_set t key ~test ~set] sets [key] to [set] only if
@@ -1094,6 +1099,9 @@ module Private: sig
     val rem: t -> 'a key -> t
     (** [rem c k] is [c] with [k] unbound. *)
 
+    val union: t -> t -> t
+    (** [union r s] is the union of the configurations [r] and [s]. *)
+
     val find: t -> 'a key -> 'a option
     (** [find c k] is [k]'s mapping in [c], if any. *)
 
@@ -1732,6 +1740,7 @@ module type S = sig
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
+    val remove_node: t -> key -> unit Lwt.t
   end
 
 end
@@ -2244,7 +2253,8 @@ module type VIEW = sig
   val of_path: db -> key -> t Lwt.t
   (** [of_path t p] reads the view from a path [p] in the branch
       [t]. This is a cheap operation, all the real reads operation
-      will be done on-demand when the view is used. *)
+      will be done on-demand when the view is used. If [p] does not
+      exist in [t], the the result is an {!empty} view. *)
 
   val update_path: db -> key -> t -> unit Lwt.t
   (** [update_path t p v] {e replaces} the sub-tree under [p] in the

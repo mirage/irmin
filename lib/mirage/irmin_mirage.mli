@@ -51,7 +51,7 @@ module Irmin_git: sig
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module Memory (C: CONTEXT): Irmin.S_MAKER
+  module Memory (C: CONTEXT) (I: Git.Inflate.S): Irmin.S_MAKER
   (** Embed an Irmin store into an in-memory Git repository. *)
 
 end
@@ -66,8 +66,9 @@ module Task (N: sig val name: string end)(C: V1.CLOCK): sig
 
 end
 
-(** Functor to create a MirageOS' KV_RO store. *)
-module KV_RO (C: CONTEXT): sig
+(** Functor to create a MirageOS' KV_RO store from a Git
+    repository. *)
+module KV_RO (C: CONTEXT) (I: Git.Inflate.S): sig
 
   include V1_LWT.KV_RO
 

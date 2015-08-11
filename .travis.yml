@@ -6,7 +6,7 @@ env:
   global:
   - ALCOTEST_SHOW_ERRORS=1
   - REVDEPS="irmin-indexeddb"
-  - PACKAGE=irmin
+  - PACKAGE=irmin.0.9.9
   matrix:
   - OCAML_VERSION=4.01
   - OCAML_VERSION=4.02

@@ -1,3 +1,20 @@
+### 0.9.9
+
+* Adapt to `ocaml-git.1.7.1` (which works with `lwt.2.5.0`)
+* Expose `Store.config` for all the stores (`AO`, `RW`, etc.)
+* Expose `Irmin_git.Internals` to be able to get back the
+  Git commit objects from an `head` value (#245, #241)
+* Expose `Irmin.Private.remove_node`
+* Remove the special `__root__` filename in Irmin stores and in views
+  (#233)
+  - This fixes `View.update_path` when the view contains a value at its
+    root. Now the updated path contains a the value stored at the root
+    of the view.
+  - Writing a value to the root of a store is now an error
+  - Reading a value at the root of a store always return `None`
+* Make the HTTP backend re-raise the `Invalid_argument` and `Failure`
+  exceptions that were raised by the server.
+
 ### 0.9.8 (2015-07-17)
 
 * Fix wrong interaction of in-memory views and temporary branches in the store

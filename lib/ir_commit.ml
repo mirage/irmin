@@ -120,6 +120,7 @@ struct
       S.create config task >>= fun s ->
       return (fun a -> (n a, s a))
 
+    let config (s, t) = Ir_conf.union (N.config s) (S.config t)
     let task (_, t) = S.task t
     let add (_, t) = S.add t
     let mem (_, t) = S.mem t

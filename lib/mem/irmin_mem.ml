@@ -31,6 +31,7 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
   type t = { t: (K.t, value) Hashtbl.t; task: Irmin.task; config: Irmin.config }
 
   let task t = t.task
+  let config t = t.config
   let table = Hashtbl.create 23
 
   let create config task =
@@ -92,6 +93,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
   let task t = RO.task t.t
+  let config t = RO.config t.t
   let iter t = RO.iter t.t
   let watch_key t = W.watch_key t.w
   let watch t = W.watch t.w

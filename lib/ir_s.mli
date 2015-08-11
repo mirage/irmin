@@ -37,7 +37,8 @@ module type STORE = sig
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
-  end
+    val remove_node: t -> key -> unit Lwt.t
+   end
 end
 
 module type MAKER =

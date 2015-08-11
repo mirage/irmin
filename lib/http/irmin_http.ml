@@ -72,6 +72,13 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     in
     raise (Error err)
 
+  let error_of_json j =
+    let string = Ezjsonm.decode_string_exn in
+    match j with
+    | `O ["invalid-argument", s] -> Invalid_argument (string s)
+    | `O ["failure", s]          -> Failure (string s)
+    | _ -> Error (string j)
+
   let result_of_json ~version json =
     if version then (
       let version =
@@ -88,7 +95,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       with Not_found -> None in
     match error, result with
     | None  , None   -> raise (Error "result_of_json")
-    | Some e, None   -> raise (Error (Ezjsonm.decode_string_exn e))
+    | Some e, None   -> raise (error_of_json e)
     | None  , Some r -> r
     | Some _, Some _ -> raise (Error "result_of_json")
 
@@ -205,17 +212,18 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   include Helper (Client)
 
-  type t = { mutable uri: Uri.t; task: Irmin.task; }
+  type t = { mutable uri: Uri.t; task: Irmin.task; config: Irmin.config; }
   type key = K.t
   type value = V.t
 
   let get t = get t.uri
+  let config t = t.config
   let task t = t.task
   let uri t = t.uri
 
   let create config task =
     let uri = get_uri config in
-    Lwt.return (fun a -> { uri; task = task a})
+    Lwt.return (fun a -> { config; uri; task = task a})
 
   let read t key = get t ["read"; K.to_hum key] (module Tc.Option(V))
 
@@ -276,6 +284,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.return (fun a -> { t = t a; w; keys; glob })
 
   let uri t = RO.uri t.t
+  let config t = RO.config t.t
   let task t = RO.task t.t
   let read t = RO.read t.t
   let read_exn t = RO.read_exn t.t
@@ -450,6 +459,7 @@ struct
     read_node: L.key -> LP.Node.key option Lwt.t;
     mem_node: L.key -> bool Lwt.t;
     update_node: L.key -> LP.Node.key -> unit Lwt.t;
+    remove_node: L.key -> unit Lwt.t;
     lock: Lwt_mutex.t;
   }
 
@@ -464,6 +474,7 @@ struct
     | `Empty  -> uri_append base ["empty"]
     | `Head h -> uri_append base ["tree"; Head.to_hum h]
 
+  let config t = S.config t.h
   let task t = S.task t.h
 
   let set_head t = function
@@ -486,10 +497,11 @@ struct
       let read_node = LP.read_node l in
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
+      let remove_node = LP.remove_node l in
       let lock = Lwt_mutex.create () in
       { l; branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; config;
-        lock; }
+        read_node; mem_node; update_node; remove_node;
+        config; lock; }
     in
     Lwt.return fn
 
@@ -823,6 +835,7 @@ struct
     let commit_t t = t.commit_t
     let tag_t t = t.tag_t
     let update_node t = t.update_node
+    let remove_node t = t.remove_node
     let read_node t = t.read_node
     let mem_node t = t.mem_node
   end

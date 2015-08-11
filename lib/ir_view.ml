@@ -14,11 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Lwt.Infix
 open Ir_merge.OP
 open Ir_misc.OP
 open Printf
 
-let (>>=) = Lwt.bind
 
 module Log = Log.Make(struct let section = "view" end)
 
@@ -150,13 +150,17 @@ module Internal (Node: NODE) = struct
   type action = Action.t
 
   type t = {
-    view: Node.t;
+    mutable view: [`Empty | `Node of Node.t | `Contents of Node.contents];
     ops: action list ref;
     parents: Node.commit list ref;
     lock: Lwt_mutex.t;
   }
 
-  let equal x y = Node.equal x.view y.view
+  let equal x y = match x.view, y.view with
+    | `Node x, `Node y -> Node.equal x y
+    | `Contents x, `Contents y -> Node.Contents.equal x y
+    | _ -> false
+
   type head = Node.commit
   let parents t = !(t.parents)
 
@@ -165,7 +169,7 @@ module Internal (Node: NODE) = struct
 
   let empty () =
     Log.debug "empty";
-    let view = Node.empty () in
+    let view = `Empty in
     let ops = ref [] in
     let parents = ref [] in
     let lock = Lwt_mutex.create () in
@@ -177,6 +181,7 @@ module Internal (Node: NODE) = struct
     Lwt.return (fun _ -> t)
 
   let task = `Views_do_not_have_task
+  let config _ = Ir_conf.empty
 
   let sub t path =
     let rec aux node path =
@@ -190,19 +195,20 @@ module Internal (Node: NODE) = struct
           | None   -> Lwt.return_none
           | Some v -> aux v p
     in
-    aux t.view path
-
-  let mk_path k =
-    match Path.rdecons k with
-    | Some (l, t) -> l, t
-    | None -> Path.empty, Path.Step.of_hum "__root__"
+    match t.view with
+    | `Empty      -> Lwt.return_none
+    | `Node n     -> aux n path
+    | `Contents _ -> Lwt.return_none
 
   let read_contents t path =
     Log.debug "read_contents %a" force (show (module Path) path);
-    let path, file = mk_path path in
-    sub t path >>= function
-    | None   -> Lwt.return_none
-    | Some n -> Node.read_contents n file
+    match t.view, Path.rdecons path with
+    | `Contents c, None -> Lwt.return (Some c)
+    | _          , None -> Lwt.return_none
+    | _          , Some (path, file) ->
+      sub t path >>= function
+      | None   -> Lwt.return_none
+      | Some n -> Node.read_contents n file
 
   let read t k =
     read_contents t k >>= fun v ->
@@ -258,38 +264,47 @@ module Internal (Node: NODE) = struct
     list t Path.empty >>= aux
 
   let update_contents_aux t k v =
-    let path, file = mk_path k in
-    let rec aux view path =
-      match Path.decons path with
-      | None        -> Node.with_contents view file v
-      | Some (h, p) ->
-        Node.read view >>= function
-        | None   ->
-          if v = None then Lwt.return false
-          else err_not_found "update_contents" k (* XXX ?*)
-        | Some n ->
-          match Node.read_succ n h with
-          | Some child ->
-            aux child p >>= fun changed ->
-            (* remove empty dirs *)
-            begin if changed && v = None then
-                Node.is_empty child >>= function
-                | false -> Lwt.return false
-                | true  -> Node.with_succ view h None
-              else Lwt.return false
-            end >>= fun _ ->
-            if changed then Node.clear_cache view;
-            Lwt.return changed
-          | None ->
-            if v = None then Lwt.return false
-            else
-              let child = Node.empty () in
-              Node.with_succ view h (Some child) >>= fun _ ->
-              aux child p
-    in
-    aux t.view path >>= fun changed ->
-    Log.debug "update_contents: %s change=%b" (Path.to_hum k) changed;
-    Lwt.return_unit
+    match Path.rdecons k with
+    | None ->
+      let () = match v with
+        | None   -> t.view <- `Empty;
+        | Some v -> t.view <- `Contents v
+      in
+      Lwt.return_unit
+    | Some (path, file) ->
+      let rec aux view path =
+        match Path.decons path with
+        | None        -> Node.with_contents view file v
+        | Some (h, p) ->
+          Node.read view >>= function
+          | None   ->
+            if v = None then Lwt.return_false
+            else err_not_found "update_contents" k (* XXX ?*)
+          | Some n ->
+            match Node.read_succ n h with
+            | Some child ->
+              aux child p >>= fun changed ->
+              (* remove empty dirs *)
+              begin if changed && v = None then
+                  Node.is_empty child >>= function
+                  | false -> Lwt.return_false
+                  | true  -> Node.with_succ view h None
+                else Lwt.return_false
+              end >>= fun _ ->
+              if changed then Node.clear_cache view;
+              Lwt.return changed
+            | None ->
+              if v = None then Lwt.return_false
+              else
+                let child = Node.empty () in
+                Node.with_succ view h (Some child) >>= fun _ ->
+                aux child p
+      in
+      let n = match t.view with `Node n -> n | _ -> Node.empty () in
+      aux n path >>= fun changed ->
+      if changed then t.view <- `Node n;
+      Log.debug "update_contents: %s changed=%b" (Path.to_hum k) changed;
+      Lwt.return_unit
 
   let update_contents t k v =
     t.ops := `Write (k, v) :: !(t.ops);
@@ -306,37 +321,41 @@ module Internal (Node: NODE) = struct
         read t k >>= fun v ->
         if Tc.O1.equal Node.Contents.equal test v then
           update_contents t k set >>= fun () ->
-          Lwt.return true
+          Lwt.return_true
         else
-          Lwt.return false
+          Lwt.return_false
       )
 
   let remove_rec t k =
     match Path.decons k with
     | None -> Lwt.return_unit
     | _    ->
-      let rec aux view path =
-        match Path.decons path with
-        | None       -> assert false
-        | Some (h,p) ->
-          if Path.is_empty p then (
-            Node.with_succ view h None >>= fun changed ->
-            if changed then Node.clear_cache view;
-            Lwt.return true
-          ) else
-            Node.read view >>= function
-            | None   -> Lwt.return false
-            | Some n ->
-              match Node.read_succ n h with
-              | None       -> Lwt.return false
-              | Some child ->
-                aux child p >>= fun changed ->
-                if changed then Node.clear_cache view;
-                Lwt.return true
-      in
-      t.ops := `Rmdir k :: !(t.ops);
-      aux t.view k >>= fun _ ->
-      Lwt.return_unit
+      match t.view with
+      | `Contents _ -> t.view <- `Empty; Lwt.return_unit
+      | `Empty -> Lwt.return_unit
+      | `Node n ->
+        let rec aux view path =
+          match Path.decons path with
+          | None       -> assert false
+          | Some (h,p) ->
+            if Path.is_empty p then (
+              Node.with_succ view h None >>= fun changed ->
+              if changed then Node.clear_cache view;
+              Lwt.return_true
+            ) else
+              Node.read view >>= function
+              | None   -> Lwt.return false
+              | Some n ->
+                match Node.read_succ n h with
+                | None       -> Lwt.return false
+                | Some child ->
+                  aux child p >>= fun changed ->
+                  if changed then Node.clear_cache view;
+                  Lwt.return_true
+        in
+        t.ops := `Rmdir k :: !(t.ops);
+        aux n k >>= fun _ ->
+        Lwt.return_unit
 
   let apply t a =
     Log.debug "apply %a" force (show (module Action) a);
@@ -628,7 +647,7 @@ module Make (S: Ir_s.STORE) = struct
       | None -> begin
           match contents with
           | None   -> Lwt.return false
-          | Some c -> t := Node (create_node [ step, mk c ]); Lwt.return true
+          | Some c -> t := Node (create_node [ step, mk c ]); Lwt.return_true
         end
       | Some n ->
         let rec aux acc = function
@@ -647,7 +666,7 @@ module Make (S: Ir_s.STORE) = struct
         let alist = aux [] n.alist in
         if n.alist != alist then (
           t := Node (create_node alist);
-          Lwt.return true
+          Lwt.return_true
         ) else
           Lwt.return false
 
@@ -659,7 +678,7 @@ module Make (S: Ir_s.STORE) = struct
       | None   -> begin
           match succ with
           | None   -> Lwt.return false
-          | Some c -> t := Node (create_node [ step, mk c ]); Lwt.return true
+          | Some c -> t := Node (create_node [ step, mk c ]); Lwt.return_true
         end
       | Some n ->
         let rec aux acc = function
@@ -678,7 +697,7 @@ module Make (S: Ir_s.STORE) = struct
         let alist = aux [] n.alist in
         if n.alist != alist then (
           t := Node (create_node alist);
-          Lwt.return true;
+          Lwt.return_true;
         ) else
           Lwt.return false
 
@@ -692,7 +711,7 @@ module Make (S: Ir_s.STORE) = struct
 
   let create_with_parents parents =
     Log.debug "create_with_parents";
-    let view = Node.empty () in
+    let view = `Empty in
     let ops = ref [] in
     let parents = ref parents in
     let lock = Lwt_mutex.create () in
@@ -700,9 +719,9 @@ module Make (S: Ir_s.STORE) = struct
 
   let import db ~parents key =
     Log.debug "import %a" force (show (module P.Node.Key) key);
-    begin P.Node.read (P.node_t db) key >>= function
-    | None   -> Lwt.return (Node.empty ())
-    | Some n -> Lwt.return (Node.both db key (Node.import db n))
+    begin P.Node.read (P.node_t db) key >|= function
+    | None   -> `Empty
+    | Some n -> `Node (Node.both db key (Node.import db n))
     end >>= fun view ->
     let ops = ref [] in
     let parents = ref parents in
@@ -756,9 +775,13 @@ module Make (S: Ir_s.STORE) = struct
       | None   -> Lwt.return_unit
       | Some t -> t () >>= loop
     in
-    add_to_todo t.view;
-    loop () >>= fun () ->
-    Lwt.return (Node.export t.view)
+    match t.view with
+    | `Empty      -> Lwt.return `Empty
+    | `Contents c -> Lwt.return (`Contents c)
+    | `Node n ->
+      add_to_todo n;
+      loop () >|= fun () ->
+      `Node (Node.export n)
 
   let of_path db path =
     Log.debug "of_path %a" force (show (module Path) path);
@@ -772,8 +795,10 @@ module Make (S: Ir_s.STORE) = struct
 
   let update_path db path view =
     Log.debug "update_path %a" force (show (module Path) path);
-    export db view >>= fun node ->
-    P.update_node db path node
+    export db view >>= function
+    | `Empty      -> P.remove_node db path
+    | `Contents c -> S.update db path c
+    | `Node node  -> P.update_node db path node
 
   let rebase_path db path view =
     Log.debug "rebase_path %a" force (show (module Path) path);
@@ -785,54 +810,106 @@ module Make (S: Ir_s.STORE) = struct
   let rebase_path_exn db path view =
     rebase_path db path view >>= Ir_merge.exn
 
-  let merge_path db ?max_depth ?n path view =
-    Log.debug "merge_path %a" force (show (module Path) path);
-    P.read_node db Path.empty >>= function
-    | None           -> update_path db path view >>= ok
-    | Some head_node ->
-      (* First, we check than we can rebase the view on the current
-         HEAD. *)
-      of_path db path >>= fun head_view ->
-      rebase view ~into:head_view >>| fun () ->
-      (* Now that we know that rebasing is possible, we discard the
-         result and proceed as a normal merge, ie. we apply the view
-         on a branch, and we merge the branch back into the store. *)
-      export db view >>= fun view_node ->
-      (* Create a commit with the contents of the view *)
-      Graph.read_node (graph_t db) head_node path >>= fun current_node ->
+  let merge_node db ?max_depth ?n path view head_node view_node =
+    (* Create a commit with the contents of the view *)
+    Graph.read_node (graph_t db) head_node path >>= fun current_node ->
+    let old () = match !(view.parents) with
+      | []      -> ok None
+      | parents ->
+        History.lca (history_t db) ?max_depth ?n parents
+        >>| function
+        | None   -> ok None
+        | Some c ->
+          History.node (history_t db) c >>= function
+          | None   -> ok None
+          | Some n ->
+            Graph.read_node (graph_t db) n path >>= fun n ->
+            ok (Some n)
+    in
+    Graph.merge (graph_t db) ~old current_node (Some view_node)
+    >>| fun merge_node ->
+    if Tc.O1.equal P.Node.Key.equal merge_node current_node then ok `Unchanged
+    else (
+      begin match merge_node with
+        | None   -> Graph.remove_node (graph_t db) head_node path
+        | Some n -> Graph.add_node (graph_t db) head_node path n
+      end >>= fun new_head_node ->
       S.head_exn db >>= fun head ->
       let parents = head :: !(view.parents) in
-      let old () = match !(view.parents) with
-        | []      -> ok None
-        | parents ->
-          History.lca (history_t db) ?max_depth ?n parents
-          >>| function
-          | None   -> ok None
-          | Some c ->
-            History.node (history_t db) c >>= function
-            | None   -> ok None
-            | Some n ->
-              Graph.read_node (graph_t db) n path >>= fun n ->
-              ok (Some n)
-      in
-      Graph.merge (graph_t db) ~old current_node (Some view_node)
-      >>| fun merge_node ->
-      if Tc.O1.equal P.Node.Key.equal merge_node current_node then ok ()
-      else (
-        begin match merge_node with
-          | None   -> Graph.remove_node (graph_t db) head_node path
-          | Some n -> Graph.add_node (graph_t db) head_node path n
-        end >>= fun new_head_node ->
-        History.create (history_t db) ~node:new_head_node ~parents >>= fun h ->
-        S.update_head db h >>= fun () ->
-        ok ()
+      History.create (history_t db) ~node:new_head_node ~parents >>= fun h ->
+      ok (`Changed h)
+    )
+
+(*
+  let merge_contents n ?max_depth ?n path view head_node view_contents =
+    Graph.add_contents (graph_t db) head_node path >>= fun current_contents ->
+    S.heads_exn db >>= fun head ->
+*)
+
+  let merge_path_one db0 ?max_depth ?n path view =
+    Log.debug "merge_path %a" force (show (module Path) path);
+    S.head db0 >>= function
+    | None      ->
+      (* FIXME: race to update the store's head *)
+      update_path db0 path view >>= fun () -> ok true
+    | Some head ->
+      S.of_head (S.config db0) (fun () -> S.task db0) head >>= fun db ->
+      let db = db () in
+      P.read_node db Path.empty >>= function
+      | None           -> update_path db path view >>= fun () -> ok true
+      | Some head_node ->
+        (* First, we check than we can rebase the view on the current
+           HEAD. *)
+        of_path db path >>= fun head_view ->
+        rebase view ~into:head_view >>| fun () ->
+        (* Now that we know that rebasing is possible, we discard the
+           result and proceed as a normal merge, ie. we apply the view
+           on a branch, and we merge the branch back into the
+           store. *)
+        let merge () =
+          export db view >>= function
+          | `Node node -> merge_node db ?max_depth ?n path view head_node node
+          | _ -> assert false
+        in
+        merge () >>| function
+        | `Unchanged -> ok true
+        | `Changed h ->
+          S.compare_and_set_head db0 ~test:(Some head) ~set:(Some h) >>= ok
+
+  let retry_merge name fn =
+    let rec aux i =
+      fn () >>= function
+      | `Conflict _ as c -> Lwt.return c
+      | `Ok true  -> ok ()
+      | `Ok false ->
+        Log.debug "Irmin.View.%s: conflict, retrying (%d)." name i;
+        aux (i+1)
+    in
+    aux 1
+
+  let merge_path db ?max_depth ?n path view =
+    retry_merge "merge_path" (fun () ->
+        merge_path_one db ?max_depth ?n path view
       )
 
   let merge_path_exn db ?max_depth ?n path t =
     merge_path db ?max_depth ?n path t >>= Ir_merge.exn
 
+  let err_value_at_root () =
+    Ir_misc.invalid_arg
+      "Irmin.View.make_head: cannot create a head with contents at the root."
+
   let make_head db task ~parents ~contents =
-    export db contents >>= fun node ->
+    let empty () =
+      S.Private.Node.add (S.Private.node_t db) (S.Private.Node.Val.empty)
+    in
+    let node =
+      export db contents >>= function
+      | `Contents _ -> err_value_at_root ()
+      | `Empty      -> empty ()
+      | `Node n     -> Lwt.return n
+    in
+    node >>= fun node ->
     let commit = S.Private.Commit.Val.create task ~parents ~node in
     S.Private.Commit.add (S.Private.commit_t db) commit
 

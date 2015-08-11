@@ -53,6 +53,16 @@ module Conf = struct
       ~doc:"Do not expand the filesystem on the disk."
       "bare" Irmin.Private.Conf.bool false
 
+  let abstract =
+    (fun _ -> `Error "abstract"),
+    (fun fmt _ -> Format.pp_print_string fmt "<abstract>")
+
+  type read_fn = ?root:string -> Git.SHA.t -> Git.Value.t option Lwt.t
+
+  let read_fn: read_fn Irmin.Private.Conf.key =
+    let read_none ?root:_ _ = Lwt.return_none in
+    Irmin.Private.Conf.key "read" abstract read_none
+
 end
 
 let config ?root ?head ?bare () =
@@ -84,19 +94,23 @@ module Make_ext
     if not (H.has_kind `SHA1) then
       failwith "The Git backend only support SHA1 hashes."
 
+  module SHA_IO    = Git.SHA.IO(G.Digest)
+  module Tree_IO   = Git.Tree.IO(G.Digest)
+  module Commit_IO = Git.Commit.IO(G.Digest)
+
   module GK = struct
     type t = Git.SHA.t
     let hash = Git.SHA.hash
     let compare = Git.SHA.compare
     let equal = (=)
     let to_json t = Ezjsonm.string (Git.SHA.to_hex t)
-    let of_json j = Git.SHA.of_hex (Ezjsonm.get_string j)
+    let of_json j = SHA_IO.of_hex (Ezjsonm.get_string j)
     let size_of t = Tc.String.size_of (Git.SHA.to_raw t)
     let write t = Tc.String.write (Git.SHA.to_raw t)
     let read b = Git.SHA.of_raw (Tc.String.read b)
-    let digest = Git.SHA.of_cstruct
+    let digest = G.Digest.cstruct
     let to_hum = Git.SHA.to_hex
-    let of_hum = Git.SHA.of_hex
+    let of_hum = SHA_IO.of_hex
     let to_raw t = Cstruct.of_string (Git.SHA.to_raw t)
     let of_raw t = Git.SHA.of_raw (Cstruct.to_string t)
     let has_kind = function `SHA1 -> true | _ -> false
@@ -118,17 +132,21 @@ module Make_ext
     }
 
     type key = K.t
-
     type value = V.t
+    let task t = t.task
+    let config t = t.config
+    let git_of_key k = GK.of_raw (K.to_raw k)
+    let key_of_git k = K.of_raw (GK.to_raw k)
+
+    let read_fn ?root sha1 =
+      G.create ?root () >>= fun t ->
+      G.read t sha1
 
     let create config task =
       let root = Irmin.Private.Conf.get config Conf.root in
+      let config = Irmin.Private.Conf.add config Conf.read_fn read_fn in
       G.create ?root () >>= fun t ->
       return (fun a -> { task = task a; config; t })
-
-    let task t = t.task
-    let git_of_key k = GK.of_raw (K.to_raw k)
-    let key_of_git k = K.of_raw (GK.to_raw k)
 
     let mem { t; _ } key =
       let key = git_of_key key in
@@ -200,11 +218,11 @@ module Make_ext
       let compare = Git.Tree.compare
       let equal = Git.Tree.equal
       let hash = Git.Tree.hash
-      let read = Git.Tree.input
+      let read = Tree_IO.input
 
       let to_string t =
         let buf = Buffer.create 1024 in
-        Git.Tree.add buf t;
+        Tree_IO.add buf t;
         Buffer.contents buf
 
       let write t b =
@@ -342,11 +360,11 @@ module Make_ext
       let compare = Git.Commit.compare
       let equal = Git.Commit.equal
       let hash = Git.Commit.hash
-      let read = Git.Commit.input
+      let read = Commit_IO.input
 
       let to_string t =
         let buf = Buffer.create 1024 in
-        Git.Commit.add buf t;
+        Commit_IO.add buf t;
         Buffer.contents buf
 
       let write t b = write_string (to_string t) b
@@ -465,6 +483,7 @@ module Make_ext
     type value = Val.t
     type watch = W.watch * (unit -> unit)
     let task t = t.task
+    let config t = t.config
 
     let tag_of_git r =
       let str = String.trim @@ Git.Reference.to_raw r in
@@ -619,6 +638,7 @@ module Make_ext
 
   module XSync = struct
 
+    (* FIXME: should not need to pass G.Digest and G.Inflate... *)
     module Sync = Git.Sync.Make(IO)(G)
 
     type t = G.t
@@ -643,7 +663,7 @@ module Make_ext
         Log.debug "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
         let tag = XTag.git_of_tag tag in
         let key =
-          let refs = r.Git.Sync.Result.references in
+          let refs = Git.Sync.Result.references r in
           try Some (Git.Reference.Map.find tag refs)
           with Not_found -> None
         in
@@ -683,8 +703,19 @@ module NoL = struct
   let with_lock _ f = f ()
 end
 
-module Memory_ext (C: CONTEXT) (IO: Git.Sync.IO with type ctx = C.t) =
-  Make_ext (C) (IO) (NoL) (Git.Memory)
+module Digest (H: Irmin.Hash.S): Git.SHA.DIGEST = struct
+  (* FIXME: lots of allocations ... *)
+  let cstruct buf = Git.SHA.of_raw (Cstruct.to_string (H.to_raw (H.digest buf)))
+  let string str = cstruct (Cstruct.of_string str)
+  let length = Cstruct.len @@ H.to_raw (H.digest (Cstruct.of_string ""))
+end
+
+module Memory_ext (Ctx: CONTEXT)
+    (IO: Git.Sync.IO with type ctx = Ctx.t) (I: Git.Inflate.S)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S)
+    (H: Irmin.Hash.S) =
+  Make_ext (Ctx) (IO) (NoL) (Git.Memory.Make(Digest(H))(I)) (C) (T) (H)
 
 module NoC (IO: Git.Sync.IO) = struct
   type t = IO.ctx
@@ -693,10 +724,17 @@ end
 
 module Make (IO: Git.Sync.IO) = Make_ext (NoC(IO))(IO)
 
-module Memory (IO: Git.Sync.IO) = Make (IO)(NoL)(Git.Memory)
+module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S)
+    (H: Irmin.Hash.S) =
+  Make (IO) (NoL) (Git.Memory.Make(Digest(H))(I)) (C) (T) (H)
 
-module FS (IO: Git.Sync.IO) (L: LOCK) (FS: Git.FS.IO) =
-  Make (IO) (L) (Git.FS.Make(FS))
+module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (L: LOCK) (FS: Git.FS.IO)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S)
+    (H: Irmin.Hash.S) =
+  Make (IO) (L) (Git.FS.Make(FS)(Digest(H))(I)) (C) (T) (H)
 
 module FakeIO = struct
   type ic = unit
@@ -726,6 +764,24 @@ module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S) = struct
   end
   module M = Make (FakeIO)(L)(G)(Irmin.Contents.String)(K)(V)
   include M.XTag
+end
+
+module Internals (S: Irmin.S) = struct
+
+  let read config =
+    match Irmin.Private.Conf.find config Conf.read_fn with
+    | None   -> failwith "not a Git store"
+    | Some s -> s
+
+  let commit_of_head t h =
+    let t = S.Private.commit_t t in
+    let h = S.Head.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
+    let config = S.Private.Commit.config t in
+    let root = Irmin.Private.Conf.get config Conf.root in
+    read config ?root h >|= function
+    | Some Git.Value.Commit c -> Some c
+    | _ -> None
+
 end
 
 include Conf

@@ -103,6 +103,7 @@ let singleton k v = M.singleton k.id (k.to_univ v)
 let is_empty = M.is_empty
 let mem d k = M.mem k.id d
 let add d k v = M.add k.id (k.to_univ v) d
+let union r s = M.fold M.add r s
 let rem d k = M.remove k.id d
 let find d k = try k.of_univ (M.find k.id d) with Not_found -> None
 let get d k =
