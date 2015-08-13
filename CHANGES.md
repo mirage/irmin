@@ -1,5 +1,11 @@
 ### 0.9.9
 
+* Allow raw bodies in queries and responses for the REST API. This is
+  controlled by the `Content-type` field set by the client:
+  by default, we still use JSON (or use `application/json`) but using
+  `application/octet-stream` will avoid having to hex-encode large
+  binary blobs to make them JSON-compatible. This feature is still
+  experimental (especially when using Git on the server) (#255)
 * Adapt to `ocaml-git.1.7.1` (which works with `lwt.2.5.0`)
 * Expose `Store.config` for all the stores (`AO`, `RW`, etc.)
 * Expose `Irmin_git.Internals` to be able to get back the
