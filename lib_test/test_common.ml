@@ -150,7 +150,7 @@ module LINK_MEM = Irmin_link.MEM
 (* Links store with FS *)
 module LINK_FS = Irmin_link.FS
 	      
-(* Chunck store with mem *)		       
+(* Chunck store with mem *)    
 module CHUNCK = Irmin_chunck.CHUNCK_AO (AO)
 
 (* Links on memory and chunck store*)

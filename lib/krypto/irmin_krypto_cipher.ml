@@ -30,10 +30,10 @@ module Make_CTR (KM: KEY_MANAGEMENT) (C:CTR_MODE) : CIPHER = struct
 
     (** Encryption function *)
     let encrypt ~ctr value =
-       C.encrypt ~key ~ctr ~off:0 value
+       C.encrypt ~key ~ctr value
 
     (** Decryption function *)
     let decrypt ~ctr value =
-      C.decrypt ~key ~ctr ~off:0 value
+      C.decrypt ~key ~ctr value
 
   end

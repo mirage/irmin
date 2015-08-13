@@ -47,9 +47,14 @@ module KRYPTO_AO (C: CIPHER) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:RAW) = struct
 
     type t = AO.t
 
-    let hash_size = K.length
+    let hash_size = 16 (* K.length *)
 
-    let compute_ctr v = Nocrypto.Hash.SHA1.digest v (* MUST TO BE PARAMETRABLE *)
+    let compute_ctr v = 
+    let tmp = Nocrypto.Hash.SHA1.digest v in
+    let res = Cstruct.create hash_size in 
+    Cstruct.blit tmp 0 res 0 hash_size;
+    res
+
 
     let inject_ctr ~ctr blob =
       let len_blob = Cstruct.len blob in
@@ -76,7 +81,6 @@ module KRYPTO_AO (C: CIPHER) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:RAW) = struct
     let task t =
       AO.task t
 
-
     let read t key =
       AO.read t key >>= function
       | None -> return_none
@@ -101,8 +105,7 @@ module KRYPTO_AO (C: CIPHER) (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V:RAW) = struct
 			  
     let add t v =
       let ctr = compute_ctr v in
-      let ctr2 = compute_ctr v in
-      C.encrypt ~ctr v |> inject_ctr ~ctr:ctr2 |> AO.add t
+      C.encrypt ~ctr v |> inject_ctr ~ctr |> AO.add t
 
 
     let iter _t (_fn : key -> value Lwt.t -> unit Lwt.t) =

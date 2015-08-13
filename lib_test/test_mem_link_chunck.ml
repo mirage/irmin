@@ -39,7 +39,7 @@ let config = Irmin_chunck.config ~conf:config ~size:4096 ()
     
 let suite k =
   {
-    name   = "LINK MEM - CHUNCK" ^ string_of_contents k;
+    name   = "LINK-MEM.CHUNCK" ^ string_of_contents k;
     kind   = `Link_MEM_Chunck;
     cont   = k;
     init   = init;

@@ -39,7 +39,7 @@ let config = Irmin_chunck.config ~conf:config ~size:4096 ()
     
 let suite k =
   {
-    name   = "LINK FS - CHUNCK - KRYPTO" ^ string_of_contents k;
+    name   = "LINK-FS.CHUNCK.KRYPTO" ^ string_of_contents k;
     kind   = `Link_FS_Chunck_Krypto;
     cont   = k;
     init   = init;
