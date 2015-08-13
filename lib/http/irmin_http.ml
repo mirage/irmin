@@ -29,8 +29,21 @@ let uri =
     ~doc:"Location of the remote store."
     "uri" Irmin.Private.Conf.(some uri) None
 
-let config x =
-  Irmin.Private.Conf.singleton uri (Some x)
+let content_type =
+  Irmin.Private.Conf.key
+    ~docv:"content-type"
+    ~doc:"Set the HTTP client content-type (supported type are `raw` and \
+          `json`)."
+    "content-type" Irmin.Private.Conf.(some string) None
+
+module Conf = Irmin.Private.Conf
+
+let config ?content_type:y x =
+  let y = match y with
+    | None   -> None
+    | Some s -> Some (string_of_ct s)
+  in
+  Conf.add (Conf.singleton uri (Some x)) content_type y
 
 let uri_append t path = match Uri.path t :: path with
   | []   -> t
@@ -47,9 +60,15 @@ let uri_append t path = match Uri.path t :: path with
 
 let err_no_uri () = invalid_arg "Irmin_http.create: No URI specified"
 
-let get_uri config = match Irmin.Private.Conf.get config uri with
+let get_uri config =
+  match Conf.get config uri with
   | None   -> err_no_uri ()
   | Some u -> u
+
+let get_ct config =
+  match Conf.get config content_type with
+  | None   -> `Json
+  | Some s -> match ct_of_string s with None -> `Raw | Some t -> t
 
 let add_uri_suffix suffix config =
   let v = uri_append (get_uri config) [suffix] in
@@ -58,68 +77,29 @@ let add_uri_suffix suffix config =
 let invalid_arg fmt =
   Printf.ksprintf (fun str -> Lwt.fail (Invalid_argument str)) fmt
 
-let some x = Some x
-
 module Helper (Client: Cohttp_lwt.Client) = struct
 
-  exception Error of string
+  let ct_of_response r = ct_of_header (Cohttp.Response.headers r)
 
-  let raise_bad_version v =
-    let v = match v with None -> "<none>" | Some v -> v in
-    let err = Printf.sprintf
-        "bad server version: expecting {version: %S}, but got %S"
-        Irmin.version v
-    in
-    raise (Error err)
-
-  let error_of_json j =
-    let string = Ezjsonm.decode_string_exn in
-    match j with
-    | `O ["invalid-argument", s] -> Invalid_argument (string s)
-    | `O ["failure", s]          -> Failure (string s)
-    | _ -> Error (string j)
-
-  let result_of_json ~version json =
-    if version then (
-      let version =
-        try Ezjsonm.find json ["version"] |> Ezjsonm.decode_string
-        with Not_found -> None
-      in
-      if version <> Some Irmin.version then raise_bad_version version;
-    );
-    let error =
-      try Some (Ezjsonm.find json ["error"])
-      with Not_found -> None in
-    let result =
-      try Some (Ezjsonm.find json ["result"])
-      with Not_found -> None in
-    match error, result with
-    | None  , None   -> raise (Error "result_of_json")
-    | Some e, None   -> raise (error_of_json e)
-    | None  , Some r -> r
-    | Some _, Some _ -> raise (Error "result_of_json")
-
-  let map_string_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
-    Cohttp_lwt_body.to_string b >>= fun b ->
-    Log.debug "got response: %s" b;
-    let j = Ezjsonm.from_string b in
-    try
-      Ezjsonm.value j
-      |> result_of_json ~version:true
-      |> M.of_json
-      |> Lwt.return
-    with Error e ->
-      Lwt.fail (Error e)
+  let map_string_response fn (r, b) =
+    let ct = ct_of_response r in
+    Response.of_body ct b >|= function
+    | `Error exn -> raise exn
+    | `Ok c      -> contents fn c
 
   let err_empty_stream () = invalid_arg "the stream is empty!"
+
   let err_bad_start j =
     invalid_arg "bad opening stream: expecting %S, but got %S."
       start_stream (Ezjsonm.to_string (`A [j]))
+
   let err_bad_version v =
     invalid_arg "bad server version: expecting {\"version\": %S}, but got %S"
       Irmin.version Ezjsonm.(to_string (wrap v))
 
-  let map_stream_response (type t) (module M: Tc.S0 with type t = t) (_, b) =
+  let map_stream_response fn (r, b) =
+    let ct = ct_of_response r in
+    if ct = `Raw then failwith "raw stream: TODO";
     let stream = Cohttp_lwt_body.to_stream b in
     let stream = Ezjsonm_lwt.from_stream stream in
     let start stream =
@@ -138,18 +118,18 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     in
     start stream   >>= fun stream ->
     version stream >>= fun stream ->
-    let stream = Lwt_stream.map (result_of_json ~version:false) stream in
-    let stream =
-      Lwt_stream.map (fun j ->
-        Log.debug "stream: got %s" Ezjsonm.(to_string (wrap j));
-        M.of_json j
+    let stream = Lwt_stream.map (fun j ->
+        match Response.of_json ~version:false j with
+        | `Error e -> raise e
+        | `Ok c    -> contents fn c
       ) stream
     in
     Lwt.return stream
 
-  let headers = Cohttp.Header.of_list [
-      "Connection", "Keep-Alive";
-      irmin_header, Irmin.version;
+  let headers ct = Cohttp.Header.of_list [
+      "Connection"       , "Keep-Alive";
+      irmin_version      , Irmin.version;
+      content_type_header, header_of_ct ct;
     ]
 
   let make_uri t path query =
@@ -158,53 +138,61 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     | None   -> uri
     | Some q -> Uri.with_query uri q
 
-  let map_get t path ?query fn =
+  let retry path ?(n=5) f =
+    let rec aux n =
+      if n <= 0 then f ()
+      else
+        Lwt.catch f (fun e ->
+            Log.debug "Got %s while getting %s, retrying"
+              (Printexc.to_string e) path;
+            aux (n-1)
+          )
+    in aux n
+
+  (* FIXME: we currently ignore the task for GET queries. See similar
+     comment in [Irmin_http_server]. *)
+  let map_get t ~ct ~task:_ path ?query fn =
     let uri = make_uri t path query in
-    Log.debug "get %s" (Uri.path uri);
-    Client.get ~headers uri >>= fn
+    let headers = headers ct in
+    Log.debug "get %s (%s)" (Uri.path uri) (string_of_ct ct);
+    retry (Uri.path uri) (fun () -> Client.get ~headers uri >>= fn)
 
-  let get t path ?query fn =
-    map_get t path ?query (map_string_response fn)
+  let get t ~ct ~task path ?query fn =
+    map_get t ~ct ~task path ?query (map_string_response fn)
 
-  let get_stream t path ?query fn  =
-    map_get t path ?query (map_stream_response fn)
+  let get_stream t ~task path ?query fn  =
+    map_get t ~task path ?query (map_stream_response fn)
 
-  let make_body ?task body =
-    let str l = Ezjsonm.to_string (`O l) in
-    let str_t = Irmin.Task.to_json in
-    let body = match body, task with
-      | None  , None   -> None
-      | None  , Some t -> Some (str ["task"  , str_t t])
-      | Some b, None   -> Some (str ["params", b])
-      | Some b, Some t -> Some (str ["task", str_t t; "params", b])
-    in
-    let short_body = match body with
-      | None   -> "<none>"
-      | Some b -> if String.length b > 80 then String.sub b 0 80 ^ ".." else b
-    in
-    let body = match body with
-      | None   -> None
-      | Some b -> Some (Cohttp_lwt_body.of_string b)
-    in
-    short_body, body
+  let make_body ct task body = Some (Request.to_body ct (task, body))
 
-  let delete t ~task path fn =
+  let delete t ~ct ~task path fn =
     let uri = uri_append t path in
-    let short_body, body = make_body ?task None in
-    Log.debug "delete %s %s" (Uri.path uri) short_body;
-    Client.delete ?body ~headers uri >>= map_string_response fn
+    let body = make_body ct task None in
+    let headers = headers ct in
+    Log.debug "delete %s" (Uri.path uri);
+    retry (Uri.path uri) (fun () ->
+        Client.delete ?body ~headers uri >>= map_string_response fn
+      )
 
-  let map_post t ~task path ?query body fn =
+  let body_of_contents ct = function
+    | None        -> None
+    | Some (m, t) ->
+      match ct with
+      | `Json -> Some (json_contents m t)
+      | `Raw  -> Some (raw_contents m t)
+
+  let map_post t ~ct ~task path ?query ?body fn =
     let uri = make_uri t path query in
-    let short_body, body = make_body ?task body in
-    Log.debug "post %s %s" (Uri.path uri) short_body;
-    Client.post ?body ~headers uri >>= fn
+    let headers = headers ct in
+    let body = make_body ct task (body_of_contents ct body) in
+    Log.debug "post %s" (Uri.path uri);
+    retry (Uri.path uri) (fun () -> Client.post ?body ~headers uri >>= fn)
 
-  let post t ~task path ?query body fn =
-    map_post t ~task path ?query body (map_string_response fn)
+  let post t ~ct ~task path ?query ?body fn =
+    map_post t ~ct ~task path ?query ?body (map_string_response fn)
 
-  let post_stream t ~task path ?query body fn  =
-    map_post t ~task path ?query body (map_stream_response fn)
+  let post_stream t ~ct ~task path ?query ?body fn  =
+    map_post t ~ct ~task path ?query ?body (map_stream_response fn)
 
 end
 
@@ -212,18 +200,25 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   include Helper (Client)
 
-  type t = { mutable uri: Uri.t; task: Irmin.task; config: Irmin.config; }
+  type t = {
+    mutable uri: Uri.t; task: Irmin.task; config: Irmin.config; ct: ct;
+  }
+
   type key = K.t
   type value = V.t
 
-  let get t = get t.uri
   let config t = t.config
   let task t = t.task
   let uri t = t.uri
+  let ct t = t.ct
+
+  let get t = get t.uri ~ct:t.ct ~task:t.task
+  let get_stream t = get_stream t.uri ~ct:`Json ~task:t.task
 
   let create config task =
     let uri = get_uri config in
-    Lwt.return (fun a -> { config; uri; task = task a})
+    let ct  = get_ct config in
+    Lwt.return (fun a -> { config; uri; task = task a; ct; })
 
   let read t key = get t ["read"; K.to_hum key] (module Tc.Option(V))
 
@@ -239,20 +234,15 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let iter t fn =
     let fn key = fn key (read_exn t key) in
-    get_stream t.uri ["iter"] (module K) >>=
-    Lwt_stream.iter_p fn
+    get_stream t ["iter"] (module K) >>= Lwt_stream.iter_p fn
 
 end
 
 module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
-
   include RO (Client)(K)(V)
-
-  let post t = post t.uri
-
-  let add t value =
-    post t ~task:None ["add"] (some @@ V.to_json value) (module K)
-
+  let v: V.t Tc.t = (module V)
+  let post t = post t.uri ~ct:t.ct ~task:t.task
+  let add t value = post t ["add"] ~body:(v, value) (module K)
 end
 
 module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
@@ -260,6 +250,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   module RO = RO (Client)(K)(V)
   module W  = Irmin.Private.Watch.Make(K)(V)
 
+  let v: V.t Tc.t = (module V)
   type key = RO.key
   type value = RO.value
   type watch = W.watch
@@ -272,9 +263,10 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type t = { t: RO.t; w: W.t; keys: cache; glob: cache }
 
-  let post t = RO.post (RO.uri t.t)
-  let delete t = RO.delete (RO.uri t.t)
-  let post_stream t = RO.post_stream (RO.uri t.t)
+  let post t = RO.post (RO.uri t.t) ~ct:(RO.ct t.t) ~task:(RO.task t.t)
+  let delete t = RO.delete (RO.uri t.t) ~ct:(RO.ct t.t) ~task:(RO.task t.t)
+  let post_stream t =
+    RO.post_stream (RO.uri t.t) ~ct:(RO.ct t.t) ~task:(RO.task t.t)
 
   let create config task =
     RO.create config task >>= fun t ->
@@ -292,15 +284,15 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let iter t = RO.iter t.t
 
   let update t key value =
-    post t ~task:None ["update"; K.to_hum key] (some @@ V.to_json value) Tc.unit
+    post t ["update"; K.to_hum key] ~body:(v, value) Tc.unit
 
-  let remove t key = delete ~task:None t ["remove"; K.to_hum key] Tc.unit
+  let remove t key = delete t ["remove"; K.to_hum key] Tc.unit
 
   module CS = Tc.Pair(Tc.Option(V))(Tc.Option(V))
+  let cs: CS.t Tc.t = (module CS)
 
   let compare_and_set t key ~test ~set =
-    post ~task:None t ["compare-and-set"; K.to_hum key]
-      (some @@ CS.to_json (test, set)) Tc.bool
+    post t ["compare-and-set"; K.to_hum key] ~body:(cs, (test, set)) Tc.bool
 
   let nb_keys t = fst (W.stats t.w)
   let nb_glob t = snd (W.stats t.w)
@@ -311,18 +303,16 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.async (fun () -> Lwt.pick ([s; t ()]));
     function () -> Lwt.wakeup u ()
 
-  let make_body (type t) (module V: Tc.S0 with type t=t) = function
+  let make_stream_body tc = function
     | None   -> None
-    | Some v -> Some (V.to_json v)
+    | Some v -> Some (tc, v)
 
   let watch_key t key ?init f =
     let init_stream () =
       if nb_keys t <> 0 then Lwt.return_unit
       else
-        let task = Some (task t) in
-        let body = make_body (module V) init in
-        let v_option = Tc.option (module V) in
-        post_stream t ~task ["watch-key"] body v_option >>= fun s ->
+        let body = make_stream_body v init in
+        post_stream t ["watch-key"] ?body (Tc.option v) >>= fun s ->
         let stop () = Lwt_stream.iter_s (W.notify t.w key) s in
         t.keys.stop <- stoppable stop;
         Lwt.return_unit
@@ -333,13 +323,15 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   module WI = Tc.List (Tc.Pair (K) (V))
   module WS = Tc.Pair (K) (Tc.Option (V))
 
+  let wi: WI.t Tc.t = (module WI)
+  let ws: WS.t Tc.t = (module WS)
+
   let watch t ?init f =
     let init_stream () =
       if nb_glob t <> 0 then Lwt.return_unit
       else
-        let task = Some (task t) in
-        let body = make_body (module WI) init in
-        post_stream t ~task ["watch"] body (module WS) >>= fun s ->
+        let body = make_stream_body wi init in
+        post_stream t ["watch"] ?body ws >>= fun s ->
         let stop () = Lwt_stream.iter_s (fun (k, v) -> W.notify t.w k v) s in
         t.glob.stop <- stoppable stop;
         Lwt.return_unit
@@ -365,24 +357,31 @@ module Low (Client: Cohttp_lwt.Client)
     (H: Irmin.Hash.S) =
 struct
   module X = struct
-    module Contents = Irmin.Contents.Make(struct
+    module Contents =
+      Irmin.Contents.Make(struct
         module Key = H
         module Val = C
         include AO(Client)(H)(C)
-        let create config task = create (add_uri_suffix "contents" config) task
+        let create config task =
+          let config = Conf.add config content_type (Some "json") in
+          create (add_uri_suffix "contents" config) task
       end)
     module Node = struct
       module Key = H
       module Path = C.Path
       module Val = Irmin.Private.Node.Make(H)(H)(C.Path)
       include AO(Client)(Key)(Val)
-      let create config task = create (add_uri_suffix "node" config) task
+      let create config task =
+        let config = Conf.add config content_type (Some "json") in
+        create (add_uri_suffix "node" config) task
     end
     module Commit = struct
       module Key = H
       module Val = Irmin.Private.Commit.Make(H)(H)
       include AO(Client)(Key)(Val)
-      let create config task = create (add_uri_suffix "commit" config) task
+      let create config task =
+        let config = Conf.add config content_type (Some "json") in
+        create (add_uri_suffix "commit" config) task
     end
     module Tag = struct
       module Key = T
@@ -476,6 +475,7 @@ struct
 
   let config t = S.config t.h
   let task t = S.task t.h
+  let ct t = t.h.S.t.S.RO.ct (* yiikes *)
 
   let set_head t = function
     | None   -> t.branch := `Empty; Lwt.return_unit
@@ -485,6 +485,9 @@ struct
   type value = S.value
   type head = L.head
   type tag = L.tag
+
+  let v: Val.t Tc.t = (module Val)
+  let head_tc: Head.t Tc.t = (module Head)
 
   let create_aux branch config h l =
     let fn a =
@@ -535,15 +538,12 @@ struct
   let err_no_head = invalid_arg "Irmin_http.%s: no head"
   let err_not_persistent = invalid_arg "Irmin_http.%s: not a persistent branch"
 
-  let get t = get (uri t)
-
-  let delete t =
-    let task = Some (task t) in
-    delete (uri t) ~task
-
-  let post t path ?query body =
-    let task = Some (task t) in
-    post (uri t) ~task path ?query body
+  let get_json ?query t = get ?query (uri t) ~ct:`Json ~task:(task t)
+  let get ?query t = get ?query (uri t) ~ct:(ct t) ~task:(task t)
+  let delete t = delete (uri t) ~ct:(ct t) ~task:(task t)
+  let get_stream t = get_stream (uri t) ~ct:(ct t)~task:(task t)
+  let post_json t = post (uri t) ~ct:`Json ~task:(task t)
+  let post t = post (uri t) ~ct:(ct t) ~task:(task t)
 
   let read t key = get t ["read"; Key.to_hum key] (module Tc.Option(Val))
   let mem t key = get t ["mem"; Key.to_hum key] Tc.bool
@@ -556,12 +556,10 @@ struct
   (* The server sends a stream of keys *)
   let iter t fn =
     let fn key = fn key (read_exn t key) in
-    get_stream (uri t) ["iter"] (module Key) >>=
-    Lwt_stream.iter_p fn
+    get_stream t ["iter"] (module Key) >>= Lwt_stream.iter_p fn
 
   let update t key value =
-    post t ["update"; Key.to_hum key] (some @@ Val.to_json value) (module Head)
-    >>= fun h ->
+    post t ["update"; Key.to_hum key] ~body:(v, value) head_tc >>= fun h ->
     match branch t with
     | `Empty
     | `Head _ -> set_head t (Some h)
@@ -575,10 +573,10 @@ struct
     | `Tag _  -> Lwt.return_unit
 
   module CS = Tc.Pair(Tc.Option(Val))(Tc.Option(Val))
+  let cs: CS.t Tc.t = (module CS)
 
   let compare_and_set t key ~test ~set =
-    post t ["compare-and-set"; Key.to_hum key] (some @@ CS.to_json (test, set))
-      Tc.bool
+    post t ["compare-and-set"; Key.to_hum key] ~body:(cs, (test, set)) Tc.bool
 
   let tag t = match branch t with
     | `Empty
@@ -602,7 +600,7 @@ struct
     | Some h -> Lwt.return h
 
   let update_tag t tag =
-    post t ["update-tag"; Tag.to_hum tag] None (module Head) >>= fun h ->
+    post t ["update-tag"; Tag.to_hum tag] head_tc >>= fun h ->
     match branch t with
     | `Head _ | `Empty -> set_head t (Some h)
     | `Tag _ -> Lwt.return_unit
@@ -617,12 +615,13 @@ struct
     | `Tag _  -> get t ["update-head"; Head.to_hum head] Tc.unit
 
   module CSH = Tc.Pair(Tc.Option(Head))(Tc.Option(Head))
+  let csh: CSH.t Tc.t = (module CSH)
 
   let compare_and_set_head_unsafe t ~test ~set =
     let true_ () = true in
     match branch t with
     | `Tag _  ->
-      post t ["compare-and-set-head"] (some @@ CSH.to_json (test, set)) Tc.bool
+      post t ["compare-and-set-head"] ~body:(csh, (test, set)) Tc.bool
     | `Empty ->
       if None = test then (set_head t set >|= true_) else Lwt.return false
     | `Head h ->
@@ -634,6 +633,7 @@ struct
       )
 
   module M = Tc.App1 (Irmin.Merge.Result) (Head)
+  let m: M.t Tc.t = (module M)
 
   let mk_query ?max_depth ?n () =
     let max_depth = match max_depth with
@@ -650,8 +650,7 @@ struct
 
   let fast_forward_head_unsafe t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    post t ?query ["fast-forward-head"; Head.to_hum head] None Tc.bool
-    >>= fun b ->
+    post t ?query ["fast-forward-head"; Head.to_hum head] Tc.bool >>= fun b ->
     match branch t with
     | `Tag _  -> Lwt.return b
     | `Empty
@@ -665,7 +664,7 @@ struct
 
   let merge_head t ?max_depth ?n head =
     let query = mk_query ?max_depth ?n () in
-    post t ?query ["merge-head"; Head.to_hum head] None (module M) >>| fun h ->
+    post t ?query ["merge-head"; Head.to_hum head] m >>| fun h ->
     match branch t with
     | `Empty
     | `Head _ -> set_head t (Some h) >>= ok
@@ -714,17 +713,17 @@ struct
     watch_head t ?init:init_head (lift value_of_head fn)
 
   let clone task t tag =
-    post t ["clone"; Tag.to_hum tag] None ok_or_duplicated_tag >>= function
+    post t ["clone"; Tag.to_hum tag] ok_or_duplicated_tag >>= function
     | `Ok -> of_tag t.config task tag >|= fun t -> `Ok t
     | `Duplicated_tag | `Empty_head as x -> Lwt.return x
 
   let clone_force task t tag =
-    post t ["clone-force"; Tag.to_hum tag] None Tc.unit >>= fun () ->
+    post t ["clone-force"; Tag.to_hum tag] Tc.unit >>= fun () ->
     of_tag t.config task tag
 
   let merge_tag t ?max_depth ?n tag =
     let query = mk_query ?max_depth ?n () in
-    post t ?query ["merge-tag"; Tag.to_hum tag] None (module M) >>| fun h ->
+    post t ?query ["merge-tag"; Tag.to_hum tag] m >>| fun h ->
     match branch t with
     | `Empty
     | `Head _ -> set_head t (Some h) >>= ok
@@ -768,8 +767,13 @@ struct
   type slice = L.slice
 
   module Slice = L.Private.Slice
+  let slice_tc: Slice.t Tc.t = (module Slice)
 
-  let export ?full ?depth ?(min=[]) ?max t =
+  let head_query name = function
+    | [] -> []
+    | l  -> [name, List.map (Tc.write_string (module Head)) l]
+
+  let export ?full ?depth ?(min=[]) ?(max=[]) t =
     let query =
       let full = match full with
         | None   -> []
@@ -779,16 +783,16 @@ struct
         | None   -> []
         | Some x -> ["depth", [string_of_int x]]
       in
-      match full @ depth with [] -> None | l -> Some l
+      match full @ depth @ head_query "min" min @ head_query "max" max with
+      | [] -> None
+      | l  -> Some l
     in
-    (* FIXME: this should be a GET *)
-    post t ?query ["export"] (some @@ E.to_json (min, max))
-      (module L.Private.Slice)
+    get_json t ?query ["export"] (module L.Private.Slice)
 
   module I = Tc.List(Tag)
 
   let import t slice =
-    post t ["import"] (some @@ Slice.to_json slice) ok_or_error
+    post_json t ["import"] ~body:(slice_tc, slice) ok_or_error
 
   let remove_rec t dir =
     delete t ["remove-rec"; Key.to_hum dir] (module Head) >>= fun h ->
@@ -816,16 +820,17 @@ struct
   module HTC = Tc.Biject (G)(Conv)
   module EO = Tc.Pair (Tc.Option(Tc.List(Head))) (Tc.Option(Tc.List(Head)))
 
-  let history ?depth ?min ?max t =
+  let history ?depth ?(min=[]) ?(max=[]) t =
     let query =
       let depth = match depth with
         | None   -> []
         | Some x -> ["depth", [string_of_int x]]
       in
-      match depth with [] -> None | l -> Some l
+      match depth @ head_query "min" min @ head_query "max" max with
+      | [] -> None
+      | l  -> Some l
     in
-    (* FIXME: this should be a GET *)
-    post t ?query ["history"] (some @@ EO.to_json (min, max)) (module HTC)
+    get t ?query ["history"] (module HTC)
 
   module Private = struct
     include L.Private
