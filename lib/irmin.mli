@@ -2410,17 +2410,17 @@ end
     }
 *)
 
-(** [AO_MAKER] is the signature exposed by any backend providing
-    append-only stores. [K] is the implementation of keys and [V] is
-    the implementation of values. *)
+(** [AO_MAKER] is the signature exposed by append-only store
+    backends. [K] is the implementation of keys and [V] is the
+    implementation of values. *)
 module type AO_MAKER =
   functor (K: Hash.S) ->
-  functor (V: Tc.S0) ->
+  functor (V: Tc.S0)  ->
     AO with type key = K.t and type value = V.t
 
-(** [RW_MAKER] is the signature exposed by any backend providing
-    reactive read-write stores. [K] is the implementation of keys and
-    [V] is the implementation of values.*)
+(** [RW_MAKER] is the signature exposed by read-write store
+    backends. [K] is the implementation of keys and [V] is the
+    implementation of values.*)
 module type RW_MAKER =
   functor (K: Hum.S) ->
   functor (V: Tc.S0) ->
