@@ -9,7 +9,69 @@ to Xen unikernels.
 [![Build Status](https://travis-ci.org/mirage/irmin.svg)](https://travis-ci.org/mirage/irmin)
 [![docs](https://img.shields.io/badge/doc-online-blue.svg)](https://mirage.github.io/irmin/)
 
-### Install
+### Description
+
+Irmin provides an API to built version-controlled applications.
+
+- **on-disk format** various formats are supported, including the Git format:
+  Irmin on-disk repositories can be inspected and modified using the classic
+  Git command-line tools.
+
+- **wire format** various formats are supported, including the Git protocol
+  (only in client mode) or a simple JSON-based REST API (client and server).
+
+- **dynamic behaviour** Irmin allows the users to define custom merge functions,
+  allow in-memory transactions (to keeps tracks of reads as well as writes) and
+  a notification mechanism. These abstractions allow to define concurrent
+  applications which are both efficient and safe.
+
+### Use-Cases
+
+Here a list of Irmin users:
+
+- [imaplet](https://github.com/gregtatcam/imaplet-lwt), a version-controlled
+  IMAP server and client.
+
+- [jitsu](https://github.com/mirage/jitsu), a DNS server that automatically
+  starts unikernels on demand. The database is persisted with Irmin.
+
+- [irmin-arp](https://github.com/yomimono/irmin-arp), a distributed ARP cache.
+
+- [Irmin+Xenstore](https://github.com/djs55/ocaml-xenstore/tree/irminsule), the
+  Xenstore deamon rewritten to use Irmin to persist its data.
+
+- [dog](https://github.com/samoht/dog), a synchronisation tool.
+
+- [irminFS](https://github.com/dsheets/irminfs) prototype of version-controlled
+  file-system using Fuse.
+
+### Further Reading
+
+- [What a Distributed, Version-Controlled ARP Cache Gets
+You](http://www.somerandomidiot.com/blog/2015/04/24/what-a-distributed-version-controlled-ARP-cache-gets-you/).
+Blog post describing how Irmin can be used with Mirage to store the
+network stack's ARP cache, which allows the history to be viewed using
+the git tools.
+
+- [CueKeeper: Gitting Things Done in the
+Browser](http://roscidus.com/blog/blog/2015/04/28/cuekeeper-gitting-things-done-in-the-browser/).
+A GTD-based todo list running client-side in the browser, using Irmin
+compiled to JavaScript to provide history, revert and synchronisation
+between tabs. The data is stored using an IndexedDB Irmin backend.
+
+- [Using Irmin to add fault-tolerance to the Xenstore
+database.](https://mirage.io/blog/introducing-irmin-in-xenstore)
+Porting the Xen hypervisor toolstack to support Git persistence via
+Irmin.
+
+- [Introducing Irmin: Git-like distributed, branchable
+storage.](https://mirage.io/blog/introducing-irmin) This is the first
+post that describes Irmin, the new Git-like storage layer for Mirage
+OS 2.0.
+
+### Getting Started
+
+#### Install
 
 Irmin is packaged with [opam](https://opam.ocaml.org):
 
@@ -17,10 +79,7 @@ Irmin is packaged with [opam](https://opam.ocaml.org):
 opam install irmin-unix # install all the optional depencies
 ```
 
-The `git` and `cohttp` packages are needed to compile and install the
-`irmin` command-line tool.
-
-### Usage
+#### Usage
 
 Irmin comes with a command-line tool called `irmin`. See `irmin
  --help` for further reading. Use either `irmin <command> --help` or
@@ -47,7 +106,7 @@ To compile the example above, save it to a file called
 git`) and run
 
 ```ocaml
-$ ocamlfind ocamlopt example.ml -o example -package lwt,irmin.unix,lwt.unix -linkpkg
+$ ocamlfind ocamlopt example.ml -o example -package irmin.unix,lwt.unix -linkpkg
 $ ./example
 Read: hi!
 ```
@@ -59,7 +118,7 @@ $ ./configure --enable-examples
 $ make
 ```
 
-### Tutorial
+#### Tutorial
 
 Tutorials are available on the
 [wiki](https://github.com/mirage/irmin/wiki/).
