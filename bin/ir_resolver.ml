@@ -70,18 +70,20 @@ let opt_key k = key k (Irmin.Private.Conf.default k)
 
 let config_term =
   let add k v config = Irmin.Private.Conf.add config k v in
-  let create root bare head uri =
+  let create root bare head uri content_type =
     Irmin.Private.Conf.empty
     |> add Irmin.Private.Conf.root root
     |> add Irmin_git.bare bare
     |> add Irmin_git.head head
     |> add Irmin_http.uri uri
+    |> add Irmin_http.content_type content_type
   in
   Term.(pure create $
         opt_key Irmin.Private.Conf.root $
         flag_key Irmin_git.bare $
         opt_key Irmin_git.head $
-        opt_key Irmin_http.uri)
+        opt_key Irmin_http.uri $
+        opt_key Irmin_http.content_type)
 
 let mk_contents k: contents = match k with
   | `String  -> (module Irmin.Contents.String)
