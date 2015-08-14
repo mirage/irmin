@@ -31,19 +31,21 @@ Here a list of Irmin users:
 
 - [imaplet](https://github.com/gregtatcam/imaplet-lwt), a version-controlled
   IMAP server and client.
-
 - [jitsu](https://github.com/mirage/jitsu), a DNS server that automatically
   starts unikernels on demand. The database is persisted with Irmin.
-
 - [irmin-arp](https://github.com/yomimono/irmin-arp), a distributed ARP cache.
-
 - [Irmin+Xenstore](https://github.com/djs55/ocaml-xenstore/tree/irminsule), the
   Xenstore deamon rewritten to use Irmin to persist its data.
-
 - [dog](https://github.com/samoht/dog), a synchronisation tool.
-
 - [irminFS](https://github.com/dsheets/irminfs) prototype of version-controlled
   file-system using Fuse.
+- [Cuekeeper](https://github.com/talex5/cuekeeper) a
+  version-controlled TODO list in the browser.
+- [merge-queues](https://github.com/mirage/merge-queues) and
+  [merge-ropes](https://github.com/mirage/merge-ropes) are high-level
+  version-controlled data-structures
+- [diff-datatypes](https://github.com/gprano/diff-datatypes) is a collection
+  of automatic merge functions based on edit scripts.
 
 ### Further Reading
 
