@@ -37,9 +37,10 @@ let rec wait_for_the_server_to_start () =
     Lwt_unix.sleep 0.1 >>= fun () ->
     wait_for_the_server_to_start ()
 
-let suite server =
+let suite ?(content_type=`Raw) server =
   let server_pid = ref 0 in
-  { name = Printf.sprintf "HTTP.%s" server.name;
+  let ct_str = Irmin_http_common.string_of_ct content_type in
+  { name = Printf.sprintf "HTTP.%s.%s" server.name ct_str;
 
     init = begin fun () ->
       let (module Server) = server.store in
@@ -74,6 +75,6 @@ let suite server =
       server.clean ()
     end;
 
-    config = Irmin_http.config uri;
+    config = Irmin_http.config ~content_type uri;
     store = http_store server.cont;
   }

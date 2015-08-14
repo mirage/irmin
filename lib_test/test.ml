@@ -24,9 +24,12 @@ let suite k =
     `Quick , Test_memory.suite k;
     `Quick , Test_fs.suite k;
     `Quick , Test_git.suite k;
-    depends, Test_http.suite (Test_memory.suite k);
-    `Slow  , Test_http.suite (Test_fs.suite k);
-    `Slow  , Test_http.suite (Test_git.suite k);
+    depends, Test_http.suite ~content_type:`Raw (Test_memory.suite k);
+    depends, Test_http.suite ~content_type:`Json (Test_memory.suite k);
+    `Slow  , Test_http.suite ~content_type:`Raw (Test_fs.suite k);
+    `Slow  , Test_http.suite ~content_type:`Json (Test_fs.suite k);
+    `Slow  , Test_http.suite ~content_type:`Raw (Test_git.suite k);
+    `Slow  , Test_http.suite ~content_type:`Json (Test_git.suite k);
   ]
 
 let () =

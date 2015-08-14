@@ -141,13 +141,18 @@ module Irmin_http: sig
 
   (** {1 HTTP client} *)
 
-  val config: Uri.t -> Irmin.config
+  val config: ?content_type:[`Json|`Raw] -> Uri.t -> Irmin.config
   (** Create a configuration value. [uri] it the location of the
       remote HTTP {{!module:Irmin_http_server}server}. *)
 
   val uri: Uri.t option Irmin.Private.Conf.key
   (** The configuration key to set the location of the remote HTTP
       {{!module:Irmin_http_server}server}. *)
+
+  val content_type: string option Irmin.Private.Conf.key
+  (** The configuraion key to set the content-type set by the client
+      (and that the server will try to conform too if it can). The
+      supported modes are ["json"] and ["raw"]. *)
 
   module AO: Irmin.AO_MAKER
   (** An HTTP client using a REST API for an append-only store. *)
@@ -192,8 +197,8 @@ module Irmin_http_server: sig
     type t
     (** The type for store handles. *)
 
-    val listen: t -> ?timeout:int -> ?strict:bool -> ?hooks:hooks ->
-      Uri.t -> unit Lwt.t
+    val listen:
+      ?timeout:int -> ?strict:bool -> ?hooks:hooks -> t -> Uri.t -> unit Lwt.t
     (** [listen t uri] start a server serving the contents of
         [t] at the address [uri]. Close clients' connections after
         [timeout] seconds of inactivity. If [strict] is set (by

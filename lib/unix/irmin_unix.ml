@@ -98,6 +98,7 @@ end
 module Irmin_http = struct
   let config = Irmin_http.config
   let uri = Irmin_http.uri
+  let content_type = Irmin_http.content_type
   module AO = Irmin_http.AO(Cohttp_lwt_unix.Client)
   module RW = Irmin_http.RW(Cohttp_lwt_unix.Client)
   module Make = Irmin_http.Make(Cohttp_lwt_unix.Client)

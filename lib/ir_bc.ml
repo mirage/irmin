@@ -572,14 +572,13 @@ let watch_key t key ?init fn =
 
   type slice = P.Slice.t
 
-  let export ?(full=true) ?depth ?(min=[]) ?max t =
-    Log.debug "export depth=%s full=%b min=%d max=%s"
+  let export ?(full=true) ?depth ?(min=[]) ?(max=[]) t =
+    Log.debug "export depth=%s full=%b min=%d max=%d"
       (match depth with None -> "<none>" | Some d -> string_of_int d)
-      full (List.length min)
-      (match max with None -> "<none>" | Some l -> string_of_int (List.length l));
+      full (List.length min) (List.length max);
     begin match max with
-      | Some m -> return m
-      | None   -> heads t
+      | [] -> heads t
+      | m -> return m
     end >>= fun max ->
     P.Slice.create () >>= fun slice ->
     let max = List.map (fun x -> `Commit x) max in
@@ -690,7 +689,7 @@ let watch_key t key ?init fn =
 
   end
 
-  let history ?depth ?(min=[]) ?max t =
+  let history ?depth ?(min=[]) ?(max=[]) t =
     Log.debug "history";
     let pred = function
       | `Commit k ->
@@ -699,7 +698,7 @@ let watch_key t key ?init fn =
       | _ -> return_nil in
     begin head t >>= function
       | Some h -> Lwt.return [h]
-      | None   -> match max with None -> Lwt.return_nil | Some m -> Lwt.return m
+      | None   -> Lwt.return max
     end >>= fun max ->
     let max = List.map (fun k -> `Commit k) max in
     let min = List.map (fun k -> `Commit k) min in
