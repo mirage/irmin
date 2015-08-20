@@ -17,14 +17,18 @@ module type CTR_MODE = sig
   end
 
 
-
-
 module type CIPHER = sig
 
-    val encrypt : ctr:Cstruct.t -> Cstruct.t -> Cstruct.t
-    val decrypt : ctr:Cstruct.t -> Cstruct.t -> Cstruct.t
+
+type header
+(*    val header_length: int
+    val extract_header: Cstruct.t -> header
+    val inject_header: header -> Cstruct.t 
+ *)   val encrypt: Cstruct.t -> Cstruct.t
+    val decrypt: Cstruct.t -> Cstruct.t
+
 
 end
 
 
-module Make_CTR (KM: KEY_MANAGEMENT) (C:CTR_MODE) : CIPHER
+module Make_CTR (K:Irmin.Hash.S) (KM: KEY_MANAGEMENT) (C:CTR_MODE) : CIPHER

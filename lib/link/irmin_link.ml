@@ -44,9 +44,10 @@ module type LINK_MAKER =
 module MEM (K: Irmin.Hash.S) = Irmin_mem.AO_LINK(K)
 
 module FS (K: Irmin.Hash.S) = Irmin_unix.Irmin_fs.AO_LINK(K)
-				
+			
+(*module type CIPHER = Irmin_krypto_cipher.CIPHER *)
 					      
-module AOI (L: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struct
+module AOI (*C:CIPHER*) (L: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     
     module AO = S(K)(Irmin.Contents.Cstruct)
     module PI = L(K)
@@ -70,6 +71,7 @@ module AOI (L: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struc
       AO.task t.ao
 
     let read t index =
+    (*  C.decrypt_nonce index >>= fun i -> *)
       PI.read t.pi index >>= fun key -> 
       match key with
       | None -> return_none
@@ -79,6 +81,7 @@ module AOI (L: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struc
      
 
     let read_exn t index =
+ (*     C.decrypt_nonce index >>= fun i -> *)
       PI.read t.pi index >>= fun key ->
       match key with 
       | None -> fail Not_found 
@@ -99,9 +102,9 @@ module AOI (L: LINK_MAKER) (S:AO_MAKER_RAW) (K: Irmin.Hash.S) (V: Tc.S0) = struc
     let add t v =
       let value = to_cstruct v in
       let index = K.digest value in
-      AO.add t.ao value >>=
-        (fun x ->
-	 PI.add t.pi index x)
+      AO.add t.ao value >>= fun x ->
+ (*     C.encrypt_nonce index >>= fun i ->  *)
+      PI.add t.pi index x
 
 	  
     let iter t fn =

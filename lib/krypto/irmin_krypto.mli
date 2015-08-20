@@ -17,7 +17,7 @@
 
 (**
 
-  Krypto : Irmin Crypto Backend
+  Krypto : Irmin Cryptographic Backend
   The kryptonite for protect your data of nasties
 
   TODO :
@@ -25,12 +25,10 @@
 
 *)
 
-open Irmin
 
-
+module type AO_MAKER_RAW = Irmin.AO_MAKER_RAW
 module type CIPHER = Irmin_krypto_cipher.CIPHER
 module Make_km = Irmin_krypto_km.Make
-module Make_cipher = Irmin_krypto_cipher.Make_CTR
-
-
-module KRYPTO_AO (C: CIPHER) (S:AO_MAKER_RAW): AO_MAKER_RAW
+module Make_CTR = Irmin_krypto_cipher.Make_CTR
+  
+module Make_Krypto (C: CIPHER) (S:AO_MAKER_RAW) : AO_MAKER_RAW

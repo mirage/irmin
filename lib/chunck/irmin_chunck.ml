@@ -59,8 +59,7 @@ let config ?conf ?size () =
     
     
 					    
-module CHUNCK_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
-    
+module CHUNCK_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct    
     
     module AO = S(K)(V)
     type key = AO.key
@@ -72,7 +71,6 @@ module CHUNCK_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 	nb_indirect: int;
 	data_length:int;
       }
-
     	       
     module Chunck = struct 	
 
@@ -354,7 +352,7 @@ module CHUNCK_AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
       | Not_found -> return_false 
 
 
-    let iter _t (_fn : key -> value Lwt.t -> unit Lwt.t) =
+     let iter _t (_fn : key -> value Lwt.t -> unit Lwt.t) =
       failwith "TODO"
 	       (* NOT NEEDED *)
 (*      AO.iter t (fun k v ->

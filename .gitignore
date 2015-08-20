@@ -13,3 +13,7 @@ _tests/
 *.native
 *.dot
 *.png
+test-db-chunck/
+*.mldylib
+*.mllib
+Makefile.bak

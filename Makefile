@@ -1,9 +1,15 @@
-# OASIS_START
-# DO NOT EDIT (digest: a3c674b4239234cbbe53afe090018954)
+TESTS  ?= --enable-tests
+PREFIX ?= /usr/local
 
-SETUP = ocaml setup.ml
+VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
+SETUP   = ocaml setup.ml
+VFILE   = lib/ir_version.ml
+SFILE   = lib/http/irmin_http_static.ml
+SFILES  = $(wildcard lib/http/static/*.js) \
+	  $(wildcard lib/http/*.html) \
+	  $(wildcard lib/http/static/*.css)
 
-build: setup.data
+build: setup.data $(VFILE) $(SFILE)
 	$(SETUP) -build $(BUILDFLAGS)
 
 doc: setup.data build
@@ -26,16 +32,47 @@ reinstall: setup.data
 
 clean:
 	$(SETUP) -clean $(CLEANFLAGS)
+	rm -f $(VFILE) $(SFILE)
+	rm -rf ./test-db
 
 distclean:
 	$(SETUP) -distclean $(DISTCLEANFLAGS)
 
 setup.data:
-	$(SETUP) -configure $(CONFIGUREFLAGS)
-
-configure:
-	$(SETUP) -configure $(CONFIGUREFLAGS)
+	$(SETUP) -configure $(CONFIGUREFLAGS) $(TESTS) --prefix $(PREFIX)
 
 .PHONY: build doc test all install uninstall reinstall clean distclean configure
 
-# OASIS_STOP
+$(VFILE): _oasis
+	echo "let current = \"$(VERSION)\"" > $@
+
+$(SFILE): $(SFILES)
+	cd lib/http/ && ./make_static.sh
+
+
+doc/html/.git:
+	cd doc/html && (\
+		git init && \
+		git remote add origin git@github.com:mirage/irmin.git && \
+		git checkout -b gh-pages \
+	)
+
+gh-pages: doc/html/.git
+	cd doc/html && git checkout gh-pages
+	rm -f doc/html/*.html
+	cp irmin.docdir/*.html doc/html/
+	cd doc/html && git add *.html
+	cd doc/html && git commit -a -m "Doc updates"
+	cd doc/html && git push origin gh-pages
+
+NAME    = $(shell grep 'Name:' _oasis    | sed 's/Name: *//')
+ARCHIVE = https://github.com/mirage/irmin/archive/$(VERSION).tar.gz
+
+release:
+	git tag -a $(VERSION) -m "Version $(VERSION)."
+	git push upstream $(VERSION)
+	$(MAKE) pr
+
+pr:
+	opam publish prepare $(NAME).$(VERSION) $(ARCHIVE)
+	OPAMPUBLISHBYPASSCHECKS=1 OPAMYES=1 opam publish submit $(NAME).$(VERSION) && rm -rf $(NAME).$(VERSION)

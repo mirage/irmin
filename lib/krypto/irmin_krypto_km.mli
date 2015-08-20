@@ -1,17 +1,13 @@
 
 
-(** The Key Store module for retreiving key(s) *)
+(** The Key Store module for retreiving key(s), it's a NOT SUCERED WAY FOR RETREIVING KEYS *)
 module type KEY_MANAGEMENT = sig
 
-    (* must be removed after ... | mirageOS ... *)
-    type retriving_method =
-      | File of string
-      | Debug_Test 
+    val key_data: Cstruct.t
+    val key_header: Cstruct.t
 
-    val init_key: way:retriving_method -> Cstruct.t
-  
 end
 
 
 (** Key Store module : we can improve that... *)
-module Make (* K:KEY) (R:RESULT *) : KEY_MANAGEMENT
+module Make : KEY_MANAGEMENT

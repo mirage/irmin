@@ -24,17 +24,17 @@ module RW = Irmin_fs.RW
 
 (* KRYPTO *)			
 module KRYPTO_KM = Irmin_krypto.Make_km
-module KRYPTO_AES = Irmin_krypto.Make_cipher (KRYPTO_KM) (AES.CTR)
-module KRYPTO = Irmin_krypto.KRYPTO_AO (KRYPTO_AES) (AO)
+module KRYPTO_AES_CTR = Irmin_krypto.Make_CTR (Irmin.Hash.SHA1) (KRYPTO_KM) (AES.CTR)
+module KRYPTO = Irmin_krypto.Make_Krypto (KRYPTO_AES_CTR) (AO)
 	       
 (* CHUNCK BACKEND *)
-module LCK = Irmin_chunck.CHUNCK_AO (KRYPTO) 
+module CK = Irmin_chunck.CHUNCK_AO (KRYPTO)
 					     
 (* INDEX FOR KEY CONVERGENCE *)
 module LINK = Irmin_link.FS
 		 
 (* STORE WITH THE APPLICATION OF FUNCTOR *)
-module MY_STORE = Irmin_link.Make (LINK) (LCK) (RW)
+module MY_STORE = Irmin_link.Make (LINK) (CK) (RW)
 
 let store = Irmin.basic (module MY_STORE) (module Irmin.Contents.String)
 			
