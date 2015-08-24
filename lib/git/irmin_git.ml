@@ -57,10 +57,10 @@ module Conf = struct
     (fun _ -> `Error "abstract"),
     (fun fmt _ -> Format.pp_print_string fmt "<abstract>")
 
-  type read_fn = ?root:string -> Git.SHA.t -> Git.Value.t option Lwt.t
+  type read_fn = Irmin.config -> Git.SHA.t -> Git.Value.t option Lwt.t
 
   let read_fn: read_fn Irmin.Private.Conf.key =
-    let read_none ?root:_ _ = Lwt.return_none in
+    let read_none _config _ = Lwt.return_none in
     Irmin.Private.Conf.key "read" abstract read_none
 
 end
@@ -82,12 +82,22 @@ end
 
 module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
 
-module Make_ext
-    (Ctx: CONTEXT) (IO: Git.Sync.IO with type ctx = Ctx.t)
-    (L: LOCK) (G: Git.Store.S)
+module type VALUE_STORE = sig
+  type t
+
+  val create: Irmin.config -> t Lwt.t
+  val read: t -> Git.SHA.t -> Git.Value.t option Lwt.t
+  val mem: t -> Git.SHA.t -> bool Lwt.t
+  val write: t -> Git.Value.t -> Git.SHA.t Lwt.t
+  val contents: t -> (Git.SHA.t * Git.Value.t) list Lwt.t
+
+  module Digest : Git.SHA.DIGEST
+end
+
+module Irmin_value_store
+    (G: VALUE_STORE)
     (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S)
-    (H: Irmin.Hash.S)
+    (H: Irmin.Hash.S)   (* Why do we need both H and G.Digest? *)
 = struct
 
   let () =
@@ -138,14 +148,13 @@ module Make_ext
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
 
-    let read_fn ?root sha1 =
-      G.create ?root () >>= fun t ->
+    let read_fn config sha1 =
+      G.create config >>= fun t ->
       G.read t sha1
 
     let create config task =
-      let root = Irmin.Private.Conf.get config Conf.root in
       let config = Irmin.Private.Conf.add config Conf.read_fn read_fn in
-      G.create ?root () >>= fun t ->
+      G.create config >>= fun t ->
       return (fun a -> { task = task a; config; t })
 
     let mem { t; _ } key =
@@ -198,13 +207,13 @@ module Make_ext
     let to_git b =
       Git.Value.Blob (Git.Blob.of_raw (Tc.write_string c b))
   end
-  module XContents = struct
+  module Contents = struct
     include AO (GK)(GitContents)
     module Val = C
     module Key = GK
   end
 
-  module XNode = struct
+  module Node = struct
     module Key = GK
     module Path = C.Path
     module Val = struct
@@ -352,7 +361,7 @@ module Make_ext
       end)
   end
 
-  module XCommit = struct
+  module Commit = struct
     module Val = struct
       type t = Git.Commit.t
       type node = GK.t
@@ -462,6 +471,24 @@ module Make_ext
       end)
 
   end
+end
+
+module Make_ext
+    (Ctx: CONTEXT) (IO: Git.Sync.IO with type ctx = Ctx.t)
+    (L: LOCK) (G: Git.Store.S)
+    (C: Irmin.Contents.S)
+    (T: Irmin.Tag.S)
+    (H: Irmin.Hash.S)
+= struct
+  module Git_store = struct
+    include G
+
+    let create config =
+      let root = Irmin.Private.Conf.get config Conf.root in
+      G.create ?root ()
+  end
+
+  module X = Irmin_value_store(Git_store)(C)(H)
 
   module XTag = struct
 
@@ -501,7 +528,7 @@ module Make_ext
       G.mem_reference t (git_of_tag r)
 
     let head_of_git k =
-      Val.of_raw (GK.to_raw (Git.SHA.of_commit k))
+      Val.of_raw (X.GK.to_raw (Git.SHA.of_commit k))
 
     let read { t; _ } r =
       G.read_reference t (git_of_tag r) >>= function
@@ -568,7 +595,7 @@ module Make_ext
         ) refs
 
     let git_of_head k =
-      Git.SHA.to_commit (GK.of_raw (Val.to_raw k))
+      Git.SHA.to_commit (X.GK.of_raw (Val.to_raw k))
 
     let write_index t gr gk =
       Log.debug "write_index";
@@ -642,10 +669,10 @@ module Make_ext
     module Sync = Git.Sync.Make(IO)(G)
 
     type t = G.t
-    type head = XCommit.key
+    type head = X.Commit.key
     type tag = XTag.key
 
-    let head_of_git key = H.of_raw (GK.to_raw (Git.SHA.of_commit key))
+    let head_of_git key = H.of_raw (X.GK.to_raw (Git.SHA.of_commit key))
 
     let o_head_of_git = function
       | None   -> Lwt.return `No_head
@@ -689,9 +716,9 @@ module Make_ext
 
   end
   module P = struct
-    module Contents = Irmin.Contents.Make(XContents)
-    module Node = XNode
-    module Commit = XCommit
+    module Contents = Irmin.Contents.Make(X.Contents)
+    module Node = X.Node
+    module Commit = X.Commit
     module Tag = XTag
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
@@ -754,7 +781,7 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     module Path = Irmin.Path.String_list
   end
   module M = Make (FakeIO)(NoL)(G)(V)(Irmin.Tag.String)(K)
-  include M.AO(K)(M.GitContents)
+  include M.X.AO(K)(M.X.GitContents)
 end
 
 module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S) = struct
@@ -771,14 +798,13 @@ module Internals (S: Irmin.S) = struct
   let read config =
     match Irmin.Private.Conf.find config Conf.read_fn with
     | None   -> failwith "not a Git store"
-    | Some s -> s
+    | Some s -> s config
 
   let commit_of_head t h =
     let t = S.Private.commit_t t in
     let h = S.Head.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
     let config = S.Private.Commit.config t in
-    let root = Irmin.Private.Conf.get config Conf.root in
-    read config ?root h >|= function
+    read config h >|= function
     | Some Git.Value.Commit c -> Some c
     | _ -> None
 

@@ -24,6 +24,46 @@ val config:
 val bare: bool Irmin.Private.Conf.key
 val head: Git.Reference.t option Irmin.Private.Conf.key
 
+module type VALUE_STORE = sig
+  (** This is the subset of Git.Store.S needed for [Value_store], except that
+   * [create] takes an [Irmin.config]. *)
+
+  type t
+
+  val create: Irmin.config -> t Lwt.t
+  val read: t -> Git.SHA.t -> Git.Value.t option Lwt.t
+  val mem: t -> Git.SHA.t -> bool Lwt.t
+  val write: t -> Git.Value.t -> Git.SHA.t Lwt.t
+  val contents: t -> (Git.SHA.t * Git.Value.t) list Lwt.t
+
+  module Digest : Git.SHA.DIGEST
+end
+
+(** Privides a subset of Irmin.Private.S (excludes tags and sync).
+ * This is useful if you want to store data in Git format, but
+ * do your own locking and sync. *)
+module Irmin_value_store
+    (G: VALUE_STORE)
+    (C: Irmin.Contents.S)
+    (H: Irmin.Hash.S) : sig
+  module GK : Irmin.Hash.S with type t = Git.SHA.t
+
+  module Contents: sig
+    include Irmin.AO with type value = C.t
+    module Key: Irmin.Hash.S with type t = key
+    module Val: Irmin.Contents.S with type t = value
+      and module Path = C.Path
+  end
+
+  module Node: Irmin.Private.Node.STORE
+    with type Val.contents = Contents.key
+     and module Path = Contents.Val.Path
+
+  module Commit: Irmin.Private.Commit.STORE
+    with type Val.node = Node.key
+     and type key = H.t
+end
+
 module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
