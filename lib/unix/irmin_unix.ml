@@ -217,9 +217,13 @@ let start_watchdog ~delay dir =
   match watchdog dir with
   | Some _ -> assert (nb_listeners dir <> 0); Lwt.return_unit
   | None   ->
-    Log.debug "Start watchdog for %s" dir;
+    (* Note: multiple threads can wait here *)
     listen dir ~delay ~callback >|= fun u ->
-    Hashtbl.add watchdogs dir u
+    match watchdog dir with
+    | Some _ -> u ()
+    | None   ->
+      Log.debug "Start watchdog for %s" dir;
+      Hashtbl.add watchdogs dir u
 
 let stop_watchdog dir =
   match watchdog dir with
