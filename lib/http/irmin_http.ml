@@ -104,7 +104,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let stream = Ezjsonm_lwt.from_stream stream in
     let start stream =
       Lwt_stream.get stream >>= function
-      | Some (`String s) when s = start_stream -> Lwt.return stream
+      | Some (`O ["stream", `String s]) when s = start_stream -> Lwt.return stream
       | None   -> err_empty_stream ()
       | Some j -> err_bad_start j
     in
@@ -118,11 +118,15 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     in
     start stream   >>= fun stream ->
     version stream >>= fun stream ->
-    let stream = Lwt_stream.map (fun j ->
-        match Response.of_json ~version:false j with
-        | `Error e -> raise e
-        | `Ok c    -> contents fn c
-      ) stream
+    let stream =
+      let aux = function
+        | `O ["stream", `String s] when s = stop_stream -> None
+        | j ->
+          match Response.of_json ~version:false j with
+          | `Error e -> raise e
+          | `Ok c    -> Some (contents fn c)
+      in
+      Lwt_stream.filter_map aux stream
     in
     Lwt.return stream
 
