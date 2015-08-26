@@ -110,14 +110,18 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let respond_html body = HTTP.respond_string ~status:`OK ~body ()
 
   let respond_json_stream stream =
-    let version = Ezjsonm.encode_string Irmin.version in
+    let irmin_version = Ezjsonm.encode_string Irmin.version in
     let (++) = Lwt_stream.append in
-    let elt s = Ezjsonm.to_string s ^ "," in
+    let elt ?(ends=", ") name j = Ezjsonm.to_string (`O [name, j]) ^ ends in
+    let version = elt "version" in
+    let result = elt "result" in
+    let start = "[ " ^ elt "stream" (`String start_stream) in
+    let stop  = elt "stream" ~ends:" ]" (`String stop_stream) in
     let stream =
-      (Lwt_stream.of_list ["[ \"" ^ start_stream ^ "\", "])
-      ++ (Lwt_stream.of_list [elt (`O ["version", version])])
-      ++ (Lwt_stream.map (fun j -> elt (`O ["result", j])) stream)
-      ++ (Lwt_stream.of_list [" ]"])
+      (Lwt_stream.of_list [start]) ++
+      (Lwt_stream.of_list [version irmin_version]) ++
+      (Lwt_stream.map result stream) ++
+      (Lwt_stream.of_list [stop])
     in
     let body = Cohttp_lwt_body.of_stream stream in
     HTTP.respond ~headers:json_headers ~status:`OK ~body ()

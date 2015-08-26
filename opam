@@ -23,7 +23,7 @@ remove: ["ocamlfind" "remove" "irmin"]
 
 depends: [
   "ocamlfind" {build}
-  "ezjsonm" {>= "0.4.0"}
+  "ezjsonm" {>= "0.4.2"}
   "ocamlgraph"
   "lwt" {>= "2.4.7"}
   "dolog" {>= "0.4"}

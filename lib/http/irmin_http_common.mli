@@ -23,6 +23,7 @@ val ok_or_duplicated_tag: [`Ok | `Duplicated_tag | `Empty_head] Tc.t
 val lca: 'a Tc.t -> [`Ok of 'a list | `Max_depth_reached | `Too_many_lcas] Tc.t
 
 val start_stream: string
+val stop_stream: string
 val irmin_version: string
 
 val content_type_header: string

@@ -118,7 +118,8 @@ let lca (type a) (head: a Tc.t) =
   end in
   (module M: Tc.S0 with type t = M.t)
 
-let start_stream = "¡start!"
+let start_stream = "start"
+let stop_stream = "stop"
 let irmin_version = "X-IrminVersion"
 let content_type_header = "Content-type"
 let application_json = "application/json"
