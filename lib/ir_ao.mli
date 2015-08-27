@@ -18,6 +18,7 @@
 
 module type STORE = sig
   include Ir_ro.STORE
+  val create: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
   val add: t -> value -> key Lwt.t
 end
 

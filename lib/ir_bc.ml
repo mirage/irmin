@@ -24,6 +24,7 @@ module StringMap = Map.Make(String)
 
 module type STORE = sig
   include Ir_rw.HIERARCHICAL
+  val create: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
   type branch_id
   val of_branch_id: Ir_conf.t -> 'a Ir_task.f -> branch_id -> ('a -> t) Lwt.t
   val name: t -> branch_id option Lwt.t

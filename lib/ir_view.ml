@@ -175,11 +175,6 @@ module Internal (Node: NODE) = struct
     let lock = Lwt_mutex.create () in
     Lwt.return { parents; view; ops; lock }
 
-  let create _conf _task =
-    Log.debug "create";
-    empty () >>= fun t ->
-    Lwt.return (fun _ -> t)
-
   let task = `Views_do_not_have_task
   let config _ = Ir_conf.empty
 

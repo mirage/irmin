@@ -43,6 +43,7 @@ end
 
 module type STORE = sig
   include Ir_rw.REACTIVE
+  val create: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
   module Key: S with type t = key
   module Val: Ir_hash.S with type t = value
 end
