@@ -232,7 +232,6 @@ module type GRAPH = sig
   val add_node: t -> node -> path -> node -> node Lwt.t
   val remove_node: t -> node -> path -> node Lwt.t
 
-  val merge: t -> node option Ir_merge.t
   val closure: t -> min:node list -> max:node list -> node list Lwt.t
   module Store: Ir_contents.STORE
     with type t = t
@@ -335,7 +334,6 @@ struct
   end
 
   type t = Store.t
-  let merge = Store.merge Path.empty
 
   let empty (_, t) = S.add t S.Val.empty
 

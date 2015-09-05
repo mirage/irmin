@@ -826,7 +826,8 @@ module Make (S: Ir_s.STORE) = struct
             Graph.read_node (graph_t db) n path >>= fun n ->
             ok (Some n)
     in
-    Graph.merge (graph_t db) ~old current_node (Some view_node)
+    Graph.Store.(merge Path.empty) (graph_t db)
+      ~old current_node (Some view_node)
     >>| fun merge_node ->
     if Tc.O1.equal P.Node.Key.equal merge_node current_node then ok `Unchanged
     else (

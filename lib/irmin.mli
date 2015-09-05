@@ -1416,11 +1416,6 @@ module Private: sig
           path of the path starting from [n] and labeled by [path] in
           [t]. *)
 
-      val merge: t -> node option Merge.t
-      (** [merge t] is the 3-way merge function for nodes. FIXME: give
-          semantics, especially when a node does not have
-          sub-contents. *)
-
       val closure: t -> min:node list -> max:node list -> node list Lwt.t
       (** [closure t ~min ~max] is the transitive closure [c] of [t]'s
           nodes such that:

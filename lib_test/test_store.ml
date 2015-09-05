@@ -693,7 +693,8 @@ module Make (S: Irmin.S) = struct
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
-      Graph.merge (g "merge: k4") ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
+      Graph.Store.(merge Path.empty)
+        (g "merge: k4") ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
       let k4 = match k4 with Some k -> k | None -> failwith "k4" in
 
