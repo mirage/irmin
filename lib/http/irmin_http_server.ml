@@ -76,15 +76,15 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   type 'a callback = request -> 'a
 
   type dynamic_node = {
-    list : S.t -> string list Lwt.t;
-    child: S.t -> string -> dispatch Lwt.t;
+    list : string list Lwt.t;
+    child: string -> dispatch Lwt.t;
   }
 
   and dispatch =
     | Fixed  of contents Lwt.t callback
     | Stream of Ezjsonm.value Lwt_stream.t callback
     | SNode  of (string * dispatch) list
-    | DNode  of dynamic_node
+    | DNode  of dynamic_node callback
     | Html   of string Lwt.t callback
 
   module Lock = Irmin.Private.Lock.Make(S.Tag)
@@ -126,7 +126,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let body = Cohttp_lwt_body.of_stream stream in
     HTTP.respond ~headers:json_headers ~status:`OK ~body ()
 
-  let json_of_response t r =
+  let json_of_response request r =
     let str = Ezjsonm.encode_string in
     let list x = `A x in
     match r with
@@ -134,15 +134,19 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     | Stream _
     | Html _   -> Lwt.return (str "<data>")
     | SNode c  -> Lwt.return (list ((List.map (fun (n, _) -> str n) c)))
-    | DNode d  -> d.list t >>= fun l -> Lwt.return (list (List.map str l))
+    | DNode d  ->
+      let dyn = d request in
+      dyn.list >>= fun l -> Lwt.return (list (List.map str l))
 
-  let child t c r: dispatch Lwt.t =
+  let child request c r: dispatch Lwt.t =
     let error () = Lwt.fail (Failure ("Unknown action: " ^ c)) in
     match r with
     | Fixed _
     | Stream _ -> error ()
     | Html _   -> Lwt.return r
-    | DNode d  -> d.child t c
+    | DNode d  ->
+      let dyn = d request in
+      dyn.child c
     | SNode l  ->
       try Lwt.return (List.assoc c l)
       with Not_found -> error ()
@@ -478,8 +482,22 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk1p1bs "watch-key" ~lock:lock3 t_watch_key tag_t tag' head tc_watch_k;
     ]
 
-  let key: S.key Tc.t = (module S.Key)
+  let list f t list = f t (S.Key.create list)
+
+  let step_h: S.Key.step Irmin.Hum.t = (module S.Key.Step)
+  let tag_h: S.tag Irmin.Hum.t = (module S.Tag)
+  let head_h: S.head Irmin.Hum.t = (module S.Head)
+
+  let node: S.Private.Node.key Tc.t = (module S.Private.Node.Key)
   let head: S.head Tc.t = (module S.Head)
+  let value: S.value Tc.t = (module S.Val)
+  let slice: S.slice Tc.t = (module S.Private.Slice)
+  let key: S.key Tc.t = (module S.Key)
+
+  let dyn_node list child =
+    DNode (fun request -> { list = list request; child = child request })
+
+  let static_node nodes = Lwt.return (SNode nodes)
 
   let merge (type x) (x:x Tc.t): x Irmin.Merge.result Tc.t =
     let module X = (val x: Tc.S0 with type t = x) in
@@ -534,13 +552,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let lca = lca (module S.Head)
 
   let dispatch hooks =
-    let step': S.Key.step Irmin.Hum.t = (module S.Key.Step) in
-    let tag': S.tag Irmin.Hum.t = (module S.Tag) in
     let lock3 (t, _, _) = S.tag t in
     let lock2 (t, _) = S.tag t in
-    let head': S.head Irmin.Hum.t = (module S.Head) in
-    let value: S.value Tc.t = (module S.Val) in
-    let slice: S.slice Tc.t = (module S.Private.Slice) in
     let s_export t query =
       let full, depth, min, max = mk_export_query query in
       S.export ?full ?depth ~min ~max t
@@ -604,42 +617,42 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     in
     let s_update_tag t tag = S.update_tag t tag >>= fun () -> S.head_exn t in
     let s_iter t fn = S.iter t (fun k _ -> fn k) in
-    let l f t list = f t (S.Key.create list) in
     let hooks = hooks.update in
     let bc t = [
       (* rw *)
-      mknp0bf "read" (l S.read) t step' (Tc.option value);
-      mknp0bf "mem" (l S.mem) t step' Tc.bool;
+      mknp0bf "read" (list S.read) t step_h (Tc.option value);
+      mknp0bf "mem" (list S.mem) t step_h Tc.bool;
       mk0p0bs "iter" (stream s_iter) t key;
-      mknp1bf "update" ~lock:lock3 ~hooks (l s_update) t step' value head;
-      mknp0bf "remove" ~lock:lock2 ~hooks (l s_remove) t step' head;
-      mknp1bf "compare-and-set" ~lock:lock3 ~hooks (l s_compare_and_set) t step'
+      mknp1bf "update" ~lock:lock3 ~hooks (list s_update) t step_h value head;
+      mknp0bf "remove" ~lock:lock2 ~hooks (list s_remove) t step_h head;
+      mknp1bf "compare-and-set" ~lock:lock3 ~hooks (list s_compare_and_set) t step_h
         (Tc.pair (Tc.option value) (Tc.option value)) Tc.bool;
 
       (* hrw *)
-      mknp0bf "list" (l S.list) t step' (Tc.list key);
-      mknp0bf "remove-rec" ~lock:lock2 (l s_remove_rec) t step' head;
+      mknp0bf "list" (list S.list) t step_h (Tc.list key);
+      mknp0bf "remove-rec" ~lock:lock2 (list s_remove_rec) t step_h head;
 
       (* more *)
-      mk1p0bf "remove-tag" ~lock:lock2 ~hooks S.remove_tag t tag' Tc.unit;
-      mk1p0bf "update-tag" ~lock:lock2 ~hooks s_update_tag t tag' head;
-      mk1p0bfq "merge-tag" ~lock:lock3 ~hooks s_merge_tag t tag' (merge head);
+      mk1p0bf "remove-tag" ~lock:lock2 ~hooks S.remove_tag t tag_h Tc.unit;
+      mk1p0bf "update-tag" ~lock:lock2 ~hooks s_update_tag t tag_h head;
+      mk1p0bfq "merge-tag" ~lock:lock3 ~hooks s_merge_tag t tag_h (merge head);
       mk0p0bf "head" S.head t (Tc.option head);
       mk0p0bf "heads" S.heads t (Tc.list head);
-      mk1p0bf "update-head" ~lock:lock2 ~hooks S.update_head t head' Tc.unit;
-      mk1p0bfq "fast-forward-head" ~lock:lock3 ~hooks s_fast_forward_head t head' Tc.bool;
+      mk1p0bf "update-head" ~lock:lock2 ~hooks S.update_head t head_h Tc.unit;
+      mk1p0bfq "fast-forward-head" ~lock:lock3 ~hooks s_fast_forward_head t
+        head_h Tc.bool;
       mk0p1bf "compare-and-set-head" ~lock:lock2 ~hooks s_compare_and_set_head t
         (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
-      mk1p0bfq "merge-head" ~lock:lock3 ~hooks s_merge_head t head' (merge head);
-      mk1p0bf "clone" s_clone t tag' ok_or_duplicated_tag;
-      mk1p0bf "clone-force" s_clone_force t tag' Tc.unit;
+      mk1p0bfq "merge-head" ~lock:lock3 ~hooks s_merge_head t head_h (merge head);
+      mk1p0bf "clone" s_clone t tag_h ok_or_duplicated_tag;
+      mk1p0bf "clone-force" s_clone_force t tag_h Tc.unit;
       mk0p0bfq "export" s_export t slice;
       mk0p1bf "import" S.import t slice ok_or_error;
       mk0p0bfq "history" s_history t (module HTC);
 
       (* lca *)
-      mk1p0bfq "lcas-tag" s_lcas_tag  t tag' lca;
-      mk1p0bfq "lcas-head" s_lcas_head t head' lca;
+      mk1p0bfq "lcas-tag" s_lcas_tag  t tag_h lca;
+      mk1p0bfq "lcas-head" s_lcas_head t head_h lca;
 
       (* extra *)
       mk0p0bh "graph" s_graph t;
@@ -661,21 +674,21 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
             Lwt.return (t ())))
       ] @ [
         "tree"    , dyn_node
-        (fun t ->
-          S.tags t  >>= fun tags ->
-          S.heads t >>= fun heads ->
-          Lwt.return (List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads)
-        )
-        (fun _ n ->
-           let app fn t x task =
-             fn (S.Private.config t) (fun () -> task) x >>= fun t ->
-             Lwt.return (t ())
-           in
-           try
-             let n = S.Head.of_hum n in
-             Lwt.return (SNode (bc (fun t -> app S.of_head t n)))
-           with Irmin.Hash.Invalid _ ->
-             Lwt.return (SNode (bc (fun t -> app S.of_tag t (S.Tag.of_hum n)))))
+          (fun req ->
+             S.tags req.t  >>= fun tags ->
+             S.heads req.t >|= fun heads ->
+             List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads)
+          (fun _req n ->
+             let app fn t x task =
+               fn (S.Private.config t) (fun () -> task) x >>= fun t ->
+               Lwt.return (t ())
+             in
+             try
+               let n = S.Head.of_hum n in
+               Lwt.return (SNode (bc (fun t -> app S.of_head t n)))
+             with Irmin.Hash.Invalid _ ->
+               let node = bc (fun t -> app S.of_tag t (S.Tag.of_hum n)) in
+               Lwt.return (SNode node))
       ])
 
   let err_bad_version v =
@@ -713,10 +726,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       | _   , Some t -> t
     in
     (* FIXME: validate the client task *)
+    let request path = { t; task; ct; path; params; query } in
     let rec aux dispatch = function
-      | []      -> json_of_response t dispatch >>= respond_json
+      | []      -> json_of_response (request []) dispatch >>= respond_json
       | h::path ->
-        let request = { t; task; ct; path; params; query } in
+        let request = request path in
         let f = function
           | Fixed fn  -> fn request >>= respond_contents
           | Stream fn -> fn request |>  respond_json_stream
@@ -724,7 +738,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
           | child     -> aux child path
         in
         Lwt.catch
-          (fun () -> child t h dispatch >>= f)
+          (fun () -> child request h dispatch >>= f)
           (fun e ->
              let query =
                List.map (fun (k, v) -> k ^ "=" ^ String.concat "." v) query
