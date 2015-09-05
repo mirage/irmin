@@ -462,6 +462,7 @@ struct
     read_node: L.key -> LP.Node.key option Lwt.t;
     mem_node: L.key -> bool Lwt.t;
     update_node: L.key -> LP.Node.key -> unit Lwt.t;
+    merge_node: L.key -> (L.head * LP.Node.key) -> unit Irmin.Merge.result Lwt.t;
     remove_node: L.key -> unit Lwt.t;
     lock: Lwt_mutex.t;
   }
@@ -505,9 +506,10 @@ struct
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
       let remove_node = LP.remove_node l in
+      let merge_node = LP.merge_node l in
       let lock = Lwt_mutex.create () in
       { l; branch; h; contents_t; node_t; commit_t; tag_t;
-        read_node; mem_node; update_node; remove_node;
+        read_node; mem_node; update_node; remove_node; merge_node;
         config; lock; }
     in
     Lwt.return fn
@@ -844,6 +846,7 @@ struct
     let commit_t t = t.commit_t
     let tag_t t = t.tag_t
     let update_node t = t.update_node
+    let merge_node t = t.merge_node
     let remove_node t = t.remove_node
     let read_node t = t.read_node
     let mem_node t = t.mem_node

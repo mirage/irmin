@@ -37,6 +37,7 @@ module type STORE = sig
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
+    val merge_node: t -> key -> (head * Node.key) -> unit Ir_merge.result Lwt.t
     val remove_node: t -> key -> unit Lwt.t
    end
 end
