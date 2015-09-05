@@ -486,11 +486,11 @@ module Make_ext (P: PRIVATE) = struct
     let parent_node () =
       node_of_head (Some parent) >>= fun (_, x) -> ok (Some x)
     in
-    let rec aux () =
+    let aux () =
       read_head_commit t >>= fun head ->
       node_of_head head >>= fun (current_root, current_node) ->
       Graph.Store.merge path (graph_t t)
-        parent_node current_node (Some node)
+        ~old:parent_node current_node (Some node)
       >>| fun new_node ->
       begin match new_node with
         | None   -> Graph.remove_node (graph_t t) current_root path

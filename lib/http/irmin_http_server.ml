@@ -488,11 +488,35 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let tag_h: S.tag Irmin.Hum.t = (module S.Tag)
   let head_h: S.head Irmin.Hum.t = (module S.Head)
 
-  let node: S.Private.Node.key Tc.t = (module S.Private.Node.Key)
+  let node_t: S.Private.Node.key Tc.t = (module S.Private.Node.Key)
   let head: S.head Tc.t = (module S.Head)
   let value: S.value Tc.t = (module S.Val)
   let slice: S.slice Tc.t = (module S.Private.Slice)
   let key: S.key Tc.t = (module S.Key)
+
+  module View = struct
+    type t = S.head * S.Private.Node.key
+    let compare = Pervasives.compare
+    let equal = (=)
+    let hash = Hashtbl.hash
+
+    let of_string str =
+      match Stringext.cut str ~on:"-" with
+      | None        -> failwith "invalid view"
+      | Some (h, n) -> S.Head.of_hum h, S.Private.Node.Key.of_hum n
+    let to_string (h, n) = S.Head.to_hum h ^ "-" ^ S.Private.Node.Key.to_hum n
+
+    let to_json t = `String (to_string t)
+
+    let of_json = function
+      | `String s -> of_string s
+      | j -> Ezjsonm.parse_error j "ok_or_duplicated_tag"
+
+    let read buf = of_string (Tc.String.read buf)
+    let size_of t = Tc.String.size_of (to_string t)
+    let write t = Tc.String.write (to_string t)
+  end
+  let view: View.t Tc.t = (module View)
 
   let dyn_node list child =
     DNode (fun request -> { list = list request; child = child request })
@@ -504,7 +528,66 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let module M = Tc.App1(Irmin.Merge.Result)(X) in
     (module M)
 
-  let dyn_node list child = DNode { list; child }
+  let view_store =
+    let module Contents = S.Private.Contents in
+    let module Node = S.Private.Node in
+    let module Graph = Irmin.Private.Node.Graph(Contents)(Node) in
+    let t x _ = Lwt.return x in
+    let g x _ =
+      let c = S.Private.contents_t x in
+      let n = S.Private.node_t x in
+      Lwt.return (c, n)
+    in
+    dyn_node
+      (fun _ -> Lwt.return ["create"])
+      (fun _ -> function
+         | "create" ->
+           let create =
+             let aux t path =
+               S.head_exn t >>= fun head ->
+               S.of_head (S.config t) (fun () -> S.task t) head >>= fun t ->
+               S.Private.read_node (t ()) path >>= function
+               | None   -> Lwt.fail_invalid_arg "view"
+               | Some n -> Lwt.return (head, n)
+             in
+             list aux
+           in
+           static_node [
+             mknp0bf "create" create t step_h view;
+           ]
+         | node ->
+           let node = Node.Key.of_hum node in
+           let read =
+             let aux t path =
+               Graph.read_contents_exn t node path >>= fun k ->
+               Contents.read_exn (fst t) k
+             in
+             list aux
+           in
+           let update =
+             let aux t path value =
+               Contents.add (fst t) value >>= fun k ->
+               Graph.add_contents t node path k
+             in
+             list aux
+           in
+           let update_path =
+             let aux t path = S.Private.update_node t path node in
+             list aux
+           in
+           let merge_path =
+             let aux t path parent =
+               S.Private.merge_node t path (parent, node)
+             in
+             list aux
+           in
+           static_node [
+             mknp0bf "read"        read g step_h value;
+             mknp1bf "update"      update g step_h value node_t;
+             mknp0bf "update-path" update_path t step_h Tc.unit;
+             mknp1bf "merge-path"  merge_path t step_h head (merge Tc.unit);
+           ]
+      )
 
   let get_query query fn n =
     try match List.assoc n query with
@@ -656,6 +739,10 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
       (* extra *)
       mk0p0bh "graph" s_graph t;
+
+      (* views *)
+      "view", view_store;
+
     ] in
 
     SNode (
