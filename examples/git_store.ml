@@ -3,35 +3,35 @@ open Lwt
 open Irmin_unix
 open Printf
 
-let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
 
 let update t k v =
   let msg = sprintf "Updating /%s" (String.concat "/" k) in
   print_endline msg;
-  Irmin.update (t msg) k v
+  Store.update (t msg) k v
 
 let read_exn t k =
   let msg = sprintf "Reading /%s" (String.concat "/" k) in
   print_endline msg;
-  Irmin.read_exn (t msg) k
+  Store.read_exn (t msg) k
 
 let main () =
   Config.init ();
   let config = Irmin_git.config ~root:Config.root ~bare:true () in
-  Irmin.create store config task >>= fun t ->
+  Store.create config task >>= fun t ->
 
   update t ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
   update t ["root";"misc";"2.txt"] "Hi!" >>= fun () ->
   update t ["root";"misc";"3.txt"] "How are you ?" >>= fun () ->
   read_exn t ["root";"misc";"2.txt"] >>= fun _ ->
 
-  Irmin.clone_force task (t "x: Cloning 't'") "test" >>= fun x ->
+  Store.clone_force task (t "x: Cloning 't'") "test" >>= fun x ->
   print_endline "cloning ...";
 
   update t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
   update x ["root";"misc";"2.txt"] "Cool!"  >>= fun () ->
 
-  Irmin.merge_exn "t: Merge with 'x'" x ~into:t >>= fun () ->
+  Store.merge_exn "t: Merge with 'x'" x ~into:t >>= fun () ->
   print_endline "merging ...";
 
   read_exn t ["root";"misc";"2.txt"]  >>= fun _ ->

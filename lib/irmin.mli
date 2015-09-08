@@ -1778,190 +1778,6 @@ module Basic (B: S_MAKER) (C: Contents.S):
 (** Generate a basic store using [B] as backend and [C] as
     user-provided contents. *)
 
-type ('k,'v) basic = (module BASIC with type key = 'k and type value = 'v)
-(** The type for basic stores. *)
-
-type ('k,'v) contents = (module Contents.S with type t = 'v and type Path.t = 'k)
-(** The type for basic contents of type ['a]. *)
-
-val basic: (module S_MAKER) -> ('k,'v) contents -> ('k,'v) basic
-(** [basic backend contents] is a basic Irmin implementation using
-    [backend] as a backend and containing values defined by
-    [contents]. *)
-
-type ('a, 'k, 'v) t
-(** The type for default store, with keys of type ['k] and values of
-    type ['v]. ['a] is a phantom type representing the store's kind:
-    read-only, read-write or branch-consistent. *)
-
-val impl: ([`BC],'k,'v) t -> ('k, 'v) basic
-(** [impl t] is the store implementation of [t]. *)
-
-val create: ('k,'v) basic -> config -> 'm Task.f -> ('m -> ([`BC],'k,'v) t) Lwt.t
-(** See {!RO.create}. Needs a backend as first argument. *)
-
-val of_tag: ('k,'v) basic -> config -> 'm Task.f -> string
-  -> ('m -> ([`BC],'k,'v) t) Lwt.t
-(** See {!BC.of_tag}. Needs a backend as first argument. *)
-
-val of_head: ('k,'v) basic -> config -> 'm Task.f -> Hash.SHA1.t
-  -> ('m -> ([`BC],'k,'v) t) Lwt.t
-(** See {!BC.of_head}. Needs a backend as first argument. *)
-
-val empty: ('k,'v) basic -> config -> 'm Task.f -> ('m -> ([`BC],'k,'v) t) Lwt.t
-(** See {!BC.empty}. Needs a backend as first argument. *)
-
-(** {2 Base Operations} *)
-
-val task: ([`BC],'k,'v) t -> task
-(** See {!RO.task}. *)
-
-val read: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v option Lwt.t
-(** See {!RO.read}. *)
-
-val read_exn: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'v Lwt.t
-(** See {!RO.read_exn}. *)
-
-val mem: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> bool Lwt.t
-(** See {!RO.mem}. *)
-
-val iter: ([<`RO|`HRW|`BC],'k,'v) t -> ('k -> 'v Lwt.t -> unit Lwt.t) -> unit Lwt.t
-(** See {!RO.iter}. *)
-
-val list: ([<`RO|`HRW|`BC],'k,'v) t -> 'k -> 'k list Lwt.t
-(** See {!HRW.list}. *)
-
-val update: ([<`HRW|`BC],'k,'v) t -> 'k -> 'v -> unit Lwt.t
-(** See {!RW.update}. *)
-
-val remove: ([<`HRW|`BC],'k,'v) t -> 'k -> unit Lwt.t
-(** See {!RW.remove}. *)
-
-val remove_rec: ([<`HRW|`BC],'k,'v) t -> 'k -> unit Lwt.t
-(** See {!HRW.remove_rec}. *)
-
-(** {2 Tags} *)
-
-val tag: ([`BC],'k,'v) t -> string option Lwt.t
-(** See {!BC.tag}. *)
-
-val tag_exn: ([`BC],'k,'v) t -> string Lwt.t
-(** See {!BC.tag_exn}. *)
-
-val tags: ([`BC],'k,'v) t -> string list Lwt.t
-(** See {!BC.tags}. *)
-
-val remove_tag: ([`BC],'k,'v) t ->  string -> unit Lwt.t
-(** See {!BC.remove_tag}. *)
-
-val update_tag: ([`BC],'k,'v) t -> string -> unit Lwt.t
-(** See {!BC.update_tag}. *)
-
-val merge_tag: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string ->
-  unit Merge.result Lwt.t
-(** See {!BC.merge_tag}. *)
-
-val merge_tag_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> string -> unit Lwt.t
-(** See {!BC.merge_tag_exn}. *)
-
-(** {2 Heads} *)
-
-val head: ([`BC],'k,'v) t -> Hash.SHA1.t option Lwt.t
-(** See {!BC.head}. *)
-
-val head_exn: ([`BC],'k,'v) t -> Hash.SHA1.t Lwt.t
-(** See {!BC.head_exn}. *)
-
-val branch: ([`BC],'k,'v) t -> [`Tag of string | `Head of Hash.SHA1.t | `Empty]
-(** See {!BC.branch}. *)
-
-val heads: ([`BC],'k,'v) t -> Hash.SHA1.t list Lwt.t
-(** See {!BC.heads}. *)
-
-val update_head: ([`BC],'k,'v) t -> Hash.SHA1.t -> unit Lwt.t
-(** See {!BC.update_head}. *)
-
-val compare_and_set_head: ([`BC],'k,'v) t ->
-  test:Hash.SHA1.t option -> set:Hash.SHA1.t option -> bool Lwt.t
-(** See {!BC.compare_and_set_head}. *)
-
-val merge_head: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
-  unit Merge.result Lwt.t
-(** See {!BC.merge_head}. *)
-
-val merge_head_exn: ([`BC],'k,'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
-  unit Lwt.t
-(** See {!BC.merge_head_exn}. *)
-
-val watch_head: ([`BC],'k,'v) t -> ?init:Hash.SHA1.t ->
-  (Hash.SHA1.t diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-(** See {!BC.watch_head}. *)
-
-val watch_tags: ([`BC],'k,'v) t -> ?init:(string * Hash.SHA1.t) list ->
-  (string -> Hash.SHA1.t diff -> unit Lwt.t) ->
-  (unit -> unit Lwt.t) Lwt.t
-(** See {!BC.watch_tags}. *)
-
-val watch_key: ([`BC],'k,'v) t -> 'k -> ?init:(Hash.SHA1.t * 'v) ->
-  ((Hash.SHA1.t * 'v) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-(** See {!BC.watch_key}. *)
-
-(** {2 Clones and Merges} *)
-
-val clone: 'm Task.f -> ([`BC],'k,'v) t -> string
-  -> [`Ok of ('m -> ([`BC],'k,'v) t) | `Duplicated_tag | `Empty_head] Lwt.t
-(** See {!BC.clone}. *)
-
-val clone_force: 'm Task.f -> ([`BC],'k,'v) t -> string
-  -> ('m -> ([`BC],'k,'v) t) Lwt.t
-(** See {!BC.clone_force}. *)
-
-val merge: 'm -> ?max_depth:int -> ?n:int ->
-  ('m -> ([`BC],'k,'v) t) -> into:('m -> ([`BC],'k,'v) t)
-  -> unit Merge.result Lwt.t
-(** See {!BC.merge}. *)
-
-val merge_exn: 'm -> ?max_depth:int -> ?n:int ->
-  ('m -> ([`BC],'k,'v) t) -> into:('m -> ([`BC],'k,'v) t) -> unit Lwt.t
-(** See {!BC.merge_exn}. *)
-
-val lcas: 'm -> ?max_depth:int -> ?n:int ->
-  ('m -> ([`BC],'k,'v) t) -> ('m -> ([`BC],'k,'v) t) ->
-  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
-(** See {!BC.lcas}. *)
-
-val lcas_tag: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> string ->
-  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
-(** See {!BC.lcas_tag}. *)
-
-val lcas_head: ([`BC],'k, 'v) t -> ?max_depth:int -> ?n:int -> Hash.SHA1.t ->
-  [`Ok of Hash.SHA1.t list | `Too_many_lcas | `Max_depth_reached] Lwt.t
-(** See {!BC.lcas_head}. *)
-
-(** {2 History} *)
-
-module History: Graph.Sig.P with type V.t = Hash.SHA1.t
-(** See {!BC.History}. *)
-
-val history: ?depth:int -> ?min:Hash.SHA1.t list -> ?max:Hash.SHA1.t list
-  -> ([`BC], 'k, 'v) t -> History.t Lwt.t
-(** See {!BC.history}. *)
-
-val task_of_head: ([`BC],'k, 'v) t -> Hash.SHA1.t -> task Lwt.t
-(** See {!BC.task_of_head}. *)
-
-(** {2 Views} *)
-
-val with_hrw_view:
-  ([`BC],'k, 'v) t -> ?path:'k -> [`Update | `Rebase | `Merge] ->
-  (([`HRW], 'k, 'v) t -> unit Lwt.t) -> unit Merge.result Lwt.t
-(** [with_rw_view t task ?path strat ops] applies [ops] to an
-    in-memory, temporary and mutable view of the store [t]. If [path]
-    is set, all operations in the transaction are relative to that
-    path, otherwise use the full tree. The [strat] strategy decides
-    which merging strategy to use: see {!VIEW.update_path},
-    {!VIEW.rebase_path} and {!VIEW.merge_path}. *)
-
 (** {2 Synchronization} *)
 
 type remote
@@ -1972,29 +1788,6 @@ val remote_uri: string -> remote
     optimized native synchronization protocol when available for the
     given backend. *)
 
-val remote_basic: ([`BC],'k,'v) t -> remote
-(** Same as {!remote_store} but for basic stores. *)
-
-val fetch: ([`BC],'k,'v) t -> ?depth:int -> remote ->
-  [`Head of Hash.SHA1.t | `No_head | `Error] Lwt.t
-(** See {!Sync.fetch}. *)
-
-val fetch_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> Hash.SHA1.t Lwt.t
-(** See {!Sync.fetch_exn}. *)
-
-val pull: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
-  [`Ok | `No_head | `Error] Merge.result Lwt.t
-(** See {!Sync.pull}. *)
-
-val pull_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Merge | `Update] ->
-  unit Lwt.t
-(** See {!Sync.pull_exn}. *)
-
-val push: ([`BC],'k,'v) t -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
-(** See {!Sync.push}. *)
-
-val push_exn: ([`BC],'k,'v) t -> ?depth:int -> remote -> unit Lwt.t
-(** See {!Sync.push_exn}. *)
 
 (** {1:examples Examples}
 
@@ -2360,6 +2153,18 @@ module View (S: S): VIEW with type db = S.t
                           and type value = S.Val.t
                           and type head = S.head
 (** Create views. *)
+
+val with_hrw_view :
+  (module VIEW with type t = 'view and type db = 'store and type key = 'path) ->
+  'store ->
+  path:'path ->
+  [< `Merge | `Rebase | `Update ] ->
+  ('view -> unit Lwt.t) -> unit Merge.result Lwt.t
+(** [with_rw_view (module View) t ~path strat ops] applies [ops] to an
+    in-memory, temporary and mutable view of the store [t].
+    All operations in the transaction are relative to [path].
+    The [strat] strategy decides which merging strategy to use: see
+    {!VIEW.update_path}, {!VIEW.rebase_path} and {!VIEW.merge_path}. *)
 
 (** [Dot] provides functions to export a store to the Graphviz `dot`
     format. *)

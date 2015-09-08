@@ -152,13 +152,13 @@ end = struct
 
 end
 
-let store = Irmin.basic (module Irmin_git.FS) (module Log)
+module Store = Irmin.Basic (Irmin_git.FS) (Log)
 let config = Irmin_git.config ~root:Config.root ~bare:true ()
 
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =
-  Irmin.read (t "Reading the log file") log_file >>= function
+  Store.read (t "Reading the log file") log_file >>= function
   | None   -> return Log.empty
   | Some l -> return l
 
@@ -168,7 +168,7 @@ let log t fmt =
   Printf.ksprintf (fun message ->
       all_logs t >>= fun logs ->
       let logs = Log.add logs (Entry.create message) in
-      Irmin.update (t "Adding a new entry") log_file logs
+      Store.update (t "Adding a new entry") log_file logs
     ) fmt
 
 let print_logs name t =
@@ -178,7 +178,7 @@ let print_logs name t =
 
 let main () =
   Config.init ();
-  Irmin.create store config task >>= fun t ->
+  Store.create config task >>= fun t ->
 
   (* populate the log with some random messages *)
   Lwt_list.iter_s (fun msg ->
@@ -190,7 +190,7 @@ let main () =
 
   print_logs "lca" t >>= fun () ->
 
-  Irmin.clone_force task (t "Cloning the store") "test" >>= fun x ->
+  Store.clone_force task (t "Cloning the store") "test" >>= fun x ->
 
   log x "Adding new stuff to x"  >>= fun () ->
   log x "Adding more stuff to x" >>= fun () ->
@@ -203,7 +203,7 @@ let main () =
 
   print_logs "branch 2" t >>= fun () ->
 
-  Irmin.merge_exn "Merging x into t" x ~into:t  >>= fun () ->
+  Store.merge_exn "Merging x into t" x ~into:t  >>= fun () ->
 
   print_logs "merge" t
 
