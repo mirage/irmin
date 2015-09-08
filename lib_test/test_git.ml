@@ -49,12 +49,12 @@ let suite k =
 let test_non_bare () =
   let open Irmin_unix in
   init_disk () >>= fun () ->
-  let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String) in
+  let module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String) in
   let config = Irmin_git.config ~root:test_db ~bare:false () in
-  Irmin.create store config task >>= fun t ->
-  Irmin.update (t "fst one") ["fst"] "ok" >>= fun () ->
-  Irmin.update (t "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
-  Irmin.update (t "fst one") ["fst"] "hoho"
+  Store.create config task >>= fun t ->
+  Store.update (t "fst one") ["fst"] "ok" >>= fun () ->
+  Store.update (t "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
+  Store.update (t "fst one") ["fst"] "hoho"
 
 let run f () = Lwt_main.run (f ())
 

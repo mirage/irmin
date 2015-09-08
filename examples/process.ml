@@ -70,7 +70,7 @@ let branch image =
 
 let images = [| (*ubuntu; *) wordpress; mysql |]
 
-let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
 let config = Irmin_git.config
     ~root:Config.root
     ~bare:true
@@ -86,10 +86,10 @@ let master = branch images.(0)
 
 let init () =
   Config.init ();
-  Irmin.of_tag store config (task images.(0)) master >>= fun t ->
-  Irmin.update (t "init") ["0"] "0" >>= fun () ->
+  Store.of_tag config (task images.(0)) master >>= fun t ->
+  Store.update (t "init") ["0"] "0" >>= fun () ->
   Lwt_list.iter_s (fun i ->
-      Irmin.clone_force (task images.(0)) (t "Cloning") (branch i) >>= fun _ ->
+      Store.clone_force (task images.(0)) (t "Cloning") (branch i) >>= fun _ ->
       Lwt.return_unit
     ) (Array.to_list images)
 
@@ -106,14 +106,14 @@ let rec process image =
     try random_list actions.files
     with _ -> ["log"; id; "0"], fun () -> id ^ string_of_int (Random.int 10)
   in
-  Irmin.of_tag store config (task image) id >>= fun t ->
-  Irmin.update (t actions.message) key (value ()) >>= fun () ->
+  Store.of_tag config (task image) id >>= fun t ->
+  Store.update (t actions.message) key (value ()) >>= fun () ->
 
   begin if Random.int 3 = 0 then
     let branch = branch (random_array images) in
     if branch <> id then (
       Printf.printf "Merging ...%!";
-      Irmin.merge_tag_exn (fmt t "Merging with %s" branch) branch >>= fun () ->
+      Store.merge_tag_exn (fmt t "Merging with %s" branch) branch >>= fun () ->
       Printf.printf "ok!\n%!";
       Lwt.return_unit
     ) else

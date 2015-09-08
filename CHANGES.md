@@ -1,3 +1,5 @@
+* Remove the first-class module API. It's confusing to duplicate the API.
+
 ### 0.9.9
 
 * Allow raw bodies in queries and responses for the REST API. This is

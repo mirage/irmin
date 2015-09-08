@@ -7,19 +7,21 @@ let path =
   else
     "git://github.com/mirage/ocaml-git.git"
 
-let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
+module Sync = Irmin.Sync(Store)
+module View = Irmin.View(Store)
 
 let upstream = Irmin.remote_uri path
 
 let test () =
   Config.init ();
   let config = Irmin_git.config ~root:Config.root () in
-  Irmin.create store config task >>= fun t ->
-  Irmin.pull_exn (t "Syncing with upstream store") upstream `Update >>= fun () ->
-  Irmin.read_exn (t "get the README") ["README.md"]>>= fun readme ->
-  Irmin.with_hrw_view (t "Updating BAR and FOO") `Merge (fun view ->
-      Irmin.update view ["BAR.md"] "Hoho!" >>= fun () ->
-      Irmin.update view ["FOO.md"] "Hihi!" >>= fun () ->
+  Store.create config task >>= fun t ->
+  Sync.pull_exn (t "Syncing with upstream store") upstream `Update >>= fun () ->
+  Store.read_exn (t "get the README") ["README.md"]>>= fun readme ->
+  Irmin.with_hrw_view (module View) (t "Updating BAR and FOO") `Merge ~path:[] (fun view ->
+      View.update view ["BAR.md"] "Hoho!" >>= fun () ->
+      View.update view ["FOO.md"] "Hihi!" >>= fun () ->
       Lwt.return_unit
     ) >>= Irmin.Merge.exn >>= fun () ->
   Printf.printf "%s\n%!" readme;
