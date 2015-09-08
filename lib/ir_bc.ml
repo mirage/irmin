@@ -104,6 +104,8 @@ module type STORE_EXT = sig
   val read_node: t -> key -> Private.Node.key option Lwt.t
   val mem_node: t -> key -> bool Lwt.t
   val update_node: t -> key -> Private.Node.key -> unit Lwt.t
+  val merge_node: t -> key -> (head * Private.Node.key) ->
+    unit Ir_merge.result Lwt.t
   val remove_node: t -> key -> unit Lwt.t
 end
 
@@ -468,6 +470,41 @@ module Make_ext (P: PRIVATE) = struct
         ok
     in
     Lwt_mutex.with_lock t.lock (fun () -> retry_merge "merge_head" aux)
+
+  let merge_node t path (parent, node) =
+    Log.debug "merge_node";
+    let empty () = Graph.empty (graph_t t) in
+    let node_of_head head =
+      begin match head with
+        | None   -> Lwt.return_none
+        | Some h -> H.node (history_t t) h
+      end
+      >>= function
+      | None   -> empty () >|= fun empty -> empty, None
+      | Some h -> Graph.read_node (graph_t t) h path >|= fun n -> h, n
+    in
+    let parent_node () =
+      node_of_head (Some parent) >>= fun (_, x) -> ok (Some x)
+    in
+    let aux () =
+      read_head_commit t >>= fun head ->
+      node_of_head head >>= fun (current_root, current_node) ->
+      Graph.Store.merge path (graph_t t)
+        ~old:parent_node current_node (Some node)
+      >>| fun new_node ->
+      begin match new_node with
+        | None   -> Graph.remove_node (graph_t t) current_root path
+        | Some n -> Graph.add_node (graph_t t) current_root path n
+      end >>= fun new_root ->
+      let parents =
+        let aux = function None -> [] | Some x -> [x] in
+        parent :: aux head
+      in
+      H.create (history_t t) ~node:new_root ~parents >>= fun h ->
+      compare_and_set_head_unsafe t ~test:head ~set:(Some h) >>=
+      ok
+    in
+    Lwt_mutex.with_lock t.lock (fun () -> retry_merge "merge_node" aux)
 
   let merge_head_exn t ?max_depth ?n c1 =
     merge_head t ?max_depth ?n c1 >>= Ir_merge.exn

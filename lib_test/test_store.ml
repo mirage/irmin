@@ -693,7 +693,8 @@ module Make (S: Irmin.S) = struct
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
-      Graph.merge (g "merge: k4") ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
+      Graph.Store.(merge Path.empty)
+        (g "merge: k4") ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
       let k4 = match k4 with Some k -> k | None -> failwith "k4" in
 
@@ -1214,6 +1215,36 @@ module Make (S: Irmin.S) = struct
 
   module Sync = Irmin.Sync(S)
 
+  let test_private_nodes x () =
+    let get = function None -> Alcotest.fail "empty" | Some x -> x in
+    let c t msg = S.Private.contents_t (t msg) in
+    let test () =
+      let vx = string x "VX" in
+      let vy = string x "VY" in
+      create x >>= fun t ->
+      S.update (t "add x/y/z") (p ["x";"y";"z"]) vx >>= fun () ->
+      S.Private.read_node (t "read") (p ["x"]) >>= fun view ->
+      S.Private.update_node (t "update") (p ["u"]) (get view) >>= fun () ->
+      S.read (t "read u/y/z") (p ["u";"y";"z"]) >>= fun vx' ->
+      assert_equal (module Tc.Option(V)) "vx" (Some vx) vx';
+
+      S.head_exn (t "head") >>= fun head ->
+      S.Private.read_node (t "read node") (p ["u"]) >>= fun view ->
+      S.update (t "add u/x/y") (p ["u";"x";"y"]) vy >>= fun () ->
+      Contents.add (c t "add contents") vx >>= fun kx ->
+      Graph.add_contents (g t "add node") (get view) (p ["x";"z"]) kx
+      >>= fun view' ->
+      S.Private.merge_node (t "merge") (p ["u"]) (head, view') >>=
+      Irmin.Merge.exn >>= fun () ->
+      S.read (t "read u/x/y") (p ["u";"x";"y"]) >>= fun vy' ->
+      assert_equal (module Tc.Option(V)) "vy after merge" (Some vy) vy';
+
+      S.read (t "read u/x/z") (p ["u";"x";"z"]) >>= fun vx' ->
+      assert_equal (module Tc.Option(V)) "vx after merge" (Some vx) vx';
+      return_unit
+    in
+    run x test
+
   let test_sync x () =
     let test () =
       create x >>= fun t1 ->
@@ -1480,6 +1511,7 @@ let suite (speed, x) =
     "Basic operations on slices"      , speed, T.test_slice x;
     "Complex histories"               , speed, T.test_history x;
     "Empty stores"                    , speed, T.test_empty x;
+    "Private node manipulation"       , speed, T.test_private_nodes x;
     "High-level store operations"     , speed, T.test_stores x;
     "High-level operations on views"  , speed, T.test_views x;
     "High-level store synchronisation", speed, T.test_sync x;
