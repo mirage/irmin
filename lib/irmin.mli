@@ -1737,8 +1737,9 @@ module type S = sig
     val update_node: t -> key -> Node.key -> unit Lwt.t
     val merge_node: t -> key -> (head * Node.key) -> unit Merge.result Lwt.t
     val remove_node: t -> key -> unit Lwt.t
+    val iter_node: t -> Node.key ->
+      (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
   end
-
 end
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}

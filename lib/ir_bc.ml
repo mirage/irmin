@@ -107,6 +107,8 @@ module type STORE_EXT = sig
   val merge_node: t -> key -> (head * Private.Node.key) ->
     unit Ir_merge.result Lwt.t
   val remove_node: t -> key -> unit Lwt.t
+  val iter_node: t -> Private.Node.key ->
+    (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
 end
 
 module Make_ext (P: PRIVATE) = struct
@@ -344,19 +346,40 @@ module Make_ext (P: PRIVATE) = struct
   let compare_and_set _ = failwith "Irmin.compare_and_set: TODO"
 
   (* Return the subpaths. *)
+  let list_node t n path =
+    Graph.read_node (graph_t t) n path >>= function
+    | None      -> return_nil
+    | Some node ->
+      Graph.steps (graph_t t) node >>= fun steps ->
+      let paths = List.map (fun c -> Key.rcons path c) steps in
+      return paths
+
   let list t path =
     Log.debug "list";
     read_head_node t >>= function
     | None   -> return_nil
-    | Some n ->
-      Graph.read_node (graph_t t) n path >>= function
-      | None      -> return_nil
-      | Some node ->
-        Graph.steps (graph_t t) node >>= fun steps ->
-        let paths = List.map (fun c -> Key.rcons path c) steps in
-        return paths
+    | Some n -> list_node t n path
 
-  let iter t fn =
+  let iter_node t node fn =
+    Log.debug "iter";
+    let rec aux acc = function
+      | []       -> Lwt_list.iter_p (fun (path, v) -> fn path v) acc
+      | path::tl ->
+        list_node t node path >>= fun childs ->
+        let todo = childs @ tl in
+        Graph.mem_contents (graph_t t) node path >>= fun exists ->
+        if not exists then aux acc todo
+        else
+          let value =
+            Graph.read_contents (graph_t t) node path >>= function
+            | None   -> Lwt.fail (Failure "iter_node")
+            | Some v -> P.Contents.read_exn (contents_t t) v
+          in
+          aux ((path, value) :: acc) todo
+    in
+    list_node t node Key.empty >>= aux []
+
+    let iter t fn =
     Log.debug "iter";
     head t >>= function
     | None   -> Lwt.return_unit

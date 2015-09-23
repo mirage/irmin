@@ -581,9 +581,11 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
              in
              list aux
            in
+           let iter t fn = S.Private.iter_node t node (fun k _ -> fn k) in
            static_node [
              mknp0bf "read"        read g step_h value;
              mknp1bf "update"      update g step_h value node_t;
+             mk0p0bs "iter"        (stream iter) t key;
              mknp0bf "update-path" update_path t step_h Tc.unit;
              mknp1bf "merge-path"  merge_path t step_h head (merge Tc.unit);
            ]

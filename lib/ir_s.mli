@@ -39,7 +39,9 @@ module type STORE = sig
     val update_node: t -> key -> Node.key -> unit Lwt.t
     val merge_node: t -> key -> (head * Node.key) -> unit Ir_merge.result Lwt.t
     val remove_node: t -> key -> unit Lwt.t
-   end
+    val iter_node: t -> Node.key ->
+      (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  end
 end
 
 module type MAKER =
