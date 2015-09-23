@@ -37,6 +37,8 @@ module type STORE = sig
     val update_node: t -> key -> Node.key -> unit Lwt.t
     val merge_node: t -> key -> (head * Node.key) -> unit Ir_merge.result Lwt.t
     val remove_node: t -> key -> unit Lwt.t
+    val iter_node: t -> Node.key ->
+      (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
   end
 end
 
@@ -66,6 +68,7 @@ module Make_ext (P: Ir_bc.PRIVATE) = struct
     let remove_node = P.remove_node
     let mem_node = P.mem_node
     let read_node = P.read_node
+    let iter_node = P.iter_node
   end
 end
 
