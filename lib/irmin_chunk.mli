@@ -1,4 +1,4 @@
-(*
+ (*
  * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
  * Copyright (c) 2015 Mounir Nasr Allah <mounir@nasrallah.co>
  *
@@ -15,27 +15,26 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Chunck Module 
+(** Managing Chuncks.
 
-     All functions for manipulate chuncks representation, a chunck is represented as above : 
+     All functions for manipulate chuncks representation, a chunck is
+     represented as above :
+
       --------------------------
-     | uint8_t type             | 
+     | uint8_t type             |
      ---------------------------
      | uint16_t chunck_length   |
      ---------------------------
      | byte data[data_length]   |
      ---------------------------
-     Where type define if the chunck contain data or indirection, size represent the data length to 
-     consider, and data field is the payload. 
- *)
+
+     Where type define if the chunck contain data or indirection, size
+     represent the data length to consider, and data field is the
+     payload.
+*)
 
 
-open Irmin
-
-					    
 val config: ?conf:Irmin.config -> ?size:int -> unit -> Irmin.config
 (** Configuration values. *)
- 
-module CHUNCK_AO (S:AO_MAKER_RAW): AO_MAKER_RAW
-				       
 
+module CHUNCK_AO (S: Irmin.AO_MAKER_RAW): Irmin.AO_MAKER_RAW
