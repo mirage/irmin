@@ -22,6 +22,8 @@ let polling =
   try float_of_string (Sys.getenv "IRMIN_FS_POLLING")
   with Not_found | Failure _ -> 0.01
 
+let config = Irmin_fs.config ~root:test_db ()
+
 let init () =
   Irmin_unix.install_dir_polling_listener polling;
   if Sys.file_exists test_db then begin
@@ -40,6 +42,6 @@ let suite k =
     kind = `Fs;
     cont = k;
     init; clean;
-    config = Irmin_fs.config ~root:test_db ();
+    config;
     store  =  irf_store k;
   }
