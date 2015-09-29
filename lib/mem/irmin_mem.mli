@@ -27,6 +27,9 @@ val config: unit -> Irmin.config
 module AO: Irmin.AO_MAKER
 (** An in-memory append-only store. *)
 
+module Link: Irmin.LINK_MAKER
+(** Immutable links. *)
+
 module RW: Irmin.RW_MAKER
 (** An in-memory read-write store. *)
 
