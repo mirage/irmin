@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 30f872adc3dbec4820eb2846f663df10)
+# DO NOT EDIT (digest: 903bd0d34e8411258437197d64815c79)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -18,4 +18,17 @@ true: annot, bin_annot
 "lib/irmin-chunk.cmxs": use_irmin-chunk
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_irmin
+# Executable test
+<lib_test/test.{native,byte}>: pkg_alcotest
+<lib_test/test.{native,byte}>: pkg_cstruct
+<lib_test/test.{native,byte}>: pkg_irmin
+<lib_test/test.{native,byte}>: pkg_irmin.mem
+<lib_test/test.{native,byte}>: pkg_lwt.unix
+<lib_test/test.{native,byte}>: use_irmin-chunk
+<lib_test/*.ml{,i,y}>: pkg_alcotest
+<lib_test/*.ml{,i,y}>: pkg_cstruct
+<lib_test/*.ml{,i,y}>: pkg_irmin
+<lib_test/*.ml{,i,y}>: pkg_irmin.mem
+<lib_test/*.ml{,i,y}>: pkg_lwt.unix
+<lib_test/*.ml{,i,y}>: use_irmin-chunk
 # OASIS_STOP
