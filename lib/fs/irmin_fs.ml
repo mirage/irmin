@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 
 module Log = Log.Make(struct let section = "FS" end)
 
@@ -68,7 +68,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let create config task =
     get_path config >>= fun path ->
     IO.mkdir path >>= fun () ->
-    return (fun a -> { config; path; task = task a })
+    Lwt.return (fun a -> { config; path; task = task a })
 
   let file_of_key { path; _ } key =
     path / S.file_of_key (K.to_hum key)
@@ -78,7 +78,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let mem t key =
     let file = file_of_key t key in
-    return (Sys.file_exists file)
+    Lwt.return (Sys.file_exists file)
 
   let err_not_found n k =
     let str = Printf.sprintf "Irmin_fs.%s: %s not found" n (K.to_hum k) in
@@ -87,14 +87,14 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
    let read_exn t key =
      mem t key >>= function
      | false -> err_not_found "read" key
-     | true  -> IO.read_file (file_of_key t key) >>= fun x -> return (mk_value x)
+     | true  -> IO.read_file (file_of_key t key) >>= fun x -> Lwt.return (mk_value x)
 
   let read t key =
     Log.debug "read";
     mem t key >>= function
-    | false -> return_none
+    | false -> Lwt.return_none
     | true  ->
-      IO.read_file (file_of_key t key) >>= fun x -> return (Some (mk_value x))
+      IO.read_file (file_of_key t key) >>= fun x -> Lwt.return (Some (mk_value x))
 
   let keys_of_dir t fn =
     IO.rec_files (S.dir t.path) >>= fun files ->
@@ -129,12 +129,13 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
     begin
-      if Sys.file_exists file then
-        return_unit
+      if Sys.file_exists file then Lwt.return_unit
       else
-        catch (fun () -> IO.write_file ~temp_dir file value) (fun e -> fail e)
+        Lwt.catch
+          (fun () -> IO.write_file ~temp_dir file value)
+          (fun e -> Lwt.fail e)
     end >>= fun () ->
-    return key
+    Lwt.return key
 
 end
 
