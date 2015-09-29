@@ -1,0 +1,14 @@
+OASISFormat: 0.4
+Name:        irmin-chunks
+Version:     1.0
+Synopsis:    A chunk backend for Irmin
+Authors:     Mounir Nasr Allah, Thomas Gazagnaire
+License:     ISC
+Plugins:     META (0.4), DevFiles (0.4)
+BuildTools:  ocamlbuild
+
+Library "irmin-chunk"
+  Path:             lib
+  Findlibname:      irmin-chunks
+  BuildDepends:     irmin, cstruct
+  Modules:          Irmin_chunk
