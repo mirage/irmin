@@ -12,3 +12,16 @@ Library "irmin-chunk"
   Findlibname:      irmin-chunks
   BuildDepends:     irmin, cstruct
   Modules:          Irmin_chunk
+
+Executable test
+  Path:           lib_test
+  MainIs:         test.ml
+  Build$:         flag(tests)
+  CompiledObject: best
+  Install:        false
+  BuildDepends:   irmin, irmin.mem, irmin-chunks, alcotest, lwt.unix
+
+Test test_irmin
+  Run$:             flag(tests)
+  Command:          $test -q
+  WorkingDirectory: lib_test
