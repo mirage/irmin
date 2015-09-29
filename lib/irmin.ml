@@ -32,6 +32,7 @@ module Make_ext = Ir_s.Make_ext
 
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
+module type LINK = Ir_link.STORE
 module type RW = Ir_rw.STORE
 module type RRW = Ir_rw.REACTIVE
 module type HRW = Ir_rw.HIERARCHICAL
@@ -43,6 +44,8 @@ type config = Ir_conf.t
 type 'a diff = 'a Ir_watch.diff
 
 module type AO_MAKER = Ir_ao.MAKER
+
+module type LINK_MAKER = Ir_link.MAKER
 
 module type RAW = Tc.S0 with type t = Cstruct.t
 module type AO_MAKER_RAW =
