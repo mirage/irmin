@@ -43,69 +43,68 @@ let config ?(config=Irmin.Private.Conf.empty) ?size () =
   in
   C.add config Conf.chunk_size size
 
+module Chunk (K: Irmin.Hash.S) = struct
+
+  type t =
+    | Data
+    | Indirect
+
+  let l_type = 1
+  let get_type x = Cstruct.get_uint8 x 0
+  let set_type x v = Cstruct.set_uint8 x 0 v
+
+  let l_len = 2
+  let get_length x = Cstruct.LE.get_uint16 x l_type
+  let set_length x v = Cstruct.LE.set_uint16 x l_type v
+
+  let head_length = l_type + l_len
+
+  let offset_payload = head_length
+
+  let get_sub_key x pos =
+    let offset = offset_payload + (pos * K.digest_size) in
+    Cstruct.sub x offset K.digest_size
+
+  let set_data src srcoff dst dstoff len =
+    Cstruct.blit src srcoff dst (offset_payload + dstoff) len
+
+  let extract_data src srcoff dst dstoff len =
+    Cstruct.blit src (offset_payload + srcoff) dst dstoff len
+
+  let type_of_int = function
+    | Indirect -> 0
+    | Data -> 1
+
+  let int_of_type = function
+    | 0 -> Indirect
+    | 1 -> Data
+    | _ -> failwith "Unknow type"
+
+  let type_of_chunk x = (int_of_type (get_type x))
+
+  let create size len typ =
+    let c = Cstruct.create size in
+    Cstruct.memset c 0x00;
+    set_type c (type_of_int typ);
+    set_length c len;
+    c
+
+end
+
 module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
 
   module AO = S(K)(V)
   type key = AO.key
   type value = AO.value
 
+  module Chunk = Chunk(K)
+
   type t = {
-    db:AO.t;
-    size:int;
-    hash_length: int;
+    db         : AO.t;
+    size       : int;
     nb_indirect: int;
-    data_length:int;
+    data_length: int;
   }
-
-  module Chunk = struct
-
-    type t =
-      | Data
-      | Indirect
-
-    let hash_length = K.digest_size
-
-    let l_type = 1
-    let get_type x = Cstruct.get_uint8 x 0
-    let set_type x v = Cstruct.set_uint8 x 0 v
-
-    let l_len = 2
-    let get_length x = Cstruct.LE.get_uint16 x l_type
-    let set_length x v = Cstruct.LE.set_uint16 x l_type v
-
-    let head_length = l_type + l_len
-
-    let offset_payload = head_length
-
-    let get_sub_key x pos =
-      let offset = offset_payload + (pos * hash_length) in
-      Cstruct.sub x offset hash_length
-
-    let set_data src srcoff dst dstoff len =
-      Cstruct.blit src srcoff dst (offset_payload + dstoff) len
-
-    let extract_data src srcoff dst dstoff len =
-      Cstruct.blit src (offset_payload + srcoff) dst dstoff len
-
-    let type_of_int = function
-      | Indirect -> 0
-      | Data -> 1
-
-    let int_of_type = function
-      | 0 -> Indirect
-      | 1 -> Data
-      | _ -> failwith "Unknow type"
-
-    let type_of_chunk x = (int_of_type (get_type x))
-
-    let create t len typ =
-      let c = Cstruct.create t.size in
-      Cstruct.memset c 0x00;
-      set_type c (type_of_int typ);
-      set_length c len;
-      c
-
-  end
 
   module Tree = struct
 
@@ -144,14 +143,14 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
           then t.nb_indirect
           else List.length l
         in
-        let indir = Chunk.create t nbr Chunk.Indirect in
+        let indir = Chunk.create t.size nbr Chunk.Indirect in
         let rec loop i l =
           if (i >= nbr) then l
           else
             let x = List.hd l in
             let rest = List.tl l in
-            let offset_hash = i * t.hash_length in
-            Chunk.set_data (K.to_raw x) 0 indir offset_hash t.hash_length;
+            let offset_hash = i * K.digest_size in
+            Chunk.set_data (K.to_raw x) 0 indir offset_hash K.digest_size;
             loop (i+1) rest
         in
         let calc = loop 0 l in
@@ -170,28 +169,27 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
     let module C = Irmin.Private.Conf in
     let size = C.get config Conf.chunk_size in
     let data_length = size - Chunk.head_length - 1 in
-    let hash_length = K.digest_size in
-    let nb_indirect = data_length / hash_length in
+    let nb_indirect = data_length / K.digest_size in
     AO.create config task >>= fun t ->
-    Lwt.return (fun a ->
-        {db = t a; size; hash_length; nb_indirect; data_length}
-      )
+    Lwt.return (fun a -> { db = t a; size; nb_indirect; data_length })
 
   let task t = AO.task t.db
   let config t = AO.config t.db
 
   let read t key =
-    AO.read_exn t.db key >>= fun x ->
-    match Chunk.type_of_chunk x with
-    | Chunk.Data ->
-      let dlen = Chunk.get_length x in
-      let result = Cstruct.create dlen in
-      Chunk.extract_data x 0 result 0 dlen;
-      Lwt.return (Some result)
-    | Chunk.Indirect ->
-      Tree.walk_to_list t x >>= fun y ->
-      let result = Cstruct.concat y in
-      Lwt.return (Some result)
+    AO.read t.db key >>= function
+    | None   -> Lwt.return_none
+    | Some x ->
+      match Chunk.type_of_chunk x with
+      | Chunk.Data ->
+        let dlen = Chunk.get_length x in
+        let result = Cstruct.create dlen in
+        Chunk.extract_data x 0 result 0 dlen;
+        Lwt.return (Some result)
+      | Chunk.Indirect ->
+        Tree.walk_to_list t x >>= fun y ->
+        let result = Cstruct.concat y in
+        Lwt.return (Some result)
 
   let read_exn t key =
     AO.read_exn t.db key >>= fun x ->
@@ -211,7 +209,7 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
     let value_length = Cstruct.len v in
     let rest_value_length = value_length mod t.data_length in
     if value_length <= t.data_length then (
-      let chunk = Chunk.create t value_length Chunk.Data in
+      let chunk = Chunk.create t.size value_length Chunk.Data in
       Chunk.set_data v 0 chunk 0 value_length;
       AO.add t.db chunk
     ) else (
@@ -237,7 +235,7 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
           else
             t.nb_indirect
         in
-        let indir = Chunk.create t number_chunk Chunk.Indirect in
+        let indir = Chunk.create t.size number_chunk Chunk.Indirect in
         let rec loop offset_first_level =
           let dlen, max_loop =
             if offset_second_level = nbr_indir_bloc - 1 then
@@ -251,8 +249,8 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
           if offset_first_level >= max_loop then
             Lwt.return_unit
           else
-            let chunk = Chunk.create t dlen Chunk.Data in
-            let offset_hash = offset_first_level * t.hash_length in
+            let chunk = Chunk.create t.size dlen Chunk.Data in
+            let offset_hash = offset_first_level * K.digest_size in
             let offset_value =
               (offset_second_level * t.nb_indirect * t.data_length)
               + (offset_first_level * t.data_length)
@@ -260,7 +258,7 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
             Chunk.set_data v offset_value chunk 0 dlen;
             let add_chunk () =
               AO.add t.db chunk >>= fun x ->
-              Chunk.set_data (K.to_raw x) 0 indir offset_hash Chunk.hash_length;
+              Chunk.set_data (K.to_raw x) 0 indir offset_hash K.digest_size;
               Lwt.return_unit
             in
             Lwt.join [add_chunk (); loop (offset_first_level + 1)]
