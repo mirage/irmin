@@ -2223,6 +2223,21 @@ module type AO_MAKER =
   functor (V: Tc.S0)  ->
     AO with type key = K.t and type value = V.t
 
+(** [RAW] is the signature for raw values. *)
+module type RAW = Tc.S0 with type t = Cstruct.t
+
+(** [AO_MAKER_RAW] if the signature exposed by any backend providing
+     append-only stores with access to raw values. [K] is the
+     implementation of keys and [V] is the implementation of raw
+     values. *)
+module type AO_MAKER_RAW =
+  functor (K: Hash.S) ->
+  functor (V: RAW) ->
+  AO with type key = K.t and type value = V.t
+(** [AO_LINK_MAKER] is the signature exposed by any backend providing
+    append-only stores for linking key. [I] is the implementation of external keys and [K] is
+    the implementation of internal keys. *)
+
 (** [RW_MAKER] is the signature exposed by read-write store
     backends. [K] is the implementation of keys and [V] is the
     implementation of values.*)
