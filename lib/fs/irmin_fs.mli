@@ -16,7 +16,10 @@
 
 (** Disk persistence. *)
 
-val config: ?root:string -> unit -> Irmin.config
+val config: ?config:Irmin.config -> ?root:string -> unit -> Irmin.config
+(** [config ?config ~root ()] is the configuration [config] augmented
+    with the key {!Irmin.Config.root} set to [root]. If not specified,
+    [config] is {!Irmin.Config.empty}. *)
 
 module type IO = sig
 

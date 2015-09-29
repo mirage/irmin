@@ -23,7 +23,7 @@ module Irmin_git: sig
 
   (** {1 Git Store} *)
 
-  val config:
+  val config: ?config:Irmin.config ->
     ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
   (** Create a configuration value.
 

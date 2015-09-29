@@ -65,9 +65,8 @@ module Conf = struct
 
 end
 
-let config ?root ?head ?bare () =
+let config ?(config=Irmin.Private.Conf.empty) ?root ?head ?bare () =
   let module C = Irmin.Private.Conf in
-  let config = C.empty in
   let config = C.add config Conf.root root in
   let config = match bare with
     | None   -> C.add config Conf.bare (C.default Conf.bare)

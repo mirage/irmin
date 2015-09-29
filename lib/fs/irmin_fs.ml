@@ -38,8 +38,8 @@ end
 (* ~path *)
 let root_key = Irmin.Private.Conf.root
 
-let config ?root () =
-  Irmin.Private.Conf.singleton root_key root
+let config ?(config=Irmin.Private.Conf.empty) ?root () =
+  Irmin.Private.Conf.add config root_key root
 
 module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t

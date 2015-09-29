@@ -19,7 +19,9 @@
 (* Discard the hash implementation passed in parameter of the functors. *)
 
 val config:
-  ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
+  ?config:Irmin.config ->
+  ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit ->
+  Irmin.config
 
 val bare: bool Irmin.Private.Conf.key
 val head: Git.Reference.t option Irmin.Private.Conf.key
