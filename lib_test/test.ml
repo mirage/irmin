@@ -17,6 +17,10 @@
 
 open Lwt.Infix
 
+let () =
+  Log.set_log_level Log.DEBUG;
+  Log.color_on ()
+
 module Hash = Irmin.Hash.SHA1
 
 module Key = struct
@@ -29,7 +33,17 @@ module Value = struct
   let pp ppf x = Format.pp_print_string ppf (Cstruct.to_string x)
 end
 
-module AO = struct
+module type S = sig
+  include Irmin.AO with type key = Key.t and type value = Value.t
+  val create: unit -> (unit -> t) Lwt.t
+end
+
+module Mem = struct
+  include Irmin_mem.AO(Key)(Value)
+  let create () = create (Irmin_mem.config ()) Irmin.Task.none
+end
+
+module MemChunk = struct
   include Irmin_chunk.AO(Irmin_mem.AO)(Key)(Value)
   let create () = create (Irmin_mem.config ()) Irmin.Task.none
 end
@@ -44,26 +58,23 @@ let run f () =
   flush stderr;
   flush stdout
 
-let test_add_read () =
+let test_add_read (module AO: S) () =
   AO.create () >>= fun t ->
   let v1 = value (Bytes.make 12 'x') in
   let v2 = value (Bytes.make 89990 'y') in
   AO.add (t ()) v1 >>= fun k1 ->
-  AO.add (t ()) v2 >>= fun k2 ->
-  Printf.printf "yyyy\n%!";
   AO.read (t ()) k1 >>= fun v1' ->
-  Printf.printf "fff\n%!";
-  AO.read (t ()) k2 >>= fun v2' ->
-  Printf.printf "XXX\n%!";
   Alcotest.(check @@ option value_t) "v1" (Some v1) v1';
+  AO.add (t ()) v2 >>= fun k2 ->
+  AO.read (t ()) k2 >>= fun v2' ->
   Alcotest.(check @@ option value_t) "v2" (Some v2) v2';
-  Printf.printf "YYYY\n%!";
   Lwt.return_unit
 
 let simple =
   "simple", [
-    "add_read", `Quick, run test_add_read;
+    "add/read: in-memory"       , `Quick, run @@ test_add_read (module Mem);
+    "add/read: in-memory+chunks", `Quick, run @@ test_add_read (module MemChunk);
   ]
 
 let () =
-  Alcotest.run "irmin-chunks" [simple]
+  Alcotest.run "irmin-chunk" [simple]
