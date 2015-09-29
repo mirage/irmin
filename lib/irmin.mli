@@ -820,6 +820,9 @@ module Hash: sig
     val of_raw: Cstruct.t -> t
     (** Abstract a hash value. *)
 
+    val digest_size: int
+    (** [digest_size] is the size of hash results, in bytes. *)
+
   end
   (** Signature for hash values. *)
 

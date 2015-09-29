@@ -22,6 +22,7 @@ module type S = sig
   val has_kind: [> `SHA1] -> bool
   val to_raw: t -> Cstruct.t
   val of_raw: Cstruct.t -> t
+  val digest_size: int
 end
 
 exception Invalid of string

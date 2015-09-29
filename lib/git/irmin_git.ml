@@ -113,6 +113,7 @@ module Irmin_value_store
     let hash = Git.SHA.hash
     let compare = Git.SHA.compare
     let equal = (=)
+    let digest_size = 20 (* FIXME: expose Git.SHA.digest_size *)
     let to_json t = Ezjsonm.string (Git.SHA.to_hex t)
     let of_json j = SHA_IO.of_hex (Ezjsonm.get_string j)
     let size_of t = Tc.String.size_of (Git.SHA.to_raw t)
