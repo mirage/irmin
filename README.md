@@ -25,6 +25,11 @@ Irmin provides an API to built version-controlled applications.
   a notification mechanism. These abstractions allow to define concurrent
   applications which are both efficient and safe.
 
+### Bindings to other languages
+
+- **Go** [irmin-go](https://github.com/magnuss/irmin-go)
+- **JavaScript** [irmin-js](https://github.com/talex5/irmin-js)
+
 ### Use-Cases
 
 Here a list of Irmin users:
@@ -46,6 +51,8 @@ Here a list of Irmin users:
   version-controlled data-structures
 - [diff-datatypes](https://github.com/gprano/diff-datatypes) is a collection
   of automatic merge functions based on edit scripts.
+- [irmin-indexDB](https://github.com/talex5/irmin-indexeddb) An Irmin backend
+  for a web browser's IndexedDB store
 
 ### Further Reading
 

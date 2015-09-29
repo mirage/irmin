@@ -16,6 +16,7 @@
 
 let misc = [
   Test_git.misc;
+  Test_link.misc;
 ]
 
 let suite k =

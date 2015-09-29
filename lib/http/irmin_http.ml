@@ -38,12 +38,13 @@ let content_type =
 
 module Conf = Irmin.Private.Conf
 
-let config ?content_type:y x =
+let config ?(config=Irmin.Private.Conf.empty) ?content_type:y x =
   let y = match y with
     | None   -> None
     | Some s -> Some (string_of_ct s)
   in
-  Conf.add (Conf.singleton uri (Some x)) content_type y
+  Conf.add config uri (Some x)
+  |> fun config -> Conf.add config content_type y
 
 let uri_append t path = match Uri.path t :: path with
   | []   -> t

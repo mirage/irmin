@@ -77,6 +77,7 @@ end
 module Irmin_fs = struct
   let config = Irmin_fs.config
   module AO = Irmin_fs.AO(IO)
+  module Link = Irmin_fs.Link(IO)
   module RW = Irmin_fs.RW(IO)(Lock)
   module Make = Irmin_fs.Make(IO)(Lock)
   module type Config = Irmin_fs.Config
@@ -89,6 +90,7 @@ module Irmin_git = struct
   let config = Irmin_git.config
   let head = Irmin_git.head
   let bare = Irmin_git.bare
+  let level = Irmin_git.level
   module AO = Irmin_git.AO
   module RW = Irmin_git.RW(Lock)
   module Memory = Irmin_git.Memory(Git_unix.Sync.IO)(Git_unix.Zlib)

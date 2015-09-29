@@ -16,7 +16,9 @@
 
 (** JSON CRUD interface. *)
 
-val config: ?content_type:[`Raw|`Json] -> Uri.t -> Irmin.config
+val config:
+  ?config:Irmin.config -> ?content_type:[`Raw|`Json] -> Uri.t ->
+  Irmin.config
 
 val uri: Uri.t option Irmin.Private.Conf.key
 val content_type: string option Irmin.Private.Conf.key

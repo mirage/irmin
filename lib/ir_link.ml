@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c)      2015 Mounir Nasr Allah <nasrallah.mounir@icloud.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,17 +15,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
-
-module type S = sig
-  include Ir_hum.S
-  val digest: Cstruct.t -> t
-  val has_kind: [> `SHA1] -> bool
-  val to_raw: t -> Cstruct.t
-  val of_raw: Cstruct.t -> t
-  val digest_size: int
+module type STORE = sig
+  include Ir_ao.STORE
+  val add: t -> key -> value -> unit Lwt.t
 end
 
-exception Invalid of string
-
-module SHA1: S
+module type MAKER =
+  functor (K: Ir_hash.S) -> STORE with type key = K.t and type value = K.t

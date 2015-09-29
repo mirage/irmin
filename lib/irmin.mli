@@ -384,6 +384,27 @@ module type AO = sig
 
 end
 
+(** Immutable Link store. *)
+module type LINK = sig
+
+  (** {1 Immutable Link stores}
+
+      The link store contains {i verified} links between low-level
+      keys. This is used to certify that a value can be accessed via
+      different keys: because they have been obtained using different
+      hash functions (SHA1 and SHA256 for instance) or because the
+      value might have different but equivalent concrete
+      representation (for instance a set might be represented as
+      various equivalent trees). *)
+
+  include RO
+
+  val add: t -> key -> value -> unit Lwt.t
+  (** [add t src dst] add a link between the key [src] and the value
+      [dst]. *)
+
+end
+
 (** Read-write stores. *)
 module type RW = sig
 
@@ -819,6 +840,9 @@ module Hash: sig
 
     val of_raw: Cstruct.t -> t
     (** Abstract a hash value. *)
+
+    val digest_size: int
+    (** [digest_size] is the size of hash results, in bytes. *)
 
   end
   (** Signature for hash values. *)
@@ -2219,6 +2243,26 @@ module type AO_MAKER =
   functor (K: Hash.S) ->
   functor (V: Tc.S0)  ->
     AO with type key = K.t and type value = V.t
+
+(** [RAW] is the signature for raw values. *)
+module type RAW = Tc.S0 with type t = Cstruct.t
+
+(** [AO_MAKER_RAW] if the signature exposed by any backend providing
+     append-only stores with access to raw values. [K] is the
+     implementation of keys and [V] is the implementation of raw
+     values. *)
+module type AO_MAKER_RAW =
+  functor (K: Hash.S) ->
+  functor (V: RAW) ->
+  AO with type key = K.t and type value = V.t
+
+(** [LINK_MAKER] is the signature exposed by store which enable adding
+    relation between keys. This is used to decouple the way keys are
+    manipulated by the Irmin runtime and the keys used for
+    storage. This is useful when trying to optimize storage for
+    random-access file operations or for encryption. *)
+module type LINK_MAKER = functor (K: Hash.S) ->
+  LINK with type key = K.t and type value = K.t
 
 (** [RW_MAKER] is the signature exposed by read-write store
     backends. [K] is the implementation of keys and [V] is the

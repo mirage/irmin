@@ -24,6 +24,7 @@ module type S = sig
   val has_kind: [> `SHA1] -> bool
   val to_raw: t -> Cstruct.t
   val of_raw: Cstruct.t -> t
+  val digest_size: int
 end
 
 (* (from uuidm) *)
@@ -145,11 +146,11 @@ module SHA1 = struct
     let `Hex h = Hex.of_string (Cstruct.to_string t) in
     h
 
-  let len = 20
+  let digest_size = 20
 
   let to_raw t = t
   let of_raw t =
-    if Cstruct.len t = len then t
+    if Cstruct.len t = digest_size then t
     else
       let str = Cstruct.to_string t in
       raise (Invalid (Printf.sprintf "%s (%d)" str (String.length str)))
@@ -172,7 +173,7 @@ module SHA1 = struct
   let write = Tc.Cstruct.write
   let read buf =
     let t = Tc.Cstruct.read buf in
-    if Cstruct.len t <> len then raise (Invalid (Cstruct.to_string t))
+    if Cstruct.len t <> digest_size then raise (Invalid (Cstruct.to_string t))
     else t
 
   let hash = Hashtbl.hash

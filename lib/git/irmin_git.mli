@@ -19,10 +19,13 @@
 (* Discard the hash implementation passed in parameter of the functors. *)
 
 val config:
-  ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
+  ?config:Irmin.config ->
+  ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
+  Irmin.config
 
 val bare: bool Irmin.Private.Conf.key
 val head: Git.Reference.t option Irmin.Private.Conf.key
+val level: int option Irmin.Private.Conf.key
 
 module type VALUE_STORE = sig
   (** This is the subset of Git.Store.S needed for [Value_store], except that
