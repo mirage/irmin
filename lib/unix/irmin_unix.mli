@@ -99,7 +99,8 @@ module Irmin_git: sig
   (** {1 Git Store} *)
 
   val config: ?config:Irmin.config ->
-    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> Irmin.config
+    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
+    Irmin.config
   (** Create a configuration value.
 
       {ul
@@ -113,6 +114,8 @@ module Irmin_git: sig
       {- If [bare] is set (default is {e unset}), then the local Git
          repository's contents will be expanded into the filesystem on
          each update. This might cause some performance issues.}
+      {- [level] is the Zlib compression level. If absent, use the
+         default one.}
       }  *)
 
   val head: Git.Reference.t option Irmin.Private.Conf.key
@@ -122,6 +125,10 @@ module Irmin_git: sig
   val bare: bool Irmin.Private.Conf.key
   (** The configuration key to set the local Git repository's bare
       attribute. See {!Irmin_git.config}.*)
+
+  val level: int option Irmin.Private.Conf.key
+  (** [level] is the Zlib compression level used to compress
+      persisting values. *)
 
   module AO (G: Git.Store.S): Irmin.AO_MAKER
   (** Embed an append-only store into a Git repository. Contents will

@@ -53,6 +53,11 @@ module Conf = struct
       ~doc:"Do not expand the filesystem on the disk."
       "bare" Irmin.Private.Conf.bool false
 
+  let level =
+    Irmin.Private.Conf.key
+      ~doc:"The Zlib compression level."
+      "level" Irmin.Private.Conf.(some int) None
+
   let abstract =
     (fun _ -> `Error "abstract"),
     (fun fmt _ -> Format.pp_print_string fmt "<abstract>")
@@ -65,7 +70,7 @@ module Conf = struct
 
 end
 
-let config ?(config=Irmin.Private.Conf.empty) ?root ?head ?bare () =
+let config ?(config=Irmin.Private.Conf.empty) ?root ?head ?bare ?level () =
   let module C = Irmin.Private.Conf in
   let config = C.add config Conf.root root in
   let config = match bare with
@@ -73,6 +78,7 @@ let config ?(config=Irmin.Private.Conf.empty) ?root ?head ?bare () =
     | Some b -> C.add config Conf.bare b
   in
   let config = C.add config Conf.head head in
+  let config = C.add config Conf.level level in
   config
 
 module type LOCK = sig
@@ -561,7 +567,8 @@ module Make_ext
     let create config task =
       let root = Irmin.Private.Conf.get config Conf.root in
       let head = Irmin.Private.Conf.get config Conf.head in
-      G.create ?root () >>= fun t ->
+      let level = Irmin.Private.Conf.get config Conf.level in
+      G.create ?root ?level () >>= fun t ->
       let git_root = G.root t / ".git" in
       let write_head head =
         let head = Git.Reference.Ref head in

@@ -20,11 +20,12 @@
 
 val config:
   ?config:Irmin.config ->
-  ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit ->
+  ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
   Irmin.config
 
 val bare: bool Irmin.Private.Conf.key
 val head: Git.Reference.t option Irmin.Private.Conf.key
+val level: int option Irmin.Private.Conf.key
 
 module type VALUE_STORE = sig
   (** This is the subset of Git.Store.S needed for [Value_store], except that
