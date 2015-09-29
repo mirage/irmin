@@ -134,7 +134,7 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
       in
       aux_walk t root
 
-    let rec aux_botom_up t l r =
+    let rec aux_bottom_up t l r =
       match l with
       | [] -> Lwt.return r
       | l ->
@@ -155,13 +155,12 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
         in
         let calc = loop 0 l in
         AO.add t.db indir >>= fun x ->
-        aux_botom_up t calc (x::r)
+        aux_bottom_up t calc (x::r)
 
-    let rec bottom_up t l =
-      match l with
-      | [] -> failwith "Error 1"
+    let rec bottom_up t = function
+      | [] -> failwith "Irmin_chunk.Tree.bottom_up"
       | [e] -> Lwt.return e
-      | l   -> aux_botom_up t l [] >>= bottom_up t
+      | l   -> aux_bottom_up t l [] >>= bottom_up t
 
   end
 
@@ -276,7 +275,7 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
             split_data_first_level i >>= fun x ->
             first_level (i+1) >>= fun y ->
             Lwt.return (x::y)
-          | _ -> failwith "Error 2"
+          | _ -> failwith "Irmin_chunk.add"
         in
         first_level 0
       in
