@@ -58,6 +58,7 @@ module type LOCK = sig
 end
 
 module AO (IO: IO): Irmin.AO_MAKER
+module Link (IO: IO): Irmin.LINK_MAKER
 module RW (IO: IO) (L: LOCK): Irmin.RW_MAKER
 module Make (IO: IO) (L: LOCK): Irmin.S_MAKER
 
@@ -80,5 +81,6 @@ module type Config = sig
 end
 
 module AO_ext (IO: IO) (C: Config): Irmin.AO_MAKER
+module Link_ext (IO: IO) (C: Config): Irmin.LINK_MAKER
 module RW_ext (IO: IO) (L: LOCK) (C: Config): Irmin.RW_MAKER
 module Make_ext (IO: IO) (L: LOCK) (Obj: Config) (Ref: Config): Irmin.S_MAKER

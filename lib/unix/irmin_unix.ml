@@ -77,6 +77,7 @@ end
 module Irmin_fs = struct
   let config = Irmin_fs.config
   module AO = Irmin_fs.AO(IO)
+  module Link = Irmin_fs.Link(IO)
   module RW = Irmin_fs.RW(IO)(Lock)
   module Make = Irmin_fs.Make(IO)(Lock)
   module type Config = Irmin_fs.Config

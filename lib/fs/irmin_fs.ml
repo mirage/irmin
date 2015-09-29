@@ -139,6 +139,25 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
 
 end
 
+module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
+
+ include RO_ext(IO)(S)(K)(K)
+
+ let temp_dir t = t.path / "tmp"
+
+ let add t index key =
+   Log.debug "add link";
+   let file = file_of_key t index in
+   let value =  Tc.write_cstruct (module K) key in
+   let temp_dir = temp_dir t in
+   if Sys.file_exists file then Lwt.return_unit
+   else
+     Lwt.catch
+       (fun () -> IO.write_file ~temp_dir file value)
+       (fun e -> Lwt.fail e)
+
+end
+
 module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   module RO = RO_ext(IO)(S)(K)(V)
@@ -269,6 +288,26 @@ module Obj = struct
 
 end
 
+module Links = struct
+
+  let dir t = t / "links"
+
+  let file_of_key k =
+    let len = String.length k in
+    let pre = String.sub k 0 2 in
+    let suf = String.sub k 2 (len - 2) in
+    "links" / pre / suf
+
+  let key_of_file path =
+    let path = string_chop_prefix ~prefix:("links" / "") path in
+    let path = Stringext.split ~on:'/' path in
+    let path = String.concat "" path in
+    path
+
+end
+
+
 module AO (IO: IO) = AO_ext (IO)(Obj)
+module Link (IO: IO) = Link_ext (IO)(Links)
 module RW (IO: IO) (L: LOCK) = RW_ext (IO)(L)(Ref)
 module Make (IO: IO) (L: LOCK) = Make_ext (IO)(L)(Obj)(Ref)

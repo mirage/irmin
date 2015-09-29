@@ -54,6 +54,9 @@ module Irmin_fs: sig
   module AO: Irmin.AO_MAKER
   (** Append-only store maker. *)
 
+  module Link: Irmin.LINK_MAKER
+  (** Immutable store for links. *)
+
   module RW: Irmin.RW_MAKER
   (** Read-write store maker. *)
 
