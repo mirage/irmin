@@ -1,3 +1,11 @@
+### 0.9.11
+
+* Fix `Hash.SHA1.equal` to always return true when the underlying
+  bigarrays are equals. Before that, this was only the case when
+  the whole `Cstruct.t` where identical: ie. same bigarray but also
+  same offset in the `Cstruct.t` value, which is obviously not
+  always the case.
+
 ### 0.9.10
 
 * Expose the Git compression level (#104, #298 by @samoht)
