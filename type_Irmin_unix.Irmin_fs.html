@@ -13,8 +13,9 @@
 </head>
 <body>
 <code class="code"><span class="keyword">sig</span><br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;config&nbsp;:&nbsp;?root:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.config<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;config&nbsp;:&nbsp;?config:<span class="constructor">Irmin</span>.config&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?root:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;unit&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.config<br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">AO</span>&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">AO_MAKER</span><br>
+&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Link</span>&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">LINK_MAKER</span><br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">RW</span>&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">RW_MAKER</span><br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Make</span>&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S_MAKER</span><br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="keyword">type</span>&nbsp;<span class="constructor">Config</span>&nbsp;=<br>

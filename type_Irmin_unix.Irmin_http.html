@@ -13,8 +13,11 @@
 </head>
 <body>
 <code class="code"><span class="keyword">sig</span><br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;config&nbsp;:&nbsp;<span class="constructor">Uri</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.config<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;config&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;?config:<span class="constructor">Irmin</span>.config&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;?content_type:[&nbsp;<span class="keywordsign">`</span><span class="constructor">Json</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Raw</span>&nbsp;]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Uri</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.config<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;uri&nbsp;:&nbsp;<span class="constructor">Uri</span>.t&nbsp;option&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Conf</span>.key<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;content_type&nbsp;:&nbsp;string&nbsp;option&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Conf</span>.key<br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">AO</span>&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">AO_MAKER</span><br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">RW</span>&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">RW_MAKER</span><br>
 &nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Make</span>&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">S_MAKER</span><br>

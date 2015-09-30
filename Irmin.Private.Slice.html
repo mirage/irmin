@@ -23,7 +23,10 @@
 </div>
 <h1>Module <a href="type_Irmin.Private.Slice.html">Irmin.Private.Slice</a></h1>
 
-<pre><span class="keyword">module</span> Slice: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Slice.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+<pre><span class="keyword">module</span> Slice: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Slice.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+The signature for slices.<br>
+</div>
+<hr width="100%">
 
 <pre><span class="keyword">module type</span> <a href="Irmin.Private.Slice.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Slice.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Slice.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Slice.S.html">S</a></code><code class="type">  with type contents = C.key * C.value

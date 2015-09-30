@@ -35,4 +35,7 @@ Private functions, which might be used by the backends.<br>
 <pre><span id="VALtag_t"><span class="keyword">val</span> tag_t</span> : <code class="type">t -> Irmin.S.Tag.t</code></pre>
 <pre><span id="VALread_node"><span class="keyword">val</span> read_node</span> : <code class="type">t -> key -> Node.key option Lwt.t</code></pre>
 <pre><span id="VALmem_node"><span class="keyword">val</span> mem_node</span> : <code class="type">t -> key -> bool Lwt.t</code></pre>
-<pre><span id="VALupdate_node"><span class="keyword">val</span> update_node</span> : <code class="type">t -> key -> Node.key -> unit Lwt.t</code></pre></body></html>
+<pre><span id="VALupdate_node"><span class="keyword">val</span> update_node</span> : <code class="type">t -> key -> Node.key -> unit Lwt.t</code></pre>
+<pre><span id="VALmerge_node"><span class="keyword">val</span> merge_node</span> : <code class="type">t -> key -> head * Node.key -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre>
+<pre><span id="VALremove_node"><span class="keyword">val</span> remove_node</span> : <code class="type">t -> key -> unit Lwt.t</code></pre>
+<pre><span id="VALiter_node"><span class="keyword">val</span> iter_node</span> : <code class="type">t -> Node.key -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t</code></pre></body></html>

@@ -76,8 +76,8 @@ The type for configuration keys whose lookup value is <code class="code"><span c
 
 
 <pre><span id="VALkey"><span class="keyword">val</span> key</span> : <code class="type">?docs:string -><br>       ?docv:string -><br>       ?doc:string -><br>       string -> 'a <a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> -> 'a -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a></code></pre><div class="info ">
-<code class="code">key docs docv doc name conv default</code> is a configuration key named
-        <code class="code">name</code> that maps to value <code class="code">v</code> by default. <code class="code">converter</code> is
+<code class="code">key ~docs ~docv ~doc name conv default</code> is a configuration key named
+        <code class="code">name</code> that maps to value <code class="code">default</code> by default. <code class="code">conv</code> is
         used to convert key values provided by end users.
 <p>
 
@@ -154,6 +154,10 @@ The type for configurations.<br>
 
 <pre><span id="VALrem"><span class="keyword">val</span> rem</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> <a href="Irmin.Private.Conf.html#TYPEt">t</a></code></pre><div class="info ">
 <code class="code">rem c k</code> is <code class="code">c</code> with <code class="code">k</code> unbound.<br>
+</div>
+
+<pre><span id="VALunion"><span class="keyword">val</span> union</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> <a href="Irmin.Private.Conf.html#TYPEt">t</a> -> <a href="Irmin.Private.Conf.html#TYPEt">t</a></code></pre><div class="info ">
+<code class="code">union r s</code> is the union of the configurations <code class="code">r</code> and <code class="code">s</code>.<br>
 </div>
 
 <pre><span id="VALfind"><span class="keyword">val</span> find</span> : <code class="type"><a href="Irmin.Private.Conf.html#TYPEt">t</a> -> 'a <a href="Irmin.Private.Conf.html#TYPEkey">key</a> -> 'a option</code></pre><div class="info ">

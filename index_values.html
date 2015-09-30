@@ -35,6 +35,12 @@ Return the list of actions performed on this view since its
       creation.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.LINK.html#VALadd">add</a> [<a href="Irmin.LINK.html">Irmin.LINK</a>]</td>
+<td><div class="info">
+<code class="code">add t src dst</code> add a link between the key <code class="code">src</code> and the value
+      <code class="code">dst</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.AO.html#VALadd">add</a> [<a href="Irmin.AO.html">Irmin.AO</a>]</td>
 <td><div class="info">
 Write the contents of a value to the store.
@@ -100,13 +106,6 @@ The configuration key to set the local Git repository's bare
       attribute.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALbasic">basic</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-<code class="code">basic backend contents</code> is a basic Irmin implementation using
-    <code class="code">backend</code> as a backend and containing values defined by
-    <code class="code">contents</code>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALbiject">biject</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Use the merge function defined in another domain.
@@ -133,11 +132,6 @@ Monadic bind for results.
 <code class="code">branch t</code> is a representation of <code class="code">t</code>'s branch.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALbranch">branch</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALbranch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.branch</code></a>.
-</div>
-</td></tr>
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Irmin.Private.Watch.S.html#VALclear">clear</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
 <td><div class="info">
@@ -149,20 +143,10 @@ Clear all register listeners in the given watch state.
 Clone the store <code class="code">t</code>, using the given branch name.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALclone">clone</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALclone"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.clone</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALclone_force">clone_force</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Same as <a href="Irmin.BC.html#VALclone">clone</a> but delete and update the existing
       branch if a branch with the same name already exists.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALclone_force">clone_force</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALclone_force"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.clone_force</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#VALclosure">closure</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
@@ -173,15 +157,16 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALclosure">GRAPH.closure</a> but
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALclosure">closure</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
-<code class="code">closure t ~min ~max</code> is the transitive closure <code class="code">c</code> of <code class="code">t</code>'s nodes such that:
+<code class="code">closure t ~min ~max</code> is the transitive closure <code class="code">c</code> of <code class="code">t</code>'s
+          nodes such that:
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALcommit_t">commit_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.RW.html#VALcompare_and_set">compare_and_set</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
 <td><div class="info">
-<code class="code">comapre_and_set t k ~test ~set</code> set <code class="code">t</code> to <code class="code">set</code> only if the
-      current value of <code class="code">t</code> is <code class="code">test</code> and in that case return
+<code class="code">compare_and_set t key ~test ~set</code> sets <code class="code">key</code> to <code class="code">set</code> only if
+      the current value of <code class="code">key</code> is <code class="code">test</code> and in that case returns
       <code class="code"><span class="keyword">true</span></code>.
 </div>
 </td></tr>
@@ -189,11 +174,6 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALclosure">GRAPH.closure</a> but
 <td><div class="info">
 Same as <a href="Irmin.BC.html#VALupdate_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.update_head</code></a> but check that the value is <code class="code">test</code> before
       updating to <code class="code">set</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALcompare_and_set_head">compare_and_set_head</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALcompare_and_set_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.compare_and_set_head</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.html#VALconfig">config</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
@@ -216,6 +196,11 @@ Create a configuration value.
 Configuration values.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.RO.html#VALconfig">config</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
+<td><div class="info">
+<code class="code">config t</code> is <code class="code">t</code>'s config.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALconfig">config</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Merge.OP.html#VALconflict">conflict</a> [<a href="Irmin.Merge.OP.html">Irmin.Merge.OP</a>]</td>
@@ -226,6 +211,12 @@ Return <code class="code"><span class="keywordsign">`</span><span class="constru
 <tr><td><a href="Irmin.Path.S.html#VALcons">cons</a> [<a href="Irmin.Path.S.html">Irmin.Path.S</a>]</td>
 <td><div class="info">
 Prepend a step to the path.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.Irmin_http.html#VALcontent_type">content_type</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
+<td><div class="info">
+The configuraion key to set the content-type set by the client
+      (and that the server will try to conform too if it can).
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALcontents">contents</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
@@ -308,11 +299,6 @@ Create a path from a list of steps.
 Create a new task.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALcreate">create</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.RO.html#VALcreate"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.create</code></a>.
-</div>
-</td></tr>
 <tr><td align="left"><br>D</td></tr>
 <tr><td><a href="Irmin.Task.html#VALdate">date</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
 <td><div class="info">
@@ -341,7 +327,12 @@ Compute the diff between two views.
 </td></tr>
 <tr><td><a href="Irmin.Hash.S.html#VALdigest">digest</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
 <td><div class="info">
-Compute a deterministic store key from a cstruct value.
+Compute a deterministic store key from a <code class="code"><span class="constructor">Cstruct</span>.t</code> value.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Hash.S.html#VALdigest_size">digest_size</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
+<td><div class="info">
+<code class="code">digest_size</code> is the size of hash results, in bytes.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.Config.html#VALdir">dir</a> [<a href="Irmin_unix.Irmin_fs.Config.html">Irmin_unix.Irmin_fs.Config</a>]</td>
@@ -400,11 +391,6 @@ The empty path.
 The empty task.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALempty">empty</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALempty"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.empty</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALexn">exn</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Convert <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span></code> results to <code class="code"><span class="constructor">Conflict</span></code> exceptions.
@@ -425,7 +411,7 @@ Convert <code class="code"><span class="keywordsign">`</span><span class="constr
       future of <code class="code">t</code>'s current head.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Sync.html#VALfetch">fetch</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<tr><td><a href="Irmin.SYNC.html#VALfetch">fetch</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
 <td><div class="info">
 <code class="code">fetch t ?depth r</code> populate the local store <code class="code">t</code> with objects for
       the remote store <code class="code">r</code>, using <code class="code">t</code>'s current branch.
@@ -437,20 +423,10 @@ Convert <code class="code"><span class="keywordsign">`</span><span class="constr
           located at <code class="code">uri</code> into the local store <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALfetch">fetch</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin.SYNC.html#VALfetch_exn">fetch_exn</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
 <td><div class="info">
-See <a href="Irmin.Sync.html#VALfetch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span>.fetch</code></a>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Sync.html#VALfetch_exn">fetch_exn</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
-<td><div class="info">
-Same as <code class="code">fetch</code> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if either the
+Same as <a href="Irmin.SYNC.html#VALfetch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">SYNC</span>.fetch</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if either the
       local or remote store do not have a valid head.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALfetch_exn">fetch_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.Sync.html#VALfetch_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span>.fetch_exn</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.Config.html#VALfile_of_key">file_of_key</a> [<a href="Irmin_unix.Irmin_fs.Config.html">Irmin_unix.Irmin_fs.Config</a>]</td>
@@ -486,20 +462,10 @@ The configuration key to set the local Git repository's current
 <code class="code">head t</code> is the current head of the branch <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALhead">head</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.head</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALhead_exn">head_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Same as <a href="Irmin.BC.html#VALhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.head</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the branch does
       not have any contents.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALhead_exn">head_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALhead_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.head_exn</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALheads">heads</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -507,30 +473,15 @@ See <a href="Irmin.BC.html#VALhead_exn"><code class="code"><span class="construc
 <code class="code">heads t</code> is the list of all the heads in local store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALheads">heads</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALheads"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.heads</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALhistory">history</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">history ?depth ?min ?max t</code> is a view of the history of the
       branch <code class="code">t</code>, of depth at most <code class="code">depth</code>, starting from the <code class="code">max</code>
       (or from the <code class="code">t</code>'s head if the list of heads is empty) and
-      stoping at <code class="code">min</code> if specified.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALhistory">history</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALhistory"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.history</code></a>.
+      stopping at <code class="code">min</code> if specified.
 </div>
 </td></tr>
 <tr><td align="left"><br>I</td></tr>
-<tr><td><a href="Irmin.html#VALimpl">impl</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-<code class="code">impl t</code> is the store implementation of <code class="code">t</code>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALimport">import</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">import t s</code> imports the contents of the slice <code class="code">s</code> in <code class="code">t</code>.
@@ -561,15 +512,15 @@ Is the node empty?
 Check if the path is empty.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Tag.S.html#VALis_valid">is_valid</a> [<a href="Irmin.Tag.S.html">Irmin.Tag.S</a>]</td>
+<td><div class="info">
+Check if the tag is valid.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.RO.html#VALiter">iter</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
 <code class="code">iter t fn</code> call the function <code class="code">fn</code> on all <code class="code">t</code>'s keys and
       values.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALiter">iter</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.RO.html#VALiter"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.iter</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#VALiter_commits">iter_commits</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
@@ -592,6 +543,8 @@ See <a href="Irmin.RO.html#VALiter"><code class="code"><span class="constructor"
 <code class="code">iter_contents t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s contents.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.S.Private.html#VALiter_node">iter_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#VALiter_nodes">iter_nodes</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
 <td><div class="info">
 <code class="code">iter_nodes t f</code> calls <code class="code">f</code> on <code class="code">t</code>'s nodes.
@@ -610,8 +563,8 @@ See <a href="Irmin.RO.html#VALiter"><code class="code"><span class="constructor"
 <tr><td align="left"><br>K</td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALkey">key</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
-<code class="code">key docs docv doc name conv default</code> is a configuration key named
-        <code class="code">name</code> that maps to value <code class="code">v</code> by default.
+<code class="code">key ~docs ~docv ~doc name conv default</code> is a configuration key named
+        <code class="code">name</code> that maps to value <code class="code">default</code> by default.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.Config.html#VALkey_of_file">key_of_file</a> [<a href="Irmin_unix.Irmin_fs.Config.html">Irmin_unix.Irmin_fs.Config</a>]</td>
@@ -640,19 +593,9 @@ Find the lowest common ancestors
           between two commits.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALlcas">lcas</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALlcas_head">lcas_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes an head as argument.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALlcas_head">lcas_head</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALlcas_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas_head</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALlcas_tag">lcas_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -660,9 +603,10 @@ See <a href="Irmin.BC.html#VALlcas_head"><code class="code"><span class="constru
 Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes a tag as argument.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALlcas_tag">lcas_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin_unix.Irmin_git.html#VALlevel">level</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
 <td><div class="info">
-See <a href="Irmin.BC.html#VALlcas_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas_tag</code></a>.
+<code class="code">level</code> is the Zlib compression level used to compress
+      persisting values.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.HRW.html#VALlist">list</a> [<a href="Irmin.HRW.html">Irmin.HRW</a>]</td>
@@ -670,14 +614,9 @@ See <a href="Irmin.BC.html#VALlcas_tag"><code class="code"><span class="construc
 <code class="code">list t k</code> list the sub-paths of the path <code class="code">k</code> in <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALlist">list</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.HRW.html#VALlist"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">HRW</span>.list</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http_server.S.html#VALlisten">listen</a> [<a href="Irmin_unix.Irmin_http_server.S.html">Irmin_unix.Irmin_http_server.S</a>]</td>
 <td><div class="info">
-<code class="code">start_server t uri</code> start a server serving the contents of
+<code class="code">listen t uri</code> start a server serving the contents of
         <code class="code">t</code> at the address <code class="code">uri</code>.
 </div>
 </td></tr>
@@ -713,11 +652,6 @@ Check if a key exists.
 <code class="code">mem c k</code> is <code class="code"><span class="keyword">true</span></code> iff <code class="code">k</code> has a mapping in <code class="code">c</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALmem">mem</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.RO.html#VALmem"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.mem</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALmem_contents">mem_contents</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
 <code class="code">mem_contents t n path</code> checks if there is a path labeled by
@@ -743,11 +677,6 @@ See <a href="Irmin.RO.html#VALmem"><code class="code"><span class="constructor">
 <code class="code">merge t</code> is the 3-way merge function for commit.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.GRAPH.html#VALmerge">merge</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
-<td><div class="info">
-<code class="code">merge t</code> is the 3-way merge function for nodes.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Contents.STORE.html#VALmerge">merge</a> [<a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a>]</td>
 <td><div class="info">
 <code class="code">merge t</code> lifts the merge functions defined on contents values
@@ -766,20 +695,10 @@ Lift to <code class="code"><span class="constructor">X</span>.t</code> maps.
 </td></tr>
 <tr><td><a href="Irmin.Merge.MSet.html#VALmerge">merge</a> [<a href="Irmin.Merge.MSet.html">Irmin.Merge.MSet</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin.html#VALmerge">merge</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALmerge"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_exn">merge_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 FIXME Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case
       of a conflict.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALmerge_exn">merge_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALmerge_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_exn</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_head">merge_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -788,22 +707,14 @@ See <a href="Irmin.BC.html#VALmerge_exn"><code class="code"><span class="constru
       temporary branch associated to <code class="code">head</code> into <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALmerge_head">merge_head</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALmerge_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_head</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_head_exn">merge_head_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Same as <a href="Irmin.BC.html#VALmerge_head">merge_head</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a>
       in case of a conflict.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALmerge_head_exn">merge_head_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALmerge_head_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_head_exn</code></a>.
-</div>
-</td></tr>
+<tr><td><a href="Irmin.S.Private.html#VALmerge_node">merge_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.VIEW.html#VALmerge_path">merge_path</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
 <td><div class="info">
 <code class="code">merge_path t path v</code> <em>merges</em> the view <code class="code">v</code> with the contents
@@ -812,7 +723,7 @@ See <a href="Irmin.BC.html#VALmerge_head_exn"><code class="code"><span class="co
 </td></tr>
 <tr><td><a href="Irmin.VIEW.html#VALmerge_path_exn">merge_path_exn</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
 <td><div class="info">
-Same as <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.merge_path</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
+Same as <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.merge_path</code></a> but raises <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
       conflicts.
 </div>
 </td></tr>
@@ -822,20 +733,10 @@ Same as <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="
       into <code class="code">t</code>'s.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALmerge_tag">merge_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_tag_exn">merge_tag_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
       conflict.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALmerge_tag_exn">merge_tag_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALmerge_tag_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag_exn</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Task.html#VALmessages">messages</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
@@ -878,14 +779,9 @@ Notify all listeners in the given watch state that a key has
 Create a temporary branch, using the given <code class="code">head</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALof_head">of_head</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALof_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.of_head</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Hum.S.html#VALof_hum">of_hum</a> [<a href="Irmin.Hum.S.html">Irmin.Hum.S</a>]</td>
 <td><div class="info">
-Convert an human readable representation of a value into its
+Convert a human readable representation of a value into its
         abstract value.
 </div>
 </td></tr>
@@ -897,17 +793,12 @@ Convert an human readable representation of a value into its
 </td></tr>
 <tr><td><a href="Irmin.Hash.S.html#VALof_raw">of_raw</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
 <td><div class="info">
-Abstract an hash value.
+Abstract a hash value.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALof_tag">of_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">create t tag</code> is the persistent branch named <code class="code">tag</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALof_tag">of_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALof_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.of_tag</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.OP.html#VALok">ok</a> [<a href="Irmin.Merge.OP.html">Irmin.Merge.OP</a>]</td>
@@ -991,32 +882,22 @@ Pretty-print a sequence of actions.
 <tr><td><a href="Irmin.Merge.html#VALpromise_map">promise_map</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 <code class="code">promise_map f a</code> is the promise containing <code class="code">f</code> applied to what
-      is promised by <code class="code">b</code>.
+      is promised by <code class="code">a</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Sync.html#VALpull">pull</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<tr><td><a href="Irmin.SYNC.html#VALpull">pull</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
 <td><div class="info">
 <code class="code">pull t ?depth r s</code> is similar to fetch but it
       also updates <code class="code">t</code>'s current branch.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALpull">pull</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin.SYNC.html#VALpull_exn">pull_exn</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
 <td><div class="info">
-See <a href="Irmin.Sync.html#VALpull"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span>.pull</code></a>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Sync.html#VALpull_exn">pull_exn</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
-<td><div class="info">
-Same as <code class="code">pull</code> but raise <code class="code"><span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code> in case of
+Same as <a href="Irmin.SYNC.html#VALpull"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">SYNC</span>.pull</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
       conflict.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALpull_exn">pull_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.Sync.html#VALpull_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span>.pull_exn</code></a>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Sync.html#VALpush">push</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
+<tr><td><a href="Irmin.SYNC.html#VALpush">push</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
 <td><div class="info">
 <code class="code">push t ?depth r</code> populates the remote store <code class="code">r</code> with objects
       from the current store <code class="code">t</code>, using <code class="code">t</code>'s current branch.
@@ -1028,20 +909,10 @@ See <a href="Irmin.Sync.html#VALpull_exn"><code class="code"><span class="constr
           the remote store located at <code class="code">uri</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALpush">push</a> [<a href="Irmin.html">Irmin</a>]</td>
+<tr><td><a href="Irmin.SYNC.html#VALpush_exn">push_exn</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
 <td><div class="info">
-See <a href="Irmin.Sync.html#VALpush"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span>.push</code></a>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Sync.html#VALpush_exn">push_exn</a> [<a href="Irmin.Sync.html">Irmin.Sync</a>]</td>
-<td><div class="info">
-Same as <code class="code">push</code> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if an error
-      happen.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALpush_exn">push_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.Sync.html#VALpush_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span>.push_exn</code></a>.
+Same as <a href="Irmin.SYNC.html#VALpush"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">SYNC</span>.push</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if an error
+      happens.
 </div>
 </td></tr>
 <tr><td align="left"><br>R</td></tr>
@@ -1060,11 +931,6 @@ Deconstruct the last element of the path.
 Read a value from the store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALread">read</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.RO.html#VALread"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.read</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALread_contents">read_contents</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
 <code class="code">read_contents t n path</code> is the contents at the end of the
@@ -1073,7 +939,7 @@ See <a href="Irmin.RO.html#VALread"><code class="code"><span class="constructor"
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALread_contents_exn">read_contents_exn</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
-Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">GRAPH</span>.read_contents</code></a> by raise <code class="code"><span class="constructor">Invalid_argument</span></code> if
+Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">GRAPH</span>.read_contents</code></a> but raises <code class="code"><span class="constructor">Invalid_argument</span></code> if
           there is no valid contents.
 </div>
 </td></tr>
@@ -1081,11 +947,6 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="co
 <td><div class="info">
 Same as <a href="Irmin.RO.html#VALread"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.read</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the key does not
       exist.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALread_exn">read_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.RO.html#VALread_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.read_exn</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALread_node">read_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
@@ -1131,11 +992,6 @@ Same as <a href="Irmin.VIEW.html#VALrebase_path"><code class="code"><span class=
 <code class="code">rem c k</code> is <code class="code">c</code> with <code class="code">k</code> unbound.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALremote_basic">remote_basic</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-Same as <a href="Irmin.html#VALremote_store"><code class="code"><span class="constructor">Irmin</span>.remote_store</code></a> but for basic stores.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.html#VALremote_store">remote_store</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code">remote_store t</code> is the remote corresponding to the local store
@@ -1152,18 +1008,15 @@ Same as <a href="Irmin.html#VALremote_store"><code class="code"><span class="con
 <code class="code">remove t k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALremove">remove</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.RW.html#VALremove"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.remove</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALremove_contents">remove_contents</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
-<code class="code">remove_contents t n path</code> removes the contents at the end of
-          the path of the path starting from <code class="code">n</code> and labeled by <code class="code">path</code>
-          in <code class="code">t</code>.
+<code class="code">remove_contents t n path</code> removes the contents at the end
+          of the path starting from <code class="code">n</code> and labeled by <code class="code">path</code> in
+          <code class="code">t</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.S.Private.html#VALremove_node">remove_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALremove_node">remove_node</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
 <code class="code">remove_node t n path</code> removes the node at the end of the
@@ -1177,19 +1030,9 @@ Same as <a href="Irmin.RW.html#VALremove">RW.remove</a> but removes all the sub-
       recursively.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALremove_rec">remove_rec</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.HRW.html#VALremove_rec"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">HRW</span>.remove_rec</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALremove_tag">remove_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">remove_tag t tag</code> removes the tag <code class="code">tag</code> from the local store.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALremove_tag">remove_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALremove_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.remove_tag</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALroot">root</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
@@ -1261,32 +1104,17 @@ The default string merge function.
 <code class="code">tag t</code> is <code class="code">t</code>'s name.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALtag">tag</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALtag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tag</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALtag_exn">tag_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 Same as <a href="Irmin.BC.html#VALtag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tag</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if <code class="code">t</code> is not
       persistent.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALtag_exn">tag_exn</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALtag_exn"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tag_exn</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALtag_t">tag_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.BC.html#VALtags">tags</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-The list of all persistent branch 's names.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALtags">tags</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALtags"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tags</code></a>.
+The list of all persistent branch's names.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.html#VALtask">task</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
@@ -1302,24 +1130,19 @@ See <a href="Irmin.BC.html#VALtags"><code class="code"><span class="constructor"
 <code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.VIEW.html#VALtask">task</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
+<td><div class="info">
+Views do not have tasks.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Commit.S.html#VALtask">task</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
 <td><div class="info">
 The commit provenance.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALtask">task</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.RO.html#VALtask"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.task</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALtask_of_head">task_of_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">task_of_head t h</code> is the task which created <code class="code">h</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALtask_of_head">task_of_head</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALtask_of_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.task_of_head</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#VALthree_way_merge">three_way_merge</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
@@ -1354,6 +1177,11 @@ Get the task unique identifier.
 Stop the thread started by <a href="Irmin_unix.html#VALinstall_dir_polling_listener"><code class="code"><span class="constructor">Irmin_unix</span>.install_dir_polling_listener</code></a>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Conf.html#VALunion">union</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
+<td><div class="info">
+<code class="code">union r s</code> is the union of the configurations <code class="code">r</code> and <code class="code">s</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.RRW.html#VALunwatch">unwatch</a> [<a href="Irmin.RRW.html">Irmin.RRW</a>]</td>
 <td><div class="info">
 <code class="code">unwatch t w</code> removes <code class="code">w</code> from <code class="code">t</code>'s watch handlers.
@@ -1369,20 +1197,10 @@ Remove a watch handler.
 <code class="code">update t k v</code> replaces the contents of <code class="code">k</code> by <code class="code">v</code> in <code class="code">t</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALupdate">update</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.RW.html#VALupdate"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RW</span>.update</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALupdate_head">update_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">update_head t h</code> updates <code class="code">t</code>'s contents with the contents of
       the head <code class="code">h</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALupdate_head">update_head</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALupdate_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.update_head</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALupdate_node">update_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
@@ -1397,11 +1215,6 @@ See <a href="Irmin.BC.html#VALupdate_head"><code class="code"><span class="const
 <td><div class="info">
 <code class="code">update_tag t tag</code> updates <code class="code">t</code>'s contents with the contents of
       the branch named <code class="code">tag</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALupdate_tag">update_tag</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALupdate_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.update_tag</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.html#VALuri">uri</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
@@ -1425,7 +1238,7 @@ The version of the library.
 <tr><td><a href="Irmin.RRW.html#VALwatch">watch</a> [<a href="Irmin.RRW.html">Irmin.RRW</a>]</td>
 <td><div class="info">
 <code class="code">watch t ?init f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch handlers
-      and return the watch handler to be used with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>.
+      and returns the watch handler to be used with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Watch.S.html#VALwatch">watch</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
@@ -1439,11 +1252,6 @@ Add a watch handler.
       updated.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALwatch_head">watch_head</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALwatch_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.watch_head</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.BC.html#VALwatch_key">watch_key</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">watch_key t key f</code> calls <code class="code">f</code> every time the <code class="code">key</code>'s value is
@@ -1453,7 +1261,7 @@ See <a href="Irmin.BC.html#VALwatch_head"><code class="code"><span class="constr
 <tr><td><a href="Irmin.RRW.html#VALwatch_key">watch_key</a> [<a href="Irmin.RRW.html">Irmin.RRW</a>]</td>
 <td><div class="info">
 <code class="code">watch_key t k ?init f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch
-      handlers for the key <code class="code">k</code> and return the watch handler to be used
+      handlers for the key <code class="code">k</code> and returns the watch handler to be used
       with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>.
 </div>
 </td></tr>
@@ -1462,14 +1270,9 @@ See <a href="Irmin.BC.html#VALwatch_head"><code class="code"><span class="constr
 Watch a given key for changes.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#VALwatch_key">watch_key</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALwatch_key"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.watch_key</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.VIEW.html#VALwatch_path">watch_path</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
 <td><div class="info">
-<code class="code">watch_head t p f</code> calls <code class="code">f</code> every time subpaths of <code class="code">p</code> are
+<code class="code">watch_head t p f</code> calls <code class="code">f</code> every time a subpath of <code class="code">p</code> is
       updated in the branch <code class="code">t</code>.
 </div>
 </td></tr>
@@ -1477,11 +1280,6 @@ See <a href="Irmin.BC.html#VALwatch_key"><code class="code"><span class="constru
 <td><div class="info">
 <code class="code">watch_tags t f</code> calls <code class="code">f</code> every time a tag is added, removed or
       updated in the local store.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#VALwatch_tags">watch_tags</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-See <a href="Irmin.BC.html#VALwatch_tags"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.watch_tags</code></a>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.S.html#VALwith_contents">with_contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
@@ -1492,7 +1290,7 @@ See <a href="Irmin.BC.html#VALwatch_tags"><code class="code"><span class="constr
 </td></tr>
 <tr><td><a href="Irmin.html#VALwith_hrw_view">with_hrw_view</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-<code class="code">with_rw_view t task ?path strat ops</code> applies <code class="code">ops</code> to an
+<code class="code">with_rw_view (<span class="keyword">module</span> <span class="constructor">View</span>) t ~path strat ops</code> applies <code class="code">ops</code> to an
     in-memory, temporary and mutable view of the store <code class="code">t</code>.
 </div>
 </td></tr>
@@ -1504,7 +1302,7 @@ See <a href="Irmin.BC.html#VALwatch_tags"><code class="code"><span class="constr
 </td></tr>
 <tr><td><a href="Irmin.Private.Lock.S.html#VALwith_lock">with_lock</a> [<a href="Irmin.Private.Lock.S.html">Irmin.Private.Lock.S</a>]</td>
 <td><div class="info">
-<code class="code">with_lock t k f</code> executes <code class="code">f ()</code> while hodling the exclusive
+<code class="code">with_lock t k f</code> executes <code class="code">f ()</code> while holding the exclusive
           lock associated to the key <code class="code">k</code>.
 </div>
 </td></tr>

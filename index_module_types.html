@@ -25,8 +25,14 @@ Append-only store.
 </td></tr>
 <tr><td><a href="Irmin.AO_MAKER.html">AO_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-<code class="code"><span class="constructor">AO_MAKER</span></code> is the signature exposed by any backend providing
-    append-only stores.
+<code class="code"><span class="constructor">AO_MAKER</span></code> is the signature exposed by append-only store
+    backends.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.AO_MAKER_RAW.html">AO_MAKER_RAW</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">AO_MAKER_RAW</span></code> if the signature exposed by any backend providing
+     append-only stores with access to raw values.
 </div>
 </td></tr>
 <tr><td align="left"><br>B</td></tr>
@@ -64,9 +70,25 @@ Hierarchical read-write stores.
 </div>
 </td></tr>
 <tr><td align="left"><br>L</td></tr>
+<tr><td><a href="Irmin.LINK.html">LINK</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+Immutable Link store.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.LINK_MAKER.html">LINK_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">LINK_MAKER</span></code> is the signature exposed by store which enable adding
+    relation between keys.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.LOCK.html">LOCK</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
 <td></td></tr>
 <tr><td align="left"><br>R</td></tr>
+<tr><td><a href="Irmin.RAW.html">RAW</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">RAW</span></code> is the signature for raw values.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.RO.html">RO</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Read-only stores.
@@ -84,8 +106,8 @@ Read-write stores.
 </td></tr>
 <tr><td><a href="Irmin.RW_MAKER.html">RW_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
-<code class="code"><span class="constructor">RW_MAKER</span></code> is the signature exposed by any backend providing
-    reactive read-write stores.
+<code class="code"><span class="constructor">RW_MAKER</span></code> is the signature exposed by read-write store
+    backends.
 </div>
 </td></tr>
 <tr><td align="left"><br>S</td></tr>
@@ -122,7 +144,7 @@ The signature for watch helpers.
 <tr><td><a href="Irmin.Tag.S.html">S</a> [<a href="Irmin.Tag.html">Irmin.Tag</a>]</td>
 <td><div class="info">
 A tag implementations specifies base functions on abstract tags
-      and define a default value for denoting the
+      and defines a default value for denoting the
       <a href="Irmin.Tag.S.html#VALmaster">master</a> branch name.
 </div>
 </td></tr>
@@ -165,6 +187,12 @@ Signature for path steps.
 Contents store.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.SYNC.html">SYNC</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">SYNC</span></code> provides functions to synchronization an Irmin store with
+    local and remote Irmin stores.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.S_MAKER.html">S_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">S_MAKER</span></code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span></code></a>
@@ -175,7 +203,7 @@ Contents store.
 <tr><td><a href="Irmin.VIEW.html">VIEW</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">View</span></code> provides an in-memory partial mirror of the store, with
-    lazy reads and delayed write.
+    lazy reads and delayed writes.
 </div>
 </td></tr>
 </table>

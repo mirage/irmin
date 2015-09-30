@@ -84,7 +84,7 @@ Add a watch handler. To watch a specific key, use
 Remove a watch handler.<br>
 </div>
 
-<pre><span id="VALlisten_dir"><span class="keyword">val</span> listen_dir</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       string -><br>       key:(string -> <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> option) -><br>       value:(<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option Lwt.t) -><br>       unit -> unit</code></pre><div class="info ">
+<pre><span id="VALlisten_dir"><span class="keyword">val</span> listen_dir</span> : <code class="type"><a href="Irmin.Private.Watch.S.html#TYPEt">t</a> -><br>       string -><br>       key:(string -> <a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> option) -><br>       value:(<a href="Irmin.Private.Watch.S.html#TYPEkey">key</a> -> <a href="Irmin.Private.Watch.S.html#TYPEvalue">value</a> option Lwt.t) -><br>       (unit -> unit) Lwt.t</code></pre><div class="info ">
 Register a thread looking for changes in the given directory
           and return a function to stop watching and free up
           resources.<br>

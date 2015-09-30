@@ -29,7 +29,7 @@ Signature for unique identifiers.<br>
 <pre><span class="keyword">include</span> <a href="Irmin.Hum.S.html">Irmin.Hum.S</a></pre>
 
 <pre><span id="VALdigest"><span class="keyword">val</span> digest</span> : <code class="type">Cstruct.t -> t</code></pre><div class="info ">
-Compute a deterministic store key from a cstruct value.<br>
+Compute a deterministic store key from a <code class="code"><span class="constructor">Cstruct</span>.t</code> value.<br>
 </div>
 
 <pre><span id="VALhas_kind"><span class="keyword">val</span> has_kind</span> : <code class="type">[> `SHA1 ] -> bool</code></pre><div class="info ">
@@ -41,6 +41,10 @@ The raw hash value.<br>
 </div>
 
 <pre><span id="VALof_raw"><span class="keyword">val</span> of_raw</span> : <code class="type">Cstruct.t -> t</code></pre><div class="info ">
-Abstract an hash value.<br>
+Abstract a hash value.<br>
+</div>
+
+<pre><span id="VALdigest_size"><span class="keyword">val</span> digest_size</span> : <code class="type">int</code></pre><div class="info ">
+<code class="code">digest_size</code> is the size of hash results, in bytes.<br>
 </div>
 </body></html>

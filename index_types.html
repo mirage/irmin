@@ -17,12 +17,6 @@
 &nbsp;</div>
 <h1>Index of types</h1>
 <table>
-<tr><td align="left"><br>B</td></tr>
-<tr><td><a href="Irmin.html#TYPEbasic">basic</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-The type for basic stores.
-</div>
-</td></tr>
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
 <td><div class="info">
@@ -59,11 +53,6 @@ The type of user-defined contents.
 The type for contents keys.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.html#TYPEcontents">contents</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-The type for basic contents of type <code class="code"><span class="keywordsign">'</span>a</code>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#TYPEconverter">converter</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 The type for configuration converters.
@@ -77,7 +66,12 @@ The type for counter values.
 <tr><td align="left"><br>D</td></tr>
 <tr><td><a href="Irmin.VIEW.html#TYPEdb">db</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
 <td><div class="info">
-The type for branch handles.
+The type for store handles.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.SYNC.html#TYPEdb">db</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
+<td><div class="info">
+Type type for store handles.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#TYPEdiff">diff</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -100,6 +94,11 @@ Type for temporary branches names.
 <tr><td><a href="Irmin.VIEW.html#TYPEhead">head</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
 <td><div class="info">
 The type for commit heads.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.SYNC.html#TYPEhead">head</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
+<td><div class="info">
+The type for store heads.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Sync.S.html#TYPEhead">head</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
@@ -226,7 +225,7 @@ Type for stores.
 </td></tr>
 <tr><td><a href="Irmin.VIEW.Action.html#TYPEt">t</a> [<a href="Irmin.VIEW.Action.html">Irmin.VIEW.Action</a>]</td>
 <td><div class="info">
-Operations on view.
+Operations on views.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Sync.S.html#TYPEt">t</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
@@ -272,12 +271,6 @@ Signature of a merge function.
 <tr><td><a href="Irmin.Hum.html#TYPEt">t</a> [<a href="Irmin.Hum.html">Irmin.Hum</a>]</td>
 <td><div class="info">
 Type for implementation of <code class="code"><span class="constructor">S</span></code> for values of type <code class="code"><span class="keywordsign">'</span>a</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.html#TYPEt">t</a> [<a href="Irmin.html">Irmin</a>]</td>
-<td><div class="info">
-The type for default store, with keys of type <code class="code"><span class="keywordsign">'</span>k</code> and values of
-    type <code class="code"><span class="keywordsign">'</span>v</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#TYPEtag">tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>

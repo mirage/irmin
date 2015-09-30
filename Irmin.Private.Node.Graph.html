@@ -52,8 +52,8 @@ The type for node values.<br>
 
 <pre><span id="TYPEstep"><span class="keyword">type</span> <code class="type"></code>step</span> </pre>
 <div class="info ">
-The type of steps. A step is used to pass from one node to an
-          other.<br>
+The type of steps. A step is used to pass from one node to
+          another.<br>
 </div>
 
 
@@ -108,7 +108,7 @@ Create a new node.<br>
 </div>
 
 <pre><span id="VALread_contents_exn"><span class="keyword">val</span> read_contents_exn</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEcontents">contents</a> Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">GRAPH</span>.read_contents</code></a> by raise <code class="code"><span class="constructor">Invalid_argument</span></code> if
+Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Node</span>.<span class="constructor">GRAPH</span>.read_contents</code></a> but raises <code class="code"><span class="constructor">Invalid_argument</span></code> if
           there is no valid contents.<br>
 </div>
 
@@ -118,9 +118,9 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="co
 </div>
 
 <pre><span id="VALremove_contents"><span class="keyword">val</span> remove_contents</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEpath">path</a> -> <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
-<code class="code">remove_contents t n path</code> removes the contents at the end of
-          the path of the path starting from <code class="code">n</code> and labeled by <code class="code">path</code>
-          in <code class="code">t</code>.<br>
+<code class="code">remove_contents t n path</code> removes the contents at the end
+          of the path starting from <code class="code">n</code> and labeled by <code class="code">path</code> in
+          <code class="code">t</code>.<br>
 </div>
 <br>
 <h1 id="1_Nodes">Nodes</h1><br>
@@ -152,14 +152,9 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_node">read_node</a> but r
           <code class="code">t</code>.<br>
 </div>
 
-<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> option <a href="Irmin.Merge.html#TYPEt">Irmin.Merge.t</a></code></pre><div class="info ">
-<code class="code">merge t</code> is the 3-way merge function for nodes. FIXME: give
-          semantics, especially when a node does not have
-          sub-contents.<br>
-</div>
-
 <pre><span id="VALclosure"><span class="keyword">val</span> closure</span> : <code class="type"><a href="Irmin.Private.Node.GRAPH.html#TYPEt">t</a> -><br>       min:<a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> list -><br>       max:<a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> list -><br>       <a href="Irmin.Private.Node.GRAPH.html#TYPEnode">node</a> list Lwt.t</code></pre><div class="info ">
-<code class="code">closure t ~min ~max</code> is the transitive closure <code class="code">c</code> of <code class="code">t</code>'s nodes such that:
+<code class="code">closure t ~min ~max</code> is the transitive closure <code class="code">c</code> of <code class="code">t</code>'s
+          nodes such that:
 <p>
 
           <ul>

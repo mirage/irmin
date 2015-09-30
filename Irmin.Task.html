@@ -28,7 +28,7 @@
 <pre><span class="keyword">module</span> Task: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Task.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
 Tasks are used to keep track of the origin of reads and writes in
     the store. Every high-level operation is expected to have its own
-    task, which is passed to every low-level calls.<br>
+    task which is passed to every low-level call.<br>
 </div>
 <hr width="100%">
 <br>
@@ -44,12 +44,13 @@ Create a new task.<br>
 Get the task date.
 <p>
 
-      The date is computed by the user user when calling the
-      <a href="Irmin.Task.html#VALcreate">create</a> function. When available,
-      <code class="code"><span class="constructor">Unix</span>.gettimeofday ()</code> is a good value for such date. On more
+      The date provided by the user when calling the
+      <a href="Irmin.Task.html#VALcreate">create</a> function.  Rounding <code class="code"><span class="constructor">Unix</span>.gettimeofday ()</code>
+      (when available) is a good value for such date.  On more
       esoteric platforms, any monotonic counter is a fine value as
-      well. On the Git backend, the date will be translated into the
-      commit <em>Date</em> field.<br>
+      well.  On the Git backend, the date is translated into the
+      commit <em>Date</em> field and is expected to be the number of
+      POSIX seconds (thus not counting leap seconds) since the Epoch.<br>
 </div>
 
 <pre><span id="VALowner"><span class="keyword">val</span> owner</span> : <code class="type">t -> string</code></pre><div class="info ">
@@ -66,7 +67,7 @@ Get the task unique identifier.
 <p>
 
       By default, it is freshly generated on each call to
-      <a href="Irmin.Task.html#VALcreate">create</a>. That identifier is useful for debugging
+      <a href="Irmin.Task.html#VALcreate">create</a>. The identifier is useful for debugging
       purposes, for instance to relate debug lines to the tasks which
       cause them, and might appear in one line of the commit message
       for the Git backend.<br>

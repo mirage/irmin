@@ -31,19 +31,23 @@ Bidirectional Git backends.<br>
 <br>
 <h1 id="1_GitStore">Git Store</h1><br>
 
-<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?root:string -> ?head:Git.Reference.t -> ?bare:bool -> unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre><div class="info ">
+<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?config:<a href="Irmin.html#TYPEconfig">Irmin.config</a> -><br>       ?root:string -><br>       ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre><div class="info ">
 Create a configuration value.
 <p>
 
       <ul>
+<li><code class="code">config</code> is the optional initial configuration value. If not
+         defined, it is <code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Conf</span>.empty</code></li>
 <li><code class="code">root</code> is the local Git repository's root (the parent of the
-      <em>.git/</em> directory).</li>
+         <em>.git/</em> directory).</li>
 <li><code class="code">head</code> is the name of the local Git repository's current
-      branch. If set, this will cause the file <i><code class="code">root</code>/.git/HEAD</i> to
-      be modified to contain <i>ref: refs/heads/<code class="code">branch</code></i>.</li>
+         branch. If set, this will cause the file <i><code class="code">root</code>/.git/HEAD</i>
+         to be modified to contain <i>ref: refs/heads/<code class="code">branch</code></i>.</li>
 <li>If <code class="code">bare</code> is set (default is <em>unset</em>), then the local Git
-      repository's contents will be expanded into the filesystem on
-      each update. This might cause some performance issues.</li>
+         repository's contents will be expanded into the filesystem on
+         each update. This might cause some performance issues.</li>
+<li><code class="code">level</code> is the Zlib compression level. If absent, use the
+         default one.</li>
 </ul>
 <br>
 </div>
@@ -56,6 +60,11 @@ The configuration key to set the local Git repository's current
 <pre><span id="VALbare"><span class="keyword">val</span> bare</span> : <code class="type">bool <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre><div class="info ">
 The configuration key to set the local Git repository's bare
       attribute. See <a href="Irmin_unix.Irmin_git.html#VALconfig"><code class="code"><span class="constructor">Irmin_unix</span>.<span class="constructor">Irmin_git</span>.config</code></a>.<br>
+</div>
+
+<pre><span id="VALlevel"><span class="keyword">val</span> level</span> : <code class="type">int option <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre><div class="info ">
+<code class="code">level</code> is the Zlib compression level used to compress
+      persisting values.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_git.AO.html">AO</a> <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre><div class="info">

@@ -19,6 +19,7 @@
 <link title="Basic Merges" rel="Section" href="#1_BasicMerges">
 <link title="Counters and Multisets" rel="Section" href="#1_CountersandMultisets">
 <link title="Maps and Association Lists" rel="Section" href="#1_MapsandAssociationLists">
+<link title="Maps and Association Lists" rel="Section" href="#1_MapsandAssociationLists">
 <title>Irmin.Merge</title>
 </head>
 <body>
@@ -75,7 +76,7 @@ An <code class="code"><span class="keywordsign">'</span>a</code> promise is a fu
 
 <pre><span id="VALpromise_map"><span class="keyword">val</span> promise_map</span> : <code class="type">('a -> 'b) -> 'a <a href="Irmin.Merge.html#TYPEpromise">promise</a> -> 'b <a href="Irmin.Merge.html#TYPEpromise">promise</a></code></pre><div class="info ">
 <code class="code">promise_map f a</code> is the promise containing <code class="code">f</code> applied to what
-      is promised by <code class="code">b</code>.<br>
+      is promised by <code class="code">a</code>.<br>
 </div>
 
 <pre><span id="VALpromise_bind"><span class="keyword">val</span> promise_bind</span> : <code class="type">'a <a href="Irmin.Merge.html#TYPEpromise">promise</a> -><br>       ('a -> 'b <a href="Irmin.Merge.html#TYPEpromise">promise</a>) -> 'b <a href="Irmin.Merge.html#TYPEpromise">promise</a></code></pre><div class="info ">
@@ -120,7 +121,7 @@ Same as <a href="Irmin.Merge.html#VALbiject">biject</a> but with blocking domain
 
 <pre><span id="VALdefault"><span class="keyword">val</span> default</span> : <code class="type">'a Tc.t -> 'a <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
 Create a default merge function. This is a simple merge
-      functions which support changes in one branch at the time:
+      function which supports changes in one branch at a time:
 <p>
 
       <ul>
@@ -133,7 +134,7 @@ Create a default merge function. This is a simple merge
 </div>
 
 <pre><span id="VALstring"><span class="keyword">val</span> string</span> : <code class="type">string <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">
-The default string merge function. Do not anything clever, just
+The default string merge function. Do not do anything clever, just
       compare the strings using the <code class="code">default</code> merge function.<br>
 </div>
 
@@ -161,7 +162,7 @@ List merge functions to sets.<br>
 <div class="info ">
 The type for counter values. It is expected that the only valid
       operations on counters are <em>increment</em> and <em>decrement</em>. The
-      following merge functions ensure that the counter semantics is
+      following merge functions ensure that the counter semantics are
       preserved: <em>i.e.</em> it ensures that the number of increments and
       decrements is preserved.<br>
 </div>
@@ -177,8 +178,10 @@ Multi-sets.
 <br>
 <h1 id="1_MapsandAssociationLists">Maps and Association Lists</h1><br>
 <br>
-We consider that the only valid operations for maps and
-      association lists are:
+<h1 id="1_MapsandAssociationLists">Maps and Association Lists</h1><br>
+<br>
+We consider the only valid operations for maps and
+      association lists to be:
 <p>
 
       <ul>
@@ -196,8 +199,8 @@ We consider that the only valid operations for maps and
 <p>
 
       <b>Note:</b> We only consider sets of bindings, instead of
-      multisets. Application developer should take care of concurrent
-      adding and removal of similar bindings themselves, by using the
+      multisets. Application developers should take care of concurrent
+      addition and removal of similar bindings themselves, by using the
       appropriate <a href="Irmin.Merge.MSet.html">multi-sets</a>.<br>
 
 <pre><span id="VALalist"><span class="keyword">val</span> alist</span> : <code class="type">'a Tc.t -><br>       'b Tc.t -> ('a -> 'b option <a href="Irmin.Merge.html#TYPEt">t</a>) -> ('a * 'b) list <a href="Irmin.Merge.html#TYPEt">t</a></code></pre><div class="info ">

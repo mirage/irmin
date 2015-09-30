@@ -55,7 +55,7 @@ Create a lock manager.<br>
 </div>
 
 <pre><span id="VALwith_lock"><span class="keyword">val</span> with_lock</span> : <code class="type"><a href="Irmin.Private.Lock.S.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Lock.S.html#TYPEkey">key</a> -> (unit -> 'a Lwt.t) -> 'a Lwt.t</code></pre><div class="info ">
-<code class="code">with_lock t k f</code> executes <code class="code">f ()</code> while hodling the exclusive
+<code class="code">with_lock t k f</code> executes <code class="code">f ()</code> while holding the exclusive
           lock associated to the key <code class="code">k</code>.<br>
 </div>
 </body></html>

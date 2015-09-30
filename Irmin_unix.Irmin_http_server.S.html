@@ -30,9 +30,11 @@ The type for store handles.<br>
 </div>
 
 
-<pre><span id="VALlisten"><span class="keyword">val</span> listen</span> : <code class="type"><a href="Irmin_unix.Irmin_http_server.S.html#TYPEt">t</a> -><br>       ?timeout:int -><br>       ?hooks:<a href="Irmin_unix.Irmin_http_server.html#TYPEhooks">Irmin_unix.Irmin_http_server.hooks</a> -> Uri.t -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">start_server t uri</code> start a server serving the contents of
+<pre><span id="VALlisten"><span class="keyword">val</span> listen</span> : <code class="type">?timeout:int -><br>       ?strict:bool -><br>       ?hooks:<a href="Irmin_unix.Irmin_http_server.html#TYPEhooks">Irmin_unix.Irmin_http_server.hooks</a> -><br>       <a href="Irmin_unix.Irmin_http_server.S.html#TYPEt">t</a> -> Uri.t -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">listen t uri</code> start a server serving the contents of
         <code class="code">t</code> at the address <code class="code">uri</code>. Close clients' connections after
-        <code class="code">timeout</code> seconds of inactivity.<br>
+        <code class="code">timeout</code> seconds of inactivity. If <code class="code">strict</code> is set (by
+        default it is not), incoming connections will fail if they do
+        not have the right <i>X-IrminVersion</i> headers.<br>
 </div>
 </body></html>

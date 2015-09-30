@@ -31,13 +31,17 @@ File system backends, using
 <br>
 <h1 id="1_FilesystemStore">File-system Store</h1><br>
 
-<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?root:string -> unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre><div class="info ">
+<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?config:<a href="Irmin.html#TYPEconfig">Irmin.config</a> -> ?root:string -> unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre><div class="info ">
 Create a configuration value. <code class="code">root</code> is the location of local
   repository's root.<br>
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.AO.html">AO</a>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre><div class="info">
 Append-only store maker.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.Link.html">Link</a>: <code class="type"><a href="Irmin.LINK_MAKER.html">Irmin.LINK_MAKER</a></code><code class="type"> </code></pre><div class="info">
+Immutable store for links.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_fs.RW.html">RW</a>: <code class="type"><a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></code><code class="type"> </code></pre><div class="info">
