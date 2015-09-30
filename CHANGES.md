@@ -6,7 +6,8 @@
   bigarrays are equals. Before that, this was only the case when
   the whole `Cstruct.t` where identical: ie. same bigarray but also
   same offset in the `Cstruct.t` value, which is obviously not
-  always the case.
+  always the case. Apply the same fix to `Hash.SHA1.compare` and
+  `Hash.SHA1.hash`.
 
 ### 0.9.10
 
