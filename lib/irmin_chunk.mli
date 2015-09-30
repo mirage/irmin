@@ -57,3 +57,10 @@ module AO (S: Irmin.AO_MAKER_RAW): Irmin.AO_MAKER_RAW
     In both case, the return hash will be different from the hash of
     the value. This discrepency can be fixed using the an
     {{!Irmin.LINK}immutable link store}. *)
+
+module AO_stable (L: Irmin.LINK_MAKER) (S: Irmin.AO_MAKER_RAW):
+  Irmin.AO_MAKER_RAW
+(** [AO_stable(L)(X)] is similar to [AO(X)] but is ensures that the
+    return keys are similar as if they were stored directly in [X], so
+    that the fact that blobs are cut into chunks is an implementation
+    detail. *)
