@@ -15,7 +15,7 @@ build-test: [
   [make "test"]
 ]
 install: [make "install"]
-remove: ["ocamlfind" "remove" "irmin"]
+remove: ["ocamlfind" "remove" "irmin-chunk"]
 
 depends: [
   "ocamlfind" {build}
