@@ -19,7 +19,8 @@ open Lwt.Infix
 
 let () =
   Log.set_log_level Log.DEBUG;
-  Log.color_on ()
+  Log.color_on ();
+  Printexc.record_backtrace true
 
 module Hash = Irmin.Hash.SHA1
 
@@ -45,7 +46,8 @@ end
 
 module MemChunk = struct
   include Irmin_chunk.AO(Irmin_mem.AO)(Key)(Value)
-  let create () = create (Irmin_mem.config ()) Irmin.Task.none
+  let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
+  let create () = create small_config Irmin.Task.none
 end
 
 let key_t: Key.t Alcotest.testable = (module Key)
@@ -60,15 +62,27 @@ let run f () =
 
 let test_add_read (module AO: S) () =
   AO.create () >>= fun t ->
-  let v1 = value (Bytes.make 12 'x') in
-  let v2 = value (Bytes.make 89990 'y') in
-  AO.add (t ()) v1 >>= fun k1 ->
-  AO.read (t ()) k1 >>= fun v1' ->
-  Alcotest.(check @@ option value_t) "v1" (Some v1) v1';
-  AO.add (t ()) v2 >>= fun k2 ->
-  AO.read (t ()) k2 >>= fun v2' ->
-  Alcotest.(check @@ option value_t) "v2" (Some v2) v2';
-  Lwt.return_unit
+  let list () =
+    let all = ref [] in
+    AO.iter (t ()) (fun k _ -> all := k :: !all; Lwt.return_unit) >>= fun () ->
+    Printf.eprintf "LIST: %s\n%!" (String.concat " " (List.map Key.to_hum !all));
+    Lwt.return_unit
+  in
+  let test size =
+    let name = Printf.sprintf "size %d" size in
+    let v = value (String.make size 'x') in
+    AO.add (t ()) v  >>= fun k ->
+    list () >>= fun () ->
+    AO.read (t ()) k >|= fun v' ->
+    Alcotest.(check @@ option value_t) name (Some v) v'
+  in
+  let x = 40 in
+  Lwt_list.iter_s test [
+    x-1  ; x  ; x+1;
+    x*2-1; x*2; x*2+1;
+    x*x-1; x*x; x*x+1;
+    x*x*x;
+  ]
 
 let simple =
   "simple", [
