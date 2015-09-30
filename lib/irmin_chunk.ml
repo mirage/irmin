@@ -285,3 +285,44 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
   let iter t fn = AO.iter t.db fn
 
 end
+
+module AO_stable (L: LINK_MAKER) (S: AO_MAKER_RAW) (K: Hash.S) (V: RAW) = struct
+
+  module AO = AO(S)(K)(V)
+  module Link = L(K)
+
+  type key = K.t
+  type value = V.t
+  type t = { ao: AO.t; link: Link.t }
+
+  let create config task =
+    AO.create config task >>= fun ao ->
+    Link.create config task >|= fun link ->
+    fun a -> { ao = ao a; link = link a }
+
+  let config t = AO.config t.ao
+  let task t = AO.task t.ao
+
+  let read t k =
+    Link.read t.link k >>= function
+    | None   -> Lwt.return_none
+    | Some k -> AO.read t.ao k
+
+  let read_exn t k =
+    Link.read_exn t.link k >>= fun k ->
+    AO.read_exn t.ao k
+
+  let mem t k =
+    Link.read t.link k >>= function
+    | None   -> Lwt.return_false
+    | Some k -> AO.mem t.ao k
+
+  let iter t fn = Link.iter t.link (fun k k' -> fn k (k' >>= AO.read_exn t.ao))
+
+  let add t v =
+    AO.add t.ao v >>= fun k' ->
+    let k = K.digest v in
+    Link.add t.link k k' >>= fun () ->
+    Lwt.return k
+
+end

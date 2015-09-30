@@ -25,3 +25,11 @@ Test test_irmin
   Run$:             flag(tests)
   Command:          $test -q
   WorkingDirectory: lib_test
+
+Document "irmin-chunk"
+  Title:                Irmin chunk
+  Type:                 OCamlbuild (0.4)
+  BuildTools+:          ocamldoc
+  Install:              true
+  XOCamlbuildPath:      lib/
+  XOCamlbuildLibraries: irmin-chunk
