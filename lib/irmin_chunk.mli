@@ -21,25 +21,31 @@
      represented as above :
 
       --------------------------
-     | uint8_t type             |
+     | uint8_t type            |
      ---------------------------
-     | uint16_t chunk_length   |
+     | uint16_t length         |
      ---------------------------
-     | byte data[data_length]   |
+     | byte data[length]       |
      ---------------------------
 
-     Where type define if the chunk contain data or indirection, size
-     represent the data length to consider, and data field is the
-     payload. *)
+     Where [type] define if the chunk contains raw data or is a node
+     and [length] is the [data] payload's length. *)
 
 val chunk_size: int Irmin.Private.Conf.key
 (** The key to configure the size of chunks. By default, it is set to
     4666 (to let some space for metadata). *)
 
-val config: ?config:Irmin.config -> ?size:int -> unit -> Irmin.config
-(** [config ?config ?size ()] is the configuration value extending the
-    optional [config] with a binding associating {!chunk_size} to
-    [size]. *)
+val config:
+  ?config:Irmin.config -> ?size:int -> ?min_size:int -> unit -> Irmin.config
+(** [config ?config ?size ?min_size ()] is the configuration value
+    extending the optional [config] with bindings associating
+    {!chunk_size} to [size].
+
+    Fail with [Invalid_argument] if [size] is smaller than [min_size].
+    [min_size] is, by default, set to 4000 (to avoid hash colision on
+    smaller size) but can be tweaked for testing purposes. {i Notes:}
+    the smaller [size] is, the bigger the risk of hash collisions, so
+    use reasonable values. *)
 
 module AO (S: Irmin.AO_MAKER_RAW): Irmin.AO_MAKER_RAW
 (** [AO(X)] is an append-only store which store values cut into chunks

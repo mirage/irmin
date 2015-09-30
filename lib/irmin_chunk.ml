@@ -22,7 +22,9 @@ module Log = Log.Make(struct let section = "CHUNK" end)
 
 module Conf = struct
 
-  let minimum_size = 4000
+  let min_size =
+    Irmin.Private.Conf.key ~doc:"Minimal chunk size" "min-size"
+      Irmin.Private.Conf.int 4000
 
   let chunk_size =
     Irmin.Private.Conf.key ~doc:"Size of chunk" "size"
@@ -32,22 +34,26 @@ end
 
 let chunk_size = Conf.chunk_size
 
-let err_invalid_size size =
-  Printf.ksprintf invalid_arg "%d is an invalid chunk size" size
+let err_too_small ~min size =
+  Printf.ksprintf invalid_arg
+    "Chunks of %d bytes are too small. Size should at least be %d bytes."
+    size min
 
-let config ?(config=Irmin.Private.Conf.empty) ?size () =
+let config ?(config=Irmin.Private.Conf.empty) ?size ?min_size () =
   let module C = Irmin.Private.Conf in
+  let min_size = match min_size with
+    | None   -> C.default Conf.min_size
+    | Some v -> v
+  in
   let size = match size with
     | None   -> C.default Conf.chunk_size
-    | Some v -> if v <= Conf.minimum_size then err_invalid_size v else v
+    | Some v -> if v < min_size then err_too_small ~min:min_size v else v
   in
   C.add config Conf.chunk_size size
 
 module Chunk (K: Irmin.Hash.S) = struct
 
-  type t =
-    | Data
-    | Indirect
+  type t = Data | Indirect
 
   let l_type = 1
   let get_type x = Cstruct.get_uint8 x 0
@@ -58,7 +64,6 @@ module Chunk (K: Irmin.Hash.S) = struct
   let set_length x v = Cstruct.LE.set_uint16 x l_type v
 
   let head_length = l_type + l_len
-
   let offset_payload = head_length
 
   let get_sub_key x pos =
@@ -73,17 +78,17 @@ module Chunk (K: Irmin.Hash.S) = struct
 
   let type_of_int = function
     | Indirect -> 0
-    | Data -> 1
+    | Data     -> 1
 
   let int_of_type = function
     | 0 -> Indirect
     | 1 -> Data
     | _ -> failwith "Unknow type"
 
-  let type_of_chunk x = (int_of_type (get_type x))
+  let type_of_chunk x = int_of_type (get_type x)
 
-  let create size len typ =
-    let c = Cstruct.create size in
+  let create typ chunk_size len  =
+    let c = Cstruct.create chunk_size in
     Cstruct.memset c 0x00;
     set_type c (type_of_int typ);
     set_length c len;
@@ -100,10 +105,11 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
   module Chunk = Chunk(K)
 
   type t = {
-    db         : AO.t;
-    size       : int;
-    nb_indirect: int;
-    data_length: int;
+    db          : AO.t;             (* An hanlder to the underlying database. *)
+    chunk_size  : int;                                 (* the size of chunks. *)
+    max_children: int;     (* the maximum number of children a node can have. *)
+    max_length  : int; (* the maximum lentgh (in bytes) of data stored in one
+                          chunk. *)
   }
 
   module Tree = struct
@@ -134,18 +140,17 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
       in
       aux_walk t root
 
-    let rec aux_bottom_up t l r =
+    let rec bottom_up t l r =
       match l with
       | [] -> Lwt.return r
       | l ->
-        let nbr =
-          if List.length l >= t.nb_indirect
-          then t.nb_indirect
+        let n =
+          if List.length l >= t.max_children then t.max_children
           else List.length l
         in
-        let indir = Chunk.create t.size nbr Chunk.Indirect in
+        let indir = Chunk.(create Indirect) t.chunk_size n in
         let rec loop i l =
-          if (i >= nbr) then l
+          if i >= n then l
           else
             let x = List.hd l in
             let rest = List.tl l in
@@ -155,22 +160,26 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
         in
         let calc = loop 0 l in
         AO.add t.db indir >>= fun x ->
-        aux_bottom_up t calc (x::r)
+        bottom_up t calc (x::r)
 
-    let rec bottom_up t = function
+    let rec create t = function
       | [] -> failwith "Irmin_chunk.Tree.bottom_up"
       | [e] -> Lwt.return e
-      | l   -> aux_bottom_up t l [] >>= bottom_up t
+      | l   -> bottom_up t l [] >>= create t
 
   end
 
   let create config task =
     let module C = Irmin.Private.Conf in
-    let size = C.get config Conf.chunk_size in
-    let data_length = size - Chunk.head_length - 1 in
-    let nb_indirect = data_length / K.digest_size in
-    AO.create config task >>= fun t ->
-    Lwt.return (fun a -> { db = t a; size; nb_indirect; data_length })
+    let chunk_size = C.get config Conf.chunk_size in
+    let max_length = chunk_size - Chunk.head_length - 1 in
+    let max_children = max_length / K.digest_size in
+    if max_children <= 1 then (
+      let min = Chunk.head_length + 1 + K.digest_size * 2 in
+      err_too_small ~min chunk_size;
+    );
+    AO.create config task >|= fun t ->
+    fun a -> { db = t a; chunk_size; max_children; max_length }
 
   let task t = AO.task t.db
   let config t = AO.config t.db
@@ -203,89 +212,76 @@ module AO (S:AO_MAKER_RAW) (K:Irmin.Hash.S) (V: RAW) = struct
       let result = Cstruct.concat y in
       Lwt.return result
 
-  (* FIXME: this function is way too long *)
+  type params = {
+    used: int;                (* the total number of blocks which are needed. *)
+    last: int;               (* the number of useful bytes in the last block. *)
+  }
+
+  let split t ~data ~nodes i v =
+    let is_last = (i = nodes.used - 1) in
+    let chunks = if is_last then nodes.last else t.max_children in
+    let buf = Chunk.(create Indirect) t.chunk_size chunks in
+    let rec loop j =
+      let len, max_loop =
+        if not is_last then t.max_length, t.max_children
+        else
+          if j = nodes.last - 1 then data.last, nodes.last
+          else t.max_length, nodes.last
+      in
+      if j >= max_loop then Lwt.return_unit
+      else (
+        let chunk = Chunk.(create Data) t.chunk_size len in
+        let offset_value = (j + i * t.max_children) * t.max_length in
+        Chunk.set_data v offset_value chunk 0 len;
+        let add_chunk () =
+          AO.add t.db chunk >>= fun x ->
+          let offset_hash = j * K.digest_size in
+          Chunk.set_data (K.to_raw x) 0 buf offset_hash K.digest_size;
+          Lwt.return_unit
+        in
+        Lwt.join [add_chunk (); loop (j + 1)]
+      ) in
+    loop 0 >>= fun () ->
+    AO.add t.db buf >>= fun x ->
+    Lwt.return x
+
   let add t v =
     let value_length = Cstruct.len v in
-    let rest_value_length = value_length mod t.data_length in
-    if value_length <= t.data_length then (
-      let chunk = Chunk.create t.size value_length Chunk.Data in
+    let rest_value_length = value_length mod t.max_length in
+    if value_length <= t.max_length then (
+      let chunk = Chunk.(create Data) t.chunk_size value_length  in
       Chunk.set_data v 0 chunk 0 value_length;
       AO.add t.db chunk
     ) else (
-      let nbr_data_bloc, last_data_bloc_length =
-        let x =  value_length / t.data_length in
+      let data = (* the number of data blocks *)
+        let x = value_length / t.max_length in
         if rest_value_length = 0 then
-          x, t.data_length
+          { used = x; last = t.max_length }
         else
-          (x + 1), rest_value_length
+          { used = x + 1; last = rest_value_length }
       in
-      let nbr_indir_bloc, last_indir_bloc_length =
-        let x = nbr_data_bloc / t.nb_indirect in
-        let y = nbr_data_bloc mod t.nb_indirect in
+      let nodes = (* the number of tree nodes *)
+        let x = data.used / t.max_children in
+        let y = data.used mod t.max_children in
         if y = 0 then
-          x, t.nb_indirect
+          { used = x; last = t.max_children }
         else
-          (x + 1), y
+          { used = x + 1; last = y }
       in
-      let split_data_first_level offset_second_level =
-        let number_chunk =
-          if offset_second_level = nbr_indir_bloc - 1 then
-            last_indir_bloc_length
-          else
-            t.nb_indirect
+      let loop () =
+        let rec aux acc = function
+          | i when i = nodes.used -> Lwt.return (List.rev acc)
+          | i when i < nodes.used ->
+            split t ~data ~nodes i v >>= fun x ->
+            aux (x::acc) (i+1)
+          | _ -> assert false
         in
-        let indir = Chunk.create t.size number_chunk Chunk.Indirect in
-        let rec loop offset_first_level =
-          let dlen, max_loop =
-            if offset_second_level = nbr_indir_bloc - 1 then
-              if offset_first_level = last_indir_bloc_length - 1 then
-                last_data_bloc_length, last_indir_bloc_length
-              else
-                t.data_length, last_indir_bloc_length
-            else
-              t.data_length, t.nb_indirect
-          in
-          if offset_first_level >= max_loop then
-            Lwt.return_unit
-          else
-            let chunk = Chunk.create t.size dlen Chunk.Data in
-            let offset_hash = offset_first_level * K.digest_size in
-            let offset_value =
-              (offset_second_level * t.nb_indirect * t.data_length)
-              + (offset_first_level * t.data_length)
-            in
-            Chunk.set_data v offset_value chunk 0 dlen;
-            let add_chunk () =
-              AO.add t.db chunk >>= fun x ->
-              Chunk.set_data (K.to_raw x) 0 indir offset_hash K.digest_size;
-              Lwt.return_unit
-            in
-            Lwt.join [add_chunk (); loop (offset_first_level + 1)]
-        in
-        loop 0 >>= fun _ ->
-        AO.add t.db indir >>= fun x ->
-        Lwt.return x
+        aux [] 0
       in
-      let main_loop () =
-        let rec first_level i =
-          match i with
-          | e when e = nbr_indir_bloc ->
-            Lwt.return []
-          | e when e < nbr_indir_bloc ->
-            split_data_first_level i >>= fun x ->
-            first_level (i+1) >>= fun y ->
-            Lwt.return (x::y)
-          | _ -> failwith "Irmin_chunk.add"
-        in
-        first_level 0
-      in
-      main_loop () >>= Tree.bottom_up t
+      loop () >>= Tree.create t
     )
 
   let mem t key = AO.mem t.db key
-
-  (* this doesn't seem needed *)
-  let iter _t (_fn : key -> value Lwt.t -> unit Lwt.t) =
-    failwith "Irmin_chunk.iter: TODO"
+  let iter t fn = AO.iter t.db fn
 
 end
