@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: f524e05febee2c676f357060cba1774c) *)
+(* DO NOT EDIT (digest: 99258b1b49933642dd92aeba0eb6df2f) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -610,7 +610,7 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml = [("irmin-chunk", ["lib"], [])];
      lib_c = [];
      flags = [];
-     includes = []
+     includes = [("lib_test", ["lib"])]
   }
   ;;
 
@@ -621,3 +621,8 @@ let dispatch_default = MyOCamlbuildBase.dispatch_default conf package_default;;
 # 622 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
+(* Ocamlbuild_pack.Flags.mark_tag_used "tests";; *)
+let () =
+  flag ["ocaml"; "doc"] (A"-colorize-code");
+  flag ["ocaml"; "doc"] (A"-short-functors");
+  flag ["ocaml"; "doc"] (A"-short-paths")
