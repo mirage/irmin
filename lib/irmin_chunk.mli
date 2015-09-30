@@ -17,17 +17,17 @@
 
 (** Managing Chunks.
 
-     This module exposes functors to store raw contents into
-     append-only stores as chunks of same size. It exposes the {!AO}
-     functor which split the raw contents into [Data] blocks,
-     addressed by [Node] blocks. That's the usual rope-like
-     representation of strings, but chunk trees are always build as
-     perfectly well-balanced and blocks are addressed by their hash
-     (or by the stable keys returned by the underlying store).
+    This module exposes functors to store raw contents into
+    append-only stores as chunks of same size. It exposes the {!AO}
+    functor which split the raw contents into [Data] blocks, addressed
+    by [Node] blocks. That's the usual rope-like representation of
+    strings, but chunk trees are always build as perfectly
+    well-balanced and blocks are addressed by their hash (or by the
+    stable keys returned by the underlying store).
 
     A chunk has the following structure:
 
-    {v
+{v
      --------------------------
      | uint8_t type            |
      ---------------------------
@@ -37,9 +37,9 @@
      ---------------------------
 v}
 
-     [type] is either [Data] (0) or [Node] (1). If the chunk contains
-     data, [length] is the payload length. Otherwise it is the number
-     of children that the node has. *)
+    [type] is either [Data] (0) or [Node] (1). If the chunk contains
+    data, [length] is the payload length. Otherwise it is the number
+    of children that the node has. *)
 
 val chunk_size: int Irmin.Private.Conf.key
 (** [chunk_size] is the configuration key to configure chunks'
