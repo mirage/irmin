@@ -177,8 +177,8 @@ module SHA1 = struct
     else t
 
   let hash = Hashtbl.hash
-  let equal = (=)
-  let compare = Pervasives.compare
+  let equal = Cstruct.equal
+  let compare = Cstruct.compare
 
   let digest = sha_1
   let to_hum = to_hex
