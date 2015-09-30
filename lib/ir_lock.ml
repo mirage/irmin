@@ -25,33 +25,35 @@ end
 
 module Make (K: Tc.S0) = struct
 
+  module KHashtbl = Hashtbl.Make(K)
+
   type key = K.t
 
   type t = {
     global: Lwt_mutex.t;
-    locks : (K.t, Lwt_mutex.t) Hashtbl.t;
+    locks : Lwt_mutex.t KHashtbl.t;
   }
 
   let create () = {
     global = Lwt_mutex.create ();
-    locks  = Hashtbl.create 1024;
+    locks  = KHashtbl.create 1024;
   }
 
   let lock t key () =
     let lock =
-      try Hashtbl.find t.locks key
+      try KHashtbl.find t.locks key
       with Not_found ->
         let lock = Lwt_mutex.create () in
-        Hashtbl.add t.locks key lock;
+        KHashtbl.add t.locks key lock;
         lock
     in
     Lwt.return lock
 
   let unlock t key () =
     let () =
-      if Hashtbl.mem t.locks key then
-        let lock = Hashtbl.find t.locks key in
-        if Lwt_mutex.is_empty lock then Hashtbl.remove t.locks key
+      if KHashtbl.mem t.locks key then
+        let lock = KHashtbl.find t.locks key in
+        if Lwt_mutex.is_empty lock then KHashtbl.remove t.locks key
     in
     Lwt.return_unit
 

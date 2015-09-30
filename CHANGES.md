@@ -1,3 +1,14 @@
+### 0.9.11
+
+* Fix the `Irmin_mem` backend to work when equal keys might be not
+  structurally equal (`Pervasives.(=)` is evil)
+* Fix `Hash.SHA1.equal` to always return true when the underlying
+  bigarrays are equals. Before that, this was only the case when
+  the whole `Cstruct.t` where identical: ie. same bigarray but also
+  same offset in the `Cstruct.t` value, which is obviously not
+  always the case. Apply the same fix to `Hash.SHA1.compare` and
+  `Hash.SHA1.hash`.
+
 ### 0.9.10
 
 * Expose the Git compression level (#104, #298 by @samoht)

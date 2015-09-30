@@ -176,9 +176,11 @@ module SHA1 = struct
     if Cstruct.len t <> digest_size then raise (Invalid (Cstruct.to_string t))
     else t
 
-  let hash = Hashtbl.hash
-  let equal = (=)
-  let compare = Pervasives.compare
+  let equal = Cstruct.equal
+  let compare = Cstruct.compare
+
+  (* FIXME: a faster version of this should go into Cstruct *)
+  let hash t = Hashtbl.hash (Cstruct.to_bigarray t)
 
   let digest = sha_1
   let to_hum = to_hex
