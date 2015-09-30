@@ -27,7 +27,7 @@ depends: [
   "ocamlgraph"
   "lwt" {>= "2.4.7"}
   "dolog" {>= "0.4"}
-  "cstruct" {>= "1.0.1"}
+  "cstruct" {>= "1.6.0"}
   "mirage-tc" {>= "0.3.0"}
   "mstruct"
   "uri" {>= "1.3.12"}
