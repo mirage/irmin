@@ -32,3 +32,10 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
 <lib_test/*.ml{,i,y}>: use_irmin-chunk
 # OASIS_STOP
+
+true: warn_error(+1..49), warn(A-4-41-44)
+true: strict_sequence, safe_string, short_paths
+true: bin_annot
+
+# Better locations and loc in .mlis
+true: keep_locs
