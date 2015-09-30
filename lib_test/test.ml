@@ -50,6 +50,12 @@ module MemChunk = struct
   let create () = create small_config Irmin.Task.none
 end
 
+module MemChunkStable = struct
+  include Irmin_chunk.AO_stable(Irmin_mem.Link)(Irmin_mem.AO)(Key)(Value)
+  let small_config = Irmin_chunk.config ~min_size:44 ~size:44 ()
+  let create () = create small_config Irmin.Task.none
+end
+
 let key_t: Key.t Alcotest.testable = (module Key)
 let value_t: Value.t Alcotest.testable = (module Value)
 
@@ -60,19 +66,14 @@ let run f () =
   flush stderr;
   flush stdout
 
-let test_add_read (module AO: S) () =
+let test_add_read ?(stable=false) (module AO: S) () =
   AO.create () >>= fun t ->
-  let list () =
-    let all = ref [] in
-    AO.iter (t ()) (fun k _ -> all := k :: !all; Lwt.return_unit) >>= fun () ->
-    Printf.eprintf "LIST: %s\n%!" (String.concat " " (List.map Key.to_hum !all));
-    Lwt.return_unit
-  in
   let test size =
     let name = Printf.sprintf "size %d" size in
     let v = value (String.make size 'x') in
     AO.add (t ()) v  >>= fun k ->
-    list () >>= fun () ->
+    if stable then
+      Alcotest.(check key_t) (name ^ " is stable") k (Key.digest v);
     AO.read (t ()) k >|= fun v' ->
     Alcotest.(check @@ option value_t) name (Some v) v'
   in
@@ -90,5 +91,12 @@ let simple =
     "add/read: in-memory+chunks", `Quick, run @@ test_add_read (module MemChunk);
   ]
 
+let stable =
+  let test stable = test_add_read ~stable (module MemChunkStable) in
+  "stable", [
+    "add/read: simple", `Quick, run @@ test false;
+    "add/read: stable", `Quick, run @@ test true;
+  ]
+
 let () =
-  Alcotest.run "irmin-chunk" [simple]
+  Alcotest.run "irmin-chunk" [simple; stable]
