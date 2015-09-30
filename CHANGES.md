@@ -1,4 +1,31 @@
-* Remove the first-class module API. It's confusing to duplicate the API.
+### 0.9.10
+
+* Expose the Git compression level (#104, #298 by @samoht)
+* Add an optional `config` argument to all the backend's config
+  functions. This allow the backends to composed more easily. (initial
+  patch by @nasrallahmounir, integration by @samoht)
+* Add signatures for immutable link store, to store links between
+  keys: `Irmin.LINK`  and `Irmin.LINK_MAKER`. Add `Irmin_mem.Link` and
+  `Irmin_fs.Link` which implement `Irmin.LINK_MAKER` in these backends
+  (initial patch by @nasrallahmounir, integration by @samoht)
+* Add signatures for raw values (ie. whose values are of type
+  `Cstruct.t`): `Irmin.RAW` and raw store maker: `Irmin.AO_MAKER_RAW`
+  (initial patch by @nasrallahmounir, integration by @samoht)
+* Expose `Irmin.Hash.digest_size` (initial patch by @nasrallahmounir,
+  integration by @samoht)
+* Expose `/view` to the REST API (#292, by @samoht)
+* Expose `Irmin.Private.merge_node` (#292 by @samoht)
+* Change the JSON stream API, which requres ezjsonm.0.4.2. (#266, #269,
+  #273 by @samoht)
+* Fix a race when a lot of processes are trying to add a watch at the
+  same time. (#270, #271, by @samoht)
+* Expose `Irmin_git.Irmin_value_store` functor. This provides the
+  Irmin Contents/Node/Commit APIs on top of a Git-type store. This is
+  useful for backends that want to store data using the Git object
+  format, to be able to sync with Git, but without using Git's
+  filesystem layout and locking. (#268 by @talex5)
+* Remove the first-class module API. It's confusing to duplicate the API
+  (#293, by @talex5)
 
 ### 0.9.9
 
