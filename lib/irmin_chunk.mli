@@ -39,7 +39,13 @@ v}
 
     [type] is either [Data] (0) or [Node] (1). If the chunk contains
     data, [length] is the payload length. Otherwise it is the number
-    of children that the node has. *)
+    of children that the node has.
+
+    It also exposes {!AO_stable} which -- as {!AO} does -- stores raw
+    contents into chunks of same size. But it also preserves the nice
+    properpty that values are addressed by their hash. instead of by
+    the hash of the root chunk node as it is the case for {!AO}.
+*)
 
 val chunk_size: int Irmin.Private.Conf.key
 (** [chunk_size] is the configuration key to configure chunks'
