@@ -4,7 +4,7 @@ install: wget https://raw.githubusercontent.com/ocaml/ocaml-travisci-skeleton/ma
 script: bash -ex .travis-opam.sh
 env:
   global:
-  - PINS="irmin.0.9.10:https://github.com/mirage/irmin.git"
+  - PINS=irmin
   matrix:
   - OCAML_VERSION=3.12
   - OCAML_VERSION=4.00
