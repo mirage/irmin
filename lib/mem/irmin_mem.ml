@@ -20,6 +20,8 @@ module Log = Log.Make(struct let section = "MEM" end)
 
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
+  module KHashtbl = Hashtbl.Make(K)
+
   let err_not_found n k =
     let str = Printf.sprintf "Irmin_mem.%s: %s not found" n (K.to_hum k) in
     Lwt.fail (Invalid_argument str)
@@ -28,33 +30,33 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type value = V.t
 
-  type t = { t: (K.t, value) Hashtbl.t; task: Irmin.task; config: Irmin.config }
+  type t = { t: value KHashtbl.t; task: Irmin.task; config: Irmin.config }
 
   let task t = t.task
   let config t = t.config
-  let table = Hashtbl.create 23
+  let table = KHashtbl.create 23
 
   let create config task =
     Lwt.return (fun a -> { t = table; task = task a; config })
 
   let read { t; _ } key =
     Log.debug "read";
-    try Lwt.return (Some (Hashtbl.find t key))
+    try Lwt.return (Some (KHashtbl.find t key))
     with Not_found -> Lwt.return_none
 
   let read_exn { t; _ } key =
     Log.debug "read";
-    try Lwt.return (Hashtbl.find t key)
+    try Lwt.return (KHashtbl.find t key)
     with Not_found -> err_not_found "read" key
 
   let mem { t; _ } key =
     Log.debug "mem";
-    Lwt.return (Hashtbl.mem t key)
+    Lwt.return (KHashtbl.mem t key)
 
   let iter { t; _ } fn =
     Log.debug "iter";
     let todo = ref [] in
-    Hashtbl.iter (fun k v -> todo := (fn k (Lwt.return v)) :: !todo) t;
+    KHashtbl.iter (fun k v -> todo := (fn k (Lwt.return v)) :: !todo) t;
     Lwt_list.iter_p (fun x -> x) !todo
 
 end
@@ -66,7 +68,7 @@ module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
   let add { t; _ } value =
     Log.debug "add";
     let key = K.digest (Tc.write_cstruct (module V) value) in
-    Hashtbl.replace t key value;
+    KHashtbl.replace t key value;
     Lwt.return key
 
 end
@@ -77,7 +79,7 @@ module Link (K: Irmin.Hash.S) = struct
 
   let add { t; _ } index key =
     Log.debug "add link";
-    Hashtbl.replace t index key;
+    KHashtbl.replace t index key;
     Lwt.return_unit
 
 end
@@ -113,7 +115,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let update t key value =
     Log.debug "update";
     L.with_lock t.lock key (fun () ->
-        Hashtbl.replace t.t.RO.t key value;
+        RO.KHashtbl.replace t.t.RO.t key value;
         Lwt.return_unit
       ) >>= fun () ->
     W.notify t.w key (Some value)
@@ -121,7 +123,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let remove t key =
     Log.debug "remove";
     L.with_lock t.lock key (fun () ->
-        Hashtbl.remove t.t.RO.t key;
+        RO.KHashtbl.remove t.t.RO.t key;
         Lwt.return_unit
       ) >>= fun () ->
     W.notify t.w key None
@@ -132,8 +134,8 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
         read t key >>= fun v ->
         if Tc.O1.equal V.equal test v then (
           let () = match set with
-            | None   -> Hashtbl.remove t.t.RO.t key
-            | Some v -> Hashtbl.replace t.t.RO.t key v
+            | None   -> RO.KHashtbl.remove t.t.RO.t key
+            | Some v -> RO.KHashtbl.replace t.t.RO.t key v
           in
           Lwt.return true
         ) else
