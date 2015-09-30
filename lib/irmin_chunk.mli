@@ -20,14 +20,15 @@
      All functions for manipulate chunks representation, a chunk is
      represented as above :
 
-      --------------------------
+{v
+     --------------------------
      | uint8_t type            |
      ---------------------------
      | uint16_t length         |
      ---------------------------
      | byte data[length]       |
      ---------------------------
-
+v}
      Where [type] define if the chunk contains raw data or is a node
      and [length] is the [data] payload's length. *)
 
