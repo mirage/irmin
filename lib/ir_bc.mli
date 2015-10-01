@@ -19,21 +19,21 @@
 
 module type STORE = sig
   include Ir_rw.HIERARCHICAL
-  type tag
-  val of_tag: Ir_conf.t -> 'a Ir_task.f -> tag -> ('a -> t) Lwt.t
-  val tag: t -> tag option Lwt.t
-  val tag_exn: t -> tag Lwt.t
-  val tags: t -> tag list Lwt.t
-  val remove_tag: t -> tag -> unit Lwt.t
-  val update_tag: t -> tag -> unit Lwt.t
-  val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
-  val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
+  type branch_id
+  val of_branch_id: Ir_conf.t -> 'a Ir_task.f -> branch_id -> ('a -> t) Lwt.t
+  val name: t -> branch_id option Lwt.t
+  val name_exn: t -> branch_id Lwt.t
+  val branches: t -> branch_id list Lwt.t
+  val remove_branch: t -> branch_id -> unit Lwt.t
+  val update_branch: t -> branch_id -> unit Lwt.t
+  val merge_branch: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Ir_merge.result Lwt.t
+  val merge_branch_exn: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Lwt.t
   type head
   val empty: Ir_conf.t -> 'a Ir_task.f -> ('a -> t) Lwt.t
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
-  val branch: t -> [`Tag of tag | `Head of head | `Empty]
+  val head_ref: t -> [`Branch of branch_id | `Head of head | `Empty]
   val heads: t -> head list Lwt.t
   val update_head: t -> head -> unit Lwt.t
   val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
@@ -42,19 +42,19 @@ module type STORE = sig
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   val watch_head: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
-  val watch_tags: t -> ?init:(tag * head) list ->
-    (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_branches: t -> ?init:(branch_id * head) list ->
+    (branch_id -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val watch_key: t -> key -> ?init:(head * value) ->
     ((head * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  val clone: 'a Ir_task.f -> t -> tag -> [`Ok of ('a -> t) | `Duplicated_tag | `Empty_head] Lwt.t
-  val clone_force: 'a Ir_task.f -> t -> tag -> ('a -> t) Lwt.t
+  val clone: 'a Ir_task.f -> t -> branch_id -> [`Ok of ('a -> t) | `Duplicated_branch | `Empty_head] Lwt.t
+  val clone_force: 'a Ir_task.f -> t -> branch_id -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Ir_merge.result Lwt.t
   val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Lwt.t
   val lcas: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  val lcas_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+  val lcas_branch: t -> ?max_depth:int -> ?n:int -> branch_id ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
@@ -69,12 +69,12 @@ end
 
 module type MAKER =
   functor (C: Ir_contents.S) ->
-  functor (T: Ir_tag.S) ->
+  functor (R: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
     STORE with type key = C.Path.t
            and type value = C.t
            and type head = H.t
-           and type tag = T.t
+           and type branch_id = R.t
 
 module type PRIVATE = sig
   module Contents: Ir_contents.STORE
@@ -82,14 +82,14 @@ module type PRIVATE = sig
     with type Val.contents = Contents.key and module Path = Contents.Path
   module Commit: Ir_commit.STORE
     with type Val.node = Node.key
-  module Tag: Ir_tag.STORE
+  module Ref: Ir_tag.STORE
     with type value = Commit.key
   module Slice: Ir_slice.S
     with type contents = Contents.key * Contents.value
      and type node = Node.key * Node.value
      and type commit = Commit.key * Commit.value
   module Sync: Ir_sync.S
-    with type head = Commit.key and type tag = Tag.key
+    with type head = Commit.key and type branch_id = Ref.key
 end
 
 module Make (X: Ir_ao.MAKER) (Y: Ir_rw.MAKER): MAKER
@@ -113,14 +113,14 @@ module type STORE_EXT = sig
     with type Contents.value = value
      and module Contents.Path = Key
      and type Commit.key = head
-     and type Tag.key = tag
+     and type Ref.key = branch_id
      and type Slice.t = slice
 
   val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
   val node_t: t -> Private.Node.t
   val commit_t: t -> Private.Commit.t
-  val tag_t: t -> Private.Tag.t
+  val ref_t: t -> Private.Ref.t
 
   (** {1 Nodes} *)
 
@@ -147,7 +147,7 @@ end
 module Make_ext (P: PRIVATE): STORE_EXT
   with type key = P.Contents.Path.t
    and type value = P.Contents.value
-   and type tag = P.Tag.key
+   and type branch_id = P.Ref.key
    and type head = P.Commit.key
    and type slice = P.Slice.t
    and module Key = P.Contents.Path

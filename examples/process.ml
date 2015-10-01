@@ -86,7 +86,7 @@ let master = branch images.(0)
 
 let init () =
   Config.init ();
-  Store.of_tag config (task images.(0)) master >>= fun t ->
+  Store.of_branch_id config (task images.(0)) master >>= fun t ->
   Store.update (t "init") ["0"] "0" >>= fun () ->
   Lwt_list.iter_s (fun i ->
       Store.clone_force (task images.(0)) (t "Cloning") (branch i) >>= fun _ ->
@@ -106,14 +106,14 @@ let rec process image =
     try random_list actions.files
     with _ -> ["log"; id; "0"], fun () -> id ^ string_of_int (Random.int 10)
   in
-  Store.of_tag config (task image) id >>= fun t ->
+  Store.of_branch_id config (task image) id >>= fun t ->
   Store.update (t actions.message) key (value ()) >>= fun () ->
 
   begin if Random.int 3 = 0 then
     let branch = branch (random_array images) in
     if branch <> id then (
       Printf.printf "Merging ...%!";
-      Store.merge_tag_exn (fmt t "Merging with %s" branch) branch >>= fun () ->
+      Store.merge_branch_exn (fmt t "Merging with %s" branch) branch >>= fun () ->
       Printf.printf "ok!\n%!";
       Lwt.return_unit
     ) else

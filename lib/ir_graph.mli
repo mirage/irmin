@@ -81,9 +81,9 @@ module Make
     (Contents: Ir_hum.S)
     (Node: Ir_hum.S)
     (Commit: Ir_hum.S)
-    (Tag: Ir_hum.S):
+    (Ref: Ir_hum.S):
   S with type V.t =
   [ `Contents of Contents.t
   | `Node of Node.t
   | `Commit of Commit.t
-  | `Tag of Tag.t ]
+  | `Branch of Ref.t ]

@@ -105,12 +105,12 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
 
   let connect ?(depth = 1) ?(branch = "master") ?path uri =
     let uri = Irmin.remote_uri (Uri.to_string uri) in
-    let tag = S.Tag.of_hum branch in
+    let branch_id = S.Ref.of_hum branch in
     let path = match path with
       | None -> []
       | Some s -> List.filter ((<>)"") @@ Stringext.split s ~on:'/'
     in
-    S.of_tag config Irmin.Task.none tag >>= fun t ->
+    S.of_branch_id config Irmin.Task.none branch_id >>= fun t ->
     Sync.pull_exn (t ()) ~depth uri `Update >|= fun () ->
     { t = t (); path }
 

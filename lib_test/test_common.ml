@@ -90,7 +90,7 @@ module Make (S: Irmin.S) = struct
   module Node = S.Private.Node
   module Commit = S.Private.Commit
 
-  module T = S.Tag
+  module T = S.Ref
   module K = S.Key
   module V = S.Val
   module N = Node.Val

@@ -19,17 +19,17 @@ open Lwt
 module type S = sig
   type t
   type head
-  type tag
+  type branch_id
   val create: Ir_conf.t -> t Lwt.t
-  val fetch: t -> ?depth:int -> uri:string -> tag ->
+  val fetch: t -> ?depth:int -> uri:string -> branch_id ->
     [`Head of head | `No_head | `Error] Lwt.t
-  val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+  val push : t -> ?depth:int -> uri:string -> branch_id -> [`Ok | `Error] Lwt.t
 end
 
-module None (H: Tc.S0) (T: Tc.S0) = struct
+module None (H: Tc.S0) (R: Tc.S0) = struct
   type t = unit
   type head = H.t
-  type tag = T.t
+  type branch_id = R.t
   let create _ = return_unit
   let fetch () ?depth:_ ~uri:_ _tag = return `Error
   let push () ?depth:_ ~uri:_ _tag = return `Error

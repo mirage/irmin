@@ -251,12 +251,12 @@ end
 
 module Make_ext (IO: IO) (L: LOCK) (Obj: Config) (Ref: Config)
     (C: Ir_contents.S)
-    (T: Ir_tag.S)
+    (R: Ir_tag.S)
     (H: Ir_hash.S)
 = struct
   module AO = AO_ext(IO)(Obj)
   module RW = RW_ext(IO)(L)(Ref)
-  include Irmin.Make(AO)(RW)(C)(T)(H)
+  include Irmin.Make(AO)(RW)(C)(R)(H)
 end
 
 let string_chop_prefix ~prefix str =

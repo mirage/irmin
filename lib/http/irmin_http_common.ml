@@ -18,21 +18,21 @@ open Lwt.Infix
 
 module Log = Log.Make(struct let section = "HTTP" end)
 
-let ok_or_duplicated_tag =
+let ok_or_duplicated_branch_id =
   let module M = struct
-    type t = [ `Ok | `Duplicated_tag | `Empty_head ]
+    type t = [ `Ok | `Duplicated_branch | `Empty_head ]
     let compare = Pervasives.compare
     let equal = (=)
     let hash = Hashtbl.hash
 
     let to_string = function
       | `Ok -> "ok"
-      | `Duplicated_tag -> "duplicated-tag"
+      | `Duplicated_branch -> "duplicated-tag"
       | `Empty_head -> "empty-head"
 
     let of_string = function
       | "ok" -> `Ok
-      | "duplicated-tag" -> `Duplicated_tag
+      | "duplicated-tag" -> `Duplicated_branch
       | "empty-head" -> `Empty_head
       | s -> failwith ("parse error: " ^ s)
 

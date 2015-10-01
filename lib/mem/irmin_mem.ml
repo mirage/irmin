@@ -148,5 +148,5 @@ end
 
 let config () = Irmin.Private.Conf.empty
 
-module Make (C: Irmin.Contents.S) (T: Irmin.Tag.S) (H: Irmin.Hash.S) =
-  Irmin.Make(AO)(RW)(C)(T)(H)
+module Make (C: Irmin.Contents.S) (R: Irmin.Ref.S) (H: Irmin.Hash.S) =
+  Irmin.Make(AO)(RW)(C)(R)(H)

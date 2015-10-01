@@ -8,6 +8,9 @@
   same offset in the `Cstruct.t` value, which is obviously not
   always the case. Apply the same fix to `Hash.SHA1.compare` and
   `Hash.SHA1.hash`.
+* Renamed "tag" to "branch" in the API, as "tag" is confusing for Git
+  users. `BC.tag` is now `BC.name` and `BC.branch` is now `BC.head_ref`.
+  Note: The remote HTTP protocol still uses "tag".
 
 ### 0.9.10
 

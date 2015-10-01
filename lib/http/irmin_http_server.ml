@@ -87,7 +87,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     | DNode  of dynamic_node callback
     | Html   of string Lwt.t callback
 
-  module Lock = Irmin.Private.Lock.Make(S.Tag)
+  module Lock = Irmin.Private.Lock.Make(S.Ref)
 
   let read_exn file =
     match Irmin_http_static.read file with
@@ -428,12 +428,12 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     )
 
   let tag_store =
-    let module T = S.Private.Tag in
-    let tag_t t _ = Lwt.return (S.Private.tag_t t) in
+    let module T = S.Private.Ref in
+    let ref_t t _ = Lwt.return (S.Private.ref_t t) in
     let lock3 (_, tag, _) = Lwt.return (Some tag) in
     let lock2 (_, tag) = Lwt.return (Some tag) in
-    let tag': S.tag Irmin.Hum.t = (module S.Tag) in
-    let tag: S.tag Tc.t = (module S.Tag) in
+    let tag': S.branch_id Irmin.Hum.t = (module S.Ref) in
+    let tag: S.branch_id Tc.t = (module S.Ref) in
     let head: S.head Tc.t = (module S.Head) in
     let t_cs t tag (test, set) = T.compare_and_set t tag ~test ~set in
     let tc_cs = Tc.pair (Tc.option head) (Tc.option head) in
@@ -472,20 +472,20 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let tc_watch_s = Tc.pair tag (Tc.option head) in
     let tc_watch_k = tc_ho in
     SNode [
-      mk1p0bf "read" T.read tag_t tag' tc_ho;
-      mk1p0bf "mem" T.mem tag_t tag' Tc.bool;
-      mk0p0bs "iter" (stream t_iter) tag_t tag;
-      mk1p1bf "update" ~lock:lock3 T.update tag_t tag' head Tc.unit;
-      mk1p0bf "remove" ~lock:lock2 T.remove tag_t tag' Tc.unit;
-      mk1p1bf "compare-and-set" ~lock:lock3 t_cs tag_t tag' tc_cs Tc.bool;
-      mk0p1bs "watch" t_watch tag_t tc_watch_i tc_watch_s;
-      mk1p1bs "watch-key" ~lock:lock3 t_watch_key tag_t tag' head tc_watch_k;
+      mk1p0bf "read" T.read ref_t tag' tc_ho;
+      mk1p0bf "mem" T.mem ref_t tag' Tc.bool;
+      mk0p0bs "iter" (stream t_iter) ref_t tag;
+      mk1p1bf "update" ~lock:lock3 T.update ref_t tag' head Tc.unit;
+      mk1p0bf "remove" ~lock:lock2 T.remove ref_t tag' Tc.unit;
+      mk1p1bf "compare-and-set" ~lock:lock3 t_cs ref_t tag' tc_cs Tc.bool;
+      mk0p1bs "watch" t_watch ref_t tc_watch_i tc_watch_s;
+      mk1p1bs "watch-key" ~lock:lock3 t_watch_key ref_t tag' head tc_watch_k;
     ]
 
   let list f t list = f t (S.Key.create list)
 
   let step_h: S.Key.step Irmin.Hum.t = (module S.Key.Step)
-  let tag_h: S.tag Irmin.Hum.t = (module S.Tag)
+  let tag_h: S.branch_id Irmin.Hum.t = (module S.Ref)
   let head_h: S.head Irmin.Hum.t = (module S.Head)
 
   let node_t: S.Private.Node.key Tc.t = (module S.Private.Node.Key)
@@ -637,8 +637,8 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
   let lca = lca (module S.Head)
 
   let dispatch hooks =
-    let lock3 (t, _, _) = S.tag t in
-    let lock2 (t, _) = S.tag t in
+    let lock3 (t, _, _) = S.name t in
+    let lock2 (t, _) = S.name t in
     let s_export t query =
       let full, depth, min, max = mk_export_query query in
       S.export ?full ?depth ~min ~max t
@@ -652,7 +652,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let s_clone t tag =
       S.clone (fun () -> S.task t) t tag >|= function
       | `Ok _ -> `Ok
-      | `Duplicated_tag | `Empty_head as x -> x
+      | `Duplicated_branch | `Empty_head as x -> x
     in
     let s_clone_force t tag =
       S.clone_force (fun () -> S.task t) t tag >>= fun _ ->
@@ -676,15 +676,15 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t >>=
       ok
     in
-    let s_merge_tag t k query =
+    let s_merge_branch t k query =
       let max_depth, n = mk_merge_query query in
-      S.merge_tag t ?max_depth ?n k >>| fun () ->
+      S.merge_branch t ?max_depth ?n k >>| fun () ->
       S.head_exn t >>=
       ok
     in
-    let s_lcas_tag t tag query =
+    let s_lcas_branch t tag query =
       let max_depth, n = mk_merge_query query in
-      S.lcas_tag t ?max_depth ?n tag
+      S.lcas_branch t ?max_depth ?n tag
     in
     let s_lcas_head t head query =
       let max_depth, n = mk_merge_query query in
@@ -700,7 +700,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       let max_depth, n = mk_merge_query query in
       S.fast_forward_head t ?max_depth ?n head
     in
-    let s_update_tag t tag = S.update_tag t tag >>= fun () -> S.head_exn t in
+    let s_update_branch t tag = S.update_branch t tag >>= fun () -> S.head_exn t in
     let s_iter t fn = S.iter t (fun k _ -> fn k) in
     let hooks = hooks.update in
     let bc t = [
@@ -718,9 +718,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mknp0bf "remove-rec" ~lock:lock2 (list s_remove_rec) t step_h head;
 
       (* more *)
-      mk1p0bf "remove-tag" ~lock:lock2 ~hooks S.remove_tag t tag_h Tc.unit;
-      mk1p0bf "update-tag" ~lock:lock2 ~hooks s_update_tag t tag_h head;
-      mk1p0bfq "merge-tag" ~lock:lock3 ~hooks s_merge_tag t tag_h (merge head);
+      mk1p0bf "remove-tag" ~lock:lock2 ~hooks S.remove_branch t tag_h Tc.unit;
+      mk1p0bf "update-tag" ~lock:lock2 ~hooks s_update_branch t tag_h head;
+      mk1p0bfq "merge-tag" ~lock:lock3 ~hooks s_merge_branch t tag_h (merge head);
       mk0p0bf "head" S.head t (Tc.option head);
       mk0p0bf "heads" S.heads t (Tc.list head);
       mk1p0bf "update-head" ~lock:lock2 ~hooks S.update_head t head_h Tc.unit;
@@ -729,14 +729,14 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       mk0p1bf "compare-and-set-head" ~lock:lock2 ~hooks s_compare_and_set_head t
         (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
       mk1p0bfq "merge-head" ~lock:lock3 ~hooks s_merge_head t head_h (merge head);
-      mk1p0bf "clone" s_clone t tag_h ok_or_duplicated_tag;
+      mk1p0bf "clone" s_clone t tag_h ok_or_duplicated_branch_id;
       mk1p0bf "clone-force" s_clone_force t tag_h Tc.unit;
       mk0p0bfq "export" s_export t slice;
       mk0p1bf "import" S.import t slice ok_or_error;
       mk0p0bfq "history" s_history t (module HTC);
 
       (* lca *)
-      mk1p0bfq "lcas-tag" s_lcas_tag  t tag_h lca;
+      mk1p0bfq "lcas-tag" s_lcas_branch  t tag_h lca;
       mk1p0bfq "lcas-head" s_lcas_head t head_h lca;
 
       (* extra *)
@@ -764,9 +764,9 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
       ] @ [
         "tree"    , dyn_node
           (fun req ->
-             S.tags req.t  >>= fun tags ->
+             S.branches req.t  >>= fun branches ->
              S.heads req.t >|= fun heads ->
-             List.map S.Tag.to_hum tags @ List.map S.Head.to_hum heads)
+             List.map S.Ref.to_hum branches @ List.map S.Head.to_hum heads)
           (fun _req n ->
              let app fn t x task =
                fn (S.Private.config t) (fun () -> task) x >>= fun t ->
@@ -776,7 +776,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
                let n = S.Head.of_hum n in
                Lwt.return (SNode (bc (fun t -> app S.of_head t n)))
              with Irmin.Hash.Invalid _ ->
-               let node = bc (fun t -> app S.of_tag t (S.Tag.of_hum n)) in
+               let node = bc (fun t -> app S.of_branch_id t (S.Ref.of_hum n)) in
                Lwt.return (SNode node))
       ])
 
