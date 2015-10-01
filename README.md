@@ -30,29 +30,52 @@ Irmin provides an API to built version-controlled applications.
 - **Go** [irmin-go](https://github.com/magnuss/irmin-go)
 - **JavaScript** [irmin-js](https://github.com/talex5/irmin-js)
 
+### Backends
+
+Irmin ships with various backends. It provides the following OCamlfind pacakges:
+
+- `irmin.mem` is an in-memory backend.
+- `irmin.git` uses the Git format to persist data on disk.
+- `irmin.fs` uses [bin_prot](https://github.com/janestreet/bin_prot) to persist
+  data on disk.
+- `irmin.http` uses JSON over HTTP to speak with an Irmin server.
+
+Other external backends are available as external OPAM packages
+(use `opam install <pkg>` to install):
+
+- [irmin-chunk](https://github.com/mirage/irmin-chunk) store raw contents into
+  a well-balanced rope where leafs are chunk of all the same size.
+- [irmin-indexdb](https://github.com/talex5/irmin-indexeddb) is a backend
+  for a web browser's IndexedDB store.
+
+### Datastructures
+
+- [merge-queues](https://github.com/mirage/merge-queues) is an implementation
+  of mergeable queues.
+- [merge-ropes](https://github.com/mirage/merge-ropes) is an implementation
+  of mergeable ropes.
+- [diff-datatypes](https://github.com/gprano/diff-datatypes) is a collection
+  of automatic merge functions based on edit scripts. It is fairly generic but
+  contains specific implementation for mergeable trees, stacks and queues.
+- [irmin-datatypes](https://github.com/kayceesrk/irmin-datatypes) is a
+  collection of mergeable datatypes, including LWW registers, queues and sets.
+
 ### Use-Cases
 
 Here a list of Irmin users:
 
+- [Cuekeeper](https://github.com/talex5/cuekeeper) a
+  version-controlled TODO list in the browser.
 - [imaplet](https://github.com/gregtatcam/imaplet-lwt), a version-controlled
   IMAP server and client.
 - [jitsu](https://github.com/mirage/jitsu), a DNS server that automatically
   starts unikernels on demand. The database is persisted with Irmin.
-- [irmin-arp](https://github.com/yomimono/irmin-arp), a distributed ARP cache.
 - [Irmin+Xenstore](https://github.com/djs55/ocaml-xenstore/tree/irminsule), the
   Xenstore deamon rewritten to use Irmin to persist its data.
+- [irmin-arp](https://github.com/yomimono/irmin-arp), a distributed ARP cache.
 - [dog](https://github.com/samoht/dog), a synchronisation tool.
 - [irminFS](https://github.com/dsheets/irminfs) prototype of version-controlled
   file-system using Fuse.
-- [Cuekeeper](https://github.com/talex5/cuekeeper) a
-  version-controlled TODO list in the browser.
-- [merge-queues](https://github.com/mirage/merge-queues) and
-  [merge-ropes](https://github.com/mirage/merge-ropes) are high-level
-  version-controlled data-structures
-- [diff-datatypes](https://github.com/gprano/diff-datatypes) is a collection
-  of automatic merge functions based on edit scripts.
-- [irmin-indexDB](https://github.com/talex5/irmin-indexeddb) An Irmin backend
-  for a web browser's IndexedDB store
 
 ### Further Reading
 
