@@ -48,13 +48,8 @@ let lwt_stream_lift s =
 
 module type S = sig
   type t
-  val listen:
-    ?timeout:int -> ?strict:bool -> ?hooks:hooks -> t -> Uri.t -> unit Lwt.t
-end
-
-module type SERVER = sig
-  include Cohttp_lwt.Server
-  val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
+  type spec
+  val http_spec: ?strict:bool -> ?hooks:hooks -> t -> spec
 end
 
 module type DATE = sig
@@ -62,7 +57,9 @@ module type DATE = sig
   (** Pretty print a raw date format. *)
 end
 
-module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
+module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
+
+  type spec = HTTP.t
 
   type request = {
     t: S.t;
@@ -844,14 +841,7 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
 
   type t = S.t
 
-  let listen ?timeout ?strict ?(hooks=no_hooks) t uri =
-    let uri = match Uri.host uri with
-      | None   -> Uri.with_host uri (Some "localhost")
-      | Some _ -> uri in
-    let port, uri = match Uri.port uri with
-      | None   -> 8080, Uri.with_port uri (Some 8080)
-      | Some p -> p, uri in
-    Printf.printf "Server started on port %d.\n%!" port;
+  let http_spec ?strict ?(hooks=no_hooks) t =
     let dispatch = dispatch hooks in
     let callback (_, conn_id) req body =
       let uri = Cohttp.Request.uri req in
@@ -873,7 +863,6 @@ module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S) = struct
     let conn_closed (_, conn_id) =
       Log.debug "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
     in
-    let config = HTTP.make ~callback ~conn_closed () in
-    HTTP.listen config ?timeout uri
+    HTTP.make ~callback ~conn_closed ()
 
 end
