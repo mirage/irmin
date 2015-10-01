@@ -72,4 +72,4 @@ release:
 
 pr:
 	opam publish prepare $(NAME).$(VERSION) $(ARCHIVE)
-	OPAMPUBLISHBYPASSCHECKS=1 OPAMYES=1 opam publish submit $(NAME).$(VERSION) && rm -rf $(NAME).$(VERSION)
+	OPAMYES=1 opam publish submit $(NAME).$(VERSION) && rm -rf $(NAME).$(VERSION)
