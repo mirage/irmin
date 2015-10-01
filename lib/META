@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: 80991143587e41dfa0d87cef07d15b73)
-version = "1.0"
+# DO NOT EDIT (digest: f3c4965172a54be703a32b1dd3f44cdd)
+version = "1.0.0"
 description = "A chunk backend for Irmin"
 requires = "irmin cstruct"
 archive(byte) = "irmin-chunk.cma"
