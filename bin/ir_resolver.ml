@@ -155,7 +155,7 @@ let read_config_file (): t option =
       mk_store kind contents
     in
     let module S = (val store) in
-    let branch = assoc "branch" (fun x -> S.Tag.of_hum x) in
+    let branch = assoc "branch" (fun x -> S.Ref.of_hum x) in
     let config =
       let root = assoc "root" (fun x -> x) in
       let bare = match assoc "bare" bool_of_string with
@@ -173,7 +173,7 @@ let read_config_file (): t option =
     in
     match branch with
     | None   -> Some (S ((module S), S.create config task))
-    | Some b -> Some (S ((module S), S.of_tag config task b))
+    | Some b -> Some (S ((module S), S.of_branch_id config task b))
 
 let store =
   let branch =
@@ -191,7 +191,7 @@ let store =
       (* first look at the command-line options *)
       let t = match branch with
         | None   -> S.create config task
-        | Some t -> S.of_tag config task (S.Tag.of_hum t)
+        | Some t -> S.of_branch_id config task (S.Ref.of_hum t)
       in
       S ((module S), t)
     | None ->

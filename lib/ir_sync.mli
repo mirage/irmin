@@ -19,11 +19,11 @@
 module type S = sig
   type t
   type head
-  type tag
+  type branch_id
   val create: Ir_conf.t -> t Lwt.t
-  val fetch: t -> ?depth:int -> uri:string -> tag ->
+  val fetch: t -> ?depth:int -> uri:string -> branch_id ->
     [`Head of head | `No_head | `Error] Lwt.t
-  val push : t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+  val push : t -> ?depth:int -> uri:string -> branch_id -> [`Ok | `Error] Lwt.t
 end
 
-module None (H: Tc.S0) (T: Tc.S0): S with type head = H.t and type tag = T.t
+module None (H: Tc.S0) (R: Tc.S0): S with type head = H.t and type branch_id = R.t

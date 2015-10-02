@@ -24,21 +24,21 @@ module StringMap = Map.Make(String)
 
 module type STORE = sig
   include Ir_rw.HIERARCHICAL
-  type tag
-  val of_tag: Ir_conf.t -> 'a Ir_task.f -> tag -> ('a -> t) Lwt.t
-  val tag: t -> tag option Lwt.t
-  val tag_exn: t -> tag Lwt.t
-  val tags: t -> tag list Lwt.t
-  val remove_tag: t -> tag -> unit Lwt.t
-  val update_tag: t -> tag -> unit Lwt.t
-  val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Ir_merge.result Lwt.t
-  val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
+  type branch_id
+  val of_branch_id: Ir_conf.t -> 'a Ir_task.f -> branch_id -> ('a -> t) Lwt.t
+  val name: t -> branch_id option Lwt.t
+  val name_exn: t -> branch_id Lwt.t
+  val branches: t -> branch_id list Lwt.t
+  val remove_branch: t -> branch_id -> unit Lwt.t
+  val update_branch: t -> branch_id -> unit Lwt.t
+  val merge_branch: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Ir_merge.result Lwt.t
+  val merge_branch_exn: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Lwt.t
   type head
   val empty: Ir_conf.t -> 'a Ir_task.f -> ('a -> t) Lwt.t
   val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
-  val branch: t -> [`Tag of tag | `Head of head | `Empty]
+  val head_ref: t -> [`Branch of branch_id | `Head of head | `Empty]
   val heads: t -> head list Lwt.t
   val update_head: t -> head -> unit Lwt.t
   val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
@@ -47,20 +47,20 @@ module type STORE = sig
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   val watch_head: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
-  val watch_tags: t -> ?init:(tag * head) list ->
-    (tag -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_branches: t -> ?init:(branch_id * head) list ->
+    (branch_id -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val watch_key: t -> key -> ?init:(head * value) ->
     ((head * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  val clone: 'a Ir_task.f -> t -> tag ->
-    [`Ok of ('a -> t) | `Duplicated_tag | `Empty_head] Lwt.t
-  val clone_force: 'a Ir_task.f -> t ->  tag -> ('a -> t) Lwt.t
+  val clone: 'a Ir_task.f -> t -> branch_id ->
+    [`Ok of ('a -> t) | `Duplicated_branch | `Empty_head] Lwt.t
+  val clone_force: 'a Ir_task.f -> t ->  branch_id -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Ir_merge.result Lwt.t
   val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Lwt.t
   val lcas: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  val lcas_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+  val lcas_branch: t -> ?max_depth:int -> ?n:int -> branch_id ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
@@ -78,12 +78,12 @@ module type PRIVATE = sig
   module Node: Ir_node.STORE
     with type Val.contents = Contents.key and module Path = Contents.Path
   module Commit: Ir_commit.STORE with type Val.node = Node.key
-  module Tag: Ir_tag.STORE with type value = Commit.key
+  module Ref: Ir_tag.STORE with type value = Commit.key
   module Slice: Ir_slice.S
     with type contents = Contents.key * Contents.value
      and type node = Node.key * Node.value
      and type commit = Commit.key * Commit.value
-  module Sync: Ir_sync.S with type head = Commit.key and type tag = Tag.key
+  module Sync: Ir_sync.S with type head = Commit.key and type branch_id = Ref.key
 end
 
 module type STORE_EXT = sig
@@ -94,13 +94,13 @@ module type STORE_EXT = sig
     with type Contents.value = value
      and module Contents.Path = Key
      and type Commit.key = head
-     and type Tag.key = tag
+     and type Ref.key = branch_id
      and type Slice.t = slice
   val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
   val node_t: t -> Private.Node.t
   val commit_t: t -> Private.Commit.t
-  val tag_t: t -> Private.Tag.t
+  val ref_t: t -> Private.Ref.t
   val read_node: t -> key -> Private.Node.key option Lwt.t
   val mem_node: t -> key -> bool Lwt.t
   val update_node: t -> key -> Private.Node.key -> unit Lwt.t
@@ -113,10 +113,10 @@ end
 
 module Make_ext (P: PRIVATE) = struct
 
-  module Tag = P.Tag
+  module Ref = P.Ref
   module Private = P
 
-  type tag = Tag.key
+  type branch_id = Ref.key
 
   module Key = P.Node.Path
   module KeySet = Ir_misc.Set(Key)
@@ -128,14 +128,14 @@ module Make_ext (P: PRIVATE) = struct
   module Head = P.Commit.Key
   type head = Head.t
 
-  type branch = [ `Tag of tag | `Head of head option ref ]
+  type head_ref = [ `Branch of branch_id | `Head of head option ref ]
 
   module OCamlGraph = Graph
   module Graph = Ir_node.Graph(P.Contents)(P.Node)
   module H = Ir_commit.History(Graph.Store)(P.Commit)
 
   module KGraph =
-    Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Tag.Key)
+    Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Ref.Key)
 
   type t = {
     config: Ir_conf.t;
@@ -143,25 +143,25 @@ module Make_ext (P: PRIVATE) = struct
     contents: P.Contents.t;
     node: P.Node.t;
     commit: P.Commit.t;
-    tag: Tag.t;
-    branch: branch;
+    ref_store: Ref.t;
+    head_ref: head_ref;
     lock: Lwt_mutex.t;
   }
 
   let config t = t.config
   let task t = t.task
-  let tag_t t = t.tag
+  let ref_t t = t.ref_store
   let commit_t t = t.commit
   let node_t t = t.node
   let contents_t t = t.contents
   let graph_t t = t.contents, t.node
   let history_t t = graph_t t, t.commit
-  let branch t = match t.branch with
-    | `Tag t  -> `Tag t
+  let head_ref t = match t.head_ref with
+    | `Branch t -> `Branch t
     | `Head h -> match !h with None -> `Empty | Some h -> `Head h
 
-  let tag t = match branch t with
-    | `Tag t  -> Lwt.return (Some t)
+  let name t = match head_ref t with
+    | `Branch t  -> Lwt.return (Some t)
     | `Empty
     | `Head _ -> Lwt.return_none
 
@@ -170,23 +170,23 @@ module Make_ext (P: PRIVATE) = struct
   let err_not_persistent =
     Ir_misc.invalid_arg "Irmin.%s: not a persistent branch"
 
-  let tag_exn t = match branch t with
-    | `Tag t  -> Lwt.return t
+  let name_exn t = match head_ref t with
+    | `Branch t  -> Lwt.return t
     | `Empty
-    | `Head _ -> err_not_persistent "tag"
+    | `Head _ -> err_not_persistent "name_exn"
 
-  let tags t =
-    let tags = ref [] in
-    Tag.iter (tag_t t) (fun t _ -> tags := t :: !tags; return_unit) >>= fun () ->
-    return !tags
+  let branches t =
+    let branches = ref [] in
+    Ref.iter (ref_t t) (fun t _ -> branches := t :: !branches; return_unit) >>= fun () ->
+    return !branches
 
-  let head t = match t.branch with
+  let head t = match t.head_ref with
     | `Head key -> return !key
-    | `Tag tag  -> Tag.read (tag_t t) tag
+    | `Branch name  -> Ref.read (ref_t t) name
 
   let heads t =
     let heads = ref [] in
-    Tag.iter (tag_t t) (fun _ h ->
+    Ref.iter (ref_t t) (fun _ h ->
         h >>= fun h -> heads := h :: !heads; return_unit
       ) >>= fun () ->
     head t >>= function
@@ -198,49 +198,49 @@ module Make_ext (P: PRIVATE) = struct
     | None   -> err_no_head "head"
     | Some k -> return k
 
-  let of_branch config task branch =
+  let of_ref config task head_ref =
     P.Contents.create config task >>= fun contents ->
     P.Node.create config task     >>= fun node ->
     P.Commit.create config task   >>= fun commit ->
-    Tag.create config task        >>= fun tag ->
+    Ref.create config task        >>= fun ref_store ->
     let lock = Lwt_mutex.create () in
     (* [branch] is created outside of the closure as we want the
        branch to be shared by every invocation of the function return
-       by [of_tag]. *)
+       by [of_branch_id]. *)
     return (fun a ->
-        { contents = contents a;
-          node     = node a;
-          commit   = commit a;
-          tag      = tag a;
-          task     = task a;
-          config   = config;
-          lock; branch }
+        { contents     = contents a;
+          node         = node a;
+          commit       = commit a;
+          ref_store    = ref_store a;
+          task         = task a;
+          config       = config;
+          lock; head_ref }
       )
 
-  let err_invalid_tag t =
-    let err = Printf.sprintf "%S is not a valid tag name." (Tag.Key.to_hum t) in
+  let err_invalid_branch_id t =
+    let err = Printf.sprintf "%S is not a valid branch name." (Ref.Key.to_hum t) in
     Lwt.fail (Invalid_argument err)
 
-  let of_tag config task t =
-    if Tag.Key.is_valid t then of_branch config task (`Tag t)
-    else err_invalid_tag t
+  let of_branch_id config task t =
+    if Ref.Key.is_valid t then of_ref config task (`Branch t)
+    else err_invalid_branch_id t
 
   let create config task =
-    of_tag config task Tag.Key.master
+    of_branch_id config task Ref.Key.master
 
   let empty config task =
-    of_branch config task (`Head (ref None))
+    of_ref config task (`Head (ref None))
 
   let of_head config task key =
-    of_branch config task (`Head (ref (Some key)))
+    of_ref config task (`Head (ref (Some key)))
 
   let read_head_commit t =
     Log.debug "read_head_commit";
-    match branch t with
+    match head_ref t with
     | `Head key -> return (Some key)
     | `Empty    -> Lwt.return_none
-    | `Tag tag  ->
-      Tag.read (tag_t t) tag >>= function
+    | `Branch name  ->
+      Ref.read (ref_t t) name >>= function
       | None   -> return_none
       | Some k -> return (Some k)
 
@@ -287,14 +287,14 @@ module Make_ext (P: PRIVATE) = struct
       f old_node >>= fun node ->
       let parents = parents_of_commit commit in
       H.create (history_t t) ~node ~parents >>= fun key ->
-      match t.branch with
+      match t.head_ref with
       | `Head head ->
         (* [head] is protected by [t.lock] *)
         head := Some key; Lwt.return true
-      | `Tag tag   ->
-        (* concurrent handle and/or process can modify the tag. Need to check
+      | `Branch name   ->
+        (* concurrent handle and/or process can modify the branch. Need to check
            that we are still working on the same head. *)
-        Tag.compare_and_set (tag_t t) tag ~test:commit ~set:(Some key)
+        Ref.compare_and_set (ref_t t) name ~test:commit ~set:(Some key)
     in
     let msg = Printf.sprintf "with_commit(%s)" (Tc.show (module Key) path) in
     Lwt_mutex.with_lock t.lock (fun () -> retry msg aux)
@@ -408,9 +408,9 @@ module Make_ext (P: PRIVATE) = struct
     head_exn t >>= fun h ->
     H.lcas (history_t t) ?max_depth ?n h head
 
-  let lcas_tag t ?max_depth ?n tag =
+  let lcas_branch t ?max_depth ?n other =
     head_exn t >>= fun h ->
-    head_exn { t with branch = `Tag tag } >>= fun head ->
+    head_exn { t with head_ref = `Branch other } >>= fun head ->
     H.lcas (history_t t) ?max_depth ?n h head
 
   let task_of_head t head =
@@ -424,23 +424,23 @@ module Make_ext (P: PRIVATE) = struct
     H.three_way_merge (history_t t) ?max_depth ?n c1 c2
 
   let update_head t c =
-    match t.branch with
+    match t.head_ref with
     | `Head h  -> h := Some c; return_unit
-    | `Tag tag -> Tag.update (tag_t t) tag c
+    | `Branch name -> Ref.update (ref_t t) name c
 
-  let remove_tag t tag = Tag.remove (tag_t t) tag
+  let remove_branch t name = Ref.remove (ref_t t) name
 
-  let update_tag t tag =
-    Tag.read_exn (tag_t t) tag >>= fun k ->
+  let update_branch t name =
+    Ref.read_exn (ref_t t) name >>= fun k ->
     update_head t k
 
   let compare_and_set_head_unsafe t ~test ~set =
-    match t.branch with
+    match t.head_ref with
     | `Head head ->
       (* [head] is protected by [t.lock]. *)
       if !head = test then (head := set; Lwt.return true)
       else Lwt.return false
-    | `Tag tag -> Tag.compare_and_set (tag_t t) tag ~test ~set
+    | `Branch name -> Ref.compare_and_set (ref_t t) name ~test ~set
 
   let compare_and_set_head t ~test ~set =
     Lwt_mutex.with_lock t.lock (fun () ->
@@ -532,44 +532,44 @@ module Make_ext (P: PRIVATE) = struct
   let merge_head_exn t ?max_depth ?n c1 =
     merge_head t ?max_depth ?n c1 >>= Ir_merge.exn
 
-  let clone_force task t tag =
-    Log.debug "clone_force %a" force (show (module Tag.Key) tag);
-    let return () = of_tag t.config task tag in
+  let clone_force task t branch_id =
+    Log.debug "clone_force %a" force (show (module Ref.Key) branch_id);
+    let return () = of_branch_id t.config task branch_id in
     head t >>= function
     | None   -> return ()
-    | Some h -> Tag.update (tag_t t) tag h >>= return
+    | Some h -> Ref.update (ref_t t) branch_id h >>= return
 
-  let clone task t tag =
-    Log.debug "clone %a" force (show (module Tag.Key) tag);
-    Tag.mem (tag_t t) tag >>= function
-    | true  -> Lwt.return `Duplicated_tag
+  let clone task t branch_id =
+    Log.debug "clone %a" force (show (module Ref.Key) branch_id);
+    Ref.mem (ref_t t) branch_id >>= function
+    | true  -> Lwt.return `Duplicated_branch
     | false ->
-      let return () = of_tag t.config task tag >|= fun t -> `Ok t in
+      let return () = of_branch_id t.config task branch_id >|= fun t -> `Ok t in
       head t >>= function
       | None   -> Lwt.return `Empty_head
       | Some h ->
-        Tag.compare_and_set (tag_t t) tag ~test:None ~set:(Some h) >>= function
+        Ref.compare_and_set (ref_t t) branch_id ~test:None ~set:(Some h) >>= function
         | true  -> return ()
-        | false -> Lwt.return `Duplicated_tag
+        | false -> Lwt.return `Duplicated_branch
 
-  let merge_tag t ?max_depth ?n tag =
-    Log.debug "merge_tag %a" force (show (module Tag.Key) tag);
-    Tag.read (tag_t t) tag >>= function
+  let merge_branch t ?max_depth ?n other =
+    Log.debug "merge_branch %a" force (show (module Ref.Key) other);
+    Ref.read (ref_t t) other >>= function
     | None  ->
       let str =
-        Printf.sprintf "merge_tag: %s is not a valid tag" (Tag.Key.to_hum tag)
+        Printf.sprintf "merge_branch: %s is not a valid branch ID" (Ref.Key.to_hum other)
       in
       Lwt.fail (Failure str)
     | Some c -> merge_head t ?max_depth ?n c
 
-  let merge_tag_exn t ?max_depth ?n tag =
-    merge_tag t ?max_depth ?n tag >>= Ir_merge.exn
+  let merge_branch_exn t ?max_depth ?n other =
+    merge_branch t ?max_depth ?n other >>= Ir_merge.exn
 
   let merge a ?max_depth ?n t ~into =
     Log.debug "merge";
     let t = t a and into = into a in
-    match branch t with
-    | `Tag tag -> merge_tag  into ?max_depth ?n tag
+    match head_ref t with
+    | `Branch name -> merge_branch into ?max_depth ?n name
     | `Head h  -> merge_head into ?max_depth ?n h
     | `Empty   -> ok ()
 
@@ -577,23 +577,23 @@ module Make_ext (P: PRIVATE) = struct
     merge a ?max_depth ?n t ~into >>= Ir_merge.exn
 
   let watch_head t ?init fn =
-    tag t >>= function
+    name t >>= function
     | None       ->
       (* FIXME: start a local watcher on the detached branch *)
       Lwt.return (fun () -> Lwt.return_unit)
-    | Some tag0 ->
+    | Some name0 ->
       let init = match init with
         | None       -> None
-        | Some head0 -> Some [tag0, head0]
+        | Some head0 -> Some [name0, head0]
       in
-      Tag.watch (tag_t t) ?init (fun tag head ->
-          if Tag.Key.equal tag0 tag then fn head else Lwt.return_unit
+      Ref.watch (ref_t t) ?init (fun name head ->
+          if Ref.Key.equal name0 name then fn head else Lwt.return_unit
         ) >>= fun id ->
-      Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
+      Lwt.return (fun () -> Ref.unwatch (ref_t t) id)
 
-  let watch_tags t ?init fn =
-    Tag.watch (tag_t t) ?init fn >>= fun id ->
-    Lwt.return (fun () -> Tag.unwatch (tag_t t) id)
+  let watch_branches t ?init fn =
+    Ref.watch (ref_t t) ?init fn >>= fun id ->
+    Lwt.return (fun () -> Ref.unwatch (ref_t t) id)
 
   let lift value_of_head fn = function
     | `Removed x -> begin
@@ -770,18 +770,18 @@ end
 
 module type MAKER =
   functor (C: Ir_contents.S) ->
-  functor (T: Ir_tag.S) ->
+  functor (R: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
     STORE with type key = C.Path.t
            and type value = C.t
            and type head = H.t
-           and type tag = T.t
+           and type branch_id = R.t
 
 module Make
     (AO: Ir_ao.MAKER)
     (RW: Ir_rw.MAKER)
     (C: Ir_contents.S)
-    (T: Ir_tag.S)
+    (R: Ir_tag.S)
     (H: Ir_hash.S) =
 struct
   module X = struct
@@ -801,13 +801,13 @@ struct
       module Val = Ir_commit.Make (H)(H)
       include AO (Key)(Val)
     end
-    module Tag = struct
-      module Key = T
+    module Ref = struct
+      module Key = R
       module Val = H
       include RW (Key)(Val)
     end
     module Slice = Ir_slice.Make(Contents)(Node)(Commit)
-    module Sync = Ir_sync.None(H)(T)
+    module Sync = Ir_sync.None(H)(R)
   end
   include Make_ext(X)
 end

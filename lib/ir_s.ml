@@ -18,7 +18,7 @@ module type STORE = sig
   include Ir_bc.STORE
   module Key: Ir_path.S with type t = key
   module Val: Ir_contents.S with type t = value
-  module Tag: Ir_tag.S with type t = tag
+  module Ref: Ir_tag.S with type t = branch_id
   module Head: Ir_hash.S with type t = head
   module Private: sig
     include Ir_bc.PRIVATE
@@ -26,12 +26,12 @@ module type STORE = sig
        and module Contents.Path = Key
        and type Commit.key = head
        and type Slice.t = slice
-       and type Tag.key = tag
+       and type Ref.key = branch_id
     val config: t -> Ir_conf.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
-    val tag_t: t -> Tag.t
+    val ref_t: t -> Ref.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
@@ -44,17 +44,17 @@ end
 
 module type MAKER =
   functor (C: Ir_contents.S) ->
-  functor (T: Ir_tag.S) ->
+  functor (R: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
     STORE with type key = C.Path.t
            and type value = C.t
-           and type tag = T.t
+           and type branch_id = R.t
            and type head = H.t
 
 module Make_ext (P: Ir_bc.PRIVATE) = struct
   module P = Ir_bc.Make_ext(P)
   include (P: module type of P with module Private := P.Private)
-  module Tag = P.Private.Tag.Key
+  module Ref = P.Private.Ref.Key
   module Head = P.Private.Commit.Key
   module Private = struct
     include P.Private
@@ -62,7 +62,7 @@ module Make_ext (P: Ir_bc.PRIVATE) = struct
     let contents_t = P.contents_t
     let node_t = P.node_t
     let commit_t = P.commit_t
-    let tag_t = P.tag_t
+    let ref_t = P.ref_t
     let update_node = P.update_node
     let merge_node = P.merge_node
     let remove_node = P.remove_node
@@ -76,7 +76,7 @@ module Make
     (AO: Ir_ao.MAKER)
     (RW: Ir_rw.MAKER)
     (C: Ir_contents.S)
-    (T: Ir_tag.S)
+    (R: Ir_tag.S)
     (H: Ir_hash.S) =
 struct
   module X = struct
@@ -96,13 +96,13 @@ struct
       module Val = Ir_commit.Make (H)(H)
       include AO (Key)(Val)
     end
-    module Tag = struct
-      module Key = T
+    module Ref = struct
+      module Key = R
       module Val = H
       include RW (Key)(Val)
     end
     module Slice = Ir_slice.Make(Contents)(Node)(Commit)
-    module Sync = Ir_sync.None(H)(T)
+    module Sync = Ir_sync.None(H)(R)
   end
   include Make_ext(X)
 end

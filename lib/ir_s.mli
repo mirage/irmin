@@ -20,20 +20,20 @@ module type STORE = sig
   include Ir_bc.STORE
   module Key: Ir_path.S with type t = key
   module Val: Ir_contents.S with type t = value
-  module Tag: Ir_tag.S with type t = tag
+  module Ref: Ir_tag.S with type t = branch_id
   module Head: Ir_hash.S with type t = head
   module Private: sig
     include Ir_bc.PRIVATE
       with type Contents.value = value
        and type Commit.key = head
-       and type Tag.key = tag
+       and type Ref.key = branch_id
        and type Slice.t = slice
        and module Contents.Path = Key
     val config: t -> Ir_conf.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
-    val tag_t: t -> Tag.t
+    val ref_t: t -> Ref.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
@@ -46,11 +46,11 @@ end
 
 module type MAKER =
   functor (C: Ir_contents.S) ->
-  functor (T: Ir_tag.S) ->
+  functor (R: Ir_tag.S) ->
   functor (H: Ir_hash.S) ->
     STORE with type key = C.Path.t
            and type value = C.t
-           and type tag = T.t
+           and type branch_id = R.t
            and type head = H.t
 
 module Make (AO: Ir_ao.MAKER) (RW: Ir_rw.MAKER): MAKER
@@ -58,12 +58,12 @@ module Make (AO: Ir_ao.MAKER) (RW: Ir_rw.MAKER): MAKER
 module Make_ext (P: Ir_bc.PRIVATE): STORE
   with type key = P.Contents.Path.t
    and type value = P.Contents.value
-   and type tag = P.Tag.key
-   and type head = P.Tag.value
+   and type branch_id = P.Ref.key
+   and type head = P.Ref.value
    and type Key.step = P.Contents.Path.step
 
 module Default (S: MAKER) (C: Ir_contents.S): STORE
   with type key = C.Path.t
    and type value = C.t
-   and type tag = string
+   and type branch_id = string
    and type head = Ir_hash.SHA1.t

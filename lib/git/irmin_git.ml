@@ -483,7 +483,7 @@ module Make_ext
     (Ctx: CONTEXT) (IO: Git.Sync.IO with type ctx = Ctx.t)
     (L: LOCK) (G: Git.Store.S)
     (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S)
+    (R: Irmin.Ref.S)
     (H: Irmin.Hash.S)
 = struct
   module Git_store = struct
@@ -496,9 +496,9 @@ module Make_ext
 
   module X = Irmin_value_store(Git_store)(C)(H)
 
-  module XTag = struct
+  module XRef = struct
 
-    module Key = T
+    module Key = R
     module Val = H
 
     module W = Irmin.Private.Watch.Make(Key)(Val)
@@ -583,7 +583,7 @@ module Make_ext
         | None   ->
           G.read_head t >>= function
           | Some head -> Lwt.return head
-          | None      -> write_head (git_of_tag T.master)
+          | None      -> write_head (git_of_tag R.master)
       end >>= fun git_head ->
       let w = W.create () in
       return (fun a -> { task = task a; git_head; config; t; w; git_root })
@@ -621,7 +621,7 @@ module Make_ext
     let lock_file t r = t.git_root / "lock" / Key.to_hum r
 
     let update t r k =
-      Log.debug "update %s" (Tc.show (module T) r);
+      Log.debug "update %s" (Tc.show (module R) r);
       let gr = git_of_tag r in
       let gk = git_of_head k in
       let lock = lock_file t r in
@@ -631,7 +631,7 @@ module Make_ext
       write_index t gr gk
 
     let remove t r =
-      Log.debug "remove %s" (Tc.show (module T) r);
+      Log.debug "remove %s" (Tc.show (module R) r);
       let lock = lock_file t r in
       let remove () = G.remove_reference t.t (git_of_tag r) in
       L.with_lock lock remove >>= fun () ->
@@ -677,7 +677,7 @@ module Make_ext
 
     type t = G.t
     type head = X.Commit.key
-    type tag = XTag.key
+    type branch_id = XRef.key
 
     let head_of_git key = H.of_raw (X.GK.to_raw (Git.SHA.of_commit key))
 
@@ -695,7 +695,7 @@ module Make_ext
       let deepen = depth in
       let result r =
         Log.debug "fetch result: %s" (Git.Sync.Result.pretty_fetch r);
-        let tag = XTag.git_of_tag tag in
+        let tag = XRef.git_of_tag tag in
         let key =
           let refs = Git.Sync.Result.references r in
           try Some (Git.Reference.Map.find tag refs)
@@ -709,7 +709,7 @@ module Make_ext
 
     let push t ?depth:_ ~uri tag =
       Log.debug "push %s" uri;
-      let branch = XTag.git_of_tag tag in
+      let branch = XRef.git_of_tag tag in
       let gri = Git.Gri.of_string uri in
       let result r =
         Log.debug "push result: %s" (Git.Sync.Result.pretty_push r);
@@ -726,7 +726,7 @@ module Make_ext
     module Contents = Irmin.Contents.Make(X.Contents)
     module Node = X.Node
     module Commit = X.Commit
-    module Tag = XTag
+    module Ref = XRef
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
   end
@@ -747,9 +747,9 @@ end
 module Memory_ext (Ctx: CONTEXT)
     (IO: Git.Sync.IO with type ctx = Ctx.t) (I: Git.Inflate.S)
     (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S)
+    (R: Irmin.Ref.S)
     (H: Irmin.Hash.S) =
-  Make_ext (Ctx) (IO) (NoL) (Git.Memory.Make(Digest(H))(I)) (C) (T) (H)
+  Make_ext (Ctx) (IO) (NoL) (Git.Memory.Make(Digest(H))(I)) (C) (R) (H)
 
 module NoC (IO: Git.Sync.IO) = struct
   type t = IO.ctx
@@ -760,15 +760,15 @@ module Make (IO: Git.Sync.IO) = Make_ext (NoC(IO))(IO)
 
 module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S)
     (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S)
+    (R: Irmin.Ref.S)
     (H: Irmin.Hash.S) =
-  Make (IO) (NoL) (Git.Memory.Make(Digest(H))(I)) (C) (T) (H)
+  Make (IO) (NoL) (Git.Memory.Make(Digest(H))(I)) (C) (R) (H)
 
 module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (L: LOCK) (FS: Git.FS.IO)
     (C: Irmin.Contents.S)
-    (T: Irmin.Tag.S)
+    (R: Irmin.Ref.S)
     (H: Irmin.Hash.S) =
-  Make (IO) (L) (Git.FS.Make(FS)(Digest(H))(I)) (C) (T) (H)
+  Make (IO) (L) (Git.FS.Make(FS)(Digest(H))(I)) (C) (R) (H)
 
 module FakeIO = struct
   type ic = unit
@@ -787,17 +787,17 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     let merge _path ~old:_ _ _ = failwith "Irmin_git.AO.merge"
     module Path = Irmin.Path.String_list
   end
-  module M = Make (FakeIO)(NoL)(G)(V)(Irmin.Tag.String)(K)
+  module M = Make (FakeIO)(NoL)(G)(V)(Irmin.Ref.String)(K)
   include M.X.AO(K)(M.X.GitContents)
 end
 
-module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S) = struct
+module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Ref.S) (V: Irmin.Hash.S) = struct
   module K = struct
     include K
     let master = K.of_hum "master"
   end
   module M = Make (FakeIO)(L)(G)(Irmin.Contents.String)(K)(V)
-  include M.XTag
+  include M.XRef
 end
 
 module Internals (S: Irmin.S) = struct

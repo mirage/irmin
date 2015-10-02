@@ -21,7 +21,7 @@ let provision () =
   Config.init ();
   let provision = task ~user:"Automatic VM provisioning" in
 
-  Store.of_tag config provision "upstream" >>= fun t ->
+  Store.of_branch_id config provision "upstream" >>= fun t ->
 
   View.empty () >>= fun v ->
   View.update v ["etc"; "manpath"]
@@ -36,7 +36,7 @@ let provision () =
 (* 2. VM configuration. *)
 let sysadmin = task ~user:"Bob the sysadmin"
 let configure () =
-  Store.of_tag config sysadmin "upstream" >>= fun t ->
+  Store.of_branch_id config sysadmin "upstream" >>= fun t ->
 
   Lwt_unix.sleep 2.  >>= fun () ->
   Store.clone_force sysadmin (t "Cloning upstream") "dev" >>= fun t ->
@@ -53,7 +53,7 @@ let attack () =
   let task = task ~user:"Remote connection from 132.443.12.444" in
 
   (* 3. Attacker. *)
-  Store.of_tag config task "prod" >>= fun t ->
+  Store.of_branch_id config task "prod" >>= fun t ->
 
   Lwt_unix.sleep 2. >>= fun () ->
   Store.update (t "$ vim /etc/resolv.conf")
@@ -68,8 +68,8 @@ let attack () =
     "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
 
 let revert () =
-  Store.of_tag config sysadmin "prod" >>= fun prod ->
-  Store.of_tag config sysadmin "dev"  >>= fun dev ->
+  Store.of_branch_id config sysadmin "prod" >>= fun prod ->
+  Store.of_branch_id config sysadmin "dev"  >>= fun dev ->
 
   Store.head_exn (prod "head") >>= fun h1 ->
   Store.head_exn (dev  "head") >>= fun h2 ->

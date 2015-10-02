@@ -297,8 +297,8 @@ let fetch = {
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        let tag = S.Tag.of_hum "import" in
-        S.of_tag (S.Private.config (t "config")) task tag >>= fun t ->
+        let branch_id = S.Ref.of_hum "import" in
+        S.of_branch_id (S.Private.config (t "config")) task branch_id >>= fun t ->
         Sync.pull_exn (t "Fetching.")  r `Update
       end
     in

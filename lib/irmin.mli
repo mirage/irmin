@@ -496,9 +496,9 @@ module type BC = sig
       to rely on a global state. In a way very similar to version
       control systems, Irmin local states are called {i branches}.
 
-      They are two kinds of branches in Irmin: the
-      {{!persistent}persistent} branches and the
-      {{!temporary}temporary} ones. Branches exist relative to a
+      There are two kinds of BC store in Irmin:
+      {{!persistent}persistent} named branches and
+      {{!temporary}temporary} detached heads. These exist relative to a
       local, larger (and shared) store, and have some (shared)
       contents. This is exactly the same as usual version control
       systems, that the informed user can see as an implicit purely
@@ -506,99 +506,97 @@ module type BC = sig
 
       {2:persistent Persistent Branches}
 
-      A persistent branch always has a name. In Irmin, branch names
-      are called {{!BC.tag}tags}. Thus, in order to use a persistent
-      branch, you need to provide its name: see the {{!BC.of_tag}of_tag}
+      A persistent branch always has a unique ID, which is typically a
+      string (the branch name). Thus, in order to use a persistent
+      branch, you need to provide its name: see the {{!BC.of_branch_id}of_branch_id}
       function. *)
 
   include HRW
   (** A branch-consistent store is a hierarchical read-write store.
 
       [create config task] is a persistent branch using the
-      {Tag.S.master} branch. This operation is cheap, can be repeated
+      {Ref.S.master} reference. This operation is cheap, can be repeated
       multiple times. *)
 
-  type tag
-  (** Type for persistent branch names. Tags usually share a common
+  type branch_id
+  (** Type for persistent branch names. Branches usually share a common
       global namespace and it's the user's responsibility to avoid
       name clashes. *)
 
-  val of_tag: config -> 'a Task.f -> tag -> ('a -> t) Lwt.t
-  (** [create t tag] is the persistent branch named [tag]. Similar to
-      [create], but use [tag] instead {!Tag.S.master}. *)
+  val of_branch_id: config -> 'a Task.f -> branch_id -> ('a -> t) Lwt.t
+  (** [of_branch_id t name] is the persistent branch named [name]. Similar to
+      [create], but use [name] instead {!Ref.S.master}. *)
 
-  val tag: t -> tag option Lwt.t
-  (** [tag t] is [t]'s name. Return [None] if [t] is not
+  val name: t -> branch_id option Lwt.t
+  (** [name t] is [t]'s branch name. Return [None] if [t] is not persistent. *)
+
+  val name_exn: t -> branch_id Lwt.t
+  (** Same as {!name} but raise [Invalid_argument] if [t] is not
       persistent. *)
 
-  val tag_exn: t -> tag Lwt.t
-  (** Same as {!tag} but raise [Invalid_argument] if [t] is not
-      persistent. *)
-
-  val tags: t -> tag list Lwt.t
-  (** The list of all persistent branch's names. Similar to to [git
+  val branches: t -> branch_id list Lwt.t
+  (** The list of all persistent branch names. Similar to to [git
       branch -a].*)
 
-  val remove_tag: t -> tag -> unit Lwt.t
-  (** [remove_tag t tag] removes the tag [tag] from the local store.
-      Similar to [git branch -D <tag>] *)
+  val remove_branch: t -> branch_id -> unit Lwt.t
+  (** [remove_branch t name] removes the branch [name] from the local store.
+      Similar to [git branch -D <name>] *)
 
-  val update_tag: t -> tag -> unit Lwt.t
-  (** [update_tag t tag] updates [t]'s contents with the contents of
-      the branch named [tag]. Can cause data losses as it discard the
-      current contents. Similar to [git reset --hard <tag>]. *)
+  val update_branch: t -> branch_id -> unit Lwt.t
+  (** [update_branch t src] updates [t]'s contents with the contents of
+      the branch named [src]. Can cause data losses as it discard the
+      current contents. Similar to [git reset --hard <src>]. *)
 
-  val merge_tag: t -> ?max_depth:int -> ?n:int -> tag -> unit Merge.result Lwt.t
-  (** [merge_tag t tag] merges the contents of the branch named [tag]
-      into [t]'s. Similar to [git merge <tag>]. *)
+  val merge_branch: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Merge.result Lwt.t
+  (** [merge_branch t other] merges the contents of the branch named [other]
+      into [t]. Similar to [git merge <other>]. *)
 
-  val merge_tag_exn: t -> ?max_depth:int -> ?n:int -> tag -> unit Lwt.t
-  (** Same as {!merge_tag} but raise {!Merge.Conflict} in case of
+  val merge_branch_exn: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Lwt.t
+  (** Same as {!merge_branch} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  (** {2:temporary Temporary Branches}
+  (** {2:temporary Temporary Stores}
 
-      Temporary branches do not have stable names: instead they can be
+      Temporary stores do not have stable names: instead they can be
       addressed using the hash of the current commit. These hashes are
-      called {{!BC.head}heads} in Irmin. Temporary branches are
-      similar to Git's detached heads. In a temporary branch, all the
+      called {{!BC.head}heads} in Irmin. Temporary stores are
+      similar to Git's detached heads. In a temporary store, all the
       operations are performed relative to the current head and update
-      operations can modify the current head: the current branch's
+      operations can modify the current head: the current stores's
       head will automatically become the new head obtained while
       performing the update.
 
-      Temporary branches are created using the {!BC.of_head}
+      Temporary stores are created using the {!BC.of_head}
       function. *)
 
   type head
-  (** Type for temporary branches names. Similar to Git's commit
-      SHA1s. *)
+  (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
 
   val empty: config -> 'a Task.f -> ('a -> t) Lwt.t
-  (** [empty config task] is a temporary, empty branch. Become a
-      normal temporary branch after the first update. *)
+  (** [empty config task] is a temporary, empty store. Becomes a
+      normal temporary store after the first update. *)
 
   val of_head: config -> 'a Task.f -> head -> ('a -> t) Lwt.t
-  (** Create a temporary branch, using the given [head]. The branch
+  (** Create a temporary store, using the given [head]. The store
       will not persist as it has no persistent branch name. *)
 
   val head: t -> head option Lwt.t
-  (** [head t] is the current head of the branch [t]. This works for
-      both persistent and temporary branches. In the case of a
+  (** [head t] is the current head of the store [t]. This works for
+      both persistent and temporary stores. In the case of a
       persistent branch, this involves getting the the head associated
-      with the branch's tag, so this may block. In the case of a
-      temporary branch, simply return the current branch head. Return
-      [None] if the branch has no contents. Similar to [git
+      with the branch's ID, so this may block. In the case of a
+      temporary store, it simply returns the current head. Returns
+      [None] if the store has no contents. Similar to [git
       rev-parse HEAD]. *)
 
   val head_exn: t -> head Lwt.t
-  (** Same as {!head} but raise [Invalid_argument] if the branch does
+  (** Same as {!head} but raise [Invalid_argument] if the store does
       not have any contents. *)
 
-  val branch: t -> [`Tag of tag | `Head of head | `Empty]
-  (** [branch t] is a representation of [t]'s branch. Can either be a
-      persistent branch with a [tag] name, a temporary branch with a
-      [head] commit or an empty temporary branch. *)
+  val head_ref: t -> [`Branch of branch_id | `Head of head | `Empty]
+  (** [head_ref t] is the branch ID that this store tracks (for persistent
+      stores), the current [head] commit (for temporary stores), or [`Empty]
+      for empty temporary stores. *)
 
   val heads: t -> head list Lwt.t
   (** [heads t] is the list of all the heads in local store. Similar
@@ -624,7 +622,7 @@ module type BC = sig
   val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
     unit Merge.result Lwt.t
   (** [merge_head t ?max_head ?n head] merges the contents of the
-      temporary branch associated to [head] into [t]. [max_depth] is
+      commit associated to [head] into [t]. [max_depth] is
       the maximal depth used for getting the lowest common
       ancestor. [n] is the maximum number of lowest common
       ancestors. If present, [max_depth] or [n] are used to limit the
@@ -636,8 +634,8 @@ module type BC = sig
 
   val watch_head: t -> ?init:head -> (head diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
-  (** [watch_tag t f] calls [f] every time the contents of [t]'s tag is
-      updated. Do nothing if [t] is not persistent. Return a clean-up
+  (** [watch_branch t f] calls [f] every time the contents of [t]'s reference
+      is updated. Do nothing if [t] is not persistent. Return a clean-up
       function to remove the watch handler.
 
       {b Note:} even [f] might skip some head updates, it will never
@@ -645,9 +643,9 @@ module type BC = sig
       sequence, so we ensure that the previous one ended before
       calling the next one. *)
 
-  val watch_tags: t -> ?init:(tag * head) list ->
-    (tag -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  (** [watch_tags t f] calls [f] every time a tag is added, removed or
+  val watch_branches: t -> ?init:(branch_id * head) list ->
+    (branch_id -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  (** [watch_branches t f] calls [f] every time a branch is added, removed or
       updated in the local store. Return a function to remove the
       handler. *)
 
@@ -658,13 +656,13 @@ module type BC = sig
 
   (** {2 Clones and Merges} *)
 
-  val clone: 'a Task.f -> t -> tag ->
-    [`Ok of ('a -> t) | `Duplicated_tag | `Empty_head] Lwt.t
+  val clone: 'a Task.f -> t -> branch_id ->
+    [`Ok of ('a -> t) | `Duplicated_branch | `Empty_head] Lwt.t
   (** Clone the store [t], using the given branch name. Return
-      [Duplicated_tag] if a branch with the same name already exists
+      [Duplicated_branch] if a branch with the same name already exists
       and [Empty_head] if [t] has no head. *)
 
-  val clone_force: 'a Task.f -> t -> tag -> ('a -> t) Lwt.t
+  val clone_force: 'a Task.f -> t -> branch_id -> ('a -> t) Lwt.t
   (** Same as {{!BC.clone}clone} but delete and update the existing
       branch if a branch with the same name already exists. *)
 
@@ -694,9 +692,9 @@ module type BC = sig
       }
   *)
 
-  val lcas_tag: t -> ?max_depth:int -> ?n:int -> tag ->
+  val lcas_branch: t -> ?max_depth:int -> ?n:int -> branch_id ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
-  (** Same as {!lcas} but takes a tag as argument. *)
+  (** Same as {!lcas} but takes a branch ID as argument. *)
 
   val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
@@ -709,7 +707,7 @@ module type BC = sig
 
   val history: ?depth:int -> ?min:head list -> ?max:head list -> t -> History.t Lwt.t
   (** [history ?depth ?min ?max t] is a view of the history of the
-      branch [t], of depth at most [depth], starting from the [max]
+      store [t], of depth at most [depth], starting from the [max]
       (or from the [t]'s head if the list of heads is empty) and
       stopping at [min] if specified. *)
 
@@ -740,8 +738,8 @@ module type BC = sig
       commit history graph only. *)
 
   val import: t -> slice -> [`Ok | `Error] Lwt.t
-  (** [import t s] imports the contents of the slice [s] in [t]. Do
-      not modify tags. *)
+  (** [import t s] imports the contents of the slice [s] in [t]. Does
+      not modify branches. *)
 
 end
 
@@ -945,20 +943,20 @@ module Contents: sig
 
 end
 
-(** User-defined tags. Tags are used to specify branch names in an
-    Irmin store. *)
-module Tag: sig
+(** User-defined references. A reference store associates a name (branch ID)
+    with its head commit in an Irmin store. *)
+module Ref: sig
 
-  (** {1 Tags} *)
+  (** {1 Refs} *)
 
-  (** A tag implementations specifies base functions on abstract tags
+  (** An implementation specifies base functions on abstract IDs
       and defines a default value for denoting the
-      {{!Tag.S.master}master} branch name. *)
+      {{!Ref.S.master}master} branch name. *)
   module type S = sig
 
-    (** {1 Signature for tags implementations} *)
+    (** {1 Signature for Ref implementations} *)
 
-    (** Signature for tags (i.e. branch names). *)
+    (** Signature for reference IDs (i.e. branch names). *)
 
     include Hum.S
 
@@ -966,26 +964,26 @@ module Tag: sig
     (** The name of the master branch. *)
 
     val is_valid: t -> bool
-    (** Check if the tag is valid. *)
+    (** Check if the branch ID is valid. *)
 
   end
 
   module String: S with type t = string
-  (** [String] is an implementation of {{!Tag.S}S} where tags are
-      strings. The [master] tag is ["master"]. Valid strings contain
+  (** [String] is an implementation of {{!Ref.S}S} where branch IDs are
+      strings. The [master] branch ID is ["master"]. Valid strings contain
       only alpha-numeric characters, [-], [_], [.], and [/]. *)
 
-  (** [STORE] specifies the signature of tag stores.
+  (** [STORE] specifies the signature of reference stores.
 
-      A {i tag store} is a mutable and reactive key / value store,
+      A {i reference store} is a mutable and reactive key / value store,
       where keys are names created by users (and/or global names
       created by convention) and values are keys from the block store.
 
       A typical Irmin application should have a very low number of
-      keys in the tag store. *)
+      keys in the reference store. *)
   module type STORE = sig
 
-    (** {1 Tag Store} *)
+    (** {1 Ref Store} *)
 
     include RRW
 
@@ -1668,20 +1666,20 @@ module Private: sig
       type head
       (** The type for store heads. *)
 
-      type tag
-      (** The type for store tags. *)
+      type branch_id
+      (** The type for branch IDs. *)
 
       val create: config -> t Lwt.t
       (** Create a remote store handle. *)
 
-      val fetch: t -> ?depth:int -> uri:string -> tag ->
+      val fetch: t -> ?depth:int -> uri:string -> branch_id ->
         [`Head of head | `No_head | `Error] Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
           located at [uri] into the local store [t]. Return the head
           of the remote branch with the same name, which is now in the
           local store. [No_head] means no such branch exists. *)
 
-      val push: t -> ?depth:int -> uri:string -> tag -> [`Ok | `Error] Lwt.t
+      val push: t -> ?depth:int -> uri:string -> branch_id -> [`Ok | `Error] Lwt.t
       (** [push t uri] pushes the contents of the local store [t] into
           the remote store located at [uri]. *)
 
@@ -1689,7 +1687,7 @@ module Private: sig
 
     (** [None] is an implementation of {{!Private.Sync.S}S} which does
         nothing. *)
-    module None (H: Tc.S0) (T: Tc.S0): S with type head = H.t and type tag = T.t
+    module None (H: Tc.S0) (R: Tc.S0): S with type head = H.t and type branch_id = R.t
 
   end
 
@@ -1708,8 +1706,8 @@ module Private: sig
     (** Private commits. *)
     module Commit: Commit.STORE with type Val.node = Node.key
 
-    (** Private tags. *)
-    module Tag: Tag.STORE with type value = Commit.key
+    (** Private references. *)
+    module Ref: Ref.STORE with type value = Commit.key
 
     (** Private slices. *)
     module Slice: Slice.S
@@ -1717,7 +1715,7 @@ module Private: sig
        and type node = Node.key * Node.value
        and type commit = Commit.key * Commit.value
 
-    module Sync: Sync.S with type head = Commit.key and type tag = Tag.key
+    module Sync: Sync.S with type head = Commit.key and type branch_id = Ref.key
 
   end
 
@@ -1737,8 +1735,8 @@ module type S = sig
   (** [Val] provides base functions on user-defined, mergeable
       contents. *)
 
-  module Tag: Tag.S with type t = tag
-  (** [Tag] provides base functions on user-defined tags. *)
+  module Ref: Ref.S with type t = branch_id
+  (** [Ref] provides base functions on user-defined references. *)
 
   module Head: Hash.S with type t = head
   (** [Head] provides base functions on head values. *)
@@ -1749,13 +1747,13 @@ module type S = sig
       with type Contents.value = value
        and module Contents.Path = Key
        and type Commit.key = head
-       and type Tag.key = tag
+       and type Ref.key = branch_id
        and type Slice.t = slice
     val config: t -> config
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
-    val tag_t: t -> Tag.t
+    val ref_t: t -> Ref.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
@@ -1767,18 +1765,16 @@ module type S = sig
 end
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}
-    implementations. [S] is the type of steps (a key is list of
-    steps), [C] is the implementation of user-defined contents, [T] is
-    the implementation of store tags and [H] is the implementation of
-    store heads. It does not use any native synchronization
-    primitives. *)
+    implementations. [C] is the implementation of user-defined contents, [R] is
+    the implementation of store references and [H] is the implementation of
+    store heads. It does not use any native synchronization primitives. *)
 module type S_MAKER =
   functor (C: Contents.S) ->
-  functor (T: Tag.S) ->
+  functor (R: Ref.S) ->
   functor (H: Hash.S) ->
     S with type key = C.Path.t
        and type value = C.t
-       and type tag = T.t
+       and type branch_id = R.t
        and type head = H.t
 
 (** {1:basics Basic API} *)
@@ -1787,7 +1783,7 @@ module type S_MAKER =
 
     {ul
     {- {{!Path.String_list}list of strings} as keys.}
-    {- {{!Tag.String}strings} as tags.}
+    {- {{!Ref.String}strings} as branch IDs.}
     {- {{!Hash.SHA1}SHA1} as internal digests.}
     }
 
@@ -1795,12 +1791,12 @@ module type S_MAKER =
 *)
 
 
-module type BASIC = S with type tag = string and type head = Hash.SHA1.t
+module type BASIC = S with type branch_id = string and type head = Hash.SHA1.t
 (** The signature of basic stores. *)
 
-module Basic (B: S_MAKER) (C: Contents.S):
+module Basic (R: S_MAKER) (C: Contents.S):
   BASIC with type key = C.Path.t and type value = C.t
-(** Generate a basic store using [B] as backend and [C] as
+(** Generate a basic store using [R] as backend and [C] as
     user-provided contents. *)
 
 (** {2 Synchronization} *)
@@ -2280,6 +2276,6 @@ module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 module Make_ext (P: Private.S): S
   with type key = P.Contents.Path.t
    and type value = P.Contents.value
-   and type tag = P.Tag.key
-   and type head = P.Tag.value
+   and type branch_id = P.Ref.key
+   and type head = P.Ref.value
    and type Key.step = P.Contents.Path.step

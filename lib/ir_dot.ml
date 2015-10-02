@@ -30,12 +30,12 @@ module Make (S: Ir_s.STORE) = struct
 
   type db = S.t
 
-  module Tag = S.Private.Tag
+  module Ref = S.Private.Ref
   module Contents = S.Private.Contents
   module Node = S.Private.Node
   module Commit = S.Private.Commit
   module Slice = S.Private.Slice
-  module Graph = Ir_graph.Make(Contents.Key)(Node.Key)(Commit.Key)(Tag.Key)
+  module Graph = Ir_graph.Make(Contents.Key)(Node.Key)(Commit.Key)(Ref.Key)
 
   let fprintf (t:db) ?depth ?(html=false) ?full ~date name =
     Log.debug "fprintf depth=%s html=%b full=%s"
@@ -115,9 +115,9 @@ module Make (S: Ir_s.STORE) = struct
     let label_of_tag t =
       let s =
         if html then
-          sprintf "<div class='tag'>%s</div>" (Tag.Key.to_hum t)
+          sprintf "<div class='tag'>%s</div>" (Ref.Key.to_hum t)
         else
-          Tag.Key.to_hum t
+          Ref.Key.to_hum t
       in
       `Label s in
     Slice.iter_contents slice (fun (k, b) ->
@@ -151,11 +151,11 @@ module Make (S: Ir_s.STORE) = struct
           add_edge (`Commit k) [`Style `Dashed] (`Node node);
           return_unit
       ) >>= fun () ->
-    let tag_t = S.Private.tag_t t in
-    Tag.iter tag_t (fun r k ->
+    let ref_t = S.Private.ref_t t in
+    Ref.iter ref_t (fun r k ->
         k >>= fun k ->
-        add_vertex (`Tag r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
-        add_edge (`Tag r) [`Style `Bold] (`Commit k);
+        add_vertex (`Branch r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
+        add_edge (`Branch r) [`Style `Bold] (`Commit k);
         return_unit
       ) >>= fun () ->
     let vertex = Hashtbl.fold (fun k v acc -> (k, v) :: acc) vertex [] in

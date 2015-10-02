@@ -19,8 +19,8 @@ let (>>=) = Lwt.(>>=)
 
 let clean config (module S: Irmin.S) () =
   S.empty config Irmin.Task.none  >>= fun t ->
-  S.tags (t ()) >>= fun tags ->
-  Lwt_list.iter_p (S.remove_tag (t ())) tags
+  S.branches (t ()) >>= fun branches ->
+  Lwt_list.iter_p (S.remove_branch (t ())) branches
 
 let suite k =
   let config = Irmin_mem.config () in

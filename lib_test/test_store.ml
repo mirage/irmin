@@ -52,7 +52,7 @@ module Make (S: Irmin.S) = struct
     let t = t a in
     (S.Private.contents_t t, S.Private.node_t t), S.Private.commit_t t
 
-  module Tag = S.Private.Tag
+  module Ref = S.Private.Ref
 
   let l = S.Key.Step.of_hum
   let p k = S.Key.create (List.map l k)
@@ -348,36 +348,36 @@ module Make (S: Irmin.S) = struct
     in
     run x test
 
-  let test_tags x () =
+  let test_branches x () =
     let test () =
       create x >>= fun t ->
 
-      let tag = S.Private.tag_t (t "tag handle") in
+      let tag = S.Private.ref_t (t "tag handle") in
 
       r1 x >>= fun kv1 ->
       r2 x >>= fun kv2 ->
 
       line "pre-update";
-      Tag.update tag t1 kv1 >>= fun () ->
+      Ref.update tag t1 kv1 >>= fun () ->
       line "post-update";
-      Tag.read   tag t1 >>= fun k1' ->
+      Ref.read   tag t1 >>= fun k1' ->
       assert_equal (module Tc.Option(KC)) "r1" (Some kv1) k1';
-      Tag.update tag t2 kv2 >>= fun () ->
-      Tag.read   tag t2 >>= fun k2' ->
+      Ref.update tag t2 kv2 >>= fun () ->
+      Ref.read   tag t2 >>= fun k2' ->
       assert_equal (module Tc.Option(KC)) "r2" (Some kv2) k2';
-      Tag.update tag t1 kv2 >>= fun () ->
-      Tag.read   tag t1 >>= fun k2'' ->
+      Ref.update tag t1 kv2 >>= fun () ->
+      Ref.read   tag t1 >>= fun k2'' ->
       assert_equal (module Tc.Option(KC)) "r1-after-update" (Some kv2) k2'';
 
       let list t =
         let tags = ref [] in
-        Tag.iter t (fun t _ -> tags := t :: !tags; return_unit) >>= fun () ->
+        Ref.iter t (fun t _ -> tags := t :: !tags; return_unit) >>= fun () ->
         return !tags
       in
       list tag >>= fun ts ->
       assert_equal (module Set(T)) "list" [t1; t2] ts;
-      Tag.remove tag t1 >>= fun () ->
-      Tag.read   tag t1 >>= fun empty ->
+      Ref.remove tag t1 >>= fun () ->
+      Ref.read   tag t1 >>= fun empty ->
       assert_equal (module Tc.Option(KC)) "empty" None empty;
       list tag >>= fun r2' ->
       assert_equal (module Set(T)) "all-after-remove" [t2] r2';
@@ -508,7 +508,7 @@ module Make (S: Irmin.S) = struct
       let v2 = string x "X2" in
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
-      S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
+      S.remove_branch (t1 "remove-tag") Ref.Key.master >>= fun () ->
       State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
 
       watch 100 >>= fun () ->
@@ -521,7 +521,7 @@ module Make (S: Irmin.S) = struct
       S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
       State.check "watches updates" (1, 2) (100, 100, 0) state >>= fun () ->
 
-      S.remove_tag (t1 "remove-tag") Tag.Key.master >>= fun () ->
+      S.remove_branch (t1 "remove-tag") Ref.Key.master >>= fun () ->
       State.check "watches removes" (1, 2) (100, 100, 100) state >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
@@ -532,21 +532,21 @@ module Make (S: Irmin.S) = struct
       S.update (t1 "update") (p ["a"]) v2 >>= fun () ->
       State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
 
-      (* test [Irmin.watch_tags] *)
+      (* test [Irmin.watch_branches] *)
       Log.debug "WATCH-TAGS";
       let state = State.empty () in
 
       r1 x >>= fun head ->
       let add = State.apply "watch-tag" state `Add (fun n ->
-          let tag = S.Tag.of_hum (sprintf "t%d" n) in
-          S.Private.Tag.update (S.Private.tag_t @@ t1 "tag") tag head
+          let tag = S.Ref.of_hum (sprintf "t%d" n) in
+          S.Private.Ref.update (S.Private.ref_t @@ t1 "tag") tag head
         ) in
       let remove = State.apply "watch-tag" state `Remove (fun n ->
-          let tag = S.Tag.of_hum (sprintf "t%d" n) in
-          S.Private.Tag.remove (S.Private.tag_t @@ t2 "tag") tag
+          let tag = S.Ref.of_hum (sprintf "t%d" n) in
+          S.Private.Ref.remove (S.Private.ref_t @@ t2 "tag") tag
         ) in
 
-      S.watch_tags (t1 "watch-tags") (fun _ -> State.process state)
+      S.watch_branches (t1 "watch-tags") (fun _ -> State.process state)
       >>= fun unwatch ->
 
       add    true (0,  0, 0) 10 ~first:true >>= fun () ->
@@ -905,14 +905,14 @@ module Make (S: Irmin.S) = struct
         match !result with None -> assert false | Some t -> t
       in
       let clone () =
-        S.clone Irmin_unix.task (t "clone") (S.Tag.of_hum "test") >>= function
+        S.clone Irmin_unix.task (t "clone") (S.Ref.of_hum "test") >>= function
         | `Ok t ->
           begin match !result with
             | None   -> result := Some t
             | Some _ -> Alcotest.fail "should be duplicated!"
           end;
           Lwt.return_unit
-        | `Duplicated_tag ->
+        | `Duplicated_branch ->
           let rec wait n =
             begin match !result with
               | None   ->
@@ -926,7 +926,7 @@ module Make (S: Irmin.S) = struct
           wait 10
         | `Empty_head -> Alcotest.fail "empty head"
       in
-      S.remove_tag (t "prepare") (S.Tag.of_hum "test") >>= fun () ->
+      S.remove_branch (t "prepare") (S.Ref.of_hum "test") >>= fun () ->
       Lwt.join [clone (); clone (); clone (); clone ()] >>= fun () ->
       let t = get_result () in
 
@@ -946,7 +946,7 @@ module Make (S: Irmin.S) = struct
 
       S.head_exn (t "snapshot") >>= fun r1 ->
 
-      S.clone_force Irmin_unix.task (t "clone") (S.Tag.of_hum "test") >>= fun t ->
+      S.clone_force Irmin_unix.task (t "clone") (S.Ref.of_hum "test") >>= fun t ->
 
       let v2 = v2 x in
       S.update (t "update") (p ["a";"c"]) v2 >>= fun () ->
@@ -1010,24 +1010,24 @@ module Make (S: Irmin.S) = struct
       S.read (t "read") (p ["fst"; "snd"]) >>= fun snd ->
       assert_equal (module Tc.Option(V)) "data model 4" None snd;
 
-      let tagx = S.Tag.of_hum "x" in
-      let tagy = S.Tag.of_hum "y" in
+      let tagx = S.Ref.of_hum "x" in
+      let tagy = S.Ref.of_hum "y" in
       let xy = p ["x";"y"] in
       let vx = string x "VX" in
-      S.of_tag x.config Irmin_unix.task tagx >>= fun tx ->
-      S.of_tag x.config Irmin_unix.task tagy >>= fun ty ->
-      S.remove_tag (tx "?") tagx >>= fun () ->
-      S.remove_tag (tx "?") tagy >>= fun () ->
+      S.of_branch_id x.config Irmin_unix.task tagx >>= fun tx ->
+      S.of_branch_id x.config Irmin_unix.task tagy >>= fun ty ->
+      S.remove_branch (tx "?") tagx >>= fun () ->
+      S.remove_branch (tx "?") tagy >>= fun () ->
 
       S.update (tx "update") xy vx >>= fun () ->
-      S.update_tag (ty "update-tag") tagx >>= fun () ->
+      S.update_branch (ty "update-tag") tagx >>= fun () ->
       S.read (ty "read") xy >>= fun vx' ->
       assert_equal (module Tc.Option(S.Val)) "update tag" (Some vx) vx';
 
-      S.tag (tx "tx") >>= fun tagx' ->
-      S.tag (ty "ty") >>= fun tagy' ->
-      assert_equal (module Tc.Option(S.Tag)) "tagx" (Some tagx) tagx';
-      assert_equal (module Tc.Option(S.Tag)) "tagy" (Some tagy) tagy';
+      S.name (tx "tx") >>= fun tagx' ->
+      S.name (ty "ty") >>= fun tagy' ->
+      assert_equal (module Tc.Option(S.Ref)) "tagx" (Some tagx) tagx';
+      assert_equal (module Tc.Option(S.Ref)) "tagy" (Some tagy) tagy';
 
       return_unit
     in
@@ -1270,8 +1270,8 @@ module Make (S: Irmin.S) = struct
       Sync.fetch_exn (t1 "total fetch") remote >>= fun full ->
 
       (* Restart a fresh store and import everything in there. *)
-      let tag = S.Tag.of_hum "export" in
-      S.of_tag x.config Irmin_unix.task tag >>= fun t2 ->
+      let tag = S.Ref.of_hum "export" in
+      S.of_branch_id x.config Irmin_unix.task tag >>= fun t2 ->
       S.update_head (t2 "partial update") partial >>= fun () ->
 
       S.mem (t2 "mem a/b") (p ["a";"b"]) >>= fun b1 ->
@@ -1323,7 +1323,7 @@ module Make (S: Irmin.S) = struct
       S.update (t1 "update a/b/b") (p ["a";"b";"b"]) v2 >>= fun () ->
       S.update (t1 "update a/b/c") (p ["a";"b";"c"]) v3 >>= fun () ->
 
-      let test = S.Tag.of_hum "test" in
+      let test = S.Ref.of_hum "test" in
 
       S.clone_force Irmin_unix.task (t1 "clone master into test") test >>= fun t2 ->
 
@@ -1359,15 +1359,15 @@ module Make (S: Irmin.S) = struct
       read fn check (i-1)
 
   let test_concurrent_low x () =
-    let test_tags () =
+    let test_branches () =
       let k = t1 in
       r1 x >>= fun v ->
       create x >>= fun t ->
-      let t = S.Private.tag_t (t "tag") in
-      let write = write (fun _i -> Tag.update t k v) in
+      let t = S.Private.ref_t (t "tag") in
+      let write = write (fun _i -> Ref.update t k v) in
       let read =
         read
-          (fun _i -> Tag.read_exn t k)
+          (fun _i -> Ref.read_exn t k)
           (fun i  -> assert_equal (module S.Head) (sprintf "tag %d" i) v)
       in
       write 1 >>= fun () ->
@@ -1389,7 +1389,7 @@ module Make (S: Irmin.S) = struct
       write 1 >>= fun () ->
       Lwt.join [ write 10; read 10; write 10; read 10; ]
     in
-    run x (fun () -> Lwt.join [test_tags (); test_contents ()])
+    run x (fun () -> Lwt.join [test_branches (); test_contents ()])
 
   let test_concurrent_updates x () =
     let test_one () =
@@ -1439,7 +1439,7 @@ module Make (S: Irmin.S) = struct
       let mk t x = ksprintf t x in
       let write t n =
         write (fun i ->
-            let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
+            let tag = S.Ref.of_hum (sprintf "tmp-%d-%d" n i) in
             S.clone_force Irmin_unix.task (mk t "cloning") tag >>= fun m ->
             S.update (m "update") (k i) (v i) >>= fun () ->
             Lwt_unix.yield () >>= fun () ->
@@ -1476,7 +1476,7 @@ module Make (S: Irmin.S) = struct
       let write t n =
         write (fun i -> retry i (fun () ->
             S.head (t "head") >>= fun test ->
-            let tag = S.Tag.of_hum (sprintf "tmp-%d-%d" n i) in
+            let tag = S.Ref.of_hum (sprintf "tmp-%d-%d" n i) in
             S.clone_force Irmin_unix.task (mk t "cloning") tag >>= fun m ->
             S.update (m "update") (k i) (v i) >>= fun () ->
             S.head (m "head") >>= fun set ->
@@ -1505,7 +1505,7 @@ let suite (speed, x) =
     "Basic operations on contents"    , speed, T.test_contents x;
     "Basic operations on nodes"       , speed, T.test_nodes x;
     "Basic operations on commits"     , speed, T.test_commits x;
-    "Basic operations on tags"        , speed, T.test_tags x;
+    "Basic operations on branches"    , speed, T.test_branches x;
     "Basic operations on watches"     , speed, T.test_watches x;
     "Basic merge operations"          , speed, T.test_simple_merges x;
     "Basic operations on slices"      , speed, T.test_slice x;

@@ -135,7 +135,7 @@ module Irmin_git: sig
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module RW (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S): Irmin.RW
+  module RW (G: Git.Store.S) (K: Irmin.Ref.S) (V: Irmin.Hash.S): Irmin.RW
     with type key = K.t and type value = V.t
   (** Embed a read-write store into a Git repository. Contents will be
       written in {i .git/refs}. *)
@@ -178,7 +178,7 @@ module Irmin_http: sig
 
       Most of the computation are done on the server, the client is
       (almost) stateless. The only thing that the client needs to
-      remember is the tag of the current branch or the current head if
+      remember is the ID of the current branch or the current head if
       the branch is detached.
 
       All of the low-level and high-level operations take only one

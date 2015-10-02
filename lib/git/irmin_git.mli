@@ -73,7 +73,7 @@ end
 
 module AO (G: Git.Store.S): Irmin.AO_MAKER
 
-module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Tag.S) (V: Irmin.Hash.S):
+module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Ref.S) (V: Irmin.Hash.S):
   Irmin.RW with type key = K.t and type value = V.t
 
 module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S):

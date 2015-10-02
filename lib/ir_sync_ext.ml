@@ -76,11 +76,11 @@ module Make (S: Ir_s.STORE) = struct
     match remote with
     | URI uri ->
       Log.debug "fetch URI %s" uri;
-      begin S.tag t >>= function
+      begin S.name t >>= function
         | None     -> Lwt.return `No_head
-        | Some tag ->
+        | Some branch_id ->
           B.create (S.Private.config t) >>= fun g ->
-          B.fetch g ?depth ~uri tag
+          B.fetch g ?depth ~uri branch_id
       end
     | Store ((module R), r) ->
       Log.debug "fetch store";
@@ -123,11 +123,11 @@ module Make (S: Ir_s.STORE) = struct
     Log.debug "push";
     match remote with
     | URI uri ->
-      begin S.tag t >>= function
+      begin S.name t >>= function
         | None     -> return `Error
-        | Some tag ->
+        | Some branch_id ->
           B.create (S.Private.config t) >>= fun g ->
-          B.push g ?depth ~uri tag
+          B.push g ?depth ~uri branch_id
       end
     | Store ((module R), r) ->
       S.head t >>= function

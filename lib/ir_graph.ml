@@ -50,7 +50,7 @@ module Make
     (Contents: Ir_hum.S)
     (Node: Ir_hum.S)
     (Commit: Ir_hum.S)
-    (Tag: Ir_hum.S)
+    (Ref: Ir_hum.S)
 = struct
 
   module X = struct
@@ -59,7 +59,7 @@ module Make
       [ `Contents of Contents.t
       | `Node of Node.t
       | `Commit of Commit.t
-      | `Tag of Tag.t ]
+      | `Branch of Ref.t ]
 
     let hash = Hashtbl.hash
 
@@ -67,7 +67,7 @@ module Make
       | `Contents x, `Contents y -> Contents.compare x y
       | `Node x, `Node y -> Node.compare x y
       | `Commit x, `Commit y -> Commit.compare x y
-      | `Tag x, `Tag y -> Tag.compare x y
+      | `Branch x, `Branch y -> Ref.compare x y
       | `Contents _, _ -> 1
       | _, `Contents _ -> -1
       | `Node _, _ -> 1
@@ -79,46 +79,46 @@ module Make
       | `Contents x, `Contents y -> Contents.equal x y
       | `Node x, `Node y -> Node.equal x y
       | `Commit x, `Commit y -> Commit.equal x y
-      | `Tag x, `Tag y -> Tag.equal x y
+      | `Branch x, `Branch y -> Ref.equal x y
       | _ -> false
 
     let to_json = function
       | `Contents x -> `O [ "contents", Contents.to_json x ]
       | `Node x -> `O [ "node", Node.to_json x ]
       | `Commit x -> `O [ "commit", Commit.to_json x ]
-      | `Tag x -> `O [ "tag", Tag.to_json x ]
+      | `Branch x -> `O [ "tag", Ref.to_json x ]
 
     let of_json = function
       | `O [ "contents", x ] -> `Contents (Contents.of_json x)
       | `O [ "node", x ] -> `Node (Node.of_json x)
       | `O [ "commit", x ] -> `Commit (Commit.of_json x)
-      | `O [ "tag", x ] -> `Tag (Tag.of_json x)
+      | `O [ "tag", x ] -> `Branch (Ref.of_json x)
       | j -> Ezjsonm.parse_error j "Vertex.of_json"
 
     let write t buf = match t with
       | `Contents x -> Contents.write x (Ir_misc.tag buf 0)
       | `Node x -> Node.write x (Ir_misc.tag buf 1)
       | `Commit x -> Commit.write x (Ir_misc.tag buf 2)
-      | `Tag x -> Tag.write x (Ir_misc.tag buf 3)
+      | `Branch x -> Ref.write x (Ir_misc.tag buf 3)
 
     let size_of t = 1 + match t with
       | `Contents x -> Contents.size_of x
       | `Node x -> Node.size_of x
       | `Commit x -> Commit.size_of x
-      | `Tag x -> Tag.size_of x
+      | `Branch x -> Ref.size_of x
 
     let read buf = match Ir_misc.untag buf with
       | 0 -> `Contents (Contents.read buf)
       | 1 -> `Node (Node.read buf)
       | 2 -> `Commit (Commit.read buf)
-      | 3 -> `Tag (Tag.read buf)
+      | 3 -> `Branch (Ref.read buf)
       | n -> Tc.Reader.error "Vertex.read parse error (tag=%d)" n
 
     let to_hum = function
       | `Contents x -> Contents.to_hum x
       | `Node x -> Node.to_hum x
       | `Commit x -> Commit.to_hum x
-      | `Tag x -> Tag.to_hum x
+      | `Branch x -> Ref.to_hum x
 
   end
 
