@@ -49,7 +49,8 @@ let suite ?(content_type=`Raw) server =
         server.init () >>= fun () ->
         Server.create server.config task >>= fun t  ->
         signal () >>= fun () ->
-        HTTP.listen (t "server") ~strict:true uri
+        let spec = HTTP.http_spec (t "server") ~strict:true in
+        Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 8080)) spec
       in
       let () =
         try Unix.unlink file

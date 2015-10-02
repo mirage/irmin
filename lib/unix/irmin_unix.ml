@@ -108,14 +108,6 @@ module Irmin_http = struct
 end
 
 module Irmin_http_server = struct
-  module X = struct
-    include Cohttp_lwt_unix.Server
-    let listen t ?timeout uri =
-      let port = match Uri.port uri with
-        | None   -> 8080
-        | Some p -> p in
-      create ?timeout ~mode:(`TCP (`Port port)) t
-  end
   module Y = struct
     let pretty d =
       let tm = Unix.localtime (Int64.to_float d) in
@@ -124,7 +116,7 @@ module Irmin_http_server = struct
   end
   type hooks = Irmin_http_server.hooks = { update: unit -> unit Lwt.t }
   module type S = Irmin_http_server.S
-  module Make = Irmin_http_server.Make (X)(Y)
+  module Make = Irmin_http_server.Make (Cohttp_lwt_unix.Server)(Y)
 end
 
 module S = struct

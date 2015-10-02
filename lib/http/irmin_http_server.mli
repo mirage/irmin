@@ -25,30 +25,24 @@ module type S = sig
   type t
   (** Database type. *)
 
-  val listen:
-    ?timeout:int -> ?strict:bool -> ?hooks:hooks -> t -> Uri.t -> unit Lwt.t
-  (** [start_server t uri] start a server serving the contents of [t]
-      at the address [uri]. If [strict] is set, incoming connections
-      will fail if they do not have the right {i X-IrminVersion}
-      headers. *)
+  type spec
+  (** HTTP configuration. *)
+
+  val http_spec: ?strict:bool -> ?hooks:hooks -> t -> spec
+  (** [http_spec t] returns the configuration for a server serving the contents of [t].
+      If [strict] is set, incoming connections will fail if they do not have the right
+      {i X-IrminVersion} headers. *)
 
 end
 
 (** {2 Constructor} *)
-
-module type SERVER = sig
-
-  include Cohttp_lwt.Server
-
-  val listen: t -> ?timeout:int -> Uri.t -> unit Lwt.t
-  (** Start the server, listening at the given adress. *)
-
-end
 
 module type DATE = sig
   val pretty: int64 -> string
   (** Pretty print a raw date format. *)
 end
 
-module Make (HTTP: SERVER) (D: DATE) (S: Irmin.S): S with type t = S.t
+module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S): S with
+  type t = S.t and
+  type spec = HTTP.t
 (** Create an HTTP server, serving the contents of an Irmin database. *)

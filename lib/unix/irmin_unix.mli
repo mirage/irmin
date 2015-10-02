@@ -204,23 +204,9 @@ module Irmin_http_server: sig
   }
   (** Server hooks. *)
 
-  (** Server Signature. *)
-  module type S = sig
-
-    type t
-    (** The type for store handles. *)
-
-    val listen:
-      ?timeout:int -> ?strict:bool -> ?hooks:hooks -> t -> Uri.t -> unit Lwt.t
-    (** [listen t uri] start a server serving the contents of
-        [t] at the address [uri]. Close clients' connections after
-        [timeout] seconds of inactivity. If [strict] is set (by
-        default it is not), incoming connections will fail if they do
-        not have the right {i X-IrminVersion} headers. *)
-
-  end
-
-  module Make (S: Irmin.S): S with type t = S.t
+  module Make (S: Irmin.S): Irmin_http_server.S with
+    type t = S.t and
+    type spec = Cohttp_lwt_unix.Server.t
   (** [Make] exposes an Irmin store as a REST API for HTTP
       {{!module:Irmin_http}clients}. *)
 

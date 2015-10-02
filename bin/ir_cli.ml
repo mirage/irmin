@@ -136,8 +136,17 @@ let init = {
         let module HTTP = Irmin_http_server.Make(S) in
         if daemon then
           let uri = Uri.of_string uri in
+          let uri = match Uri.host uri with
+            | None   -> Uri.with_host uri (Some "localhost")
+            | Some _ -> uri in
+          let port, uri = match Uri.port uri with
+            | None   -> 8080, Uri.with_port uri (Some 8080)
+            | Some p -> p, uri in
           Log.info "daemon: %s" (Uri.to_string uri);
-          HTTP.listen ~timeout:3600 (t "Initialising the HTTP server.") uri
+          let spec = HTTP.http_spec (t "Initialising the HTTP server.") in
+          Printf.printf "Server starting on port %d.\n%!" port;
+          Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`TCP (`Port port)) spec
+
         else return_unit
       end
     in
