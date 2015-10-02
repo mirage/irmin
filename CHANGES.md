@@ -10,6 +10,9 @@
   `Hash.SHA1.hash`.
 * Renamed "tag" to "branch" in the API, as "tag" is confusing for Git
   users. `BC.tag` is now `BC.name` and `BC.branch` is now `BC.head_ref`.
+  The various "Tag" modules are now called "Ref" ("Branch" would be
+  confusing here since they only store references to commits, not the
+  branch contents).
   Note: The remote HTTP protocol still uses "tag".
 
 ### 0.9.10
