@@ -52,7 +52,7 @@ val ct_of_contents: contents option -> ct
 val contents: 'a Tc.t -> contents -> 'a
 
 module Request: sig
-  type t = Irmin.task * contents option
+  type t = Irmin.task option * contents option
 
   val to_body: ct -> t -> Cohttp_lwt_body.t
   val of_body: meth:string -> ct -> Cohttp_lwt_body.t -> t option Lwt.t

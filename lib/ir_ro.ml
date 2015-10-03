@@ -21,7 +21,6 @@ module type STORE = sig
   type key
   type value
   val config: t -> Ir_conf.t
-  val task: t -> Ir_task.t
   val read: t -> key -> value option Lwt.t
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t

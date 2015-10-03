@@ -154,25 +154,23 @@ module Helper (Client: Cohttp_lwt.Client) = struct
           )
     in aux n
 
-  (* FIXME: we currently ignore the task for GET queries. See similar
-     comment in [Irmin_http_server]. *)
-  let map_get t ~ct ~task:_ path ?query fn =
+  let map_get t ~ct path ?query fn =
     let uri = make_uri t path query in
     let headers = headers ct in
     Log.debug "get %s (%s)" (Uri.path uri) (string_of_ct ct);
     retry (Uri.path uri) (fun () -> Client.get ~headers uri >>= fn)
 
-  let get t ~ct ~task path ?query fn =
-    map_get t ~ct ~task path ?query (map_string_response fn)
+  let get t ~ct path ?query fn =
+    map_get t ~ct path ?query (map_string_response fn)
 
-  let get_stream t ~task path ?query fn  =
-    map_get t ~task path ?query (map_stream_response fn)
+  let get_stream t path ?query fn  =
+    map_get t path ?query (map_stream_response fn)
 
-  let make_body ct task body = Some (Request.to_body ct (task, body))
+  let make_body ct ?task body = Some (Request.to_body ct (task, body))
 
-  let delete t ~ct ~task path fn =
+  let delete t ~ct ?task path fn =
     let uri = uri_append t path in
-    let body = make_body ct task None in
+    let body = make_body ct ?task None in
     let headers = headers ct in
     Log.debug "delete %s" (Uri.path uri);
     retry (Uri.path uri) (fun () ->
@@ -186,18 +184,18 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       | `Json -> Some (json_contents m t)
       | `Raw  -> Some (raw_contents m t)
 
-  let map_post t ~ct ~task path ?query ?body fn =
+  let map_post t ~ct ?task path ?query ?body fn =
     let uri = make_uri t path query in
     let headers = headers ct in
-    let body = make_body ct task (body_of_contents ct body) in
+    let body = make_body ct ?task (body_of_contents ct body) in
     Log.debug "post %s" (Uri.path uri);
     retry (Uri.path uri) (fun () -> Client.post ?body ~headers uri >>= fn)
 
-  let post t ~ct ~task path ?query ?body fn =
-    map_post t ~ct ~task path ?query ?body (map_string_response fn)
+  let post t ~ct ?task path ?query ?body fn =
+    map_post t ~ct ?task path ?query ?body (map_string_response fn)
 
-  let post_stream t ~ct ~task path ?query ?body fn  =
-    map_post t ~ct ~task path ?query ?body (map_stream_response fn)
+  let post_stream t ~ct ?task path ?query ?body fn  =
+    map_post t ~ct ?task path ?query ?body (map_stream_response fn)
 
 end
 
@@ -206,24 +204,23 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   include Helper (Client)
 
   type t = {
-    mutable uri: Uri.t; task: Irmin.task; config: Irmin.config; ct: ct;
+    mutable uri: Uri.t; config: Irmin.config; ct: ct;
   }
 
   type key = K.t
   type value = V.t
 
   let config t = t.config
-  let task t = t.task
   let uri t = t.uri
   let ct t = t.ct
 
-  let get t = get t.uri ~ct:t.ct ~task:t.task
-  let get_stream t = get_stream t.uri ~ct:`Json ~task:t.task
+  let get t = get t.uri ~ct:t.ct
+  let get_stream t = get_stream t.uri ~ct:`Json
 
-  let create config task =
+  let create config =
     let uri = get_uri config in
     let ct  = get_ct config in
-    Lwt.return (fun a -> { config; uri; task = task a; ct; })
+    Lwt.return { config; uri; ct; }
 
   let read t key = get t ["read"; K.to_hum key] (module Tc.Option(V))
 
@@ -246,7 +243,7 @@ end
 module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   include RO (Client)(K)(V)
   let v: V.t Tc.t = (module V)
-  let post t = post t.uri ~ct:t.ct ~task:t.task
+  let post t = post t.uri ~ct:t.ct ?task:None
   let add t value = post t ["add"] ~body:(v, value) (module K)
 end
 
@@ -268,21 +265,20 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type t = { t: RO.t; w: W.t; keys: cache; glob: cache }
 
-  let post t = RO.post (RO.uri t.t) ~ct:(RO.ct t.t) ~task:(RO.task t.t)
-  let delete t = RO.delete (RO.uri t.t) ~ct:(RO.ct t.t) ~task:(RO.task t.t)
-  let post_stream t =
-    RO.post_stream (RO.uri t.t) ~ct:(RO.ct t.t) ~task:(RO.task t.t)
+  let post ?task t = RO.post (RO.uri t.t) ~ct:(RO.ct t.t) ?task
+  let delete ?task t = RO.delete (RO.uri t.t) ~ct:(RO.ct t.t) ?task
+  let post_stream ?task t =
+    RO.post_stream (RO.uri t.t) ~ct:(RO.ct t.t) ?task
 
-  let create config task =
-    RO.create config task >>= fun t ->
+  let create config =
+    RO.create config >>= fun t ->
     let w = W.create () in
     let keys = empty_cache () in
     let glob = empty_cache () in
-    Lwt.return (fun a -> { t = t a; w; keys; glob })
+    Lwt.return { t; w; keys; glob }
 
   let uri t = RO.uri t.t
   let config t = RO.config t.t
-  let task t = RO.task t.t
   let read t = RO.read t.t
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
@@ -367,32 +363,32 @@ struct
         module Key = H
         module Val = C
         include AO(Client)(H)(C)
-        let create config task =
+        let create config =
           let config = Conf.add config content_type (Some "json") in
-          create (add_uri_suffix "contents" config) task
+          create (add_uri_suffix "contents" config)
       end)
     module Node = struct
       module Key = H
       module Path = C.Path
       module Val = Irmin.Private.Node.Make(H)(H)(C.Path)
       include AO(Client)(Key)(Val)
-      let create config task =
+      let create config =
         let config = Conf.add config content_type (Some "json") in
-        create (add_uri_suffix "node" config) task
+        create (add_uri_suffix "node" config)
     end
     module Commit = struct
       module Key = H
       module Val = Irmin.Private.Commit.Make(H)(H)
       include AO(Client)(Key)(Val)
-      let create config task =
+      let create config =
         let config = Conf.add config content_type (Some "json") in
-        create (add_uri_suffix "commit" config) task
+        create (add_uri_suffix "commit" config)
     end
     module Ref = struct
       module Key = R
       module Val = H
       include RW(Client)(Key)(Val)
-      let create config task = create (add_uri_suffix "tag" config) task
+      let create config = create (add_uri_suffix "tag" config)
     end
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = Irmin.Private.Sync.None(H)(R)
@@ -481,7 +477,7 @@ struct
     | `Head h -> uri_append base ["tree"; Head.to_hum h]
 
   let config t = S.config t.h
-  let task t = S.task t.h
+  let task t = L.task t.l
   let ct t = t.h.S.t.S.RO.ct (* yiikes *)
 
   let set_head t = function
@@ -498,7 +494,6 @@ struct
 
   let create_aux head_ref config h l =
     let fn a =
-      let h = h a in
       let l = l a in
       let contents_t = LP.contents_t l in
       let node_t = LP.node_t l in
@@ -518,25 +513,25 @@ struct
     Lwt.return fn
 
   let create config task =
-    S.create config task >>= fun h ->
+    S.create config >>= fun h ->
     L.create config task >>= fun l ->
     let head_ref = ref (`Branch Ref.master) in
     create_aux head_ref config h l
 
   let of_branch_id config task branch_id =
-    S.create config task >>= fun h ->
+    S.create config >>= fun h ->
     L.of_branch_id config task branch_id >>= fun l ->
     let head_ref = ref (`Branch branch_id) in
     create_aux head_ref config h l
 
   let of_head config task head =
-    S.create config task >>= fun h ->
+    S.create config >>= fun h ->
     L.of_head config task head >>= fun l ->
     let head_ref = ref (`Head head) in
     create_aux head_ref config h l
 
   let empty config task =
-    S.create config task >>= fun h ->
+    S.create config >>= fun h ->
     L.empty config task  >>= fun l ->
     let head_ref = ref `Empty in
     create_aux head_ref config h l
@@ -547,10 +542,10 @@ struct
   let err_no_head = invalid_arg "Irmin_http.%s: no head"
   let err_not_persistent = invalid_arg "Irmin_http.%s: not a persistent branch"
 
-  let get_json ?query t = get ?query (uri t) ~ct:`Json ~task:(task t)
-  let get ?query t = get ?query (uri t) ~ct:(ct t) ~task:(task t)
+  let get_json ?query t = get ?query (uri t) ~ct:`Json
+  let get ?query t = get ?query (uri t) ~ct:(ct t)
   let delete t = delete (uri t) ~ct:(ct t) ~task:(task t)
-  let get_stream t = get_stream (uri t) ~ct:(ct t)~task:(task t)
+  let get_stream t = get_stream (uri t) ~ct:(ct t)
   let post_json t = post (uri t) ~ct:`Json ~task:(task t)
   let post t = post (uri t) ~ct:(ct t) ~task:(task t)
 

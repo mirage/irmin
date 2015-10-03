@@ -806,12 +806,13 @@ module Make (S: Ir_s.STORE) = struct
     rebase_path db path view >>= Ir_merge.exn
 
   let merge_node db ?max_depth ?n path view head_node view_node =
+    let task = S.task db in
     (* Create a commit with the contents of the view *)
     Graph.read_node (graph_t db) head_node path >>= fun current_node ->
     let old () = match !(view.parents) with
       | []      -> ok None
       | parents ->
-        History.lca (history_t db) ~task:(S.task db) ?max_depth ?n parents
+        History.lca (history_t db) ~task ?max_depth ?n parents
         >>| function
         | None   -> ok None
         | Some c ->
@@ -832,7 +833,7 @@ module Make (S: Ir_s.STORE) = struct
       end >>= fun new_head_node ->
       S.head_exn db >>= fun head ->
       let parents = head :: !(view.parents) in
-      History.create (history_t db) ~node:new_head_node ~parents >>= fun h ->
+      History.create (history_t db) ~node:new_head_node ~parents ~task >>= fun h ->
       ok (`Changed h)
     )
 

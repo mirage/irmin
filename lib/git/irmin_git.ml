@@ -143,13 +143,11 @@ module Irmin_value_store
 
     type t = {
       t: G.t;
-      task: Irmin.task;
       config: Irmin.config;
     }
 
     type key = K.t
     type value = V.t
-    let task t = t.task
     let config t = t.config
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
@@ -158,10 +156,10 @@ module Irmin_value_store
       G.create config >>= fun t ->
       G.read t sha1
 
-    let create config task =
+    let create config =
       let config = Irmin.Private.Conf.add config Conf.read_fn read_fn in
       G.create config >>= fun t ->
-      return (fun a -> { task = task a; config; t })
+      return { config; t }
 
     let mem { t; _ } key =
       let key = git_of_key key in
@@ -504,7 +502,6 @@ module Make_ext
     module W = Irmin.Private.Watch.Make(Key)(Val)
 
     type t = {
-      task: Irmin.task;
       config: Irmin.config;
       git_root: string;
       git_head: Git.Reference.head_contents;
@@ -515,7 +512,6 @@ module Make_ext
     type key = Key.t
     type value = Val.t
     type watch = W.watch * (unit -> unit)
-    let task t = t.task
     let config t = t.config
 
     let tag_of_git r =
@@ -564,7 +560,7 @@ module Make_ext
       stop ();
       W.unwatch t.w w
 
-    let create config task =
+    let create config =
       let root = Irmin.Private.Conf.get config Conf.root in
       let head = Irmin.Private.Conf.get config Conf.head in
       let level = Irmin.Private.Conf.get config Conf.level in
@@ -586,7 +582,7 @@ module Make_ext
           | None      -> write_head (git_of_tag R.master)
       end >>= fun git_head ->
       let w = W.create () in
-      return (fun a -> { task = task a; git_head; config; t; w; git_root })
+      return { git_head; config; t; w; git_root }
 
     let read_exn { t; _ } r =
       G.read_reference_exn t (git_of_tag r) >>= fun k ->

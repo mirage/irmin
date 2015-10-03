@@ -805,11 +805,10 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       | _       -> Lwt.fail Invalid
     end >>= fun body ->
     let task, params = match meth, body with
-      (* FIXME: we currently don't have the client's task for GET
-         queries. See similar comment in [Irmin_http]. *)
       | `GET, None   -> Irmin.Task.empty, None
-      | _   , None   -> err_no_task ()
-      | _   , Some t -> t
+      | _   , None   -> err_no_task ()    (* Wrong error message? Params missing too! *)
+      | _   , Some (Some t, params) -> t, params
+      | _   , Some (None, params) -> Irmin.Task.empty, params  (* Should be an error, but reads arrive here too! *)
     in
     (* FIXME: validate the client task *)
     let request path = { t; task; ct; path; params; query } in

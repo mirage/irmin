@@ -344,9 +344,6 @@ module type RO = sig
   val config: t -> config
   (** [config t] is [t]'s config. *)
 
-  val task: t -> task
-  (** [task t] is the task associated to the store handle [t]. *)
-
   val read: t -> key -> value option Lwt.t
   (** Read a value from the store. *)
 
@@ -370,12 +367,11 @@ module type AO = sig
 
   include RO
 
-  val create: config -> 'a Task.f -> ('a -> t) Lwt.t
-  (** [create config task] is a function returning fresh store
-      handles, with the configuration [config] and fresh tasks
-      computed using [task]. [config] is provided by the backend and
-      [task] is the provided by the user. The operation might be
-      blocking, depending on the backend. *)
+  val create: config -> t Lwt.t
+  (** [create config] is a function returning fresh store
+      handles, with the configuration [config], which is
+      provided by the backend. The operation might be blocking,
+      depending on the backend. *)
 
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the
@@ -399,7 +395,7 @@ module type LINK = sig
 
   include RO
 
-  val create: config -> 'a Task.f -> ('a -> t) Lwt.t
+  val create: config -> t Lwt.t
 
   val add: t -> key -> value -> unit Lwt.t
   (** [add t src dst] add a link between the key [src] and the value
@@ -526,6 +522,9 @@ module type BC = sig
       computed using [task]. [config] is provided by the backend and
       [task] is the provided by the user. The operation might be
       blocking, depending on the backend. *)
+
+  val task: t -> task
+  (** [task t] is the task associated to the store handle [t]. *)
 
   type branch_id
   (** Type for persistent branch names. Branches usually share a common
@@ -996,7 +995,7 @@ module Ref: sig
 
     include RRW
 
-    val create: config -> ('a -> task) -> ('a -> t) Lwt.t
+    val create: config -> t Lwt.t
 
     module Key: S with type t = key
     (** Base functions on keys. *)
@@ -1558,7 +1557,7 @@ module Private: sig
       type commit
       (** The type for commit values. *)
 
-      val create: t -> ?node:node -> parents:commit list -> commit Lwt.t
+      val create: t -> ?node:node -> parents:commit list -> task:task -> commit Lwt.t
       (** Create a new commit. *)
 
       val node: t -> commit -> node option Lwt.t
@@ -2282,7 +2281,7 @@ module type RW_MAKER =
   functor (K: Hum.S) ->
   functor (V: Tc.S0) -> sig
     include RRW with type key = K.t and type value = V.t
-    val create: config -> ('a -> task) -> ('a -> t) Lwt.t
+    val create: config -> t Lwt.t
   end
 
 module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER

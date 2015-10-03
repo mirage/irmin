@@ -42,7 +42,7 @@ module type HISTORY = sig
   type t
   type node
   type commit
-  val create: t -> ?node:node -> parents:commit list -> commit Lwt.t
+  val create: t -> ?node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
   val node: t -> commit -> node option Lwt.t
   val parents: t -> commit -> commit list Lwt.t
   val merge: t -> task:Ir_task.t -> commit Ir_merge.t

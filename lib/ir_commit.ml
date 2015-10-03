@@ -91,7 +91,7 @@ module type HISTORY = sig
   type t
   type node
   type commit
-  val create: t -> ?node:node -> parents:commit list -> commit Lwt.t
+  val create: t -> ?node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
   val node: t -> commit -> node option Lwt.t
   val parents: t -> commit -> commit list Lwt.t
   val merge: t -> task:Ir_task.t -> commit Ir_merge.t
@@ -119,13 +119,12 @@ struct
     type key = S.key
     type value = S.value
 
-    let create config task =
-      N.create config task >>= fun n ->
-      S.create config task >>= fun s ->
-      return (fun a -> (n a, s a))
+    let create config =
+      N.create config >>= fun n ->
+      S.create config >>= fun s ->
+      return (n, s)
 
     let config (s, t) = Ir_conf.union (N.config s) (S.config t)
-    let task (_, t) = S.task t
     let add (_, t) = S.add t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
@@ -171,7 +170,6 @@ struct
     module Key = S.Key
     module Val = struct
       include S.Val
-      let merge _path ~old:_ _ _ = conflict "Commit.Val"
       module Path = N.Path
     end
     module Path = N.Path
@@ -186,8 +184,8 @@ struct
     | None   -> return_none
     | Some n -> return (S.Val.node n)
 
-  let create (_, t) ?node ~parents =
-    let commit = S.Val.create ?node ~parents (S.task t) in
+  let create (_, t) ?node ~parents ~task =
+    let commit = S.Val.create ?node ~parents task in
     S.add t commit >>= fun key ->
     return key
 
