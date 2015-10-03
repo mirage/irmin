@@ -811,7 +811,7 @@ module Make (S: Ir_s.STORE) = struct
     let old () = match !(view.parents) with
       | []      -> ok None
       | parents ->
-        History.lca (history_t db) ?max_depth ?n parents
+        History.lca (history_t db) ~task:(S.task db) ?max_depth ?n parents
         >>| function
         | None   -> ok None
         | Some c ->

@@ -713,14 +713,14 @@ module Make (S: Irmin.S) = struct
       History.create (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
       History.create (h 1) ~node:k2 ~parents:[kr0] >>= fun kr1 ->
       History.create (h 2) ~node:k3 ~parents:[kr0] >>= fun kr2 ->
-      History.merge (h 3) ~old:(old kr0) kr1 kr2 >>= fun kr3 ->
+      History.merge (h 3) ~task:(task 3) ~old:(old kr0) kr1 kr2 >>= fun kr3 ->
       Irmin.Merge.exn kr3 >>= fun kr3 ->
 
-      History.merge (h 4) ~old:(old kr2) kr2 kr3 >>= fun kr3_id' ->
+      History.merge (h 4) ~task:(task 4) ~old:(old kr2) kr2 kr3 >>= fun kr3_id' ->
       Irmin.Merge.exn kr3_id' >>= fun kr3_id' ->
       assert_equal (module KC) "kr3 id with immediate parent'" kr3 kr3_id';
 
-      History.merge (h 5) ~old:(old kr0) kr0 kr3 >>= fun kr3_id ->
+      History.merge (h 5) ~task:(task 4) ~old:(old kr0) kr0 kr3 >>= fun kr3_id ->
       Irmin.Merge.exn kr3_id >>= fun kr3_id ->
       assert_equal (module KC) "kr3 id with old parent" kr3 kr3_id;
 

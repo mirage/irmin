@@ -489,7 +489,7 @@ module Make_ext (P: PRIVATE) = struct
         compare_and_set_head_unsafe t ~test:head ~set:(Some c1) >>=
         ok
       | Some c2 ->
-        three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
+        three_way_merge t ~task:t.task ?max_depth ?n c1 c2 >>| fun c3 ->
         compare_and_set_head_unsafe t ~test:head ~set:(Some c3) >>=
         ok
     in

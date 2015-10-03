@@ -1574,7 +1574,7 @@ module Private: sig
           data-structure: every commit carries the list of its
           immediate predecessors. *)
 
-      val merge: t -> commit Merge.t
+      val merge: t -> task:task -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
       val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
@@ -1583,7 +1583,7 @@ module Private: sig
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
 
-      val lca: t -> ?max_depth:int -> ?n:int -> commit list ->
+      val lca: t -> task:task -> ?max_depth:int -> ?n:int -> commit list ->
         commit option Merge.result Lwt.t
       (** Compute the lowest common ancestors ancestor of a list of
           commits by recursively calling {!lcas} and merging the
@@ -1593,7 +1593,7 @@ module Private: sig
           {!lcas} returns either [`Max_depth_reached] or
           [`Too_many_lcas] then the function returns [None]. *)
 
-      val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+      val three_way_merge: t -> task:task -> ?max_depth:int -> ?n:int -> commit -> commit ->
         commit Merge.result Lwt.t
       (** Compute the {!lcas} of the two commit and 3-way merge the
           result. *)
@@ -1602,8 +1602,12 @@ module Private: sig
       (** Same as {{!Private.Node.GRAPH.closure}GRAPH.closure} but for
           the history graph. *)
 
-      module Store: Contents.STORE with type t = t and type key = commit
-      (** An history forms a {{!Contents.STORE}contents store}. *)
+      (** A history forms a {{!STORE}store} of commits. *)
+      module Store: sig
+        include STORE with type t = t and type key = commit
+        module Path: Ir_path.S
+        val merge: Path.t -> t -> task:task -> key option Merge.t
+      end
 
     end
 
