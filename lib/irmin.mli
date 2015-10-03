@@ -2178,9 +2178,6 @@ module type VIEW = sig
   (** [watch_head t p f] calls [f] every time a subpath of [p] is
       updated in the branch [t]. The callback parameters contain the
       branch's current head and the corresponding view. *)
-
-  val task: [`Views_do_not_have_task]
-  (** Views do not have tasks. *)
 end
 
 module View (S: S): VIEW with type db = S.t

@@ -175,7 +175,6 @@ module Internal (Node: NODE) = struct
     let lock = Lwt_mutex.create () in
     Lwt.return { parents; view; ops; lock }
 
-  let task = `Views_do_not_have_task
   let config _ = Ir_conf.empty
 
   let sub t path =
@@ -966,5 +965,4 @@ module type S = sig
   val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
   val watch_path: db -> key -> ?init:(head * t) ->
     ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  val task: [`Views_do_not_have_task]
 end
