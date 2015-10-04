@@ -26,6 +26,7 @@ module String: S with type t = string
 
 module type STORE = sig
   include Ir_rw.REACTIVE
+  val create: Ir_conf.t -> t Lwt.t
   module Key: S with type t = key
   module Val: Ir_hash.S with type t = value
 end

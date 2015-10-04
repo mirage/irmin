@@ -173,9 +173,10 @@ let contents m = function
 
 module Request = struct
 
-  type t = Irmin.task * contents option
+  type t = Irmin.task option * contents option
 
-  module T = Tc.Pair (Irmin.Task) (Tc.Option (Tc.String))
+  module TaskOpt = Tc.Option (Irmin.Task)
+  module T = Tc.Pair (TaskOpt) (Tc.Option (Tc.String))
 
   let write task body = Tc.write_string (module T) (task, body)
   let read buf = Tc.read_string (module T) buf
@@ -184,18 +185,18 @@ module Request = struct
     | _   , Some (Raw r)  -> write task (Some r)
     | `Raw, None          -> write task None
     | _   , Some (Json j) ->
-      let task = Irmin.Task.to_json task in
+      let task = TaskOpt.to_json task in
       let json = `O [ ("task", task); ("params", j) ] in
       Ezjsonm.to_string json
     | `Json, None ->
-      let task = Irmin.Task.to_json task in
+      let task = TaskOpt.to_json task in
       let json = `O [ ("task", task) ] in
       Ezjsonm.to_string json
 
   let contents_of_json body =
     try match Ezjsonm.from_string body with
       | `O l ->
-        let task = Irmin.Task.of_json (List.assoc "task" l) in
+        let task = TaskOpt.of_json (List.assoc "task" l) in
         let params =
           try Some (Json (List.assoc "params" l)) with Not_found -> None
         in

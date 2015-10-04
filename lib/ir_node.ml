@@ -255,15 +255,14 @@ struct
 
     type t = C.t * S.t
 
-    let create config task =
-      C.create config task >>= fun c ->
-      S.create config task >>= fun s ->
-      Lwt.return (fun a -> c a, s a)
+    let create config =
+      C.create config >>= fun c ->
+      S.create config >>= fun s ->
+      Lwt.return (c, s)
 
     type key = S.key
     type value = S.value
     let config (c, s) = Ir_conf.union (C.config c) (S.config s)
-    let task (_, t) = S.task t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
     let read_exn (_, t) = S.read_exn t

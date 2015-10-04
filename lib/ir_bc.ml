@@ -24,6 +24,8 @@ module StringMap = Map.Make(String)
 
 module type STORE = sig
   include Ir_rw.HIERARCHICAL
+  val create: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
+  val task: t -> Ir_task.t
   type branch_id
   val of_branch_id: Ir_conf.t -> 'a Ir_task.f -> branch_id -> ('a -> t) Lwt.t
   val name: t -> branch_id option Lwt.t
@@ -199,19 +201,19 @@ module Make_ext (P: PRIVATE) = struct
     | Some k -> return k
 
   let of_ref config task head_ref =
-    P.Contents.create config task >>= fun contents ->
-    P.Node.create config task     >>= fun node ->
-    P.Commit.create config task   >>= fun commit ->
-    Ref.create config task        >>= fun ref_store ->
+    P.Contents.create config >>= fun contents ->
+    P.Node.create config     >>= fun node ->
+    P.Commit.create config   >>= fun commit ->
+    Ref.create config        >>= fun ref_store ->
     let lock = Lwt_mutex.create () in
     (* [branch] is created outside of the closure as we want the
        branch to be shared by every invocation of the function return
        by [of_branch_id]. *)
     return (fun a ->
-        { contents     = contents a;
-          node         = node a;
-          commit       = commit a;
-          ref_store    = ref_store a;
+        { contents     = contents;
+          node         = node;
+          commit       = commit;
+          ref_store    = ref_store;
           task         = task a;
           config       = config;
           lock; head_ref }
@@ -286,7 +288,7 @@ module Make_ext (P: PRIVATE) = struct
       end >>= fun old_node ->
       f old_node >>= fun node ->
       let parents = parents_of_commit commit in
-      H.create (history_t t) ~node ~parents >>= fun key ->
+      H.create (history_t t) ~node ~parents ~task:(task t) >>= fun key ->
       match t.head_ref with
       | `Head head ->
         (* [head] is protected by [t.lock] *)
@@ -488,7 +490,7 @@ module Make_ext (P: PRIVATE) = struct
         compare_and_set_head_unsafe t ~test:head ~set:(Some c1) >>=
         ok
       | Some c2 ->
-        three_way_merge t ?max_depth ?n c1 c2 >>| fun c3 ->
+        three_way_merge t ~task:t.task ?max_depth ?n c1 c2 >>| fun c3 ->
         compare_and_set_head_unsafe t ~test:head ~set:(Some c3) >>=
         ok
     in
@@ -523,7 +525,7 @@ module Make_ext (P: PRIVATE) = struct
         let aux = function None -> [] | Some x -> [x] in
         parent :: aux head
       in
-      H.create (history_t t) ~node:new_root ~parents >>= fun h ->
+      H.create (history_t t) ~node:new_root ~parents ~task:(task t) >>= fun h ->
       compare_and_set_head_unsafe t ~test:head ~set:(Some h) >>=
       ok
     in

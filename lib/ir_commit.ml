@@ -91,16 +91,20 @@ module type HISTORY = sig
   type t
   type node
   type commit
-  val create: t -> ?node:node -> parents:commit list -> commit Lwt.t
+  val create: t -> ?node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
   val node: t -> commit -> node option Lwt.t
   val parents: t -> commit -> commit list Lwt.t
-  val merge: t -> commit Ir_merge.t
+  val merge: t -> task:Ir_task.t -> commit Ir_merge.t
   val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
     [`Ok of commit list | `Max_depth_reached | `Too_many_lcas] Lwt.t
-  val lca: t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
-  val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
+  val lca: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
+  val three_way_merge: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
-  module Store: Ir_contents.STORE with type t = t and type key = commit
+  module Store: sig
+    include STORE with type t = t and type key = commit
+    module Path: Ir_path.S
+    val merge: Path.t -> t -> task:Ir_task.t -> key option Ir_merge.t
+  end
 end
 
 module History (N: Ir_contents.STORE) (S: STORE with type Val.node = N.key) =
@@ -115,20 +119,19 @@ struct
     type key = S.key
     type value = S.value
 
-    let create config task =
-      N.create config task >>= fun n ->
-      S.create config task >>= fun s ->
-      return (fun a -> (n a, s a))
+    let create config =
+      N.create config >>= fun n ->
+      S.create config >>= fun s ->
+      return (n, s)
 
     let config (s, t) = Ir_conf.union (N.config s) (S.config t)
-    let task (_, t) = S.task t
     let add (_, t) = S.add t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
     let read_exn (_, t) = S.read_exn t
     let merge_node path (n, _) = N.merge path n
 
-    let merge_commit path t ~old k1 k2 =
+    let merge_commit path t ~task ~old k1 k2 =
       read_exn t k1  >>= fun v1   ->
       read_exn t k2  >>= fun v2   ->
       if List.mem k1 (S.Val.parents v2) then ok k2
@@ -156,18 +159,17 @@ struct
         merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
         >>| fun node ->
         let parents = [k1; k2] in
-        let commit = S.Val.create ?node ~parents (task t) in
+        let commit = S.Val.create ?node ~parents task in
         add t commit >>= fun key ->
         ok key
 
-    let merge path t = Ir_merge.option (module S.Key) (merge_commit path t)
+    let merge path t ~task = Ir_merge.option (module S.Key) (merge_commit path t ~task)
 
     let iter (_, t) fn = S.iter t fn
 
     module Key = S.Key
     module Val = struct
       include S.Val
-      let merge _path ~old:_ _ _ = conflict "Commit.Val"
       module Path = N.Path
     end
     module Path = N.Path
@@ -182,8 +184,8 @@ struct
     | None   -> return_none
     | Some n -> return (S.Val.node n)
 
-  let create (_, t) ?node ~parents =
-    let commit = S.Val.create ?node ~parents (S.task t) in
+  let create (_, t) ?node ~parents ~task =
+    let commit = S.Val.create ?node ~parents task in
     S.add t commit >>= fun key ->
     return key
 
@@ -406,7 +408,7 @@ struct
            Lwt.return_unit)
     )
 
-  let rec three_way_merge t ?max_depth ?n c1 c2 =
+  let rec three_way_merge t ~task ?max_depth ?n c1 c2 =
     Log.debug "3-way merge between %a and %a"
       force (show (module S.Key) c1)
       force (show (module S.Key) c2);
@@ -421,17 +423,17 @@ struct
         let rec aux acc = function
           | []        -> ok (Some acc)
           | old::olds ->
-            three_way_merge t acc old >>| fun acc ->
+            three_way_merge t ~task acc old >>| fun acc ->
             aux acc olds
         in
         aux old olds
       in
-      try merge t ~old c1 c2
+      try merge t ~task ~old c1 c2
       with Ir_merge.Conflict msg ->
         conflict "Recursive merging of common ancestors: %s" msg
     )
 
-  let lca_aux t ?max_depth ?n c1 c2 =
+  let lca_aux t ~task ?max_depth ?n c1 c2 =
     if S.Key.equal c1 c2 then ok (Some c1)
     else (
       lcas t ?max_depth ?n c1 c2 >>= function
@@ -443,19 +445,19 @@ struct
         let rec aux acc = function
           | []    -> ok (Some acc)
           | c::cs ->
-            three_way_merge t ?max_depth ?n acc c >>= function
+            three_way_merge t ~task ?max_depth ?n acc c >>= function
             | `Conflict _ -> ok None
             | `Ok acc     -> aux acc cs
         in
         aux c cs
     )
 
-  let rec lca t ?max_depth ?n = function
+  let rec lca t ~task ?max_depth ?n = function
     | []  -> conflict "History.lca: empty"
     | [c] -> ok (Some c)
     | c1::c2::cs ->
-      lca_aux t ?max_depth ?n c1 c2 >>| function
+      lca_aux t ~task ?max_depth ?n c1 c2 >>| function
       | None   -> ok None
-      | Some c -> lca t ?max_depth ?n (c::cs)
+      | Some c -> lca t ~task ?max_depth ?n (c::cs)
 
 end

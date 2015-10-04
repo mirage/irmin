@@ -341,18 +341,8 @@ module type RO = sig
   type value
   (** Type for values. *)
 
-  val create: config -> 'a Task.f -> ('a -> t) Lwt.t
-  (** [create config task] is a function returning fresh store
-      handles, with the configuration [config] and fresh tasks
-      computed using [task]. [config] is provided by the backend and
-      [task] is the provided by the user. The operation might be
-      blocking, depending on the backend. *)
-
   val config: t -> config
   (** [config t] is [t]'s config. *)
-
-  val task: t -> task
-  (** [task t] is the task associated to the store handle [t]. *)
 
   val read: t -> key -> value option Lwt.t
   (** Read a value from the store. *)
@@ -377,6 +367,12 @@ module type AO = sig
 
   include RO
 
+  val create: config -> t Lwt.t
+  (** [create config] is a function returning fresh store
+      handles, with the configuration [config], which is
+      provided by the backend. The operation might be blocking,
+      depending on the backend. *)
+
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the
       responsibility of the append-only store to generate a
@@ -398,6 +394,8 @@ module type LINK = sig
       various equivalent trees). *)
 
   include RO
+
+  val create: config -> t Lwt.t
 
   val add: t -> key -> value -> unit Lwt.t
   (** [add t src dst] add a link between the key [src] and the value
@@ -517,6 +515,16 @@ module type BC = sig
       [create config task] is a persistent branch using the
       {Ref.S.master} reference. This operation is cheap, can be repeated
       multiple times. *)
+
+  val create: config -> 'a Task.f -> ('a -> t) Lwt.t
+  (** [create config task] is a function returning fresh store
+      handles, with the configuration [config] and fresh tasks
+      computed using [task]. [config] is provided by the backend and
+      [task] is the provided by the user. The operation might be
+      blocking, depending on the backend. *)
+
+  val task: t -> task
+  (** [task t] is the task associated to the store handle [t]. *)
 
   type branch_id
   (** Type for persistent branch names. Branches usually share a common
@@ -986,6 +994,8 @@ module Ref: sig
     (** {1 Ref Store} *)
 
     include RRW
+
+    val create: config -> t Lwt.t
 
     module Key: S with type t = key
     (** Base functions on keys. *)
@@ -1547,7 +1557,7 @@ module Private: sig
       type commit
       (** The type for commit values. *)
 
-      val create: t -> ?node:node -> parents:commit list -> commit Lwt.t
+      val create: t -> ?node:node -> parents:commit list -> task:task -> commit Lwt.t
       (** Create a new commit. *)
 
       val node: t -> commit -> node option Lwt.t
@@ -1563,7 +1573,7 @@ module Private: sig
           data-structure: every commit carries the list of its
           immediate predecessors. *)
 
-      val merge: t -> commit Merge.t
+      val merge: t -> task:task -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
       val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
@@ -1572,7 +1582,7 @@ module Private: sig
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
 
-      val lca: t -> ?max_depth:int -> ?n:int -> commit list ->
+      val lca: t -> task:task -> ?max_depth:int -> ?n:int -> commit list ->
         commit option Merge.result Lwt.t
       (** Compute the lowest common ancestors ancestor of a list of
           commits by recursively calling {!lcas} and merging the
@@ -1582,7 +1592,7 @@ module Private: sig
           {!lcas} returns either [`Max_depth_reached] or
           [`Too_many_lcas] then the function returns [None]. *)
 
-      val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
+      val three_way_merge: t -> task:task -> ?max_depth:int -> ?n:int -> commit -> commit ->
         commit Merge.result Lwt.t
       (** Compute the {!lcas} of the two commit and 3-way merge the
           result. *)
@@ -1591,8 +1601,12 @@ module Private: sig
       (** Same as {{!Private.Node.GRAPH.closure}GRAPH.closure} but for
           the history graph. *)
 
-      module Store: Contents.STORE with type t = t and type key = commit
-      (** An history forms a {{!Contents.STORE}contents store}. *)
+      (** A history forms a {{!STORE}store} of commits. *)
+      module Store: sig
+        include STORE with type t = t and type key = commit
+        module Path: Ir_path.S
+        val merge: Path.t -> t -> task:task -> key option Merge.t
+      end
 
     end
 
@@ -2164,9 +2178,6 @@ module type VIEW = sig
   (** [watch_head t p f] calls [f] every time a subpath of [p] is
       updated in the branch [t]. The callback parameters contain the
       branch's current head and the corresponding view. *)
-
-  val task: [`Views_do_not_have_task]
-  (** Views do not have tasks. *)
 end
 
 module View (S: S): VIEW with type db = S.t
@@ -2265,8 +2276,10 @@ module type LINK_MAKER = functor (K: Hash.S) ->
     implementation of values.*)
 module type RW_MAKER =
   functor (K: Hum.S) ->
-  functor (V: Tc.S0) ->
-    RRW with type key = K.t and type value = V.t
+  functor (V: Tc.S0) -> sig
+    include RRW with type key = K.t and type value = V.t
+    val create: config -> t Lwt.t
+  end
 
 module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 (** Simple store creator. Use the same type of all of the internal

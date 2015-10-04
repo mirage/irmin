@@ -30,14 +30,13 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type value = V.t
 
-  type t = { t: value KHashtbl.t; task: Irmin.task; config: Irmin.config }
+  type t = { t: value KHashtbl.t; config: Irmin.config }
 
-  let task t = t.task
   let config t = t.config
   let table = KHashtbl.create 23
 
-  let create config task =
-    Lwt.return (fun a -> { t = table; task = task a; config })
+  let create config =
+    Lwt.return { t = table; config }
 
   let read { t; _ } key =
     Log.debug "read";
@@ -98,14 +97,13 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let watches = W.create ()
   let lock = L.create ()
 
-  let create config task =
-    RO.create config task >>= fun t ->
-    Lwt.return (fun a -> { t = t a; w = watches; lock })
+  let create config =
+    RO.create config >>= fun t ->
+    Lwt.return { t; w = watches; lock }
 
   let read t = RO.read t.t
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
-  let task t = RO.task t.t
   let config t = RO.config t.t
   let iter t = RO.iter t.t
   let watch_key t = W.watch_key t.w

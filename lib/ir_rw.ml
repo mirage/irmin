@@ -39,5 +39,7 @@ end
 
 module type MAKER =
   functor (K: Ir_hum.S) ->
-  functor (V: Tc.S0) ->
-    REACTIVE with type key = K.t and type value = V.t
+  functor (V: Tc.S0) -> sig
+    include REACTIVE with type key = K.t and type value = V.t
+    val create: Ir_conf.t -> t Lwt.t
+  end

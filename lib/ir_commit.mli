@@ -42,16 +42,20 @@ module type HISTORY = sig
   type t
   type node
   type commit
-  val create: t -> ?node:node -> parents:commit list -> commit Lwt.t
+  val create: t -> ?node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
   val node: t -> commit -> node option Lwt.t
   val parents: t -> commit -> commit list Lwt.t
-  val merge: t -> commit Ir_merge.t
+  val merge: t -> task:Ir_task.t -> commit Ir_merge.t
   val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
     [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  val lca: t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
-  val three_way_merge: t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
+  val lca: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
+  val three_way_merge: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
-  module Store: Ir_contents.STORE with type t = t and type key = commit
+  module Store: sig
+    include STORE with type t = t and type key = commit
+    module Path: Ir_path.S
+    val merge: Path.t -> t -> task:Ir_task.t -> key option Ir_merge.t
+  end
 end
 
 module History (N: Ir_contents.STORE) (S: STORE with type Val.node = N.key):

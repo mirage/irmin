@@ -175,12 +175,6 @@ module Internal (Node: NODE) = struct
     let lock = Lwt_mutex.create () in
     Lwt.return { parents; view; ops; lock }
 
-  let create _conf _task =
-    Log.debug "create";
-    empty () >>= fun t ->
-    Lwt.return (fun _ -> t)
-
-  let task = `Views_do_not_have_task
   let config _ = Ir_conf.empty
 
   let sub t path =
@@ -811,12 +805,13 @@ module Make (S: Ir_s.STORE) = struct
     rebase_path db path view >>= Ir_merge.exn
 
   let merge_node db ?max_depth ?n path view head_node view_node =
+    let task = S.task db in
     (* Create a commit with the contents of the view *)
     Graph.read_node (graph_t db) head_node path >>= fun current_node ->
     let old () = match !(view.parents) with
       | []      -> ok None
       | parents ->
-        History.lca (history_t db) ?max_depth ?n parents
+        History.lca (history_t db) ~task ?max_depth ?n parents
         >>| function
         | None   -> ok None
         | Some c ->
@@ -837,7 +832,7 @@ module Make (S: Ir_s.STORE) = struct
       end >>= fun new_head_node ->
       S.head_exn db >>= fun head ->
       let parents = head :: !(view.parents) in
-      History.create (history_t db) ~node:new_head_node ~parents >>= fun h ->
+      History.create (history_t db) ~node:new_head_node ~parents ~task >>= fun h ->
       ok (`Changed h)
     )
 
@@ -970,5 +965,4 @@ module type S = sig
   val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
   val watch_path: db -> key -> ?init:(head * t) ->
     ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  val task: [`Views_do_not_have_task]
 end

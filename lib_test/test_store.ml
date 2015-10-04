@@ -114,13 +114,13 @@ module Make (S: Irmin.S) = struct
   let r1 x =
     n2 x >>= fun kn2 ->
     create_dummy x >>= fun t ->
-    History.create (h t ()) ~node:kn2 ~parents:[]
+    History.create (h t ()) ~node:kn2 ~parents:[] ~task:Irmin.Task.empty
 
   let r2 x =
     n3 x >>= fun kn3 ->
     r1 x >>= fun kr1 ->
     create_dummy x >>= fun t ->
-    History.create (h t ()) ~node:kn3 ~parents:[kr1]
+    History.create (h t ()) ~node:kn3 ~parents:[kr1] ~task:Irmin.Task.empty
 
   let run x test =
     try Lwt_unix.run (x.init () >>= test >>= x.clean)
@@ -315,16 +315,18 @@ module Make (S: Irmin.S) = struct
       Graph.create (g 2) [l "b", `Node kt2] >>= fun kt3 ->
 
       (* r1 : t2 *)
-      History.create (h 3) ~node:kt2 ~parents:[] >>= fun kr1 ->
-      History.create (h 3) ~node:kt2 ~parents:[] >>= fun kr1' ->
+      let with_task n fn =
+        fn (h n) ~task:(task n) in
+      with_task 3 @@ History.create ~node:kt2 ~parents:[] >>= fun kr1 ->
+      with_task 3 @@ History.create ~node:kt2 ~parents:[] >>= fun kr1' ->
       Commit.read_exn (c 0) kr1  >>= fun t1 ->
       Commit.read_exn (c 0) kr1' >>= fun t1' ->
       assert_equal (module C) "t1" t1 t1';
       assert_equal (module KC) "kr1" kr1 kr1';
 
       (* r1 -> r2 : t3 *)
-      History.create (h 4) ~node:kt3 ~parents:[kr1] >>= fun kr2 ->
-      History.create (h 4) ~node:kt3 ~parents:[kr1] >>= fun kr2' ->
+      with_task 4 @@ History.create ~node:kt3 ~parents:[kr1] >>= fun kr2 ->
+      with_task 4 @@ History.create ~node:kt3 ~parents:[kr1] >>= fun kr2' ->
       assert_equal (module KC) "kr2" kr2 kr2';
 
       History.closure (h 5) ~min:[] ~max:[kr1] >>= fun kr1s ->
@@ -709,22 +711,24 @@ module Make (S: Irmin.S) = struct
       S.create x.config task >>= fun t ->
 
       let h = h t and c a = S.Private.commit_t (t a) in
+      let with_task n fn =
+        fn (h n) ~task:(task n) in
 
-      History.create (h 0) ~node:k0 ~parents:[] >>= fun kr0 ->
-      History.create (h 1) ~node:k2 ~parents:[kr0] >>= fun kr1 ->
-      History.create (h 2) ~node:k3 ~parents:[kr0] >>= fun kr2 ->
-      History.merge (h 3) ~old:(old kr0) kr1 kr2 >>= fun kr3 ->
+      with_task 0 @@ History.create ~node:k0 ~parents:[] >>= fun kr0 ->
+      with_task 1 @@ History.create ~node:k2 ~parents:[kr0] >>= fun kr1 ->
+      with_task 2 @@ History.create ~node:k3 ~parents:[kr0] >>= fun kr2 ->
+      with_task 3 History.merge ~old:(old kr0) kr1 kr2 >>= fun kr3 ->
       Irmin.Merge.exn kr3 >>= fun kr3 ->
 
-      History.merge (h 4) ~old:(old kr2) kr2 kr3 >>= fun kr3_id' ->
+      with_task 4 History.merge ~old:(old kr2) kr2 kr3 >>= fun kr3_id' ->
       Irmin.Merge.exn kr3_id' >>= fun kr3_id' ->
       assert_equal (module KC) "kr3 id with immediate parent'" kr3 kr3_id';
 
-      History.merge (h 5) ~old:(old kr0) kr0 kr3 >>= fun kr3_id ->
+      with_task 5 History.merge ~old:(old kr0) kr0 kr3 >>= fun kr3_id ->
       Irmin.Merge.exn kr3_id >>= fun kr3_id ->
       assert_equal (module KC) "kr3 id with old parent" kr3 kr3_id;
 
-      History.create (h 3) ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
+      with_task 3 @@ History.create ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
 
       Commit.read_exn (c 0) kr3 >>= fun r3 ->
       Commit.read_exn (c 0) kr3' >>= fun r3' ->
@@ -772,17 +776,19 @@ module Make (S: Irmin.S) = struct
         assert_lcas_err msg `Max_depth_reached lcas;
         Lwt.return_unit
       in
+      let with_task n fn =
+        fn (h n) ~task:(task n) in
 
       (* test that we don't compute too many lcas
 
          0->1->2->3->4
 
       *)
-      History.create (h 0) ~node ~parents:[]   >>= fun k0 ->
-      History.create (h 1) ~node ~parents:[k0] >>= fun k1 ->
-      History.create (h 2) ~node ~parents:[k1] >>= fun k2 ->
-      History.create (h 3) ~node ~parents:[k2] >>= fun k3 ->
-      History.create (h 4) ~node ~parents:[k3] >>= fun k4 ->
+      with_task 0 @@ History.create ~node ~parents:[]   >>= fun k0 ->
+      with_task 1 @@ History.create ~node ~parents:[k0] >>= fun k1 ->
+      with_task 2 @@ History.create ~node ~parents:[k1] >>= fun k2 ->
+      with_task 3 @@ History.create ~node ~parents:[k2] >>= fun k3 ->
+      with_task 4 @@ History.create ~node ~parents:[k3] >>= fun k4 ->
 
       assert_lcas "line lcas 1" ~max_depth:0 3 k3 k4 [k3] >>= fun () ->
       assert_lcas "line lcas 2" ~max_depth:1 3 k2 k4 [k2] >>= fun () ->
@@ -797,14 +803,14 @@ module Make (S: Irmin.S) = struct
              \--->12-->14-->16-->17
 
       *)
-      History.create (h 10) ~node ~parents:[k4]       >>= fun k10 ->
-      History.create (h 11) ~node ~parents:[k10]      >>= fun k11 ->
-      History.create (h 12) ~node ~parents:[k10]      >>= fun k12 ->
-      History.create (h 13) ~node ~parents:[k11]      >>= fun k13 ->
-      History.create (h 14) ~node ~parents:[k12]      >>= fun k14 ->
-      History.create (h 15) ~node ~parents:[k12; k13] >>= fun k15 ->
-      History.create (h 16) ~node ~parents:[k14]      >>= fun k16 ->
-      History.create (h 17) ~node ~parents:[k11; k16] >>= fun k17 ->
+      with_task 10 @@ History.create ~node ~parents:[k4]       >>= fun k10 ->
+      with_task 11 @@ History.create ~node ~parents:[k10]      >>= fun k11 ->
+      with_task 12 @@ History.create ~node ~parents:[k10]      >>= fun k12 ->
+      with_task 13 @@ History.create ~node ~parents:[k11]      >>= fun k13 ->
+      with_task 14 @@ History.create ~node ~parents:[k12]      >>= fun k14 ->
+      with_task 15 @@ History.create ~node ~parents:[k12; k13] >>= fun k15 ->
+      with_task 16 @@ History.create ~node ~parents:[k14]      >>= fun k16 ->
+      with_task 17 @@ History.create ~node ~parents:[k11; k16] >>= fun k17 ->
 
       assert_lcas "x lcas 0" ~max_depth:0 5 k10 k10 [k10]      >>= fun () ->
       assert_lcas "x lcas 1" ~max_depth:0 5 k14 k14 [k14]      >>= fun () ->
@@ -823,13 +829,13 @@ module Make (S: Irmin.S) = struct
                  |        \--|--/
                  \-----------/
       *)
-      History.create (h 10) ~node ~parents:[k4]      >>= fun k10 ->
-      History.create (h 11) ~node ~parents:[k10]     >>= fun k11 ->
-      History.create (h 12) ~node ~parents:[k11]     >>= fun k12 ->
-      History.create (h 13) ~node ~parents:[k12]     >>= fun k13 ->
-      History.create (h 14) ~node ~parents:[k11;k13] >>= fun k14 ->
-      History.create (h 15) ~node ~parents:[k13;k14] >>= fun k15 ->
-      History.create (h 16) ~node ~parents:[k11]     >>= fun k16 ->
+      with_task 10 @@ History.create ~node ~parents:[k4]      >>= fun k10 ->
+      with_task 11 @@ History.create ~node ~parents:[k10]     >>= fun k11 ->
+      with_task 12 @@ History.create ~node ~parents:[k11]     >>= fun k12 ->
+      with_task 13 @@ History.create ~node ~parents:[k12]     >>= fun k13 ->
+      with_task 14 @@ History.create ~node ~parents:[k11;k13] >>= fun k14 ->
+      with_task 15 @@ History.create ~node ~parents:[k13;k14] >>= fun k15 ->
+      with_task 16 @@ History.create ~node ~parents:[k11]     >>= fun k16 ->
 
       assert_lcas "weird lcas 1" ~max_depth:0 3 k14 k15 [k14] >>= fun () ->
       assert_lcas "weird lcas 2" ~max_depth:0 3 k13 k15 [k13] >>= fun () ->

@@ -23,17 +23,17 @@ end
 
 module type S = sig
   include Irmin.LINK with type key = Hash.t and type value = Hash.t
-  val create: unit -> (unit -> t) Lwt.t
+  val create: unit -> t Lwt.t
 end
 
 module Mem: S = struct
   include Irmin_mem.Link(Hash)
-  let create () = create (Irmin_mem.config ()) Irmin.Task.none
+  let create () = create (Irmin_mem.config ())
 end
 
 module FS:S = struct
   include Irmin_unix.Irmin_fs.Link(Hash)
-  let create () = create Test_fs.config Irmin.Task.none
+  let create () = create Test_fs.config
 end
 
 let key x = Hash.digest (Cstruct.of_string x)
@@ -44,24 +44,24 @@ let test (module M: S) () =
   let k2 = key "bar" in
   let k3 = key "toto" in
   M.create () >>= fun t ->
-  M.add (t ()) k1 k2 >>= fun () ->
-  M.read (t ()) k1 >>= fun k2' ->
+  M.add t k1 k2 >>= fun () ->
+  M.read t k1 >>= fun k2' ->
   Alcotest.(check @@ option key_t) "k1 -> k2" (Some k2) k2';
   begin Lwt.catch
-    (fun () -> M.add (t ()) k1 k3 >>= fun () -> Alcotest.fail "already linked")
+    (fun () -> M.add t k1 k3 >>= fun () -> Alcotest.fail "already linked")
     (fun _e -> Lwt.return_unit)
   end >>= fun () ->
-  M.add (t ()) k2 k3 >>= fun () ->
-  M.read (t ()) k2 >>= fun k3' ->
+  M.add t k2 k3 >>= fun () ->
+  M.read t k2 >>= fun k3' ->
   Alcotest.(check @@ option key_t) "k2 -> k3" (Some k3) k3';
-  M.mem (t ()) k1 >>= fun m1 ->
+  M.mem t k1 >>= fun m1 ->
   Alcotest.(check bool) "mem k1" true m1;
-  M.mem (t ()) k2 >>= fun m2 ->
+  M.mem t k2 >>= fun m2 ->
   Alcotest.(check bool) "mem k2" true m2;
-  M.mem (t ()) k3 >>= fun m3 ->
+  M.mem t k3 >>= fun m3 ->
   Alcotest.(check bool) "mem k3" false m3;
   let all = ref [] in
-  M.iter (t ()) (fun k _ -> all := k :: !all; Lwt.return_unit) >>= fun () ->
+  M.iter t (fun k _ -> all := k :: !all; Lwt.return_unit) >>= fun () ->
   Alcotest.(check @@ slist key_t Hash.compare) "all keys" !all [k1; k2];
   Lwt.return_unit
 
