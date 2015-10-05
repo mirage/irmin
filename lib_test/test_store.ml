@@ -57,14 +57,14 @@ module Make (S: Irmin.S) = struct
   let l = S.Key.Step.of_hum
   let p k = S.Key.create (List.map l k)
 
-  let create x = S.create x.config Irmin_unix.task
+  let create x = S.Repo.create x.config >>= S.master Irmin_unix.task
 
   let dummy_task =
     let t = Irmin.Task.empty in
     fun () -> t
 
   let create_dummy x =
-    S.create x.config dummy_task
+    S.Repo.create x.config >>= S.master dummy_task
 
   let string x str = match x.cont with
     | `String -> Tc.read_string (module V) str
@@ -304,7 +304,7 @@ module Make (S: Irmin.S) = struct
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~owner:"test" "Test commit" ~uid:i
       in
-      S.create x.config task >>= fun t ->
+      S.Repo.create x.config >>= S.master task >>= fun t ->
 
       kv1 x >>= fun kv1 ->
       let g = g t and h = h t and c x = S.Private.commit_t (t x) in
@@ -708,7 +708,7 @@ module Make (S: Irmin.S) = struct
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
       in
-      S.create x.config task >>= fun t ->
+      S.Repo.create x.config >>= S.master task >>= fun t ->
 
       let h = h t and c a = S.Private.commit_t (t a) in
       let with_task n fn =
@@ -744,7 +744,8 @@ module Make (S: Irmin.S) = struct
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
       in
-      S.create x.config task >>= fun t ->
+      S.Repo.create x.config >>= fun repo ->
+      S.master task repo >>= fun t ->
       let h = h t in
       Graph.create (g t 0) [] >>= fun node ->
       let assert_lcas_err msg err l2 =
@@ -767,8 +768,8 @@ module Make (S: Irmin.S) = struct
         assert_equal (module Set(KC)) msg l1 l2
       in
       let assert_lcas msg ~max_depth n a b expected =
-        S.of_head x.config task a >>= fun a ->
-        S.of_head x.config task b >>= fun b ->
+        S.of_head task a repo >>= fun a ->
+        S.of_head task b repo >>= fun b ->
         S.lcas ~max_depth n a b >>= fun lcas ->
         assert_lcas msg expected lcas;
         S.lcas ~max_depth:(max_depth - 1) n a b >>= fun lcas ->
@@ -844,7 +845,7 @@ module Make (S: Irmin.S) = struct
       assert_lcas "weird lcas 4" ~max_depth:3 3 k15 k16 [k11] >>= fun () ->
 
       (* fast-forward *)
-      S.of_head x.config task k12     >>= fun t12  ->
+      S.of_head task k12 repo         >>= fun t12  ->
       S.fast_forward_head (t12 0) k16 >>= fun b1 ->
       assert_equal Tc.bool "ff 1.1" false b1;
       S.head_exn (t12 0)              >>= fun k12' ->
@@ -866,7 +867,7 @@ module Make (S: Irmin.S) = struct
 
   let test_empty x () =
     let test () =
-      S.empty x.config dummy_task >>= fun t ->
+      S.Repo.create x.config >>= S.empty dummy_task >>= fun t ->
 
       S.head (t ()) >>= fun h ->
       assert_equal (module Tc.Option(S.Head)) "empty" None h;
@@ -902,7 +903,8 @@ module Make (S: Irmin.S) = struct
 
   let test_stores x () =
     let test () =
-      create x >>= fun t ->
+      S.Repo.create x.config >>= fun repo ->
+      S.master Irmin_unix.task repo >>= fun t ->
       let v1 = v1 x in
       S.update (t "init") (p ["a";"b"]) v1 >>= fun () ->
 
@@ -1020,8 +1022,8 @@ module Make (S: Irmin.S) = struct
       let tagy = S.Ref.of_hum "y" in
       let xy = p ["x";"y"] in
       let vx = string x "VX" in
-      S.of_branch_id x.config Irmin_unix.task tagx >>= fun tx ->
-      S.of_branch_id x.config Irmin_unix.task tagy >>= fun ty ->
+      S.of_branch_id Irmin_unix.task tagx repo >>= fun tx ->
+      S.of_branch_id Irmin_unix.task tagy repo >>= fun ty ->
       S.remove_branch (tx "?") tagx >>= fun () ->
       S.remove_branch (tx "?") tagy >>= fun () ->
 
@@ -1041,7 +1043,8 @@ module Make (S: Irmin.S) = struct
 
   let test_views x () =
     let test () =
-      create x >>= fun t ->
+      S.Repo.create x.config >>= fun repo ->
+      S.master Irmin_unix.task repo >>= fun t ->
       let nodes = random_nodes x 100 in
       let foo1 = random_value x 10 in
       let foo2 = random_value x 10 in
@@ -1193,7 +1196,7 @@ module Make (S: Irmin.S) = struct
       S.task_of_head (t "task") h >>= fun ta' ->
       assert_equal (module Irmin.Task) "task" ta ta';
 
-      S.of_head x.config Irmin_unix.task h >>= fun tt ->
+      S.of_head Irmin_unix.task h repo >>= fun tt ->
       S.history (tt "history") >>= fun g ->
       let pred = S.History.pred g h in
       let s = List.sort S.Head.compare in
@@ -1253,7 +1256,8 @@ module Make (S: Irmin.S) = struct
 
   let test_sync x () =
     let test () =
-      create x >>= fun t1 ->
+      S.Repo.create x.config >>= fun repo ->
+      S.master Irmin_unix.task repo >>= fun t1 ->
       let v1 = v1 x in
       let v2 = v2 x in
 
@@ -1277,7 +1281,7 @@ module Make (S: Irmin.S) = struct
 
       (* Restart a fresh store and import everything in there. *)
       let tag = S.Ref.of_hum "export" in
-      S.of_branch_id x.config Irmin_unix.task tag >>= fun t2 ->
+      S.of_branch_id Irmin_unix.task tag repo >>= fun t2 ->
       S.update_head (t2 "partial update") partial >>= fun () ->
 
       S.mem (t2 "mem a/b") (p ["a";"b"]) >>= fun b1 ->

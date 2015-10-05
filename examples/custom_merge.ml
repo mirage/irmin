@@ -178,7 +178,7 @@ let print_logs name t =
 
 let main () =
   Config.init ();
-  Store.create config task >>= fun t ->
+  Store.Repo.create config >>= Store.master task >>= fun t ->
 
   (* populate the log with some random messages *)
   Lwt_list.iter_s (fun msg ->

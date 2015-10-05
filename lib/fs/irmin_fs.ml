@@ -174,7 +174,6 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     let w = W.create () in
     Lwt.return { t; w }
 
-  let config t = RO.config t.t
   let read t = RO.read t.t
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t

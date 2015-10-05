@@ -86,7 +86,7 @@ let master = branch images.(0)
 
 let init () =
   Config.init ();
-  Store.of_branch_id config (task images.(0)) master >>= fun t ->
+  Store.Repo.create config >>= Store.of_branch_id (task images.(0)) master >>= fun t ->
   Store.update (t "init") ["0"] "0" >>= fun () ->
   Lwt_list.iter_s (fun i ->
       Store.clone_force (task images.(0)) (t "Cloning") (branch i) >>= fun _ ->
@@ -106,7 +106,7 @@ let rec process image =
     try random_list actions.files
     with _ -> ["log"; id; "0"], fun () -> id ^ string_of_int (Random.int 10)
   in
-  Store.of_branch_id config (task image) id >>= fun t ->
+  Store.Repo.create config >>= Store.of_branch_id (task image) id >>= fun t ->
   Store.update (t actions.message) key (value ()) >>= fun () ->
 
   begin if Random.int 3 = 0 then

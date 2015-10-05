@@ -17,11 +17,11 @@ let task ~user msg =
   Irmin.Task.create ~date ~owner msg
 
 (* 1. Cloning the gold image. *)
-let provision () =
+let provision repo =
   Config.init ();
   let provision = task ~user:"Automatic VM provisioning" in
 
-  Store.of_branch_id config provision "upstream" >>= fun t ->
+  Store.of_branch_id provision "upstream" repo >>= fun t ->
 
   View.empty () >>= fun v ->
   View.update v ["etc"; "manpath"]
@@ -35,8 +35,8 @@ let provision () =
 
 (* 2. VM configuration. *)
 let sysadmin = task ~user:"Bob the sysadmin"
-let configure () =
-  Store.of_branch_id config sysadmin "upstream" >>= fun t ->
+let configure repo =
+  Store.of_branch_id sysadmin "upstream" repo >>= fun t ->
 
   Lwt_unix.sleep 2.  >>= fun () ->
   Store.clone_force sysadmin (t "Cloning upstream") "dev" >>= fun t ->
@@ -49,11 +49,11 @@ let configure () =
   Store.clone_force sysadmin (t "Stable") "prod" >>= fun _ ->
   Lwt.return_unit
 
-let attack () =
+let attack repo =
   let task = task ~user:"Remote connection from 132.443.12.444" in
 
   (* 3. Attacker. *)
-  Store.of_branch_id config task "prod" >>= fun t ->
+  Store.of_branch_id task "prod" repo >>= fun t ->
 
   Lwt_unix.sleep 2. >>= fun () ->
   Store.update (t "$ vim /etc/resolv.conf")
@@ -67,9 +67,9 @@ let attack () =
     ["bin";"sh"]
     "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
 
-let revert () =
-  Store.of_branch_id config sysadmin "prod" >>= fun prod ->
-  Store.of_branch_id config sysadmin "dev"  >>= fun dev ->
+let revert repo =
+  Store.of_branch_id sysadmin "prod" repo >>= fun prod ->
+  Store.of_branch_id sysadmin "dev"  repo >>= fun dev ->
 
   Store.head_exn (prod "head") >>= fun h1 ->
   Store.head_exn (dev  "head") >>= fun h2 ->
@@ -109,24 +109,24 @@ let () =
   else match Sys.argv.(1) with
 
     | "provision" ->
-      Lwt_unix.run (provision ());
+      Lwt_unix.run (Store.Repo.create config >>= provision);
       Printf.printf
         "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
          configuration.\n" cmd
 
     | "configure" ->
-      Lwt_unix.run (configure ());
+      Lwt_unix.run (Store.Repo.create config >>= configure);
       Printf.printf
         "The VM is now configured. Run `%s attack` to simulate an attack by an \n\
          intruder.\n" cmd
 
     | "attack" ->
-      Lwt_unix.run (attack ());
+      Lwt_unix.run (Store.Repo.create config >>= attack);
       Printf.printf
         "The VM has been attacked. Run `%s revert` to revert the VM state to a \
           safe one.\n" cmd
 
     | "revert" ->
-      Lwt_unix.run (revert ())
+      Lwt_unix.run (Store.Repo.create config >>= revert)
 
     | _  -> help ()

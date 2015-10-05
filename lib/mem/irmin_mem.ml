@@ -104,7 +104,6 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let read t = RO.read t.t
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
-  let config t = RO.config t.t
   let iter t = RO.iter t.t
   let watch_key t = W.watch_key t.w
   let watch t = W.watch t.w

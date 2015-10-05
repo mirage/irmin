@@ -110,7 +110,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
       | None -> []
       | Some s -> List.filter ((<>)"") @@ Stringext.split s ~on:'/'
     in
-    S.of_branch_id config Irmin.Task.none branch_id >>= fun t ->
+    S.Repo.create config >>= S.of_branch_id Irmin.Task.none branch_id >>= fun t ->
     Sync.pull_exn (t ()) ~depth uri `Update >|= fun () ->
     { t = t (); path }
 

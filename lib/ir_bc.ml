@@ -23,11 +23,17 @@ module Log = Log.Make(struct let section = "BC" end)
 module StringMap = Map.Make(String)
 
 module type STORE = sig
+  module Repo: sig
+    type t
+    val create: Ir_conf.t -> t Lwt.t
+    val config: t -> Ir_conf.t
+  end
   include Ir_rw.HIERARCHICAL
-  val create: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
+  val master: ('a -> Ir_task.t) -> Repo.t -> ('a -> t) Lwt.t
+  val repo: t -> Repo.t
   val task: t -> Ir_task.t
   type branch_id
-  val of_branch_id: Ir_conf.t -> 'a Ir_task.f -> branch_id -> ('a -> t) Lwt.t
+  val of_branch_id: 'a Ir_task.f -> branch_id -> Repo.t -> ('a -> t) Lwt.t
   val name: t -> branch_id option Lwt.t
   val name_exn: t -> branch_id Lwt.t
   val branches: t -> branch_id list Lwt.t
@@ -36,8 +42,8 @@ module type STORE = sig
   val merge_branch: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Ir_merge.result Lwt.t
   val merge_branch_exn: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Lwt.t
   type head
-  val empty: Ir_conf.t -> 'a Ir_task.f -> ('a -> t) Lwt.t
-  val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
+  val empty: 'a Ir_task.f -> Repo.t -> ('a -> t) Lwt.t
+  val of_head: ('a -> Ir_task.t) -> head -> Repo.t -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
   val head_ref: t -> [`Branch of branch_id | `Head of head | `Empty]
@@ -98,7 +104,6 @@ module type STORE_EXT = sig
      and type Commit.key = head
      and type Ref.key = branch_id
      and type Slice.t = slice
-  val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
   val node_t: t -> Private.Node.t
   val commit_t: t -> Private.Commit.t
@@ -139,25 +144,46 @@ module Make_ext (P: PRIVATE) = struct
   module KGraph =
     Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Ref.Key)
 
+  module Repo = struct
+    type t = {
+      config: Ir_conf.t;
+      contents: P.Contents.t;
+      node: P.Node.t;
+      commit: P.Commit.t;
+      ref_store: Ref.t;
+    }
+
+    let create config =
+      P.Contents.create config >>= fun contents ->
+      P.Node.create config     >>= fun node ->
+      P.Commit.create config   >>= fun commit ->
+      Ref.create config        >>= fun ref_store ->
+      return
+        { contents     = contents;
+          node         = node;
+          commit       = commit;
+          ref_store    = ref_store;
+          config       = config;
+        }
+
+    let config t = t.config
+  end
+
   type t = {
-    config: Ir_conf.t;
+    repo: Repo.t;
     task: Ir_task.t;
-    contents: P.Contents.t;
-    node: P.Node.t;
-    commit: P.Commit.t;
-    ref_store: Ref.t;
     head_ref: head_ref;
     lock: Lwt_mutex.t;
   }
 
-  let config t = t.config
+  let repo t = t.repo
   let task t = t.task
-  let ref_t t = t.ref_store
-  let commit_t t = t.commit
-  let node_t t = t.node
-  let contents_t t = t.contents
-  let graph_t t = t.contents, t.node
-  let history_t t = graph_t t, t.commit
+  let ref_t t = t.repo.Repo.ref_store
+  let commit_t t = t.repo.Repo.commit
+  let node_t t = t.repo.Repo.node
+  let contents_t t = t.repo.Repo.contents
+  let graph_t t = contents_t t, node_t t
+  let history_t t = graph_t t, commit_t t
   let head_ref t = match t.head_ref with
     | `Branch t -> `Branch t
     | `Head h -> match !h with None -> `Empty | Some h -> `Head h
@@ -200,22 +226,11 @@ module Make_ext (P: PRIVATE) = struct
     | None   -> err_no_head "head"
     | Some k -> return k
 
-  let of_ref config task head_ref =
-    P.Contents.create config >>= fun contents ->
-    P.Node.create config     >>= fun node ->
-    P.Commit.create config   >>= fun commit ->
-    Ref.create config        >>= fun ref_store ->
+  let of_ref repo task head_ref =
     let lock = Lwt_mutex.create () in
-    (* [branch] is created outside of the closure as we want the
-       branch to be shared by every invocation of the function return
-       by [of_branch_id]. *)
     return (fun a ->
-        { contents     = contents;
-          node         = node;
-          commit       = commit;
-          ref_store    = ref_store;
+        { repo         = repo;
           task         = task a;
-          config       = config;
           lock; head_ref }
       )
 
@@ -223,18 +238,18 @@ module Make_ext (P: PRIVATE) = struct
     let err = Printf.sprintf "%S is not a valid branch name." (Ref.Key.to_hum t) in
     Lwt.fail (Invalid_argument err)
 
-  let of_branch_id config task t =
-    if Ref.Key.is_valid t then of_ref config task (`Branch t)
+  let of_branch_id task t repo =
+    if Ref.Key.is_valid t then of_ref repo task (`Branch t)
     else err_invalid_branch_id t
 
-  let create config task =
-    of_branch_id config task Ref.Key.master
+  let master task repo =
+    of_branch_id task Ref.Key.master repo
 
-  let empty config task =
-    of_ref config task (`Head (ref None))
+  let empty task repo =
+    of_ref repo task (`Head (ref None))
 
-  let of_head config task key =
-    of_ref config task (`Head (ref (Some key)))
+  let of_head task key repo =
+    of_ref repo task (`Head (ref (Some key)))
 
   let read_head_commit t =
     Log.debug "read_head_commit";
@@ -387,7 +402,7 @@ module Make_ext (P: PRIVATE) = struct
     | None   -> Lwt.return_unit
     | Some h ->
       (* we avoid races here by freezing the store head. *)
-      of_head t.config (fun () -> t.task) h >>= fun t ->
+      of_head (fun () -> t.task) h t.repo >>= fun t ->
       let t = t () in
       let rec aux acc = function
         | []       -> Lwt_list.iter_p (fun (path, v) -> fn path v) acc
@@ -536,7 +551,7 @@ module Make_ext (P: PRIVATE) = struct
 
   let clone_force task t branch_id =
     Log.debug "clone_force %a" force (show (module Ref.Key) branch_id);
-    let return () = of_branch_id t.config task branch_id in
+    let return () = of_branch_id task branch_id t.repo in
     head t >>= function
     | None   -> return ()
     | Some h -> Ref.update (ref_t t) branch_id h >>= return
@@ -546,7 +561,7 @@ module Make_ext (P: PRIVATE) = struct
     Ref.mem (ref_t t) branch_id >>= function
     | true  -> Lwt.return `Duplicated_branch
     | false ->
-      let return () = of_branch_id t.config task branch_id >|= fun t -> `Ok t in
+      let return () = of_branch_id task branch_id t.repo >|= fun t -> `Ok t in
       head t >>= function
       | None   -> Lwt.return `Empty_head
       | Some h ->
@@ -620,14 +635,14 @@ module Make_ext (P: PRIVATE) = struct
         if Val.equal vx vy then Lwt.return_unit
         else fn @@ `Updated ( (x, vx), (y, vy) )
 
-let watch_key t key ?init fn =
+  let watch_key t key ?init fn =
     Log.info "watch-key %a" force (show (module Key) key);
     let init_head = match init with
       | None        -> None
       | Some (h, _) -> Some h
     in
     let value_of_head h =
-      of_head (config t) (fun () -> task t) h >>= fun t ->
+      of_head (fun () -> task t) h (repo t) >>= fun t ->
       read (t ()) key
     in
     watch_head t ?init:init_head (lift value_of_head fn)

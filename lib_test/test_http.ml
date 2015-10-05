@@ -47,7 +47,7 @@ let suite ?(content_type=`Raw) server =
       let module HTTP = Irmin_http_server.Make(Server) in
       let server () =
         server.init () >>= fun () ->
-        Server.create server.config task >>= fun t  ->
+        Server.Repo.create server.config >>= Server.master task >>= fun t  ->
         signal () >>= fun () ->
         let spec = HTTP.http_spec (t "server") ~strict:true in
         Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 8080)) spec

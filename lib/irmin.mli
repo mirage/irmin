@@ -341,9 +341,6 @@ module type RO = sig
   type value
   (** Type for values. *)
 
-  val config: t -> config
-  (** [config t] is [t]'s config. *)
-
   val read: t -> key -> value option Lwt.t
   (** Read a value from the store. *)
 
@@ -373,6 +370,9 @@ module type AO = sig
       provided by the backend. The operation might be blocking,
       depending on the backend. *)
 
+  val config: t -> config
+  (** [config t] is [t]'s config. *)
+
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the
       responsibility of the append-only store to generate a
@@ -396,6 +396,9 @@ module type LINK = sig
   include RO
 
   val create: config -> t Lwt.t
+
+  val config: t -> config
+  (** [config t] is [t]'s config. *)
 
   val add: t -> key -> value -> unit Lwt.t
   (** [add t src dst] add a link between the key [src] and the value
@@ -509,19 +512,32 @@ module type BC = sig
       branch, you need to provide its name: see the {{!BC.of_branch_id}of_branch_id}
       function. *)
 
+  module Repo: sig
+    (** A repository contains a set of branches. *)
+
+    type t
+    (** The type of repository handles. *)
+
+    val create: config -> t Lwt.t
+    (** [create config] connects to a repository in a backend-specific manner. *)
+
+    val config: t -> config
+    (** Recover the config passed to [create].
+     * todo: would be good to remove this, but Ir_sync_ext needs it for now. *)
+  end
+
   include HRW
-  (** A branch-consistent store is a hierarchical read-write store.
+  (** A branch-consistent store is a hierarchical read-write store. *)
 
-      [create config task] is a persistent branch using the
-      {Ref.S.master} reference. This operation is cheap, can be repeated
-      multiple times. *)
+  val master: 'a Task.f -> Repo.t -> ('a -> t) Lwt.t
+  (** [master repo task] is a function returning fresh store
+      handles within the repository [repo], with fresh tasks
+      computed using [task].
+      The result is a persistent branch using the {Ref.S.master} reference.
+      This operation is cheap, can be repeated multiple times. *)
 
-  val create: config -> 'a Task.f -> ('a -> t) Lwt.t
-  (** [create config task] is a function returning fresh store
-      handles, with the configuration [config] and fresh tasks
-      computed using [task]. [config] is provided by the backend and
-      [task] is the provided by the user. The operation might be
-      blocking, depending on the backend. *)
+  val repo: t -> Repo.t
+  (** [repo t] is the repository containing [t]. *)
 
   val task: t -> task
   (** [task t] is the task associated to the store handle [t]. *)
@@ -531,9 +547,9 @@ module type BC = sig
       global namespace and it's the user's responsibility to avoid
       name clashes. *)
 
-  val of_branch_id: config -> 'a Task.f -> branch_id -> ('a -> t) Lwt.t
+  val of_branch_id: 'a Task.f -> branch_id -> Repo.t -> ('a -> t) Lwt.t
   (** [of_branch_id t name] is the persistent branch named [name]. Similar to
-      [create], but use [name] instead {!Ref.S.master}. *)
+      [master], but use [name] instead {!Ref.S.master}. *)
 
   val name: t -> branch_id option Lwt.t
   (** [name t] is [t]'s branch name. Return [None] if [t] is not persistent. *)
@@ -580,11 +596,11 @@ module type BC = sig
   type head
   (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
 
-  val empty: config -> 'a Task.f -> ('a -> t) Lwt.t
-  (** [empty config task] is a temporary, empty store. Becomes a
+  val empty: 'a Task.f -> Repo.t -> ('a -> t) Lwt.t
+  (** [empty repo task] is a temporary, empty store. Becomes a
       normal temporary store after the first update. *)
 
-  val of_head: config -> 'a Task.f -> head -> ('a -> t) Lwt.t
+  val of_head: 'a Task.f -> head -> Repo.t -> ('a -> t) Lwt.t
   (** Create a temporary store, using the given [head]. The store
       will not persist as it has no persistent branch name. *)
 
@@ -1763,7 +1779,7 @@ module type S = sig
        and type Commit.key = head
        and type Ref.key = branch_id
        and type Slice.t = slice
-    val config: t -> config
+    val repo: t -> Repo.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t

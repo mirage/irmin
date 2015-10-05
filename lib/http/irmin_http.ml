@@ -278,7 +278,6 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.return { t; w; keys; glob }
 
   let uri t = RO.uri t.t
-  let config t = RO.config t.t
   let read t = RO.read t.t
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
@@ -444,14 +443,28 @@ struct
   module LP = L.Private
   module S  = RW(Client)(Key)(Val)
 
+  module Repo = struct
+    type t = {
+      config : Irmin.config;
+      h : S.t;
+      l : L.Repo.t;
+    }
+    let create config =
+      S.create config >>= fun h ->
+      L.Repo.create config >>= fun l ->
+      Lwt.return {config; h; l}
+
+    let config t = t.config
+  end
+
   (* [t.s.uri] always point to the right location:
        - `$uri/` if head_ref = `Branch R.master
        - `$uri/tree/$tag` if head_ref = `Branch tag
        - `$uri/tree/$key if key = `Key key *)
   type t = {
     head_ref: [`Branch of Ref.t | `Head of Head.t | `Empty] ref;
-    h: S.t; l: L.t;
-    config: Irmin.config;
+    l: L.t;
+    repo: Repo.t;
     contents_t: LP.Contents.t;
     node_t: LP.Node.t;
     commit_t: LP.Commit.t;
@@ -468,7 +481,7 @@ struct
   let head_ref t = !(t.head_ref)
 
   let uri t =
-    let base = S.uri t.h in
+    let base = S.uri t.repo.Repo.h in
     match head_ref t with
     | `Branch name ->
       if Ref.equal name Ref.master then base
@@ -476,9 +489,9 @@ struct
     | `Empty  -> uri_append base ["empty"]
     | `Head h -> uri_append base ["tree"; Head.to_hum h]
 
-  let config t = S.config t.h
+  let repo t = t.repo
   let task t = L.task t.l
-  let ct t = t.h.S.t.S.RO.ct (* yiikes *)
+  let ct t = t.repo.Repo.h.S.t.S.RO.ct (* yiikes *)
 
   let set_head t = function
     | None   -> t.head_ref := `Empty; Lwt.return_unit
@@ -492,7 +505,7 @@ struct
   let v: Val.t Tc.t = (module Val)
   let head_tc: Head.t Tc.t = (module Head)
 
-  let create_aux head_ref config h l =
+  let create_aux head_ref repo l =
     let fn a =
       let l = l a in
       let contents_t = LP.contents_t l in
@@ -506,35 +519,31 @@ struct
       let merge_node = LP.merge_node l in
       let iter_node = LP.iter_node l in
       let lock = Lwt_mutex.create () in
-      { l; head_ref; h; contents_t; node_t; commit_t; ref_t;
+      { l; head_ref; contents_t; node_t; commit_t; ref_t;
         read_node; mem_node; update_node; remove_node; merge_node;
-        config; lock; iter_node; }
+        repo; lock; iter_node; }
     in
     Lwt.return fn
 
-  let create config task =
-    S.create config >>= fun h ->
-    L.create config task >>= fun l ->
+  let master task repo =
+    L.master task repo.Repo.l >>= fun l ->
     let head_ref = ref (`Branch Ref.master) in
-    create_aux head_ref config h l
+    create_aux head_ref repo l
 
-  let of_branch_id config task branch_id =
-    S.create config >>= fun h ->
-    L.of_branch_id config task branch_id >>= fun l ->
+  let of_branch_id task branch_id repo =
+    L.of_branch_id task branch_id repo.Repo.l >>= fun l ->
     let head_ref = ref (`Branch branch_id) in
-    create_aux head_ref config h l
+    create_aux head_ref repo l
 
-  let of_head config task head =
-    S.create config >>= fun h ->
-    L.of_head config task head >>= fun l ->
+  let of_head task head repo =
+    L.of_head task head repo.Repo.l >>= fun l ->
     let head_ref = ref (`Head head) in
-    create_aux head_ref config h l
+    create_aux head_ref repo l
 
-  let empty config task =
-    S.create config >>= fun h ->
-    L.empty config task  >>= fun l ->
+  let empty task repo =
+    L.empty task repo.Repo.l >>= fun l ->
     let head_ref = ref `Empty in
-    create_aux head_ref config h l
+    create_aux head_ref repo l
 
   let err_not_found n k =
     invalid_arg "Irmin_http.%s: %s not found" n (Key.to_hum k)
@@ -711,19 +720,19 @@ struct
       | Some (h, _) -> Some h
     in
     let value_of_head h =
-      of_head t.config (fun () -> task t) h >>= fun t ->
+      of_head (fun () -> task t) h t.repo >>= fun t ->
       read (t ()) key
     in
     watch_head t ?init:init_head (lift value_of_head fn)
 
   let clone task t branch_id =
     post t ["clone"; Ref.to_hum branch_id] ok_or_duplicated_branch_id >>= function
-    | `Ok -> of_branch_id t.config task branch_id >|= fun t -> `Ok t
+    | `Ok -> of_branch_id task branch_id t.repo >|= fun t -> `Ok t
     | `Duplicated_branch | `Empty_head as x -> Lwt.return x
 
   let clone_force task t branch_id =
     post t ["clone-force"; Ref.to_hum branch_id] Tc.unit >>= fun () ->
-    of_branch_id t.config task branch_id
+    of_branch_id task branch_id t.repo
 
   let merge_branch t ?max_depth ?n other =
     let query = mk_query ?max_depth ?n () in
@@ -838,7 +847,8 @@ struct
 
   module Private = struct
     include L.Private
-    let config t = t.config
+    module Repo = Repo
+    let repo t = t.repo
     let contents_t t = t.contents_t
     let node_t t = t.node_t
     let commit_t t = t.commit_t

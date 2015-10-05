@@ -51,7 +51,7 @@ let test_non_bare () =
   init_disk () >>= fun () ->
   let module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String) in
   let config = Irmin_git.config ~root:test_db ~bare:false () in
-  Store.create config task >>= fun t ->
+  Store.Repo.create config >>= Store.master task >>= fun t ->
   Store.update (t "fst one") ["fst"] "ok" >>= fun () ->
   Store.update (t "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
   Store.update (t "fst one") ["fst"] "hoho"

@@ -542,7 +542,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
            let create =
              let aux t path =
                S.head_exn t >>= fun head ->
-               S.of_head (S.config t) (fun () -> S.task t) head >>= fun t ->
+               S.of_head (fun () -> S.task t) head (S.repo t) >>= fun t ->
                S.Private.read_node (t ()) path >>= function
                | None   -> Lwt.fail_invalid_arg "view"
                | Some n -> Lwt.return (head, n)
@@ -746,7 +746,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
 
     SNode (
       bc (fun x task ->
-          S.create (S.Private.config x) (fun () -> task) >>= fun x ->
+          S.master (fun () -> task) (S.repo x) >>= fun x ->
           Lwt.return (x ()))
       @ [
         (* subdirs *)
@@ -756,7 +756,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
         "tag"     , tag_store;
       ] @ [
         "empty"   , SNode (bc (fun t task ->
-            S.empty (S.Private.config t) (fun () -> task) >>= fun t ->
+            S.empty (fun () -> task) (S.repo t) >>= fun t ->
             Lwt.return (t ())))
       ] @ [
         "tree"    , dyn_node
@@ -766,7 +766,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
              List.map S.Ref.to_hum branches @ List.map S.Head.to_hum heads)
           (fun _req n ->
              let app fn t x task =
-               fn (S.Private.config t) (fun () -> task) x >>= fun t ->
+               fn (fun () -> task) x (S.repo t) >>= fun t ->
                Lwt.return (t ())
              in
              try
