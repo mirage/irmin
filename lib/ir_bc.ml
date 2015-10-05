@@ -793,38 +793,3 @@ module type MAKER =
            and type value = C.t
            and type head = H.t
            and type branch_id = R.t
-
-module Make
-    (AO: Ir_ao.MAKER)
-    (RW: Ir_rw.MAKER)
-    (C: Ir_contents.S)
-    (R: Ir_tag.S)
-    (H: Ir_hash.S) =
-struct
-  module X = struct
-    module Contents = Ir_contents.Make(struct
-        include AO(H)(C)
-        module Key = H
-        module Val = C
-      end)
-    module Node = struct
-      module Key = H
-      module Val = Ir_node.Make (H)(H)(C.Path)
-      module Path = C.Path
-      include AO (Key)(Val)
-    end
-    module Commit = struct
-      module Key = H
-      module Val = Ir_commit.Make (H)(H)
-      include AO (Key)(Val)
-    end
-    module Ref = struct
-      module Key = R
-      module Val = H
-      include RW (Key)(Val)
-    end
-    module Slice = Ir_slice.Make(Contents)(Node)(Commit)
-    module Sync = Ir_sync.None(H)(R)
-  end
-  include Make_ext(X)
-end

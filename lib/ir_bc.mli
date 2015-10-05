@@ -75,15 +75,6 @@ module type STORE = sig
   val import: t -> slice -> [`Ok | `Error] Lwt.t
 end
 
-module type MAKER =
-  functor (C: Ir_contents.S) ->
-  functor (R: Ir_tag.S) ->
-  functor (H: Ir_hash.S) ->
-    STORE with type key = C.Path.t
-           and type value = C.t
-           and type head = H.t
-           and type branch_id = R.t
-
 module type PRIVATE = sig
   module Contents: Ir_contents.STORE
   module Node: Ir_node.STORE
@@ -99,8 +90,6 @@ module type PRIVATE = sig
   module Sync: Ir_sync.S
     with type head = Commit.key and type branch_id = Ref.key
 end
-
-module Make (X: Ir_ao.MAKER) (Y: Ir_rw.MAKER): MAKER
 
 (** {1 Extended API} *)
 
