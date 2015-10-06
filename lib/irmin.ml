@@ -84,8 +84,6 @@ let remote_uri = Ir_sync_ext.remote_uri
 
 module type BASIC = S with type branch_id = string and type head = Hash.SHA1.t
 
-module Basic = Ir_s.Default
-
 module type T = S with type branch_id = string and type head = Hash.SHA1.t
 
 let with_hrw_view (type store) (type path) (type view)

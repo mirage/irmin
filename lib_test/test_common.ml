@@ -108,7 +108,7 @@ let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
       | `String -> (module Irmin.Contents.String)
       | `Json   -> (module Irmin.Contents.Json)
     in
-    let module S = Irmin.Basic(B)(C) in (module S)
+    let module S = B(C)(Irmin.Ref.String)(Irmin.Hash.SHA1) in (module S)
 
 type kind = [`Mem | `Fs | `Git | `Http of kind]
 

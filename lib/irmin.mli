@@ -1822,12 +1822,13 @@ module type S_MAKER =
 
 
 module type BASIC = S with type branch_id = string and type head = Hash.SHA1.t
-(** The signature of basic stores. *)
+(** The signature of basic stores.
+ 
+    Branch names (refs) are strings and the hash is SHA1.
+    To generate a basic store from a backend, use e.g.
 
-module Basic (R: S_MAKER) (C: Contents.S):
-  BASIC with type key = C.Path.t and type value = C.t
-(** Generate a basic store using [R] as backend and [C] as
-    user-provided contents. *)
+    [module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)]
+*)
 
 (** {2 Synchronization} *)
 

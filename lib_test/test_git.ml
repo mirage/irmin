@@ -49,7 +49,7 @@ let suite k =
 let test_non_bare () =
   let open Irmin_unix in
   init_disk () >>= fun () ->
-  let module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String) in
+  let module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
   let config = Irmin_git.config ~root:test_db ~bare:false () in
   Store.Repo.create config >>= Store.master task >>= fun t ->
   Store.update (t "fst one") ["fst"] "ok" >>= fun () ->

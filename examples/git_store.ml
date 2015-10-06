@@ -3,7 +3,7 @@ open Lwt
 open Irmin_unix
 open Printf
 
-module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
+module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 
 let update t k v =
   let msg = sprintf "Updating /%s" (String.concat "/" k) in
