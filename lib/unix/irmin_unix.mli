@@ -140,10 +140,10 @@ module Irmin_git: sig
   (** Embed a read-write store into a Git repository. Contents will be
       written in {i .git/refs}. *)
 
-  module Memory: Irmin.S_MAKER
+  module Memory: Irmin_git.S_MAKER
   (** Embed an Irmin store into an in-memory Git repository. *)
 
-  module FS: Irmin.S_MAKER
+  module FS: Irmin_git.S_MAKER
   (** Embed an Irmin store into a local Git repository. *)
 
 end

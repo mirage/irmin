@@ -14,7 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+module type Irmin_git_S = Irmin_git.S
+
 open Irmin_unix
+
+module type Test_S = sig
+  include Irmin.S
+  module Internals: sig
+    val commit_of_head: t -> head -> Git.Commit.t option Lwt.t
+  end
+end
 
 let () =
   Log.set_log_level Log.DEBUG;
@@ -102,13 +111,19 @@ end
 
 open Lwt
 
-let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Irmin.S) =
+let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Test_S) =
   fun (module B) c ->
     let (module C: Irmin.Contents.S) = match c with
       | `String -> (module Irmin.Contents.String)
       | `Json   -> (module Irmin.Contents.Json)
     in
-    let module S = B(C)(Irmin.Ref.String)(Irmin.Hash.SHA1) in (module S)
+    let module S = struct
+      include B(C)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+      module Internals = struct
+        let commit_of_head _t _head = failwith "Only used for testing Git stores"
+      end
+    end
+    in (module S)
 
 type kind = [`Mem | `Fs | `Git | `Http of kind]
 
@@ -119,7 +134,7 @@ type t = {
   init  : unit -> unit Lwt.t;
   clean : unit -> unit Lwt.t;
   config: Irmin.config;
-  store : (module Irmin.S);
+  store : (module Test_S);
 }
 
 let none () =
@@ -132,4 +147,9 @@ let string_of_contents = function
 let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Irmin_fs.Make)
 let http_store = create (module Irmin_http.Make)
-let git_store = create (module Irmin_git.FS)
+let git_store c =
+  let (module C: Irmin.Contents.S) = match c with
+    | `String -> (module Irmin.Contents.String)
+    | `Json   -> (module Irmin.Contents.Json)
+  in
+  let module S = Irmin_git.FS(C)(Irmin.Ref.String)(Irmin.Hash.SHA1) in (module S: Irmin_git_S)

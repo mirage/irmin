@@ -34,7 +34,7 @@ let random_string n = String.init n (fun _i -> random_char ())
 let long_random_string = random_string 1024_000
 let fail fmt = Printf.ksprintf Alcotest.fail fmt
 
-module Make (S: Irmin.S) = struct
+module Make (S: Test_S) = struct
 
   module Common = Make(S)
   open Common
@@ -336,8 +336,7 @@ module Make (S: Irmin.S) = struct
       assert_equal (module Set(KC)) "g2" [kr1; kr2] kr2s;
 
       if x.kind = `Git then (
-        let module I = Irmin_git.Internals(S) in
-        I.commit_of_head (t 0) kr1 >|= function
+        S.Internals.commit_of_head (t 0) kr1 >|= function
         | None   -> Alcotest.fail "cannot read the Git internals"
         | Some c ->
           let name = c.Git.Commit.author.Git.User.name in
