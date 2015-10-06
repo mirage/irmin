@@ -18,7 +18,7 @@ let read_exn t k =
 let main () =
   Config.init ();
   let config = Irmin_git.config ~root:Config.root ~bare:true () in
-  Store.create config task >>= fun t ->
+  Store.Repo.create config >>= Store.master task >>= fun t ->
 
   update t ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
   update t ["root";"misc";"2.txt"] "Hi!" >>= fun () ->

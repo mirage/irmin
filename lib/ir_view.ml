@@ -175,8 +175,6 @@ module Internal (Node: NODE) = struct
     let lock = Lwt_mutex.create () in
     Lwt.return { parents; view; ops; lock }
 
-  let config _ = Ir_conf.empty
-
   let sub t path =
     let rec aux node path =
       match Path.decons path with
@@ -849,7 +847,7 @@ module Make (S: Ir_s.STORE) = struct
       (* FIXME: race to update the store's head *)
       update_path db0 path view >>= fun () -> ok true
     | Some head ->
-      S.of_head (S.config db0) (fun () -> S.task db0) head >>= fun db ->
+      S.of_head (fun () -> S.task db0) head (S.repo db0) >>= fun db ->
       let db = db () in
       P.read_node db Path.empty >>= function
       | None           -> update_path db path view >>= fun () -> ok true
@@ -911,7 +909,7 @@ module Make (S: Ir_s.STORE) = struct
 
   let watch_path db key ?init fn =
     let view_of_head h =
-        S.of_head (S.Private.config db) (fun () -> S.task db) h >>= fun db ->
+        S.of_head (fun () -> S.task db) h (S.repo db) >>= fun db ->
         of_path (db ()) key
     in
     let init = match init with

@@ -16,7 +16,7 @@ let upstream = Irmin.remote_uri path
 let test () =
   Config.init ();
   let config = Irmin_git.config ~root:Config.root () in
-  Store.create config task >>= fun t ->
+  Store.Repo.create config >>= Store.master task >>= fun t ->
   Sync.pull_exn (t "Syncing with upstream store") upstream `Update >>= fun () ->
   Store.read_exn (t "get the README") ["README.md"]>>= fun readme ->
   Irmin.with_hrw_view (module View) (t "Updating BAR and FOO") `Merge ~path:[] (fun view ->

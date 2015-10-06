@@ -50,7 +50,7 @@ let main () =
   ] in
   view_of_t t >>= fun v ->
 
-  Store.create config task >>= fun t ->
+  Store.Repo.create config >>= Store.master task >>= fun t ->
   View.update_path (t "update a/b") ["a";"b"] v >>= fun () ->
   View.of_path (t "of-path a/b") ["a";"b"] >>= fun v ->
   t_of_view v >>= fun tt ->

@@ -18,11 +18,17 @@
     operations. *)
 
 module type STORE = sig
+  module Repo: sig
+    type t
+    val create: Ir_conf.t -> t Lwt.t
+    val config: t -> Ir_conf.t
+  end
   include Ir_rw.HIERARCHICAL
-  val create: Ir_conf.t -> ('a -> Ir_task.t) -> ('a -> t) Lwt.t
+  val master: ('a -> Ir_task.t) -> Repo.t -> ('a -> t) Lwt.t
+  val repo: t -> Repo.t
   val task: t -> Ir_task.t
   type branch_id
-  val of_branch_id: Ir_conf.t -> 'a Ir_task.f -> branch_id -> ('a -> t) Lwt.t
+  val of_branch_id: 'a Ir_task.f -> branch_id -> Repo.t -> ('a -> t) Lwt.t
   val name: t -> branch_id option Lwt.t
   val name_exn: t -> branch_id Lwt.t
   val branches: t -> branch_id list Lwt.t
@@ -31,8 +37,8 @@ module type STORE = sig
   val merge_branch: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Ir_merge.result Lwt.t
   val merge_branch_exn: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Lwt.t
   type head
-  val empty: Ir_conf.t -> 'a Ir_task.f -> ('a -> t) Lwt.t
-  val of_head: Ir_conf.t -> ('a -> Ir_task.t) -> head -> ('a -> t) Lwt.t
+  val empty: 'a Ir_task.f -> Repo.t -> ('a -> t) Lwt.t
+  val of_head: ('a -> Ir_task.t) -> head -> Repo.t -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
   val head_ref: t -> [`Branch of branch_id | `Head of head | `Empty]
@@ -118,7 +124,6 @@ module type STORE_EXT = sig
      and type Ref.key = branch_id
      and type Slice.t = slice
 
-  val config: t -> Ir_conf.t
   val contents_t: t -> Private.Contents.t
   val node_t: t -> Private.Node.t
   val commit_t: t -> Private.Commit.t

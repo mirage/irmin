@@ -79,7 +79,7 @@ module Make (S: Ir_s.STORE) = struct
       begin S.name t >>= function
         | None     -> Lwt.return `No_head
         | Some branch_id ->
-          B.create (S.Private.config t) >>= fun g ->
+          B.create (S.Repo.config (S.repo t)) >>= fun g ->
           B.fetch g ?depth ~uri branch_id
       end
     | Store ((module R), r) ->
@@ -126,7 +126,7 @@ module Make (S: Ir_s.STORE) = struct
       begin S.name t >>= function
         | None     -> return `Error
         | Some branch_id ->
-          B.create (S.Private.config t) >>= fun g ->
+          B.create (S.Repo.config (S.repo t)) >>= fun g ->
           B.push g ?depth ~uri branch_id
       end
     | Store ((module R), r) ->

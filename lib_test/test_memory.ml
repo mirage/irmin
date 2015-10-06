@@ -18,7 +18,7 @@ open Test_common
 let (>>=) = Lwt.(>>=)
 
 let clean config (module S: Irmin.S) () =
-  S.empty config Irmin.Task.none  >>= fun t ->
+  S.Repo.create config >>= S.empty Irmin.Task.none >>= fun t ->
   S.branches (t ()) >>= fun branches ->
   Lwt_list.iter_p (S.remove_branch (t ())) branches
 

@@ -172,8 +172,8 @@ let read_config_file (): t option =
       |> add Irmin_http.uri uri
     in
     match branch with
-    | None   -> Some (S ((module S), S.create config task))
-    | Some b -> Some (S ((module S), S.of_branch_id config task b))
+    | None   -> Some (S ((module S), S.Repo.create config >>= S.master task))
+    | Some b -> Some (S ((module S), S.Repo.create config >>= S.of_branch_id task b))
 
 let store =
   let branch =
@@ -190,8 +190,8 @@ let store =
       let module S = (val s: Irmin.S) in
       (* first look at the command-line options *)
       let t = match branch with
-        | None   -> S.create config task
-        | Some t -> S.of_branch_id config task (S.Ref.of_hum t)
+        | None   -> S.Repo.create config >>= S.master task
+        | Some t -> S.Repo.create config >>= S.of_branch_id task (S.Ref.of_hum t)
       in
       S ((module S), t)
     | None ->
@@ -201,7 +201,7 @@ let store =
       | None   ->
         let s = mk_store `Git (mk_contents `String) in
         let module S = (val s: Irmin.S) in
-        let t = S.create config task in
+        let t = S.Repo.create config >>= S.master task in
         S ((module S), t)
   in
   Term.(pure create $ store_term $ config_term $ branch)
@@ -226,7 +226,7 @@ let infer_remote contents str =
       |> add Irmin_http.uri (Some (Uri.of_string str))
       |> add Irmin.Private.Conf.root (Some str)
     in
-    R.create config task >>= fun r ->
+    R.Repo.create config >>= R.master task >>= fun r ->
       return (Irmin.remote_store (module R) (r "Clone %s."))
     ) else
       return (Irmin.remote_uri str)

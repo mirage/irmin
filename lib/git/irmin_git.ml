@@ -512,7 +512,6 @@ module Make_ext
     type key = Key.t
     type value = Val.t
     type watch = W.watch * (unit -> unit)
-    let config t = t.config
 
     let tag_of_git r =
       let str = String.trim @@ Git.Reference.to_raw r in
