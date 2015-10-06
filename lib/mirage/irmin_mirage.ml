@@ -40,7 +40,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
 
   open Lwt.Infix
 
-  module S = Irmin.Basic(Irmin_git.Memory(C)(I))(Irmin.Contents.Cstruct)
+  module S = Irmin_git.Memory(C)(I)(Irmin.Contents.Cstruct)(Irmin.Ref.String)(Irmin.Hash.SHA1)
   module Sync = Irmin.Sync(S)
   let config = Irmin_mem.config ()
 

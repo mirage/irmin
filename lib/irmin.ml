@@ -54,7 +54,6 @@ module type AO_MAKER_RAW =
   AO with type key = K.t and type value = V.t
 
 module type RW_MAKER = Ir_rw.MAKER
-module type BC_MAKER = Ir_bc.MAKER
 module type S_MAKER = Ir_s.MAKER
 
 module Private = struct
@@ -62,7 +61,6 @@ module Private = struct
   module Node = Ir_node
   module Commit = Ir_commit
   module Slice = Ir_slice
-  module Make = Ir_bc.Make
   module Sync = Ir_sync
   module type S = Ir_bc.PRIVATE
   module Watch = Ir_watch
@@ -85,8 +83,6 @@ let remote_store (type t) (module M: S with type t = t) (t:t) =
 let remote_uri = Ir_sync_ext.remote_uri
 
 module type BASIC = S with type branch_id = string and type head = Hash.SHA1.t
-
-module Basic = Ir_s.Default
 
 module type T = S with type branch_id = string and type head = Hash.SHA1.t
 

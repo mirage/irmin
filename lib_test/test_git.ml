@@ -34,13 +34,14 @@ let clean () =
   Lwt.return_unit
 
 let suite k =
+  let module S = (val git_store k) in
   {
     name   = "GIT" ^ string_of_contents k;
     cont   = k;
     kind   = `Git;
     init   = init_disk;
     clean  = clean;
-    store  = git_store k;
+    store  = (module S: Test_S);
     config =
       let head = Git.Reference.of_raw "refs/heads/test" in
       Irmin_git.config ~root:test_db ~head ~bare:true ()
@@ -49,7 +50,7 @@ let suite k =
 let test_non_bare () =
   let open Irmin_unix in
   init_disk () >>= fun () ->
-  let module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String) in
+  let module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
   let config = Irmin_git.config ~root:test_db ~bare:false () in
   Store.Repo.create config >>= Store.master task >>= fun t ->
   Store.update (t "fst one") ["fst"] "ok" >>= fun () ->

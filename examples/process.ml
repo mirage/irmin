@@ -70,7 +70,7 @@ let branch image =
 
 let images = [| (*ubuntu; *) wordpress; mysql |]
 
-module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
+module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 let config = Irmin_git.config
     ~root:Config.root
     ~bare:true

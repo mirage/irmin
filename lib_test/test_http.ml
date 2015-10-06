@@ -43,7 +43,7 @@ let suite ?(content_type=`Raw) server =
   { name = Printf.sprintf "HTTP.%s.%s" server.name ct_str;
 
     init = begin fun () ->
-      let (module Server) = server.store in
+      let (module Server: Test_S) = server.store in
       let module HTTP = Irmin_http_server.Make(Server) in
       let server () =
         server.init () >>= fun () ->

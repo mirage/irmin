@@ -58,16 +58,6 @@ module Conf = struct
       ~doc:"The Zlib compression level."
       "level" Irmin.Private.Conf.(some int) None
 
-  let abstract =
-    (fun _ -> `Error "abstract"),
-    (fun fmt _ -> Format.pp_print_string fmt "<abstract>")
-
-  type read_fn = Irmin.config -> Git.SHA.t -> Git.Value.t option Lwt.t
-
-  let read_fn: read_fn Irmin.Private.Conf.key =
-    let read_none _config _ = Lwt.return_none in
-    Irmin.Private.Conf.key "read" abstract read_none
-
 end
 
 let config ?(config=Irmin.Private.Conf.empty) ?root ?head ?bare ?level () =
@@ -152,12 +142,7 @@ module Irmin_value_store
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
 
-    let read_fn config sha1 =
-      G.create config >>= fun t ->
-      G.read t sha1
-
     let create config =
-      let config = Irmin.Private.Conf.add config Conf.read_fn read_fn in
       G.create config >>= fun t ->
       return { config; t }
 
@@ -726,6 +711,17 @@ module Make_ext
     module Sync = XSync
   end
   include Irmin.Make_ext(P)
+
+  module Internals = struct
+    let commit_of_head t h =
+      let h = Head.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
+      Git_store.create (Repo.config (repo t)) >>= fun g ->
+      Git_store.read g h >|= function
+      | Some Git.Value.Commit c -> Some c
+      | _ -> None
+
+  end
+
 end
 
 module NoL = struct
@@ -795,21 +791,27 @@ module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Ref.S) (V: Irmin.Hash.S) = struct
   include M.XRef
 end
 
-module Internals (S: Irmin.S) = struct
+module type S = sig
+  include Irmin.S
 
-  let read config =
-    match Irmin.Private.Conf.find config Conf.read_fn with
-    | None   -> failwith "not a Git store"
-    | Some s -> s config
+  module Internals: sig
 
-  let commit_of_head t h =
-    let t = S.Private.commit_t t in
-    let h = S.Head.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
-    let config = S.Private.Commit.config t in
-    read config h >|= function
-    | Some Git.Value.Commit c -> Some c
-    | _ -> None
+    (** {1 Access to the Git objects} *)
 
+    val commit_of_head: t -> head -> Git.Commit.t option Lwt.t
+    (** [commit_of_head t h] is the commit corresponding to [h] in the
+        store [t]. *)
+
+  end
 end
+
+module type S_MAKER =
+  functor (C: Irmin.Contents.S) ->
+  functor (R: Irmin.Ref.S) ->
+  functor (H: Irmin.Hash.S) ->
+    S with type key = C.Path.t
+       and type value = C.t
+       and type branch_id = R.t
+       and type head = H.t
 
 include Conf

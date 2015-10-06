@@ -61,9 +61,3 @@ module Make_ext (P: Ir_bc.PRIVATE): STORE
    and type branch_id = P.Ref.key
    and type head = P.Ref.value
    and type Key.step = P.Contents.Path.step
-
-module Default (S: MAKER) (C: Ir_contents.S): STORE
-  with type key = C.Path.t
-   and type value = C.t
-   and type branch_id = string
-   and type head = Ir_hash.SHA1.t

@@ -1,7 +1,7 @@
 open Lwt
 open Irmin_unix
 
-module Store = Irmin.Basic (Irmin_git.FS) (Irmin.Contents.String)
+module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 module View = Irmin.View(Store)
 
 let fmt t x = Printf.ksprintf (fun str -> t str) x

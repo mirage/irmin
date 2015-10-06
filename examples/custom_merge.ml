@@ -152,7 +152,7 @@ end = struct
 
 end
 
-module Store = Irmin.Basic (Irmin_git.FS) (Log)
+module Store = Irmin_git.FS(Log)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 let config = Irmin_git.config ~root:Config.root ~bare:true ()
 
 let log_file = [ "local"; "debug" ]

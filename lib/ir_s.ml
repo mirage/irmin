@@ -106,5 +106,3 @@ struct
   end
   include Make_ext(X)
 end
-
-module Default (S: MAKER) (C: Ir_contents.S) = S(C)(Ir_tag.String)(Ir_hash.SHA1)

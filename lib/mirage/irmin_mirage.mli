@@ -53,7 +53,7 @@ module Irmin_git: sig
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module Memory (C: CONTEXT) (I: Git.Inflate.S): Irmin.S_MAKER
+  module Memory (C: CONTEXT) (I: Git.Inflate.S): Irmin_git.S_MAKER
   (** Embed an Irmin store into an in-memory Git repository. *)
 
 end
