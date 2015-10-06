@@ -124,7 +124,6 @@ struct
       S.create config >>= fun s ->
       return (n, s)
 
-    let config (s, t) = Ir_conf.union (N.config s) (S.config t)
     let add (_, t) = S.add t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t

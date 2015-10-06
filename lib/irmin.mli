@@ -370,9 +370,6 @@ module type AO = sig
       provided by the backend. The operation might be blocking,
       depending on the backend. *)
 
-  val config: t -> config
-  (** [config t] is [t]'s config. *)
-
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the
       responsibility of the append-only store to generate a
@@ -396,9 +393,6 @@ module type LINK = sig
   include RO
 
   val create: config -> t Lwt.t
-
-  val config: t -> config
-  (** [config t] is [t]'s config. *)
 
   val add: t -> key -> value -> unit Lwt.t
   (** [add t src dst] add a link between the key [src] and the value

@@ -30,13 +30,12 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type value = V.t
 
-  type t = { t: value KHashtbl.t; config: Irmin.config }
+  type t = { t: value KHashtbl.t }
 
-  let config t = t.config
   let table = KHashtbl.create 23
 
-  let create config =
-    Lwt.return { t = table; config }
+  let create _config =
+    Lwt.return { t = table }
 
   let read { t; _ } key =
     Log.debug "read";

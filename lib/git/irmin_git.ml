@@ -133,18 +133,16 @@ module Irmin_value_store
 
     type t = {
       t: G.t;
-      config: Irmin.config;
     }
 
     type key = K.t
     type value = V.t
-    let config t = t.config
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
 
     let create config =
       G.create config >>= fun t ->
-      return { config; t }
+      return { t }
 
     let mem { t; _ } key =
       let key = git_of_key key in
