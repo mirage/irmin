@@ -20,16 +20,6 @@ open Ir_merge.OP
 
 module Log = Log.Make(struct let section = "COMMIT" end)
 
-module type S = sig
-  include Tc.S0
-  type commit
-  type node
-  val create: Ir_task.t -> ?node:node -> parents:commit list -> t
-  val node: t -> node option
-  val parents: t -> commit list
-  val task: t -> Ir_task.t
-end
-
 module Make (C: Tc.S0) (N: Tc.S0) = struct
 
   module T = Ir_task
@@ -73,20 +63,6 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
 
 end
 
-module type STORE = sig
-
-  include Ir_ao.STORE
-
-  module Key: Ir_hash.S with type t = key
-  (** Base functions over keys. *)
-
-  module Val: S
-    with type t = value
-     and type commit := key
-  (** Base functions over values. *)
-
-end
-
 module type HISTORY = sig
   type t
   type node
@@ -101,13 +77,13 @@ module type HISTORY = sig
   val three_way_merge: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
   module Store: sig
-    include STORE with type t = t and type key = commit
-    module Path: Ir_path.S
+    include Ir_s.COMMIT_STORE with type t = t and type key = commit
+    module Path: Ir_s.PATH
     val merge: Path.t -> t -> task:Ir_task.t -> key option Ir_merge.t
   end
 end
 
-module History (N: Ir_contents.STORE) (S: STORE with type Val.node = N.key) =
+module History (N: Ir_s.CONTENTS_STORE) (S: Ir_s.COMMIT_STORE with type Val.node = N.key) =
 struct
 
   type commit = S.key

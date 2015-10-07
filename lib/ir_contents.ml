@@ -18,20 +18,6 @@ open Ir_merge.OP
 
 module Log = Log.Make(struct let section = "CONTENTS" end)
 
-module type S = sig
-  include Tc.S0
-  module Path: Ir_path.S
-  val merge: Path.t -> t option Ir_merge.t
-end
-
-module type STORE = sig
-  include Ir_ao.STORE
-  module Path: Ir_path.S
-  val merge: Path.t -> t -> key option Ir_merge.t
-  module Key: Ir_hash.S with type t = key
-  module Val: S with type t = value and module Path = Path
-end
-
 module Json = struct
 
   (* FIXME: we want maybe something more structured here. *)
@@ -185,9 +171,9 @@ end
 
 module Make
     (S: sig
-       include Ir_ao.STORE
-       module Key: Ir_hash.S with type t = key
-       module Val: S with type t = value
+       include Ir_s.AO_STORE
+       module Key: Ir_s.HASH with type t = key
+       module Val: Ir_s.CONTENTS with type t = value
      end) =
 struct
   include S

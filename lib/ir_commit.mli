@@ -16,27 +16,9 @@
 
 (** Manage the database history. *)
 
-module type S = sig
-  include Tc.S0
-  type commit
-  type node
-  val create: Ir_task.t -> ?node:node -> parents:commit list -> t
-  val node: t -> node option
-  val parents: t -> commit list
-  val task: t -> Ir_task.t
-end
-
 module Make (C: Tc.S0) (N: Tc.S0):
-  S with type commit := C.t
-     and type node = N.t
-
-module type STORE = sig
-  include Ir_ao.STORE
-  module Key: Ir_hash.S with type t = key
-  module Val: S
-    with type t = value
-     and type commit := key
-end
+  Ir_s.COMMIT with type commit := C.t
+               and type node = N.t
 
 module type HISTORY = sig
   type t
@@ -52,13 +34,13 @@ module type HISTORY = sig
   val three_way_merge: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
   module Store: sig
-    include STORE with type t = t and type key = commit
-    module Path: Ir_path.S
+    include Ir_s.COMMIT_STORE with type t = t and type key = commit
+    module Path: Ir_s.PATH
     val merge: Path.t -> t -> task:Ir_task.t -> key option Ir_merge.t
   end
 end
 
-module History (N: Ir_contents.STORE) (S: STORE with type Val.node = N.key):
+module History (N: Ir_s.CONTENTS_STORE) (S: Ir_s.COMMIT_STORE with type Val.node = N.key):
   HISTORY with type t = N.t * S.t
            and type node = N.key
            and type commit = S.key

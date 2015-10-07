@@ -243,9 +243,9 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 end
 
 module Make_ext (IO: IO) (L: LOCK) (Obj: Config) (Ref: Config)
-    (C: Ir_contents.S)
-    (R: Ir_tag.S)
-    (H: Ir_hash.S)
+    (C: Ir_s.CONTENTS)
+    (R: Ir_s.REF)
+    (H: Ir_s.HASH)
 = struct
   module AO = AO_ext(IO)(Obj)
   module RW = RW_ext(IO)(L)(Ref)
