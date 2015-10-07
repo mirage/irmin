@@ -11,7 +11,8 @@ to Xen unikernels.
 
 ### Description
 
-Irmin provides an API to built version-controlled applications.
+Irmin is a library to version-control application data. It has the following
+features:
 
 - **on-disk format** various formats are supported, including the Git format:
   Irmin on-disk repositories can be inspected and modified using the classic
@@ -21,9 +22,11 @@ Irmin provides an API to built version-controlled applications.
   (only in client mode) or a simple JSON-based REST API (client and server).
 
 - **dynamic behaviour** Irmin allows the users to define custom merge functions,
-  allow in-memory transactions (to keeps tracks of reads as well as writes) and
-  a notification mechanism. These abstractions allow to define concurrent
-  applications which are both efficient and safe.
+  to use in-memory transactions (to keeps tracks of reads as well as writes) and
+  to define event-driven workflows using a notification mechanism.
+
+These abstractions allow developpers to create applications with concurrent
+behaviors which are both efficient and safe.
 
 ### Bindings to other languages
 
