@@ -476,7 +476,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       mk1p0bf "remove" ~lock:lock2 T.remove ref_t tag' Tc.unit;
       mk1p1bf "compare-and-set" ~lock:lock3 t_cs ref_t tag' tc_cs Tc.bool;
       mk0p1bs "watch" t_watch ref_t tc_watch_i tc_watch_s;
-      mk1p1bs "watch-key" ~lock:lock3 t_watch_key ref_t tag' head tc_watch_k;
+      mk1p1bs "watch-key" t_watch_key ref_t tag' head tc_watch_k;
     ]
 
   let list f t list = f t (S.Key.create list)
