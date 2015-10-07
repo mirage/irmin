@@ -16,12 +16,6 @@
 
 module Log = Log.Make(struct let section = "TAG" end)
 
-module type S = sig
-  include Ir_hum.S
-  val master: t
-  val is_valid: t -> bool
-end
-
 module String = struct
   include Tc.String
   let master = "master"
@@ -39,11 +33,4 @@ module String = struct
 
   let to_hum s = s
   let of_hum s = s
-end
-
-module type STORE = sig
-  include Ir_rw.REACTIVE
-  val create: Ir_conf.t -> t Lwt.t
-  module Key: S with type t = key
-  module Val: Ir_hash.S with type t = value
 end

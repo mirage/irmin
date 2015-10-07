@@ -19,7 +19,7 @@ open Lwt
 module Log = Log.Make(struct let section = "SYNC" end)
 
 type remote =
-  | Store: (module Ir_bc.STORE_EXT with type t = 'a) * 'a -> remote
+  | Store: (module Ir_s.STORE_EXT with type t = 'a) * 'a -> remote
   | URI of string
 
 let remote_store m x = Store (m, x)
@@ -38,7 +38,7 @@ module type STORE = sig
   val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
 end
 
-module Make (S: Ir_bc.STORE_EXT) = struct
+module Make (S: Ir_s.STORE_EXT) = struct
 
   module B = S.Private.Sync
   type db = S.t
@@ -50,8 +50,8 @@ module Make (S: Ir_bc.STORE_EXT) = struct
     Y.of_json (X.to_json x)
 
   let convert_slice (type r) (type s)
-      (module RP: Ir_bc.PRIVATE with type Slice.t = r)
-      (module SP: Ir_bc.PRIVATE with type Slice.t = s)
+      (module RP: Ir_s.PRIVATE with type Slice.t = r)
+      (module SP: Ir_s.PRIVATE with type Slice.t = s)
       r
     =
     SP.Slice.create () >>= fun s ->

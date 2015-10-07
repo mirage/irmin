@@ -113,7 +113,7 @@ module type NODE = sig
   type node
   type contents
   module Contents: Tc.S0 with type t = contents
-  module Path: Ir_path.S
+  module Path: Ir_s.PATH
 
   val equal: t -> t -> bool
   val empty: unit -> t
@@ -430,9 +430,9 @@ module Internal (Node: NODE) = struct
 
 end
 
-module Make (S: Ir_bc.STORE_EXT) = struct
+module Make (S: Ir_s.STORE_EXT) = struct
 
-  module B = Ir_bc.Make_ext(S.Private)
+  module B = Ir_bc.Make(S.Private)
   module P = S.Private
 
   module Graph = Ir_node.Graph(P.Contents)(P.Node)
@@ -934,7 +934,7 @@ module Make (S: Ir_bc.STORE_EXT) = struct
 end
 
 module type S = sig
-  include Ir_rw.HIERARCHICAL
+  include Ir_s.HIERARCHICAL
   val empty: unit -> t Lwt.t
   val rebase: t -> into:t -> unit Ir_merge.result Lwt.t
   val rebase_exn: t -> into:t -> unit Lwt.t

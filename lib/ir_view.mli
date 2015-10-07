@@ -17,7 +17,7 @@
 (** In-memory partial views of the database, with lazy fetching. *)
 
 module type S = sig
-  include Ir_rw.HIERARCHICAL
+  include Ir_s.HIERARCHICAL
   val empty: unit -> t Lwt.t
   val rebase: t -> into:t -> unit Ir_merge.result Lwt.t
   val rebase_exn: t -> into:t -> unit Lwt.t
@@ -47,7 +47,7 @@ module type S = sig
     ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 end
 
-module Make (S: Ir_bc.STORE_EXT):
+module Make (S: Ir_s.STORE_EXT):
   S with type db = S.t
      and type key = S.key
      and type value = S.value

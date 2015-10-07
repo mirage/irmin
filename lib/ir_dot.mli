@@ -23,4 +23,4 @@ module type S = sig
     -> Buffer.t -> unit Lwt.t
 end
 
-module Make (S: Ir_bc.STORE_EXT): S with type db = S.t
+module Make (S: Ir_s.STORE_EXT): S with type db = S.t

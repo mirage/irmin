@@ -1614,7 +1614,7 @@ module Private: sig
       (** A history forms a {{!STORE}store} of commits. *)
       module Store: sig
         include STORE with type t = t and type key = commit
-        module Path: Ir_path.S
+        module Path: Ir_s.PATH
         val merge: Path.t -> t -> task:task -> key option Merge.t
       end
 

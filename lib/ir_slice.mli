@@ -14,24 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
-  include Tc.S0
-  type contents
-  type node
-  type commit
-  val create: unit -> t Lwt.t
-  val add_contents: t -> contents -> unit Lwt.t
-  val add_node: t -> node -> unit Lwt.t
-  val add_commit: t -> commit -> unit Lwt.t
-  val iter_contents: t -> (contents -> unit Lwt.t) -> unit Lwt.t
-  val iter_nodes: t -> (node -> unit Lwt.t) -> unit Lwt.t
-  val iter_commits: t -> (commit -> unit Lwt.t) -> unit Lwt.t
-end
-
 module Make
-    (C: Ir_contents.STORE)
-    (N: Ir_node.STORE)
-    (H: Ir_commit.STORE):
-  S with type contents = C.key * C.value
-     and type node = N.key * N.value
-     and type commit = H.key * H.value
+    (C: Ir_s.CONTENTS_STORE)
+    (N: Ir_s.NODE_STORE)
+    (H: Ir_s.COMMIT_STORE):
+  Ir_s.SLICE with type contents = C.key * C.value
+              and type node = N.key * N.value
+              and type commit = H.key * H.value

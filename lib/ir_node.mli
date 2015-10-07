@@ -18,42 +18,10 @@
 (** Nodes represent structured values serialized in the block
     store. *)
 
-module type S = sig
-  include Tc.S0
-  type contents
-  type node
-  type step
-
-  val create: (step * [`Contents of contents | `Node of node]) list -> t
-  val alist: t -> (step * [`Contents of contents | `Node of node]) list
-
-  val empty: t
-  val is_empty: t -> bool
-
-  val contents: t -> step -> contents option
-  val iter_contents: t -> (step -> contents -> unit) -> unit
-  val with_contents: t -> step -> contents option -> t
-
-  val succ: t -> step -> node option
-  val iter_succ: t -> (step -> node -> unit) -> unit
-  val with_succ: t -> step -> node option -> t
-end
-
-module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_path.S):
-  S with type contents = C.t
-     and type node = N.t
-     and type step = P.step
-
-module type STORE = sig
-  include Ir_ao.STORE
-  module Path: Ir_path.S
-  module Key: Ir_hash.S with type t = key
-  module Val: S
-    with type t = value
-     and type node = key
-     and type step = Path.step
-end
-
+module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_s.PATH):
+  Ir_s.NODE with type contents = C.t
+             and type node = N.t
+             and type step = P.step
 
 module type GRAPH = sig
   type t
@@ -86,15 +54,15 @@ module type GRAPH = sig
 
   val closure: t -> min:node list -> max:node list -> node list Lwt.t
 
-  module Store: Ir_contents.STORE
+  module Store: Ir_s.CONTENTS_STORE
     with type t = t
      and type key = node
      and type Path.t = path
      and type Path.step = step
 end
 
-module Graph (C: Ir_contents.STORE)
-    (S: STORE with type Val.contents = C.key and module Path = C.Path)
+module Graph (C: Ir_s.CONTENTS_STORE)
+    (S: Ir_s.NODE_STORE with type Val.contents = C.key and module Path = C.Path)
   : GRAPH with type t = C.t * S.t
            and type contents = C.key
            and type node = S.key
