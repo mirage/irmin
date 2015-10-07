@@ -53,10 +53,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   type t = {
     path: string;
-    config: Irmin.config;
   }
-
-  let config t = t.config
 
   let get_path config =
     match Irmin.Private.Conf.get config root_key with
@@ -66,7 +63,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let create config =
     get_path config >>= fun path ->
     IO.mkdir path >>= fun () ->
-    Lwt.return { config; path }
+    Lwt.return { path }
 
   let file_of_key { path; _ } key =
     path / S.file_of_key (K.to_hum key)

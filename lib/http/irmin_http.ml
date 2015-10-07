@@ -204,13 +204,12 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   include Helper (Client)
 
   type t = {
-    mutable uri: Uri.t; config: Irmin.config; ct: ct;
+    mutable uri: Uri.t; ct: ct;
   }
 
   type key = K.t
   type value = V.t
 
-  let config t = t.config
   let uri t = t.uri
   let ct t = t.ct
 
@@ -220,7 +219,7 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let create config =
     let uri = get_uri config in
     let ct  = get_ct config in
-    Lwt.return { config; uri; ct; }
+    Lwt.return { uri; ct; }
 
   let read t key = get t ["read"; K.to_hum key] (module Tc.Option(V))
 
@@ -848,7 +847,6 @@ struct
   module Private = struct
     include L.Private
     module Repo = Repo
-    let repo t = t.repo
     let contents_t t = t.contents_t
     let node_t t = t.node_t
     let commit_t t = t.commit_t

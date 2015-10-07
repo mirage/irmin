@@ -96,34 +96,39 @@ end
 
 module type STORE_EXT = sig
   include STORE
+
   module Key: Ir_path.S with type t = key
   module Val: Ir_contents.S with type t = value
-  module Private: PRIVATE
-    with type Contents.value = value
-     and module Contents.Path = Key
-     and type Commit.key = head
-     and type Ref.key = branch_id
-     and type Slice.t = slice
-  val contents_t: t -> Private.Contents.t
-  val node_t: t -> Private.Node.t
-  val commit_t: t -> Private.Commit.t
-  val ref_t: t -> Private.Ref.t
-  val read_node: t -> key -> Private.Node.key option Lwt.t
-  val mem_node: t -> key -> bool Lwt.t
-  val update_node: t -> key -> Private.Node.key -> unit Lwt.t
-  val merge_node: t -> key -> (head * Private.Node.key) ->
-    unit Ir_merge.result Lwt.t
-  val remove_node: t -> key -> unit Lwt.t
-  val iter_node: t -> Private.Node.key ->
-    (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  module Ref: Ir_tag.S with type t = branch_id
+  module Head: Ir_hash.S with type t = head
+
+  module Private: sig
+    include PRIVATE
+      with type Contents.value = value
+       and module Contents.Path = Key
+       and type Commit.key = head
+       and type Ref.key = branch_id
+       and type Slice.t = slice
+    val contents_t: t -> Contents.t
+    val node_t: t -> Node.t
+    val commit_t: t -> Commit.t
+    val ref_t: t -> Ref.t
+    val read_node: t -> key -> Node.key option Lwt.t
+    val mem_node: t -> key -> bool Lwt.t
+    val update_node: t -> key -> Node.key -> unit Lwt.t
+    val merge_node: t -> key -> (head * Node.key) -> unit Ir_merge.result Lwt.t
+    val remove_node: t -> key -> unit Lwt.t
+    val iter_node: t -> Node.key ->
+      (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  end
+
 end
 
 module Make_ext (P: PRIVATE) = struct
 
-  module Ref = P.Ref
-  module Private = P
+  module Ref_store = P.Ref
 
-  type branch_id = Ref.key
+  type branch_id = Ref_store.key
 
   module Key = P.Node.Path
   module KeySet = Ir_misc.Set(Key)
@@ -142,7 +147,7 @@ module Make_ext (P: PRIVATE) = struct
   module H = Ir_commit.History(Graph.Store)(P.Commit)
 
   module KGraph =
-    Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Ref.Key)
+    Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Ref_store.Key)
 
   module Repo = struct
     type t = {
@@ -150,14 +155,14 @@ module Make_ext (P: PRIVATE) = struct
       contents: P.Contents.t;
       node: P.Node.t;
       commit: P.Commit.t;
-      ref_store: Ref.t;
+      ref_store: Ref_store.t;
     }
 
     let create config =
       P.Contents.create config >>= fun contents ->
       P.Node.create config     >>= fun node ->
       P.Commit.create config   >>= fun commit ->
-      Ref.create config        >>= fun ref_store ->
+      Ref_store.create config  >>= fun ref_store ->
       return
         { contents     = contents;
           node         = node;
@@ -205,16 +210,16 @@ module Make_ext (P: PRIVATE) = struct
 
   let branches t =
     let branches = ref [] in
-    Ref.iter (ref_t t) (fun t _ -> branches := t :: !branches; return_unit) >>= fun () ->
+    Ref_store.iter (ref_t t) (fun t _ -> branches := t :: !branches; return_unit) >>= fun () ->
     return !branches
 
   let head t = match t.head_ref with
     | `Head key -> return !key
-    | `Branch name  -> Ref.read (ref_t t) name
+    | `Branch name  -> Ref_store.read (ref_t t) name
 
   let heads t =
     let heads = ref [] in
-    Ref.iter (ref_t t) (fun _ h ->
+    Ref_store.iter (ref_t t) (fun _ h ->
         h >>= fun h -> heads := h :: !heads; return_unit
       ) >>= fun () ->
     head t >>= function
@@ -235,15 +240,15 @@ module Make_ext (P: PRIVATE) = struct
       )
 
   let err_invalid_branch_id t =
-    let err = Printf.sprintf "%S is not a valid branch name." (Ref.Key.to_hum t) in
+    let err = Printf.sprintf "%S is not a valid branch name." (Ref_store.Key.to_hum t) in
     Lwt.fail (Invalid_argument err)
 
   let of_branch_id task t repo =
-    if Ref.Key.is_valid t then of_ref repo task (`Branch t)
+    if Ref_store.Key.is_valid t then of_ref repo task (`Branch t)
     else err_invalid_branch_id t
 
   let master task repo =
-    of_branch_id task Ref.Key.master repo
+    of_branch_id task Ref_store.Key.master repo
 
   let empty task repo =
     of_ref repo task (`Head (ref None))
@@ -257,7 +262,7 @@ module Make_ext (P: PRIVATE) = struct
     | `Head key -> return (Some key)
     | `Empty    -> Lwt.return_none
     | `Branch name  ->
-      Ref.read (ref_t t) name >>= function
+      Ref_store.read (ref_t t) name >>= function
       | None   -> return_none
       | Some k -> return (Some k)
 
@@ -269,16 +274,6 @@ module Make_ext (P: PRIVATE) = struct
   let parents_of_commit = function
     | None   -> []
     | Some r -> [r]
-
-  let read_node t path =
-    read_head_node t >>= function
-    | None   -> return_none
-    | Some n -> Graph.read_node (graph_t t) n path
-
-  let mem_node t path =
-    read_head_node t >>= function
-    | None   -> return false
-    | Some n -> Graph.mem_node (graph_t t) n path
 
   (* Retry an operation until the optimistic lock is happy. *)
   let retry name fn =
@@ -311,16 +306,10 @@ module Make_ext (P: PRIVATE) = struct
       | `Branch name   ->
         (* concurrent handle and/or process can modify the branch. Need to check
            that we are still working on the same head. *)
-        Ref.compare_and_set (ref_t t) name ~test:commit ~set:(Some key)
+        Ref_store.compare_and_set (ref_t t) name ~test:commit ~set:(Some key)
     in
     let msg = Printf.sprintf "with_commit(%s)" (Tc.show (module Key) path) in
     Lwt_mutex.with_lock t.lock (fun () -> retry msg aux)
-
-  let update_node t path node =
-    with_commit t path ~f:(fun h -> Graph.add_node (graph_t t) h path node)
-
-  let remove_node t path =
-    with_commit t path ~f:(fun h -> Graph.remove_node (graph_t t) h path)
 
   let map t path ~f =
     Log.debug "map %a" force (show (module Key) path);
@@ -377,26 +366,7 @@ module Make_ext (P: PRIVATE) = struct
     | None   -> return_nil
     | Some n -> list_node t n path
 
-  let iter_node t node fn =
-    Log.debug "iter";
-    let rec aux acc = function
-      | []       -> Lwt_list.iter_p (fun (path, v) -> fn path v) acc
-      | path::tl ->
-        list_node t node path >>= fun childs ->
-        let todo = childs @ tl in
-        Graph.mem_contents (graph_t t) node path >>= fun exists ->
-        if not exists then aux acc todo
-        else
-          let value =
-            Graph.read_contents (graph_t t) node path >>= function
-            | None   -> Lwt.fail (Failure "iter_node")
-            | Some v -> P.Contents.read_exn (contents_t t) v
-          in
-          aux ((path, value) :: acc) todo
-    in
-    list_node t node Key.empty >>= aux []
-
-    let iter t fn =
+  let iter t fn =
     Log.debug "iter";
     head t >>= function
     | None   -> Lwt.return_unit
@@ -443,12 +413,12 @@ module Make_ext (P: PRIVATE) = struct
   let update_head t c =
     match t.head_ref with
     | `Head h  -> h := Some c; return_unit
-    | `Branch name -> Ref.update (ref_t t) name c
+    | `Branch name -> Ref_store.update (ref_t t) name c
 
-  let remove_branch t name = Ref.remove (ref_t t) name
+  let remove_branch t name = Ref_store.remove (ref_t t) name
 
   let update_branch t name =
-    Ref.read_exn (ref_t t) name >>= fun k ->
+    Ref_store.read_exn (ref_t t) name >>= fun k ->
     update_head t k
 
   let compare_and_set_head_unsafe t ~test ~set =
@@ -457,7 +427,7 @@ module Make_ext (P: PRIVATE) = struct
       (* [head] is protected by [t.lock]. *)
       if !head = test then (head := set; Lwt.return true)
       else Lwt.return false
-    | `Branch name -> Ref.compare_and_set (ref_t t) name ~test ~set
+    | `Branch name -> Ref_store.compare_and_set (ref_t t) name ~test ~set
 
   let compare_and_set_head t ~test ~set =
     Lwt_mutex.with_lock t.lock (fun () ->
@@ -494,6 +464,86 @@ module Make_ext (P: PRIVATE) = struct
     in
     aux 1
 
+  module Private = struct
+    include P
+
+    let ref_t = ref_t
+    let commit_t = commit_t
+    let contents_t = contents_t
+    let node_t = node_t
+
+    let read_node t path =
+      read_head_node t >>= function
+      | None   -> return_none
+      | Some n -> Graph.read_node (graph_t t) n path
+
+    let mem_node t path =
+      read_head_node t >>= function
+      | None   -> return false
+      | Some n -> Graph.mem_node (graph_t t) n path
+
+    let remove_node t path =
+      with_commit t path ~f:(fun h -> Graph.remove_node (graph_t t) h path)
+
+    let iter_node t node fn =
+      Log.debug "iter";
+      let rec aux acc = function
+        | []       -> Lwt_list.iter_p (fun (path, v) -> fn path v) acc
+        | path::tl ->
+          list_node t node path >>= fun childs ->
+          let todo = childs @ tl in
+          Graph.mem_contents (graph_t t) node path >>= fun exists ->
+          if not exists then aux acc todo
+          else
+            let value =
+              Graph.read_contents (graph_t t) node path >>= function
+              | None   -> Lwt.fail (Failure "iter_node")
+              | Some v -> P.Contents.read_exn (contents_t t) v
+            in
+            aux ((path, value) :: acc) todo
+      in
+      list_node t node Key.empty >>= aux []
+
+    let update_node t path node =
+      with_commit t path ~f:(fun h -> Graph.add_node (graph_t t) h path node)
+
+    let merge_node t path (parent, node) =
+      Log.debug "merge_node";
+      let empty () = Graph.empty (graph_t t) in
+      let node_of_head head =
+        begin match head with
+          | None   -> Lwt.return_none
+          | Some h -> H.node (history_t t) h
+        end
+        >>= function
+        | None   -> empty () >|= fun empty -> empty, None
+        | Some h -> Graph.read_node (graph_t t) h path >|= fun n -> h, n
+      in
+      let parent_node () =
+        node_of_head (Some parent) >>= fun (_, x) -> ok (Some x)
+      in
+      let aux () =
+        read_head_commit t >>= fun head ->
+        node_of_head head >>= fun (current_root, current_node) ->
+        Graph.Store.merge path (graph_t t)
+          ~old:parent_node current_node (Some node)
+        >>| fun new_node ->
+        begin match new_node with
+          | None   -> Graph.remove_node (graph_t t) current_root path
+          | Some n -> Graph.add_node (graph_t t) current_root path n
+        end >>= fun new_root ->
+        let parents =
+          let aux = function None -> [] | Some x -> [x] in
+          parent :: aux head
+        in
+        H.create (history_t t) ~node:new_root ~parents ~task:(task t) >>= fun h ->
+        compare_and_set_head_unsafe t ~test:head ~set:(Some h) >>=
+        ok
+      in
+      Lwt_mutex.with_lock t.lock (fun () -> retry_merge "merge_node" aux)
+
+  end
+
   (* FIXME: we might want to keep the new commit in case of conflict,
      and use it as a base for the next merge. *)
   let merge_head t ?max_depth ?n c1 =
@@ -511,70 +561,35 @@ module Make_ext (P: PRIVATE) = struct
     in
     Lwt_mutex.with_lock t.lock (fun () -> retry_merge "merge_head" aux)
 
-  let merge_node t path (parent, node) =
-    Log.debug "merge_node";
-    let empty () = Graph.empty (graph_t t) in
-    let node_of_head head =
-      begin match head with
-        | None   -> Lwt.return_none
-        | Some h -> H.node (history_t t) h
-      end
-      >>= function
-      | None   -> empty () >|= fun empty -> empty, None
-      | Some h -> Graph.read_node (graph_t t) h path >|= fun n -> h, n
-    in
-    let parent_node () =
-      node_of_head (Some parent) >>= fun (_, x) -> ok (Some x)
-    in
-    let aux () =
-      read_head_commit t >>= fun head ->
-      node_of_head head >>= fun (current_root, current_node) ->
-      Graph.Store.merge path (graph_t t)
-        ~old:parent_node current_node (Some node)
-      >>| fun new_node ->
-      begin match new_node with
-        | None   -> Graph.remove_node (graph_t t) current_root path
-        | Some n -> Graph.add_node (graph_t t) current_root path n
-      end >>= fun new_root ->
-      let parents =
-        let aux = function None -> [] | Some x -> [x] in
-        parent :: aux head
-      in
-      H.create (history_t t) ~node:new_root ~parents ~task:(task t) >>= fun h ->
-      compare_and_set_head_unsafe t ~test:head ~set:(Some h) >>=
-      ok
-    in
-    Lwt_mutex.with_lock t.lock (fun () -> retry_merge "merge_node" aux)
-
   let merge_head_exn t ?max_depth ?n c1 =
     merge_head t ?max_depth ?n c1 >>= Ir_merge.exn
 
   let clone_force task t branch_id =
-    Log.debug "clone_force %a" force (show (module Ref.Key) branch_id);
+    Log.debug "clone_force %a" force (show (module Ref_store.Key) branch_id);
     let return () = of_branch_id task branch_id t.repo in
     head t >>= function
     | None   -> return ()
-    | Some h -> Ref.update (ref_t t) branch_id h >>= return
+    | Some h -> Ref_store.update (ref_t t) branch_id h >>= return
 
   let clone task t branch_id =
-    Log.debug "clone %a" force (show (module Ref.Key) branch_id);
-    Ref.mem (ref_t t) branch_id >>= function
+    Log.debug "clone %a" force (show (module Ref_store.Key) branch_id);
+    Ref_store.mem (ref_t t) branch_id >>= function
     | true  -> Lwt.return `Duplicated_branch
     | false ->
       let return () = of_branch_id task branch_id t.repo >|= fun t -> `Ok t in
       head t >>= function
       | None   -> Lwt.return `Empty_head
       | Some h ->
-        Ref.compare_and_set (ref_t t) branch_id ~test:None ~set:(Some h) >>= function
+        Ref_store.compare_and_set (ref_t t) branch_id ~test:None ~set:(Some h) >>= function
         | true  -> return ()
         | false -> Lwt.return `Duplicated_branch
 
   let merge_branch t ?max_depth ?n other =
-    Log.debug "merge_branch %a" force (show (module Ref.Key) other);
-    Ref.read (ref_t t) other >>= function
+    Log.debug "merge_branch %a" force (show (module Ref_store.Key) other);
+    Ref_store.read (ref_t t) other >>= function
     | None  ->
       let str =
-        Printf.sprintf "merge_branch: %s is not a valid branch ID" (Ref.Key.to_hum other)
+        Printf.sprintf "merge_branch: %s is not a valid branch ID" (Ref_store.Key.to_hum other)
       in
       Lwt.fail (Failure str)
     | Some c -> merge_head t ?max_depth ?n c
@@ -603,14 +618,14 @@ module Make_ext (P: PRIVATE) = struct
         | None       -> None
         | Some head0 -> Some [name0, head0]
       in
-      Ref.watch (ref_t t) ?init (fun name head ->
-          if Ref.Key.equal name0 name then fn head else Lwt.return_unit
+      Ref_store.watch (ref_t t) ?init (fun name head ->
+          if Ref_store.Key.equal name0 name then fn head else Lwt.return_unit
         ) >>= fun id ->
-      Lwt.return (fun () -> Ref.unwatch (ref_t t) id)
+      Lwt.return (fun () -> Ref_store.unwatch (ref_t t) id)
 
   let watch_branches t ?init fn =
-    Ref.watch (ref_t t) ?init fn >>= fun id ->
-    Lwt.return (fun () -> Ref.unwatch (ref_t t) id)
+    Ref_store.watch (ref_t t) ?init fn >>= fun id ->
+    Lwt.return (fun () -> Ref_store.unwatch (ref_t t) id)
 
   let lift value_of_head fn = function
     | `Removed x -> begin
@@ -783,6 +798,7 @@ module Make_ext (P: PRIVATE) = struct
     let h = Gmap.filter_map (function `Commit k -> Some k | _ -> None) g in
     Lwt.return h
 
+  module Ref = P.Ref.Key
 end
 
 module type MAKER =

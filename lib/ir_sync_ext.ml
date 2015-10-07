@@ -19,7 +19,7 @@ open Lwt
 module Log = Log.Make(struct let section = "SYNC" end)
 
 type remote =
-  | Store: (module Ir_s.STORE with type t = 'a) * 'a -> remote
+  | Store: (module Ir_bc.STORE_EXT with type t = 'a) * 'a -> remote
   | URI of string
 
 let remote_store m x = Store (m, x)
@@ -38,7 +38,7 @@ module type STORE = sig
   val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
 end
 
-module Make (S: Ir_s.STORE) = struct
+module Make (S: Ir_bc.STORE_EXT) = struct
 
   module B = S.Private.Sync
   type db = S.t

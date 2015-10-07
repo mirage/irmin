@@ -47,7 +47,7 @@ module type S = sig
     ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 end
 
-module Make (S: Ir_s.STORE):
+module Make (S: Ir_bc.STORE_EXT):
   S with type db = S.t
      and type key = S.key
      and type value = S.value

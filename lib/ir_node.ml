@@ -262,7 +262,6 @@ struct
 
     type key = S.key
     type value = S.value
-    let config (c, s) = Ir_conf.union (C.config c) (S.config s)
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t
     let read_exn (_, t) = S.read_exn t
