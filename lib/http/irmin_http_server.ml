@@ -354,6 +354,20 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
             Lwt.return stream))
       )
 
+  (* n of arguments in the path, 1 body, streamed response *)
+  let mknp1bs name ?lock fn db i1 i2 o =
+    name,
+    Stream (fun r ->
+        let x1 = mknp i1 r.path in
+        mk0q name r.query;
+        let x2 = mk1bo name i2 r.params in
+        lwt_stream_lift (with_lock lock (r.t, x1, x2) (fun () ->
+            db r.t r.task >>= fun t ->
+            let stream = fn t x1 x2 in
+            let stream = Lwt_stream.map (fun r -> Tc.to_json o r) stream in
+            Lwt.return stream))
+      )
+
   let graph_index = read_exn "index.html"
 
   module Dot = Irmin.Dot(S)
@@ -679,6 +693,25 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t >>=
       ok
     in
+        let mk = function
+      | `Updated (_, y)
+      | `Added y   -> Some y
+      | `Removed _ -> None
+    in
+
+    let s_watch t key init =
+      let stream, push = Lwt_stream.create () in
+      lwt_stream_lift (
+        let close = ref (fun () -> Lwt.return_unit) in
+        S.watch_key t ?init key (fun v ->
+            try push (Some (mk v)); Lwt.return_unit
+            with Lwt_stream.Closed -> !close ())
+        >>= fun f ->
+        close := f;
+        Lwt.return stream
+      )
+    in
+    let tc_watch = Tc.pair head value in
     let s_lcas_branch t tag query =
       let max_depth, n = mk_merge_query query in
       S.lcas_branch t ?max_depth ?n tag
@@ -713,6 +746,9 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       (* hrw *)
       mknp0bf "list" (list S.list) t step_h (Tc.list key);
       mknp0bf "remove-rec" ~lock:lock2 (list s_remove_rec) t step_h head;
+
+      (* watches *)
+      mknp1bs "watch" (list s_watch) t step_h tc_watch (Tc.option tc_watch);
 
       (* more *)
       mk1p0bf "remove-tag" ~lock:lock2 ~hooks S.remove_branch t tag_h Tc.unit;
