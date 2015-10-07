@@ -847,7 +847,6 @@ struct
   module Private = struct
     include L.Private
     module Repo = Repo
-    let repo t = t.repo
     let contents_t t = t.contents_t
     let node_t t = t.node_t
     let commit_t t = t.commit_t

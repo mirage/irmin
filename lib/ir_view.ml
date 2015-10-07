@@ -430,7 +430,7 @@ module Internal (Node: NODE) = struct
 
 end
 
-module Make (S: Ir_s.STORE) = struct
+module Make (S: Ir_bc.STORE_EXT) = struct
 
   module B = Ir_bc.Make_ext(S.Private)
   module P = S.Private

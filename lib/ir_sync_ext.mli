@@ -18,7 +18,7 @@
 
 type remote
 val remote_uri: string -> remote
-val remote_store: (module Ir_s.STORE with type t = 'a) -> 'a -> remote
+val remote_store: (module Ir_bc.STORE_EXT with type t = 'a) -> 'a -> remote
 
 module type STORE = sig
   type db
@@ -33,5 +33,5 @@ module type STORE = sig
   val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
 end
 
-module Make (S: Ir_s.STORE): STORE
+module Make (S: Ir_bc.STORE_EXT): STORE
   with type db = S.t and type head = S.head

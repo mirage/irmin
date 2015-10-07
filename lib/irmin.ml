@@ -23,12 +23,12 @@ module Task = Ir_task
 module View = Ir_view.Make
 module type VIEW = Ir_view.S
 module Dot = Ir_dot.Make
-module type S = Ir_s.STORE
+module type S = Ir_bc.STORE_EXT
 
 module Hash = Ir_hash
 module Path = Ir_path
 module Make = Ir_s.Make
-module Make_ext = Ir_s.Make_ext
+module Make_ext = Ir_bc.Make_ext
 
 module type RO = Ir_ro.STORE
 module type AO = Ir_ao.STORE
@@ -77,7 +77,7 @@ module Sync = Ir_sync_ext.Make
 type remote = Ir_sync_ext.remote
 
 let remote_store (type t) (module M: S with type t = t) (t:t) =
-  let module X = (M: Ir_s.STORE with type t = t) in
+  let module X = (M: Ir_bc.STORE_EXT with type t = t) in
   Ir_sync_ext.remote_store (module X) t
 
 let remote_uri = Ir_sync_ext.remote_uri

@@ -94,49 +94,32 @@ end
 (** {1 Extended API} *)
 
 module type STORE_EXT = sig
-
-  (** Same as [S] but also expose the store internals. Useful to build
-      derived functionalities. *)
-
   include STORE
 
   module Key: Ir_path.S with type t = key
-  (** Base functions over keys. *)
-
   module Val: Ir_contents.S with type t = value
-  (** Base functions over values. *)
+  module Ref: Ir_tag.S with type t = branch_id
+  module Head: Ir_hash.S with type t = head
 
-  module Private: PRIVATE
-    with type Contents.value = value
-     and module Contents.Path = Key
-     and type Commit.key = head
-     and type Ref.key = branch_id
-     and type Slice.t = slice
-
-  val contents_t: t -> Private.Contents.t
-  val node_t: t -> Private.Node.t
-  val commit_t: t -> Private.Commit.t
-  val ref_t: t -> Private.Ref.t
-
-  (** {1 Nodes} *)
-
-  val read_node: t -> key -> Private.Node.key option Lwt.t
-  (** Read a node. *)
-
-  val mem_node: t -> key -> bool Lwt.t
-  (** Check whether a node exists. *)
-
-  val update_node: t -> key -> Private.Node.key -> unit Lwt.t
-  (** Update a node. *)
-
-  val merge_node: t -> key -> (head * Private.Node.key) ->
-    unit Ir_merge.result Lwt.t
-
-  val remove_node: t -> key -> unit Lwt.t
-  (** Remove a node. *)
-
-  val iter_node: t -> Private.Node.key ->
-    (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  module Private: sig
+    include PRIVATE
+      with type Contents.value = value
+       and module Contents.Path = Key
+       and type Commit.key = head
+       and type Ref.key = branch_id
+       and type Slice.t = slice
+    val contents_t: t -> Contents.t
+    val node_t: t -> Node.t
+    val commit_t: t -> Commit.t
+    val ref_t: t -> Ref.t
+    val read_node: t -> key -> Node.key option Lwt.t
+    val mem_node: t -> key -> bool Lwt.t
+    val update_node: t -> key -> Node.key -> unit Lwt.t
+    val merge_node: t -> key -> (head * Node.key) -> unit Ir_merge.result Lwt.t
+    val remove_node: t -> key -> unit Lwt.t
+    val iter_node: t -> Node.key ->
+      (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  end
 
 end
 
@@ -147,4 +130,4 @@ module Make_ext (P: PRIVATE): STORE_EXT
    and type head = P.Commit.key
    and type slice = P.Slice.t
    and module Key = P.Contents.Path
-   and module Private = P
+   and module Private.Contents = P.Contents

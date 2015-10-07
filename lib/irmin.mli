@@ -1773,7 +1773,6 @@ module type S = sig
        and type Commit.key = head
        and type Ref.key = branch_id
        and type Slice.t = slice
-    val repo: t -> Repo.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
