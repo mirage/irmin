@@ -438,8 +438,8 @@ module Make (S: Ir_s.STORE_EXT) = struct
   module Graph = Ir_node.Graph(P.Contents)(P.Node)
   module History = Ir_commit.History(Graph.Store)(P.Commit)
 
-  let graph_t t = P.contents_t t, P.node_t t
-  let history_t t = graph_t t, P.commit_t t
+  let graph_t t = P.Repo.contents_t t, P.Repo.node_t t
+  let history_t t = graph_t t, P.Repo.commit_t t
 
   module Contents = struct
 
@@ -471,7 +471,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | Both (_, c)
       | Contents c -> Lwt.return (Some c)
       | Key (db, k as key) ->
-        P.Contents.read (P.contents_t db) k >>= function
+        P.Contents.read (P.Repo.contents_t (S.repo db)) k >>= function
         | None   -> Lwt.return_none
         | Some c ->
           t := Both (key, c);
@@ -594,7 +594,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | Both (_, n)
       | Node n   -> Lwt.return (Some n)
       | Key (db, k) ->
-        P.Node.read (P.node_t db) k >>= function
+        P.Node.read (P.Repo.node_t (S.repo db)) k >>= function
         | None   -> Lwt.return_none
         | Some n ->
           let n = import db n in
@@ -711,7 +711,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   let import db ~parents key =
     Log.debug "import %a" force (show (module P.Node.Key) key);
-    begin P.Node.read (P.node_t db) key >|= function
+    begin P.Node.read (P.Repo.node_t (S.repo db)) key >|= function
     | None   -> `Empty
     | Some n -> `Node (Node.both db key (Node.import db n))
     end >>= fun view ->
@@ -722,7 +722,8 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   let export db t =
     Log.debug "export";
-    let node n = P.Node.add (P.node_t db) (Node.export_node n) in
+    let repo = S.repo db in
+    let node n = P.Node.add (P.Repo.node_t repo) (Node.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
       match !n with
@@ -745,7 +746,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
               | Contents.Key _       -> ()
               | Contents.Contents x  ->
                 Stack.push (fun () ->
-                    P.Contents.add (P.contents_t db) x >>= fun k ->
+                    P.Contents.add (P.Repo.contents_t repo) x >>= fun k ->
                     c := Contents.Key (db, k);
                     Lwt.return_unit
                   ) todo
@@ -804,33 +805,34 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   let merge_node db ?max_depth ?n path view head_node view_node =
     let task = S.task db in
+    let repo = S.repo db in
     (* Create a commit with the contents of the view *)
-    Graph.read_node (graph_t db) head_node path >>= fun current_node ->
+    Graph.read_node (graph_t repo) head_node path >>= fun current_node ->
     let old () = match !(view.parents) with
       | []      -> ok None
       | parents ->
-        History.lca (history_t db) ~task ?max_depth ?n parents
+        History.lca (history_t repo) ~task ?max_depth ?n parents
         >>| function
         | None   -> ok None
         | Some c ->
-          History.node (history_t db) c >>= function
+          History.node (history_t repo) c >>= function
           | None   -> ok None
           | Some n ->
-            Graph.read_node (graph_t db) n path >>= fun n ->
+            Graph.read_node (graph_t repo) n path >>= fun n ->
             ok (Some n)
     in
-    Graph.Store.(merge Path.empty) (graph_t db)
+    Graph.Store.(merge Path.empty) (graph_t repo)
       ~old current_node (Some view_node)
     >>| fun merge_node ->
     if Tc.O1.equal P.Node.Key.equal merge_node current_node then ok `Unchanged
     else (
       begin match merge_node with
-        | None   -> Graph.remove_node (graph_t db) head_node path
-        | Some n -> Graph.add_node (graph_t db) head_node path n
+        | None   -> Graph.remove_node (graph_t repo) head_node path
+        | Some n -> Graph.add_node (graph_t repo) head_node path n
       end >>= fun new_head_node ->
       S.head_exn db >>= fun head ->
       let parents = head :: !(view.parents) in
-      History.create (history_t db) ~node:new_head_node ~parents ~task >>= fun h ->
+      History.create (history_t repo) ~node:new_head_node ~parents ~task >>= fun h ->
       ok (`Changed h)
     )
 
@@ -894,8 +896,9 @@ module Make (S: Ir_s.STORE_EXT) = struct
       "Irmin.View.make_head: cannot create a head with contents at the root."
 
   let make_head db task ~parents ~contents =
+    let repo = S.repo db in
     let empty () =
-      S.Private.Node.add (S.Private.node_t db) (S.Private.Node.Val.empty)
+      S.Private.Node.add (S.Private.Repo.node_t repo) (S.Private.Node.Val.empty)
     in
     let node =
       export db contents >>= function
@@ -905,7 +908,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
     in
     node >>= fun node ->
     let commit = S.Private.Commit.Val.create task ~parents ~node in
-    S.Private.Commit.add (S.Private.commit_t db) commit
+    S.Private.Commit.add (S.Private.Repo.commit_t repo) commit
 
   let watch_path db key ?init fn =
     let view_of_head h =

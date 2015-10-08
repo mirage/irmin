@@ -278,6 +278,15 @@ module type PRIVATE = sig
      and type commit = Commit.key * Commit.value
   module Sync: SYNC
     with type head = Commit.key and type branch_id = Ref.key
+  module Repo: sig
+    type t
+    val create: Ir_conf.t -> t Lwt.t
+    val config: t -> Ir_conf.t
+    val contents_t: t -> Contents.t
+    val node_t: t -> Node.t
+    val commit_t: t -> Commit.t
+    val ref_t: t -> Ref.t
+  end
 end
 
 module type STORE_EXT = sig
@@ -295,10 +304,7 @@ module type STORE_EXT = sig
        and type Commit.key = head
        and type Ref.key = branch_id
        and type Slice.t = slice
-    val contents_t: t -> Contents.t
-    val node_t: t -> Node.t
-    val commit_t: t -> Commit.t
-    val ref_t: t -> Ref.t
+       and type Repo.t = Repo.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t

@@ -44,27 +44,23 @@ module Make (S: Test_S) = struct
   module History = Irmin.Private.Commit.History(Graph.Store)(S.Private.Commit)
   module View = Irmin.View(S)
 
-  let v t a = S.Private.contents_t (t a)
-  let n t a = S.Private.node_t (t a)
-  let ct t a = S.Private.commit_t (t a)
-  let g t a = let t = t a in S.Private.contents_t t, S.Private.node_t t
-  let h t a =
-    let t = t a in
-    (S.Private.contents_t t, S.Private.node_t t), S.Private.commit_t t
+  let v repo = S.Private.Repo.contents_t repo
+  let n repo = S.Private.Repo.node_t repo
+  let ct repo = S.Private.Repo.commit_t repo
+  let g repo = S.Private.Repo.contents_t repo, S.Private.Repo.node_t repo
+  let h repo =
+    (S.Private.Repo.contents_t repo, S.Private.Repo.node_t repo), S.Private.Repo.commit_t repo
 
   module Ref = S.Private.Ref
 
   let l = S.Key.Step.of_hum
   let p k = S.Key.create (List.map l k)
 
-  let create x = S.Repo.create x.config >>= S.master Irmin_unix.task
+  let master = S.master Irmin_unix.task
 
   let dummy_task =
     let t = Irmin.Task.empty in
     fun () -> t
-
-  let create_dummy x =
-    S.Repo.create x.config >>= S.master dummy_task
 
   let string x str = match x.cont with
     | `String -> Tc.read_string (module V) str
@@ -77,53 +73,45 @@ module Make (S: Test_S) = struct
     | `String -> Tc.read_string (module V) ""
     | `Json -> V.of_json (`A[])
 
-  let kv1 x =
-    create x >>= fun t ->
-    Contents.add (S.Private.contents_t (t "contents_t")) (v1 x)
+  let kv1 ~repo x =
+    Contents.add (S.Private.Repo.contents_t repo) (v1 x)
 
-  let kv2 x =
-    create x >>= fun t ->
-    Contents.add (S.Private.contents_t (t "contents_t")) (v2 x)
+  let kv2 ~repo x =
+    Contents.add (S.Private.Repo.contents_t repo) (v2 x)
 
   let t1 = T.of_hum "foo"
   let t2 = T.of_hum "bar/toto"
 
-  let n1 x =
-    create x >>= fun t ->
-    kv1 x >>= fun kv1 ->
-    Graph.create (g t "n1") [l "x", `Contents kv1]
+  let n1 ~repo x =
+    kv1 ~repo x >>= fun kv1 ->
+    Graph.create (g repo) [l "x", `Contents kv1]
 
-  let n2 x =
-    n1 x >>= fun kn1 ->
-    create x >>= fun t ->
-    Graph.create (g t "n2") [l "b", `Node kn1]
+  let n2 ~repo x =
+    n1 ~repo x >>= fun kn1 ->
+    Graph.create (g repo) [l "b", `Node kn1]
 
-  let n3 x =
-    n2 x >>= fun kn2 ->
-    create x >>= fun t ->
-    Graph.create (g t "n3") [l "a", `Node kn2]
+  let n3 ~repo x =
+    n2 ~repo x >>= fun kn2 ->
+    Graph.create (g repo) [l "a", `Node kn2]
 
-  let n4 x =
-    n1 x >>= fun kn1 ->
-    create x >>= fun t ->
-    kv2 x >>= fun kv2 ->
-    Graph.create (g t "n4") [l "x", `Contents kv2] >>= fun kn4 ->
-    Graph.create (g t "n5") [l "b", `Node kn1; l "c", `Node kn4] >>= fun kn5 ->
-    Graph.create (g t "n6") [l "a", `Node kn5]
+  let n4 ~repo x =
+    n1 ~repo x >>= fun kn1 ->
+    kv2 ~repo x >>= fun kv2 ->
+    Graph.create (g repo) [l "x", `Contents kv2] >>= fun kn4 ->
+    Graph.create (g repo) [l "b", `Node kn1; l "c", `Node kn4] >>= fun kn5 ->
+    Graph.create (g repo) [l "a", `Node kn5]
 
-  let r1 x =
-    n2 x >>= fun kn2 ->
-    create_dummy x >>= fun t ->
-    History.create (h t ()) ~node:kn2 ~parents:[] ~task:Irmin.Task.empty
+  let r1 ~repo x =
+    n2 ~repo x >>= fun kn2 ->
+    History.create (h repo) ~node:kn2 ~parents:[] ~task:Irmin.Task.empty
 
-  let r2 x =
-    n3 x >>= fun kn3 ->
-    r1 x >>= fun kr1 ->
-    create_dummy x >>= fun t ->
-    History.create (h t ()) ~node:kn3 ~parents:[kr1] ~task:Irmin.Task.empty
+  let r2 ~repo x =
+    n3 ~repo x >>= fun kn3 ->
+    r1 ~repo x >>= fun kr1 ->
+    History.create (h repo) ~node:kn3 ~parents:[kr1] ~task:Irmin.Task.empty
 
   let run x test =
-    try Lwt_unix.run (x.init () >>= test >>= x.clean)
+    try Lwt_unix.run (x.init () >>= fun () -> S.Repo.create x.config >>= fun repo -> test repo >>= x.clean)
     with e ->
       Lwt_unix.run (x.clean ());
       raise e
@@ -160,7 +148,8 @@ module Make (S: Test_S) = struct
     let rec aux i =
       if time () -. t > timeout then fn (str i);
       try fn (str i); Lwt.return_unit
-      with _e ->
+      with ex ->
+        Log.debug "retry ex: %s" (Printexc.to_string ex);
         let sleep_t = sleep_t *. (1. +. float i ** 2.) in
         sleep ~sleep_t () >>= fun () ->
         Log.debug "Test.retry %s" (str i);
@@ -171,12 +160,11 @@ module Make (S: Test_S) = struct
   let old k () = Lwt.return (`Ok (Some k))
 
   let test_contents x () =
-    let test () =
-      create x >>= fun t ->
-      let t = S.Private.contents_t (t "get contents handle") in
+    let test repo =
+      let t = S.Private.Repo.contents_t repo in
 
       let v2 = v2 x in
-      kv2 x >>= fun kv2 ->
+      kv2 ~repo x >>= fun kv2 ->
       Contents.add t v2 >>= fun k2' ->
       assert_equal (module KV) "kv2" kv2 k2';
       Contents.read t k2' >>= fun v2' ->
@@ -186,7 +174,7 @@ module Make (S: Test_S) = struct
       assert_equal (module KV) "kv2" kv2 k2'';
 
       let v1 = v1 x in
-      kv1 x >>= fun kv1 ->
+      kv1 ~repo x >>= fun kv1 ->
       Contents.add t v1 >>= fun k1' ->
       assert_equal (module KV) "kv1" kv1 k1';
       Contents.add t v1 >>= fun k1'' ->
@@ -200,97 +188,96 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_nodes x () =
-    let test () =
-      create x >>= fun t ->
-      let g = g t and n = n t in
-      kv1 x >>= fun kv1 ->
+    let test repo =
+      let g = g repo and n = n repo in
+      kv1 ~repo x >>= fun kv1 ->
 
       (* Create a node containing t1 -x-> (v1) *)
-      Graph.create (g "k1")  [l "x", `Contents kv1] >>= fun k1 ->
-      Graph.create (g "k1'") [l "x", `Contents kv1] >>= fun k1' ->
+      Graph.create g [l "x", `Contents kv1] >>= fun k1 ->
+      Graph.create g [l "x", `Contents kv1] >>= fun k1' ->
       assert_equal (module KN) "k1.1" k1 k1';
-      Node.read_exn (n "t1") k1 >>= fun t1 ->
-      Node.add (n "k1''") t1 >>= fun k1''->
+      Node.read_exn n k1 >>= fun t1 ->
+      Node.add n t1 >>= fun k1''->
       assert_equal (module KN) "k1.2" k1 k1'';
 
       (* Create the node  t2 -b-> t1 -x-> (v1) *)
-      Graph.create (g "k2")  [l "b", `Node k1] >>= fun k2 ->
-      Graph.create (g "k2'") [l "b", `Node k1] >>= fun k2' ->
+      Graph.create g [l "b", `Node k1] >>= fun k2 ->
+      Graph.create g [l "b", `Node k1] >>= fun k2' ->
       assert_equal (module KN) "k2.1" k2 k2';
-      Node.read_exn (n "t2") k2 >>= fun t2 ->
-      Node.add (n "k2''") t2 >>= fun k2''->
+      Node.read_exn n k2 >>= fun t2 ->
+      Node.add n t2 >>= fun k2''->
       assert_equal (module KN) "k2.2" k2 k2'';
-      Graph.read_node_exn (g "k1'''") k2 (p ["b"]) >>= fun k1''' ->
+      Graph.read_node_exn g k2 (p ["b"]) >>= fun k1''' ->
       assert_equal (module KN) "k1.3" k1 k1''';
 
       (* Create the node t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      Graph.create (g "k3")  [l "a", `Node k2] >>= fun k3 ->
-      Graph.create (g "k3'") [l "a", `Node k2] >>= fun k3' ->
+      Graph.create g [l "a", `Node k2] >>= fun k3 ->
+      Graph.create g [l "a", `Node k2] >>= fun k3' ->
       assert_equal (module KN) "k3.1" k3 k3';
-      Node.read_exn (n "t3") k3 >>= fun t3 ->
-      Node.add (n "k3''") t3 >>= fun k3''->
+      Node.read_exn n k3 >>= fun t3 ->
+      Node.add n t3 >>= fun k3''->
       assert_equal (module KN) "k3.2" k3 k3'';
-      Graph.read_node_exn (g "t2'") k3 (p ["a"]) >>= fun k2'' ->
+      Graph.read_node_exn g k3 (p ["a"]) >>= fun k2'' ->
       assert_equal (module KN) "k2.3" k2 k2'';
-      Graph.read_node_exn (g "t1'") k2' (p ["b"]) >>= fun k1'''' ->
+      Graph.read_node_exn g k2' (p ["b"]) >>= fun k1'''' ->
       assert_equal (module KN) "t1.2" k1 k1'''';
-      Graph.read_node (g "t1'") k3 (p ["a";"b"]) >>= fun k1'''''->
+      Graph.read_node g k3 (p ["a";"b"]) >>= fun k1'''''->
       assert_equal (module Tc.Option(KN)) "t1.3" (Some k1) k1''''';
 
-      Graph.read_contents (g "read_contents k1:/x") k1 (p ["x"])
+      Graph.read_contents g k1 (p ["x"])
       >>= fun kv11 ->
       assert_equal (module Tc.Option(KV)) "v1.1" (Some kv1) kv11;
-      Graph.read_contents (g "read_contents k2:/b/x") k2 (p ["b";"x"])
+      Graph.read_contents g k2 (p ["b";"x"])
       >>= fun kv12 ->
       assert_equal (module Tc.Option(KV)) "v1.2" (Some kv1) kv12;
-      Graph.read_contents (g "read_contents k3:a/b/x") k3 (p ["a";"b";"x"])
+      Graph.read_contents g k3 (p ["a";"b";"x"])
       >>= fun kv13 ->
       assert_equal (module Tc.Option(KV)) "v1" (Some kv1) kv13;
 
       (* Create the node t6 -a-> t5 -b-> t1 -x-> (v1)
                                    \-c-> t4 -x-> (v2) *)
-      kv2 x >>= fun kv2 ->
-      Graph.create (g "k4") [l "x", `Contents kv2] >>= fun k4 ->
-      Graph.create (g "k5") [l "b", `Node k1; l "c", `Node k4] >>= fun k5 ->
-      Graph.create (g "k6") [l "a", `Node k5] >>= fun k6 ->
-      Graph.add_contents (g "k6") k3 (p ["a";"c";"x"]) kv2 >>= fun k6' ->
-      Node.read_exn (n "") k6' >>= fun n6' ->
-      Node.read_exn (n "") k6  >>= fun n6 ->
+      kv2 ~repo x >>= fun kv2 ->
+      Graph.create g [l "x", `Contents kv2] >>= fun k4 ->
+      Graph.create g [l "b", `Node k1; l "c", `Node k4] >>= fun k5 ->
+      Graph.create g [l "a", `Node k5] >>= fun k6 ->
+      Graph.add_contents g k3 (p ["a";"c";"x"]) kv2 >>= fun k6' ->
+      Node.read_exn n k6' >>= fun n6' ->
+      Node.read_exn n k6  >>= fun n6 ->
       assert_equal (module N) "node n6" n6 n6';
       assert_equal (module KN) "node k6" k6 k6';
 
       let assert_no_duplicates n node =
         let names = ref [] in
-        Graph.iter_succ (g "sorted") node (fun s _ ->
+        Graph.iter_succ g node (fun s _ ->
             if List.mem s !names then fail "%s: duplicate succ!" n
             else names := s :: !names
           ) >>= fun () ->
-        Graph.iter_contents (g "sorted") node (fun s _ ->
+        Graph.iter_contents g node (fun s _ ->
             if List.mem s !names then fail "%s: duplicate contents!" n
             else names := s :: !names
           ) >>= fun () ->
         Lwt.return_unit
       in
-      Graph.create (g "") []                >>= fun n0 ->
+      Graph.create g []                >>= fun n0 ->
 
-      Graph.add_node (g "") n0 (p ["b"]) n0 >>= fun n1 ->
-      Graph.add_node (g "") n1 (p ["a"]) n0 >>= fun n2 ->
-      Graph.add_node (g "") n2 (p ["a"]) n0 >>= fun n3 ->
+      Graph.add_node g n0 (p ["b"]) n0 >>= fun n1 ->
+      Graph.add_node g n1 (p ["a"]) n0 >>= fun n2 ->
+      Graph.add_node g n2 (p ["a"]) n0 >>= fun n3 ->
       assert_no_duplicates "1" n3 >>= fun () ->
 
-      Graph.add_node (g "") n0 (p ["a"]) n0 >>= fun n1 ->
-      Graph.add_node (g "") n1 (p ["b"]) n0 >>= fun n2 ->
-      Graph.add_node (g "") n2 (p ["a"]) n0 >>= fun n3 ->
+      Graph.add_node g n0 (p ["a"]) n0 >>= fun n1 ->
+      Graph.add_node g n1 (p ["b"]) n0 >>= fun n2 ->
+      Graph.add_node g n2 (p ["a"]) n0 >>= fun n3 ->
       assert_no_duplicates "2" n3 >>= fun () ->
 
-      Graph.add_contents (g "") n0 (p ["b"]) kv1 >>= fun n1 ->
-      Graph.add_contents (g "") n1 (p ["a"]) kv1 >>= fun n2 ->
-      Graph.add_contents (g "") n2 (p ["a"]) kv1 >>= fun n3 ->
+      Graph.add_contents g n0 (p ["b"]) kv1 >>= fun n1 ->
+      Graph.add_contents g n1 (p ["a"]) kv1 >>= fun n2 ->
+      Graph.add_contents g n2 (p ["a"]) kv1 >>= fun n3 ->
       assert_no_duplicates "3" n3 >>= fun () ->
 
-      Graph.add_contents (g "") n0 (p ["a"]) kv1 >>= fun n1 ->
-      Graph.add_contents (g "") n1 (p ["b"]) kv1 >>= fun n2 ->
-      Graph.add_contents (g "") n2 (p ["b"]) kv1 >>= fun n3 ->
+      Graph.add_contents g n0 (p ["a"]) kv1 >>= fun n1 ->
+      Graph.add_contents g n1 (p ["b"]) kv1 >>= fun n2 ->
+      Graph.add_contents g n2 (p ["b"]) kv1 >>= fun n3 ->
       assert_no_duplicates "4" n3 >>= fun () ->
 
       return_unit
@@ -298,29 +285,29 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_commits x () =
-    let test () =
+    let test repo =
 
       let task date =
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~owner:"test" "Test commit" ~uid:i
       in
-      S.Repo.create x.config >>= S.master task >>= fun t ->
+      S.master task repo >>= fun t ->
 
-      kv1 x >>= fun kv1 ->
-      let g = g t and h = h t and c x = S.Private.commit_t (t x) in
+      kv1 ~repo x >>= fun kv1 ->
+      let g = g repo and h = h repo and c = S.Private.Repo.commit_t repo in
 
       (* t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      Graph.create (g 0) [l "x", `Contents kv1] >>= fun kt1 ->
-      Graph.create (g 1) [l "a", `Node kt1] >>= fun kt2 ->
-      Graph.create (g 2) [l "b", `Node kt2] >>= fun kt3 ->
+      Graph.create g [l "x", `Contents kv1] >>= fun kt1 ->
+      Graph.create g [l "a", `Node kt1] >>= fun kt2 ->
+      Graph.create g [l "b", `Node kt2] >>= fun kt3 ->
 
       (* r1 : t2 *)
       let with_task n fn =
-        fn (h n) ~task:(task n) in
+        fn h ~task:(task n) in
       with_task 3 @@ History.create ~node:kt2 ~parents:[] >>= fun kr1 ->
       with_task 3 @@ History.create ~node:kt2 ~parents:[] >>= fun kr1' ->
-      Commit.read_exn (c 0) kr1  >>= fun t1 ->
-      Commit.read_exn (c 0) kr1' >>= fun t1' ->
+      Commit.read_exn c kr1  >>= fun t1 ->
+      Commit.read_exn c kr1' >>= fun t1' ->
       assert_equal (module C) "t1" t1 t1';
       assert_equal (module KC) "kr1" kr1 kr1';
 
@@ -329,10 +316,10 @@ module Make (S: Test_S) = struct
       with_task 4 @@ History.create ~node:kt3 ~parents:[kr1] >>= fun kr2' ->
       assert_equal (module KC) "kr2" kr2 kr2';
 
-      History.closure (h 5) ~min:[] ~max:[kr1] >>= fun kr1s ->
+      History.closure h ~min:[] ~max:[kr1] >>= fun kr1s ->
       assert_equal (module Set(KC)) "g1" [kr1] kr1s;
 
-      History.closure (h 6) ~min:[] ~max:[kr2] >>= fun kr2s ->
+      History.closure h ~min:[] ~max:[kr2] >>= fun kr2s ->
       assert_equal (module Set(KC)) "g2" [kr1; kr2] kr2s;
 
       if x.kind = `Git then (
@@ -350,13 +337,11 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_branches x () =
-    let test () =
-      create x >>= fun t ->
+    let test repo =
+      let tag = S.Private.Repo.ref_t repo in
 
-      let tag = S.Private.ref_t (t "tag handle") in
-
-      r1 x >>= fun kv1 ->
-      r2 x >>= fun kv2 ->
+      r1 ~repo x >>= fun kv1 ->
+      r2 ~repo x >>= fun kv2 ->
 
       line "pre-update";
       Ref.update tag t1 kv1 >>= fun () ->
@@ -485,9 +470,9 @@ module Make (S: Test_S) = struct
 
     end in
 
-    let test () =
-      create x >>= fun t1 ->
-      create x >>= fun t2 ->
+    let test repo =
+      master repo >>= fun t1 ->
+      S.Repo.create x.config >>= master >>= fun t2 ->
 
       (* test [Irmin.watch] *)
       Log.debug "WATCH";
@@ -537,14 +522,14 @@ module Make (S: Test_S) = struct
       Log.debug "WATCH-TAGS";
       let state = State.empty () in
 
-      r1 x >>= fun head ->
+      r1 ~repo x >>= fun head ->
       let add = State.apply "watch-tag" state `Add (fun n ->
           let tag = S.Ref.of_hum (sprintf "t%d" n) in
-          S.Private.Ref.update (S.Private.ref_t @@ t1 "tag") tag head
+          S.Private.Ref.update (S.Private.Repo.ref_t repo) tag head
         ) in
       let remove = State.apply "watch-tag" state `Remove (fun n ->
           let tag = S.Ref.of_hum (sprintf "t%d" n) in
-          S.Private.Ref.remove (S.Private.ref_t @@ t2 "tag") tag
+          S.Private.Ref.remove (S.Private.Repo.ref_t repo) tag
         ) in
 
       S.watch_branches (t1 "watch-tags") (fun _ -> State.process state)
@@ -659,15 +644,14 @@ module Make (S: Test_S) = struct
       | `Conflict c -> fail "conflict %s" c
     in
 
-    let test () =
+    let test repo =
       check () >>= fun () ->
-      create x >>= fun t ->
-      kv1 x >>= fun kv1 ->
-      kv2 x >>= fun kv2 ->
+      kv1 ~repo x >>= fun kv1 ->
+      kv2 ~repo x >>= fun kv2 ->
 
       (* merge contents *)
 
-      let v = S.Private.contents_t (t "contents_t") in
+      let v = S.Private.Repo.contents_t repo in
       Contents.merge (p []) v ~old:(old (Some kv1)) (Some kv1) (Some kv1)
       >>= fun kv1' ->
       assert_equal (module RV) "merge kv1" (`Ok (Some kv1)) kv1';
@@ -677,41 +661,40 @@ module Make (S: Test_S) = struct
 
       (* merge nodes *)
 
-      let g = g t in
+      let g = g repo in
 
       (* The empty node *)
-      Graph.create (g "k0") [] >>= fun k0 ->
+      Graph.create g [] >>= fun k0 ->
 
       (* Create the node t1 -x-> (v1) *)
-      Graph.create (g "k1") [l "x", `Contents kv1] >>= fun k1 ->
+      Graph.create g [l "x", `Contents kv1] >>= fun k1 ->
 
       (* Create the node t2 -b-> t1 -x-> (v1) *)
-      Graph.create (g "k2") [l "b", `Node k1] >>= fun k2 ->
+      Graph.create g [l "b", `Node k1] >>= fun k2 ->
 
       (* Create the node t3 -c-> t1 -x-> (v1) *)
-      Graph.create (g "k3") [l "c", `Node k1] >>= fun k3 ->
+      Graph.create g [l "c", `Node k1] >>= fun k3 ->
 
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
       Graph.Store.(merge Path.empty)
-        (g "merge: k4") ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
+        g ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
       let k4 = match k4 with Some k -> k | None -> failwith "k4" in
 
       let succ = ref [] in
-      Graph.iter_succ (g "iter") k4 (fun l v -> succ := (l, v) :: !succ) >>= fun () ->
+      Graph.iter_succ g k4 (fun l v -> succ := (l, v) :: !succ) >>= fun () ->
       assert_equal (module Succ) "k4"[ (l "b", k1); (l "c", k1) ] !succ;
 
       let task date =
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
       in
-      S.Repo.create x.config >>= S.master task >>= fun t ->
 
-      let h = h t and c a = S.Private.commit_t (t a) in
+      let h = h repo and c = S.Private.Repo.commit_t repo in
       let with_task n fn =
-        fn (h n) ~task:(task n) in
+        fn h ~task:(task n) in
 
       with_task 0 @@ History.create ~node:k0 ~parents:[] >>= fun kr0 ->
       with_task 1 @@ History.create ~node:k2 ~parents:[kr0] >>= fun kr1 ->
@@ -729,8 +712,8 @@ module Make (S: Test_S) = struct
 
       with_task 3 @@ History.create ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
 
-      Commit.read_exn (c 0) kr3 >>= fun r3 ->
-      Commit.read_exn (c 0) kr3' >>= fun r3' ->
+      Commit.read_exn c kr3 >>= fun r3 ->
+      Commit.read_exn c kr3' >>= fun r3' ->
       assert_equal (module C) "r3" r3 r3';
       assert_equal (module KC) "kr3" kr3 kr3';
       Lwt.return_unit
@@ -738,15 +721,13 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_history x () =
-    let test () =
+    let test repo =
       let task date =
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~uid:i ~owner:"test" "Test commit"
       in
-      S.Repo.create x.config >>= fun repo ->
-      S.master task repo >>= fun t ->
-      let h = h t in
-      Graph.create (g t 0) [] >>= fun node ->
+      let h = h repo in
+      Graph.create (g repo) [] >>= fun node ->
       let assert_lcas_err msg err l2 =
         let str = function
           | `Too_many_lcas -> "Too_many_lcas"
@@ -777,7 +758,7 @@ module Make (S: Test_S) = struct
         Lwt.return_unit
       in
       let with_task n fn =
-        fn (h n) ~task:(task n) in
+        fn h ~task:(task n) in
 
       (* test that we don't compute too many lcas
 
@@ -865,14 +846,14 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_empty x () =
-    let test () =
-      S.Repo.create x.config >>= S.empty dummy_task >>= fun t ->
+    let test repo =
+      S.empty dummy_task repo >>= fun t ->
 
       S.head (t ()) >>= fun h ->
       assert_equal (module Tc.Option(S.Head)) "empty" None h;
 
       let v1 = v1 x in
-      r1 x >>= fun r1 ->
+      r1 ~repo x >>= fun r1 ->
 
       S.update (t ()) (p ["b"; "x"]) v1 >>= fun () ->
 
@@ -885,8 +866,8 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_slice x () =
-    let test () =
-      create x >>= fun t ->
+    let test repo =
+      master repo >>= fun t ->
       let a = string x "" in
       let b = string x "haha" in
       S.update (t "slice") (p ["x";"a"]) a >>= fun () ->
@@ -901,8 +882,7 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_stores x () =
-    let test () =
-      S.Repo.create x.config >>= fun repo ->
+    let test repo =
       S.master Irmin_unix.task repo >>= fun t ->
       let v1 = v1 x in
       S.update (t "init") (p ["a";"b"]) v1 >>= fun () ->
@@ -1041,8 +1021,7 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_views x () =
-    let test () =
-      S.Repo.create x.config >>= fun repo ->
+    let test repo =
       S.master Irmin_unix.task repo >>= fun t ->
       let nodes = random_nodes x 100 in
       let foo1 = random_value x 10 in
@@ -1059,12 +1038,12 @@ module Make (S: Test_S) = struct
 
       View.update_path (t "empty view") (p []) v1 >>= fun () ->
       S.head_exn (t "empty view") >>= fun head   ->
-      Commit.read_exn (ct t "empty view") head >>= fun commit ->
+      Commit.read_exn (ct repo) head >>= fun commit ->
       let node = match Commit.Val.node commit with
         | None -> failwith "empty node"
         | Some n -> n
       in
-      Node.read_exn (n t "empty view") node >>= fun node ->
+      Node.read_exn (n repo) node >>= fun node ->
       assert_equal (module Node.Val) "empty view" Node.Val.empty node;
 
       (* Testing [View.diff] *)
@@ -1187,8 +1166,8 @@ module Make (S: Test_S) = struct
       S.read (t "read after v3") (p ["b";"foo";"1"]) >>= fun foo2' ->
       assert_equal (module Tc.Option(V)) "remove view" None foo2';
 
-      r1 x >>= fun r1 ->
-      r2 x >>= fun r2 ->
+      r1 ~repo x >>= fun r1 ->
+      r2 ~repo x >>= fun r2 ->
       let ta = Irmin.Task.empty in
       View.make_head (t "mk-head") ta ~parents:[r1;r2] ~contents:v3 >>= fun h ->
 
@@ -1202,14 +1181,14 @@ module Make (S: Test_S) = struct
       assert_equal (module Tc.List(S.Head)) "head" (s [r1;r2]) (s pred);
 
       S.read (tt "read tt") (p ["b";"foo";"1"]) >>= fun foo2'' ->
-      assert_equal (module (Tc.Option(V))) "remove tt" None foo2'';
+      assert_equal (module Tc.Option(V)) "remove tt" None foo2'';
 
       let vx = string x "VX" in
       let px = p ["x";"y";"z"] in
       S.update (tt "update") px vx >>= fun () ->
       View.of_path (tt "view") (p []) >>= fun view ->
       View.read view px >>= fun vx' ->
-      assert_equal (module (Tc.Option(S.Val))) "updates" (Some vx) vx';
+      assert_equal (module Tc.Option(S.Val)) "updates" (Some vx) vx';
 
       View.empty () >>= fun v ->
       View.update v (p []) vx >>= fun () ->
@@ -1225,11 +1204,11 @@ module Make (S: Test_S) = struct
 
   let test_private_nodes x () =
     let get = function None -> Alcotest.fail "empty" | Some x -> x in
-    let c t msg = S.Private.contents_t (t msg) in
-    let test () =
+    let test repo =
+      let c = S.Private.Repo.contents_t repo in
       let vx = string x "VX" in
       let vy = string x "VY" in
-      create x >>= fun t ->
+      master repo >>= fun t ->
       S.update (t "add x/y/z") (p ["x";"y";"z"]) vx >>= fun () ->
       S.Private.read_node (t "read") (p ["x"]) >>= fun view ->
       S.Private.update_node (t "update") (p ["u"]) (get view) >>= fun () ->
@@ -1239,8 +1218,8 @@ module Make (S: Test_S) = struct
       S.head_exn (t "head") >>= fun head ->
       S.Private.read_node (t "read node") (p ["u"]) >>= fun view ->
       S.update (t "add u/x/y") (p ["u";"x";"y"]) vy >>= fun () ->
-      Contents.add (c t "add contents") vx >>= fun kx ->
-      Graph.add_contents (g t "add node") (get view) (p ["x";"z"]) kx
+      Contents.add c vx >>= fun kx ->
+      Graph.add_contents (g repo) (get view) (p ["x";"z"]) kx
       >>= fun view' ->
       S.Private.merge_node (t "merge") (p ["u"]) (head, view') >>=
       Irmin.Merge.exn >>= fun () ->
@@ -1254,8 +1233,7 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_sync x () =
-    let test () =
-      S.Repo.create x.config >>= fun repo ->
+    let test repo =
       S.master Irmin_unix.task repo >>= fun t1 ->
       let v1 = v1 x in
       let v2 = v2 x in
@@ -1321,12 +1299,12 @@ module Make (S: Test_S) = struct
     return_unit
 
   let test_merge x () =
-    let test () =
+    let test repo =
       let v1 = string x "X1" in
       let v2 = string x "X2" in
       let v3 = string x "X3" in
 
-      create x >>= fun t1 ->
+      master repo >>= fun t1 ->
 
       S.update (t1 "update a/b/a") (p ["a";"b";"a"]) v1 >>= fun () ->
       S.update (t1 "update a/b/b") (p ["a";"b";"b"]) v2 >>= fun () ->
@@ -1368,11 +1346,10 @@ module Make (S: Test_S) = struct
       read fn check (i-1)
 
   let test_concurrent_low x () =
-    let test_branches () =
+    let test_branches repo =
       let k = t1 in
-      r1 x >>= fun v ->
-      create x >>= fun t ->
-      let t = S.Private.ref_t (t "tag") in
+      r1 ~repo x >>= fun v ->
+      let t = S.Private.Repo.ref_t repo in
       let write = write (fun _i -> Ref.update t k v) in
       let read =
         read
@@ -1382,11 +1359,10 @@ module Make (S: Test_S) = struct
       write 1 >>= fun () ->
       Lwt.join [ write 10; read 10; write 10; read 10; ]
     in
-    let test_contents () =
-      kv2 x >>= fun k ->
+    let test_contents repo =
+      kv2 ~repo x >>= fun k ->
       let v = v2 x in
-      create x >>= fun t ->
-      let t = S.Private.contents_t (t "contents") in
+      let t = S.Private.Repo.contents_t repo in
       let write =
         write (fun _i -> Contents.add t v >>= fun _ -> Lwt.return_unit)
       in
@@ -1398,14 +1374,14 @@ module Make (S: Test_S) = struct
       write 1 >>= fun () ->
       Lwt.join [ write 10; read 10; write 10; read 10; ]
     in
-    run x (fun () -> Lwt.join [test_branches (); test_contents ()])
+    run x (fun repo -> Lwt.join [test_branches repo; test_contents repo])
 
   let test_concurrent_updates x () =
-    let test_one () =
+    let test_one repo =
       let k = p ["a";"b";"d"] in
       let v = string x "X1" in
-      create x >>= fun t1 ->
-      create x >>= fun t2 ->
+      master repo >>= fun t1 ->
+      master repo >>= fun t2 ->
       let mk t x = ksprintf t x in
       let write t = write (fun i -> S.update (mk t "update: one %d" i) k v) in
       let read t =
@@ -1416,11 +1392,11 @@ module Make (S: Test_S) = struct
       Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
       Lwt.join [ read t1 10 ]
     in
-    let test_multi () =
+    let test_multi repo =
       let k i = p ["a";"b";"c"; string_of_int i ] in
       let v i = string x (sprintf "X%d" i) in
-      create x >>= fun t1 ->
-      create x >>= fun t2 ->
+      master repo >>= fun t1 ->
+      master repo >>= fun t2 ->
       let mk t x = ksprintf t x in
       let write t =
         write (fun i -> S.update (mk t "update: multi %d" i) (k i) (v i))
@@ -1433,18 +1409,18 @@ module Make (S: Test_S) = struct
       Lwt.join [ write t1 10; write t2 10 ] >>= fun () ->
       Lwt.join [ read t1 10 ]
     in
-    run x (fun () ->
-        test_one   () >>= fun () ->
-        test_multi () >>= fun () ->
+    run x (fun repo ->
+        test_one   repo >>= fun () ->
+        test_multi repo >>= fun () ->
         Lwt.return_unit
       )
 
   let test_concurrent_merges x () =
-    let test () =
+    let test repo =
       let k i = p ["a";"b";"c"; string_of_int i ] in
       let v i = string x (sprintf "X%d" i) in
-      create x >>= fun t1 ->
-      create x >>= fun t2 ->
+      master repo >>= fun t1 ->
+      master repo >>= fun t2 ->
       let mk t x = ksprintf t x in
       let write t n =
         write (fun i ->
@@ -1468,11 +1444,11 @@ module Make (S: Test_S) = struct
     run x test
 
   let test_concurrent_head_updates x () =
-    let test () =
+    let test repo =
       let k i = p ["a";"b";"c"; string_of_int i ] in
       let v i = string x (sprintf "X%d" i) in
-      create x >>= fun t1 ->
-      create x >>= fun t2 ->
+      master repo >>= fun t1 ->
+      master repo >>= fun t2 ->
       let mk t x = ksprintf t x in
       let retry d fn =
         let rec aux i =

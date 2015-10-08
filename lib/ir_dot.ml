@@ -151,7 +151,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
           add_edge (`Commit k) [`Style `Dashed] (`Node node);
           return_unit
       ) >>= fun () ->
-    let ref_t = S.Private.ref_t t in
+    let ref_t = S.Private.Repo.ref_t (S.repo t) in
     Ref.iter ref_t (fun r k ->
         k >>= fun k ->
         add_vertex (`Branch r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];

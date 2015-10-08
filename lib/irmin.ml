@@ -73,6 +73,33 @@ struct
     end
     module Slice = Ir_slice.Make(Contents)(Node)(Commit)
     module Sync = Ir_sync.None(H)(R)
+    module Repo = struct
+      type t = {
+        config: Ir_conf.t;
+        contents: Contents.t;
+        node: Node.t;
+        commit: Commit.t;
+        ref_store: Ref.t;
+      }
+      let ref_t t = t.ref_store
+      let commit_t t = t.commit
+      let node_t t = t.node
+      let contents_t t = t.contents
+      let config t = t.config
+
+      let create config =
+        Contents.create config >>= fun contents ->
+        Node.create config     >>= fun node ->
+        Commit.create config   >>= fun commit ->
+        Ref.create config      >>= fun ref_store ->
+        return
+          { contents     = contents;
+            node         = node;
+            commit       = commit;
+            ref_store    = ref_store;
+            config       = config;
+          }
+    end
   end
   include Ir_bc.Make(X)
 end

@@ -1741,6 +1741,16 @@ module Private: sig
 
     module Sync: Sync.S with type head = Commit.key and type branch_id = Ref.key
 
+    (** Private repositories. *)
+    module Repo: sig
+      type t
+      val create: config -> t Lwt.t
+      val config: t -> config
+      val contents_t: t -> Contents.t
+      val node_t: t -> Node.t
+      val commit_t: t -> Commit.t
+      val ref_t: t -> Ref.t
+    end
   end
 
 end
@@ -1773,10 +1783,7 @@ module type S = sig
        and type Commit.key = head
        and type Ref.key = branch_id
        and type Slice.t = slice
-    val contents_t: t -> Contents.t
-    val node_t: t -> Node.t
-    val commit_t: t -> Commit.t
-    val ref_t: t -> Ref.t
+       and type Repo.t = Repo.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t

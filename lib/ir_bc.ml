@@ -47,30 +47,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   module KGraph =
     Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Ref_store.Key)
 
-  module Repo = struct
-    type t = {
-      config: Ir_conf.t;
-      contents: P.Contents.t;
-      node: P.Node.t;
-      commit: P.Commit.t;
-      ref_store: Ref_store.t;
-    }
-
-    let create config =
-      P.Contents.create config >>= fun contents ->
-      P.Node.create config     >>= fun node ->
-      P.Commit.create config   >>= fun commit ->
-      Ref_store.create config  >>= fun ref_store ->
-      return
-        { contents     = contents;
-          node         = node;
-          commit       = commit;
-          ref_store    = ref_store;
-          config       = config;
-        }
-
-    let config t = t.config
-  end
+  module Repo = P.Repo
 
   type t = {
     repo: Repo.t;
@@ -81,10 +58,10 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let repo t = t.repo
   let task t = t.task
-  let ref_t t = t.repo.Repo.ref_store
-  let commit_t t = t.repo.Repo.commit
-  let node_t t = t.repo.Repo.node
-  let contents_t t = t.repo.Repo.contents
+  let ref_t t = Repo.ref_t t.repo
+  let commit_t t = Repo.commit_t t.repo
+  let node_t t = Repo.node_t t.repo
+  let contents_t t = Repo.contents_t t.repo
   let graph_t t = contents_t t, node_t t
   let history_t t = graph_t t, commit_t t
   let head_ref t = match t.head_ref with
@@ -364,11 +341,6 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   module Private = struct
     include P
-
-    let ref_t = ref_t
-    let commit_t = commit_t
-    let contents_t = contents_t
-    let node_t = node_t
 
     let read_node t path =
       read_head_node t >>= function
