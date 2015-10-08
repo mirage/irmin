@@ -319,5 +319,3 @@ module type MAKER =
        and type value = C.t
        and type branch_id = R.t
        and type head = H.t
-
-module Make (AO: AO_MAKER) (RW: RW_MAKER): MAKER
