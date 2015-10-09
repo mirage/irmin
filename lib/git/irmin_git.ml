@@ -131,20 +131,14 @@ module Irmin_value_store
 
   module AO (K: Irmin.Hash.S) (V: V) = struct
 
-    type t = {
-      t: G.t;
-    }
+    type t = G.t
 
     type key = K.t
     type value = V.t
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
 
-    let create config =
-      G.create config >>= fun t ->
-      return { t }
-
-    let mem { t; _ } key =
+    let mem t key =
       let key = git_of_key key in
       G.mem t key >>= function
       | false    -> return false
@@ -153,7 +147,7 @@ module Irmin_value_store
         | None   -> return false
         | Some v -> return (V.type_eq (Git.Value.type_of v))
 
-    let read { t; _ } key =
+    let read t key =
       let key = git_of_key key in
       G.read t key >>= function
       | None   -> return_none
@@ -168,11 +162,11 @@ module Irmin_value_store
       | None   -> err_not_found "read" key
       | Some v -> return v
 
-    let add { t; _ } v =
+    let add t v =
       G.write t (V.to_git v) >>= fun k ->
       return (key_of_git k)
 
-    let iter { t; _ } fn =
+    let iter t fn =
       G.contents t >>= fun contents ->
       Lwt_list.iter_s (fun (k, v) ->
           match V.of_git v with
@@ -710,26 +704,20 @@ module Make_ext
     module Repo = struct
       type t = {
         config: Irmin.config;
-        contents: Contents.t;
-        node: Node.t;
-        commit: Commit.t;
+        g: Git_store.t;
         ref_store: Ref.t;
       }
       let ref_t t = t.ref_store
-      let commit_t t = t.commit
-      let node_t t = t.node
-      let contents_t t = t.contents
+      let commit_t t = t.g
+      let node_t t = t.g
+      let contents_t t = t.g
       let config t = t.config
 
       let create config =
-        X.Contents.create config >>= fun contents ->
-        Node.create config       >>= fun node ->
-        Commit.create config     >>= fun commit ->
-        Ref.create config        >>= fun ref_store ->
+        Git_store.create config >>= fun g ->
+        Ref.create config       >>= fun ref_store ->
         return
-          { contents     = contents;
-            node         = node;
-            commit       = commit;
+          { g;
             ref_store    = ref_store;
             config       = config;
           }

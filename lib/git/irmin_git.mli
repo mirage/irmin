@@ -71,7 +71,10 @@ module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module AO (G: Git.Store.S): Irmin.AO_MAKER
+module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) : Irmin.AO
+  with type t = G.t
+   and type key = K.t
+   and type value = V.t
 
 module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Ref.S) (V: Irmin.Hash.S):
   Irmin.RW with type key = K.t and type value = V.t
