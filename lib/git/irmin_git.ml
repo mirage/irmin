@@ -466,7 +466,8 @@ module Make_ext
 
     let create config =
       let root = Irmin.Private.Conf.get config Conf.root in
-      G.create ?root ()
+      let level = Irmin.Private.Conf.get config Conf.level in
+      G.create ?root ?level ()
   end
 
   module X = Irmin_value_store(Git_store)(C)(H)
@@ -479,7 +480,7 @@ module Make_ext
     module W = Irmin.Private.Watch.Make(Key)(Val)
 
     type t = {
-      config: Irmin.config;
+      bare: bool;
       git_root: string;
       git_head: Git.Reference.head_contents;
       t: G.t;
@@ -536,11 +537,7 @@ module Make_ext
       stop ();
       W.unwatch t.w w
 
-    let create config =
-      let root = Irmin.Private.Conf.get config Conf.root in
-      let head = Irmin.Private.Conf.get config Conf.head in
-      let level = Irmin.Private.Conf.get config Conf.level in
-      G.create ?root ?level () >>= fun t ->
+    let create t ~head ~bare =
       let git_root = G.root t / ".git" in
       let write_head head =
         let head = Git.Reference.Ref head in
@@ -558,7 +555,7 @@ module Make_ext
           | None      -> write_head (git_of_tag R.master)
       end >>= fun git_head ->
       let w = W.create () in
-      return { git_head; config; t; w; git_root }
+      return { git_head; bare; t; w; git_root }
 
     let read_exn { t; _ } r =
       G.read_reference_exn t (git_of_tag r) >>= fun k ->
@@ -579,10 +576,9 @@ module Make_ext
     let write_index t gr gk =
       Log.debug "write_index";
       if G.kind = `Disk then (
-        let bare = Irmin.Private.Conf.get t.config Conf.bare in
         let git_head = Git.Reference.Ref gr in
-        Log.debug "write_index/if bare=%b head=%s" bare (Git.Reference.pretty gr);
-        if not bare && git_head = t.git_head then (
+        Log.debug "write_index/if bare=%b head=%s" t.bare (Git.Reference.pretty gr);
+        if not t.bare && git_head = t.git_head then (
           Log.debug "write cache (%s)" (Git.Reference.pretty gr);
           G.write_index t.t gk
         ) else
@@ -713,8 +709,10 @@ module Make_ext
       let contents_t t = t.g
 
       let create config =
+        let head = Irmin.Private.Conf.get config Conf.head in
+        let bare = Irmin.Private.Conf.get config Conf.bare in
         Git_store.create config >>= fun g ->
-        Ref.create config       >>= fun ref_store ->
+        Ref.create ~head ~bare g >>= fun ref_store ->
         return
           { g;
             ref_store    = ref_store;
