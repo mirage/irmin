@@ -48,7 +48,10 @@ module Irmin_git: sig
   (** The configuration key to set the local Git repository's bare
       attribute. See {!Irmin_git.config}.*)
 
-  module AO (G: Git.Store.S): Irmin.AO_MAKER
+  module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) : Irmin.AO
+    with type t = G.t
+     and type key = K.t
+     and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)

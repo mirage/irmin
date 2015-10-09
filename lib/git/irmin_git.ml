@@ -131,20 +131,14 @@ module Irmin_value_store
 
   module AO (K: Irmin.Hash.S) (V: V) = struct
 
-    type t = {
-      t: G.t;
-    }
+    type t = G.t
 
     type key = K.t
     type value = V.t
     let git_of_key k = GK.of_raw (K.to_raw k)
     let key_of_git k = K.of_raw (GK.to_raw k)
 
-    let create config =
-      G.create config >>= fun t ->
-      return { t }
-
-    let mem { t; _ } key =
+    let mem t key =
       let key = git_of_key key in
       G.mem t key >>= function
       | false    -> return false
@@ -153,7 +147,7 @@ module Irmin_value_store
         | None   -> return false
         | Some v -> return (V.type_eq (Git.Value.type_of v))
 
-    let read { t; _ } key =
+    let read t key =
       let key = git_of_key key in
       G.read t key >>= function
       | None   -> return_none
@@ -168,11 +162,11 @@ module Irmin_value_store
       | None   -> err_not_found "read" key
       | Some v -> return v
 
-    let add { t; _ } v =
+    let add t v =
       G.write t (V.to_git v) >>= fun k ->
       return (key_of_git k)
 
-    let iter { t; _ } fn =
+    let iter t fn =
       G.contents t >>= fun contents ->
       Lwt_list.iter_s (fun (k, v) ->
           match V.of_git v with
@@ -472,7 +466,8 @@ module Make_ext
 
     let create config =
       let root = Irmin.Private.Conf.get config Conf.root in
-      G.create ?root ()
+      let level = Irmin.Private.Conf.get config Conf.level in
+      G.create ?root ?level ()
   end
 
   module X = Irmin_value_store(Git_store)(C)(H)
@@ -485,7 +480,7 @@ module Make_ext
     module W = Irmin.Private.Watch.Make(Key)(Val)
 
     type t = {
-      config: Irmin.config;
+      bare: bool;
       git_root: string;
       git_head: Git.Reference.head_contents;
       t: G.t;
@@ -542,11 +537,7 @@ module Make_ext
       stop ();
       W.unwatch t.w w
 
-    let create config =
-      let root = Irmin.Private.Conf.get config Conf.root in
-      let head = Irmin.Private.Conf.get config Conf.head in
-      let level = Irmin.Private.Conf.get config Conf.level in
-      G.create ?root ?level () >>= fun t ->
+    let create t ~head ~bare =
       let git_root = G.root t / ".git" in
       let write_head head =
         let head = Git.Reference.Ref head in
@@ -564,7 +555,7 @@ module Make_ext
           | None      -> write_head (git_of_tag R.master)
       end >>= fun git_head ->
       let w = W.create () in
-      return { git_head; config; t; w; git_root }
+      return { git_head; bare; t; w; git_root }
 
     let read_exn { t; _ } r =
       G.read_reference_exn t (git_of_tag r) >>= fun k ->
@@ -585,10 +576,9 @@ module Make_ext
     let write_index t gr gk =
       Log.debug "write_index";
       if G.kind = `Disk then (
-        let bare = Irmin.Private.Conf.get t.config Conf.bare in
         let git_head = Git.Reference.Ref gr in
-        Log.debug "write_index/if bare=%b head=%s" bare (Git.Reference.pretty gr);
-        if not bare && git_head = t.git_head then (
+        Log.debug "write_index/if bare=%b head=%s" t.bare (Git.Reference.pretty gr);
+        if not t.bare && git_head = t.git_head then (
           Log.debug "write cache (%s)" (Git.Reference.pretty gr);
           G.write_index t.t gk
         ) else
@@ -648,6 +638,12 @@ module Make_ext
 
   end
 
+  type repo = {
+    config: Irmin.config;
+    g: Git_store.t;
+    ref_store: XRef.t;
+  }
+
   module XSync = struct
 
     (* FIXME: should not need to pass G.Digest and G.Inflate... *)
@@ -663,9 +659,7 @@ module Make_ext
       | None   -> Lwt.return `No_head
       | Some k -> Lwt.return (`Head (head_of_git k))
 
-    let create config =
-      let root = Irmin.Private.Conf.get config Conf.root in
-      G.create ?root ()
+    let create repo = return repo.g
 
     let fetch t ?depth ~uri tag =
       Log.debug "fetch %s" uri;
@@ -707,14 +701,31 @@ module Make_ext
     module Ref = XRef
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
+    module Repo = struct
+      type t = repo
+      let ref_t t = t.ref_store
+      let commit_t t = t.g
+      let node_t t = t.g
+      let contents_t t = t.g
+
+      let create config =
+        let head = Irmin.Private.Conf.get config Conf.head in
+        let bare = Irmin.Private.Conf.get config Conf.bare in
+        Git_store.create config >>= fun g ->
+        Ref.create ~head ~bare g >>= fun ref_store ->
+        return
+          { g;
+            ref_store    = ref_store;
+            config       = config;
+          }
+    end
   end
   include Irmin.Make_ext(P)
 
   module Internals = struct
-    let commit_of_head t h =
+    let commit_of_head repo h =
       let h = Head.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
-      Git_store.create (Repo.config (repo t)) >>= fun g ->
-      Git_store.read g h >|= function
+      Git_store.read repo.g h >|= function
       | Some Git.Value.Commit c -> Some c
       | _ -> None
 
@@ -796,9 +807,9 @@ module type S = sig
 
     (** {1 Access to the Git objects} *)
 
-    val commit_of_head: t -> head -> Git.Commit.t option Lwt.t
-    (** [commit_of_head t h] is the commit corresponding to [h] in the
-        store [t]. *)
+    val commit_of_head: Repo.t -> head -> Git.Commit.t option Lwt.t
+    (** [commit_of_head repo h] is the commit corresponding to [h] in the
+        repository [repo]. *)
 
   end
 end

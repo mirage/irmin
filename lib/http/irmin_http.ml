@@ -356,15 +356,15 @@ module Low (Client: Cohttp_lwt.Client)
     (H: Irmin.Hash.S) =
 struct
   module X = struct
-    module Contents =
-      Irmin.Contents.Make(struct
-        module Key = H
-        module Val = C
-        include AO(Client)(H)(C)
-        let create config =
-          let config = Conf.add config content_type (Some "json") in
-          create (add_uri_suffix "contents" config)
-      end)
+    module XContents = struct
+      module Key = H
+      module Val = C
+      include AO(Client)(H)(C)
+      let create config =
+        let config = Conf.add config content_type (Some "json") in
+        create (add_uri_suffix "contents" config)
+    end
+    module Contents = Irmin.Contents.Make(XContents)
     module Node = struct
       module Key = H
       module Path = C.Path
@@ -390,6 +390,32 @@ struct
     end
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = Irmin.Private.Sync.None(H)(R)
+    module Repo = struct
+      type t = {
+        config: Irmin.config;
+        contents: Contents.t;
+        node: Node.t;
+        commit: Commit.t;
+        ref_store: Ref.t;
+      }
+      let ref_t t = t.ref_store
+      let commit_t t = t.commit
+      let node_t t = t.node
+      let contents_t t = t.contents
+
+      let create config =
+        XContents.create config >>= fun contents ->
+        Node.create config      >>= fun node ->
+        Commit.create config    >>= fun commit ->
+        Ref.create config       >>= fun ref_store ->
+        Lwt.return
+          { contents     = contents;
+            node         = node;
+            commit       = commit;
+            ref_store    = ref_store;
+            config       = config;
+          }
+    end
   end
   include Irmin.Make_ext(X)
 end
@@ -453,7 +479,10 @@ struct
       L.Repo.create config >>= fun l ->
       Lwt.return {config; h; l}
 
-    let config t = t.config
+    let ref_t t = LP.Repo.ref_t t.l
+    let commit_t t = LP.Repo.commit_t t.l
+    let node_t t = LP.Repo.node_t t.l
+    let contents_t t = LP.Repo.contents_t t.l
   end
 
   (* [t.s.uri] always point to the right location:
@@ -464,10 +493,6 @@ struct
     head_ref: [`Branch of Ref.t | `Head of Head.t | `Empty] ref;
     l: L.t;
     repo: Repo.t;
-    contents_t: LP.Contents.t;
-    node_t: LP.Node.t;
-    commit_t: LP.Commit.t;
-    ref_t: LP.Ref.t;
     read_node: L.key -> LP.Node.key option Lwt.t;
     mem_node: L.key -> bool Lwt.t;
     update_node: L.key -> LP.Node.key -> unit Lwt.t;
@@ -507,10 +532,6 @@ struct
   let create_aux head_ref repo l =
     let fn a =
       let l = l a in
-      let contents_t = LP.contents_t l in
-      let node_t = LP.node_t l in
-      let commit_t = LP.commit_t l in
-      let ref_t = LP.ref_t l in
       let read_node = LP.read_node l in
       let mem_node = LP.mem_node l in
       let update_node = LP.update_node l in
@@ -518,7 +539,7 @@ struct
       let merge_node = LP.merge_node l in
       let iter_node = LP.iter_node l in
       let lock = Lwt_mutex.create () in
-      { l; head_ref; contents_t; node_t; commit_t; ref_t;
+      { l; head_ref;
         read_node; mem_node; update_node; remove_node; merge_node;
         repo; lock; iter_node; }
     in
@@ -771,7 +792,7 @@ struct
     | `Empty     -> Lwt.return (`Ok [])
 
   let task_of_head t head =
-    LP.Commit.read_exn t.commit_t head >>= fun commit ->
+    LP.Commit.read_exn (Repo.commit_t t.repo) head >>= fun commit ->
     Lwt.return (LP.Commit.Val.task commit)
 
   module E = Tc.Pair (Tc.List(Head)) (Tc.Option(Tc.List(Head)))
@@ -845,12 +866,14 @@ struct
     get t ?query ["history"] (module HTC)
 
   module Private = struct
-    include L.Private
+    include (L.Private: module type of L.Private
+      with module Repo := L.Private.Repo
+       and module Sync := L.Private.Sync)
     module Repo = Repo
-    let contents_t t = t.contents_t
-    let node_t t = t.node_t
-    let commit_t t = t.commit_t
-    let ref_t t = t.ref_t
+    module Sync = struct
+      include L.Private.Sync
+      let create t = create t.Repo.l
+    end
     let update_node t = t.update_node
     let merge_node t = t.merge_node
     let remove_node t = t.remove_node

@@ -364,12 +364,6 @@ module type AO = sig
 
   include RO
 
-  val create: config -> t Lwt.t
-  (** [create config] is a function returning fresh store
-      handles, with the configuration [config], which is
-      provided by the backend. The operation might be blocking,
-      depending on the backend. *)
-
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the
       responsibility of the append-only store to generate a
@@ -391,8 +385,6 @@ module type LINK = sig
       various equivalent trees). *)
 
   include RO
-
-  val create: config -> t Lwt.t
 
   val add: t -> key -> value -> unit Lwt.t
   (** [add t src dst] add a link between the key [src] and the value
@@ -514,10 +506,6 @@ module type BC = sig
 
     val create: config -> t Lwt.t
     (** [create config] connects to a repository in a backend-specific manner. *)
-
-    val config: t -> config
-    (** Recover the config passed to [create].
-     * todo: would be good to remove this, but Ir_sync_ext needs it for now. *)
   end
 
   include HRW
@@ -1004,8 +992,6 @@ module Ref: sig
     (** {1 Ref Store} *)
 
     include RRW
-
-    val create: config -> t Lwt.t
 
     module Key: S with type t = key
     (** Base functions on keys. *)
@@ -1693,9 +1679,6 @@ module Private: sig
       type branch_id
       (** The type for branch IDs. *)
 
-      val create: config -> t Lwt.t
-      (** Create a remote store handle. *)
-
       val fetch: t -> ?depth:int -> uri:string -> branch_id ->
         [`Head of head | `No_head | `Error] Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
@@ -1711,7 +1694,12 @@ module Private: sig
 
     (** [None] is an implementation of {{!Private.Sync.S}S} which does
         nothing. *)
-    module None (H: Tc.S0) (R: Tc.S0): S with type head = H.t and type branch_id = R.t
+    module None (H: Tc.S0) (R: Tc.S0): sig
+      include S with type head = H.t and type branch_id = R.t
+
+      val create: 'a -> t Lwt.t
+      (** Create a remote store handle. *)
+    end
 
   end
 
@@ -1739,7 +1727,21 @@ module Private: sig
        and type node = Node.key * Node.value
        and type commit = Commit.key * Commit.value
 
-    module Sync: Sync.S with type head = Commit.key and type branch_id = Ref.key
+    (** Private repositories. *)
+    module Repo: sig
+      type t
+      val create: config -> t Lwt.t
+      val contents_t: t -> Contents.t
+      val node_t: t -> Node.t
+      val commit_t: t -> Commit.t
+      val ref_t: t -> Ref.t
+    end
+
+    (** URI-based low-level sync. *)
+    module Sync: sig
+      include Sync.S with type head = Commit.key and type branch_id = Ref.key
+      val create: Repo.t -> t Lwt.t
+    end
 
   end
 
@@ -1773,10 +1775,7 @@ module type S = sig
        and type Commit.key = head
        and type Ref.key = branch_id
        and type Slice.t = slice
-    val contents_t: t -> Contents.t
-    val node_t: t -> Node.t
-    val commit_t: t -> Commit.t
-    val ref_t: t -> Ref.t
+       and type Repo.t = Repo.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
@@ -2258,8 +2257,15 @@ end
     implementation of values. *)
 module type AO_MAKER =
   functor (K: Hash.S) ->
-  functor (V: Tc.S0)  ->
-    AO with type key = K.t and type value = V.t
+  functor (V: Tc.S0)  -> sig
+    include AO with type key = K.t and type value = V.t
+
+    val create: config -> t Lwt.t
+    (** [create config] is a function returning fresh store
+        handles, with the configuration [config], which is
+        provided by the backend. The operation might be blocking,
+        depending on the backend. *)
+  end
 
 (** [RAW] is the signature for raw values. *)
 module type RAW = Tc.S0 with type t = Cstruct.t
@@ -2278,8 +2284,10 @@ module type AO_MAKER_RAW =
     manipulated by the Irmin runtime and the keys used for
     storage. This is useful when trying to optimize storage for
     random-access file operations or for encryption. *)
-module type LINK_MAKER = functor (K: Hash.S) ->
-  LINK with type key = K.t and type value = K.t
+module type LINK_MAKER = functor (K: Hash.S) -> sig
+  include LINK with type key = K.t and type value = K.t
+  val create: config -> t Lwt.t
+end
 
 (** [RW_MAKER] is the signature exposed by read-write store
     backends. [K] is the implementation of keys and [V] is the
@@ -2302,3 +2310,4 @@ module Make_ext (P: Private.S): S
    and type branch_id = P.Ref.key
    and type head = P.Ref.value
    and type Key.step = P.Contents.Path.step
+   and module Repo = P.Repo

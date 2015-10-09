@@ -224,11 +224,6 @@ struct
 
     type t = C.t * S.t
 
-    let create config =
-      C.create config >>= fun c ->
-      S.create config >>= fun s ->
-      Lwt.return (c, s)
-
     type key = S.key
     type value = S.value
     let mem (_, t) = S.mem t

@@ -50,11 +50,12 @@ module Make
     (H: Ir_s.HASH) =
 struct
   module X = struct
-    module Contents = Ir_contents.Make(struct
-        include AO(H)(C)
-        module Key = H
-        module Val = C
-      end)
+    module XContents = struct
+      include AO(H)(C)
+      module Key = H
+      module Val = C
+    end
+    module Contents = Ir_contents.Make(XContents)
     module Node = struct
       module Key = H
       module Val = Ir_node.Make (H)(H)(C.Path)
@@ -73,6 +74,32 @@ struct
     end
     module Slice = Ir_slice.Make(Contents)(Node)(Commit)
     module Sync = Ir_sync.None(H)(R)
+    module Repo = struct
+      type t = {
+        config: Ir_conf.t;
+        contents: Contents.t;
+        node: Node.t;
+        commit: Commit.t;
+        ref_store: Ref.t;
+      }
+      let ref_t t = t.ref_store
+      let commit_t t = t.commit
+      let node_t t = t.node
+      let contents_t t = t.contents
+
+      let create config =
+        XContents.create config >>= fun contents ->
+        Node.create config      >>= fun node ->
+        Commit.create config    >>= fun commit ->
+        Ref.create config       >>= fun ref_store ->
+        return
+          { contents     = contents;
+            node         = node;
+            commit       = commit;
+            ref_store    = ref_store;
+            config       = config;
+          }
+    end
   end
   include Ir_bc.Make(X)
 end

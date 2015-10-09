@@ -95,11 +95,6 @@ struct
     type key = S.key
     type value = S.value
 
-    let create config =
-      N.create config >>= fun n ->
-      S.create config >>= fun s ->
-      return (n, s)
-
     let add (_, t) = S.add t
     let mem (_, t) = S.mem t
     let read (_, t) = S.read t

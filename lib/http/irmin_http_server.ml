@@ -413,19 +413,19 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       (module S.Private.Contents)
       (module S.Private.Contents.Key)
       (module S.Private.Contents.Val)
-      (fun t -> Lwt.return (S.Private.contents_t t))
+      (fun t -> Lwt.return (S.Private.Repo.contents_t (S.repo t)))
 
   let node_store = ao_store
       (module S.Private.Node)
       (module S.Private.Node.Key)
       (module S.Private.Node.Val)
-      (fun t -> Lwt.return (S.Private.node_t t))
+      (fun t -> Lwt.return (S.Private.Repo.node_t (S.repo t)))
 
   let commit_store = ao_store
       (module S.Private.Commit)
       (module S.Private.Commit.Key)
       (module S.Private.Commit.Val)
-      (fun t -> Lwt.return (S.Private.commit_t t))
+      (fun t -> Lwt.return (S.Private.Repo.commit_t (S.repo t)))
 
   let stream fn t =
     let stream, push = Lwt_stream.create () in
@@ -440,7 +440,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
 
   let tag_store =
     let module T = S.Private.Ref in
-    let ref_t t _ = Lwt.return (S.Private.ref_t t) in
+    let ref_t t _ = Lwt.return (S.Private.Repo.ref_t (S.repo t)) in
     let lock3 (_, tag, _) = Lwt.return (Some tag) in
     let lock2 (_, tag) = Lwt.return (Some tag) in
     let tag': S.branch_id Irmin.Hum.t = (module S.Ref) in
@@ -545,8 +545,9 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
     let module Graph = Irmin.Private.Node.Graph(Contents)(Node) in
     let t x _ = Lwt.return x in
     let g x _ =
-      let c = S.Private.contents_t x in
-      let n = S.Private.node_t x in
+      let repo = S.repo x in
+      let c = S.Private.Repo.contents_t repo in
+      let n = S.Private.Repo.node_t repo in
       Lwt.return (c, n)
     in
     dyn_node

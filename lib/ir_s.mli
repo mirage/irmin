@@ -59,14 +59,15 @@ module type RO_MAKER =
 
 module type AO_STORE = sig
   include RO_STORE
-  val create: Ir_conf.t -> t Lwt.t
   val add: t -> value -> key Lwt.t
 end
 
 module type AO_MAKER =
   functor (K: HASH) ->
-  functor (V: Tc.S0) ->
-    AO_STORE with type key = K.t and type value = V.t
+  functor (V: Tc.S0) -> sig
+    include AO_STORE with type key = K.t and type value = V.t
+    val create: Ir_conf.t -> t Lwt.t
+  end
 
 module type CONTENTS = sig
   include Tc.S0
@@ -137,7 +138,10 @@ module type LINK_STORE = sig
 end
 
 module type LINK_MAKER =
-  functor (K: HASH) -> LINK_STORE with type key = K.t and type value = K.t
+  functor (K: HASH) -> sig
+    include LINK_STORE with type key = K.t and type value = K.t
+    val create: Ir_conf.t -> t Lwt.t
+  end
 
 module type SLICE = sig
   include Tc.S0
@@ -185,7 +189,6 @@ module type RW_MAKER =
 
 module type REF_STORE = sig
   include REACTIVE
-  val create: Ir_conf.t -> t Lwt.t
   module Key: REF with type t = key
   module Val: HASH with type t = value
 end
@@ -200,7 +203,6 @@ module type SYNC = sig
   type t
   type head
   type branch_id
-  val create: Ir_conf.t -> t Lwt.t
   val fetch: t -> ?depth:int -> uri:string -> branch_id ->
     [`Head of head | `No_head | `Error] Lwt.t
   val push : t -> ?depth:int -> uri:string -> branch_id -> [`Ok | `Error] Lwt.t
@@ -210,7 +212,6 @@ module type STORE = sig
   module Repo: sig
     type t
     val create: Ir_conf.t -> t Lwt.t
-    val config: t -> Ir_conf.t
   end
   include HIERARCHICAL
   val master: ('a -> Ir_task.t) -> Repo.t -> ('a -> t) Lwt.t
@@ -276,8 +277,19 @@ module type PRIVATE = sig
     with type contents = Contents.key * Contents.value
      and type node = Node.key * Node.value
      and type commit = Commit.key * Commit.value
-  module Sync: SYNC
-    with type head = Commit.key and type branch_id = Ref.key
+  module Repo: sig
+    type t
+    val create: Ir_conf.t -> t Lwt.t
+    val contents_t: t -> Contents.t
+    val node_t: t -> Node.t
+    val commit_t: t -> Commit.t
+    val ref_t: t -> Ref.t
+  end
+  module Sync: sig
+    include SYNC
+      with type head = Commit.key and type branch_id = Ref.key
+    val create: Repo.t -> t Lwt.t
+  end
 end
 
 module type STORE_EXT = sig
@@ -295,10 +307,7 @@ module type STORE_EXT = sig
        and type Commit.key = head
        and type Ref.key = branch_id
        and type Slice.t = slice
-    val contents_t: t -> Contents.t
-    val node_t: t -> Node.t
-    val commit_t: t -> Commit.t
-    val ref_t: t -> Ref.t
+       and type Repo.t = Repo.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
@@ -319,5 +328,3 @@ module type MAKER =
        and type value = C.t
        and type branch_id = R.t
        and type head = H.t
-
-module Make (AO: AO_MAKER) (RW: RW_MAKER): MAKER
