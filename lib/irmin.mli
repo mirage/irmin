@@ -1685,9 +1685,6 @@ module Private: sig
       type branch_id
       (** The type for branch IDs. *)
 
-      val create: config -> t Lwt.t
-      (** Create a remote store handle. *)
-
       val fetch: t -> ?depth:int -> uri:string -> branch_id ->
         [`Head of head | `No_head | `Error] Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
@@ -1703,7 +1700,12 @@ module Private: sig
 
     (** [None] is an implementation of {{!Private.Sync.S}S} which does
         nothing. *)
-    module None (H: Tc.S0) (R: Tc.S0): S with type head = H.t and type branch_id = R.t
+    module None (H: Tc.S0) (R: Tc.S0): sig
+      include S with type head = H.t and type branch_id = R.t
+
+      val create: 'a -> t Lwt.t
+      (** Create a remote store handle. *)
+    end
 
   end
 
@@ -1731,8 +1733,6 @@ module Private: sig
        and type node = Node.key * Node.value
        and type commit = Commit.key * Commit.value
 
-    module Sync: Sync.S with type head = Commit.key and type branch_id = Ref.key
-
     (** Private repositories. *)
     module Repo: sig
       type t
@@ -1743,6 +1743,13 @@ module Private: sig
       val commit_t: t -> Commit.t
       val ref_t: t -> Ref.t
     end
+
+    (** URI-based low-level sync. *)
+    module Sync: sig
+      include Sync.S with type head = Commit.key and type branch_id = Ref.key
+      val create: Repo.t -> t Lwt.t
+    end
+
   end
 
 end

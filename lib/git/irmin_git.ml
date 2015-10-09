@@ -642,6 +642,12 @@ module Make_ext
 
   end
 
+  type repo = {
+    config: Irmin.config;
+    g: Git_store.t;
+    ref_store: XRef.t;
+  }
+
   module XSync = struct
 
     (* FIXME: should not need to pass G.Digest and G.Inflate... *)
@@ -657,9 +663,7 @@ module Make_ext
       | None   -> Lwt.return `No_head
       | Some k -> Lwt.return (`Head (head_of_git k))
 
-    let create config =
-      let root = Irmin.Private.Conf.get config Conf.root in
-      G.create ?root ()
+    let create repo = return repo.g
 
     let fetch t ?depth ~uri tag =
       Log.debug "fetch %s" uri;
@@ -702,11 +706,7 @@ module Make_ext
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
     module Repo = struct
-      type t = {
-        config: Irmin.config;
-        g: Git_store.t;
-        ref_store: Ref.t;
-      }
+      type t = repo
       let ref_t t = t.ref_store
       let commit_t t = t.g
       let node_t t = t.g

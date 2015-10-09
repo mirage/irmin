@@ -869,8 +869,14 @@ struct
     get t ?query ["history"] (module HTC)
 
   module Private = struct
-    include (L.Private: module type of L.Private with module Repo := L.Private.Repo)
+    include (L.Private: module type of L.Private
+      with module Repo := L.Private.Repo
+       and module Sync := L.Private.Sync)
     module Repo = Repo
+    module Sync = struct
+      include L.Private.Sync
+      let create t = create t.Repo.l
+    end
     let update_node t = t.update_node
     let merge_node t = t.merge_node
     let remove_node t = t.remove_node

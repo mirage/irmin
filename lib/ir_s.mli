@@ -204,7 +204,6 @@ module type SYNC = sig
   type t
   type head
   type branch_id
-  val create: Ir_conf.t -> t Lwt.t
   val fetch: t -> ?depth:int -> uri:string -> branch_id ->
     [`Head of head | `No_head | `Error] Lwt.t
   val push : t -> ?depth:int -> uri:string -> branch_id -> [`Ok | `Error] Lwt.t
@@ -280,8 +279,6 @@ module type PRIVATE = sig
     with type contents = Contents.key * Contents.value
      and type node = Node.key * Node.value
      and type commit = Commit.key * Commit.value
-  module Sync: SYNC
-    with type head = Commit.key and type branch_id = Ref.key
   module Repo: sig
     type t
     val create: Ir_conf.t -> t Lwt.t
@@ -290,6 +287,11 @@ module type PRIVATE = sig
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t
     val ref_t: t -> Ref.t
+  end
+  module Sync: sig
+    include SYNC
+      with type head = Commit.key and type branch_id = Ref.key
+    val create: Repo.t -> t Lwt.t
   end
 end
 
