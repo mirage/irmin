@@ -364,12 +364,6 @@ module type AO = sig
 
   include RO
 
-  val create: config -> t Lwt.t
-  (** [create config] is a function returning fresh store
-      handles, with the configuration [config], which is
-      provided by the backend. The operation might be blocking,
-      depending on the backend. *)
-
   val add: t -> value -> key Lwt.t
   (** Write the contents of a value to the store. It's the
       responsibility of the append-only store to generate a
@@ -391,8 +385,6 @@ module type LINK = sig
       various equivalent trees). *)
 
   include RO
-
-  val create: config -> t Lwt.t
 
   val add: t -> key -> value -> unit Lwt.t
   (** [add t src dst] add a link between the key [src] and the value
@@ -2265,8 +2257,15 @@ end
     implementation of values. *)
 module type AO_MAKER =
   functor (K: Hash.S) ->
-  functor (V: Tc.S0)  ->
-    AO with type key = K.t and type value = V.t
+  functor (V: Tc.S0)  -> sig
+    include AO with type key = K.t and type value = V.t
+
+    val create: config -> t Lwt.t
+    (** [create config] is a function returning fresh store
+        handles, with the configuration [config], which is
+        provided by the backend. The operation might be blocking,
+        depending on the backend. *)
+  end
 
 (** [RAW] is the signature for raw values. *)
 module type RAW = Tc.S0 with type t = Cstruct.t
@@ -2285,8 +2284,10 @@ module type AO_MAKER_RAW =
     manipulated by the Irmin runtime and the keys used for
     storage. This is useful when trying to optimize storage for
     random-access file operations or for encryption. *)
-module type LINK_MAKER = functor (K: Hash.S) ->
-  LINK with type key = K.t and type value = K.t
+module type LINK_MAKER = functor (K: Hash.S) -> sig
+  include LINK with type key = K.t and type value = K.t
+  val create: config -> t Lwt.t
+end
 
 (** [RW_MAKER] is the signature exposed by read-write store
     backends. [K] is the implementation of keys and [V] is the

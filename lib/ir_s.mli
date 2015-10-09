@@ -59,14 +59,15 @@ module type RO_MAKER =
 
 module type AO_STORE = sig
   include RO_STORE
-  val create: Ir_conf.t -> t Lwt.t
   val add: t -> value -> key Lwt.t
 end
 
 module type AO_MAKER =
   functor (K: HASH) ->
-  functor (V: Tc.S0) ->
-    AO_STORE with type key = K.t and type value = V.t
+  functor (V: Tc.S0) -> sig
+    include AO_STORE with type key = K.t and type value = V.t
+    val create: Ir_conf.t -> t Lwt.t
+  end
 
 module type CONTENTS = sig
   include Tc.S0
@@ -137,7 +138,10 @@ module type LINK_STORE = sig
 end
 
 module type LINK_MAKER =
-  functor (K: HASH) -> LINK_STORE with type key = K.t and type value = K.t
+  functor (K: HASH) -> sig
+    include LINK_STORE with type key = K.t and type value = K.t
+    val create: Ir_conf.t -> t Lwt.t
+  end
 
 module type SLICE = sig
   include Tc.S0

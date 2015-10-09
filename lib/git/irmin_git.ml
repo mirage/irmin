@@ -722,10 +722,10 @@ module Make_ext
       let config t = t.config
 
       let create config =
-        Contents.create config >>= fun contents ->
-        Node.create config     >>= fun node ->
-        Commit.create config   >>= fun commit ->
-        Ref.create config      >>= fun ref_store ->
+        X.Contents.create config >>= fun contents ->
+        Node.create config       >>= fun node ->
+        Commit.create config     >>= fun commit ->
+        Ref.create config        >>= fun ref_store ->
         return
           { contents     = contents;
             node         = node;

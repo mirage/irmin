@@ -356,15 +356,15 @@ module Low (Client: Cohttp_lwt.Client)
     (H: Irmin.Hash.S) =
 struct
   module X = struct
-    module Contents =
-      Irmin.Contents.Make(struct
-        module Key = H
-        module Val = C
-        include AO(Client)(H)(C)
-        let create config =
-          let config = Conf.add config content_type (Some "json") in
-          create (add_uri_suffix "contents" config)
-      end)
+    module XContents = struct
+      module Key = H
+      module Val = C
+      include AO(Client)(H)(C)
+      let create config =
+        let config = Conf.add config content_type (Some "json") in
+        create (add_uri_suffix "contents" config)
+    end
+    module Contents = Irmin.Contents.Make(XContents)
     module Node = struct
       module Key = H
       module Path = C.Path
@@ -405,10 +405,10 @@ struct
       let config t = t.config
 
       let create config =
-        Contents.create config >>= fun contents ->
-        Node.create config     >>= fun node ->
-        Commit.create config   >>= fun commit ->
-        Ref.create config      >>= fun ref_store ->
+        XContents.create config >>= fun contents ->
+        Node.create config      >>= fun node ->
+        Commit.create config    >>= fun commit ->
+        Ref.create config       >>= fun ref_store ->
         Lwt.return
           { contents     = contents;
             node         = node;

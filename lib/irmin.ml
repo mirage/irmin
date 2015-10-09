@@ -50,11 +50,12 @@ module Make
     (H: Ir_s.HASH) =
 struct
   module X = struct
-    module Contents = Ir_contents.Make(struct
-        include AO(H)(C)
-        module Key = H
-        module Val = C
-      end)
+    module XContents = struct
+      include AO(H)(C)
+      module Key = H
+      module Val = C
+    end
+    module Contents = Ir_contents.Make(XContents)
     module Node = struct
       module Key = H
       module Val = Ir_node.Make (H)(H)(C.Path)
@@ -88,10 +89,10 @@ struct
       let config t = t.config
 
       let create config =
-        Contents.create config >>= fun contents ->
-        Node.create config     >>= fun node ->
-        Commit.create config   >>= fun commit ->
-        Ref.create config      >>= fun ref_store ->
+        XContents.create config >>= fun contents ->
+        Node.create config      >>= fun node ->
+        Commit.create config    >>= fun commit ->
+        Ref.create config       >>= fun ref_store ->
         return
           { contents     = contents;
             node         = node;
