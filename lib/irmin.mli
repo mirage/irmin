@@ -506,10 +506,6 @@ module type BC = sig
 
     val create: config -> t Lwt.t
     (** [create config] connects to a repository in a backend-specific manner. *)
-
-    val config: t -> config
-    (** Recover the config passed to [create].
-     * todo: would be good to remove this, but Ir_sync_ext needs it for now. *)
   end
 
   include HRW
@@ -1737,7 +1733,6 @@ module Private: sig
     module Repo: sig
       type t
       val create: config -> t Lwt.t
-      val config: t -> config
       val contents_t: t -> Contents.t
       val node_t: t -> Node.t
       val commit_t: t -> Commit.t
@@ -2317,3 +2312,4 @@ module Make_ext (P: Private.S): S
    and type branch_id = P.Ref.key
    and type head = P.Ref.value
    and type Key.step = P.Contents.Path.step
+   and module Repo = P.Repo

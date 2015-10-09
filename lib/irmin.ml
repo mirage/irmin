@@ -86,7 +86,6 @@ struct
       let commit_t t = t.commit
       let node_t t = t.node
       let contents_t t = t.contents
-      let config t = t.config
 
       let create config =
         XContents.create config >>= fun contents ->

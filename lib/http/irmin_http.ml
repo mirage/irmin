@@ -402,7 +402,6 @@ struct
       let commit_t t = t.commit
       let node_t t = t.node
       let contents_t t = t.contents
-      let config t = t.config
 
       let create config =
         XContents.create config >>= fun contents ->
@@ -484,8 +483,6 @@ struct
     let commit_t t = LP.Repo.commit_t t.l
     let node_t t = LP.Repo.node_t t.l
     let contents_t t = LP.Repo.contents_t t.l
-
-    let config t = t.config
   end
 
   (* [t.s.uri] always point to the right location:

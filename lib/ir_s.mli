@@ -213,7 +213,6 @@ module type STORE = sig
   module Repo: sig
     type t
     val create: Ir_conf.t -> t Lwt.t
-    val config: t -> Ir_conf.t
   end
   include HIERARCHICAL
   val master: ('a -> Ir_task.t) -> Repo.t -> ('a -> t) Lwt.t
@@ -282,7 +281,6 @@ module type PRIVATE = sig
   module Repo: sig
     type t
     val create: Ir_conf.t -> t Lwt.t
-    val config: t -> Ir_conf.t
     val contents_t: t -> Contents.t
     val node_t: t -> Node.t
     val commit_t: t -> Commit.t

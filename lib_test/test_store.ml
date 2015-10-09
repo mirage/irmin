@@ -291,7 +291,6 @@ module Make (S: Test_S) = struct
         let i = Int64.of_int date in
         Irmin.Task.create ~date:i ~owner:"test" "Test commit" ~uid:i
       in
-      S.master task repo >>= fun t ->
 
       kv1 ~repo x >>= fun kv1 ->
       let g = g repo and h = h repo and c = S.Private.Repo.commit_t repo in
@@ -323,7 +322,7 @@ module Make (S: Test_S) = struct
       assert_equal (module Set(KC)) "g2" [kr1; kr2] kr2s;
 
       if x.kind = `Git then (
-        S.Internals.commit_of_head (t 0) kr1 >|= function
+        S.Internals.commit_of_head repo kr1 >|= function
         | None   -> Alcotest.fail "cannot read the Git internals"
         | Some c ->
           let name = c.Git.Commit.author.Git.User.name in

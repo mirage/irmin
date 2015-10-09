@@ -711,7 +711,6 @@ module Make_ext
       let commit_t t = t.g
       let node_t t = t.g
       let contents_t t = t.g
-      let config t = t.config
 
       let create config =
         Git_store.create config >>= fun g ->
@@ -726,10 +725,9 @@ module Make_ext
   include Irmin.Make_ext(P)
 
   module Internals = struct
-    let commit_of_head t h =
+    let commit_of_head repo h =
       let h = Head.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
-      Git_store.create (Repo.config (repo t)) >>= fun g ->
-      Git_store.read g h >|= function
+      Git_store.read repo.g h >|= function
       | Some Git.Value.Commit c -> Some c
       | _ -> None
 
@@ -811,9 +809,9 @@ module type S = sig
 
     (** {1 Access to the Git objects} *)
 
-    val commit_of_head: t -> head -> Git.Commit.t option Lwt.t
-    (** [commit_of_head t h] is the commit corresponding to [h] in the
-        store [t]. *)
+    val commit_of_head: Repo.t -> head -> Git.Commit.t option Lwt.t
+    (** [commit_of_head repo h] is the commit corresponding to [h] in the
+        repository [repo]. *)
 
   end
 end

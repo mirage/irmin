@@ -21,7 +21,7 @@ open Irmin_unix
 module type Test_S = sig
   include Irmin.S
   module Internals: sig
-    val commit_of_head: t -> head -> Git.Commit.t option Lwt.t
+    val commit_of_head: Repo.t -> head -> Git.Commit.t option Lwt.t
   end
 end
 
