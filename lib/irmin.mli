@@ -993,8 +993,6 @@ module Ref: sig
 
     include RRW
 
-    val create: config -> t Lwt.t
-
     module Key: S with type t = key
     (** Base functions on keys. *)
 

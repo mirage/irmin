@@ -189,7 +189,6 @@ module type RW_MAKER =
 
 module type REF_STORE = sig
   include REACTIVE
-  val create: Ir_conf.t -> t Lwt.t
   module Key: REF with type t = key
   module Val: HASH with type t = value
 end
