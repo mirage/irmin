@@ -23,7 +23,7 @@ module Contents = struct
 end
 module Merge = Ir_merge
 module Ref = struct
-  include Ir_tag
+  include Ir_ref
   module type S = Ir_s.REF
   module type STORE = Ir_s.REF_STORE
 end
