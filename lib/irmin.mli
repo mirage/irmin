@@ -1849,7 +1849,8 @@ val remote_uri: string -> remote
 open Lwt
 open Irmin_unix
 
-let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+module S = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+module Sync = Irmin.Sync(S)
 let config = Irmin_git.config ~root:"/tmp/test" ()
 
 let upstream =
@@ -1857,9 +1858,9 @@ let upstream =
   else (Printf.eprintf "Usage: sync [uri]\n%!"; exit 1)
 
 let test () =
-  Irmin.create store config task
-  >>= fun t  -> Irmin.pull_exn (t "Syncing with upstream store") upstream `Update
-  >>= fun () -> Irmin.read_exn (t "get the README") ["README.md"]
+  S.Repo.create config >>= S.master task
+  >>= fun t  -> Sync.pull_exn (t "Syncing with upstream store") upstream `Update
+  >>= fun () -> S.read_exn (t "get the README") ["README.md"]
   >>= fun r  -> Printf.printf "%s\n%!" r; return_unit
 
 let () =
@@ -1936,7 +1937,7 @@ let () =
   open Irmin_unix
 
   (* Build an Irmin store containing log files. *)
-  let store = Irmin.basic (module Irmin_git.FS) (module Log)
+  module S = Irmin_git.FS(Log)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 
   (* Set-up the local configuration of the Git repository. *)
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
@@ -1952,7 +1953,7 @@ let () =
 
   (* Read the entire log file. *)
   let read_file t =
-    Irmin.read (t "Reading the log file") file >>= function
+    S.read (t "Reading the log file") file >>= function
     | None   -> return_nil
     | Some l -> return l
 
@@ -1961,12 +1962,12 @@ let () =
     Printf.ksprintf (fun message ->
         read_file t >>= fun logs ->
         let logs = Entry.create message :: logs in
-        Irmin.update (t "Adding a new entry") file logs
+        S.update (t "Adding a new entry") file logs
       ) fmt
 
   let () =
     Lwt_unix.run begin
-      Irmin.create store config task
+      S.Repo.create config >>= S.master task
       >>= fun t  -> log t "Adding a new log entry"
       >>= fun () -> Irmin.clone_force task (t "Cloning the store") "x"
       >>= fun x  -> log x "Adding new stuff to x"
