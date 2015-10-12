@@ -14,6 +14,66 @@
   confusing here since they only store references to commits, not the
   branch contents).
   Note: The remote HTTP protocol still uses "tag".
+* Remove `Irmin_http_server.listen`. Instead, return the Cohttp
+  configuration for the server and let the user perform the listen. The
+  resulting API is simpler (removes `timeout` and `uri` parameters),
+  more flexible, and easier to use from Mirage.
+* Remove `Irmin.task` from API of internal stores (commit, node, etc).
+  Tasks are now passed explicitly to operations that need them, so it
+  is now explicit which operations create commits. For example, the
+  API now makes it clear that `lcas` doesn't change anything, while
+  `lca` requires a task because it may create commits.
+  Apart from simplifying the code, this change also makes it possible to
+  create the internal stores once, not once per commit message.
+  Note: this does not affect the main BC API, so most users will see no
+  difference.
+* Remove `Irmin.Basic`. This was a functor that took a functor for making
+  stores and returned a functor for making stores with strings for
+  branch names and SHA1 for the hash. It's easier to write the
+  application out in full than to explain to people what it does.
+  This change also makes it possible for back-ends to provide extra
+  operations in a type-safe way. In particular, `Irmin_git.Internals`
+  has moved inside the store type and the runtime check that it is only
+  used with the correct store type is now enforced at compile time
+  instead.
+* Removed `AO.config`. It was only used by the removed `Git.Internals` hack.
+* Moved `AO.create` to `AO_MAKER`.
+* Remove dummy functions that are no longer needed with the new API:
+  - `View.task` is gone (it never did anything).
+  - `View.create` is gone (it ignored both its arguments and called `View.empty`).
+  - `Ir_node.Graph.Store.create` (unused, but previously required by `AO`).
+  - `Ir_commit.History.Store.create` (same).
+* Removed the unused-and-not-exported `Ir_bc.Make` and `Ir_bc.MAKER`
+  features.
+* Combine `Ir_bc.STORE_EXT` and `Ir_s.STORE`. `Ir_s` was the only
+  consumer of the `Ir_bc.STORE_EXT` interface, and all it did was repack
+  the values to match its own interface. Now, `Ir_bc` exports the final
+  public API directly, which simplifies the code.
+* Moved module types into `ir_s.mli` and removed `ir_s.ml`.
+  Before, all module types were duplicated in the .ml and .mli files.
+* `BC` stores now contain a `Repo` module. A `Repo.t` represents a
+  repository as a whole, rather than any particular branch. Operations
+  which do not look at the current branch have been moved to this
+  module. They are: `branches`, `remove_branch`, `heads`,
+  `watch_branches`, `import`, `export`, and `task_of_head`.
+  When updating old code, you can use `BC.repo t` to get a `Repo.t`
+  from a branch.
+  Note that `heads` previously ensured that the current branch's head was
+  included in the returned set (which made a difference for anonymous
+  branches). This feature has been removed. In the future, the plan is
+  to use OCaml's GC to track which anonymous branches are still being
+  used and return all of them.
+* The internal stores (commit, node, etc) used to implement a full `BC`
+  store are now created by the back-ends, not by `Ir_bc`. This allows
+  back-ends to use their own APIs for this. In particular, back-ends
+  can now share resources (such as a database connection) between
+  stores. Internal stores no longer need to deal with `config` values
+  at all.
+* `Sync.create` now takes a `Repo.t`, not a `config`, allowing
+  `Repo.config` to be removed and allowing sharing of the back-end's
+  internal state with the sync code. For example, the Git back-end
+  no longer needs to create a new Git store object for sync.
+
 
 ### 0.9.10
 
