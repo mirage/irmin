@@ -209,30 +209,37 @@ module type SYNC = sig
 end
 
 module type STORE = sig
+  type head
+  type branch_id
+  type slice
   module Repo: sig
     type t
     val create: Ir_conf.t -> t Lwt.t
+    val branches: t -> branch_id list Lwt.t
+    val remove_branch: t -> branch_id -> unit Lwt.t
+    val heads: t -> head list Lwt.t
+    val watch_branches: t -> ?init:(branch_id * head) list ->
+      (branch_id -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+    val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
+      t -> slice Lwt.t
+    val import: t -> slice -> [`Ok | `Error] Lwt.t
+    val task_of_head: t -> head -> Ir_task.t Lwt.t
   end
   include HIERARCHICAL
   val master: ('a -> Ir_task.t) -> Repo.t -> ('a -> t) Lwt.t
   val repo: t -> Repo.t
   val task: t -> Ir_task.t
-  type branch_id
   val of_branch_id: 'a Ir_task.f -> branch_id -> Repo.t -> ('a -> t) Lwt.t
   val name: t -> branch_id option Lwt.t
   val name_exn: t -> branch_id Lwt.t
-  val branches: t -> branch_id list Lwt.t
-  val remove_branch: t -> branch_id -> unit Lwt.t
   val update_branch: t -> branch_id -> unit Lwt.t
   val merge_branch: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Ir_merge.result Lwt.t
   val merge_branch_exn: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Lwt.t
-  type head
   val empty: 'a Ir_task.f -> Repo.t -> ('a -> t) Lwt.t
   val of_head: ('a -> Ir_task.t) -> head -> Repo.t -> ('a -> t) Lwt.t
   val head: t -> head option Lwt.t
   val head_exn: t -> head Lwt.t
   val head_ref: t -> [`Branch of branch_id | `Head of head | `Empty]
-  val heads: t -> head list Lwt.t
   val update_head: t -> head -> unit Lwt.t
   val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
   val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
@@ -240,8 +247,6 @@ module type STORE = sig
   val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
   val watch_head: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
-  val watch_branches: t -> ?init:(branch_id * head) list ->
-    (branch_id -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val watch_key: t -> key -> ?init:(head * value) ->
     ((head * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val clone: 'a Ir_task.f -> t -> branch_id -> [`Ok of ('a -> t) | `Duplicated_branch | `Empty_head] Lwt.t
@@ -258,11 +263,6 @@ module type STORE = sig
     [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   module History: Graph.Sig.P with type V.t = head
   val history: ?depth:int -> ?min:head list -> ?max:head list -> t -> History.t Lwt.t
-  val task_of_head: t -> head -> Ir_task.t Lwt.t
-  type slice
-  val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
-    t -> slice Lwt.t
-  val import: t -> slice -> [`Ok | `Error] Lwt.t
 end
 
 module type PRIVATE = sig

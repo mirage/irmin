@@ -368,6 +368,11 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
             Lwt.return stream))
       )
 
+  (* Wrapper for functions that only need a repository, not a branch.
+   * todo: The REST API should be updated not to require a branch in the first place. *)
+  let repo_op fn t =
+    fn (S.repo t)
+
   let graph_index = read_exn "index.html"
 
   module Dot = Irmin.Dot(S)
@@ -653,7 +658,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
     let lock2 (t, _) = S.name t in
     let s_export t query =
       let full, depth, min, max = mk_export_query query in
-      S.export ?full ?depth ~min ~max t
+      S.Repo.export ?full ?depth ~min ~max (S.repo t)
 
     in
     let s_history t query =
@@ -752,11 +757,11 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       mknp1bs "watch" (list s_watch) t step_h tc_watch (Tc.option tc_watch);
 
       (* more *)
-      mk1p0bf "remove-tag" ~lock:lock2 ~hooks S.remove_branch t tag_h Tc.unit;
+      mk1p0bf "remove-tag" ~lock:lock2 ~hooks (repo_op S.Repo.remove_branch)  t tag_h Tc.unit;
       mk1p0bf "update-tag" ~lock:lock2 ~hooks s_update_branch t tag_h head;
       mk1p0bfq "merge-tag" ~lock:lock3 ~hooks s_merge_branch t tag_h (merge head);
       mk0p0bf "head" S.head t (Tc.option head);
-      mk0p0bf "heads" S.heads t (Tc.list head);
+      mk0p0bf "heads" (repo_op S.Repo.heads) t (Tc.list head);
       mk1p0bf "update-head" ~lock:lock2 ~hooks S.update_head t head_h Tc.unit;
       mk1p0bfq "fast-forward-head" ~lock:lock3 ~hooks s_fast_forward_head t
         head_h Tc.bool;
@@ -766,7 +771,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       mk1p0bf "clone" s_clone t tag_h ok_or_duplicated_branch_id;
       mk1p0bf "clone-force" s_clone_force t tag_h Tc.unit;
       mk0p0bfq "export" s_export t slice;
-      mk0p1bf "import" S.import t slice ok_or_error;
+      mk0p1bf "import" (repo_op S.Repo.import) t slice ok_or_error;
       mk0p0bfq "history" s_history t (module HTC);
 
       (* lca *)
@@ -798,8 +803,9 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       ] @ [
         "tree"    , dyn_node
           (fun req ->
-             S.branches req.t  >>= fun branches ->
-             S.heads req.t >|= fun heads ->
+             let repo = S.repo req.t in
+             S.Repo.branches repo  >>= fun branches ->
+             S.Repo.heads repo >|= fun heads ->
              List.map S.Ref.to_hum branches @ List.map S.Head.to_hum heads)
           (fun _req n ->
              let app fn t x task =

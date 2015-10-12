@@ -84,14 +84,15 @@ module Make (S: Ir_s.STORE_EXT) = struct
       end
     | Store ((module R), r) ->
       Log.debug "fetch store";
-      S.heads t >>= fun min ->
+      let s_repo = S.repo t in
+      S.Repo.heads s_repo >>= fun min ->
       let min = List.map (conv (module S.Head) (module R.Head) ) min in
       R.head r >>= function
       | None   -> Lwt.return `No_head
       | Some h ->
-         R.export r ?depth ~min ~max:[h] >>= fun r_slice ->
+         R.Repo.export (R.repo r) ?depth ~min ~max:[h] >>= fun r_slice ->
          convert_slice (module R.Private) (module S.Private) r_slice >>= fun s_slice ->
-         S.import t s_slice >>= function
+         S.Repo.import s_repo s_slice >>= function
          | `Error -> Lwt.return `Error
          | `Ok    ->
            let h = conv (module R.Head) (module S.Head) h in
@@ -134,11 +135,11 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | None   -> return `Error
       | Some h ->
         Log.debug "push store";
-        R.heads r >>= fun min ->
+        R.Repo.heads (R.repo r) >>= fun min ->
         let min = List.map (conv (module R.Head) (module S.Head)) min in
-        S.export t ?depth ~min >>= fun s_slice ->
+        S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
-        >>= fun r_slice -> R.import r r_slice >>= function
+        >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
         | `Error -> Log.debug "ERROR!"; Lwt.return `Error
         | `Ok    ->
           Log.debug "OK!";

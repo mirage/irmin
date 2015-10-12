@@ -42,7 +42,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       (match depth with None -> "<none>" | Some d -> string_of_int d)
       html
       (match full with None -> "<none>" | Some b -> string_of_bool b);
-    S.export ?full ?depth t >>= fun slice ->
+    S.Repo.export ?full ?depth (S.repo t) >>= fun slice ->
     let vertex = Hashtbl.create 102 in
     let add_vertex v l = Hashtbl.add vertex v l in
     let mem_vertex v = Hashtbl.mem vertex v in

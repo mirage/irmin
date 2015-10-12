@@ -47,7 +47,131 @@ module Make (P: Ir_s.PRIVATE) = struct
   module KGraph =
     Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Ref_store.Key)
 
-  module Repo = P.Repo
+  type slice = P.Slice.t
+
+  module Repo = struct
+    type t = P.Repo.t
+
+    let create = P.Repo.create
+
+    let graph_t t = P.Repo.contents_t t, P.Repo.node_t t
+    let history_t t = graph_t t, P.Repo.commit_t t
+
+    let branches t =
+      let branches = ref [] in
+      Ref_store.iter (P.Repo.ref_t t) (fun t _ -> branches := t :: !branches; return_unit) >>= fun () ->
+      return !branches
+
+    let remove_branch t name = Ref_store.remove (P.Repo.ref_t t) name
+
+    let heads t =
+      let heads = ref [] in
+      Ref_store.iter (P.Repo.ref_t t) (fun _ h ->
+          h >>= fun h -> heads := h :: !heads; return_unit
+        ) >|= fun () ->
+      !heads
+
+    let watch_branches t ?init fn =
+      Ref_store.watch (P.Repo.ref_t t) ?init fn >>= fun id ->
+      Lwt.return (fun () -> Ref_store.unwatch (P.Repo.ref_t t) id)
+
+    let export ?(full=true) ?depth ?(min=[]) ?(max=[]) t =
+      Log.debug "export depth=%s full=%b min=%d max=%d"
+        (match depth with None -> "<none>" | Some d -> string_of_int d)
+        full (List.length min) (List.length max);
+      begin match max with
+        | [] -> heads t
+        | m -> return m
+      end >>= fun max ->
+      P.Slice.create () >>= fun slice ->
+      let max = List.map (fun x -> `Commit x) max in
+      let min = List.map (fun x -> `Commit x) min in
+      let pred = function
+        | `Commit k ->
+          H.parents (history_t t) k >>= fun parents ->
+          return (List.map (fun x -> `Commit x) parents)
+        | _ -> return_nil in
+      KGraph.closure ?depth ~pred ~min ~max () >>= fun g ->
+      let keys =
+        Ir_misc.list_filter_map
+          (function `Commit c -> Some c | _ -> None)
+          (KGraph.vertex g)
+      in
+      let root_nodes = ref [] in
+      Lwt_list.iter_p (fun k ->
+          P.Commit.read_exn (P.Repo.commit_t t) k >>= fun c ->
+          let () = match P.Commit.Val.node c with
+            | None   -> ()
+            | Some n -> root_nodes := n :: !root_nodes
+          in
+          P.Slice.add_commit slice (k, c)
+        ) keys
+      >>= fun () ->
+      if not full then
+        return slice
+      else
+        (* XXX: we can compute a [min] if needed *)
+        Graph.closure (graph_t t) ~min:[] ~max:!root_nodes >>= fun nodes ->
+        let module KSet = Ir_misc.Set(P.Contents.Key) in
+        let contents = ref KSet.empty in
+        Lwt_list.iter_p (fun k ->
+            P.Node.read (P.Repo.node_t t) k >>= function
+            | None   -> return_unit
+            | Some v ->
+              P.Node.Val.iter_contents v (fun _ k ->
+                  contents := KSet.add k !contents;
+                );
+              P.Slice.add_node slice (k, v)
+          ) nodes >>= fun () ->
+        Lwt_list.iter_p (fun k ->
+            P.Contents.read (P.Repo.contents_t t) k >>= function
+            | None   -> return_unit
+            | Some v -> P.Slice.add_contents slice (k, v)
+          ) (KSet.to_list !contents) >>= fun () ->
+        return slice
+
+    exception Import_error
+
+    let import t s =
+      let aux (type k) (type v)
+          name
+          (type s)
+          (module S: Ir_s.AO_STORE with type t = s and type key = k and type value = v)
+          (module K: Tc.S0 with type t = k)
+          fn
+          (s:t -> s)
+        =
+        fn (fun (k, v) ->
+            S.add (s t) v >>= fun k' ->
+            if not (K.equal k k') then (
+              Log.error "%s import error: expected %a, got %a"
+                name force (show (module K) k) force (show (module K) k');
+              Lwt.fail Import_error
+            )
+            else Lwt.return_unit
+          )
+      in
+      Lwt.catch (fun () ->
+          aux "Contents"
+            (module P.Contents) (module P.Contents.Key)
+            (P.Slice.iter_contents s) P.Repo.contents_t
+          >>= fun () ->
+          aux "Node"
+            (module P.Node) (module P.Node.Key)
+            (P.Slice.iter_nodes s) P.Repo.node_t
+          >>= fun () ->
+          aux "Commit"
+            (module P.Commit) (module P.Commit.Key)
+            (P.Slice.iter_commits s) P.Repo.commit_t
+          >>= fun () ->
+          Lwt.return `Ok)
+        (function Import_error -> Lwt.return `Error | e -> Lwt.fail e)
+
+    let task_of_head t head =
+      P.Commit.read_exn (P.Repo.commit_t t) head >>= fun commit ->
+      Lwt.return (P.Commit.Val.task commit)
+
+  end
 
   type t = {
     repo: Repo.t;
@@ -58,10 +182,10 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let repo t = t.repo
   let task t = t.task
-  let ref_t t = Repo.ref_t t.repo
-  let commit_t t = Repo.commit_t t.repo
-  let node_t t = Repo.node_t t.repo
-  let contents_t t = Repo.contents_t t.repo
+  let ref_t t = P.Repo.ref_t t.repo
+  let commit_t t = P.Repo.commit_t t.repo
+  let node_t t = P.Repo.node_t t.repo
+  let contents_t t = P.Repo.contents_t t.repo
   let graph_t t = contents_t t, node_t t
   let history_t t = graph_t t, commit_t t
   let head_ref t = match t.head_ref with
@@ -83,23 +207,9 @@ module Make (P: Ir_s.PRIVATE) = struct
     | `Empty
     | `Head _ -> err_not_persistent "name_exn"
 
-  let branches t =
-    let branches = ref [] in
-    Ref_store.iter (ref_t t) (fun t _ -> branches := t :: !branches; return_unit) >>= fun () ->
-    return !branches
-
   let head t = match t.head_ref with
     | `Head key -> return !key
     | `Branch name  -> Ref_store.read (ref_t t) name
-
-  let heads t =
-    let heads = ref [] in
-    Ref_store.iter (ref_t t) (fun _ h ->
-        h >>= fun h -> heads := h :: !heads; return_unit
-      ) >>= fun () ->
-    head t >>= function
-    | None   -> return !heads
-    | Some h -> return (h :: List.filter ((<>) h) !heads)
 
   let head_exn t =
     head t >>= function
@@ -275,10 +385,6 @@ module Make (P: Ir_s.PRIVATE) = struct
     head_exn { t with head_ref = `Branch other } >>= fun head ->
     H.lcas (history_t t) ?max_depth ?n h head
 
-  let task_of_head t head =
-    P.Commit.read_exn (commit_t t) head >>= fun commit ->
-    Lwt.return (P.Commit.Val.task commit)
-
   (* Merge two commits:
      - Search for common ancestors
      - Perform recursive 3-way merges *)
@@ -289,8 +395,6 @@ module Make (P: Ir_s.PRIVATE) = struct
     match t.head_ref with
     | `Head h  -> h := Some c; return_unit
     | `Branch name -> Ref_store.update (ref_t t) name c
-
-  let remove_branch t name = Ref_store.remove (ref_t t) name
 
   let update_branch t name =
     Ref_store.read_exn (ref_t t) name >>= fun k ->
@@ -493,10 +597,6 @@ module Make (P: Ir_s.PRIVATE) = struct
         ) >>= fun id ->
       Lwt.return (fun () -> Ref_store.unwatch (ref_t t) id)
 
-  let watch_branches t ?init fn =
-    Ref_store.watch (ref_t t) ?init fn >>= fun id ->
-    Lwt.return (fun () -> Ref_store.unwatch (ref_t t) id)
-
   let lift value_of_head fn = function
     | `Removed x -> begin
         value_of_head x >>= function
@@ -531,100 +631,6 @@ module Make (P: Ir_s.PRIVATE) = struct
       read (t ()) key
     in
     watch_head t ?init:init_head (lift value_of_head fn)
-
-  type slice = P.Slice.t
-
-  let export ?(full=true) ?depth ?(min=[]) ?(max=[]) t =
-    Log.debug "export depth=%s full=%b min=%d max=%d"
-      (match depth with None -> "<none>" | Some d -> string_of_int d)
-      full (List.length min) (List.length max);
-    begin match max with
-      | [] -> heads t
-      | m -> return m
-    end >>= fun max ->
-    P.Slice.create () >>= fun slice ->
-    let max = List.map (fun x -> `Commit x) max in
-    let min = List.map (fun x -> `Commit x) min in
-    let pred = function
-      | `Commit k ->
-        H.parents (history_t t) k >>= fun parents ->
-        return (List.map (fun x -> `Commit x) parents)
-      | _ -> return_nil in
-    KGraph.closure ?depth ~pred ~min ~max () >>= fun g ->
-    let keys =
-      Ir_misc.list_filter_map
-        (function `Commit c -> Some c | _ -> None)
-        (KGraph.vertex g)
-    in
-    let root_nodes = ref [] in
-    Lwt_list.iter_p (fun k ->
-        P.Commit.read_exn (commit_t t) k >>= fun c ->
-        let () = match P.Commit.Val.node c with
-          | None   -> ()
-          | Some n -> root_nodes := n :: !root_nodes
-        in
-        P.Slice.add_commit slice (k, c)
-      ) keys
-    >>= fun () ->
-    if not full then
-      return slice
-    else
-      (* XXX: we can compute a [min] if needed *)
-      Graph.closure (graph_t t) ~min:[] ~max:!root_nodes >>= fun nodes ->
-      let module KSet = Ir_misc.Set(P.Contents.Key) in
-      let contents = ref KSet.empty in
-      Lwt_list.iter_p (fun k ->
-          P.Node.read (node_t t) k >>= function
-          | None   -> return_unit
-          | Some v ->
-            P.Node.Val.iter_contents v (fun _ k ->
-                contents := KSet.add k !contents;
-              );
-            P.Slice.add_node slice (k, v)
-        ) nodes >>= fun () ->
-      Lwt_list.iter_p (fun k ->
-          P.Contents.read (contents_t t) k >>= function
-          | None   -> return_unit
-          | Some v -> P.Slice.add_contents slice (k, v)
-        ) (KSet.to_list !contents) >>= fun () ->
-      return slice
-
-  exception Import_error
-
-  let import t s =
-    let aux (type k) (type v)
-        name
-        (type s)
-        (module S: Ir_s.AO_STORE with type t = s and type key = k and type value = v)
-        (module K: Tc.S0 with type t = k)
-        fn
-        (s:t -> s)
-      =
-      fn (fun (k, v) ->
-          S.add (s t) v >>= fun k' ->
-          if not (K.equal k k') then (
-            Log.error "%s import error: expected %a, got %a"
-              name force (show (module K) k) force (show (module K) k');
-            Lwt.fail Import_error
-          )
-          else Lwt.return_unit
-        )
-    in
-    Lwt.catch (fun () ->
-        aux "Contents"
-          (module P.Contents) (module P.Contents.Key)
-          (P.Slice.iter_contents s) contents_t
-        >>= fun () ->
-        aux "Node"
-          (module P.Node) (module P.Node.Key)
-          (P.Slice.iter_nodes s) node_t
-        >>= fun () ->
-        aux "Commit"
-          (module P.Commit) (module P.Commit.Key)
-          (P.Slice.iter_commits s) commit_t
-        >>= fun () ->
-        Lwt.return `Ok)
-      (function Import_error -> Lwt.return `Error | e -> Lwt.fail e)
 
   module History =
     OCamlGraph.Persistent.Digraph.ConcreteBidirectional(P.Commit.Key)
