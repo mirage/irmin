@@ -498,6 +498,17 @@ module type BC = sig
       branch, you need to provide its name: see the {{!BC.of_branch_id}of_branch_id}
       function. *)
 
+  type head
+  (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
+
+  type branch_id
+  (** Type for persistent branch names. Branches usually share a common
+      global namespace and it's the user's responsibility to avoid
+      name clashes. *)
+
+  type slice
+  (** Type for store slices. *)
+
   module Repo: sig
     (** A repository contains a set of branches. *)
 
@@ -506,6 +517,50 @@ module type BC = sig
 
     val create: config -> t Lwt.t
     (** [create config] connects to a repository in a backend-specific manner. *)
+
+    val branches: t -> branch_id list Lwt.t
+    (** The list of all persistent branch names. Similar to to [git
+        branch -a].*)
+
+    val remove_branch: t -> branch_id -> unit Lwt.t
+    (** [remove_branch t name] removes the branch [name] from the local store.
+        Similar to [git branch -D <name>] *)
+
+    val heads: t -> head list Lwt.t
+    (** [heads t] is the list of all the heads in local store. Similar
+        to [git rev-list --all]. *)
+
+    val watch_branches: t -> ?init:(branch_id * head) list ->
+      (branch_id -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+    (** [watch_branches t f] calls [f] every time a branch is added, removed or
+        updated in the local store. Return a function to remove the
+        handler. *)
+
+    val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
+      t -> slice Lwt.t
+    (** [export t ~depth ~min ~max] exports the store slice between
+        [min] and [max], using at most [depth] history depth (starting
+        from the max).
+
+        If [max] is not specified, use the current [heads]. If [min] is
+        not specified, use an unbound past (but can still be limited by
+        [depth]).
+
+        [depth] is used to limit the depth of the commit history. [None]
+        here means no limitation.
+
+        If [full] is set (default is true), the full graph, including the
+        commits, nodes and contents, is exported, otherwise it is the
+        commit history graph only. *)
+
+    val import: t -> slice -> [`Ok | `Error] Lwt.t
+    (** [import t s] imports the contents of the slice [s] in [t]. Does
+        not modify branches. *)
+
+    val task_of_head: t -> head -> task Lwt.t
+    (** [task_of_head t h] is the task which created [h]. Useful to
+        retrieve the commit date and the committer name. *)
+
   end
 
   include HRW
@@ -524,11 +579,6 @@ module type BC = sig
   val task: t -> task
   (** [task t] is the task associated to the store handle [t]. *)
 
-  type branch_id
-  (** Type for persistent branch names. Branches usually share a common
-      global namespace and it's the user's responsibility to avoid
-      name clashes. *)
-
   val of_branch_id: 'a Task.f -> branch_id -> Repo.t -> ('a -> t) Lwt.t
   (** [of_branch_id t name] is the persistent branch named [name]. Similar to
       [master], but use [name] instead {!Ref.S.master}. *)
@@ -539,14 +589,6 @@ module type BC = sig
   val name_exn: t -> branch_id Lwt.t
   (** Same as {!name} but raise [Invalid_argument] if [t] is not
       persistent. *)
-
-  val branches: t -> branch_id list Lwt.t
-  (** The list of all persistent branch names. Similar to to [git
-      branch -a].*)
-
-  val remove_branch: t -> branch_id -> unit Lwt.t
-  (** [remove_branch t name] removes the branch [name] from the local store.
-      Similar to [git branch -D <name>] *)
 
   val update_branch: t -> branch_id -> unit Lwt.t
   (** [update_branch t src] updates [t]'s contents with the contents of
@@ -575,9 +617,6 @@ module type BC = sig
       Temporary stores are created using the {!BC.of_head}
       function. *)
 
-  type head
-  (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
-
   val empty: 'a Task.f -> Repo.t -> ('a -> t) Lwt.t
   (** [empty repo task] is a temporary, empty store. Becomes a
       normal temporary store after the first update. *)
@@ -603,10 +642,6 @@ module type BC = sig
   (** [head_ref t] is the branch ID that this store tracks (for persistent
       stores), the current [head] commit (for temporary stores), or [`Empty]
       for empty temporary stores. *)
-
-  val heads: t -> head list Lwt.t
-  (** [heads t] is the list of all the heads in local store. Similar
-      to [git rev-list --all]. *)
 
   val update_head: t -> head -> unit Lwt.t
   (** [update_head t h] updates [t]'s contents with the contents of
@@ -648,12 +683,6 @@ module type BC = sig
       be called concurrently: all consecutive calls to [f] are done in
       sequence, so we ensure that the previous one ended before
       calling the next one. *)
-
-  val watch_branches: t -> ?init:(branch_id * head) list ->
-    (branch_id -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-  (** [watch_branches t f] calls [f] every time a branch is added, removed or
-      updated in the local store. Return a function to remove the
-      handler. *)
 
   val watch_key: t -> key -> ?init:(head * value) ->
     ((head * value) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
@@ -716,36 +745,6 @@ module type BC = sig
       store [t], of depth at most [depth], starting from the [max]
       (or from the [t]'s head if the list of heads is empty) and
       stopping at [min] if specified. *)
-
-  val task_of_head: t -> head -> task Lwt.t
-  (** [task_of_head t h] is the task which created [h]. Useful to
-      retrieve the commit date and the committer name. *)
-
-  (** {2 Slices} *)
-
-  type slice
-  (** Type for store slices. *)
-
-  val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
-    t -> slice Lwt.t
-  (** [export t ~depth ~min ~max] exports the store slice between
-      [min] and [max], using at most [depth] history depth (starting
-      from the max).
-
-      If [max] is not specified, use the current [heads]. If [min] is
-      not specified, use an unbound past (but can still be limited by
-      [depth]).
-
-      [depth] is used to limit the depth of the commit history. [None]
-      here means no limitation.
-
-      If [full] is set (default is true), the full graph, including the
-      commits, nodes and contents, is exported, otherwise it is the
-      commit history graph only. *)
-
-  val import: t -> slice -> [`Ok | `Error] Lwt.t
-  (** [import t s] imports the contents of the slice [s] in [t]. Does
-      not modify branches. *)
 
 end
 
@@ -2310,4 +2309,4 @@ module Make_ext (P: Private.S): S
    and type branch_id = P.Ref.key
    and type head = P.Ref.value
    and type Key.step = P.Contents.Path.step
-   and module Repo = P.Repo
+   and type Repo.t = P.Repo.t

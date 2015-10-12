@@ -18,9 +18,8 @@ open Test_common
 let (>>=) = Lwt.(>>=)
 
 let clean config (module S: Test_S) () =
-  S.Repo.create config >>= S.empty Irmin.Task.none >>= fun t ->
-  S.branches (t ()) >>= fun branches ->
-  Lwt_list.iter_p (S.remove_branch (t ())) branches
+  S.Repo.create config >>= fun repo ->
+  S.Repo.branches repo >>= Lwt_list.iter_p (S.Repo.remove_branch repo)
 
 let suite k =
   let config = Irmin_mem.config () in

@@ -493,7 +493,7 @@ module Make (S: Test_S) = struct
       let v2 = string x "X2" in
 
       S.update (t1 "update") (p ["a";"b"]) v1 >>= fun () ->
-      S.remove_branch (t1 "remove-tag") Ref.Key.master >>= fun () ->
+      S.Repo.remove_branch repo Ref.Key.master >>= fun () ->
       State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
 
       watch 100 >>= fun () ->
@@ -506,7 +506,7 @@ module Make (S: Test_S) = struct
       S.update (t2 "update") (p ["a";"c"]) v1 >>= fun () ->
       State.check "watches updates" (1, 2) (100, 100, 0) state >>= fun () ->
 
-      S.remove_branch (t1 "remove-tag") Ref.Key.master >>= fun () ->
+      S.Repo.remove_branch repo Ref.Key.master >>= fun () ->
       State.check "watches removes" (1, 2) (100, 100, 100) state >>= fun () ->
 
       Lwt_list.iter_s (fun f -> f ()) !stops_0 >>= fun () ->
@@ -531,7 +531,7 @@ module Make (S: Test_S) = struct
           S.Private.Ref.remove (S.Private.Repo.ref_t repo) tag
         ) in
 
-      S.watch_branches (t1 "watch-tags") (fun _ -> State.process state)
+      S.Repo.watch_branches repo (fun _ -> State.process state)
       >>= fun unwatch ->
 
       add    true (0,  0, 0) 10 ~first:true >>= fun () ->
@@ -871,7 +871,7 @@ module Make (S: Test_S) = struct
       let b = string x "haha" in
       S.update (t "slice") (p ["x";"a"]) a >>= fun () ->
       S.update (t "slice") (p ["x";"b"]) b >>= fun () ->
-      S.export (t "export") >>= fun slice ->
+      S.Repo.export repo >>= fun slice ->
       let str = Tc.write_string (module S.Private.Slice) slice in
       let slice' = Tc.read_string (module S.Private.Slice) str in
       assert_equal (module S.Private.Slice) "slices" slice slice';
@@ -912,7 +912,7 @@ module Make (S: Test_S) = struct
           wait 10
         | `Empty_head -> Alcotest.fail "empty head"
       in
-      S.remove_branch (t "prepare") (S.Ref.of_hum "test") >>= fun () ->
+      S.Repo.remove_branch repo (S.Ref.of_hum "test") >>= fun () ->
       Lwt.join [clone (); clone (); clone (); clone ()] >>= fun () ->
       let t = get_result () in
 
@@ -1002,8 +1002,8 @@ module Make (S: Test_S) = struct
       let vx = string x "VX" in
       S.of_branch_id Irmin_unix.task tagx repo >>= fun tx ->
       S.of_branch_id Irmin_unix.task tagy repo >>= fun ty ->
-      S.remove_branch (tx "?") tagx >>= fun () ->
-      S.remove_branch (tx "?") tagy >>= fun () ->
+      S.Repo.remove_branch repo tagx >>= fun () ->
+      S.Repo.remove_branch repo tagy >>= fun () ->
 
       S.update (tx "update") xy vx >>= fun () ->
       S.update_branch (ty "update-tag") tagx >>= fun () ->
@@ -1170,7 +1170,7 @@ module Make (S: Test_S) = struct
       let ta = Irmin.Task.empty in
       View.make_head (t "mk-head") ta ~parents:[r1;r2] ~contents:v3 >>= fun h ->
 
-      S.task_of_head (t "task") h >>= fun ta' ->
+      S.Repo.task_of_head repo h >>= fun ta' ->
       assert_equal (module Irmin.Task) "task" ta ta';
 
       S.of_head Irmin_unix.task h repo >>= fun tt ->

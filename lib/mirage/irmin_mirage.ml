@@ -57,7 +57,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
     S.head t.t >>= function
     | None   -> Lwt.return "empty HEAD"
     | Some h ->
-      S.task_of_head t.t h >|= fun task ->
+      S.Repo.task_of_head (S.repo t.t) h >|= fun task ->
       Printf.sprintf
         "commit: %s\n\
          Author: %s\n\

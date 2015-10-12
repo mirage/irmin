@@ -468,6 +468,15 @@ struct
   module LP = L.Private
   module S  = RW(Client)(Key)(Val)
 
+  type slice = L.slice
+
+  module Slice = L.Private.Slice
+  let slice_tc: Slice.t Tc.t = (module Slice)
+
+  let head_query name = function
+    | [] -> []
+    | l  -> [name, List.map (Tc.write_string (module Head)) l]
+
   module Repo = struct
     type t = {
       config : Irmin.config;
@@ -483,6 +492,49 @@ struct
     let commit_t t = LP.Repo.commit_t t.l
     let node_t t = LP.Repo.node_t t.l
     let contents_t t = LP.Repo.contents_t t.l
+
+    let uri t =
+      let base = S.uri t.h in
+      uri_append base ["empty"]
+
+    let ct t = t.h.S.t.S.RO.ct (* yiikes *)
+
+    let get_json ?query t = get ?query (uri t) ~ct:`Json
+    let get ?query t = get ?query (uri t) ~ct:(ct t)
+    let post_json t = post (uri t) ~ct:`Json ?task:None
+    let delete t = delete (uri t) ~ct:(ct t) ?task:None
+
+    let branches t = get t ["tags"] (module Tc.List(Ref))
+
+    let remove_branch t branch_id = delete t ["remove-tag"; Ref.to_hum branch_id] Tc.unit
+
+    let heads t = get t ["heads"] (module Tc.List(Head))
+
+    let watch_branches t = L.Repo.watch_branches t.l
+
+    let export ?full ?depth ?(min=[]) ?(max=[]) t =
+      let query =
+        let full = match full with
+          | None   -> []
+          | Some x -> ["full", [string_of_bool x]]
+        in
+        let depth = match depth with
+          | None   -> []
+          | Some x -> ["depth", [string_of_int x]]
+        in
+        match full @ depth @ head_query "min" min @ head_query "max" max with
+        | [] -> None
+        | l  -> Some l
+      in
+      get_json t ?query ["export"] (module L.Private.Slice)
+
+    let import t slice =
+      post_json t ["import"] ~body:(slice_tc, slice) ok_or_error
+
+    let task_of_head t head =
+      LP.Commit.read_exn (commit_t t) head >>= fun commit ->
+      Lwt.return (LP.Commit.Val.task commit)
+
   end
 
   (* [t.s.uri] always point to the right location:
@@ -515,7 +567,7 @@ struct
 
   let repo t = t.repo
   let task t = L.task t.l
-  let ct t = t.repo.Repo.h.S.t.S.RO.ct (* yiikes *)
+  let ct t = Repo.ct t.repo
 
   let set_head t = function
     | None   -> t.head_ref := `Empty; Lwt.return_unit
@@ -571,11 +623,9 @@ struct
   let err_no_head = invalid_arg "Irmin_http.%s: no head"
   let err_not_persistent = invalid_arg "Irmin_http.%s: not a persistent branch"
 
-  let get_json ?query t = get ?query (uri t) ~ct:`Json
   let get ?query t = get ?query (uri t) ~ct:(ct t)
   let delete t = delete (uri t) ~ct:(ct t) ~task:(task t)
   let get_stream t = get_stream (uri t) ~ct:(ct t)
-  let post_json t = post (uri t) ~ct:`Json ~task:(task t)
   let post t = post (uri t) ~ct:(ct t) ~task:(task t)
 
   let read t key = get t ["read"; Key.to_hum key] (module Tc.Option(Val))
@@ -620,8 +670,6 @@ struct
     | None   -> err_not_persistent "name_exn"
     | Some t -> Lwt.return t
 
-  let branches t = get t ["tags"] (module Tc.List(Ref))
-
   let head t = match head_ref t with
     | `Empty  -> Lwt.return_none
     | `Head h -> Lwt.return (Some h)
@@ -637,10 +685,6 @@ struct
     match head_ref t with
     | `Head _ | `Empty -> set_head t (Some h)
     | `Branch _ -> Lwt.return_unit
-
-  let remove_branch t branch_id = delete t ["remove-tag"; Ref.to_hum branch_id] Tc.unit
-
-  let heads t = get t ["heads"] (module Tc.List(Head))
 
   let update_head t head = match head_ref t with
     | `Empty
@@ -707,7 +751,6 @@ struct
     merge_head t ?max_depth ?n head >>= Irmin.Merge.exn
 
   let watch_head t = L.watch_head t.l
-  let watch_branches t = L.watch_branches t.l
 
   (* FIXME: duplicated code from Ir_bc.lift *)
   let lift value_of_head fn = function
@@ -791,41 +834,9 @@ struct
     | `Head head -> lcas_head (t1 a) ?max_depth ?n head
     | `Empty     -> Lwt.return (`Ok [])
 
-  let task_of_head t head =
-    LP.Commit.read_exn (Repo.commit_t t.repo) head >>= fun commit ->
-    Lwt.return (LP.Commit.Val.task commit)
-
   module E = Tc.Pair (Tc.List(Head)) (Tc.Option(Tc.List(Head)))
 
-  type slice = L.slice
-
-  module Slice = L.Private.Slice
-  let slice_tc: Slice.t Tc.t = (module Slice)
-
-  let head_query name = function
-    | [] -> []
-    | l  -> [name, List.map (Tc.write_string (module Head)) l]
-
-  let export ?full ?depth ?(min=[]) ?(max=[]) t =
-    let query =
-      let full = match full with
-        | None   -> []
-        | Some x -> ["full", [string_of_bool x]]
-      in
-      let depth = match depth with
-        | None   -> []
-        | Some x -> ["depth", [string_of_int x]]
-      in
-      match full @ depth @ head_query "min" min @ head_query "max" max with
-      | [] -> None
-      | l  -> Some l
-    in
-    get_json t ?query ["export"] (module L.Private.Slice)
-
   module I = Tc.List(Ref)
-
-  let import t slice =
-    post_json t ["import"] ~body:(slice_tc, slice) ok_or_error
 
   let remove_rec t dir =
     delete t ["remove-rec"; Key.to_hum dir] (module Head) >>= fun h ->
