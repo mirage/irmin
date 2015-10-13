@@ -35,10 +35,10 @@ module Make (P: Ir_s.PRIVATE) = struct
   module Val = P.Contents.Val
   type value = Val.t
 
-  module Head = P.Commit.Key
-  type head = Head.t
+  module Hash = P.Commit.Key
+  type commit_id = Hash.t
 
-  type head_ref = [ `Branch of branch_id | `Head of head option ref ]
+  type head_ref = [ `Branch of branch_id | `Head of commit_id option ref ]
 
   module OCamlGraph = Graph
   module Graph = Ir_node.Graph(P.Contents)(P.Node)
@@ -167,8 +167,8 @@ module Make (P: Ir_s.PRIVATE) = struct
           Lwt.return `Ok)
         (function Import_error -> Lwt.return `Error | e -> Lwt.fail e)
 
-    let task_of_head t head =
-      P.Commit.read_exn (P.Repo.commit_t t) head >>= fun commit ->
+    let task_of_commit_id t commit_id =
+      P.Commit.read_exn (P.Repo.commit_t t) commit_id >>= fun commit ->
       Lwt.return (P.Commit.Val.task commit)
 
   end
@@ -238,7 +238,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   let empty task repo =
     of_ref repo task (`Head (ref None))
 
-  let of_head task key repo =
+  let of_commit_id task key repo =
     of_ref repo task (`Head (ref (Some key)))
 
   let read_head_commit t =
@@ -357,7 +357,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     | None   -> Lwt.return_unit
     | Some h ->
       (* we avoid races here by freezing the store head. *)
-      of_head (fun () -> t.task) h t.repo >>= fun t ->
+      of_commit_id (fun () -> t.task) h t.repo >>= fun t ->
       let t = t () in
       let rec aux acc = function
         | []       -> Lwt_list.iter_p (fun (path, v) -> fn path v) acc
@@ -417,15 +417,15 @@ module Make (P: Ir_s.PRIVATE) = struct
     head t >>= function
     | None  -> compare_and_set_head t ~test:None ~set:(Some new_head)
     | Some old_head ->
-      let pp = show (module Head) in
+      let pp = show (module Hash) in
       Log.debug "fast-forward-head old=%a new=%a"
         force (pp old_head) force (pp new_head);
-      if Head.equal new_head old_head then
+      if Hash.equal new_head old_head then
         (* we only update if there is a change *)
         Lwt.return_false
       else
         H.lcas (history_t t) ?max_depth ?n new_head old_head >>= function
-        | `Ok [x] when Head.equal x old_head ->
+        | `Ok [x] when Hash.equal x old_head ->
           (* we only update if new_head > old_head *)
           compare_and_set_head t ~test:(Some old_head) ~set:(Some new_head)
         | `Too_many_lcas -> Log.debug "ff: too many LCAs"; Lwt.return false
@@ -484,7 +484,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     let merge_node t path (parent, node) =
       Log.debug "merge_node";
       let empty () = Graph.empty (graph_t t) in
-      let node_of_head head =
+      let node_of_commit_id head =
         begin match head with
           | None   -> Lwt.return_none
           | Some h -> H.node (history_t t) h
@@ -494,11 +494,11 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some h -> Graph.read_node (graph_t t) h path >|= fun n -> h, n
       in
       let parent_node () =
-        node_of_head (Some parent) >>= fun (_, x) -> ok (Some x)
+        node_of_commit_id (Some parent) >>= fun (_, x) -> ok (Some x)
       in
       let aux () =
         read_head_commit t >>= fun head ->
-        node_of_head head >>= fun (current_root, current_node) ->
+        node_of_commit_id head >>= fun (current_root, current_node) ->
         Graph.Store.merge path (graph_t t)
           ~old:parent_node current_node (Some node)
         >>| fun new_node ->
@@ -609,7 +609,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some v -> fn @@ `Added (x, v)
       end
     | `Updated (x, y) ->
-      assert (not (Head.equal x y));
+      assert (not (Hash.equal x y));
       value_of_head x >>= fun vx ->
       value_of_head y >>= fun vy ->
       match vx, vy with
@@ -627,7 +627,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       | Some (h, _) -> Some h
     in
     let value_of_head h =
-      of_head (fun () -> task t) h (repo t) >>= fun t ->
+      of_commit_id (fun () -> task t) h (repo t) >>= fun t ->
       read (t ()) key
     in
     watch_head t ?init:init_head (lift value_of_head fn)

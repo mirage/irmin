@@ -86,8 +86,8 @@ module type S = sig
 
     (** {1 Access to the Git objects} *)
 
-    val commit_of_head: Repo.t -> head -> Git.Commit.t option Lwt.t
-    (** [commit_of_head repo h] is the commit corresponding to [h] in the
+    val commit_of_id: Repo.t -> commit_id -> Git.Commit.t option Lwt.t
+    (** [commit_of_id repo h] is the commit corresponding to [h] in the
         repository [repo]. *)
 
   end
@@ -100,7 +100,7 @@ module type S_MAKER =
     S with type key = C.Path.t
        and type value = C.t
        and type branch_id = R.t
-       and type head = H.t
+       and type commit_id = H.t
 
 module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S):
   S_MAKER

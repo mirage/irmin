@@ -201,15 +201,15 @@ end
 
 module type SYNC = sig
   type t
-  type head
+  type commit_id
   type branch_id
   val fetch: t -> ?depth:int -> uri:string -> branch_id ->
-    [`Head of head | `No_head | `Error] Lwt.t
+    [`Head of commit_id | `No_head | `Error] Lwt.t
   val push : t -> ?depth:int -> uri:string -> branch_id -> [`Ok | `Error] Lwt.t
 end
 
 module type STORE = sig
-  type head
+  type commit_id
   type branch_id
   type slice
   module Repo: sig
@@ -217,13 +217,13 @@ module type STORE = sig
     val create: Ir_conf.t -> t Lwt.t
     val branches: t -> branch_id list Lwt.t
     val remove_branch: t -> branch_id -> unit Lwt.t
-    val heads: t -> head list Lwt.t
-    val watch_branches: t -> ?init:(branch_id * head) list ->
-      (branch_id -> head Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
-    val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
+    val heads: t -> commit_id list Lwt.t
+    val watch_branches: t -> ?init:(branch_id * commit_id) list ->
+      (branch_id -> commit_id Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+    val export: ?full:bool -> ?depth:int -> ?min:commit_id list -> ?max:commit_id list ->
       t -> slice Lwt.t
     val import: t -> slice -> [`Ok | `Error] Lwt.t
-    val task_of_head: t -> head -> Ir_task.t Lwt.t
+    val task_of_commit_id: t -> commit_id -> Ir_task.t Lwt.t
   end
   include HIERARCHICAL
   val master: ('a -> Ir_task.t) -> Repo.t -> ('a -> t) Lwt.t
@@ -236,19 +236,19 @@ module type STORE = sig
   val merge_branch: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Ir_merge.result Lwt.t
   val merge_branch_exn: t -> ?max_depth:int -> ?n:int -> branch_id -> unit Lwt.t
   val empty: 'a Ir_task.f -> Repo.t -> ('a -> t) Lwt.t
-  val of_head: ('a -> Ir_task.t) -> head -> Repo.t -> ('a -> t) Lwt.t
-  val head: t -> head option Lwt.t
-  val head_exn: t -> head Lwt.t
-  val head_ref: t -> [`Branch of branch_id | `Head of head | `Empty]
-  val update_head: t -> head -> unit Lwt.t
-  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
-  val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
-  val merge_head: t -> ?max_depth:int -> ?n:int -> head -> unit Ir_merge.result Lwt.t
-  val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
-  val watch_head: t -> ?init:head -> (head Ir_watch.diff -> unit Lwt.t) ->
+  val of_commit_id: ('a -> Ir_task.t) -> commit_id -> Repo.t -> ('a -> t) Lwt.t
+  val head: t -> commit_id option Lwt.t
+  val head_exn: t -> commit_id Lwt.t
+  val head_ref: t -> [`Branch of branch_id | `Head of commit_id | `Empty]
+  val update_head: t -> commit_id -> unit Lwt.t
+  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> commit_id -> bool Lwt.t
+  val compare_and_set_head: t -> test:commit_id option -> set:commit_id option -> bool Lwt.t
+  val merge_head: t -> ?max_depth:int -> ?n:int -> commit_id -> unit Ir_merge.result Lwt.t
+  val merge_head_exn: t -> ?max_depth:int -> ?n:int -> commit_id -> unit Lwt.t
+  val watch_head: t -> ?init:commit_id -> (commit_id Ir_watch.diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
-  val watch_key: t -> key -> ?init:(head * value) ->
-    ((head * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_key: t -> key -> ?init:(commit_id * value) ->
+    ((commit_id * value) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   val clone: 'a Ir_task.f -> t -> branch_id -> [`Ok of ('a -> t) | `Duplicated_branch | `Empty_head] Lwt.t
   val clone_force: 'a Ir_task.f -> t -> branch_id -> ('a -> t) Lwt.t
   val merge: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
@@ -256,13 +256,13 @@ module type STORE = sig
   val merge_exn: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> into:('a -> t) ->
     unit Lwt.t
   val lcas: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
-    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+    [`Ok of commit_id list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   val lcas_branch: t -> ?max_depth:int -> ?n:int -> branch_id ->
-    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
-    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  module History: Graph.Sig.P with type V.t = head
-  val history: ?depth:int -> ?min:head list -> ?max:head list -> t -> History.t Lwt.t
+    [`Ok of commit_id list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  val lcas_head: t -> ?max_depth:int -> ?n:int -> commit_id ->
+    [`Ok of commit_id list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+  module History: Graph.Sig.P with type V.t = commit_id
+  val history: ?depth:int -> ?min:commit_id list -> ?max:commit_id list -> t -> History.t Lwt.t
 end
 
 module type PRIVATE = sig
@@ -287,7 +287,7 @@ module type PRIVATE = sig
   end
   module Sync: sig
     include SYNC
-      with type head = Commit.key and type branch_id = Ref.key
+      with type commit_id = Commit.key and type branch_id = Ref.key
     val create: Repo.t -> t Lwt.t
   end
 end
@@ -298,20 +298,20 @@ module type STORE_EXT = sig
   module Key: PATH with type t = key
   module Val: CONTENTS with type t = value
   module Ref: REF with type t = branch_id
-  module Head: HASH with type t = head
+  module Hash: HASH with type t = commit_id
 
   module Private: sig
     include PRIVATE
       with type Contents.value = value
        and module Contents.Path = Key
-       and type Commit.key = head
+       and type Commit.key = commit_id
        and type Ref.key = branch_id
        and type Slice.t = slice
        and type Repo.t = Repo.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
-    val merge_node: t -> key -> (head * Node.key) -> unit Ir_merge.result Lwt.t
+    val merge_node: t -> key -> (commit_id * Node.key) -> unit Ir_merge.result Lwt.t
     val remove_node: t -> key -> unit Lwt.t
     val iter_node: t -> Node.key ->
       (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
@@ -327,4 +327,4 @@ module type MAKER =
       with type key = C.Path.t
        and type value = C.t
        and type branch_id = R.t
-       and type head = H.t
+       and type commit_id = H.t

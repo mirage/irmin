@@ -349,7 +349,7 @@ let snapshot = {
       run begin
         store >>= fun t ->
         S.head_exn (t "Snapshot") >>= fun k ->
-        print "%s" (S.Head.to_hum k);
+        print "%s" (S.Hash.to_hum k);
         return_unit
       end
     in
@@ -368,7 +368,7 @@ let revert = {
     let revert (S ((module S), store)) snapshot =
       run begin
         store >>= fun t ->
-        let s = S.Head.of_hum snapshot in
+        let s = S.Hash.of_hum snapshot in
         S.update_head (t "Revert") s
       end
     in

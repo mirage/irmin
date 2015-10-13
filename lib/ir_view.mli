@@ -40,15 +40,15 @@ module type S = sig
   end
   val actions: t -> Action.t list
   val diff: t -> t -> (key * value Ir_watch.diff) list Lwt.t
-  type head
-  val parents: t -> head list
-  val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
-  val watch_path: db -> key -> ?init:(head * t) ->
-    ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  type commit_id
+  val parents: t -> commit_id list
+  val make_head: db -> Ir_task.t -> parents:commit_id list -> contents:t -> commit_id Lwt.t
+  val watch_path: db -> key -> ?init:(commit_id * t) ->
+    ((commit_id * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 end
 
 module Make (S: Ir_s.STORE_EXT):
   S with type db = S.t
      and type key = S.key
      and type value = S.value
-     and type head = S.head
+     and type commit_id = S.commit_id

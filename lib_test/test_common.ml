@@ -21,7 +21,7 @@ open Irmin_unix
 module type Test_S = sig
   include Irmin.S
   module Internals: sig
-    val commit_of_head: Repo.t -> head -> Git.Commit.t option Lwt.t
+    val commit_of_id: Repo.t -> commit_id -> Git.Commit.t option Lwt.t
   end
 end
 
@@ -89,7 +89,7 @@ module Make (S: Irmin.S) = struct
 
   module KV = S.Private.Contents.Key
   module KN = S.Private.Node.Key
-  module KC = S.Head
+  module KC = S.Hash
 
   module RV = Tc.App1(Irmin.Merge.Result)(Tc.Option(KV))
   module RN = Tc.App1(Irmin.Merge.Result)(KN)
@@ -120,7 +120,7 @@ let create: (module Irmin.S_MAKER) -> [`String | `Json] -> (module Test_S) =
     let module S = struct
       include B(C)(Irmin.Ref.String)(Irmin.Hash.SHA1)
       module Internals = struct
-        let commit_of_head _t _head = failwith "Only used for testing Git stores"
+        let commit_of_id _t _id = failwith "Only used for testing Git stores"
       end
     end
     in (module S)

@@ -322,7 +322,7 @@ module Make (S: Test_S) = struct
       assert_equal (module Set(KC)) "g2" [kr1; kr2] kr2s;
 
       if x.kind = `Git then (
-        S.Internals.commit_of_head repo kr1 >|= function
+        S.Internals.commit_of_id repo kr1 >|= function
         | None   -> Alcotest.fail "cannot read the Git internals"
         | Some c ->
           let name = c.Git.Commit.author.Git.User.name in
@@ -747,8 +747,8 @@ module Make (S: Test_S) = struct
         assert_equal (module Set(KC)) msg l1 l2
       in
       let assert_lcas msg ~max_depth n a b expected =
-        S.of_head task a repo >>= fun a ->
-        S.of_head task b repo >>= fun b ->
+        S.of_commit_id task a repo >>= fun a ->
+        S.of_commit_id task b repo >>= fun b ->
         S.lcas ~max_depth n a b >>= fun lcas ->
         assert_lcas msg expected lcas;
         S.lcas ~max_depth:(max_depth - 1) n a b >>= fun lcas ->
@@ -824,21 +824,21 @@ module Make (S: Test_S) = struct
       assert_lcas "weird lcas 4" ~max_depth:3 3 k15 k16 [k11] >>= fun () ->
 
       (* fast-forward *)
-      S.of_head task k12 repo         >>= fun t12  ->
+      S.of_commit_id task k12 repo         >>= fun t12  ->
       S.fast_forward_head (t12 0) k16 >>= fun b1 ->
       assert_equal Tc.bool "ff 1.1" false b1;
       S.head_exn (t12 0)              >>= fun k12' ->
-      assert_equal (module S.Head) "ff 1.2" k12 k12';
+      assert_equal (module S.Hash) "ff 1.2" k12 k12';
 
       S.fast_forward_head (t12 0) ~n:1 k14 >>= fun b2 ->
       assert_equal Tc.bool "ff 2.1" false b2;
       S.head_exn (t12 0)              >>= fun k12'' ->
-      assert_equal (module S.Head) "ff 2.3" k12 k12'';
+      assert_equal (module S.Hash) "ff 2.3" k12 k12'';
 
       S.fast_forward_head (t12 0) k14 >>= fun b3 ->
       assert_equal Tc.bool "ff 2.2" true b3;
       S.head_exn (t12 0)              >>= fun k14' ->
-      assert_equal (module S.Head) "ff 2.3" k14 k14';
+      assert_equal (module S.Hash) "ff 2.3" k14 k14';
 
       return_unit
     in
@@ -849,7 +849,7 @@ module Make (S: Test_S) = struct
       S.empty dummy_task repo >>= fun t ->
 
       S.head (t ()) >>= fun h ->
-      assert_equal (module Tc.Option(S.Head)) "empty" None h;
+      assert_equal (module Tc.Option(S.Hash)) "empty" None h;
 
       let v1 = v1 x in
       r1 ~repo x >>= fun r1 ->
@@ -857,7 +857,7 @@ module Make (S: Test_S) = struct
       S.update (t ()) (p ["b"; "x"]) v1 >>= fun () ->
 
       S.head (t ()) >>= fun h ->
-      assert_equal (module Tc.Option(S.Head)) "not empty" (Some r1) h;
+      assert_equal (module Tc.Option(S.Hash)) "not empty" (Some r1) h;
 
       Lwt.return_unit
 
@@ -1170,14 +1170,14 @@ module Make (S: Test_S) = struct
       let ta = Irmin.Task.empty in
       View.make_head (t "mk-head") ta ~parents:[r1;r2] ~contents:v3 >>= fun h ->
 
-      S.Repo.task_of_head repo h >>= fun ta' ->
+      S.Repo.task_of_commit_id repo h >>= fun ta' ->
       assert_equal (module Irmin.Task) "task" ta ta';
 
-      S.of_head Irmin_unix.task h repo >>= fun tt ->
+      S.of_commit_id Irmin_unix.task h repo >>= fun tt ->
       S.history (tt "history") >>= fun g ->
       let pred = S.History.pred g h in
-      let s = List.sort S.Head.compare in
-      assert_equal (module Tc.List(S.Head)) "head" (s [r1;r2]) (s pred);
+      let s = List.sort S.Hash.compare in
+      assert_equal (module Tc.List(S.Hash)) "head" (s [r1;r2]) (s pred);
 
       S.read (tt "read tt") (p ["b";"foo";"1"]) >>= fun foo2'' ->
       assert_equal (module Tc.Option(V)) "remove tt" None foo2'';
@@ -1353,7 +1353,7 @@ module Make (S: Test_S) = struct
       let read =
         read
           (fun _i -> Ref.read_exn t k)
-          (fun i  -> assert_equal (module S.Head) (sprintf "tag %d" i) v)
+          (fun i  -> assert_equal (module S.Hash) (sprintf "tag %d" i) v)
       in
       write 1 >>= fun () ->
       Lwt.join [ write 10; read 10; write 10; read 10; ]

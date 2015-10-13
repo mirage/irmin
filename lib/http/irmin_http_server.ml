@@ -450,9 +450,9 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
     let lock2 (_, tag) = Lwt.return (Some tag) in
     let tag': S.branch_id Irmin.Hum.t = (module S.Ref) in
     let tag: S.branch_id Tc.t = (module S.Ref) in
-    let head: S.head Tc.t = (module S.Head) in
+    let commit_id: S.commit_id Tc.t = (module S.Hash) in
     let t_cs t tag (test, set) = T.compare_and_set t tag ~test ~set in
-    let tc_cs = Tc.pair (Tc.option head) (Tc.option head) in
+    let tc_cs = Tc.pair (Tc.option commit_id) (Tc.option commit_id) in
     let t_iter t fn = T.iter t (fun k _ -> fn k) in
     let mk = function
       | `Updated (_, y)
@@ -483,35 +483,35 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
         Lwt.return stream
       )
     in
-    let tc_ho = Tc.option head in
-    let tc_watch_i = Tc.list (Tc.pair tag head) in
-    let tc_watch_s = Tc.pair tag (Tc.option head) in
+    let tc_ho = Tc.option commit_id in
+    let tc_watch_i = Tc.list (Tc.pair tag commit_id) in
+    let tc_watch_s = Tc.pair tag (Tc.option commit_id) in
     let tc_watch_k = tc_ho in
     SNode [
       mk1p0bf "read" T.read ref_t tag' tc_ho;
       mk1p0bf "mem" T.mem ref_t tag' Tc.bool;
       mk0p0bs "iter" (stream t_iter) ref_t tag;
-      mk1p1bf "update" ~lock:lock3 T.update ref_t tag' head Tc.unit;
+      mk1p1bf "update" ~lock:lock3 T.update ref_t tag' commit_id Tc.unit;
       mk1p0bf "remove" ~lock:lock2 T.remove ref_t tag' Tc.unit;
       mk1p1bf "compare-and-set" ~lock:lock3 t_cs ref_t tag' tc_cs Tc.bool;
       mk0p1bs "watch" t_watch ref_t tc_watch_i tc_watch_s;
-      mk1p1bs "watch-key" t_watch_key ref_t tag' head tc_watch_k;
+      mk1p1bs "watch-key" t_watch_key ref_t tag' commit_id tc_watch_k;
     ]
 
   let list f t list = f t (S.Key.create list)
 
   let step_h: S.Key.step Irmin.Hum.t = (module S.Key.Step)
   let tag_h: S.branch_id Irmin.Hum.t = (module S.Ref)
-  let head_h: S.head Irmin.Hum.t = (module S.Head)
+  let commit_id_h: S.commit_id Irmin.Hum.t = (module S.Hash)
 
   let node_t: S.Private.Node.key Tc.t = (module S.Private.Node.Key)
-  let head: S.head Tc.t = (module S.Head)
+  let commit_id: S.commit_id Tc.t = (module S.Hash)
   let value: S.value Tc.t = (module S.Val)
   let slice: S.slice Tc.t = (module S.Private.Slice)
   let key: S.key Tc.t = (module S.Key)
 
   module View = struct
-    type t = S.head * S.Private.Node.key
+    type t = S.commit_id * S.Private.Node.key
     let compare = Pervasives.compare
     let equal = (=)
     let hash = Hashtbl.hash
@@ -519,8 +519,8 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
     let of_string str =
       match Stringext.cut str ~on:"-" with
       | None        -> failwith "invalid view"
-      | Some (h, n) -> S.Head.of_hum h, S.Private.Node.Key.of_hum n
-    let to_string (h, n) = S.Head.to_hum h ^ "-" ^ S.Private.Node.Key.to_hum n
+      | Some (h, n) -> S.Hash.of_hum h, S.Private.Node.Key.of_hum n
+    let to_string (h, n) = S.Hash.to_hum h ^ "-" ^ S.Private.Node.Key.to_hum n
 
     let to_json t = `String (to_string t)
 
@@ -561,11 +561,11 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
          | "create" ->
            let create =
              let aux t path =
-               S.head_exn t >>= fun head ->
-               S.of_head (fun () -> S.task t) head (S.repo t) >>= fun t ->
+               S.head_exn t >>= fun commit_id ->
+               S.of_commit_id (fun () -> S.task t) commit_id (S.repo t) >>= fun t ->
                S.Private.read_node (t ()) path >>= function
                | None   -> Lwt.fail_invalid_arg "view"
-               | Some n -> Lwt.return (head, n)
+               | Some n -> Lwt.return (commit_id, n)
              in
              list aux
            in
@@ -604,7 +604,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
              mknp1bf "update"      update g step_h value node_t;
              mk0p0bs "iter"        (stream iter) t key;
              mknp0bf "update-path" update_path t step_h Tc.unit;
-             mknp1bf "merge-path"  merge_path t step_h head (merge Tc.unit);
+             mknp1bf "merge-path"  merge_path t step_h commit_id (merge Tc.unit);
            ]
       )
 
@@ -627,17 +627,17 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
   let mk_export_query query =
     let full = get_query query bool_of_string "full" in
     let depth = get_query query int_of_string "depth" in
-    let min = get_query_all query (Tc.read_string (module S.Head)) "min" in
-    let max = get_query_all query (Tc.read_string (module S.Head)) "max" in
+    let min = get_query_all query (Tc.read_string (module S.Hash)) "min" in
+    let max = get_query_all query (Tc.read_string (module S.Hash)) "max" in
     full, depth, min, max
 
   let mk_history_query query =
     let depth = get_query query int_of_string "depth" in
-    let min = get_query_all query (Tc.read_string (module S.Head)) "min" in
-    let max = get_query_all query (Tc.read_string (module S.Head)) "max" in
+    let min = get_query_all query (Tc.read_string (module S.Hash)) "min" in
+    let max = get_query_all query (Tc.read_string (module S.Hash)) "max" in
     depth, min, max
 
-  module G = Tc.Pair (Tc.List (S.Head)) (Tc.List (Tc.Pair (S.Head)(S.Head)))
+  module G = Tc.Pair (Tc.List (S.Hash)) (Tc.List (Tc.Pair (S.Hash)(S.Hash)))
   module Conv = struct
     type t = S.History.t
     let to_t (vertices, edges) =
@@ -651,7 +651,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
   end
   module HTC = Tc.Biject (G)(Conv)
 
-  let lca = lca (module S.Head)
+  let lca = lca (module S.Hash)
 
   let dispatch hooks =
     let lock3 (t, _, _) = S.name t in
@@ -717,7 +717,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
         Lwt.return stream
       )
     in
-    let tc_watch = Tc.pair head value in
+    let tc_watch = Tc.pair commit_id value in
     let s_lcas_branch t tag query =
       let max_depth, n = mk_merge_query query in
       S.lcas_branch t ?max_depth ?n tag
@@ -744,30 +744,30 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       mknp0bf "read" (list S.read) t step_h (Tc.option value);
       mknp0bf "mem" (list S.mem) t step_h Tc.bool;
       mk0p0bs "iter" (stream s_iter) t key;
-      mknp1bf "update" ~lock:lock3 ~hooks (list s_update) t step_h value head;
-      mknp0bf "remove" ~lock:lock2 ~hooks (list s_remove) t step_h head;
+      mknp1bf "update" ~lock:lock3 ~hooks (list s_update) t step_h value commit_id;
+      mknp0bf "remove" ~lock:lock2 ~hooks (list s_remove) t step_h commit_id;
       mknp1bf "compare-and-set" ~lock:lock3 ~hooks (list s_compare_and_set) t step_h
         (Tc.pair (Tc.option value) (Tc.option value)) Tc.bool;
 
       (* hrw *)
       mknp0bf "list" (list S.list) t step_h (Tc.list key);
-      mknp0bf "remove-rec" ~lock:lock2 (list s_remove_rec) t step_h head;
+      mknp0bf "remove-rec" ~lock:lock2 (list s_remove_rec) t step_h commit_id;
 
       (* watches *)
       mknp1bs "watch" (list s_watch) t step_h tc_watch (Tc.option tc_watch);
 
       (* more *)
       mk1p0bf "remove-tag" ~lock:lock2 ~hooks (repo_op S.Repo.remove_branch)  t tag_h Tc.unit;
-      mk1p0bf "update-tag" ~lock:lock2 ~hooks s_update_branch t tag_h head;
-      mk1p0bfq "merge-tag" ~lock:lock3 ~hooks s_merge_branch t tag_h (merge head);
-      mk0p0bf "head" S.head t (Tc.option head);
-      mk0p0bf "heads" (repo_op S.Repo.heads) t (Tc.list head);
-      mk1p0bf "update-head" ~lock:lock2 ~hooks S.update_head t head_h Tc.unit;
+      mk1p0bf "update-tag" ~lock:lock2 ~hooks s_update_branch t tag_h commit_id;
+      mk1p0bfq "merge-tag" ~lock:lock3 ~hooks s_merge_branch t tag_h (merge commit_id);
+      mk0p0bf "head" S.head t (Tc.option commit_id);
+      mk0p0bf "heads" (repo_op S.Repo.heads) t (Tc.list commit_id);
+      mk1p0bf "update-head" ~lock:lock2 ~hooks S.update_head t commit_id_h Tc.unit;
       mk1p0bfq "fast-forward-head" ~lock:lock3 ~hooks s_fast_forward_head t
-        head_h Tc.bool;
+        commit_id_h Tc.bool;
       mk0p1bf "compare-and-set-head" ~lock:lock2 ~hooks s_compare_and_set_head t
-        (Tc.pair (Tc.option head) (Tc.option head)) Tc.bool;
-      mk1p0bfq "merge-head" ~lock:lock3 ~hooks s_merge_head t head_h (merge head);
+        (Tc.pair (Tc.option commit_id) (Tc.option commit_id)) Tc.bool;
+      mk1p0bfq "merge-head" ~lock:lock3 ~hooks s_merge_head t commit_id_h (merge commit_id);
       mk1p0bf "clone" s_clone t tag_h ok_or_duplicated_branch_id;
       mk1p0bf "clone-force" s_clone_force t tag_h Tc.unit;
       mk0p0bfq "export" s_export t slice;
@@ -776,7 +776,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
 
       (* lca *)
       mk1p0bfq "lcas-tag" s_lcas_branch  t tag_h lca;
-      mk1p0bfq "lcas-head" s_lcas_head t head_h lca;
+      mk1p0bfq "lcas-head" s_lcas_head t commit_id_h lca;
 
       (* extra *)
       mk0p0bh "graph" s_graph t;
@@ -806,15 +806,15 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
              let repo = S.repo req.t in
              S.Repo.branches repo  >>= fun branches ->
              S.Repo.heads repo >|= fun heads ->
-             List.map S.Ref.to_hum branches @ List.map S.Head.to_hum heads)
+             List.map S.Ref.to_hum branches @ List.map S.Hash.to_hum heads)
           (fun _req n ->
              let app fn t x task =
                fn (fun () -> task) x (S.repo t) >>= fun t ->
                Lwt.return (t ())
              in
              try
-               let n = S.Head.of_hum n in
-               Lwt.return (SNode (bc (fun t -> app S.of_head t n)))
+               let n = S.Hash.of_hum n in
+               Lwt.return (SNode (bc (fun t -> app S.of_commit_id t n)))
              with Irmin.Hash.Invalid _ ->
                let node = bc (fun t -> app S.of_branch_id t (S.Ref.of_hum n)) in
                Lwt.return (SNode node))

@@ -650,7 +650,7 @@ module Make_ext
     module Sync = Git.Sync.Make(IO)(G)
 
     type t = G.t
-    type head = X.Commit.key
+    type commit_id = X.Commit.key
     type branch_id = XRef.key
 
     let head_of_git key = H.of_raw (X.GK.to_raw (Git.SHA.of_commit key))
@@ -723,8 +723,8 @@ module Make_ext
   include Irmin.Make_ext(P)
 
   module Internals = struct
-    let commit_of_head repo h =
-      let h = Head.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
+    let commit_of_id repo h =
+      let h = Hash.to_raw h |> Cstruct.to_string |> Git.SHA.of_raw in
       Git_store.read repo.g h >|= function
       | Some Git.Value.Commit c -> Some c
       | _ -> None
@@ -804,13 +804,7 @@ module type S = sig
   include Irmin.S
 
   module Internals: sig
-
-    (** {1 Access to the Git objects} *)
-
-    val commit_of_head: Repo.t -> head -> Git.Commit.t option Lwt.t
-    (** [commit_of_head repo h] is the commit corresponding to [h] in the
-        repository [repo]. *)
-
+    val commit_of_id: Repo.t -> commit_id -> Git.Commit.t option Lwt.t
   end
 end
 
@@ -821,6 +815,6 @@ module type S_MAKER =
     S with type key = C.Path.t
        and type value = C.t
        and type branch_id = R.t
-       and type head = H.t
+       and type commit_id = H.t
 
 include Conf

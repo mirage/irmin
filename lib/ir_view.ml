@@ -109,7 +109,7 @@ end
 
 module type NODE = sig
   type t
-  type commit
+  type commit_id
   type node
   type contents
   module Contents: Tc.S0 with type t = contents
@@ -152,7 +152,7 @@ module Internal (Node: NODE) = struct
   type t = {
     mutable view: [`Empty | `Node of Node.t | `Contents of Node.contents];
     ops: action list ref;
-    parents: Node.commit list ref;
+    parents: Node.commit_id list ref;
     lock: Lwt_mutex.t;
   }
 
@@ -161,7 +161,7 @@ module Internal (Node: NODE) = struct
     | `Contents x, `Contents y -> Node.Contents.equal x y
     | _ -> false
 
-  type head = Node.commit
+  type commit_id = Node.commit_id
   let parents t = !(t.parents)
 
   module CO = Tc.Option(Node.Contents)
@@ -498,7 +498,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
     module StepSet = Ir_misc.Set(Path.Step)
 
     type contents = S.value
-    type commit = S.head
+    type commit_id = S.commit_id
     type key = S.t * P.Node.key
 
     (* XXX: fix code duplication with Ir_node.Graph (using
@@ -849,7 +849,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       (* FIXME: race to update the store's head *)
       update_path db0 path view >>= fun () -> ok true
     | Some head ->
-      S.of_head (fun () -> S.task db0) head (S.repo db0) >>= fun db ->
+      S.of_commit_id (fun () -> S.task db0) head (S.repo db0) >>= fun db ->
       let db = db () in
       P.read_node db Path.empty >>= function
       | None           -> update_path db path view >>= fun () -> ok true
@@ -912,7 +912,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   let watch_path db key ?init fn =
     let view_of_head h =
-        S.of_head (fun () -> S.task db) h (S.repo db) >>= fun db ->
+        S.of_commit_id (fun () -> S.task db) h (S.repo db) >>= fun db ->
         of_path (db ()) key
     in
     let init = match init with
@@ -927,7 +927,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
           view_of_head h >>= fun v ->
           fn @@ `Added (h, v)
         | `Updated (x, y) ->
-          assert (not (S.Head.equal x y));
+          assert (not (S.Hash.equal x y));
           view_of_head x >>= fun vx ->
           view_of_head y >>= fun vy ->
           if equal vx vy then Lwt.return_unit
@@ -961,9 +961,9 @@ module type S = sig
   end
   val actions: t -> Action.t list
   val diff: t -> t -> (key * value Ir_watch.diff) list Lwt.t
-  type head
-  val parents: t -> head list
-  val make_head: db -> Ir_task.t -> parents:head list -> contents:t -> head Lwt.t
-  val watch_path: db -> key -> ?init:(head * t) ->
-    ((head * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  type commit_id
+  val parents: t -> commit_id list
+  val make_head: db -> Ir_task.t -> parents:commit_id list -> contents:t -> commit_id Lwt.t
+  val watch_path: db -> key -> ?init:(commit_id * t) ->
+    ((commit_id * t) Ir_watch.diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 end

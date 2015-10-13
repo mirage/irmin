@@ -498,7 +498,7 @@ module type BC = sig
       branch, you need to provide its name: see the {{!BC.of_branch_id}of_branch_id}
       function. *)
 
-  type head
+  type commit_id
   (** Type for commit identifiers. Similar to Git's commit SHA1s. *)
 
   type branch_id
@@ -526,17 +526,17 @@ module type BC = sig
     (** [remove_branch t name] removes the branch [name] from the local store.
         Similar to [git branch -D <name>] *)
 
-    val heads: t -> head list Lwt.t
+    val heads: t -> commit_id list Lwt.t
     (** [heads t] is the list of all the heads in local store. Similar
         to [git rev-list --all]. *)
 
-    val watch_branches: t -> ?init:(branch_id * head) list ->
-      (branch_id -> head diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+    val watch_branches: t -> ?init:(branch_id * commit_id) list ->
+      (branch_id -> commit_id diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
     (** [watch_branches t f] calls [f] every time a branch is added, removed or
         updated in the local store. Return a function to remove the
         handler. *)
 
-    val export: ?full:bool -> ?depth:int -> ?min:head list -> ?max:head list ->
+    val export: ?full:bool -> ?depth:int -> ?min:commit_id list -> ?max:commit_id list ->
       t -> slice Lwt.t
     (** [export t ~depth ~min ~max] exports the store slice between
         [min] and [max], using at most [depth] history depth (starting
@@ -557,8 +557,8 @@ module type BC = sig
     (** [import t s] imports the contents of the slice [s] in [t]. Does
         not modify branches. *)
 
-    val task_of_head: t -> head -> task Lwt.t
-    (** [task_of_head t h] is the task which created [h]. Useful to
+    val task_of_commit_id: t -> commit_id -> task Lwt.t
+    (** [task_of_commit_id t h] is the task which created [h]. Useful to
         retrieve the commit date and the committer name. *)
 
   end
@@ -621,11 +621,11 @@ module type BC = sig
   (** [empty repo task] is a temporary, empty store. Becomes a
       normal temporary store after the first update. *)
 
-  val of_head: 'a Task.f -> head -> Repo.t -> ('a -> t) Lwt.t
-  (** Create a temporary store, using the given [head]. The store
+  val of_commit_id: 'a Task.f -> commit_id -> Repo.t -> ('a -> t) Lwt.t
+  (** Create a temporary store, using the given [commit_id]. The store
       will not persist as it has no persistent branch name. *)
 
-  val head: t -> head option Lwt.t
+  val head: t -> commit_id option Lwt.t
   (** [head t] is the current head of the store [t]. This works for
       both persistent and temporary stores. In the case of a
       persistent branch, this involves getting the the head associated
@@ -634,46 +634,46 @@ module type BC = sig
       [None] if the store has no contents. Similar to [git
       rev-parse HEAD]. *)
 
-  val head_exn: t -> head Lwt.t
+  val head_exn: t -> commit_id Lwt.t
   (** Same as {!head} but raise [Invalid_argument] if the store does
       not have any contents. *)
 
-  val head_ref: t -> [`Branch of branch_id | `Head of head | `Empty]
+  val head_ref: t -> [`Branch of branch_id | `Head of commit_id | `Empty]
   (** [head_ref t] is the branch ID that this store tracks (for persistent
       stores), the current [head] commit (for temporary stores), or [`Empty]
       for empty temporary stores. *)
 
-  val update_head: t -> head -> unit Lwt.t
+  val update_head: t -> commit_id -> unit Lwt.t
   (** [update_head t h] updates [t]'s contents with the contents of
-      the head [h]. Can cause data loss as it discards the current
+      the commit_id [h]. Can cause data loss as it discards the current
       contents. Similar to [git reset --hard <hash>]. *)
 
-  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> head -> bool Lwt.t
+  val fast_forward_head: t -> ?max_depth:int -> ?n:int -> commit_id -> bool Lwt.t
   (** [fast_forward_head t h] is similar to {!update_head} but the
       [t]'s head is updated to [h] only if [h] is stricly in the
       future of [t]'s current head. Return [false] if it is not the
       case. If present, [max_depth] or [n] are used to limit the
       search space of the lowest common ancestors (see {!lcas}). *)
 
-  val compare_and_set_head: t -> test:head option -> set:head option -> bool Lwt.t
+  val compare_and_set_head: t -> test:commit_id option -> set:commit_id option -> bool Lwt.t
   (** Same as {!update_head} but check that the value is [test] before
       updating to [set]. Use {!update} or {!merge} instead if
       possible. *)
 
-  val merge_head: t -> ?max_depth:int -> ?n:int -> head ->
+  val merge_head: t -> ?max_depth:int -> ?n:int -> commit_id ->
     unit Merge.result Lwt.t
-  (** [merge_head t ?max_head ?n head] merges the contents of the
-      commit associated to [head] into [t]. [max_depth] is
+  (** [merge_head t ?max_head ?n commit_id] merges the contents of the
+      commit associated to [commit_id] into [t]. [max_depth] is
       the maximal depth used for getting the lowest common
       ancestor. [n] is the maximum number of lowest common
       ancestors. If present, [max_depth] or [n] are used to limit the
       search space of the lowest common ancestors (see {!lcas}). *)
 
-  val merge_head_exn: t -> ?max_depth:int -> ?n:int -> head -> unit Lwt.t
+  val merge_head_exn: t -> ?max_depth:int -> ?n:int -> commit_id -> unit Lwt.t
   (** Same as {{!BC.merge_head}merge_head} but raise {!Merge.Conflict}
       in case of a conflict. *)
 
-  val watch_head: t -> ?init:head -> (head diff -> unit Lwt.t) ->
+  val watch_head: t -> ?init:commit_id -> (commit_id diff -> unit Lwt.t) ->
     (unit -> unit Lwt.t) Lwt.t
   (** [watch_branch t f] calls [f] every time the contents of [t]'s reference
       is updated. Do nothing if [t] is not persistent. Return a clean-up
@@ -684,8 +684,8 @@ module type BC = sig
       sequence, so we ensure that the previous one ended before
       calling the next one. *)
 
-  val watch_key: t -> key -> ?init:(head * value) ->
-    ((head * value) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_key: t -> key -> ?init:(commit_id * value) ->
+    ((commit_id * value) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   (** [watch_key t key f] calls [f] every time the [key]'s value is
       added, removed or updated. *)
 
@@ -713,7 +713,7 @@ module type BC = sig
       of a conflict. *)
 
   val lcas: 'a -> ?max_depth:int -> ?n:int -> ('a -> t) -> ('a -> t) ->
-    [`Ok of head list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+    [`Ok of commit_id list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
   (** [lca ?max_depth ?n msg t1 t2] returns the collection of least
       common ancestors between the heads of [t1] and [t2] branches.
 
@@ -728,19 +728,19 @@ module type BC = sig
   *)
 
   val lcas_branch: t -> ?max_depth:int -> ?n:int -> branch_id ->
-    [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+    [`Ok of commit_id list | `Max_depth_reached | `Too_many_lcas] Lwt.t
   (** Same as {!lcas} but takes a branch ID as argument. *)
 
-  val lcas_head: t -> ?max_depth:int -> ?n:int -> head ->
-    [`Ok of head list | `Max_depth_reached | `Too_many_lcas] Lwt.t
-  (** Same as {!lcas} but takes an head as argument. *)
+  val lcas_head: t -> ?max_depth:int -> ?n:int -> commit_id ->
+    [`Ok of commit_id list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+  (** Same as {!lcas} but takes a commit_id as argument. *)
 
   (** {2 History} *)
 
-  module History: Graph.Sig.P with type V.t = head
+  module History: Graph.Sig.P with type V.t = commit_id
   (** An history is a DAG of heads. *)
 
-  val history: ?depth:int -> ?min:head list -> ?max:head list -> t -> History.t Lwt.t
+  val history: ?depth:int -> ?min:commit_id list -> ?max:commit_id list -> t -> History.t Lwt.t
   (** [history ?depth ?min ?max t] is a view of the history of the
       store [t], of depth at most [depth], starting from the [max]
       (or from the [t]'s head if the list of heads is empty) and
@@ -1672,14 +1672,14 @@ module Private: sig
       type t
       (** The type for store handles. *)
 
-      type head
+      type commit_id
       (** The type for store heads. *)
 
       type branch_id
       (** The type for branch IDs. *)
 
       val fetch: t -> ?depth:int -> uri:string -> branch_id ->
-        [`Head of head | `No_head | `Error] Lwt.t
+        [`Head of commit_id | `No_head | `Error] Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
           located at [uri] into the local store [t]. Return the head
           of the remote branch with the same name, which is now in the
@@ -1694,7 +1694,7 @@ module Private: sig
     (** [None] is an implementation of {{!Private.Sync.S}S} which does
         nothing. *)
     module None (H: Tc.S0) (R: Tc.S0): sig
-      include S with type head = H.t and type branch_id = R.t
+      include S with type commit_id = H.t and type branch_id = R.t
 
       val create: 'a -> t Lwt.t
       (** Create a remote store handle. *)
@@ -1738,7 +1738,7 @@ module Private: sig
 
     (** URI-based low-level sync. *)
     module Sync: sig
-      include Sync.S with type head = Commit.key and type branch_id = Ref.key
+      include Sync.S with type commit_id = Commit.key and type branch_id = Ref.key
       val create: Repo.t -> t Lwt.t
     end
 
@@ -1763,22 +1763,22 @@ module type S = sig
   module Ref: Ref.S with type t = branch_id
   (** [Ref] provides base functions on user-defined references. *)
 
-  module Head: Hash.S with type t = head
-  (** [Head] provides base functions on head values. *)
+  module Hash: Hash.S with type t = commit_id
+  (** [Hash] provides base functions on commit IDs. *)
 
   (** Private functions, which might be used by the backends. *)
   module Private: sig
     include Private.S
       with type Contents.value = value
        and module Contents.Path = Key
-       and type Commit.key = head
+       and type Commit.key = commit_id
        and type Ref.key = branch_id
        and type Slice.t = slice
        and type Repo.t = Repo.t
     val read_node: t -> key -> Node.key option Lwt.t
     val mem_node: t -> key -> bool Lwt.t
     val update_node: t -> key -> Node.key -> unit Lwt.t
-    val merge_node: t -> key -> (head * Node.key) -> unit Merge.result Lwt.t
+    val merge_node: t -> key -> (commit_id * Node.key) -> unit Merge.result Lwt.t
     val remove_node: t -> key -> unit Lwt.t
     val iter_node: t -> Node.key ->
       (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
@@ -1796,7 +1796,7 @@ module type S_MAKER =
     S with type key = C.Path.t
        and type value = C.t
        and type branch_id = R.t
-       and type head = H.t
+       and type commit_id = H.t
 
 (** {1:basics Basic API} *)
 
@@ -1812,7 +1812,7 @@ module type S_MAKER =
 *)
 
 
-module type BASIC = S with type branch_id = string and type head = Hash.SHA1.t
+module type BASIC = S with type branch_id = string and type commit_id = Hash.SHA1.t
 (** The signature of basic stores.
  
     Branch names (refs) are strings and the hash is SHA1.
@@ -2000,16 +2000,16 @@ module type SYNC = sig
   type db
   (** Type type for store handles. *)
 
-  type head
+  type commit_id
   (** The type for store heads. *)
 
-  val fetch: db -> ?depth:int -> remote -> [`Head of head | `No_head | `Error] Lwt.t
+  val fetch: db -> ?depth:int -> remote -> [`Head of commit_id | `No_head | `Error] Lwt.t
   (** [fetch t ?depth r] populate the local store [t] with objects for
       the remote store [r], using [t]'s current branch. The [depth]
       parameter limits the history depth. Return [None] if either the
       local or remote store do not have a valid head. *)
 
-  val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
+  val fetch_exn: db -> ?depth:int -> remote -> commit_id Lwt.t
   (** Same as {!fetch} but raise [Invalid_argument] if either the
       local or remote store do not have a valid head. *)
 
@@ -2043,7 +2043,7 @@ module type SYNC = sig
 end
 
 (** The default [Sync] implementation. *)
-module Sync (S: S): SYNC with type db = S.t and type head = S.head
+module Sync (S: S): SYNC with type db = S.t and type commit_id = S.commit_id
 
 (** [View] provides an in-memory partial mirror of the store, with
     lazy reads and delayed writes.
@@ -2169,21 +2169,21 @@ module type VIEW = sig
 
   (** {2 Heads} *)
 
-  type head
+  type commit_id
   (** The type for commit heads. *)
 
-  val parents: t -> head list
+  val parents: t -> commit_id list
   (** [parents t] are [t]'s parent commits. *)
 
-  val make_head: db -> task -> parents:head list -> contents:t -> head Lwt.t
+  val make_head: db -> task -> parents:commit_id list -> contents:t -> commit_id Lwt.t
   (** [make_head t task ~parents ~contents] creates a new commit into
       the store where the branch [t] is stored and return its id (of
-      type {!head}). The new commit has [task] as task and the given
+      type {!commit_id}). The new commit has [task] as task and the given
       [parents] and [contents]. The actual parents of [contents] are
       not used. *)
 
-  val watch_path: db -> key -> ?init:(head * t) ->
-    ((head * t) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+  val watch_path: db -> key -> ?init:(commit_id * t) ->
+    ((commit_id * t) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   (** [watch_head t p f] calls [f] every time a subpath of [p] is
       updated in the branch [t]. The callback parameters contain the
       branch's current head and the corresponding view. *)
@@ -2192,7 +2192,7 @@ end
 module View (S: S): VIEW with type db = S.t
                           and type key = S.Key.t
                           and type value = S.Val.t
-                          and type head = S.head
+                          and type commit_id = S.commit_id
 (** Create views. *)
 
 val with_hrw_view :
@@ -2308,6 +2308,6 @@ module Make_ext (P: Private.S): S
   with type key = P.Contents.Path.t
    and type value = P.Contents.value
    and type branch_id = P.Ref.key
-   and type head = P.Ref.value
+   and type commit_id = P.Ref.value
    and type Key.step = P.Contents.Path.step
    and type Repo.t = P.Repo.t

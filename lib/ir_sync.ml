@@ -18,7 +18,7 @@ open Lwt
 
 module None (H: Tc.S0) (R: Tc.S0) = struct
   type t = unit
-  type head = H.t
+  type commit_id = H.t
   type branch_id = R.t
   let create _ = return_unit
   let fetch () ?depth:_ ~uri:_ _tag = return `Error
