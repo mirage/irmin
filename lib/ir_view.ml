@@ -442,7 +442,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   module Contents = struct
 
-    type key = S.t * S.Private.Contents.key
+    type key = S.Repo.t * S.Private.Contents.key
 
     type contents_or_key =
       | Key of key
@@ -470,7 +470,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | Both (_, c)
       | Contents c -> Lwt.return (Some c)
       | Key (db, k as key) ->
-        P.Contents.read (P.Repo.contents_t (S.repo db)) k >>= function
+        P.Contents.read (P.Repo.contents_t db) k >>= function
         | None   -> Lwt.return_none
         | Some c ->
           t := Both (key, c);
@@ -498,7 +498,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
     type contents = S.value
     type commit_id = S.commit_id
-    type key = S.t * P.Node.key
+    type key = S.Repo.t * P.Node.key
 
     (* XXX: fix code duplication with Ir_node.Graph (using
        functors?) *)
@@ -593,7 +593,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | Both (_, n)
       | Node n   -> Lwt.return (Some n)
       | Key (db, k) ->
-        P.Node.read (P.Repo.node_t (S.repo db)) k >>= function
+        P.Node.read (P.Repo.node_t db) k >>= function
         | None   -> Lwt.return_none
         | Some n ->
           let n = import db n in
@@ -709,19 +709,19 @@ module Make (S: Ir_s.STORE_EXT) = struct
     { parents; view; ops; lock }
 
   let import db ~parents key =
+    let repo = S.repo db in
     Log.debug "import %a" force (show (module P.Node.Key) key);
-    begin P.Node.read (P.Repo.node_t (S.repo db)) key >|= function
+    begin P.Node.read (P.Repo.node_t repo) key >|= function
     | None   -> `Empty
-    | Some n -> `Node (Node.both db key (Node.import db n))
+    | Some n -> `Node (Node.both repo key (Node.import repo n))
     end >>= fun view ->
     let ops = ref [] in
     let parents = ref parents in
     let lock = Lwt_mutex.create () in
     Lwt.return { parents; view; ops; lock }
 
-  let export db t =
+  let export repo t =
     Log.debug "export";
-    let repo = S.repo db in
     let node n = P.Node.add (P.Repo.node_t repo) (Node.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
@@ -732,7 +732,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
         (* 1. we push the current node job on the stack. *)
         Stack.push (fun () ->
             node x >>= fun k ->
-            n := Node.Key (db, k);
+            n := Node.Key (repo, k);
             Lwt.return_unit
           ) todo;
         (* 2. we push the contents job on the stack. *)
@@ -746,7 +746,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
               | Contents.Contents x  ->
                 Stack.push (fun () ->
                     P.Contents.add (P.Repo.contents_t repo) x >>= fun k ->
-                    c := Contents.Key (db, k);
+                    c := Contents.Key (repo, k);
                     Lwt.return_unit
                   ) todo
           ) x.Node.alist;
@@ -786,8 +786,9 @@ module Make (S: Ir_s.STORE_EXT) = struct
     | Some n -> import db ~parents n
 
   let update_path db path view =
+    let repo = S.repo db in
     Log.debug "update_path %a" force (show (module Path) path);
-    export db view >>= function
+    export repo view >>= function
     | `Empty      -> P.remove_node db path
     | `Contents c -> S.update db path c
     | `Node node  -> P.update_node db path node
@@ -848,7 +849,8 @@ module Make (S: Ir_s.STORE_EXT) = struct
       (* FIXME: race to update the store's head *)
       update_path db0 path view >>= fun () -> ok true
     | Some head ->
-      S.of_commit_id (fun () -> S.task db0) head (S.repo db0) >>= fun db ->
+      let repo = S.repo db0 in
+      S.of_commit_id (fun () -> S.task db0) head repo >>= fun db ->
       let db = db () in
       P.read_node db Path.empty >>= function
       | None           -> update_path db path view >>= fun () -> ok true
@@ -862,7 +864,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
            on a branch, and we merge the branch back into the
            store. *)
         let merge () =
-          export db view >>= function
+          export repo view >>= function
           | `Node node -> merge_node db ?max_depth ?n path view head_node node
           | _ -> assert false
         in
@@ -900,7 +902,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       S.Private.Node.add (S.Private.Repo.node_t repo) (S.Private.Node.Val.empty)
     in
     let node =
-      export db contents >>= function
+      export repo contents >>= function
       | `Contents _ -> err_value_at_root ()
       | `Empty      -> empty ()
       | `Node n     -> Lwt.return n
