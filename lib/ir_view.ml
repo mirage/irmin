@@ -432,7 +432,6 @@ end
 
 module Make (S: Ir_s.STORE_EXT) = struct
 
-  module B = Ir_bc.Make(S.Private)
   module P = S.Private
 
   module Graph = Ir_node.Graph(P.Contents)(P.Node)
@@ -443,12 +442,12 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   module Contents = struct
 
-    type key = S.t * B.Private.Contents.key
+    type key = S.t * S.Private.Contents.key
 
     type contents_or_key =
       | Key of key
-      | Contents of B.value
-      | Both of key * B.value
+      | Contents of S.value
+      | Both of key * S.value
 
     type t = contents_or_key ref
     (* Same as [Contents.t] but can either be a raw contents or a key
