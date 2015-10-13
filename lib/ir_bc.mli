@@ -21,7 +21,7 @@ module Make (P: Ir_s.PRIVATE): Ir_s.STORE_EXT
   with type key = P.Contents.Path.t
    and type value = P.Contents.value
    and type branch_id = P.Ref.key
-   and type head = P.Commit.key
+   and type commit_id = P.Commit.key
    and type slice = P.Slice.t
    and module Key = P.Contents.Path
    and module Private.Contents = P.Contents

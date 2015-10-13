@@ -57,14 +57,14 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
     S.head t.t >>= function
     | None   -> Lwt.return "empty HEAD"
     | Some h ->
-      S.Repo.task_of_head (S.repo t.t) h >|= fun task ->
+      S.Repo.task_of_commit_id (S.repo t.t) h >|= fun task ->
       Printf.sprintf
         "commit: %s\n\
          Author: %s\n\
          Date: %Ld\n\
          \n\
          %s\n"
-        (S.Head.to_hum h)
+        (S.Hash.to_hum h)
         (Irmin.Task.owner task)
         (Irmin.Task.date task)
         (String.concat "\n" @@ Irmin.Task.messages task)

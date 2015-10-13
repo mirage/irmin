@@ -73,6 +73,13 @@
   `Repo.config` to be removed and allowing sharing of the back-end's
   internal state with the sync code. For example, the Git back-end
   no longer needs to create a new Git store object for sync.
+* Change `type head` to `type commit_id`. `head` was confusing because
+  it applied to all commits, not just branch heads. Putting `id` in the
+  name makes it clear that this is just data and (for example) holding
+  an ID will not prevent the corresponding commit from being GC'd (once
+  we have GC). `of_head` is now `of_commit_id`, `task_of_head` is now
+  `task_of_commit_id`, `Internals.commit_of_head` is now
+  `Internals.commit_of_id` and `BC.Head` is now `BC.Hash`.
 
 
 ### 0.9.10

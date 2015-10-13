@@ -27,10 +27,10 @@ let remote_uri s = URI s
 
 module type STORE = sig
   type db
-  type head
+  type commit_id
   val fetch: db -> ?depth:int -> remote ->
-    [`Head of head | `No_head | `Error] Lwt.t
-  val fetch_exn: db -> ?depth:int -> remote -> head Lwt.t
+    [`Head of commit_id | `No_head | `Error] Lwt.t
+  val fetch_exn: db -> ?depth:int -> remote -> commit_id Lwt.t
   val pull: db -> ?depth:int -> remote -> [`Merge|`Update] ->
     [`Ok | `No_head | `Error] Ir_merge.result Lwt.t
   val pull_exn: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Lwt.t
@@ -42,7 +42,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   module B = S.Private.Sync
   type db = S.t
-  type head = S.head
+  type commit_id = S.commit_id
 
   let conv (type x) (type y)
       (module X: Tc.S0 with type t = x) (module Y: Tc.S0 with type t = y)
@@ -86,7 +86,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       Log.debug "fetch store";
       let s_repo = S.repo t in
       S.Repo.heads s_repo >>= fun min ->
-      let min = List.map (conv (module S.Head) (module R.Head) ) min in
+      let min = List.map (conv (module S.Hash) (module R.Hash) ) min in
       R.head r >>= function
       | None   -> Lwt.return `No_head
       | Some h ->
@@ -95,7 +95,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
          S.Repo.import s_repo s_slice >>= function
          | `Error -> Lwt.return `Error
          | `Ok    ->
-           let h = conv (module R.Head) (module S.Head) h in
+           let h = conv (module R.Hash) (module S.Hash) h in
            return (`Head h)
 
   let fetch_exn t ?depth remote =
@@ -136,14 +136,14 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | Some h ->
         Log.debug "push store";
         R.Repo.heads (R.repo r) >>= fun min ->
-        let min = List.map (conv (module R.Head) (module S.Head)) min in
+        let min = List.map (conv (module R.Hash) (module S.Hash)) min in
         S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
         >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
         | `Error -> Log.debug "ERROR!"; Lwt.return `Error
         | `Ok    ->
           Log.debug "OK!";
-          let h = conv (module S.Head) (module R.Head) h in
+          let h = conv (module S.Hash) (module R.Hash) h in
           R.update_head r h >>= fun () ->
           Lwt.return `Ok
 
