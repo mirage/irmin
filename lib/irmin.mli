@@ -2207,9 +2207,9 @@ module Dot (S: S): sig
 
 end
 
-(** {1:backend Backends} *)
+(** {1:backend Backends}
 
-(** API to create new Irmin backends. A backend is an implementation
+    API to create new Irmin backends. A backend is an implementation
     exposing either a concrete implementation of {!S} or a functor
     providing {!S} once applied.
 
