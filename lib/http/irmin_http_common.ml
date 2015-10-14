@@ -181,22 +181,24 @@ module Request = struct
   let write task body = Tc.write_string (module T) (task, body)
   let read buf = Tc.read_string (module T) buf
 
-  let to_string ct (task, body) = match ct, body with
+  let to_string ct (task, body) =
+    let with_task arr = match task with
+      | None   -> `O arr
+      | Some t -> `O (("task", Irmin.Task.to_json t) :: arr)
+    in
+    match ct, body with
     | _   , Some (Raw r)  -> write task (Some r)
     | `Raw, None          -> write task None
-    | _   , Some (Json j) ->
-      let task = TaskOpt.to_json task in
-      let json = `O [ ("task", task); ("params", j) ] in
-      Ezjsonm.to_string json
-    | `Json, None ->
-      let task = TaskOpt.to_json task in
-      let json = `O [ ("task", task) ] in
-      Ezjsonm.to_string json
+    | _   , Some (Json j) -> Ezjsonm.to_string (with_task ["params", j])
+    | `Json, None         -> Ezjsonm.to_string (with_task [])
 
   let contents_of_json body =
     try match Ezjsonm.from_string body with
       | `O l ->
-        let task = TaskOpt.of_json (List.assoc "task" l) in
+        let task =
+          try Some (Irmin.Task.of_json (List.assoc "task" l))
+          with Not_found -> None
+        in
         let params =
           try Some (Json (List.assoc "params" l)) with Not_found -> None
         in
