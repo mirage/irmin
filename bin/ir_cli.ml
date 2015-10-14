@@ -127,7 +127,9 @@ let init = {
       let doc =
         Arg.info ~docv:"URI" ["a";"address"]
           ~doc:"Start the Irmin server on the given socket address \
-                (to use with --daemon)." in
+                (to use with --daemon). Examples include \
+                http://localhost:8080 and \
+                launchd://Listener." in
       Arg.(value & opt string "http://localhost:8080" & doc)
     in
     let init (S ((module S), store)) daemon uri =
@@ -136,16 +138,24 @@ let init = {
         let module HTTP = Irmin_http_server.Make(S) in
         if daemon then
           let uri = Uri.of_string uri in
-          let uri = match Uri.host uri with
-            | None   -> Uri.with_host uri (Some "localhost")
-            | Some _ -> uri in
-          let port, uri = match Uri.port uri with
-            | None   -> 8080, Uri.with_port uri (Some 8080)
-            | Some p -> p, uri in
-          Log.info "daemon: %s" (Uri.to_string uri);
           let spec = HTTP.http_spec (t "Initialising the HTTP server.") in
-          Printf.printf "Server starting on port %d.\n%!" port;
-          Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`TCP (`Port port)) spec
+          match Uri.scheme uri with
+          | Some "launchd" ->
+            let uri, name = match Uri.host uri with
+              | None   -> Uri.with_host uri (Some "Listener"), "Listener"
+              | Some name -> uri, name in
+              Log.info "daemon: %s" (Uri.to_string uri);
+              Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`Launchd name) spec
+          | _ ->
+            let uri = match Uri.host uri with
+              | None   -> Uri.with_host uri (Some "localhost")
+              | Some _ -> uri in
+            let port, uri = match Uri.port uri with
+              | None   -> 8080, Uri.with_port uri (Some 8080)
+              | Some p -> p, uri in
+            Log.info "daemon: %s" (Uri.to_string uri);
+            Printf.printf "Server starting on port %d.\n%!" port;
+            Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`TCP (`Port port)) spec
 
         else return_unit
       end
