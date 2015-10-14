@@ -171,8 +171,6 @@ let remote_store (type t) (module M: S with type t = t) (t:t) =
 
 let remote_uri = Ir_sync_ext.remote_uri
 
-module type BASIC = S with type branch_id = string and type commit_id = Hash.SHA1.t
-
 module type T = S with type branch_id = string and type commit_id = Hash.SHA1.t
 
 let with_hrw_view (type store) (type path) (type view)

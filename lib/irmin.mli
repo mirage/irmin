@@ -1798,29 +1798,6 @@ module type S_MAKER =
        and type branch_id = R.t
        and type commit_id = H.t
 
-(** {1:basics Basic API} *)
-
-(** The basic API considers default Irmin implementations using:
-
-    {ul
-    {- {{!Path.String_list}list of strings} as keys.}
-    {- {{!Ref.String}strings} as branch IDs.}
-    {- {{!Hash.SHA1}SHA1} as internal digests.}
-    }
-
-    Only the {{!Contents.S}contents} is provided by the user.
-*)
-
-
-module type BASIC = S with type branch_id = string and type commit_id = Hash.SHA1.t
-(** The signature of basic stores.
- 
-    Branch names (refs) are strings and the hash is SHA1.
-    To generate a basic store from a backend, use e.g.
-
-    [module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)]
-*)
-
 (** {2 Synchronization} *)
 
 type remote
@@ -2230,9 +2207,9 @@ module Dot (S: S): sig
 
 end
 
-(** {1:backend Backends} *)
+(** {1:backend Backends}
 
-(** API to create new Irmin backends. A backend is an implementation
+    API to create new Irmin backends. A backend is an implementation
     exposing either a concrete implementation of {!S} or a functor
     providing {!S} once applied.
 
