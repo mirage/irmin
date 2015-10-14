@@ -152,8 +152,8 @@ Hashing functions.
 <code class="code"><span class="constructor">Contents</span></code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Tag.html">Tag</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Tag.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
-User-defined tags.
+<pre><span class="keyword">module</span> <a href="Irmin.Ref.html">Ref</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Ref.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+User-defined references.
 </div>
 <br>
 <h1 id="1_HighlevelStores">High-level Stores</h1>
@@ -192,10 +192,10 @@ User-defined tags.
 Signature for Irmin stores.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.S_MAKER.html">S_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">T</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type key = C.Path.t
+<pre><span class="keyword">module type</span> <a href="Irmin.S_MAKER.html">S_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">R</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Ref.S.html">Ref.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type key = C.Path.t
        and type value = C.t
-       and type tag = T.t
-       and type head = H.t</code></pre><div class="info">
+       and type branch_id = R.t
+       and type commit_id = H.t</code></pre><div class="info">
 <code class="code"><span class="constructor">S_MAKER</span></code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span></code></a>
     implementations.
 </div>
@@ -209,7 +209,7 @@ The basic API considers default Irmin implementations using:
 
     <ul>
 <li><a href="Irmin.Path.String_list.html">list of strings</a> as keys.</li>
-<li><a href="Irmin.Tag.String.html">strings</a> as tags.</li>
+<li><a href="Irmin.Ref.String.html">strings</a> as branch IDs.</li>
 <li><a href="Irmin.Hash.SHA1.html">SHA1</a> as internal digests.</li>
 </ul>
 
@@ -217,13 +217,8 @@ The basic API considers default Irmin implementations using:
 
     Only the <a href="Irmin.Contents.S.html">contents</a> is provided by the user.<br>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.BASIC.html">BASIC</a> = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type tag = string and type head = Hash.SHA1.t</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.BASIC.html">BASIC</a> = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type branch_id = string and type commit_id = Hash.SHA1.t</code></pre><div class="info">
 The signature of basic stores.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Basic.html">Basic</a> <code class="code">(</code><code class="code"><span class="constructor">B</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.BASIC.html">BASIC</a></code><code class="type">  with type key = C.Path.t and type value = C.t</code></pre><div class="info">
-Generate a basic store using <code class="code"><span class="constructor">B</span></code> as backend and <code class="code"><span class="constructor">C</span></code> as
-    user-provided contents.
 </div>
 <br>
 <h2 id="2_Synchronization">Synchronization</h2><br>
@@ -260,7 +255,8 @@ The type for remote stores.<br>
 <pre class="codepre"><code class="code"><span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span><br>
 <span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
 <br>
-<span class="keyword">let</span>&nbsp;store&nbsp;=&nbsp;<span class="constructor">Irmin</span>.basic&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>)&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)<br>
+<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)<br>
+<span class="keyword">module</span>&nbsp;<span class="constructor">Sync</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Sync</span>(<span class="constructor">S</span>)<br>
 <span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/test"</span>&nbsp;()<br>
 <br>
 <span class="keyword">let</span>&nbsp;upstream&nbsp;=<br>
@@ -268,9 +264,9 @@ The type for remote stores.<br>
 &nbsp;&nbsp;<span class="keyword">else</span>&nbsp;(<span class="constructor">Printf</span>.eprintf&nbsp;<span class="string">"Usage:&nbsp;sync&nbsp;[uri]\n%!"</span>;&nbsp;exit&nbsp;1)<br>
 <br>
 <span class="keyword">let</span>&nbsp;test&nbsp;()&nbsp;=<br>
-&nbsp;&nbsp;<span class="constructor">Irmin</span>.create&nbsp;store&nbsp;config&nbsp;task<br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.pull_exn&nbsp;(t&nbsp;<span class="string">"Syncing&nbsp;with&nbsp;upstream&nbsp;store"</span>)&nbsp;upstream&nbsp;<span class="keywordsign">`</span><span class="constructor">Update</span><br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.read_exn&nbsp;(t&nbsp;<span class="string">"get&nbsp;the&nbsp;README"</span>)&nbsp;[<span class="string">"README.md"</span>]<br>
+&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task<br>
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sync</span>.pull_exn&nbsp;(t&nbsp;<span class="string">"Syncing&nbsp;with&nbsp;upstream&nbsp;store"</span>)&nbsp;upstream&nbsp;<span class="keywordsign">`</span><span class="constructor">Update</span><br>
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">S</span>.read_exn&nbsp;(t&nbsp;<span class="string">"get&nbsp;the&nbsp;README"</span>)&nbsp;[<span class="string">"README.md"</span>]<br>
 &nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;r&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"%s\n%!"</span>&nbsp;r;&nbsp;return_unit<br>
 <br>
 <span class="keyword">let</span>&nbsp;()&nbsp;=<br>
@@ -352,7 +348,7 @@ The type for remote stores.<br>
 &nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
 <br>
 &nbsp;&nbsp;<span class="comment">(*&nbsp;Build&nbsp;an&nbsp;Irmin&nbsp;store&nbsp;containing&nbsp;log&nbsp;files.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;store&nbsp;=&nbsp;<span class="constructor">Irmin</span>.basic&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>)&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">Log</span>)<br>
+&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Log</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)<br>
 <br>
 &nbsp;&nbsp;<span class="comment">(*&nbsp;Set-up&nbsp;the&nbsp;local&nbsp;configuration&nbsp;of&nbsp;the&nbsp;Git&nbsp;repository.&nbsp;*)</span><br>
 &nbsp;&nbsp;<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/irmin/test"</span>&nbsp;~bare:<span class="keyword">true</span>&nbsp;()<br>
@@ -369,7 +365,7 @@ The type for remote stores.<br>
 <br>
 &nbsp;&nbsp;<span class="comment">(*&nbsp;Read&nbsp;the&nbsp;entire&nbsp;log&nbsp;file.&nbsp;*)</span><br>
 &nbsp;&nbsp;<span class="keyword">let</span>&nbsp;read_file&nbsp;t&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.read&nbsp;(t&nbsp;<span class="string">"Reading&nbsp;the&nbsp;log&nbsp;file"</span>)&nbsp;file&nbsp;&gt;&gt;=&nbsp;<span class="keyword">function</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.read&nbsp;(t&nbsp;<span class="string">"Reading&nbsp;the&nbsp;log&nbsp;file"</span>)&nbsp;file&nbsp;&gt;&gt;=&nbsp;<span class="keyword">function</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_nil<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;l&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return&nbsp;l<br>
 <br>
@@ -378,12 +374,12 @@ The type for remote stores.<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.ksprintf&nbsp;(<span class="keyword">fun</span>&nbsp;message&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;read_file&nbsp;t&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;logs&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;logs&nbsp;=&nbsp;<span class="constructor">Entry</span>.create&nbsp;message&nbsp;::&nbsp;logs&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.update&nbsp;(t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;entry"</span>)&nbsp;file&nbsp;logs<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.update&nbsp;(t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;entry"</span>)&nbsp;file&nbsp;logs<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;fmt<br>
 <br>
 &nbsp;&nbsp;<span class="keyword">let</span>&nbsp;()&nbsp;=<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Lwt_unix</span>.run&nbsp;<span class="keyword">begin</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.create&nbsp;store&nbsp;config&nbsp;task<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;log&nbsp;entry"</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.clone_force&nbsp;task&nbsp;(t&nbsp;<span class="string">"Cloning&nbsp;the&nbsp;store"</span>)&nbsp;<span class="string">"x"</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;x&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;new&nbsp;stuff&nbsp;to&nbsp;x"</span><br>
@@ -416,7 +412,8 @@ The type for remote stores.<br>
 <pre class="codepre"><code class="code"><span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span><br>
 <span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
 <br>
-<span class="keyword">let</span>&nbsp;store&nbsp;=&nbsp;<span class="constructor">Irmin</span>.basic&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>)&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)<br>
+<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)<br>
+<span class="keyword">module</span>&nbsp;<span class="constructor">Sync</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Sync</span>(<span class="constructor">S</span>)<br>
 <span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/test"</span>&nbsp;()<br>
 <br>
 <span class="keyword">let</span>&nbsp;upstream&nbsp;=<br>
@@ -424,9 +421,9 @@ The type for remote stores.<br>
 &nbsp;&nbsp;<span class="keyword">else</span>&nbsp;(<span class="constructor">Printf</span>.eprintf&nbsp;<span class="string">"Usage:&nbsp;sync&nbsp;[uri]\n%!"</span>;&nbsp;exit&nbsp;1)<br>
 <br>
 <span class="keyword">let</span>&nbsp;test&nbsp;()&nbsp;=<br>
-&nbsp;&nbsp;<span class="constructor">Irmin</span>.create&nbsp;store&nbsp;config&nbsp;task<br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.pull_exn&nbsp;(t&nbsp;<span class="string">"Syncing&nbsp;with&nbsp;upstream&nbsp;store"</span>)&nbsp;upstream&nbsp;<span class="keywordsign">`</span><span class="constructor">Update</span><br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.read_exn&nbsp;(t&nbsp;<span class="string">"get&nbsp;the&nbsp;README"</span>)&nbsp;[<span class="string">"README.md"</span>]<br>
+&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task<br>
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sync</span>.pull_exn&nbsp;(t&nbsp;<span class="string">"Syncing&nbsp;with&nbsp;upstream&nbsp;store"</span>)&nbsp;upstream&nbsp;<span class="keywordsign">`</span><span class="constructor">Update</span><br>
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">S</span>.read_exn&nbsp;(t&nbsp;<span class="string">"get&nbsp;the&nbsp;README"</span>)&nbsp;[<span class="string">"README.md"</span>]<br>
 &nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;r&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"%s\n%!"</span>&nbsp;r;&nbsp;return_unit<br>
 <br>
 <span class="keyword">let</span>&nbsp;()&nbsp;=<br>
@@ -508,7 +505,7 @@ The type for remote stores.<br>
 &nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
 <br>
 &nbsp;&nbsp;<span class="comment">(*&nbsp;Build&nbsp;an&nbsp;Irmin&nbsp;store&nbsp;containing&nbsp;log&nbsp;files.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;store&nbsp;=&nbsp;<span class="constructor">Irmin</span>.basic&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>)&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">Log</span>)<br>
+&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Log</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)<br>
 <br>
 &nbsp;&nbsp;<span class="comment">(*&nbsp;Set-up&nbsp;the&nbsp;local&nbsp;configuration&nbsp;of&nbsp;the&nbsp;Git&nbsp;repository.&nbsp;*)</span><br>
 &nbsp;&nbsp;<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/irmin/test"</span>&nbsp;~bare:<span class="keyword">true</span>&nbsp;()<br>
@@ -525,7 +522,7 @@ The type for remote stores.<br>
 <br>
 &nbsp;&nbsp;<span class="comment">(*&nbsp;Read&nbsp;the&nbsp;entire&nbsp;log&nbsp;file.&nbsp;*)</span><br>
 &nbsp;&nbsp;<span class="keyword">let</span>&nbsp;read_file&nbsp;t&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.read&nbsp;(t&nbsp;<span class="string">"Reading&nbsp;the&nbsp;log&nbsp;file"</span>)&nbsp;file&nbsp;&gt;&gt;=&nbsp;<span class="keyword">function</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.read&nbsp;(t&nbsp;<span class="string">"Reading&nbsp;the&nbsp;log&nbsp;file"</span>)&nbsp;file&nbsp;&gt;&gt;=&nbsp;<span class="keyword">function</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_nil<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;l&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return&nbsp;l<br>
 <br>
@@ -534,12 +531,12 @@ The type for remote stores.<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.ksprintf&nbsp;(<span class="keyword">fun</span>&nbsp;message&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;read_file&nbsp;t&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;logs&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;logs&nbsp;=&nbsp;<span class="constructor">Entry</span>.create&nbsp;message&nbsp;::&nbsp;logs&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.update&nbsp;(t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;entry"</span>)&nbsp;file&nbsp;logs<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.update&nbsp;(t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;entry"</span>)&nbsp;file&nbsp;logs<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;fmt<br>
 <br>
 &nbsp;&nbsp;<span class="keyword">let</span>&nbsp;()&nbsp;=<br>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Lwt_unix</span>.run&nbsp;<span class="keyword">begin</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Irmin</span>.create&nbsp;store&nbsp;config&nbsp;task<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;log&nbsp;entry"</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.clone_force&nbsp;task&nbsp;(t&nbsp;<span class="string">"Cloning&nbsp;the&nbsp;store"</span>)&nbsp;<span class="string">"x"</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;x&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;new&nbsp;stuff&nbsp;to&nbsp;x"</span><br>
@@ -567,7 +564,7 @@ The type for remote stores.<br>
     local and remote Irmin stores.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Sync.html">Sync</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.SYNC.html">SYNC</a></code><code class="type">  with type db = S.t and type head = S.head</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Sync.html">Sync</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.SYNC.html">SYNC</a></code><code class="type">  with type db = S.t and type commit_id = S.commit_id</code></pre><div class="info">
 The default <code class="code"><span class="constructor">Sync</span></code> implementation.
 </div>
 
@@ -579,7 +576,7 @@ The default <code class="code"><span class="constructor">Sync</span></code> impl
 <pre><span class="keyword">module</span> <a href="Irmin.View.html">View</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.VIEW.html">VIEW</a></code><code class="type">  with type db = S.t
                           and type key = S.Key.t
                           and type value = S.Val.t
-                          and type head = S.head</code></pre><div class="info">
+                          and type commit_id = S.commit_id</code></pre><div class="info">
 Create views.
 </div>
 
@@ -622,7 +619,7 @@ API to create new Irmin backends. A backend is an implementation
 </ul>
 <br>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER.html">AO_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="type"><a href="Irmin.AO.html">AO</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER.html">AO_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.AO_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 <code class="code"><span class="constructor">AO_MAKER</span></code> is the signature exposed by append-only store
     backends.
 </div>
@@ -636,12 +633,12 @@ API to create new Irmin backends. A backend is an implementation
      append-only stores with access to raw values.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.LINK_MAKER.html">LINK_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.LINK.html">LINK</a></code><code class="type">  with type key = K.t and type value = K.t</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.LINK_MAKER.html">LINK_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.LINK_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 <code class="code"><span class="constructor">LINK_MAKER</span></code> is the signature exposed by store which enable adding
     relation between keys.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="type"><a href="Irmin.RRW.html">RRW</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.RW_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 <code class="code"><span class="constructor">RW_MAKER</span></code> is the signature exposed by read-write store
     backends.
 </div>
@@ -653,9 +650,10 @@ Simple store creator.
 <pre><span class="keyword">module</span> <a href="Irmin.Make_ext.html">Make_ext</a> <code class="code">(</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.S.html">Private.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.S.html">S</a></code><code class="type"> 
   with type key = P.Contents.Path.t
    and type value = P.Contents.value
-   and type tag = P.Tag.key
-   and type head = P.Tag.value
-   and type Key.step = P.Contents.Path.step</code></pre><div class="info">
+   and type branch_id = P.Ref.key
+   and type commit_id = P.Ref.value
+   and type Key.step = P.Contents.Path.step
+   and type Repo.t = P.Repo.t</code></pre><div class="info">
 Advanced store creator.
 </div>
 </body></html>

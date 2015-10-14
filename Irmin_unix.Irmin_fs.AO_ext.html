@@ -14,8 +14,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Append-only stores" rel="Section" href="#1_Appendonlystores">
-<title>Irmin_unix.Irmin_fs.AO_ext</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_unix.Irmin_fs.AO_ext</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin_unix.Irmin_fs.Make.html" title="Irmin_unix.Irmin_fs.Make">Previous</a>
@@ -42,14 +41,13 @@ Append-only store maker, with control over the filenames shapes.<br>
 </tr>
 </table>
 <hr width="100%">
-<br>
-<h1 id="1_Appendonlystores">Append-only stores</h1><br>
 
-<pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
-<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type">t -> value -> key Lwt.t</code></pre><div class="info ">
-Write the contents of a value to the store. It's the
-      responsibility of the append-only store to generate a
-      consistent key.<br>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> t Lwt.t</code></pre><div class="info ">
+<code class="code">create config</code> is a function returning fresh store
+        handles, with the configuration <code class="code">config</code>, which is
+        provided by the backend. The operation might be blocking,
+        depending on the backend.<br>
 </div>
 </body></html>

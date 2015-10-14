@@ -14,8 +14,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Irmin Store" rel="Section" href="#1_IrminStore">
-<title>Irmin_unix.Irmin_git.Memory</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_unix.Irmin_git.Memory</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin_unix.Irmin_git.RW.html" title="Irmin_unix.Irmin_git.RW">Previous</a>
@@ -24,33 +23,8 @@
 </div>
 <h1>Module <a href="type_Irmin_unix.Irmin_git.Memory.html">Irmin_unix.Irmin_git.Memory</a></h1>
 
-<pre><span class="keyword">module</span> Memory: <code class="type"><a href="Irmin.S_MAKER.html">Irmin.S_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Memory: <code class="type">Irmin_git.S_MAKER</code><code class="type"> </code></pre><div class="info module top">
 Embed an Irmin store into an in-memory Git repository.<br>
 </div>
 <hr width="100%">
-<br>
-<h1 id="1_IrminStore">Irmin Store</h1><br>
-
-<pre><span class="keyword">include</span> <a href="Irmin.BC.html">Irmin.BC</a></pre>
-
-<pre><span class="keyword">module</span> <a href="Irmin.S.Key.html">Key</a>: <code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
-<code class="code"><span class="constructor">Key</span></code> provides base functions on paths.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.S.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre><div class="info">
-<code class="code"><span class="constructor">Val</span></code> provides base functions on user-defined, mergeable
-      contents.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code"><span class="constructor">Tag</span></code> provides base functions on user-defined tags.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code"><span class="constructor">Head</span></code> provides base functions on head values.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Private.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
-Private functions, which might be used by the backends.
-</div>
 </body></html>

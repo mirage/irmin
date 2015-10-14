@@ -62,12 +62,12 @@ Simple store creator. Use the same type of all of the internal
       contents.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code"><span class="constructor">Tag</span></code> provides base functions on user-defined tags.
+<pre><span class="keyword">module</span> <a href="Irmin.S.Ref.html">Ref</a>: <code class="type"><a href="Irmin.Ref.S.html">Irmin.Ref.S</a></code><code class="type">  with type t = branch_id</code></pre><div class="info">
+<code class="code"><span class="constructor">Ref</span></code> provides base functions on user-defined references.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code"><span class="constructor">Head</span></code> provides base functions on head values.
+<pre><span class="keyword">module</span> <a href="Irmin.S.Hash.html">Hash</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = commit_id</code></pre><div class="info">
+<code class="code"><span class="constructor">Hash</span></code> provides base functions on commit IDs.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Private.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">

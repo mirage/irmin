@@ -14,8 +14,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Immutable Link stores" rel="Section" href="#1_ImmutableLinkstores">
-<title>Irmin.LINK_MAKER</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.LINK_MAKER</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin.AO_MAKER_RAW.html" title="Irmin.AO_MAKER_RAW">Previous</a>
@@ -24,7 +23,7 @@
 </div>
 <h1>Module type <a href="type_Irmin.LINK_MAKER.html">Irmin.LINK_MAKER</a></h1>
 
-<pre><span class="keyword">module type</span> LINK_MAKER = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.LINK.html">LINK</a></code><code class="type">  with type key = K.t and type value = K.t</code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> LINK_MAKER = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.LINK_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
 <code class="code"><span class="constructor">LINK_MAKER</span></code> is the signature exposed by store which enable adding
     relation between keys. This is used to decouple the way keys are
     manipulated by the Irmin runtime and the keys used for
@@ -46,22 +45,7 @@
 </tr>
 </table>
 <hr width="100%">
-<br>
-<h1 id="1_ImmutableLinkstores">Immutable Link stores</h1>
-<p>
 
-      The link store contains <i>verified</i> links between low-level
-      keys. This is used to certify that a value can be accessed via
-      different keys: because they have been obtained using different
-      hash functions (SHA1 and SHA256 for instance) or because the
-      value might have different but equivalent concrete
-      representation (for instance a set might be represented as
-      various equivalent trees).<br>
+<pre><span class="keyword">include</span> <a href="Irmin.LINK.html">Irmin.LINK</a></pre>
 
-<pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
-
-<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">add t src dst</code> add a link between the key <code class="code">src</code> and the value
-      <code class="code">dst</code>.<br>
-</div>
-</body></html>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> t Lwt.t</code></pre></body></html>

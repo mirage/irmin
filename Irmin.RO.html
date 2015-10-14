@@ -47,22 +47,6 @@ Type for values.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> 'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> ('a -> <a href="Irmin.RO.html#TYPEt">t</a>) Lwt.t</code></pre><div class="info ">
-<code class="code">create config task</code> is a function returning fresh store
-      handles, with the configuration <code class="code">config</code> and fresh tasks
-      computed using <code class="code">task</code>. <code class="code">config</code> is provided by the backend and
-      <code class="code">task</code> is the provided by the user. The operation might be
-      blocking, depending on the backend.<br>
-</div>
-
-<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre><div class="info ">
-<code class="code">config t</code> is <code class="code">t</code>'s config.<br>
-</div>
-
-<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.html#TYPEtask">Irmin.task</a></code></pre><div class="info ">
-<code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.<br>
-</div>
-
 <pre><span id="VALread"><span class="keyword">val</span> read</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -> <a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEvalue">value</a> option Lwt.t</code></pre><div class="info ">
 Read a value from the store.<br>
 </div>

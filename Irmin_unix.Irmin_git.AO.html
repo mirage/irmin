@@ -22,7 +22,10 @@
 </div>
 <h1>Functor <a href="type_Irmin_unix.Irmin_git.AO.html">Irmin_unix.Irmin_git.AO</a></h1>
 
-<pre><span class="keyword">module</span> AO <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code>: <code class="type"><a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
+<pre><span class="keyword">module</span> AO <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.AO.html">Irmin.AO</a></code><code class="type"> 
+    with type t = G.t
+     and type key = K.t
+     and type value = V.t</code></pre><div class="info module top">
 Embed an append-only store into a Git repository. Contents will
       be written in <i>.git/objects/</i> and might be cleaned-up if you
       run <i>git gc</i> manually.<br>
@@ -37,6 +40,16 @@ Embed an append-only store into a Git repository. Contents will
 <code>G</code></td>
 <td align="center" valign="top">:</td>
 <td><code class="type">Git.Store.S</code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>K</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>V</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type">Tc.S0</code>
 </table>
 </td>
 </tr>

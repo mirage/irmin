@@ -24,8 +24,15 @@
 </div>
 <h1>Module type <a href="type_Irmin.BASIC.html">Irmin.BASIC</a></h1>
 
-<pre><span class="keyword">module type</span> BASIC = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type tag = string and type head = Hash.SHA1.t</code></pre><div class="info modtype top">
-The signature of basic stores.<br>
+<pre><span class="keyword">module type</span> BASIC = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type branch_id = string and type commit_id = Hash.SHA1.t</code></pre><div class="info modtype top">
+The signature of basic stores.
+<p>
+
+    Branch names (refs) are strings and the hash is SHA1.
+    To generate a basic store from a backend, use e.g.
+<p>
+
+    <code class="code"><span class="keyword">module</span> <span class="constructor">Store</span> = <span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)</code><br>
 </div>
 <hr width="100%">
 <br>
@@ -42,12 +49,12 @@ The signature of basic stores.<br>
       contents.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code"><span class="constructor">Tag</span></code> provides base functions on user-defined tags.
+<pre><span class="keyword">module</span> <a href="Irmin.S.Ref.html">Ref</a>: <code class="type"><a href="Irmin.Ref.S.html">Irmin.Ref.S</a></code><code class="type">  with type t = branch_id</code></pre><div class="info">
+<code class="code"><span class="constructor">Ref</span></code> provides base functions on user-defined references.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code"><span class="constructor">Head</span></code> provides base functions on head values.
+<pre><span class="keyword">module</span> <a href="Irmin.S.Hash.html">Hash</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = commit_id</code></pre><div class="info">
+<code class="code"><span class="constructor">Hash</span></code> provides base functions on commit IDs.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Private.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">

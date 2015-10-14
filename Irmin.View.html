@@ -140,31 +140,27 @@ Compute the diff between two views.<br>
 <br>
 <h2 id="2_Heads">Heads</h2><br>
 
-<pre><span id="TYPEhead"><span class="keyword">type</span> <code class="type"></code>head</span> </pre>
+<pre><span id="TYPEcommit_id"><span class="keyword">type</span> <code class="type"></code>commit_id</span> </pre>
 <div class="info ">
 The type for commit heads.<br>
 </div>
 
 
-<pre><span id="VALparents"><span class="keyword">val</span> parents</span> : <code class="type">t -> <a href="Irmin.VIEW.html#TYPEhead">head</a> list</code></pre><div class="info ">
+<pre><span id="VALparents"><span class="keyword">val</span> parents</span> : <code class="type">t -> <a href="Irmin.VIEW.html#TYPEcommit_id">commit_id</a> list</code></pre><div class="info ">
 <code class="code">parents t</code> are <code class="code">t</code>'s parent commits.<br>
 </div>
 
-<pre><span id="VALmake_head"><span class="keyword">val</span> make_head</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -><br>       <a href="Irmin.html#TYPEtask">Irmin.task</a> -><br>       parents:<a href="Irmin.VIEW.html#TYPEhead">head</a> list -> contents:t -> <a href="Irmin.VIEW.html#TYPEhead">head</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmake_head"><span class="keyword">val</span> make_head</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -><br>       <a href="Irmin.html#TYPEtask">Irmin.task</a> -><br>       parents:<a href="Irmin.VIEW.html#TYPEcommit_id">commit_id</a> list -> contents:t -> <a href="Irmin.VIEW.html#TYPEcommit_id">commit_id</a> Lwt.t</code></pre><div class="info ">
 <code class="code">make_head t task ~parents ~contents</code> creates a new commit into
       the store where the branch <code class="code">t</code> is stored and return its id (of
-      type <a href="Irmin.VIEW.html#TYPEhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.head</code></a>). The new commit has <code class="code">task</code> as task and the given
+      type <a href="Irmin.VIEW.html#TYPEcommit_id"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.commit_id</code></a>). The new commit has <code class="code">task</code> as task and the given
       <code class="code">parents</code> and <code class="code">contents</code>. The actual parents of <code class="code">contents</code> are
       not used.<br>
 </div>
 
-<pre><span id="VALwatch_path"><span class="keyword">val</span> watch_path</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -><br>       key -><br>       ?init:<a href="Irmin.VIEW.html#TYPEhead">head</a> * t -><br>       ((<a href="Irmin.VIEW.html#TYPEhead">head</a> * t) <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALwatch_path"><span class="keyword">val</span> watch_path</span> : <code class="type"><a href="Irmin.VIEW.html#TYPEdb">db</a> -><br>       key -><br>       ?init:<a href="Irmin.VIEW.html#TYPEcommit_id">commit_id</a> * t -><br>       ((<a href="Irmin.VIEW.html#TYPEcommit_id">commit_id</a> * t) <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
 <code class="code">watch_head t p f</code> calls <code class="code">f</code> every time a subpath of <code class="code">p</code> is
       updated in the branch <code class="code">t</code>. The callback parameters contain the
       branch's current head and the corresponding view.<br>
-</div>
-
-<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type">[ `Views_do_not_have_task ]</code></pre><div class="info ">
-Views do not have tasks.<br>
 </div>
 </body></html>

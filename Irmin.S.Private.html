@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin.S.Head.html">
+<link rel="previous" href="Irmin.S.Hash.html">
 <link rel="Up" href="Irmin.S.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -16,7 +16,7 @@
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.S.Private</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin.S.Head.html" title="Irmin.S.Head">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin.S.Hash.html" title="Irmin.S.Hash">Previous</a>
 &nbsp;<a class="up" href="Irmin.S.html" title="Irmin.S">Up</a>
 &nbsp;</div>
 <h1>Module <a href="type_Irmin.S.Private.html">Irmin.S.Private</a></h1>
@@ -28,14 +28,9 @@ Private functions, which might be used by the backends.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.Private.S.html">Irmin.Private.S</a></pre>
 
-<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">t -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre>
-<pre><span id="VALcontents_t"><span class="keyword">val</span> contents_t</span> : <code class="type">t -> Contents.t</code></pre>
-<pre><span id="VALnode_t"><span class="keyword">val</span> node_t</span> : <code class="type">t -> Node.t</code></pre>
-<pre><span id="VALcommit_t"><span class="keyword">val</span> commit_t</span> : <code class="type">t -> Commit.t</code></pre>
-<pre><span id="VALtag_t"><span class="keyword">val</span> tag_t</span> : <code class="type">t -> Irmin.S.Tag.t</code></pre>
 <pre><span id="VALread_node"><span class="keyword">val</span> read_node</span> : <code class="type">t -> key -> Node.key option Lwt.t</code></pre>
 <pre><span id="VALmem_node"><span class="keyword">val</span> mem_node</span> : <code class="type">t -> key -> bool Lwt.t</code></pre>
 <pre><span id="VALupdate_node"><span class="keyword">val</span> update_node</span> : <code class="type">t -> key -> Node.key -> unit Lwt.t</code></pre>
-<pre><span id="VALmerge_node"><span class="keyword">val</span> merge_node</span> : <code class="type">t -> key -> head * Node.key -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre>
+<pre><span id="VALmerge_node"><span class="keyword">val</span> merge_node</span> : <code class="type">t -> key -> commit_id * Node.key -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre>
 <pre><span id="VALremove_node"><span class="keyword">val</span> remove_node</span> : <code class="type">t -> key -> unit Lwt.t</code></pre>
 <pre><span id="VALiter_node"><span class="keyword">val</span> iter_node</span> : <code class="type">t -> Node.key -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t</code></pre></body></html>

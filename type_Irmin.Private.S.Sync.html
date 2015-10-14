@@ -14,12 +14,14 @@
 <body>
 <code class="code"><span class="keyword">sig</span><br>
 &nbsp;&nbsp;<span class="keyword">type</span>&nbsp;t<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;head&nbsp;=&nbsp;<span class="constructor">Commit</span>.key<br>
-&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;tag&nbsp;=&nbsp;<span class="constructor">Tag</span>.key<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:&nbsp;config&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;commit_id&nbsp;=&nbsp;<span class="constructor">Commit</span>.key<br>
+&nbsp;&nbsp;<span class="keyword">type</span>&nbsp;branch_id&nbsp;=&nbsp;<span class="constructor">Ref</span>.key<br>
 &nbsp;&nbsp;<span class="keyword">val</span>&nbsp;fetch&nbsp;:<br>
 &nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span><br>
 &nbsp;&nbsp;&nbsp;&nbsp;?depth:int&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;uri:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Head</span>&nbsp;<span class="keyword">of</span>&nbsp;head&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">No_head</span>&nbsp;]&nbsp;<span class="constructor">Lwt</span>.t<br>
-&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;push&nbsp;:&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?depth:int&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;uri:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;tag&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;]&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;uri:string&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;branch_id&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Head</span>&nbsp;<span class="keyword">of</span>&nbsp;commit_id&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">No_head</span>&nbsp;]&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;push&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;?depth:int&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;uri:string&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;branch_id&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;]&nbsp;<span class="constructor">Lwt</span>.t<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;create&nbsp;:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">S</span>.<span class="constructor">Repo</span>.t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;t&nbsp;<span class="constructor">Lwt</span>.t<br>
 <span class="keyword">end</span></code></body></html>

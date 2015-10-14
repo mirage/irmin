@@ -14,9 +14,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Reactive read-write stores" rel="Section" href="#1_Reactivereadwritestores">
-<link title="Reactive read-write stores" rel="Section" href="#1_Reactivereadwritestores">
-<title>Irmin_mem.RW</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_mem.RW</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin_mem.Link.html" title="Irmin_mem.Link">Previous</a>
@@ -29,37 +27,7 @@
 An in-memory read-write store.<br>
 </div>
 <hr width="100%">
-<br>
-<h1 id="1_Reactivereadwritestores">Reactive read-write stores</h1><br>
-<br>
-<h1 id="1_Reactivereadwritestores">Reactive read-write stores</h1><br>
-<br>
-Reactive read-write stores are read-write stores with reactive
-      capabilities.<br>
 
-<pre><span class="keyword">include</span> <a href="Irmin.RW.html">Irmin.RW</a></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.RRW.html">Irmin.RRW</a></pre>
 
-<pre><span id="TYPEwatch"><span class="keyword">type</span> <code class="type"></code>watch</span> </pre>
-<div class="info ">
-The type of watch handlers.<br>
-</div>
-
-
-<pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type">t -><br>       key -><br>       ?init:value -> (value <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.RRW.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
-<code class="code">watch_key t k ?init f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch
-      handlers for the key <code class="code">k</code> and returns the watch handler to be used
-      with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>. <code class="code">init</code> is the optional initial value of the
-      key.<br>
-</div>
-
-<pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -><br>       ?init:(key * value) list -><br>       (key -> value <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.RRW.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
-<code class="code">watch t ?init f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch handlers
-      and returns the watch handler to be used with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>. <code class="code">init</code>
-      is the optional initial values. It is more efficient to use
-      <a href="Irmin.RRW.html#VALwatch_key"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.watch_key</code></a> to watch only a single given key.<br>
-</div>
-
-<pre><span id="VALunwatch"><span class="keyword">val</span> unwatch</span> : <code class="type">t -> <a href="Irmin.RRW.html#TYPEwatch">watch</a> -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">unwatch t w</code> removes <code class="code">w</code> from <code class="code">t</code>'s watch handlers.<br>
-</div>
-</body></html>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> t Lwt.t</code></pre></body></html>

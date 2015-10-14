@@ -16,10 +16,9 @@
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Branch-consistent stores" rel="Section" href="#1_Branchconsistentstores">
 <link title="Persistent Branches" rel="Subsection" href="#persistent">
-<link title="Temporary Branches" rel="Subsection" href="#temporary">
+<link title="Temporary Stores" rel="Subsection" href="#temporary">
 <link title="Clones and Merges" rel="Subsection" href="#2_ClonesandMerges">
 <link title="History" rel="Subsection" href="#2_History">
-<link title="Slices" rel="Subsection" href="#2_Slices">
 <title>Irmin.BC</title>
 </head>
 <body>
@@ -45,9 +44,9 @@ Branch-consistent stores.<br>
       control systems, Irmin local states are called <i>branches</i>.
 <p>
 
-      They are two kinds of branches in Irmin: the
-      <a href="Irmin.BC.html#persistent">persistent</a> branches and the
-      <a href="Irmin.BC.html#temporary">temporary</a> ones. Branches exist relative to a
+      There are two kinds of BC store in Irmin:
+      <a href="Irmin.BC.html#persistent">persistent</a> named branches and
+      <a href="Irmin.BC.html#temporary">temporary</a> detached heads. These exist relative to a
       local, larger (and shared) store, and have some (shared)
       contents. This is exactly the same as usual version control
       systems, that the informed user can see as an implicit purely
@@ -57,135 +56,136 @@ Branch-consistent stores.<br>
       <h2 id="persistent">Persistent Branches</h2>
 <p>
 
-      A persistent branch always has a name. In Irmin, branch names
-      are called <a href="Irmin.BC.html#VALtag">tags</a>. Thus, in order to use a persistent
-      branch, you need to provide its name: see the <a href="Irmin.BC.html#VALof_tag">of_tag</a>
+      A persistent branch always has a unique ID, which is typically a
+      string (the branch name). Thus, in order to use a persistent
+      branch, you need to provide its name: see the <a href="Irmin.BC.html#VALof_branch_id">of_branch_id</a>
       function.<br>
 
-<pre><span class="keyword">include</span> <a href="Irmin.HRW.html">Irmin.HRW</a></pre>
-<br>
-A branch-consistent store is a hierarchical read-write store.
-<p>
-
-      <code class="code">create config task</code> is a persistent branch using the
-       branch. This operation is cheap, can be repeated
-      multiple times.<br>
-
-<pre><span id="TYPEtag"><span class="keyword">type</span> <code class="type"></code>tag</span> </pre>
+<pre><span id="TYPEcommit_id"><span class="keyword">type</span> <code class="type"></code>commit_id</span> </pre>
 <div class="info ">
-Type for persistent branch names. Tags usually share a common
+Type for commit identifiers. Similar to Git's commit SHA1s.<br>
+</div>
+
+
+<pre><span id="TYPEbranch_id"><span class="keyword">type</span> <code class="type"></code>branch_id</span> </pre>
+<div class="info ">
+Type for persistent branch names. Branches usually share a common
       global namespace and it's the user's responsibility to avoid
       name clashes.<br>
 </div>
 
 
-<pre><span id="VALof_tag"><span class="keyword">val</span> of_tag</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> 'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
-<code class="code">create t tag</code> is the persistent branch named <code class="code">tag</code>. Similar to
-      <code class="code">create</code>, but use <code class="code">tag</code> instead <a href="Irmin.Tag.S.html#VALmaster"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Tag</span>.<span class="constructor">S</span>.master</code></a>.<br>
+<pre><span id="TYPEslice"><span class="keyword">type</span> <code class="type"></code>slice</span> </pre>
+<div class="info ">
+Type for store slices.<br>
 </div>
 
-<pre><span id="VALtag"><span class="keyword">val</span> tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> option Lwt.t</code></pre><div class="info ">
-<code class="code">tag t</code> is <code class="code">t</code>'s name. Return <code class="code"><span class="constructor">None</span></code> if <code class="code">t</code> is not
+
+<pre><span class="keyword">module</span> <a href="Irmin.BC.Repo.html">Repo</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.BC.Repo.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.HRW.html">Irmin.HRW</a></pre>
+<br>
+A branch-consistent store is a hierarchical read-write store.<br>
+
+<pre><span id="VALmaster"><span class="keyword">val</span> master</span> : <code class="type">'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> <a href="Irmin.BC.Repo.html#TYPEt">Repo.t</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
+<code class="code">master repo task</code> is a function returning fresh store
+      handles within the repository <code class="code">repo</code>, with fresh tasks
+      computed using <code class="code">task</code>.
+      The result is a persistent branch using the  reference.
+      This operation is cheap, can be repeated multiple times.<br>
+</div>
+
+<pre><span id="VALrepo"><span class="keyword">val</span> repo</span> : <code class="type">t -> <a href="Irmin.BC.Repo.html#TYPEt">Repo.t</a></code></pre><div class="info ">
+<code class="code">repo t</code> is the repository containing <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALtask"><span class="keyword">val</span> task</span> : <code class="type">t -> <a href="Irmin.html#TYPEtask">Irmin.task</a></code></pre><div class="info ">
+<code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.<br>
+</div>
+
+<pre><span id="VALof_branch_id"><span class="keyword">val</span> of_branch_id</span> : <code class="type">'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> -> <a href="Irmin.BC.Repo.html#TYPEt">Repo.t</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
+<code class="code">of_branch_id t name</code> is the persistent branch named <code class="code">name</code>. Similar to
+      <code class="code">master</code>, but use <code class="code">name</code> instead <a href="Irmin.Ref.S.html#VALmaster"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">S</span>.master</code></a>.<br>
+</div>
+
+<pre><span id="VALname"><span class="keyword">val</span> name</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">name t</code> is <code class="code">t</code>'s branch name. Return <code class="code"><span class="constructor">None</span></code> if <code class="code">t</code> is not persistent.<br>
+</div>
+
+<pre><span id="VALname_exn"><span class="keyword">val</span> name_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.BC.html#VALname"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.name</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if <code class="code">t</code> is not
       persistent.<br>
 </div>
 
-<pre><span id="VALtag_exn"><span class="keyword">val</span> tag_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.BC.html#VALtag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tag</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if <code class="code">t</code> is not
-      persistent.<br>
+<pre><span id="VALupdate_branch"><span class="keyword">val</span> update_branch</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> -> unit Lwt.t</code></pre><div class="info ">
+<code class="code">update_branch t src</code> updates <code class="code">t</code>'s contents with the contents of
+      the branch named <code class="code">src</code>. Can cause data losses as it discard the
+      current contents. Similar to <code class="code">git reset --hard &lt;src&gt;</code>.<br>
 </div>
 
-<pre><span id="VALtags"><span class="keyword">val</span> tags</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> list Lwt.t</code></pre><div class="info ">
-The list of all persistent branch's names. Similar to to <code class="code">git
-      branch -a</code>.<br>
+<pre><span id="VALmerge_branch"><span class="keyword">val</span> merge_branch</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -> <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<code class="code">merge_branch t other</code> merges the contents of the branch named <code class="code">other</code>
+      into <code class="code">t</code>. Similar to <code class="code">git merge &lt;other&gt;</code>.<br>
 </div>
 
-<pre><span id="VALremove_tag"><span class="keyword">val</span> remove_tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">remove_tag t tag</code> removes the tag <code class="code">tag</code> from the local store.
-      Similar to <code class="code">git branch -<span class="constructor">D</span> &lt;tag&gt;</code><br>
-</div>
-
-<pre><span id="VALupdate_tag"><span class="keyword">val</span> update_tag</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">update_tag t tag</code> updates <code class="code">t</code>'s contents with the contents of
-      the branch named <code class="code">tag</code>. Can cause data losses as it discard the
-      current contents. Similar to <code class="code">git reset --hard &lt;tag&gt;</code>.<br>
-</div>
-
-<pre><span id="VALmerge_tag"><span class="keyword">val</span> merge_tag</span> : <code class="type">t -><br>       ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-<code class="code">merge_tag t tag</code> merges the contents of the branch named <code class="code">tag</code>
-      into <code class="code">t</code>'s. Similar to <code class="code">git merge &lt;tag&gt;</code>.<br>
-</div>
-
-<pre><span id="VALmerge_tag_exn"><span class="keyword">val</span> merge_tag_exn</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> unit Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
+<pre><span id="VALmerge_branch_exn"><span class="keyword">val</span> merge_branch_exn</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> -> unit Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.BC.html#VALmerge_branch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_branch</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
       conflict.<br>
 </div>
 <br>
-<h2 id="temporary">Temporary Branches</h2>
+<h2 id="temporary">Temporary Stores</h2>
 <p>
 
-      Temporary branches do not have stable names: instead they can be
+      Temporary stores do not have stable names: instead they can be
       addressed using the hash of the current commit. These hashes are
-      called <a href="Irmin.BC.html#VALhead">heads</a> in Irmin. Temporary branches are
-      similar to Git's detached heads. In a temporary branch, all the
+      called <a href="Irmin.BC.html#VALhead">heads</a> in Irmin. Temporary stores are
+      similar to Git's detached heads. In a temporary store, all the
       operations are performed relative to the current head and update
-      operations can modify the current head: the current branch's
+      operations can modify the current head: the current stores's
       head will automatically become the new head obtained while
       performing the update.
 <p>
 
-      Temporary branches are created using the <a href="Irmin.BC.html#VALof_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.of_head</code></a>
+      Temporary stores are created using the <code class="code"><span class="constructor">BC</span>.of_head</code>
       function.<br>
 
-<pre><span id="TYPEhead"><span class="keyword">type</span> <code class="type"></code>head</span> </pre>
-<div class="info ">
-Type for temporary branches names. Similar to Git's commit
-      SHA1s.<br>
+<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type">'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> <a href="Irmin.BC.Repo.html#TYPEt">Repo.t</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
+<code class="code">empty repo task</code> is a temporary, empty store. Becomes a
+      normal temporary store after the first update.<br>
 </div>
 
-
-<pre><span id="VALempty"><span class="keyword">val</span> empty</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> 'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
-<code class="code">empty config task</code> is a temporary, empty branch. Become a
-      normal temporary branch after the first update.<br>
-</div>
-
-<pre><span id="VALof_head"><span class="keyword">val</span> of_head</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> 'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> <a href="Irmin.BC.html#TYPEhead">head</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
-Create a temporary branch, using the given <code class="code">head</code>. The branch
+<pre><span id="VALof_commit_id"><span class="keyword">val</span> of_commit_id</span> : <code class="type">'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> -> <a href="Irmin.BC.Repo.html#TYPEt">Repo.t</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
+Create a temporary store, using the given <code class="code">commit_id</code>. The store
       will not persist as it has no persistent branch name.<br>
 </div>
 
-<pre><span id="VALhead"><span class="keyword">val</span> head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> option Lwt.t</code></pre><div class="info ">
-<code class="code">head t</code> is the current head of the branch <code class="code">t</code>. This works for
-      both persistent and temporary branches. In the case of a
+<pre><span id="VALhead"><span class="keyword">val</span> head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> option Lwt.t</code></pre><div class="info ">
+<code class="code">head t</code> is the current head of the store <code class="code">t</code>. This works for
+      both persistent and temporary stores. In the case of a
       persistent branch, this involves getting the the head associated
-      with the branch's tag, so this may block. In the case of a
-      temporary branch, simply return the current branch head. Return
-      <code class="code"><span class="constructor">None</span></code> if the branch has no contents. Similar to <code class="code">git
+      with the branch's ID, so this may block. In the case of a
+      temporary store, it simply returns the current head. Returns
+      <code class="code"><span class="constructor">None</span></code> if the store has no contents. Similar to <code class="code">git
       rev-parse <span class="constructor">HEAD</span></code>.<br>
 </div>
 
-<pre><span id="VALhead_exn"><span class="keyword">val</span> head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.BC.html#VALhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.head</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the branch does
+<pre><span id="VALhead_exn"><span class="keyword">val</span> head_exn</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.BC.html#VALhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.head</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the store does
       not have any contents.<br>
 </div>
 
-<pre><span id="VALbranch"><span class="keyword">val</span> branch</span> : <code class="type">t -> [ `Empty | `Head of <a href="Irmin.BC.html#TYPEhead">head</a> | `Tag of <a href="Irmin.BC.html#TYPEtag">tag</a> ]</code></pre><div class="info ">
-<code class="code">branch t</code> is a representation of <code class="code">t</code>'s branch. Can either be a
-      persistent branch with a <code class="code">tag</code> name, a temporary branch with a
-      <code class="code">head</code> commit or an empty temporary branch.<br>
+<pre><span id="VALhead_ref"><span class="keyword">val</span> head_ref</span> : <code class="type">t -> [ `Branch of <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> | `Empty | `Head of <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> ]</code></pre><div class="info ">
+<code class="code">head_ref t</code> is the branch ID that this store tracks (for persistent
+      stores), the current <code class="code">head</code> commit (for temporary stores), or <code class="code"><span class="keywordsign">`</span><span class="constructor">Empty</span></code>
+      for empty temporary stores.<br>
 </div>
 
-<pre><span id="VALheads"><span class="keyword">val</span> heads</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> list Lwt.t</code></pre><div class="info ">
-<code class="code">heads t</code> is the list of all the heads in local store. Similar
-      to <code class="code">git rev-list --all</code>.<br>
-</div>
-
-<pre><span id="VALupdate_head"><span class="keyword">val</span> update_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALupdate_head"><span class="keyword">val</span> update_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">update_head t h</code> updates <code class="code">t</code>'s contents with the contents of
-      the head <code class="code">h</code>. Can cause data loss as it discards the current
+      the commit_id <code class="code">h</code>. Can cause data loss as it discards the current
       contents. Similar to <code class="code">git reset --hard &lt;hash&gt;</code>.<br>
 </div>
 
-<pre><span id="VALfast_forward_head"><span class="keyword">val</span> fast_forward_head</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEhead">head</a> -> bool Lwt.t</code></pre><div class="info ">
+<pre><span id="VALfast_forward_head"><span class="keyword">val</span> fast_forward_head</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> -> bool Lwt.t</code></pre><div class="info ">
 <code class="code">fast_forward_head t h</code> is similar to <a href="Irmin.BC.html#VALupdate_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.update_head</code></a> but the
       <code class="code">t</code>'s head is updated to <code class="code">h</code> only if <code class="code">h</code> is stricly in the
       future of <code class="code">t</code>'s current head. Return <code class="code"><span class="keyword">false</span></code> if it is not the
@@ -193,29 +193,29 @@ Same as <a href="Irmin.BC.html#VALhead"><code class="code"><span class="construc
       search space of the lowest common ancestors (see <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a>).<br>
 </div>
 
-<pre><span id="VALcompare_and_set_head"><span class="keyword">val</span> compare_and_set_head</span> : <code class="type">t -> test:<a href="Irmin.BC.html#TYPEhead">head</a> option -> set:<a href="Irmin.BC.html#TYPEhead">head</a> option -> bool Lwt.t</code></pre><div class="info ">
+<pre><span id="VALcompare_and_set_head"><span class="keyword">val</span> compare_and_set_head</span> : <code class="type">t -><br>       test:<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> option -> set:<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> option -> bool Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.BC.html#VALupdate_head"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.update_head</code></a> but check that the value is <code class="code">test</code> before
       updating to <code class="code">set</code>. Use <code class="code">update</code> or <a href="Irmin.BC.html#VALmerge"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge</code></a> instead if
       possible.<br>
 </div>
 
-<pre><span id="VALmerge_head"><span class="keyword">val</span> merge_head</span> : <code class="type">t -><br>       ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
-<code class="code">merge_head t ?max_head ?n head</code> merges the contents of the
-      temporary branch associated to <code class="code">head</code> into <code class="code">t</code>. <code class="code">max_depth</code> is
+<pre><span id="VALmerge_head"><span class="keyword">val</span> merge_head</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -> <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> -> unit <a href="Irmin.Merge.html#TYPEresult">Irmin.Merge.result</a> Lwt.t</code></pre><div class="info ">
+<code class="code">merge_head t ?max_head ?n commit_id</code> merges the contents of the
+      commit associated to <code class="code">commit_id</code> into <code class="code">t</code>. <code class="code">max_depth</code> is
       the maximal depth used for getting the lowest common
       ancestor. <code class="code">n</code> is the maximum number of lowest common
       ancestors. If present, <code class="code">max_depth</code> or <code class="code">n</code> are used to limit the
       search space of the lowest common ancestors (see <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a>).<br>
 </div>
 
-<pre><span id="VALmerge_head_exn"><span class="keyword">val</span> merge_head_exn</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEhead">head</a> -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALmerge_head_exn"><span class="keyword">val</span> merge_head_exn</span> : <code class="type">t -> ?max_depth:int -> ?n:int -> <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> -> unit Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.BC.html#VALmerge_head">merge_head</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a>
       in case of a conflict.<br>
 </div>
 
-<pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">t -><br>       ?init:<a href="Irmin.BC.html#TYPEhead">head</a> -><br>       (<a href="Irmin.BC.html#TYPEhead">head</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
-<code class="code">watch_tag t f</code> calls <code class="code">f</code> every time the contents of <code class="code">t</code>'s tag is
-      updated. Do nothing if <code class="code">t</code> is not persistent. Return a clean-up
+<pre><span id="VALwatch_head"><span class="keyword">val</span> watch_head</span> : <code class="type">t -><br>       ?init:<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> -><br>       (<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
+<code class="code">watch_branch t f</code> calls <code class="code">f</code> every time the contents of <code class="code">t</code>'s reference
+      is updated. Do nothing if <code class="code">t</code> is not persistent. Return a clean-up
       function to remove the watch handler.
 <p>
 
@@ -225,26 +225,20 @@ Same as <a href="Irmin.BC.html#VALmerge_head">merge_head</a> but raise <a href="
       calling the next one.<br>
 </div>
 
-<pre><span id="VALwatch_tags"><span class="keyword">val</span> watch_tags</span> : <code class="type">t -><br>       ?init:(<a href="Irmin.BC.html#TYPEtag">tag</a> * <a href="Irmin.BC.html#TYPEhead">head</a>) list -><br>       (<a href="Irmin.BC.html#TYPEtag">tag</a> -> <a href="Irmin.BC.html#TYPEhead">head</a> <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
-<code class="code">watch_tags t f</code> calls <code class="code">f</code> every time a tag is added, removed or
-      updated in the local store. Return a function to remove the
-      handler.<br>
-</div>
-
-<pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type">t -><br>       key -><br>       ?init:<a href="Irmin.BC.html#TYPEhead">head</a> * value -><br>       ((<a href="Irmin.BC.html#TYPEhead">head</a> * value) <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type">t -><br>       key -><br>       ?init:<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> * value -><br>       ((<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> * value) <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
 <code class="code">watch_key t key f</code> calls <code class="code">f</code> every time the <code class="code">key</code>'s value is
       added, removed or updated.<br>
 </div>
 <br>
 <h2 id="2_ClonesandMerges">Clones and Merges</h2><br>
 
-<pre><span id="VALclone"><span class="keyword">val</span> clone</span> : <code class="type">'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -><br>       t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> [ `Duplicated_tag | `Empty_head | `Ok of 'a -> t ] Lwt.t</code></pre><div class="info ">
+<pre><span id="VALclone"><span class="keyword">val</span> clone</span> : <code class="type">'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -><br>       t -><br>       <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> -><br>       [ `Duplicated_branch | `Empty_head | `Ok of 'a -> t ] Lwt.t</code></pre><div class="info ">
 Clone the store <code class="code">t</code>, using the given branch name. Return
-      <code class="code"><span class="constructor">Duplicated_tag</span></code> if a branch with the same name already exists
+      <code class="code"><span class="constructor">Duplicated_branch</span></code> if a branch with the same name already exists
       and <code class="code"><span class="constructor">Empty_head</span></code> if <code class="code">t</code> has no head.<br>
 </div>
 
-<pre><span id="VALclone_force"><span class="keyword">val</span> clone_force</span> : <code class="type">'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> t -> <a href="Irmin.BC.html#TYPEtag">tag</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
+<pre><span id="VALclone_force"><span class="keyword">val</span> clone_force</span> : <code class="type">'a <a href="Irmin.Task.html#TYPEf">Irmin.Task.f</a> -> t -> <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> -> ('a -> t) Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.BC.html#VALclone">clone</a> but delete and update the existing
       branch if a branch with the same name already exists.<br>
 </div>
@@ -260,7 +254,7 @@ FIXME Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmi
       of a conflict.<br>
 </div>
 
-<pre><span id="VALlcas"><span class="keyword">val</span> lcas</span> : <code class="type">'a -><br>       ?max_depth:int -><br>       ?n:int -><br>       ('a -> t) -><br>       ('a -> t) -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEhead">head</a> list | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
+<pre><span id="VALlcas"><span class="keyword">val</span> lcas</span> : <code class="type">'a -><br>       ?max_depth:int -><br>       ?n:int -><br>       ('a -> t) -><br>       ('a -> t) -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> list | `Too_many_lcas ]<br>       Lwt.t</code></pre><div class="info ">
 <code class="code">lca ?max_depth ?n msg t1 t2</code> returns the collection of least
       common ancestors between the heads of <code class="code">t1</code> and <code class="code">t2</code> branches.
 <p>
@@ -276,62 +270,24 @@ FIXME Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmi
 <br>
 </div>
 
-<pre><span id="VALlcas_tag"><span class="keyword">val</span> lcas_tag</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.BC.html#TYPEtag">tag</a> -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEhead">head</a> list | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes a tag as argument.<br>
+<pre><span id="VALlcas_branch"><span class="keyword">val</span> lcas_branch</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> list | `Too_many_lcas ]<br>       Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes a branch ID as argument.<br>
 </div>
 
-<pre><span id="VALlcas_head"><span class="keyword">val</span> lcas_head</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.BC.html#TYPEhead">head</a> -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEhead">head</a> list | `Too_many_lcas ] Lwt.t</code></pre><div class="info ">
-Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes an head as argument.<br>
+<pre><span id="VALlcas_head"><span class="keyword">val</span> lcas_head</span> : <code class="type">t -><br>       ?max_depth:int -><br>       ?n:int -><br>       <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> -><br>       [ `Max_depth_reached | `Ok of <a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> list | `Too_many_lcas ]<br>       Lwt.t</code></pre><div class="info ">
+Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes a commit_id as argument.<br>
 </div>
 <br>
 <h2 id="2_History">History</h2><br>
 
-<pre><span class="keyword">module</span> <a href="Irmin.BC.History.html">History</a>: <code class="type">Graph.Sig.P</code><code class="type">  with type V.t = head</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.BC.History.html">History</a>: <code class="type">Graph.Sig.P</code><code class="type">  with type V.t = commit_id</code></pre><div class="info">
 An history is a DAG of heads.
 </div>
 
-<pre><span id="VALhistory"><span class="keyword">val</span> history</span> : <code class="type">?depth:int -><br>       ?min:<a href="Irmin.BC.html#TYPEhead">head</a> list -><br>       ?max:<a href="Irmin.BC.html#TYPEhead">head</a> list -> t -> History.t Lwt.t</code></pre><div class="info ">
+<pre><span id="VALhistory"><span class="keyword">val</span> history</span> : <code class="type">?depth:int -><br>       ?min:<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> list -><br>       ?max:<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> list -> t -> History.t Lwt.t</code></pre><div class="info ">
 <code class="code">history ?depth ?min ?max t</code> is a view of the history of the
-      branch <code class="code">t</code>, of depth at most <code class="code">depth</code>, starting from the <code class="code">max</code>
+      store <code class="code">t</code>, of depth at most <code class="code">depth</code>, starting from the <code class="code">max</code>
       (or from the <code class="code">t</code>'s head if the list of heads is empty) and
       stopping at <code class="code">min</code> if specified.<br>
-</div>
-
-<pre><span id="VALtask_of_head"><span class="keyword">val</span> task_of_head</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEhead">head</a> -> <a href="Irmin.html#TYPEtask">Irmin.task</a> Lwt.t</code></pre><div class="info ">
-<code class="code">task_of_head t h</code> is the task which created <code class="code">h</code>. Useful to
-      retrieve the commit date and the committer name.<br>
-</div>
-<br>
-<h2 id="2_Slices">Slices</h2><br>
-
-<pre><span id="TYPEslice"><span class="keyword">type</span> <code class="type"></code>slice</span> </pre>
-<div class="info ">
-Type for store slices.<br>
-</div>
-
-
-<pre><span id="VALexport"><span class="keyword">val</span> export</span> : <code class="type">?full:bool -><br>       ?depth:int -><br>       ?min:<a href="Irmin.BC.html#TYPEhead">head</a> list -><br>       ?max:<a href="Irmin.BC.html#TYPEhead">head</a> list -> t -> <a href="Irmin.BC.html#TYPEslice">slice</a> Lwt.t</code></pre><div class="info ">
-<code class="code">export t ~depth ~min ~max</code> exports the store slice between
-      <code class="code">min</code> and <code class="code">max</code>, using at most <code class="code">depth</code> history depth (starting
-      from the max).
-<p>
-
-      If <code class="code">max</code> is not specified, use the current <code class="code">heads</code>. If <code class="code">min</code> is
-      not specified, use an unbound past (but can still be limited by
-      <code class="code">depth</code>).
-<p>
-
-      <code class="code">depth</code> is used to limit the depth of the commit history. <code class="code"><span class="constructor">None</span></code>
-      here means no limitation.
-<p>
-
-      If <code class="code">full</code> is set (default is true), the full graph, including the
-      commits, nodes and contents, is exported, otherwise it is the
-      commit history graph only.<br>
-</div>
-
-<pre><span id="VALimport"><span class="keyword">val</span> import</span> : <code class="type">t -> <a href="Irmin.BC.html#TYPEslice">slice</a> -> [ `Error | `Ok ] Lwt.t</code></pre><div class="info ">
-<code class="code">import t s</code> imports the contents of the slice <code class="code">s</code> in <code class="code">t</code>. Do
-      not modify tags.<br>
 </div>
 </body></html>

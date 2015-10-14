@@ -14,8 +14,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Append-only stores" rel="Section" href="#1_Appendonlystores">
-<title>Irmin.AO_MAKER</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.AO_MAKER</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin.VIEW.html" title="Irmin.VIEW">Previous</a>
@@ -24,7 +23,7 @@
 </div>
 <h1>Module type <a href="type_Irmin.AO_MAKER.html">Irmin.AO_MAKER</a></h1>
 
-<pre><span class="keyword">module type</span> AO_MAKER = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="type"><a href="Irmin.AO.html">AO</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> AO_MAKER = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.AO_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
 <code class="code"><span class="constructor">AO_MAKER</span></code> is the signature exposed by append-only store
     backends. <code class="code"><span class="constructor">K</span></code> is the implementation of keys and <code class="code"><span class="constructor">V</span></code> is the
     implementation of values.<br>
@@ -49,14 +48,13 @@
 </tr>
 </table>
 <hr width="100%">
-<br>
-<h1 id="1_Appendonlystores">Append-only stores</h1><br>
 
-<pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
+<pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
-<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type">t -> value -> key Lwt.t</code></pre><div class="info ">
-Write the contents of a value to the store. It's the
-      responsibility of the append-only store to generate a
-      consistent key.<br>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> t Lwt.t</code></pre><div class="info ">
+<code class="code">create config</code> is a function returning fresh store
+        handles, with the configuration <code class="code">config</code>, which is
+        provided by the backend. The operation might be blocking,
+        depending on the backend.<br>
 </div>
 </body></html>

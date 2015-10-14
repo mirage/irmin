@@ -38,20 +38,20 @@ Type type for store handles.<br>
 </div>
 
 
-<pre><span id="TYPEhead"><span class="keyword">type</span> <code class="type"></code>head</span> </pre>
+<pre><span id="TYPEcommit_id"><span class="keyword">type</span> <code class="type"></code>commit_id</span> </pre>
 <div class="info ">
 The type for store heads.<br>
 </div>
 
 
-<pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type"><a href="Irmin.SYNC.html#TYPEdb">db</a> -><br>       ?depth:int -><br>       <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> [ `Error | `Head of <a href="Irmin.SYNC.html#TYPEhead">head</a> | `No_head ] Lwt.t</code></pre><div class="info ">
+<pre><span id="VALfetch"><span class="keyword">val</span> fetch</span> : <code class="type"><a href="Irmin.SYNC.html#TYPEdb">db</a> -><br>       ?depth:int -><br>       <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> [ `Error | `Head of <a href="Irmin.SYNC.html#TYPEcommit_id">commit_id</a> | `No_head ] Lwt.t</code></pre><div class="info ">
 <code class="code">fetch t ?depth r</code> populate the local store <code class="code">t</code> with objects for
       the remote store <code class="code">r</code>, using <code class="code">t</code>'s current branch. The <code class="code">depth</code>
       parameter limits the history depth. Return <code class="code"><span class="constructor">None</span></code> if either the
       local or remote store do not have a valid head.<br>
 </div>
 
-<pre><span id="VALfetch_exn"><span class="keyword">val</span> fetch_exn</span> : <code class="type"><a href="Irmin.SYNC.html#TYPEdb">db</a> -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> <a href="Irmin.SYNC.html#TYPEhead">head</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALfetch_exn"><span class="keyword">val</span> fetch_exn</span> : <code class="type"><a href="Irmin.SYNC.html#TYPEdb">db</a> -> ?depth:int -> <a href="Irmin.html#TYPEremote">Irmin.remote</a> -> <a href="Irmin.SYNC.html#TYPEcommit_id">commit_id</a> Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.SYNC.html#VALfetch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">SYNC</span>.fetch</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if either the
       local or remote store do not have a valid head.<br>
 </div>

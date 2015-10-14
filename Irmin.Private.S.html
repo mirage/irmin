@@ -40,8 +40,8 @@ Private nodes.
 Private commits.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.STORE.html">Irmin.Tag.STORE</a></code><code class="type">  with type value = Commit.key</code></pre><div class="info">
-Private tags.
+<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Ref.html">Ref</a>: <code class="type"><a href="Irmin.Ref.STORE.html">Irmin.Ref.STORE</a></code><code class="type">  with type value = Commit.key</code></pre><div class="info">
+Private references.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.Private.S.Slice.html">Slice</a>: <code class="type"><a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a></code><code class="type"> 
@@ -51,4 +51,11 @@ Private tags.
 Private slices.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Sync.html">Sync</a>: <code class="type"><a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a></code><code class="type">  with type head = Commit.key and type tag = Tag.key</code></pre></body></html>
+<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Repo.html">Repo</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.S.Repo.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Private repositories.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Private.S.Sync.html">Sync</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.S.Sync.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+URI-based low-level sync.
+</div>
+</body></html>

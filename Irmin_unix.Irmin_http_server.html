@@ -46,11 +46,9 @@ Server hooks.<br>
 </div>
 
 
-<pre><span class="keyword">module type</span> <a href="Irmin_unix.Irmin_http_server.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.Irmin_http_server.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
-Server Signature.
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http_server.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">Irmin.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin_unix.Irmin_http_server.S.html">S</a></code><code class="type">  with type t = S.t</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin_unix.Irmin_http_server.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">Irmin.S</a></code><code class="code">) </code>: <code class="type">Irmin_http_server.S</code><code class="type">  with
+    type t = S.t and
+    type spec = Cohttp_lwt_unix.Server.t</code></pre><div class="info">
 <code class="code"><span class="constructor">Make</span></code> exposes an Irmin store as a REST API for HTTP
       <a href="Irmin_unix.Irmin_http.html">clients</a>.
 </div>

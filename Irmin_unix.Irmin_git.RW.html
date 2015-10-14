@@ -24,7 +24,7 @@
 </div>
 <h1>Functor <a href="type_Irmin_unix.Irmin_git.RW.html">Irmin_unix.Irmin_git.RW</a></h1>
 
-<pre><span class="keyword">module</span> RW <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.RW.html">Irmin.RW</a></code><code class="type"> 
+<pre><span class="keyword">module</span> RW <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Ref.S.html">Irmin.Ref.S</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.RW.html">Irmin.RW</a></code><code class="type"> 
     with type key = K.t and type value = V.t</code></pre><div class="info module top">
 Embed a read-write store into a Git repository. Contents will be
       written in <i>.git/refs</i>.<br>
@@ -43,7 +43,7 @@ Embed a read-write store into a Git repository. Contents will be
 <td align="center" valign="top" width="15%">
 <code>K</code></td>
 <td align="center" valign="top">:</td>
-<td><code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code>
+<td><code class="type"><a href="Irmin.Ref.S.html">Irmin.Ref.S</a></code>
 <tr>
 <td align="center" valign="top" width="15%">
 <code>V</code></td>

@@ -24,16 +24,14 @@
 </div>
 <h1>Module type <a href="type_Irmin.S_MAKER.html">Irmin.S_MAKER</a></h1>
 
-<pre><span class="keyword">module type</span> S_MAKER = <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">T</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type key = C.Path.t
+<pre><span class="keyword">module type</span> S_MAKER = <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">R</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Ref.S.html">Ref.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type key = C.Path.t
        and type value = C.t
-       and type tag = T.t
-       and type head = H.t</code></pre><div class="info modtype top">
+       and type branch_id = R.t
+       and type commit_id = H.t</code></pre><div class="info modtype top">
 <code class="code"><span class="constructor">S_MAKER</span></code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span></code></a>
-    implementations. <code class="code"><span class="constructor">S</span></code> is the type of steps (a key is list of
-    steps), <code class="code"><span class="constructor">C</span></code> is the implementation of user-defined contents, <code class="code"><span class="constructor">T</span></code> is
-    the implementation of store tags and <code class="code"><span class="constructor">H</span></code> is the implementation of
-    store heads. It does not use any native synchronization
-    primitives.<br>
+    implementations. <code class="code"><span class="constructor">C</span></code> is the implementation of user-defined contents, <code class="code"><span class="constructor">R</span></code> is
+    the implementation of store references and <code class="code"><span class="constructor">H</span></code> is the implementation of
+    store heads. It does not use any native synchronization primitives.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -47,9 +45,9 @@
 <td><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code>
 <tr>
 <td align="center" valign="top" width="15%">
-<code>T</code></td>
+<code>R</code></td>
 <td align="center" valign="top">:</td>
-<td><code class="type"><a href="Irmin.Tag.S.html">Tag.S</a></code>
+<td><code class="type"><a href="Irmin.Ref.S.html">Ref.S</a></code>
 <tr>
 <td align="center" valign="top" width="15%">
 <code>H</code></td>
@@ -74,12 +72,12 @@
       contents.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Tag.html">Tag</a>: <code class="type"><a href="Irmin.Tag.S.html">Irmin.Tag.S</a></code><code class="type">  with type t = tag</code></pre><div class="info">
-<code class="code"><span class="constructor">Tag</span></code> provides base functions on user-defined tags.
+<pre><span class="keyword">module</span> <a href="Irmin.S.Ref.html">Ref</a>: <code class="type"><a href="Irmin.Ref.S.html">Irmin.Ref.S</a></code><code class="type">  with type t = branch_id</code></pre><div class="info">
+<code class="code"><span class="constructor">Ref</span></code> provides base functions on user-defined references.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.S.Head.html">Head</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = head</code></pre><div class="info">
-<code class="code"><span class="constructor">Head</span></code> provides base functions on head values.
+<pre><span class="keyword">module</span> <a href="Irmin.S.Hash.html">Hash</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = commit_id</code></pre><div class="info">
+<code class="code"><span class="constructor">Hash</span></code> provides base functions on commit IDs.
 </div>
 
 <pre><span class="keyword">module</span> <a href="Irmin.S.Private.html">Private</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.S.Private.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">

@@ -14,8 +14,7 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
-<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Immutable Link stores" rel="Section" href="#1_ImmutableLinkstores">
-<title>Irmin_mem.Link</title>
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_mem.Link</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin_mem.AO.html" title="Irmin_mem.AO">Previous</a>
@@ -28,22 +27,7 @@
 Immutable links.<br>
 </div>
 <hr width="100%">
-<br>
-<h1 id="1_ImmutableLinkstores">Immutable Link stores</h1>
-<p>
 
-      The link store contains <i>verified</i> links between low-level
-      keys. This is used to certify that a value can be accessed via
-      different keys: because they have been obtained using different
-      hash functions (SHA1 and SHA256 for instance) or because the
-      value might have different but equivalent concrete
-      representation (for instance a set might be represented as
-      various equivalent trees).<br>
+<pre><span class="keyword">include</span> <a href="Irmin.LINK.html">Irmin.LINK</a></pre>
 
-<pre><span class="keyword">include</span> <a href="Irmin.RO.html">Irmin.RO</a></pre>
-
-<pre><span id="VALadd"><span class="keyword">val</span> add</span> : <code class="type">t -> key -> value -> unit Lwt.t</code></pre><div class="info ">
-<code class="code">add t src dst</code> add a link between the key <code class="code">src</code> and the value
-      <code class="code">dst</code>.<br>
-</div>
-</body></html>
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEconfig">Irmin.config</a> -> t Lwt.t</code></pre></body></html>

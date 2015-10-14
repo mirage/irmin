@@ -17,6 +17,17 @@
 &nbsp;</div>
 <h1>Index of types</h1>
 <table>
+<tr><td align="left"><br>B</td></tr>
+<tr><td><a href="Irmin.BC.html#TYPEbranch_id">branch_id</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+Type for persistent branch names.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Sync.S.html#TYPEbranch_id">branch_id</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
+<td><div class="info">
+The type for branch IDs.
+</div>
+</td></tr>
 <tr><td align="left"><br>C</td></tr>
 <tr><td><a href="Irmin.Private.Slice.S.html#TYPEcommit">commit</a> [<a href="Irmin.Private.Slice.S.html">Irmin.Private.Slice.S</a>]</td>
 <td><div class="info">
@@ -31,6 +42,26 @@ The type for commit values.
 <tr><td><a href="Irmin.Private.Commit.S.html#TYPEcommit">commit</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
 <td><div class="info">
 Type for commit keys.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+Type for commit identifiers.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.VIEW.html#TYPEcommit_id">commit_id</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
+<td><div class="info">
+The type for commit heads.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.SYNC.html#TYPEcommit_id">commit_id</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
+<td><div class="info">
+The type for store heads.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Sync.S.html#TYPEcommit_id">commit_id</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
+<td><div class="info">
+The type for store heads.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#TYPEconfig">config</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -86,26 +117,6 @@ The type for user-defined task creators.
 </div>
 </td></tr>
 <tr><td align="left"><br>H</td></tr>
-<tr><td><a href="Irmin.BC.html#TYPEhead">head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-Type for temporary branches names.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.VIEW.html#TYPEhead">head</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
-<td><div class="info">
-The type for commit heads.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.SYNC.html#TYPEhead">head</a> [<a href="Irmin.SYNC.html">Irmin.SYNC</a>]</td>
-<td><div class="info">
-The type for store heads.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.Sync.S.html#TYPEhead">head</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
-<td><div class="info">
-The type for store heads.
-</div>
-</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http_server.html#TYPEhooks">hooks</a> [<a href="Irmin_unix.Irmin_http_server.html">Irmin_unix.Irmin_http_server</a>]</td>
 <td><div class="info">
 Server hooks.
@@ -213,9 +224,9 @@ Type type for path's steps.
 </div>
 </td></tr>
 <tr><td align="left"><br>T</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http_server.S.html#TYPEt">t</a> [<a href="Irmin_unix.Irmin_http_server.S.html">Irmin_unix.Irmin_http_server.S</a>]</td>
+<tr><td><a href="Irmin.BC.Repo.html#TYPEt">t</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
 <td><div class="info">
-The type for store handles.
+The type of repository handles.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.RO.html#TYPEt">t</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
@@ -228,6 +239,8 @@ Type for stores.
 Operations on views.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.S.Repo.html#TYPEt">t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Private.Sync.S.html#TYPEt">t</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
 <td><div class="info">
 The type for store handles.
@@ -271,16 +284,6 @@ Signature of a merge function.
 <tr><td><a href="Irmin.Hum.html#TYPEt">t</a> [<a href="Irmin.Hum.html">Irmin.Hum</a>]</td>
 <td><div class="info">
 Type for implementation of <code class="code"><span class="constructor">S</span></code> for values of type <code class="code"><span class="keywordsign">'</span>a</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.BC.html#TYPEtag">tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-Type for persistent branch names.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Private.Sync.S.html#TYPEtag">tag</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
-<td><div class="info">
-The type for store tags.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.html#TYPEtask">task</a> [<a href="Irmin.html">Irmin</a>]</td>

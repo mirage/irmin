@@ -127,9 +127,9 @@ Monadic bind for results.
 <code class="code">bool</code> converts values with <code class="code">bool_of_string</code>.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALbranch">branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.Repo.html#VALbranches">branches</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
 <td><div class="info">
-<code class="code">branch t</code> is a representation of <code class="code">t</code>'s branch.
+The list of all persistent branch names.
 </div>
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
@@ -161,7 +161,7 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALclosure">GRAPH.closure</a> but
           nodes such that:
 </div>
 </td></tr>
-<tr><td><a href="Irmin.S.Private.html#VALcommit_t">commit_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
+<tr><td><a href="Irmin.Private.S.Repo.html#VALcommit_t">commit_t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.RW.html#VALcompare_and_set">compare_and_set</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
 <td><div class="info">
@@ -196,13 +196,6 @@ Create a configuration value.
 Configuration values.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.RO.html#VALconfig">config</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
-<td><div class="info">
-<code class="code">config t</code> is <code class="code">t</code>'s config.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.S.Private.html#VALconfig">config</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
-<td></td></tr>
 <tr><td><a href="Irmin.Merge.OP.html#VALconflict">conflict</a> [<a href="Irmin.Merge.OP.html">Irmin.Merge.OP</a>]</td>
 <td><div class="info">
 Return <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span> str</code>.
@@ -230,7 +223,7 @@ The configuraion key to set the content-type set by the client
 Get the node contents.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.S.Private.html#VALcontents_t">contents_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
+<tr><td><a href="Irmin.Private.S.Repo.html#VALcontents_t">contents_t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALconv">conv</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
@@ -242,14 +235,27 @@ Get the node contents.
 The merge function for mergeable counters.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.RO.html#VALcreate">create</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
+<tr><td><a href="Irmin.RW_MAKER.html#VALcreate">create</a> [<a href="Irmin.RW_MAKER.html">Irmin.RW_MAKER</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.LINK_MAKER.html#VALcreate">create</a> [<a href="Irmin.LINK_MAKER.html">Irmin.LINK_MAKER</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.AO_MAKER.html#VALcreate">create</a> [<a href="Irmin.AO_MAKER.html">Irmin.AO_MAKER</a>]</td>
 <td><div class="info">
-<code class="code">create config task</code> is a function returning fresh store
-      handles, with the configuration <code class="code">config</code> and fresh tasks
-      computed using <code class="code">task</code>.
+<code class="code">create config</code> is a function returning fresh store
+        handles, with the configuration <code class="code">config</code>, which is
+        provided by the backend.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Sync.S.html#VALcreate">create</a> [<a href="Irmin.Private.Sync.S.html">Irmin.Private.Sync.S</a>]</td>
+<tr><td><a href="Irmin.BC.Repo.html#VALcreate">create</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
+<td><div class="info">
+<code class="code">create config</code> connects to a repository in a backend-specific manner.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.S.Sync.html#VALcreate">create</a> [<a href="Irmin.Private.S.Sync.html">Irmin.Private.S.Sync</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.S.Repo.html#VALcreate">create</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin.Private.Sync.None.html#VALcreate">create</a> [<a href="Irmin.Private.Sync.None.html">Irmin.Private.Sync.None</a>]</td>
 <td><div class="info">
 Create a remote store handle.
 </div>
@@ -358,7 +364,7 @@ Compute a deterministic store key from a <code class="code"><span class="constru
 <tr><td align="left"><br>E</td></tr>
 <tr><td><a href="Irmin.BC.html#VALempty">empty</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">empty config task</code> is a temporary, empty branch.
+<code class="code">empty repo task</code> is a temporary, empty store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.VIEW.html#VALempty">empty</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
@@ -396,11 +402,11 @@ The empty task.
 Convert <code class="code"><span class="keywordsign">`</span><span class="constructor">Conflict</span></code> results to <code class="code"><span class="constructor">Conflict</span></code> exceptions.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALexport">export</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.Repo.html#VALexport">export</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
 <td><div class="info">
 <code class="code">export t ~depth ~min ~max</code> exports the store slice between
-      <code class="code">min</code> and <code class="code">max</code>, using at most <code class="code">depth</code> history depth (starting
-      from the max).
+        <code class="code">min</code> and <code class="code">max</code>, using at most <code class="code">depth</code> history depth (starting
+        from the max).
 </div>
 </td></tr>
 <tr><td align="left"><br>F</td></tr>
@@ -459,16 +465,23 @@ The configuration key to set the local Git repository's current
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALhead">head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">head t</code> is the current head of the branch <code class="code">t</code>.
+<code class="code">head t</code> is the current head of the store <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALhead_exn">head_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Same as <a href="Irmin.BC.html#VALhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.head</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the branch does
+Same as <a href="Irmin.BC.html#VALhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.head</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the store does
       not have any contents.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALheads">heads</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.html#VALhead_ref">head_ref</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+<code class="code">head_ref t</code> is the branch ID that this store tracks (for persistent
+      stores), the current <code class="code">head</code> commit (for temporary stores), or <code class="code"><span class="keywordsign">`</span><span class="constructor">Empty</span></code>
+      for empty temporary stores.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.BC.Repo.html#VALheads">heads</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
 <td><div class="info">
 <code class="code">heads t</code> is the list of all the heads in local store.
 </div>
@@ -476,13 +489,13 @@ Same as <a href="Irmin.BC.html#VALhead"><code class="code"><span class="construc
 <tr><td><a href="Irmin.BC.html#VALhistory">history</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">history ?depth ?min ?max t</code> is a view of the history of the
-      branch <code class="code">t</code>, of depth at most <code class="code">depth</code>, starting from the <code class="code">max</code>
+      store <code class="code">t</code>, of depth at most <code class="code">depth</code>, starting from the <code class="code">max</code>
       (or from the <code class="code">t</code>'s head if the list of heads is empty) and
       stopping at <code class="code">min</code> if specified.
 </div>
 </td></tr>
 <tr><td align="left"><br>I</td></tr>
-<tr><td><a href="Irmin.BC.html#VALimport">import</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.Repo.html#VALimport">import</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
 <td><div class="info">
 <code class="code">import t s</code> imports the contents of the slice <code class="code">s</code> in <code class="code">t</code>.
 </div>
@@ -512,9 +525,9 @@ Is the node empty?
 Check if the path is empty.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Tag.S.html#VALis_valid">is_valid</a> [<a href="Irmin.Tag.S.html">Irmin.Tag.S</a>]</td>
+<tr><td><a href="Irmin.Ref.S.html#VALis_valid">is_valid</a> [<a href="Irmin.Ref.S.html">Irmin.Ref.S</a>]</td>
 <td><div class="info">
-Check if the tag is valid.
+Check if the branch ID is valid.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.RO.html#VALiter">iter</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
@@ -593,14 +606,14 @@ Find the lowest common ancestors
           between two commits.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALlcas_head">lcas_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.html#VALlcas_branch">lcas_branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes an head as argument.
+Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes a branch ID as argument.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALlcas_tag">lcas_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.html#VALlcas_head">lcas_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes a tag as argument.
+Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.lcas</code></a> but takes a commit_id as argument.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_git.html#VALlevel">level</a> [<a href="Irmin_unix.Irmin_git.html">Irmin_unix.Irmin_git</a>]</td>
@@ -612,12 +625,6 @@ Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="construc
 <tr><td><a href="Irmin.HRW.html#VALlist">list</a> [<a href="Irmin.HRW.html">Irmin.HRW</a>]</td>
 <td><div class="info">
 <code class="code">list t k</code> list the sub-paths of the path <code class="code">k</code> in <code class="code">t</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.Irmin_http_server.S.html#VALlisten">listen</a> [<a href="Irmin_unix.Irmin_http_server.S.html">Irmin_unix.Irmin_http_server.S</a>]</td>
-<td><div class="info">
-<code class="code">listen t uri</code> start a server serving the contents of
-        <code class="code">t</code> at the address <code class="code">uri</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Watch.S.html#VALlisten_dir">listen_dir</a> [<a href="Irmin.Private.Watch.S.html">Irmin.Private.Watch.S</a>]</td>
@@ -632,12 +639,19 @@ Register a thread looking for changes in the given directory
 <td><div class="info">
 <code class="code">make_head t task ~parents ~contents</code> creates a new commit into
       the store where the branch <code class="code">t</code> is stored and return its id (of
-      type <a href="Irmin.VIEW.html#TYPEhead"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.head</code></a>).
+      type <a href="Irmin.VIEW.html#TYPEcommit_id"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.commit_id</code></a>).
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Path.S.html#VALmap">map</a> [<a href="Irmin.Path.S.html">Irmin.Path.S</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin.Tag.S.html#VALmaster">master</a> [<a href="Irmin.Tag.S.html">Irmin.Tag.S</a>]</td>
+<tr><td><a href="Irmin.BC.html#VALmaster">master</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+<code class="code">master repo task</code> is a function returning fresh store
+      handles within the repository <code class="code">repo</code>, with fresh tasks
+      computed using <code class="code">task</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Ref.S.html#VALmaster">master</a> [<a href="Irmin.Ref.S.html">Irmin.Ref.S</a>]</td>
 <td><div class="info">
 The name of the master branch.
 </div>
@@ -672,6 +686,8 @@ Check if a key exists.
       branch.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Commit.HISTORY.Store.html#VALmerge">merge</a> [<a href="Irmin.Private.Commit.HISTORY.Store.html">Irmin.Private.Commit.HISTORY.Store</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#VALmerge">merge</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
 <td><div class="info">
 <code class="code">merge t</code> is the 3-way merge function for commit.
@@ -695,6 +711,18 @@ Lift to <code class="code"><span class="constructor">X</span>.t</code> maps.
 </td></tr>
 <tr><td><a href="Irmin.Merge.MSet.html#VALmerge">merge</a> [<a href="Irmin.Merge.MSet.html">Irmin.Merge.MSet</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.BC.html#VALmerge_branch">merge_branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+<code class="code">merge_branch t other</code> merges the contents of the branch named <code class="code">other</code>
+      into <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.BC.html#VALmerge_branch_exn">merge_branch_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+Same as <a href="Irmin.BC.html#VALmerge_branch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_branch</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
+      conflict.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_exn">merge_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 FIXME Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case
@@ -703,8 +731,8 @@ FIXME Same as <a href="Irmin.BC.html#VALmerge">merge</a> but raise <a href="Irmi
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_head">merge_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">merge_head t ?max_head ?n head</code> merges the contents of the
-      temporary branch associated to <code class="code">head</code> into <code class="code">t</code>.
+<code class="code">merge_head t ?max_head ?n commit_id</code> merges the contents of the
+      commit associated to <code class="code">commit_id</code> into <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALmerge_head_exn">merge_head_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -727,27 +755,26 @@ Same as <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="
       conflicts.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALmerge_tag">merge_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-<code class="code">merge_tag t tag</code> merges the contents of the branch named <code class="code">tag</code>
-      into <code class="code">t</code>'s.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.BC.html#VALmerge_tag_exn">merge_tag_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-Same as <a href="Irmin.BC.html#VALmerge_tag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.merge_tag</code></a> but raise <a href="Irmin.Merge.html#EXCEPTIONConflict"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">Conflict</span></code></a> in case of
-      conflict.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Task.html#VALmessages">messages</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
 <td><div class="info">
 Get the messages associated to the task.
 </div>
 </td></tr>
 <tr><td align="left"><br>N</td></tr>
+<tr><td><a href="Irmin.BC.html#VALname">name</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+<code class="code">name t</code> is <code class="code">t</code>'s branch name.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALname">name</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 The key name.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.BC.html#VALname_exn">name_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+Same as <a href="Irmin.BC.html#VALname"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.name</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if <code class="code">t</code> is not
+      persistent.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#VALnode">node</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
@@ -760,7 +787,7 @@ Get the commit node.
 The underlying node.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.S.Private.html#VALnode_t">node_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
+<tr><td><a href="Irmin.Private.S.Repo.html#VALnode_t">node_t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Task.html#VALnone">none</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
 <td><div class="info">
@@ -774,9 +801,14 @@ Notify all listeners in the given watch state that a key has
 </div>
 </td></tr>
 <tr><td align="left"><br>O</td></tr>
-<tr><td><a href="Irmin.BC.html#VALof_head">of_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.html#VALof_branch_id">of_branch_id</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-Create a temporary branch, using the given <code class="code">head</code>.
+<code class="code">of_branch_id t name</code> is the persistent branch named <code class="code">name</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.BC.html#VALof_commit_id">of_commit_id</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+Create a temporary store, using the given <code class="code">commit_id</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Hum.S.html#VALof_hum">of_hum</a> [<a href="Irmin.Hum.S.html">Irmin.Hum.S</a>]</td>
@@ -794,11 +826,6 @@ Convert a human readable representation of a value into its
 <tr><td><a href="Irmin.Hash.S.html#VALof_raw">of_raw</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
 <td><div class="info">
 Abstract a hash value.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.BC.html#VALof_tag">of_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-<code class="code">create t tag</code> is the persistent branch named <code class="code">tag</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Merge.OP.html#VALok">ok</a> [<a href="Irmin.Merge.OP.html">Irmin.Merge.OP</a>]</td>
@@ -987,6 +1014,8 @@ Same as <a href="Irmin.VIEW.html#VALrebase_path"><code class="code"><span class=
       conflict.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.S.Repo.html#VALref_t">ref_t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALrem">rem</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">rem c k</code> is <code class="code">c</code> with <code class="code">k</code> unbound.
@@ -1006,6 +1035,11 @@ Same as <a href="Irmin.VIEW.html#VALrebase_path"><code class="code"><span class=
 <tr><td><a href="Irmin.RW.html#VALremove">remove</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
 <td><div class="info">
 <code class="code">remove t k</code> remove the key <code class="code">k</code> in <code class="code">t</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.BC.Repo.html#VALremove_branch">remove_branch</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
+<td><div class="info">
+<code class="code">remove_branch t name</code> removes the branch <code class="code">name</code> from the local store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALremove_contents">remove_contents</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
@@ -1030,9 +1064,9 @@ Same as <a href="Irmin.RW.html#VALremove">RW.remove</a> but removes all the sub-
       recursively.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALremove_tag">remove_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.html#VALrepo">repo</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">remove_tag t tag</code> removes the tag <code class="code">tag</code> from the local store.
+<code class="code">repo t</code> is the repository containing <code class="code">t</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALroot">root</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
@@ -1099,24 +1133,6 @@ The default string merge function.
 </div>
 </td></tr>
 <tr><td align="left"><br>T</td></tr>
-<tr><td><a href="Irmin.BC.html#VALtag">tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-<code class="code">tag t</code> is <code class="code">t</code>'s name.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.BC.html#VALtag_exn">tag_exn</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-Same as <a href="Irmin.BC.html#VALtag"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">BC</span>.tag</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if <code class="code">t</code> is not
-      persistent.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.S.Private.html#VALtag_t">tag_t</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
-<td></td></tr>
-<tr><td><a href="Irmin.BC.html#VALtags">tags</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-The list of all persistent branch's names.
-</div>
-</td></tr>
 <tr><td><a href="Irmin_unix.html#VALtask">task</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
 <td><div class="info">
 <code class="code">task fmt</code> creates a fresh task, with the <a href="Irmin.Task.html#VALdate">date</a>
@@ -1125,14 +1141,9 @@ The list of all persistent branch's names.
     use <code class="code"><span class="constructor">Unix</span>.gethostname()</code> and <code class="code"><span class="constructor">Unix</span>.getpid()</code> for now on.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.RO.html#VALtask">task</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
+<tr><td><a href="Irmin.BC.html#VALtask">task</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">task t</code> is the task associated to the store handle <code class="code">t</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.VIEW.html#VALtask">task</a> [<a href="Irmin.VIEW.html">Irmin.VIEW</a>]</td>
-<td><div class="info">
-Views do not have tasks.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.S.html#VALtask">task</a> [<a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a>]</td>
@@ -1140,9 +1151,9 @@ Views do not have tasks.
 The commit provenance.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.BC.html#VALtask_of_head">task_of_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<tr><td><a href="Irmin.BC.Repo.html#VALtask_of_commit_id">task_of_commit_id</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
 <td><div class="info">
-<code class="code">task_of_head t h</code> is the task which created <code class="code">h</code>.
+<code class="code">task_of_commit_id t h</code> is the task which created <code class="code">h</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#VALthree_way_merge">three_way_merge</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
@@ -1197,10 +1208,16 @@ Remove a watch handler.
 <code class="code">update t k v</code> replaces the contents of <code class="code">k</code> by <code class="code">v</code> in <code class="code">t</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.BC.html#VALupdate_branch">update_branch</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
+<td><div class="info">
+<code class="code">update_branch t src</code> updates <code class="code">t</code>'s contents with the contents of
+      the branch named <code class="code">src</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALupdate_head">update_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">update_head t h</code> updates <code class="code">t</code>'s contents with the contents of
-      the head <code class="code">h</code>.
+      the commit_id <code class="code">h</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALupdate_node">update_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
@@ -1209,12 +1226,6 @@ Remove a watch handler.
 <td><div class="info">
 <code class="code">update_path t p v</code> <em>replaces</em> the sub-tree under <code class="code">p</code> in the
       branch <code class="code">t</code> by the contents of the view <code class="code">v</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.BC.html#VALupdate_tag">update_tag</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-<code class="code">update_tag t tag</code> updates <code class="code">t</code>'s contents with the contents of
-      the branch named <code class="code">tag</code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http.html#VALuri">uri</a> [<a href="Irmin_unix.Irmin_http.html">Irmin_unix.Irmin_http</a>]</td>
@@ -1246,10 +1257,16 @@ The version of the library.
 Add a watch handler.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.BC.Repo.html#VALwatch_branches">watch_branches</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
+<td><div class="info">
+<code class="code">watch_branches t f</code> calls <code class="code">f</code> every time a branch is added, removed or
+        updated in the local store.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.html#VALwatch_head">watch_head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
-<code class="code">watch_tag t f</code> calls <code class="code">f</code> every time the contents of <code class="code">t</code>'s tag is
-      updated.
+<code class="code">watch_branch t f</code> calls <code class="code">f</code> every time the contents of <code class="code">t</code>'s reference
+      is updated.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.BC.html#VALwatch_key">watch_key</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
@@ -1274,12 +1291,6 @@ Watch a given key for changes.
 <td><div class="info">
 <code class="code">watch_head t p f</code> calls <code class="code">f</code> every time a subpath of <code class="code">p</code> is
       updated in the branch <code class="code">t</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.BC.html#VALwatch_tags">watch_tags</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
-<td><div class="info">
-<code class="code">watch_tags t f</code> calls <code class="code">f</code> every time a tag is added, removed or
-      updated in the local store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.S.html#VALwith_contents">with_contents</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
