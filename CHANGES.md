@@ -1,4 +1,4 @@
-### 0.9.11
+### 0.10.0 (2015-10-14)
 
 * Fix the `Irmin_mem` backend to work when equal keys might be not
   structurally equal (`Pervasives.(=)` is evil)
@@ -81,8 +81,7 @@
   `task_of_commit_id`, `Internals.commit_of_head` is now
   `Internals.commit_of_id` and `BC.Head` is now `BC.Hash`.
 
-
-### 0.9.10
+### 0.9.10 (2015-10-01)
 
 * Expose the Git compression level (#104, #298 by @samoht)
 * Add an optional `config` argument to all the backend's config
@@ -111,7 +110,7 @@
 * Remove the first-class module API. It's confusing to duplicate the API
   (#293, by @talex5)
 
-### 0.9.9
+### 0.9.9 (2015-08-14)
 
 * Allow raw bodies in queries and responses for the REST API. This is
   controlled by the `Content-type` field set by the client:
