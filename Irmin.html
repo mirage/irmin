@@ -17,8 +17,6 @@
 <link title="Stores" rel="Section" href="#1_Stores">
 <link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
 <link title="High-level Stores" rel="Section" href="#1_HighlevelStores">
-<link title="Basic API" rel="Section" href="#basics">
-<link title="Basic API" rel="Section" href="#basics">
 <link title="Examples" rel="Section" href="#examples">
 <link title="Examples" rel="Section" href="#examples">
 <link title="Helpers" rel="Section" href="#1_Helpers">
@@ -51,12 +49,12 @@ Irmin public API.
     Xen unikernels.
 <p>
 
-    Consult the <a href="Irmin.html#basics"><i>Basic API</i></a> and <a href="Irmin.html#examples"><i>Examples</i></a> of use for a quick
+    Consult the <code class="code">basics</code> and <a href="Irmin.html#examples"><i>Examples</i></a> of use for a quick
     start. See also the <a href="Irmin_unix.html">documentation</a> for the unix
     backends.
 <p>
 
-    <em>Release %%VERSION%% - %%MAINTAINER%% </em><br>
+    <em>Release 0.10.0 - Thomas Gazagnaire &lt;thomas@gazagnaire.org&gt;</em><br>
 </div>
 <hr width="100%">
 
@@ -198,27 +196,6 @@ Signature for Irmin stores.
        and type commit_id = H.t</code></pre><div class="info">
 <code class="code"><span class="constructor">S_MAKER</span></code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span></code></a>
     implementations.
-</div>
-<br>
-<h1 id="basics">Basic API</h1><br>
-<br>
-<h1 id="basics">Basic API</h1><br>
-<br>
-The basic API considers default Irmin implementations using:
-<p>
-
-    <ul>
-<li><a href="Irmin.Path.String_list.html">list of strings</a> as keys.</li>
-<li><a href="Irmin.Ref.String.html">strings</a> as branch IDs.</li>
-<li><a href="Irmin.Hash.SHA1.html">SHA1</a> as internal digests.</li>
-</ul>
-
-<p>
-
-    Only the <a href="Irmin.Contents.S.html">contents</a> is provided by the user.<br>
-
-<pre><span class="keyword">module type</span> <a href="Irmin.BASIC.html">BASIC</a> = <code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type branch_id = string and type commit_id = Hash.SHA1.t</code></pre><div class="info">
-The signature of basic stores.
 </div>
 <br>
 <h2 id="2_Synchronization">Synchronization</h2><br>
