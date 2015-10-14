@@ -2,7 +2,7 @@ OASISFormat: 0.4
 Name:        irmin
 Version:     0.9.11
 Synopsis:    A Distributed Version Control Database
-Authors:     Thomas Gazagnaire
+Authors:     Thomas Gazagnaire, Thomas Leonard
 License:     ISC
 Plugins:     META (0.4), DevFiles (0.4)
 BuildTools:  ocamlbuild

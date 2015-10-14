@@ -1,6 +1,6 @@
 opam-version: "1.2"
 maintainer:   "thomas@gazagnaire.org"
-authors:      "Thomas Gazagnaire"
+authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
 license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
