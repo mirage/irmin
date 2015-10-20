@@ -455,9 +455,9 @@ module type RRW = sig
   val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) ->
     watch Lwt.t
   (** [watch_key t k ?init f] adds [f] to the list of [t]'s watch
-      handlers for the key [k] and returns the watch handler to be used
-      with {!unwatch}. [init] is the optional initial value of the
-      key. *)
+      handlers for the key [k] and returns the watch handler to be
+      used with {!unwatch}. [init] is the optional initial value of
+      the key. *)
 
   val watch: t -> ?init:(key * value) list -> (key -> value diff -> unit Lwt.t) ->
     watch Lwt.t
@@ -687,7 +687,8 @@ module type BC = sig
   val watch_key: t -> key -> ?init:(commit_id * value) ->
     ((commit_id * value) diff -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
   (** [watch_key t key f] calls [f] every time the [key]'s value is
-      added, removed or updated. *)
+      added, removed or updated. If the current branch is deleted, no
+      signal is sent to the watcher. *)
 
   (** {2 Clones and Merges} *)
 
