@@ -653,6 +653,8 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
 
   let lca = lca (module S.Hash)
 
+  module V = Irmin.View(S)
+
   let dispatch hooks =
     let lock3 (t, _, _) = S.name t in
     let lock2 (t, _) = S.name t in
@@ -699,25 +701,61 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       S.head_exn t >>=
       ok
     in
-        let mk = function
-      | `Updated (_, y)
-      | `Added y   -> Some y
-      | `Removed _ -> None
-    in
-
+    let s_watch_rec t key init =
+      let init = match init with
+        | None   -> Lwt.return_none
+        | Some c ->
+          S.of_commit_id Irmin.Task.none c (S.repo t) >>= fun t' ->
+          V.of_path (t' ()) key >|= fun v ->
+          Some (c, v)
+      in
+      let mk (k, v) =
+        (match v with `Updated _ -> "*" | `Added _ -> "+" | `Removed _ -> "-"),
+        k
+      in
+      let stream, push = Lwt_stream.create () in
+      lwt_stream_lift (
+        let close = ref (fun () -> Lwt.return_unit) in
+        init >>= fun init ->
+        V.watch_path t ?init key (fun diff ->
+            let head = match diff with
+              | `Added y | `Updated (_, y) -> Some (fst y)
+              | `Removed _ -> None
+            in
+            match head with
+            | None      -> Lwt.return_unit (* skip deleted branch events *)
+            | Some head ->
+              let x, y = match diff with
+                | `Updated (x, y) -> Lwt.return (snd x), Lwt.return (snd y)
+                | `Added x        -> V.empty (), Lwt.return (snd x)
+                | `Removed x      -> Lwt.return (snd x), V.empty ()
+              in
+              x >>= fun x -> y >>= fun y ->
+              V.diff x y >>= fun diff ->
+              let diff = head, List.map mk diff in
+              try push (Some diff); Lwt.return_unit
+              with Lwt_stream.Closed -> !close ())
+        >|= fun f ->
+        close := f;
+        stream
+      ) in
     let s_watch t key init =
+      let mk = function
+        | `Updated (_, y) | `Added y -> Some y
+        | `Removed _ -> None
+      in
       let stream, push = Lwt_stream.create () in
       lwt_stream_lift (
         let close = ref (fun () -> Lwt.return_unit) in
         S.watch_key t ?init key (fun v ->
             try push (Some (mk v)); Lwt.return_unit
             with Lwt_stream.Closed -> !close ())
-        >>= fun f ->
+        >|= fun f ->
         close := f;
-        Lwt.return stream
-      )
-    in
-    let tc_watch = Tc.pair commit_id value in
+        stream
+      ) in
+    let tc_watch_v = Tc.pair commit_id value in
+    let tc_watch_k = Tc.pair commit_id Tc.(list @@ pair string key) in
     let s_lcas_branch t tag query =
       let max_depth, n = mk_merge_query query in
       S.lcas_branch t ?max_depth ?n tag
@@ -754,7 +792,8 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       mknp0bf "remove-rec" ~lock:lock2 (list s_remove_rec) t step_h commit_id;
 
       (* watches *)
-      mknp1bs "watch" (list s_watch) t step_h tc_watch (Tc.option tc_watch);
+      mknp1bs "watch" (list s_watch) t step_h tc_watch_v (Tc.option tc_watch_v);
+      mknp1bs "watch-rec" (list s_watch_rec) t step_h commit_id tc_watch_k;
 
       (* more *)
       mk1p0bf "remove-tag" ~lock:lock2 ~hooks (repo_op S.Repo.remove_branch)  t tag_h Tc.unit;
