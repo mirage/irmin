@@ -325,6 +325,7 @@ module type MAKER =
   functor (H: HASH) ->
     STORE_EXT
       with type key = C.Path.t
+       and module Key = C.Path
        and type value = C.t
        and type branch_id = R.t
        and type commit_id = H.t
