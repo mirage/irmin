@@ -47,9 +47,9 @@ The type of watch handlers.<br>
 
 <pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type">t -><br>       key -><br>       ?init:value -> (value <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.RRW.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">
 <code class="code">watch_key t k ?init f</code> adds <code class="code">f</code> to the list of <code class="code">t</code>'s watch
-      handlers for the key <code class="code">k</code> and returns the watch handler to be used
-      with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>. <code class="code">init</code> is the optional initial value of the
-      key.<br>
+      handlers for the key <code class="code">k</code> and returns the watch handler to be
+      used with <a href="Irmin.RRW.html#VALunwatch"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RRW</span>.unwatch</code></a>. <code class="code">init</code> is the optional initial value of
+      the key.<br>
 </div>
 
 <pre><span id="VALwatch"><span class="keyword">val</span> watch</span> : <code class="type">t -><br>       ?init:(key * value) list -><br>       (key -> value <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -> <a href="Irmin.RRW.html#TYPEwatch">watch</a> Lwt.t</code></pre><div class="info ">

@@ -227,7 +227,8 @@ Same as <a href="Irmin.BC.html#VALmerge_head">merge_head</a> but raise <a href="
 
 <pre><span id="VALwatch_key"><span class="keyword">val</span> watch_key</span> : <code class="type">t -><br>       key -><br>       ?init:<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> * value -><br>       ((<a href="Irmin.BC.html#TYPEcommit_id">commit_id</a> * value) <a href="Irmin.html#TYPEdiff">Irmin.diff</a> -> unit Lwt.t) -><br>       (unit -> unit Lwt.t) Lwt.t</code></pre><div class="info ">
 <code class="code">watch_key t key f</code> calls <code class="code">f</code> every time the <code class="code">key</code>'s value is
-      added, removed or updated.<br>
+      added, removed or updated. If the current branch is deleted, no
+      signal is sent to the watcher.<br>
 </div>
 <br>
 <h2 id="2_ClonesandMerges">Clones and Merges</h2><br>

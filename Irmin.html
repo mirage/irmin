@@ -53,7 +53,7 @@ Irmin public API.
     backends.
 <p>
 
-    <em>Release 0.10.0 - Thomas Gazagnaire &lt;thomas@gazagnaire.org&gt;</em><br>
+    <em>Release %%VERSION%% - %%MAINTAINER%% </em><br>
 </div>
 <hr width="100%">
 
@@ -190,6 +190,7 @@ Signature for Irmin stores.
 </div>
 
 <pre><span class="keyword">module type</span> <a href="Irmin.S_MAKER.html">S_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">R</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Ref.S.html">Ref.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type key = C.Path.t
+       and module Key = C.Path
        and type value = C.t
        and type branch_id = R.t
        and type commit_id = H.t</code></pre><div class="info">
