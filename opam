@@ -10,7 +10,7 @@ build: [
   ["./configure" "--prefix" prefix
       "--%{cohttp:enable}%-http"
       "--%{git:enable}%-git"
-      "--%{base-unix:enable}%-unix"
+      "--%{base-unix+git-unix:enable}%-unix"
       "--%{mirage-git:enable}%-mirage"]
   [make]
 ]
@@ -44,6 +44,7 @@ depends: [
 depopts: [
   "base-unix"
   "git"
+  "git-unix"
   "cohttp"
   "mirage-git"
 ]

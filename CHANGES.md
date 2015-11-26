@@ -1,3 +1,12 @@
+### 0.10.1 (2015-11-26)
+
+* Support for launchd: the `--address` argument of the CLI now
+  supports a URI `launchd://<name>` where `<name>` corresponds
+  to the section in the property list file (#321, by @djs55)
+* Expose `/watch-rec` in the REST API (#326, by @samoht)
+* Expose Store.Key = Contents.Path in Irmin.Maker. Otherwise,
+  the type of steps is abstract. (#327, by @talex5)
+
 ### 0.10.0 (2015-10-14)
 
 * Fix the `Irmin_mem` backend to work when equal keys might be not
