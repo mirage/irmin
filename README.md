@@ -125,20 +125,22 @@ To get the full capabilites of Irmin, use the [API](https://mirage.github.io/irm
 ```ocaml
 open Lwt
 open Irmin_unix
-let store = Irmin.basic (module Irmin_git.FS) (module Irmin.Contents.String)
+module Store =
+  Irmin_git.FS (Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+
 let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
 let prog =
-  Irmin.create store config task >>= fun t ->
-  Irmin.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!" >>= fun () ->
-  Irmin.read_exn (t "Reading foo/bar") ["foo"; "bar"] >>= fun x ->
+  Store.Repo.create config >>= Store.master task >>= fun t ->
+  Store.update (t "Updating foo/bar")  ["foo"; "bar"] "hi!" >>= fun () ->
+  Store.read_exn (t "Reading foo/bar") ["foo"; "bar"] >>= fun x ->
   Printf.printf "Read: %s\n%!" x;
-  return_unit
+  Lwt.return_unit
 let () = Lwt_main.run prog
 ```
 
 To compile the example above, save it to a file called
-`example.ml`. Install irmin and git with opam (`opam install irmin
-git`) and run
+`example.ml`. Install irmin and git with opam (`opam install irmin-unix`) and
+run
 
 ```ocaml
 $ ocamlfind ocamlopt example.ml -o example -package irmin.unix,lwt.unix -linkpkg
