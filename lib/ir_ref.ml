@@ -23,13 +23,21 @@ module String = struct
 
   let is_valid s =
     let ok = ref true in
-    String.iter (function
-        | 'a' .. 'z'
-        | 'A' .. 'Z'
-        | '0' .. '9'
-        | '/' | '-'| '_' | '.' -> ()
-        | _ -> ok := false
-      ) s;
+    let n = String.length s in
+    let i = ref 0 in
+    while !i < n do
+      (match s.[!i] with
+       | 'a' .. 'z'
+       | 'A' .. 'Z'
+       | '0' .. '9'
+       | '-'| '_' | '.' -> ()
+       | '/'  -> if Sys.os_type = "Win32" then ok := false
+       | '\\' ->
+         if Sys.os_type = "Win32" && !i + 1 < n && s.[!i+1] = '\\' then incr i;
+       | _ -> ok := false
+      );
+      incr i;
+    done;
     !ok
 
   let to_hum s = s

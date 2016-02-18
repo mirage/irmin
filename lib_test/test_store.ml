@@ -80,7 +80,7 @@ module Make (S: Test_S) = struct
     Contents.add (S.Private.Repo.contents_t repo) (v2 x)
 
   let t1 = T.of_hum "foo"
-  let t2 = T.of_hum "bar/toto"
+  let t2 = T.of_hum ("bar" / "toto")
 
   let n1 ~repo x =
     kv1 ~repo x >>= fun kv1 ->
