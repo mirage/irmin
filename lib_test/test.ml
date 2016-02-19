@@ -19,19 +19,27 @@ let misc = [
   Test_link.misc;
 ]
 
+let it_depends k = if k = `String then `Quick else `Slow
+
+let http_tests k =
+  if Sys.os_type = "Win32" then
+    (* it's a bit hard to test client/server stuff on windows because
+       we can't fork. Can work around that later if needed. *)
+    []
+  else [
+    it_depends k, Test_http.suite ~content_type:`Raw (Test_memory.suite k);
+    it_depends k, Test_http.suite ~content_type:`Json (Test_memory.suite k);
+    `Slow, Test_http.suite ~content_type:`Raw (Test_fs.suite k);
+    `Slow, Test_http.suite ~content_type:`Json (Test_fs.suite k);
+    `Slow, Test_http.suite ~content_type:`Raw (Test_git.suite k);
+    `Slow, Test_http.suite ~content_type:`Json (Test_git.suite k);
+]
 let suite k =
-  let depends = if k = `String then `Quick else `Slow in
   [
     `Quick , Test_memory.suite k;
     `Quick , Test_fs.suite k;
     `Quick , Test_git.suite k;
-    depends, Test_http.suite ~content_type:`Raw (Test_memory.suite k);
-    depends, Test_http.suite ~content_type:`Json (Test_memory.suite k);
-    `Slow  , Test_http.suite ~content_type:`Raw (Test_fs.suite k);
-    `Slow  , Test_http.suite ~content_type:`Json (Test_fs.suite k);
-    `Slow  , Test_http.suite ~content_type:`Raw (Test_git.suite k);
-    `Slow  , Test_http.suite ~content_type:`Json (Test_git.suite k);
-  ]
+  ] @ http_tests k
 
 let () =
   Test_store.run "irmin" ~misc (suite `String @ suite `Json)

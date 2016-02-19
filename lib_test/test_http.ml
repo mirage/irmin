@@ -57,23 +57,24 @@ let suite ?(content_type=`Raw) server =
         with _ -> () in
       Lwt_io.flush_all () >>= fun () ->
       match Lwt_unix.fork () with
-      | 0   ->
-        Lwt_unix.set_default_async_method Lwt_unix.Async_none;
-        server ()
-      | pid ->
-        server_pid := pid;
-        wait_for_the_server_to_start ()
+        | 0   ->
+          Lwt_unix.set_default_async_method Lwt_unix.Async_none;
+          server ()
+        | pid ->
+          server_pid := pid;
+          wait_for_the_server_to_start ()
     end;
 
     cont = server.cont;
     kind = `Http server.kind;
 
     clean = begin fun () ->
-      Unix.kill !server_pid 9;
-      let () =
-        try ignore (Unix.waitpid [Unix.WUNTRACED] !server_pid)
-        with _ -> () in
-      server.clean ()
+      try Unix.kill !server_pid Sys.sigkill;
+        let () =
+          try ignore (Unix.waitpid [Unix.WUNTRACED] !server_pid)
+          with _ -> () in
+        server.clean ()
+      with Unix.Unix_error (Unix.ESRCH, _, _) -> Lwt.return_unit
     end;
 
     config = Irmin_http.config ~content_type uri;
