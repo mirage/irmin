@@ -496,12 +496,12 @@ module Make_ext
 
     let tag_of_git r =
       let str = String.trim @@ Git.Reference.to_raw r in
-      match string_chop_prefix ~prefix:"refs/heads/" str with
+      match string_chop_prefix ~prefix:("refs" / "heads" / "") str with
       | None   -> None
       | Some r -> Some (Key.of_hum r)
 
     let git_of_tag_string str =
-      Git.Reference.of_raw ("refs/heads" / str)
+      Git.Reference.of_raw ("refs" / "heads" / str)
 
     let git_of_tag r =
       git_of_tag_string (Key.to_hum r)
