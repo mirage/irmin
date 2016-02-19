@@ -249,7 +249,7 @@ module Internal (Node: NODE) = struct
         mem t path >>= fun exists ->
         begin
           if not exists then Lwt.return_unit
-          else fn path (read_exn t path)
+          else fn path (fun () -> read_exn t path)
         end >>= fun () ->
         aux todo
     in
@@ -382,7 +382,7 @@ module Internal (Node: NODE) = struct
     let set t =
       let acc = ref KV.empty in
       iter t (fun k v ->
-          v >>= fun v ->
+          v () >>= fun v ->
           acc := KV.add (k, v) !acc;
           Lwt.return_unit
         ) >>= fun () ->

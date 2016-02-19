@@ -193,7 +193,7 @@ let tree = {
       store >>= fun t ->
       let all = ref [] in
       S.iter (t "tree") (fun k v ->
-          v >>= fun v -> all := (k, v) :: !all; return_unit
+          v () >>= fun v -> all := (k, v) :: !all; return_unit
         )>>= fun () ->
       let all = !all in
       let all =

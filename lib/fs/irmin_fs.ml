@@ -107,7 +107,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let iter t fn =
     Log.debug (fun f -> f "iter");
     keys_of_dir t (fun k ->
-        let v = read_exn t k in
+        let v () = read_exn t k in
         fn k v
       )
 

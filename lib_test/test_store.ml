@@ -917,7 +917,7 @@ module Make (S: Test_S) = struct
       let t = get_result () in
 
       S.iter (t "iter") (fun k v ->
-          v >>= fun v ->
+          v () >>= fun v ->
           assert_equal (module K) "iter key" (p ["a";"b"]) k;
           assert_equal (module V) "iter value" v1 v;
           Lwt.return_unit;
