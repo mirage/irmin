@@ -39,6 +39,9 @@ module type IO = sig
       [dir] and all of its sub-directories. Return filenames prefixed
       by [dir].  *)
 
+  val file_exists: string -> bool Lwt.t
+  (** [file_exist f] is true if [f] exists. *)
+
   val read_file: string -> Cstruct.t Lwt.t
   (** Read the contents of a file using mmap. *)
 

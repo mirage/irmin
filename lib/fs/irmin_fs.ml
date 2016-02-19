@@ -32,6 +32,7 @@ module type IO = sig
   val mkdir: string -> unit Lwt.t
   val remove: string -> unit Lwt.t
   val rec_files: string -> string list Lwt.t
+  val file_exists: string -> bool Lwt.t
   val read_file: string -> Cstruct.t Lwt.t
   val write_file: string -> ?temp_dir:string -> Cstruct.t -> unit Lwt.t
 end
@@ -74,7 +75,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
   let mem t key =
     let file = file_of_key t key in
-    Lwt.return (Sys.file_exists file)
+    IO.file_exists file
 
   let err_not_found n k =
     let str = Printf.sprintf "Irmin_fs.%s: %s not found" n (K.to_hum k) in
@@ -124,9 +125,9 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
     let key = K.digest value in
     let file = file_of_key t key in
     let temp_dir = temp_dir t in
-    begin
-      if Sys.file_exists file then Lwt.return_unit
-      else
+    begin IO.file_exists file >>= function
+      | true  -> Lwt.return_unit
+      | false ->
         Lwt.catch
           (fun () -> IO.write_file ~temp_dir file value)
           (fun e -> Lwt.fail e)
@@ -146,8 +147,9 @@ module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
    let file = file_of_key t index in
    let value =  Tc.write_cstruct (module K) key in
    let temp_dir = temp_dir t in
-   if Sys.file_exists file then Lwt.return_unit
-   else
+   IO.file_exists file >>= function
+   | true  -> Lwt.return_unit
+   | false ->
      Lwt.catch
        (fun () -> IO.write_file ~temp_dir file value)
        (fun e -> Lwt.fail e)
