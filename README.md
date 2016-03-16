@@ -25,7 +25,7 @@ features:
   to use in-memory transactions (to keeps tracks of reads as well as writes) and
   to define event-driven workflows using a notification mechanism.
 
-These abstractions allow developpers to create applications with concurrent
+These abstractions allow developers to create applications with concurrent
 behaviors which are both efficient and safe.
 
 ### Bindings to other languages
@@ -46,8 +46,8 @@ Irmin ships with various backends. It provides the following OCamlfind pacakges:
 Other external backends are available as external OPAM packages
 (use `opam install <pkg>` to install):
 
-- [irmin-chunk](https://github.com/mirage/irmin-chunk) store raw contents into
-  a well-balanced rope where leafs are chunk of all the same size.
+- [irmin-chunk](https://github.com/mirage/irmin-chunk) stores raw contents into
+  a well-balanced rope where leafs are chunks of all the same size.
 - [irmin-indexdb](https://github.com/talex5/irmin-indexeddb) is a backend
   for a web browser's IndexedDB store.
 
@@ -77,7 +77,7 @@ Here a list of Irmin users:
   Xenstore deamon rewritten to use Irmin to persist its data.
 - [irmin-arp](https://github.com/yomimono/irmin-arp), a distributed ARP cache.
 - [dog](https://github.com/samoht/dog), a synchronisation tool.
-- [irminFS](https://github.com/dsheets/irminfs) prototype of version-controlled
+- [irminFS](https://github.com/dsheets/irminfs), a prototype version-controlled
   file-system using Fuse.
 
 ### Further Reading
