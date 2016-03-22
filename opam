@@ -26,7 +26,8 @@ depends: [
   "ezjsonm" {>= "0.4.2"}
   "ocamlgraph"
   "lwt" {>= "2.4.7"}
-  "dolog" {>= "0.4"}
+  "logs" {>= "0.5.0"}
+  "fmt"
   "cstruct" {>= "1.6.0"}
   "mirage-tc" {>= "0.3.0"}
   "mstruct"

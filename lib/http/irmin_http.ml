@@ -20,7 +20,8 @@ open Irmin_http_common
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
 
-module Log = Log.Make(struct let section = "HTTP" end)
+let src = Logs.Src.create "irmin.http" ~doc:"Irmin HTTP REST interface"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 (* ~uri *)
 let uri =
@@ -148,8 +149,8 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       if n <= 0 then f ()
       else
         Lwt.catch f (fun e ->
-            Log.debug "Got %s while getting %s, retrying"
-              (Printexc.to_string e) path;
+            Log.debug (fun f -> f "Got %s while getting %s, retrying"
+              (Printexc.to_string e) path);
             aux (n-1)
           )
     in aux n
@@ -157,7 +158,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
   let map_get t ~ct path ?query fn =
     let uri = make_uri t path query in
     let headers = headers ct in
-    Log.debug "get %s (%s)" (Uri.path uri) (string_of_ct ct);
+    Log.debug (fun f -> f "get %s (%s)" (Uri.path uri) (string_of_ct ct));
     retry (Uri.path uri) (fun () -> Client.get ~headers uri >>= fn)
 
   let get t ~ct path ?query fn =
@@ -172,7 +173,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let uri = uri_append t path in
     let body = make_body ct ?task None in
     let headers = headers ct in
-    Log.debug "delete %s" (Uri.path uri);
+    Log.debug (fun f -> f "delete %s" (Uri.path uri));
     retry (Uri.path uri) (fun () ->
         Client.delete ?body ~headers uri >>= map_string_response fn
       )
@@ -188,7 +189,7 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     let uri = make_uri t path query in
     let headers = headers ct in
     let body = make_body ct ?task (body_of_contents ct body) in
-    Log.debug "post %s" (Uri.path uri);
+    Log.debug (fun f -> f "post %s" (Uri.path uri));
     retry (Uri.path uri) (fun () -> Client.post ?body ~headers uri >>= fn)
 
   let post t ~ct ?task path ?query ?body fn =

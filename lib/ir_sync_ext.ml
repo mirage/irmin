@@ -16,7 +16,8 @@
 
 open Lwt
 
-module Log = Log.Make(struct let section = "SYNC" end)
+let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 type remote =
   | Store: (module Ir_s.STORE_EXT with type t = 'a) * 'a -> remote
@@ -75,7 +76,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
   let fetch t ?depth remote =
     match remote with
     | URI uri ->
-      Log.debug "fetch URI %s" uri;
+      Log.debug (fun f -> f "fetch URI %s" uri);
       begin S.name t >>= function
         | None     -> Lwt.return `No_head
         | Some branch_id ->
@@ -83,7 +84,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
           B.fetch g ?depth ~uri branch_id
       end
     | Store ((module R), r) ->
-      Log.debug "fetch store";
+      Log.debug (fun f -> f "fetch store");
       let s_repo = S.repo t in
       S.Repo.heads s_repo >>= fun min ->
       let min = List.map (conv (module S.Hash) (module R.Hash) ) min in
@@ -121,7 +122,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
     | `Error   -> Lwt.fail (Failure "Sync.pull_exn: pull error!")
 
   let push t ?depth remote =
-    Log.debug "push";
+    Log.debug (fun f -> f "push");
     match remote with
     | URI uri ->
       begin S.name t >>= function
@@ -134,15 +135,15 @@ module Make (S: Ir_s.STORE_EXT) = struct
       S.head t >>= function
       | None   -> return `Error
       | Some h ->
-        Log.debug "push store";
+        Log.debug (fun f -> f "push store");
         R.Repo.heads (R.repo r) >>= fun min ->
         let min = List.map (conv (module R.Hash) (module S.Hash)) min in
         S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
         >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
-        | `Error -> Log.debug "ERROR!"; Lwt.return `Error
+        | `Error -> Log.debug (fun f -> f "ERROR!"); Lwt.return `Error
         | `Ok    ->
-          Log.debug "OK!";
+          Log.debug (fun f -> f "OK!");
           let h = conv (module S.Hash) (module R.Hash) h in
           R.update_head r h >>= fun () ->
           Lwt.return `Ok

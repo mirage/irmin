@@ -149,10 +149,10 @@ module Make (S: Test_S) = struct
       if time () -. t > timeout then fn (str i);
       try fn (str i); Lwt.return_unit
       with ex ->
-        Log.debug "retry ex: %s" (Printexc.to_string ex);
+        Logs.debug (fun f -> f "retry ex: %s" (Printexc.to_string ex));
         let sleep_t = sleep_t *. (1. +. float i ** 2.) in
         sleep ~sleep_t () >>= fun () ->
-        Log.debug "Test.retry %s" (str i);
+        Logs.debug (fun f -> f "Test.retry %s" (str i));
         aux (i+1)
     in
     aux 0
@@ -387,7 +387,7 @@ module Make (S: Test_S) = struct
           let msg = sprintf "workers: %s %s (%s)" msg (pp_w got) s in
           if got = exp then line msg
           else (
-            Log.debug "check-worker: expected %s, got %s" (pp_w exp) (pp_w got);
+            Logs.debug (fun f -> f "check-worker: expected %s, got %s" (pp_w exp) (pp_w got));
             error msg (pp_w got) (pp_w exp)
           ))
     in
@@ -460,7 +460,7 @@ module Make (S: Test_S) = struct
             let post_w = if on then 1, 1 else 0, 0 in
             let post = if on then incr pre else pre in
             check `Pre (n-i) pre_w pre >>= fun () -> (* check pre-condition *)
-            Log.debug "[waiting for] %s" (msg `Post (n-i) post_w post);
+            Logs.debug (fun f -> f "[waiting for] %s" (msg `Post (n-i) post_w post));
             fn (n-i) >>= fun () ->
             check `Post (n-i) post_w post >>= fun () -> (* check post-condition *)
             aux post (i-1)
@@ -474,7 +474,7 @@ module Make (S: Test_S) = struct
       S.Repo.create x.config >>= master >>= fun t2 ->
 
       (* test [Irmin.watch] *)
-      Log.debug "WATCH";
+      Logs.debug (fun f -> f "WATCH");
       let state = State.empty () in
       let sleep_t = 0.02 in
       let process = State.process ~sleep_t state in
@@ -518,7 +518,7 @@ module Make (S: Test_S) = struct
       State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
 
       (* test [Irmin.watch_branches] *)
-      Log.debug "WATCH-TAGS";
+      Logs.debug (fun f -> f "WATCH-TAGS");
       let state = State.empty () in
 
       r1 ~repo x >>= fun head ->
@@ -542,7 +542,7 @@ module Make (S: Test_S) = struct
       remove false (10, 0, 5) 4 >>= fun () ->
 
       (* test [Irmin.watch_keys] *)
-      Log.debug "WATCH-KEYS";
+      Logs.debug (fun f -> f "WATCH-KEYS");
       let state = State.empty () in
       let path1 = p ["a"; "b"; "c"] in
       let path2 = p ["a"; "d"] in
@@ -584,7 +584,7 @@ module Make (S: Test_S) = struct
       remove false (1, 10, 1) 4 >>= fun () ->
 
       (* test [View.watch_path] *)
-      Log.debug "WATCH-PATH";
+      Logs.debug (fun f -> f "WATCH-PATH");
       let state = State.empty () in
 
       let update = State.apply "watch-view" state `Update (fun n ->
@@ -1452,8 +1452,8 @@ module Make (S: Test_S) = struct
       let retry d fn =
         let rec aux i =
           fn () >>= function
-          | true  -> Log.debug "%d: ok!" d; Lwt.return_unit
-          | false -> Log.debug "%d: conflict, retrying (%d)." d i; aux (i+1)
+          | true  -> Logs.debug (fun f -> f "%d: ok!" d); Lwt.return_unit
+          | false -> Logs.debug (fun f -> f "%d: conflict, retrying (%d)." d i); aux (i+1)
         in
         aux 1
       in

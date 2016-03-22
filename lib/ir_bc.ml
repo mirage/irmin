@@ -18,7 +18,8 @@ open Lwt
 open Ir_merge.OP
 open Ir_misc.OP
 
-module Log = Log.Make(struct let section = "BC" end)
+let src = Logs.Src.create "irmin.bc" ~doc:"Irmin branch-consistent store"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module StringMap = Map.Make(String)
 
@@ -76,9 +77,9 @@ module Make (P: Ir_s.PRIVATE) = struct
       Lwt.return (fun () -> Ref_store.unwatch (P.Repo.ref_t t) id)
 
     let export ?(full=true) ?depth ?(min=[]) ?(max=[]) t =
-      Log.debug "export depth=%s full=%b min=%d max=%d"
+      Log.debug (fun f -> f "export depth=%s full=%b min=%d max=%d"
         (match depth with None -> "<none>" | Some d -> string_of_int d)
-        full (List.length min) (List.length max);
+        full (List.length min) (List.length max));
       begin match max with
         | [] -> heads t
         | m -> return m
@@ -144,8 +145,8 @@ module Make (P: Ir_s.PRIVATE) = struct
         fn (fun (k, v) ->
             S.add (s t) v >>= fun k' ->
             if not (K.equal k k') then (
-              Log.error "%s import error: expected %a, got %a"
-                name force (show (module K) k) force (show (module K) k');
+              Log.err (fun f -> f "%s import error: expected %a, got %a"
+                name (show (module K)) k (show (module K)) k');
               Lwt.fail Import_error
             )
             else Lwt.return_unit
@@ -242,7 +243,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     of_ref repo task (`Head (ref (Some key)))
 
   let read_head_commit t =
-    Log.debug "read_head_commit";
+    Log.debug (fun f -> f "read_head_commit");
     match head_ref t with
     | `Head key -> return (Some key)
     | `Empty    -> Lwt.return_none
@@ -266,7 +267,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       fn () >>= function
       | true  -> Lwt.return_unit
       | false ->
-        Log.debug "Irmin.%s: conflict, retrying (%d)." name i;
+        Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
         aux (i+1)
     in
     aux 1
@@ -297,7 +298,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     Lwt_mutex.with_lock t.lock (fun () -> retry msg aux)
 
   let map t path ~f =
-    Log.debug "map %a" force (show (module Key) path);
+    Log.debug (fun f -> f "map %a" (show (module Key)) path);
     begin read_head_node t >>= function
       | None   -> Graph.empty (graph_t t)
       | Some n -> return n
@@ -310,7 +311,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     | Some c -> P.Contents.read (contents_t t) c
 
   let update t path contents =
-    Log.debug "update %a" force (show (module Key) path);
+    Log.debug (fun f -> f "update %a" (show (module Key)) path);
     P.Contents.add (contents_t t) contents >>= fun contents ->
     with_commit t path ~f:(fun node ->
         Graph.add_contents (graph_t t) node path contents
@@ -327,7 +328,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       )
 
   let read_exn t path =
-    Log.debug "read_exn %a" force (show (module Key) path);
+    Log.debug (fun f -> f "read_exn %a" (show (module Key)) path);
     map t path ~f:Graph.read_contents_exn >>= fun c ->
     P.Contents.read_exn (contents_t t) c
 
@@ -346,13 +347,13 @@ module Make (P: Ir_s.PRIVATE) = struct
       return paths
 
   let list t path =
-    Log.debug "list";
+    Log.debug (fun f -> f "list");
     read_head_node t >>= function
     | None   -> return_nil
     | Some n -> list_node t n path
 
   let iter t fn =
-    Log.debug "iter";
+    Log.debug (fun f -> f "iter");
     head t >>= function
     | None   -> Lwt.return_unit
     | Some h ->
@@ -418,8 +419,8 @@ module Make (P: Ir_s.PRIVATE) = struct
     | None  -> compare_and_set_head t ~test:None ~set:(Some new_head)
     | Some old_head ->
       let pp = show (module Hash) in
-      Log.debug "fast-forward-head old=%a new=%a"
-        force (pp old_head) force (pp new_head);
+      Log.debug (fun f -> f "fast-forward-head old=%a new=%a"
+        pp old_head pp new_head);
       if Hash.equal new_head old_head then
         (* we only update if there is a change *)
         Lwt.return_false
@@ -428,8 +429,8 @@ module Make (P: Ir_s.PRIVATE) = struct
         | `Ok [x] when Hash.equal x old_head ->
           (* we only update if new_head > old_head *)
           compare_and_set_head t ~test:(Some old_head) ~set:(Some new_head)
-        | `Too_many_lcas -> Log.debug "ff: too many LCAs"; Lwt.return false
-        | `Max_depth_reached -> Log.debug "ff: max depth reached"; Lwt.return false
+        | `Too_many_lcas -> Log.debug (fun f -> f "ff: too many LCAs"); Lwt.return false
+        | `Max_depth_reached -> Log.debug (fun f -> f "ff: max depth reached"); Lwt.return false
         | `Ok _ -> Lwt.return false
 
   let retry_merge name fn =
@@ -438,7 +439,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       | `Conflict _ as c -> Lwt.return c
       | `Ok true  -> ok ()
       | `Ok false ->
-        Log.debug "Irmin.%s: conflict, retrying (%d)." name i;
+        Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
         aux (i+1)
     in
     aux 1
@@ -460,7 +461,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       with_commit t path ~f:(fun h -> Graph.remove_node (graph_t t) h path)
 
     let iter_node t node fn =
-      Log.debug "iter";
+      Log.debug (fun f -> f "iter");
       let rec aux acc = function
         | []       -> Lwt_list.iter_p (fun (path, v) -> fn path v) acc
         | path::tl ->
@@ -482,7 +483,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       with_commit t path ~f:(fun h -> Graph.add_node (graph_t t) h path node)
 
     let merge_node t path (parent, node) =
-      Log.debug "merge_node";
+      Log.debug (fun f -> f "merge_node");
       let empty () = Graph.empty (graph_t t) in
       let node_of_commit_id head =
         begin match head with
@@ -521,7 +522,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   (* FIXME: we might want to keep the new commit in case of conflict,
      and use it as a base for the next merge. *)
   let merge_head t ?max_depth ?n c1 =
-    Log.debug "merge_head";
+    Log.debug (fun f -> f "merge_head");
     let aux () =
       read_head_commit t >>= fun head ->
       match head with
@@ -539,14 +540,14 @@ module Make (P: Ir_s.PRIVATE) = struct
     merge_head t ?max_depth ?n c1 >>= Ir_merge.exn
 
   let clone_force task t branch_id =
-    Log.debug "clone_force %a" force (show (module Ref_store.Key) branch_id);
+    Log.debug (fun f -> f "clone_force %a" (show (module Ref_store.Key)) branch_id);
     let return () = of_branch_id task branch_id t.repo in
     head t >>= function
     | None   -> return ()
     | Some h -> Ref_store.update (ref_t t) branch_id h >>= return
 
   let clone task t branch_id =
-    Log.debug "clone %a" force (show (module Ref_store.Key) branch_id);
+    Log.debug (fun f -> f "clone %a" (show (module Ref_store.Key)) branch_id);
     Ref_store.mem (ref_t t) branch_id >>= function
     | true  -> Lwt.return `Duplicated_branch
     | false ->
@@ -559,7 +560,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         | false -> Lwt.return `Duplicated_branch
 
   let merge_branch t ?max_depth ?n other =
-    Log.debug "merge_branch %a" force (show (module Ref_store.Key) other);
+    Log.debug (fun f -> f "merge_branch %a" (show (module Ref_store.Key)) other);
     Ref_store.read (ref_t t) other >>= function
     | None  ->
       let str =
@@ -572,7 +573,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     merge_branch t ?max_depth ?n other >>= Ir_merge.exn
 
   let merge a ?max_depth ?n t ~into =
-    Log.debug "merge";
+    Log.debug (fun f -> f "merge");
     let t = t a and into = into a in
     match head_ref t with
     | `Branch name -> merge_branch into ?max_depth ?n name
@@ -621,7 +622,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         else fn @@ `Updated ( (x, vx), (y, vy) )
 
   let watch_key t key ?init fn =
-    Log.info "watch-key %a" force (show (module Key) key);
+    Log.info (fun f -> f "watch-key %a" (show (module Key)) key);
     let init_head = match init with
       | None        -> None
       | Some (h, _) -> Some h
@@ -658,7 +659,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   end
 
   let history ?depth ?(min=[]) ?(max=[]) t =
-    Log.debug "history";
+    Log.debug (fun f -> f "history");
     let pred = function
       | `Commit k ->
         H.parents (history_t t) k >>= fun parents ->

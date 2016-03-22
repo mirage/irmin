@@ -27,7 +27,8 @@ let string_replace ~pattern subst str =
   let rex = Re_perl.compile_pat pattern in
   Re_pcre.substitute ~rex ~subst str
 
-module Log = Log.Make(struct let section = "HTTP.server" end)
+let src = Logs.Src.create "irmin.http-server" ~doc:"Irmin REST API server"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 exception Invalid
 
@@ -93,7 +94,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
 
   let respond_error ct e =
     let headers, body = Response.to_body ct (`Error e) in
-    Log.error "server error %s" (Printexc.to_string e);
+    Log.err (fun f -> f "server error %s" (Printexc.to_string e));
     HTTP.respond ~headers
       ~status:`Internal_server_error
       ~body ()
@@ -190,9 +191,9 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       | None     -> fn ()
       | Some tag ->
         let id = id () in
-        Log.debug "Lock %d taken" id;
+        Log.debug (fun f -> f "Lock %d taken" id);
         Lock.with_lock lockm tag fn >>= fun r ->
-        Log.debug "Lock %d released" id;
+        Log.debug (fun f -> f "Lock %d released" id);
         Lwt.return r
 
   let run_hooks = function
@@ -876,7 +877,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
     let () = match version with
       | None   ->
         if strict then err_bad_version "<none>"
-        else Log.info "No Irmin header set, skipping the version check"
+        else Log.info (fun f -> f "No Irmin header set, skipping the version check")
       | Some v -> if v <> Irmin.version then err_bad_version v
     in
     let query = Uri.query uri in
@@ -911,11 +912,11 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
                List.map (fun (k, v) -> k ^ "=" ^ String.concat "." v) query
                |> String.concat ","
              in
-             Log.debug "uri=%s path=%s query=%s error=%s"
+             Log.debug (fun f -> f "uri=%s path=%s query=%s error=%s"
                (Uri.to_string uri)
                (String.concat "/" path)
                query
-               (Printexc.to_string e);
+               (Printexc.to_string e));
              Lwt.fail e)
     in
     aux dispatch (path uri)
@@ -931,18 +932,18 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       let headers = Cohttp.Request.headers req in
       let ct = ct_of_header headers in
       let version = Cohttp.Header.get headers irmin_version in
-      Log.info "Connection %s: %s %s (%s)"
+      Log.info (fun f -> f "Connection %s: %s %s (%s)"
         (Cohttp.Connection.to_string conn_id)
         (Cohttp.Code.string_of_method meth)
         path
-        (string_of_ct ct);
+        (string_of_ct ct));
       Lwt.catch (fun () ->
           try process ?strict t dispatch ~meth ~version ~ct ~uri ~body
           with e -> Lwt.fail e
         ) (fun e -> respond_error ct e)
     in
     let conn_closed (_, conn_id) =
-      Log.debug "Connection %s: closed!" (Cohttp.Connection.to_string conn_id)
+      Log.debug (fun f -> f "Connection %s: closed!" (Cohttp.Connection.to_string conn_id))
     in
     HTTP.make ~callback ~conn_closed ()
 

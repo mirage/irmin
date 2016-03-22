@@ -34,12 +34,12 @@ module type VALUE_STORE = sig
   type t
 
   val create: Irmin.config -> t Lwt.t
-  val read: t -> Git.SHA.t -> Git.Value.t option Lwt.t
-  val mem: t -> Git.SHA.t -> bool Lwt.t
-  val write: t -> Git.Value.t -> Git.SHA.t Lwt.t
-  val contents: t -> (Git.SHA.t * Git.Value.t) list Lwt.t
+  val read: t -> Git.Hash.t -> Git.Value.t option Lwt.t
+  val mem: t -> Git.Hash.t -> bool Lwt.t
+  val write: t -> Git.Value.t -> Git.Hash.t Lwt.t
+  val contents: t -> (Git.Hash.t * Git.Value.t) list Lwt.t
 
-  module Digest : Git.SHA.DIGEST
+  module Digest : Git.Hash.DIGEST
 end
 
 (** Privides a subset of Irmin.Private.S (excludes tags and sync).
@@ -49,7 +49,7 @@ module Irmin_value_store
     (G: VALUE_STORE)
     (C: Irmin.Contents.S)
     (H: Irmin.Hash.S) : sig
-  module GK : Irmin.Hash.S with type t = Git.SHA.t
+  module GK : Irmin.Hash.S with type t = Git.Hash.t
 
   module Contents: sig
     include Irmin.AO with type value = C.t

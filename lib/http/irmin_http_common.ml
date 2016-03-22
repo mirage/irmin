@@ -16,7 +16,8 @@
 
 open Lwt.Infix
 
-module Log = Log.Make(struct let section = "HTTP" end)
+let src = Logs.Src.create "irmin.http-common" ~doc:"Irmin REST API"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 let ok_or_duplicated_branch_id =
   let module M = struct
@@ -226,8 +227,8 @@ module Request = struct
     if len = 0L then Lwt.return_none
     else (
       Cohttp_lwt_body.to_string body >|= fun b ->
-      Log.debug "process %s: length=%Ld content-type=%s body=%S"
-        meth len (string_of_ct ct) (truncate b 40);
+      Log.debug (fun f -> f "process %s: length=%Ld content-type=%s body=%S"
+        meth len (string_of_ct ct) (truncate b 40));
       Some (of_string ct b)
     )
 
@@ -328,7 +329,7 @@ module Response = struct
   let of_body ct b =
     Cohttp_lwt_body.to_string b >|= fun b ->
     let short = truncate b 40 in
-    Log.debug "got response: %S (%s)" short (string_of_ct ct);
+    Log.debug (fun f -> f "got response: %S (%s)" short (string_of_ct ct));
     of_string ~version:true ct b
 
   let to_body ct b =
