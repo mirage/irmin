@@ -351,16 +351,16 @@ module Make (P: Ir_s.PRIVATE) = struct
     | None   -> return_nil
     | Some n -> list_node t n path
 
-  let iter t fn =
-    Log.debug "iter";
+  let fold t fn fold_acc =
+    Log.debug "fold";
     head t >>= function
-    | None   -> Lwt.return_unit
+    | None   -> Lwt.return fold_acc
     | Some h ->
       (* we avoid races here by freezing the store head. *)
       of_commit_id (fun () -> t.task) h t.repo >>= fun t ->
       let t = t () in
       let rec aux acc = function
-        | []       -> Lwt_list.iter_p (fun (path, v) -> fn path v) acc
+	| []       -> Lwt_list.fold_left_s (fun acc (k, v) -> fn k v acc) fold_acc acc
         | path::tl ->
           list t path >>= fun childs ->
           let todo = childs @ tl in
@@ -369,6 +369,9 @@ module Make (P: Ir_s.PRIVATE) = struct
           else aux ((path, read_exn t path) :: acc) todo
     in
     list t Key.empty >>= aux []
+
+  let iter t fn =
+    fold t (fun path v _ -> fn path v) ()
 
   let lcas a ?max_depth ?n t1 t2 =
     let t1 = t1 a and t2 = t2 a in

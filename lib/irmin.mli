@@ -355,6 +355,8 @@ module type RO = sig
   (** [iter t fn] call the function [fn] on all [t]'s keys and
       values. *)
 
+  val fold: t -> (key -> value Lwt.t -> 'a -> 'a Lwt.t) -> 'a -> 'a Lwt.t
+
 end
 
 (** Append-only store. *)

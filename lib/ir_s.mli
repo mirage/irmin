@@ -49,6 +49,7 @@ module type RO_STORE = sig
   val read_exn: t -> key -> value Lwt.t
   val mem: t -> key -> bool Lwt.t
   val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  val fold: t -> (key -> value Lwt.t -> 'a -> 'a Lwt.t) -> 'a -> 'a Lwt.t
 end
 
 module type RO_MAKER =

@@ -174,6 +174,14 @@ module Irmin_value_store
           | Some v -> fn (key_of_git k) (Lwt.return v)
         ) contents
 
+    let fold t fn acc =
+      G.contents t >>= fun contents ->
+      Lwt_list.fold_left_s (fun acc (k, v) ->
+          match V.of_git v with
+	  | None   -> Lwt.return acc
+	  | Some v -> fn (key_of_git k) (Lwt.return v) acc
+        ) acc contents
+
   end
 
   module GitContents = struct
@@ -569,6 +577,15 @@ module Make_ext
           | None   -> return_unit
           | Some r -> fn r v
         ) refs
+
+    let fold { t; _ } fn acc =
+      G.references t >>= fun refs ->
+      Lwt_list.fold_left_s (fun acc r ->
+          let v = G.read_reference_exn t r >|= head_of_git in
+          match tag_of_git r with
+          | None   -> Lwt.return acc
+	  | Some r -> fn r v acc
+        ) acc refs
 
     let git_of_head k =
       Git.SHA.to_commit (X.GK.of_raw (Val.to_raw k))

@@ -238,22 +238,24 @@ module Internal (Node: NODE) = struct
     t.ops := `List (path, result) :: !(t.ops);
     Lwt.return result
 
-  let iter t fn =
-    Log.debug "iter";
-    let rec aux = function
-      | []       -> Lwt.return_unit
+  let fold t fn acc =
+    Log.debug "fold";
+    let rec aux acc = function
+      | []       -> Lwt.return acc
       | path::tl ->
         list t path >>= fun childs ->
         let todo = childs @ tl in
         mem t path >>= fun exists ->
         begin
-          if not exists then Lwt.return_unit
-          else fn path (read_exn t path)
-        end >>= fun () ->
-        aux todo
+          if not exists then Lwt.return acc
+          else fn path (read_exn t path) acc
+        end >>= fun acc ->
+        aux acc todo
     in
     (* FIXME take lock? *)
-    list t Path.empty >>= aux
+    list t Path.empty >>= aux acc
+
+  let iter t fn = fold t (fun path file _ -> fn path file) ()
 
   let update_contents_aux t k v =
     match Path.rdecons k with

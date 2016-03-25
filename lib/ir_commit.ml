@@ -137,6 +137,8 @@ struct
 
     let iter (_, t) fn = S.iter t fn
 
+    let fold (_, t) fn acc = S.fold t fn acc
+
     module Key = S.Key
     module Val = struct
       include S.Val
