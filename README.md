@@ -22,7 +22,7 @@ features:
   (only in client mode) or a simple JSON-based REST API (client and server).
 
 - **dynamic behaviour** Irmin allows the users to define custom merge functions,
-  to use in-memory transactions (to keeps tracks of reads as well as writes) and
+  to use in-memory transactions (to keep track of reads as well as writes) and
   to define event-driven workflows using a notification mechanism.
 
 These abstractions allow developpers to create applications with concurrent
