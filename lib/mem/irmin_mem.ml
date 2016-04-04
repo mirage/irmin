@@ -57,6 +57,11 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     KHashtbl.iter (fun k v -> todo := (fn k (Lwt.return v)) :: !todo) t;
     Lwt_list.iter_p (fun x -> x) !todo
 
+  let fold { t; _ } fn acc =
+    Log.debug "fold";
+    KHashtbl.fold (fun k v acc ->
+		   acc >>= fun acc ->
+		   fn k (Lwt.return v) acc) t (Lwt.return acc)
 end
 
 module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
@@ -104,6 +109,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
   let iter t = RO.iter t.t
+  let fold t = RO.fold t.t
   let watch_key t = W.watch_key t.w
   let watch t = W.watch t.w
   let unwatch t = W.unwatch t.w

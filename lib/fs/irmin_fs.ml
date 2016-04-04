@@ -91,7 +91,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | true  ->
       IO.read_file (file_of_key t key) >>= fun x -> Lwt.return (Some (mk_value x))
 
-  let keys_of_dir t fn =
+  let keys_of_dir t fn acc =
     IO.rec_files (S.dir t.path) >>= fun files ->
     let files  =
       let p = String.length t.path in
@@ -100,14 +100,19 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
           if n <= p + 1 then "" else String.sub file (p+1) (n - p - 1)
         ) files
     in
-    Lwt_list.iter_p (fun file -> fn @@ K.of_hum (S.key_of_file file)) files
+    Lwt_list.fold_left_s (fun acc file -> fn (K.of_hum (S.key_of_file file)) acc) acc files
 
   let iter t fn =
     Log.debug "iter";
-    keys_of_dir t (fun k ->
+    keys_of_dir t (fun k _ ->
         let v = read_exn t k in
-        fn k v
-      )
+        fn k v) ()
+
+  let fold t fn acc =
+    Log.debug "fold";
+    keys_of_dir t (fun k acc ->
+         let v = read_exn t k in
+	 fn k v acc) acc
 
 end
 
@@ -175,6 +180,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
   let iter t = RO.iter t.t
+  let fold t = RO.fold t.t
 
   let listen_dir t =
     let dir = S.dir t.t.RO.path in

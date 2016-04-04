@@ -237,6 +237,11 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     let fn key = fn key (read_exn t key) in
     get_stream t ["iter"] (module K) >>= Lwt_stream.iter_p fn
 
+  let fold t fn acc =
+    let fn key acc = fn key (read_exn t key) acc in
+    get_stream t ["fold"] (module K) >>= fun stream ->
+    Lwt_stream.fold_s fn stream acc
+
 end
 
 module AO (Client: Cohttp_lwt.Client) (K: Irmin.Hash.S) (V: Tc.S0) = struct
@@ -281,6 +286,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let read_exn t = RO.read_exn t.t
   let mem t = RO.mem t.t
   let iter t = RO.iter t.t
+  let fold t = RO.fold t.t
 
   let update t key value =
     post t ["update"; K.to_hum key] ~body:(v, value) Tc.unit
@@ -640,6 +646,11 @@ struct
   let iter t fn =
     let fn key = fn key (read_exn t key) in
     get_stream t ["iter"] (module Key) >>= Lwt_stream.iter_p fn
+
+  let fold t fn acc =
+    let fn key acc = fn key (read_exn t key) acc in
+    get_stream t ["fold"] (module Key) >>= fun stream ->
+    Lwt_stream.fold_s fn stream acc
 
   let update t key value =
     post t ["update"; Key.to_hum key] ~body:(v, value) head_tc >>= fun h ->
