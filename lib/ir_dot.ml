@@ -17,7 +17,8 @@
 open Lwt
 open Printf
 
-module Log = Log.Make(struct let section ="DOT" end)
+let src = Logs.Src.create "irmin.dot" ~doc:"Irmin dot graph output"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module type S = sig
   type db
@@ -38,10 +39,10 @@ module Make (S: Ir_s.STORE_EXT) = struct
   module Graph = Ir_graph.Make(Contents.Key)(Node.Key)(Commit.Key)(Ref.Key)
 
   let fprintf (t:db) ?depth ?(html=false) ?full ~date name =
-    Log.debug "fprintf depth=%s html=%b full=%s"
+    Log.debug (fun f -> f "fprintf depth=%s html=%b full=%s"
       (match depth with None -> "<none>" | Some d -> string_of_int d)
       html
-      (match full with None -> "<none>" | Some b -> string_of_bool b);
+      (match full with None -> "<none>" | Some b -> string_of_bool b));
     S.Repo.export ?full ?depth (S.repo t) >>= fun slice ->
     let vertex = Hashtbl.create 102 in
     let add_vertex v l = Hashtbl.add vertex v l in

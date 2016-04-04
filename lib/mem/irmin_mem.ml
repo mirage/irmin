@@ -16,7 +16,8 @@
 
 let (>>=) = Lwt.bind
 
-module Log = Log.Make(struct let section = "MEM" end)
+let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
 
@@ -38,21 +39,21 @@ module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt.return { t = table }
 
   let read { t; _ } key =
-    Log.debug "read";
+    Log.debug (fun f -> f "read");
     try Lwt.return (Some (KHashtbl.find t key))
     with Not_found -> Lwt.return_none
 
   let read_exn { t; _ } key =
-    Log.debug "read";
+    Log.debug (fun f -> f "read");
     try Lwt.return (KHashtbl.find t key)
     with Not_found -> err_not_found "read" key
 
   let mem { t; _ } key =
-    Log.debug "mem";
+    Log.debug (fun f -> f "mem");
     Lwt.return (KHashtbl.mem t key)
 
   let iter { t; _ } fn =
-    Log.debug "iter";
+    Log.debug (fun f -> f "iter");
     let todo = ref [] in
     KHashtbl.iter (fun k v -> todo := (fn k (Lwt.return v)) :: !todo) t;
     Lwt_list.iter_p (fun x -> x) !todo
@@ -64,7 +65,7 @@ module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
   include RO(K)(V)
 
   let add { t; _ } value =
-    Log.debug "add";
+    Log.debug (fun f -> f "add");
     let key = K.digest (Tc.write_cstruct (module V) value) in
     KHashtbl.replace t key value;
     Lwt.return key
@@ -76,7 +77,7 @@ module Link (K: Irmin.Hash.S) = struct
   include RO(K)(K)
 
   let add { t; _ } index key =
-    Log.debug "add link";
+    Log.debug (fun f -> f "add link");
     KHashtbl.replace t index key;
     Lwt.return_unit
 
@@ -109,7 +110,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let unwatch t = W.unwatch t.w
 
   let update t key value =
-    Log.debug "update";
+    Log.debug (fun f -> f "update");
     L.with_lock t.lock key (fun () ->
         RO.KHashtbl.replace t.t.RO.t key value;
         Lwt.return_unit
@@ -117,7 +118,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
     W.notify t.w key (Some value)
 
   let remove t key =
-    Log.debug "remove";
+    Log.debug (fun f -> f "remove");
     L.with_lock t.lock key (fun () ->
         RO.KHashtbl.remove t.t.RO.t key;
         Lwt.return_unit
@@ -125,7 +126,7 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
     W.notify t.w key None
 
   let compare_and_set t key ~test ~set =
-    Log.debug "compare_and_set";
+    Log.debug (fun f -> f "compare_and_set");
     L.with_lock t.lock key (fun () ->
         read t key >>= fun v ->
         if Tc.O1.equal V.equal test v then (

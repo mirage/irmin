@@ -17,7 +17,8 @@
 open Lwt
 open Ir_misc.OP
 
-module Log = Log.Make(struct let section = "GRAPH" end)
+let src = Logs.Src.create "irmin.graph" ~doc:"Irmin graph support"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module type S = sig
   include Graph.Sig.I
@@ -143,7 +144,8 @@ module Make
     G.fold_edges (fun k1 k2 list -> (k1,k2) :: list) g []
 
   let closure ?(depth=max_int) ~pred ~min ~max () =
-    Log.debug "closure depth=%d (%d elements)" depth (List.length max);
+    Log.debug (fun f ->
+      f "closure depth=%d (%d elements)" depth (List.length max));
     let g = G.create ~size:1024 () in
     let marks = Table.create 1024 in
     let mark key level = Table.add marks key level in
@@ -159,7 +161,7 @@ module Make
         else if has_mark key then add ()
         else (
           mark key level;
-          Log.debug "ADD %a %d" force (show (module X) key) level;
+          Log.debug (fun f -> f "ADD %a %d" (show (module X)) key level);
           if not (G.mem_vertex g key) then G.add_vertex g key;
           pred key >>= fun keys ->
           List.iter (fun k -> G.add_edge g k key) keys;
@@ -210,7 +212,7 @@ module Make
     g
 
   let output ppf vertex edges name =
-    Log.debug "output %s" name;
+    Log.debug (fun f -> f "output %s" name);
     let g = G.create ~size:(List.length vertex) () in
     List.iter (fun (v,_) -> G.add_vertex g v) vertex;
     List.iter (fun (v1,_,v2) -> G.add_edge g v1 v2) edges;

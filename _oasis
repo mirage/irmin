@@ -36,7 +36,7 @@ Library irmin
                    Ir_node, Ir_version, Ir_dot, Ir_path, Ir_watch,
                    Ir_merge, Ir_view, Ir_task, Ir_bc, Ir_sync, Ir_sync_ext
   Modules:         Irmin
-  BuildDepends:    ezjsonm, ocamlgraph, lwt, dolog, cstruct, tc,
+  BuildDepends:    ezjsonm, ocamlgraph, lwt, logs, cstruct, tc,
                    mstruct, uri, stringext, hex
 
 Library "irmin-mem"
@@ -106,7 +106,7 @@ Executable irmin
   Path:           bin/
   MainIs:         main.ml
   CompiledObject: best
-  BuildDepends:   cmdliner, irmin, irmin.mem, irmin.unix
+  BuildDepends:   cmdliner, irmin, irmin.mem, irmin.unix, logs.cli, logs.fmt, fmt.cli, fmt.tty
 
 Executable test_irmin
   Path:           lib_test
@@ -114,7 +114,7 @@ Executable test_irmin
   Build$:         flag(tests) && flag(unix) && flag(http) && flag(git)
   CompiledObject: best
   Install:        false
-  BuildDepends:   irmin, irmin.mem, irmin.unix, alcotest
+  BuildDepends:   irmin, irmin.mem, irmin.unix, alcotest, logs.fmt
 
 Test test_irmin
   Run$:             flag(tests) && flag(unix) && flag(http) && flag(git)

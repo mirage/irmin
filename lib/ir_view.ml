@@ -20,7 +20,8 @@ open Ir_misc.OP
 open Printf
 
 
-module Log = Log.Make(struct let section = "view" end)
+let src = Logs.Src.create "irmin.view" ~doc:"Irmin transactions"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 (***** Actions *)
 
@@ -168,7 +169,7 @@ module Internal (Node: NODE) = struct
   module PL = Tc.List(Path)
 
   let empty () =
-    Log.debug "empty";
+    Log.debug (fun f -> f "empty");
     let view = `Empty in
     let ops = ref [] in
     let parents = ref [] in
@@ -193,7 +194,7 @@ module Internal (Node: NODE) = struct
     | `Contents _ -> Lwt.return_none
 
   let read_contents t path =
-    Log.debug "read_contents %a" force (show (module Path) path);
+    Log.debug (fun f -> f "read_contents %a" (show (module Path)) path);
     match t.view, Path.rdecons path with
     | `Contents c, None -> Lwt.return (Some c)
     | _          , None -> Lwt.return_none
@@ -233,13 +234,13 @@ module Internal (Node: NODE) = struct
       Lwt.return (PathSet.to_list paths)
 
   let list t path =
-    Log.debug "list %a" force (show (module Path) path);
+    Log.debug (fun f -> f "list %a" (show (module Path)) path);
     list_aux t path >>= fun result ->
     t.ops := `List (path, result) :: !(t.ops);
     Lwt.return result
 
   let iter t fn =
-    Log.debug "iter";
+    Log.debug (fun f -> f "iter");
     let rec aux = function
       | []       -> Lwt.return_unit
       | path::tl ->
@@ -295,7 +296,7 @@ module Internal (Node: NODE) = struct
       let n = match t.view with `Node n -> n | _ -> Node.empty () in
       aux n path >>= fun changed ->
       if changed then t.view <- `Node n;
-      Log.debug "update_contents: %s changed=%b" (Path.to_hum k) changed;
+      Log.debug (fun f -> f "update_contents: %s changed=%b" (Path.to_hum k) changed);
       Lwt.return_unit
 
   let update_contents t k v =
@@ -350,7 +351,7 @@ module Internal (Node: NODE) = struct
         Lwt.return_unit
 
   let apply t a =
-    Log.debug "apply %a" force (show (module Action) a);
+    Log.debug (fun f -> f "apply %a" (show (module Action)) a);
     match a with
     | `Rmdir _ -> ok ()
     | `Write (k, v) -> update_contents t k v >>= fun _ -> ok ()
@@ -606,7 +607,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | Some n -> Lwt.return (n.alist = [])
 
     let steps t =
-      Log.debug "steps";
+      Log.debug (fun f -> f "steps");
       read t >>= function
       | None    -> Lwt.return_nil
       | Some  n ->
@@ -630,9 +631,9 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
     (* FIXME code duplication with Ir_node.Make.with_contents *)
     let with_contents t step contents =
-      Log.debug "with_contents %a %a"
-        force (show (module Step) step)
-        force (show (module Tc.Option(S.Val)) contents);
+      Log.debug (fun f -> f "with_contents %a %a"
+        (show (module Step)) step
+        (show (module Tc.Option(S.Val))) contents);
       let mk c = `Contents (Contents.create c) in
       read t >>= function
       | None -> begin
@@ -663,7 +664,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
     (* FIXME: code duplication with Ir_node.Make.with_succ *)
     let with_succ t step succ =
-      Log.debug "with_succ %a" force (show (module Step) step);
+      Log.debug (fun f -> f "with_succ %a" (show (module Step)) step);
       let mk c = `Node c in
       read t >>= function
       | None   -> begin
@@ -677,7 +678,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
             if Step.equal step s then match succ with
               | None   -> List.rev_append acc l
               | Some c ->
-                if equal c x then (Log.debug "with_succ: equal!"; n.alist)
+                if equal c x then (Log.debug (fun f -> f "with_succ: equal!"); n.alist)
                 else List.rev_append acc ((s, mk c) :: l)
             else aux (h :: acc) l
           | h::t -> aux (h :: acc) t
@@ -701,7 +702,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
   type db = S.t
 
   let create_with_parents parents =
-    Log.debug "create_with_parents";
+    Log.debug (fun f -> f "create_with_parents");
     let view = `Empty in
     let ops = ref [] in
     let parents = ref parents in
@@ -710,7 +711,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   let import db ~parents key =
     let repo = S.repo db in
-    Log.debug "import %a" force (show (module P.Node.Key) key);
+    Log.debug (fun f -> f "import %a" (show (module P.Node.Key)) key);
     begin P.Node.read (P.Repo.node_t repo) key >|= function
     | None   -> `Empty
     | Some n -> `Node (Node.both repo key (Node.import repo n))
@@ -721,7 +722,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
     Lwt.return { parents; view; ops; lock }
 
   let export repo t =
-    Log.debug "export";
+    Log.debug (fun f -> f "export");
     let node n = P.Node.add (P.Repo.node_t repo) (Node.export_node n) in
     let todo = Stack.create () in
     let rec add_to_todo n =
@@ -776,7 +777,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       `Node (Node.export n)
 
   let of_path db path =
-    Log.debug "of_path %a" force (show (module Path) path);
+    Log.debug (fun f -> f "of_path %a" (show (module Path)) path);
     begin S.head db >>= function
       | None   -> Lwt.return_nil
       | Some h -> Lwt.return [h]
@@ -787,14 +788,14 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   let update_path db path view =
     let repo = S.repo db in
-    Log.debug "update_path %a" force (show (module Path) path);
+    Log.debug (fun f -> f "update_path %a" (show (module Path)) path);
     export repo view >>= function
     | `Empty      -> P.remove_node db path
     | `Contents c -> S.update db path c
     | `Node node  -> P.update_node db path node
 
   let rebase_path db path view =
-    Log.debug "rebase_path %a" force (show (module Path) path);
+    Log.debug (fun f -> f "rebase_path %a" (show (module Path)) path);
     of_path db path >>= fun head_view ->
     rebase view ~into:head_view >>| fun () ->
     update_path db path head_view >>= fun () ->
@@ -843,7 +844,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 *)
 
   let merge_path_one db0 ?max_depth ?n path view =
-    Log.debug "merge_path %a" force (show (module Path) path);
+    Log.debug (fun f -> f "merge_path %a" (show (module Path)) path);
     S.head db0 >>= function
     | None      ->
       (* FIXME: race to update the store's head *)
@@ -879,7 +880,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | `Conflict _ as c -> Lwt.return c
       | `Ok true  -> ok ()
       | `Ok false ->
-        Log.debug "Irmin.View.%s: conflict, retrying (%d)." name i;
+        Log.debug (fun f -> f "Irmin.View.%s: conflict, retrying (%d)." name i);
         aux (i+1)
     in
     aux 1

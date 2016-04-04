@@ -18,7 +18,8 @@ open Ir_misc.OP
 open Lwt
 open Ir_merge.OP
 
-module Log = Log.Make(struct let section = "COMMIT" end)
+let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (C: Tc.S0) (N: Tc.S0) = struct
 
@@ -113,7 +114,7 @@ struct
            that's too much low-level details. *)
         begin old () >>= function
           | `Conflict msg ->
-            Log.debug "old: conflict %s" msg;
+            Log.debug (fun f -> f "old: conflict %s" msg);
             Lwt.return None
           | `Ok o -> Lwt.return o
         end >>= fun old ->
@@ -149,7 +150,7 @@ struct
   let merge = Store.merge_commit N.Path.empty
 
   let node t c =
-    Log.debug "node %a" force (show (module S.Key) c);
+    Log.debug (fun f -> f "node %a" (show (module S.Key)) c);
     Store.read t c >>= function
     | None   -> return_none
     | Some n -> return (S.Val.node n)
@@ -160,7 +161,7 @@ struct
     return key
 
   let parents t c =
-    Log.debug "parents %a" force (show (module S.Key) c);
+    Log.debug (fun f -> f "parents %a" (show (module S.Key)) c);
     Store.read t c >>= function
     | None   -> return_nil
     | Some c -> return (S.Val.parents c)
@@ -168,14 +169,14 @@ struct
   module Graph = Ir_graph.Make(Ir_hum.Unit)(N.Key)(S.Key)(Ir_hum.Unit)
 
   let edges t =
-    Log.debug "edges";
+    Log.debug (fun f -> f "edges");
     (match S.Val.node t with
      | None   -> []
      | Some k -> [`Node k])
     @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
   let closure t ~min ~max =
-    Log.debug "closure";
+    Log.debug (fun f -> f "closure");
     let pred = function
       | `Commit k -> Store.read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
@@ -308,7 +309,7 @@ struct
     let is_init () = S.Key.equal commit t.c1 || S.Key.equal commit t.c2 in
     let is_shared () = new_mark = SeenBoth || new_mark = LCA in
     if is_shared () && is_init () then (
-      Log.debug "fast-forward";
+      Log.debug (fun f -> f "fast-forward");
       t.complete <- true;
     );
     set_mark t commit new_mark;
@@ -374,14 +375,14 @@ struct
         (fun () -> traverse_bfs t ~f:(update_parents s) ~pp ~check ~init ~return)
         (fun () ->
            let t1 = Sys.time () -. t0 in
-           Log.debug "lcas %d: depth=%d time=%.4fs" !lca_calls s.depth t1;
+           Log.debug (fun f -> f "lcas %d: depth=%d time=%.4fs" !lca_calls s.depth t1);
            Lwt.return_unit)
     )
 
   let rec three_way_merge t ~task ?max_depth ?n c1 c2 =
-    Log.debug "3-way merge between %a and %a"
-      force (show (module S.Key) c1)
-      force (show (module S.Key) c2);
+    Log.debug (fun f -> f "3-way merge between %a and %a"
+      (show (module S.Key)) c1
+      (show (module S.Key)) c2);
     if S.Key.equal c1 c2 then ok c1
     else (
       lcas t ?max_depth ?n c1 c2 >>= fun lcas ->

@@ -17,7 +17,8 @@
 open Lwt
 module IB = Irmin.Private
 
-module Log = Log.Make(struct let section = "UNIX" end)
+let src = Logs.Src.create "irmin.unix" ~doc:"Irmin Unix bindings"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module IO = Git_unix.FS.IO
 
@@ -43,10 +44,10 @@ module Lock = struct
 
   let lock ?(max_age = 2.) ?(sleep = 0.001) file =
     let rec aux i =
-      Log.debug "lock %d" i;
+      Log.debug (fun f -> f "lock %d" i);
       is_stale max_age file >>= fun is_stale ->
       if is_stale then (
-        Log.error "%s is stale, removing it." file;
+        Log.err (fun f -> f "%s is stale, removing it." file);
         unlock file >>= fun () ->
         aux 1
       ) else
@@ -174,10 +175,10 @@ let rec poll ~callback ~delay dir files =
   read_files dir >>= fun new_files ->
   let diff = S.sdiff files new_files in
   begin if S.is_empty diff then (
-      Log.debug "polling %s: no changes!" dir;
+      Log.debug (fun f -> f "polling %s: no changes!" dir);
       Lwt.return_unit
     ) else (
-      Log.debug "polling %s: diff:%s" dir (to_string diff);
+      Log.debug (fun f -> f "polling %s: diff:%s" dir (to_string diff));
       let files =
         S.to_list diff |> List.map fst |> StringSet.of_list |> StringSet.elements
       in
@@ -203,7 +204,7 @@ let watchdog dir =
 (* call all the callbacks on the file *)
 let callback dir file =
   let fns = try Hashtbl.find listeners dir with Not_found -> [] in
-  Lwt_list.iter_p (fun (id, f) -> Log.debug "callback %d" id; f file) fns
+  Lwt_list.iter_p (fun (id, f) -> Log.debug (fun f -> f "callback %d" id); f file) fns
 
 let realdir dir = if Filename.is_relative dir then Sys.getcwd () / dir else dir
 
@@ -216,7 +217,7 @@ let start_watchdog ~delay dir =
     match watchdog dir with
     | Some _ -> u ()
     | None   ->
-      Log.debug "Start watchdog for %s" dir;
+      Log.debug (fun f -> f "Start watchdog for %s" dir);
       Hashtbl.add watchdogs dir u
 
 let stop_watchdog dir =
@@ -224,7 +225,7 @@ let stop_watchdog dir =
   | None      -> assert (nb_listeners dir = 0)
   | Some stop ->
     if nb_listeners dir = 0 then (
-      Log.debug "Stop watchdog for %s" dir;
+      Log.debug (fun f -> f "Stop watchdog for %s" dir);
       Hashtbl.remove watchdogs dir;
       stop ()
     )

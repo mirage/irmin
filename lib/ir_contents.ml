@@ -16,8 +16,6 @@
 
 open Ir_merge.OP
 
-module Log = Log.Make(struct let section = "CONTENTS" end)
-
 module Json = struct
 
   (* FIXME: we want maybe something more structured here. *)

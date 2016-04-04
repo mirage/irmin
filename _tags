@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a01627fab461eb4eb18587510bdcbdf2)
+# DO NOT EDIT (digest: 65119606d0e927ce280030b1a9c6894f)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -17,9 +17,9 @@ true: annot, bin_annot
 # Library irmin
 "lib/irmin.cmxs": use_irmin
 <lib/*.ml{,i,y}>: pkg_cstruct
-<lib/*.ml{,i,y}>: pkg_dolog
 <lib/*.ml{,i,y}>: pkg_ezjsonm
 <lib/*.ml{,i,y}>: pkg_hex
+<lib/*.ml{,i,y}>: pkg_logs
 <lib/*.ml{,i,y}>: pkg_lwt
 <lib/*.ml{,i,y}>: pkg_mstruct
 <lib/*.ml{,i,y}>: pkg_ocamlgraph
@@ -29,9 +29,9 @@ true: annot, bin_annot
 # Library irmin-mem
 "lib/mem/irmin-mem.cmxs": use_irmin-mem
 <lib/mem/*.ml{,i,y}>: pkg_cstruct
-<lib/mem/*.ml{,i,y}>: pkg_dolog
 <lib/mem/*.ml{,i,y}>: pkg_ezjsonm
 <lib/mem/*.ml{,i,y}>: pkg_hex
+<lib/mem/*.ml{,i,y}>: pkg_logs
 <lib/mem/*.ml{,i,y}>: pkg_lwt
 <lib/mem/*.ml{,i,y}>: pkg_mstruct
 <lib/mem/*.ml{,i,y}>: pkg_ocamlgraph
@@ -42,10 +42,10 @@ true: annot, bin_annot
 # Library irmin-git
 "lib/git/irmin-git.cmxs": use_irmin-git
 <lib/git/*.ml{,i,y}>: pkg_cstruct
-<lib/git/*.ml{,i,y}>: pkg_dolog
 <lib/git/*.ml{,i,y}>: pkg_ezjsonm
 <lib/git/*.ml{,i,y}>: pkg_git
 <lib/git/*.ml{,i,y}>: pkg_hex
+<lib/git/*.ml{,i,y}>: pkg_logs
 <lib/git/*.ml{,i,y}>: pkg_lwt
 <lib/git/*.ml{,i,y}>: pkg_mstruct
 <lib/git/*.ml{,i,y}>: pkg_ocamlgraph
@@ -56,9 +56,9 @@ true: annot, bin_annot
 # Library irmin-fs
 "lib/fs/irmin-fs.cmxs": use_irmin-fs
 <lib/fs/*.ml{,i,y}>: pkg_cstruct
-<lib/fs/*.ml{,i,y}>: pkg_dolog
 <lib/fs/*.ml{,i,y}>: pkg_ezjsonm
 <lib/fs/*.ml{,i,y}>: pkg_hex
+<lib/fs/*.ml{,i,y}>: pkg_logs
 <lib/fs/*.ml{,i,y}>: pkg_lwt
 <lib/fs/*.ml{,i,y}>: pkg_mstruct
 <lib/fs/*.ml{,i,y}>: pkg_ocamlgraph
@@ -70,10 +70,10 @@ true: annot, bin_annot
 "lib/http/irmin-http.cmxs": use_irmin-http
 <lib/http/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <lib/http/*.ml{,i,y}>: pkg_cstruct
-<lib/http/*.ml{,i,y}>: pkg_dolog
 <lib/http/*.ml{,i,y}>: pkg_ezjsonm
 <lib/http/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <lib/http/*.ml{,i,y}>: pkg_hex
+<lib/http/*.ml{,i,y}>: pkg_logs
 <lib/http/*.ml{,i,y}>: pkg_lwt
 <lib/http/*.ml{,i,y}>: pkg_mstruct
 <lib/http/*.ml{,i,y}>: pkg_ocamlgraph
@@ -89,12 +89,12 @@ true: annot, bin_annot
 <lib/unix/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib/unix/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <lib/unix/*.ml{,i,y}>: pkg_cstruct
-<lib/unix/*.ml{,i,y}>: pkg_dolog
 <lib/unix/*.ml{,i,y}>: pkg_ezjsonm
 <lib/unix/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <lib/unix/*.ml{,i,y}>: pkg_git
 <lib/unix/*.ml{,i,y}>: pkg_git.unix
 <lib/unix/*.ml{,i,y}>: pkg_hex
+<lib/unix/*.ml{,i,y}>: pkg_logs
 <lib/unix/*.ml{,i,y}>: pkg_lwt
 <lib/unix/*.ml{,i,y}>: pkg_mstruct
 <lib/unix/*.ml{,i,y}>: pkg_ocamlgraph
@@ -114,12 +114,12 @@ true: annot, bin_annot
 <lib/mirage/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib/mirage/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <lib/mirage/*.ml{,i,y}>: pkg_cstruct
-<lib/mirage/*.ml{,i,y}>: pkg_dolog
 <lib/mirage/*.ml{,i,y}>: pkg_ezjsonm
 <lib/mirage/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <lib/mirage/*.ml{,i,y}>: pkg_git
 <lib/mirage/*.ml{,i,y}>: pkg_git.mirage
 <lib/mirage/*.ml{,i,y}>: pkg_hex
+<lib/mirage/*.ml{,i,y}>: pkg_logs
 <lib/mirage/*.ml{,i,y}>: pkg_lwt
 <lib/mirage/*.ml{,i,y}>: pkg_mstruct
 <lib/mirage/*.ml{,i,y}>: pkg_ocamlgraph
@@ -139,12 +139,16 @@ true: annot, bin_annot
 <bin/main.{native,byte}>: pkg_cohttp.lwt
 <bin/main.{native,byte}>: pkg_cohttp.lwt-core
 <bin/main.{native,byte}>: pkg_cstruct
-<bin/main.{native,byte}>: pkg_dolog
 <bin/main.{native,byte}>: pkg_ezjsonm
 <bin/main.{native,byte}>: pkg_ezjsonm.lwt
+<bin/main.{native,byte}>: pkg_fmt.cli
+<bin/main.{native,byte}>: pkg_fmt.tty
 <bin/main.{native,byte}>: pkg_git
 <bin/main.{native,byte}>: pkg_git.unix
 <bin/main.{native,byte}>: pkg_hex
+<bin/main.{native,byte}>: pkg_logs
+<bin/main.{native,byte}>: pkg_logs.cli
+<bin/main.{native,byte}>: pkg_logs.fmt
 <bin/main.{native,byte}>: pkg_lwt
 <bin/main.{native,byte}>: pkg_mstruct
 <bin/main.{native,byte}>: pkg_ocamlgraph
@@ -164,12 +168,16 @@ true: annot, bin_annot
 <bin/*.ml{,i,y}>: pkg_cohttp.lwt
 <bin/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <bin/*.ml{,i,y}>: pkg_cstruct
-<bin/*.ml{,i,y}>: pkg_dolog
 <bin/*.ml{,i,y}>: pkg_ezjsonm
 <bin/*.ml{,i,y}>: pkg_ezjsonm.lwt
+<bin/*.ml{,i,y}>: pkg_fmt.cli
+<bin/*.ml{,i,y}>: pkg_fmt.tty
 <bin/*.ml{,i,y}>: pkg_git
 <bin/*.ml{,i,y}>: pkg_git.unix
 <bin/*.ml{,i,y}>: pkg_hex
+<bin/*.ml{,i,y}>: pkg_logs
+<bin/*.ml{,i,y}>: pkg_logs.cli
+<bin/*.ml{,i,y}>: pkg_logs.fmt
 <bin/*.ml{,i,y}>: pkg_lwt
 <bin/*.ml{,i,y}>: pkg_mstruct
 <bin/*.ml{,i,y}>: pkg_ocamlgraph
@@ -190,12 +198,13 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt
 <lib_test/test.{native,byte}>: pkg_cohttp.lwt-core
 <lib_test/test.{native,byte}>: pkg_cstruct
-<lib_test/test.{native,byte}>: pkg_dolog
 <lib_test/test.{native,byte}>: pkg_ezjsonm
 <lib_test/test.{native,byte}>: pkg_ezjsonm.lwt
 <lib_test/test.{native,byte}>: pkg_git
 <lib_test/test.{native,byte}>: pkg_git.unix
 <lib_test/test.{native,byte}>: pkg_hex
+<lib_test/test.{native,byte}>: pkg_logs
+<lib_test/test.{native,byte}>: pkg_logs.fmt
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_mstruct
 <lib_test/test.{native,byte}>: pkg_ocamlgraph
@@ -215,12 +224,13 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_cohttp.lwt
 <lib_test/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <lib_test/*.ml{,i,y}>: pkg_cstruct
-<lib_test/*.ml{,i,y}>: pkg_dolog
 <lib_test/*.ml{,i,y}>: pkg_ezjsonm
 <lib_test/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <lib_test/*.ml{,i,y}>: pkg_git
 <lib_test/*.ml{,i,y}>: pkg_git.unix
 <lib_test/*.ml{,i,y}>: pkg_hex
+<lib_test/*.ml{,i,y}>: pkg_logs
+<lib_test/*.ml{,i,y}>: pkg_logs.fmt
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_mstruct
 <lib_test/*.ml{,i,y}>: pkg_ocamlgraph
@@ -240,12 +250,12 @@ true: annot, bin_annot
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt
 <examples/git_store.{native,byte}>: pkg_cohttp.lwt-core
 <examples/git_store.{native,byte}>: pkg_cstruct
-<examples/git_store.{native,byte}>: pkg_dolog
 <examples/git_store.{native,byte}>: pkg_ezjsonm
 <examples/git_store.{native,byte}>: pkg_ezjsonm.lwt
 <examples/git_store.{native,byte}>: pkg_git
 <examples/git_store.{native,byte}>: pkg_git.unix
 <examples/git_store.{native,byte}>: pkg_hex
+<examples/git_store.{native,byte}>: pkg_logs
 <examples/git_store.{native,byte}>: pkg_lwt
 <examples/git_store.{native,byte}>: pkg_mstruct
 <examples/git_store.{native,byte}>: pkg_ocamlgraph
@@ -265,12 +275,12 @@ true: annot, bin_annot
 <examples/custom_merge.{native,byte}>: pkg_cohttp.lwt
 <examples/custom_merge.{native,byte}>: pkg_cohttp.lwt-core
 <examples/custom_merge.{native,byte}>: pkg_cstruct
-<examples/custom_merge.{native,byte}>: pkg_dolog
 <examples/custom_merge.{native,byte}>: pkg_ezjsonm
 <examples/custom_merge.{native,byte}>: pkg_ezjsonm.lwt
 <examples/custom_merge.{native,byte}>: pkg_git
 <examples/custom_merge.{native,byte}>: pkg_git.unix
 <examples/custom_merge.{native,byte}>: pkg_hex
+<examples/custom_merge.{native,byte}>: pkg_logs
 <examples/custom_merge.{native,byte}>: pkg_lwt
 <examples/custom_merge.{native,byte}>: pkg_mstruct
 <examples/custom_merge.{native,byte}>: pkg_ocamlgraph
@@ -290,12 +300,12 @@ true: annot, bin_annot
 <examples/views.{native,byte}>: pkg_cohttp.lwt
 <examples/views.{native,byte}>: pkg_cohttp.lwt-core
 <examples/views.{native,byte}>: pkg_cstruct
-<examples/views.{native,byte}>: pkg_dolog
 <examples/views.{native,byte}>: pkg_ezjsonm
 <examples/views.{native,byte}>: pkg_ezjsonm.lwt
 <examples/views.{native,byte}>: pkg_git
 <examples/views.{native,byte}>: pkg_git.unix
 <examples/views.{native,byte}>: pkg_hex
+<examples/views.{native,byte}>: pkg_logs
 <examples/views.{native,byte}>: pkg_lwt
 <examples/views.{native,byte}>: pkg_mstruct
 <examples/views.{native,byte}>: pkg_ocamlgraph
@@ -315,12 +325,12 @@ true: annot, bin_annot
 <examples/deploy.{native,byte}>: pkg_cohttp.lwt
 <examples/deploy.{native,byte}>: pkg_cohttp.lwt-core
 <examples/deploy.{native,byte}>: pkg_cstruct
-<examples/deploy.{native,byte}>: pkg_dolog
 <examples/deploy.{native,byte}>: pkg_ezjsonm
 <examples/deploy.{native,byte}>: pkg_ezjsonm.lwt
 <examples/deploy.{native,byte}>: pkg_git
 <examples/deploy.{native,byte}>: pkg_git.unix
 <examples/deploy.{native,byte}>: pkg_hex
+<examples/deploy.{native,byte}>: pkg_logs
 <examples/deploy.{native,byte}>: pkg_lwt
 <examples/deploy.{native,byte}>: pkg_mstruct
 <examples/deploy.{native,byte}>: pkg_ocamlgraph
@@ -340,12 +350,12 @@ true: annot, bin_annot
 <examples/process.{native,byte}>: pkg_cohttp.lwt
 <examples/process.{native,byte}>: pkg_cohttp.lwt-core
 <examples/process.{native,byte}>: pkg_cstruct
-<examples/process.{native,byte}>: pkg_dolog
 <examples/process.{native,byte}>: pkg_ezjsonm
 <examples/process.{native,byte}>: pkg_ezjsonm.lwt
 <examples/process.{native,byte}>: pkg_git
 <examples/process.{native,byte}>: pkg_git.unix
 <examples/process.{native,byte}>: pkg_hex
+<examples/process.{native,byte}>: pkg_logs
 <examples/process.{native,byte}>: pkg_lwt
 <examples/process.{native,byte}>: pkg_mstruct
 <examples/process.{native,byte}>: pkg_ocamlgraph
@@ -365,12 +375,12 @@ true: annot, bin_annot
 <examples/sync.{native,byte}>: pkg_cohttp.lwt
 <examples/sync.{native,byte}>: pkg_cohttp.lwt-core
 <examples/sync.{native,byte}>: pkg_cstruct
-<examples/sync.{native,byte}>: pkg_dolog
 <examples/sync.{native,byte}>: pkg_ezjsonm
 <examples/sync.{native,byte}>: pkg_ezjsonm.lwt
 <examples/sync.{native,byte}>: pkg_git
 <examples/sync.{native,byte}>: pkg_git.unix
 <examples/sync.{native,byte}>: pkg_hex
+<examples/sync.{native,byte}>: pkg_logs
 <examples/sync.{native,byte}>: pkg_lwt
 <examples/sync.{native,byte}>: pkg_mstruct
 <examples/sync.{native,byte}>: pkg_ocamlgraph
@@ -389,12 +399,12 @@ true: annot, bin_annot
 <examples/*.ml{,i,y}>: pkg_cohttp.lwt
 <examples/*.ml{,i,y}>: pkg_cohttp.lwt-core
 <examples/*.ml{,i,y}>: pkg_cstruct
-<examples/*.ml{,i,y}>: pkg_dolog
 <examples/*.ml{,i,y}>: pkg_ezjsonm
 <examples/*.ml{,i,y}>: pkg_ezjsonm.lwt
 <examples/*.ml{,i,y}>: pkg_git
 <examples/*.ml{,i,y}>: pkg_git.unix
 <examples/*.ml{,i,y}>: pkg_hex
+<examples/*.ml{,i,y}>: pkg_logs
 <examples/*.ml{,i,y}>: pkg_lwt
 <examples/*.ml{,i,y}>: pkg_mstruct
 <examples/*.ml{,i,y}>: pkg_ocamlgraph

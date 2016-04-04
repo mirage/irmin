@@ -26,9 +26,8 @@ module type Test_S = sig
 end
 
 let () =
-  Log.set_log_level Log.DEBUG;
-  Log.color_on ();
-  Log.set_output stderr
+  Logs.set_level (Some Logs.Debug);
+  Logs.set_reporter (Logs_fmt.reporter ())
 
 let cmp_opt fn x y =
   match x, y with
@@ -55,7 +54,7 @@ let printer_list fn = function
 let line msg =
   let line () = Alcotest.line stderr ~color:`Yellow '-' in
   line ();
-  Log.info "ASSERT %s" msg;
+  Logs.info (fun f -> f "ASSERT %s" msg);
   line ()
 
 module Make (S: Irmin.S) = struct

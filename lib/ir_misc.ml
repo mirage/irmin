@@ -17,10 +17,8 @@
 open Sexplib.Std
 
 module OP = struct
-  let force oc s = output_string oc (Lazy.force s)
-  let (!!) = force
-  let show m t = Lazy.from_fun (fun () -> Tc.show m t)
-  let shows m ts = Lazy.from_fun (fun () -> Tc.shows m ts)
+  let show m f t = Format.pp_print_string f (Tc.show m t)
+  let shows m f ts = Format.pp_print_string f (Tc.shows m ts)
 end
 
 let list_partition_map f t =

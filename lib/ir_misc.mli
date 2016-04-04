@@ -17,10 +17,8 @@
 (** Misc functions and signatures. *)
 
 module OP: sig
-  val force: out_channel -> string Lazy.t -> unit
-  val (!!):  out_channel -> string Lazy.t -> unit
-  val show: 'a Tc.t -> 'a -> string Lazy.t
-  val shows: 'a Tc.t -> 'a list -> string Lazy.t
+  val show: 'a Tc.t -> Format.formatter -> 'a -> unit
+  val shows: 'a Tc.t -> Format.formatter -> 'a list -> unit
 end
 
 (** Persistent Maps. *)

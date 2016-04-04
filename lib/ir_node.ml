@@ -19,7 +19,8 @@ open Lwt.Infix
 open Ir_misc.OP
 open Ir_merge.OP
 
-module Log = Log.Make(struct let section = "NODE" end)
+let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_s.PATH) = struct
 
@@ -256,7 +257,7 @@ struct
         )
 
     let merge_value path (c, _) merge_key =
-      Log.debug "merge_value %a" force (show (module Path) path);
+      Log.debug (fun f -> f "merge_value %a" (show (module Path)) path);
       let explode t = all_contents t, all_succ t in
       let implode (contents, succ) =
         let xs = List.map (fun (s, c) -> s, `Contents c) contents in
@@ -303,19 +304,19 @@ struct
   module StepMap = Ir_misc.Map(Step)
 
   let iter_contents t n fn =
-    Log.debug "iter_contents";
+    Log.debug (fun f -> f "iter_contents");
     Store.read t n >>= function
     | None   -> Lwt.return_unit
     | Some n -> Lwt.return (S.Val.iter_contents n fn)
 
   let iter_succ t n fn =
-    Log.debug "iter_succ";
+    Log.debug (fun f -> f "iter_succ");
     Store.read t n >>= function
     | None   -> Lwt.return_unit
     | Some n -> Lwt.return (S.Val.iter_succ n fn)
 
   let steps t n =
-    Log.debug "steps";
+    Log.debug (fun f -> f "steps");
     Store.read t n >>= function
     | None   -> Lwt.return_nil
     | Some n ->
@@ -333,9 +334,9 @@ struct
     !edges
 
   let closure t ~min ~max =
-    Log.debug "closure min=%a max=%a"
-      force (shows (module S.Key) min)
-      force (shows (module S.Key) max);
+    Log.debug (fun f -> f "closure min=%a max=%a"
+      (shows (module S.Key)) min
+      (shows (module S.Key)) max);
     let pred = function
       | `Node k -> Store.read_exn t k >>= fun node -> Lwt.return (edges node)
       | _       -> Lwt.return_nil
@@ -354,15 +355,15 @@ struct
     Store.add t (S.Val.create xs)
 
   let contents t node step =
-    Log.debug "contents %a" force (show (module S.Key) node);
+    Log.debug (fun f -> f "contents %a" (show (module S.Key)) node);
     Store.read t node >>= function
     | None   -> Lwt.return_none
     | Some n -> Lwt.return (S.Val.contents n step)
 
   let succ t node step =
-    Log.debug "succ %a %a"
-      force (show (module S.Key) node)
-      force (show (module Step) step);
+    Log.debug (fun f -> f "succ %a %a"
+      (show (module S.Key)) node
+      (show (module Step)) step);
     Store.read t node >>= function
     | None   -> Lwt.return_none
     | Some n -> Lwt.return (S.Val.succ n step)
@@ -371,9 +372,9 @@ struct
     Ir_misc.invalid_arg "Irmin.Node.%s: %s not found" n (Path.to_hum k)
 
   let read_node_exn t node path =
-    Log.debug "read_node_exn %a %a"
-      force (show (module S.Key) node)
-      force (show (module S.Path) path);
+    Log.debug (fun f -> f "read_node_exn %a %a"
+      (show (module S.Key)) node
+      (show (module S.Path)) path);
     let rec aux node path =
       match Path.decons path with
       | None         -> Lwt.return node
@@ -399,7 +400,7 @@ struct
   let err_empty_path () = invalid_arg "Irmin.node: empty path"
 
   let read_contents_exn t node path0 =
-    Log.debug "read_contents_exn %a" force (show (module S.Path) path0);
+    Log.debug (fun f -> f "read_contents_exn %a" (show (module S.Path)) path0);
     match Path.rdecons path0 with
     | None -> err_not_found "read_contents" path0
     | Some (path, file) ->
@@ -409,7 +410,7 @@ struct
       | Some c -> Lwt.return c
 
   let read_contents t node path =
-    Log.debug "read_contents %a" force (show (module S.Path) path);
+    Log.debug (fun f -> f "read_contents %a" (show (module S.Path)) path);
     match Path.rdecons path with
     | None -> Lwt.return_none
     | Some (path, file) ->
@@ -421,13 +422,13 @@ struct
         | Some c -> Lwt.return (Some c)
 
   let mem_node t node path =
-    Log.debug "mem_node %a" force (show (module S.Path) path);
+    Log.debug (fun f -> f "mem_node %a" (show (module S.Path)) path);
     read_node t node path >>= function
     | None   -> Lwt.return_false
     | Some _ -> Lwt.return_true
 
   let mem_contents t node path =
-    Log.debug "mem_contents %a" force (show (module S.Path) path);
+    Log.debug (fun f -> f "mem_contents %a" (show (module S.Path)) path);
     match Path.rdecons path with
     | None -> Lwt.return_false
     | Some (path, file) ->
@@ -439,7 +440,7 @@ struct
         | Some _ -> Lwt.return_true
 
   let map_one t node f label =
-    Log.debug "map_one %a" force (show (module Step) label);
+    Log.debug (fun f -> f "map_one %a" (show (module Step)) label);
     let old_key = S.Val.succ node label in
     begin match old_key with
       | None   -> Lwt.return S.Val.empty
@@ -460,9 +461,9 @@ struct
     )
 
   let map t node path f =
-    Log.debug "map %a %a"
-      force (show (module S.Key) node)
-      force (show (module S.Path) path);
+    Log.debug (fun f -> f "map %a %a"
+      (show (module S.Key)) node
+      (show (module S.Path)) path);
     let rec aux node path =
       match Path.decons path with
       | None         -> Lwt.return (f node)
@@ -476,9 +477,9 @@ struct
     Store.add t
 
   let update_node t node path n =
-    Log.debug "update_node %a %a"
-      force (show (module S.Key) node)
-      force (show (module S.Path) path);
+    Log.debug (fun f -> f "update_node %a %a"
+      (show (module S.Key)) node
+      (show (module S.Path)) path);
     match Path.rdecons path with
     | Some (path, file) ->
       map t node path (fun node -> S.Val.with_succ node file n)
@@ -498,9 +499,9 @@ struct
     | None       -> err_empty_path ()
 
   let update_contents t node path c =
-    Log.debug "update_contents %a %a"
-      force (show (module S.Key) node)
-      force (show (module S.Path) path);
+    Log.debug (fun f -> f "update_contents %a %a"
+      (show (module S.Key)) node
+      (show (module S.Path)) path);
     let path, file = rdecons_exn path in
     map t node path (fun node -> S.Val.with_contents node file c)
 

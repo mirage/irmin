@@ -18,7 +18,8 @@ open Lwt
 open Printf
 open Ir_misc.OP
 
-module Log = Log.Make(struct let section = "MERGE" end)
+let src = Logs.Src.create "irmin.merge" ~doc:"Irmin merging"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 type 'a result =
   [ `Ok of 'a
@@ -87,7 +88,7 @@ type 'a t = old:'a promise -> 'a -> 'a -> 'a result Lwt.t
 
 let conflict fmt =
   ksprintf (fun msg ->
-      Log.debug "conflict: %s" msg;
+      Log.debug (fun f -> f "conflict: %s" msg);
       return (`Conflict msg)
     ) fmt
 
@@ -131,14 +132,14 @@ let rec iter f = function
 
 let default (type a) (module A: Tc.S0 with type t = a) =
   fun ~old t1 t2 ->
-    Log.debug "default %a | %a"
-      force (show (module A) t1)
-      force (show (module A) t2);
+    Log.debug (fun f -> f "default %a | %a"
+      (show (module A)) t1
+      (show (module A)) t2);
     if A.equal t1 t2 then ok t1
     else old () >>| function
       | None     -> conflict "default: add/add and no common ancestor"
       | Some old ->
-        Log.debug "default old=%a" force (show (module A) t1);
+        Log.debug (fun f -> f "default old=%a" (show (module A)) t1);
         if A.equal old t1 then ok t2
         else if A.equal old t2 then ok t1
         else conflict "default"
@@ -156,9 +157,9 @@ let seq = function
 let option (type a) (module T: Tc.S0 with type t = a) (t: a t): a option t =
   let module S = Tc.Option(T) in
   fun ~old t1 t2->
-    Log.debug "some %a | %a"
-      force (show (module S) t1)
-      force (show (module S) t2);
+    Log.debug (fun f -> f "some %a | %a"
+      (show (module S)) t1
+      (show (module S)) t2);
     default (module S) ~old t1 t2 >>= function
     | `Ok x       -> ok x
     | `Conflict _ ->
@@ -169,7 +170,7 @@ let option (type a) (module T: Tc.S0 with type t = a) (t: a t): a option t =
           old () >>| function
           | None   -> ok None
           | Some o ->
-            Log.debug "option old=%a" force (show (module S) o);
+            Log.debug (fun f -> f "option old=%a" (show (module S)) o);
             ok o
         in
         t ~old v1 v2 >>| fun x ->
@@ -180,7 +181,7 @@ let option (type a) (module T: Tc.S0 with type t = a) (t: a t): a option t =
         | None
         | Some None     -> ok (Some x)
         | Some (Some o) ->
-          Log.debug "option old=%a" force (show (module T) o);
+          Log.debug (fun f -> f "option old=%a" (show (module T)) o);
           if T.equal x o then ok (Some x) else conflict "option: add/del"
 
 let omap f = function
@@ -193,11 +194,11 @@ let pair
     a b =
   let module S = Tc.Pair(A)(B) in
   fun ~old x y ->
-    Log.debug "pair %a | %a"
-      force (show (module S) x)
-      force (show (module S) y);
+    Log.debug (fun f -> f "pair %a | %a"
+      (show (module S)) x
+      (show (module S)) y);
     let (a1, b1), (a2, b2) = x, y in
-    let ret m x = Log.debug "pair obj=%a" force (show m x); x in
+    let ret m x = Log.debug (fun f -> f "pair obj=%a" (show m) x); x in
     let o1 () = old () >>| omap (fun (o1, _) -> ret (module A) o1) in
     let o2 () = old () >>| omap (fun (_, o2) -> ret (module B) o2) in
     a ~old:o1 a1 a2 >>| fun a3 ->
@@ -211,11 +212,11 @@ let triple
   a b c =
   let module S = Tc.Triple(A)(B)(C) in
   fun ~old x y ->
-    Log.debug "triple %a | %a"
-      force (show (module S) x)
-      force (show (module S) y);
+    Log.debug (fun f -> f "triple %a | %a"
+      (show (module S)) x
+      (show (module S)) y);
     let (a1, b1, c1), (a2, b2, c2) = x, y in
-    let ret m x = Log.debug "triple old=%a" force (show m x); x in
+    let ret m x = Log.debug (fun f -> f "triple old=%a" (show m) x); x in
     let o1 () = old () >>| omap (fun (o1, _, _) -> ret (module A) o1) in
     let o2 () = old () >>| omap (fun (_, o2, _) -> ret (module B) o2) in
     let o3 () = old () >>| omap (fun (_, _, o3) -> ret (module C) o3) in
@@ -290,15 +291,15 @@ module Map (M: Map.S) (S: Tc.S0 with type t = M.key) = struct
   let merge (type a) (module A: Tc.S0 with type t = a) t =
     let module X = Tc.App1(SM)(A) in
     fun ~old m1 m2 ->
-      Log.debug "assoc %a | %a"
-        force (show (module X) m1)
-        force (show (module X) m2);
+      Log.debug (fun f -> f "assoc %a | %a"
+        (show (module X)) m1
+        (show (module X)) m2);
       Lwt.catch (fun () ->
           let old key =
             old () >>| function
             | None     -> ok None
             | Some old ->
-              Log.debug "assoc old=%a" force (show (module X) old);
+              Log.debug (fun f -> f "assoc old=%a" (show (module X)) old);
               let old = try Some (SM.find key old) with Not_found -> None in
               ok (Some old)
           in
@@ -314,16 +315,16 @@ let biject
     t a_to_b b_to_a
   =
   let merge ~old a1 a2 =
-    Log.debug "biject %a | %a"
-      force (show (module A) a1)
-      force (show (module A) a2);
+    Log.debug (fun f -> f "biject %a | %a"
+      (show (module A)) a1
+      (show (module A)) a2);
     try
       let b1  = a_to_b a1 in
       let b2  = a_to_b a2 in
       let old =
         memo (fun () ->
             old () >>| omap (fun a ->
-            Log.debug "biject old=%a" force (show (module A) a);
+            Log.debug (fun f -> f "biject old=%a" (show (module A)) a);
             a_to_b a))
       in
       t ~old b1 b2 >>| fun b3 ->
@@ -341,9 +342,9 @@ let biject'
     t a_to_b b_to_a
   =
   let merge ~old a1 a2 =
-    Log.debug "biject' %a | %a"
-      force (show (module A) a1)
-      force (show (module A) a2);
+    Log.debug (fun f -> f "biject' %a | %a"
+      (show (module A)) a1
+      (show (module A)) a2);
     try
       a_to_b a1  >>= fun b1 ->
       a_to_b a2  >>= fun b2 ->
@@ -351,7 +352,7 @@ let biject'
           old () >>| function
           | None   -> ok None
           | Some a ->
-            Log.debug "biject' old=%a" force (show (module A) a);
+            Log.debug (fun f -> f "biject' old=%a" (show (module A)) a);
             a_to_b a >>= fun b ->
             ok (Some b))
       in

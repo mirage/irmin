@@ -16,7 +16,8 @@
 
 open Lwt.Infix
 
-module Log = Log.Make(struct let section = "FS" end)
+let src = Logs.Src.create "irmin.fs" ~doc:"Irmin disk persistence"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 let (/) = Filename.concat
 
@@ -85,7 +86,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
      | true  -> IO.read_file (file_of_key t key) >>= fun x -> Lwt.return (mk_value x)
 
   let read t key =
-    Log.debug "read";
+    Log.debug (fun f -> f "read");
     mem t key >>= function
     | false -> Lwt.return_none
     | true  ->
@@ -103,7 +104,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     Lwt_list.iter_p (fun file -> fn @@ K.of_hum (S.key_of_file file)) files
 
   let iter t fn =
-    Log.debug "iter";
+    Log.debug (fun f -> f "iter");
     keys_of_dir t (fun k ->
         let v = read_exn t k in
         fn k v
@@ -118,7 +119,7 @@ module AO_ext (IO: IO) (S: Config) (K: Irmin.Hash.S) (V: Tc.S0) = struct
   let temp_dir t = t.path / "tmp"
 
   let add t value =
-    Log.debug "add";
+    Log.debug (fun f -> f "add");
     let value = Tc.write_cstruct (module V) value in
     let key = K.digest value in
     let file = file_of_key t key in
@@ -141,7 +142,7 @@ module Link_ext (IO: IO) (S: Config) (K:Irmin.Hash.S) = struct
  let temp_dir t = t.path / "tmp"
 
  let add t index key =
-   Log.debug "add link";
+   Log.debug (fun f -> f "add link");
    let file = file_of_key t index in
    let value =  Tc.write_cstruct (module K) key in
    let temp_dir = temp_dir t in
@@ -196,7 +197,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     W.unwatch t.w id
 
   let update t key value =
-    Log.debug "update";
+    Log.debug (fun f -> f "update");
     let write () =
       let temp_dir = temp_dir t in
       let raw_value = Tc.write_cstruct (module V) value in
@@ -208,7 +209,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     W.notify t.w key (Some value)
 
   let remove t key =
-    Log.debug "remove";
+    Log.debug (fun f -> f "remove");
     let remove () =
       let file = RO.file_of_key t.t key in
       IO.remove file
@@ -218,7 +219,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     W.notify t.w key None
 
   let compare_and_set t key ~test ~set =
-    Log.debug "compare_and_set";
+    Log.debug (fun f -> f "compare_and_set");
     let write () =
       read t key >>= fun v ->
       if Tc.O1.equal V.equal test v then (

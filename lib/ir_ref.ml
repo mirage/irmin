@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Log = Log.Make(struct let section = "TAG" end)
+let src = Logs.Src.create "irmin.ref" ~doc:"Irmin branches/tags"
+module Log = (val Logs.src_log src : Logs.LOG)
 
 module String = struct
   include Tc.String

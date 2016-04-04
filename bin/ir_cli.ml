@@ -25,17 +25,6 @@ let fmt t = Printf.ksprintf (fun s -> t s)
 let () =
   install_dir_polling_listener 0.5
 
-(* Global options *)
-type global = {
-  level: Log.log_level option;
-}
-
-let app_global g =
-  Log.color_on ();
-  match g.level with
-  | None   -> ()
-  | Some d -> Log.set_log_level d
-
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
 let help_sections = [
@@ -49,21 +38,14 @@ let help_sections = [
   `P "Check bug reports at https://github.com/mirage/irmin/issues.";
 ]
 
-let global =
-  let debug =
-    let doc =
-      Arg.info ~docs:global_option_section ~doc:"Be very verbose." ["debug"] in
-    Arg.(value & flag & doc) in
-  let verbose =
-    let doc =
-      Arg.info ~docs:global_option_section ~doc:"Be verbose." ["v";"verbose"] in
-    Arg.(value & flag & doc) in
-  let level debug verbose =
-    match debug, verbose with
-    | true, _    -> { level = Some Log.DEBUG }
-    | _   , true -> { level = Some Log.INFO }
-    | _          -> { level = None } in
-  Term.(pure level $ debug $ verbose)
+let setup_log style_renderer level =
+  Fmt_tty.setup_std_outputs ?style_renderer ();
+  Logs.set_level level;
+  Logs.set_reporter (Logs_fmt.reporter ());
+  ()
+
+let setup_log =
+  Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
 let term_info title ~doc ~man =
   let man = man @ help_sections in
@@ -111,7 +93,7 @@ let run t =
   )
 
 let mk (fn:'a): 'a Term.t =
-  Term.(pure (fun global -> app_global global; fn) $ global)
+  Term.(pure (fun () -> fn) $ setup_log)
 
 (* INIT *)
 let init = {
@@ -144,7 +126,7 @@ let init = {
             let uri, name = match Uri.host uri with
               | None   -> Uri.with_host uri (Some "Listener"), "Listener"
               | Some name -> uri, name in
-              Log.info "daemon: %s" (Uri.to_string uri);
+              Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
               Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`Launchd name) spec
           | _ ->
             let uri = match Uri.host uri with
@@ -153,7 +135,7 @@ let init = {
             let port, uri = match Uri.port uri with
               | None   -> 8080, Uri.with_port uri (Some 8080)
               | Some p -> p, uri in
-            Log.info "daemon: %s" (Uri.to_string uri);
+            Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
             Printf.printf "Server starting on port %d.\n%!" port;
             Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`TCP (`Port port)) spec
 
@@ -462,12 +444,12 @@ let dot = {
         >>= fun () ->
         if call_dot then (
           let i = Sys.command "/bin/sh -c 'command -v dot'" in
-          if i <> 0 then Log.error
+          if i <> 0 then Logs.err (fun f -> f
               "Cannot find the `dot' utility. Please install it on your system \
-               and be sure it is available in your $PATH.";
+               and be sure it is available in your $PATH.");
           let i = Sys.command
               (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename) in
-          if i <> 0 then Log.error "The %s.dot is corrupted" basename;
+          if i <> 0 then Logs.err (fun f -> f "The %s.dot is corrupted" basename);
         );
         return_unit
       end
@@ -509,8 +491,7 @@ let default =
     `P "Use either $(b,$(mname) <command> --help) or $(b,$(mname) help <command>) \
         for more information on a specific command.";
   ] in
-  let usage global =
-    app_global global;
+  let usage () =
     printf
       "usage: irmin [--version]\n\
       \             [--help]\n\
@@ -536,7 +517,7 @@ let default =
       init.doc read.doc write.doc rm.doc ls.doc tree.doc
       clone.doc fetch.doc pull.doc push.doc snapshot.doc
       revert.doc watch.doc dot.doc in
-  Term.(pure usage $ global),
+  Term.(mk usage $ pure ()),
   Term.info "irmin"
     ~version:Irmin.version
     ~sdocs:global_option_section
