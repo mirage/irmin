@@ -7,7 +7,7 @@ env:
   - ALCOTEST_SHOW_ERRORS=1
   - REVDEPS="irmin-indexeddb"
   - PACKAGE=irmin.0.9.9
-  - PINS="irmin-indexeddb:https://github.com/talex5/irmin-indexeddb.git#branch_id"
+  - PINS="irmin-indexeddb:https://github.com/talex5/irmin-indexeddb.git#branch_id git"
   matrix:
   - OCAML_VERSION=4.01
   - OCAML_VERSION=4.02
