@@ -143,15 +143,15 @@ module Irmin_value_store
       G.mem t key >>= function
       | false    -> Lwt.return false
       | true     ->
-        G.read t key >>= function
-        | None   -> Lwt.return false
-        | Some v -> Lwt.return (V.type_eq (Git.Value.type_of v))
+        G.read t key >|= function
+        | None   -> false
+        | Some v -> V.type_eq (Git.Value.type_of v)
 
     let read t key =
       let key = git_of_key key in
-      G.read t key >>= function
-      | None   -> Lwt.return_none
-      | Some v -> Lwt.return (V.of_git v)
+      G.read t key >|= function
+      | None   -> None
+      | Some v -> V.of_git v
 
     let err_not_found n k =
       let str = sprintf "Irmin_git.%s: %s not found" n (H.to_hum k) in
@@ -163,8 +163,8 @@ module Irmin_value_store
       | Some v -> Lwt.return v
 
     let add t v =
-      G.write t (V.to_git v) >>= fun k ->
-      Lwt.return (key_of_git k)
+      G.write t (V.to_git v) >|= fun k ->
+      key_of_git k
 
     let iter t fn =
       G.contents t >>= fun contents ->
@@ -678,11 +678,11 @@ struct
     let result r =
       Log.debug (fun f -> f "push result: %a" Git.Sync.Result.pp_push r);
       match r.Git.Sync.Result.result with
-      | `Ok      -> Lwt.return `Ok
-      | `Error _ -> Lwt.return `Error
+      | `Ok      -> `Ok
+      | `Error _ -> `Error
     in
     Ctx.v () >>= fun ctx ->
-    Sync.push t ?ctx ~branch gri >>=
+    Sync.push t ?ctx ~branch gri >|=
     result
 
 end
@@ -731,8 +731,8 @@ module Make_ext
         let head = Irmin.Private.Conf.get config Conf.head in
         let bare = Irmin.Private.Conf.get config Conf.bare in
         Git_store.create config >>= fun g ->
-        Ref.create ~head ~bare g >>= fun ref_store ->
-        Lwt.return { g; ref_store; config }
+        Ref.create ~head ~bare g >|= fun ref_store ->
+        { g; ref_store; config }
     end
   end
   include Irmin.Make_ext(P)
