@@ -42,8 +42,8 @@ module Make (P: Ir_s.PRIVATE) = struct
   type head_ref = [ `Branch of branch_id | `Head of commit_id option ref ]
 
   module OCamlGraph = Graph
-  module Graph = Ir_node.Graph(P.Contents)(P.Node)
-  module H = Ir_commit.History(Graph.Store)(P.Commit)
+  module Graph = Ir_node.Graph(P.Node)
+  module H = Ir_commit.History(P.Commit)
 
   module KGraph =
     Ir_graph.Make(P.Contents.Key)(P.Node.Key)(P.Commit.Key)(Ref_store.Key)
@@ -55,13 +55,14 @@ module Make (P: Ir_s.PRIVATE) = struct
 
     let create = P.Repo.create
 
-    let graph_t t = P.Repo.contents_t t, P.Repo.node_t t
-    let history_t t = graph_t t, P.Repo.commit_t t
+    let graph_t t = P.Repo.node_t t
+    let history_t t = P.Repo.commit_t t
 
     let branches t =
       let branches = ref [] in
-      Ref_store.iter (P.Repo.ref_t t) (fun t _ -> branches := t :: !branches; return_unit)
-      >>= fun () ->
+      Ref_store.iter (P.Repo.ref_t t) (fun t _ ->
+          branches := t :: !branches; return_unit
+        ) >>= fun () ->
       return !branches
 
     let remove_branch t name = Ref_store.remove (P.Repo.ref_t t) name
@@ -188,8 +189,8 @@ module Make (P: Ir_s.PRIVATE) = struct
   let commit_t t = P.Repo.commit_t t.repo
   let node_t t = P.Repo.node_t t.repo
   let contents_t t = P.Repo.contents_t t.repo
-  let graph_t t = contents_t t, node_t t
-  let history_t t = graph_t t, commit_t t
+  let graph_t t = node_t t
+  let history_t t = commit_t t
   let head_ref t = match t.head_ref with
     | `Branch t -> `Branch t
     | `Head h -> match !h with None -> `Empty | Some h -> `Head h
@@ -501,8 +502,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       let aux () =
         read_head_commit t >>= fun head ->
         node_of_commit_id head >>= fun (current_root, current_node) ->
-        Graph.Store.merge path (graph_t t)
-          ~old:parent_node current_node (Some node)
+        P.Node.merge path (graph_t t) ~old:parent_node current_node (Some node)
         >>| fun new_node ->
         begin match new_node with
           | None   -> Graph.remove_node (graph_t t) current_root path

@@ -28,44 +28,45 @@ val head: Git.Reference.t option Irmin.Private.Conf.key
 val level: int option Irmin.Private.Conf.key
 
 module type VALUE_STORE = sig
-  (** This is the subset of Git.Store.S needed for [Value_store], except that
-   * [create] takes an [Irmin.config]. *)
-
+  (** This is the subset of Git.Store.S needed for [Value_store]. *)
   type t
-
-  val create: Irmin.config -> t Lwt.t
   val read: t -> Git.Hash.t -> Git.Value.t option Lwt.t
   val mem: t -> Git.Hash.t -> bool Lwt.t
   val write: t -> Git.Value.t -> Git.Hash.t Lwt.t
   val contents: t -> (Git.Hash.t * Git.Value.t) list Lwt.t
-
   module Digest : Git.Hash.DIGEST
 end
 
+(** [Hash] is an implementation of Irmin hashes based on Git
+    hashes. *)
+module Hash (G: VALUE_STORE): Irmin.Hash.S with type t = Git.Hash.t
+
 (** Privides a subset of Irmin.Private.S (excludes tags and sync).
- * This is useful if you want to store data in Git format, but
- * do your own locking and sync. *)
+    This is useful if you want to store data in Git format, but do
+    your own locking and sync. *)
 module Irmin_value_store
     (G: VALUE_STORE)
     (C: Irmin.Contents.S)
     (H: Irmin.Hash.S) : sig
-  module GK : Irmin.Hash.S with type t = Git.Hash.t
 
-  module Contents: sig
-    include Irmin.AO with type value = C.t
-    module Key: Irmin.Hash.S with type t = key
-    module Val: Irmin.Contents.S with type t = value
-      and module Path = C.Path
-  end
+  module Contents: Irmin.Contents.STORE
+    with type key = H.t
+     and type value = C.t
+     and module Key = H
+     and module Path = C.Path
 
   module Node: Irmin.Private.Node.STORE
-    with type Val.contents = Contents.key
+    with type key = H.t
+     and type Val.contents = Contents.key
+     and module Key = H
      and module Path = Contents.Val.Path
 
   module Commit: Irmin.Private.Commit.STORE
-    with type Val.node = Node.key
-     and type key = H.t
+    with type key = H.t
+     and module Key = H
+     and type Val.node = Node.key
 end
+
 
 module type LOCK = sig
   val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t

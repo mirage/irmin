@@ -936,8 +936,8 @@ module Contents: sig
 
   end
 
-  (** [Make] builds a contents store. *)
-  module Make (S: sig
+  (** [Store] creates a contents store. *)
+  module Store (S: sig
                  include AO
                  module Key: Hash.S with type t = key
                  module Val: S with type t = value
@@ -1340,6 +1340,9 @@ module Private: sig
       module Path: Path.S
       (** [Step] provides base functions on node steps. *)
 
+      val merge: Path.t -> t -> key option Ir_merge.t
+      (** [merge] is the 3-way merge function for nodes keys. *)
+
       module Key: Hash.S with type t = key
       (** [Key] provides base functions for node keys. *)
 
@@ -1347,7 +1350,30 @@ module Private: sig
       module Val: S with type t = value
                      and type node = key
                      and type step = Path.step
+
+      (** [Contents] is the underlying contents store. *)
+      module Contents: Contents.STORE with type key = Val.contents
+
     end
+
+    (** [Store] creates node stores. *)
+    module Store
+        (C: Contents.STORE)
+        (S: sig
+           include AO
+           module Key: Hash.S with type t = key
+           module Val: S with type t = value
+                          and type node = key
+                          and type contents = C.key
+                          and type step = C.Path.step
+         end):
+      STORE with type t = C.t * S.t
+             and type key = S.key
+             and type value = S.value
+             and module Path = C.Path
+             and module Key = S.Key
+             and module Val = S.Val
+
 
     (** [Graph] specifies the signature for node graphs. A node graph
         is a deterministic DAG, labeled by steps. *)
@@ -1457,22 +1483,14 @@ module Private: sig
 
           {B Note:} Both [min] and [max] are subsets of [c].*)
 
-      module Store: Contents.STORE
-        with type t = t
-         and type key = node
-         and type Path.t = path
-         and type Path.step = step
-      (** Graph nodes forms a {{!Contents.STORE}contents store}. *)
-
     end
 
-    module Graph (C: Contents.STORE)
-        (S: STORE with type Val.contents = C.key and module Path = C.Path)
-      : GRAPH with type t = C.t * S.t
-               and type contents = C.key
-               and type node = S.key
-               and type path = S.Path.t
-               and type step = S.Path.step
+    module Graph (S: STORE): GRAPH
+      with type t = S.t
+       and type contents = S.Contents.key
+       and type node = S.key
+       and type path = S.Path.t
+       and type step = S.Path.step
 
   end
 
@@ -1517,7 +1535,7 @@ module Private: sig
     (** [Make] provides a simple implementation of commit values,
         parameterized by the commit [C] and node [N]. *)
     module Make (C: Tc.S0) (N: Tc.S0):
-      S with type commit := C.t and type node = N.t
+      S with type commit = C.t and type node = N.t
 
     (** [STORE] specifies the signature for commit stores. *)
     module type STORE = sig
@@ -1526,13 +1544,35 @@ module Private: sig
 
       include AO
 
+      val merge: task -> t -> key option Ir_merge.t
+      (** [merge] is the 3-way merge function for commit keys. *)
+
       module Key: Hash.S with type t = key
       (** [Key] provides base functions for commit keys. *)
 
       (** [Val] provides functions for commit values. *)
-      module Val: S with type t = value and type commit := key
+      module Val: S with type t = value and type commit = key
+
+      (** [Node] is the underlying node store. *)
+      module Node: Node.STORE with type key = Val.node
 
     end
+
+    (** [Store] creates a new commit store. *)
+    module Store
+        (N: Node.STORE)
+        (S: sig
+           include AO
+           module Key: Hash.S with type t = key
+           module Val: S with type t = value
+                          and type commit = key
+                          and type node = N.key
+         end):
+      STORE with type t = N.t * S.t
+             and type key = S.key
+             and type value = S.value
+             and module Key = S.Key
+             and module Val = S.Val
 
     (** [History] specifies the signature for commit history. The
         history is represented as a partial-order of commits and basic
@@ -1597,20 +1637,13 @@ module Private: sig
       (** Same as {{!Private.Node.GRAPH.closure}GRAPH.closure} but for
           the history graph. *)
 
-      (** A history forms a {{!STORE}store} of commits. *)
-      module Store: sig
-        include STORE with type t = t and type key = commit
-        module Path: Ir_s.PATH
-        val merge: Path.t -> t -> task:task -> key option Merge.t
-      end
-
     end
 
     (** Build a commit history. *)
-    module History (N: Contents.STORE) (S: STORE with type Val.node = N.key):
-      HISTORY with type t = N.t * S.t
-               and type node = N.key
-               and type commit = S.key
+    module History (S: STORE): HISTORY
+      with type t = S.t
+       and type node = S.Node.key
+       and type commit = S.key
 
   end
 

@@ -20,7 +20,7 @@ module String: Ir_s.CONTENTS with type t = string and module Path = Ir_path.Stri
 module Json: Ir_s.CONTENTS with type t = Ezjsonm.t and module Path = Ir_path.String_list
 module Cstruct: Ir_s.CONTENTS with type t = Cstruct.t and module Path = Ir_path.String_list
 
-module Make
+module Store
     (S: sig
        include Ir_s.AO_STORE
        module Key: Ir_s.HASH with type t = key

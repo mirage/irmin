@@ -40,16 +40,15 @@ module Make (S: Test_S) = struct
   open Common
 
   module Contents = S.Private.Contents
-  module Graph = Irmin.Private.Node.Graph(Contents)(S.Private.Node)
-  module History = Irmin.Private.Commit.History(Graph.Store)(S.Private.Commit)
+  module Graph = Irmin.Private.Node.Graph(S.Private.Node)
+  module History = Irmin.Private.Commit.History(S.Private.Commit)
   module View = Irmin.View(S)
 
   let v repo = S.Private.Repo.contents_t repo
   let n repo = S.Private.Repo.node_t repo
   let ct repo = S.Private.Repo.commit_t repo
-  let g repo = S.Private.Repo.contents_t repo, S.Private.Repo.node_t repo
-  let h repo =
-    (S.Private.Repo.contents_t repo, S.Private.Repo.node_t repo), S.Private.Repo.commit_t repo
+  let g repo = S.Private.Repo.node_t repo
+  let h repo = S.Private.Repo.commit_t repo
 
   module Ref = S.Private.Ref
 
@@ -677,7 +676,7 @@ module Make (S: Test_S) = struct
       (* Should create the node:
                           t4 -b-> t1 -x-> (v1)
                              \c/ *)
-      Graph.Store.(merge Path.empty)
+      S.Private.Node.(merge Path.empty)
         g ~old:(old (Some k0)) (Some k2) (Some k3) >>= fun k4 ->
       Irmin.Merge.exn k4 >>= fun k4 ->
       let k4 = match k4 with Some k -> k | None -> failwith "k4" in

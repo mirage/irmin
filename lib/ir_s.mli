@@ -107,11 +107,13 @@ end
 module type NODE_STORE = sig
   include AO_STORE
   module Path: PATH
+  val merge: Path.t -> t -> key option Ir_merge.t
   module Key: HASH with type t = key
   module Val: NODE
     with type t = value
      and type node = key
      and type step = Path.step
+  module Contents: CONTENTS_STORE with type key = Val.contents
 end
 
 module type COMMIT = sig
@@ -126,10 +128,12 @@ end
 
 module type COMMIT_STORE = sig
   include AO_STORE
+  val merge: Ir_task.t -> t -> key option Ir_merge.t
   module Key: HASH with type t = key
   module Val: COMMIT
     with type t = value
-     and type commit := key
+     and type commit = key
+  module Node: NODE_STORE with type key = Val.node
 end
 
 module type LINK_STORE = sig
