@@ -80,7 +80,7 @@ module Make (S: Test_S) = struct
     Contents.add (S.Private.Repo.contents_t repo) (v2 x)
 
   let t1 = T.of_hum "foo"
-  let t2 = T.of_hum "bar/toto"
+  let t2 = T.of_hum ("bar" / "toto")
 
   let n1 ~repo x =
     kv1 ~repo x >>= fun kv1 ->
@@ -917,7 +917,7 @@ module Make (S: Test_S) = struct
       let t = get_result () in
 
       S.iter (t "iter") (fun k v ->
-          v >>= fun v ->
+          v () >>= fun v ->
           assert_equal (module K) "iter key" (p ["a";"b"]) k;
           assert_equal (module V) "iter value" v1 v;
           Lwt.return_unit;

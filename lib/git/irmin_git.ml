@@ -170,9 +170,11 @@ module Irmin_value_store
     let iter t fn =
       G.contents t >>= fun contents ->
       Lwt_list.iter_s (fun (k, v) ->
+          (* FIXME: ocaml-git needs to change to avoid reading the
+             whole Git value on every iter. *)
           match V.of_git v with
           | None   -> Lwt.return_unit
-          | Some v -> fn (key_of_git k) (Lwt.return v)
+          | Some v -> fn (key_of_git k) (fun () -> Lwt.return v)
         ) contents
 
   end
@@ -494,12 +496,12 @@ module Make_ext
 
     let tag_of_git r =
       let str = String.trim @@ Git.Reference.to_raw r in
-      match string_chop_prefix ~prefix:"refs/heads/" str with
+      match string_chop_prefix ~prefix:("refs" / "heads" / "") str with
       | None   -> None
       | Some r -> Some (Key.of_hum r)
 
     let git_of_tag_string str =
-      Git.Reference.of_raw ("refs/heads" / str)
+      Git.Reference.of_raw ("refs" / "heads" / str)
 
     let git_of_tag r =
       git_of_tag_string (Key.to_hum r)
@@ -565,7 +567,7 @@ module Make_ext
     let iter { t; _ } fn =
       G.references t >>= fun refs ->
       Lwt_list.iter_p (fun r ->
-          let v = G.read_reference_exn t r >|= head_of_git in
+          let v () = G.read_reference_exn t r >|= head_of_git in
           match tag_of_git r with
           | None   -> return_unit
           | Some r -> fn r v

@@ -351,7 +351,7 @@ module type RO = sig
   val mem: t -> key -> bool Lwt.t
   (** Check if a key exists. *)
 
-  val iter: t -> (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+  val iter: t -> (key -> (unit -> value Lwt.t) -> unit Lwt.t) -> unit Lwt.t
   (** [iter t fn] call the function [fn] on all [t]'s keys and
       values. *)
 
@@ -1782,7 +1782,7 @@ module type S = sig
     val merge_node: t -> key -> (commit_id * Node.key) -> unit Merge.result Lwt.t
     val remove_node: t -> key -> unit Lwt.t
     val iter_node: t -> Node.key ->
-      (key -> value Lwt.t -> unit Lwt.t) -> unit Lwt.t
+      (key -> (unit -> value Lwt.t) -> unit Lwt.t) -> unit Lwt.t
   end
 end
 

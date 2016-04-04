@@ -143,6 +143,8 @@ let string_of_contents = function
   | `Json   -> "-json"
   | `String -> ""
 
+let (/) = Filename.concat
+
 let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Irmin_fs.Make)
 let http_store = create (module Irmin_http.Make)

@@ -60,7 +60,8 @@ module Make (P: Ir_s.PRIVATE) = struct
 
     let branches t =
       let branches = ref [] in
-      Ref_store.iter (P.Repo.ref_t t) (fun t _ -> branches := t :: !branches; return_unit) >>= fun () ->
+      Ref_store.iter (P.Repo.ref_t t) (fun t _ -> branches := t :: !branches; return_unit)
+      >>= fun () ->
       return !branches
 
     let remove_branch t name = Ref_store.remove (P.Repo.ref_t t) name
@@ -68,7 +69,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     let heads t =
       let heads = ref [] in
       Ref_store.iter (P.Repo.ref_t t) (fun _ h ->
-          h >>= fun h -> heads := h :: !heads; return_unit
+          h () >>= fun h -> heads := h :: !heads; return_unit
         ) >|= fun () ->
       !heads
 
@@ -367,7 +368,7 @@ module Make (P: Ir_s.PRIVATE) = struct
           let todo = childs @ tl in
           mem t path >>= fun exists ->
           if not exists then aux acc todo
-          else aux ((path, read_exn t path) :: acc) todo
+          else aux ((path, fun () -> read_exn t path) :: acc) todo
     in
     list t Key.empty >>= aux []
 
@@ -470,7 +471,7 @@ module Make (P: Ir_s.PRIVATE) = struct
           Graph.mem_contents (graph_t t) node path >>= fun exists ->
           if not exists then aux acc todo
           else
-            let value =
+            let value () =
               Graph.read_contents (graph_t t) node path >>= function
               | None   -> Lwt.fail (Failure "iter_node")
               | Some v -> P.Contents.read_exn (contents_t t) v

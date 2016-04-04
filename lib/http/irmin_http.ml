@@ -235,7 +235,7 @@ module RO (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
     | Some v -> Lwt.return v
 
   let iter t fn =
-    let fn key = fn key (read_exn t key) in
+    let fn key = fn key (fun () -> read_exn t key) in
     get_stream t ["iter"] (module K) >>= Lwt_stream.iter_p fn
 
 end
@@ -551,7 +551,8 @@ struct
     update_node: L.key -> LP.Node.key -> unit Lwt.t;
     merge_node: L.key -> (L.commit_id * LP.Node.key) -> unit Irmin.Merge.result Lwt.t;
     remove_node: L.key -> unit Lwt.t;
-    iter_node: LP.Node.key -> (L.key -> L.value Lwt.t -> unit Lwt.t) -> unit Lwt.t;
+    iter_node: LP.Node.key -> (L.key -> (unit -> L.value Lwt.t) -> unit Lwt.t)
+      -> unit Lwt.t;
     lock: Lwt_mutex.t;
   }
 
@@ -639,7 +640,7 @@ struct
 
   (* The server sends a stream of keys *)
   let iter t fn =
-    let fn key = fn key (read_exn t key) in
+    let fn key = fn key (fun () -> read_exn t key) in
     get_stream t ["iter"] (module Key) >>= Lwt_stream.iter_p fn
 
   let update t key value =
