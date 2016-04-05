@@ -365,23 +365,29 @@ struct
         let config = Conf.add config content_type (Some "json") in
         create (add_uri_suffix "contents" config)
     end
-    module Contents = Irmin.Contents.Make(XContents)
+    module Contents = Irmin.Contents.Store(XContents)
     module Node = struct
-      module Key = H
-      module Path = C.Path
-      module Val = Irmin.Private.Node.Make(H)(H)(C.Path)
-      include AO(Client)(Key)(Val)
+      module X = struct
+        module Key = H
+        module Path = C.Path
+        module Val = Irmin.Private.Node.Make(H)(H)(C.Path)
+        include AO(Client)(Key)(Val)
+      end
+      include Irmin.Private.Node.Store(Contents)(X)
       let create config =
         let config = Conf.add config content_type (Some "json") in
-        create (add_uri_suffix "node" config)
+        X.create (add_uri_suffix "node" config)
     end
     module Commit = struct
-      module Key = H
-      module Val = Irmin.Private.Commit.Make(H)(H)
-      include AO(Client)(Key)(Val)
+      module X = struct
+        module Key = H
+        module Val = Irmin.Private.Commit.Make(H)(H)
+        include AO(Client)(Key)(Val)
+      end
+      include Irmin.Private.Commit.Store(Node)(X)
       let create config =
         let config = Conf.add config content_type (Some "json") in
-        create (add_uri_suffix "commit" config)
+        X.create (add_uri_suffix "commit" config)
     end
     module Ref = struct
       module Key = R
@@ -409,6 +415,8 @@ struct
         Node.create config      >>= fun node ->
         Commit.create config    >>= fun commit ->
         Ref.create config       >>= fun ref_store ->
+        let node = contents, node in
+        let commit = node, commit in
         Lwt.return
           { contents     = contents;
             node         = node;

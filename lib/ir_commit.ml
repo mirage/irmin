@@ -25,6 +25,7 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
 
   module T = Ir_task
   type node = N.t
+  type commit = C.t
 
   type t = {
     node   : N.t option;
@@ -64,6 +65,72 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
 
 end
 
+module Store
+    (N: Ir_s.NODE_STORE)
+    (S: sig
+       include Ir_s.AO_STORE
+       module Key: Ir_s.HASH with type t = key
+       module Val: Ir_s.COMMIT with type t = value
+                                and type commit = key
+                                and type node = N.key
+     end)
+= struct
+
+  module Node = N
+  type t = N.t * S.t
+  type key = S.key
+  type value = S.value
+
+  let add (_, t) = S.add t
+  let mem (_, t) = S.mem t
+  let read (_, t) = S.read t
+  let read_exn (_, t) = S.read_exn t
+  let merge_node path (n, _) = N.merge path n
+
+  let merge_commit task t ~old k1 k2 =
+    read_exn t k1  >>= fun v1   ->
+    read_exn t k2  >>= fun v2   ->
+    if List.mem k1 (S.Val.parents v2) then ok k2
+    else if List.mem k2 (S.Val.parents v1) then ok k1
+    else
+      (* If we get an error while looking the the lca, then we
+         assume that there is no common ancestor. Maybe we want to
+         expose this to the user in a more structured way. But maybe
+         that's too much low-level details. *)
+      begin old () >>= function
+        | `Conflict msg ->
+          Log.debug (fun f -> f "old: conflict %s" msg);
+          Lwt.return None
+        | `Ok o -> Lwt.return o
+      end >>= fun old ->
+      if Tc.O1.equal S.Key.equal old (Some k1) then ok k2
+      else if Tc.O1.equal S.Key.equal old (Some k2) then ok k1
+      else
+        let old () = match old with
+          | None     -> ok None
+          | Some old ->
+            read_exn t old >>= fun vold ->
+            ok (Some (S.Val.node vold))
+        in
+        merge_node N.Path.empty t ~old (S.Val.node v1) (S.Val.node v2)
+        >>| fun node ->
+        let parents = [k1; k2] in
+        let commit = S.Val.create ?node ~parents task in
+        add t commit >>= fun key ->
+        ok key
+
+  let merge task t = Ir_merge.option (module S.Key) (merge_commit task t)
+
+  let iter (_, t) fn = S.iter t fn
+
+  module Key = S.Key
+  module Val = struct
+    include S.Val
+    module Path = N.Path
+  end
+  module Path = N.Path
+end
+
 module type HISTORY = sig
   type t
   type node
@@ -77,96 +144,40 @@ module type HISTORY = sig
   val lca: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
   val three_way_merge: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
-  module Store: sig
-    include Ir_s.COMMIT_STORE with type t = t and type key = commit
-    module Path: Ir_s.PATH
-    val merge: Path.t -> t -> task:Ir_task.t -> key option Ir_merge.t
-  end
 end
 
-module History (N: Ir_s.CONTENTS_STORE) (S: Ir_s.COMMIT_STORE with type Val.node = N.key) =
-struct
+module History (S: Ir_s.COMMIT_STORE) = struct
 
   type commit = S.key
-  type node = N.key
+  type node = S.Node.key
 
-  module Store = struct
+  type t = S.t
 
-    type t = N.t * S.t
-    type key = S.key
-    type value = S.value
-
-    let add (_, t) = S.add t
-    let mem (_, t) = S.mem t
-    let read (_, t) = S.read t
-    let read_exn (_, t) = S.read_exn t
-    let merge_node path (n, _) = N.merge path n
-
-    let merge_commit path t ~task ~old k1 k2 =
-      read_exn t k1  >>= fun v1   ->
-      read_exn t k2  >>= fun v2   ->
-      if List.mem k1 (S.Val.parents v2) then ok k2
-      else if List.mem k2 (S.Val.parents v1) then ok k1
-      else
-        (* If we get an error while looking the the lca, then we
-           assume that there is no common ancestor. Maybe we want to
-           expose this to the user in a more structured way. But maybe
-           that's too much low-level details. *)
-        begin old () >>= function
-          | `Conflict msg ->
-            Log.debug (fun f -> f "old: conflict %s" msg);
-            Lwt.return None
-          | `Ok o -> Lwt.return o
-        end >>= fun old ->
-        if Tc.O1.equal S.Key.equal old (Some k1) then ok k2
-        else if Tc.O1.equal S.Key.equal old (Some k2) then ok k1
-        else
-          let old () = match old with
-            | None     -> ok None
-            | Some old ->
-              read_exn t old >>= fun vold ->
-              ok (Some (S.Val.node vold))
-          in
-        merge_node path t ~old (S.Val.node v1) (S.Val.node v2)
-        >>| fun node ->
-        let parents = [k1; k2] in
-        let commit = S.Val.create ?node ~parents task in
-        add t commit >>= fun key ->
-        ok key
-
-    let merge path t ~task = Ir_merge.option (module S.Key) (merge_commit path t ~task)
-
-    let iter (_, t) fn = S.iter t fn
-
-    module Key = S.Key
-    module Val = struct
-      include S.Val
-      module Path = N.Path
-    end
-    module Path = N.Path
-  end
-
-  type t = Store.t
-  let merge = Store.merge_commit N.Path.empty
+  let merge t ~task ~old c1 c2 =
+    let open Ir_merge.OP in
+    let somify = Ir_merge.promise_map (fun x -> Some x) in
+    S.merge task t ~old:(somify old) (Some c1) (Some c2) >>| function
+    | None   -> conflict "History.merge"
+    | Some x -> ok x
 
   let node t c =
     Log.debug (fun f -> f "node %a" (show (module S.Key)) c);
-    Store.read t c >>= function
+    S.read t c >>= function
     | None   -> return_none
     | Some n -> return (S.Val.node n)
 
-  let create (_, t) ?node ~parents ~task =
+  let create t ?node ~parents ~task =
     let commit = S.Val.create ?node ~parents task in
     S.add t commit >>= fun key ->
     return key
 
   let parents t c =
     Log.debug (fun f -> f "parents %a" (show (module S.Key)) c);
-    Store.read t c >>= function
+    S.read t c >>= function
     | None   -> return_nil
     | Some c -> return (S.Val.parents c)
 
-  module Graph = Ir_graph.Make(Ir_hum.Unit)(N.Key)(S.Key)(Ir_hum.Unit)
+  module Graph = Ir_graph.Make(Ir_hum.Unit)(S.Node.Key)(S.Key)(Ir_hum.Unit)
 
   let edges t =
     Log.debug (fun f -> f "edges");
@@ -178,7 +189,7 @@ struct
   let closure t ~min ~max =
     Log.debug (fun f -> f "closure");
     let pred = function
-      | `Commit k -> Store.read_exn t k >>= fun r -> return (edges r)
+      | `Commit k -> S.read_exn t k >>= fun r -> return (edges r)
       | _         -> return_nil in
     let min = List.map (fun k -> `Commit k) min in
     let max = List.map (fun k -> `Commit k) max in
@@ -194,7 +205,7 @@ struct
   module KHashtbl = Hashtbl.Make(S.Key)
 
   let read_parents t commit =
-    Store.read_exn t commit >|= fun c ->
+    S.read_exn t commit >|= fun c ->
     KSet.of_list (S.Val.parents c)
 
   let pp_key k = String.sub (S.Key.to_hum k) 0 4
@@ -399,7 +410,7 @@ struct
         in
         aux old olds
       in
-      try merge t ~task ~old c1 c2
+      try merge t ~task ~old:old c1 c2
       with Ir_merge.Conflict msg ->
         conflict "Recursive merging of common ancestors: %s" msg
     )

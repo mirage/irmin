@@ -167,7 +167,7 @@ module Cstruct = struct
 
 end
 
-module Make
+module Store
     (S: sig
        include Ir_s.AO_STORE
        module Key: Ir_s.HASH with type t = key

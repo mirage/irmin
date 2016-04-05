@@ -435,11 +435,11 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   module P = S.Private
 
-  module Graph = Ir_node.Graph(P.Contents)(P.Node)
-  module History = Ir_commit.History(Graph.Store)(P.Commit)
+  module Graph = Ir_node.Graph(P.Node)
+  module History = Ir_commit.History(P.Commit)
 
-  let graph_t t = P.Repo.contents_t t, P.Repo.node_t t
-  let history_t t = graph_t t, P.Repo.commit_t t
+  let graph_t t = P.Repo.node_t t
+  let history_t t = P.Repo.commit_t t
 
   module Contents = struct
 
@@ -822,8 +822,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
             Graph.read_node (graph_t repo) n path >>= fun n ->
             ok (Some n)
     in
-    Graph.Store.(merge Path.empty) (graph_t repo)
-      ~old current_node (Some view_node)
+    P.Node.(merge Path.empty) (graph_t repo) ~old current_node (Some view_node)
     >>| fun merge_node ->
     if Tc.O1.equal P.Node.Key.equal merge_node current_node then ok `Unchanged
     else (

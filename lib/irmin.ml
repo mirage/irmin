@@ -55,17 +55,25 @@ struct
       module Key = H
       module Val = C
     end
-    module Contents = Ir_contents.Make(XContents)
+    module Contents = Ir_contents.Store(XContents)
     module Node = struct
-      module Key = H
-      module Val = Ir_node.Make (H)(H)(C.Path)
-      module Path = C.Path
-      include AO (Key)(Val)
+      module AO = struct
+        module Key = H
+        module Val = Ir_node.Make (H)(H)(C.Path)
+        module Path = C.Path
+        include AO (Key)(Val)
+      end
+      include Ir_node.Store(Contents)(AO)
+      let create = AO.create
     end
     module Commit = struct
-      module Key = H
-      module Val = Ir_commit.Make (H)(H)
-      include AO (Key)(Val)
+      module AO = struct
+        module Key = H
+        module Val = Ir_commit.Make (H)(H)
+        include AO (Key)(Val)
+      end
+      include Ir_commit.Store(Node)(AO)
+      let create = AO.create
     end
     module Ref = struct
       module Key = R
@@ -92,13 +100,9 @@ struct
         Node.create config      >>= fun node ->
         Commit.create config    >>= fun commit ->
         Ref.create config       >>= fun ref_store ->
-        return
-          { contents     = contents;
-            node         = node;
-            commit       = commit;
-            ref_store    = ref_store;
-            config       = config;
-          }
+        let node = contents, node in
+        let commit = node, commit in
+        return { contents; node; commit; ref_store; config }
     end
   end
   include Ir_bc.Make(X)

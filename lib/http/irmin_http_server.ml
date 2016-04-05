@@ -548,7 +548,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
   let view_store =
     let module Contents = S.Private.Contents in
     let module Node = S.Private.Node in
-    let module Graph = Irmin.Private.Node.Graph(Contents)(Node) in
+    let module Graph = Irmin.Private.Node.Graph(Node) in
     let t x _ = Lwt.return x in
     let g x _ =
       let repo = S.repo x in
@@ -576,16 +576,16 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
          | node ->
            let node = Node.Key.of_hum node in
            let read =
-             let aux t path =
-               Graph.read_contents_exn t node path >>= fun k ->
-               Contents.read_exn (fst t) k
+             let aux (c, n) path =
+               Graph.read_contents_exn n node path >>= fun k ->
+               Contents.read_exn c k
              in
              list aux
            in
            let update =
-             let aux t path value =
-               Contents.add (fst t) value >>= fun k ->
-               Graph.add_contents t node path k
+             let aux (c, n) path value =
+               Contents.add c value >>= fun k ->
+               Graph.add_contents n node path k
              in
              list aux
            in

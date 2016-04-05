@@ -23,6 +23,24 @@ module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_s.PATH):
              and type node = N.t
              and type step = P.step
 
+module Store
+    (C: Ir_s.CONTENTS_STORE)
+    (S: sig
+       include Ir_s.AO_STORE
+       module Key: Ir_s.HASH with type t = key
+       module Val: Ir_s.NODE with type t = value
+                              and type node = key
+                              and type contents = C.key
+                              and type step = C.Path.step
+     end):
+  Ir_s.NODE_STORE
+    with  type t = C.t * S.t
+      and type key = S.key
+      and type value = S.value
+      and module Path = C.Path
+      and module Key = S.Key
+      and module Val = S.Val
+
 module type GRAPH = sig
   type t
   type contents
@@ -53,18 +71,11 @@ module type GRAPH = sig
   val remove_node: t -> node -> path -> node Lwt.t
 
   val closure: t -> min:node list -> max:node list -> node list Lwt.t
-
-  module Store: Ir_s.CONTENTS_STORE
-    with type t = t
-     and type key = node
-     and type Path.t = path
-     and type Path.step = step
 end
 
-module Graph (C: Ir_s.CONTENTS_STORE)
-    (S: Ir_s.NODE_STORE with type Val.contents = C.key and module Path = C.Path)
-  : GRAPH with type t = C.t * S.t
-           and type contents = C.key
-           and type node = S.key
-           and type step = S.Path.step
-           and type path = S.Path.t
+module Graph (S: Ir_s.NODE_STORE):
+  GRAPH with type t = S.t
+         and type contents = S.Contents.key
+         and type node = S.key
+         and type step = S.Path.step
+         and type path = S.Path.t
