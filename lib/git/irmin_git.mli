@@ -18,6 +18,8 @@
 
 (* Discard the hash implementation passed in parameter of the functors. *)
 
+module Metadata: Irmin.Metadata.S with type t = [`Normal | `Exec | `Link]
+
 val config:
   ?config:Irmin.config ->
   ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
@@ -57,9 +59,10 @@ module Irmin_value_store
 
   module Node: Irmin.Private.Node.STORE
     with type key = H.t
-     and type Val.contents = Contents.key
+     and type Val.raw_contents = Contents.key
      and module Key = H
      and module Path = Contents.Val.Path
+     and module Val.Metadata = Metadata
 
   module Commit: Irmin.Private.Commit.STORE
     with type key = H.t
@@ -103,6 +106,7 @@ module type S_MAKER =
        and type value = C.t
        and type branch_id = R.t
        and type commit_id = H.t
+       and module Private.Node.Val.Metadata = Metadata
 
 module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S):
   S_MAKER

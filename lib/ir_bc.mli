@@ -25,4 +25,5 @@ module Make (P: Ir_s.PRIVATE): Ir_s.STORE_EXT
    and type slice = P.Slice.t
    and module Key = P.Contents.Path
    and module Private.Contents = P.Contents
+   and module Private.Node.Val.Metadata = P.Node.Val.Metadata
    and type Repo.t = P.Repo.t

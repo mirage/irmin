@@ -78,12 +78,15 @@ module Make (S: Test_S) = struct
   let kv2 ~repo x =
     Contents.add (S.Private.Repo.contents_t repo) (v2 x)
 
+  module OptWithMetadata = Tc.Option(Tc.Pair(KV)(N.Metadata))
+  let normal x = (x, N.Metadata.default)
+
   let t1 = T.of_hum "foo"
   let t2 = T.of_hum ("bar" / "toto")
 
   let n1 ~repo x =
     kv1 ~repo x >>= fun kv1 ->
-    Graph.create (g repo) [l "x", `Contents kv1]
+    Graph.create (g repo) [l "x", `Contents (normal kv1)]
 
   let n2 ~repo x =
     n1 ~repo x >>= fun kn1 ->
@@ -96,7 +99,7 @@ module Make (S: Test_S) = struct
   let n4 ~repo x =
     n1 ~repo x >>= fun kn1 ->
     kv2 ~repo x >>= fun kv2 ->
-    Graph.create (g repo) [l "x", `Contents kv2] >>= fun kn4 ->
+    Graph.create (g repo) [l "x", `Contents (normal kv2)] >>= fun kn4 ->
     Graph.create (g repo) [l "b", `Node kn1; l "c", `Node kn4] >>= fun kn5 ->
     Graph.create (g repo) [l "a", `Node kn5]
 
@@ -192,8 +195,8 @@ module Make (S: Test_S) = struct
       kv1 ~repo x >>= fun kv1 ->
 
       (* Create a node containing t1 -x-> (v1) *)
-      Graph.create g [l "x", `Contents kv1] >>= fun k1 ->
-      Graph.create g [l "x", `Contents kv1] >>= fun k1' ->
+      Graph.create g [l "x", `Contents (normal kv1)] >>= fun k1 ->
+      Graph.create g [l "x", `Contents (normal kv1)] >>= fun k1' ->
       assert_equal (module KN) "k1.1" k1 k1';
       Node.read_exn n k1 >>= fun t1 ->
       Node.add n t1 >>= fun k1''->
@@ -225,21 +228,21 @@ module Make (S: Test_S) = struct
 
       Graph.read_contents g k1 (p ["x"])
       >>= fun kv11 ->
-      assert_equal (module Tc.Option(KV)) "v1.1" (Some kv1) kv11;
+      assert_equal (module OptWithMetadata) "v1.1" (Some (normal kv1)) kv11;
       Graph.read_contents g k2 (p ["b";"x"])
       >>= fun kv12 ->
-      assert_equal (module Tc.Option(KV)) "v1.2" (Some kv1) kv12;
+      assert_equal (module OptWithMetadata) "v1.2" (Some (normal kv1)) kv12;
       Graph.read_contents g k3 (p ["a";"b";"x"])
       >>= fun kv13 ->
-      assert_equal (module Tc.Option(KV)) "v1" (Some kv1) kv13;
+      assert_equal (module OptWithMetadata) "v1" (Some (normal kv1)) kv13;
 
       (* Create the node t6 -a-> t5 -b-> t1 -x-> (v1)
                                    \-c-> t4 -x-> (v2) *)
       kv2 ~repo x >>= fun kv2 ->
-      Graph.create g [l "x", `Contents kv2] >>= fun k4 ->
+      Graph.create g [l "x", `Contents (normal kv2)] >>= fun k4 ->
       Graph.create g [l "b", `Node k1; l "c", `Node k4] >>= fun k5 ->
       Graph.create g [l "a", `Node k5] >>= fun k6 ->
-      Graph.add_contents g k3 (p ["a";"c";"x"]) kv2 >>= fun k6' ->
+      Graph.add_contents g k3 (p ["a";"c";"x"]) (normal kv2) >>= fun k6' ->
       Node.read_exn n k6' >>= fun n6' ->
       Node.read_exn n k6  >>= fun n6 ->
       assert_equal (module N) "node n6" n6 n6';
@@ -269,14 +272,14 @@ module Make (S: Test_S) = struct
       Graph.add_node g n2 (p ["a"]) n0 >>= fun n3 ->
       assert_no_duplicates "2" n3 >>= fun () ->
 
-      Graph.add_contents g n0 (p ["b"]) kv1 >>= fun n1 ->
-      Graph.add_contents g n1 (p ["a"]) kv1 >>= fun n2 ->
-      Graph.add_contents g n2 (p ["a"]) kv1 >>= fun n3 ->
+      Graph.add_contents g n0 (p ["b"]) (normal kv1) >>= fun n1 ->
+      Graph.add_contents g n1 (p ["a"]) (normal kv1) >>= fun n2 ->
+      Graph.add_contents g n2 (p ["a"]) (normal kv1) >>= fun n3 ->
       assert_no_duplicates "3" n3 >>= fun () ->
 
-      Graph.add_contents g n0 (p ["a"]) kv1 >>= fun n1 ->
-      Graph.add_contents g n1 (p ["b"]) kv1 >>= fun n2 ->
-      Graph.add_contents g n2 (p ["b"]) kv1 >>= fun n3 ->
+      Graph.add_contents g n0 (p ["a"]) (normal kv1) >>= fun n1 ->
+      Graph.add_contents g n1 (p ["b"]) (normal kv1) >>= fun n2 ->
+      Graph.add_contents g n2 (p ["b"]) (normal kv1) >>= fun n3 ->
       assert_no_duplicates "4" n3 >>= fun () ->
 
       return_unit
@@ -295,7 +298,7 @@ module Make (S: Test_S) = struct
       let g = g repo and h = h repo and c = S.Private.Repo.commit_t repo in
 
       (* t3 -a-> t2 -b-> t1 -x-> (v1) *)
-      Graph.create g [l "x", `Contents kv1] >>= fun kt1 ->
+      Graph.create g [l "x", `Contents (normal kv1)] >>= fun kt1 ->
       Graph.create g [l "a", `Node kt1] >>= fun kt2 ->
       Graph.create g [l "b", `Node kt2] >>= fun kt3 ->
 
@@ -665,7 +668,7 @@ module Make (S: Test_S) = struct
       Graph.create g [] >>= fun k0 ->
 
       (* Create the node t1 -x-> (v1) *)
-      Graph.create g [l "x", `Contents kv1] >>= fun k1 ->
+      Graph.create g [l "x", `Contents (normal kv1)] >>= fun k1 ->
 
       (* Create the node t2 -b-> t1 -x-> (v1) *)
       Graph.create g [l "b", `Node k1] >>= fun k2 ->
@@ -1217,7 +1220,7 @@ module Make (S: Test_S) = struct
       S.Private.read_node (t "read node") (p ["u"]) >>= fun view ->
       S.update (t "add u/x/y") (p ["u";"x";"y"]) vy >>= fun () ->
       Contents.add c vx >>= fun kx ->
-      Graph.add_contents (g repo) (get view) (p ["x";"z"]) kx
+      Graph.add_contents (g repo) (get view) (p ["x";"z"]) (normal kx)
       >>= fun view' ->
       S.Private.merge_node (t "merge") (p ["u"]) (head, view') >>=
       Irmin.Merge.exn >>= fun () ->

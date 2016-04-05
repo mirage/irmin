@@ -18,10 +18,13 @@
 (** Nodes represent structured values serialized in the block
     store. *)
 
-module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_s.PATH):
-  Ir_s.NODE with type contents = C.t
+module No_metadata: Ir_s.METADATA with type t = unit
+
+module Make (C: Tc.S0) (N: Tc.S0) (P: Ir_s.PATH) (M: Ir_s.METADATA):
+  Ir_s.NODE with type raw_contents = C.t
              and type node = N.t
              and type step = P.step
+             and module Metadata = M
 
 module Store
     (C: Ir_s.CONTENTS_STORE)
@@ -30,7 +33,7 @@ module Store
        module Key: Ir_s.HASH with type t = key
        module Val: Ir_s.NODE with type t = value
                               and type node = key
-                              and type contents = C.key
+                              and type raw_contents = C.key
                               and type step = C.Path.step
      end):
   Ir_s.NODE_STORE
@@ -75,7 +78,7 @@ end
 
 module Graph (S: Ir_s.NODE_STORE):
   GRAPH with type t = S.t
-         and type contents = S.Contents.key
+         and type contents = S.Contents.key * S.Val.Metadata.t
          and type node = S.key
          and type step = S.Path.step
          and type path = S.Path.t

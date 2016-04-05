@@ -69,6 +69,12 @@ module type AO_MAKER =
     val create: Ir_conf.t -> t Lwt.t
   end
 
+module type METADATA = sig
+  include Ir_hum.S
+  val merge: t Ir_merge.t
+  val default: t
+end
+
 module type CONTENTS = sig
   include Tc.S0
   module Path: PATH
@@ -84,8 +90,11 @@ module type CONTENTS_STORE = sig
 end
 
 module type NODE = sig
+  module Metadata: METADATA
+
   include Tc.S0
-  type contents
+  type raw_contents
+  type contents = raw_contents * Metadata.t
   type node
   type step
 
@@ -113,7 +122,7 @@ module type NODE_STORE = sig
     with type t = value
      and type node = key
      and type step = Path.step
-  module Contents: CONTENTS_STORE with type key = Val.contents
+  module Contents: CONTENTS_STORE with type key = Val.raw_contents
 end
 
 module type COMMIT = sig
@@ -272,7 +281,7 @@ end
 module type PRIVATE = sig
   module Contents: CONTENTS_STORE
   module Node: NODE_STORE
-    with type Val.contents = Contents.key and module Path = Contents.Path
+    with type Val.raw_contents = Contents.key and module Path = Contents.Path
   module Commit: COMMIT_STORE
     with type Val.node = Node.key
   module Ref: REF_STORE

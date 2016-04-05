@@ -176,7 +176,7 @@ module Irmin_http: sig
   module RW: Irmin.RW_MAKER
   (** An HTTP client using a REST API for a read-write store. *)
 
-  module Make: Irmin.S_MAKER
+  module Make (M:Irmin.Metadata.S): Irmin.S_MAKER
   (** [Make] provides high-level bindings to the remote HTTP server.
 
       Most of the computation are done on the server, the client is
@@ -187,7 +187,7 @@ module Irmin_http: sig
       All of the low-level and high-level operations take only one
       RTT. *)
 
-  module Low: Irmin.S_MAKER
+  module Low (M:Irmin.Metadata.S): Irmin.S_MAKER
   (** [Low] provides low-level bindings to the remote HTTP server.
 
       Only the {{!Irmin.S.Private}low-level operations} are forwarded

@@ -352,6 +352,7 @@ module RW (Client: Cohttp_lwt.Client) (K: Irmin.Hum.S) (V: Tc.S0) = struct
 end
 
 module Low (Client: Cohttp_lwt.Client)
+    (M: Irmin.Metadata.S)
     (C: Irmin.Contents.S)
     (R: Irmin.Ref.S)
     (H: Irmin.Hash.S) =
@@ -370,7 +371,7 @@ struct
       module X = struct
         module Key = H
         module Path = C.Path
-        module Val = Irmin.Private.Node.Make(H)(H)(C.Path)
+        module Val = Irmin.Private.Node.Make(H)(H)(C.Path)(M)
         include AO(Client)(Key)(Val)
       end
       include Irmin.Private.Node.Store(Contents)(X)
@@ -430,6 +431,7 @@ struct
 end
 
 module Make (Client: Cohttp_lwt.Client)
+    (M: Irmin.Metadata.S)
     (C: Irmin.Contents.S)
     (R: Irmin.Ref.S)
     (H: Irmin.Hash.S) =
@@ -473,7 +475,7 @@ struct
   (* The high-level bindings: every high-level operation is simply
      forwarded to the HTTP server. *much* more efficient than using
      [L]. *)
-  module L = Low(Client)(Val)(Ref)(Hash)
+  module L = Low(Client)(M)(Val)(Ref)(Hash)
   module LP = L.Private
   module S  = RW(Client)(Key)(Val)
 
