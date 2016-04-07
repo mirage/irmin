@@ -147,7 +147,7 @@ let (/) = Filename.concat
 
 let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Irmin_fs.Make)
-let http_store = create (module Irmin_http.Make)
+let http_store = create (module Irmin_http.Make(Irmin.Metadata.None))
 let git_store c =
   let (module C: Irmin.Contents.S) = match c with
     | `String -> (module Irmin.Contents.String)

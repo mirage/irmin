@@ -23,9 +23,14 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 module StringMap = Map.Make(String)
 
+(* TODO: the BC interface should export file metadata (e.g. Git file type).
+   Search for [_meta] and [Metadata.default] for places that may need to
+   change. *)
+
 module Make (P: Ir_s.PRIVATE) = struct
 
   module Ref_store = P.Ref
+  module Metadata = P.Node.Val.Metadata
 
   type branch_id = Ref_store.key
 
@@ -121,7 +126,7 @@ module Make (P: Ir_s.PRIVATE) = struct
             P.Node.read (P.Repo.node_t t) k >>= function
             | None   -> return_unit
             | Some v ->
-              P.Node.Val.iter_contents v (fun _ k ->
+              P.Node.Val.iter_contents v (fun _ (k, _meta) ->
                   contents := KSet.add k !contents;
                 );
               P.Slice.add_node slice (k, v)
@@ -310,13 +315,13 @@ module Make (P: Ir_s.PRIVATE) = struct
   let read t path =
     map t path ~f:Graph.read_contents >>= function
     | None   -> return_none
-    | Some c -> P.Contents.read (contents_t t) c
+    | Some (c, _meta) -> P.Contents.read (contents_t t) c
 
   let update t path contents =
     Log.debug (fun f -> f "update %a" (show (module Key)) path);
     P.Contents.add (contents_t t) contents >>= fun contents ->
     with_commit t path ~f:(fun node ->
-        Graph.add_contents (graph_t t) node path contents
+        Graph.add_contents (graph_t t) node path (contents, Metadata.default)
       )
 
   let remove t path =
@@ -331,7 +336,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let read_exn t path =
     Log.debug (fun f -> f "read_exn %a" (show (module Key)) path);
-    map t path ~f:Graph.read_contents_exn >>= fun c ->
+    map t path ~f:Graph.read_contents_exn >>= fun (c, _meta) ->
     P.Contents.read_exn (contents_t t) c
 
   let mem t path =
@@ -475,7 +480,7 @@ module Make (P: Ir_s.PRIVATE) = struct
             let value () =
               Graph.read_contents (graph_t t) node path >>= function
               | None   -> Lwt.fail (Failure "iter_node")
-              | Some v -> P.Contents.read_exn (contents_t t) v
+              | Some (v, _meta) -> P.Contents.read_exn (contents_t t) v
             in
             aux ((path, value) :: acc) todo
       in

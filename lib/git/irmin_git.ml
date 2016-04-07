@@ -17,6 +17,41 @@
 open Lwt.Infix
 open Printf
 
+module Metadata = struct
+  module X = struct
+    type t = [`Normal | `Exec | `Link]
+    let equal (a:t) (b:t) = (a = b)
+    let compare = compare
+    let to_hum = function
+      | `Normal -> "Normal"
+      | `Exec -> "Exec"
+      | `Link -> "Link"
+    let to_json t = `String (to_hum t)
+    let of_json = function
+      | `String "Normal" -> `Normal
+      | `String "Exec" -> `Exec
+      | `String "Link" -> `Link
+      | j -> Ezjsonm.parse_error j "Not a valid Git file type"
+    let of_hum s = of_json (`String s)
+    let hash = function   (* Note: values also used for writing tag *)
+      | `Normal -> 1
+      | `Exec -> 2
+      | `Link -> 3
+    let read buf =
+      match Ir_misc.untag buf with
+      | 1 -> `Normal
+      | 2 -> `Exec
+      | 3 -> `Link
+      | n -> Tc.Reader.error "Invalid Git file type %d" n
+    let write t buf =
+      Ir_misc.tag buf (hash t)
+    let size_of _ = 1
+  end
+  include X
+  let default = `Normal
+  let merge = Irmin.Merge.default (module X)
+end
+
 let src = Logs.Src.create "irmin.git" ~doc:"Irmin Git-format store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
@@ -200,11 +235,15 @@ module Irmin_value_store
   module XNode = struct
     module Key = H
     module Path = C.Path
+    
     module Val = struct
+      module Metadata = Metadata
+
       module S = C.Path.Step
 
       type t = Git.Tree.t
-      type contents = Contents.key
+      type raw_contents = Contents.key
+      type contents = Contents.key * Metadata.t
       type node = Key.t
       type step = Path.step
 
@@ -229,22 +268,27 @@ module Irmin_value_store
         { Git.Tree.perm; name = S.to_hum name; node }
 
       let iter_contents t fn =
-        List.iter (fun { Git.Tree.perm; name; node } ->
-            if perm <> `Dir then fn (S.of_hum name) (key_of_git node)
-          ) t
+        List.iter (function
+          |  { Git.Tree.perm = #Metadata.t as perm; name; node } ->
+              fn (S.of_hum name) (key_of_git node, perm)
+          | _ -> ()
+        ) t
 
       let iter_succ t fn =
         List.iter (fun { Git.Tree.perm; name; node } ->
             if perm = `Dir then fn (S.of_hum name) (key_of_git node)
           ) t
 
-      let find t p s =
+      let find t f s =
         let s = S.to_hum s in
-        try
-          List.find (fun { Git.Tree.perm; name; _ } -> p perm && name = s) t
-          |> fun v -> Some (key_of_git v.Git.Tree.node)
-        with Not_found ->
-          None
+        let rec aux = function
+          | [] -> None
+          | x::xs when x.Git.Tree.name <> s -> aux xs
+          | x::xs ->
+              match f x with
+              | Some _ as r -> r
+              | None -> aux xs in
+        aux t
 
       (* FIXME: is it true? *)
       let compare_names = String.compare
@@ -279,9 +323,10 @@ module Irmin_value_store
         let step = S.to_hum step in
         let return ~acc rest = match contents with
           | None   -> t
-          | Some c ->
+          | Some (c, perm) ->
+            let perm = (perm :> Git.Tree.perm) in
             let e =
-              { Git.Tree.perm = `Normal; name = step; node = git_of_key c}
+              { Git.Tree.perm; name = step; node = git_of_key c}
             in
             List.rev_append acc (e :: rest)
         in
@@ -294,30 +339,40 @@ module Irmin_value_store
             ) else if compare_names name step = 0 then (
               match contents with
               | None   -> List.rev_append acc l (* remove *)
-              | Some c ->
+              | Some (c, _) ->
                 if Git.Hash.equal (git_of_key c) node then t else return ~acc l
             ) else return ~acc:acc (h::l)
         in
         let new_t = aux [] t in
         if t == new_t then t else new_t
 
-      let succ t s = find t (function `Dir -> true | _ -> false) s
-      let contents t s = find t (function `Dir -> false | _ -> true) s
+      let succ t s =
+        find t (function
+          | {Git.Tree.perm = `Dir; node; _} -> Some (key_of_git node)
+          | _ -> None
+        ) s
+
+      let contents t s =
+        find t (function
+          | {Git.Tree.perm = #Metadata.t as perm; node; _} -> Some (key_of_git node, perm)
+          | _ -> None
+        ) s
+
       let empty = []
 
       let is_empty = function
         | [] -> true
         | _  -> false
 
-      module N = Irmin.Private.Node.Make (H)(H)(C.Path)
+      module N = Irmin.Private.Node.Make (H)(H)(C.Path)(Metadata)
 
-      (* FIXME: handle executable files *)
       let alist t =
         let mk_n k = `Node (key_of_git k) in
-        let mk_c k = `Contents (key_of_git k) in
+        let mk_c k metadata = `Contents (key_of_git k, metadata) in
         List.map (function
             | { Git.Tree.perm = `Dir; name; node } -> (S.of_hum name, mk_n node)
-            | { Git.Tree.name; node; _ }           -> (S.of_hum name, mk_c node)
+            | { Git.Tree.perm = `Commit; _ } -> assert false
+            | { Git.Tree.perm = #Metadata.t as perm; name; node; _ } -> (S.of_hum name, mk_c node perm)
           ) t
 
       let to_n t = N.create (alist t)
@@ -325,7 +380,7 @@ module Irmin_value_store
       let create alist =
         let alist = List.map (fun (l, x) ->
             match x with
-            | `Contents c -> to_git `Normal (l, git_of_key c)
+            | `Contents (c, perm) -> to_git (perm :> Git.Tree.perm) (l, git_of_key c)
             | `Node n     -> to_git `Dir (l, git_of_key n)
           ) alist
         in
@@ -820,5 +875,6 @@ module type S_MAKER =
        and type value = C.t
        and type branch_id = R.t
        and type commit_id = H.t
+       and type Private.Node.Val.Metadata.t = Metadata.t
 
 include Conf

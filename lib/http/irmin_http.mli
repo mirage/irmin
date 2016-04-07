@@ -26,5 +26,5 @@ val content_type: string option Irmin.Private.Conf.key
 module AO (C: Cohttp_lwt.Client): Irmin.AO_MAKER
 module RW (C: Cohttp_lwt.Client): Irmin.RW_MAKER
 
-module Make (C: Cohttp_lwt.Client): Irmin.S_MAKER
-module Low (C: Cohttp_lwt.Client): Irmin.S_MAKER
+module Make (C: Cohttp_lwt.Client) (M: Irmin.Metadata.S): Irmin.S_MAKER
+module Low (C: Cohttp_lwt.Client) (M: Irmin.Metadata.S): Irmin.S_MAKER

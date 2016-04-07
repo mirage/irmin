@@ -59,7 +59,7 @@ struct
     module Node = struct
       module AO = struct
         module Key = H
-        module Val = Ir_node.Make (H)(H)(C.Path)
+        module Val = Ir_node.Make (H)(H)(C.Path)(Ir_node.No_metadata)
         module Path = C.Path
         include AO (Key)(Val)
       end
@@ -186,3 +186,8 @@ let with_hrw_view (type store) (type path) (type view)
   | `Update -> V.update_path t path view >>= fun () -> Merge.OP.ok ()
   | `Rebase -> V.rebase_path t path view
   | `Merge  -> V.merge_path t path view
+
+module Metadata = struct
+  module type S = Ir_s.METADATA
+  module None = Ir_node.No_metadata
+end

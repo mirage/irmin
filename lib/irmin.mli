@@ -1003,6 +1003,28 @@ module Ref: sig
 
 end
 
+(** [Metadata] defines metadata that is attached to contents but stored in
+    nodes. The Git backend uses this to indicate the type of file (normal,
+    executable or symlink). *)
+module Metadata: sig
+
+  module type S = sig
+
+    include Hum.S
+
+    val merge: t Merge.t
+
+    val default: t
+    (** The default metadata to attach, for APIs that don't
+        care about metadata. *)
+
+  end
+
+  module None: S with type t = unit
+  (** A metadata definition for systems that don't use metadata. *)
+
+end
+
 (** {1 High-level Stores}
 
     An Irmin store is a branch-consistent store where keys are lists
@@ -1274,10 +1296,16 @@ module Private: sig
 
       (** {1 Node values} *)
 
+      module Metadata: Metadata.S
+      (** The type for metadata attached to content entries. *)
+
       include Tc.S0
 
-      type contents
+      type raw_contents
       (** The type for contents keys. *)
+
+      type contents = raw_contents * Metadata.t
+      (** The type for contents keys combined with their metadata. *)
 
       type node
       (** The type for node keys. *)
@@ -1326,11 +1354,12 @@ module Private: sig
     end
 
     (** [Node] provides a simple node implementation, parameterized by
-        the contents [C], node [N] and paths [P]. *)
-    module Make (C: Tc.S0) (N: Tc.S0) (P: Path.S):
-      S with type contents = C.t
+        the contents [C], node [N], paths [P] and metadata [M]. *)
+    module Make (C: Tc.S0) (N: Tc.S0) (P: Path.S) (M: Metadata.S):
+      S with type raw_contents = C.t
          and type node = N.t
          and type step = P.step
+         and module Metadata = M
 
     (** [STORE] specifies the signature for node stores. *)
     module type STORE = sig
@@ -1352,8 +1381,7 @@ module Private: sig
                      and type step = Path.step
 
       (** [Contents] is the underlying contents store. *)
-      module Contents: Contents.STORE with type key = Val.contents
-
+      module Contents: Contents.STORE with type key = Val.raw_contents
     end
 
     (** [Store] creates node stores. *)
@@ -1364,7 +1392,7 @@ module Private: sig
            module Key: Hash.S with type t = key
            module Val: S with type t = value
                           and type node = key
-                          and type contents = C.key
+                          and type raw_contents = C.key
                           and type step = C.Path.step
          end):
       STORE with type t = C.t * S.t
@@ -1487,7 +1515,7 @@ module Private: sig
 
     module Graph (S: STORE): GRAPH
       with type t = S.t
-       and type contents = S.Contents.key
+       and type contents = S.Contents.key * S.Val.Metadata.t
        and type node = S.key
        and type path = S.Path.t
        and type step = S.Path.step
@@ -1746,7 +1774,7 @@ module Private: sig
 
     (** Private nodes. *)
     module Node: Node.STORE
-      with type Val.contents = Contents.key and module Path = Contents.Path
+      with type Val.raw_contents = Contents.key and module Path = Contents.Path
 
     (** Private commits. *)
     module Commit: Commit.STORE with type Val.node = Node.key
@@ -2323,3 +2351,4 @@ module Make_ext (P: Private.S): S
    and type commit_id = P.Ref.value
    and type Key.step = P.Contents.Path.step
    and type Repo.t = P.Repo.t
+   and module Private.Node.Val.Metadata = P.Node.Val.Metadata

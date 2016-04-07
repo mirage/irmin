@@ -23,6 +23,10 @@ open Printf
 let src = Logs.Src.create "irmin.view" ~doc:"Irmin transactions"
 module Log = (val Logs.src_log src : Logs.LOG)
 
+(* TODO: the View interface should export file metadata (e.g. Git file type).
+   Search for [_meta] and [Metadata.default] for places that may need to
+   change. *)
+
 (***** Actions *)
 
 module Action (P: Tc.S0) (C: Tc.S0) = struct
@@ -437,6 +441,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   module Graph = Ir_node.Graph(P.Node)
   module History = Ir_commit.History(P.Commit)
+  module Metadata = P.Node.Val.Metadata
 
   let graph_t t = P.Repo.node_t t
   let history_t t = P.Repo.commit_t t
@@ -569,7 +574,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       let alist = P.Node.Val.alist n in
       let alist = List.map (fun (l, x) ->
           match x with
-          | `Contents c -> (l, `Contents (Contents.key t c))
+          | `Contents (c, _meta) -> (l, `Contents (Contents.key t c))
           | `Node n     -> (l, `Node (key t n))
         ) alist in
       create_node alist
@@ -583,7 +588,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
     let export_node n =
       let alist = List.map (fun (l, x) ->
           match x with
-          | `Contents c -> (l, `Contents (Contents.export c))
+          | `Contents c -> (l, `Contents (Contents.export c, Metadata.default))
           | `Node n     -> (l, `Node (export n))
         ) n.alist
       in

@@ -21,51 +21,61 @@ open Ir_misc.OP
 let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_s.PATH) = struct
+module No_metadata = struct
+  include Ir_hum.Unit
+  let default = ()
+  let merge ~old:_ () () = Lwt.return (`Ok ())
+end
 
-  type contents = K_c.t
+module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_s.PATH) (M: Ir_s.METADATA) = struct
+
+  type raw_contents = K_c.t
+  type contents = K_c.t * M.t
   type node = K_n.t
   type step = P.step
 
   module Path = P
   module StepMap = Ir_misc.Map(P.Step)
+  module Metadata = M
+
+  module ContentsMeta = Tc.Pair(K_c)(M)
 
   module X = struct
 
     type t = [`Contents of contents | `Node of node ]
 
     let compare x y = match x, y with
-      | `Contents x, `Contents y -> K_c.compare x y
+      | `Contents x, `Contents y -> ContentsMeta.compare x y
       | `Node x    , `Node y     -> K_n.compare x y
       | `Contents _, _           -> 1
       | _ -> -1
 
     let equal x y = match x, y with
-      | `Contents x, `Contents y -> K_c.equal x y
+      | `Contents x, `Contents y -> ContentsMeta.equal x y
       | `Node x    , `Node y     -> K_n.equal x y
       | _ -> false
 
     let hash = Hashtbl.hash
 
     let to_json = function
-      | `Contents c -> `O [ "contents", K_c.to_json c ]
+      | `Contents c -> `O [ "contents", ContentsMeta.to_json c ]
       | `Node n     -> `O [ "node"    , K_n.to_json n ]
 
     let of_json = function
-      | `O [ "contents", j ] -> `Contents (K_c.of_json j)
+      | `O [ "contents", j ] -> `Contents (ContentsMeta.of_json j)
       | `O [ "node"    , j ] -> `Node (K_n.of_json j)
       | j -> Ezjsonm.parse_error j "Node.of_json"
 
     let write t buf = match t with
-      | `Contents x -> K_c.write x (Ir_misc.tag buf 0)
+      | `Contents x -> ContentsMeta.write x (Ir_misc.tag buf 0)
       | `Node x -> K_n.write x (Ir_misc.tag buf 1)
 
     let size_of t = 1 + match t with
-      | `Contents x -> K_c.size_of x
+      | `Contents x -> ContentsMeta.size_of x
       | `Node x -> K_n.size_of x
 
     let read buf = match Ir_misc.untag buf with
-      | 0 -> `Contents (K_c.read buf)
+      | 0 -> `Contents (ContentsMeta.read buf)
       | 1 -> `Node (K_n.read buf)
       | n -> Tc.Reader.error "Vertex.read parse error (tag=%d)" n
 
@@ -144,7 +154,7 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_s.PATH) = struct
           | None   -> List.rev_append acc l (* remove *)
           | Some c ->
             match x with
-            | `Contents x -> if K_c.equal c x then t.alist else return ~acc l
+            | `Contents x -> if ContentsMeta.equal c x then t.alist else return ~acc l
             | `Node _     -> return ~acc l
         else aux (h :: acc) l
     in
@@ -179,7 +189,7 @@ module Store
        module Key: Ir_s.HASH with type t = key
        module Val: Ir_s.NODE with type t = value
                               and type node = key
-                              and type contents = C.key
+                              and type raw_contents = C.key
                               and type step = C.Path.step
      end) =
 struct
@@ -197,9 +207,9 @@ struct
   let read_exn (_, t) = S.read_exn t
   let add (_, t) = S.add t
 
-  module XContents = Tc.List(Tc.Pair(Step)(C.Key))
+  module ContentsMeta = Tc.Pair(C.Key)(S.Val.Metadata)
+  module XContentsMeta = Tc.List(Tc.Pair(Step)(ContentsMeta))
   module XParents = Tc.List(Tc.Pair(Step)(S.Key))
-  module XP = Tc.Pair(XContents)(XParents)
 
   let all_contents t =
     let r = ref [] in
@@ -211,9 +221,26 @@ struct
     S.Val.iter_succ t (fun s c -> r := (s, c) :: !r);
     List.rev !r
 
-  let merge_xcontents path c =
-    Ir_merge.alist (module Step) (module C.Key) (fun k ->
-        C.merge (Path.rcons path k) c
+  module OptContentsMeta = Tc.Option(Tc.Pair(C.Key)(S.Val.Metadata))
+  module OptContents = Tc.Option(C.Key)
+
+  (* [Ir_merge.alist] expects us to return an option. [C.merge] does that, but we need
+     to consider the metadata too... *)
+  let merge_contents_meta path c =
+    (* This gets us [C.t option, S.Val.Metadata.t]. We want [(C.t * S.Val.Metadata.t) option]. *)
+    let explode = function
+      | None -> None, S.Val.Metadata.default
+      | Some (c, m) -> Some c, m in
+    let implode = function
+      | None, _ -> None
+      | Some c, m -> Some (c, m) in
+    Ir_merge.biject (module OptContentsMeta)
+      (Ir_merge.pair (module OptContents) (module S.Val.Metadata) (C.merge path c) S.Val.Metadata.merge)
+      explode implode
+
+  let merge_xcontents_meta path c =
+    Ir_merge.alist (module Step) (module ContentsMeta) (fun k ->
+        merge_contents_meta (Path.rcons path k) c
       )
 
   let merge_xparents path merge_key =
@@ -230,8 +257,8 @@ struct
       S.Val.create (xs @ ys)
     in
     let merge =
-      Ir_merge.pair (module XContents) (module XParents)
-        (merge_xcontents path c) (merge_xparents path merge_key)
+      Ir_merge.pair (module XContentsMeta) (module XParents)
+        (merge_xcontents_meta path c) (merge_xparents path merge_key)
     in
     Ir_merge.biject (module S.Val) merge explode implode
 
@@ -296,7 +323,7 @@ module Graph (S: Ir_s.NODE_STORE) = struct
   module Path = S.Path
   module Step = S.Path.Step
   type step = Step.t
-  type contents = S.Contents.key
+  type contents = S.Contents.key * S.Val.Metadata.t
   type node = S.key
   type path = Path.t
   type t = S.t
@@ -328,7 +355,14 @@ module Graph (S: Ir_s.NODE_STORE) = struct
       S.Val.iter_succ n (fun l _ -> steps := StepSet.add l !steps);
       Lwt.return (StepSet.to_list !steps)
 
-  module Graph = Ir_graph.Make(S.Contents.Key)(S.Key)(Ir_hum.Unit)(Ir_hum.Unit)
+  module ContentsMeta = struct
+    include Tc.Pair(S.Contents.Key)(S.Val.Metadata)
+
+    let to_hum (c, m) = Printf.sprintf "(%s,%s)" (S.Contents.Key.to_hum c) (S.Val.Metadata.to_hum m)
+    let of_hum _s = failwith "XXX"      (* [of_hum] is not used by [Ir_graph] *)
+  end
+
+  module Graph = Ir_graph.Make(ContentsMeta)(S.Key)(Ir_hum.Unit)(Ir_hum.Unit)
 
   let edges t =
     let edges = ref [] in

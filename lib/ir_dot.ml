@@ -134,7 +134,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
         return_unit
       ) >>= fun () ->
     Slice.iter_nodes slice (fun (k, t) ->
-        Node.Val.iter_contents t (fun l v ->
+        Node.Val.iter_contents t (fun l (v, _meta) ->
             add_edge (`Node k) [`Style `Dotted; label_of_step l] (`Contents v)
           );
         Node.Val.iter_succ t (fun l n ->

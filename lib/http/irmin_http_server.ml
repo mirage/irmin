@@ -577,7 +577,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
            let node = Node.Key.of_hum node in
            let read =
              let aux (c, n) path =
-               Graph.read_contents_exn n node path >>= fun k ->
+               Graph.read_contents_exn n node path >>= fun (k, _meta) ->
                Contents.read_exn c k
              in
              list aux
@@ -585,7 +585,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
            let update =
              let aux (c, n) path value =
                Contents.add c value >>= fun k ->
-               Graph.add_contents n node path k
+               Graph.add_contents n node path (k, Node.Val.Metadata.default)
              in
              list aux
            in
