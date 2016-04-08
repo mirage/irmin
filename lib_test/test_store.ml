@@ -1040,10 +1040,7 @@ module Make (S: Test_S) = struct
       View.update_path (t "empty view") (p []) v1 >>= fun () ->
       S.head_exn (t "empty view") >>= fun head   ->
       Commit.read_exn (ct repo) head >>= fun commit ->
-      let node = match Commit.Val.node commit with
-        | None -> failwith "empty node"
-        | Some n -> n
-      in
+      let node = Commit.Val.node commit in
       Node.read_exn (n repo) node >>= fun node ->
       assert_equal (module Node.Val) "empty view" Node.Val.empty node;
 

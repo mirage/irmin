@@ -1546,10 +1546,10 @@ module Private: sig
       type node
       (** Type for node keys. *)
 
-      val create: task -> ?node:node -> parents:commit list -> t
+      val create: task -> node:node -> parents:commit list -> t
       (** Create a commit. *)
 
-      val node: t -> node option
+      val node: t -> node
       (** The underlying node. *)
 
       val parents: t -> commit list
@@ -1621,10 +1621,10 @@ module Private: sig
       type commit
       (** The type for commit values. *)
 
-      val create: t -> ?node:node -> parents:commit list -> task:task -> commit Lwt.t
+      val create: t -> node:node -> parents:commit list -> task:task -> commit Lwt.t
       (** Create a new commit. *)
 
-      val node: t -> commit -> node option Lwt.t
+      val node: t -> commit -> node Lwt.t
       (** Get the commit node.
 
           A commit might contain a graph

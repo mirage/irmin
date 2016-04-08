@@ -28,7 +28,7 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
   type commit = C.t
 
   type t = {
-    node   : N.t option;
+    node   : N.t;
     parents: C.t list;
     task : Ir_task.t;
   }
@@ -36,22 +36,22 @@ module Make (C: Tc.S0) (N: Tc.S0) = struct
   let parents t = t.parents
   let node t = t.node
   let task t = t.task
-  let create task ?node ~parents = { node; parents; task }
+  let create task ~node ~parents = { node; parents; task }
 
   let to_json t =
     `O [
-      ("node"   , Ezjsonm.option N.to_json t.node);
+      ("node"   , N.to_json t.node);
       ("parents", Ezjsonm.list C.to_json t.parents);
       ("task"   , T.to_json t.task);
     ]
 
   let of_json j =
-    let node    = Ezjsonm.find j ["node"]    |> Ezjsonm.get_option N.of_json in
+    let node    = Ezjsonm.find j ["node"]    |> N.of_json in
     let parents = Ezjsonm.find j ["parents"] |> Ezjsonm.get_list C.of_json in
     let task    = Ezjsonm.find j ["task"]    |> T.of_json in
     { node; parents; task }
 
-  module X = Tc.Triple(Tc.Option(N))(Tc.List(C))(T)
+  module X = Tc.Triple(N)(Tc.List(C))(T)
   let explode t = t.node, t.parents, t.task
   let implode (node, parents, task) = { node; parents; task }
   let x = Tc.biject (module X) implode explode
@@ -87,6 +87,10 @@ module Store
   let read_exn (_, t) = S.read_exn t
   let merge_node path (n, _) = N.merge path n
 
+  let empty_if_none (n, _) = function
+    | None -> N.add n N.Val.empty
+    | Some node -> Lwt.return node
+
   let merge_commit task t ~old k1 k2 =
     read_exn t k1  >>= fun v1   ->
     read_exn t k2  >>= fun v2   ->
@@ -110,12 +114,13 @@ module Store
           | None     -> ok None
           | Some old ->
             read_exn t old >>= fun vold ->
-            ok (Some (S.Val.node vold))
+            ok (Some (Some (S.Val.node vold)))
         in
-        merge_node N.Path.empty t ~old (S.Val.node v1) (S.Val.node v2)
+        merge_node N.Path.empty t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
         >>| fun node ->
+        empty_if_none t node >>= fun node ->
         let parents = [k1; k2] in
-        let commit = S.Val.create ?node ~parents task in
+        let commit = S.Val.create ~node ~parents task in
         add t commit >>= fun key ->
         ok key
 
@@ -135,8 +140,8 @@ module type HISTORY = sig
   type t
   type node
   type commit
-  val create: t -> ?node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
-  val node: t -> commit -> node option Lwt.t
+  val create: t -> node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
+  val node: t -> commit -> node Lwt.t
   val parents: t -> commit -> commit list Lwt.t
   val merge: t -> task:Ir_task.t -> commit Ir_merge.t
   val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
@@ -162,12 +167,10 @@ module History (S: Ir_s.COMMIT_STORE) = struct
 
   let node t c =
     Log.debug (fun f -> f "node %a" (show (module S.Key)) c);
-    S.read t c >>= function
-    | None   -> return_none
-    | Some n -> return (S.Val.node n)
+    S.read_exn t c >|= S.Val.node
 
-  let create t ?node ~parents ~task =
-    let commit = S.Val.create ?node ~parents task in
+  let create t ~node ~parents ~task =
+    let commit = S.Val.create ~node ~parents task in
     S.add t commit >>= fun key ->
     return key
 
@@ -181,9 +184,7 @@ module History (S: Ir_s.COMMIT_STORE) = struct
 
   let edges t =
     Log.debug (fun f -> f "edges");
-    (match S.Val.node t with
-     | None   -> []
-     | Some k -> [`Node k])
+    [`Node (S.Val.node t)]
     @ List.map (fun k -> `Commit k) (S.Val.parents t)
 
   let closure t ~min ~max =

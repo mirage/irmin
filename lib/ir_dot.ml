@@ -146,11 +146,8 @@ module Make (S: Ir_s.STORE_EXT) = struct
         List.iter (fun c ->
             add_edge (`Commit k) [`Style `Bold] (`Commit c)
           ) (Commit.Val.parents r);
-        match Commit.Val.node r with
-        | None      -> return_unit
-        | Some node ->
-          add_edge (`Commit k) [`Style `Dashed] (`Node node);
-          return_unit
+        add_edge (`Commit k) [`Style `Dashed] (`Node (Commit.Val.node r));
+        return_unit
       ) >>= fun () ->
     let ref_t = S.Private.Repo.ref_t (S.repo t) in
     Ref.iter ref_t (fun r k ->
