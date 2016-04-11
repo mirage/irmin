@@ -249,7 +249,13 @@ module History (S: Ir_s.COMMIT_STORE) = struct
     in
     aux KSet.empty
 
-  type mark = Seen1 | Seen2 | SeenBoth | LCA
+  (* Initially the first node is marked as [Seen1] and the second as [Seen2].
+     Marks are updated as the search progresses, and may change. *)
+  type mark =
+    | Seen1     (* reachable from the first commit *)
+    | Seen2     (* reachable from the second commit *)
+    | SeenBoth  (* reachable from both, but below an LCA *)
+    | LCA       (* reachable from both; candidate for the answer set *)
 
   let _pp_mark = function
     | Seen1 -> "seen1" | Seen2 -> "seen2"
@@ -338,13 +344,16 @@ module History (S: Ir_s.COMMIT_STORE) = struct
         let old_mark = get_mark t a  in
         let mark = update_mark t mark a in
         let () = match old_mark with
-          | Some (SeenBoth | LCA) -> ()
+          | Some (SeenBoth | LCA) -> ()     (* Can't be an LCA lower down *)
+          | Some old when old = mark -> ()  (* No change *)
           | _ -> KSet.iter (fun x -> Queue.push x todo) (get_parent t a)
         in
         loop (if mark = LCA then SeenBoth else mark)
     in
     loop mark
 
+  (* We are looking for LCAs, doing a breadth-first-search from the two starting commits.
+     This is called each time we visit a new commit.  *)
   let update_parents t depth commit parents =
     add_parent t commit parents;
     add_to_layer t depth commit;
