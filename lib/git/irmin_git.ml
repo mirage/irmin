@@ -445,7 +445,7 @@ module Irmin_value_store
       let of_git g =
         let { Git.Commit.tree; parents; author; message; _ } = g in
         let parents = List.map commit_key_of_git parents in
-        let node = Some (node_key_of_git tree) in
+        let node = node_key_of_git tree in
         let task = task_of_git author message g in
         (task, node, parents)
 
@@ -467,13 +467,7 @@ module Irmin_value_store
           name, "irmin@openmirage.org"
 
       let to_git task node parents =
-        let tree = match node with
-          | None   ->
-            failwith
-              "Irmin.Git.Commit: a commit with an empty filesystem... \
-               this is not supported by Git!"
-          | Some n -> git_of_node_key n
-        in
+        let tree = git_of_node_key node in
         let parents = List.map git_of_commit_key parents in
         let parents = List.fast_sort Git.Hash.Commit.compare parents in
         let author =
@@ -485,9 +479,9 @@ module Irmin_value_store
         let message = String.concat "\n" (Irmin.Task.messages task) in
         { Git.Commit.tree; parents; author; committer = author; message }
 
-      let create task ?node ~parents = to_git task node parents
+      let create task ~node ~parents = to_git task node parents
       let xnode { Git.Commit.tree; _ } = node_key_of_git tree
-      let node t = Some (xnode t)
+      let node t = xnode t
       let parents { Git.Commit.parents; _ } = List.map commit_key_of_git parents
       let task g =
         let { Git.Commit.author; message; _ } = g in
@@ -499,7 +493,7 @@ module Irmin_value_store
 
       let to_c t =
         let task, node, parents = of_git t in
-        C.create task ?node ~parents
+        C.create task ~node ~parents
 
       let to_json t = C.to_json (to_c t)
       let of_json j = of_c (C.of_json j)

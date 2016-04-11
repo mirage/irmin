@@ -108,10 +108,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       let root_nodes = ref [] in
       Lwt_list.iter_p (fun k ->
           P.Commit.read_exn (P.Repo.commit_t t) k >>= fun c ->
-          let () = match P.Commit.Val.node c with
-            | None   -> ()
-            | Some n -> root_nodes := n :: !root_nodes
-          in
+          root_nodes := P.Commit.Val.node c :: !root_nodes;
           P.Slice.add_commit slice (k, c)
         ) keys
       >>= fun () ->
@@ -262,7 +259,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   let read_head_node t =
     read_head_commit t >>= function
     | None   -> return_none
-    | Some h -> H.node (history_t t) h
+    | Some h -> H.node (history_t t) h >|= fun n -> Some n
 
   let parents_of_commit = function
     | None   -> []
@@ -284,10 +281,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       read_head_commit t >>= fun commit ->
       begin match commit with
         | None   -> Graph.empty (graph_t t)
-        | Some h ->
-          H.node (history_t t) h >>= function
-          | None   -> Graph.empty (graph_t t)
-          | Some n -> return n
+        | Some h -> H.node (history_t t) h
       end >>= fun old_node ->
       f old_node >>= fun node ->
       let parents = parents_of_commit commit in
@@ -495,7 +489,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       let node_of_commit_id head =
         begin match head with
           | None   -> Lwt.return_none
-          | Some h -> H.node (history_t t) h
+          | Some h -> H.node (history_t t) h >|= fun n -> Some n
         end
         >>= function
         | None   -> empty () >|= fun empty -> empty, None

@@ -821,11 +821,9 @@ module Make (S: Ir_s.STORE_EXT) = struct
         >>| function
         | None   -> ok None
         | Some c ->
-          History.node (history_t repo) c >>= function
-          | None   -> ok None
-          | Some n ->
-            Graph.read_node (graph_t repo) n path >>= fun n ->
-            ok (Some n)
+          History.node (history_t repo) c >>= fun n ->
+          Graph.read_node (graph_t repo) n path >>= fun n ->
+          ok (Some n)
     in
     P.Node.(merge Path.empty) (graph_t repo) ~old current_node (Some view_node)
     >>| fun merge_node ->

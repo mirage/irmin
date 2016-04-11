@@ -129,8 +129,8 @@ module type COMMIT = sig
   include Tc.S0
   type commit
   type node
-  val create: Ir_task.t -> ?node:node -> parents:commit list -> t
-  val node: t -> node option
+  val create: Ir_task.t -> node:node -> parents:commit list -> t
+  val node: t -> node
   val parents: t -> commit list
   val task: t -> Ir_task.t
 end
