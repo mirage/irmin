@@ -57,9 +57,41 @@ let test_non_bare () =
   Store.update (t "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
   Store.update (t "fst one") ["fst"] "hoho"
 
+let test_sort_order () =
+  let module Memory = Irmin_unix.Irmin_git.Memory(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+  Memory.Repo.create (Irmin_git.config ()) >>= fun repo ->
+  let commit_t = Memory.Private.Repo.commit_t repo in
+  let node_t = Memory.Private.Repo.node_t repo in
+  let head_tree_id branch =
+    Memory.head_exn branch >>= fun head ->
+    Memory.Private.Commit.read_exn commit_t head >|= fun commit ->
+    Memory.Private.Commit.Val.node commit
+  in
+  let ls branch =
+    head_tree_id branch >>= fun tree_id ->
+    Memory.Private.Node.read_exn node_t tree_id >|= fun tree ->
+    Memory.Private.Node.Val.alist tree |> List.map fst
+  in
+  Memory.master (fun () -> Irmin.Task.empty) repo >>= fun master ->
+  let master = master () in
+  Memory.update master ["foo.c"] "foo.c" >>= fun () ->
+  Memory.update master ["foo1"] "foo1" >>= fun () ->
+  Memory.update master ["foo"; "foo.o"] "foo.o" >>= fun () ->
+  ls master >>= fun items ->
+  Alcotest.(check (list string)) "Sort order" ["foo.c"; "foo"; "foo1"] items;
+  head_tree_id master >>= fun tree_id ->
+  Alcotest.(check string) "Sort hash" "00c5f5e40e37fde61911f71373813c0b6cad1477"
+    (Memory.Private.Node.Key.to_hum tree_id);
+  (* Convert dir to file; changes order in listing *)
+  Memory.update master ["foo"] "foo" >>= fun () ->
+  ls master >>= fun items ->
+  Alcotest.(check (list string)) "Sort order" ["foo"; "foo.c"; "foo1"] items;
+  Lwt.return ()
+
 let run f () = Lwt_main.run (f ())
 
 let misc =
   "GIT.misc", [
     "Testing git non-bare repostiories", `Quick, run test_non_bare;
+    "Testing sort order", `Quick, run test_sort_order;
   ]

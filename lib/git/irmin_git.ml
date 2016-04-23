@@ -290,14 +290,40 @@ module Irmin_value_store
               | None -> aux xs in
         aux t
 
-      (* FIXME: is it true? *)
-      let compare_names = String.compare
+      type compare_result = LT | EQ | GT
+      module Sort_key: sig
+        type t
+        val of_entry: Git.Tree.entry -> t
+        val of_contents: string -> t
+        val of_succ: string -> t
+        val order: t -> t -> compare_result
+        val compare: t -> t -> int
+      end = struct
+        type t = string
 
-      let compare_entries {Git.Tree.name = n1; _} {Git.Tree.name = n2; _} =
-        compare_names n1 n2
+        let compare = String.compare
+
+        let order a b =
+          match compare a b with
+            | 0 -> EQ
+            | x when x > 0 -> GT
+            | _ -> LT
+
+        let of_contents n = n
+        let of_succ n = n ^ "/"
+
+        let of_entry = function
+          | {Git.Tree.name = n; perm = `Dir; _} -> of_succ n
+          | {Git.Tree.name = n; _} -> of_contents n
+      end
+
+      let compare_entries a b =
+        Sort_key.(compare (of_entry a) (of_entry b))
 
       let with_succ t step succ =
         let step = S.to_hum step in
+        let step_key = Sort_key.of_succ step in
+        let contents_key = Sort_key.of_contents step in
         let return ~acc rest = match succ with
           | None   -> t
           | Some c ->
@@ -306,21 +332,26 @@ module Irmin_value_store
         in
         let rec aux acc = function
           | [] -> return ~acc []
-          | { Git.Tree.name; node; _ } as h :: l ->
-            if compare_names step name > 0 then
-              aux (h :: acc) l
-            else if compare_names name step = 0 then (
-              match succ with
-              | None   -> List.rev_append acc l (* remove *)
-              | Some c ->
-                if Git.Hash.equal (git_of_key c) node then t else return ~acc l
-            ) else return ~acc:acc (h::l)
+          | { Git.Tree.node; _ } as h :: l ->
+            let entry_key = Sort_key.of_entry h in
+            (* Remove any contents entry with the same name. This will always
+               come before the new succ entry. *)
+            if Sort_key.order contents_key entry_key = EQ then
+              aux acc l
+            else match Sort_key.order step_key entry_key with
+              | GT -> aux (h :: acc) l
+              | LT -> return ~acc:acc (h::l)
+              | EQ ->
+                match succ with
+                | None   -> List.rev_append acc l (* remove *)
+                | Some c ->
+                  if Git.Hash.equal (git_of_key c) node then t else return ~acc l
         in
-        let new_t = aux [] t in
-        if t == new_t then t else new_t
+        aux [] t
 
       let with_contents t step contents =
         let step = S.to_hum step in
+        let step_key = Sort_key.of_contents step in
         let return ~acc rest = match contents with
           | None   -> t
           | Some (c, perm) ->
@@ -330,21 +361,25 @@ module Irmin_value_store
             in
             List.rev_append acc (e :: rest)
         in
+        (* After inserting a new contents entry, we need to continue searching to remove
+           any succ with the same name. *)
+        let without dir_key =
+          List.filter (fun e -> Sort_key.order dir_key (Sort_key.of_entry e) <> EQ)
+        in
         let rec aux acc entries =
           match entries with
           | [] -> return ~acc []
-          | { Git.Tree.name; node; _ } as h :: l ->
-            if compare_names step name > 0 then (
-              aux (h :: acc) l
-            ) else if compare_names name step = 0 then (
+          | { Git.Tree.node; _ } as h :: l ->
+            match Sort_key.order step_key (Sort_key.of_entry h) with
+            | GT -> aux (h :: acc) l
+            | LT -> return ~acc:acc (without (Sort_key.of_succ step) (h::l))
+            | EQ ->
               match contents with
               | None   -> List.rev_append acc l (* remove *)
               | Some (c, _) ->
                 if Git.Hash.equal (git_of_key c) node then t else return ~acc l
-            ) else return ~acc:acc (h::l)
         in
-        let new_t = aux [] t in
-        if t == new_t then t else new_t
+        aux [] t
 
       let succ t s =
         find t (function
