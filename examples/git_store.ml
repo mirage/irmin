@@ -44,6 +44,6 @@ let () =
     "This example creates a Git repository in %s and use it to read \n\
      and write data:\n" Config.root;
   let _ = Sys.command (Printf.sprintf "rm -rf %s" Config.root) in
-  Lwt_unix.run (main ());
+  Lwt_main.run (main ());
   Printf.printf
     "You can now run `cd %s && tig` to inspect the store.\n" Config.root;

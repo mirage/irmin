@@ -65,4 +65,4 @@ let main () =
   return_unit
 
 let () =
-  Lwt_unix.run (main ())
+  Lwt_main.run (main ())

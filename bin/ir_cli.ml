@@ -86,7 +86,7 @@ let depth =
   Arg.(value & opt (some int) None & doc)
 
 let run t =
-  Lwt_unix.run (
+  Lwt_main.run (
     catch
       (fun () -> t)
       (function e -> eprintf "%s\n%!" (Printexc.to_string e); exit 1)

@@ -2006,7 +2006,7 @@ let () =
       ) fmt
 
   let () =
-    Lwt_unix.run begin
+    Lwt_main.run begin
       S.Repo.create config >>= S.master task
       >>= fun t  -> log t "Adding a new log entry"
       >>= fun () -> Irmin.clone_force task (t "Cloning the store") "x"

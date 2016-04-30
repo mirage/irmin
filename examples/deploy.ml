@@ -109,24 +109,24 @@ let () =
   else match Sys.argv.(1) with
 
     | "provision" ->
-      Lwt_unix.run (Store.Repo.create config >>= provision);
+      Lwt_main.run (Store.Repo.create config >>= provision);
       Printf.printf
         "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
          configuration.\n" cmd
 
     | "configure" ->
-      Lwt_unix.run (Store.Repo.create config >>= configure);
+      Lwt_main.run (Store.Repo.create config >>= configure);
       Printf.printf
         "The VM is now configured. Run `%s attack` to simulate an attack by an \n\
          intruder.\n" cmd
 
     | "attack" ->
-      Lwt_unix.run (Store.Repo.create config >>= attack);
+      Lwt_main.run (Store.Repo.create config >>= attack);
       Printf.printf
         "The VM has been attacked. Run `%s revert` to revert the VM state to a \
           safe one.\n" cmd
 
     | "revert" ->
-      Lwt_unix.run (Store.Repo.create config >>= revert)
+      Lwt_main.run (Store.Repo.create config >>= revert)
 
     | _  -> help ()
