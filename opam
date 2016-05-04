@@ -51,7 +51,7 @@ depopts: [
 ]
 conflicts: [
   "cohttp" {< "0.18.3"}
-  "git"    {< "1.7.1"}
+  "git"    {< "1.7.2"}
   "conduit" {< "0.9.0"}
 ]
 available: [ocaml-version >= "4.01.0"]

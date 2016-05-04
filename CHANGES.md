@@ -1,3 +1,18 @@
+### 0.11.0 (2016-05-04)
+
+* Use Logs (#342, @talex5)
+* Improve non-unix portablity of `Irmin_fs` (#345, @samoht)
+* Change the signature of `Store.iter` to defer opening the
+  file only when needed. This was causing a file-descriptor
+  early exhaustion on Windows (#345, @samoht)
+* Fix paths for references on Windows (#345, @samoht)
+* Port to `ocaml-git` 1.8.0
+* Rather large API change in `Irmin.Private.Contents.Store`
+  and `Irmin.Private.Commit.Store` to make it easier to
+  build new and efficient Irmin backends. (#346, @samoht)
+* Fix performance problem in the computation of LCAs (#351, @talex5)
+* Fix sort order for Git trees (#352, @talex5)
+
 ### 0.10.1 (2015-11-26)
 
 * Support for launchd: the `--address` argument of the CLI now
