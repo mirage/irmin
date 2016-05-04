@@ -217,14 +217,16 @@ end
 
 module Map (S: Tc.S0) = Map_ext (Map.Make(S))(S)
 
+exception Utf8_failure
+
 let is_valid_utf8 str =
   try
     Uutf.String.fold_utf_8 (fun _ _ -> function
-        | `Malformed _ -> raise (Failure "utf8")
+        | `Malformed _ -> raise (Utf8_failure)
         | _ -> ()
       ) () str;
     true
-  with Failure "utf8" -> false
+  with Utf8_failure -> false
 
 let tag buf i =
   Cstruct.set_uint8 buf 0 i;
