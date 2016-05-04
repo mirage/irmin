@@ -113,9 +113,9 @@ module Make (S: Test_S) = struct
     History.create (h repo) ~node:kn3 ~parents:[kr1] ~task:Irmin.Task.empty
 
   let run x test =
-    try Lwt_unix.run (x.init () >>= fun () -> S.Repo.create x.config >>= fun repo -> test repo >>= x.clean)
+    try Lwt_main.run (x.init () >>= fun () -> S.Repo.create x.config >>= fun repo -> test repo >>= x.clean)
     with e ->
-      Lwt_unix.run (x.clean ());
+      Lwt_main.run (x.clean ());
       raise e
 
   let random_value x value =

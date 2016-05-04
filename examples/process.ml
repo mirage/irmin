@@ -142,4 +142,4 @@ let () =
     init () >>= fun () ->
     Lwt.join (watchdog () :: List.map (protect process) (Array.to_list images))
   in
-  Lwt_unix.run (aux ())
+  Lwt_main.run (aux ())
