@@ -53,11 +53,11 @@ The type for commit values.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       ?node:<a href="Irmin.Private.Commit.HISTORY.html#TYPEnode">node</a> -><br>       parents:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       task:<a href="Irmin.html#TYPEtask">Irmin.task</a> -> <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> Lwt.t</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       node:<a href="Irmin.Private.Commit.HISTORY.html#TYPEnode">node</a> -><br>       parents:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       task:<a href="Irmin.html#TYPEtask">Irmin.task</a> -> <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> Lwt.t</code></pre><div class="info ">
 Create a new commit.<br>
 </div>
 
-<pre><span id="VALnode"><span class="keyword">val</span> node</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEnode">node</a> option Lwt.t</code></pre><div class="info ">
+<pre><span id="VALnode"><span class="keyword">val</span> node</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEnode">node</a> Lwt.t</code></pre><div class="info ">
 Get the commit node.
 <p>
 
@@ -103,9 +103,5 @@ Compute the <a href="Irmin.Private.Commit.HISTORY.html#VALlcas"><code class="cod
 <pre><span id="VALclosure"><span class="keyword">val</span> closure</span> : <code class="type"><a href="Irmin.Private.Commit.HISTORY.html#TYPEt">t</a> -><br>       min:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       max:<a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list -><br>       <a href="Irmin.Private.Commit.HISTORY.html#TYPEcommit">commit</a> list Lwt.t</code></pre><div class="info ">
 Same as <a href="Irmin.Private.Node.GRAPH.html#VALclosure">GRAPH.closure</a> but for
           the history graph.<br>
-</div>
-
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.HISTORY.Store.html">Store</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Commit.HISTORY.Store.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
-A history forms a <a href="Irmin.Private.Commit.STORE.html">store</a> of commits.
 </div>
 </body></html>

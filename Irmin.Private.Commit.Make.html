@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="next" href="Irmin.Private.Commit.History.html">
+<link rel="next" href="Irmin.Private.Commit.Store.html">
 <link rel="Up" href="Irmin.Private.Commit.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -18,11 +18,11 @@
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="Irmin.Private.Commit.html" title="Irmin.Private.Commit">Up</a>
-&nbsp;<a class="post" href="Irmin.Private.Commit.History.html" title="Irmin.Private.Commit.History">Next</a>
+&nbsp;<a class="post" href="Irmin.Private.Commit.Store.html" title="Irmin.Private.Commit.Store">Next</a>
 </div>
 <h1>Functor <a href="type_Irmin.Private.Commit.Make.html">Irmin.Private.Commit.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Commit.S.html">S</a></code><code class="type">  with type commit := C.t and type node = N.t</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Commit.S.html">S</a></code><code class="type">  with type commit = C.t and type node = N.t</code></pre><div class="info module top">
 <code class="code"><span class="constructor">Make</span></code> provides a simple implementation of commit values,
         parameterized by the commit <code class="code"><span class="constructor">C</span></code> and node <code class="code"><span class="constructor">N</span></code>.<br>
 </div>
@@ -65,11 +65,11 @@ Type for node keys.<br>
 </div>
 
 
-<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEtask">Irmin.task</a> -><br>       ?node:<a href="Irmin.Private.Commit.S.html#TYPEnode">node</a> -><br>       parents:<a href="Irmin.Private.Commit.S.html#TYPEcommit">commit</a> list -> t</code></pre><div class="info ">
+<pre><span id="VALcreate"><span class="keyword">val</span> create</span> : <code class="type"><a href="Irmin.html#TYPEtask">Irmin.task</a> -><br>       node:<a href="Irmin.Private.Commit.S.html#TYPEnode">node</a> -><br>       parents:<a href="Irmin.Private.Commit.S.html#TYPEcommit">commit</a> list -> t</code></pre><div class="info ">
 Create a commit.<br>
 </div>
 
-<pre><span id="VALnode"><span class="keyword">val</span> node</span> : <code class="type">t -> <a href="Irmin.Private.Commit.S.html#TYPEnode">node</a> option</code></pre><div class="info ">
+<pre><span id="VALnode"><span class="keyword">val</span> node</span> : <code class="type">t -> <a href="Irmin.Private.Commit.S.html#TYPEnode">node</a></code></pre><div class="info ">
 The underlying node.<br>
 </div>
 

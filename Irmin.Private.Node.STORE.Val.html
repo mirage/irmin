@@ -5,6 +5,7 @@
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Private.Node.STORE.Key.html">
+<link rel="next" href="Irmin.Private.Node.STORE.Contents.html">
 <link rel="Up" href="Irmin.Private.Node.STORE.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -19,7 +20,8 @@
 <body>
 <div class="navbar"><a class="pre" href="Irmin.Private.Node.STORE.Key.html" title="Irmin.Private.Node.STORE.Key">Previous</a>
 &nbsp;<a class="up" href="Irmin.Private.Node.STORE.html" title="Irmin.Private.Node.STORE">Up</a>
-&nbsp;</div>
+&nbsp;<a class="post" href="Irmin.Private.Node.STORE.Contents.html" title="Irmin.Private.Node.STORE.Contents">Next</a>
+</div>
 <h1>Module <a href="type_Irmin.Private.Node.STORE.Val.html">Irmin.Private.Node.STORE.Val</a></h1>
 
 <pre><span class="keyword">module</span> Val: <code class="type"><a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a></code><code class="type">  with type t = value
@@ -31,11 +33,21 @@
 <br>
 <h1 id="1_Nodevalues">Node values</h1><br>
 
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.S.Metadata.html">Metadata</a>: <code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="type"> </code></pre><div class="info">
+The type for metadata attached to content entries.
+</div>
+
 <pre><span class="keyword">include</span> Tc.S0</pre>
 
-<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> </pre>
+<pre><span id="TYPEraw_contents"><span class="keyword">type</span> <code class="type"></code>raw_contents</span> </pre>
 <div class="info ">
 The type for contents keys.<br>
+</div>
+
+
+<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> = <code class="type"><a href="Irmin.Private.Node.S.html#TYPEraw_contents">raw_contents</a> * Metadata.t</code> </pre>
+<div class="info ">
+The type for contents keys combined with their metadata.<br>
 </div>
 
 

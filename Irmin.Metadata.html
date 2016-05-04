@@ -1,0 +1,37 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin.Ref.html">
+<link rel="next" href="Irmin.Private.html">
+<link rel="Up" href="Irmin.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.Metadata</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin.Ref.html" title="Irmin.Ref">Previous</a>
+&nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
+&nbsp;<a class="post" href="Irmin.Private.html" title="Irmin.Private">Next</a>
+</div>
+<h1>Module <a href="type_Irmin.Metadata.html">Irmin.Metadata</a></h1>
+
+<pre><span class="keyword">module</span> Metadata: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Metadata.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+<code class="code"><span class="constructor">Metadata</span></code> defines metadata that is attached to contents but stored in
+    nodes. The Git backend uses this to indicate the type of file (normal,
+    executable or symlink).<br>
+</div>
+<hr width="100%">
+
+<pre><span class="keyword">module type</span> <a href="Irmin.Metadata.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Metadata.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Metadata.None.html">None</a>: <code class="type"><a href="Irmin.Metadata.S.html">S</a></code><code class="type">  with type t = unit</code></pre><div class="info">
+A metadata definition for systems that don't use metadata.
+</div>
+</body></html>

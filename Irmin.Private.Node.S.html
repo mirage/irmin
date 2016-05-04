@@ -26,11 +26,21 @@
 <br>
 <h1 id="1_Nodevalues">Node values</h1><br>
 
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.S.Metadata.html">Metadata</a>: <code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="type"> </code></pre><div class="info">
+The type for metadata attached to content entries.
+</div>
+
 <pre><span class="keyword">include</span> Tc.S0</pre>
 
-<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> </pre>
+<pre><span id="TYPEraw_contents"><span class="keyword">type</span> <code class="type"></code>raw_contents</span> </pre>
 <div class="info ">
 The type for contents keys.<br>
+</div>
+
+
+<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> = <code class="type"><a href="Irmin.Private.Node.S.html#TYPEraw_contents">raw_contents</a> * Metadata.t</code> </pre>
+<div class="info ">
+The type for contents keys combined with their metadata.<br>
 </div>
 
 

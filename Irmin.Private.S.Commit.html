@@ -33,11 +33,19 @@ Private commits.<br>
 
 <pre><span class="keyword">include</span> <a href="Irmin.AO.html">Irmin.AO</a></pre>
 
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type"><a href="Irmin.html#TYPEtask">Irmin.task</a> -> t -> key option Ir_merge.t</code></pre><div class="info ">
+<code class="code">merge</code> is the 3-way merge function for commit keys.<br>
+</div>
+
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
 <code class="code"><span class="constructor">Key</span></code> provides base functions for commit keys.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a></code><code class="type">  with type t = value and type commit := key</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.STORE.Val.html">Val</a>: <code class="type"><a href="Irmin.Private.Commit.S.html">Irmin.Private.Commit.S</a></code><code class="type">  with type t = value and type commit = key</code></pre><div class="info">
 <code class="code"><span class="constructor">Val</span></code> provides functions for commit values.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Commit.STORE.Node.html">Node</a>: <code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="type">  with type key = Val.node</code></pre><div class="info">
+<code class="code"><span class="constructor">Node</span></code> is the underlying node store.
 </div>
 </body></html>

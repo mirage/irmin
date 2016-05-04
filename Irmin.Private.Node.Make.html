@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="style.css" type="text/css">
 <meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="next" href="Irmin.Private.Node.Graph.html">
+<link rel="next" href="Irmin.Private.Node.Store.html">
 <link rel="Up" href="Irmin.Private.Node.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -18,15 +18,16 @@
 </head>
 <body>
 <div class="navbar">&nbsp;<a class="up" href="Irmin.Private.Node.html" title="Irmin.Private.Node">Up</a>
-&nbsp;<a class="post" href="Irmin.Private.Node.Graph.html" title="Irmin.Private.Node.Graph">Next</a>
+&nbsp;<a class="post" href="Irmin.Private.Node.Store.html" title="Irmin.Private.Node.Store">Next</a>
 </div>
 <h1>Functor <a href="type_Irmin.Private.Node.Make.html">Irmin.Private.Node.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Node.S.html">S</a></code><code class="type">  with type contents = C.t
+<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Node.S.html">S</a></code><code class="type">  with type raw_contents = C.t
          and type node = N.t
-         and type step = P.step</code></pre><div class="info module top">
+         and type step = P.step
+         and module Metadata = M</code></pre><div class="info module top">
 <code class="code"><span class="constructor">Node</span></code> provides a simple node implementation, parameterized by
-        the contents <code class="code"><span class="constructor">C</span></code>, node <code class="code"><span class="constructor">N</span></code> and paths <code class="code"><span class="constructor">P</span></code>.<br>
+        the contents <code class="code"><span class="constructor">C</span></code>, node <code class="code"><span class="constructor">N</span></code>, paths <code class="code"><span class="constructor">P</span></code> and metadata <code class="code"><span class="constructor">M</span></code>.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">
 <tr>
@@ -48,6 +49,11 @@
 <code>P</code></td>
 <td align="center" valign="top">:</td>
 <td><code class="type"><a href="Irmin.Path.S.html">Irmin.Path.S</a></code>
+<tr>
+<td align="center" valign="top" width="15%">
+<code>M</code></td>
+<td align="center" valign="top">:</td>
+<td><code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code>
 </table>
 </td>
 </tr>
@@ -56,11 +62,21 @@
 <br>
 <h1 id="1_Nodevalues">Node values</h1><br>
 
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.S.Metadata.html">Metadata</a>: <code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="type"> </code></pre><div class="info">
+The type for metadata attached to content entries.
+</div>
+
 <pre><span class="keyword">include</span> Tc.S0</pre>
 
-<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> </pre>
+<pre><span id="TYPEraw_contents"><span class="keyword">type</span> <code class="type"></code>raw_contents</span> </pre>
 <div class="info ">
 The type for contents keys.<br>
+</div>
+
+
+<pre><span id="TYPEcontents"><span class="keyword">type</span> <code class="type"></code>contents</span> = <code class="type"><a href="Irmin.Private.Node.S.html#TYPEraw_contents">raw_contents</a> * Metadata.t</code> </pre>
+<div class="info ">
+The type for contents keys combined with their metadata.<br>
 </div>
 
 

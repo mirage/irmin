@@ -24,7 +24,7 @@
 <h1>Module <a href="type_Irmin.Private.S.Node.html">Irmin.Private.S.Node</a></h1>
 
 <pre><span class="keyword">module</span> Node: <code class="type"><a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a></code><code class="type"> 
-      with type Val.contents = Contents.key and module Path = Contents.Path</code></pre><div class="info module top">
+      with type Val.raw_contents = Contents.key and module Path = Contents.Path</code></pre><div class="info module top">
 Private nodes.<br>
 </div>
 <hr width="100%">
@@ -35,6 +35,10 @@ Private nodes.<br>
 <code class="code"><span class="constructor">Step</span></code> provides base functions on node steps.
 </div>
 
+<pre><span id="VALmerge"><span class="keyword">val</span> merge</span> : <code class="type">Path.t -> t -> key option Ir_merge.t</code></pre><div class="info ">
+<code class="code">merge</code> is the 3-way merge function for nodes keys.<br>
+</div>
+
 <pre><span class="keyword">module</span> <a href="Irmin.Private.Node.STORE.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre><div class="info">
 <code class="code"><span class="constructor">Key</span></code> provides base functions for node keys.
 </div>
@@ -43,5 +47,9 @@ Private nodes.<br>
                      and type node = key
                      and type step = Path.step</code></pre><div class="info">
 <code class="code"><span class="constructor">Val</span></code> provides base functions for node values.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Node.STORE.Contents.html">Contents</a>: <code class="type"><a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a></code><code class="type">  with type key = Val.raw_contents</code></pre><div class="info">
+<code class="code"><span class="constructor">Contents</span></code> is the underlying contents store.
 </div>
 </body></html>

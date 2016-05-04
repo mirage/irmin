@@ -70,6 +70,11 @@ Backend configuration.
 Private contents.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Node.STORE.Contents.html">Contents</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Contents</span></code> is the underlying contents store.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Contents.html">Contents</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">Contents</span></code> specifies how user-defined contents need to be <em>    serializable</em> and <em>mergeable</em>.
@@ -263,7 +268,7 @@ Build simple slices.
 <tr><td><a href="Irmin.Private.Node.Make.html">Make</a> [<a href="Irmin.Private.Node.html">Irmin.Private.Node</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">Node</span></code> provides a simple node implementation, parameterized by
-        the contents <code class="code"><span class="constructor">C</span></code>, node <code class="code"><span class="constructor">N</span></code> and paths <code class="code"><span class="constructor">P</span></code>.
+        the contents <code class="code"><span class="constructor">C</span></code>, node <code class="code"><span class="constructor">N</span></code>, paths <code class="code"><span class="constructor">P</span></code> and metadata <code class="code"><span class="constructor">M</span></code>.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Lock.Make.html">Make</a> [<a href="Irmin.Private.Lock.html">Irmin.Private.Lock</a>]</td>
@@ -274,11 +279,6 @@ Create a lock manager implementation.
 <tr><td><a href="Irmin.Private.Watch.Make.html">Make</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">Make</span></code> builds an implementation of watch helpers.
-</div>
-</td></tr>
-<tr><td><a href="Irmin.Contents.Make.html">Make</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
-<td><div class="info">
-<code class="code"><span class="constructor">Make</span></code> builds a contents store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.Make_ext.html">Make_ext</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
@@ -307,10 +307,26 @@ Embed an Irmin store into an in-memory Git repository.
     for various user-defined contents.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Node.S.Metadata.html">Metadata</a> [<a href="Irmin.Private.Node.S.html">Irmin.Private.Node.S</a>]</td>
+<td><div class="info">
+The type for metadata attached to content entries.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Metadata.html">Metadata</a> [<a href="Irmin.html">Irmin</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Metadata</span></code> defines metadata that is attached to contents but stored in
+    nodes.
+</div>
+</td></tr>
 <tr><td align="left"><br>N</td></tr>
 <tr><td><a href="Irmin.Private.S.Node.html">Node</a> [<a href="Irmin.Private.S.html">Irmin.Private.S</a>]</td>
 <td><div class="info">
 Private nodes.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Commit.STORE.Node.html">Node</a> [<a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Node</span></code> is the underlying node store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Node.html">Node</a> [<a href="Irmin.Private.html">Irmin.Private</a>]</td>
@@ -325,6 +341,11 @@ Private nodes.
         nothing.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Metadata.None.html">None</a> [<a href="Irmin.Metadata.html">Irmin.Metadata</a>]</td>
+<td><div class="info">
+A metadata definition for systems that don't use metadata.
+</div>
+</td></tr>
 <tr><td align="left"><br>O</td></tr>
 <tr><td><a href="Irmin.Merge.OP.html">OP</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
@@ -332,8 +353,6 @@ Useful merge operators.
 </div>
 </td></tr>
 <tr><td align="left"><br>P</td></tr>
-<tr><td><a href="Irmin.Private.Commit.HISTORY.Store.Path.html">Path</a> [<a href="Irmin.Private.Commit.HISTORY.Store.html">Irmin.Private.Commit.HISTORY.Store</a>]</td>
-<td></td></tr>
 <tr><td><a href="Irmin.Private.Node.STORE.Path.html">Path</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">Step</span></code> provides base functions on node steps.
@@ -436,14 +455,19 @@ The signature for slices.
 </td></tr>
 <tr><td><a href="Irmin.Path.S.Step.html">Step</a> [<a href="Irmin.Path.S.html">Irmin.Path.S</a>]</td>
 <td></td></tr>
-<tr><td><a href="Irmin.Private.Commit.HISTORY.Store.html">Store</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
+<tr><td><a href="Irmin.Private.Commit.Store.html">Store</a> [<a href="Irmin.Private.Commit.html">Irmin.Private.Commit</a>]</td>
 <td><div class="info">
-A history forms a <a href="Irmin.Private.Commit.STORE.html">store</a> of commits.
+<code class="code"><span class="constructor">Store</span></code> creates a new commit store.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Node.GRAPH.Store.html">Store</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
+<tr><td><a href="Irmin.Private.Node.Store.html">Store</a> [<a href="Irmin.Private.Node.html">Irmin.Private.Node</a>]</td>
 <td><div class="info">
-Graph nodes forms a <a href="Irmin.Contents.STORE.html">contents store</a>.
+<code class="code"><span class="constructor">Store</span></code> creates node stores.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Contents.Store.html">Store</a> [<a href="Irmin.Contents.html">Irmin.Contents</a>]</td>
+<td><div class="info">
+<code class="code"><span class="constructor">Store</span></code> creates a contents store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Ref.String.html">String</a> [<a href="Irmin.Ref.html">Irmin.Ref</a>]</td>

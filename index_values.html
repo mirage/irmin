@@ -321,6 +321,12 @@ Deconstruct the first element of the path.
 <code class="code">default k</code> is <code class="code">k</code>'s default value.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Metadata.S.html#VALdefault">default</a> [<a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a>]</td>
+<td><div class="info">
+The default metadata to attach, for APIs that don't
+        care about metadata.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Merge.html#VALdefault">default</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Create a default merge function.
@@ -686,13 +692,23 @@ Check if a key exists.
       branch.
 </div>
 </td></tr>
-<tr><td><a href="Irmin.Private.Commit.HISTORY.Store.html#VALmerge">merge</a> [<a href="Irmin.Private.Commit.HISTORY.Store.html">Irmin.Private.Commit.HISTORY.Store</a>]</td>
-<td></td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#VALmerge">merge</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
 <td><div class="info">
 <code class="code">merge t</code> is the 3-way merge function for commit.
 </div>
 </td></tr>
+<tr><td><a href="Irmin.Private.Commit.STORE.html#VALmerge">merge</a> [<a href="Irmin.Private.Commit.STORE.html">Irmin.Private.Commit.STORE</a>]</td>
+<td><div class="info">
+<code class="code">merge</code> is the 3-way merge function for commit keys.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Private.Node.STORE.html#VALmerge">merge</a> [<a href="Irmin.Private.Node.STORE.html">Irmin.Private.Node.STORE</a>]</td>
+<td><div class="info">
+<code class="code">merge</code> is the 3-way merge function for nodes keys.
+</div>
+</td></tr>
+<tr><td><a href="Irmin.Metadata.S.html#VALmerge">merge</a> [<a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Contents.STORE.html#VALmerge">merge</a> [<a href="Irmin.Contents.STORE.html">Irmin.Contents.STORE</a>]</td>
 <td><div class="info">
 <code class="code">merge t</code> lifts the merge functions defined on contents values

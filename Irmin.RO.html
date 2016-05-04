@@ -60,7 +60,7 @@ Same as <a href="Irmin.RO.html#VALread"><code class="code"><span class="construc
 Check if a key exists.<br>
 </div>
 
-<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -><br>       (<a href="Irmin.RO.html#TYPEkey">key</a> -> <a href="Irmin.RO.html#TYPEvalue">value</a> Lwt.t -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
+<pre><span id="VALiter"><span class="keyword">val</span> iter</span> : <code class="type"><a href="Irmin.RO.html#TYPEt">t</a> -><br>       (<a href="Irmin.RO.html#TYPEkey">key</a> -> (unit -> <a href="Irmin.RO.html#TYPEvalue">value</a> Lwt.t) -> unit Lwt.t) -> unit Lwt.t</code></pre><div class="info ">
 <code class="code">iter t fn</code> call the function <code class="code">fn</code> on all <code class="code">t</code>'s keys and
       values.<br>
 </div>

@@ -67,14 +67,14 @@ Cstruct values where only the last modified value is kept on
 Contents store.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="code"><span class="keyword">sig</span></code><div class="sig_block">
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.Store.html">Store</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="code"><span class="keyword">sig</span></code><div class="sig_block">
 <pre><span class="keyword">include</span> Irmin.AO</pre>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.Make.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin.Contents.Make.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre></div><code class="code"><span class="keyword">end</span></code><code class="code">) </code>: <code class="type"><a href="Irmin.Contents.STORE.html">STORE</a></code><code class="type">  with type t = S.t
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.Store.Key.html">Key</a>: <code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = key</code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin.Contents.Store.Val.html">Val</a>: <code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="type">  with type t = value</code></pre></div><code class="code"><span class="keyword">end</span></code><code class="code">) </code>: <code class="type"><a href="Irmin.Contents.STORE.html">STORE</a></code><code class="type">  with type t = S.t
            and type key = S.key
            and type value = S.value
            and module Path = S.Val.Path</code></pre><div class="info">
-<code class="code"><span class="constructor">Make</span></code> builds a contents store.
+<code class="code"><span class="constructor">Store</span></code> creates a contents store.
 </div>
 </body></html>

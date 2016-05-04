@@ -18,7 +18,6 @@
 <link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
 <link title="High-level Stores" rel="Section" href="#1_HighlevelStores">
 <link title="Examples" rel="Section" href="#examples">
-<link title="Examples" rel="Section" href="#examples">
 <link title="Helpers" rel="Section" href="#1_Helpers">
 <link title="Backends" rel="Section" href="#backend">
 <link title="Synchronization" rel="Subsection" href="#2_Synchronization">
@@ -152,6 +151,11 @@ Hashing functions.
 <pre><span class="keyword">module</span> <a href="Irmin.Ref.html">Ref</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Ref.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 User-defined references.
 </div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Metadata.html">Metadata</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Metadata.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<code class="code"><span class="constructor">Metadata</span></code> defines metadata that is attached to contents but stored in
+    nodes.
+</div>
 <br>
 <h1 id="1_HighlevelStores">High-level Stores</h1>
 <p>
@@ -229,25 +233,25 @@ The type for remote stores.<br>
     the missing contents is downloaded.
 <p>
 
-<pre class="codepre"><code class="code"><span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span><br>
-<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
-<br>
-<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)<br>
-<span class="keyword">module</span>&nbsp;<span class="constructor">Sync</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Sync</span>(<span class="constructor">S</span>)<br>
-<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/test"</span>&nbsp;()<br>
-<br>
-<span class="keyword">let</span>&nbsp;upstream&nbsp;=<br>
-&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;<span class="constructor">Array</span>.length&nbsp;<span class="constructor">Sys</span>.argv&nbsp;=&nbsp;2&nbsp;<span class="keyword">then</span>&nbsp;(<span class="constructor">Irmin</span>.remote_uri&nbsp;<span class="constructor">Sys</span>.argv.(1))<br>
-&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;(<span class="constructor">Printf</span>.eprintf&nbsp;<span class="string">"Usage:&nbsp;sync&nbsp;[uri]\n%!"</span>;&nbsp;exit&nbsp;1)<br>
-<br>
-<span class="keyword">let</span>&nbsp;test&nbsp;()&nbsp;=<br>
-&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task<br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sync</span>.pull_exn&nbsp;(t&nbsp;<span class="string">"Syncing&nbsp;with&nbsp;upstream&nbsp;store"</span>)&nbsp;upstream&nbsp;<span class="keywordsign">`</span><span class="constructor">Update</span><br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">S</span>.read_exn&nbsp;(t&nbsp;<span class="string">"get&nbsp;the&nbsp;README"</span>)&nbsp;[<span class="string">"README.md"</span>]<br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;r&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"%s\n%!"</span>&nbsp;r;&nbsp;return_unit<br>
-<br>
-<span class="keyword">let</span>&nbsp;()&nbsp;=<br>
-&nbsp;&nbsp;<span class="constructor">Lwt_main</span>.run&nbsp;(test&nbsp;())<br>
+<pre class="codepre"><code class="code"><span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span>
+<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span>
+
+<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)
+<span class="keyword">module</span>&nbsp;<span class="constructor">Sync</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Sync</span>(<span class="constructor">S</span>)
+<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/test"</span>&nbsp;()
+
+<span class="keyword">let</span>&nbsp;upstream&nbsp;=
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;<span class="constructor">Array</span>.length&nbsp;<span class="constructor">Sys</span>.argv&nbsp;=&nbsp;2&nbsp;<span class="keyword">then</span>&nbsp;(<span class="constructor">Irmin</span>.remote_uri&nbsp;<span class="constructor">Sys</span>.argv.(1))
+&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;(<span class="constructor">Printf</span>.eprintf&nbsp;<span class="string">"Usage:&nbsp;sync&nbsp;[uri]\n%!"</span>;&nbsp;exit&nbsp;1)
+
+<span class="keyword">let</span>&nbsp;test&nbsp;()&nbsp;=
+&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sync</span>.pull_exn&nbsp;(t&nbsp;<span class="string">"Syncing&nbsp;with&nbsp;upstream&nbsp;store"</span>)&nbsp;upstream&nbsp;<span class="keywordsign">`</span><span class="constructor">Update</span>
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">S</span>.read_exn&nbsp;(t&nbsp;<span class="string">"get&nbsp;the&nbsp;README"</span>)&nbsp;[<span class="string">"README.md"</span>]
+&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;r&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"%s\n%!"</span>&nbsp;r;&nbsp;return_unit
+
+<span class="keyword">let</span>&nbsp;()&nbsp;=
+&nbsp;&nbsp;<span class="constructor">Lwt_main</span>.run&nbsp;(test&nbsp;())
 </code></pre>
 <p>
 
@@ -260,12 +264,12 @@ The type for remote stores.<br>
     exposed by <a href="https://github.com/mirage/mirage-tc">mirage-tc</a>:
 <p>
 
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Entry</span>&nbsp;=&nbsp;<span class="keyword">struct</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">include</span>&nbsp;<span class="constructor">Tc</span>.<span class="constructor">Pair</span>&nbsp;(<span class="constructor">Tc</span>.<span class="constructor">Int</span>)(<span class="constructor">Tc</span>.<span class="constructor">String</span>)<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;compare&nbsp;(x,&nbsp;_)&nbsp;(y,&nbsp;_)&nbsp;=&nbsp;<span class="constructor">Pervasives</span>.compare&nbsp;x&nbsp;y<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;time&nbsp;=&nbsp;ref&nbsp;0<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;create&nbsp;message&nbsp;=&nbsp;incr&nbsp;time;&nbsp;!time,&nbsp;message<br>
-&nbsp;&nbsp;<span class="keyword">end</span><br>
+<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Entry</span>&nbsp;=&nbsp;<span class="keyword">struct</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">include</span>&nbsp;<span class="constructor">Tc</span>.<span class="constructor">Pair</span>&nbsp;(<span class="constructor">Tc</span>.<span class="constructor">Int</span>)(<span class="constructor">Tc</span>.<span class="constructor">String</span>)
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;compare&nbsp;(x,&nbsp;_)&nbsp;(y,&nbsp;_)&nbsp;=&nbsp;<span class="constructor">Pervasives</span>.compare&nbsp;x&nbsp;y
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;time&nbsp;=&nbsp;ref&nbsp;0
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;create&nbsp;message&nbsp;=&nbsp;incr&nbsp;time;&nbsp;!time,&nbsp;message
+&nbsp;&nbsp;<span class="keyword">end</span>
 </code></pre>
 <p>
 
@@ -275,38 +279,38 @@ The type for remote stores.<br>
     to the common ancestor's ones.
 <p>
 
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Log</span>:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">S</span>&nbsp;<span class="keyword">with</span>&nbsp;<span class="keyword">type</span>&nbsp;t&nbsp;=&nbsp;<span class="constructor">Entry</span>.t&nbsp;list&nbsp;=&nbsp;<span class="keyword">struct</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Path</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Path</span>.<span class="constructor">String_list</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Tc</span>.<span class="constructor">List</span>(<span class="constructor">Entry</span>)<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">include</span>&nbsp;<span class="constructor">S</span><br>
-<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Get&nbsp;the&nbsp;timestamp&nbsp;of&nbsp;the&nbsp;latest&nbsp;entry.&nbsp;*)</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;timestamp&nbsp;=&nbsp;<span class="keyword">function</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;0<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(timestamp,&nbsp;_&nbsp;)&nbsp;::&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;timestamp<br>
-<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Compute&nbsp;the&nbsp;entries&nbsp;newer&nbsp;than&nbsp;the&nbsp;given&nbsp;timestamp.&nbsp;*)</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;newer_than&nbsp;timestamp&nbsp;entries&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;acc&nbsp;=&nbsp;<span class="keyword">function</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.rev&nbsp;acc<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(h,&nbsp;_)&nbsp;::&nbsp;_&nbsp;<span class="keyword">when</span>&nbsp;h&nbsp;&lt;=&nbsp;timestamp&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.rev&nbsp;acc<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;h::t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;aux&nbsp;(h::acc)&nbsp;t<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;[]&nbsp;entries<br>
-<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;merge_log&nbsp;_path&nbsp;~old&nbsp;t1&nbsp;t2&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">OP</span>&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;old&nbsp;()&nbsp;&gt;&gt;|&nbsp;<span class="keyword">fun</span>&nbsp;old&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;old&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;old&nbsp;<span class="keyword">with</span>&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;o&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;o&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;ts&nbsp;=&nbsp;timestamp&nbsp;old&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t1&nbsp;=&nbsp;newer_than&nbsp;ts&nbsp;t1&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t2&nbsp;=&nbsp;newer_than&nbsp;ts&nbsp;t2&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t3&nbsp;=&nbsp;<span class="constructor">List</span>.sort&nbsp;<span class="constructor">Entry</span>.compare&nbsp;(<span class="constructor">List</span>.rev_append&nbsp;t1&nbsp;t2)&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ok&nbsp;(<span class="constructor">List</span>.rev_append&nbsp;t3&nbsp;old)<br>
-<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;merge&nbsp;path&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.option&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>)&nbsp;(merge_log&nbsp;path)<br>
-<br>
-&nbsp;&nbsp;<span class="keyword">end</span><br>
+<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Log</span>:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">S</span>&nbsp;<span class="keyword">with</span>&nbsp;<span class="keyword">type</span>&nbsp;t&nbsp;=&nbsp;<span class="constructor">Entry</span>.t&nbsp;list&nbsp;=&nbsp;<span class="keyword">struct</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Path</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Path</span>.<span class="constructor">String_list</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Tc</span>.<span class="constructor">List</span>(<span class="constructor">Entry</span>)
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">include</span>&nbsp;<span class="constructor">S</span>
+
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Get&nbsp;the&nbsp;timestamp&nbsp;of&nbsp;the&nbsp;latest&nbsp;entry.&nbsp;*)</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;timestamp&nbsp;=&nbsp;<span class="keyword">function</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;0
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(timestamp,&nbsp;_&nbsp;)&nbsp;::&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;timestamp
+
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Compute&nbsp;the&nbsp;entries&nbsp;newer&nbsp;than&nbsp;the&nbsp;given&nbsp;timestamp.&nbsp;*)</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;newer_than&nbsp;timestamp&nbsp;entries&nbsp;=
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;acc&nbsp;=&nbsp;<span class="keyword">function</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.rev&nbsp;acc
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(h,&nbsp;_)&nbsp;::&nbsp;_&nbsp;<span class="keyword">when</span>&nbsp;h&nbsp;&lt;=&nbsp;timestamp&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.rev&nbsp;acc
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;h::t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;aux&nbsp;(h::acc)&nbsp;t
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;[]&nbsp;entries
+
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;merge_log&nbsp;_path&nbsp;~old&nbsp;t1&nbsp;t2&nbsp;=
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">OP</span>&nbsp;<span class="keyword">in</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;old&nbsp;()&nbsp;&gt;&gt;|&nbsp;<span class="keyword">fun</span>&nbsp;old&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;old&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;old&nbsp;<span class="keyword">with</span>&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;o&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;o&nbsp;<span class="keyword">in</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;ts&nbsp;=&nbsp;timestamp&nbsp;old&nbsp;<span class="keyword">in</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t1&nbsp;=&nbsp;newer_than&nbsp;ts&nbsp;t1&nbsp;<span class="keyword">in</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t2&nbsp;=&nbsp;newer_than&nbsp;ts&nbsp;t2&nbsp;<span class="keyword">in</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t3&nbsp;=&nbsp;<span class="constructor">List</span>.sort&nbsp;<span class="constructor">Entry</span>.compare&nbsp;(<span class="constructor">List</span>.rev_append&nbsp;t1&nbsp;t2)&nbsp;<span class="keyword">in</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ok&nbsp;(<span class="constructor">List</span>.rev_append&nbsp;t3&nbsp;old)
+
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;merge&nbsp;path&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.option&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>)&nbsp;(merge_log&nbsp;path)
+
+&nbsp;&nbsp;<span class="keyword">end</span>
 </code></pre>
 <p>
 
@@ -321,209 +325,52 @@ The type for remote stores.<br>
     show here how to use the on-disk <code class="code"><span class="constructor">Git</span></code> backend on Unix.
 <p>
 
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="comment">(*&nbsp;Bring&nbsp;[Irmin_unix.task]&nbsp;and&nbsp;[Irmin_unix.Irmin_git]&nbsp;in&nbsp;scope.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Build&nbsp;an&nbsp;Irmin&nbsp;store&nbsp;containing&nbsp;log&nbsp;files.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Log</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)<br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Set-up&nbsp;the&nbsp;local&nbsp;configuration&nbsp;of&nbsp;the&nbsp;Git&nbsp;repository.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/irmin/test"</span>&nbsp;~bare:<span class="keyword">true</span>&nbsp;()<br>
+<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="comment">(*&nbsp;Bring&nbsp;[Irmin_unix.task]&nbsp;and&nbsp;[Irmin_unix.Irmin_git]&nbsp;in&nbsp;scope.&nbsp;*)</span>
+&nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span>
+
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Build&nbsp;an&nbsp;Irmin&nbsp;store&nbsp;containing&nbsp;log&nbsp;files.&nbsp;*)</span>
+&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Log</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)
+
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Set-up&nbsp;the&nbsp;local&nbsp;configuration&nbsp;of&nbsp;the&nbsp;Git&nbsp;repository.&nbsp;*)</span>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/irmin/test"</span>&nbsp;~bare:<span class="keyword">true</span>&nbsp;()
 </code></pre>
 <p>
 
   We can now define a toy example to use our mergeable log files.
 <p>
 
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span><br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Name&nbsp;of&nbsp;the&nbsp;log&nbsp;file.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;file&nbsp;=&nbsp;[&nbsp;<span class="string">"local"</span>;&nbsp;<span class="string">"debug"</span>&nbsp;]<br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Read&nbsp;the&nbsp;entire&nbsp;log&nbsp;file.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;read_file&nbsp;t&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.read&nbsp;(t&nbsp;<span class="string">"Reading&nbsp;the&nbsp;log&nbsp;file"</span>)&nbsp;file&nbsp;&gt;&gt;=&nbsp;<span class="keyword">function</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_nil<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;l&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return&nbsp;l<br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Persist&nbsp;a&nbsp;new&nbsp;entry&nbsp;in&nbsp;the&nbsp;log.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;log&nbsp;t&nbsp;fmt&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.ksprintf&nbsp;(<span class="keyword">fun</span>&nbsp;message&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;read_file&nbsp;t&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;logs&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;logs&nbsp;=&nbsp;<span class="constructor">Entry</span>.create&nbsp;message&nbsp;::&nbsp;logs&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.update&nbsp;(t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;entry"</span>)&nbsp;file&nbsp;logs<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;fmt<br>
-<br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;()&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Lwt_unix</span>.run&nbsp;<span class="keyword">begin</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;log&nbsp;entry"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.clone_force&nbsp;task&nbsp;(t&nbsp;<span class="string">"Cloning&nbsp;the&nbsp;store"</span>)&nbsp;<span class="string">"x"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;x&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;new&nbsp;stuff&nbsp;to&nbsp;x"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;more&nbsp;stuff&nbsp;to&nbsp;x"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"More.&nbsp;Stuff.&nbsp;To&nbsp;x."</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"I&nbsp;can&nbsp;add&nbsp;stuff&nbsp;on&nbsp;t&nbsp;also"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Yes.&nbsp;On&nbsp;t!"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.merge_exn&nbsp;<span class="string">"Merging&nbsp;x&nbsp;into&nbsp;t"</span>&nbsp;x&nbsp;~into:t<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_unit<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
-</code></pre><br>
-<br>
-<h1 id="examples">Examples</h1>
-<p>
+<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span>
 
-    These examples are in the <code class="code">examples</code> directory of the
-    distribution.
-<p>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Name&nbsp;of&nbsp;the&nbsp;log&nbsp;file.&nbsp;*)</span>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;file&nbsp;=&nbsp;[&nbsp;<span class="string">"local"</span>;&nbsp;<span class="string">"debug"</span>&nbsp;]
 
-    <h3 id="3_Synchronization">Synchronization</h3>
-<p>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Read&nbsp;the&nbsp;entire&nbsp;log&nbsp;file.&nbsp;*)</span>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;read_file&nbsp;t&nbsp;=
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.read&nbsp;(t&nbsp;<span class="string">"Reading&nbsp;the&nbsp;log&nbsp;file"</span>)&nbsp;file&nbsp;&gt;&gt;=&nbsp;<span class="keyword">function</span>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_nil
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;l&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return&nbsp;l
 
-    A simple synchronization example, using the
-    <a href="Irmin_unix.Irmin_git.html">Git</a> backend and the <a href="Irmin.Sync.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Sync</span></code></a> helpers. The
-    code clones a fresh repository if the repository does not exist
-    locally, otherwise it performs a fetch: in this case, only
-    the missing contents is downloaded.
-<p>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Persist&nbsp;a&nbsp;new&nbsp;entry&nbsp;in&nbsp;the&nbsp;log.&nbsp;*)</span>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;log&nbsp;t&nbsp;fmt&nbsp;=
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.ksprintf&nbsp;(<span class="keyword">fun</span>&nbsp;message&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;read_file&nbsp;t&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;logs&nbsp;<span class="keywordsign">-&gt;</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;logs&nbsp;=&nbsp;<span class="constructor">Entry</span>.create&nbsp;message&nbsp;::&nbsp;logs&nbsp;<span class="keyword">in</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.update&nbsp;(t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;entry"</span>)&nbsp;file&nbsp;logs
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;fmt
 
-<pre class="codepre"><code class="code"><span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span><br>
-<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
-<br>
-<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)<br>
-<span class="keyword">module</span>&nbsp;<span class="constructor">Sync</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Sync</span>(<span class="constructor">S</span>)<br>
-<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/test"</span>&nbsp;()<br>
-<br>
-<span class="keyword">let</span>&nbsp;upstream&nbsp;=<br>
-&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;<span class="constructor">Array</span>.length&nbsp;<span class="constructor">Sys</span>.argv&nbsp;=&nbsp;2&nbsp;<span class="keyword">then</span>&nbsp;(<span class="constructor">Irmin</span>.remote_uri&nbsp;<span class="constructor">Sys</span>.argv.(1))<br>
-&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;(<span class="constructor">Printf</span>.eprintf&nbsp;<span class="string">"Usage:&nbsp;sync&nbsp;[uri]\n%!"</span>;&nbsp;exit&nbsp;1)<br>
-<br>
-<span class="keyword">let</span>&nbsp;test&nbsp;()&nbsp;=<br>
-&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task<br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Sync</span>.pull_exn&nbsp;(t&nbsp;<span class="string">"Syncing&nbsp;with&nbsp;upstream&nbsp;store"</span>)&nbsp;upstream&nbsp;<span class="keywordsign">`</span><span class="constructor">Update</span><br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">S</span>.read_exn&nbsp;(t&nbsp;<span class="string">"get&nbsp;the&nbsp;README"</span>)&nbsp;[<span class="string">"README.md"</span>]<br>
-&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;r&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"%s\n%!"</span>&nbsp;r;&nbsp;return_unit<br>
-<br>
-<span class="keyword">let</span>&nbsp;()&nbsp;=<br>
-&nbsp;&nbsp;<span class="constructor">Lwt_main</span>.run&nbsp;(test&nbsp;())<br>
-</code></pre>
-<p>
-
-    <h3 id="3_Mergeablelogs">Mergeable logs</h3>
-<p>
-
-    We will demonstrate the use of custom merge operators by
-    defining mergeable debug log files. We first define a log entry
-    as a pair of a timestamp and a message, using the combinator
-    exposed by <a href="https://github.com/mirage/mirage-tc">mirage-tc</a>:
-<p>
-
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Entry</span>&nbsp;=&nbsp;<span class="keyword">struct</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">include</span>&nbsp;<span class="constructor">Tc</span>.<span class="constructor">Pair</span>&nbsp;(<span class="constructor">Tc</span>.<span class="constructor">Int</span>)(<span class="constructor">Tc</span>.<span class="constructor">String</span>)<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;compare&nbsp;(x,&nbsp;_)&nbsp;(y,&nbsp;_)&nbsp;=&nbsp;<span class="constructor">Pervasives</span>.compare&nbsp;x&nbsp;y<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;time&nbsp;=&nbsp;ref&nbsp;0<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;create&nbsp;message&nbsp;=&nbsp;incr&nbsp;time;&nbsp;!time,&nbsp;message<br>
-&nbsp;&nbsp;<span class="keyword">end</span><br>
-</code></pre>
-<p>
-
-    A log file is a list of entries (one per line), ordered by
-    decreasing order of timestamps. The 3-way <code class="code">merge</code> operator for log
-    files concatenates and sorts the new entries and prepend them
-    to the common ancestor's ones.
-<p>
-
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Log</span>:&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Contents</span>.<span class="constructor">S</span>&nbsp;<span class="keyword">with</span>&nbsp;<span class="keyword">type</span>&nbsp;t&nbsp;=&nbsp;<span class="constructor">Entry</span>.t&nbsp;list&nbsp;=&nbsp;<span class="keyword">struct</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">Path</span>&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Path</span>.<span class="constructor">String_list</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Tc</span>.<span class="constructor">List</span>(<span class="constructor">Entry</span>)<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">include</span>&nbsp;<span class="constructor">S</span><br>
-<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Get&nbsp;the&nbsp;timestamp&nbsp;of&nbsp;the&nbsp;latest&nbsp;entry.&nbsp;*)</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;timestamp&nbsp;=&nbsp;<span class="keyword">function</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;0<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(timestamp,&nbsp;_&nbsp;)&nbsp;::&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;timestamp<br>
-<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Compute&nbsp;the&nbsp;entries&nbsp;newer&nbsp;than&nbsp;the&nbsp;given&nbsp;timestamp.&nbsp;*)</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;newer_than&nbsp;timestamp&nbsp;entries&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;acc&nbsp;=&nbsp;<span class="keyword">function</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.rev&nbsp;acc<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(h,&nbsp;_)&nbsp;::&nbsp;_&nbsp;<span class="keyword">when</span>&nbsp;h&nbsp;&lt;=&nbsp;timestamp&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.rev&nbsp;acc<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;h::t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;aux&nbsp;(h::acc)&nbsp;t<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;[]&nbsp;entries<br>
-<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;merge_log&nbsp;_path&nbsp;~old&nbsp;t1&nbsp;t2&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.<span class="constructor">OP</span>&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;old&nbsp;()&nbsp;&gt;&gt;|&nbsp;<span class="keyword">fun</span>&nbsp;old&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;old&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;old&nbsp;<span class="keyword">with</span>&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;o&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;o&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;ts&nbsp;=&nbsp;timestamp&nbsp;old&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t1&nbsp;=&nbsp;newer_than&nbsp;ts&nbsp;t1&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t2&nbsp;=&nbsp;newer_than&nbsp;ts&nbsp;t2&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t3&nbsp;=&nbsp;<span class="constructor">List</span>.sort&nbsp;<span class="constructor">Entry</span>.compare&nbsp;(<span class="constructor">List</span>.rev_append&nbsp;t1&nbsp;t2)&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ok&nbsp;(<span class="constructor">List</span>.rev_append&nbsp;t3&nbsp;old)<br>
-<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;merge&nbsp;path&nbsp;=&nbsp;<span class="constructor">Irmin</span>.<span class="constructor">Merge</span>.option&nbsp;(<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>)&nbsp;(merge_log&nbsp;path)<br>
-<br>
-&nbsp;&nbsp;<span class="keyword">end</span><br>
-</code></pre>
-<p>
-
-    <b>Note:</b> The serialisation primitives provided by
-    <a href="https://github.com/mirage/mirage-tc">mirage-tc</a>: are not very
-    efficient in this case as they parse the file every-time. For real
-    usage, you would write buffered versions of <code class="code"><span class="constructor">Log</span>.read</code> and
-    <code class="code"><span class="constructor">Log</span>.write</code>.
-<p>
-
-    To persist the log file on disk, we need to choose a backend. We
-    show here how to use the on-disk <code class="code"><span class="constructor">Git</span></code> backend on Unix.
-<p>
-
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="comment">(*&nbsp;Bring&nbsp;[Irmin_unix.task]&nbsp;and&nbsp;[Irmin_unix.Irmin_git]&nbsp;in&nbsp;scope.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Irmin_unix</span><br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Build&nbsp;an&nbsp;Irmin&nbsp;store&nbsp;containing&nbsp;log&nbsp;files.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">module</span>&nbsp;<span class="constructor">S</span>&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.<span class="constructor">FS</span>(<span class="constructor">Log</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Ref</span>.<span class="constructor">String</span>)(<span class="constructor">Irmin</span>.<span class="constructor">Hash</span>.<span class="constructor">SHA1</span>)<br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Set-up&nbsp;the&nbsp;local&nbsp;configuration&nbsp;of&nbsp;the&nbsp;Git&nbsp;repository.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;config&nbsp;=&nbsp;<span class="constructor">Irmin_git</span>.config&nbsp;~root:<span class="string">"/tmp/irmin/test"</span>&nbsp;~bare:<span class="keyword">true</span>&nbsp;()<br>
-</code></pre>
-<p>
-
-  We can now define a toy example to use our mergeable log files.
-<p>
-
-<pre class="codepre"><code class="code">&nbsp;&nbsp;<span class="keyword">open</span>&nbsp;<span class="constructor">Lwt</span><br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Name&nbsp;of&nbsp;the&nbsp;log&nbsp;file.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;file&nbsp;=&nbsp;[&nbsp;<span class="string">"local"</span>;&nbsp;<span class="string">"debug"</span>&nbsp;]<br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Read&nbsp;the&nbsp;entire&nbsp;log&nbsp;file.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;read_file&nbsp;t&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.read&nbsp;(t&nbsp;<span class="string">"Reading&nbsp;the&nbsp;log&nbsp;file"</span>)&nbsp;file&nbsp;&gt;&gt;=&nbsp;<span class="keyword">function</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_nil<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;l&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return&nbsp;l<br>
-<br>
-&nbsp;&nbsp;<span class="comment">(*&nbsp;Persist&nbsp;a&nbsp;new&nbsp;entry&nbsp;in&nbsp;the&nbsp;log.&nbsp;*)</span><br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;log&nbsp;t&nbsp;fmt&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.ksprintf&nbsp;(<span class="keyword">fun</span>&nbsp;message&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;read_file&nbsp;t&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;logs&nbsp;<span class="keywordsign">-&gt;</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;logs&nbsp;=&nbsp;<span class="constructor">Entry</span>.create&nbsp;message&nbsp;::&nbsp;logs&nbsp;<span class="keyword">in</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.update&nbsp;(t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;entry"</span>)&nbsp;file&nbsp;logs<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;fmt<br>
-<br>
-&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;()&nbsp;=<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Lwt_unix</span>.run&nbsp;<span class="keyword">begin</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;log&nbsp;entry"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.clone_force&nbsp;task&nbsp;(t&nbsp;<span class="string">"Cloning&nbsp;the&nbsp;store"</span>)&nbsp;<span class="string">"x"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;x&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;new&nbsp;stuff&nbsp;to&nbsp;x"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;more&nbsp;stuff&nbsp;to&nbsp;x"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"More.&nbsp;Stuff.&nbsp;To&nbsp;x."</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"I&nbsp;can&nbsp;add&nbsp;stuff&nbsp;on&nbsp;t&nbsp;also"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Yes.&nbsp;On&nbsp;t!"</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.merge_exn&nbsp;<span class="string">"Merging&nbsp;x&nbsp;into&nbsp;t"</span>&nbsp;x&nbsp;~into:t<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_unit<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;()&nbsp;=
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Lwt_main</span>.run&nbsp;<span class="keyword">begin</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">S</span>.<span class="constructor">Repo</span>.create&nbsp;config&nbsp;&gt;&gt;=&nbsp;<span class="constructor">S</span>.master&nbsp;task
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;t&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Adding&nbsp;a&nbsp;new&nbsp;log&nbsp;entry"</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.clone_force&nbsp;task&nbsp;(t&nbsp;<span class="string">"Cloning&nbsp;the&nbsp;store"</span>)&nbsp;<span class="string">"x"</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;x&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;new&nbsp;stuff&nbsp;to&nbsp;x"</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"Adding&nbsp;more&nbsp;stuff&nbsp;to&nbsp;x"</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;x&nbsp;<span class="string">"More.&nbsp;Stuff.&nbsp;To&nbsp;x."</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"I&nbsp;can&nbsp;add&nbsp;stuff&nbsp;on&nbsp;t&nbsp;also"</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;log&nbsp;t&nbsp;<span class="string">"Yes.&nbsp;On&nbsp;t!"</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Irmin</span>.merge_exn&nbsp;<span class="string">"Merging&nbsp;x&nbsp;into&nbsp;t"</span>&nbsp;x&nbsp;~into:t
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;=&nbsp;<span class="keyword">fun</span>&nbsp;()&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;return_unit
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>
 </code></pre><br>
 <br>
 <h1 id="1_Helpers">Helpers</h1><br>
@@ -629,7 +476,8 @@ Simple store creator.
    and type branch_id = P.Ref.key
    and type commit_id = P.Ref.value
    and type Key.step = P.Contents.Path.step
-   and type Repo.t = P.Repo.t</code></pre><div class="info">
+   and type Repo.t = P.Repo.t
+   and module Private.Node.Val.Metadata = P.Node.Val.Metadata</code></pre><div class="info">
 Advanced store creator.
 </div>
 </body></html>
