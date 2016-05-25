@@ -17,52 +17,259 @@
 
 open Lwt.Infix
 
-(***** views *)
+module Make (S: Ir_s.STORE_EXT) = struct
 
-module type NODE = sig
-  type t
-  type node
-  type contents
-  module Contents: Tc.S0 with type t = contents
-  module Path: Ir_s.PATH
-
-  val equal: t -> t -> bool
-  val empty: unit -> t
-  val is_empty: t -> bool Lwt.t
-
-  val read: t -> node option Lwt.t
-
-  val read_contents: t -> Path.step -> contents option Lwt.t
-
-  val with_contents: t -> Path.step -> contents option -> t option Lwt.t
-  (* Return [true] iff the contents has actually changed. Used for
-     invalidating the view cache if needed. *)
-
-  val read_succ: node -> Path.step -> t option
-
-  val with_succ: t -> Path.step -> t option -> t option Lwt.t
-  (* Return [true] iff the successors has actually changes. Used for
-     invalidating the view cache if needed. *)
-
-  val steps: t -> Path.step list Lwt.t
-end
-
-module Internal (Node: NODE) = struct
-
-  module Path = Node.Path
+  module P = S.Private
+  module Path = S.Key
   module PathSet = Ir_misc.Set(Path)
 
-  type key = Path.t
-  type value = Node.contents
+  module Step = Path.Step
+  module StepMap = Ir_misc.Map(Path.Step)
+  module StepSet = Ir_misc.Set(Path.Step)
 
-  type t = [`Empty | `Node of Node.t | `Contents of Node.contents]
+  module Metadata = P.Node.Val.Metadata
+
+  type key = S.key
+  type value = S.value
+
+  module Contents = struct
+
+    type key = S.Repo.t * S.Private.Contents.key
+
+    type contents_or_key =
+      | Key of key
+      | Contents of S.value
+      | Both of key * S.value
+
+    type t = contents_or_key ref
+    (* Same as [Contents.t] but can either be a raw contents or a key
+       that will be fetched lazily. *)
+
+    let create c =
+      ref (Contents c)
+
+    let export c =
+      match !c with
+      | Both ((_, k), _)
+      | Key (_, k) -> k
+      | Contents _ -> failwith "Contents.export"
+
+    let key db k =
+      ref (Key (db, k))
+
+    let read t =
+      match !t with
+      | Both (_, c)
+      | Contents c -> Lwt.return (Some c)
+      | Key (db, k as key) ->
+        P.Contents.read (P.Repo.contents_t db) k >>= function
+        | None   -> Lwt.return_none
+        | Some c ->
+          t := Both (key, c);
+          Lwt.return (Some c)
+
+    let equal (x:t) (y:t) =
+      x == y
+      ||
+      match !x, !y with
+      | (Key (_,x) | Both ((_,x),_)), (Key (_,y) | Both ((_,y),_)) ->
+        P.Contents.Key.equal x y
+      | (Contents x | Both (_, x)), (Contents y | Both (_, y)) ->
+        P.Contents.Val.equal x y
+      | _ -> false
+
+  end
+
+  module Node = struct
+
+    type node = {
+      contents: Contents.t StepMap.t;
+      succ    : t StepMap.t;
+      alist   : (Path.step * [`Contents of Contents.t | `Node of t ]) list Lazy.t;
+    }
+
+    and t = {
+      mutable node: node option ;
+      mutable key: (S.Repo.t * P.Node.key) option ;
+    }
+
+    let rec equal (x:t) (y:t) =
+      match x, y with
+      | { key = Some (_,x) ; _ }, { key = Some (_,y) ; _ } ->
+        P.Node.Key.equal x y
+      | { node = Some x ; _ }, { node = Some y ; _ } ->
+        List.length (Lazy.force x.alist) = List.length (Lazy.force y.alist)
+        && List.for_all2 (fun (s1, n1) (s2, n2) ->
+            Step.equal s1 s2
+            && match n1, n2 with
+            | `Contents n1, `Contents n2 -> Contents.equal n1 n2
+            | `Node n1, `Node n2 -> equal n1 n2
+            | _ -> false) (Lazy.force x.alist) (Lazy.force y.alist)
+      | _ -> false
+
+    let mk_alist contents succ =
+      lazy (
+        StepMap.fold
+          (fun step c acc -> (step, `Contents c) :: acc)
+          contents @@
+        StepMap.fold
+          (fun step c acc -> (step, `Node c) :: acc)
+          succ
+          [])
+    let mk_index alist =
+      List.fold_left (fun (contents, succ) (l, x) ->
+          match x with
+          | `Contents c -> StepMap.add l c contents, succ
+          | `Node n     -> contents, StepMap.add l n succ
+        ) (StepMap.empty, StepMap.empty) alist
+
+    let create_node contents succ =
+      let alist = mk_alist contents succ in
+      { contents; succ; alist }
+
+    let create contents succ =
+      { key = None ; node = Some (create_node contents succ) }
+
+    let key db k =
+      { key = Some (db, k) ; node = None }
+
+    let both db k v =
+      { key = Some (db, k) ; node = Some v }
+
+    let empty () = create StepMap.empty StepMap.empty
+
+    let import t n =
+      let alist = P.Node.Val.alist n in
+      let alist = List.map (fun (l, x) ->
+          match x with
+          | `Contents (c, _meta) -> (l, `Contents (Contents.key t c))
+          | `Node n     -> (l, `Node (key t n))
+        ) alist in
+      let contents, succ = mk_index alist in
+      create_node contents succ
+
+    let export n =
+      match n.key with
+      | Some (_, k) -> k
+      | None -> Pervasives.failwith "Node.export"
+
+    let export_node n =
+      let alist = List.map (fun (l, x) ->
+          match x with
+          | `Contents c -> (l, `Contents (Contents.export c,
+                                          P.Node.Val.Metadata.default))
+          | `Node n     -> (l, `Node (export n))
+        ) (Lazy.force n.alist)
+      in
+      P.Node.Val.create alist
+
+    let read t =
+      match t with
+      | { key = None ; node = None } -> assert false
+      | { node = Some n ; _ } -> Lwt.return (Some n)
+      | { key = Some (db, k) ; _ } ->
+        P.Node.read (P.Repo.node_t db) k >>= function
+        | None   -> Lwt.return_none
+        | Some n ->
+          let n = import db n in
+          t.node <- Some n;
+          Lwt.return (Some n)
+
+    let is_empty t =
+      read t >>= function
+      | None   -> Lwt.return false
+      | Some n -> Lwt.return (Lazy.force n.alist = [])
+
+    let steps t =
+      read t >>= function
+      | None    -> Lwt.return_nil
+      | Some  n ->
+        let steps = ref StepSet.empty in
+        List.iter
+          (fun (l, _) -> steps := StepSet.add l !steps)
+          (Lazy.force n.alist);
+        Lwt.return (StepSet.to_list !steps)
+
+    let read_contents t step =
+      read t >>= function
+      | None   -> Lwt.return_none
+      | Some t ->
+        try
+          StepMap.find step t.contents
+          |> Contents.read
+        with Not_found ->
+          Lwt.return_none
+
+    let read_succ t step =
+      try Some (StepMap.find step t.succ)
+      with Not_found -> None
+
+    let with_contents t step contents =
+      read t >>= function
+      | None -> begin
+          match contents with
+          | None   -> Lwt.return_none
+          | Some c ->
+              let contents = StepMap.singleton step (Contents.create c) in
+              Lwt.return (Some (create contents StepMap.empty))
+        end
+      | Some n -> begin
+          match contents with
+          | None ->
+              if StepMap.mem step n.contents then
+                let contents = StepMap.remove step n.contents in
+                Lwt.return (Some (create contents n.succ))
+              else
+                Lwt.return_none
+          | Some c ->
+              try
+                let previous = StepMap.find step n.contents in
+                if not (Contents.equal (Contents.create c) previous) then
+                  raise Not_found;
+                Lwt.return_none
+              with Not_found ->
+                let contents =
+                  StepMap.add step (Contents.create c) n.contents in
+                Lwt.return (Some (create contents n.succ))
+        end
+
+    let with_succ t step succ =
+      read t >>= function
+      | None -> begin
+          match succ with
+          | None   -> Lwt.return_none
+          | Some c ->
+              let succ = StepMap.singleton step c in
+              Lwt.return (Some (create StepMap.empty succ))
+        end
+      | Some n -> begin
+          match succ with
+          | None ->
+              if StepMap.mem step n.succ then
+                let succ = StepMap.remove step n.succ in
+                Lwt.return (Some (create n.contents succ))
+              else
+                Lwt.return_none
+          | Some c ->
+              try
+                let previous = StepMap.find step n.succ in
+                if c != previous then raise Not_found;
+                Lwt.return_none
+              with Not_found ->
+                let succ = StepMap.add step c n.succ in
+                Lwt.return (Some (create n.contents succ))
+        end
+
+  end
+
+  type t = [`Empty | `Node of Node.t | `Contents of value]
 
   let equal x y = match x, y with
     | `Node x, `Node y -> Node.equal x y
-    | `Contents x, `Contents y -> Node.Contents.equal x y
+    | `Contents x, `Contents y -> P.Contents.Val.equal x y
     | _ -> false
 
-  module CO = Tc.Option(Node.Contents)
+  module CO = Tc.Option(P.Contents.Val)
   module PL = Tc.List(Path)
 
   let empty = `Empty
@@ -96,7 +303,8 @@ module Internal (Node: NODE) = struct
   let read t k = read_contents t k
 
   let err_not_found n k =
-    Ir_misc.invalid_arg "Irmin.View.%s: %s not found" n (Path.to_hum k)
+    Printf.ksprintf
+      invalid_arg "Irmin.View.%s: %s not found" n (Path.to_hum k)
 
   let read_exn t k =
     read t k >>= function
@@ -136,7 +344,6 @@ module Internal (Node: NODE) = struct
         end >>= fun () ->
         aux todo
     in
-    (* FIXME take lock? *)
     list t Path.empty >>= aux
 
   let update_contents_aux t k v =
@@ -144,7 +351,7 @@ module Internal (Node: NODE) = struct
     | None -> begin
         match t, v with
         | `Empty, None -> Lwt.return t
-        | `Contents c, Some v when Node.Contents.equal c v -> Lwt.return t
+        | `Contents c, Some v when P.Contents.Val.equal c v -> Lwt.return t
         | _, None -> Lwt.return `Empty
         | _, Some c -> Lwt.return (`Contents c)
       end
@@ -225,253 +432,6 @@ module Internal (Node: NODE) = struct
         | true  -> Lwt.return `Empty
         | false -> Lwt.return (`Node node)
 
-end
-
-module Make (S: Ir_s.STORE_EXT) = struct
-
-  module P = S.Private
-
-  module Metadata = P.Node.Val.Metadata
-
-  module Contents = struct
-
-    type key = S.Repo.t * S.Private.Contents.key
-
-    type contents_or_key =
-      | Key of key
-      | Contents of S.value
-      | Both of key * S.value
-
-    type t = contents_or_key ref
-    (* Same as [Contents.t] but can either be a raw contents or a key
-       that will be fetched lazily. *)
-
-    let create c =
-      ref (Contents c)
-
-    let export c =
-      match !c with
-      | Both ((_, k), _)
-      | Key (_, k) -> k
-      | Contents _ -> failwith "Contents.export"
-
-    let key db k =
-      ref (Key (db, k))
-
-    let read t =
-      match !t with
-      | Both (_, c)
-      | Contents c -> Lwt.return (Some c)
-      | Key (db, k as key) ->
-        P.Contents.read (P.Repo.contents_t db) k >>= function
-        | None   -> Lwt.return_none
-        | Some c ->
-          t := Both (key, c);
-          Lwt.return (Some c)
-
-    let equal (x:t) (y:t) =
-      x == y
-      ||
-      match !x, !y with
-      | (Key (_,x) | Both ((_,x),_)), (Key (_,y) | Both ((_,y),_)) ->
-        P.Contents.Key.equal x y
-      | (Contents x | Both (_, x)), (Contents y | Both (_, y)) ->
-        P.Contents.Val.equal x y
-      | _ -> false
-
-  end
-
-  module Node = struct
-
-    module Path = S.Key
-
-    module Step = Path.Step
-    module StepMap = Ir_misc.Map(Path.Step)
-    module StepSet = Ir_misc.Set(Path.Step)
-
-    type contents = S.value
-    (* type commit_id = S.commit_id *)
-    type key = S.Repo.t * P.Node.key
-
-    (* XXX: fix code duplication with Ir_node.Graph (using
-       functors?) *)
-    type node = {
-      contents: Contents.t StepMap.t Lazy.t;
-      succ    : t StepMap.t Lazy.t;
-      alist   : (Path.step * [`Contents of Contents.t | `Node of t ]) list;
-    }
-
-    and t = {
-      mutable node: node option ;
-      mutable key: key option ;
-    }
-
-    let rec equal (x:t) (y:t) =
-      match x, y with
-      | { key = Some (_,x) ; _ }, { key = Some (_,y) ; _ } ->
-        P.Node.Key.equal x y
-      | { node = Some x ; _ }, { node = Some y ; _ } ->
-        List.length x.alist = List.length y.alist
-        && List.for_all2 (fun (s1, n1) (s2, n2) ->
-            Step.equal s1 s2
-            && match n1, n2 with
-            | `Contents n1, `Contents n2 -> Contents.equal n1 n2
-            | `Node n1, `Node n2 -> equal n1 n2
-            | _ -> false) x.alist y.alist
-      | _ -> false
-
-    let mk_index alist =
-      lazy (
-        List.fold_left (fun (contents, succ) (l, x) ->
-            match x with
-            | `Contents c -> StepMap.add l c contents, succ
-            | `Node n     -> contents, StepMap.add l n succ
-          ) (StepMap.empty, StepMap.empty) alist
-      )
-
-    let create_node alist =
-      let maps = mk_index alist in
-      let contents = lazy (fst (Lazy.force maps)) in
-      let succ = lazy (snd (Lazy.force maps)) in
-      { contents; succ; alist }
-
-    let create alist =
-      { key = None ; node = Some (create_node alist) }
-
-    let key db k =
-      { key = Some (db, k) ; node = None }
-
-    let both db k v =
-      { key = Some (db, k) ; node = Some v }
-
-    let empty () = create []
-
-    let import t n =
-      let alist = P.Node.Val.alist n in
-      let alist = List.map (fun (l, x) ->
-          match x with
-          | `Contents (c, _meta) -> (l, `Contents (Contents.key t c))
-          | `Node n     -> (l, `Node (key t n))
-        ) alist in
-      create_node alist
-
-    let export n =
-      match n.key with
-      | Some (_, k) -> k
-      | None -> failwith "Node.export"
-
-    let export_node n =
-      let alist = List.map (fun (l, x) ->
-          match x with
-          | `Contents c -> (l, `Contents (Contents.export c, Metadata.default))
-          | `Node n     -> (l, `Node (export n))
-        ) n.alist
-      in
-      P.Node.Val.create alist
-
-    let read t =
-      match t with
-      | { key = None ; node = None } -> assert false
-      | { node = Some n ; _ } -> Lwt.return (Some n)
-      | { key = Some (db, k) ; _ } ->
-        P.Node.read (P.Repo.node_t db) k >>= function
-        | None   -> Lwt.return_none
-        | Some n ->
-          let n = import db n in
-          t.node <- Some n;
-          Lwt.return (Some n)
-
-    let is_empty t =
-      read t >>= function
-      | None   -> Lwt.return false
-      | Some n -> Lwt.return (n.alist = [])
-
-    let steps t =
-      read t >>= function
-      | None    -> Lwt.return_nil
-      | Some  n ->
-        let steps = ref StepSet.empty in
-        List.iter (fun (l, _) -> steps := StepSet.add l !steps) n.alist;
-        Lwt.return (StepSet.to_list !steps)
-
-    let read_contents t step =
-      read t >>= function
-      | None   -> Lwt.return_none
-      | Some t ->
-        try
-          StepMap.find step (Lazy.force t.contents)
-          |> Contents.read
-        with Not_found ->
-          Lwt.return_none
-
-    let read_succ t step =
-      try Some (StepMap.find step (Lazy.force t.succ))
-      with Not_found -> None
-
-    (* FIXME code duplication with Ir_node.Make.with_contents *)
-    let with_contents t step contents =
-      let mk c = `Contents (Contents.create c) in
-      read t >>= function
-      | None -> begin
-          match contents with
-          | None   -> Lwt.return_none
-          | Some c -> Lwt.return (Some (create [ step, mk c ]))
-        end
-      | Some n ->
-        let rec aux acc = function
-          | (s, `Contents x as h) :: l ->
-            if Step.equal step s then match contents with
-              | None   -> List.rev_append acc l
-              | Some c ->
-                if Contents.equal (Contents.create c) x then n.alist
-                else List.rev_append acc ((s, mk c) :: l)
-            else aux (h :: acc) l
-          | h::t -> aux (h :: acc) t
-          | []   -> match contents with
-            | None   -> n.alist
-            | Some c -> List.rev ((step, mk c) :: acc)
-        in
-        let alist = aux [] n.alist in
-        if n.alist != alist then
-          Lwt.return (Some (create alist))
-        else
-          Lwt.return_none
-
-    (* FIXME: code duplication with Ir_node.Make.with_succ *)
-    let with_succ t step succ =
-      let mk c = `Node c in
-      read t >>= function
-      | None -> begin
-          match succ with
-          | None   -> Lwt.return_none
-          | Some c -> Lwt.return (Some (create [ step, mk c ]))
-        end
-      | Some n ->
-        let rec aux acc = function
-          | (s, `Node x as h) :: l ->
-            if Step.equal step s then match succ with
-              | None   -> List.rev_append acc l
-              | Some c ->
-                if equal c x then n.alist
-                else List.rev_append acc ((s, mk c) :: l)
-            else aux (h :: acc) l
-          | h::t -> aux (h :: acc) t
-          | []   -> match succ with
-            | None   -> n.alist
-            | Some c -> List.rev ((step, mk c) :: acc)
-        in
-        let alist = aux [] n.alist in
-        if n.alist != alist then
-          Lwt.return (Some (create alist))
-        else
-          Lwt.return_none
-
-    module Contents = P.Contents.Val
-
-  end
-
-  include Internal(Node)
-
   type db = S.t
 
   let import db key =
@@ -511,14 +471,14 @@ module Make (S: Ir_s.STORE_EXT) = struct
                     c := Contents.Key (repo, k);
                     Lwt.return_unit
                   ) todo
-          ) x.Node.alist;
+          ) (Lazy.force x.Node.alist);
         (* 3. we push the children jobs on the stack. *)
         List.iter (fun (_, x) ->
             match x with
             | `Contents _ -> ()
             | `Node n ->
               Stack.push (fun () -> add_to_todo n; Lwt.return_unit) todo
-          ) x.Node.alist;
+          ) (Lazy.force x.Node.alist);
     in
     let rec loop () =
       let task =
@@ -552,7 +512,6 @@ module Make (S: Ir_s.STORE_EXT) = struct
     type key = S.Private.Node.key
     let import = import
     let export = export
-    module Path = Path
     module Contents = P.Contents.Val
   end
 
@@ -573,7 +532,6 @@ module type S = sig
     type key
     val import: db -> key -> t Lwt.t
     val export: db -> t -> [> `Contents of value | `Empty | `Node of key ] Lwt.t
-    module Path : Ir_s.PATH
     module Contents: Tc.S0 with type t = value
   end
 end

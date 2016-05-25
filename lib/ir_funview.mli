@@ -30,7 +30,6 @@ module type S = sig
     type key
     val import: db -> key -> t Lwt.t
     val export: db -> t -> [> `Contents of value | `Empty | `Node of key ] Lwt.t
-    module Path : Ir_s.PATH
     module Contents: Tc.S0 with type t = value
   end
 end
