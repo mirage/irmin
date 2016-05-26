@@ -85,7 +85,6 @@ module Make (S: Ir_s.STORE_EXT) = struct
     type node = {
       contents: Contents.t StepMap.t;
       succ    : t StepMap.t;
-      alist   : (Path.step * [`Contents of Contents.t | `Node of t ]) list Lazy.t;
     }
 
     and t = {
@@ -94,41 +93,32 @@ module Make (S: Ir_s.STORE_EXT) = struct
     }
 
     let rec equal (x:t) (y:t) =
+      x == y ||
       match x, y with
       | { key = Some (_,x) ; _ }, { key = Some (_,y) ; _ } ->
         P.Node.Key.equal x y
       | { node = Some x ; _ }, { node = Some y ; _ } ->
-        List.length (Lazy.force x.alist) = List.length (Lazy.force y.alist)
-        && List.for_all2 (fun (s1, n1) (s2, n2) ->
-            Step.equal s1 s2
-            && match n1, n2 with
-            | `Contents n1, `Contents n2 -> Contents.equal n1 n2
-            | `Node n1, `Node n2 -> equal n1 n2
-            | _ -> false) (Lazy.force x.alist) (Lazy.force y.alist)
+        StepMap.cardinal x.contents = StepMap.cardinal y.contents
+        && StepMap.cardinal x.succ = StepMap.cardinal y.succ
+        && begin
+          try
+            StepMap.iter2
+              (fun _key -> function
+                | `Both (c1, c2) when Contents.equal c1 c2 -> ()
+                | _ -> raise Not_found)
+              x.contents y.contents ;
+            StepMap.iter2
+              (fun _key -> function
+                | `Both (n1, n2) when equal n1 n2 -> ()
+                | _ -> raise Not_found)
+              x.succ y.succ ;
+            true
+          with Not_found -> false
+        end
       | _ -> false
 
-    let mk_alist contents succ =
-      lazy (
-        StepMap.fold
-          (fun step c acc -> (step, `Contents c) :: acc)
-          contents @@
-        StepMap.fold
-          (fun step c acc -> (step, `Node c) :: acc)
-          succ
-          [])
-    let mk_index alist =
-      List.fold_left (fun (contents, succ) (l, x) ->
-          match x with
-          | `Contents c -> StepMap.add l c contents, succ
-          | `Node n     -> contents, StepMap.add l n succ
-        ) (StepMap.empty, StepMap.empty) alist
-
-    let create_node contents succ =
-      let alist = mk_alist contents succ in
-      { contents; succ; alist }
-
     let create contents succ =
-      { key = None ; node = Some (create_node contents succ) }
+      { key = None ; node = Some { contents ; succ } }
 
     let key db k =
       { key = Some (db, k) ; node = None }
@@ -145,8 +135,13 @@ module Make (S: Ir_s.STORE_EXT) = struct
           | `Contents (c, _meta) -> (l, `Contents (Contents.key t c))
           | `Node n     -> (l, `Node (key t n))
         ) alist in
-      let contents, succ = mk_index alist in
-      create_node contents succ
+      let contents, succ =
+        List.fold_left (fun (contents, succ) (l, x) ->
+            match x with
+            | `Contents c -> StepMap.add l c contents, succ
+            | `Node n     -> contents, StepMap.add l n succ
+          ) (StepMap.empty, StepMap.empty) alist in
+      { contents ; succ }
 
     let export n =
       match n.key with
@@ -154,12 +149,16 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | None -> Pervasives.failwith "Node.export"
 
     let export_node n =
-      let alist = List.map (fun (l, x) ->
-          match x with
-          | `Contents c -> (l, `Contents (Contents.export c,
-                                          P.Node.Val.Metadata.default))
-          | `Node n     -> (l, `Node (export n))
-        ) (Lazy.force n.alist)
+      let alist =
+        StepMap.fold
+          (fun step c acc ->
+             (step, `Contents (Contents.export c,
+                               P.Node.Val.Metadata.default)) :: acc)
+          n.contents @@
+        StepMap.fold
+          (fun step n acc -> (step, `Node (export n)) :: acc)
+          n.succ
+          []
       in
       P.Node.Val.create alist
 
@@ -178,7 +177,8 @@ module Make (S: Ir_s.STORE_EXT) = struct
     let is_empty t =
       read t >>= function
       | None   -> Lwt.return false
-      | Some n -> Lwt.return (Lazy.force n.alist = [])
+      | Some n -> Lwt.return (StepMap.is_empty n.contents &&
+                              StepMap.is_empty n.succ)
 
     let steps t =
       read t >>= function
@@ -186,8 +186,11 @@ module Make (S: Ir_s.STORE_EXT) = struct
       | Some  n ->
         let steps = ref StepSet.empty in
         List.iter
-          (fun (l, _) -> steps := StepSet.add l !steps)
-          (Lazy.force n.alist);
+          (fun l -> steps := StepSet.add l !steps)
+          (StepMap.keys n.contents) ;
+        List.iter
+          (fun l -> steps := StepSet.add l !steps)
+          (StepMap.keys n.succ) ;
         Lwt.return (StepSet.to_list !steps)
 
     let read_contents t step =
@@ -458,27 +461,21 @@ module Make (S: Ir_s.STORE_EXT) = struct
             Lwt.return_unit
           ) todo;
         (* 2. we push the contents job on the stack. *)
-        List.iter (fun (_, x) ->
-            match x with
-            | `Node _ -> ()
-            | `Contents c ->
-              match !c with
-              | Contents.Both _
-              | Contents.Key _       -> ()
-              | Contents.Contents x  ->
-                Stack.push (fun () ->
-                    P.Contents.add (P.Repo.contents_t repo) x >>= fun k ->
-                    c := Contents.Key (repo, k);
-                    Lwt.return_unit
-                  ) todo
-          ) (Lazy.force x.Node.alist);
+        StepMap.iter (fun _ c ->
+            match !c with
+            | Contents.Both _
+            | Contents.Key _       -> ()
+            | Contents.Contents x  ->
+              Stack.push (fun () ->
+                  P.Contents.add (P.Repo.contents_t repo) x >>= fun k ->
+                  c := Contents.Key (repo, k);
+                  Lwt.return_unit
+                ) todo
+          ) x.Node.contents;
         (* 3. we push the children jobs on the stack. *)
-        List.iter (fun (_, x) ->
-            match x with
-            | `Contents _ -> ()
-            | `Node n ->
-              Stack.push (fun () -> add_to_todo n; Lwt.return_unit) todo
-          ) (Lazy.force x.Node.alist);
+        StepMap.iter (fun _ n ->
+            Stack.push (fun () -> add_to_todo n; Lwt.return_unit) todo
+          ) x.Node.succ;
     in
     let rec loop () =
       let task =
