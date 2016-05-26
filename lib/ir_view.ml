@@ -1,5 +1,6 @@
 (*
  * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2016 Grégoire Henry <gregoire.henry@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -112,107 +113,62 @@ end
 
 (***** views *)
 
-module type NODE = sig
-  type t
-  type commit_id
-  type node
-  type contents
-  module Contents: Tc.S0 with type t = contents
-  module Path: Ir_s.PATH
+module Make (S: Ir_s.STORE_EXT) = struct
 
-  val equal: t -> t -> bool
-  val empty: unit -> t
-  val is_empty: t -> bool Lwt.t
+  module P = S.Private
 
-  val read: t -> node option Lwt.t
+  module FunView = Ir_funview.Make(S)
+  module Contents = FunView.Private.Contents
 
-  val read_contents: t -> Path.step -> contents option Lwt.t
+  module Graph = Ir_node.Graph(P.Node)
+  module History = Ir_commit.History(P.Commit)
+  module Metadata = P.Node.Val.Metadata
 
-  val with_contents: t -> Path.step -> contents option -> bool Lwt.t
-  (* Return [true] iff the contents has actually changed. Used for
-     invalidating the view cache if needed. *)
+  let graph_t t = P.Repo.node_t t
+  let history_t t = P.Repo.commit_t t
 
-  val clear_cache: t -> unit
-
-  val read_succ: node -> Path.step -> t option
-
-  val with_succ: t -> Path.step -> t option -> bool Lwt.t
-  (* Return [true] iff the successors has actually changes. Used for
-     invalidating the view cache if needed. *)
-
-  val steps: t -> Path.step list Lwt.t
-end
-
-module Internal (Node: NODE) = struct
-
-  module Path = Node.Path
+  module Path = S.Key
   module PathSet = Ir_misc.Set(Path)
+  module PathMap = Ir_misc.Map(Path)
+
+  module Step = Path.Step
+  module StepMap = Ir_misc.Map(Path.Step)
+  module StepSet = Ir_misc.Set(Path.Step)
 
   type key = Path.t
-  type value = Node.contents
+  type value = FunView.value
+  type commit_id = S.commit_id
 
-  module Action = Action(Path)(Node.Contents)
+  module Action = Action(Path)(Contents)
   type action = Action.t
 
   type t = {
-    mutable view: [`Empty | `Node of Node.t | `Contents of Node.contents];
+    mutable view: FunView.t;
     ops: action list ref;
-    parents: Node.commit_id list ref;
+    parents: commit_id list ref;
     lock: Lwt_mutex.t;
   }
 
-  let equal x y = match x.view, y.view with
-    | `Node x, `Node y -> Node.equal x y
-    | `Contents x, `Contents y -> Node.Contents.equal x y
-    | _ -> false
-
-  type commit_id = Node.commit_id
+  let equal x y = FunView.equal x.view y.view
   let parents t = !(t.parents)
 
-  module CO = Tc.Option(Node.Contents)
+  module CO = Tc.Option(Contents)
   module PL = Tc.List(Path)
 
   let empty () =
     Log.debug (fun f -> f "empty");
-    let view = `Empty in
+    let view = FunView.empty in
     let ops = ref [] in
     let parents = ref [] in
     let lock = Lwt_mutex.create () in
     Lwt.return { parents; view; ops; lock }
 
-  let sub t path =
-    let rec aux node path =
-      match Path.decons path with
-      | None        -> Lwt.return (Some node)
-      | Some (h, p) ->
-        Node.read node >>= function
-        | None -> Lwt.return_none
-        | Some t ->
-          match Node.read_succ t h with
-          | None   -> Lwt.return_none
-          | Some v -> aux v p
-    in
-    match t.view with
-    | `Empty      -> Lwt.return_none
-    | `Node n     -> aux n path
-    | `Contents _ -> Lwt.return_none
-
-  let read_contents t path =
-    Log.debug (fun f -> f "read_contents %a" (show (module Path)) path);
-    match t.view, Path.rdecons path with
-    | `Contents c, None -> Lwt.return (Some c)
-    | _          , None -> Lwt.return_none
-    | _          , Some (path, file) ->
-      sub t path >>= function
-      | None   -> Lwt.return_none
-      | Some n -> Node.read_contents n file
-
   let read t k =
-    read_contents t k >>= fun v ->
+    FunView.read t.view k >>= fun v ->
     t.ops := `Read (k, v) :: !(t.ops);
     Lwt.return v
 
-  let err_not_found n k =
+    let err_not_found n k =
     Ir_misc.invalid_arg "Irmin.View.%s: %s not found" n (Path.to_hum k)
 
   let read_exn t k =
@@ -225,98 +181,36 @@ module Internal (Node: NODE) = struct
     | None  -> Lwt.return false
     | _     -> Lwt.return true
 
-  let list_aux t path =
-    sub t path >>= function
-    | None   -> Lwt.return []
-    | Some n ->
-      Node.steps n >>= fun steps ->
-      let paths =
-        List.fold_left (fun set p ->
-            PathSet.add (Path.rcons path p) set
-          ) PathSet.empty steps
-      in
-      Lwt.return (PathSet.to_list paths)
-
   let list t path =
     Log.debug (fun f -> f "list %a" (show (module Path)) path);
-    list_aux t path >>= fun result ->
+    FunView.list t.view path >>= fun result ->
     t.ops := `List (path, result) :: !(t.ops);
     Lwt.return result
 
   let iter t fn =
     Log.debug (fun f -> f "iter");
-    let rec aux = function
-      | []       -> Lwt.return_unit
-      | path::tl ->
-        list t path >>= fun childs ->
-        let todo = childs @ tl in
-        mem t path >>= fun exists ->
-        begin
-          if not exists then Lwt.return_unit
-          else fn path (fun () -> read_exn t path)
-        end >>= fun () ->
-        aux todo
-    in
     (* FIXME take lock? *)
-    list t Path.empty >>= aux
-
-  let update_contents_aux t k v =
-    match Path.rdecons k with
-    | None ->
-      let () = match v with
-        | None   -> t.view <- `Empty;
-        | Some v -> t.view <- `Contents v
-      in
-      Lwt.return_unit
-    | Some (path, file) ->
-      let rec aux view path =
-        match Path.decons path with
-        | None        -> Node.with_contents view file v
-        | Some (h, p) ->
-          Node.read view >>= function
-          | None   ->
-            if v = None then Lwt.return_false
-            else err_not_found "update_contents" k (* XXX ?*)
-          | Some n ->
-            match Node.read_succ n h with
-            | Some child ->
-              aux child p >>= fun changed ->
-              (* remove empty dirs *)
-              begin if changed && v = None then
-                  Node.is_empty child >>= function
-                  | false -> Lwt.return_false
-                  | true  -> Node.with_succ view h None
-                else Lwt.return_false
-              end >>= fun _ ->
-              if changed then Node.clear_cache view;
-              Lwt.return changed
-            | None ->
-              if v = None then Lwt.return_false
-              else
-                let child = Node.empty () in
-                Node.with_succ view h (Some child) >>= fun _ ->
-                aux child p
-      in
-      let n = match t.view with `Node n -> n | _ -> Node.empty () in
-      aux n path >>= fun changed ->
-      if changed then t.view <- `Node n;
-      Log.debug (fun f -> f "update_contents: %s changed=%b" (Path.to_hum k) changed);
-      Lwt.return_unit
+    FunView.iter t.view fn
 
   let update_contents t k v =
     t.ops := `Write (k, v) :: !(t.ops);
-    update_contents_aux t k v
+    match v with
+    | None ->
+      FunView.remove t.view k >>= fun view -> t.view <- view ;
+      Lwt.return_unit
+    | Some v ->
+      FunView.update t.view k v >>= fun view -> t.view <- view ;
+      Lwt.return_unit
 
   let update t k v =
     Lwt_mutex.with_lock t.lock (fun () -> update_contents t k (Some v))
 
   let remove t k =
     Lwt_mutex.with_lock t.lock (fun () -> update_contents t k None)
-
   let compare_and_set t k ~test ~set =
     Lwt_mutex.with_lock t.lock (fun () ->
         read t k >>= fun v ->
-        if Tc.O1.equal Node.Contents.equal test v then
+        if Tc.O1.equal Contents.equal test v then
           update_contents t k set >>= fun () ->
           Lwt.return_true
         else
@@ -324,35 +218,11 @@ module Internal (Node: NODE) = struct
       )
 
   let remove_rec t k =
-    match Path.decons k with
-    | None -> Lwt.return_unit
-    | _    ->
-      match t.view with
-      | `Contents _ -> t.view <- `Empty; Lwt.return_unit
-      | `Empty -> Lwt.return_unit
-      | `Node n ->
-        let rec aux view path =
-          match Path.decons path with
-          | None       -> assert false
-          | Some (h,p) ->
-            if Path.is_empty p then (
-              Node.with_succ view h None >>= fun changed ->
-              if changed then Node.clear_cache view;
-              Lwt.return_true
-            ) else
-              Node.read view >>= function
-              | None   -> Lwt.return false
-              | Some n ->
-                match Node.read_succ n h with
-                | None       -> Lwt.return false
-                | Some child ->
-                  aux child p >>= fun changed ->
-                  if changed then Node.clear_cache view;
-                  Lwt.return_true
-        in
+    Lwt_mutex.with_lock t.lock (fun () ->
         t.ops := `Rmdir k :: !(t.ops);
-        aux n k >>= fun _ ->
-        Lwt.return_unit
+        FunView.remove_rec t.view k >>= fun view ->
+        t.view <- view ;
+        Lwt.return_unit)
 
   let apply t a =
     Log.debug (fun f -> f "apply %a" (show (module Action)) a);
@@ -365,7 +235,7 @@ module Internal (Node: NODE) = struct
       else
         let str = function
           | None   -> "<none>"
-          | Some c -> Tc.show (module Node.Contents) c in
+          | Some c -> Tc.show (module Contents) c in
         conflict "read %s: got %S, expecting %S"
           (Tc.show (module Path) k) (str v') (str v)
     | `List (l, r) ->
@@ -378,9 +248,7 @@ module Internal (Node: NODE) = struct
 
   let actions t = List.rev !(t.ops)
 
-  module KV = Ir_misc.Set(Tc.Pair(Path)(Node.Contents))
-
-  module PathMap = Ir_misc.Map(Path)
+  module KV = Ir_misc.Set(Tc.Pair(Path)(Contents))
 
   let diff x y =
     let set t =
@@ -433,294 +301,19 @@ module Internal (Node: NODE) = struct
 
   let rebase_exn t1 ~into = rebase t1 ~into >>= Ir_merge.exn
 
-end
-
-module Make (S: Ir_s.STORE_EXT) = struct
-
-  module P = S.Private
-
-  module Graph = Ir_node.Graph(P.Node)
-  module History = Ir_commit.History(P.Commit)
-  module Metadata = P.Node.Val.Metadata
-
-  let graph_t t = P.Repo.node_t t
-  let history_t t = P.Repo.commit_t t
-
-  module Contents = struct
-
-    type key = S.Repo.t * S.Private.Contents.key
-
-    type contents_or_key =
-      | Key of key
-      | Contents of S.value
-      | Both of key * S.value
-
-    type t = contents_or_key ref
-    (* Same as [Contents.t] but can either be a raw contents or a key
-       that will be fetched lazily. *)
-
-    let create c =
-      ref (Contents c)
-
-    let export c =
-      match !c with
-      | Both ((_, k), _)
-      | Key (_, k) -> k
-      | Contents _ -> failwith "Contents.export"
-
-    let key db k =
-      ref (Key (db, k))
-
-    let read t =
-      match !t with
-      | Both (_, c)
-      | Contents c -> Lwt.return (Some c)
-      | Key (db, k as key) ->
-        P.Contents.read (P.Repo.contents_t db) k >>= function
-        | None   -> Lwt.return_none
-        | Some c ->
-          t := Both (key, c);
-          Lwt.return (Some c)
-
-    let equal (x:t) (y:t) =
-      x == y
-      ||
-      match !x, !y with
-      | (Key (_,x) | Both ((_,x),_)), (Key (_,y) | Both ((_,y),_)) ->
-        P.Contents.Key.equal x y
-      | (Contents x | Both (_, x)), (Contents y | Both (_, y)) ->
-        P.Contents.Val.equal x y
-      | _ -> false
-
-  end
-
-  module Node = struct
-
-    module Path = S.Key
-
-    module Step = Path.Step
-    module StepMap = Ir_misc.Map(Path.Step)
-    module StepSet = Ir_misc.Set(Path.Step)
-
-    type contents = S.value
-    type commit_id = S.commit_id
-    type key = S.Repo.t * P.Node.key
-
-    (* XXX: fix code duplication with Ir_node.Graph (using
-       functors?) *)
-    type node = {
-      contents: Contents.t StepMap.t Lazy.t;
-      succ    : t StepMap.t Lazy.t;
-      alist   : (Path.step * [`Contents of Contents.t | `Node of t ]) list;
-    }
-
-    and node_or_key  =
-      | Key of key
-      | Node of node
-      | Both of key * node
-
-    and t = node_or_key ref
-    (* Similir to [Node.t] but using where all of the values can just
-       be keys. *)
-
-    let rec equal (x:t) (y:t) =
-      x == y
-      ||
-      match !x, !y with
-      | (Key (_,x) | Both ((_,x),_)), (Key (_,y) | Both ((_,y),_)) ->
-        P.Node.Key.equal x y
-      | (Node x | Both (_, x)), (Node y | Both (_, y)) ->
-        List.length x.alist = List.length y.alist
-        && List.for_all2 (fun (s1, n1) (s2, n2) ->
-            Step.equal s1 s2
-            && match n1, n2 with
-            | `Contents n1, `Contents n2 -> Contents.equal n1 n2
-            | `Node n1, `Node n2 -> equal n1 n2
-            | _ -> false) x.alist y.alist
-      | _ -> false
-
-    let mk_index alist =
-      lazy (
-        List.fold_left (fun (contents, succ) (l, x) ->
-            match x with
-            | `Contents c -> StepMap.add l c contents, succ
-            | `Node n     -> contents, StepMap.add l n succ
-          ) (StepMap.empty, StepMap.empty) alist
-      )
-
-    let create_node alist =
-      let maps = mk_index alist in
-      let contents = lazy (fst (Lazy.force maps)) in
-      let succ = lazy (snd (Lazy.force maps)) in
-      { contents; succ; alist }
-
-    let create alist =
-      ref (Node (create_node alist))
-
-    let key db k =
-      ref (Key (db, k))
-
-    let both db k v =
-      ref (Both ((db, k), v))
-
-    let clear_cache (t:t) =
-      match !t with
-      | Key _ | Node _ -> ()
-      | Both (_, n) -> t:= Node n
-
-    let empty () = create []
-
-    let import t n =
-      let alist = P.Node.Val.alist n in
-      let alist = List.map (fun (l, x) ->
-          match x with
-          | `Contents (c, _meta) -> (l, `Contents (Contents.key t c))
-          | `Node n     -> (l, `Node (key t n))
-        ) alist in
-      create_node alist
-
-    let export n =
-      match !n with
-      | Both ((_, k), _)
-      | Key (_, k)  -> k
-      | Node _ -> failwith "Node.export"
-
-    let export_node n =
-      let alist = List.map (fun (l, x) ->
-          match x with
-          | `Contents c -> (l, `Contents (Contents.export c, Metadata.default))
-          | `Node n     -> (l, `Node (export n))
-        ) n.alist
-      in
-      P.Node.Val.create alist
-
-    let read t =
-      match !t with
-      | Both (_, n)
-      | Node n   -> Lwt.return (Some n)
-      | Key (db, k) ->
-        P.Node.read (P.Repo.node_t db) k >>= function
-        | None   -> Lwt.return_none
-        | Some n ->
-          let n = import db n in
-          t := Both ((db, k), n);
-          Lwt.return (Some n)
-
-    let is_empty t =
-      read t >>= function
-      | None   -> Lwt.return false
-      | Some n -> Lwt.return (n.alist = [])
-
-    let steps t =
-      Log.debug (fun f -> f "steps");
-      read t >>= function
-      | None    -> Lwt.return_nil
-      | Some  n ->
-        let steps = ref StepSet.empty in
-        List.iter (fun (l, _) -> steps := StepSet.add l !steps) n.alist;
-        Lwt.return (StepSet.to_list !steps)
-
-    let read_contents t step =
-      read t >>= function
-      | None   -> Lwt.return_none
-      | Some t ->
-        try
-          StepMap.find step (Lazy.force t.contents)
-          |> Contents.read
-        with Not_found ->
-          Lwt.return_none
-
-    let read_succ t step =
-      try Some (StepMap.find step (Lazy.force t.succ))
-      with Not_found -> None
-
-    (* FIXME code duplication with Ir_node.Make.with_contents *)
-    let with_contents t step contents =
-      Log.debug (fun f -> f "with_contents %a %a"
-        (show (module Step)) step
-        (show (module Tc.Option(S.Val))) contents);
-      let mk c = `Contents (Contents.create c) in
-      read t >>= function
-      | None -> begin
-          match contents with
-          | None   -> Lwt.return false
-          | Some c -> t := Node (create_node [ step, mk c ]); Lwt.return_true
-        end
-      | Some n ->
-        let rec aux acc = function
-          | (s, `Contents x as h) :: l ->
-            if Step.equal step s then match contents with
-              | None   -> List.rev_append acc l
-              | Some c ->
-                if Contents.equal (Contents.create c) x then n.alist
-                else List.rev_append acc ((s, mk c) :: l)
-            else aux (h :: acc) l
-          | h::t -> aux (h :: acc) t
-          | []   -> match contents with
-            | None   -> n.alist
-            | Some c -> List.rev ((step, mk c) :: acc)
-        in
-        let alist = aux [] n.alist in
-        if n.alist != alist then (
-          t := Node (create_node alist);
-          Lwt.return_true
-        ) else
-          Lwt.return false
-
-    (* FIXME: code duplication with Ir_node.Make.with_succ *)
-    let with_succ t step succ =
-      Log.debug (fun f -> f "with_succ %a" (show (module Step)) step);
-      let mk c = `Node c in
-      read t >>= function
-      | None   -> begin
-          match succ with
-          | None   -> Lwt.return false
-          | Some c -> t := Node (create_node [ step, mk c ]); Lwt.return_true
-        end
-      | Some n ->
-        let rec aux acc = function
-          | (s, `Node x as h) :: l ->
-            if Step.equal step s then match succ with
-              | None   -> List.rev_append acc l
-              | Some c ->
-                if equal c x then (Log.debug (fun f -> f "with_succ: equal!"); n.alist)
-                else List.rev_append acc ((s, mk c) :: l)
-            else aux (h :: acc) l
-          | h::t -> aux (h :: acc) t
-          | []   -> match succ with
-            | None   -> n.alist
-            | Some c -> List.rev ((step, mk c) :: acc)
-        in
-        let alist = aux [] n.alist in
-        if n.alist != alist then (
-          t := Node (create_node alist);
-          Lwt.return_true;
-        ) else
-          Lwt.return false
-
-    module Contents = P.Contents.Val
-
-  end
-
-  include Internal(Node)
-
   type db = S.t
 
   let create_with_parents parents =
     Log.debug (fun f -> f "create_with_parents");
-    let view = `Empty in
+    let view = FunView.empty in
     let ops = ref [] in
     let parents = ref parents in
     let lock = Lwt_mutex.create () in
     { parents; view; ops; lock }
 
   let import db ~parents key =
-    let repo = S.repo db in
     Log.debug (fun f -> f "import %a" (show (module P.Node.Key)) key);
-    begin P.Node.read (P.Repo.node_t repo) key >|= function
-    | None   -> `Empty
-    | Some n -> `Node (Node.both repo key (Node.import repo n))
-    end >>= fun view ->
+    FunView.Private.import db key >>= fun view ->
     let ops = ref [] in
     let parents = ref parents in
     let lock = Lwt_mutex.create () in
@@ -728,58 +321,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
 
   let export repo t =
     Log.debug (fun f -> f "export");
-    let node n = P.Node.add (P.Repo.node_t repo) (Node.export_node n) in
-    let todo = Stack.create () in
-    let rec add_to_todo n =
-      match !n with
-      | Node.Both _
-      | Node.Key _  -> ()
-      | Node.Node x ->
-        (* 1. we push the current node job on the stack. *)
-        Stack.push (fun () ->
-            node x >>= fun k ->
-            n := Node.Key (repo, k);
-            Lwt.return_unit
-          ) todo;
-        (* 2. we push the contents job on the stack. *)
-        List.iter (fun (_, x) ->
-            match x with
-            | `Node _ -> ()
-            | `Contents c ->
-              match !c with
-              | Contents.Both _
-              | Contents.Key _       -> ()
-              | Contents.Contents x  ->
-                Stack.push (fun () ->
-                    P.Contents.add (P.Repo.contents_t repo) x >>= fun k ->
-                    c := Contents.Key (repo, k);
-                    Lwt.return_unit
-                  ) todo
-          ) x.Node.alist;
-        (* 3. we push the children jobs on the stack. *)
-        List.iter (fun (_, x) ->
-            match x with
-            | `Contents _ -> ()
-            | `Node n ->
-              Stack.push (fun () -> add_to_todo n; Lwt.return_unit) todo
-          ) x.Node.alist;
-    in
-    let rec loop () =
-      let task =
-        try Some (Stack.pop todo)
-        with Stack.Empty -> None
-      in
-      match task with
-      | None   -> Lwt.return_unit
-      | Some t -> t () >>= loop
-    in
-    match t.view with
-    | `Empty      -> Lwt.return `Empty
-    | `Contents c -> Lwt.return (`Contents c)
-    | `Node n ->
-      add_to_todo n;
-      loop () >|= fun () ->
-      `Node (Node.export n)
+    FunView.Private.export repo t
 
   let of_path db path =
     Log.debug (fun f -> f "of_path %a" (show (module Path)) path);
@@ -792,9 +334,8 @@ module Make (S: Ir_s.STORE_EXT) = struct
     | Some n -> import db ~parents n
 
   let update_path db path view =
-    let repo = S.repo db in
     Log.debug (fun f -> f "update_path %a" (show (module Path)) path);
-    export repo view >>= function
+    FunView.Private.export db view.view >>= function
     | `Empty      -> P.remove_node db path
     | `Contents c -> S.update db path c
     | `Node node  -> P.update_node db path node
@@ -867,7 +408,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
            on a branch, and we merge the branch back into the
            store. *)
         let merge () =
-          export repo view >>= function
+          export db view.view >>= function
           | `Node node -> merge_node db ?max_depth ?n path view head_node node
           | _ -> assert false
         in
@@ -905,7 +446,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       S.Private.Node.add (S.Private.Repo.node_t repo) (S.Private.Node.Val.empty)
     in
     let node =
-      export repo contents >>= function
+      export db contents.view >>= function
       | `Contents _ -> err_value_at_root ()
       | `Empty      -> empty ()
       | `Node n     -> Lwt.return n

@@ -18,6 +18,7 @@ Ir_dot
 Ir_path
 Ir_watch
 Ir_merge
+Ir_funview
 Ir_view
 Ir_task
 Ir_bc
