@@ -1,3 +1,7 @@
+### 0.11.1 (2016-06-14)
+
+* Fix compilation of examples (#359, @samoht)
+
 ### 0.11.0 (2016-05-04)
 
 * Use Logs (#342, @talex5)

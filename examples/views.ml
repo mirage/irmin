@@ -16,7 +16,6 @@ type t2 = {
 type t = t2 list
 
 let view_of_t t =
-  Log.debug "view_of_t";
   View.empty () >>= fun v ->
   Lwt_list.iteri_s (fun i t2 ->
       let i = string_of_int i in
@@ -26,7 +25,6 @@ let view_of_t t =
   return v
 
 let t_of_view v =
-  Log.debug "t_of_view";
   let aux acc i =
     let i = string_of_int i in
     View.read_exn v [i;"x"] >>= fun x ->
