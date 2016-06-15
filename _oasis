@@ -1,6 +1,6 @@
 OASISFormat: 0.4
 Name:        irmin
-Version:     0.11.0
+Version:     0.11.1
 Synopsis:    A Distributed Version Control Database
 Authors:     Thomas Gazagnaire, Thomas Leonard
 License:     ISC
