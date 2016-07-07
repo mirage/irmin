@@ -42,7 +42,9 @@ module Path = struct
   module type STEP = Ir_s.STEP
   module type S = Ir_s.PATH
 end
-module Make
+
+module Make_with_metadata
+    (M: Ir_s.METADATA)
     (AO: Ir_s.AO_MAKER)
     (RW: Ir_s.RW_MAKER)
     (C: Ir_s.CONTENTS)
@@ -59,7 +61,7 @@ struct
     module Node = struct
       module AO = struct
         module Key = H
-        module Val = Ir_node.Make (H)(H)(C.Path)(Ir_node.No_metadata)
+        module Val = Ir_node.Make (H)(H)(C.Path)(M)
         module Path = C.Path
         include AO (Key)(Val)
       end
@@ -107,6 +109,8 @@ struct
   end
   include Ir_bc.Make(X)
 end
+
+module Make = Make_with_metadata(Ir_node.No_metadata)
 module Make_ext = Ir_bc.Make
 
 module type RO = Ir_s.RO_STORE
