@@ -2284,6 +2284,8 @@ end
     format based on {{:https://github.com/janestreet/bin_prot}bin_prot},
     with no native synchronization primitives: it is usually what is
     needed to quickly create a new backend.}
+    { - {!Make_with_metadata} is similar to {!Make} but allows to
+    specify the kind of metadata stored in the nodes.}
     {- {!Make_ext} creates a store with a {e deep} embedding of each
     of the internal stores into separate store, with a total control over
     the binary format and using the native synchronization protocols
@@ -2342,6 +2344,10 @@ module type RW_MAKER =
 module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 (** Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store. *)
+
+module Make_with_metadata (M: Metadata.S) (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
+(** Similar to {!Make} but allows to specify the kind of metadata
+    stored in the nodes. *)
 
 (** Advanced store creator. *)
 module Make_ext (P: Private.S): S
