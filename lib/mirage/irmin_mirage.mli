@@ -53,7 +53,7 @@ module Irmin_git: sig
      and type key = K.t
      and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
-      be written in {i .git/objects/} and might be cleaned-up if you
+      be written in {i .git/objects/} and might be cleaned up if you
       run {i git gc} manually. *)
 
   module Memory (C: CONTEXT) (I: Git.Inflate.S): Irmin_git.S_MAKER
@@ -81,7 +81,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S): sig
     Uri.t -> t Lwt.t
   (** [connect ?depth ?branch ?path uri] clones the given [uri] using
       the given [branch], [depth] and ['/']-separated sub-[path]. By
-      defaut, [branch] is master, [depth] is [1] and [path] is empty,
+      default, [branch] is master, [depth] is [1] and [path] is empty,
       ie. reads will be relative to the root of the repository. *)
 
 end
