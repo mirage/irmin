@@ -111,9 +111,9 @@ module Irmin_git: sig
       {- [head] is the name of the local Git repository's current
          branch. If set, this will cause the file {i [root]/.git/HEAD}
          to be modified to contain {i ref: refs/heads/[branch]}.}
-      {- If [bare] is set (default is {e unset}), then the local Git
-         repository's contents will be expanded into the filesystem on
-         each update. This might cause some performance issues.}
+      {- If [bare] is unset (the default), then the local Git repository's
+         contents will be expanded into the filesystem on each update.
+         This might cause some performance issues.}
       {- [level] is the Zlib compression level. If absent, use the
          default one.}
       }  *)
