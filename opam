@@ -5,24 +5,28 @@ license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
 
 build: [
-  ["./configure" "--prefix" prefix
-      "--%{cohttp:enable}%-http"
-      "--%{git:enable}%-git"
-      "--%{base-unix+git-unix:enable}%-unix"
-      "--%{mirage-git:enable}%-mirage"]
-  [make]
+  "ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%"
+      "--with-http"   "%{cohttp:installed}%"
+      "--with-git"    "%{git:installed}%"
+      "--with-unix"   "%{git-unix:installed}%"
+      "--with-mirage" "%{mirage-git:installed}%"
 ]
 build-test: [
-  ["./configure" "--enable-tests" "--enable-examples"]
-  [make "test"]
+  ["ocaml" "pkg/pkg.ml" "build" "--tests" "true"
+      "--with-http"   "%{cohttp:installed}%"
+      "--with-git"    "%{git:installed}%"
+      "--with-unix"   "%{git-unix:installed}%"
+      "--with-mirage" "%{mirage-git:installed}%"]
+  ["ocaml" "pkg/pkg.ml" "test"]
 ]
-install: [make "install"]
-remove: ["ocamlfind" "remove" "irmin"]
 
 depends: [
-  "ocamlfind" {build}
+  "ocamlbuild" {build}
+  "ocamlfind"  {build}
+  "topkg"      {>= "0.7.8"}
   "ezjsonm" {>= "0.4.2"}
   "ocamlgraph"
   "lwt" {>= "2.4.7"}
@@ -37,13 +41,11 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
-  "base-unix" {test}
-  "git"       {test}
+  "git-unix"  {test}
   "cohttp"    {test}
   "alcotest"  {test & >="0.4.1"}
 ]
 depopts: [
-  "base-unix"
   "git"
   "git-unix"
   "cohttp"

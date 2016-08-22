@@ -1,4 +1,3 @@
-lib/ir_version.ml
 lib/http/irmin_http_static.ml
 _build/
 irmin
@@ -13,3 +12,4 @@ _tests/
 *.native
 *.dot
 *.png
+irmin.install

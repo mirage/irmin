@@ -1,0 +1,8 @@
+Irmin
+
+mem/Irmin_mem
+git/Irmin_git
+fs/Irmin_fs
+http/Irmin_http
+http/Irmin_http_server
+unix/Irmin_unix
