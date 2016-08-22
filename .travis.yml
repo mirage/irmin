@@ -6,12 +6,12 @@ env:
   global:
   - ALCOTEST_SHOW_ERRORS=1
   - REVDEPS="irmin-indexeddb"
-  - PACKAGE=irmin.0.9.9
-  - PINS="irmin-indexeddb:https://github.com/talex5/irmin-indexeddb.git#branch_id git"
+  - PACKAGE=irmin
+  - PINS="irmin-indexeddb:https://github.com/samoht/irmin-indexeddb.git"
   matrix:
-  - OCAML_VERSION=4.01
-  - OCAML_VERSION=4.02
-  - OCAML_VERSION=4.02 DEPOTS=cohttp
-  - OCAML_VERSION=4.01 DEPOTS=git
-  - OCAML_VERSION=4.01 DEPOTS="cohttp git"
-  - OCAML_VERSION=4.01 DEPOTS=mirage-git
+  - OCAML_VERSION=4.03 TESTS=true
+  - OCAML_VERSION=4.02 TESTS=true
+  - OCAML_VERSION=4.02 DEPOTS=cohttp TESTS=false
+  - OCAML_VERSION=4.03 DEPOTS=git TESTS=false
+  - OCAML_VERSION=4.02 DEPOTS="cohttp git" TESTS=false
+  - OCAML_VERSION=4.03 DEPOTS=mirage-git TESTS=false

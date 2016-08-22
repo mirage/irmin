@@ -1,0 +1,73 @@
+description = "A Distributed Version Control Database"
+version = "%%VERSION%%"
+requires = "ezjsonm ocamlgraph lwt logs cstruct tc mstruct uri stringext hex"
+archive(byte)   = "irmin.cma"
+archive(native) = "irmin.cmxa"
+plugin(byte)    = "irmin.cma"
+plugin(native)  = "irmin.cmxs"
+
+package "mem" (
+ description = "Memory backend for Irmin"
+ version = "%%VERSION%%"
+ requires = "irmin"
+ archive(byte)   = "irmin-mem.cma"
+ archive(native) = "irmin-mem.cmxa"
+ plugin(byte)    = "irmin-mem.cma"
+ plugin(native)  = "irmin-mem.cmxs"
+ exists_if       = "irmin-mem.cma"
+)
+
+package "fs" (
+ description = "Filesystem backend for Irmin"
+ version = "%%VERSION%%"
+ requires = "irmin"
+ archive(byte)   = "irmin-fs.cma"
+ archive(native) = "irmin-fs.cmxa"
+ plugin(byte)    = "irmin-fs.cma"
+ plugin(native)  = "irmin-fs.cmxs"
+ exists_if       = "irmin-fs.cma"
+)
+
+package "unix" (
+ description = "Unix backend for Irmin"
+ version = "%%VERSION%%"
+ requires = "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
+ archive(byte)   = "irmin-unix.cma"
+ archive(native) = "irmin-unix.cmxa"
+ plugin(byte)    = "irmin-unix.cma"
+ plugin(native)  = "irmin-unix.cmxs"
+ exists_if       = "irmin-unix.cma"
+)
+
+package "mirage" (
+ description = "MirageOS backend for Irmin"
+ version = "%%VERSION%%"
+ requires = "irmin irmin.mem irmin.git irmin.fs irmin.http cohttp.lwt git.mirage"
+ archive(byte)   = "irmin-mirage.cma"
+ archive(native) = "irmin-mirage.cmxa"
+ plugin(byte)    = "irmin-mirage.cma"
+ plugin(native)  = "irmin-mirage.cmxs"
+ exists_if       = "irmin-mirage.cma"
+)
+
+package "http" (
+ description = "HTTP backend for Irmin"
+ version = "%%VERSION%%"
+ requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
+ archive(byte)   = "irmin-http.cma"
+ plugin(byte)    = "irmin-http.cma"
+ archive(native) = "irmin-http.cmxa"
+ plugin(native)  = "irmin-http.cmxs"
+ exists_if       = "irmin-http.cma"
+)
+
+package "git" (
+ description = "Git backend for Irmin"
+ version = "%%VERSION%%"
+ requires = "irmin git"
+ archive(byte)   = "irmin-git.cma"
+ archive(native) = "irmin-git.cmxa"
+ plugin(byte)    = "irmin-git.cma"
+ plugin(native)  = "irmin-git.cmxs"
+ exists_if       = "irmin-git.cma"
+)

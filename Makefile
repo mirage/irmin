@@ -1,78 +1,20 @@
-TESTS  ?= --enable-tests
-PREFIX ?= /usr/local
+HTTP   ?= $(shell opam config var cohttp:installed)
+GIT    ?= $(shell opam config var git:installed)
+UNIX   ?= $(shell opam config var git-unix:installed)
+MIRAGE ?= $(shell opam config var mirage-git:installed)
+TESTS  ?= true
 
-VERSION = $(shell grep 'Version:' _oasis | sed 's/Version: *//')
-SETUP   = ocaml setup.ml
-VFILE   = lib/ir_version.ml
-SFILE   = lib/http/irmin_http_static.ml
-SFILES  = $(wildcard lib/http/static/*.js) \
-	  $(wildcard lib/http/*.html) \
-	  $(wildcard lib/http/static/*.css)
-
-build: setup.data $(VFILE) $(SFILE)
-	$(SETUP) -build $(BUILDFLAGS)
-
-doc: setup.data build
-	$(SETUP) -doc $(DOCFLAGS)
-
-test: setup.data build
-	$(SETUP) -test $(TESTFLAGS)
+OPTIONS=--with-http ${HTTP} --with-git ${GIT} --with-unix ${UNIX} \
+	--with-mirage ${MIRAGE} --tests ${TESTS}
 
 all:
-	$(SETUP) -all $(ALLFLAGS)
-
-install: setup.data
-	$(SETUP) -install $(INSTALLFLAGS)
-
-uninstall: setup.data
-	$(SETUP) -uninstall $(UNINSTALLFLAGS)
-
-reinstall: setup.data
-	$(SETUP) -reinstall $(REINSTALLFLAGS)
+	ocaml pkg/pkg.ml build ${OPTIONS}
 
 clean:
-	$(SETUP) -clean $(CLEANFLAGS)
-	rm -f $(VFILE) $(SFILE)
-	rm -rf ./test-db
-
-distclean:
-	$(SETUP) -distclean $(DISTCLEANFLAGS)
-
-setup.data:
-	$(SETUP) -configure $(CONFIGUREFLAGS) $(TESTS) --prefix $(PREFIX)
-
-.PHONY: build doc test all install uninstall reinstall clean distclean configure
-
-$(VFILE): _oasis
-	echo "let current = \"$(VERSION)\"" > $@
-
-$(SFILE): $(SFILES)
-	cd lib/http/ && ./make_static.sh
+	rm -rf _build lib_test/_tests lib_test/test-db lib_test/test_db_git
+	ocaml pkg/pkg.ml clean
 
 
-doc/html/.git:
-	cd doc/html && (\
-		git init && \
-		git remote add origin git@github.com:mirage/irmin.git && \
-		git checkout -b gh-pages \
-	)
-
-gh-pages: doc/html/.git
-	cd doc/html && git checkout gh-pages
-	rm -f doc/html/*.html
-	cp irmin.docdir/*.html doc/html/
-	cd doc/html && git add *.html
-	cd doc/html && git commit -a -m "Doc updates"
-	cd doc/html && git push origin gh-pages
-
-NAME    = $(shell grep 'Name:' _oasis    | sed 's/Name: *//')
-ARCHIVE = https://github.com/mirage/irmin/archive/$(VERSION).tar.gz
-
-release:
-	git tag -a $(VERSION) -m "Version $(VERSION)."
-	git push upstream $(VERSION)
-	$(MAKE) pr
-
-pr:
-	opam publish prepare $(NAME).$(VERSION) $(ARCHIVE)
-	OPAMPUBLISHBYPASSCHECKS=1 OPAMYES=1 opam publish submit $(NAME).$(VERSION) && rm -rf $(NAME).$(VERSION)
+test:
+	ocaml pkg/pkg.ml build ${OPTIONS}
+	ocaml pkg/pkg.ml test
