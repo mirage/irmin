@@ -1369,7 +1369,7 @@ module Private: sig
       module Path: Path.S
       (** [Step] provides base functions on node steps. *)
 
-      val merge: Path.t -> t -> key option Ir_merge.t
+      val merge: Path.t -> t -> key option Merge.t
       (** [merge] is the 3-way merge function for nodes keys. *)
 
       module Key: Hash.S with type t = key
@@ -1572,7 +1572,7 @@ module Private: sig
 
       include AO
 
-      val merge: task -> t -> key option Ir_merge.t
+      val merge: task -> t -> key option Merge.t
       (** [merge] is the 3-way merge function for commit keys. *)
 
       module Key: Hash.S with type t = key
