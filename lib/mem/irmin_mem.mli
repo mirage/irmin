@@ -35,3 +35,6 @@ module RW: Irmin.RW_MAKER
 
 module Make: Irmin.S_MAKER
 (** An in-memory Irmin store. *)
+
+module Make_with_metadata (M: Irmin.Metadata.S): Irmin.S_MAKER
+(** An in-memory Irmin store with custom node's metadata. *)
