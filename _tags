@@ -2,9 +2,7 @@ true: bin_annot, debug
 true: warn_error(+1..49), warn(A-4-41-44)
 true: short_paths
 
-true: package(cstruct), package(fmt), package(hex), package(logs), package(lwt)
-true: package(ocamlgraph), package(re), package(stringext), package(uri)
-true: package(tc), package(mstruct)
+true: package(cstruct fmt hex logs lwt ocamlgraph re stringext uri tc mstruct)
 
 <lib>: include
 <lib/mem>: include
@@ -13,17 +11,15 @@ true: package(tc), package(mstruct)
 <lib/http>: include
 <lib/unix>: include
 
-<lib_test/*>: package(alcotest), package(git.unix), package(logs.fmt)
-<lib_test/*>: package(re.pcre), package(re.perl), package(ezjsonm.lwt)
+<lib_test/*>: package(alcotest git.unix logs.fmt)
+<lib_test/*>: package(re.pcre re.perl ezjsonm.lwt)
 
-<lib/http/*>: package(cohttp), package(crunch), package(ezjsonm)
+<lib/http/*>: package(cohttp crunch ezjsonm)
 <lib/git/*>: package(git)
 <lib/unix/*>: package(git.unix)
 <lib/mirage/*>: package(git.mirage)
 
-<bin/*>: package(cmdliner), package(git.unix), package(fmt.cli)
-<bin/*>: package(logs.fmt), package(fmt.tty), package(ezjsonm.lwt)
-<bin/*>: package(logs.cli), package(re.pcre), package(re.pcre), package(re.perl)
+<bin/*>: package(cmdliner git.unix fmt.cli logs.fmt fmt.tty ezjsonm.lwt)
+<bin/*>: package(logs.cli re.pcre re.pcre re.perl)
 
-<examples/*>: package(git.unix), package(re.pcre), package(re.perl)
-<examples/*>: package(ezjsonm.lwt)
+<examples/*>: package(git.unix re.pcre re.perl ezjsonm.lwt)
