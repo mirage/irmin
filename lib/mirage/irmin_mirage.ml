@@ -30,9 +30,10 @@ module Irmin_git = struct
   module Memory (C: CONTEXT) = Irmin_git.Memory_ext(Context(C))(IO)
 end
 
-module Task (N: sig val name: string end) (C: V1.CLOCK) = struct
-  let f msg =
-    let date = Int64.of_float (C.time ()) in
+module Task (N: sig val name: string end) (C: V1.PCLOCK) = struct
+  let f c msg =
+    C.now_d_ps c |>
+    Ptime.v |> Ptime.to_float_s |> Int64.of_float |> fun date ->
     Irmin.Task.create ~date ~owner:N.name msg
 end
 
