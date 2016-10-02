@@ -17,7 +17,7 @@ true: package(cstruct fmt hex logs lwt ocamlgraph re stringext uri tc mstruct)
 <lib/http/*>: package(cohttp crunch ezjsonm)
 <lib/git/*>: package(git)
 <lib/unix/*>: package(git.unix)
-<lib/mirage/*>: package(git.mirage)
+<lib/mirage/*>: package(git.mirage ptime)
 
 <bin/*>: package(cmdliner git.unix fmt.cli logs.fmt fmt.tty ezjsonm.lwt)
 <bin/*>: package(logs.cli re.pcre re.pcre re.perl)

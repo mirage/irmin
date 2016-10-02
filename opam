@@ -50,6 +50,7 @@ depopts: [
   "git-unix"
   "cohttp"
   "mirage-git"
+  "ptime"
 ]
 conflicts: [
   "cohttp" {< "0.18.3"}
