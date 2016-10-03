@@ -11,7 +11,7 @@ env:
   matrix:
   - OCAML_VERSION=4.03 TESTS=true
   - OCAML_VERSION=4.02 TESTS=true
-  - OCAML_VERSION=4.02 DEPOTS=cohttp TESTS=false
-  - OCAML_VERSION=4.03 DEPOTS=git TESTS=false
-  - OCAML_VERSION=4.02 DEPOTS="cohttp git" TESTS=false
-  - OCAML_VERSION=4.03 DEPOTS=mirage-git TESTS=false
+  - OCAML_VERSION=4.02 DEPOPTS=cohttp TESTS=false
+  - OCAML_VERSION=4.03 DEPOPTS=git TESTS=false
+  - OCAML_VERSION=4.02 DEPOPTS="cohttp git" TESTS=false
+  - OCAML_VERSION=4.03 DEPOPTS=mirage-git TESTS=false
