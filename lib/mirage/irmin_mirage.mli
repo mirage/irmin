@@ -61,12 +61,12 @@ module Irmin_git: sig
 
 end
 
-module Task (N: sig val name: string end)(C: V1.CLOCK): sig
+module Task (N: sig val name: string end)(C: V1.PCLOCK): sig
 
   (** {1 Task creators} *)
 
-  val f: string Irmin.Task.f
-  (** Task creators, using [N.name] and [C.time ()] provided in the
+  val f: C.t -> string Irmin.Task.f
+  (** Task creators, using [N.name] and [C.now_d_ps] provided in the
       functor arguments. *)
 
 end

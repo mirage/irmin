@@ -39,5 +39,5 @@ let () =
     example "process";
     example "views";
     example "sync";
-    example "git_store";
+    example "irmin_git_store";
   ]
