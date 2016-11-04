@@ -1332,6 +1332,15 @@ module Make (S: Test_S) = struct
     in
     run x test
 
+  let test_merge_unrelated x () =
+    run x @@ fun repo ->
+    let v1 = string x "X1" in
+    S.of_branch_id Irmin_unix.task (S.Ref.of_hum "foo") repo >>= fun foo ->
+    S.of_branch_id Irmin_unix.task (S.Ref.of_hum "bar") repo >>= fun bar ->
+    S.update (foo "update foo:a") (p ["a"]) v1 >>= fun () ->
+    S.update (bar "update bar:b") (p ["b"]) v1 >>= fun () ->
+    S.merge_exn "merge bar into foo" bar ~into:foo
+
   let rec write fn = function
     | 0 -> return_unit
     | i -> (fn i >>= Lwt_unix.yield) <&> write fn (i-1)
@@ -1499,6 +1508,7 @@ let suite (speed, x) =
     "High-level operations on views"  , speed, T.test_views x;
     "High-level store synchronisation", speed, T.test_sync x;
     "High-level store merges"         , speed, T.test_merge x;
+    "Unrelated merges"                , speed, T.test_merge_unrelated x;
     "Low-level concurrency"           , speed, T.test_concurrent_low x;
     "Concurrent updates"              , speed, T.test_concurrent_updates x;
     "Concurrent head updates"         , speed, T.test_concurrent_head_updates x;
