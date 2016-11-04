@@ -17,8 +17,8 @@
 open Sexplib.Std
 
 module OP = struct
-  let show m f t = Format.pp_print_string f (Tc.show m t)
-  let shows m f ts = Format.pp_print_string f (Tc.shows m ts)
+  let show m f t = Fmt.string f (Tc.show m t)
+  let shows m f ts = Fmt.string f (Tc.shows m ts)
 end
 
 let list_partition_map f t =

@@ -16,7 +16,7 @@
  *)
 
 type 'a parser = string -> [ `Error of string | `Ok of 'a ]
-type 'a printer = Format.formatter -> 'a -> unit
+type 'a printer = 'a Fmt.t
 type 'a converter = 'a parser * 'a printer
 
 val parser : 'a converter -> 'a parser

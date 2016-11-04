@@ -76,7 +76,7 @@ module Conf = struct
 
   let reference =
     let parse str = `Ok (Git.Reference.of_raw str) in
-    let print ppf name = Format.pp_print_string ppf (Git.Reference.to_raw name) in
+    let print ppf name = Fmt.string ppf (Git.Reference.to_raw name) in
     parse, print
 
   let head =
@@ -235,7 +235,7 @@ module Irmin_value_store
   module XNode = struct
     module Key = H
     module Path = C.Path
-    
+
     module Val = struct
       module Metadata = Metadata
 

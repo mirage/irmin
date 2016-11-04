@@ -1068,7 +1068,7 @@ module Private: sig
     type 'a parser = string -> [ `Error of string | `Ok of 'a ]
     (** The type for configuration converter parsers. *)
 
-    type 'a printer = Format.formatter -> 'a -> unit
+    type 'a printer = 'a Fmt.t
     (** The type for configuration converter printers. *)
 
     type 'a converter = 'a parser * 'a printer
