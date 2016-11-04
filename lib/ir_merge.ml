@@ -254,7 +254,7 @@ let alist
   let y = sort y in
   let old k =
     old () >>| function
-    | None     -> ok None
+    | None     -> ok (Some None)
     | Some old ->
       let old = try Some (List.assoc k old) with Not_found -> None in
       ok (Some old)
