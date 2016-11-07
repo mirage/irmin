@@ -42,7 +42,6 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
-  "ptime"
   "git-unix"  {test}
   "cohttp"    {test}
   "alcotest"  {test & >="0.4.1"}
@@ -52,6 +51,7 @@ depopts: [
   "git-unix"
   "cohttp"
   "mirage-git"
+  "ptime"
 ]
 conflicts: [
   "cohttp" {< "0.18.3"}
