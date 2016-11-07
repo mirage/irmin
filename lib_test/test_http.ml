@@ -81,5 +81,5 @@ let suite ?(content_type=`Raw) server =
     end;
 
     config = Irmin_http.config ~content_type uri;
-    store = http_store server.cont;
+    store = http_store server.store server.cont;
   }
