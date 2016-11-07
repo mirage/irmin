@@ -91,6 +91,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   type key_handler = value diff -> unit Lwt.t
   type all_handler = key -> value diff -> unit Lwt.t
 
+  let pp_value = Fmt.of_to_string @@ Tc.show (module V)
+
   type t = {
     id: int;                                      (* unique watch manager id. *)
     lock: Lwt_mutex.t;                           (* protect [keys] and [glb]. *)
@@ -150,7 +152,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     let todo = ref [] in
     let glob = IMap.fold (fun id (init, f as arg) acc ->
         let fire old_value =
-          Log.debug (fun f -> f "notify-all[%d.%d]: firing!" t.id id);
+          Log.debug (fun f -> f "notify-all[%d.%d]: firing! (v=%a)"
+                        t.id id Fmt.(Dump.option pp_value) old_value);
           todo := protect (fun () -> f key (mk old_value value)) :: !todo;
           let init = match value with
             | None   -> KMap.remove key init
