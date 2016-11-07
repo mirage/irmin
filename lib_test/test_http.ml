@@ -22,6 +22,9 @@ let uri = Uri.of_string "http://127.0.0.1:8080"
 
 let file = Filename.temp_file "irmin" ".signal"
 
+(* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
+let () = Lwt.async_exception_hook := ignore
+
 let signal () =
   let oc = open_out file in
   output_string oc "Server started";

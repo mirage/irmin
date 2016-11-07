@@ -16,14 +16,13 @@
  *)
 
 type 'a parser = string -> [ `Error of string | `Ok of 'a ]
-type 'a printer = Format.formatter -> 'a -> unit
+type 'a printer = 'a Fmt.t
 type 'a converter = 'a parser * 'a printer
 
 let parser (p, _) = p
 let printer (_, p) = p
 
 let str = Printf.sprintf
-let pr_str = Format.pp_print_string
 let quote s = str "`%s'" s
 
 module Err = struct
@@ -38,24 +37,23 @@ end
 let bool =
   (fun s -> try `Ok (bool_of_string s) with Invalid_argument _ ->
      `Error (Err.invalid_val s (Err.alts ["true"; "false"]))),
-  Format.pp_print_bool
+  Fmt.bool
 
 let parse_with t_of_str exp s =
   try `Ok (t_of_str s) with Failure _ -> `Error (Err.invalid_val s exp)
 
-let int =
-  parse_with int_of_string "expected an integer", Format.pp_print_int
+let int = parse_with int_of_string "expected an integer", Fmt.int
 
-let string = (fun s -> `Ok s), pr_str
+let string = (fun s -> `Ok s), Fmt.string
 
 let some (parse, print) =
   let none = "" in
   (fun s -> match parse s with `Ok v -> `Ok (Some v) | `Error _ as e -> e),
-  (fun ppf v -> match v with None -> pr_str ppf none| Some v -> print ppf v)
+  (fun ppf v -> match v with None -> Fmt.string ppf none| Some v -> print ppf v)
 
 let uri =
   let parse s = `Ok (Uri.of_string s) in
-  let print pp u = Format.pp_print_string pp (Uri.to_string u) in
+  let print pp u = Fmt.string pp (Uri.to_string u) in
   parse, print
 
 module Univ = struct

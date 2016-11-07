@@ -28,6 +28,7 @@ depends: [
   "ocamlfind"  {build}
   "topkg"      {>= "0.7.8"}
   "ezjsonm" {>= "0.4.2"}
+  "fmt"
   "ocamlgraph"
   "lwt" {>= "2.4.7"}
   "logs" {>= "0.5.0"}

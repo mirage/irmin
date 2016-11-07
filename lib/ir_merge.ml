@@ -246,13 +246,15 @@ let alist
   (type a) (module A: Tc.S0 with type t = a)
   (type b) (module B: Tc.S0 with type t = b)
   merge_b ~old x y =
+  let pp = Fmt.(Dump.list @@ Dump.pair (show (module A)) (show (module B))) in
+  Log.debug (fun l -> l "alist %a | %a" pp x pp y);
   let module P = Tc.Pair(A)(B) in
   let sort = List.sort P.compare in
   let x = sort x in
   let y = sort y in
   let old k =
     old () >>| function
-    | None     -> ok None
+    | None     -> ok (Some None)
     | Some old ->
       let old = try Some (List.assoc k old) with Not_found -> None in
       ok (Some old)

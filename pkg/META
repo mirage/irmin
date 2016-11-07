@@ -1,6 +1,6 @@
 description = "A Distributed Version Control Database"
 version = "%%VERSION%%"
-requires = "ezjsonm ocamlgraph lwt logs cstruct tc mstruct uri stringext hex"
+requires = "ezjsonm ocamlgraph lwt logs cstruct tc mstruct uri stringext hex fmt"
 archive(byte)   = "irmin.cma"
 archive(native) = "irmin.cmxa"
 plugin(byte)    = "irmin.cma"

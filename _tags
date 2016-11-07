@@ -3,6 +3,7 @@ true: warn_error(+1..49), warn(A-4-41-44)
 true: short_paths
 
 true: package(cstruct fmt hex logs lwt ocamlgraph re stringext uri tc mstruct)
+true: package(fmt)
 
 <lib>: include
 <lib/mem>: include
