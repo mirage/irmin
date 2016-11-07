@@ -372,6 +372,40 @@ module Make (S: Test_S) = struct
     in
     run x test
 
+  let test_watch_exn x () =
+    let test repo =
+      S.master Irmin_unix.task repo >>= fun t ->
+      let key = p ["a"] in
+      let v1  = string x "bar" in
+      let v2  = string x "foo" in
+      let r = ref 0 in
+      S.watch_head (t "watch") (fun _ -> incr r; failwith "test") >>= fun u ->
+      S.watch_head (t "watch") (fun _ -> incr r; Lwt.fail_with "test") >>= fun v ->
+      S.watch_head (t "watch") (fun _ -> incr r; Lwt.return_unit) >>= fun w ->
+      S.update (t "update") key v1 >>= fun () ->
+      retry (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r) >>= fun () ->
+      S.update (t "update") key v2 >>= fun () ->
+      retry (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r) >>= fun () ->
+      u () >>= fun () ->
+      v () >>= fun () ->
+      w () >>= fun () ->
+
+      S.watch_key (t "watch") key (fun _ -> incr r; failwith "test") >>= fun u ->
+      S.watch_key (t "watch") key (fun _ -> incr r; Lwt.fail_with "test") >>= fun v ->
+      S.watch_key (t "watch") key (fun _ -> incr r; Lwt.return_unit) >>= fun w ->
+      S.update (t "update") key v1 >>= fun () ->
+      retry (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r) >>= fun () ->
+      S.update (t "update") key v2 >>= fun () ->
+      retry (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r) >>= fun () ->
+      u () >>= fun () ->
+      v () >>= fun () ->
+      w () >>= fun () ->
+
+      Alcotest.(check unit) "ok!" () ();
+      Lwt.return_unit
+    in
+    run x test
+
   let test_watches x () =
 
     let watch_threads () =
@@ -1498,6 +1532,7 @@ let suite (speed, x) =
     "Basic operations on nodes"       , speed, T.test_nodes x;
     "Basic operations on commits"     , speed, T.test_commits x;
     "Basic operations on branches"    , speed, T.test_branches x;
+    "Watch callbacks and exceptions"  , speed, T.test_watch_exn x;
     "Basic operations on watches"     , speed, T.test_watches x;
     "Basic merge operations"          , speed, T.test_simple_merges x;
     "Basic operations on slices"      , speed, T.test_slice x;

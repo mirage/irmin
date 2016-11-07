@@ -91,6 +91,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   type key_handler = value diff -> unit Lwt.t
   type all_handler = key -> value diff -> unit Lwt.t
 
+  let pp_value = Fmt.of_to_string @@ Tc.show (module V)
+
   type t = {
     id: int;                                      (* unique watch manager id. *)
     lock: Lwt_mutex.t;                           (* protect [keys] and [glb]. *)
@@ -140,12 +142,19 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     | None  , Some v -> `Added v
     | Some x, Some y -> `Updated (x, y)
 
+  let protect f () =
+    Lwt.catch f (fun e ->
+        Log.err (fun l -> l "Watch callback got: %a" Fmt.exn e);
+        Lwt.return_unit
+      )
+
   let notify_all t key value =
     let todo = ref [] in
     let glob = IMap.fold (fun id (init, f as arg) acc ->
         let fire old_value =
-          Log.debug (fun f -> f "notify-all[%d.%d]: firing!" t.id id);
-          todo := (fun () -> f key (mk old_value value)) :: !todo;
+          Log.debug (fun f -> f "notify-all[%d.%d]: firing! (v=%a)"
+                        t.id id Fmt.(Dump.option pp_value) old_value);
+          todo := protect (fun () -> f key (mk old_value value)) :: !todo;
           let init = match value with
             | None   -> KMap.remove key init
             | Some v -> KMap.add key v init
@@ -173,7 +182,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
           IMap.add id arg acc
         ) else (
           Log.debug (fun f -> f "notify-key[%d:%d] firing!" t.id id);
-          todo := (fun () -> f (mk old_value value)) :: !todo;
+          todo := protect (fun () -> f (mk old_value value)) :: !todo;
           IMap.add id (k, value, f) acc
         )
       ) t.keys IMap.empty
