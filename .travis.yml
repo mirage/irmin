@@ -7,9 +7,9 @@ env:
   - ALCOTEST_SHOW_ERRORS=1
   - REVDEPS="irmin-indexeddb"
   - PACKAGE=irmin
-  - PINS="irmin-indexeddb:https://github.com/samoht/irmin-indexeddb.git"
+  - PINS="irmin-indexeddb:https://github.com/samoht/irmin-indexeddb.git irmin-watcher.0.2.0:--dev"
   matrix:
-  - OCAML_VERSION=4.03 TESTS=true
+  - OCAML_VERSION=4.03 TESTS=true EXTRA_DEPS=inotify
   - OCAML_VERSION=4.02 TESTS=true
   - OCAML_VERSION=4.02 DEPOPTS=cohttp TESTS=false
   - OCAML_VERSION=4.03 DEPOPTS=git TESTS=false
