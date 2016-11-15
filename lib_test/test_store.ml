@@ -375,13 +375,17 @@ module Make (S: Test_S) = struct
   let test_watch_exn x () =
     let test repo =
       S.master Irmin_unix.task repo >>= fun t ->
+      S.head (t "head") >>= fun h ->
       let key = p ["a"] in
       let v1  = string x "bar" in
       let v2  = string x "foo" in
       let r = ref 0 in
-      S.watch_head (t "watch") (fun _ -> incr r; failwith "test") >>= fun u ->
-      S.watch_head (t "watch") (fun _ -> incr r; Lwt.fail_with "test") >>= fun v ->
-      S.watch_head (t "watch") (fun _ -> incr r; Lwt.return_unit) >>= fun w ->
+      S.watch_head ?init:h (t "watch") (fun _ -> incr r; failwith "test")
+      >>= fun u ->
+      S.watch_head ?init:h (t "watch") (fun _ -> incr r; Lwt.fail_with "test")
+      >>= fun v ->
+      S.watch_head ?init:h (t "watch") (fun _ -> incr r; Lwt.return_unit)
+      >>= fun w ->
       S.update (t "update") key v1 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r) >>= fun () ->
       S.update (t "update") key v2 >>= fun () ->
@@ -390,9 +394,16 @@ module Make (S: Test_S) = struct
       v () >>= fun () ->
       w () >>= fun () ->
 
-      S.watch_key (t "watch") key (fun _ -> incr r; failwith "test") >>= fun u ->
-      S.watch_key (t "watch") key (fun _ -> incr r; Lwt.fail_with "test") >>= fun v ->
-      S.watch_key (t "watch") key (fun _ -> incr r; Lwt.return_unit) >>= fun w ->
+      S.head_exn (t "head") >>= fun h ->
+      S.watch_key ~init:(h, v2) (t "watch") key
+        (fun _ -> incr r; failwith "test")
+      >>= fun u ->
+      S.watch_key ~init:(h, v2) (t "watch") key
+        (fun _ -> incr r; Lwt.fail_with "test")
+      >>= fun v ->
+      S.watch_key ~init:(h, v2) (t "watch") key
+        (fun _ -> incr r; Lwt.return_unit)
+      >>= fun w ->
       S.update (t "update") key v1 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r) >>= fun () ->
       S.update (t "update") key v2 >>= fun () ->
