@@ -42,7 +42,6 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
-  "ptime"
   "git-unix"  {test}
   "cohttp"    {test}
   "alcotest"  {test & >="0.4.1"}
