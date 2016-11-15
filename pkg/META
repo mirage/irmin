@@ -31,7 +31,7 @@ package "fs" (
 package "unix" (
  description = "Unix backend for Irmin"
  version = "%%VERSION_NUM%%"
- requires = "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
+ requires = "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt irmin-watcher"
  archive(byte)   = "irmin-unix.cma"
  archive(native) = "irmin-unix.cmxa"
  plugin(byte)    = "irmin-unix.cma"

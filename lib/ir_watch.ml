@@ -37,16 +37,18 @@ module type S = sig
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
-    -> (unit -> unit) Lwt.t
+    -> (unit -> unit Lwt.t) Lwt.t
 end
 
 let listen_dir_hook =
   ref (fun _dir _fn ->
-    Printf.eprintf "Listen hook not set!\n%!";
-    assert false
-  )
+      Printf.eprintf "Listen hook not set!\n%!";
+      assert false
+    )
 
-let set_listen_dir_hook fn = listen_dir_hook := fn
+type hook = int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+
+let set_listen_dir_hook (h: hook) = listen_dir_hook := h
 
 let id () =
   let c = ref 0 in
@@ -102,7 +104,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     enqueue: (unit -> unit Lwt.t) -> unit;          (* enqueue notifications. *)
     clean: unit -> unit;                  (* destroy the notification thread. *)
     mutable listeners: int;                           (* number of listeners. *)
-    mutable stop_listening: unit -> unit     (* clean-up listening resources. *)
+    mutable stop_listening: unit -> unit Lwt.t  (* clean-up listen resources. *)
   }
 
   let stats t = IMap.cardinal t.keys, IMap.cardinal t.glob
@@ -120,7 +122,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     let clean, enqueue = scheduler () in
     { lock; clean; enqueue; id = global (); next = 0;
       keys = IMap.empty; glob = IMap.empty;
-      listeners = 0; stop_listening = (fun () -> ()); }
+      listeners = 0; stop_listening = (fun () -> Lwt.return_unit); }
 
   let unwatch_unsafe t id =
     Log.debug (fun f -> f "unwatch %s: id=%d" (to_string t) id);
@@ -228,22 +230,23 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   let listen_dir t dir ~key ~value =
     let init () =
       if t.listeners = 0 then (
-      Log.debug (fun f -> f "%s: start listening to %s" (to_string t) dir);
-      !listen_dir_hook t.id dir (fun file ->
-          match key file with
-          | None     -> Lwt.return_unit
-          | Some key -> value key >>= notify t key
-        ) >|= fun f ->
-      t.stop_listening <- f
+        Log.debug (fun f -> f "%s: start listening to %s" (to_string t) dir);
+        !listen_dir_hook t.id dir (fun file ->
+            match key file with
+            | None     -> Lwt.return_unit
+            | Some key -> value key >>= notify t key
+          ) >|= fun f ->
+        t.stop_listening <- f
       ) else Lwt.return_unit
     in
     init () >|= fun () ->
     t.listeners <- t.listeners + 1;
     function () ->
       if t.listeners > 0 then t.listeners <- t.listeners - 1;
-      if t.listeners = 0 then (
+      if t.listeners <> 0 then Lwt.return_unit
+      else (
         Log.debug (fun f -> f "%s: stop listening to %s" (to_string t) dir);
-        t.stop_listening ();
+        t.stop_listening ()
       )
 
 end

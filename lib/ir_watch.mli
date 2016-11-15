@@ -34,12 +34,13 @@ module type S = sig
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
-    -> (unit -> unit) Lwt.t
+    -> (unit -> unit Lwt.t) Lwt.t
 end
 
 module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
 
-val set_listen_dir_hook:
-  (int -> string -> (string -> unit Lwt.t) -> (unit -> unit) Lwt.t) -> unit
+type hook = int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+
+val set_listen_dir_hook: hook -> unit
 
 val workers: unit -> int

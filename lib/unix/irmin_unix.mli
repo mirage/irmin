@@ -215,18 +215,6 @@ module Irmin_http_server: sig
 
 end
 
-val install_dir_polling_listener: float -> unit
-(** Install the directory listener using active polling. The parameter
-    is the thread sleep time. Prefer
-    {{:https://opam.ocaml.org/packages/inotify/inotify.2.0/}inotify}
-    if it works on your system. *)
-
-val uninstall_dir_polling_listener: unit -> unit
-(** Stop the thread started by {!install_dir_polling_listener}. *)
-
-val polling_threads: unit -> int
-(** The number of polling threads. *)
-
 module type LOCK = sig
 
   (** {1 Filesystem {i dotlocking}} *)
@@ -239,3 +227,7 @@ end
 
 module Lock: LOCK
 (** An implementation of filesystem dotlocking. *)
+
+val set_listen_dir_hook: unit -> unit
+(** Install {!Irmin_watcher.hook} as the listen hook for watching
+    changes in directories. *)

@@ -409,7 +409,8 @@ module Make (S: Test_S) = struct
   let test_watches x () =
 
     let watch_threads () =
-      Irmin_unix.polling_threads (), Irmin.Private.Watch.workers ()
+      let stats = Irmin_watcher.stats () in
+      stats.Irmin_watcher.watchdogs, Irmin.Private.Watch.workers ()
     in
 
     let pp_w (p, w) = sprintf "%d/%d" p w in

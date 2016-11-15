@@ -22,8 +22,7 @@ open Ir_resolver
 
 let fmt t = Printf.ksprintf (fun s -> t s)
 
-let () =
-  install_dir_polling_listener 0.5
+let () = Irmin_unix.set_listen_dir_hook ()
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"

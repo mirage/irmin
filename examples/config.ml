@@ -6,5 +6,4 @@ let init () =
   ()
 
 (* Install the FS listener. *)
-let () =
-  Irmin_unix.install_dir_polling_listener 0.5
+let () = Irmin_unix.set_listen_dir_hook ()
