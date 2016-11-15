@@ -26,7 +26,7 @@ build-test: [
 depends: [
   "ocamlbuild" {build}
   "ocamlfind"  {build}
-  "topkg"      {>= "0.7.8"}
+  "topkg"      {build & >= "0.7.8"}
   "ezjsonm" {>= "0.4.2"}
   "fmt"
   "ocamlgraph"
