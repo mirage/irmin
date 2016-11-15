@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Astring
 module IO = Git_mirage.Sync.IO
 
 module type CONTEXT = sig val v: unit -> IO.ctx option Lwt.t end
@@ -67,7 +68,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
         (S.Hash.to_hum h)
         (Irmin.Task.owner task)
         (Irmin.Task.date task)
-        (String.concat "\n" @@ Irmin.Task.messages task)
+        (String.concat ~sep:"\n" @@ Irmin.Task.messages task)
 
   let mk_path t path =
     let rec aux acc = function
@@ -108,7 +109,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
     let branch_id = S.Ref.of_hum branch in
     let path = match path with
       | None -> []
-      | Some s -> List.filter ((<>)"") @@ Stringext.split s ~on:'/'
+      | Some s -> List.filter ((<>)"") @@ String.cuts s ~sep:"/"
     in
     S.Repo.create config >>= S.of_branch_id Irmin.Task.none branch_id >>= fun t ->
     Sync.pull_exn (t ()) ~depth uri `Update >|= fun () ->

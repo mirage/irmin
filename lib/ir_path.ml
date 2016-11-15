@@ -15,6 +15,7 @@
  *)
 
 exception Invalid of string
+open Astring
 
 module String_list = struct
 
@@ -58,7 +59,7 @@ module String_list = struct
 
   (* XXX: slow *)
   let of_hum s =
-    List.filter ((<>)"") (Stringext.split s ~on:'/')
+    List.filter ((<>)"") (String.cuts s ~sep:"/")
     |> List.map Step.of_hum
 
 end

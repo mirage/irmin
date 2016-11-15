@@ -16,6 +16,7 @@
 
 open Irmin.Merge.OP
 open Irmin_http_common
+open Astring
 
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
@@ -448,10 +449,10 @@ struct
     include C.Path
 
     let to_hum t =
-      String.concat "/" (C.Path.map t (fun x -> Uri.pct_encode (Step.to_hum x)))
+      String.concat ~sep:"/" (C.Path.map t (fun x -> Uri.pct_encode (Step.to_hum x)))
 
     let of_hum t =
-      List.filter ((<>)"") (Stringext.split t ~on:'/')
+      List.filter ((<>)"") (String.cuts t ~sep:"/")
       |> List.map (fun x -> Step.of_hum (Uri.pct_decode x))
       |> C.Path.create
 
