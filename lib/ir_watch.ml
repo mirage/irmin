@@ -108,7 +108,9 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   }
 
   let stats t = IMap.cardinal t.keys, IMap.cardinal t.glob
-  let to_string t = let k,a = stats t in Printf.sprintf "[%d: %dk/%dg]" t.id k a
+  let to_string t =
+    let k,a = stats t in
+    Printf.sprintf "[%d: %dk/%dg|%d]" t.id k a t.listeners
   let next t = let id = t.next in t.next <- id + 1; id
   let is_empty t = IMap.is_empty t.keys && IMap.is_empty t.glob
 
@@ -237,7 +239,10 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
             | Some key -> value key >>= notify t key
           ) >|= fun f ->
         t.stop_listening <- f
-      ) else Lwt.return_unit
+      ) else (
+        Log.debug (fun f -> f "%s: already listening on %s" (to_string t) dir);
+        Lwt.return_unit
+      )
     in
     init () >|= fun () ->
     t.listeners <- t.listeners + 1;
