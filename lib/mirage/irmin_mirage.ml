@@ -30,10 +30,9 @@ module Irmin_git = struct
   module Memory (C: CONTEXT) = Irmin_git.Memory_ext(Context(C))(IO)
 end
 
-module Task (N: sig val name: string end) (C: V1.PCLOCK) = struct
-  let f c msg =
-    C.now_d_ps c |>
-    Ptime.v |> Ptime.to_float_s |> Int64.of_float |> fun date ->
+module Task (N: sig val name: string end) (C: V1.CLOCK) = struct
+  let f msg =
+    let date = Int64.of_float (C.time ()) in
     Irmin.Task.create ~date ~owner:N.name msg
 end
 
@@ -45,9 +44,10 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
   module Sync = Irmin.Sync(S)
   let config = Irmin_mem.config ()
 
-  type error = Unknown_key of string | Failure of string
+  type error = Unknown_key of string
   type 'a io = 'a Lwt.t
   type t = { path: string list; t: S.t; }
+  type id
   let disconnect _ = Lwt.return_unit
   type page_aligned_buffer = Cstruct.t
   let unknown_key k = Lwt.return (`Error (Unknown_key k))
@@ -75,9 +75,6 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
       | h::t -> aux (S.Key.cons (S.Key.Step.of_hum h) acc) t
     in
     aux (S.Key.of_hum path) (List.rev t.path)
-
-  let mem t path =
-    S.mem t.t (mk_path t path) >>= fun res -> Lwt.return (`Ok res)
 
   let read_store t path off len =
     S.read t.t (mk_path t path) >>= function
