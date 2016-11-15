@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Astring
 
 let src = Logs.Src.create "irmin.http-common" ~doc:"Irmin REST API"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -155,7 +156,7 @@ let ct_of_string = function
   | _      -> None
 
 let truncate s n =
-  if String.length s > n then String.sub s 0 n ^ "[..]" else s
+  if String.length s > n then String.with_range s ~len:n ^ "[..]" else s
 
 type contents = Json of Ezjsonm.value | Raw of string
 
@@ -293,7 +294,7 @@ module Response = struct
     Ezjsonm.to_string json
 
   let error_of_raw s =
-    match Stringext.cut s ~on:" " with
+    match String.cut s ~sep:" " with
     | Some ("invalid-argument", s) -> Invalid_argument s
     | Some ("failure", s)          -> Failure s
     | None | Some _                -> Server_error s

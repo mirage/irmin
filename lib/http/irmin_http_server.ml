@@ -17,6 +17,7 @@
 open Lwt.Infix
 open Irmin.Merge.OP
 open Irmin_http_common
+open Astring
 
 let error fmt =
   Printf.ksprintf (fun msg ->
@@ -151,7 +152,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
 
   let mk0p name = function
     | [] -> ()
-    | p  -> error "%s: non-empty path (%s)" name (String.concat ":" p)
+    | p  -> error "%s: non-empty path (%s)" name (String.concat ~sep:":" p)
 
   let mk0b name = function
     | None   -> ()
@@ -165,7 +166,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
     match path with
     | [x] -> S.of_hum (Uri.pct_decode x)
     | [] -> error "%s: empty path" name
-    | p  -> error "%s: %s is an invalid path" name (String.concat ":" p)
+    | p  -> error "%s: %s is an invalid path" name (String.concat ~sep:":" p)
 
   let mknp (type s) (module S: Irmin.Hum.S with type t = s) path =
     List.map S.of_hum (List.map Uri.pct_decode path)
@@ -398,7 +399,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
       let str = string_replace ~pattern:",[ \\n]*]" (fun _ -> "]") str in
       Lwt.return str
     | [file] -> mk0q "graph" query; Lwt.return (read_exn file)
-    | l      -> error "%s: not found" (String.concat "/" l)
+    | l      -> error "%s: not found" (String.concat ~sep:"/" l)
 
   let ao_store (type key) (type value) (type l)
       (module M: Irmin.AO with type t = l and type key = key and type value = value)
@@ -518,7 +519,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
     let hash = Hashtbl.hash
 
     let of_string str =
-      match Stringext.cut str ~on:"-" with
+      match String.cut str ~sep:"-" with
       | None        -> failwith "invalid view"
       | Some (h, n) -> S.Hash.of_hum h, S.Private.Node.Key.of_hum n
     let to_string (h, n) = S.Hash.to_hum h ^ "-" ^ S.Private.Node.Key.to_hum n
@@ -869,7 +870,7 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
 
   let path uri =
     let path = Uri.path uri in
-    let path = Stringext.split path ~on:'/' in
+    let path = String.cuts path ~sep:"/" in
     let path = List.filter ((<>) "") path in
     path
 
@@ -909,12 +910,12 @@ module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S) = struct
           (fun () -> child request h dispatch >>= f)
           (fun e ->
              let query =
-               List.map (fun (k, v) -> k ^ "=" ^ String.concat "." v) query
-               |> String.concat ","
+               List.map (fun (k, v) -> k ^ "=" ^ String.concat ~sep:"." v) query
+               |> String.concat ~sep:","
              in
              Log.debug (fun f -> f "uri=%s path=%s query=%s error=%s"
                (Uri.to_string uri)
-               (String.concat "/" path)
+               (String.concat ~sep:"/" path)
                query
                (Printexc.to_string e));
              Lwt.fail e)

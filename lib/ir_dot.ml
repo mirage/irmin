@@ -16,6 +16,7 @@
 
 open Lwt
 open Printf
+open Astring
 
 let src = Logs.Src.create "irmin.dot" ~doc:"Irmin dot graph output"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -53,11 +54,11 @@ module Make (S: Ir_s.STORE_EXT) = struct
     in
     let string_of_key (type t) (module M: Ir_hum.S with type t = t) (k:t) =
       let s = M.to_hum k in
-      if String.length s <= 8 then s else String.sub s 0 8 in
+      if String.length s <= 8 then s else String.with_range s ~len:8 in
     let string_of_contents s =
       let s =
         if String.length s <= 10 then s
-        else String.sub s 0 10 in
+        else String.with_range s ~len:10 in
       let s =
         if Ir_misc.is_valid_utf8 s then s
         else (let `Hex s = Hex.of_string s in s) in
@@ -84,7 +85,6 @@ module Make (S: Ir_s.STORE_EXT) = struct
       let o = Commit.Val.task c in
       let s =
         if html then
-          let escape s = Stringext.replace_all s ~pattern:"\"" ~with_:"\\\"" in
           sprintf
             "<div class='commit'>\n\
             \  <div class='sha1'>%s</div>\n\
@@ -96,7 +96,8 @@ module Make (S: Ir_s.STORE_EXT) = struct
             k
             (Ir_task.owner o)
             (date (Ir_task.date o))
-            (String.concat "\n" (List.map escape @@ Ir_task.messages o))
+            (String.concat ~sep:"\n"
+               (List.map String.Ascii.escape @@ Ir_task.messages o))
         else
           sprintf "%s" k
       in
@@ -111,7 +112,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
                    </div>" k
         else
            let v = string_of_contents (Tc.show (module S.Val) v) in
-           sprintf "%s (%s)" k (String.escaped v) in
+           sprintf "%s (%s)" k (String.Ascii.escape_string v) in
       `Label s in
     let label_of_tag t =
       let s =
