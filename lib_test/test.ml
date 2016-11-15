@@ -37,6 +37,7 @@ let suite k =
 let () =
   if Array.length Sys.argv = 3 && Sys.argv.(1) = "serve" then
     let n = int_of_string Sys.argv.(2) in
+    Logs.set_reporter (Test_common.reporter ~prefix:"S" ());
     Test_http.serve n
   else
     Test_store.run "irmin" ~misc (suite `String @ suite `Json @ http_suites)
