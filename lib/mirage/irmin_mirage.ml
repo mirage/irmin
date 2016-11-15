@@ -44,7 +44,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
   module Sync = Irmin.Sync(S)
   let config = Irmin_mem.config ()
 
-  type error = Unknown_key of string | Failure of string
+  type error = Unknown_key of string
   type 'a io = 'a Lwt.t
   type t = { path: string list; t: S.t; }
   type id
@@ -75,9 +75,6 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
       | h::t -> aux (S.Key.cons (S.Key.Step.of_hum h) acc) t
     in
     aux (S.Key.of_hum path) (List.rev t.path)
-
-  let mem t path =
-    S.mem t.t (mk_path t path) >>= fun res -> Lwt.return (`Ok res)
 
   let read_store t path off len =
     S.read t.t (mk_path t path) >>= function
