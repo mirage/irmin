@@ -40,11 +40,11 @@ module type S = sig
     -> (unit -> unit Lwt.t) Lwt.t
 end
 
-let listen_dir_hook =
-  ref (fun _dir _fn ->
-      Printf.eprintf "Listen hook not set!\n%!";
-      assert false
-    )
+let none _ _ =
+  Printf.eprintf "Listen hook not set!\n%!";
+  assert false
+
+let listen_dir_hook = ref none
 
 type hook = int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 

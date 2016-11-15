@@ -25,9 +25,11 @@ let init () =
     let cmd = Printf.sprintf "rm -rf %s" test_db in
     let _ = Sys.command cmd in ()
   end;
+  Irmin_unix.set_listen_dir_hook ();
   Lwt.return_unit
 
 let clean () =
+  Irmin.Private.Watch.(set_listen_dir_hook none);
   Lwt.return_unit
 
 let suite k =

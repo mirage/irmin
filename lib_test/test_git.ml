@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 open Test_common
 
 let test_db = "test_db_git"
@@ -26,9 +26,14 @@ let init_disk () =
     Git_unix.FS.create ~root:test_db () >>= fun t ->
     Git_unix.FS.remove t
   else
-    return_unit
+    Lwt.return_unit
+
+let init () =
+  init_disk () >|= fun () ->
+  Irmin_unix.set_listen_dir_hook ()
 
 let clean () =
+  Irmin.Private.Watch.(set_listen_dir_hook none);
   Lwt.return_unit
 
 let suite k =
@@ -37,8 +42,7 @@ let suite k =
     name   = "GIT" ^ string_of_contents k;
     cont   = k;
     kind   = `Git;
-    init   = init_disk;
-    clean  = clean;
+    init; clean;
     store  = (module S: Test_S);
     config =
       let head = Git.Reference.of_raw "refs/heads/test" in
@@ -48,7 +52,9 @@ let suite k =
 let test_non_bare () =
   let open Irmin_unix in
   init_disk () >>= fun () ->
-  let module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+  let module Store =
+    Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+  in
   let config = Irmin_git.config ~root:test_db ~bare:false () in
   Store.Repo.create config >>= Store.master task >>= fun t ->
   Store.update (t "fst one") ["fst"] "ok" >>= fun () ->
@@ -56,7 +62,10 @@ let test_non_bare () =
   Store.update (t "fst one") ["fst"] "hoho"
 
 let test_sort_order () =
-  let module Memory = Irmin_unix.Irmin_git.Memory(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1) in
+  let module Memory =
+    Irmin_unix.Irmin_git.Memory
+      (Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+  in
   Memory.Repo.create (Irmin_git.config ()) >>= fun repo ->
   let commit_t = Memory.Private.Repo.commit_t repo in
   let node_t = Memory.Private.Repo.node_t repo in

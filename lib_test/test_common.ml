@@ -26,7 +26,6 @@ module type Test_S = sig
 end
 
 let () =
-  Irmin_unix.set_listen_dir_hook ();
   Logs.set_level (Some Logs.Debug);
   Logs.set_reporter (Logs_fmt.reporter ())
 

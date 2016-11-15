@@ -1247,10 +1247,14 @@ module Private: sig
     type hook = int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
     (** The type for watch hooks. *)
 
+    val none: hook
+    (** [none] is the hooks which asserts false. *)
+
     val set_listen_dir_hook: hook -> unit
     (** Register a function which looks for file changes in a
         directory and return a function to stop watching. It is
-        probably best to use {!Irmin_watcher.hook} there. *)
+        probably best to use {!Irmin_watcher.hook} there. By default,
+        it uses {!none}. *)
 
     (** [Make] builds an implementation of watch helpers. *)
     module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
