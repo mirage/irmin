@@ -15,6 +15,7 @@
  *)
 
 module type Irmin_git_S = Irmin_git.S
+open Astring
 
 open Irmin_unix
 
@@ -25,9 +26,30 @@ module type Test_S = sig
   end
 end
 
+let reporter ?(prefix="") () =
+  let pad n x =
+    if String.length x > n then x
+    else x ^ String.v ~len:(n - String.length x) (fun _ -> ' ')
+  in
+  let report src level ~over k msgf =
+    let k _ = over (); k () in
+    let ppf = match level with Logs.App -> Fmt.stdout | _ -> Fmt.stderr in
+    let with_stamp h _tags k fmt =
+      let dt = Mtime.to_us (Mtime.elapsed ()) in
+      Fmt.kpf k ppf ("%s%0+04.0fus %a %a @[" ^^ fmt ^^ "@]@.")
+        prefix
+        dt
+        Fmt.(styled `Magenta string) (pad 10 @@ Logs.Src.name src)
+        Logs_fmt.pp_header (level, h)
+    in
+    msgf @@ fun ?header ?tags fmt ->
+    with_stamp header tags k fmt
+  in
+  { Logs.report = report }
+
 let () =
   Logs.set_level (Some Logs.Debug);
-  Logs.set_reporter (Logs_fmt.reporter ())
+  Logs.set_reporter (reporter ())
 
 let cmp_opt fn x y =
   match x, y with
@@ -49,7 +71,7 @@ let rec cmp_list fn x y =
 let printer_list fn = function
   | [] -> "[]"
   | l  -> Printf.sprintf "[ %s ]"
-            (String.concat ", " (List.map fn l))
+            (String.concat ~sep:", " (List.map fn l))
 
 let line msg =
   let line () = Alcotest.line stderr ~color:`Yellow '-' in

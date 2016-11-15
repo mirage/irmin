@@ -14,6 +14,7 @@ true: package(fmt)
 
 <lib_test/*>: package(irmin-watcher), thread
 <lib_test/*>: package(alcotest git.unix logs.fmt re.pcre re.perl ezjsonm.lwt)
+<lib_test/*>: package(mtime.os)
 
 <lib/http/*>: package(cohttp crunch ezjsonm)
 <lib/git/*>: package(git)
