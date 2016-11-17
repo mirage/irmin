@@ -2,7 +2,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="next" href="Irmin.Private.Commit.Store.html">
 <link rel="Up" href="Irmin.Private.Commit.html">
@@ -13,6 +13,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Commit values" rel="Section" href="#1_Commitvalues">
 <title>Irmin.Private.Commit.Make</title>
 </head>
@@ -22,7 +26,7 @@
 </div>
 <h1>Functor <a href="type_Irmin.Private.Commit.Make.html">Irmin.Private.Commit.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Commit.S.html">S</a></code><code class="type">  with type commit = C.t and type node = N.t</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">N</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.Private.Commit.S.html">S</a></code><code class="type">  with type commit = C.t and type node = N.t</code></div></div></pre><div class="info module top">
 <code class="code"><span class="constructor">Make</span></code> provides a simple implementation of commit values,
         parameterized by the commit <code class="code"><span class="constructor">C</span></code> and node <code class="code"><span class="constructor">N</span></code>.<br>
 </div>

@@ -2,10 +2,10 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Dot.html">
-<link rel="next" href="Irmin.Make_ext.html">
+<link rel="next" href="Irmin.Make_with_metadata.html">
 <link rel="Up" href="Irmin.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -14,17 +14,21 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Irmin Store" rel="Section" href="#1_IrminStore">
 <title>Irmin.Make</title>
 </head>
 <body>
 <div class="navbar"><a class="pre" href="Irmin.Dot.html" title="Irmin.Dot">Previous</a>
 &nbsp;<a class="up" href="Irmin.html" title="Irmin">Up</a>
-&nbsp;<a class="post" href="Irmin.Make_ext.html" title="Irmin.Make_ext">Next</a>
+&nbsp;<a class="post" href="Irmin.Make_with_metadata.html" title="Irmin.Make_with_metadata">Next</a>
 </div>
 <h1>Functor <a href="type_Irmin.Make.html">Irmin.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">AO</span></code><code class="code"> : </code><code class="type"><a href="Irmin.AO_MAKER.html">AO_MAKER</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">RW</span></code><code class="code"> : </code><code class="type"><a href="Irmin.RW_MAKER.html">RW_MAKER</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">AO</span></code><code class="code"> : </code><code class="type"><a href="Irmin.AO_MAKER.html">AO_MAKER</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">RW</span></code><code class="code"> : </code><code class="type"><a href="Irmin.RW_MAKER.html">RW_MAKER</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></div></div></pre><div class="info module top">
 Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store.<br>
 </div>

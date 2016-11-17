@@ -2,7 +2,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="Up" href="Irmin.Private.Lock.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
@@ -12,6 +12,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.Private.Lock.Make</title>
 </head>
 <body>
@@ -19,7 +23,7 @@
 &nbsp;</div>
 <h1>Functor <a href="type_Irmin.Private.Lock.Make.html">Irmin.Private.Lock.Make</a></h1>
 
-<pre><span class="keyword">module</span> Make <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Lock.S.html">S</a></code><code class="type">  with type key = K.t</code></pre><div class="info module top">
+<pre><span class="keyword">module</span> Make: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.Private.Lock.S.html">S</a></code><code class="type">  with type key = K.t</code></div></pre><div class="info module top">
 Create a lock manager implementation.<br>
 </div>
 <table border="0" cellpadding="3" width="100%">

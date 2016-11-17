@@ -2,7 +2,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Private.Conf.html">
 <link rel="next" href="Irmin.Private.Lock.html">
@@ -14,6 +14,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Watch Helpers" rel="Section" href="#1_WatchHelpers">
 <title>Irmin.Private.Watch</title>
 </head>
@@ -41,14 +45,24 @@ The signature for watch helpers.
         managing event notification currently active.<br>
 </div>
 
-<pre><span id="VALset_listen_dir_hook"><span class="keyword">val</span> set_listen_dir_hook</span> : <code class="type">(int -> string -> (string -> unit Lwt.t) -> (unit -> unit) Lwt.t) -> unit</code></pre><div class="info ">
-Register a function which looks for file changes in a
-        directory and return a function to stop watching. Could use
-        <code class="code">inotify</code> when available or <code class="code"><span class="constructor">Irmin_unix</span>.set_listen_dir_hook</code>
-        to use active file polling.<br>
+<pre><span id="TYPEhook"><span class="keyword">type</span> <code class="type"></code>hook</span> = <code class="type">int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t</code> </pre>
+<div class="info ">
+The type for watch hooks.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Watch.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.Private.Watch.S.html">S</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
+
+<pre><span id="VALnone"><span class="keyword">val</span> none</span> : <code class="type"><a href="Irmin.Private.Watch.html#TYPEhook">hook</a></code></pre><div class="info ">
+<code class="code">none</code> is the hooks which asserts false.<br>
+</div>
+
+<pre><span id="VALset_listen_dir_hook"><span class="keyword">val</span> set_listen_dir_hook</span> : <code class="type"><a href="Irmin.Private.Watch.html#TYPEhook">hook</a> -> unit</code></pre><div class="info ">
+Register a function which looks for file changes in a
+        directory and return a function to stop watching. It is
+        probably best to use <code class="code"><span class="constructor">Irmin_watcher</span>.hook</code> there. By default,
+        it uses <a href="Irmin.Private.Watch.html#VALnone"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Private</span>.<span class="constructor">Watch</span>.none</code></a>.<br>
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Watch.Make.html">Make</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.Private.Watch.S.html">S</a></code><code class="type">  with type key = K.t and type value = V.t</code></div></div></pre><div class="info">
 <code class="code"><span class="constructor">Make</span></code> builds an implementation of watch helpers.
 </div>
 </body></html>

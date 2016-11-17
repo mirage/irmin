@@ -2,7 +2,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Task.html">
 <link rel="next" href="Irmin.Path.html">
@@ -14,6 +14,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Merge Results" rel="Section" href="#1_MergeResults">
 <link title="Merge Combinators" rel="Section" href="#1_MergeCombinators">
 <link title="Basic Merges" rel="Section" href="#1_BasicMerges">
@@ -171,7 +175,7 @@ The type for counter values. It is expected that the only valid
 The merge function for mergeable counters.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Merge.MSet.html">MSet</a> <code class="code">(</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.MSet.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Merge.MSet.html">MSet</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.MSet.html">..</a> <code class="code"><span class="keyword">end</span></code></div></pre><div class="info">
 Multi-sets.
 </div>
 <br>
@@ -204,7 +208,7 @@ We consider the only valid operations for maps and
 Lift the merge functions to association lists.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Merge.Map.html">Map</a> <code class="code">(</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">X</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="type">  with type t = M.key</code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.Map.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Merge.Map.html">Map</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type">Map.S</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">X</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="type">  with type t = M.key</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Merge.Map.html">..</a> <code class="code"><span class="keyword">end</span></code></div></div></pre><div class="info">
 Lift the merge functions to maps.
 </div>
 

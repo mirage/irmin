@@ -2,7 +2,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.LINK_MAKER.html">
 <link rel="Up" href="Irmin.html">
@@ -13,6 +13,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.RW_MAKER</title>
 </head>
 <body>
@@ -21,7 +25,7 @@
 &nbsp;</div>
 <h1>Module type <a href="type_Irmin.RW_MAKER.html">Irmin.RW_MAKER</a></h1>
 
-<pre><span class="keyword">module type</span> RW_MAKER = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.RW_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
+<pre><span class="keyword">module type</span> RW_MAKER = <code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.RW_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info modtype top">
 <code class="code"><span class="constructor">RW_MAKER</span></code> is the signature exposed by read-write store
     backends. <code class="code"><span class="constructor">K</span></code> is the implementation of keys and <code class="code"><span class="constructor">V</span></code> is the
     implementation of values.<br>

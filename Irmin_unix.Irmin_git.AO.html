@@ -2,7 +2,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="next" href="Irmin_unix.Irmin_git.RW.html">
 <link rel="Up" href="Irmin_unix.Irmin_git.html">
@@ -13,6 +13,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Append-only stores" rel="Section" href="#1_Appendonlystores">
 <title>Irmin_unix.Irmin_git.AO</title>
 </head>
@@ -22,10 +26,10 @@
 </div>
 <h1>Functor <a href="type_Irmin_unix.Irmin_git.AO.html">Irmin_unix.Irmin_git.AO</a></h1>
 
-<pre><span class="keyword">module</span> AO <code class="code">(</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="type"><a href="Irmin.AO.html">Irmin.AO</a></code><code class="type"> 
+<pre><span class="keyword">module</span> AO: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.AO.html">Irmin.AO</a></code><code class="type"> 
     with type t = G.t
      and type key = K.t
-     and type value = V.t</code></pre><div class="info module top">
+     and type value = V.t</code></div></div></div></pre><div class="info module top">
 Embed an append-only store into a Git repository. Contents will
       be written in <i>.git/objects/</i> and might be cleaned-up if you
       run <i>git gc</i> manually.<br>

@@ -2,7 +2,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="next" href="Irmin_mem.html">
 <link rel="Up" href="index.html">
@@ -13,6 +13,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><link title="Preliminaries" rel="Section" href="#1_Preliminaries">
 <link title="Stores" rel="Section" href="#1_Stores">
 <link title="User-Defined Contents" rel="Section" href="#1_UserDefinedContents">
@@ -52,7 +56,7 @@ Irmin public API.
     backends.
 <p>
 
-    <em>Release %%VERSION%% - %%MAINTAINER%% </em><br>
+    <em>Release 0.12.0 - %%MAINTAINER%% </em><br>
 </div>
 <hr width="100%">
 
@@ -193,7 +197,7 @@ User-defined references.
 Signature for Irmin stores.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.S_MAKER.html">S_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">R</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Ref.S.html">Ref.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type key = C.Path.t
+<pre><span class="keyword">module type</span> <a href="Irmin.S_MAKER.html">S_MAKER</a> = <code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Contents.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">R</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Ref.S.html">Ref.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type">  with type key = C.Path.t
        and module Key = C.Path
        and type value = C.t
        and type branch_id = R.t
@@ -388,7 +392,7 @@ The type for remote stores.<br>
     local and remote Irmin stores.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Sync.html">Sync</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.SYNC.html">SYNC</a></code><code class="type">  with type db = S.t and type commit_id = S.commit_id</code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Sync.html">Sync</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.SYNC.html">SYNC</a></code><code class="type">  with type db = S.t and type commit_id = S.commit_id</code></div></pre><div class="info">
 The default <code class="code"><span class="constructor">Sync</span></code> implementation.
 </div>
 
@@ -397,10 +401,10 @@ The default <code class="code"><span class="constructor">Sync</span></code> impl
     lazy reads and delayed writes.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.View.html">View</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.VIEW.html">VIEW</a></code><code class="type">  with type db = S.t
+<pre><span class="keyword">module</span> <a href="Irmin.View.html">View</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.VIEW.html">VIEW</a></code><code class="type">  with type db = S.t
                           and type key = S.Key.t
                           and type value = S.Val.t
-                          and type commit_id = S.commit_id</code></pre><div class="info">
+                          and type commit_id = S.commit_id</code></div></pre><div class="info">
 Create views.
 </div>
 
@@ -412,7 +416,7 @@ Create views.
     <a href="Irmin.VIEW.html#VALupdate_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.update_path</code></a>, <a href="Irmin.VIEW.html#VALrebase_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.rebase_path</code></a> and <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">VIEW</span>.merge_path</code></a>.<br>
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Dot.html">Dot</a> <code class="code">(</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Dot.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Dot.html">Dot</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">S</span></code><code class="code"> : </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Dot.html">..</a> <code class="code"><span class="keyword">end</span></code></div></pre><div class="info">
 <code class="code"><span class="constructor">Dot</span></code> provides functions to export a store to the Graphviz `dot`
     format.
 </div>
@@ -434,6 +438,8 @@ Create views.
     format based on <a href="https://github.com/janestreet/bin_prot">bin_prot</a>,
     with no native synchronization primitives: it is usually what is
     needed to quickly create a new backend.</li>
+<li><a href="Irmin.Make_with_metadata.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Make_with_metadata</span></code></a> is similar to <a href="Irmin.Make.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Make</span></code></a> but allows to
+    specify the kind of metadata stored in the nodes.</li>
 <li><a href="Irmin.Make_ext.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Make_ext</span></code></a> creates a store with a <em>deep</em> embedding of each
     of the internal stores into separate store, with a total control over
     the binary format and using the native synchronization protocols
@@ -442,7 +448,7 @@ Create views.
 </ul>
 <br>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER.html">AO_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.AO_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER.html">AO_MAKER</a> = <code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.AO_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 <code class="code"><span class="constructor">AO_MAKER</span></code> is the signature exposed by append-only store
     backends.
 </div>
@@ -451,33 +457,38 @@ Create views.
 <code class="code"><span class="constructor">RAW</span></code> is the signature for raw values.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER_RAW.html">AO_MAKER_RAW</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.RAW.html">RAW</a></code><code class="code">) </code><code class="type"><a href="Irmin.AO.html">AO</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.AO_MAKER_RAW.html">AO_MAKER_RAW</a> = <code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.RAW.html">RAW</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.AO.html">AO</a></code><code class="type">  with type key = K.t and type value = V.t</code></pre><div class="info">
 <code class="code"><span class="constructor">AO_MAKER_RAW</span></code> if the signature exposed by any backend providing
      append-only stores with access to raw values.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.LINK_MAKER.html">LINK_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.LINK_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.LINK_MAKER.html">LINK_MAKER</a> = <code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.LINK_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 <code class="code"><span class="constructor">LINK_MAKER</span></code> is the signature exposed by store which enable adding
     relation between keys.
 </div>
 
-<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code">(</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) </code><code class="code">(</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.RW_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module type</span> <a href="Irmin.RW_MAKER.html">RW_MAKER</a> = <code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hum.S.html">Hum.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.RW_MAKER.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
 <code class="code"><span class="constructor">RW_MAKER</span></code> is the signature exposed by read-write store
     backends.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Make.html">Make</a> <code class="code">(</code><code class="code"><span class="constructor">AO</span></code><code class="code"> : </code><code class="type"><a href="Irmin.AO_MAKER.html">AO_MAKER</a></code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">RW</span></code><code class="code"> : </code><code class="type"><a href="Irmin.RW_MAKER.html">RW_MAKER</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Make.html">Make</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">AO</span></code><code class="code"> : </code><code class="type"><a href="Irmin.AO_MAKER.html">AO_MAKER</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">RW</span></code><code class="code"> : </code><code class="type"><a href="Irmin.RW_MAKER.html">RW_MAKER</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></div></div></pre><div class="info">
 Simple store creator.
 </div>
 
-<pre><span class="keyword">module</span> <a href="Irmin.Make_ext.html">Make_ext</a> <code class="code">(</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.S.html">Private.S</a></code><code class="code">) </code>: <code class="type"><a href="Irmin.S.html">S</a></code><code class="type"> 
+<pre><span class="keyword">module</span> <a href="Irmin.Make_with_metadata.html">Make_with_metadata</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">M</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Metadata.S.html">Metadata.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">AO</span></code><code class="code"> : </code><code class="type"><a href="Irmin.AO_MAKER.html">AO_MAKER</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">RW</span></code><code class="code"> : </code><code class="type"><a href="Irmin.RW_MAKER.html">RW_MAKER</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></div></div></div></pre><div class="info">
+Similar to <a href="Irmin.Make.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Make</span></code></a> but allows to specify the kind of metadata
+    stored in the nodes.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin.Make_ext.html">Make_ext</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">P</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Private.S.html">Private.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.S.html">S</a></code><code class="type"> 
   with type key = P.Contents.Path.t
    and type value = P.Contents.value
    and type branch_id = P.Ref.key
    and type commit_id = P.Ref.value
    and type Key.step = P.Contents.Path.step
    and type Repo.t = P.Repo.t
-   and module Private.Node.Val.Metadata = P.Node.Val.Metadata</code></pre><div class="info">
+   and module Private.Node.Val.Metadata = P.Node.Val.Metadata</code></div></pre><div class="info">
 Advanced store creator.
 </div>
 </body></html>

@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Irmin_mem.html">
+<link rel="next" href="Irmin_fs.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Irmin" rel="Chapter" href="Irmin.html">
+<link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
+<link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_git</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Irmin_mem.html" title="Irmin_mem">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Irmin_fs.html" title="Irmin_fs">Next</a>
+</div>
+<h1>Module <a href="type_Irmin_git.html">Irmin_git</a></h1>
+
+<pre><span class="keyword">module</span> Irmin_git: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Git backend<br>
+</div>
+<hr width="100%">
+
+<pre><span class="keyword">module</span> <a href="Irmin_git.Metadata.html">Metadata</a>: <code class="type"><a href="Irmin.Metadata.S.html">Irmin.Metadata.S</a></code><code class="type">  with type t = [`Normal | `Exec | `Link]</code></pre>
+<pre><span id="VALconfig"><span class="keyword">val</span> config</span> : <code class="type">?config:<a href="Irmin.html#TYPEconfig">Irmin.config</a> -><br>       ?root:string -><br>       ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit -> <a href="Irmin.html#TYPEconfig">Irmin.config</a></code></pre>
+<pre><span id="VALbare"><span class="keyword">val</span> bare</span> : <code class="type">bool <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre>
+<pre><span id="VALhead"><span class="keyword">val</span> head</span> : <code class="type">Git.Reference.t option <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre>
+<pre><span id="VALlevel"><span class="keyword">val</span> level</span> : <code class="type">int option <a href="Irmin.Private.Conf.html#TYPEkey">Irmin.Private.Conf.key</a></code></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin_git.VALUE_STORE.html">VALUE_STORE</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.VALUE_STORE.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin_git.Hash.html">Hash</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type"><a href="Irmin_git.VALUE_STORE.html">VALUE_STORE</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="type">  with type t = Git.Hash.t</code></div></pre><div class="info">
+<code class="code"><span class="constructor">Hash</span></code> is an implementation of Irmin hashes based on Git
+    hashes.
+</div>
+
+<pre><span class="keyword">module</span> <a href="Irmin_git.Irmin_value_store.html">Irmin_value_store</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type"><a href="Irmin_git.VALUE_STORE.html">VALUE_STORE</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.Irmin_value_store.html">..</a> <code class="code"><span class="keyword">end</span></code></div></div></div></pre><div class="info">
+Privides a subset of Irmin.Private.S (excludes tags and sync).
+</div>
+
+<pre><span class="keyword">module type</span> <a href="Irmin_git.LOCK.html">LOCK</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.LOCK.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin_git.AO.html">AO</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.AO.html">Irmin.AO</a></code><code class="type"> 
+  with type t = G.t
+   and type key = K.t
+   and type value = V.t</code></div></div></div></pre>
+<pre><span class="keyword">module</span> <a href="Irmin_git.RW.html">RW</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">L</span></code><code class="code"> : </code><code class="type"><a href="Irmin_git.LOCK.html">LOCK</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">G</span></code><code class="code"> : </code><code class="type">Git.Store.S</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">K</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Ref.S.html">Irmin.Ref.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">V</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin.RW.html">Irmin.RW</a></code><code class="type">  with type key = K.t and type value = V.t</code></div></div></div></div></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin_git.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin_git.S_MAKER.html">S_MAKER</a> = <code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Contents.S.html">Irmin.Contents.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">R</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Ref.S.html">Irmin.Ref.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type"><a href="Irmin.Hash.S.html">Irmin.Hash.S</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin_git.S.html">S</a></code><code class="type">  with type key = C.Path.t
+       and module Key = C.Path
+       and type value = C.t
+       and type branch_id = R.t
+       and type commit_id = H.t
+       and module Private.Node.Val.Metadata = Metadata</code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin_git.Memory.html">Memory</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">IO</span></code><code class="code"> : </code><code class="type">Git.Sync.IO</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">I</span></code><code class="code"> : </code><code class="type">Git.Inflate.S</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin_git.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></div></div></pre>
+<pre><span class="keyword">module</span> <a href="Irmin_git.FS.html">FS</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">IO</span></code><code class="code"> : </code><code class="type">Git.Sync.IO</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">I</span></code><code class="code"> : </code><code class="type">Git.Inflate.S</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">L</span></code><code class="code"> : </code><code class="type"><a href="Irmin_git.LOCK.html">LOCK</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">FS</span></code><code class="code"> : </code><code class="type">Git.FS.IO</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin_git.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></div></div></div></div></pre>
+<pre><span class="keyword">module type</span> <a href="Irmin_git.CONTEXT.html">CONTEXT</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_git.CONTEXT.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
+<pre><span class="keyword">module</span> <a href="Irmin_git.Memory_ext.html">Memory_ext</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">C</span></code><code class="code"> : </code><code class="type"><a href="Irmin_git.CONTEXT.html">CONTEXT</a></code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">IO</span></code><code class="code"> : </code><code class="type">Git.Sync.IO</code><code class="type">  with type ctx = C.t</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">I</span></code><code class="code"> : </code><code class="type">Git.Inflate.S</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="type"><a href="Irmin_git.S_MAKER.html">S_MAKER</a></code><code class="type"> </code></div></div></div></pre></body></html>

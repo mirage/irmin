@@ -1,7 +1,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -10,6 +10,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Index of values</title>
 </head>
 <body>
@@ -106,6 +110,8 @@ The configuration key to set the local Git repository's bare
       attribute.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_git.html#VALbare">bare</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Merge.html#VALbiject">biject</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 Use the merge function defined in another domain.
@@ -161,6 +167,12 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALclosure">GRAPH.closure</a> but
           nodes such that:
 </div>
 </td></tr>
+<tr><td><a href="Irmin_git.S.Internals.html#VALcommit_of_id">commit_of_id</a> [<a href="Irmin_git.S.Internals.html">Irmin_git.S.Internals</a>]</td>
+<td><div class="info">
+<code class="code">commit_of_id repo h</code> is the commit corresponding to <code class="code">h</code> in the
+        repository <code class="code">repo</code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.S.Repo.html#VALcommit_t">commit_t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.RW.html#VALcompare_and_set">compare_and_set</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
@@ -191,6 +203,16 @@ Create a configuration value.
 Create a configuration value.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_http.html#VALconfig">config</a> [<a href="Irmin_http.html">Irmin_http</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_fs.html#VALconfig">config</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
+<td><div class="info">
+<code class="code">config ?config ~root ()</code> is the configuration <code class="code">config</code> augmented
+    with the key <code class="code"><span class="constructor">Irmin</span>.<span class="constructor">Config</span>.root</code> set to <code class="code">root</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_git.html#VALconfig">config</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin_mem.html#VALconfig">config</a> [<a href="Irmin_mem.html">Irmin_mem</a>]</td>
 <td><div class="info">
 Configuration values.
@@ -212,6 +234,10 @@ The configuraion key to set the content-type set by the client
       (and that the server will try to conform too if it can).
 </div>
 </td></tr>
+<tr><td><a href="Irmin_http.html#VALcontent_type">content_type</a> [<a href="Irmin_http.html">Irmin_http</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_git.VALUE_STORE.html#VALcontents">contents</a> [<a href="Irmin_git.VALUE_STORE.html">Irmin_git.VALUE_STORE</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#VALcontents">contents</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
 <code class="code">contents t n s</code> is <code class="code">n</code>'s contents in <code class="code">t</code>, associated to the
@@ -352,6 +378,11 @@ Compute a deterministic store key from a <code class="code"><span class="constru
 <code class="code">dir root</code> is the sub-directory to look for the keys.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_fs.Config.html#VALdir">dir</a> [<a href="Irmin_fs.Config.html">Irmin_fs.Config</a>]</td>
+<td><div class="info">
+<code class="code">dir root</code> is the sub-directory to look for the keys.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALdoc">doc</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">doc k</code> is <code class="code">k</code>'s documentation string (if any).
@@ -441,7 +472,17 @@ Same as <a href="Irmin.SYNC.html#VALfetch"><code class="code"><span class="const
       local or remote store do not have a valid head.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_fs.IO.html#VALfile_exists">file_exists</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+<code class="code">file_exist f</code> is true if <code class="code">f</code> exists.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.Config.html#VALfile_of_key">file_of_key</a> [<a href="Irmin_unix.Irmin_fs.Config.html">Irmin_unix.Irmin_fs.Config</a>]</td>
+<td><div class="info">
+Convert a key to a filename.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_fs.Config.html#VALfile_of_key">file_of_key</a> [<a href="Irmin_fs.Config.html">Irmin_fs.Config</a>]</td>
 <td><div class="info">
 Convert a key to a filename.
 </div>
@@ -457,6 +498,11 @@ Convert a key to a filename.
 <code class="code">get c k</code> is <code class="code">k</code>'s mapping in <code class="code">c</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_fs.IO.html#VALgetcwd">getcwd</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+Return the current directory.
+</div>
+</td></tr>
 <tr><td align="left"><br>H</td></tr>
 <tr><td><a href="Irmin.Hash.S.html#VALhas_kind">has_kind</a> [<a href="Irmin.Hash.S.html">Irmin.Hash.S</a>]</td>
 <td><div class="info">
@@ -469,6 +515,8 @@ The configuration key to set the local Git repository's current
       branch.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_git.html#VALhead">head</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.BC.html#VALhead">head</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
 <code class="code">head t</code> is the current head of the store <code class="code">t</code>.
@@ -500,15 +548,15 @@ Same as <a href="Irmin.BC.html#VALhead"><code class="code"><span class="construc
       stopping at <code class="code">min</code> if specified.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_http_server.S.html#VALhttp_spec">http_spec</a> [<a href="Irmin_http_server.S.html">Irmin_http_server.S</a>]</td>
+<td><div class="info">
+<code class="code">http_spec t</code> returns the configuration for a server serving the contents of <code class="code">t</code>.
+</div>
+</td></tr>
 <tr><td align="left"><br>I</td></tr>
 <tr><td><a href="Irmin.BC.Repo.html#VALimport">import</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
 <td><div class="info">
 <code class="code">import t s</code> imports the contents of the slice <code class="code">s</code> in <code class="code">t</code>.
-</div>
-</td></tr>
-<tr><td><a href="Irmin_unix.html#VALinstall_dir_polling_listener">install_dir_polling_listener</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
-<td><div class="info">
-Install the directory listener using active polling.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALint">int</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
@@ -591,6 +639,11 @@ Check if the branch ID is valid.
 Convert a filename to a key.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_fs.Config.html#VALkey_of_file">key_of_file</a> [<a href="Irmin_fs.Config.html">Irmin_fs.Config</a>]</td>
+<td><div class="info">
+Convert a filename to a key.
+</div>
+</td></tr>
 <tr><td align="left"><br>L</td></tr>
 <tr><td><a href="Irmin.Private.Commit.HISTORY.html#VALlca">lca</a> [<a href="Irmin.Private.Commit.HISTORY.html">Irmin.Private.Commit.HISTORY</a>]</td>
 <td><div class="info">
@@ -628,6 +681,8 @@ Same as <a href="Irmin.BC.html#VALlcas"><code class="code"><span class="construc
       persisting values.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_git.html#VALlevel">level</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.HRW.html#VALlist">list</a> [<a href="Irmin.HRW.html">Irmin.HRW</a>]</td>
 <td><div class="info">
 <code class="code">list t k</code> list the sub-paths of the path <code class="code">k</code> in <code class="code">t</code>.
@@ -662,6 +717,8 @@ Register a thread looking for changes in the given directory
 The name of the master branch.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_git.VALUE_STORE.html#VALmem">mem</a> [<a href="Irmin_git.VALUE_STORE.html">Irmin_git.VALUE_STORE</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.RO.html#VALmem">mem</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
 Check if a key exists.
@@ -776,6 +833,11 @@ Same as <a href="Irmin.VIEW.html#VALmerge_path"><code class="code"><span class="
 Get the messages associated to the task.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_fs.IO.html#VALmkdir">mkdir</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+Create a directory.
+</div>
+</td></tr>
 <tr><td align="left"><br>N</td></tr>
 <tr><td><a href="Irmin.BC.html#VALname">name</a> [<a href="Irmin.BC.html">Irmin.BC</a>]</td>
 <td><div class="info">
@@ -805,6 +867,11 @@ The underlying node.
 </td></tr>
 <tr><td><a href="Irmin.Private.S.Repo.html#VALnode_t">node_t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
 <td></td></tr>
+<tr><td><a href="Irmin.Private.Watch.html#VALnone">none</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
+<td><div class="info">
+<code class="code">none</code> is the hooks which asserts false.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Task.html#VALnone">none</a> [<a href="Irmin.Task.html">Irmin.Task</a>]</td>
 <td><div class="info">
 The empty task creator.
@@ -891,9 +958,9 @@ The commit parents.
 <code class="code"><span class="keyword">parser</span> c</code> is <code class="code">c</code>'s parser.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.html#VALpolling_threads">polling_threads</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<tr><td><a href="Irmin_http_server.DATE.html#VALpretty">pretty</a> [<a href="Irmin_http_server.DATE.html">Irmin_http_server.DATE</a>]</td>
 <td><div class="info">
-The number of polling threads.
+Pretty print a raw date format.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.VIEW.Action.html#VALpretty">pretty</a> [<a href="Irmin.VIEW.Action.html">Irmin.VIEW.Action</a>]</td>
@@ -969,6 +1036,8 @@ Append a step to the path.
 Deconstruct the last element of the path.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_git.VALUE_STORE.html#VALread">read</a> [<a href="Irmin_git.VALUE_STORE.html">Irmin_git.VALUE_STORE</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.RO.html#VALread">read</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
 Read a value from the store.
@@ -990,6 +1059,11 @@ Same as <a href="Irmin.Private.Node.GRAPH.html#VALread_contents"><code class="co
 <td><div class="info">
 Same as <a href="Irmin.RO.html#VALread"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">RO</span>.read</code></a> but raise <code class="code"><span class="constructor">Invalid_argument</span></code> if the key does not
       exist.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_fs.IO.html#VALread_file">read_file</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+Read the contents of a file using mmap.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.S.Private.html#VALread_node">read_node</a> [<a href="Irmin.S.Private.html">Irmin.S.Private</a>]</td>
@@ -1030,6 +1104,12 @@ Same as <a href="Irmin.VIEW.html#VALrebase_path"><code class="code"><span class=
       conflict.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_fs.IO.html#VALrec_files">rec_files</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+<code class="code">rec_files dir</code> is the list of files recursively present in
+      <code class="code">dir</code> and all of its sub-directories.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.S.Repo.html#VALref_t">ref_t</a> [<a href="Irmin.Private.S.Repo.html">Irmin.Private.S.Repo</a>]</td>
 <td></td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALrem">rem</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
@@ -1046,6 +1126,11 @@ Same as <a href="Irmin.VIEW.html#VALrebase_path"><code class="code"><span class=
 <tr><td><a href="Irmin.html#VALremote_uri">remote_uri</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code">remote_uri s</code> is the remote store located at <code class="code">uri</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_fs.IO.html#VALremove">remove</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+Remove a file or directory (even if non-empty).
 </div>
 </td></tr>
 <tr><td><a href="Irmin.RW.html#VALremove">remove</a> [<a href="Irmin.RW.html">Irmin.RW</a>]</td>
@@ -1099,6 +1184,12 @@ Call the merge functions in sequence.
 <tr><td><a href="Irmin.Merge.html#VALset">set</a> [<a href="Irmin.Merge.html">Irmin.Merge</a>]</td>
 <td><div class="info">
 List merge functions to sets.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_unix.html#VALset_listen_dir_hook">set_listen_dir_hook</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td><div class="info">
+Install <code class="code"><span class="constructor">Irmin_watcher</span>.hook</code> as the listen hook for watching
+    changes in directories.
 </div>
 </td></tr>
 <tr><td><a href="Irmin.Private.Watch.html#VALset_listen_dir_hook">set_listen_dir_hook</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
@@ -1199,11 +1290,6 @@ Lift merge functions to triple of elements.
 Get the task unique identifier.
 </div>
 </td></tr>
-<tr><td><a href="Irmin_unix.html#VALuninstall_dir_polling_listener">uninstall_dir_polling_listener</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
-<td><div class="info">
-Stop the thread started by <a href="Irmin_unix.html#VALinstall_dir_polling_listener"><code class="code"><span class="constructor">Irmin_unix</span>.install_dir_polling_listener</code></a>.
-</div>
-</td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALunion">union</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">union r s</code> is the union of the configurations <code class="code">r</code> and <code class="code">s</code>.
@@ -1250,12 +1336,16 @@ The configuration key to set the location of the remote HTTP
       <a href="Irmin_unix.Irmin_http_server.html">server</a>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_http.html#VALuri">uri</a> [<a href="Irmin_http.html">Irmin_http</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Private.Conf.html#VALuri">uri</a> [<a href="Irmin.Private.Conf.html">Irmin.Private.Conf</a>]</td>
 <td><div class="info">
 <code class="code">uri</code> converts values with <code class="code"><span class="constructor">Uri</span>.of_string</code>.
 </div>
 </td></tr>
 <tr><td align="left"><br>V</td></tr>
+<tr><td><a href="Irmin_git.CONTEXT.html#VALv">v</a> [<a href="Irmin_git.CONTEXT.html">Irmin_git.CONTEXT</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.html#VALversion">version</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 The version of the library.
@@ -1327,6 +1417,14 @@ Watch a given key for changes.
       <code class="code">file</code>.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_fs.LOCK.html#VALwith_lock">with_lock</a> [<a href="Irmin_fs.LOCK.html">Irmin_fs.LOCK</a>]</td>
+<td><div class="info">
+<code class="code">with_lock file fn</code> runs <code class="code">fn</code> while holding a lock on the file
+      <code class="code">file</code>.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_git.LOCK.html#VALwith_lock">with_lock</a> [<a href="Irmin_git.LOCK.html">Irmin_git.LOCK</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.Private.Lock.S.html#VALwith_lock">with_lock</a> [<a href="Irmin.Private.Lock.S.html">Irmin.Private.Lock.S</a>]</td>
 <td><div class="info">
 <code class="code">with_lock t k f</code> executes <code class="code">f ()</code> while holding the exclusive
@@ -1343,6 +1441,13 @@ Watch a given key for changes.
 <td><div class="info">
 <code class="code">workers ()</code> is the number of background worker threads
         managing event notification currently active.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_git.VALUE_STORE.html#VALwrite">write</a> [<a href="Irmin_git.VALUE_STORE.html">Irmin_git.VALUE_STORE</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_fs.IO.html#VALwrite_file">write_file</a> [<a href="Irmin_fs.IO.html">Irmin_fs.IO</a>]</td>
+<td><div class="info">
+Write some contents to a new file.
 </div>
 </td></tr>
 </table>

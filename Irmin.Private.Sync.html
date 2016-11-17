@@ -2,7 +2,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link rel="previous" href="Irmin.Private.Slice.html">
 <link rel="Up" href="Irmin.Private.html">
@@ -13,6 +13,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin.Private.Sync</title>
 </head>
 <body>
@@ -24,7 +28,7 @@
 <pre><span class="keyword">module</span> Sync: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Sync.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
 
 <pre><span class="keyword">module type</span> <a href="Irmin.Private.Sync.S.html">S</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Sync.S.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
-<pre><span class="keyword">module</span> <a href="Irmin.Private.Sync.None.html">None</a> <code class="code">(</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code> <code class="code">(</code><code class="code"><span class="constructor">R</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) </code>: <code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Sync.None.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+<pre><span class="keyword">module</span> <a href="Irmin.Private.Sync.None.html">None</a>: <div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">H</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><div class="sig_block"><code class="code"><span class="keyword">functor</span> (</code><code class="code"><span class="constructor">R</span></code><code class="code"> : </code><code class="type">Tc.S0</code><code class="code">) <span class="keywordsign">-&gt;</span> </code><code class="code"><span class="keyword">sig</span></code> <a href="Irmin.Private.Sync.None.html">..</a> <code class="code"><span class="keyword">end</span></code></div></div></pre><div class="info">
 <code class="code"><span class="constructor">None</span></code> is an implementation of <a href="Irmin.Private.Sync.S.html">S</a> which does
         nothing.
 </div>

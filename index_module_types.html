@@ -1,7 +1,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -10,6 +10,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Index of module types</title>
 </head>
 <body>
@@ -42,11 +46,18 @@ Branch-consistent stores.
 </div>
 </td></tr>
 <tr><td align="left"><br>C</td></tr>
+<tr><td><a href="Irmin_git.CONTEXT.html">CONTEXT</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin_unix.Irmin_fs.Config.html">Config</a> [<a href="Irmin_unix.Irmin_fs.html">Irmin_unix.Irmin_fs</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">Config</span></code> provides function to control the filename shapes.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_fs.Config.html">Config</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
+<td></td></tr>
+<tr><td align="left"><br>D</td></tr>
+<tr><td><a href="Irmin_http_server.DATE.html">DATE</a> [<a href="Irmin_http_server.html">Irmin_http_server</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>G</td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html">GRAPH</a> [<a href="Irmin.Private.Node.html">Irmin.Private.Node</a>]</td>
 <td><div class="info">
@@ -64,6 +75,9 @@ Branch-consistent stores.
 Hierarchical read-write stores.
 </div>
 </td></tr>
+<tr><td align="left"><br>I</td></tr>
+<tr><td><a href="Irmin_fs.IO.html">IO</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>L</td></tr>
 <tr><td><a href="Irmin.LINK.html">LINK</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
@@ -77,6 +91,10 @@ Immutable Link store.
 </div>
 </td></tr>
 <tr><td><a href="Irmin_unix.LOCK.html">LOCK</a> [<a href="Irmin_unix.html">Irmin_unix</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_fs.LOCK.html">LOCK</a> [<a href="Irmin_fs.html">Irmin_fs</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_git.LOCK.html">LOCK</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
 <td></td></tr>
 <tr><td align="left"><br>R</td></tr>
 <tr><td><a href="Irmin.RAW.html">RAW</a> [<a href="Irmin.html">Irmin</a>]</td>
@@ -106,6 +124,10 @@ Read-write stores.
 </div>
 </td></tr>
 <tr><td align="left"><br>S</td></tr>
+<tr><td><a href="Irmin_http_server.S.html">S</a> [<a href="Irmin_http_server.html">Irmin_http_server</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_git.S.html">S</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.S.html">S</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 Signature for Irmin stores.
@@ -185,6 +207,8 @@ Contents store.
     local and remote Irmin stores.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_git.S_MAKER.html">S_MAKER</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.S_MAKER.html">S_MAKER</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">S_MAKER</span></code> is the signature exposed by any backend providing <a href="Irmin.S.html"><code class="code"><span class="constructor">Irmin</span>.<span class="constructor">S</span></code></a>
@@ -192,6 +216,8 @@ Contents store.
 </div>
 </td></tr>
 <tr><td align="left"><br>V</td></tr>
+<tr><td><a href="Irmin_git.VALUE_STORE.html">VALUE_STORE</a> [<a href="Irmin_git.html">Irmin_git</a>]</td>
+<td></td></tr>
 <tr><td><a href="Irmin.VIEW.html">VIEW</a> [<a href="Irmin.html">Irmin</a>]</td>
 <td><div class="info">
 <code class="code"><span class="constructor">View</span></code> provides an in-memory partial mirror of the store, with

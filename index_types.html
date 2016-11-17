@@ -1,7 +1,7 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -10,6 +10,10 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Index of types</title>
 </head>
 <body>
@@ -117,11 +121,18 @@ The type for user-defined task creators.
 </div>
 </td></tr>
 <tr><td align="left"><br>H</td></tr>
+<tr><td><a href="Irmin.Private.Watch.html#TYPEhook">hook</a> [<a href="Irmin.Private.Watch.html">Irmin.Private.Watch</a>]</td>
+<td><div class="info">
+The type for watch hooks.
+</div>
+</td></tr>
 <tr><td><a href="Irmin_unix.Irmin_http_server.html#TYPEhooks">hooks</a> [<a href="Irmin_unix.Irmin_http_server.html">Irmin_unix.Irmin_http_server</a>]</td>
 <td><div class="info">
 Server hooks.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_http_server.html#TYPEhooks">hooks</a> [<a href="Irmin_http_server.html">Irmin_http_server</a>]</td>
+<td></td></tr>
 <tr><td align="left"><br>K</td></tr>
 <tr><td><a href="Irmin.RO.html#TYPEkey">key</a> [<a href="Irmin.RO.html">Irmin.RO</a>]</td>
 <td><div class="info">
@@ -213,6 +224,11 @@ Type for merge results.
 Type for store slices.
 </div>
 </td></tr>
+<tr><td><a href="Irmin_http_server.S.html#TYPEspec">spec</a> [<a href="Irmin_http_server.S.html">Irmin_http_server.S</a>]</td>
+<td><div class="info">
+HTTP configuration.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.Private.Node.GRAPH.html#TYPEstep">step</a> [<a href="Irmin.Private.Node.GRAPH.html">Irmin.Private.Node.GRAPH</a>]</td>
 <td><div class="info">
 The type of steps.
@@ -229,6 +245,18 @@ Type type for path's steps.
 </div>
 </td></tr>
 <tr><td align="left"><br>T</td></tr>
+<tr><td><a href="Irmin_http_server.S.html#TYPEt">t</a> [<a href="Irmin_http_server.S.html">Irmin_http_server.S</a>]</td>
+<td><div class="info">
+Database type.
+</div>
+</td></tr>
+<tr><td><a href="Irmin_git.CONTEXT.html#TYPEt">t</a> [<a href="Irmin_git.CONTEXT.html">Irmin_git.CONTEXT</a>]</td>
+<td></td></tr>
+<tr><td><a href="Irmin_git.VALUE_STORE.html#TYPEt">t</a> [<a href="Irmin_git.VALUE_STORE.html">Irmin_git.VALUE_STORE</a>]</td>
+<td><div class="info">
+This is the subset of Git.Store.S needed for <code class="code"><span class="constructor">Value_store</span></code>.
+</div>
+</td></tr>
 <tr><td><a href="Irmin.BC.Repo.html#TYPEt">t</a> [<a href="Irmin.BC.Repo.html">Irmin.BC.Repo</a>]</td>
 <td><div class="info">
 The type of repository handles.

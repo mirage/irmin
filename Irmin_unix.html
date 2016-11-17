@@ -2,9 +2,9 @@
 <html>
 <head>
 <link rel="stylesheet" href="style.css" type="text/css">
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 <link rel="Start" href="index.html">
-<link rel="previous" href="Irmin_mem.html">
+<link rel="previous" href="Irmin_http_server.html">
 <link rel="Up" href="index.html">
 <link title="Index of types" rel=Appendix href="index_types.html">
 <link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
@@ -13,10 +13,14 @@
 <link title="Index of module types" rel=Appendix href="index_module_types.html">
 <link title="Irmin" rel="Chapter" href="Irmin.html">
 <link title="Irmin_mem" rel="Chapter" href="Irmin_mem.html">
+<link title="Irmin_git" rel="Chapter" href="Irmin_git.html">
+<link title="Irmin_fs" rel="Chapter" href="Irmin_fs.html">
+<link title="Irmin_http" rel="Chapter" href="Irmin_http.html">
+<link title="Irmin_http_server" rel="Chapter" href="Irmin_http_server.html">
 <link title="Irmin_unix" rel="Chapter" href="Irmin_unix.html"><title>Irmin_unix</title>
 </head>
 <body>
-<div class="navbar"><a class="pre" href="Irmin_mem.html" title="Irmin_mem">Previous</a>
+<div class="navbar"><a class="pre" href="Irmin_http_server.html" title="Irmin_http_server">Previous</a>
 &nbsp;<a class="up" href="index.html" title="Index">Up</a>
 &nbsp;</div>
 <h1>Module <a href="type_Irmin_unix.html">Irmin_unix</a></h1>
@@ -70,23 +74,13 @@ REST (over HTTP) backend..
 Server-side of the REST API over HTTP.
 </div>
 
-<pre><span id="VALinstall_dir_polling_listener"><span class="keyword">val</span> install_dir_polling_listener</span> : <code class="type">float -> unit</code></pre><div class="info ">
-Install the directory listener using active polling. The parameter
-    is the thread sleep time. Prefer
-    <a href="https://opam.ocaml.org/packages/inotify/inotify.2.0/">inotify</a>
-    if it works on your system.<br>
-</div>
-
-<pre><span id="VALuninstall_dir_polling_listener"><span class="keyword">val</span> uninstall_dir_polling_listener</span> : <code class="type">unit -> unit</code></pre><div class="info ">
-Stop the thread started by <a href="Irmin_unix.html#VALinstall_dir_polling_listener"><code class="code"><span class="constructor">Irmin_unix</span>.install_dir_polling_listener</code></a>.<br>
-</div>
-
-<pre><span id="VALpolling_threads"><span class="keyword">val</span> polling_threads</span> : <code class="type">unit -> int</code></pre><div class="info ">
-The number of polling threads.<br>
-</div>
-
 <pre><span class="keyword">module type</span> <a href="Irmin_unix.LOCK.html">LOCK</a> = <code class="code"><span class="keyword">sig</span></code> <a href="Irmin_unix.LOCK.html">..</a> <code class="code"><span class="keyword">end</span></code></pre>
 <pre><span class="keyword">module</span> <a href="Irmin_unix.Lock.html">Lock</a>: <code class="type"><a href="Irmin_unix.LOCK.html">LOCK</a></code><code class="type"> </code></pre><div class="info">
 An implementation of filesystem dotlocking.
+</div>
+
+<pre><span id="VALset_listen_dir_hook"><span class="keyword">val</span> set_listen_dir_hook</span> : <code class="type">unit -> unit</code></pre><div class="info ">
+Install <code class="code"><span class="constructor">Irmin_watcher</span>.hook</code> as the listen hook for watching
+    changes in directories.<br>
 </div>
 </body></html>
