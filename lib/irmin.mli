@@ -1215,7 +1215,7 @@ module Private: sig
       val create: unit -> t
       (** Create a watch state. *)
 
-      val clear: t -> unit
+      val clear: t -> unit Lwt.t
       (** Clear all register listeners in the given watch state. *)
 
       val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) ->

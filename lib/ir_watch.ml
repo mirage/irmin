@@ -29,7 +29,7 @@ module type S = sig
   val stats: t -> int * int
   val notify: t -> key -> value option -> unit Lwt.t
   val create: unit -> t
-  val clear: t -> unit
+  val clear: t -> unit Lwt.t
   val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) -> watch Lwt.t
   val watch: t -> ?init:(key * value) list -> (key -> value diff -> unit Lwt.t) ->
     watch Lwt.t
@@ -114,10 +114,13 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   let next t = let id = t.next in t.next <- id + 1; id
   let is_empty t = IMap.is_empty t.keys && IMap.is_empty t.glob
 
-  let clear t =
+  let clear_unsafe t =
     t.keys <- IMap.empty;
     t.glob <- IMap.empty;
     t.next <- 0
+
+  let clear t =
+    Lwt_mutex.with_lock t.lock (fun () -> clear_unsafe t; Lwt.return_unit)
 
   let create () =
     let lock = Lwt_mutex.create () in
@@ -152,7 +155,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
         Lwt.return_unit
       )
 
-  let notify_all t key value =
+  let notify_all_unsafe t key value =
     let todo = ref [] in
     let glob = IMap.fold (fun id (init, f as arg) acc ->
         let fire old_value =
@@ -174,10 +177,11 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       ) t.glob IMap.empty
     in
     t.glob <- glob;
-    if !todo = [] then ()
-    else t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) !todo)
+    match !todo with
+    | [] -> ()
+    | ts -> t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) ts)
 
-  let notify_key t key value =
+  let notify_key_unsafe t key value =
     let todo = ref [] in
     let keys = IMap.fold (fun id (k, old_value, f as arg) acc ->
         if not (K.equal key k) then IMap.add id arg acc
@@ -192,16 +196,17 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       ) t.keys IMap.empty
     in
     t.keys <- keys;
-    if !todo = [] then ()
-    else t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) !todo)
+    match !todo with
+    | [] -> ()
+    | ts -> t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) ts)
 
   let notify t key value =
     Lwt_mutex.with_lock t.lock
       (fun () ->
          if is_empty t then Lwt.return_unit
          else (
-           notify_all t key value;
-           notify_key t key value;
+           notify_all_unsafe t key value;
+           notify_key_unsafe t key value;
            Lwt.return_unit)
       )
 
