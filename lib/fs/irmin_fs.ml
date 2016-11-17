@@ -165,7 +165,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   type t = { t: RO.t; w: W.t }
   type key = RO.key
   type value = RO.value
-  type watch = W.watch * (unit -> unit)
+  type watch = W.watch * (unit -> unit Lwt.t)
 
   let temp_dir t = t.t.RO.path / "tmp"
   let lock_file t key = t.t.RO.path / "lock" / K.to_hum key

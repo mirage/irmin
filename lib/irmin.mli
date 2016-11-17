@@ -1215,7 +1215,7 @@ module Private: sig
       val create: unit -> t
       (** Create a watch state. *)
 
-      val clear: t -> unit
+      val clear: t -> unit Lwt.t
       (** Clear all register listeners in the given watch state. *)
 
       val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) ->
@@ -1233,7 +1233,7 @@ module Private: sig
       val listen_dir: t -> string
         -> key:(string -> key option)
         -> value:(key -> value option Lwt.t)
-        -> (unit -> unit) Lwt.t
+        -> (unit -> unit Lwt.t) Lwt.t
       (** Register a thread looking for changes in the given directory
           and return a function to stop watching and free up
           resources. *)
@@ -1244,12 +1244,17 @@ module Private: sig
     (** [workers ()] is the number of background worker threads
         managing event notification currently active. *)
 
-    val set_listen_dir_hook:
-      (int -> string -> (string -> unit Lwt.t) -> (unit -> unit) Lwt.t) -> unit
+    type hook = int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+    (** The type for watch hooks. *)
+
+    val none: hook
+    (** [none] is the hooks which asserts false. *)
+
+    val set_listen_dir_hook: hook -> unit
     (** Register a function which looks for file changes in a
-        directory and return a function to stop watching. Could use
-        [inotify] when available or {!Irmin_unix.set_listen_dir_hook}
-        to use active file polling. *)
+        directory and return a function to stop watching. It is
+        probably best to use {!Irmin_watcher.hook} there. By default,
+        it uses {!none}. *)
 
     (** [Make] builds an implementation of watch helpers. *)
     module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t

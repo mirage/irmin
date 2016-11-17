@@ -18,22 +18,18 @@ open Test_common
 
 let test_db = "test-db"
 
-let polling =
-  try float_of_string (Sys.getenv "IRMIN_FS_POLLING")
-  with Not_found | Failure _ -> 0.01
-
 let config = Irmin_fs.config ~root:test_db ()
 
 let init () =
-  Irmin_unix.install_dir_polling_listener polling;
   if Sys.file_exists test_db then begin
     let cmd = Printf.sprintf "rm -rf %s" test_db in
     let _ = Sys.command cmd in ()
   end;
+  Irmin_unix.set_listen_dir_hook ();
   Lwt.return_unit
 
 let clean () =
-  Irmin_unix.uninstall_dir_polling_listener ();
+  Irmin.Private.Watch.(set_listen_dir_hook none);
   Lwt.return_unit
 
 let suite k =

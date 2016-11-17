@@ -573,7 +573,7 @@ struct
 
   type key = Key.t
   type value = Val.t
-  type watch = W.watch * (unit -> unit)
+  type watch = W.watch * (unit -> unit Lwt.t)
 
   let tag_of_git r =
     let str = String.trim @@ Git.Reference.to_raw r in
@@ -600,7 +600,7 @@ struct
       let key file = Some (Key.of_hum file) in
       W.listen_dir t.w dir ~key ~value:(read t)
     else
-      Lwt.return (fun () -> ())
+      Lwt.return (fun () -> Lwt.return_unit)
 
   let watch_key t key ?init f =
     listen_dir t >>= fun stop ->
