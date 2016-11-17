@@ -8,6 +8,7 @@
 * Fix regression in the tests for using Git over HTTP (#376, @samoht)
 * Catch top-level exceptions in watch callbacks (#375, @samoht)
 * Fix merge of assoc list with no common ancestor (#374, @samoht)
+* Improve documentation for Git bare repositories (#363, @kayceesrk)
 * New functor `Make_with_metadata` to customize the type of the
   nodes metadata (#364, @samoht)
 * Remove mentions of private modules from the public interface
