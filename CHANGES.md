@@ -1,3 +1,18 @@
+### 0.12.0 (2016-11-17)
+
+* Depends on irmin-watcher 0.2.0 to use portable file-system watches
+  (fsevents on OSX or inotify on Linux) to replace the slow and CPU
+  intensive file-system polling that was the default (#380, @samoht)
+* Do not use `Lwt_unix.fork` in the tests anymore (#383, @samoht)
+* Switch from Stringext to Astring (#382, @samoht)
+* Fix regression in the tests for using Git over HTTP (#376, @samoht)
+* Catch top-level exceptions in watch callbacks (#375, @samoht)
+* Fix merge of assoc list with no common ancestor (#374, @samoht)
+* New functor `Make_with_metadata` to customize the type of the
+  nodes metadata (#364, @samoht)
+* Remove mentions of private modules from the public interface
+  (#364, @samoht)
+
 ### 0.11.1 (2016-06-14)
 
 * Fix compilation of examples (#359, @samoht)
