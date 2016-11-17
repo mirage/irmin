@@ -2289,7 +2289,7 @@ end
     format based on {{:https://github.com/janestreet/bin_prot}bin_prot},
     with no native synchronization primitives: it is usually what is
     needed to quickly create a new backend.}
-    { - {!Make_with_metadata} is similar to {!Make} but allows to
+    {- {!Make_with_metadata} is similar to {!Make} but allows to
     specify the kind of metadata stored in the nodes.}
     {- {!Make_ext} creates a store with a {e deep} embedding of each
     of the internal stores into separate store, with a total control over
