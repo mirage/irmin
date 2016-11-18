@@ -7,6 +7,7 @@ environment:
   TESTS: "false"
   DEPOPTS: "git cohttp git-unix mirage-git"
   PINS: "irmin-watcher.0.2.0:--dev"
+  EXTRA_REMOTES: "https://github.com/mirage/mirage-dev.git"
 
 install:
   - appveyor DownloadFile https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/appveyor-opam.sh

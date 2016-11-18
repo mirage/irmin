@@ -59,7 +59,7 @@ conflicts: [
   "cohttp"        {< "0.18.3"}
   "git"           {< "1.8.0"}
   "conduit"       {< "0.9.0"}
-  "mirage-types"  {>="3.0.0"}
-  "irmin-watcher" {<"0.2.0"}
+  "mirage-types"  {< "3.0.0"}
+  "irmin-watcher" {< "0.2.0"}
 ]
 available: [ocaml-version >= "4.01.0"]

@@ -8,6 +8,7 @@ env:
   - REVDEPS="irmin-indexeddb"
   - PACKAGE=irmin
   - PINS="irmin-indexeddb:https://github.com/samoht/irmin-indexeddb.git irmin-watcher.0.2.0:--dev"
+  - EXTRA_REMOTES="https://github.com/mirage/mirage-dev.git"
   matrix:
   - OCAML_VERSION=4.03 TESTS=true EXTRA_DEPS=inotify
   - OCAML_VERSION=4.02 TESTS=true
