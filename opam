@@ -42,6 +42,7 @@ depends: [
   "re"
   "cmdliner"
   "crunch"
+  "ptime"
   "mtime"         {test}
   "git-unix"      {test}
   "cohttp"        {test}
