@@ -48,7 +48,6 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
   type error = Unknown_key of string | Failure of string
   type 'a io = 'a Lwt.t
   type t = { path: string list; t: S.t; }
-  type id
   let disconnect _ = Lwt.return_unit
   type page_aligned_buffer = Cstruct.t
   let unknown_key k = Lwt.return (`Error (Unknown_key k))
