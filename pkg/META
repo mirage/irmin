@@ -1,6 +1,6 @@
 description = "A Distributed Version Control Database"
-version = "%%VERSION%%"
-requires = "ezjsonm ocamlgraph lwt logs cstruct tc mstruct uri stringext hex fmt"
+version = "%%VERSION_NUM%%"
+requires = "ezjsonm ocamlgraph lwt logs cstruct tc mstruct uri astring hex fmt"
 archive(byte)   = "irmin.cma"
 archive(native) = "irmin.cmxa"
 plugin(byte)    = "irmin.cma"
@@ -8,7 +8,7 @@ plugin(native)  = "irmin.cmxs"
 
 package "mem" (
  description = "Memory backend for Irmin"
- version = "%%VERSION%%"
+ version = "%%VERSION_NUM%%"
  requires = "irmin"
  archive(byte)   = "irmin-mem.cma"
  archive(native) = "irmin-mem.cmxa"
@@ -19,7 +19,7 @@ package "mem" (
 
 package "fs" (
  description = "Filesystem backend for Irmin"
- version = "%%VERSION%%"
+ version = "%%VERSION_NUM%%"
  requires = "irmin"
  archive(byte)   = "irmin-fs.cma"
  archive(native) = "irmin-fs.cmxa"
@@ -30,8 +30,8 @@ package "fs" (
 
 package "unix" (
  description = "Unix backend for Irmin"
- version = "%%VERSION%%"
- requires = "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt"
+ version = "%%VERSION_NUM%%"
+ requires = "irmin irmin.mem irmin.git irmin.fs irmin.http git.unix cohttp.lwt irmin-watcher"
  archive(byte)   = "irmin-unix.cma"
  archive(native) = "irmin-unix.cmxa"
  plugin(byte)    = "irmin-unix.cma"
@@ -41,7 +41,7 @@ package "unix" (
 
 package "mirage" (
  description = "MirageOS backend for Irmin"
- version = "%%VERSION%%"
+ version = "%%VERSION_NUM%%"
  requires = "irmin irmin.mem irmin.git irmin.fs irmin.http cohttp.lwt git.mirage ptime"
  archive(byte)   = "irmin-mirage.cma"
  archive(native) = "irmin-mirage.cmxa"
@@ -52,7 +52,7 @@ package "mirage" (
 
 package "http" (
  description = "HTTP backend for Irmin"
- version = "%%VERSION%%"
+ version = "%%VERSION_NUM%%"
  requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
  archive(byte)   = "irmin-http.cma"
  plugin(byte)    = "irmin-http.cma"
@@ -63,7 +63,7 @@ package "http" (
 
 package "git" (
  description = "Git backend for Irmin"
- version = "%%VERSION%%"
+ version = "%%VERSION_NUM%%"
  requires = "irmin git"
  archive(byte)   = "irmin-git.cma"
  archive(native) = "irmin-git.cmxa"

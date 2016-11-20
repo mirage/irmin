@@ -14,7 +14,6 @@ clean:
 	rm -rf _build lib_test/_tests lib_test/test-db lib_test/test_db_git
 	ocaml pkg/pkg.ml clean
 
-
 test:
 	ocaml pkg/pkg.ml build ${OPTIONS}
-	ocaml pkg/pkg.ml test
+	ocaml pkg/pkg.ml test -- -e

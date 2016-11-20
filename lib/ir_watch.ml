@@ -29,7 +29,7 @@ module type S = sig
   val stats: t -> int * int
   val notify: t -> key -> value option -> unit Lwt.t
   val create: unit -> t
-  val clear: t -> unit
+  val clear: t -> unit Lwt.t
   val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) -> watch Lwt.t
   val watch: t -> ?init:(key * value) list -> (key -> value diff -> unit Lwt.t) ->
     watch Lwt.t
@@ -37,16 +37,18 @@ module type S = sig
   val listen_dir: t -> string
     -> key:(string -> key option)
     -> value:(key -> value option Lwt.t)
-    -> (unit -> unit) Lwt.t
+    -> (unit -> unit Lwt.t) Lwt.t
 end
 
-let listen_dir_hook =
-  ref (fun _dir _fn ->
-    Printf.eprintf "Listen hook not set!\n%!";
-    assert false
-  )
+let none _ _ =
+  Printf.eprintf "Listen hook not set!\n%!";
+  assert false
 
-let set_listen_dir_hook fn = listen_dir_hook := fn
+let listen_dir_hook = ref none
+
+type hook = int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
+
+let set_listen_dir_hook (h: hook) = listen_dir_hook := h
 
 let id () =
   let c = ref 0 in
@@ -102,25 +104,30 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
     enqueue: (unit -> unit Lwt.t) -> unit;          (* enqueue notifications. *)
     clean: unit -> unit;                  (* destroy the notification thread. *)
     mutable listeners: int;                           (* number of listeners. *)
-    mutable stop_listening: unit -> unit     (* clean-up listening resources. *)
+    mutable stop_listening: unit -> unit Lwt.t  (* clean-up listen resources. *)
   }
 
   let stats t = IMap.cardinal t.keys, IMap.cardinal t.glob
-  let to_string t = let k,a = stats t in Printf.sprintf "[%d: %dk/%dg]" t.id k a
+  let to_string t =
+    let k,a = stats t in
+    Printf.sprintf "[%d: %dk/%dg|%d]" t.id k a t.listeners
   let next t = let id = t.next in t.next <- id + 1; id
   let is_empty t = IMap.is_empty t.keys && IMap.is_empty t.glob
 
-  let clear t =
+  let clear_unsafe t =
     t.keys <- IMap.empty;
     t.glob <- IMap.empty;
     t.next <- 0
+
+  let clear t =
+    Lwt_mutex.with_lock t.lock (fun () -> clear_unsafe t; Lwt.return_unit)
 
   let create () =
     let lock = Lwt_mutex.create () in
     let clean, enqueue = scheduler () in
     { lock; clean; enqueue; id = global (); next = 0;
       keys = IMap.empty; glob = IMap.empty;
-      listeners = 0; stop_listening = (fun () -> ()); }
+      listeners = 0; stop_listening = (fun () -> Lwt.return_unit); }
 
   let unwatch_unsafe t id =
     Log.debug (fun f -> f "unwatch %s: id=%d" (to_string t) id);
@@ -148,7 +155,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
         Lwt.return_unit
       )
 
-  let notify_all t key value =
+  let notify_all_unsafe t key value =
     let todo = ref [] in
     let glob = IMap.fold (fun id (init, f as arg) acc ->
         let fire old_value =
@@ -170,10 +177,11 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       ) t.glob IMap.empty
     in
     t.glob <- glob;
-    if !todo = [] then ()
-    else t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) !todo)
+    match !todo with
+    | [] -> ()
+    | ts -> t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) ts)
 
-  let notify_key t key value =
+  let notify_key_unsafe t key value =
     let todo = ref [] in
     let keys = IMap.fold (fun id (k, old_value, f as arg) acc ->
         if not (K.equal key k) then IMap.add id arg acc
@@ -188,16 +196,17 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
       ) t.keys IMap.empty
     in
     t.keys <- keys;
-    if !todo = [] then ()
-    else t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) !todo)
+    match !todo with
+    | [] -> ()
+    | ts -> t.enqueue (fun () -> Lwt_list.iter_p (fun x -> x ()) ts)
 
   let notify t key value =
     Lwt_mutex.with_lock t.lock
       (fun () ->
          if is_empty t then Lwt.return_unit
          else (
-           notify_all t key value;
-           notify_key t key value;
+           notify_all_unsafe t key value;
+           notify_key_unsafe t key value;
            Lwt.return_unit)
       )
 
@@ -228,22 +237,26 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   let listen_dir t dir ~key ~value =
     let init () =
       if t.listeners = 0 then (
-      Log.debug (fun f -> f "%s: start listening to %s" (to_string t) dir);
-      !listen_dir_hook t.id dir (fun file ->
-          match key file with
-          | None     -> Lwt.return_unit
-          | Some key -> value key >>= notify t key
-        ) >|= fun f ->
-      t.stop_listening <- f
-      ) else Lwt.return_unit
+        Log.debug (fun f -> f "%s: start listening to %s" (to_string t) dir);
+        !listen_dir_hook t.id dir (fun file ->
+            match key file with
+            | None     -> Lwt.return_unit
+            | Some key -> value key >>= notify t key
+          ) >|= fun f ->
+        t.stop_listening <- f
+      ) else (
+        Log.debug (fun f -> f "%s: already listening on %s" (to_string t) dir);
+        Lwt.return_unit
+      )
     in
     init () >|= fun () ->
     t.listeners <- t.listeners + 1;
     function () ->
       if t.listeners > 0 then t.listeners <- t.listeners - 1;
-      if t.listeners = 0 then (
+      if t.listeners <> 0 then Lwt.return_unit
+      else (
         Log.debug (fun f -> f "%s: stop listening to %s" (to_string t) dir);
-        t.stop_listening ();
+        t.stop_listening ()
       )
 
 end

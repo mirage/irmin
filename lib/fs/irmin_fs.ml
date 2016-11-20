@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Astring
 
 let src = Logs.Src.create "irmin.fs" ~doc:"Irmin disk persistence"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -99,7 +100,7 @@ module RO_ext (IO: IO) (S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
       let p = String.length t.path in
       List.map (fun file ->
           let n = String.length file in
-          if n <= p + 1 then "" else String.sub file (p+1) (n - p - 1)
+          if n <= p + 1 then "" else String.with_range file ~first:(p+1)
         ) files
     in
     Lwt_list.iter_p (fun file -> fn @@ K.of_hum (S.key_of_file file)) files
@@ -164,7 +165,7 @@ module RW_ext (IO: IO) (L: LOCK)(S: Config) (K: Irmin.Hum.S) (V: Tc.S0) = struct
   type t = { t: RO.t; w: W.t }
   type key = RO.key
   type value = RO.value
-  type watch = W.watch * (unit -> unit)
+  type watch = W.watch * (unit -> unit Lwt.t)
 
   let temp_dir t = t.t.RO.path / "tmp"
   let lock_file t key = t.t.RO.path / "lock" / K.to_hum key
@@ -258,7 +259,7 @@ end
 let string_chop_prefix ~prefix str =
   let len = String.length prefix in
   if String.length str <= len then ""
-  else String.sub str len (String.length str - len)
+  else String.with_range str ~first:len
 
 module Ref = struct
   let dir p = p / "refs"
@@ -271,15 +272,14 @@ module Obj = struct
   let dir t = t / "objects"
 
   let file_of_key k =
-    let len = String.length k in
-    let pre = String.sub k 0 2 in
-    let suf = String.sub k 2 (len - 2) in
+    let pre = String.with_range k ~len:2 in
+    let suf = String.with_range k ~first:2 in
     "objects" / pre / suf
 
   let key_of_file path =
     let path = string_chop_prefix ~prefix:("objects" / "") path in
-    let path = Stringext.split ~on:'/' path in
-    let path = String.concat "" path in
+    let path = String.cuts ~sep:"/" path in
+    let path = String.concat ~sep:"" path in
     path
 
 end
@@ -289,15 +289,14 @@ module Links = struct
   let dir t = t / "links"
 
   let file_of_key k =
-    let len = String.length k in
-    let pre = String.sub k 0 2 in
-    let suf = String.sub k 2 (len - 2) in
+    let pre = String.with_range k ~len:2 in
+    let suf = String.with_range k ~first:2 in
     "links" / pre / suf
 
   let key_of_file path =
     let path = string_chop_prefix ~prefix:("links" / "") path in
-    let path = Stringext.split ~on:'/' path in
-    let path = String.concat "" path in
+    let path = String.cuts ~sep:"/" path in
+    let path = String.concat ~sep:"" path in
     path
 
 end

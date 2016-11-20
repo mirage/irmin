@@ -14,58 +14,87 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 open Test_common
 open Irmin_unix
 
+let (/) = Filename.concat
+
 let uri = Uri.of_string "http://127.0.0.1:8080"
 
-let file = Filename.temp_file "irmin" ".signal"
+let pid_file = Filename.get_temp_dir_name () / "irmin-test.pid"
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
-let () = Lwt.async_exception_hook := ignore
+let () = Lwt.async_exception_hook := (fun e ->
+    Fmt.pr "Async exception caught: %a" Fmt.exn e;
+  )
 
-let signal () =
-  let oc = open_out file in
-  output_string oc "Server started";
+let remove file = try Unix.unlink file with _ -> ()
+
+let signal pid =
+  let oc = open_out pid_file in
+  Logs.debug (fun l -> l "write PID %d in %s" pid pid_file);
+  output_string oc (string_of_int pid);
   flush oc;
   close_out oc;
-  return_unit
+  Lwt.return_unit
 
 let rec wait_for_the_server_to_start () =
-  if Sys.file_exists file then (
-    Unix.unlink file;
-    return_unit
-  ) else
+  if Sys.file_exists pid_file then (
+    let ic = open_in pid_file in
+    let line = input_line ic in
+    close_in ic;
+    let pid = int_of_string line in
+    Logs.debug (fun l -> l "read PID %d fomr %s" pid pid_file);
+    Unix.unlink pid_file;
+    Lwt.return pid
+  ) else (
+    Logs.debug (fun l -> l "waiting for the server to start...");
     Lwt_unix.sleep 0.1 >>= fun () ->
     wait_for_the_server_to_start ()
+  )
 
-let suite ?(content_type=`Raw) server =
+let servers = [
+    `Quick, `Raw , Test_memory.suite `String;
+    `Quick, `Json, Test_memory.suite `String;
+    `Quick, `Json, Test_memory.suite `Json;
+    `Quick, `Json, Test_memory.suite `Json;
+    `Slow , `Raw , Test_fs.suite `Json;
+    `Slow , `Json, Test_fs.suite `Json;
+    `Slow , `Raw , Test_git.suite `String;
+    `Slow , `Json, Test_git.suite `String;
+]
+
+let root c = Irmin.Private.Conf.(get c root)
+
+let serve n =
+  Logs.set_level ~all:true (Some Logs.Debug);
+  Logs.debug (fun l -> l "pwd: %s" @@ Unix.getcwd ());
+  let (_, _, server) = List.nth servers n in
+  Logs.debug (fun l -> l "Got server: %s, root=%a"
+                 server.name Fmt.(option string) (root server.config));
+  let (module Server: Test_S) = server.store in
+  let module HTTP = Irmin_http_server.Make(Server) in
+  let server () =
+    server.init () >>= fun () ->
+    Server.Repo.create server.config >>= Server.master task >>= fun t  ->
+    signal (Unix.getpid ()) >>= fun () ->
+    let spec = HTTP.http_spec (t "server") ~strict:false in
+    Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 8080)) spec
+  in
+  Lwt_main.run (server ())
+
+let suite ?(content_type=`Raw) i server =
   let server_pid = ref 0 in
   let ct_str = Irmin_http_common.string_of_ct content_type in
   { name = Printf.sprintf "HTTP.%s.%s" server.name ct_str;
 
     init = begin fun () ->
-      let (module Server: Test_S) = server.store in
-      let module HTTP = Irmin_http_server.Make(Server) in
-      let server () =
-        server.init () >>= fun () ->
-        Server.Repo.create server.config >>= Server.master task >>= fun t  ->
-        signal () >>= fun () ->
-        let spec = HTTP.http_spec (t "server") ~strict:true in
-        Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port 8080)) spec
-      in
-      let () =
-        try Unix.unlink file
-        with _ -> () in
+      remove pid_file;
       Lwt_io.flush_all () >>= fun () ->
-      match Lwt_unix.fork () with
-        | 0   ->
-          Lwt_unix.set_default_async_method Lwt_unix.Async_none;
-          server ()
-        | pid ->
-          server_pid := pid;
-          wait_for_the_server_to_start ()
+      let _ = Sys.command @@ Fmt.strf "%s serve %d &" Sys.argv.(0) i in
+      wait_for_the_server_to_start () >|= fun pid ->
+      server_pid := pid
     end;
 
     cont = server.cont;
@@ -83,3 +112,8 @@ let suite ?(content_type=`Raw) server =
     config = Irmin_http.config ~content_type uri;
     store = http_store server.store server.cont;
   }
+
+let suites =
+  List.mapi (fun i (s, content_type, server) ->
+      s, suite ~content_type i server
+    ) servers

@@ -1,9 +1,6 @@
 open Lwt
 open Irmin_unix
 
-(* Install the polling thread for FS notification to work. *)
-let () = install_dir_polling_listener 0.5
-
 module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
 module View = Irmin.View(Store)
 

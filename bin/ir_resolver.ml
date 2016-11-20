@@ -17,6 +17,7 @@
 open Lwt
 open Cmdliner
 open Irmin_unix
+open Astring
 
 type contents = (module Irmin.Contents.S)
 
@@ -131,9 +132,9 @@ let read_config_file (): t option =
     let len = in_channel_length oc in
     let buf = Bytes.create len in
     really_input oc buf 0 len;
-    let lines = Stringext.split ~on:'\n' buf in
-    let lines = List.map String.trim lines in
-    let lines = List.map (Stringext.cut ~on:"=") lines in
+    let lines = String.cuts ~sep:"\n" buf in
+    let lines = List.map (fun s -> String.trim s) lines in
+    let lines = List.map (fun s -> String.cut ~sep:"=" s) lines in
     let lines =
       List.fold_left (fun l -> function None -> l | Some x -> x::l) [] lines
     in

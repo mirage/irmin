@@ -33,7 +33,7 @@ let () =
     Pkg.mllib ~cond:http   "lib/http/irmin-http.mllib";
     Pkg.mllib ~cond:unix   "lib/unix/irmin-unix.mllib";
     Pkg.bin   ~cond:unix   "bin/main" ~dst:"irmin";
-    Pkg.test  ~cond:tool ~dir:"lib_test" "lib_test/test" ~args:Cmd.(v "-e");
+    Pkg.test  ~cond:tool ~dir:"lib_test" "lib_test/test" ~args:Cmd.(v "-e" % "-q");
     example "deploy";
     example "custom_merge";
     example "process";
