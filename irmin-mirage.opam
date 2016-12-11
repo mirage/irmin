@@ -7,7 +7,8 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 
 depends: [
+  "mirage-types" {>= "3.0.0"}
   "mirage-types-lwt"
-  "mirage-git" {>= "1.6.0"}
-  "irmin"      {>= "0.9.8"}
+  "git-mirage"
+  "irmin"
 ]

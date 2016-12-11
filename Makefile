@@ -1,7 +1,7 @@
 HTTP   ?= $(shell opam config var cohttp:installed)
 GIT    ?= $(shell opam config var git:installed)
 UNIX   ?= $(shell opam config var git-unix:installed)
-MIRAGE ?= $(shell opam config var mirage-git:installed)
+MIRAGE ?= $(shell opam config var git-mirage:installed)
 TESTS  ?= true
 
 OPTIONS=--with-http ${HTTP} --with-git ${GIT} --with-unix ${UNIX} \
