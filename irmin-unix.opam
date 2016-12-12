@@ -1,14 +1,15 @@
 opam-version: "1.2"
 maintainer:   "thomas@gazagnaire.org"
-authors:      "Thomas Gazagnaire"
+authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
 license:      "ISC"
 homepage:     "https://github.com/mirage/irmin"
 bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
 
 depends: [
-  "irmin"  {>= "0.9.4"}
-  "git"
-  "cohttp"
+  "irmin"  {>= "0.12.0"}
+  "git-unix"
+  "irmin-watcher"
 ]
 available: [ocaml-version >= "4.01.0"]
