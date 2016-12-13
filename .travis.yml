@@ -7,12 +7,12 @@ env:
   - ALCOTEST_SHOW_ERRORS=1
   - REVDEPS="irmin-indexeddb"
   - PACKAGE=irmin
-  - PINS="irmin-indexeddb:https://github.com/samoht/irmin-indexeddb.git irmin-watcher.0.2.0:--dev"
+  - PINS="irmin-indexeddb:https://github.com/samoht/irmin-indexeddb.git"
   - EXTRA_REMOTES="https://github.com/mirage/mirage-dev.git"
   matrix:
   - OCAML_VERSION=4.02 TESTS=false
   - OCAML_VERSION=4.03 TESTS=true EXTRA_DEPS=inotify
   - OCAML_VERSION=4.03 DEPOPTS=git TESTS=false
-  - OCAML_VERSION=4.03 DEPOPTS=mirage-git TESTS=false
+  - OCAML_VERSION=4.03 DEPOPTS=git-mirage TESTS=false
   - OCAML_VERSION=4.04 DEPOPTS=cohttp TESTS=true
   - OCAML_VERSION=4.04 DEPOPTS="cohttp git" TESTS=false
