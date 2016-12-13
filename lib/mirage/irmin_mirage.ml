@@ -46,13 +46,12 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
   module Sync = Irmin.Sync(S)
   let config = Irmin_mem.config ()
 
-  type error = Unknown_key of string | Failure of string
   type 'a io = 'a Lwt.t
   type t = { path: string list; t: S.t; }
   let disconnect _ = Lwt.return_unit
   type page_aligned_buffer = Cstruct.t
-  let unknown_key k = Lwt.return (`Error (Unknown_key k))
-  let ok x = Lwt.return (`Ok x)
+  let unknown_key _ = Lwt.return (Error `Unknown_key)
+  let ok x = Lwt.return (Ok x)
 
   let read_head t =
     S.head t.t >>= function
@@ -78,7 +77,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
     aux (S.Key.of_hum path) (List.rev t.path)
 
   let mem t path =
-    S.mem t.t (mk_path t path) >>= fun res -> Lwt.return (`Ok res)
+    S.mem t.t (mk_path t path) >>= fun res -> Lwt.return (Ok res)
 
   let read_store t path off len =
     S.read t.t (mk_path t path) >>= function
@@ -88,7 +87,11 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
       let buf = Cstruct.sub buf off len in
       ok [buf]
 
-  let read t path off len = match path with
+  let read t path off len =
+    let off = Int64.to_int off
+    and len = Int64.to_int len
+    in
+    match path with
     | "HEAD" ->
       read_head t >>= fun buf ->
       let buf = Cstruct.sub (Cstruct.of_string buf) off len in
