@@ -5,7 +5,7 @@ environment:
   CYG_ROOT: "C:\\cygwin"
   CYG_BASH: "%CYG_ROOT%\\bin\\bash -lc"
   TESTS: "false"
-  DEPOPTS: "git cohttp git-unix mirage-git"
+  DEPOPTS: "git cohttp git-unix git-mirage"
   EXTRA_REMOTES: "https://github.com/mirage/mirage-dev.git"
 
 install:
