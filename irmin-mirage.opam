@@ -8,7 +8,7 @@ dev-repo:     "https://github.com/mirage/irmin.git"
 
 depends: [
   "mirage-types" {>= "3.0.0"}
-  "mirage-types-lwt"
+  "mirage-types-lwt" {>= "3.0.0"}
   "git-mirage"
   "irmin"
 ]
