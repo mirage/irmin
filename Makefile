@@ -5,7 +5,9 @@ MIRAGE ?= $(shell opam config var git-mirage:installed)
 TESTS  ?= true
 
 OPTIONS=--with-http ${HTTP} --with-git ${GIT} --with-unix ${UNIX} \
-	--with-mirage ${MIRAGE} --tests ${TESTS}
+	--with-mirage ${MIRAGE} --tests ${TESTS} -q
+
+.PHONY: test
 
 all:
 	ocaml pkg/pkg.ml build ${OPTIONS}
@@ -16,4 +18,3 @@ clean:
 
 test:
 	ocaml pkg/pkg.ml build ${OPTIONS}
-	ocaml pkg/pkg.ml test -- -e
