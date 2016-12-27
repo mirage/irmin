@@ -12,14 +12,14 @@ build: [
       "--with-http"   "%{cohttp:installed}%"
       "--with-git"    "%{git:installed}%"
       "--with-unix"   "%{irmin-watcher+git-unix:installed}%"
-      "--with-mirage" "%{git-mirage:installed}%"
+      "--with-mirage" "%{git-mirage+mirage-runtime:installed}%"
 ]
 build-test: [
   ["ocaml" "pkg/pkg.ml" "build" "--tests" "true"
       "--with-http"   "%{cohttp:installed}%"
       "--with-git"    "%{git:installed}%"
       "--with-unix"   "%{irmin-watcher+git-unix:installed}%"
-      "--with-mirage" "%{git-mirage:installed}%"]
+      "--with-mirage" "%{git-mirage+mirage-runtime:installed}%"]
   ["ocaml" "pkg/pkg.ml" "test"]
 ]
 
