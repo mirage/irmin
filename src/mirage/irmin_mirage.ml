@@ -42,7 +42,10 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
 
   open Lwt.Infix
 
-  module S = Irmin_git.Memory(C)(I)(Irmin.Contents.Cstruct)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+  module S =
+    Irmin_git.Memory(C)(I)
+      (Irmin.Contents.Cstruct)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+
   module Sync = Irmin.Sync(S)
   let config = Irmin_mem.config ()
 
@@ -50,8 +53,10 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
   type t = { path: string list; t: S.t; }
   let disconnect _ = Lwt.return_unit
   type page_aligned_buffer = Cstruct.t
-  let unknown_key _ = Lwt.return (Error `Unknown_key)
+  let unknown_key k = Lwt.return (Error (`Unknown_key k))
   let ok x = Lwt.return (Ok x)
+  type error = V1.Kv_ro.error
+  let pp_error = Mirage_pp.pp_kv_ro_error
 
   let read_head t =
     S.head t.t >>= function
