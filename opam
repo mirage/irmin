@@ -55,6 +55,7 @@ depopts: [
   "cohttp"
   "git-mirage"
   "irmin-watcher"
+  "mirage-runtime"
 ]
 conflicts: [
   "cohttp"        {< "0.18.3"}
