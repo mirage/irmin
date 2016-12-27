@@ -48,6 +48,7 @@ depends: [
   "cohttp"        {test}
   "alcotest"      {test & >="0.4.1"}
   "irmin-watcher" {test & >= "0.2.0"}
+  "mirage-runtime"{test}
 ]
 depopts: [
   "git"
