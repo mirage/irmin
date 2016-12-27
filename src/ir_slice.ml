@@ -16,9 +16,6 @@
 
 open Lwt
 
-let src = Logs.Src.create "irmin.slice" ~doc:"Irmin bundles"
-module Log = (val Logs.src_log src : Logs.LOG)
-
 module Make
     (Contents: Ir_s.CONTENTS_STORE)
     (Node: Ir_s.NODE_STORE)

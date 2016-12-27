@@ -14,8 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-module IB = Irmin.Private
+open Lwt.Infix
 
 let src = Logs.Src.create "irmin.unix" ~doc:"Irmin Unix bindings"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -118,20 +117,6 @@ module Irmin_http_server = struct
   type hooks = Irmin_http_server.hooks = { update: unit -> unit Lwt.t }
   module type S = Irmin_http_server.S
   module Make = Irmin_http_server.Make (Cohttp_lwt_unix.Server)(Y)
-end
-
-module S = struct
-  module X = struct
-    include Set.Make(struct
-        type t = string * string
-        let compare = Tc.Compare.pair String.compare String.compare
-      end)
-    let of_list l = List.fold_left (fun set elt -> add elt set) empty l
-    let to_list = elements
-    module K = Tc.Pair(Tc.String)(Tc.String)
-  end
-  include X
-  include Tc.As_L0 (X)
 end
 
 let task msg =
