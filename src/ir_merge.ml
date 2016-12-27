@@ -68,8 +68,6 @@ let exn = function
   | `Ok x       -> return x
   | `Conflict x -> fail (Conflict x)
 
-module R (A: Tc.S0) = Tc.App1(Result)(A)
-
 type 'a promise = unit -> 'a option result Lwt.t
 
 let promise t: 'a promise = fun () -> Lwt.return (`Ok (Some t))

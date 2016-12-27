@@ -62,7 +62,6 @@ struct
       module AO = struct
         module Key = H
         module Val = Ir_node.Make (H)(H)(C.Path)(M)
-        module Path = C.Path
         include AO (Key)(Val)
       end
       include Ir_node.Store(Contents)(AO)
@@ -165,8 +164,6 @@ module Private = struct
 end
 
 let version = Ir_version.current
-
-module History = Graph.Persistent.Digraph.ConcreteBidirectional(Hash.SHA1)
 
 module type SYNC = Ir_sync_ext.STORE
 module Sync = Ir_sync_ext.Make

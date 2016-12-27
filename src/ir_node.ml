@@ -34,7 +34,6 @@ module Make (K_c: Tc.S0) (K_n: Tc.S0) (P: Ir_s.PATH) (M: Ir_s.METADATA) = struct
   type node = K_n.t
   type step = P.step
 
-  module Path = P
   module StepMap = Ir_misc.Map(P.Step)
   module Metadata = M
 
@@ -279,10 +278,7 @@ struct
 
   let iter (_, t) fn = S.iter t fn
 
-  module Val = struct
-    include S.Val
-    module Path = Path
-  end
+  module Val = S.Val
 
 end
 
@@ -331,7 +327,6 @@ module Graph (S: Ir_s.NODE_STORE) = struct
   let empty t = S.add t S.Val.empty
 
   module StepSet = Ir_misc.Set(Step)
-  module StepMap = Ir_misc.Map(Step)
 
   let iter_contents t n fn =
     Log.debug (fun f -> f "iter_contents");

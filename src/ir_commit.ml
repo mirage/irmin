@@ -129,11 +129,7 @@ module Store
   let iter (_, t) fn = S.iter t fn
 
   module Key = S.Key
-  module Val = struct
-    include S.Val
-    module Path = N.Path
-  end
-  module Path = N.Path
+  module Val = S.Val
 end
 
 module type HISTORY = sig
