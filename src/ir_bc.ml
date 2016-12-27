@@ -21,8 +21,6 @@ open Ir_misc.OP
 let src = Logs.Src.create "irmin.bc" ~doc:"Irmin branch-consistent store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module StringMap = Map.Make(String)
-
 (* TODO: the BC interface should export file metadata (e.g. Git file type).
    Search for [_meta] and [Metadata.default] for places that may need to
    change. *)
@@ -35,7 +33,6 @@ module Make (P: Ir_s.PRIVATE) = struct
   type branch_id = Ref_store.key
 
   module Key = P.Node.Path
-  module KeySet = Ir_misc.Set(Key)
   type key = Key.t
 
   module Val = P.Contents.Val

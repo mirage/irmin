@@ -14,11 +14,11 @@ let static_files = [
 
 let static () =
   rule "Generate HTML static contents"
-       ~prod:"lib/http/irmin_http_static.ml"
-       ~deps:(List.map (fun f -> "lib/http/static/" ^ f) static_files)
+       ~prod:"src/http/irmin_http_static.ml"
+       ~deps:(List.map (fun f -> "src/http/static/" ^ f) static_files)
        (fun _env _build ->
-         let static_dir = A "lib/http/static" in
-         let static_ml  = A "lib/http/irmin_http_static.ml" in
+         let static_dir = A "src/http/static" in
+         let static_ml  = A "src/http/irmin_http_static.ml" in
          Cmd(S[crunch; static_dir; A"-m"; A"plain"; A"-o"; static_ml]))
 
 let () = dispatch (function After_rules -> static () | _ -> ())

@@ -1,26 +1,26 @@
 true: bin_annot, debug
-true: warn_error(+1..49), warn(A-4-41-44)
+true: warn_error(+1..49+60), warn(A-4-41-44)
 true: short_paths
 
 true: package(cstruct fmt hex logs lwt ocamlgraph re astring uri tc mstruct)
 true: package(fmt)
 
-<lib>: include
-<lib/mem>: include
-<lib/fs>: include
-<lib/git>: include
-<lib/http>: include
-<lib/unix>: include
+<src>: include
+<src/mem>: include
+<src/fs>: include
+<src/git>: include
+<src/http>: include
+<src/unix>: include
 
-<lib_test/*>: package(irmin-watcher), thread
-<lib_test/*>: package(alcotest git.unix logs.fmt re.pcre re.perl ezjsonm.lwt)
-<lib_test/*>: package(mtime.os)
+<test/*>: package(irmin-watcher), thread
+<test/*>: package(alcotest git.unix logs.fmt re.pcre re.perl ezjsonm.lwt)
+<test/*>: package(mtime.os)
 
-<lib/http/*>: package(cohttp crunch ezjsonm)
-<lib/git/*>: package(git)
+<src/http/*>: package(cohttp crunch ezjsonm)
+<src/git/*>: package(git)
 
-<lib/unix/*>: package(irmin-watcher git.unix), thread
-<lib/mirage/*>: package(git.mirage ptime)
+<src/unix/*>: package(irmin-watcher git.unix), thread
+<src/mirage/*>: package(git.mirage ptime mirage-runtime)
 
 <bin/*>: package(irmin-watcher), thread
 <bin/*>: package(cmdliner git.unix fmt.cli logs.fmt fmt.tty ezjsonm.lwt)

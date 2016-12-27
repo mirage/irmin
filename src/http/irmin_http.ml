@@ -371,7 +371,6 @@ struct
     module Node = struct
       module X = struct
         module Key = H
-        module Path = C.Path
         module Val = Irmin.Private.Node.Make(H)(H)(C.Path)(M)
         include AO(Client)(Key)(Val)
       end
@@ -847,10 +846,6 @@ struct
     | `Head head -> lcas_head (t1 a) ?max_depth ?n head
     | `Empty     -> Lwt.return (`Ok [])
 
-  module E = Tc.Pair (Tc.List(Hash)) (Tc.Option(Tc.List(Hash)))
-
-  module I = Tc.List(Ref)
-
   let remove_rec t dir =
     delete t ["remove-rec"; Key.to_hum dir] (module Hash) >>= fun h ->
     match head_ref t with
@@ -875,7 +870,6 @@ struct
       vertices, edges
   end
   module HTC = Tc.Biject (G)(Conv)
-  module EO = Tc.Pair (Tc.Option(Tc.List(Hash))) (Tc.Option(Tc.List(Hash)))
 
   let history ?depth ?(min=[]) ?(max=[]) t =
     let query =
