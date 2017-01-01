@@ -20,7 +20,7 @@ true: package(fmt)
 <src/git/*>: package(git)
 
 <src/unix/*>: package(irmin-watcher git.unix), thread
-<src/mirage/*>: package(git.mirage ptime mirage-runtime)
+<src/mirage/*>: package(git.mirage ptime mirage-kv)
 
 <bin/*>: package(irmin-watcher), thread
 <bin/*>: package(cmdliner git.unix fmt.cli logs.fmt fmt.tty ezjsonm.lwt)
