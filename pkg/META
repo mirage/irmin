@@ -42,7 +42,7 @@ package "unix" (
 package "mirage" (
  description = "MirageOS backend for Irmin"
  version = "%%VERSION_NUM%%"
- requires = "irmin irmin.mem irmin.git irmin.fs irmin.http cohttp.lwt git.mirage ptime"
+ requires = "irmin irmin.mem irmin.git irmin.fs irmin.http cohttp.lwt git.mirage ptime mirage-kv"
  archive(byte)   = "irmin-mirage.cma"
  archive(native) = "irmin-mirage.cmxa"
  plugin(byte)    = "irmin-mirage.cma"
