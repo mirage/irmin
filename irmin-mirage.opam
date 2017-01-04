@@ -11,5 +11,6 @@ depends: [
   "mirage-types-lwt" {>= "3.0.0"}
   "mirage-runtime"
   "git-mirage"
+  "result"
   "irmin"
 ]

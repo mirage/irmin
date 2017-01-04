@@ -13,18 +13,18 @@ true: package(fmt)
 <src/unix>: include
 
 <test/*>: package(irmin-watcher), thread
-<test/*>: package(alcotest git.unix logs.fmt re.pcre re.perl ezjsonm.lwt)
+<test/*>: package(alcotest git-unix logs.fmt re.pcre re.perl ezjsonm.lwt)
 <test/*>: package(mtime.os)
 
 <src/http/*>: package(cohttp crunch ezjsonm)
 <src/git/*>: package(git)
 
-<src/unix/*>: package(irmin-watcher git.unix), thread
-<src/mirage/*>: package(git.mirage ptime mirage-kv)
+<src/unix/*>: package(irmin-watcher git-unix), thread
+<src/mirage/*>: package(git-mirage ptime mirage-kv result)
 
 <bin/*>: package(irmin-watcher), thread
-<bin/*>: package(cmdliner git.unix fmt.cli logs.fmt fmt.tty ezjsonm.lwt)
+<bin/*>: package(cmdliner git-unix fmt.cli logs.fmt fmt.tty ezjsonm.lwt)
 <bin/*>: package(logs.cli re.pcre re.pcre re.perl)
 
 <examples/*>: package(irmin-watcher), thread
-<examples/*>: package(git.unix re.pcre re.perl ezjsonm.lwt)
+<examples/*>: package(git-unix re.pcre re.perl ezjsonm.lwt)
