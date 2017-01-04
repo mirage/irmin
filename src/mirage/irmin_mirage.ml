@@ -15,6 +15,8 @@
  *)
 
 open Astring
+open Result
+
 module IO = Git_mirage.Sync.IO
 
 module type CONTEXT = sig val v: unit -> IO.ctx option Lwt.t end
