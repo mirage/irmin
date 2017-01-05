@@ -20,3 +20,5 @@ Ir_task
 Ir_bc
 Ir_sync
 Ir_sync_ext
+Irmin_mem
+Irmin_fs

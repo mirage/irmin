@@ -20,8 +20,8 @@ open Test_common
 let test_db = "test_db_git"
 
 let init_disk () =
-  if Filename.basename (Sys.getcwd ()) <> "test" then
-    failwith "The Git test should be run in the test/ directory."
+  if Filename.basename (Sys.getcwd ()) <> "_build" then
+    failwith "The Git test should be run in the _build/ directory."
   else if Sys.file_exists test_db then
     Git_unix.FS.create ~root:test_db () >>= fun t ->
     Git_unix.FS.remove t

@@ -5,26 +5,19 @@ true: short_paths
 true: package(cstruct fmt hex logs lwt ocamlgraph re astring uri tc mstruct)
 true: package(fmt)
 
-<src>: include
-<src/mem>: include
-<src/fs>: include
-<src/git>: include
-<src/http>: include
-<src/unix>: include
+<src-git/*>: package(irmin git)
 
-<test/*>: package(irmin-watcher), thread
+<test/*>: package(irmin irmin-git irmin-http irmin-watcher), thread
 <test/*>: package(alcotest git-unix logs.fmt re.pcre re.perl ezjsonm.lwt)
-<test/*>: package(mtime.os)
+<test/*>: package(mtime.os irmin irmin-http irmin-mirage)
 
-<src/http/*>: package(cohttp crunch ezjsonm)
-<src/git/*>: package(git)
+<src-http/*>: package(irmin cohttp crunch ezjsonm)
+<src-unix/*>: package(irmin irmin-git irmin-http irmin-watcher git-unix), thread
+<src-mirage/*>: package(irmin ptime mirage-kv git-mirage irmin-git result)
 
-<src/unix/*>: package(irmin-watcher git-unix), thread
-<src/mirage/*>: package(git-mirage ptime mirage-kv result)
-
-<bin/*>: package(irmin-watcher), thread
+<src-unix>: include
+<bin/*>: package(irmin irmin-git irmin-http irmin-watcher), thread
 <bin/*>: package(cmdliner git-unix fmt.cli logs.fmt fmt.tty ezjsonm.lwt)
 <bin/*>: package(logs.cli re.pcre re.pcre re.perl)
 
-<examples/*>: package(irmin-watcher), thread
-<examples/*>: package(git-unix re.pcre re.perl ezjsonm.lwt)
+<examples/*>: package(irmin irmin-git irmin-http irmin-watcher git-unix), thread
