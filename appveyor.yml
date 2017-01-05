@@ -4,8 +4,9 @@ platform:
 environment:
   CYG_ROOT: "C:\\cygwin"
   CYG_BASH: "%CYG_ROOT%\\bin\\bash -lc"
+  PINS: "irmin.1.0.0:. irmin-http.1.0.0:. irmin-git.1.0.0:. irmin-mirage.1.0.0:. irmin-unix.1.0.0:."
+  PACKAGE: "irmin-unix"
   TESTS: "false"
-  DEPOPTS: "git cohttp git-unix git-mirage mirage-runtime"
   EXTRA_REMOTES: "https://github.com/mirage/mirage-dev.git"
 
 install:
