@@ -17,6 +17,13 @@
 open Lwt.Infix
 open Printf
 
+let tag buf i =
+  Cstruct.set_uint8 buf 0 i;
+  Cstruct.shift buf 1
+
+let untag buf =
+  Mstruct.get_uint8 buf
+
 module Metadata = struct
   module X = struct
     type t = [`Normal | `Exec | `Link]
@@ -38,13 +45,13 @@ module Metadata = struct
       | `Exec -> 2
       | `Link -> 3
     let read buf =
-      match Ir_misc.untag buf with
+      match untag buf with
       | 1 -> `Normal
       | 2 -> `Exec
       | 3 -> `Link
       | n -> Tc.Reader.error "Invalid Git file type %d" n
     let write t buf =
-      Ir_misc.tag buf (hash t)
+      tag buf (hash t)
     let size_of _ = 1
   end
   include X

@@ -7,9 +7,24 @@ bug-reports:  "https://github.com/mirage/irmin/issues"
 dev-repo:     "https://github.com/mirage/irmin.git"
 doc:          "https://mirage.github.io/irmin/"
 
+build: [
+  "ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name "--tests" "false"
+]
+build-test: [
+  ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name "--tests" "true"]
+  ["ocaml" "pkg/pkg.ml" "test"]
+]
+
 depends: [
-  "irmin"  {>= "0.12.0"}
+  "ocamlbuild" {build}
+  "ocamlfind"  {build}
+  "topkg"      {build & >= "0.7.8"}
+  "irmin"      {>= "1.0.0"}
+  "irmin-git"  {>= "1.0.0"}
+  "irmin-http" {>= "1.0.0"}
   "git-unix"
   "irmin-watcher"
+  "irmin-mirage" {test & >= "1.0.0"}
+  "alcotest"     {test}
 ]
 available: [ocaml-version >= "4.01.0"]
