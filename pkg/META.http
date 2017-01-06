@@ -1,0 +1,7 @@
+description = "HTTP backend for Irmin"
+version = "%%VERSION_NUM%%"
+requires = "irmin cohttp.lwt-core ezjsonm.lwt re re.pcre re.perl"
+archive(byte)   = "irmin-http.cma"
+plugin(byte)    = "irmin-http.cma"
+archive(native) = "irmin-http.cmxa"
+plugin(native)  = "irmin-http.cmxs"

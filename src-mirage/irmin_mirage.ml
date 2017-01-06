@@ -15,6 +15,8 @@
  *)
 
 open Astring
+open Result
+
 module IO = Git_mirage.Sync.IO
 
 module type CONTEXT = sig val v: unit -> IO.ctx option Lwt.t end
@@ -55,8 +57,8 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
   type page_aligned_buffer = Cstruct.t
   let unknown_key k = Lwt.return (Error (`Unknown_key k))
   let ok x = Lwt.return (Ok x)
-  type error = V1.Kv_ro.error
-  let pp_error = Mirage_pp.pp_kv_ro_error
+  type error = Mirage_kv.error
+  let pp_error = Mirage_kv.pp_error
 
   let read_head t =
     S.head t.t >>= function

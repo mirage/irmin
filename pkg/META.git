@@ -1,0 +1,7 @@
+description = "Git backend for Irmin"
+version = "%%VERSION_NUM%%"
+requires = "irmin git"
+archive(byte)   = "irmin-git.cma"
+archive(native) = "irmin-git.cmxa"
+plugin(byte)    = "irmin-git.cma"
+plugin(native)  = "irmin-git.cmxs"
