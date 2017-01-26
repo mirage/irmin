@@ -13,7 +13,7 @@ true: package(fmt)
 
 <src-http/*>: package(irmin cohttp crunch ezjsonm)
 <src-unix/*>: package(irmin irmin-git irmin-http irmin-watcher git-unix), thread
-<src-mirage/*>: package(irmin ptime mirage-kv git-mirage irmin-git result)
+<src-mirage/*>: package(irmin ptime mirage-kv-lwt mirage-clock git-mirage irmin-git result)
 
 <src-unix>: include
 <bin/*>: package(irmin irmin-git irmin-http irmin-watcher), thread
