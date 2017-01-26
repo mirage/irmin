@@ -1,6 +1,7 @@
 PKG lwt dolog ezjsonm bin_prot cstruct re uri git tc hex topkg
 PKG nocrypto cohttp.lwt-core cmdliner ocamlgraph oUnit alcotest mstruct
-PKG mirage-http git.mirage logs irmin-watcher mtime.os mirage-runtime
+PKG mirage-http git-mirage logs irmin-watcher mtime.os
+PKG mirage-kv-lwt mirage-clock ptime
 B _build/**
 S src
 S src-git
