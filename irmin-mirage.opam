@@ -17,5 +17,6 @@ depends: [
   "git-mirage" {>= "2.0.0"}
   "ptime"
   "mirage-kv-lwt"
+  "mirage-clock"
   "result"
 ]

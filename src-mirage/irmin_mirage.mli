@@ -61,7 +61,7 @@ module Irmin_git: sig
 
 end
 
-module Task (N: sig val name: string end)(C: V1.PCLOCK): sig
+module Task (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
 
   (** {1 Task creators} *)
 
@@ -75,7 +75,7 @@ end
     repository. *)
 module KV_RO (C: CONTEXT) (I: Git.Inflate.S): sig
 
-  include V1_LWT.KV_RO
+  include Mirage_kv_lwt.RO
 
   val connect: ?depth:int -> ?branch:string -> ?path:string ->
     Uri.t -> t Lwt.t
