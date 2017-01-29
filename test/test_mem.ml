@@ -14,24 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Test_common
 open Lwt.Infix
+open Test_common
 
-module IO = Irmin_fs.IO_mem
+let store = store (module Irmin_mem.Make)
 
 module Link = struct
-  include Irmin_fs.Link(IO)(Irmin.Hash.SHA1)
+  include Irmin_mem.Link(Irmin.Hash.SHA1)
   let v () = v (Irmin_mem.config ())
 end
 
-let init () =
-  IO.clear () >|= fun () ->
-  IO.set_listen_hook ()
-
-let test_db = "test-db"
-let config = Irmin_fs.config ~root:test_db ()
 let link = (module Link: Test_link.S)
-let clean () = Lwt.return_unit
+let config = Irmin_mem.config ()
+
+let clean () =
+  let (module S: Test_S) = store in
+  S.Repo.v config >>= fun repo ->
+  S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
+
+let init () = Lwt.return_unit
 let stats = None
-let store = store (module Irmin_fs.Make(IO))
-let suite = { name = "FS"; kind = `Core; init; clean; config; store; stats }
+let suite = { name = "MEM"; kind = `Core; init; clean; config; store; stats }
