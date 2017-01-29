@@ -14,24 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Test_common
-open Lwt.Infix
+let misc = [
+  "link", [
+    Test_link.test Test_mem.link;
+    Test_link.test Test_fs.link;
+  ]
+]
 
-module IO = Irmin_fs.IO_mem
-
-module Link = struct
-  include Irmin_fs.Link(IO)(Irmin.Hash.SHA1)
-  let v () = v (Irmin_mem.config ())
-end
-
-let init () =
-  IO.clear () >|= fun () ->
-  IO.set_listen_hook ()
-
-let test_db = "test-db"
-let config = Irmin_fs.config ~root:test_db ()
-let link = (module Link: Test_link.S)
-let clean () = Lwt.return_unit
-let stats = None
-let store = store (module Irmin_fs.Make(IO))
-let suite = { name = "FS"; kind = `Core; init; clean; config; store; stats }
+let () =
+  Test_store.run "irmin" ~misc [
+    `Quick , Test_mem.suite;
+    `Quick , Test_fs.suite;
+  ]
