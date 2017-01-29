@@ -3,41 +3,49 @@ open Lwt
 open Irmin_unix
 open Printf
 
-module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
+module Store =
+  Irmin_git.FS
+    (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)
 
 let update t k v =
   let msg = sprintf "Updating /%s" (String.concat "/" k) in
   print_endline msg;
-  Store.update (t msg) k v
+  Store.set t (task msg) k v
 
 let read_exn t k =
   let msg = sprintf "Reading /%s" (String.concat "/" k) in
   print_endline msg;
-  Store.read_exn (t msg) k
+  Store.get t k
 
 let main () =
   Config.init ();
   let config = Irmin_git.config ~root:Config.root ~bare:true () in
-  Store.Repo.create config >>= Store.master task >>= fun t ->
+  Store.Repo.v config >>= fun repo ->
+  Store.master repo >>= fun t ->
 
   update t ["root";"misc";"1.txt"] "Hello world!" >>= fun () ->
   update t ["root";"misc";"2.txt"] "Hi!" >>= fun () ->
   update t ["root";"misc";"3.txt"] "How are you ?" >>= fun () ->
   read_exn t ["root";"misc";"2.txt"] >>= fun _ ->
 
-  Store.clone_force task (t "x: Cloning 't'") "test" >>= fun x ->
+  Store.clone ~src:t ~dst:"test" >>= fun x ->
   print_endline "cloning ...";
 
   update t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
   update x ["root";"misc";"2.txt"] "Cool!"  >>= fun () ->
 
-  Store.merge_exn "t: Merge with 'x'" x ~into:t >>= fun () ->
-  print_endline "merging ...";
+  Store.merge (task "t: Merge with 'x'") x ~into:t >>= function
+  | Error _ -> failwith "conflict!"
+  | Ok () ->
+    print_endline "merging ...";
 
-  read_exn t ["root";"misc";"2.txt"]  >>= fun _ ->
-  read_exn t ["root";"misc";"3.txt"]  >>= fun _ ->
+    read_exn t ["root";"misc";"2.txt"]  >>= fun _ ->
+    read_exn t ["root";"misc";"3.txt"]  >>= fun _ ->
 
-  return_unit
+    return_unit
 
 let () =
   Printf.printf
