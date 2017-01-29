@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,11 +19,13 @@ open Lwt.Infix
 let src = Logs.Src.create "irmin.unix" ~doc:"Irmin Unix bindings"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module IO = Git_unix.FS.IO
-
-module type LOCK = Irmin_fs.LOCK
+module type LOCK = sig
+  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
+end
 
 module Lock = struct
+
+  module IO = Git_unix.FS.IO
 
   let is_stale max_age file =
     IO.file_exists file >>= fun exists ->
@@ -74,16 +76,59 @@ module Lock = struct
 
 end
 
+module IO = struct
+
+  open Lock
+
+  let getcwd = IO.getcwd
+  let mkdir = IO.mkdir
+  let read_file = IO.read_file
+  let rec_files = IO.rec_files
+  let file_exists = IO.file_exists
+
+  let lock_file dir file = Filename.concat dir (file ^ ".lock")
+
+  let remove ?(temp_dir=Filename.get_temp_dir_name ()) file =
+    let lock_file = lock_file temp_dir file in
+    with_lock lock_file (fun () -> IO.remove file)
+
+  let write_file ?(temp_dir=Filename.get_temp_dir_name ()) file v =
+    let lock_file = lock_file temp_dir file in
+    with_lock lock_file (fun () -> IO.write_file file v)
+
+  let test_and_set ?(temp_dir=Filename.get_temp_dir_name ()) file ~test ~set =
+    let lock_file = lock_file temp_dir file in
+    with_lock lock_file (fun () ->
+        (file_exists file >>= function
+          | false -> Lwt.return_none
+          | true  -> read_file file >|= fun v -> Some v)
+        >>= fun v ->
+        let equal = match test, v with
+          | None  , None   -> true
+          | Some x, Some y -> Cstruct.equal x y
+          | _ -> false
+        in
+        if not equal then Lwt.return false
+        else
+          (match set with
+           | None   -> IO.remove file
+           | Some v -> IO.write_file ~temp_dir file v)
+          >|= fun () ->
+          true
+      )
+
+end
+
 module Irmin_fs = struct
   let config = Irmin_fs.config
   module AO = Irmin_fs.AO(IO)
   module Link = Irmin_fs.Link(IO)
-  module RW = Irmin_fs.RW(IO)(Lock)
-  module Make = Irmin_fs.Make(IO)(Lock)
+  module RW = Irmin_fs.RW(IO)
+  module Make = Irmin_fs.Make(IO)
   module type Config = Irmin_fs.Config
   module AO_ext = Irmin_fs.AO_ext(IO)
-  module RW_ext = Irmin_fs.RW_ext(IO)(Lock)
-  module Make_ext = Irmin_fs.Make_ext(IO)(Lock)
+  module RW_ext = Irmin_fs.RW_ext(IO)
+  module Make_ext = Irmin_fs.Make_ext(IO)
 end
 
 module Irmin_git = struct
@@ -94,29 +139,19 @@ module Irmin_git = struct
   module AO = Irmin_git.AO
   module RW = Irmin_git.RW(Lock)
   module Memory = Irmin_git.Memory(Git_unix.Sync.IO)(Git_unix.Zlib)
-  module FS = Irmin_git.FS(Git_unix.Sync.IO)(Git_unix.Zlib)(Lock)(IO)
+  module FS =
+    Irmin_git.FS(Git_unix.Sync.IO)(Git_unix.Zlib)(Lock)(Git_unix.FS.IO)
 end
 
 module Irmin_http = struct
   let config = Irmin_http.config
   let uri = Irmin_http.uri
-  let content_type = Irmin_http.content_type
-  module AO = Irmin_http.AO(Cohttp_lwt_unix.Client)
-  module RW = Irmin_http.RW(Cohttp_lwt_unix.Client)
   module Make = Irmin_http.Make(Cohttp_lwt_unix.Client)
-  module Low = Irmin_http.Low(Cohttp_lwt_unix.Client)
 end
 
 module Irmin_http_server = struct
-  module Y = struct
-    let pretty d =
-      let tm = Unix.localtime (Int64.to_float d) in
-      Printf.sprintf "%02d:%02d:%02d"
-        tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
-  end
-  type hooks = Irmin_http_server.hooks = { update: unit -> unit Lwt.t }
   module type S = Irmin_http_server.S
-  module Make = Irmin_http_server.Make (Cohttp_lwt_unix.Server)(Y)
+  module Make = Irmin_http_server.Make (Cohttp_lwt_unix.Server)
 end
 
 let task msg =
@@ -125,7 +160,7 @@ let task msg =
     (* XXX: get "git config user.name" *)
     Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname()) (Unix.getpid())
   in
-  Irmin.Task.create ~date ~owner msg
+  Irmin.Task.v ~date ~owner msg
 
 let set_listen_dir_hook () =
   Irmin.Private.Watch.set_listen_dir_hook Irmin_watcher.hook

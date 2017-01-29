@@ -14,15 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 open Cmdliner
 open Irmin_unix
-open Printf
 open Ir_resolver
 
-let fmt t = Printf.ksprintf (fun s -> t s)
-
 let () = Irmin_unix.set_listen_dir_hook ()
+
+let taskf fmt = Fmt.kstrf task fmt
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
@@ -86,9 +85,9 @@ let depth =
 
 let run t =
   Lwt_main.run (
-    catch
+    Lwt.catch
       (fun () -> t)
-      (function e -> eprintf "%s\n%!" (Printexc.to_string e); exit 1)
+      (function e -> Fmt.epr "%a\n%!" Fmt.exn e; exit 1)
   )
 
 let mk (fn:'a): 'a Term.t =
@@ -119,14 +118,14 @@ let init = {
         let module HTTP = Irmin_http_server.Make(S) in
         if daemon then
           let uri = Uri.of_string uri in
-          let spec = HTTP.http_spec (t "Initialising the HTTP server.") in
+          let spec = HTTP.v (S.repo t) in
           match Uri.scheme uri with
           | Some "launchd" ->
             let uri, name = match Uri.host uri with
               | None   -> Uri.with_host uri (Some "Listener"), "Listener"
               | Some name -> uri, name in
-              Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
-              Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`Launchd name) spec
+            Logs.info (fun f -> f "daemon: %s" (Uri.to_string uri));
+            Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`Launchd name) spec
           | _ ->
             let uri = match Uri.host uri with
               | None   -> Uri.with_host uri (Some "localhost")
@@ -138,14 +137,22 @@ let init = {
             Printf.printf "Server starting on port %d.\n%!" port;
             Cohttp_lwt_unix.Server.create ~timeout:3600 ~mode:(`TCP (`Port port)) spec
 
-        else return_unit
+        else Lwt.return_unit
       end
     in
     Term.(mk init $ store $ daemon $ uri)
 }
 
-let print fmt =
-  ksprintf print_endline fmt
+let print fmt = Fmt.kstrf print_endline fmt
+
+let get name f x = match f x with
+  | `Ok x    -> x
+  | `Error e -> Fmt.kstrf invalid_arg "invalid %s: %s" name e
+
+let key f x = get "key" f x
+let value f x = get "value" f x
+let branch f x = get "branch" f x
+let commit f x = get "commit" f x
 
 (* READ *)
 let read = {
@@ -156,9 +163,11 @@ let read = {
     let read (S ((module S), store)) path =
       run begin
         store >>= fun t ->
-        S.read (fmt t "Reading %s" path) (S.Key.of_hum path) >>= function
+        S.find t (key S.Key.of_string path) >>= function
         | None   -> print "<none>"; exit 1
-        | Some v -> print "%s" (Tc.write_string (module S.Val) v); return_unit
+        | Some v ->
+          print "%a" S.Contents.pp v;
+          Lwt.return_unit
       end
     in
     Term.(mk read $ store $ path);
@@ -173,9 +182,13 @@ let ls = {
     let ls (S ((module S), store)) path =
       run begin
         store >>= fun t ->
-        S.list (fmt t "ls %s." path) (S.Key.of_hum path) >>= fun paths ->
-        List.iter (fun p -> print "%s" (S.Key.to_hum p)) paths;
-        return_unit
+        S.list t (key S.Key.of_string path) >>= fun paths ->
+        let pp ppf (s, k) = match k with
+          | `Contents -> Fmt.pf ppf "FILE %a" S.Key.pp_step s
+          | `Node     -> Fmt.pf ppf "DIR  %a" S.Key.pp_step s
+        in
+        List.iter (print "%a" pp) paths;
+        Lwt.return_unit
       end
     in
     Term.(mk ls $ store $ path);
@@ -187,33 +200,48 @@ let tree = {
   doc  = "List the store contents.";
   man  = [];
   term =
-  let tree (S ((module S), store)) =
-    run begin
-      store >>= fun t ->
-      let all = ref [] in
-      S.iter (t "tree") (fun k v ->
-          v () >>= fun v -> all := (k, v) :: !all; return_unit
-        )>>= fun () ->
-      let all = !all in
-      let all =
-        List.map (fun (k,v) ->
-            S.Key.to_hum k, sprintf "%S" (Tc.write_string (module S.Val) v)
-          ) all in
-      let max_lenght l =
-        List.fold_left (fun len s -> max len (String.length s)) 0 l in
-      let k_max = max_lenght (List.map fst all) in
-      let v_max = max_lenght (List.map snd all) in
-      let pad = 79 + k_max + v_max in
-      List.iter (fun (k,v) ->
-          let dots =
-            String.make (pad - String.length k - String.length v) '.'
-          in
-          print "%s%s%s" k dots v
-        ) all;
-      return_unit
-    end
-  in
-  Term.(mk tree $ store);
+    let tree (S ((module S), store)) =
+      run begin
+        store >>= fun t ->
+        let all = ref [] in
+        let todo = ref [] in
+        let rec walk () = match !todo with
+          | []      -> Lwt.return_unit
+          | k::rest ->
+            todo := rest;
+            S.list t k >>= fun childs ->
+            Lwt_list.iter_p (fun (s, c) ->
+                let k = S.Key.rcons k s in
+                match c with
+                | `Node     -> todo := k :: !todo; Lwt.return_unit
+                | `Contents ->
+                  S.get t k >|= fun v ->
+                  all := (k, v) :: !all
+              ) childs >>=
+            walk
+        in
+        walk () >>= fun () ->
+        let all = !all in
+        let all =
+          List.map (fun (k,v) ->
+              Fmt.to_to_string S.Key.pp k,
+              Fmt.strf "%a" S.Contents.pp v
+            ) all in
+        let max_lenght l =
+          List.fold_left (fun len s -> max len (String.length s)) 0 l in
+        let k_max = max_lenght (List.map fst all) in
+        let v_max = max_lenght (List.map snd all) in
+        let pad = 79 + k_max + v_max in
+        List.iter (fun (k,v) ->
+            let dots =
+              String.make (pad - String.length k - String.length v) '.'
+            in
+            print "%s%s%s" k dots v
+          ) all;
+        Lwt.return_unit
+      end
+    in
+    Term.(mk tree $ store);
 }
 
 (* WRITE *)
@@ -228,15 +256,13 @@ let write = {
     let write (S ((module S), store)) args =
       run begin
         store >>= fun t ->
-        let mk value =
-          try Tc.read_string (module S.Val) value
-          with _ -> failwith "invalid value" in
+        let mk v = value S.Contents.of_string v in
         let path, value = match args with
           | [] | [_]      -> failwith "Not enough arguments"
-          | [path; value] -> S.Key.of_hum path, mk value
+          | [path; value] -> key S.Key.of_string path, mk value
           | _             -> failwith "Too many arguments"
         in
-        S.update (t "write") path value
+        S.set t (task "write") path value
       end
     in
     Term.(mk write $ store $ args);
@@ -251,7 +277,7 @@ let rm = {
     let rm (S ((module S), store)) path =
       run begin
         store >>= fun t ->
-        S.remove (fmt t "rm %s." path) (S.Key.of_hum path)
+        S.remove t (taskf "rm %s." path) (key S.Key.of_string path)
       end
     in
     Term.(mk rm $ store $ path);
@@ -268,9 +294,9 @@ let clone = {
       run begin
         store >>= fun t ->
         remote >>= fun remote ->
-        Sync.fetch (t "Cloning.") ?depth remote >>= function
-        | `Head d  -> S.update_head (t "update head after clone") d
-        | `No_head -> return_unit
+        Sync.fetch t ?depth remote >>= function
+        | `Head d  -> S.Head.set t d
+        | `No_head -> Lwt.return_unit
         | `Error   -> Printf.eprintf "Error!\n"; exit 1
       end
     in
@@ -288,9 +314,9 @@ let fetch = {
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        let branch_id = S.Ref.of_hum "import" in
-        S.of_branch_id task branch_id (S.repo (t "config")) >>= fun t ->
-        Sync.pull_exn (t "Fetching.")  r `Update
+        let branch = branch S.Branch.of_string "import" in
+        S.of_branch (S.repo t) branch >>= fun t ->
+        Sync.pull_exn t r `Update
       end
     in
     Term.(mk fetch $ store $ remote);
@@ -307,7 +333,7 @@ let pull = {
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        Sync.pull_exn (t "Pulling.") r `Merge
+        Sync.pull_exn t r (`Merge (task "Pulling."))
       end
     in
     Term.(mk pull $ store $ remote);
@@ -324,7 +350,7 @@ let push = {
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        Sync.push_exn (fmt t "Pushing.") r
+        Sync.push_exn t r
       end
     in
     Term.(mk push $ store $ remote);
@@ -339,9 +365,9 @@ let snapshot = {
     let snapshot (S ((module S), store)) =
       run begin
         store >>= fun t ->
-        S.head_exn (t "Snapshot") >>= fun k ->
-        print "%s" (S.Hash.to_hum k);
-        return_unit
+        S.Head.get t >>= fun k ->
+        print "%a" S.Commit.pp k;
+        Lwt.return_unit
       end
     in
     Term.(mk snapshot $ store)
@@ -359,8 +385,8 @@ let revert = {
     let revert (S ((module S), store)) snapshot =
       run begin
         store >>= fun t ->
-        let s = S.Hash.of_hum snapshot in
-        S.update_head (t "Revert") s
+        let s = commit S.Commit.of_string snapshot in
+        S.Head.set t s
       end
     in
     Term.(mk revert $ store $ snapshot)
@@ -372,29 +398,32 @@ let watch = {
   man  = [];
   term =
     let watch (S ((module S), store)) path =
-      let path = S.Key.of_hum path in
-      let module View = Irmin.View(S) in
+      let path = key S.Key.of_string path in
       run begin
         store >>= fun t ->
-        View.watch_path (t "watch") path (fun d ->
+        S.watch_key t path (fun d ->
             let pr (k, v) =
-              let k = S.Key.to_hum k in
               let v = match v with
                 | `Updated _ -> "*"
                 | `Added _   -> "+"
                 | `Removed _ -> "-"
               in
-              printf "%s%s\n%!" v k
+              print "%s%a" v S.Key.pp k
             in
+            let view (c, _) =
+              S.of_commit (S.repo t) c >>= fun t ->
+              S.getv t path
+            in
+            let empty = Lwt.return S.Tree.empty in
             let x, y = match d with
-              | `Updated (x, y) -> Lwt.return (snd x), Lwt.return (snd y)
-              | `Added x        -> View.empty (), Lwt.return (snd x)
-              | `Removed x      -> Lwt.return (snd x), View.empty ()
+              | `Updated (x, y) -> view x, view y
+              | `Added x        -> empty , view x
+              | `Removed x      -> view x, empty
             in
             x >>= fun x -> y >>= fun y ->
-            View.diff x y >>= fun diff ->
+            S.Tree.diff x y >>= fun diff ->
             List.iter pr diff;
-            return_unit
+            Lwt.return_unit
           ) >>= fun _ ->
         let t, _ = Lwt.task () in
         t
@@ -434,23 +463,22 @@ let dot = {
         store >>= fun t ->
         let call_dot = not no_dot_call in
         let buf = Buffer.create 1024 in
-        Dot.output_buffer ~html:false (t "output dot file") ?depth ~full ~date
-          buf >>= fun () ->
+        Dot.output_buffer ~html:false t ?depth ~full ~date buf >>= fun () ->
         let oc = open_out_bin (basename ^ ".dot") in
         Lwt.finalize
-          (fun () -> output_string oc (Buffer.contents buf); return_unit)
-          (fun () -> close_out oc; return_unit)
+          (fun () -> output_string oc (Buffer.contents buf); Lwt.return_unit)
+          (fun () -> close_out oc; Lwt.return_unit)
         >>= fun () ->
         if call_dot then (
           let i = Sys.command "/bin/sh -c 'command -v dot'" in
           if i <> 0 then Logs.err (fun f -> f
-              "Cannot find the `dot' utility. Please install it on your system \
-               and be sure it is available in your $PATH.");
+                                      "Cannot find the `dot' utility. Please install it on your system \
+                                       and be sure it is available in your $PATH.");
           let i = Sys.command
               (Printf.sprintf "dot -Tpng %s.dot -o%s.png" basename basename) in
           if i <> 0 then Logs.err (fun f -> f "The %s.dot is corrupted" basename);
         );
-        return_unit
+        Lwt.return_unit
       end
     in
     Term.(mk dot $ store $ basename $ depth $ no_dot_call $ full);
@@ -491,12 +519,12 @@ let default =
         for more information on a specific command.";
   ] in
   let usage () =
-    printf
+    Fmt.pr
       "usage: irmin [--version]\n\
       \             [--help]\n\
       \             <command> [<args>]\n\
-      \n\
-      The most commonly used subcommands are:\n\
+       \n\
+       The most commonly used subcommands are:\n\
       \    init        %s\n\
       \    read        %s\n\
       \    write       %s\n\
@@ -511,11 +539,13 @@ let default =
       \    revert      %s\n\
       \    watch       %s\n\
       \    dot         %s\n\
-      \n\
-      See `irmin help <command>` for more information on a specific command.\n%!"
+       \n\
+       See `irmin help <command>` for more information on a specific command.\n\
+       %!"
       init.doc read.doc write.doc rm.doc ls.doc tree.doc
       clone.doc fetch.doc pull.doc push.doc snapshot.doc
-      revert.doc watch.doc dot.doc in
+      revert.doc watch.doc dot.doc
+  in
   Term.(mk usage $ pure ()),
   Term.info "irmin"
     ~version:Irmin.version

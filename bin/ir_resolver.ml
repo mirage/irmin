@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 open Cmdliner
 open Irmin_unix
 open Astring
@@ -22,8 +22,14 @@ open Astring
 type contents = (module Irmin.Contents.S)
 
 let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
-  fun (module B) (module C) ->
-    let module S = B(C)(Irmin.Ref.String)(Irmin.Hash.SHA1) in (module S)
+  fun (module S) (module C) ->
+    let module S =
+      S(C)
+        (Irmin.Path.String_list)
+        (Irmin.Branch.String)
+        (Irmin.Hash.SHA1)
+    in
+    (module S)
 
 let mem_store = create (module Irmin_mem.Make)
 let irf_store = create (module Irmin_fs.Make)
@@ -71,31 +77,27 @@ let opt_key k = key k (Irmin.Private.Conf.default k)
 
 let config_term =
   let add k v config = Irmin.Private.Conf.add config k v in
-  let create root bare head level uri content_type =
+  let create root bare head level uri =
     Irmin.Private.Conf.empty
     |> add Irmin.Private.Conf.root root
     |> add Irmin_git.bare bare
     |> add Irmin_git.head head
     |> add Irmin_git.level level
     |> add Irmin_http.uri uri
-    |> add Irmin_http.content_type content_type
   in
   Term.(pure create $
         opt_key Irmin.Private.Conf.root $
         flag_key Irmin_git.bare $
         opt_key Irmin_git.head $
         opt_key Irmin_git.level $
-        opt_key Irmin_http.uri $
-        opt_key Irmin_http.content_type)
+        opt_key Irmin_http.uri)
 
 let mk_contents k: contents = match k with
   | `String  -> (module Irmin.Contents.String)
-  | `Json    -> (module Irmin.Contents.Json)
   | `Cstruct -> (module Irmin.Contents.Cstruct)
 
 let contents_kinds = [
   "string" , `String;
-  "json"   , `Json;
   "cstruct", `Cstruct;
 ]
 
@@ -121,7 +123,7 @@ let store_term =
 
 let cfg = ".irminconfig"
 
-type t = S: (module Irmin.S with type t = 'a) * (string -> 'a) Lwt.t -> t
+type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 
 (* FIXME: use a proper configuration format (toml?) and interface
    properly with cmdliner *)
@@ -138,7 +140,9 @@ let read_config_file (): t option =
     let lines =
       List.fold_left (fun l -> function None -> l | Some x -> x::l) [] lines
     in
-    let assoc name fn = try Some (fn (List.assoc name lines)) with Not_found -> None in
+    let assoc name fn =
+      try Some (fn (List.assoc name lines)) with Not_found -> None
+    in
     let contents =
       let kind =
         match assoc "contents" (fun x -> List.assoc x contents_kinds) with
@@ -156,7 +160,10 @@ let read_config_file (): t option =
       mk_store kind contents
     in
     let module S = (val store) in
-    let branch = assoc "branch" (fun x -> S.Ref.of_hum x) in
+    let branch = assoc "branch" (fun x -> match S.Branch.of_string x with
+        | `Ok x    -> x
+        | `Error e -> failwith e)
+    in
     let config =
       let root = assoc "root" (fun x -> x) in
       let bare = match assoc "bare" bool_of_string with
@@ -172,9 +179,11 @@ let read_config_file (): t option =
       |> add Irmin_git.head head
       |> add Irmin_http.uri uri
     in
+    let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
+    let mk_branch b = S.Repo.v config >>= fun repo -> S.of_branch repo b in
     match branch with
-    | None   -> Some (S ((module S), S.Repo.create config >>= S.master task))
-    | Some b -> Some (S ((module S), S.Repo.create config >>= S.of_branch_id task b))
+    | None   -> Some (S ((module S), mk_master ()))
+    | Some b -> Some (S ((module S), mk_branch b))
 
 let store =
   let branch =
@@ -189,10 +198,17 @@ let store =
     match store with
     | Some s ->
       let module S = (val s: Irmin.S) in
+      let mk_master () = S.Repo.v config >>= fun repo -> S.master repo in
+      let mk_branch b =
+        S.Repo.v config >>= fun repo ->
+        S.of_branch repo b
+      in
       (* first look at the command-line options *)
       let t = match branch with
-        | None   -> S.Repo.create config >>= S.master task
-        | Some t -> S.Repo.create config >>= S.of_branch_id task (S.Ref.of_hum t)
+        | None   -> mk_master ()
+        | Some t -> mk_branch (match S.Branch.of_string t with
+            | `Ok x    -> x
+            | `Error e -> failwith e)
       in
       S ((module S), t)
     | None ->
@@ -202,7 +218,7 @@ let store =
       | None   ->
         let s = mk_store `Git (mk_contents `String) in
         let module S = (val s: Irmin.S) in
-        let t = S.Repo.create config >>= S.master task in
+        let t = S.Repo.v config >>= fun repo -> S.master repo in
         S ((module S), t)
   in
   Term.(pure create $ store_term $ config_term $ branch)
@@ -227,10 +243,11 @@ let infer_remote contents str =
       |> add Irmin_http.uri (Some (Uri.of_string str))
       |> add Irmin.Private.Conf.root (Some str)
     in
-    R.Repo.create config >>= R.master task >>= fun r ->
-      return (Irmin.remote_store (module R) (r "Clone %s."))
+    R.Repo.v config >>= fun repo ->
+    R.master repo >|= fun r ->
+    Irmin.remote_store (module R) r
     ) else
-      return (Irmin.remote_uri str)
+      Lwt.return (Irmin.remote_uri str)
 
 let remote =
   let repo =
