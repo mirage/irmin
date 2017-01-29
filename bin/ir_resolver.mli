@@ -24,7 +24,7 @@ val contents: contents Cmdliner.Term.t
 
 (** {1 Global Configuration} *)
 
-type t = S: (module Irmin.S with type t = 'a) * (string -> 'a) Lwt.t -> t
+type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 (** The type for store configurations. A configuration value contains:
     the store implementation a creator of store's state. *)
 
