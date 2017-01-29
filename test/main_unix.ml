@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,21 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Test_common
-let (>>=) = Lwt.(>>=)
+let misc = [
+  "LINK", [Test_link.test Test_unix.FS.link];
+  "GIT" , [Test_unix.Git.misc];
+]
 
-let clean config (module S: Test_S) () =
-  S.Repo.create config >>= fun repo ->
-  S.Repo.branches repo >>= Lwt_list.iter_p (S.Repo.remove_branch repo)
-
-let suite k =
-  let config = Irmin_mem.config () in
-  let store = mem_store k in
-  {
-    name   = "MEM" ^ string_of_contents k;
-    kind   = `Mem;
-    cont   = k;
-    init   = none;
-    clean  = clean config store;
-    config; store;
-}
+let () =
+  Test_http.with_server Test_unix.Http.servers (fun () ->
+      Test_store.run "irmin-unix" ~misc ([
+          `Quick , Test_unix.FS.suite;
+          `Quick , Test_unix.Git.suite;
+        ] @ Test_http.suites Test_unix.Http.servers)
+    )
