@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,16 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Branch-consistent stores: read-write store with support fork/merge
-    operations. *)
+module String = struct
+  type t = string
+  let t = Depyt.string
+  let master = "master"
 
-module Make (P: Ir_s.PRIVATE): Ir_s.STORE_EXT
-  with type key = P.Contents.Path.t
-   and type value = P.Contents.value
-   and type branch_id = P.Ref.key
-   and type commit_id = P.Commit.key
-   and type slice = P.Slice.t
-   and module Key = P.Contents.Path
-   and module Private.Contents = P.Contents
-   and module Private.Node.Val.Metadata = P.Node.Val.Metadata
-   and type Repo.t = P.Repo.t
+  let is_valid s =
+    let ok = ref true in
+    let n = String.length s in
+    let i = ref 0 in
+    while !i < n do
+      (match s.[!i] with
+       | 'a' .. 'z'
+       | 'A' .. 'Z'
+       | '0' .. '9'
+       | '-'| '_' | '.' -> ()
+       | '/'  -> if Sys.os_type = "Win32" then ok := false
+       | '\\' ->
+         if Sys.os_type = "Win32" && !i + 1 < n && s.[!i+1] = '\\' then incr i;
+       | _ -> ok := false
+      );
+      incr i;
+    done;
+    !ok
+
+  let pp = Fmt.string
+  let of_string x = `Ok x
+end

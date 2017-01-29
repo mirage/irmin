@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,22 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-exception Invalid of string
 open Astring
 
 module String_list = struct
 
   type step = string
+  let step_t = Depyt.string
 
-  module Step = struct
-    include Tc.String
-    let to_hum s = s
-    let of_hum = function
-      | "" -> raise (Invalid "Empty step!")
-      | s  -> s
-  end
-
-  include Tc.List(Step)
+  type t = step list
+  let t = Depyt.(list step_t)
 
   let empty = []
   let is_empty l = (l = [])
@@ -46,20 +39,20 @@ module String_list = struct
     | h::t -> Some (List.rev t, h)
 
   let map l f = List.map f l
-  let create x = x
+  let v x = x
+  let pp_step = Fmt.string
+  let step_of_string x = `Ok x
 
-  let to_hum t =
-    let len = List.fold_left (fun acc s -> 1 + acc + Step.size_of s) 1 t in
+  let pp ppf t =
+    let len = List.fold_left (fun acc s -> 1 + acc +  String.length s) 1 t in
     let buf = Buffer.create len in
     List.iter (fun s ->
         Buffer.add_char buf '/';
-        Buffer.add_string buf (Step.to_hum s)
-      ) t;
-    Buffer.contents buf
 
-  (* XXX: slow *)
-  let of_hum s =
-    List.filter ((<>)"") (String.cuts s ~sep:"/")
-    |> List.map Step.of_hum
+        Buffer.add_string buf s;
+      ) t;
+    Fmt.string ppf (Buffer.contents buf)
+
+  let of_string s = `Ok (List.filter ((<>)"") (String.cuts s ~sep:"/"))
 
 end

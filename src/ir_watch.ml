@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,8 +19,6 @@ open Lwt.Infix
 let src = Logs.Src.create "irmin.watch" ~doc:"Irmin watch notifications"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-type 'a diff = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
-
 module type S = sig
   type key
   type value
@@ -28,10 +26,10 @@ module type S = sig
   type t
   val stats: t -> int * int
   val notify: t -> key -> value option -> unit Lwt.t
-  val create: unit -> t
+  val v: unit -> t
   val clear: t -> unit Lwt.t
-  val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) -> watch Lwt.t
-  val watch: t -> ?init:(key * value) list -> (key -> value diff -> unit Lwt.t) ->
+  val watch_key: t -> key -> ?init:value -> (value Ir_diff.t -> unit Lwt.t) -> watch Lwt.t
+  val watch: t -> ?init:(key * value) list -> (key -> value Ir_diff.t -> unit Lwt.t) ->
     watch Lwt.t
   val unwatch: t -> watch -> unit Lwt.t
   val listen_dir: t -> string
@@ -81,19 +79,29 @@ let scheduler () =
   let enqueue v = push (Some v) in
   clean, enqueue
 
-module Make (K: Tc.S0) (V: Tc.S0) = struct
+module Make
+    (K: sig type t val t: t Depyt.t end)
+    (V: sig type t val t: t Depyt.t end) =
+struct
 
   type key = K.t
   type value = V.t
   type watch = int
-  module OV = Tc.Option(V)
-  module KMap = Ir_misc.Map(K)
-  module IMap = Ir_misc.Map(Tc.Int)
 
-  type key_handler = value diff -> unit Lwt.t
-  type all_handler = key -> value diff -> unit Lwt.t
+  module KMap =
+    Map.Make(struct type t = K.t let compare = Depyt.compare K.t end)
 
-  let pp_value = Fmt.of_to_string @@ Tc.show (module V)
+  module IMap = Map.Make(struct
+      type t = int
+      let compare (x:int) (y:int) = Pervasives.compare x y
+    end)
+
+  type key_handler = value Ir_diff.t -> unit Lwt.t
+  type all_handler = key -> value Ir_diff.t -> unit Lwt.t
+
+  let pp_value = Depyt.dump V.t
+  let equal_opt_values = Depyt.(equal (option V.t))
+  let equal_keys = Depyt.equal K.t
 
   type t = {
     id: int;                                      (* unique watch manager id. *)
@@ -122,7 +130,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   let clear t =
     Lwt_mutex.with_lock t.lock (fun () -> clear_unsafe t; Lwt.return_unit)
 
-  let create () =
+  let v () =
     let lock = Lwt_mutex.create () in
     let clean, enqueue = scheduler () in
     { lock; clean; enqueue; id = global (); next = 0;
@@ -151,7 +159,9 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
 
   let protect f () =
     Lwt.catch f (fun e ->
-        Log.err (fun l -> l "Watch callback got: %a" Fmt.exn e);
+        Log.err (fun l ->
+            l "watch callback got: %a\n%s" Fmt.exn e
+              (Printexc.get_backtrace ()));
         Lwt.return_unit
       )
 
@@ -169,7 +179,7 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
           IMap.add id (init, f) acc
         in
         let old_value = try Some (KMap.find key init) with Not_found -> None in
-        if OV.equal old_value value then (
+        if equal_opt_values old_value value then (
           Log.debug (fun f -> f "notify-all[%d:%d]: same value, skipping." t.id id);
           IMap.add id arg acc
         ) else
@@ -184,8 +194,8 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
   let notify_key_unsafe t key value =
     let todo = ref [] in
     let keys = IMap.fold (fun id (k, old_value, f as arg) acc ->
-        if not (K.equal key k) then IMap.add id arg acc
-        else if OV.equal value old_value then (
+        if not (equal_keys key k) then IMap.add id arg acc
+        else if equal_opt_values value old_value then (
           Log.debug (fun f -> f "notify-key[%d.%d]: same value, skipping." t.id id);
           IMap.add id arg acc
         ) else (
@@ -222,10 +232,13 @@ module Make (K: Tc.S0) (V: Tc.S0) = struct
         Lwt.return id
       )
 
+  let kmap_of_alist l =
+    List.fold_left (fun map (k, v)  -> KMap.add k v map) KMap.empty l
+
   let watch_unsafe t ?(init=[]) f =
     let id = next t in
     Log.debug (fun f -> f "watch %s: id=%d" (to_string t) id);
-    t.glob <- IMap.add id (KMap.of_alist init, f) t.glob;
+    t.glob <- IMap.add id (kmap_of_alist init, f) t.glob;
     id
 
   let watch t ?init f =

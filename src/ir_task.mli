@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,8 +16,9 @@
 
 (** Provenance tracking. *)
 
-include Tc.S0
-val create: date:int64 -> owner:string -> ?uid:int64 -> string -> t
+type t
+val t: t Depyt.t
+val v: date:int64 -> owner:string -> ?uid:int64 -> string -> t
 val date: t -> int64
 val uid: t -> int64
 val owner: t -> string

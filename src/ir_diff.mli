@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,16 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module type S = sig
-  include Tc.S0
-  val to_hum: t -> string
-  val of_hum: string -> t
-end
+type 'a t = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
 
-type 'a t = (module S with type t = 'a)
-
-module Unit: S with type t = unit = struct
-  include Tc.Unit
-  let to_hum () = "unit"
-  let of_hum = function "unit" -> () | _ -> failwith "Unit.of_hum"
-end
+val t: 'a Depyt.t -> 'a t Depyt.t

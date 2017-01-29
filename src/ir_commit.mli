@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,13 +16,13 @@
 
 (** Manage the database history. *)
 
-module Make (C: Tc.S0) (N: Tc.S0):
+module Make (C: Ir_s.S0) (N: Ir_s.S0):
   Ir_s.COMMIT with type commit = C.t and type node = N.t
 
 module Store
     (N: Ir_s.NODE_STORE)
     (S: sig
-       include Ir_s.AO_STORE
+       include Ir_s.AO
        module Key: Ir_s.HASH with type t = key
        module Val: Ir_s.COMMIT with type t = value
                                 and type commit = key
@@ -35,22 +35,7 @@ module Store
       and module Key = S.Key
       and module Val = S.Val
 
-module type HISTORY = sig
-  type t
-  type node
-  type commit
-  val create: t -> node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
-  val node: t -> commit -> node Lwt.t
-  val parents: t -> commit -> commit list Lwt.t
-  val merge: t -> task:Ir_task.t -> commit Ir_merge.t
-  val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  val lca: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
-  val three_way_merge: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
-  val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
-end
-
 module History (S: Ir_s.COMMIT_STORE):
-  HISTORY with type t = S.t
-           and type node = S.Node.key
-           and type commit = S.key
+  Ir_s.COMMIT_HISTORY with type t = S.t
+                       and type node = S.Node.key
+                       and type commit = S.key

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,13 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-
-module None (H: Tc.S0) (R: Tc.S0) = struct
+module None (H: Ir_s.S0) (R: Ir_s.S0) = struct
   type t = unit
-  type commit_id = H.t
-  type branch_id = R.t
-  let create _ = return_unit
-  let fetch () ?depth:_ ~uri:_ _tag = return `Error
-  let push () ?depth:_ ~uri:_ _tag = return `Error
+  type commit = H.t
+  type branch = R.t
+  let v _ = Lwt.return_unit
+  let fetch () ?depth:_ ~uri:_ _tag = Lwt.return `Error
+  let push () ?depth:_ ~uri:_ _tag = Lwt.return `Error
 end

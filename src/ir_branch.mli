@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
+(** Handling of branches. *)
 
-exception Invalid of string
-
-module SHA1: Ir_s.HASH
+module String: Ir_s.BRANCH with type t = string

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Tags handling. *)
+(** Branch-consistent stores: read-write store with support fork/merge
+    operations. *)
 
-module String: Ir_s.REF with type t = string
-
+module Make (P: Ir_s.PRIVATE): Ir_s.STORE
+  with type key = P.Node.Path.t
+   and type contents = P.Contents.value
+   and type branch = P.Branch.key
+   and type commit = P.Commit.key
+   and type slice = P.Slice.t
+   and type step = P.Node.Path.step
+   and type metadata = P.Node.Val.metadata
+   and module Key = P.Node.Path
+   and module Private.Contents = P.Contents
+   and type Repo.t = P.Repo.t
