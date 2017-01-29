@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +16,7 @@
 
 (** Store Synchronisation signatures. *)
 
-module None (H: Tc.S0) (R: Tc.S0): sig
-  include Ir_s.SYNC with type commit_id = H.t and type branch_id = R.t
-  val create: 'a -> t Lwt.t
+module None (H: Ir_s.S0) (R: Ir_s.S0): sig
+  include Ir_s.SYNC with type commit = H.t and type branch = R.t
+  val v: 'a -> t Lwt.t
 end

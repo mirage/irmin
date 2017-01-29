@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,22 +16,8 @@
 
 (** Store Synchronisation. *)
 
-type remote
-val remote_uri: string -> remote
-val remote_store: (module Ir_s.STORE_EXT with type t = 'a) -> 'a -> remote
+val remote_uri: string -> Ir_s.remote
+val remote_store: (module Ir_s.STORE with type t = 'a) -> 'a -> Ir_s.remote
 
-module type STORE = sig
-  type db
-  type commit_id
-  val fetch: db -> ?depth:int -> remote ->
-    [`Head of commit_id | `No_head | `Error] Lwt.t
-  val fetch_exn: db -> ?depth:int -> remote -> commit_id Lwt.t
-  val pull: db -> ?depth:int -> remote -> [`Merge|`Update] ->
-    [`Ok | `No_head | `Error] Ir_merge.result Lwt.t
-  val pull_exn: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Lwt.t
-  val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
-  val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
-end
-
-module Make (S: Ir_s.STORE_EXT): STORE
-  with type db = S.t and type commit_id = S.commit_id
+module Make (S: Ir_s.STORE): Ir_s.SYNC_STORE
+  with type db = S.t and type commit = S.commit

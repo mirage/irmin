@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,13 +16,12 @@
 
 (** Values. *)
 
-module String: Ir_s.CONTENTS with type t = string and module Path = Ir_path.String_list
-module Json: Ir_s.CONTENTS with type t = Ezjsonm.t and module Path = Ir_path.String_list
-module Cstruct: Ir_s.CONTENTS with type t = Cstruct.t and module Path = Ir_path.String_list
+module String: Ir_s.CONTENTS with type t = string
+module Cstruct: Ir_s.CONTENTS with type t = Cstruct.t
 
 module Store
     (S: sig
-       include Ir_s.AO_STORE
+       include Ir_s.AO
        module Key: Ir_s.HASH with type t = key
        module Val: Ir_s.CONTENTS with type t = value
      end):
@@ -30,4 +29,3 @@ module Store
     with type t = S.t
       and type key = S.key
       and type value = S.value
-      and module Path =  S.Val.Path

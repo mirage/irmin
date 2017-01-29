@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,7 +31,7 @@ module type IO = sig
   val mkdir: string -> unit Lwt.t
   (** Create a directory. *)
 
-  val remove: string -> unit Lwt.t
+  val remove: ?temp_dir:string -> string -> unit Lwt.t
   (** Remove a file or directory (even if non-empty). *)
 
   val rec_files: string -> string list Lwt.t
@@ -45,25 +45,19 @@ module type IO = sig
   val read_file: string -> Cstruct.t Lwt.t
   (** Read the contents of a file using mmap. *)
 
-  val write_file: string -> ?temp_dir:string -> Cstruct.t -> unit Lwt.t
-  (** Write some contents to a new file. *)
+  val write_file: ?temp_dir:string -> string -> Cstruct.t -> unit Lwt.t
+  (** Atomic writes. *)
 
-end
-
-module type LOCK = sig
-
-  (** {1 Filesystem {i dotlocking}} *)
-
-  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
-  (** [with_lock file fn] runs [fn] while holding a lock on the file
-      [file]. *)
+  val test_and_set: ?temp_dir:string -> string ->
+    test:Cstruct.t option -> set:Cstruct.t option -> bool Lwt.t
+  (** Test and set. *)
 
 end
 
 module AO (IO: IO): Irmin.AO_MAKER
 module Link (IO: IO): Irmin.LINK_MAKER
-module RW (IO: IO) (L: LOCK): Irmin.RW_MAKER
-module Make (IO: IO) (L: LOCK): Irmin.S_MAKER
+module RW (IO: IO): Irmin.RW_MAKER
+module Make (IO: IO): Irmin.S_MAKER
 
 (** {2 Advanced configuration} *)
 
@@ -85,5 +79,13 @@ end
 
 module AO_ext (IO: IO) (C: Config): Irmin.AO_MAKER
 module Link_ext (IO: IO) (C: Config): Irmin.LINK_MAKER
-module RW_ext (IO: IO) (L: LOCK) (C: Config): Irmin.RW_MAKER
-module Make_ext (IO: IO) (L: LOCK) (Obj: Config) (Ref: Config): Irmin.S_MAKER
+module RW_ext (IO: IO) (C: Config): Irmin.RW_MAKER
+module Make_ext (IO: IO) (Obj: Config) (Ref: Config): Irmin.S_MAKER
+
+(** {1 In-memory IO mock *)
+
+module IO_mem: sig
+  include IO
+  val clear: unit -> unit Lwt.t
+  val set_listen_hook: unit -> unit
+end

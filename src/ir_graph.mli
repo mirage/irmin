@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,9 +17,6 @@
 (** Graphs. *)
 
 module type S = sig
-
-(** Main signature. *)
-
   include Graph.Sig.I
   (** Directed graph *)
 
@@ -71,19 +68,20 @@ module type S = sig
   val import: dump -> t
   (** Import a graph. *)
 
-  module Dump: Tc.S0 with type t = dump
+  module Dump: Ir_s.S0 with type t = dump
   (** The base functions over graph internals. *)
 
 end
 
 (** Build a graph. *)
 module Make
-    (Contents: Ir_hum.S)
-    (Node: Ir_hum.S)
-    (Commit: Ir_hum.S)
-    (Ref: Ir_hum.S):
+    (Contents: Ir_s.S0)
+    (Metadata: Ir_s.S0)
+    (Node    : Ir_s.S0)
+    (Commit  : Ir_s.S0)
+    (Branch  : Ir_s.S0):
   S with type V.t =
-  [ `Contents of Contents.t
+  [ `Contents of Contents.t * Metadata.t
   | `Node of Node.t
   | `Commit of Commit.t
-  | `Branch of Ref.t ]
+  | `Branch of Branch.t ]

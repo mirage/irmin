@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
-
 module Make
     (Contents: Ir_s.CONTENTS_STORE)
     (Node: Ir_s.NODE_STORE)
@@ -25,6 +23,7 @@ struct
   type contents = Contents.key * Contents.value
   type node = Node.key * Node.value
   type commit = Commit.key * Commit.value
+  type value = [`Contents of contents | `Node of node | `Commit of commit ]
 
   type t = {
     mutable contents: (Contents.key * Contents.value) list;
@@ -32,58 +31,48 @@ struct
     mutable commits : (Commit.key * Commit.value) list;
   }
 
-  let create () =
-    return { contents = []; nodes = []; commits = [] }
+  let t =
+    let open Depyt in
+    record "slice" (fun contents nodes commits -> { contents; nodes; commits })
+    |+ field "contents"
+      (list (pair Contents.Key.t Contents.Val.t))
+      (fun t -> t.contents)
+    |+ field "nodes"
+      (list (pair Node.Key.t Node.Val.t))
+      (fun t -> t.nodes)
+    |+ field "commits"
+      (list (pair Commit.Key.t Commit.Val.t))
+      (fun t -> t.commits)
+    |> sealr
 
-  let add_contents t c = t.contents <- c :: t.contents; return_unit
-  let add_node t n = t.nodes <- n :: t.nodes; return_unit
-  let add_commit t c = t.commits <- c :: t.commits; return_unit
+  let empty () =
+    Lwt.return { contents = []; nodes = []; commits = [] }
 
-  let iter_contents t f = Lwt_list.iter_p f t.contents
-  let iter_nodes t f = Lwt_list.iter_p f t.nodes
-  let iter_commits t f = Lwt_list.iter_p f t.commits
+  let add t = function
+    | `Contents c -> t.contents <- c :: t.contents; Lwt.return_unit
+    | `Node n     -> t.nodes <- n :: t.nodes; Lwt.return_unit
+    | `Commit c   -> t.commits <- c :: t.commits; Lwt.return_unit
 
-  module Enc (M: Tc.S0) = struct
-    include M
-    let size_of t =
-      let cstruct = Tc.write_cstruct (module M) t in
-      Tc.Cstruct.size_of cstruct
-    let read buf =
-      let cstruct = Tc.Cstruct.read buf in
-      Tc.read_cstruct (module M) cstruct
-    let write t buf =
-      let cstruct = Tc.write_cstruct (module M) t in
-      Tc.Cstruct.write cstruct buf
-  end
-  module M (K: Tc.S0)(V: Tc.S0) = Tc.List(Tc.Pair(K)(Enc(V)))
-  module Ct = M(Contents.Key)(Contents.Val)
-  module No = M(Node.Key)(Node.Val)
-  module Cm = M(Commit.Key)(Commit.Val)
-  module T = Tc.Triple (Ct)(No)(Cm)
-
-  let explode t = (t.contents, t.nodes, t.commits)
-  let implode (contents, nodes, commits) = { contents; nodes; commits }
-
-  let t = Tc.biject (module T) implode explode
-  let compare = Tc.compare t
-  let equal = Tc.equal t
-  let hash = Tc.hash t
-  let write = Tc.write t
-  let read = Tc.read t
-  let size_of = Tc.size_of t
-
-  let to_json t =
-    `O [
-      ("contents", Ct.to_json t.contents);
-      ("nodes"   , No.to_json t.nodes);
-      ("commits" , Cm.to_json t.commits);
+  let iter t f =
+    Lwt.join [
+      Lwt_list.iter_p (fun c -> f (`Contents c)) t.contents;
+      Lwt_list.iter_p (fun n -> f (`Node n)) t.nodes;
+      Lwt_list.iter_p (fun c -> f (`Commit c)) t.commits;
     ]
 
-  let of_json j =
-    let contents = Ezjsonm.find j ["contents"] |> Ct.of_json in
-    let nodes = Ezjsonm.find j ["nodes"] |> No.of_json in
-    let commits = Ezjsonm.find j ["commits"] |> Cm.of_json in
-    { contents; nodes; commits }
+  let contents_t = Depyt.pair Contents.Key.t Contents.Val.t
+  let node_t = Depyt.pair Node.Key.t Node.Val.t
+  let commit_t = Depyt.pair Commit.Key.t Commit.Val.t
 
+  let value_t =
+    let open Depyt in
+    variant "slice" (fun contents node commit -> function
+        | `Contents x -> contents x
+        | `Node x     -> node x
+        | `Commit x   -> commit x)
+    |~ case1 "contents" contents_t (fun x -> `Contents x)
+    |~ case1 "node"     node_t     (fun x -> `Node x)
+    |~ case1 "commit"   commit_t   (fun x -> `Commit x)
+    |> sealv
 
 end
