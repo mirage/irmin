@@ -128,7 +128,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     let merge: t Ir_merge.t =
       let f ~old x y =
         let old =
-          Ir_merge.promise_bind old (fun old () ->
+          Ir_merge.bind_promise old (fun old () ->
               v old >|= fun c ->
               Ok (Some c)
             )
@@ -376,7 +376,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     let rec merge () =
       let f ~old x y =
         let old =
-          Ir_merge.promise_bind old (fun old () ->
+          Ir_merge.bind_promise old (fun old () ->
               to_map old >|= fun map -> Ok (Some map)
             )
         in
@@ -399,31 +399,31 @@ module Make (P: Ir_s.PRIVATE) = struct
         match x, y with
         | `Contents (x, cx), `Contents (y, cy) ->
           let mold =
-            Ir_merge.promise_bind old (fun old () ->
+            Ir_merge.bind_promise old (fun old () ->
                 match old with
                 | `Contents (_, m) -> Lwt.return (Ok (Some m))
                 | `Node _          -> Lwt.return (Ok None)
               )
           in
-          Ir_merge.(f Metadata.merge) ~old:mold cx cy >>| fun m ->
+          Ir_merge.(f Metadata.merge) ~old:mold cx cy >>=* fun m ->
           let old =
-            Ir_merge.promise_bind old (fun old () ->
+            Ir_merge.bind_promise old (fun old () ->
                 match old with
                 | `Contents (c, _) -> Lwt.return (Ok (Some c))
                 | `Node _          -> Lwt.return (Ok None)
               )
           in
-          Ir_merge.(f Contents.merge) ~old x y >>| fun c ->
+          Ir_merge.(f Contents.merge) ~old x y >>=* fun c ->
           Ir_merge.ok (`Contents (c, m))
         | `Node x, `Node y ->
           let old =
-            Ir_merge.promise_bind old (fun old () ->
+            Ir_merge.bind_promise old (fun old () ->
                 match old with
                 | `Contents _ -> Lwt.return (Ok None)
                 | `Node n     -> Lwt.return (Ok (Some n))
               )
           in
-          Ir_merge.(f @@ merge ()) ~old x y >>| fun n ->
+          Ir_merge.(f @@ merge ()) ~old x y >>=* fun n ->
           Ir_merge.ok (`Node n)
         | _ -> Ir_merge.conflict "add/add values"
       in
@@ -743,7 +743,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       in
       let x = to_node x in
       let y = to_node y in
-      let old = Ir_merge.promise_bind old (fun old ->
+      let old = Ir_merge.bind_promise old (fun old ->
           Ir_merge.promise (to_node old)
         ) in
       Ir_merge.(f Node.merge_value) ~old x y >>= function
