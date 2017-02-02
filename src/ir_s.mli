@@ -28,7 +28,7 @@ end
 module type CONV = sig
   include S0
   val pp: t Fmt.t
-  val of_string: string -> [`Error of string | `Ok of t]
+  val of_string: string -> (t, string) result
 end
 
 module type RAW = sig
@@ -39,7 +39,7 @@ end
 module type PATH = sig
   type t
   val pp: t Fmt.t
-  val of_string: string -> [`Error of string | `Ok of t]
+  val of_string: string -> (t, string) result
   type step
   val empty: t
   val v: step list -> t
@@ -50,7 +50,7 @@ module type PATH = sig
   val rdecons: t -> (t * step) option
   val map: t -> (step -> 'a) -> 'a list
   val pp_step: step Fmt.t
-  val step_of_string: string -> [`Ok of step | `Error of string]
+  val step_of_string: string -> (step, string) result
   val t: t Type.t
   val step_t: step Type.t
 end
@@ -58,7 +58,7 @@ end
 module type HASH = sig
   type t
   val pp: t Fmt.t
-  val of_string: string -> [`Error of string | `Ok of t]
+  val of_string: string -> (t, string) result
   val digest: Cstruct.t -> t
   val has_kind: [> `SHA1] -> bool
   val to_raw: t -> Cstruct.t
@@ -277,9 +277,16 @@ module type SYNC = sig
   type t
   type commit
   type branch
+  type fetch_error = [
+    | `No_head
+    | `Not_available
+    | `Msg of string
+  ]
   val fetch: t -> ?depth:int -> uri:string -> branch ->
-    [`Head of commit | `No_head | `Error] Lwt.t
-  val push : t -> ?depth:int -> uri:string -> branch -> [`Ok | `Error] Lwt.t
+    (commit, fetch_error) result Lwt.t
+  type push_error = [ fetch_error | `Detached_head ]
+  val push : t -> ?depth:int -> uri:string -> branch ->
+    (unit, push_error) result Lwt.t
 end
 
 type config = Ir_conf.t
@@ -363,7 +370,7 @@ module type STORE = sig
     val export: ?full:bool -> ?depth:int ->
       ?min:commit list -> ?max:commit list ->
       t -> slice Lwt.t
-    val import: t -> slice -> [`Ok | `Error] Lwt.t
+    val import: t -> slice -> (unit, [`Msg of string]) result Lwt.t
     val task_of_commit: t -> commit -> task option Lwt.t
   end
   val empty: Repo.t -> t Lwt.t
@@ -503,13 +510,19 @@ type remote =
 module type SYNC_STORE = sig
   type db
   type commit
+  type fetch_error = [
+    | `No_head
+    | `Not_available
+    | `Msg of string
+  ]
+  type push_error = [ fetch_error | `Detached_head ]
   val fetch: db -> ?depth:int -> remote ->
-    [`Head of commit | `No_head | `Error] Lwt.t
+    (commit, fetch_error) result Lwt.t
   val fetch_exn: db -> ?depth:int -> remote -> commit Lwt.t
   val pull: db -> ?depth:int -> remote -> [`Merge of Ir_task.t|`Update] ->
-    ([`Ok | `No_head | `Error], Ir_merge.conflict) result Lwt.t
+    (unit, [fetch_error | Ir_merge.conflict]) result Lwt.t
   val pull_exn: db -> ?depth:int -> remote -> [`Merge of Ir_task.t|`Update] ->
     unit Lwt.t
-  val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+  val push: db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t
   val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
 end

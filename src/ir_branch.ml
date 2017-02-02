@@ -39,5 +39,5 @@ module String = struct
     !ok
 
   let pp = Fmt.string
-  let of_string x = `Ok x
+  let of_string x = Ok x
 end

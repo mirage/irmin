@@ -156,7 +156,7 @@ module SHA1 = struct
 
   let digest = sha_1
   let pp ppf x = Fmt.string ppf (to_hex x)
-  let of_string x = `Ok (of_hex x)
+  let of_string x = Ok (of_hex x)
 
   let has_kind = function
     | `SHA1 -> true

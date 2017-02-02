@@ -15,7 +15,8 @@
  *)
 
 open Lwt.Infix
-open Ir_merge.Infix
+
+let invalid_argf fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
 
 let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -31,11 +32,7 @@ module Make (S: Ir_s.STORE) = struct
 
   let conv dx dy x =
     let str = Fmt.to_to_string (Ir_type.pp_json dx) x in
-    match Ir_type.decode_json dy (Jsonm.decoder (`String str)) with
-    | Ok y    -> Some y
-    | Error e ->
-      Log.err (fun l -> l "Cannot convert %a: %s" Ir_type.(dump dx) x e);
-      None
+    Ir_type.decode_json dy (Jsonm.decoder (`String str))
 
   let convert_slice (type r) (type s)
       (module RP: Ir_s.PRIVATE with type Slice.t = r)
@@ -48,19 +45,19 @@ module Make (S: Ir_s.STORE) = struct
           let k = conv RP.Contents.Key.t SP.Contents.Key.t k in
           let v = conv RP.Contents.Val.t SP.Contents.Val.t v in
           (match k, v with
-           | Some k, Some v -> SP.Slice.add s (`Contents (k, v))
+           | Ok k, Ok v -> SP.Slice.add s (`Contents (k, v))
            | _ -> Lwt.return_unit)
         | `Node (k, v) ->
           let k = conv RP.Node.Key.t SP.Node.Key.t k in
           let v = conv RP.Node.Val.t SP.Node.Val.t v in
           (match k, v with
-           | Some k, Some v -> SP.Slice.add s (`Node (k, v))
+           | Ok k, Ok v -> SP.Slice.add s (`Node (k, v))
            | _ -> Lwt.return_unit)
         | `Commit (k, v) ->
           let k = conv RP.Commit.Key.t SP.Commit.Key.t k in
           let v = conv RP.Commit.Val.t SP.Commit.Val.t v in
           (match k, v with
-           | Some k, Some v -> SP.Slice.add s (`Commit (k, v))
+           | Ok k, Ok v -> SP.Slice.add s (`Commit (k, v))
            | _ -> Lwt.return_unit)
       ) >>= fun () ->
     Lwt.return s
@@ -68,16 +65,22 @@ module Make (S: Ir_s.STORE) = struct
   let convs ~src ~dst l =
     List.fold_left (fun acc x ->
         match conv src dst x with
-        | None -> acc
-        | Some x -> x::acc
+        | Ok x -> x::acc
+        | _    -> acc
       ) [] l
 
-  let fetch t ?depth remote =
+  type fetch_error = [
+    | `No_head
+    | `Not_available
+    | `Msg of string
+  ]
+
+  let fetch t ?depth remote: (commit, fetch_error) result Lwt.t =
     match remote with
     | Ir_s.URI uri ->
       Log.debug (fun f -> f "fetch URI %s" uri);
       begin match S.status t with
-        | `Empty | `Commit _  -> Lwt.return `No_head
+        | `Empty | `Commit _  -> Lwt.return (Error `No_head)
         | `Branch b ->
           B.v (S.repo t) >>= fun g ->
           B.fetch g ?depth ~uri b
@@ -88,53 +91,69 @@ module Make (S: Ir_s.STORE) = struct
       S.Repo.heads s_repo >>= fun min ->
       let min = convs ~src:S.Commit.t  ~dst:R.Commit.t min in
       R.Head.find r >>= function
-      | None   -> Lwt.return `No_head
+      | None   -> Lwt.return (Error `No_head)
       | Some h ->
         R.Repo.export (R.repo r) ?depth ~min ~max:[h] >>= fun r_slice ->
         convert_slice (module R.Private) (module S.Private) r_slice
         >>= fun s_slice ->
         S.Repo.import s_repo s_slice >|= function
-        | `Error -> `Error
-        | `Ok    ->
+        | Error e -> Error (e :> fetch_error)
+        | Ok ()   ->
           match conv R.Commit.t S.Commit.t h with
-          | Some h -> `Head h
-          | None   -> `Error
+          | Ok h    -> Ok h
+          | Error e -> Error (`Msg e)
+
+  let pp_fetch_error ppf = function
+    | `No_head       -> Fmt.string ppf "empty head!"
+    | `Not_available -> Fmt.string ppf "not available!"
+    | `Msg m         -> Fmt.string ppf m
 
   let fetch_exn t ?depth remote =
     fetch t ?depth remote >>= function
-    | `Head h  -> Lwt.return h
-    | `No_head -> Lwt.fail (Failure "Sync.fetch_exn: no head!")
-    | `Error   -> Lwt.fail (Failure "Sync.fetch_exn: fetch error!")
+    | Ok h    -> Lwt.return h
+    | Error e -> invalid_argf "Sync.fetch_exn: %a" pp_fetch_error e
+
+  type pull_error = [ fetch_error | Ir_merge.conflict ]
+
+  let pp_pull_error ppf = function
+    | #fetch_error as e -> pp_fetch_error ppf e
+    | `Conflict c      -> Fmt.pf ppf "conflict: %s" c
 
   let pull t ?depth remote kind =
     fetch t ?depth remote >>= function
-    | `Error   -> Ir_merge.ok `Error
-    | `No_head -> Ir_merge.ok `No_head
-    | `Head k  ->
+    | Error e  -> Lwt.return (Error (e :> pull_error))
+    | Ok k     ->
       match kind with
-      | `Merge task -> S.Head.merge ~into:t task k  >>| fun () -> Ir_merge.ok `Ok
-      | `Update     -> S.Head.set t k >>= fun () -> Ir_merge.ok `Ok
+      | `Update     -> S.Head.set t k >|= fun () -> Ok ()
+      | `Merge task ->
+        S.Head.merge ~into:t task k >|= fun x ->
+        (x :> (unit, pull_error) result)
 
   let pull_exn t ?depth remote kind =
     pull t ?depth remote kind >>= function
-    | Ok `Ok      -> Lwt.return_unit
-    | Ok `No_head -> Lwt.fail_with "Sync.pull_exn: no head!"
-    | Ok `Error   -> Lwt.fail_with "Sync.pull_exn: pull error!"
-    | Error (`Conflict c) -> Lwt.fail_with ("Sync.pull_exn: " ^ c)
+    | Ok ()   -> Lwt.return_unit
+    | Error e -> invalid_argf "Sync.pull_exn: %a" pp_pull_error e
+
+  type push_error = [ fetch_error | `Detached_head ]
+
+  let pp_push_error ppf = function
+    | #fetch_error as e -> pp_fetch_error ppf e
+    | `Detached_head    -> Fmt.string ppf "cannot push to a non-persistent store"
 
   let push t ?depth remote =
     Log.debug (fun f -> f "push");
     match remote with
     | Ir_s.URI uri ->
       begin match S.status t with
-        | `Empty | `Commit _ -> Lwt.return `Error
+        | `Empty    -> Lwt.return (Error `No_head)
+        | `Commit _ -> Lwt.return (Error `Detached_head)
         | `Branch br ->
           B.v (S.repo t) >>= fun g ->
-          B.push g ?depth ~uri br
+          (B.push g ?depth ~uri br :> (unit, push_error) result Lwt.t)
       end
     | Ir_s.Store ((module R), r) ->
       S.Head.find t >>= function
-      | None   -> Lwt.return `Error
+      | None   -> Lwt.return (Error (`No_head))
       | Some h ->
         Log.debug (fun f -> f "push store");
         R.Repo.heads (R.repo r) >>= fun min ->
@@ -142,16 +161,15 @@ module Make (S: Ir_s.STORE) = struct
         S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
         >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
-        | `Error -> Log.debug (fun f -> f "ERROR!"); Lwt.return `Error
-        | `Ok    ->
-          Log.debug (fun f -> f "OK!");
+        | Error e -> Lwt.return (Error (e :> push_error))
+        | Ok ()   ->
           match conv S.Commit.t R.Commit.t h with
-          | None   -> Lwt.return `Error
-          | Some h -> R.Head.set r h >|= fun () -> `Ok
+          | Error e -> Lwt.return (Error (`Msg e))
+          | Ok h    -> R.Head.set r h >|= fun () -> Ok ()
 
   let push_exn t ?depth remote =
     push t ?depth remote >>= function
-    | `Ok    -> Lwt.return_unit
-    | `Error -> Lwt.fail (Failure "Sync.push_exn")
+    | Ok ()   -> Lwt.return_unit
+    | Error e -> invalid_argf "Sync.push_exn: %a" pp_push_error e
 
 end
