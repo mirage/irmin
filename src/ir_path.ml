@@ -41,7 +41,7 @@ module String_list = struct
   let map l f = List.map f l
   let v x = x
   let pp_step = Fmt.string
-  let step_of_string x = `Ok x
+  let step_of_string x = Ok x
 
   let pp ppf t =
     let len = List.fold_left (fun acc s -> 1 + acc +  String.length s) 1 t in
@@ -53,6 +53,6 @@ module String_list = struct
       ) t;
     Fmt.string ppf (Buffer.contents buf)
 
-  let of_string s = `Ok (List.filter ((<>)"") (String.cuts s ~sep:"/"))
+  let of_string s = Ok (List.filter ((<>)"") (String.cuts s ~sep:"/"))
 
 end

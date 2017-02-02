@@ -15,7 +15,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type 'a parser = string -> [ `Error of string | `Ok of 'a ]
+open Result
+
+type 'a parser = string -> ('a, string) result
 type 'a printer = 'a Fmt.t
 type 'a converter = 'a parser * 'a printer
 
@@ -35,24 +37,24 @@ module Err = struct
 end
 
 let bool =
-  (fun s -> try `Ok (bool_of_string s) with Invalid_argument _ ->
-     `Error (Err.invalid_val s (Err.alts ["true"; "false"]))),
+  (fun s -> try Ok (bool_of_string s) with Invalid_argument _ ->
+     Error (Err.invalid_val s (Err.alts ["true"; "false"]))),
   Fmt.bool
 
 let parse_with t_of_str exp s =
-  try `Ok (t_of_str s) with Failure _ -> `Error (Err.invalid_val s exp)
+  try Ok (t_of_str s) with Failure _ -> Error (Err.invalid_val s exp)
 
 let int = parse_with int_of_string "expected an integer", Fmt.int
 
-let string = (fun s -> `Ok s), Fmt.string
+let string = (fun s -> Ok s), Fmt.string
 
 let some (parse, print) =
   let none = "" in
-  (fun s -> match parse s with `Ok v -> `Ok (Some v) | `Error _ as e -> e),
+  (fun s -> match parse s with Ok v -> Ok (Some v) | Error _ as e -> e),
   (fun ppf v -> match v with None -> Fmt.string ppf none| Some v -> print ppf v)
 
 let uri =
-  let parse s = `Ok (Uri.of_string s) in
+  let parse s = Ok (Uri.of_string s) in
   let print pp u = Fmt.string pp (Uri.to_string u) in
   parse, print
 

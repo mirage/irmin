@@ -819,7 +819,7 @@ module Path: sig
     val pp: t Fmt.t
     (** [pp] is the pretty-printer for paths. *)
 
-    val of_string: string -> [`Error of string | `Ok of t]
+    val of_string: string -> (t, string) result
     (** [of_string] parses paths. *)
 
     type step
@@ -854,7 +854,7 @@ module Path: sig
     val pp_step: step Fmt.t
     (** [pp_step] is pretty-printer for path steps. *)
 
-    val step_of_string: string -> [`Ok of step | `Error of string]
+    val step_of_string: string -> (step, string) result
     (** [step_of_string] parses path steps. *)
 
     (** {1 Value Types} *)
@@ -895,7 +895,7 @@ module Hash: sig
     val pp: t Fmt.t
     (** [pp] is the user-facing pretty-printer for paths. *)
 
-    val of_string: string -> [`Error of string | `Ok of t]
+    val of_string: string -> (t, string) result
     (** [of_string] parses paths. *)
 
     val digest: Cstruct.t -> t
@@ -969,7 +969,7 @@ module Contents: sig
     val pp: t Fmt.t
     (** [pp] pretty-prints contents. *)
 
-    val of_string: string -> [`Error of string | `Ok of t]
+    val of_string: string -> (t, string) result
     (** [of_string] parses contents. *)
 
   end
@@ -998,7 +998,7 @@ module Contents: sig
     val pp: t Fmt.t
     (** [pp] pretty-prints contents. *)
 
-    val of_string: string -> [`Error of string | `Ok of t]
+    val of_string: string -> (t, string) result
     (** [of_string] parses contents. *)
 
     val merge: t option Merge.t
@@ -1078,7 +1078,7 @@ module Branch: sig
     val pp: t Fmt.t
     (** [pp] pretty-prints branches. *)
 
-    val of_string: string -> [`Error of string | `Ok of t ]
+    val of_string: string -> (t, string) result
     (** [of_string] parses branch names. *)
 
     val master: t
@@ -1163,7 +1163,7 @@ module Private: sig
         value and vice-versa. There are a few
         {{!builtin_converters}built-in converters}. *)
 
-    type 'a parser = string -> [ `Error of string | `Ok of 'a ]
+    type 'a parser = string -> ('a, string) result
     (** The type for configuration converter parsers. *)
 
     type 'a printer = 'a Fmt.t
@@ -1868,14 +1868,25 @@ module Private: sig
       type branch
       (** The type for branch IDs. *)
 
+      type fetch_error = [
+        | `No_head
+        | `Not_available
+        | `Msg of string
+      ]
+      (** The type for fetch errors. *)
+
       val fetch: t -> ?depth:int -> uri:string -> branch ->
-        [`Head of commit | `No_head | `Error] Lwt.t
+        (commit, fetch_error) result Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
           located at [uri] into the local store [t]. Return the head
           of the remote branch with the same name, which is now in the
           local store. [No_head] means no such branch exists. *)
 
-      val push: t -> ?depth:int -> uri:string -> branch -> [`Ok | `Error] Lwt.t
+      type push_error = [ fetch_error | `Detached_head ]
+      (** The type for push errors. *)
+
+      val push: t -> ?depth:int -> uri:string -> branch ->
+        (unit, push_error) result Lwt.t
       (** [push t uri] pushes the contents of the local store [t] into
           the remote store located at [uri]. *)
 
@@ -2047,7 +2058,7 @@ module type S = sig
         commits, nodes and contents, is exported, otherwise it is the
         commit history graph only. *)
 
-    val import: t -> slice -> [`Ok | `Error] Lwt.t
+    val import: t -> slice -> (unit, [`Msg of string]) result Lwt.t
     (** [import t s] imports the contents of the slice [s] in [t]. Does
         not modify branches. *)
 
@@ -2722,8 +2733,14 @@ module type SYNC = sig
   type commit
   (** The type for store heads. *)
 
-  val fetch:
-    db -> ?depth:int -> remote -> [`Head of commit | `No_head | `Error] Lwt.t
+  type fetch_error = [
+    | `No_head
+    | `Not_available
+    | `Msg of string
+  ]
+  (** The type for fetch errors. *)
+
+  val fetch: db -> ?depth:int -> remote ->  (commit, fetch_error) result Lwt.t
   (** [fetch t ?depth r] populate the local store [t] with objects for
       the remote store [r], using [t]'s current branch. The [depth]
       parameter limits the history depth. Return [None] if either the
@@ -2734,7 +2751,7 @@ module type SYNC = sig
       local or remote store do not have a valid head. *)
 
   val pull: db -> ?depth:int -> remote -> [`Merge of task | `Update] ->
-    ([`Ok | `No_head | `Error], Merge.conflict) result Lwt.t
+    (unit, [fetch_error | Merge.conflict]) result Lwt.t
   (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
       also updates [t]'s current branch. [s] is the update strategy:
 
@@ -2748,7 +2765,10 @@ module type SYNC = sig
   (** Same as {!pull} but raise {!Merge.Conflict} in case of
       conflict. *)
 
-  val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
+  type push_error = [ fetch_error | `Detached_head ]
+  (** The type for push errors. *)
+
+  val push: db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t
   (** [push t ?depth r] populates the remote store [r] with objects
       from the current store [t], using [t]'s current branch. If [b]
       is [t]'s current branch, [push] also updates the head of [b] in

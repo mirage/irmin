@@ -132,7 +132,8 @@ module Make (P: Ir_s.PRIVATE) = struct
           ) (KSet.elements !contents) >|= fun () ->
         slice
 
-    exception Import_error
+    exception Import_error of string
+    let import_error fmt = Fmt.kstrf (fun x -> Lwt.fail (Import_error x)) fmt
 
     let import t s =
       let aux (type k) (type v)
@@ -146,9 +147,8 @@ module Make (P: Ir_s.PRIVATE) = struct
         fn (fun (k, v) ->
             S.add (s t) v >>= fun k' ->
             if not (Ir_type.equal dk k k') then (
-              Log.err (fun f -> f "%s import error: expected %a, got %a"
-                name Ir_type.(dump dk) k Ir_type.(dump dk) k');
-              Lwt.fail Import_error
+              import_error "%s import error: expected %a, got %a"
+                name Ir_type.(dump dk) k Ir_type.(dump dk) k'
             )
             else Lwt.return_unit
           )
@@ -173,9 +173,11 @@ module Make (P: Ir_s.PRIVATE) = struct
           aux "Commit"
             (module P.Commit) P.Commit.Key.t
             (fun f -> Lwt_list.iter_s f !commits) P.Repo.commit_t
-          >>= fun () ->
-          Lwt.return `Ok)
-        (function Import_error -> Lwt.return `Error | e -> Lwt.fail e)
+          >|= fun () ->
+          Ok ())
+        (function
+          | Import_error e -> Lwt.return (Error (`Msg e))
+          | e -> Fmt.kstrf Lwt.fail_invalid_arg "impot error: %a" Fmt.exn e)
 
     let task_of_commit t commit =
       P.Commit.find (P.Repo.commit_t t) commit >|= function
@@ -674,11 +676,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       |> sealv
 
     let pp ppf x = Ir_type.pp_json t ppf x
-
-    let of_string str =
-      match Ir_type.decode_json t (Jsonm.decoder (`String str)) with
-      | Ok t    -> `Ok t
-      | Error e -> `Error e
+    let of_string str = Ir_type.decode_json t (Jsonm.decoder (`String str))
 
   end
 

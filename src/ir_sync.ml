@@ -15,10 +15,16 @@
  *)
 
 module None (H: Ir_s.S0) (R: Ir_s.S0) = struct
+  type fetch_error = [
+    | `No_head
+    | `Not_available
+    | `Msg of string
+  ]
+  type push_error = [ fetch_error | `Detached_head ]
   type t = unit
   type commit = H.t
   type branch = R.t
   let v _ = Lwt.return_unit
-  let fetch () ?depth:_ ~uri:_ _tag = Lwt.return `Error
-  let push () ?depth:_ ~uri:_ _tag = Lwt.return `Error
+  let fetch () ?depth:_ ~uri:_ _tag = Lwt.return (Error `Not_available)
+  let push () ?depth:_ ~uri:_ _tag = Lwt.return (Error `Not_available)
 end

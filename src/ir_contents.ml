@@ -21,7 +21,7 @@ module String = struct
   let t = Ir_type.string
   let merge = Ir_merge.default Ir_type.(option string)
   let pp = Fmt.string
-  let of_string s = `Ok s
+  let of_string s = Ok s
 end
 
 module Cstruct = struct
@@ -29,7 +29,7 @@ module Cstruct = struct
   let t = Ir_type.(like string) (fun x -> Cstruct.of_string x) Cstruct.to_string
   let merge = Ir_merge.default Ir_type.(option t)
   let pp = Ir_type.dump t
-  let of_string s = `Ok (Cstruct.of_string s)
+  let of_string s = Ok (Cstruct.of_string s)
 end
 
 module Store

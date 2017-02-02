@@ -55,11 +55,7 @@ struct
   module C = struct
     include C
     let pp = Type.pp_json C.t
-
-    let of_string j =
-      match Type.decode_json C.t (Jsonm.decoder (`String j)) with
-      | Ok t    -> `Ok t
-      | Error e -> `Error e
+    let of_string j = Type.decode_json C.t (Jsonm.decoder (`String j))
   end
   include Conv2Raw(C)
 end

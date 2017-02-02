@@ -15,7 +15,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type 'a parser = string -> [ `Error of string | `Ok of 'a ]
+open Result
+
+type 'a parser = string -> ('a, string) result
 type 'a printer = 'a Fmt.t
 type 'a converter = 'a parser * 'a printer
 
