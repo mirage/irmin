@@ -40,7 +40,7 @@ let memo fn =
 type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
 type 'a t = 'a Ir_type.t * 'a f
 let v t f = t, f
-let f = snd
+let f (x: 'a t) = snd x
 
 let conflict fmt =
   ksprintf (fun msg ->
@@ -52,13 +52,17 @@ let bind x f = x >>= function
   | Error _ as x -> Lwt.return x
   | Ok x         -> f x
 
-let promise_map f t () =
+let map f x = x >|= function
+  | Error _ as x -> x
+  | Ok x         -> Ok (f x)
+
+let map_promise f t () =
   t () >|= function
   | Error _ as x -> x
   | Ok None      -> Ok None
   | Ok (Some a)  -> Ok (Some (f a))
 
-let promise_bind t f () =
+let bind_promise t f () =
   t () >>= function
   | Error _ as x -> Lwt.return x
   | Ok None      -> Lwt.return @@ Ok None
@@ -67,18 +71,21 @@ let promise_bind t f () =
 let ok x = Lwt.return (Ok x)
 
 module Infix = struct
-  let (>>|) = bind
-  let (>?|) = promise_bind
+  let (>>=*) = bind
+  let (>|=*) x f = map f x
+  let (>>=?) = bind_promise
+  let (>|=?) x f = map_promise f x
 end
 
 open Infix
 
-let default t =
+let default (type a) (t:a Ir_type.t): a t =
   let pp = Ir_type.dump t and (=) = Ir_type.equal t in
   t, fun ~old t1 t2 ->
+    let open Infix in
     Log.debug (fun f -> f "default %a | %a" pp t1 pp t2);
     if t1 = t2 then ok t1
-    else old () >>| function
+    else old () >>=* function
       | None     -> conflict "default: add/add and no common ancestor"
       | Some old ->
         Log.debug (fun f -> f "default old=%a" pp t1);
@@ -96,7 +103,7 @@ let seq = function
           | Error _ -> merge ~old v1 v2
         ) (Error (`Conflict "nothing to merge")) ts
 
-let option (a, t) =
+let option (type a) ((a, t): a t): a option t =
   let dt = Ir_type.(option a) in
   let pp = Ir_type.(dump dt) in
   dt, fun ~old t1 t2->
@@ -107,18 +114,19 @@ let option (a, t) =
       match t1, t2 with
       | None   , None    -> ok None
       | Some v1, Some v2 ->
-        let old = fun () ->
-          old () >>| function
+        let open Infix in
+        let old () =
+          old () >>=* function
           | None   -> ok None
           | Some o ->
             Log.debug (fun f -> f "option old=%a" pp o);
             ok o
         in
-        t ~old v1 v2 >>| fun x ->
-        ok (Some x)
+        t ~old v1 v2 >|=* fun x -> Some x
       | Some x , None
       | None   , Some x ->
-        old () >>| function
+        let open Infix in
+        old () >>=* function
         | None
         | Some None     -> ok (Some x)
         | Some (Some o) ->
@@ -126,22 +134,17 @@ let option (a, t) =
           Log.debug (fun f -> f "option old=%a" pp o);
           if x = o then ok (Some x) else conflict "option: add/del"
 
-let omap f = function
-  | None   -> ok None
-  | Some x -> ok (Some (f x))
-
 let pair (da, a) (db, b) =
   let dt = Ir_type.pair da db in
   let pp = Ir_type.dump dt in
   dt, fun ~old x y ->
     Log.debug (fun f -> f "pair %a | %a" pp x pp y);
     let (a1, b1), (a2, b2) = x, y in
-    let ret m x = Log.debug (fun f -> f "pair obj=%a" Ir_type.(dump m) x); x in
-    let o1 () = old () >>| omap (fun (o1, _) -> ret da o1) in
-    let o2 () = old () >>| omap (fun (_, o2) -> ret db o2) in
-    a ~old:o1 a1 a2 >>| fun a3 ->
-    b ~old:o2 b1 b2 >>| fun b3 ->
-    ok (a3, b3)
+    let o1 = map_promise fst old in
+    let o2 = map_promise snd old in
+    a ~old:o1 a1 a2 >>=* fun a3 ->
+    b ~old:o2 b1 b2 >|=* fun b3 ->
+    a3, b3
 
 let triple (da, a) (db, b) (dc, c) =
   let dt = Ir_type.triple  da db dc in
@@ -149,14 +152,13 @@ let triple (da, a) (db, b) (dc, c) =
   dt, fun ~old x y ->
     Log.debug (fun f -> f "triple %a | %a" pp x pp y);
     let (a1, b1, c1), (a2, b2, c2) = x, y in
-    let ret m x = Log.debug (fun f -> f "triple old=%a" Ir_type.(dump m) x); x in
-    let o1 () = old () >>| omap (fun (o1, _, _) -> ret da o1) in
-    let o2 () = old () >>| omap (fun (_, o2, _) -> ret db o2) in
-    let o3 () = old () >>| omap (fun (_, _, o3) -> ret dc o3) in
-    a ~old:o1 a1 a2 >>| fun a3 ->
-    b ~old:o2 b1 b2 >>| fun b3 ->
-    c ~old:o3 c1 c2 >>| fun c3 ->
-    ok (a3, b3, c3)
+    let o1 = map_promise (fun (x,_,_) -> x) old in
+    let o2 = map_promise (fun (_,x,_) -> x) old in
+    let o3 = map_promise (fun (_,_,x) -> x) old in
+    a ~old:o1 a1 a2 >>=* fun a3 ->
+    b ~old:o2 b1 b2 >>=* fun b3 ->
+    c ~old:o3 c1 c2 >|=* fun c3 ->
+    a3, b3, c3
 
 exception C of string
 
@@ -226,11 +228,12 @@ let alist dx dy merge_v =
     let x = sort x in
     let y = sort y in
     let old k =
-      old () >>| function
-      | None     -> ok (Some None)
+      let open Infix in
+      old () >|=* function
+      | None     -> Some None (* no parent = parent with empty value *)
       | Some old ->
         let old = try Some (List.assoc k old) with Not_found -> None in
-        ok (Some old)
+        Some old
     in
     let merge_v k = f (merge_v k) in
     Lwt.catch (fun () ->
@@ -256,12 +259,15 @@ module MultiSet (K: sig
     in
     let add k v m = set k (v + get k m) m in
     let keys = ref M.empty in
-    old () >>| fun old ->
-    let old = match old with None -> M.empty | Some o -> o in
+    old () >|=* fun old ->
+    let old = match old with
+      | None   -> M.empty (* no parent = parent with empty value *)
+      | Some o -> o
+    in
     M.iter (fun k v -> keys := add k (-v) !keys) old;
     M.iter (fun k v -> keys := add k v !keys) m1;
     M.iter (fun k v -> keys := add k v !keys) m2;
-    ok !keys
+    !keys
 
   let merge = t, merge
 end
@@ -279,12 +285,12 @@ struct
 
   let merge ~old x y =
     Log.debug (fun l -> l "merge %a %a" pp x pp y);
-    old () >>| fun old ->
+    old () >|=* fun old ->
     let old = match old with None -> S.empty | Some o -> o in
     let (++) = S.union and (--) = S.diff in
     let to_add = (x -- old) ++ (y -- old) in
     let to_del = (old -- x) ++ (old -- y) in
-    ok ((old -- to_del) ++ to_add)
+    (old -- to_del) ++ to_add
 
   let merge = t, merge
 
@@ -319,14 +325,14 @@ module Map (K: sig
     let m3 = of_alist !l3 in
     Lwt.return m3
 
-  let merge dv merge_v =
+  let merge dv (merge_v: K.t -> 'a option t) =
     let pp ppf m = Ir_type.(dump (list (pair K.t dv))) ppf @@ M.bindings m in
     let merge_v k = f (merge_v k) in
     t dv, fun ~old m1 m2 ->
       Log.debug (fun f -> f "assoc %a | %a" pp m1 pp m2);
       Lwt.catch (fun () ->
           let old key =
-            old () >>| function
+            old () >>=* function
             | None     -> ok None
             | Some old ->
               Log.debug (fun f -> f "assoc old=%a" pp old);
@@ -348,14 +354,9 @@ let like da t a_to_b b_to_a =
     try
       let b1  = a_to_b a1 in
       let b2  = a_to_b a2 in
-      let old =
-        memo (fun () ->
-            old () >>| omap (fun a ->
-            Log.debug (fun f -> f "biject old=%a" pp a);
-            a_to_b a))
-      in
-      (f t) ~old b1 b2 >>| fun b3 ->
-      ok (b_to_a b3)
+      let old = memo (map_promise a_to_b old) in
+      (f t) ~old b1 b2 >|=*
+      b_to_a
     with Not_found ->
       conflict "biject"
   in
@@ -364,7 +365,7 @@ let like da t a_to_b b_to_a =
     da, merge;
   ]
 
-let like_lwt da t a_to_b b_to_a =
+let like_lwt (type a b) da (t: b t) (a_to_b:a -> b Lwt.t) (b_to_a: b -> a Lwt.t): a t =
   let pp = Ir_type.dump da in
   let merge ~old a1 a2 =
     Log.debug (fun f -> f "biject' %a | %a" pp a1 pp a2);
@@ -372,14 +373,11 @@ let like_lwt da t a_to_b b_to_a =
       a_to_b a1  >>= fun b1 ->
       a_to_b a2  >>= fun b2 ->
       let old = memo (fun () ->
-          old () >>| function
+          bind (old ()) @@ function
           | None   -> ok None
-          | Some a ->
-            Log.debug (fun f -> f "biject' old=%a" pp a);
-            a_to_b a >>= fun b ->
-            ok (Some b))
+          | Some a -> a_to_b a >|= fun b -> Ok (Some b))
       in
-      (f t) ~old b1 b2 >>| fun b3 ->
+      bind ((f t) ~old b1 b2) @@ fun b3 ->
       b_to_a b3 >>=
       ok
     with Not_found ->
@@ -404,9 +402,9 @@ type counter = int
 let counter =
   Ir_type.int,
   fun ~old x y ->
-    old () >>| fun old ->
+    old () >|=* fun old ->
     let old = match old with None -> 0 | Some o -> o in
-    ok (x + y - old)
+    x + y - old
 
 let with_conflict rewrite (d, f) =
   let f ~old x y =

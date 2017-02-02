@@ -24,12 +24,19 @@ type 'a promise = unit -> ('a option, conflict) result Lwt.t
 
 type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
 type 'a t
+
 val v: 'a Ir_type.t -> 'a f -> 'a t
 val f: 'a t -> 'a f
 
+val bind:
+  ('a, 'b) result Lwt.t -> ('a -> ('c, 'b) result Lwt.t) ->
+  ('c, 'b) result Lwt.t
+
+val map: ('a -> 'c) -> ('a, 'b) result Lwt.t -> ('c, 'b) result Lwt.t
+
 val promise: 'a -> 'a promise
-val promise_map: ('a -> 'b) -> 'a promise -> 'b promise
-val promise_bind: 'a promise -> ('a -> 'b promise) -> 'b promise
+val map_promise: ('a -> 'b) -> 'a promise -> 'b promise
+val bind_promise: 'a promise -> ('a -> 'b promise) -> 'b promise
 
 val seq: 'a t list -> 'a t
 val default: 'a Ir_type.t -> 'a t
@@ -76,11 +83,20 @@ val ok: 'a -> ('a, conflict) result Lwt.t
 val conflict: ('a, unit, string, ('b, conflict) result Lwt.t) format4 -> 'a
 
 module Infix: sig
-  val (>>|):
+
+  val (>>=*):
     ('a, conflict) result Lwt.t ->
     ('a -> ('b, conflict) result Lwt.t) ->
     ('b, conflict) result Lwt.t
-  val (>?|): 'a promise -> ('a -> 'b promise) -> 'b promise
+
+  val (>|=*):
+    ('a, conflict) result Lwt.t ->
+    ('a -> 'b) ->
+    ('b, conflict) result Lwt.t
+
+  val (>>=?): 'a promise -> ('a -> 'b promise) -> 'b promise
+  val (>|=?): 'a promise -> ('a -> 'b) -> 'b promise
+
 end
 
 val conflict_t: conflict Ir_type.t

@@ -109,7 +109,7 @@ module Store
             Ir_merge.ok (Some (Some (S.Val.node vold)))
         in
         merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
-        >>| fun node ->
+        >>=* fun node ->
         empty_if_none t node >>= fun node ->
         let parents = [k1; k2] in
         let commit = S.Val.v ~node ~parents task in
@@ -134,9 +134,9 @@ module History (S: Ir_s.COMMIT_STORE) = struct
 
   let merge t ~task =
     let f ~old c1 c2 =
-      let somify = Ir_merge.promise_map (fun x -> Some x) in
+      let somify = Ir_merge.map_promise (fun x -> Some x) in
       let merge = S.merge t ~task in
-      Ir_merge.f merge ~old:(somify old) (Some c1) (Some c2) >>| function
+      Ir_merge.f merge ~old:(somify old) (Some c1) (Some c2) >>=* function
       | None   -> Ir_merge.conflict "History.merge"
       | Some x -> Ir_merge.ok x
     in
@@ -405,7 +405,7 @@ module History (S: Ir_s.COMMIT_STORE) = struct
         let rec aux acc = function
           | []        -> Ir_merge.ok (Some acc)
           | old::olds ->
-            three_way_merge t ~task acc old >>| fun acc ->
+            three_way_merge t ~task acc old >>=* fun acc ->
             aux acc olds
         in
         aux old olds
@@ -442,7 +442,7 @@ module History (S: Ir_s.COMMIT_STORE) = struct
     | []  -> Ir_merge.conflict "History.lca: empty"
     | [c] -> Ir_merge.ok (Some c)
     | c1::c2::cs ->
-      lca_aux t ~task ?max_depth ?n c1 c2 >>| function
+      lca_aux t ~task ?max_depth ?n c1 c2 >>=* function
       | None   -> Ir_merge.ok None
       | Some c -> lca t ~task ?max_depth ?n (c::cs)
 

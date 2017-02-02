@@ -396,7 +396,7 @@ module Make (P: Ir_s.PRIVATE) = struct
           test_and_set_unsafe t ~test:head ~set:(Some c1) >>=
           Ir_merge.ok
         | Some c2 ->
-          three_way_merge t ~task ?max_depth ?n c1 c2 >>| fun c3 ->
+          three_way_merge t ~task ?max_depth ?n c1 c2 >>=* fun c3 ->
           test_and_set_unsafe t ~test:head ~set:(Some c3) >>=
           Ir_merge.ok
       in

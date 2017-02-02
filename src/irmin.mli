@@ -450,6 +450,17 @@ module Merge: sig
   val conflict: ('a, unit, string, ('b, conflict) result Lwt.t) format4 -> 'a
   (** Return [Error (Conflict str)]. *)
 
+  val bind:
+    ('a, 'b) result Lwt.t -> ('a -> ('c, 'b) result Lwt.t) ->
+    ('c, 'b) result Lwt.t
+  (** [bind r f] is the merge result which behaves as of the
+      application of the function [f] to the return value of [r]. If
+      [r] fails, [bind r f] also fails, with the same conflict. *)
+
+  val map: ('a -> 'c) -> ('a, 'b) result Lwt.t -> ('c, 'b) result Lwt.t
+  (** [map f m] maps the result of a merge. This is the same as [bind
+      m (fun x -> ok (f x))]. *)
+
   (** {1 Merge Combinators} *)
 
   type 'a promise = unit -> ('a option, conflict) result Lwt.t
@@ -460,12 +471,12 @@ module Merge: sig
   val promise: 'a -> 'a promise
   (** [promise a] is the promise containing [a]. *)
 
-  val promise_map: ('a -> 'b) -> 'a promise -> 'b promise
-  (** [promise_map f a] is the promise containing [f] applied to what
+  val map_promise: ('a -> 'b) -> 'a promise -> 'b promise
+  (** [map_promise f a] is the promise containing [f] applied to what
       is promised by [a]. *)
 
-  val promise_bind: 'a promise -> ('a -> 'b promise) -> 'b promise
-  (** [promise_bind a f] is the promise returned by [f] applied to
+  val bind_promise: 'a promise -> ('a -> 'b promise) -> 'b promise
+  (** [bind_promise a f] is the promise returned by [f] applied to
       what is promised by [a]. *)
 
   type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
@@ -595,24 +606,36 @@ module Merge: sig
     val merge: 'a Type.t -> (K.t -> 'a option t) -> 'a Map.Make(K).t t
   end
 
-  (** Useful merge operators.
+  (** Infix operators for manipulating merge results and {!promise}s.
 
       [open Irmin.Merge.Infix] at the top of your file to use them. *)
   module Infix: sig
 
-    (** {1 Useful operators} *)
+    (** {1 Merge Result Combinators} *)
 
-    val (>>|):
+    val (>>=*):
       ('a, conflict) result Lwt.t ->
       ('a -> ('b, conflict) result Lwt.t) ->
       ('b, conflict) result Lwt.t
-    (** Same as {!bind}. *)
+    (** [>>=*] is {!bind}. *)
 
-    val (>?|): 'a promise -> ('a -> 'b promise) -> 'b promise
-    (** Same as {!promise_bind}. *)
+    val (>|=*):
+      ('a, conflict) result Lwt.t ->
+      ('a -> 'b) ->
+      ('b, conflict) result Lwt.t
+    (** [>|=*] is {!map}. *)
+
+    (** {1 Promise Combinators}
+
+        This is useful to manipulate lca results. *)
+
+    val (>>=?): 'a promise -> ('a -> 'b promise) -> 'b promise
+    (** [>>=?] is {!bind_promise}. *)
+
+    val (>|=?): 'a promise -> ('a -> 'b) -> 'b promise
+    (** [>|=?] is {!map_promise}. *)
 
   end
-
   (** {1 Value Types} *)
 
   val conflict_t: conflict Type.t
