@@ -80,8 +80,8 @@ let scheduler () =
   clean, enqueue
 
 module Make
-    (K: sig type t val t: t Depyt.t end)
-    (V: sig type t val t: t Depyt.t end) =
+    (K: sig type t val t: t Ir_type.t end)
+    (V: sig type t val t: t Ir_type.t end) =
 struct
 
   type key = K.t
@@ -89,7 +89,7 @@ struct
   type watch = int
 
   module KMap =
-    Map.Make(struct type t = K.t let compare = Depyt.compare K.t end)
+    Map.Make(struct type t = K.t let compare = Ir_type.compare K.t end)
 
   module IMap = Map.Make(struct
       type t = int
@@ -99,9 +99,9 @@ struct
   type key_handler = value Ir_diff.t -> unit Lwt.t
   type all_handler = key -> value Ir_diff.t -> unit Lwt.t
 
-  let pp_value = Depyt.dump V.t
-  let equal_opt_values = Depyt.(equal (option V.t))
-  let equal_keys = Depyt.equal K.t
+  let pp_value = Ir_type.dump V.t
+  let equal_opt_values = Ir_type.(equal (option V.t))
+  let equal_keys = Ir_type.equal K.t
 
   type t = {
     id: int;                                      (* unique watch manager id. *)

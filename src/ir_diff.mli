@@ -16,4 +16,4 @@
 
 type 'a t = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
 
-val t: 'a Depyt.t -> 'a t Depyt.t
+val t: 'a Ir_type.t -> 'a t Ir_type.t

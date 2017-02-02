@@ -17,7 +17,7 @@
 type 'a t = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
 
 let t a =
-  let open Depyt in
+  let open Ir_type in
   variant "diff" (fun updated removed added -> function
       | `Updated x -> updated x
       | `Removed x -> removed x

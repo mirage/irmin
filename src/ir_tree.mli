@@ -25,6 +25,6 @@ module Make (P: Ir_s.PRIVATE): sig
   val export: P.Repo.t -> node -> P.Node.key Lwt.t
   val dump: tree Fmt.t
   val equal: tree -> tree -> bool Lwt.t
-  val node_t: node Depyt.t
-  val tree_t: tree Depyt.t
+  val node_t: node Ir_type.t
+  val tree_t: tree Ir_type.t
 end

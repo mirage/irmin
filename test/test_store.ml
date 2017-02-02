@@ -18,6 +18,8 @@ open Result
 open Lwt.Infix
 open Test_common
 
+module T = Irmin.Type
+
 let merge_exn msg x = match x with
   | Ok x                -> Lwt.return x
   | Error (`Conflict m) -> failf "%s: %s" msg m
@@ -151,7 +153,7 @@ module Make (S: Test_S) = struct
     let test repo =
       let t = P.Repo.contents_t repo in
       let check_key = check P.Contents.Key.t in
-      let check_val = check (Depyt.option S.contents_t) in
+      let check_val = check (T.option S.contents_t) in
       kv2 ~repo >>= fun kv2 ->
       P.Contents.add t v2 >>= fun k2' ->
       check_key "kv2" kv2 k2';
@@ -182,7 +184,7 @@ module Make (S: Test_S) = struct
       let g = g repo and n = n repo in
       kv1 ~repo >>= fun kv1 ->
       let check_key = check P.Node.Key.t in
-      let check_val = check (Depyt.option Graph.value_t) in
+      let check_val = check (T.option Graph.value_t) in
 
       (* Create a node containing t1 -x-> (v1) *)
       Graph.v g ["x", normal kv1] >>= fun k1 ->
@@ -233,7 +235,7 @@ module Make (S: Test_S) = struct
       Graph.update g k3 ["a";"c";"x"] (normal kv2) >>= fun k6' ->
       P.Node.find n k6' >>= fun n6' ->
       P.Node.find n k6  >>= fun n6 ->
-      check Depyt.(option P.Node.Val.t) "node n6" n6 n6';
+      check T.(option P.Node.Val.t) "node n6" n6 n6';
       check_key "node k6" k6 k6';
 
       let assert_no_duplicates n node =
@@ -281,7 +283,7 @@ module Make (S: Test_S) = struct
       kv1 ~repo >>= fun kv1 ->
       let g = g repo and h = h repo and c = P.Repo.commit_t repo in
 
-      let check_val = check (Depyt.option P.Commit.Val.t) in
+      let check_val = check (T.option P.Commit.Val.t) in
       let check_key = check P.Commit.Key.t in
       let check_keys = checks P.Commit.Key.t in
 
@@ -327,7 +329,7 @@ module Make (S: Test_S) = struct
   let test_branches x () =
     let test repo =
       let check_keys = checks S.Branch.t in
-      let check_val = check (Depyt.option S.Commit.t) in
+      let check_val = check (T.option S.Commit.t) in
 
       r1 ~repo >>= fun kv1 ->
       r2 ~repo >>= fun kv2 ->
@@ -660,8 +662,8 @@ module Make (S: Test_S) = struct
     (* simple merges *)
     let check_merge () =
       let ok = Irmin.Merge.ok in
-      let dt = Depyt.(option int) in
-      let dx = Depyt.(list (pair string int)) in
+      let dt = T.(option int) in
+      let dx = T.(list (pair string int)) in
       let merge_skip ~old:_ _ _ = ok None in
       let merge_left ~old:_ x _ = ok x in
       let merge_right ~old:_ _ y = ok y in
@@ -672,7 +674,7 @@ module Make (S: Test_S) = struct
         | "skip"  -> Irmin.Merge.v dt merge_skip
         | _ -> merge_default
       in
-      let merge_x = Irmin.Merge.alist Depyt.string Depyt.int merge in
+      let merge_x = Irmin.Merge.alist T.string T.int merge in
       let old () = ok (Some [ "left", 1; "foo", 2; ]) in
       let x =   [ "left", 2; "right", 0] in
       let y =   [ "left", 1; "bar"  , 3; "skip", 0 ] in
@@ -689,7 +691,7 @@ module Make (S: Test_S) = struct
       kv1 ~repo >>= fun kv1 ->
       kv2 ~repo >>= fun kv2 ->
       let check_result =
-        check (Irmin.Merge.result_t Depyt.(option P.Contents.Key.t))
+        check (Irmin.Merge.result_t T.(option P.Contents.Key.t))
       in
 
       (* merge contents *)
@@ -731,7 +733,7 @@ module Make (S: Test_S) = struct
 
       let _ = k4 in
 
-      let succ_t = Depyt.(pair string Graph.value_t) in
+      let succ_t = T.(pair string Graph.value_t) in
 
       Graph.list g k4 >>= fun succ ->
       checks succ_t "k4"[ ("b", `Node k1); ("c", `Node k1) ] succ;
@@ -768,7 +770,7 @@ module Make (S: Test_S) = struct
 
       P.Commit.find c kr3 >>= fun r3 ->
       P.Commit.find c kr3' >>= fun r3' ->
-      check Depyt.(option P.Commit.Val.t) "r3" r3 r3';
+      check T.(option P.Commit.Val.t) "r3" r3 r3';
       check S.Commit.t "kr3" kr3 kr3';
       Lwt.return_unit
     in
@@ -903,11 +905,11 @@ module Make (S: Test_S) = struct
     let test repo =
       S.empty repo >>= fun t ->
       S.Head.find t >>= fun h ->
-      check Depyt.(option S.Commit.t) "empty" None h;
+      check T.(option S.Commit.t) "empty" None h;
       r1 ~repo >>= fun r1 ->
       S.set t (dummy_task ()) ["b"; "x"] v1 >>= fun () ->
       S.Head.find t >>= fun h ->
-      check Depyt.(option S.Commit.t) "not empty" (Some r1) h;
+      check T.(option S.Commit.t) "not empty" (Some r1) h;
       Lwt.return_unit
     in
     run x test
@@ -920,10 +922,10 @@ module Make (S: Test_S) = struct
       S.set t (taskf "slice") ["x";"a"] a >>= fun () ->
       S.set t (taskf "slice") ["x";"b"] b >>= fun () ->
       S.Repo.export repo >>= fun slice ->
-      let str = Fmt.(to_to_string @@ Depyt.pp_json P.Slice.t) slice in
+      let str = Fmt.(to_to_string @@ T.pp_json P.Slice.t) slice in
       let slice' =
         match
-          Depyt.decode_json P.Slice.t (Jsonm.decoder (`String str))
+          T.decode_json P.Slice.t (Jsonm.decoder (`String str))
         with
         | Ok t    -> t
         | Error e -> Alcotest.fail e
@@ -936,7 +938,7 @@ module Make (S: Test_S) = struct
 
   let test_private_nodes x () =
     let test repo =
-      let check_val = check Depyt.(option S.contents_t) in
+      let check_val = check T.(option S.contents_t) in
       let vx = "VX" in
       let vy = "VY" in
       S.master repo >>= fun t ->
@@ -964,8 +966,8 @@ module Make (S: Test_S) = struct
 
   let test_stores x () =
     let test repo =
-      let check_val = check Depyt.(option S.contents_t) in
-      let check_list = checks Depyt.(pair S.Key.step_t S.kind_t) in
+      let check_val = check T.(option S.contents_t) in
+      let check_list = checks T.(pair S.Key.step_t S.kind_t) in
       S.master repo >>= fun t ->
       S.set t (taskf "init") ["a";"b"] v1 >>= fun () ->
       S.clone ~src:t ~dst:"test" >>= fun t ->
@@ -1083,15 +1085,15 @@ module Make (S: Test_S) = struct
       P.Commit.find (ct repo) head >>= fun commit ->
       let node = P.Commit.Val.node (get commit) in
       P.Node.find (n repo) node >>= fun node ->
-      check Depyt.(option P.Node.Val.t) "empty view" (Some P.Node.Val.empty) node;
+      check T.(option P.Node.Val.t) "empty view" (Some P.Node.Val.empty) node;
 
       (* Testing [View.diff] *)
 
-      let contents = Depyt.pair S.contents_t S.metadata_t in
-      let diff = Depyt.(pair S.key_t (Irmin.Diff.t contents)) in
+      let contents = T.pair S.contents_t S.metadata_t in
+      let diff = T.(pair S.key_t (Irmin.Diff.t contents)) in
       let check_diffs = checks diff in
-      let check_val = check Depyt.(option contents) in
-      let check_ls = check Depyt.(list (pair S.step_t S.kind_t)) in
+      let check_val = check T.(option contents) in
+      let check_ls = check T.(list (pair S.step_t S.kind_t)) in
       let normal c = Some (c, S.Metadata.default) in
       let d0 = S.Metadata.default in
 
@@ -1199,7 +1201,7 @@ module Make (S: Test_S) = struct
       S.Head.get t >>= fun h ->
 
       S.Repo.task_of_commit repo h >>= fun ta' ->
-      check Depyt.(option Irmin.Task.t) "task" (Some ta) ta';
+      check T.(option Irmin.Task.t) "task" (Some ta) ta';
 
       S.of_commit repo h >>= fun tt ->
       S.history tt >>= fun g ->

@@ -73,7 +73,7 @@ module Make
       | `Branch of Branch.t ]
 
     let t =
-      let open Depyt in
+      let open Ir_type in
       variant "vertex" (fun contents node commit branch -> function
           | `Contents x -> contents x
           | `Node x     -> node x
@@ -85,8 +85,8 @@ module Make
       |~ case1 "branch"   Branch.t (fun x -> `Branch x)
       |> sealv
 
-    let equal = Depyt.equal t
-    let compare = Depyt.compare t
+    let equal = Ir_type.equal t
+    let compare = Ir_type.compare t
     let hash = Hashtbl.hash
   end
 
@@ -104,7 +104,7 @@ module Make
      to save space. *)
   module Dump = struct
     type t = X.t list * (X.t * X.t) list
-    let t = Depyt.(pair (list X.t) (list (pair X.t X.t)))
+    let t = Ir_type.(pair (list X.t) (list (pair X.t X.t)))
   end
 
   let vertex g =
@@ -131,7 +131,7 @@ module Make
         else if has_mark key then add ()
         else (
           mark key level;
-          Log.debug (fun f -> f "ADD %a %d" Depyt.(dump X.t) key level);
+          Log.debug (fun f -> f "ADD %a %d" Ir_type.(dump X.t) key level);
           if not (G.mem_vertex g key) then G.add_vertex g key;
           pred key >>= fun keys ->
           List.iter (fun k -> G.add_edge g k key) keys;
@@ -162,7 +162,7 @@ module Make
       include G
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
-      let vertex_name k = Fmt.strf "%a" Depyt.(dump X.t) k
+      let vertex_name k = Fmt.strf "%a" Ir_type.(dump X.t) k
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None

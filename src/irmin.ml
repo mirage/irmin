@@ -16,7 +16,7 @@
 
 open Lwt.Infix
 
-module Type = Depyt
+module Type = Ir_type
 module Diff = Ir_diff
 
 module Contents = struct
@@ -54,10 +54,10 @@ module S02Raw (C: Contents.S0): Contents.Raw with type t = C.t =
 struct
   module C = struct
     include C
-    let pp = Depyt.pp_json C.t
+    let pp = Type.pp_json C.t
 
     let of_string j =
-      match Depyt.decode_json C.t (Jsonm.decoder (`String j)) with
+      match Type.decode_json C.t (Jsonm.decoder (`String j)) with
       | Ok t    -> `Ok t
       | Error e -> `Error e
   end

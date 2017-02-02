@@ -90,8 +90,8 @@ type t = {
 
 let failf fmt = Fmt.kstrf Alcotest.fail fmt
 let (/) = Filename.concat
-let testable t = Alcotest.testable (Depyt.dump t) (Depyt.equal t)
+let testable t = Alcotest.testable (Irmin.Type.dump t) (Irmin.Type.equal t)
 let check t = Alcotest.check (testable t)
 let checks t =
-  let t = Alcotest.slist (testable t) Depyt.(compare t) in
+  let t = Alcotest.slist (testable t) Irmin.Type.(compare t) in
   Alcotest.check t

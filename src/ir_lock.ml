@@ -28,7 +28,7 @@ module Make (K: Ir_s.S0) = struct
   module K = struct
     type t = K.t
     let hash = Hashtbl.hash
-    let equal = Depyt.equal K.t
+    let equal = Ir_type.equal K.t
   end
 
   module KHashtbl = Hashtbl.Make(K)

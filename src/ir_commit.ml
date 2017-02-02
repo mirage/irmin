@@ -37,7 +37,7 @@ module Make (C: Ir_s.S0) (N: Ir_s.S0) = struct
   let v task ~node ~parents = { node; parents; task }
 
   let t =
-    let open Depyt in
+    let open Ir_type in
     record "commit" (fun node parents task -> { node; parents; task })
     |+ field "node"    N.t        (fun t -> t.node)
     |+ field "parents" (list C.t) (fun t -> t.parents)
@@ -81,7 +81,7 @@ module Store
     | None -> N.add n N.Val.empty
     | Some node -> Lwt.return node
 
-  let equal_opt_keys = Depyt.(equal (option S.Key.t))
+  let equal_opt_keys = Ir_type.(equal (option S.Key.t))
 
   let merge_commit task t ~old k1 k2 =
     get t k1 >>= fun v1   ->
@@ -160,7 +160,7 @@ module History (S: Ir_s.COMMIT_STORE) = struct
 
   module Graph = Ir_graph.Make
       (S.Node.Contents.Key)(S.Node.Metadata)(S.Node.Key)(S.Key)
-      (struct type t = unit let t = Depyt.unit end)
+      (struct type t = unit let t = Ir_type.unit end)
 
   let edges t =
     Log.debug (fun f -> f "edges");
@@ -182,9 +182,9 @@ module History (S: Ir_s.COMMIT_STORE) = struct
 
   module K = struct
     type t = S.Key.t
-    let compare = Depyt.compare S.Key.t
+    let compare = Ir_type.compare S.Key.t
     let hash = Hashtbl.hash
-    let equal = Depyt.equal S.Key.t
+    let equal = Ir_type.equal S.Key.t
   end
   module KSet = Set.Make(K)
   module KHashtbl = Hashtbl.Make(K)
@@ -194,7 +194,7 @@ module History (S: Ir_s.COMMIT_STORE) = struct
     | None   -> KSet.empty
     | Some c -> KSet.of_list (S.Val.parents c)
 
-  let equal_keys = Depyt.equal S.Key.t
+  let equal_keys = Ir_type.equal S.Key.t
 
   let str_key k = String.sub (Fmt.to_to_string S.Key.pp k) 0 4
   let pp_key = Fmt.of_to_string str_key

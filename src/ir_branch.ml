@@ -16,7 +16,7 @@
 
 module String = struct
   type t = string
-  let t = Depyt.string
+  let t = Ir_type.string
   let master = "master"
 
   let is_valid s =

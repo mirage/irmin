@@ -112,7 +112,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         Graph.closure (graph_t t) ~min:[] ~max:!root_nodes >>= fun nodes ->
         let module KSet = Set.Make(struct
             type t = P.Contents.key
-            let compare = Depyt.compare P.Contents.Key.t
+            let compare = Ir_type.compare P.Contents.Key.t
           end) in
         let contents = ref KSet.empty in
         Lwt_list.iter_p (fun k ->
@@ -139,15 +139,15 @@ module Make (P: Ir_s.PRIVATE) = struct
           name
           (type s)
           (module S: Ir_s.AO with type t = s and type key = k and type value = v)
-          (dk: k Depyt.t)
+          (dk: k Ir_type.t)
           fn
           (s:t -> s)
         =
         fn (fun (k, v) ->
             S.add (s t) v >>= fun k' ->
-            if not (Depyt.equal dk k k') then (
+            if not (Ir_type.equal dk k k') then (
               Log.err (fun f -> f "%s import error: expected %a, got %a"
-                name Depyt.(dump dk) k Depyt.(dump dk) k');
+                name Ir_type.(dump dk) k Ir_type.(dump dk) k');
               Lwt.fail Import_error
             )
             else Lwt.return_unit
@@ -253,7 +253,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       value_of_head x >>= fun v ->
       fn @@ `Added (x, v)
     | `Updated (x, y) ->
-      assert (not (Depyt.equal Hash.t x y));
+      assert (not (Ir_type.equal Hash.t x y));
       value_of_head x >>= fun vx ->
       value_of_head y >>= fun vy ->
       match vx, vy with
@@ -282,7 +282,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     | None   -> Lwt.return None
     | Some h ->
       match t.tree with
-      | Some (o, t) when Depyt.equal Hash.t o h -> Lwt.return @@ Some (o, t)
+      | Some (o, t) when Ir_type.equal Hash.t o h -> Lwt.return @@ Some (o, t)
       | _   ->
         t.tree <- None;
         (* the tree cache needs to be invalidated *)
@@ -307,7 +307,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some head0 -> Some [name0, head0]
       in
       Branch_store.watch (branch_t t) ?init (fun name head ->
-          if Depyt.equal Branch_store.Key.t name0 name
+          if Ir_type.equal Branch_store.Key.t name0 name
           then fn head else Lwt.return_unit
         ) >|= fun id ->
       fun () -> Branch_store.unwatch (branch_t t) id
@@ -363,12 +363,12 @@ module Make (P: Ir_s.PRIVATE) = struct
       | Some old_head ->
         Log.debug (fun f -> f "fast-forward-head old=%a new=%a"
                       Hash.pp old_head Hash.pp new_head);
-        if Depyt.equal Hash.t new_head old_head then
+        if Ir_type.equal Hash.t new_head old_head then
           (* we only update if there is a change *)
           Lwt.return_false
         else
           H.lcas (history_t t) ?max_depth ?n new_head old_head >>= function
-          | `Ok [x] when Depyt.equal Hash.t x old_head ->
+          | `Ok [x] when Ir_type.equal Hash.t x old_head ->
             (* we only update if new_head > old_head *)
             test_and_set t ~test:(Some old_head) ~set:(Some new_head)
           | `Too_many_lcas ->
@@ -588,8 +588,8 @@ module Make (P: Ir_s.PRIVATE) = struct
     OCamlGraph.Persistent.Digraph.ConcreteBidirectional(struct
       type t = P.Commit.key
       let hash h = Hashtbl.hash (P.Commit.Key.to_raw h)
-      let compare = Depyt.compare P.Commit.Key.t
-      let equal = Depyt.equal P.Commit.Key.t
+      let compare = Ir_type.compare P.Commit.Key.t
+      let equal = Ir_type.equal P.Commit.Key.t
     end)
 
   module Gmap = struct
@@ -663,7 +663,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   module Status = struct
     type t = [ `Empty | `Branch of branch | `Commit of commit ]
     let t =
-      let open Depyt in
+      let open Ir_type in
       variant "status" (fun empty branch commit -> function
           | `Empty    -> empty
           | `Branch b -> branch b
@@ -673,10 +673,10 @@ module Make (P: Ir_s.PRIVATE) = struct
       |~ case1 "`Commit" Commit.t (fun c -> `Commit c)
       |> sealv
 
-    let pp ppf x = Depyt.pp_json t ppf x
+    let pp ppf x = Ir_type.pp_json t ppf x
 
     let of_string str =
-      match Depyt.decode_json t (Jsonm.decoder (`String str)) with
+      match Ir_type.decode_json t (Jsonm.decoder (`String str)) with
       | Ok t    -> `Ok t
       | Error e -> `Error e
 
@@ -691,11 +691,11 @@ module Make (P: Ir_s.PRIVATE) = struct
   let node_t = Tree.node_t
   let commit_t = Commit.t
   let branch_t = Branch.t
-  let kind_t = Depyt.enum "kind" [ "contents", `Contents; "node", `Node ]
+  let kind_t = Ir_type.enum "kind" [ "contents", `Contents; "node", `Node ]
   let kinde_t =
-    Depyt.enum "kinde" [ "empty", `Empty; "contents", `Contents; "node", `Node ]
+    Ir_type.enum "kinde" [ "empty", `Empty; "contents", `Contents; "node", `Node ]
   let lca_t =
-    let open Depyt in
+    let open Ir_type in
     variant "lca" (fun ok mdr tml -> function
         | `Ok l              -> ok l
         | `Max_depth_reached -> mdr
