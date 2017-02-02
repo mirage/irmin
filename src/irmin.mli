@@ -2671,8 +2671,8 @@ let () =
       >>= fun () -> log x "More. Stuff. To x."
       >>= fun () -> log t "I can add stuff on t also"
       >>= fun () -> log t "Yes. On t!"
-      >>= fun () -> Irmin.merge_exn "Merging x into t" x ~into:t
-      >>= fun () -> return_unit
+      >>= fun () -> Irmin.merge "Merging x into t" x ~into:t
+      >>= function Ok () -> return_unit | Errror _ -> failwith "merge conflict!"
     end
 ]}
 
