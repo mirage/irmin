@@ -23,7 +23,7 @@ module RO (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
 
   module KMap = Map.Make(struct
       type t = K.t
-      let compare = Depyt.compare K.t
+      let compare = Irmin.Type.compare K.t
     end)
 
   type key = K.t
@@ -115,7 +115,7 @@ module RW (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
     Log.debug (fun f -> f "test_and_set");
     L.with_lock t.lock key (fun () ->
         find t key >>= fun v ->
-        if Depyt.(equal (option V.t)) test v then (
+        if Irmin.Type.(equal (option V.t)) test v then (
           let () = match set with
             | None   -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
             | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t

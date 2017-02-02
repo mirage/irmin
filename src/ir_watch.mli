@@ -36,8 +36,8 @@ module type S = sig
 end
 
 module Make
-    (K: sig type t val t: t Depyt.t end)
-    (V: sig type t val t: t Depyt.t end)
+    (K: sig type t val t: t Ir_type.t end)
+    (V: sig type t val t: t Ir_type.t end)
   : S with type key = K.t and type value = V.t
 
 type hook = int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t

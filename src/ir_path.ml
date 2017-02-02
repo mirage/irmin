@@ -19,10 +19,10 @@ open Astring
 module String_list = struct
 
   type step = string
-  let step_t = Depyt.string
+  let step_t = Ir_type.string
 
   type t = step list
-  let t = Depyt.(list step_t)
+  let t = Ir_type.(list step_t)
 
   let empty = []
   let is_empty l = (l = [])

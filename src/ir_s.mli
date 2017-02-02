@@ -18,7 +18,7 @@
 
 open Result
 
-module Type = Depyt
+module Type = Ir_type
 
 module type S0 = sig
   type t

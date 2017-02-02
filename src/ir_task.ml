@@ -22,7 +22,7 @@ type t = {
 }
 
 let t =
-  let open Depyt in
+  let open Ir_type in
   record "task" (fun date uid owner msgs -> { date; uid; owner; msgs })
   |+ field "date"     int64         (fun t -> t.date)
   |+ field "uid"      int64         (fun t -> t.uid)

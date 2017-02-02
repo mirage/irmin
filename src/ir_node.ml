@@ -21,7 +21,7 @@ let src = Logs.Src.create "irmin.node" ~doc:"Irmin trees/nodes"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 let node ~default c m n =
-  let open Depyt in
+  let open Ir_type in
   record "node" (fun contents metadata node ->
       match contents, metadata, node with
       | Some c, None  , None   -> `Contents (c, default)
@@ -41,7 +41,7 @@ let node ~default c m n =
 
 module No_metadata = struct
   type t = unit
-  let t = Depyt.unit
+  let t = Ir_type.unit
   let default = ()
   let merge = Ir_merge.v t (fun ~old:_ () () -> Ir_merge.ok ())
 end
@@ -55,7 +55,7 @@ struct
   type metadata = M.t
 
   module StepMap =
-    Map.Make(struct type t = P.step let compare = Depyt.compare P.step_t end)
+    Map.Make(struct type t = P.step let compare = Ir_type.compare P.step_t end)
 
   type value = [ `Contents of contents * metadata | `Node of node ]
 
@@ -108,7 +108,7 @@ struct
   let node_t = K_n.t
   let contents_t = K_c.t
   let metadata_t = M.t
-  let t = Depyt.like Depyt.(list (pair P.step_t value_t)) of_list list
+  let t = Ir_type.like Ir_type.(list (pair P.step_t value_t)) of_list list
 
 end
 
@@ -171,13 +171,13 @@ struct
       | None  , _ -> None
       | Some c, m -> Some (c, m)
     in
-    Ir_merge.like Depyt.(option (pair contents_t metadata_t))
+    Ir_merge.like Ir_type.(option (pair contents_t metadata_t))
       (Ir_merge.pair (C.merge c) M.merge)
       explode implode
 
   let merge_contents_meta c =
     Ir_merge.alist step_t
-      Depyt.(pair contents_t metadata_t)
+      Ir_type.(pair contents_t metadata_t)
       (fun _step -> merge_contents_meta c)
 
   let merge_parents merge_key =
@@ -198,7 +198,7 @@ struct
   let rec merge t =
     let merge_key =
       Ir_merge.v
-        (Depyt.option S.Key.t)
+        (Ir_type.option S.Key.t)
         (fun ~old x y -> Ir_merge.(f (merge t)) ~old x y)
     in
     let merge = merge_value t merge_key in
@@ -210,7 +210,7 @@ struct
       if S.Val.is_empty v then Lwt.return_none
       else add t v >>= fun k -> Lwt.return (Some k)
     in
-    Ir_merge.like_lwt Depyt.(option S.Key.t) merge read add
+    Ir_merge.like_lwt Ir_type.(option S.Key.t) merge read add
 
   module Val = S.Val
 
@@ -240,7 +240,7 @@ module Graph (S: Ir_s.NODE_STORE) = struct
     | Some n -> S.Val.list n
 
 
-  module U = struct type t = unit let t = Depyt.unit end
+  module U = struct type t = unit let t = Ir_type.unit end
   module Graph = Ir_graph.Make(Contents)(Metadata)(S.Key)(U)(U)
 
   let edges t =
@@ -291,7 +291,7 @@ module Graph (S: Ir_s.NODE_STORE) = struct
   let err_empty_path () = invalid_arg "Irmin.node: empty path"
 
   let map_one t node f label =
-    Log.debug (fun f -> f "map_one %a" Depyt.(dump Path.step_t) label);
+    Log.debug (fun f -> f "map_one %a" Ir_type.(dump Path.step_t) label);
     let old_key = S.Val.find node label in
     begin match old_key with
       | None | Some (`Contents _) -> Lwt.return S.Val.empty
@@ -300,7 +300,7 @@ module Graph (S: Ir_s.NODE_STORE) = struct
         | Some v -> v
     end >>= fun old_node ->
     f old_node >>= fun new_node ->
-    if Depyt.equal S.Val.t old_node new_node then
+    if Ir_type.equal S.Val.t old_node new_node then
       Lwt.return node
     else (
       if S.Val.is_empty new_node then (

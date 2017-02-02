@@ -38,7 +38,7 @@ let memo fn =
       Lwt.return x
 
 type 'a f = old:'a promise -> 'a -> 'a -> ('a, conflict) result Lwt.t
-type 'a t = 'a Depyt.t * 'a f
+type 'a t = 'a Ir_type.t * 'a f
 let v t f = t, f
 let f = snd
 
@@ -74,7 +74,7 @@ end
 open Infix
 
 let default t =
-  let pp = Depyt.dump t and (=) = Depyt.equal t in
+  let pp = Ir_type.dump t and (=) = Ir_type.equal t in
   t, fun ~old t1 t2 ->
     Log.debug (fun f -> f "default %a | %a" pp t1 pp t2);
     if t1 = t2 then ok t1
@@ -97,11 +97,11 @@ let seq = function
         ) (Error (`Conflict "nothing to merge")) ts
 
 let option (a, t) =
-  let dt = Depyt.(option a) in
-  let pp = Depyt.(dump dt) in
+  let dt = Ir_type.(option a) in
+  let pp = Ir_type.(dump dt) in
   dt, fun ~old t1 t2->
     Log.debug (fun f -> f "some %a | %a" pp t1 pp t2);
-    f (default Depyt.(option a)) ~old t1 t2 >>= function
+    f (default Ir_type.(option a)) ~old t1 t2 >>= function
     | Ok x    -> ok x
     | Error _ ->
       match t1, t2 with
@@ -122,7 +122,7 @@ let option (a, t) =
         | None
         | Some None     -> ok (Some x)
         | Some (Some o) ->
-          let pp = Depyt.dump a and (=) = Depyt.equal a in
+          let pp = Ir_type.dump a and (=) = Ir_type.equal a in
           Log.debug (fun f -> f "option old=%a" pp o);
           if x = o then ok (Some x) else conflict "option: add/del"
 
@@ -131,12 +131,12 @@ let omap f = function
   | Some x -> ok (Some (f x))
 
 let pair (da, a) (db, b) =
-  let dt = Depyt.pair da db in
-  let pp = Depyt.dump dt in
+  let dt = Ir_type.pair da db in
+  let pp = Ir_type.dump dt in
   dt, fun ~old x y ->
     Log.debug (fun f -> f "pair %a | %a" pp x pp y);
     let (a1, b1), (a2, b2) = x, y in
-    let ret m x = Log.debug (fun f -> f "pair obj=%a" Depyt.(dump m) x); x in
+    let ret m x = Log.debug (fun f -> f "pair obj=%a" Ir_type.(dump m) x); x in
     let o1 () = old () >>| omap (fun (o1, _) -> ret da o1) in
     let o2 () = old () >>| omap (fun (_, o2) -> ret db o2) in
     a ~old:o1 a1 a2 >>| fun a3 ->
@@ -144,12 +144,12 @@ let pair (da, a) (db, b) =
     ok (a3, b3)
 
 let triple (da, a) (db, b) (dc, c) =
-  let dt = Depyt.triple  da db dc in
-  let pp = Depyt.dump dt in
+  let dt = Ir_type.triple  da db dc in
+  let pp = Ir_type.dump dt in
   dt, fun ~old x y ->
     Log.debug (fun f -> f "triple %a | %a" pp x pp y);
     let (a1, b1, c1), (a2, b2, c2) = x, y in
-    let ret m x = Log.debug (fun f -> f "triple old=%a" Depyt.(dump m) x); x in
+    let ret m x = Log.debug (fun f -> f "triple old=%a" Ir_type.(dump m) x); x in
     let o1 () = old () >>| omap (fun (o1, _, _) -> ret da o1) in
     let o2 () = old () >>| omap (fun (_, o2, _) -> ret db o2) in
     let o3 () = old () >>| omap (fun (_, _, o3) -> ret dc o3) in
@@ -217,12 +217,12 @@ let alist_merge_lwt compare_k f l1 l2 =
   return !l3
 
 let alist dx dy merge_v =
-  let dt = Depyt.(list (pair dx dy)) in
+  let dt = Ir_type.(list (pair dx dy)) in
   dt, fun ~old x y ->
-    let pair = Depyt.pair dx dy in
-    let pp = Depyt.dump dt in
+    let pair = Ir_type.pair dx dy in
+    let pp = Ir_type.dump dt in
     Log.debug (fun l -> l "alist %a | %a" pp x pp y);
-    let sort = List.sort @@ Depyt.compare pair in
+    let sort = List.sort @@ Ir_type.compare pair in
     let x = sort x in
     let y = sort y in
     let old k =
@@ -234,19 +234,19 @@ let alist dx dy merge_v =
     in
     let merge_v k = f (merge_v k) in
     Lwt.catch (fun () ->
-        alist_merge_lwt Depyt.(compare dx) (merge_elt merge_v old) x y >>= ok
+        alist_merge_lwt Ir_type.(compare dx) (merge_elt merge_v old) x y >>= ok
       ) (function
         | C msg -> conflict "%s" msg
         | e     -> Lwt.fail e)
 
 module MultiSet (K: sig
     include Set.OrderedType
-    val t: t Depyt.t
+    val t: t Ir_type.t
   end) = struct
 
   module M = Map.Make(K)
   let of_alist l = List.fold_left (fun map (k, v)  -> M.add k v map) M.empty l
-  let t = Depyt.like Depyt.(list (pair K.t int)) of_alist M.bindings
+  let t = Ir_type.like Ir_type.(list (pair K.t int)) of_alist M.bindings
 
   let merge ~old m1 m2 =
     let get k m = try M.find k m with Not_found -> 0 in
@@ -268,14 +268,14 @@ end
 
 module Set (K: sig
     include Set.OrderedType
-    val t: t Depyt.t
+    val t: t Ir_type.t
   end) =
 struct
 
   module S = Set.Make(K)
   let of_list l = List.fold_left (fun set elt -> S.add elt set) S.empty l
-  let t = Depyt.(like @@ list K.t) of_list S.elements
-  let pp = Depyt.dump t
+  let t = Ir_type.(like @@ list K.t) of_list S.elements
+  let pp = Ir_type.dump t
 
   let merge ~old x y =
     Log.debug (fun l -> l "merge %a %a" pp x pp y);
@@ -292,12 +292,12 @@ end
 
 module Map (K: sig
     include Map.OrderedType
-    val t: t Depyt.t
+    val t: t Ir_type.t
   end) = struct
 
   module M = Map.Make(K)
   let of_alist l = List.fold_left (fun map (k, v)  -> M.add k v map) M.empty l
-  let t v = Depyt.like Depyt.(list @@ pair K.t v) of_alist M.bindings
+  let t v = Ir_type.like Ir_type.(list @@ pair K.t v) of_alist M.bindings
   let iter2 f t1 t2 = alist_iter2 K.compare f (M.bindings t1) (M.bindings t2)
 
   let iter2 f m1 m2 =
@@ -320,7 +320,7 @@ module Map (K: sig
     Lwt.return m3
 
   let merge dv merge_v =
-    let pp ppf m = Depyt.(dump (list (pair K.t dv))) ppf @@ M.bindings m in
+    let pp ppf m = Ir_type.(dump (list (pair K.t dv))) ppf @@ M.bindings m in
     let merge_v k = f (merge_v k) in
     t dv, fun ~old m1 m2 ->
       Log.debug (fun f -> f "assoc %a | %a" pp m1 pp m2);
@@ -342,7 +342,7 @@ module Map (K: sig
 end
 
 let like da t a_to_b b_to_a =
-  let pp = Depyt.dump da in
+  let pp = Ir_type.dump da in
   let merge ~old a1 a2 =
     Log.debug (fun f -> f "biject %a | %a" pp a1 pp a2);
     try
@@ -365,7 +365,7 @@ let like da t a_to_b b_to_a =
   ]
 
 let like_lwt da t a_to_b b_to_a =
-  let pp = Depyt.dump da in
+  let pp = Ir_type.dump da in
   let merge ~old a1 a2 =
     Log.debug (fun f -> f "biject' %a | %a" pp a1 pp a2);
     try
@@ -390,19 +390,19 @@ let like_lwt da t a_to_b b_to_a =
     da, merge;
   ]
 
-let unit = default Depyt.unit
-let bool = default Depyt.bool
-let char = default Depyt.char
-let int = default Depyt.int
-let int32 = default Depyt.int32
-let int64 = default Depyt.int64
-let float = default Depyt.float
-let string = default Depyt.string
+let unit = default Ir_type.unit
+let bool = default Ir_type.bool
+let char = default Ir_type.char
+let int = default Ir_type.int
+let int32 = default Ir_type.int32
+let int64 = default Ir_type.int64
+let float = default Ir_type.float
+let string = default Ir_type.string
 
 type counter = int
 
 let counter =
-  Depyt.int,
+  Ir_type.int,
   fun ~old x y ->
     old () >>| fun old ->
     let old = match old with None -> 0 | Some o -> o in
@@ -417,10 +417,10 @@ let with_conflict rewrite (d, f) =
   d, f
 
 let conflict_t =
-  Depyt.(like string) (fun x -> `Conflict x) (function `Conflict x -> x)
+  Ir_type.(like string) (fun x -> `Conflict x) (function `Conflict x -> x)
 
 let result_t ok =
-  let open Depyt in
+  let open Ir_type in
   variant "result" (fun ok error -> function
       | Ok x    -> ok x
       | Error x -> error x)

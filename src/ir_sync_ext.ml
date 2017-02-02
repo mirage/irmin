@@ -30,11 +30,12 @@ module Make (S: Ir_s.STORE) = struct
   type commit = S.commit
 
   let conv dx dy x =
-    let len = Depyt.size_of dx x in
-    let buf = Depyt.B (Bytes.create len) in
-    let (_: int) = Depyt.write dx buf ~pos:0 x in
-    let _, y = Depyt.read dy buf ~pos:0 in
-    y
+    let str = Fmt.to_to_string (Ir_type.pp_json dx) x in
+    match Ir_type.decode_json dy (Jsonm.decoder (`String str)) with
+    | Ok y    -> Some y
+    | Error e ->
+      Log.err (fun l -> l "Cannot convert %a: %s" Ir_type.(dump dx) x e);
+      None
 
   let convert_slice (type r) (type s)
       (module RP: Ir_s.PRIVATE with type Slice.t = r)
@@ -46,17 +47,30 @@ module Make (S: Ir_s.STORE) = struct
         | `Contents (k, v) ->
           let k = conv RP.Contents.Key.t SP.Contents.Key.t k in
           let v = conv RP.Contents.Val.t SP.Contents.Val.t v in
-          SP.Slice.add s (`Contents (k, v))
+          (match k, v with
+           | Some k, Some v -> SP.Slice.add s (`Contents (k, v))
+           | _ -> Lwt.return_unit)
         | `Node (k, v) ->
           let k = conv RP.Node.Key.t SP.Node.Key.t k in
           let v = conv RP.Node.Val.t SP.Node.Val.t v in
-          SP.Slice.add s (`Node (k, v))
+          (match k, v with
+           | Some k, Some v -> SP.Slice.add s (`Node (k, v))
+           | _ -> Lwt.return_unit)
         | `Commit (k, v) ->
           let k = conv RP.Commit.Key.t SP.Commit.Key.t k in
           let v = conv RP.Commit.Val.t SP.Commit.Val.t v in
-          SP.Slice.add s (`Commit (k, v))
+          (match k, v with
+           | Some k, Some v -> SP.Slice.add s (`Commit (k, v))
+           | _ -> Lwt.return_unit)
       ) >>= fun () ->
     Lwt.return s
+
+  let convs ~src ~dst l =
+    List.fold_left (fun acc x ->
+        match conv src dst x with
+        | None -> acc
+        | Some x -> x::acc
+      ) [] l
 
   let fetch t ?depth remote =
     match remote with
@@ -72,7 +86,7 @@ module Make (S: Ir_s.STORE) = struct
       Log.debug (fun f -> f "fetch store");
       let s_repo = S.repo t in
       S.Repo.heads s_repo >>= fun min ->
-      let min = List.map (conv S.Commit.t R.Commit.t) min in
+      let min = convs ~src:S.Commit.t  ~dst:R.Commit.t min in
       R.Head.find r >>= function
       | None   -> Lwt.return `No_head
       | Some h ->
@@ -82,8 +96,9 @@ module Make (S: Ir_s.STORE) = struct
         S.Repo.import s_repo s_slice >|= function
         | `Error -> `Error
         | `Ok    ->
-          let h = conv R.Commit.t S.Commit.t h in
-          `Head h
+          match conv R.Commit.t S.Commit.t h with
+          | Some h -> `Head h
+          | None   -> `Error
 
   let fetch_exn t ?depth remote =
     fetch t ?depth remote >>= function
@@ -123,16 +138,16 @@ module Make (S: Ir_s.STORE) = struct
       | Some h ->
         Log.debug (fun f -> f "push store");
         R.Repo.heads (R.repo r) >>= fun min ->
-        let min = List.map (conv R.Commit.t S.Commit.t) min in
+        let min = convs ~src:R.Commit.t ~dst:S.Commit.t min in
         S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
         >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
         | `Error -> Log.debug (fun f -> f "ERROR!"); Lwt.return `Error
         | `Ok    ->
           Log.debug (fun f -> f "OK!");
-          let h = conv S.Commit.t R.Commit.t h in
-          R.Head.set r h >>= fun () ->
-          Lwt.return `Ok
+          match conv S.Commit.t R.Commit.t h with
+          | None   -> Lwt.return `Error
+          | Some h -> R.Head.set r h >|= fun () -> `Ok
 
   let push_exn t ?depth remote =
     push t ?depth remote >>= function

@@ -17,7 +17,7 @@
 (** Provenance tracking. *)
 
 type t
-val t: t Depyt.t
+val t: t Ir_type.t
 val v: date:int64 -> owner:string -> ?uid:int64 -> string -> t
 val date: t -> int64
 val uid: t -> int64

@@ -18,17 +18,17 @@ open Lwt.Infix
 
 module String = struct
   type t = string
-  let t = Depyt.string
-  let merge = Ir_merge.default Depyt.(option string)
+  let t = Ir_type.string
+  let merge = Ir_merge.default Ir_type.(option string)
   let pp = Fmt.string
   let of_string s = `Ok s
 end
 
 module Cstruct = struct
   type t = Cstruct.t
-  let t = Depyt.(like string) (fun x -> Cstruct.of_string x) Cstruct.to_string
-  let merge = Ir_merge.default Depyt.(option t)
-  let pp = Depyt.dump t
+  let t = Ir_type.(like string) (fun x -> Cstruct.of_string x) Cstruct.to_string
+  let merge = Ir_merge.default Ir_type.(option t)
+  let pp = Ir_type.dump t
   let of_string s = `Ok (Cstruct.of_string s)
 end
 
@@ -50,6 +50,6 @@ struct
     | Some v -> add t v >>= fun k -> Lwt.return (Some k)
 
   let merge t =
-    Ir_merge.like_lwt Depyt.(option Key.t) Val.merge (read_opt t) (add_opt t)
+    Ir_merge.like_lwt Ir_type.(option Key.t) Val.merge (read_opt t) (add_opt t)
 
 end

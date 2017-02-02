@@ -1,5 +1,6 @@
 Irmin
 Ir_diff
+Ir_type
 Ir_graph
 Ir_hash
 Ir_slice

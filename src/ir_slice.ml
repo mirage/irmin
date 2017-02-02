@@ -32,7 +32,7 @@ struct
   }
 
   let t =
-    let open Depyt in
+    let open Ir_type in
     record "slice" (fun contents nodes commits -> { contents; nodes; commits })
     |+ field "contents"
       (list (pair Contents.Key.t Contents.Val.t))
@@ -60,12 +60,12 @@ struct
       Lwt_list.iter_p (fun c -> f (`Commit c)) t.commits;
     ]
 
-  let contents_t = Depyt.pair Contents.Key.t Contents.Val.t
-  let node_t = Depyt.pair Node.Key.t Node.Val.t
-  let commit_t = Depyt.pair Commit.Key.t Commit.Val.t
+  let contents_t = Ir_type.pair Contents.Key.t Contents.Val.t
+  let node_t = Ir_type.pair Node.Key.t Node.Val.t
+  let commit_t = Ir_type.pair Commit.Key.t Commit.Val.t
 
   let value_t =
-    let open Depyt in
+    let open Ir_type in
     variant "slice" (fun contents node commit -> function
         | `Contents x -> contents x
         | `Node x     -> node x

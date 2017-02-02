@@ -56,7 +56,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     module X = struct
       type t = Path.step
       let t = Path.step_t
-      let compare = Depyt.compare Path.step_t
+      let compare = Ir_type.compare Path.step_t
     end
     include Map.Make(X)
     let iter2 f t1 t2 = alist_iter2 X.compare f (bindings t1) (bindings t2)
@@ -84,7 +84,7 @@ module Make (P: Ir_s.PRIVATE) = struct
        that will be fetched lazily. *)
 
     let value =
-      let open Depyt in
+      let open Ir_type in
       variant "Node.Contents" (fun key contents both -> function
           | Key (_, x)     -> key x
           | Contents x     -> contents x
@@ -95,7 +95,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         (fun _ -> assert false)
       |> sealv
 
-    let t = Depyt.like value (fun v -> { v }) (fun t -> t.v)
+    let t = Ir_type.like value (fun v -> { v }) (fun t -> t.v)
 
     let of_contents c = { v = Contents c }
     let of_key db k = { v = Key (db, k) }
@@ -113,9 +113,9 @@ module Make (P: Ir_s.PRIVATE) = struct
         | Some c -> t.v <- Both (db, k, c); Some c
 
     let equal (x:t) (y:t) =
-      let eq_key = Depyt.equal P.Contents.Key.t in
-      let eq_val = Depyt.equal P.Contents.Val.t in
-      let eq_valo = Depyt.(equal @@ option P.Contents.Val.t) in
+      let eq_key = Ir_type.equal P.Contents.Key.t in
+      let eq_val = Ir_type.equal P.Contents.Val.t in
+      let eq_valo = Ir_type.(equal @@ option P.Contents.Val.t) in
       if x == y then Lwt.return_true
       else match x.v, y.v with
       | (Key (_,x) | Both (_,x,_)), (Key (_,y) | Both (_,y,_)) ->
@@ -160,7 +160,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     and t = { mutable v: node }
 
     let value t =
-      let open Depyt in
+      let open Ir_type in
       variant "Node.value" (fun node contents -> function
           | `Node x     -> node x
           | `Contents x -> contents x)
@@ -169,7 +169,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       |> sealv
 
     let map value =
-      let open Depyt in
+      let open Ir_type in
       let to_map x =
         List.fold_left (fun acc (k, v) -> StepMap.add k v acc) StepMap.empty x
       in
@@ -177,7 +177,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       like (list (pair Path.step_t value)) to_map of_map
 
     let node map =
-      let open Depyt in
+      let open Ir_type in
       variant "Node.node" (fun map key both -> function
           | Map x        -> map x
           | Key (_,y)    -> key y
@@ -187,9 +187,9 @@ module Make (P: Ir_s.PRIVATE) = struct
       |~ case1 "Both" (pair P.Node.Key.t map) (fun _ -> assert false)
       |> sealv
 
-    let t node = Depyt.like node (fun v -> { v }) (fun t -> t.v)
+    let t node = Ir_type.like node (fun v -> { v }) (fun t -> t.v)
 
-    let _, t = Depyt.mu2 (fun _ y ->
+    let _, t = Ir_type.mu2 (fun _ y ->
         let value = value y in
         let node = node (map value) in
         let t = t node in
@@ -197,7 +197,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       )
 
     let value_t = value t
-    let dump = Depyt.pp_json ~minify:false t
+    let dump = Ir_type.pp_json ~minify:false t
 
     let of_map map = { v = Map map }
     let of_key repo k = { v = Key (repo, k) }
@@ -225,13 +225,13 @@ module Make (P: Ir_s.PRIVATE) = struct
 
     let key_equal x y =
       x == y ||
-      Depyt.equal P.Node.Key.t x y
+      Ir_type.equal P.Node.Key.t x y
 
     let contents_equal (c1, m1 as x1) (c2, m2 as x2) =
       if x1 == x2 then Lwt.return_true
       else
         Contents.equal c1 c2 >|= fun same_contents ->
-        same_contents && Depyt.equal Metadata.t m1 m2
+        same_contents && Ir_type.equal Metadata.t m1 m2
 
     exception Different
 
@@ -436,7 +436,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
     (*
     let contents  =
-      let open Depyt in
+      let open Ir_type in
       variant "Node.contents" (fun keep set -> function
           | `Keep x -> keep x
           | `Set x  -> set x)
@@ -449,8 +449,8 @@ module Make (P: Ir_s.PRIVATE) = struct
       | `Empty
       | `Node of t ]
 
-    let update: update Depyt.t =
-      let open Depyt in
+    let update: update Ir_type.t =
+      let open Ir_type in
       variant "Node.update" (fun empty contents node -> function
           | `Empty -> empty
           | `Contents x -> contents x
@@ -469,7 +469,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   let node_t = Node.t
 
   let tree_t =
-    let open Depyt in
+    let open Ir_type in
     variant "tree" (fun empty node contents -> function
         | `Empty      -> empty
         | `Node n     -> node n
@@ -486,7 +486,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let contents_equal (c1, m1 as x1) (c2, m2 as x2) =
     x1 == x2 ||
-    (Depyt.equal P.Contents.Val.t c1 c2 && Depyt.equal Metadata.t m1 m2)
+    (Ir_type.equal P.Contents.Val.t c1 c2 && Ir_type.equal Metadata.t m1 m2)
 
   let equal (x:tree) (y:tree) =
     if x == y then Lwt.return_true
@@ -649,7 +649,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     | None ->
       (match metadata, t with
        | None, `Contents (c', _)
-         when Depyt.equal P.Contents.Val.t c' c -> Lwt.return t
+         when Ir_type.equal P.Contents.Val.t c' c -> Lwt.return t
        | None, `Contents (_, m)   -> Lwt.return (`Contents (c, m))
        | None, _ -> Lwt.return (`Contents (c, Metadata.default))
        | Some m, `Contents c' when contents_equal c' (c, m) -> Lwt.return t
@@ -799,7 +799,7 @@ module Make (P: Ir_s.PRIVATE) = struct
           bindings y >>= fun y ->
           let acc = ref acc in
           let todo = ref todo in
-          alist_iter2_lwt Depyt.(compare @@ Path.step_t) (fun key v ->
+          alist_iter2_lwt Ir_type.(compare @@ Path.step_t) (fun key v ->
               let path = Path.rcons path key in
               match v with
 

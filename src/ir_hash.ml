@@ -152,7 +152,7 @@ module SHA1 = struct
     else
       raise (Invalid hex)
 
-  let t = Depyt.(like string) of_hex to_hex
+  let t = Ir_type.(like string) of_hex to_hex
 
   let digest = sha_1
   let pp ppf x = Fmt.string ppf (to_hex x)
