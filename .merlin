@@ -1,4 +1,4 @@
-PKG lwt cstruct uri git hex topkg rresult irmin
+PKG lwt cstruct uri git hex topkg rresult irmin jsonm
 PKG nocrypto cohttp.lwt-core cmdliner ocamlgraph alcotest
 PKG mirage-http git-mirage logs irmin-watcher mtime.os
 PKG mirage-kv-lwt mirage-clock ptime
