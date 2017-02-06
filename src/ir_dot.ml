@@ -95,7 +95,7 @@ module Make (S: Ir_s.STORE) = struct
       `Label s in
     let label_of_commit k c =
       let k = string_of_key (module Commit.Key) k in
-      let o = Commit.Val.task c in
+      let o = Commit.Val.info c in
       let s =
         if html then
           sprintf
@@ -107,10 +107,9 @@ module Make (S: Ir_s.STORE) = struct
             \  <div>&nbsp</div>\n\
              </div>"
             k
-            (Ir_task.owner o)
-            (date (Ir_task.date o))
-            (String.concat ~sep:"\n"
-               (List.map String.Ascii.escape @@ Ir_task.messages o))
+            (Ir_info.owner o)
+            (date (Ir_info.date o))
+            (String.Ascii.escape (Ir_info.message o))
         else
           sprintf "%s" k
       in

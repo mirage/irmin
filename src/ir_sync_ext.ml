@@ -83,7 +83,12 @@ module Make (S: Ir_s.STORE) = struct
         | `Empty | `Commit _  -> Lwt.return (Error `No_head)
         | `Branch b ->
           B.v (S.repo t) >>= fun g ->
-          B.fetch g ?depth ~uri b
+          B.fetch g ?depth ~uri b >>= function
+          | Error _ as e -> Lwt.return e
+          | Ok c         ->
+            S.Commit.of_hash (S.repo t) c >|= function
+            | None   -> Error `No_head
+            | Some x -> Ok x
       end
     | Ir_s.Store ((module R), r) ->
       Log.debug (fun f -> f "fetch store");

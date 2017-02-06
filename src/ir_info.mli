@@ -14,29 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Manage the database history. *)
+(** Provenance tracking. *)
 
-module Make (C: Ir_s.S0) (N: Ir_s.S0):
-  Ir_s.COMMIT with type commit = C.t and type node = N.t
+type t
+val t: t Ir_type.t
+val v: date:int64 -> owner:string -> string -> t
+val date: t -> int64
+val owner: t -> string
+val message: t -> string
+val empty: t
 
-module Store
-    (N: Ir_s.NODE_STORE)
-    (S: sig
-       include Ir_s.AO
-       module Key: Ir_s.HASH with type t = key
-       module Val: Ir_s.COMMIT with type t = value
-                                and type commit = key
-                                and type node = N.key
-     end):
-  Ir_s.COMMIT_STORE
-    with  type t = N.t * S.t
-      and type key = S.key
-      and type value = S.value
-      and module Key = S.Key
-      and module Val = S.Val
-
-module History (S: Ir_s.COMMIT_STORE):
-  Ir_s.COMMIT_HISTORY with type t = S.t
-                       and type v = S.Val.t
-                       and type node = S.Node.key
-                       and type commit = S.key
+type 'a f = 'a -> t
+val none: unit f

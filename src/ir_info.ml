@@ -14,17 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Provenance tracking. *)
+type t = {
+  date   : int64;
+  owner  : string;
+  message: string;
+}
 
-type t
-val t: t Ir_type.t
-val v: date:int64 -> owner:string -> ?uid:int64 -> string -> t
-val date: t -> int64
-val uid: t -> int64
-val owner: t -> string
-val messages: t -> string list
-val add: t -> string -> unit
-val empty: t
+let t =
+  let open Ir_type in
+  record "task" (fun date owner message -> { date; owner; message })
+  |+ field "date"    int64  (fun t -> t.date)
+  |+ field "owner"   string (fun t -> t.owner)
+  |+ field "message" string (fun t -> t.message)
+  |> sealr
 
 type 'a f = 'a -> t
-val none: unit f
+
+let create ~date ~owner message = { date; message; owner }
+
+let empty = { date=0L; owner=""; message = "" }
+
+let v ~date ~owner message =
+  if date = 0L && owner = "" && message = "" then empty
+  else create ~date ~owner message
+
+let date t = t.date
+let owner t = t.owner
+let message t = t.message
+let none = fun () -> empty

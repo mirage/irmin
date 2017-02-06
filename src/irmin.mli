@@ -366,69 +366,50 @@ module Type: sig
 
 end
 
-(** Tasks are used to keep track of the origin of write operations in
-    the stores. Tasks model the metadata associated with commit
-    objects in Git. *)
-module Task: sig
+(** Commit info are used to keep track of the origin of write
+    operations in the stores. [Info] model the metadata associated
+    with commit objects in Git. *)
+module Info: sig
 
-  (** {1 Task} *)
+  (** {1 Commit Info} *)
 
   type t
-  (** The type for tasks. *)
+  (** The type for commit info. *)
 
-  val v: date:int64 -> owner:string -> ?uid:int64 -> string -> t
-  (** Create a new task. *)
+  val v: date:int64 -> owner:string -> string -> t
+  (** Create a new commit info. *)
 
   val date: t -> int64
-  (** Get the task date.
+  (** [date t] is [t]'s commit date.
 
-      The date provided by the user when calling the
-      {{!Task.v}create} function. Rounding [Unix.gettimeofday ()]
-      (when available) is a good value for such date. On more esoteric
-      platforms, any monotonic counter is a fine value as well. On the
-      Git backend, the date is translated into the commit {e Date}
-      field and is expected to be the number of POSIX seconds (thus
-      not counting leap seconds) since the Epoch. *)
+      The date provided by the user when calling the {{!Info.v}create}
+      function. Rounding [Unix.gettimeofday ()] (when available) is a
+      good value for such date. On more esoteric platforms, any
+      monotonic counter is a fine value as well. On the Git backend,
+      the date is translated into the commit {e Date} field and is
+      expected to be the number of POSIX seconds (thus not counting
+      leap seconds) since the Epoch. *)
 
   val owner: t -> string
-  (** Get the task owner.
+  (** [owner t] is [t]'s commit owner.
 
       The owner identifies the entity (human, unikernel, process,
       thread, etc) performing an operation. For the Git backend, this
       will be directly translated into the {e Author} field. *)
 
-  val uid: t -> int64
-  (** Get the task unique identifier.
-
-      By default, it is freshly generated on each call to
-      {{!Task.v}create}. The identifier is useful for debugging
-      purposes, for instance to relate debug lines to the tasks which
-      cause them, and might appear in one line of the commit message
-      for the Git backend. *)
-
-  val messages: t -> string list
-  (** Get the messages associated to the task.
-
-      Text messages can be added to a task either at creation time,
-      using {{!Task.v}create}, or can be appended on already
-      created tasks using the {{!Task.add}add} function. For
-      the Git backend, this will be translated to the commit
-      message.  *)
-
-  val add: t -> string -> unit
-  (** Add a message to the task messages list. See
-      {{!Task.messages}messages} for more details. *)
+  val message: t -> string
+  (** [message t] is [t]'s commit message. *)
 
   val empty: t
-  (** The empty task. *)
+  (** The empty commit info. *)
 
-  (** {1 Task functions} *)
+  (** {1 Info Functions} *)
 
   type 'a f = 'a -> t
-  (** Alias for for user-defined task functions. *)
+  (** Alias for functions which can build commit info. *)
 
   val none: unit f
-  (** The empty task function. [none ()] is [empty] *)
+  (** The empty info function. [none ()] is [empty] *)
 
   (** {1 Value Types} *)
 
@@ -668,8 +649,8 @@ type config
     Every backend has different configuration options, which are kept
     abstract to the user. *)
 
-type task = Task.t
-(** The type for user-defined tasks. See {{!Task}Task}. *)
+type info = Info.t
+(** The type for commit info. See {{!Info}Info}. *)
 
 type 'a diff = 'a Diff.t
 (** The type for representing differences betwen values. *)
@@ -1645,7 +1626,7 @@ module Private: sig
       type node
       (** Type for node keys. *)
 
-      val v: task -> node:node -> parents:commit list -> t
+      val v: info -> node:node -> parents:commit list -> t
       (** Create a commit. *)
 
       val node: t -> node
@@ -1654,8 +1635,8 @@ module Private: sig
       val parents: t -> commit list
       (** The commit parents. *)
 
-      val task: t -> task
-      (** The commit provenance. *)
+      val info: t -> info
+      (** The commit info. *)
 
       (** {1 Value Types} *)
 
@@ -1682,7 +1663,7 @@ module Private: sig
 
       include AO
 
-      val merge: t -> task:task -> key option Merge.t
+      val merge: t -> info:info -> key option Merge.t
       (** [merge] is the 3-way merge function for commit keys. *)
 
       module Key: Hash.S with type t = key
@@ -1731,15 +1712,12 @@ module Private: sig
       type commit
       (** The type for commit values. *)
 
-      val v: t -> node:node -> parents:commit list -> task:task -> commit Lwt.t
+      type v
+      (** The type for commit objects. *)
+
+      val v: t -> node:node -> parents:commit list -> info:info ->
+        (commit * v) Lwt.t
       (** Create a new commit. *)
-
-      val node: t -> commit -> node option Lwt.t
-      (** [node t c] is [c]'s commit node or [None] is [c] is not
-          present in [t].
-
-          A commit might contain a graph
-          {{!Private.Node.GRAPH.node}node}. *)
 
       val parents: t -> commit -> commit list Lwt.t
       (** Get the commit parents.
@@ -1748,27 +1726,27 @@ module Private: sig
           data-structure: every commit carries the list of its
           immediate predecessors. *)
 
-      val merge: t -> task:task -> commit Merge.t
+      val merge: t -> info:info -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
       val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
-        [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+        (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
       (** Find the lowest common ancestors
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
 
-      val lca: t -> task:task -> ?max_depth:int -> ?n:int -> commit list ->
+      val lca: t -> info:info -> ?max_depth:int -> ?n:int -> commit list ->
         (commit option, Merge.conflict) result Lwt.t
       (** Compute the lowest common ancestors ancestor of a list of
           commits by recursively calling {!lcas} and merging the
           results.
 
           If one of the merges results in a conflict, or if a call to
-          {!lcas} returns either [`Max_depth_reached] or
-          [`Too_many_lcas] then the function returns [None]. *)
+          {!lcas} returns either [Error `Max_depth_reached] or [Error
+          `Too_many_lcas] then the function returns the same error. *)
 
       val three_way_merge:
-        t -> task:task -> ?max_depth:int -> ?n:int -> commit -> commit ->
+        t -> info:info -> ?max_depth:int -> ?n:int -> commit -> commit ->
         (commit, Merge.conflict) result Lwt.t
       (** Compute the {!lcas} of the two commit and 3-way merge the
           result. *)
@@ -1778,9 +1756,6 @@ module Private: sig
           the history graph. *)
 
       (** {1 Value Types} *)
-
-      val node_t: node Type.t
-      (** [node_t] is the value type for {!node}. *)
 
       val commit_t: commit Type.t
       (** [commit_t] is the value type for {!commit}. *)
@@ -2031,8 +2006,8 @@ module type S = sig
     (** The type of repository handles. *)
 
     val v: config -> t Lwt.t
-    (** [v mk_task config] connects to a repository in a
-        backend-specific manner. *)
+    (** [v config] connects to a repository in a backend-specific
+        manner. *)
 
     val heads: t -> commit list Lwt.t
     (** [heads] is {!Head.list}. *)
@@ -2062,16 +2037,11 @@ module type S = sig
     (** [import t s] imports the contents of the slice [s] in [t]. Does
         not modify branches. *)
 
-    val task_of_commit: t -> commit -> task option Lwt.t
-    (** [task_of_commit t c] is the description of the commit
-        [c]. Useful to retrieve the commit date and the committer
-        name. Return [None] if [c] is not present in [t]. *)
-
   end
 
   val empty: Repo.t -> t Lwt.t
-  (** [empty repo task] is a temporary, empty store. Becomes a
-      normal temporary store after the first update. *)
+  (** [empty repo] is a temporary, empty store. Becomes a normal
+      temporary store after the first update. *)
 
   val master: Repo.t -> t Lwt.t
   (** [master repo] is a persistent store based on [r]'s master
@@ -2106,16 +2076,12 @@ module type S = sig
   (** [status t] is [t]'s status. It can either be a branch, a commit
       or empty. *)
 
+  module Status: Contents.Conv with
+    type t = [ `Empty | `Branch of branch | `Commit of commit ]
+  (** [Status] provides base functions for store statuses. *)
+
   (** Managing the store's heads. *)
   module Head: sig
-
-    val v: Repo.t -> task -> parents:commit list -> tree -> commit Lwt.t
-    (** [v r task ~parents:p t] is the commit [c] such that:
-        {ul
-        {- [Repo.task_of_commit r c = task]}
-        {- [parents (of_commit r c) = p]}
-        {- [tree (of_commit r c) = t]}}
-    *)
 
     val list: Repo.t -> commit list Lwt.t
     (** [list t] is the list of all the heads in local store. Similar
@@ -2158,11 +2124,48 @@ module type S = sig
         is the maximum number of lowest common ancestors. If present,
         [max_depth] or [n] are used to limit the search space of the
         lowest common ancestors (see {!lcas}). *)
-    val merge: into:t -> task -> ?max_depth:int -> ?n:int -> commit ->
+    val merge: into:t -> info -> ?max_depth:int -> ?n:int -> commit ->
       (unit, Merge.conflict) result Lwt.t
 
-    val parents: t -> commit list Lwt.t
-    (** [parents t] are [t]'s parent commits.  *)
+  end
+
+  (** [Commit] defines immutable objects to describe store updates. *)
+  module Commit: sig
+
+    include Contents.S0 with type t = commit
+
+    val pp: t Fmt.t
+    (** [pp] is the pretty-printer for commit. Display only the
+        hash. *)
+
+    val v: Repo.t -> info:info -> parents:commit list -> tree -> commit Lwt.t
+    (** [v r i ~parents:p t] is the commit [c] such that:
+        {ul
+        {- [info c = i]}
+        {- [parents c = p]}
+        {- [tree c = t]}}
+    *)
+
+    val tree: Repo.t -> commit -> tree Lwt.t
+    (** [tree r c] is [c]'s root tree in the repository [r]. *)
+
+    val parents: Repo.t -> commit -> commit list Lwt.t
+    (** [parents c] are [c]'s parents in the repository [r]. *)
+
+    val info: commit -> info Lwt.t
+    (** [info c] is [c]'s info. *)
+
+    (** {1 Import/Export} *)
+
+    module Hash: Hash.S
+    (** [Hash] provides base functions for commit hashes. *)
+
+    val hash: Repo.t -> commit -> Hash.t Lwt.t
+    (** [hash c] it [c]'s hash. *)
+
+    val of_hash: Repo.t -> Hash.t -> commit option Lwt.t
+    (** [of_hash r h] is the the commit object in [r] having [h] as
+        hash, or [None] is no such commit object exists. *)
 
   end
 
@@ -2272,6 +2275,38 @@ module type S = sig
     (** [to_concrete t] is the concrete tree equivalent to the subtree
         [t]. *)
 
+    (** {1 Import/Export. *)
+
+    module Hash: Hash.S
+    (** [Hash] provides base functions for tree hashes. *)
+
+    val hash: Repo.t -> tree -> Hash.t Lwt.t
+    (** [hash r c] it [c]'s hash in the repository [r]. *)
+
+    val of_hash: Repo.t -> Hash.t -> tree option Lwt.t
+    (** [of_hash r h] is the the tree object in [r] having [h] as
+        hash, or [None] is no such tree object exists. *)
+
+  end
+
+  (** [Contents] provides base functions for the store's contents. *)
+  module Contents: sig
+
+    include Contents.S with type t = contents
+    (** {1 Import/Export. *)
+
+    (** {1 Import/Export} *)
+
+    module Hash: Hash.S
+    (** [Hash] provides base functions for contents hashes. *)
+
+    val hash: Repo.t -> contents -> Hash.t Lwt.t
+    (** [hash r c] it [c]'s hash in the repository [r]. *)
+
+    val of_hash: Repo.t -> Hash.t -> contents option Lwt.t
+    (** [of_hash r h] is the the contents object in [r] having [h] as
+        hash, or [None] is no such contents object exists. *)
+
   end
 
   (** {1 Reads} *)
@@ -2305,30 +2340,30 @@ module type S = sig
 
   (** {1 Writes} *)
 
-  val setv: t -> task -> ?parents:commit list -> key -> tree -> unit Lwt.t
-  (** [set t ta ?parents p v] {e replaces} the sub-tree under [p] in
-      the branch [t] by the contents of the tree [v], using the task
-      [ta]. If [parents] is not set, use [t]'s current head as
+  val setv: t -> info -> ?parents:commit list -> key -> tree -> unit Lwt.t
+  (** [set t i ?parents p v] {e replaces} the sub-tree under [p] in
+      the branch [t] by the contents of the tree [v], using the info
+      [i]. If [parents] is not set, use [t]'s current head as
       parent. *)
 
-  val set: t -> task -> ?parents:commit list -> key ->
+  val set: t -> info -> ?parents:commit list -> key ->
     ?metadata:metadata -> contents -> unit Lwt.t
   (** Same as {!setv} but for contents. If [metadata] is not givent
       (default) pre-existing metadata is kept as is. If new metadata
       new to be created and [metadata] is not provided,
       {!Metadata.default} is used. *)
 
-  val mergev: t -> task -> parents:commit list -> ?max_depth:int -> ?n:int ->
+  val mergev: t -> info -> parents:commit list -> ?max_depth:int -> ?n:int ->
     key -> tree -> (unit, Merge.conflict) result Lwt.t
-  (** [mergev t ta ~parents k v] {e merges} the tree [v] with the contents of
+  (** [mergev t i ~parents k v] {e merges} the tree [v] with the contents of
       the sub-tree under [p] in [t]. Merging means applying the 3-way
       merge between [v] and [t]'s sub-tree under [k]. Automatically
       adds the lca to [parents]. If [parents] is not set, use [t]'s
       and the [lca] heads. *)
 
-  val remove: t -> task -> key -> unit Lwt.t
-  (** Same as {!RW.remove} but create a commit with the given
-      task. *)
+  val remove: t -> info -> key -> unit Lwt.t
+  (** [remove t i k] remove the bindings of [k] in [t]. Use the commit
+      info [i] to create update [t]'s head with a new commit. *)
 
   (** {1 Clones} *)
 
@@ -2364,42 +2399,41 @@ module type S = sig
 
   (** {1 Merges and Common Ancestors.} *)
 
-  val merge: into:t -> task -> ?max_depth:int -> ?n:int -> t ->
+  val merge: into:t -> info -> ?max_depth:int -> ?n:int -> t ->
     (unit, Merge.conflict) result Lwt.t
-  (** [merge ~into ta t] merges [t]'s current branch into [x]'s
-      current branch using the task [ta]. After that operation, the
-      two stores are still independent. Similar to [git merge
-      <branch>]. *)
+  (** [merge ~into i t] merges [t]'s current branch into [x]'s current
+      branch using the info [i]. After that operation, the two stores
+      are still independent. Similar to [git merge <branch>]. *)
 
-  val merge_with_branch: t -> task -> ?max_depth:int -> ?n:int -> branch ->
+  val merge_with_branch: t -> info -> ?max_depth:int -> ?n:int -> branch ->
     (unit, Merge.conflict) result Lwt.t
   (** Same as {!merge} but with a branch ID. *)
 
-  val merge_with_commit: t -> task -> ?max_depth:int -> ?n:int -> commit ->
+  val merge_with_commit: t -> info -> ?max_depth:int -> ?n:int -> commit ->
     (unit, Merge.conflict) result Lwt.t
   (** Same as {!merge} but with a commit ID. *)
 
   val lcas: ?max_depth:int -> ?n:int -> t -> t ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
   (** [lca ?max_depth ?n msg t1 t2] returns the collection of least
       common ancestors between the heads of [t1] and [t2] branches.
 
       {ul
       {- [max_depth] is the maximum depth of the exploration (default
-      is [max_int]). Return [`Max_depth_reached] if this depth is
-      exceeded.}
+      is [max_int]). Return [Error `Max_depth_reached] if this depth
+      is exceeded.}
       {- [n] is the maximum expected number of lcas. Stop the
-      exploration as soon as [n] lcas are found. Return
-      [`Too_many_lcas] if more [lcas] are found. }
+      exploration as soon as [n] lcas are found. Return [Error
+      `Too_many_lcas] if more [lcas] are found. }
       }
   *)
 
   val lcas_with_branch: t -> ?max_depth:int -> ?n:int -> branch ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
   (** Same as {!lcas} but takes a branch ID as argument. *)
 
   val lcas_with_commit: t -> ?max_depth:int -> ?n:int -> commit ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
   (** Same as {!lcas} but takes a commit ID as argument. *)
 
   (** {1 History} *)
@@ -2463,16 +2497,6 @@ module type S = sig
   module Key: Path.S with type t = key and type step = step
   (** [Key] provides base functions for the stores's paths. *)
 
-  module Status: Contents.Conv with
-    type t = [ `Empty | `Branch of branch | `Commit of commit ]
-  (** [Status] provides base functions for store statuses. *)
-
-  module Contents: Contents.S with type t = contents
-  (** [Contents] provides base functions for the store's contents. *)
-
-  module Commit: Hash.S with type t = commit
-  (** [Commit] provides base functions for commit identifiers. *)
-
   module Metadata: Metadata.S with type t = metadata
   (** [Metadata] provides base functions for node metadata. *)
 
@@ -2511,24 +2535,21 @@ module type S = sig
   val kinde_t: [`Empty | `Node | `Contents] Type.t
   (** [kind_t] is like {!kind_t} but also allow [`Empty] values. *)
 
-  val lca_t: [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Type.t
+  val lca_t: (commit list, [`Max_depth_reached | `Too_many_lcas]) result Type.t
   (** [lca_t] is the value type for {!lca} results. *)
 
   (** Private functions, which might be used by the backends. *)
   module Private: sig
     include Private.S
       with type Contents.value = contents
-       and type Commit.key = commit
-       and type Node.Metadata.t = metadata
        and module Node.Path = Key
+       and type Commit.key = Commit.Hash.t
+       and type Node.Metadata.t = metadata
+       and type Node.key = Tree.Hash.t
+       and type Contents.key = Contents.Hash.t
        and type Branch.key = branch
        and type Slice.t = slice
        and type Repo.t = Repo.t
-
-    (** {1 Store Nodes vs. Private Nodes}  *)
-
-    val import_node: Repo.t -> Node.key -> node Lwt.t
-    val export_node: Repo.t -> node -> Node.key Lwt.t
   end
 end
 
@@ -2547,7 +2568,9 @@ module type S_MAKER =
        and module Key = P
        and type contents = C.t
        and type branch = B.t
-       and type commit = H.t
+       and type Commit.Hash.t = H.t
+       and type Tree.Hash.t = H.t
+       and type Contents.Hash.t = H.t
 
 (** {2 Synchronization} *)
 
@@ -2587,7 +2610,7 @@ let upstream =
 
 let test () =
   S.Repo.v config
-  >>= fun r  -> S.master r task
+  >>= fun r  -> S.master r info
   >>= fun t  -> Sync.pull_exn (t "Syncing with upstream store") upstream `Update
   >>= fun () -> S.get t ["README.md"]
   >>= fun r  -> Printf.printf "%s\n%!" r; return_unit
@@ -2662,7 +2685,7 @@ let () =
     show here how to use the on-disk [Git] backend on Unix.
 
 {[
-  (* Bring [Irmin_unix.task] and [Irmin_unix.Irmin_git] in scope. *)
+  (* Bring [Irmin_unix.info] and [Irmin_unix.Irmin_git] in scope. *)
   open Irmin_unix
 
   (* Build an Irmin store containing log files. *)
@@ -2697,9 +2720,9 @@ let () =
   let () =
     Lwt_main.run begin
       S.Repo.v config
-      >>= fun r -> S.master r task
+      >>= fun r -> S.master r
       >>= fun t  -> log t "Adding a new log entry"
-      >>= fun () -> Irmin.clone_force task (t "Cloning the store") "x"
+      >>= fun () -> Irmin.clone_force info (t "Cloning the store") "x"
       >>= fun x  -> log x "Adding new stuff to x"
       >>= fun () -> log x "Adding more stuff to x"
       >>= fun () -> log x "More. Stuff. To x."
@@ -2750,7 +2773,7 @@ module type SYNC = sig
   (** Same as {!fetch} but raise [Invalid_argument] if either the
       local or remote store do not have a valid head. *)
 
-  val pull: db -> ?depth:int -> remote -> [`Merge of task | `Update] ->
+  val pull: db -> ?depth:int -> remote -> [`Merge of info | `Update] ->
     (unit, [fetch_error | Merge.conflict]) result Lwt.t
   (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
       also updates [t]'s current branch. [s] is the update strategy:
@@ -2760,7 +2783,7 @@ module type SYNC = sig
       {- [`Update] uses {S.update_head.}}
       } *)
 
-  val pull_exn: db -> ?depth:int -> remote -> [`Merge of task | `Update] ->
+  val pull_exn: db -> ?depth:int -> remote -> [`Merge of info | `Update] ->
     unit Lwt.t
   (** Same as {!pull} but raise {!Merge.Conflict} in case of
       conflict. *)
@@ -2883,7 +2906,9 @@ module Make_ext (P: Private.S): S
   with type key = P.Node.Path.t
    and type contents = P.Contents.value
    and type branch = P.Branch.key
-   and type commit = P.Branch.value
+   and type Commit.Hash.t = P.Commit.key
+   and type Tree.Hash.t = P.Node.key
+   and type Contents.Hash.t = P.Contents.key
    and type step = P.Node.Path.step
    and type metadata = P.Node.Val.metadata
    and type Key.step = P.Node.Path.step
