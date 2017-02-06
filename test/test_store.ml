@@ -24,12 +24,12 @@ let merge_exn msg x = match x with
   | Ok x                -> Lwt.return x
   | Error (`Conflict m) -> failf "%s: %s" msg m
 
-let task msg =
+let info msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let owner = Printf.sprintf "TESTS" in
-  Irmin.Task.v ~date ~owner msg
+  Irmin.Info.v ~date ~owner msg
 
-let taskf fmt = Fmt.kstrf task fmt
+let infof fmt = Fmt.kstrf info fmt
 
 let () = Random.self_init ()
 let random_char () = char_of_int (Random.int 256)
@@ -53,8 +53,8 @@ module Make (S: Test_S) = struct
   let g repo = P.Repo.node_t repo
   let h repo = P.Repo.commit_t repo
 
-  let dummy_task =
-    let t = Irmin.Task.empty in
+  let dummy_info =
+    let t = Irmin.Info.empty in
     fun () -> t
 
   let v1 = long_random_string
@@ -88,12 +88,16 @@ module Make (S: Test_S) = struct
 
   let r1 ~repo =
     n2 ~repo >>= fun kn2 ->
-    History.v (h repo) ~node:kn2 ~parents:[] ~task:Irmin.Task.empty
+    S.Tree.of_hash repo kn2 >>= function
+    | None      -> Alcotest.fail "r1"
+    | Some tree -> S.Commit.v repo ~info:Irmin.Info.empty ~parents:[] tree
 
   let r2 ~repo =
     n3 ~repo >>= fun kn3 ->
     r1 ~repo >>= fun kr1 ->
-    History.v (h repo) ~node:kn3 ~parents:[kr1] ~task:Irmin.Task.empty
+    S.Tree.of_hash repo kn3 >>= function
+    | None    -> Alcotest.fail "r2"
+    | Some t3 -> S.Commit.v repo ~info:Irmin.Info.empty  ~parents:[kr1] t3
 
   let run x test =
     try
@@ -275,9 +279,9 @@ module Make (S: Test_S) = struct
   let test_commits x () =
     let test repo =
 
-      let task date =
-        let i = Int64.of_int date in
-        Irmin.Task.v ~date:i ~owner:"test" "Test commit" ~uid:i
+      let info date =
+        let msg = Fmt.strf "Test commit: %d" date in
+        Irmin.Info.v ~date:(Int64.of_int date) ~owner:"test" msg
       in
 
       kv1 ~repo >>= fun kv1 ->
@@ -293,17 +297,17 @@ module Make (S: Test_S) = struct
       Graph.v g ["b", `Node kt2] >>= fun kt3 ->
 
       (* r1 : t2 *)
-      let with_task n fn = fn h ~task:(task n) in
-      with_task 3 @@ History.v ~node:kt2 ~parents:[] >>= fun kr1 ->
-      with_task 3 @@ History.v ~node:kt2 ~parents:[] >>= fun kr1' ->
+      let with_info n fn = fn h ~info:(info n) in
+      with_info 3 @@ History.v ~node:kt2 ~parents:[] >>= fun (kr1, _) ->
+      with_info 3 @@ History.v ~node:kt2 ~parents:[] >>= fun (kr1',_) ->
       P.Commit.find c kr1  >>= fun t1 ->
       P.Commit.find c kr1' >>= fun t1' ->
       check_val "t1" t1 t1';
       check_key "kr1" kr1 kr1';
 
       (* r1 -> r2 : t3 *)
-      with_task 4 @@ History.v ~node:kt3 ~parents:[kr1] >>= fun kr2 ->
-      with_task 4 @@ History.v ~node:kt3 ~parents:[kr1] >>= fun kr2' ->
+      with_info 4 @@ History.v ~node:kt3 ~parents:[kr1] >>= fun (kr2, _) ->
+      with_info 4 @@ History.v ~node:kt3 ~parents:[kr1] >>= fun (kr2',_) ->
       check_key "kr2" kr2 kr2';
 
       History.closure h ~min:[] ~max:[kr1] >>= fun kr1s ->
@@ -313,16 +317,19 @@ module Make (S: Test_S) = struct
       check_keys "g2" [kr1; kr2] kr2s;
 
       if x.kind = `Git then (
-        S.Git.git_commit repo kr1 >|= function
-        | None   -> Alcotest.fail "cannot read the Git internals"
+        S.Commit.of_hash repo kr1 >>= function
+        | None   -> Alcotest.fail "Cannot read commit hash"
         | Some c ->
-          let name = c.Git.Commit.author.Git.User.name in
-          Alcotest.(check string) "author" "test" name;
+          S.Git.git_commit repo c >|= function
+          | None   -> Alcotest.fail "cannot read the Git internals"
+          | Some c ->
+            let name = c.Git.Commit.author.Git.User.name in
+            Alcotest.(check string) "author" "test" name;
       ) else (
         Lwt.return_unit
       ) >>= fun () ->
 
-      Lwt.return_unit
+        Lwt.return_unit
     in
     run x test
 
@@ -381,13 +388,13 @@ module Make (S: Test_S) = struct
       S.watch ?init:h t (fun v -> check v)
       >>= fun w ->
 
-      S.set t (taskf "update") key v1 >>= fun () ->
+      S.set t (infof "update") key v1 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 1 " ^ n) 3 !r) >>= fun () ->
 
       S.Head.find t >>= fun h ->
       old_head := h;
 
-      S.set t (taskf "update") key v2 >>= fun () ->
+      S.set t (infof "update") key v2 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 2 " ^ n) 6 !r) >>= fun () ->
 
       S.unwatch u >>= fun () ->
@@ -403,9 +410,9 @@ module Make (S: Test_S) = struct
       >>= fun v ->
       S.watch_key ~init:h t key (fun _ -> incr r; Lwt.return_unit)
       >>= fun w ->
-      S.set t (taskf "update") key v1 >>= fun () ->
+      S.set t (infof "update") key v1 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 3 " ^ n) 9 !r) >>= fun () ->
-      S.set t (taskf "update") key v2 >>= fun () ->
+      S.set t (infof "update") key v2 >>= fun () ->
       retry (fun n -> Alcotest.(check int) ("watch 4 " ^ n) 12 !r) >>= fun () ->
       S.unwatch u >>= fun () ->
       S.unwatch v >>= fun () ->
@@ -539,7 +546,7 @@ module Make (S: Test_S) = struct
       let v1 = "X1" in
       let v2 = "X2" in
 
-      S.set t1 (taskf "update") ["a";"b"] v1 >>= fun () ->
+      S.set t1 (infof "update") ["a";"b"] v1 >>= fun () ->
       S.Branch.remove repo S.Branch.master >>= fun () ->
       State.check "init" (0, 0) (0, 0, 0) state >>= fun () ->
 
@@ -547,21 +554,21 @@ module Make (S: Test_S) = struct
 
       State.check "watches on" (1, 0) (0, 0, 0) state >>= fun () ->
 
-      S.set t1 (taskf "update") ["a";"b"] v1 >>= fun () ->
+      S.set t1 (infof "update") ["a";"b"] v1 >>= fun () ->
       State.check "watches adds" (1, 1) (100, 0, 0) state >>= fun () ->
 
-      S.set t2 (taskf "update") ["a";"c"] v1 >>= fun () ->
+      S.set t2 (infof "update") ["a";"c"] v1 >>= fun () ->
       State.check "watches updates" (1, 1) (100, 100, 0) state >>= fun () ->
 
       S.Branch.remove repo S.Branch.master >>= fun () ->
       State.check "watches removes" (1, 1) (100, 100, 100) state >>= fun () ->
 
       Lwt_list.iter_s (fun f -> S.unwatch f) !stops_0 >>= fun () ->
-      S.set t2 (taskf "update") ["a"] v1 >>= fun () ->
+      S.set t2 (infof "update") ["a"] v1 >>= fun () ->
       State.check "watches half off" (1, 1) (150, 100, 100) state  >>= fun () ->
 
       Lwt_list.iter_s (fun f -> S.unwatch f) !stops_1 >>= fun () ->
-      S.set t1 (taskf "update") ["a"] v2 >>= fun () ->
+      S.set t1 (infof "update") ["a"] v2 >>= fun () ->
       State.check "watches off" (0, 0) (150, 100, 100) state >>= fun () ->
 
       Logs.debug (fun f -> f "WATCH-ALL");
@@ -595,26 +602,26 @@ module Make (S: Test_S) = struct
       let path3 = ["a"; "b"; "d"] in
       let add = State.apply "branch-key" state `Add (fun _ ->
           let v = "" in
-          S.set t1 (taskf "set1") path1 v >>= fun () ->
-          S.set t1 (taskf "set2") path2 v >>= fun () ->
-          S.set t1 (taskf "set3") path3 v >>= fun () ->
+          S.set t1 (infof "set1") path1 v >>= fun () ->
+          S.set t1 (infof "set2") path2 v >>= fun () ->
+          S.set t1 (infof "set3") path3 v >>= fun () ->
           Lwt.return_unit
         ) in
       let update = State.apply "branch-key" state `Update (fun n ->
           let v = string_of_int n in
-          S.set t2 (taskf "update1") path1 v >>= fun () ->
-          S.set t2 (taskf "update2") path2 v >>= fun () ->
-          S.set t2 (taskf "update3") path3 v >>= fun () ->
+          S.set t2 (infof "update1") path1 v >>= fun () ->
+          S.set t2 (infof "update2") path2 v >>= fun () ->
+          S.set t2 (infof "update3") path3 v >>= fun () ->
           Lwt.return_unit
         ) in
       let remove = State.apply "branch-key" state `Remove (fun _ ->
-          S.remove t1 (taskf "remove1") path1 >>= fun () ->
-          S.remove t1 (taskf "remove2") path2 >>= fun () ->
-          S.remove t1 (taskf "remove3") path3 >>= fun () ->
+          S.remove t1 (infof "remove1") path1 >>= fun () ->
+          S.remove t1 (infof "remove2") path2 >>= fun () ->
+          S.remove t1 (infof "remove3") path3 >>= fun () ->
           Lwt.return_unit
         ) in
 
-      S.remove t1 (taskf "clean") [] >>= fun () ->
+      S.remove t1 (infof "clean") [] >>= fun () ->
 
       S.watch_key t1 path1 (State.process state) >>= fun u ->
 
@@ -637,14 +644,14 @@ module Make (S: Test_S) = struct
           let path1 = ["a"; "b"; "c"; string_of_int n; "1"] in
           let path2 = ["a"; "x"; "c"; string_of_int n; "1"] in
           let path3 = ["a"; "y"; "c"; string_of_int n; "1"] in
-          S.set t2 (taskf "update1") path1 v >>= fun () ->
-          S.set t2 (taskf "update2") path2 v >>= fun () ->
-          S.set t2 (taskf "update3") path3 v >>= fun () ->
+          S.set t2 (infof "update1") path1 v >>= fun () ->
+          S.set t2 (infof "update2") path2 v >>= fun () ->
+          S.set t2 (infof "update3") path3 v >>= fun () ->
           Lwt.return_unit
         ) in
 
-      S.remove t1 (taskf "remove") ["a"] >>= fun () ->
-      S.set t1 (taskf "prepare") ["a";"b";"c"] "" >>= fun () ->
+      S.remove t1 (infof "remove") ["a"] >>= fun () ->
+      S.set t1 (infof "prepare") ["a";"b";"c"] "" >>= fun () ->
 
       S.Head.get t1 >>= fun h ->
       S.watch_key t2 ~init:h ["a";"b"] (State.process state) >>= fun u ->
@@ -738,68 +745,67 @@ module Make (S: Test_S) = struct
       Graph.list g k4 >>= fun succ ->
       checks succ_t "k4"[ ("b", `Node k1); ("c", `Node k1) ] succ;
 
-      let task date =
+      let info date =
         let i = Int64.of_int date in
-        Irmin.Task.v ~date:i ~uid:i ~owner:"test" "Test commit"
+        Irmin.Info.v ~date:i ~owner:"test" "Test commit"
       in
 
       let h = h repo and c = P.Repo.commit_t repo in
-      let with_task n fn = fn h ~task:(task n) in
+      let with_info n fn = fn h ~info:(info n) in
 
-      with_task 0 @@ History.v ~node:k0 ~parents:[] >>= fun kr0 ->
-      with_task 1 @@ History.v ~node:k2 ~parents:[kr0] >>= fun kr1 ->
-      with_task 2 @@ History.v ~node:k3 ~parents:[kr0] >>= fun kr2 ->
-      with_task 3 (fun h ~task ->
-          Irmin.Merge.f @@ History.merge h ~task
+      with_info 0 @@ History.v ~node:k0 ~parents:[] >>= fun (kr0, _) ->
+      with_info 1 @@ History.v ~node:k2 ~parents:[kr0] >>= fun (kr1, _) ->
+      with_info 2 @@ History.v ~node:k3 ~parents:[kr0] >>= fun (kr2, _) ->
+      with_info 3 (fun h ~info ->
+          Irmin.Merge.f @@ History.merge h ~info
         ) ~old:(old kr0) kr1 kr2 >>= fun kr3 ->
       merge_exn "kr3" kr3 >>= fun kr3 ->
 
-      with_task 4 (fun h ~task ->
-          Irmin.Merge.f @@ History.merge h ~task
+      with_info 4 (fun h ~info ->
+          Irmin.Merge.f @@ History.merge h ~info
         ) ~old:(old kr2) kr2 kr3 >>= fun kr3_id' ->
       merge_exn "kr3_id'" kr3_id' >>= fun kr3_id' ->
-      check S.Commit.t "kr3 id with immediate parent'" kr3 kr3_id';
+      check S.Commit.Hash.t "kr3 id with immediate parent'" kr3 kr3_id';
 
-      with_task 5 (fun h ~task ->
-          Irmin.Merge.f @@ History.merge h ~task
+      with_info 5 (fun h ~info ->
+          Irmin.Merge.f @@ History.merge h ~info
         ) ~old:(old kr0) kr0 kr3 >>= fun kr3_id ->
       merge_exn "kr3_id" kr3_id >>= fun kr3_id ->
-      check S.Commit.t "kr3 id with old parent" kr3 kr3_id;
+      check S.Commit.Hash.t "kr3 id with old parent" kr3 kr3_id;
 
-      with_task 3 @@ History.v ~node:k4 ~parents:[kr1; kr2] >>= fun kr3' ->
+      with_info 3 @@ History.v ~node:k4 ~parents:[kr1; kr2] >>= fun (kr3', _) ->
 
       P.Commit.find c kr3 >>= fun r3 ->
       P.Commit.find c kr3' >>= fun r3' ->
       check T.(option P.Commit.Val.t) "r3" r3 r3';
-      check S.Commit.t "kr3" kr3 kr3';
+      check S.Commit.Hash.t "kr3" kr3 kr3';
       Lwt.return_unit
     in
     run x test
 
   let test_history x () =
     let test repo =
-      let task date =
+      let info date =
         let i = Int64.of_int date in
-        Irmin.Task.v ~date:i ~uid:i ~owner:"test" "Test commit"
+        Irmin.Info.v ~date:i ~owner:"test" "Test commit"
       in
-      let h = h repo in
-      Graph.v (g repo) [] >>= fun node ->
+      let tree = S.Tree.empty in
       let assert_lcas_err msg err l2 =
-        let str = function
+        let err_str = function
           | `Too_many_lcas    -> "Too_many_lcas"
           | `Max_depth_reached -> "Max_depth_reached"
         in
         let l2 = match l2 with
-          | `Ok x -> failf "%s: %a" msg Fmt.Dump.(list S.Commit.pp) x
-          | `Too_many_lcas | `Max_depth_reached as x -> str x
+          | Ok x    -> failf "%s: %a" msg Fmt.Dump.(list S.Commit.pp) x
+          | Error e -> err_str e
         in
-        Alcotest.(check string) msg (str err) l2
+        Alcotest.(check string) msg (err_str err) l2
       in
       let assert_lcas msg l1 l2 =
         let l2 = match l2 with
-          | `Ok x -> x
-          | `Too_many_lcas     -> failf "%s: Too many LCAs" msg
-          | `Max_depth_reached -> failf "%s: max depth reached" msg
+          | Ok x -> x
+          | Error `Too_many_lcas     -> failf "%s: Too many LCAs" msg
+          | Error `Max_depth_reached -> failf "%s: max depth reached" msg
         in
         checks S.Commit.t msg l1 l2
       in
@@ -813,19 +819,17 @@ module Make (S: Test_S) = struct
         assert_lcas_err msg `Max_depth_reached lcas;
         Lwt.return_unit
       in
-      let with_task n fn =
-        fn h ~task:(task n) in
 
       (* test that we don't compute too many lcas
 
          0->1->2->3->4
 
       *)
-      with_task 0 @@ History.v ~node ~parents:[]   >>= fun k0 ->
-      with_task 1 @@ History.v ~node ~parents:[k0] >>= fun k1 ->
-      with_task 2 @@ History.v ~node ~parents:[k1] >>= fun k2 ->
-      with_task 3 @@ History.v ~node ~parents:[k2] >>= fun k3 ->
-      with_task 4 @@ History.v ~node ~parents:[k3] >>= fun k4 ->
+      S.Commit.v repo ~info:(info 0) ~parents:[]   tree >>= fun k0 ->
+      S.Commit.v repo ~info:(info 1) ~parents:[k0] tree >>= fun k1 ->
+      S.Commit.v repo ~info:(info 2) ~parents:[k1] tree >>= fun k2 ->
+      S.Commit.v repo ~info:(info 3) ~parents:[k2] tree >>= fun k3 ->
+      S.Commit.v repo ~info:(info 4) ~parents:[k3] tree >>= fun k4 ->
 
       assert_lcas "line lcas 1" ~max_depth:0 3 k3 k4 [k3] >>= fun () ->
       assert_lcas "line lcas 2" ~max_depth:1 3 k2 k4 [k2] >>= fun () ->
@@ -840,14 +844,14 @@ module Make (S: Test_S) = struct
              \--->12-->14-->16-->17
 
       *)
-      with_task 10 @@ History.v ~node ~parents:[k4]       >>= fun k10 ->
-      with_task 11 @@ History.v ~node ~parents:[k10]      >>= fun k11 ->
-      with_task 12 @@ History.v ~node ~parents:[k10]      >>= fun k12 ->
-      with_task 13 @@ History.v ~node ~parents:[k11]      >>= fun k13 ->
-      with_task 14 @@ History.v ~node ~parents:[k12]      >>= fun k14 ->
-      with_task 15 @@ History.v ~node ~parents:[k12; k13] >>= fun k15 ->
-      with_task 16 @@ History.v ~node ~parents:[k14]      >>= fun k16 ->
-      with_task 17 @@ History.v ~node ~parents:[k11; k16] >>= fun k17 ->
+      S.Commit.v repo ~info:(info 10) ~parents:[k4]       tree >>= fun k10 ->
+      S.Commit.v repo ~info:(info 11) ~parents:[k10]      tree >>= fun k11 ->
+      S.Commit.v repo ~info:(info 12) ~parents:[k10]      tree >>= fun k12 ->
+      S.Commit.v repo ~info:(info 13) ~parents:[k11]      tree >>= fun k13 ->
+      S.Commit.v repo ~info:(info 14) ~parents:[k12]      tree >>= fun k14 ->
+      S.Commit.v repo ~info:(info 15) ~parents:[k12; k13] tree >>= fun k15 ->
+      S.Commit.v repo ~info:(info 16) ~parents:[k14]      tree >>= fun k16 ->
+      S.Commit.v repo ~info:(info 17) ~parents:[k11; k16] tree >>= fun k17 ->
 
       assert_lcas "x lcas 0" ~max_depth:0 5 k10 k10 [k10]      >>= fun () ->
       assert_lcas "x lcas 1" ~max_depth:0 5 k14 k14 [k14]      >>= fun () ->
@@ -866,13 +870,13 @@ module Make (S: Test_S) = struct
                  |        \--|--/
                  \-----------/
       *)
-      with_task 10 @@ History.v ~node ~parents:[k4]      >>= fun k10 ->
-      with_task 11 @@ History.v ~node ~parents:[k10]     >>= fun k11 ->
-      with_task 12 @@ History.v ~node ~parents:[k11]     >>= fun k12 ->
-      with_task 13 @@ History.v ~node ~parents:[k12]     >>= fun k13 ->
-      with_task 14 @@ History.v ~node ~parents:[k11;k13] >>= fun k14 ->
-      with_task 15 @@ History.v ~node ~parents:[k13;k14] >>= fun k15 ->
-      with_task 16 @@ History.v ~node ~parents:[k11]     >>= fun k16 ->
+      S.Commit.v repo ~info:(info 10) ~parents:[k4]      tree >>= fun k10 ->
+      S.Commit.v repo ~info:(info 11) ~parents:[k10]     tree >>= fun k11 ->
+      S.Commit.v repo ~info:(info 12) ~parents:[k11]     tree >>= fun k12 ->
+      S.Commit.v repo ~info:(info 13) ~parents:[k12]     tree >>= fun k13 ->
+      S.Commit.v repo ~info:(info 14) ~parents:[k11;k13] tree >>= fun k14 ->
+      S.Commit.v repo ~info:(info 15) ~parents:[k13;k14] tree >>= fun k15 ->
+      S.Commit.v repo ~info:(info 16) ~parents:[k11]     tree >>= fun k16 ->
 
       assert_lcas "weird lcas 1" ~max_depth:0 3 k14 k15 [k14] >>= fun () ->
       assert_lcas "weird lcas 2" ~max_depth:0 3 k13 k15 [k13] >>= fun () ->
@@ -907,7 +911,7 @@ module Make (S: Test_S) = struct
       S.Head.find t >>= fun h ->
       check T.(option S.Commit.t) "empty" None h;
       r1 ~repo >>= fun r1 ->
-      S.set t (dummy_task ()) ["b"; "x"] v1 >>= fun () ->
+      S.set t (dummy_info ()) ["b"; "x"] v1 >>= fun () ->
       S.Head.find t >>= fun h ->
       check T.(option S.Commit.t) "not empty" (Some r1) h;
       Lwt.return_unit
@@ -919,8 +923,8 @@ module Make (S: Test_S) = struct
       S.master repo >>= fun t ->
       let a = "" in
       let b = "haha" in
-      S.set t (taskf "slice") ["x";"a"] a >>= fun () ->
-      S.set t (taskf "slice") ["x";"b"] b >>= fun () ->
+      S.set t (infof "slice") ["x";"a"] a >>= fun () ->
+      S.set t (infof "slice") ["x";"b"] b >>= fun () ->
       S.Repo.export repo >>= fun slice ->
       let str = Fmt.(to_to_string @@ T.pp_json P.Slice.t) slice in
       let slice' =
@@ -942,18 +946,18 @@ module Make (S: Test_S) = struct
       let vx = "VX" in
       let vy = "VY" in
       S.master repo >>= fun t ->
-      S.set t (taskf "add x/y/z") ["x";"y";"z"] vx >>= fun () ->
+      S.set t (infof "add x/y/z") ["x";"y";"z"] vx >>= fun () ->
       S.getv t ["x"] >>= fun view ->
-      S.setv t (taskf "update") ["u"] view >>= fun () ->
+      S.setv t (infof "update") ["u"] view >>= fun () ->
       S.find t ["u";"y";"z"] >>= fun vx' ->
       check_val "vx" (Some vx) vx';
 
       S.Head.get t >>= fun head ->
       S.getv t ["u"] >>= fun view ->
-      S.set t (taskf "add u/x/y") ["u";"x";"y"] vy >>= fun () ->
+      S.set t (infof "add u/x/y") ["u";"x";"y"] vy >>= fun () ->
       S.Tree.add view ["x";"z"] vx >>= fun view' ->
 
-      S.mergev t (taskf "merge") ["u"] ~parents:[head] view' >>= fun v ->
+      S.mergev t (infof "merge") ["u"] ~parents:[head] view' >>= fun v ->
       merge_exn "v" v >>= fun () ->
       S.find t ["u";"x";"y"] >>= fun vy' ->
       check_val "vy after merge" (Some vy) vy';
@@ -969,7 +973,7 @@ module Make (S: Test_S) = struct
       let check_val = check T.(option S.contents_t) in
       let check_list = checks T.(pair S.Key.step_t S.kind_t) in
       S.master repo >>= fun t ->
-      S.set t (taskf "init") ["a";"b"] v1 >>= fun () ->
+      S.set t (infof "init") ["a";"b"] v1 >>= fun () ->
       S.clone ~src:t ~dst:"test" >>= fun t ->
       S.mem t ["a";"b"] >>= fun b1 ->
       Alcotest.(check bool) "mem1" true b1;
@@ -981,7 +985,7 @@ module Make (S: Test_S) = struct
       S.Head.get t >>= fun r1 ->
       S.clone ~src:t ~dst:"test" >>= fun t ->
 
-      S.set t (taskf "update") ["a";"c"] v2 >>= fun () ->
+      S.set t (infof "update") ["a";"c"] v2 >>= fun () ->
       S.mem t ["a";"b"] >>= fun b1 ->
       Alcotest.(check bool) "mem3" true b1;
       S.mem t ["a"] >>= fun b2 ->
@@ -993,7 +997,7 @@ module Make (S: Test_S) = struct
       S.find t ["a";"c"] >>= fun v2' ->
       check_val "v1.1" (Some v2) v2';
 
-      S.remove t (taskf "remove") ["a";"b"] >>= fun () ->
+      S.remove t (infof "remove") ["a";"b"] >>= fun () ->
       S.find t ["a";"b"] >>= fun v1''->
       check_val "v1.2" None v1'';
       S.Head.set t r1 >>= fun () ->
@@ -1002,15 +1006,15 @@ module Make (S: Test_S) = struct
       S.list t ["a"] >>= fun ks ->
       check_list "path" ["b", `Contents] ks;
 
-      S.set t (taskf "update2") ["a"; long_random_ascii_string] v1 >>= fun () ->
+      S.set t (infof "update2") ["a"; long_random_ascii_string] v1 >>= fun () ->
 
-      S.remove t (taskf "remove rec") ["a"] >>= fun () ->
+      S.remove t (infof "remove rec") ["a"] >>= fun () ->
       S.list t [] >>= fun dirs ->
       check_list "remove rec" [] dirs;
 
       Lwt.catch
         (fun () ->
-           S.set t (taskf "update root") [] v1 >>= fun () ->
+           S.set t (infof "update root") [] v1 >>= fun () ->
            Alcotest.fail "update root")
         (function
           | Invalid_argument _ -> Lwt.return_unit
@@ -1019,23 +1023,23 @@ module Make (S: Test_S) = struct
       S.find t [] >>= fun none ->
       check_val "read root" none None;
 
-      S.set t (taskf "update") ["a"] v1 >>= fun () ->
-      S.remove t (taskf "remove rec --all") [] >>= fun () ->
+      S.set t (infof "update") ["a"] v1 >>= fun () ->
+      S.remove t (infof "remove rec --all") [] >>= fun () ->
       S.list t [] >>= fun dirs ->
       check_list "remove rec root" [] dirs;
 
       let a = "ok" in
       let b = "maybe?" in
 
-      S.set t (taskf "fst one") ["fst"] a        >>= fun () ->
-      S.set t (taskf "snd one") ["fst"; "snd"] b >>= fun () ->
+      S.set t (infof "fst one") ["fst"] a        >>= fun () ->
+      S.set t (infof "snd one") ["fst"; "snd"] b >>= fun () ->
 
       S.find t ["fst"] >>= fun fst ->
       check_val "data model 1" None fst;
       S.find t ["fst"; "snd"] >>= fun snd ->
       check_val "data model 2" (Some b) snd;
 
-      S.set t (taskf "fst one") ["fst"] a >>= fun () ->
+      S.set t (infof "fst one") ["fst"] a >>= fun () ->
 
       S.find t ["fst"] >>= fun fst ->
       check_val "data model 3" (Some a) fst;
@@ -1050,7 +1054,7 @@ module Make (S: Test_S) = struct
       S.Branch.remove repo tagx >>= fun () ->
       S.Branch.remove repo tagy >>= fun () ->
 
-      S.set tx (taskf "update") xy vx >>= fun () ->
+      S.set tx (infof "update") xy vx >>= fun () ->
       S.clone ~src:tx ~dst:tagy >>= fun ty ->
       S.find ty xy >>= fun vx' ->
       check_val "update tag" (Some vx) vx';
@@ -1080,8 +1084,9 @@ module Make (S: Test_S) = struct
       S.Tree.remove v1 ["foo";"1"] >>= fun v1 ->
       S.Tree.remove v1 ["foo";"2"] >>= fun v1 ->
 
-      S.setv t (taskf "empty view") [] v1 >>= fun () ->
-      S.Head.get t >>= fun head   ->
+      S.setv t (infof "empty view") [] v1 >>= fun () ->
+      S.Head.get t >>= fun head ->
+      S.Commit.hash repo head >>= fun head ->
       P.Commit.find (ct repo) head >>= fun commit ->
       let node = P.Commit.Val.node (get commit) in
       P.Node.find (n repo) node >>= fun node ->
@@ -1148,8 +1153,8 @@ module Make (S: Test_S) = struct
         ) v0 nodes >>= fun v0 ->
       check_view v0 >>= fun () ->
 
-      S.setv t (taskf "update_path b/") ["b"] v0 >>= fun () ->
-      S.setv t (taskf "update_path a/") ["a"] v0 >>= fun () ->
+      S.setv t (infof "update_path b/") ["b"] v0 >>= fun () ->
+      S.setv t (infof "update_path a/") ["a"] v0 >>= fun () ->
 
       S.list t ["b";"foo"] >>= fun ls ->
       check_ls "path2" [ "1", `Contents; "2", `Contents] ls;
@@ -1162,9 +1167,9 @@ module Make (S: Test_S) = struct
       S.getv t ["b"] >>= fun v1 ->
       check_view v1 >>= fun () ->
 
-      S.set t (taskf "update b/x") ["b";"x"] foo1 >>= fun () ->
+      S.set t (infof "update b/x") ["b";"x"] foo1 >>= fun () ->
       S.Tree.add v1 ["y"] foo2 >>= fun v1 ->
-      S.mergev t (taskf "merge_path") ~parents:[head] ["b"] v1 >>=
+      S.mergev t (infof "merge_path") ~parents:[head] ["b"] v1 >>=
       merge_exn "merge_path" >>= fun () ->
       S.findm t ["b";"x"] >>= fun foo1' ->
       S.findm t ["b";"y"] >>= fun foo2' ->
@@ -1182,26 +1187,25 @@ module Make (S: Test_S) = struct
       S.getv t ["b"] >>= fun v2 ->
       S.Tree.findm v2 ["foo"; "1"] >>= fun _ ->
       S.Tree.add v2 ["foo"; "1"] foo2 >>= fun v2 ->
-      S.setv t (taskf"v2") ["b"] v2 >>= fun () ->
+      S.setv t (infof"v2") ["b"] v2 >>= fun () ->
       S.findm t ["b";"foo";"1"] >>= fun foo2' ->
       check_val "update view" (normal foo2) foo2';
 
       S.getv t ["b"] >>= fun v3 ->
       S.Tree.findm v3 ["foo"; "1"] >>= fun _ ->
       S.Tree.remove v3 ["foo"; "1"] >>= fun v3 ->
-      S.setv t (taskf "v3") ["b"] v3 >>= fun () ->
+      S.setv t (infof "v3") ["b"] v3 >>= fun () ->
       S.findm t ["b";"foo";"1"] >>= fun foo2' ->
       check_val "remove view" None foo2';
 
       r1 ~repo >>= fun r1 ->
       r2 ~repo >>= fun r2 ->
-      let ta = Irmin.Task.empty in
-
-      S.setv t Irmin.Task.empty ~parents:[r1;r2] [] v3 >>= fun () ->
+      let i0 = Irmin.Info.empty in
+      S.setv t Irmin.Info.empty ~parents:[r1;r2] [] v3 >>= fun () ->
       S.Head.get t >>= fun h ->
 
-      S.Repo.task_of_commit repo h >>= fun ta' ->
-      check T.(option Irmin.Task.t) "task" (Some ta) ta';
+      S.Commit.info h >>= fun i ->
+      check Irmin.Info.t "commit info" i0 i;
 
       S.of_commit repo h >>= fun tt ->
       S.history tt >>= fun g ->
@@ -1213,14 +1217,14 @@ module Make (S: Test_S) = struct
 
       let vx = "VX" in
       let px = ["x";"y";"z"] in
-      S.set tt (taskf "update") px vx >>= fun () ->
+      S.set tt (infof "update") px vx >>= fun () ->
       S.getv tt [] >>= fun view ->
       S.Tree.findm view px >>= fun vx' ->
       check_val "updates" (normal vx) vx';
 
       S.Tree.empty |> fun v ->
       S.Tree.add v [] vx >>= fun v ->
-      S.setv t (taskf "update file as view") ["a"] v >>= fun () ->
+      S.setv t (infof "update file as view") ["a"] v >>= fun () ->
       S.findm t ["a"] >>= fun vx' ->
       check_val "update file as view" (normal vx) vx';
 
@@ -1234,12 +1238,12 @@ module Make (S: Test_S) = struct
     let test repo =
       S.master repo >>= fun t1 ->
 
-      S.set t1 (taskf "update a/b") ["a";"b"] v1 >>= fun () ->
+      S.set t1 (infof "update a/b") ["a";"b"] v1 >>= fun () ->
       S.Head.get t1 >>= fun h ->
       S.Head.get t1 >>= fun _r1 ->
-      S.set t1 (taskf "update a/c") ["a";"c"] v2 >>= fun () ->
+      S.set t1 (infof "update a/c") ["a";"c"] v2 >>= fun () ->
       S.Head.get t1 >>= fun r2 ->
-      S.set t1 (taskf "update a/d") ["a";"d"] v1 >>= fun () ->
+      S.set t1 (infof "update a/d") ["a";"d"] v1 >>= fun () ->
       S.Head.get t1 >>= fun _r3 ->
 
       S.history t1 ~min:[h] >>= fun h ->
@@ -1301,20 +1305,20 @@ module Make (S: Test_S) = struct
 
       S.master repo >>= fun t1 ->
 
-      S.set t1 (taskf "update a/b/a") ["a";"b";"a"] v1 >>= fun () ->
-      S.set t1 (taskf "update a/b/b") ["a";"b";"b"] v2 >>= fun () ->
-      S.set t1 (taskf "update a/b/c") ["a";"b";"c"] v3 >>= fun () ->
+      S.set t1 (infof "update a/b/a") ["a";"b";"a"] v1 >>= fun () ->
+      S.set t1 (infof "update a/b/b") ["a";"b";"b"] v2 >>= fun () ->
+      S.set t1 (infof "update a/b/c") ["a";"b";"c"] v3 >>= fun () ->
 
       let test = "test" in
 
       S.clone ~src:t1 ~dst:test >>= fun t2 ->
 
-      S.set t1 (taskf "update master:a/b/b") ["a";"b";"b"] v1 >>= fun () ->
-      S.set t1 (taskf "update master:a/b/b") ["a";"b";"b"] v3 >>= fun () ->
-      S.set t2 (taskf "update test:a/b/c")   ["a";"b";"c"] v1 >>= fun () ->
+      S.set t1 (infof "update master:a/b/b") ["a";"b";"b"] v1 >>= fun () ->
+      S.set t1 (infof "update master:a/b/b") ["a";"b";"b"] v3 >>= fun () ->
+      S.set t2 (infof "update test:a/b/c")   ["a";"b";"c"] v1 >>= fun () ->
 
       output_file t1 "before" >>= fun () ->
-      S.merge (taskf "merge test into master") t2 ~into:t1 >>= fun m ->
+      S.merge (infof "merge test into master") t2 ~into:t1 >>= fun m ->
       merge_exn "m" m >>= fun () ->
       output_file t1 "after" >>= fun () ->
 
@@ -1335,9 +1339,9 @@ module Make (S: Test_S) = struct
     let v1 = "X1" in
     S.of_branch repo "foo" >>= fun foo ->
     S.of_branch repo "bar" >>= fun bar ->
-    S.set foo (taskf "update foo:a") ["a"] v1 >>= fun () ->
-    S.set bar (taskf "update bar:b") ["b"] v1 >>= fun () ->
-    S.merge (taskf "merge bar into foo") bar ~into:foo >>=
+    S.set foo (infof "update foo:a") ["a"] v1 >>= fun () ->
+    S.set bar (infof "update bar:b") ["b"] v1 >>= fun () ->
+    S.merge (infof "merge bar into foo") bar ~into:foo >>=
     merge_exn "merge unrelated"
 
   let rec write fn = function
@@ -1387,7 +1391,7 @@ module Make (S: Test_S) = struct
       let v = "X1" in
       S.master repo >>= fun t1 ->
       S.master repo >>= fun t2 ->
-      let write t = write (fun i -> S.set t (taskf "update: one %d" i) k v) in
+      let write t = write (fun i -> S.set t (infof "update: one %d" i) k v) in
       let read t =
         read
           (fun _ -> S.get t k)
@@ -1402,7 +1406,7 @@ module Make (S: Test_S) = struct
       S.master repo >>= fun t1 ->
       S.master repo >>= fun t2 ->
       let write t =
-        write (fun i -> S.set t (taskf "update: multi %d" i) (k i) (v i))
+        write (fun i -> S.set t (infof "update: multi %d" i) (k i) (v i))
       in
       let read t =
         read
@@ -1428,9 +1432,9 @@ module Make (S: Test_S) = struct
         write (fun i ->
             let tag = Fmt.strf "tmp-%d-%d" n i in
             S.clone ~src:t ~dst:tag >>= fun m ->
-            S.set m (taskf "update") (k i) (v i) >>= fun () ->
+            S.set m (infof "update") (k i) (v i) >>= fun () ->
             Lwt_unix.yield () >>= fun () ->
-            S.merge (taskf "update: multi %d" i) m ~into:t >>=
+            S.merge (infof "update: multi %d" i) m ~into:t >>=
             merge_exn "update: multi"
           )
       in
@@ -1439,7 +1443,7 @@ module Make (S: Test_S) = struct
           (fun i -> S.get t (k i))
           (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
       in
-      S.set t1 (taskf "update") (k 0) (v 0) >>= fun () ->
+      S.set t1 (infof "update") (k 0) (v 0) >>= fun () ->
       Lwt.join [ write t1 1 10; write t2 2 10 ] >>= fun () ->
       Lwt.join [ read t1 10 ]
     in
@@ -1466,7 +1470,7 @@ module Make (S: Test_S) = struct
             S.Head.find t >>= fun test ->
             let tag = Fmt.strf "tmp-%d-%d" n i in
             S.clone ~src:t ~dst:tag >>= fun m ->
-            S.set m (taskf "update") (k i) (v i) >>= fun () ->
+            S.set m (infof "update") (k i) (v i) >>= fun () ->
             S.Head.find m >>= fun set ->
             Lwt_unix.yield () >>= fun () ->
             S.Head.test_and_set t ~test ~set
@@ -1477,7 +1481,7 @@ module Make (S: Test_S) = struct
           (fun i -> S.get t (k i))
           (fun i -> check S.contents_t (Fmt.strf "update: multi %d" i) (v i))
       in
-      S.set t1 (taskf "update") (k 0) (v 0) >>= fun () ->
+      S.set t1 (infof "update") (k 0) (v 0) >>= fun () ->
       Lwt.join [ write t1 1 5; write t2 2 5 ] >>= fun () ->
       Lwt.join [ read t1 5 ]
     in
