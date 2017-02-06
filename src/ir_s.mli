@@ -168,14 +168,19 @@ module type NODE_STORE = sig
   module Contents: CONTENTS_STORE with type key = Val.contents
 end
 
+type config = Ir_conf.t
+type info = Ir_info.t
+type 'a diff = 'a Ir_diff.t
+module Merge = Ir_merge
+
 module type COMMIT = sig
   type t
   type commit
   type node
-  val v: Ir_task.t -> node:node -> parents:commit list -> t
+  val v: info -> node:node -> parents:commit list -> t
   val node: t -> node
   val parents: t -> commit list
-  val task: t -> Ir_task.t
+  val info: t -> info
   val t: t Type.t
   val commit_t: commit Type.t
   val node_t: node Type.t
@@ -183,7 +188,7 @@ end
 
 module type COMMIT_STORE = sig
   include AO
-  val merge: t -> task:Ir_task.t -> key option Ir_merge.t
+  val merge: t -> info:info -> key option Ir_merge.t
   module Key: HASH with type t = key
   module Val: COMMIT
     with type t = value
@@ -195,18 +200,17 @@ module type COMMIT_HISTORY = sig
   type t
   type node
   type commit
-  val v: t -> node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
-  val node: t -> commit -> node option Lwt.t
+  type v
+  val v: t -> node:node -> parents:commit list -> info:info -> (commit * v) Lwt.t
   val parents: t -> commit -> commit list Lwt.t
-  val merge: t -> task:Ir_task.t -> commit Ir_merge.t
+  val merge: t -> info:info -> commit Ir_merge.t
   val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
-  val lca: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit list ->
+    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
+  val lca: t -> info:info -> ?max_depth:int -> ?n:int -> commit list ->
     (commit option, Ir_merge.conflict) result Lwt.t
-  val three_way_merge: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int ->
+  val three_way_merge: t -> info:info -> ?max_depth:int -> ?n:int ->
     commit -> commit -> (commit, Ir_merge.conflict) result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
-  val node_t: node Type.t
   val commit_t: commit Type.t
 end
 
@@ -289,11 +293,6 @@ module type SYNC = sig
     (unit, push_error) result Lwt.t
 end
 
-type config = Ir_conf.t
-type task = Ir_task.t
-type 'a diff = 'a Ir_diff.t
-module Merge = Ir_merge
-
 module type PRIVATE = sig
   module Contents: CONTENTS_STORE
   module Node: NODE_STORE with type Val.contents = Contents.key
@@ -371,7 +370,6 @@ module type STORE = sig
       ?min:commit list -> ?max:commit list ->
       t -> slice Lwt.t
     val import: t -> slice -> (unit, [`Msg of string]) result Lwt.t
-    val task_of_commit: t -> commit -> task option Lwt.t
   end
   val empty: Repo.t -> t Lwt.t
   val master: Repo.t -> t Lwt.t
@@ -380,8 +378,10 @@ module type STORE = sig
   val repo: t -> Repo.t
   val tree: t -> tree Lwt.t
   val status: t -> [ `Empty | `Branch of branch | `Commit of commit ]
+  module Status: CONV with
+    type t = [ `Empty | `Branch of branch | `Commit of commit ]
+
   module Head: sig
-    val v: Repo.t -> task -> parents:commit list -> tree -> commit Lwt.t
     val list: Repo.t -> commit list Lwt.t
     val find: t -> commit option Lwt.t
     val get: t -> commit Lwt.t
@@ -389,9 +389,19 @@ module type STORE = sig
     val fast_forward: t -> ?max_depth:int -> ?n:int -> commit -> bool Lwt.t
     val test_and_set:
       t -> test:commit option -> set:commit option -> bool Lwt.t
-    val merge: into:t -> task -> ?max_depth:int -> ?n:int -> commit ->
+    val merge: into:t -> info -> ?max_depth:int -> ?n:int -> commit ->
       (unit, Merge.conflict) result Lwt.t
-    val parents: t -> commit list Lwt.t
+  end
+  module Commit: sig
+    include S0 with type t = commit
+    val pp: t Fmt.t
+    val v: Repo.t -> info:info -> parents:commit list -> tree -> commit Lwt.t
+    val tree: Repo.t -> commit -> tree Lwt.t
+    val parents: Repo.t -> commit -> commit list Lwt.t
+    val info: commit -> info Lwt.t
+    module Hash: HASH
+    val hash: Repo.t -> commit -> Hash.t Lwt.t
+    val of_hash: Repo.t -> Hash.t -> commit option Lwt.t
   end
   module Tree: sig
     include TREE with type step := step
@@ -400,6 +410,15 @@ module type STORE = sig
                   and type contents := contents
                   and type node := node
                   and type tree := tree
+    module Hash: HASH
+    val hash: Repo.t -> tree -> Hash.t Lwt.t
+    val of_hash: Repo.t -> Hash.t -> tree option Lwt.t
+  end
+  module Contents: sig
+    include CONTENTS with type t = contents
+    module Hash: HASH
+    val hash: Repo.t -> contents -> Hash.t Lwt.t
+    val of_hash: Repo.t -> Hash.t -> contents option Lwt.t
   end
 
   val kind: t -> key -> [`Contents | `Node | `Empty] Lwt.t
@@ -411,12 +430,12 @@ module type STORE = sig
   val getm: t -> key -> (contents * metadata) Lwt.t
   val get: t -> key -> contents Lwt.t
   val getv: t -> key -> tree Lwt.t
-  val setv: t -> task -> ?parents:commit list -> key -> tree -> unit Lwt.t
-  val set: t -> task -> ?parents:commit list -> key ->
+  val setv: t -> info -> ?parents:commit list -> key -> tree -> unit Lwt.t
+  val set: t -> info -> ?parents:commit list -> key ->
     ?metadata:metadata -> contents -> unit Lwt.t
-  val mergev: t -> task -> parents:commit list -> ?max_depth:int -> ?n:int ->
+  val mergev: t -> info -> parents:commit list -> ?max_depth:int -> ?n:int ->
     key -> tree -> (unit, Merge.conflict) result Lwt.t
-  val remove: t -> task -> key -> unit Lwt.t
+  val remove: t -> info -> key -> unit Lwt.t
   val clone: src:t -> dst:branch -> t Lwt.t
   type watch
   val watch:
@@ -424,18 +443,18 @@ module type STORE = sig
   val watch_key: t -> key -> ?init:commit ->
     ((commit * tree) diff -> unit Lwt.t) -> watch Lwt.t
   val unwatch: watch -> unit Lwt.t
-  val merge: into:t -> task -> ?max_depth:int -> ?n:int -> t ->
+  val merge: into:t -> info -> ?max_depth:int -> ?n:int -> t ->
     (unit, Merge.conflict) result Lwt.t
-  val merge_with_branch: t -> task -> ?max_depth:int -> ?n:int -> branch ->
+  val merge_with_branch: t -> info -> ?max_depth:int -> ?n:int -> branch ->
     (unit, Merge.conflict) result Lwt.t
-  val merge_with_commit: t -> task -> ?max_depth:int -> ?n:int -> commit ->
+  val merge_with_commit: t -> info -> ?max_depth:int -> ?n:int -> commit ->
     (unit, Merge.conflict) result Lwt.t
   val lcas: ?max_depth:int -> ?n:int -> t -> t ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Lwt.t
+    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
   val lcas_with_branch: t -> ?max_depth:int -> ?n:int -> branch ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+    (commit list, [ `Max_depth_reached | `Too_many_lcas]) result Lwt.t
   val lcas_with_commit: t -> ?max_depth:int -> ?n:int -> commit ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas] Lwt.t
+    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
   module History: Graph.Sig.P with type V.t = commit
   val history:
     ?depth:int -> ?min:commit list -> ?max:commit list -> t ->
@@ -457,10 +476,6 @@ module type STORE = sig
     include BRANCH with type t = branch
   end
   module Key: PATH with type t = key and type step = step
-  module Status: CONV with
-    type t = [ `Empty | `Branch of branch | `Commit of commit ]
-  module Contents: CONTENTS with type t = contents
-  module Commit: HASH with type t = commit
   module Metadata: METADATA with type t = metadata
 
   val step_t: step Type.t
@@ -474,19 +489,19 @@ module type STORE = sig
   val slice_t: slice Type.t
   val kind_t: [`Contents | `Node] Type.t
   val kinde_t: [`Empty | `Contents | `Node] Type.t
-  val lca_t: [`Ok of commit list | `Max_depth_reached | `Too_many_lcas ] Type.t
+  val lca_t: (commit list, [`Max_depth_reached | `Too_many_lcas]) result Type.t
 
   module Private: sig
     include PRIVATE
       with type Contents.value = contents
        and module Node.Path = Key
-       and type Commit.key = commit
+       and type Commit.key = Commit.Hash.t
        and type Node.Metadata.t = metadata
+       and type Node.key = Tree.Hash.t
+       and type Contents.key = Contents.Hash.t
        and type Branch.key = branch
        and type Slice.t = slice
        and type Repo.t = Repo.t
-    val import_node: Repo.t -> Node.key -> node Lwt.t
-    val export_node: Repo.t -> node -> Node.key Lwt.t
   end
 end
 
@@ -501,7 +516,9 @@ module type MAKER =
    and module Key = P
    and type contents = C.t
    and type branch = B.t
-   and type commit = H.t
+   and type Commit.Hash.t = H.t
+   and type Tree.Hash.t = H.t
+   and type Contents.Hash.t = H.t
 
 type remote =
   | Store: (module STORE with type t = 'a) * 'a -> remote
@@ -519,9 +536,9 @@ module type SYNC_STORE = sig
   val fetch: db -> ?depth:int -> remote ->
     (commit, fetch_error) result Lwt.t
   val fetch_exn: db -> ?depth:int -> remote -> commit Lwt.t
-  val pull: db -> ?depth:int -> remote -> [`Merge of Ir_task.t|`Update] ->
+  val pull: db -> ?depth:int -> remote -> [`Merge of info|`Update] ->
     (unit, [fetch_error | Ir_merge.conflict]) result Lwt.t
-  val pull_exn: db -> ?depth:int -> remote -> [`Merge of Ir_task.t|`Update] ->
+  val pull_exn: db -> ?depth:int -> remote -> [`Merge of info|`Update] ->
     unit Lwt.t
   val push: db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t
   val push_exn: db -> ?depth:int -> remote -> unit Lwt.t

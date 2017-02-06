@@ -33,7 +33,7 @@ module Branch = struct
   module type S = Ir_s.BRANCH
   module type STORE = Ir_s.BRANCH_STORE
 end
-module Task = Ir_task
+module Info = Ir_info
 module Dot = Ir_dot.Make
 module Hash = struct
   include Ir_hash
@@ -138,7 +138,7 @@ module type RW = Ir_s.RW
 module type TREE = Ir_s.TREE
 module type S = Ir_s.STORE
 
-type task = Task.t
+type info = Info.t
 type config = Ir_conf.t
 type 'a diff = 'a Ir_diff.t
 
