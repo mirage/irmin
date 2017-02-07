@@ -2187,15 +2187,15 @@ module type S = sig
   (** Managing store's trees. *)
 
   module Tree: sig
-    (** [Tree] provides in-memory partial mirror of the store, with
-        lazy reads and delayed writes.
+    (** [Tree] provides immutable, in-memory partial mirror of the
+        store, with lazy reads and delayed writes.
 
-        Trees are like staging area in Git: they are temporary
-        non-persistent areas (they disappear if the host crash), held
-        in memory for efficiency, where reads are done lazily and
-        writes are done only when needed on commit: if you modify a
-        key twice, only the last change will be written to the store
-        when you commit.  *)
+        Trees are like staging area in Git: they are immutable
+        temporary non-persistent areas (they disappear if the host
+        crash), held in memory for efficiency, where reads are done
+        lazily and writes are done only when needed on commit: if you
+        modify a key twice, only the last change will be written to
+        the store when you commit. *)
 
     (** {1 Constructors} *)
 
