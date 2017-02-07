@@ -1940,7 +1940,7 @@ end
 (** Irmin stores. *)
 module type S = sig
 
-  (** {1 IrminSstores}
+  (** {1 Irmin stores}
 
       Irmin stores are tree-like read-write stores with
       extended capabilities. They allow an application (or a
