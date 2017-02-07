@@ -17,7 +17,7 @@
 
 open Result
 
-type 'a parser = string -> ('a, string) result
+type 'a parser = string -> ('a, [`Msg of string]) result
 type 'a printer = 'a Fmt.t
 type 'a converter = 'a parser * 'a printer
 
@@ -38,11 +38,11 @@ end
 
 let bool =
   (fun s -> try Ok (bool_of_string s) with Invalid_argument _ ->
-     Error (Err.invalid_val s (Err.alts ["true"; "false"]))),
+     Error (`Msg (Err.invalid_val s (Err.alts ["true"; "false"])))),
   Fmt.bool
 
 let parse_with t_of_str exp s =
-  try Ok (t_of_str s) with Failure _ -> Error (Err.invalid_val s exp)
+  try Ok (t_of_str s) with Failure _ -> Error (`Msg (Err.invalid_val s exp))
 
 let int = parse_with int_of_string "expected an integer", Fmt.int
 

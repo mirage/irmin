@@ -77,8 +77,8 @@ struct
 
   let value v =
     match V.of_string (Cstruct.to_string v) with
-    | Ok v    -> Some v
-    | Error e ->
+    | Ok v           -> Some v
+    | Error (`Msg e) ->
       Log.err (fun l -> l "Irmin_fs.value %s" e);
       None
 
@@ -99,8 +99,8 @@ struct
         ) files
     in
     List.fold_left (fun acc file -> match K.of_string (S.key_of_file file) with
-        | Ok k    -> k :: acc
-        | Error e ->
+        | Ok k           -> k :: acc
+        | Error (`Msg e) ->
           Log.err (fun l -> l "Irmin_fs.list: %s" e);
           acc
       ) [] files
@@ -189,8 +189,8 @@ struct
   let listen_dir t =
     let dir = S.dir t.t.RO.path in
     let key file = match K.of_string file with
-      | Ok t    -> Some t
-      | Error e ->
+      | Ok t           -> Some t
+      | Error (`Msg e) ->
         Log.err (fun l -> l "listen_dir: %s" e);
         None
     in

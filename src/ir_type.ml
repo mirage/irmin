@@ -676,7 +676,7 @@ module Decode_json = struct
     d: Jsonm.decoder;
   }
 
-  type 'a decode = decoder -> ('a, string) result
+  type 'a decode = decoder -> ('a, [`Msg of string]) result
 
   let decoder d = { lexemes = []; d }
   let of_lexemes lexemes = { lexemes; d = Jsonm.decoder (`String "") }
@@ -688,7 +688,7 @@ module Decode_json = struct
     | [] ->
       match Jsonm.decode e.d with
       | `Lexeme e     -> Ok e
-      | `Error e      -> Error (Fmt.to_to_string Jsonm.pp_error e)
+      | `Error e      -> Error (`Msg (Fmt.to_to_string Jsonm.pp_error e))
       | `End | `Await -> assert false
 
   let (>>=) l f = match l with
@@ -701,9 +701,9 @@ module Decode_json = struct
 
   let error e got expected =
     let _, (l, c) = Jsonm.decoded_range e.d in
-    Error (Fmt.strf
-             "line %d, character %d:\nFound lexeme %a, but \
-              lexeme %s was expected" l c Jsonm.pp_lexeme got expected)
+    Error (`Msg (Fmt.strf
+                   "line %d, character %d:\nFound lexeme %a, but \
+                    lexeme %s was expected" l c Jsonm.pp_lexeme got expected))
 
   let expect_lexeme e expected =
     lexeme e >>= fun got ->
@@ -832,8 +832,8 @@ module Decode_json = struct
       | l   -> error e l "`Record-contents"
     in
     soup [] >>= fun soup ->
-    let rec aux: type a b. (a, b) fields -> b -> (a, string) result = fun f c ->
-      match f with
+    let rec aux: type a b. (a, b) fields -> b -> (a, [`Msg of string]) result =
+      fun f c -> match f with
       | F0        -> Ok c
       | F1 (h, f) ->
         let v =
@@ -845,7 +845,7 @@ module Decode_json = struct
           match h.ftype with
           | Option _ -> Ok None
           | _        ->
-            Error (Fmt.strf "missing value for %s.%s" r.rname h.fname)
+            Error (`Msg (Fmt.strf "missing value for %s.%s" r.rname h.fname))
         in
         match v with
         | Ok v         -> aux f (c v)
@@ -863,7 +863,10 @@ module Decode_json = struct
   and case0: type a. string -> a variant -> a decode = fun s v _e ->
     let rec aux i = match v.vcases.(i) with
       | C0 c when String.compare c.cname0 s = 0 -> Ok c.c0
-      | _ -> if i < Array.length v.vcases then aux (i+1) else Error "variant"
+      | _ ->
+        if i < Array.length v.vcases
+        then aux (i+1)
+        else Error (`Msg "variant")
     in
     aux 0
 
@@ -872,7 +875,10 @@ module Decode_json = struct
     | `Name s ->
       let rec aux i = match v.vcases.(i) with
         | C1 c when String.compare c.cname1 s = 0 -> t c.ctype1 e >|= c.c1
-        | _ -> if i < Array.length v.vcases then aux (i+1) else Error "variant"
+        | _ ->
+          if i < Array.length v.vcases
+          then aux (i+1)
+          else Error (`Msg "variant")
       in
       aux 0 >>= fun c ->
       expect_lexeme e `Oe >|= fun () ->

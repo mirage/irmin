@@ -28,7 +28,7 @@ end
 module type CONV = sig
   include S0
   val pp: t Fmt.t
-  val of_string: string -> (t, string) result
+  val of_string: string -> (t, [`Msg of string]) result
 end
 
 module type RAW = sig
@@ -39,7 +39,7 @@ end
 module type PATH = sig
   type t
   val pp: t Fmt.t
-  val of_string: string -> (t, string) result
+  val of_string: string -> (t, [`Msg of string]) result
   type step
   val empty: t
   val v: step list -> t
@@ -50,7 +50,7 @@ module type PATH = sig
   val rdecons: t -> (t * step) option
   val map: t -> (step -> 'a) -> 'a list
   val pp_step: step Fmt.t
-  val step_of_string: string -> (step, string) result
+  val step_of_string: string -> (step, [`Msg of string]) result
   val t: t Type.t
   val step_t: step Type.t
 end
@@ -58,7 +58,7 @@ end
 module type HASH = sig
   type t
   val pp: t Fmt.t
-  val of_string: string -> (t, string) result
+  val of_string: string -> (t, [`Msg of string]) result
   val digest: Cstruct.t -> t
   val has_kind: [> `SHA1] -> bool
   val to_raw: t -> Cstruct.t
@@ -381,7 +381,7 @@ module type STORE = sig
     type t = [ `Empty | `Branch of branch | `Commit of commit ]
     val t: Repo.t -> t Ir_type.t
     val pp: t Fmt.t
-    val of_string: Repo.t -> string -> (t, string) result
+    val of_string: Repo.t -> string -> (t, [`Msg of string]) result
   end
   val status: t -> Status.t
   module Head: sig
@@ -399,7 +399,7 @@ module type STORE = sig
     type t = commit
     val t: Repo.t -> t Ir_type.t
     val pp: t Fmt.t
-    val of_string: Repo.t -> string -> (t, string) result
+    val of_string: Repo.t -> string -> (t, [`Msg of string]) result
     val v: Repo.t -> info:info -> parents:commit list -> tree -> commit Lwt.t
     val tree: commit -> tree Lwt.t
     val parents: commit -> commit list Lwt.t
