@@ -58,11 +58,11 @@ module Make (P: Ir_s.PRIVATE) = struct
 
     module Hash = P.Commit.Key
 
-    type t = { h: Hash.t; v: P.Commit.value }
+    type t = { r: P.Repo.t; h: Hash.t; v: P.Commit.value }
 
-    let t =
+    let t r =
       let open Ir_type in
-      record "commit" (fun h v -> { h; v })
+      record "commit" (fun h v -> { r; h; v })
       |+ field "hash"  Hash.t         (fun t -> t.h)
       |+ field "value" P.Commit.Val.t (fun t -> t.v)
       |> sealr
@@ -76,23 +76,27 @@ module Make (P: Ir_s.PRIVATE) = struct
       >>= fun node ->
       let v = P.Commit.Val.v info ~node ~parents in
       P.Commit.add (P.Repo.commit_t r) v >|= fun h ->
-      { h; v }
+      { r; h; v }
 
     let node t = P.Commit.Val.node t.v
-    let tree r t = Tree.import r (node t) >|= fun n -> `Node n
-    let equal x y = Ir_type.equal Hash.t x.h y.h
-    let hash _ t = Lwt.return t.h
-    let info t = Lwt.return (P.Commit.Val.info t.v)
+    let tree t = Tree.import t.r (node t) >|= fun n -> `Node n
+    let equal x y = Cstruct.equal (Hash.to_raw x.h) (Hash.to_raw y.h)
+    let hash t = t.h
+    let info t = P.Commit.Val.info t.v
 
     let of_hash r h =
       P.Commit.find (P.Repo.commit_t r) h >|= function
       | None   -> None
-      | Some v -> Some { h; v }
+      | Some v -> Some { r; h; v }
 
-    let parents r t =
-      Lwt_list.filter_map_p (of_hash r) (P.Commit.Val.parents t.v)
+    let parents t =
+      Lwt_list.filter_map_p (of_hash t.r) (P.Commit.Val.parents t.v)
 
     let pp ppf t = Hash.pp ppf t.h
+
+    let of_string repo str =
+      Ir_type.decode_json (t repo) (Jsonm.decoder (`String str))
+
   end
 
   type commit = Commit.t
@@ -299,7 +303,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let master repo = of_branch repo Branch_store.Key.master
   let empty repo = of_ref repo (`Head (ref None))
-  let of_commit repo id = of_ref repo (`Head (ref (Some id)))
+  let of_commit c = of_ref c.Commit.r (`Head (ref (Some c)))
 
   let lift_tree_diff tree fn = function
     | `Removed x ->
@@ -388,7 +392,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let watch_key t key ?init fn =
     Log.info (fun f -> f "watch-key %a" Key.pp key);
-    let tree c = Commit.tree t.repo c >>= fun tree -> Tree.getv tree key in
+    let tree c = Commit.tree c >>= fun tree -> Tree.getv tree key in
     watch t ?init (lift_tree_diff tree fn)
 
   module Head = struct
@@ -405,11 +409,17 @@ module Make (P: Ir_s.PRIVATE) = struct
       | `Head h      -> h := Some c; Lwt.return_unit
       | `Branch name -> Branch_store.set (branch_t t) name c.Commit.h
 
+    let equal_commit_opt x y =
+      match x, y with
+      | None  , None   -> true
+      | Some x, Some y -> Commit.equal x y
+      | _ -> false
+
     let test_and_set_unsafe t ~test ~set =
       match t.head_ref with
       | `Head head ->
         (* [head] is protected by [t.lock]. *)
-        if !head = test then (head := set; Lwt.return true)
+        if equal_commit_opt !head test then (head := set; Lwt.return true)
         else Lwt.return false
       | `Branch name ->
         let h = function None -> None | Some c -> Some c.Commit.h in
@@ -441,7 +451,8 @@ module Make (P: Ir_s.PRIVATE) = struct
           | Error `Max_depth_reached ->
             Log.debug (fun f -> f "ff: max depth reached");
             Lwt.return false
-          | Ok _ -> Lwt.return false
+          | Ok _ ->
+            Lwt.return false
 
     (* Merge two commits:
        - Search for common ancestors
@@ -500,7 +511,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       ) >>= fun node ->
       let parents = List.map (fun c -> c.Commit.h) parents in
       H.v (history_t t) ~node ~parents ~info >>= fun (key, commit) ->
-      let c = { Commit.h = key; v = commit } in
+      let c = { r = t.repo; Commit.h = key; v = commit } in
       match t.head_ref with
       | `Head head ->
         (* [head] is protected by [t.lock] *)
@@ -639,7 +650,7 @@ module Make (P: Ir_s.PRIVATE) = struct
         Commit.of_hash t.repo h >>= function
         | None   -> Lwt.return (Ok None) (* FIXME: what should we raise? *)
         | Some h ->
-          of_commit (repo t) h >>= fun t ->
+          of_commit h >>= fun t ->
           getv t path >|= fun tree ->
           Ok (Some tree)
     in
@@ -665,10 +676,10 @@ module Make (P: Ir_s.PRIVATE) = struct
       let equal x y = Ir_type.equal P.Commit.Key.t x.Commit.h y.Commit.h
     end)
 
-  module Gmap = struct
+  module Gmap  = struct
 
     module Src = Ir_graph.Make
-        (P.Contents.Key)(P.Node.Metadata)(P.Node.Key)(Commit)
+        (P.Contents.Key)(P.Node.Metadata)(P.Node.Key)(P.Commit.Key)
         (Branch_store.Key)
 
     module Dst = struct
@@ -676,15 +687,19 @@ module Make (P: Ir_s.PRIVATE) = struct
       let empty () = empty
     end
 
-    include OCamlGraph.Gmap.Vertex(Src)(Dst)
-
     let filter_map f g =
-      let t = filter_map f g in
+      let t = Dst.empty () in
       Src.fold_edges (fun x y t ->
-          match f x, f y with
-          | Some x, Some y -> Dst.add_edge t x y
+          t >>= fun t ->
+          f x >>= fun x ->
+          f y >|= fun y ->
+          match x,  y with
+          | Some x, Some y ->
+            let t = Dst.add_vertex t x in
+            let t = Dst.add_vertex t y in
+            Dst.add_edge t x y
           | _ -> t
-        ) g t
+        ) g (Lwt.return t)
 
   end
 
@@ -692,18 +707,21 @@ module Make (P: Ir_s.PRIVATE) = struct
     Log.debug (fun f -> f "history");
     let pred = function
       | `Commit k ->
-        H.parents (history_t t) k.Commit.h >>=
+        H.parents (history_t t) k >>=
         Lwt_list.filter_map_p (Commit.of_hash t.repo) >|= fun parents ->
-        List.map (fun x -> `Commit x) parents
+        List.map (fun x -> `Commit x.Commit.h) parents
       | _ -> Lwt.return_nil in
     begin Head.find t >>= function
       | Some h -> Lwt.return [h]
       | None   -> Lwt.return max
     end >>= fun max ->
-    let max = List.map (fun k -> `Commit k) max in
-    let min = List.map (fun k -> `Commit k) min in
-    Gmap.Src.closure ?depth ~min ~max ~pred () >|= fun g ->
-    Gmap.filter_map (function `Commit k -> Some k | _ -> None) g
+    let max = List.map (fun k -> `Commit k.Commit.h) max in
+    let min = List.map (fun k -> `Commit k.Commit.h) min in
+    Gmap.Src.closure ?depth ~min ~max ~pred () >>= fun g ->
+    Gmap.filter_map (function
+        | `Commit k -> Commit.of_hash t.repo k
+        | _ -> Lwt.return_none
+      ) g
 
   module Branch = struct
 
@@ -716,10 +734,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       | None   -> Lwt.return_none
       | Some h -> Commit.of_hash t h
 
-    let set t br h =
-      Commit.hash t h >>= fun h ->
-      P.Branch.set (P.Repo.branch_t t) br h
-
+    let set t br h = P.Branch.set (P.Repo.branch_t t) br (Commit.hash h)
     let remove t = P.Branch.remove (P.Repo.branch_t t)
     let list = Repo.branches
 
@@ -750,19 +765,24 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   module Status = struct
     type t = [ `Empty | `Branch of branch | `Commit of commit ]
-    let t =
+    let t r =
       let open Ir_type in
       variant "status" (fun empty branch commit -> function
           | `Empty    -> empty
           | `Branch b -> branch b
           | `Commit c -> commit c)
-      |~ case0 "`Empty" `Empty
-      |~ case1 "`Branch" Branch.t (fun b -> `Branch b)
-      |~ case1 "`Commit" Commit.t (fun c -> `Commit c)
+      |~ case0 "empty" `Empty
+      |~ case1 "branch" Branch.t     (fun b -> `Branch b)
+      |~ case1 "commit" (Commit.t r) (fun c -> `Commit c)
       |> sealv
 
-    let pp ppf x = Ir_type.pp_json t ppf x
-    let of_string str = Ir_type.decode_json t (Jsonm.decoder (`String str))
+    let pp ppf = function
+      | `Empty    -> Fmt.string ppf "empty"
+      | `Branch b -> Branch.pp ppf b
+      | `Commit c -> Commit.Hash.pp ppf (Commit.hash c)
+
+    let of_string repo str =
+      Ir_type.decode_json (t repo) (Jsonm.decoder (`String str))
 
   end
 
@@ -778,14 +798,12 @@ module Make (P: Ir_s.PRIVATE) = struct
   let kind_t = Ir_type.enum "kind" [ "contents", `Contents; "node", `Node ]
   let kinde_t =
     Ir_type.enum "kinde" [ "empty", `Empty; "contents", `Contents; "node", `Node ]
-  let lca_t =
+  let lca_error_t =
     let open Ir_type in
-    variant "lca" (fun ok mdr tml -> function
-        | Ok l                     -> ok l
-        | Error `Max_depth_reached -> mdr
-        | Error `Too_many_lcas     -> tml)
-    |~ case1 "ok" (list commit_t) (fun l -> Ok l)
-    |~ case0 "max-depth-reached" (Error `Max_depth_reached)
-    |~ case0 "too-many-lcas" (Error `Too_many_lcas)
+    variant "lca" (fun mdr tml -> function
+        | `Max_depth_reached -> mdr
+        | `Too_many_lcas     -> tml)
+    |~ case0 "max-depth-reached" `Max_depth_reached
+    |~ case0 "too-many-lcas"     `Too_many_lcas
     |> sealv
 end

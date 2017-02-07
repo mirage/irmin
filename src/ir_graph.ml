@@ -87,7 +87,7 @@ module Make
 
     let equal = Ir_type.equal t
     let compare = Ir_type.compare t
-    let hash = Hashtbl.hash
+    let hash x = Hashtbl.hash (Fmt.to_to_string Ir_type.(dump t) x)
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)

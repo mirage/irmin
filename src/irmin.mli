@@ -2053,9 +2053,8 @@ module type S = sig
       [name]. Similar to [master], but use [name] instead
       {!Branch.S.master}. *)
 
-  val of_commit: Repo.t -> commit -> t Lwt.t
-  (** [of_commit r c] is a temporary store, based on the commit
-      [c].
+  val of_commit: commit -> t Lwt.t
+  (** [of_commit c] is a temporary store, based on the commit [c].
 
       Temporary stores do not have stable names: instead they can be
       addressed using the hash of the current commit. Temporary stores
@@ -2072,13 +2071,27 @@ module type S = sig
   (** [tree t] is [t]'s current tree. Contents is not allowed at the
       root of the tree. *)
 
-  val status: t -> [ `Empty | `Branch of branch | `Commit of commit ]
+  (** [Status] provides base functions for store statuses. *)
+  module Status: sig
+
+    type t = [`Empty | `Branch of branch | `Commit of commit]
+    (** The type for store status. *)
+
+    val t: Repo.t -> t Type.t
+    (** [t] is the value type for {!t}. *)
+
+    val pp: t Fmt.t
+    (** [pp] is the pretty-printer for store status. *)
+
+    val of_string: Repo.t -> string -> (t, string) result
+    (** [of_string r str] parses the store status from the string
+        [str], using the base repository [r]. *)
+
+  end
+
+  val status: t -> Status.t
   (** [status t] is [t]'s status. It can either be a branch, a commit
       or empty. *)
-
-  module Status: Contents.Conv with
-    type t = [ `Empty | `Branch of branch | `Commit of commit ]
-  (** [Status] provides base functions for store statuses. *)
 
   (** Managing the store's heads. *)
   module Head: sig
@@ -2132,11 +2145,19 @@ module type S = sig
   (** [Commit] defines immutable objects to describe store updates. *)
   module Commit: sig
 
-    include Contents.S0 with type t = commit
+    type t = commit
+    (** The type for store commits. *)
+
+    val t: Repo.t -> t Type.t
+    (** [t] is the value type for {!t}. *)
 
     val pp: t Fmt.t
     (** [pp] is the pretty-printer for commit. Display only the
         hash. *)
+
+    val of_string: Repo.t -> string -> (t, string) result
+    (** [of_string r str] parsing the commit from the string [str],
+        using the base repository [r]. *)
 
     val v: Repo.t -> info:info -> parents:commit list -> tree -> commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:
@@ -2146,13 +2167,13 @@ module type S = sig
         {- [tree c = t]}}
     *)
 
-    val tree: Repo.t -> commit -> tree Lwt.t
-    (** [tree r c] is [c]'s root tree in the repository [r]. *)
+    val tree: commit -> tree Lwt.t
+    (** [tree c] is [c]'s root tree. *)
 
-    val parents: Repo.t -> commit -> commit list Lwt.t
-    (** [parents c] are [c]'s parents in the repository [r]. *)
+    val parents: commit -> commit list Lwt.t
+    (** [parents c] are [c]'s parents. *)
 
-    val info: commit -> info Lwt.t
+    val info: commit -> info
     (** [info c] is [c]'s info. *)
 
     (** {1 Import/Export} *)
@@ -2160,7 +2181,7 @@ module type S = sig
     module Hash: Hash.S
     (** [Hash] provides base functions for commit hashes. *)
 
-    val hash: Repo.t -> commit -> Hash.t Lwt.t
+    val hash: commit -> Hash.t
     (** [hash c] it [c]'s hash. *)
 
     val of_hash: Repo.t -> Hash.t -> commit option Lwt.t
@@ -2520,8 +2541,8 @@ module type S = sig
   val tree_t: tree Type.t
   (** [tree_t] is the value type for {!tree}. *)
 
-  val commit_t: commit Type.t
-  (** [commit_t] is the value type for {!commit}. *)
+  val commit_t: Repo.t -> commit Type.t
+  (** [commit_t r] is the value type for {!commit}. *)
 
   val branch_t: branch Type.t
   (** [branch_t] is the value type for {!branch}. *)
@@ -2535,8 +2556,8 @@ module type S = sig
   val kinde_t: [`Empty | `Node | `Contents] Type.t
   (** [kind_t] is like {!kind_t} but also allow [`Empty] values. *)
 
-  val lca_t: (commit list, [`Max_depth_reached | `Too_many_lcas]) result Type.t
-  (** [lca_t] is the value type for {!lca} results. *)
+  val lca_error_t: [`Max_depth_reached | `Too_many_lcas] Type.t
+  (** [lca_error_t] is the value type for {!lca} errors. *)
 
   (** Private functions, which might be used by the backends. *)
   module Private: sig

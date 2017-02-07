@@ -62,7 +62,7 @@ module Make (S: Ir_s.STORE) = struct
       ) >>= fun () ->
     Lwt.return s
 
-  let convs ~src ~dst l =
+  let convs src dst l =
     List.fold_left (fun acc x ->
         match conv src dst x with
         | Ok x -> x::acc
@@ -93,8 +93,9 @@ module Make (S: Ir_s.STORE) = struct
     | Ir_s.Store ((module R), r) ->
       Log.debug (fun f -> f "fetch store");
       let s_repo = S.repo t in
+      let r_repo = R.repo r in
       S.Repo.heads s_repo >>= fun min ->
-      let min = convs ~src:S.Commit.t  ~dst:R.Commit.t min in
+      let min = convs S.(commit_t s_repo) R.(commit_t r_repo) min in
       R.Head.find r >>= function
       | None   -> Lwt.return (Error `No_head)
       | Some h ->
@@ -104,7 +105,7 @@ module Make (S: Ir_s.STORE) = struct
         S.Repo.import s_repo s_slice >|= function
         | Error e -> Error (e :> fetch_error)
         | Ok ()   ->
-          match conv R.Commit.t S.Commit.t h with
+          match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
           | Ok h    -> Ok h
           | Error e -> Error (`Msg e)
 
@@ -162,13 +163,15 @@ module Make (S: Ir_s.STORE) = struct
       | Some h ->
         Log.debug (fun f -> f "push store");
         R.Repo.heads (R.repo r) >>= fun min ->
-        let min = convs ~src:R.Commit.t ~dst:S.Commit.t min in
+        let r_repo = R.repo r in
+        let s_repo = S.repo t in
+        let min = convs R.(commit_t r_repo) S.(commit_t s_repo) min in
         S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
         >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
         | Error e -> Lwt.return (Error (e :> push_error))
         | Ok ()   ->
-          match conv S.Commit.t R.Commit.t h with
+          match conv S.(commit_t s_repo) R.(commit_t r_repo) h with
           | Error e -> Lwt.return (Error (`Msg e))
           | Ok h    -> R.Head.set r h >|= fun () -> Ok ()
 
