@@ -113,8 +113,10 @@ module type S_MAKER =
        and module Key = P
        and type contents = C.t
        and type branch = B.t
-       and type commit = H.t
        and type metadata = Metadata.t
+       and type Commit.Hash.t = H.t
+       and type Tree.Hash.t = H.t
+       and type Contents.Hash.t = H.t
 
 module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (L: LOCK) (FS: Git.FS.IO):
   S_MAKER
@@ -140,8 +142,10 @@ module type S_MAKER_mem =
            and module Key = P
            and type contents = C.t
            and type branch = B.t
-           and type commit = H.t
            and type metadata = Metadata.t
+           and type Commit.Hash.t = H.t
+           and type Tree.Hash.t = H.t
+           and type Contents.Hash.t = H.t
 
 module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S): S_MAKER_mem
 

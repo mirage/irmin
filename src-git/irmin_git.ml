@@ -48,7 +48,7 @@ module Conf = struct
   let root = Irmin.Private.Conf.root
 
   let reference =
-    let parse str = `Ok (Git.Reference.of_raw str) in
+    let parse str = Ok (Git.Reference.of_raw str) in
     let print ppf name = Fmt.string ppf (Git.Reference.to_raw name) in
     parse, print
 
@@ -107,8 +107,8 @@ module Hash (G: VALUE_STORE) = struct
   let has_kind = function `SHA1 -> true | _ -> false
   let pp ppf x = Fmt.string ppf (Git.Hash.to_hex x)
   let of_string str =
-    try `Ok (SHA_IO.of_hex str)
-    with Git.Hash.Ambiguous s -> `Error ("ambiguous " ^ s)
+    try Ok (SHA_IO.of_hex str)
+    with Git.Hash.Ambiguous s -> Error (`Msg ("ambiguous " ^ s))
 end
 
 module Irmin_value_store
@@ -166,8 +166,8 @@ module Irmin_value_store
     let type_eq = function Git.Object_type.Blob -> true | _ -> false
 
     let of_string str = match C.of_string str with
-      | `Ok x -> Some x
-      | `Error e ->
+      | Ok x           -> Some x
+      | Error (`Msg e) ->
         Log.err (fun l -> l "Git.Contents: cannot parse %S: %s" str e);
         None
 
@@ -213,9 +213,10 @@ module Irmin_value_store
         |> sealv
 
       let of_step = Fmt.to_to_string P.pp_step
+
       let to_step str = match P.step_of_string str with
-        | `Ok x    -> x
-        | `Error e -> failwith e
+        | Ok x           -> x
+        | Error (`Msg e) -> failwith e
 
       let to_git perm (name, node) =
         { Git.Tree.perm; name = of_step name; node }
@@ -422,11 +423,10 @@ module Irmin_value_store
       let git_of_node_key k =
         Git.Hash.to_tree (Git_hash.of_raw (H.to_raw k))
 
-      let task_of_git author message git =
+      let info_of_git author message =
         let id = author.Git.User.name in
-        let date, _ = author.Git.User.date in
-        let uid = Int64.of_int (Hashtbl.hash (author, message, git)) in
-        Irmin.Task.v ~date ~owner:id ~uid message
+        let date, _ = author.Git.User.date in (* FIXME: tz offset is ignored *)
+        Irmin.Info.v ~date ~owner:id message
 
       let name_email name =
         let name = String.trim name in
@@ -449,37 +449,35 @@ module Irmin_value_store
         let { Git.Commit.tree; parents; author; message; _ } = g in
         let parents = List.map commit_key_of_git parents in
         let node = node_key_of_git tree in
-        let task = task_of_git author message g in
-        (task, node, parents)
+        let info = info_of_git author message in
+        (info, node, parents)
 
-      let to_git task node parents =
+      let to_git info node parents =
         let tree = git_of_node_key node in
         let parents = List.map git_of_commit_key parents in
         let parents = List.fast_sort Git.Hash.Commit.compare parents in
         let author =
-          let date = Irmin.Task.date task in
-          let name, email = name_email (Irmin.Task.owner task) in
+          let date = Irmin.Info.date info in
+          let name, email = name_email (Irmin.Info.owner info) in
           Git.User.({ name; email;
                       date  = date, None;
                     }) in
-        let message = String.concat "\n" (Irmin.Task.messages task) in
+        let message = Irmin.Info.message info in
         { Git.Commit.tree; parents; author; committer = author; message }
 
-      let v task ~node ~parents = to_git task node parents
+      let v info ~node ~parents = to_git info node parents
       let xnode { Git.Commit.tree; _ } = node_key_of_git tree
       let node t = xnode t
       let parents { Git.Commit.parents; _ } = List.map commit_key_of_git parents
-      let task g =
-        let { Git.Commit.author; message; _ } = g in
-        task_of_git author message g
+      let info { Git.Commit.author; message; _ } = info_of_git author message
 
       module C = Irmin.Private.Commit.Make(H)(H)
 
-      let of_c c = to_git (C.task c) (C.node c) (C.parents c)
+      let of_c c = to_git (C.info c) (C.node c) (C.parents c)
 
       let to_c t =
-        let task, node, parents = of_git t in
-        C.v task ~node ~parents
+        let info, node, parents = of_git t in
+        C.v info ~node ~parents
 
       let t = Irmin.Type.like C.t of_c to_c
     end
@@ -527,8 +525,8 @@ struct
     match string_chop_prefix ~prefix:("refs" / "heads" / "") str with
     | None   -> None
     | Some r -> match Key.of_string r with
-      | `Ok x    -> Some x
-      | `Error e ->
+      | Ok x           -> Some x
+      | Error (`Msg e) ->
         Log.err (fun l -> l "invalid branch name: %s" e);
         None
 
@@ -549,8 +547,8 @@ struct
     if G.kind = `Disk then
       let dir = t.git_root / "refs" / "heads" in
       let key file = match Key.of_string file with
-        | `Ok x    -> Some x
-        | `Error e ->
+        | Ok x           -> Some x
+        | Error (`Msg e) ->
           Log.err (fun l -> l "listen: file %s: %s" file e);
           None
       in
@@ -691,8 +689,8 @@ struct
   let commit_of_git key = H.of_raw (Git_hash.to_raw key)
 
   let o_head_of_git = function
-    | None   -> Lwt.return `No_head
-    | Some k -> Lwt.return (`Head (commit_of_git k))
+    | None   -> Lwt.return (Error `No_head)
+    | Some k -> Lwt.return (Ok (commit_of_git k))
 
   let fetch t ?depth ~uri br =
     Log.debug (fun f -> f "fetch %s" uri);
@@ -719,8 +717,8 @@ struct
     let result r =
       Log.debug (fun f -> f "push result: %a" Git.Sync.Result.pp_push r);
       match r.Git.Sync.Result.result with
-      | `Ok      -> `Ok
-      | `Error _ -> `Error
+      | `Ok      -> Ok ()
+      | `Error e -> Error (`Msg e)
     in
     Ctx.v () >>= fun ctx ->
     Sync.push t ?ctx ~branch gri >|=
@@ -794,7 +792,12 @@ module Make_ext
     include G
 
     let git_commit repo h =
-      let h = Commit.to_raw h |> Cstruct.to_string |> Git.Hash.of_raw in
+      let h =
+        Commit.hash h
+        |> Commit.Hash.to_raw
+        |> Cstruct.to_string
+        |> Git.Hash.of_raw
+      in
       G.read repo.g h >|= function
       | Some Git.Value.Commit c -> Some c
       | _ -> None
@@ -869,8 +872,8 @@ struct
   module K = struct
     include K
     let master = match K.of_string "master" with
-      | `Ok x    -> x
-      | `Error e -> failwith e
+      | Ok x           -> x
+      | Error (`Msg e) -> failwith e
   end
   include Irmin_branch_store (L)(G)(K)(V)
 end
@@ -895,8 +898,10 @@ module type S_MAKER =
        and module Key = P
        and type contents = C.t
        and type branch = B.t
-       and type commit = H.t
        and type metadata = Metadata.t
+       and type Commit.Hash.t = H.t
+       and type Tree.Hash.t = H.t
+       and type Contents.Hash.t = H.t
 
 module type S_mem = sig
   include S
@@ -916,7 +921,9 @@ module type S_MAKER_mem =
            and module Key = P
            and type contents = C.t
            and type branch = B.t
-           and type commit = H.t
            and type metadata = Metadata.t
+           and type Commit.Hash.t = H.t
+           and type Tree.Hash.t = H.t
+           and type Contents.Hash.t = H.t
 
 include Conf
