@@ -32,7 +32,7 @@ let provision repo =
   Store.Tree.add v ["bin"; "sh"]
     "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
   >>= fun v ->
-  Store.setv t (provision "Cloning Ubuntu 14.04 Gold Image.") [] v
+  Store.set_tree t (provision "Cloning Ubuntu 14.04 Gold Image.") [] v
 
 (* 2. VM configuration. *)
 let sysadmin = info ~user:"Bob the sysadmin"

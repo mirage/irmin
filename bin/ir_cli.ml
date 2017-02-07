@@ -411,7 +411,7 @@ let watch = {
             in
             let view (c, _) =
               S.of_commit c >>= fun t ->
-              S.getv t path
+              S.find_tree t path
             in
             let empty = Lwt.return S.Tree.empty in
             let x, y = match d with

@@ -52,15 +52,15 @@ let main () =
 
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
-  Store.setv t (info "update a/b") ["a";"b"] v >>= fun () ->
-  Store.getv t ["a";"b"] >>= fun v ->
+  Store.set_tree t (info "update a/b") ["a";"b"] v >>= fun () ->
+  Store.find_tree t ["a";"b"] >>= fun v ->
   t_of_view v >>= fun tt ->
 
-  Store.setv t (info "update a/c") ["a";"c"] v >>= fun () ->
+  Store.set_tree t (info "update a/c") ["a";"c"] v >>= fun () ->
 
   let tt = tt @ [ { x = "ggg"; y = 4 } ] in
   view_of_t tt >>= fun vv ->
-  Store.setv t (info "merge view into a/b") ["a";"b"] vv
+  Store.set_tree t (info "merge view into a/b") ["a";"b"] vv
 
 let () =
   Lwt_main.run (main ())
