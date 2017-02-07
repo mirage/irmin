@@ -501,10 +501,10 @@ module Merge: sig
       function which supports changes in one branch at a time:
 
       {ul
-        {- if [t1=t2] then the result of the merge is [`OK t1];}
-        {- if [t1=old] then the result of the merge is [`OK t2];}
-        {- if [t2=old] then return [`OK t1];}
-        {- otherwise the result is [`Conflict].}
+        {- if [t1=t2] then the result of the merge is [OK t1];}
+        {- if [t1=old] then the result of the merge is [OK t2];}
+        {- if [t2=old] then return [OK t1];}
+        {- otherwise the result is [Conflict].}
       }
   *)
 
@@ -1421,10 +1421,12 @@ module Private: sig
           the contents is labeled by a {{!Node.S.step}step}. *)
 
       val update: t -> step -> value -> t
-      (** [update t s v] is [t]s where [find t v] is [Some s]. *)
+      (** [update t s v] is the node where [find t v] is [Some s] but
+          is similar to [t] otherwise. *)
 
       val remove: t -> step -> t
-      (** [remove t s] is [t] where [find t v] is [None]. *)
+      (** [remove t s] is the node where [find t s] is [None] but is
+          similar to [t] otherwise. *)
 
       (** {1 Value types} *)
 
@@ -2250,11 +2252,12 @@ module type S = sig
     (** Same as {!get} but ignore the metadata. *)
 
     val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
-    (** [add t k c] is [t] where the key [k] is bound to the contents
-        [c]. *)
+    (** [add t k c] is the tree where the key [k] is bound to the
+        contents [c] but is similar to [t] for other bindings. *)
 
     val remove: tree -> key -> tree Lwt.t
-    (** [remove t k] is [t] where [k] bindings has been removed. *)
+    (** [remove t k] is the tree where [k] bindings has been removed
+        but is similar to [t] for other bindings. *)
 
     (** {1 Manipulating Subtrees} *)
 
@@ -2266,8 +2269,8 @@ module type S = sig
         [`Empty] if [k] is not present in [t]. *)
 
     val addv: tree -> key -> tree -> tree Lwt.t
-    (** [addv t k v] is [t] where the key [k] is bound to the tree
-        [v]. *)
+    (** [addv t k v] is the tree where the key [k] is bound to the
+        tree [v] but is similar to [t] for other bindings *)
 
     val merge: tree Merge.t
     (** [merge] is the 3-way merge function for trees. *)
