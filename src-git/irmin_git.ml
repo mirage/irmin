@@ -454,7 +454,7 @@ module Irmin_value_store
 
       let to_git info node parents =
         let tree = git_of_node_key node in
-        let parents = List.map git_of_commit_key parents in
+        let parents = List.rev_map git_of_commit_key parents in
         let parents = List.fast_sort Git.Hash.Commit.compare parents in
         let author =
           let date = Irmin.Info.date info in
