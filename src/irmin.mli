@@ -2776,6 +2776,9 @@ module type SYNC = sig
   ]
   (** The type for fetch errors. *)
 
+  val pp_fetch_error: fetch_error Fmt.t
+  (** [pp_fetch_error] pretty prints fetch errors. *)
+
   val fetch: db -> ?depth:int -> remote ->  (commit, fetch_error) result Lwt.t
   (** [fetch t ?depth r] populate the local store [t] with objects for
       the remote store [r], using [t]'s current branch. The [depth]
@@ -2803,6 +2806,9 @@ module type SYNC = sig
 
   type push_error = [ fetch_error | `Detached_head ]
   (** The type for push errors. *)
+
+  val pp_push_error: push_error Fmt.t
+  (** [pp_push_error] pretty-prints push errors. *)
 
   val push: db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t
   (** [push t ?depth r] populates the remote store [r] with objects
