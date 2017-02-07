@@ -15,12 +15,6 @@
  *)
 
 module None (H: Ir_s.S0) (R: Ir_s.S0) = struct
-  type fetch_error = [
-    | `No_head
-    | `Not_available
-    | `Msg of string
-  ]
-  type push_error = [ fetch_error | `Detached_head ]
   type t = unit
   type commit = H.t
   type branch = R.t
