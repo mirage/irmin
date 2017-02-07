@@ -16,5 +16,5 @@
 
 let () =
   Test_http.(with_server servers) (fun () ->
-    Test_store.run "irmin-http" ~misc:[] Test_http.(suites base_servers)
+    Test_store.run "irmin-http" ~misc:[] Test_http.(suites servers)
     )

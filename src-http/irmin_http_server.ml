@@ -20,11 +20,7 @@ open Irmin_http_common
 module T = Irmin.Type
 
 let to_json t = Fmt.to_to_string (T.pp_json t)
-
-let of_json t str =
-  match T.decode_json t (Jsonm.decoder (`String str)) with
-  | Ok t    -> `Ok t
-  | Error e -> `Error e
+let of_json t str = T.decode_json t (Jsonm.decoder (`String str))
 
 let src = Logs.Src.create "irmin.http-server" ~doc:"Irmin REST API server"
 module Log = (val Logs.src_log src : Logs.LOG)
@@ -53,7 +49,7 @@ module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S) = struct
       |> Wm.continue ()
   end
 
-  let parse_error rd str e =
+  let parse_error rd str (`Msg e) =
     let err = Fmt.strf "Parse error %S: %s" str e in
     Wm.respond ~body:(`String err) 400 rd
 
@@ -64,8 +60,8 @@ module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S) = struct
 
     let with_key rd f =
       match K.of_string (Wm.Rd.lookup_path_info_exn "id" rd) with
-      | `Ok key  -> f key
-      | `Error _ -> Wm.respond 404 rd
+      | Ok key  -> f key
+      | Error _ -> Wm.respond 404 rd
 
     class items db = object
       inherit resource
@@ -81,8 +77,8 @@ module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S) = struct
       method process_post rd =
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body >>= fun body ->
         match V.of_string body with
-        | `Error e -> parse_error rd body e
-        | `Ok body ->
+        | Error e -> parse_error rd body e
+        | Ok body ->
           S.add db body >>= fun new_id ->
           let resp_body = `String (Fmt.to_to_string K.pp new_id) in
           Wm.continue true { rd with Wm.Rd.resp_body }
@@ -143,8 +139,8 @@ module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S) = struct
 
     let with_key rd f =
       match K.of_string rd.Wm.Rd.dispatch_path with
-      | `Ok x    -> f x
-      | `Error _ -> Wm.respond 404 rd
+      | Ok x    -> f x
+      | Error _ -> Wm.respond 404 rd
 
     class item db = object(self)
       inherit resource
@@ -152,8 +148,8 @@ module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S) = struct
       method private of_json rd =
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body >>= fun body ->
         match of_json (set_t V.t) body with
-        | `Error e -> parse_error rd body e
-        | `Ok v    ->
+        | Error e -> parse_error rd body e
+        | Ok v    ->
           with_key rd (fun key ->
               match v.v with
               | Some v ->
@@ -228,8 +224,8 @@ module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S) = struct
       method process_post rd =
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body >>= fun body ->
         match of_json T.(list (init_t K.t V.t)) body with
-        | `Error e -> parse_error rd body e
-        | `Ok init ->
+        | Error e -> parse_error rd body e
+        | Ok init ->
           self#stream ~init () >>= fun resp_body ->
           Wm.continue true { rd with Wm.Rd.resp_body }
 
@@ -268,8 +264,8 @@ module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S) = struct
       method process_post rd =
         Cohttp_lwt_body.to_string rd.Wm.Rd.req_body >>= fun body ->
         match of_json V.t body with
-        | `Error e -> parse_error rd body e
-        | `Ok init ->
+        | Error e -> parse_error rd body e
+        | Ok init ->
           with_key rd (fun key ->
               self#stream ~init key >>= fun resp_body ->
               Wm.continue true { rd with Wm.Rd.resp_body }

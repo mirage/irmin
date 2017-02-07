@@ -112,11 +112,7 @@ let json_stream (stream: string Lwt_stream.t): Jsonm.lexeme list Lwt_stream.t =
   in
   Lwt_stream.from open_and_get
 
-let of_json_string t str =
-  match T.decode_json t (Jsonm.decoder (`String str)) with
-  | Ok t    -> `Ok t
-  | Error e -> `Error e
-
+let of_json_string t str = T.decode_json t (Jsonm.decoder (`String str))
 let to_json_string t = Fmt.to_to_string (T.pp_json t)
 
 module Helper (Client: Cohttp_lwt.Client) = struct
@@ -141,8 +137,9 @@ module Helper (Client: Cohttp_lwt.Client) = struct
     Cohttp_lwt_body.to_string b >>= fun b ->
     if is_success r then
       match parse b with
-      | `Ok x    -> Lwt.return x
-      | `Error e -> Lwt.fail_with (Fmt.strf "Error while parsing %S: %s" b e)
+      | Ok x           -> Lwt.return x
+      | Error (`Msg e) ->
+        Lwt.fail_with (Fmt.strf "Error while parsing %S: %s" b e)
     else
       Lwt.fail_with ("Server error: " ^ b)
 
@@ -157,8 +154,8 @@ module Helper (Client: Cohttp_lwt.Client) = struct
       let stream =
         let aux j =
           match T.decode_json_lexemes t j with
-          | Error e -> Lwt.fail_with e
-          | Ok c    -> Lwt.return c
+          | Error (`Msg e) -> Lwt.fail_with e
+          | Ok c           -> Lwt.return c
         in
         Lwt_stream.map_s aux stream
       in
