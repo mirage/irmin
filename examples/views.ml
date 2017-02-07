@@ -1,4 +1,4 @@
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 
 module Store =
@@ -32,8 +32,9 @@ let t_of_view v =
   let aux acc i =
     let i = string_of_int i in
     Tree.get v [i;"x"] >>= fun x ->
-    Tree.get v [i;"y"] >>= fun y ->
-    return ({ x; y = int_of_string y } :: acc) in
+    Tree.get v [i;"y"] >|= fun y ->
+    { x; y = int_of_string y } :: acc
+  in
   Tree.list v [] >>= fun t2s ->
   let t2s = List.map (fun (i, _) -> int_of_string i) t2s in
   let t2s = List.rev (List.sort compare t2s) in
@@ -51,17 +52,15 @@ let main () =
 
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
-  Store.setv t (task "update a/b") ["a";"b"] v >>= fun () ->
+  Store.setv t (info "update a/b") ["a";"b"] v >>= fun () ->
   Store.getv t ["a";"b"] >>= fun v ->
   t_of_view v >>= fun tt ->
 
-  Store.setv t (task "update a/c") ["a";"c"] v >>= fun () ->
+  Store.setv t (info "update a/c") ["a";"c"] v >>= fun () ->
 
   let tt = tt @ [ { x = "ggg"; y = 4 } ] in
   view_of_t tt >>= fun vv ->
-  Store.setv t (task "merge view into a/b") ["a";"b"] vv >>= fun () ->
-
-  return_unit
+  Store.setv t (info "merge view into a/b") ["a";"b"] vv
 
 let () =
   Lwt_main.run (main ())

@@ -64,11 +64,18 @@ let flag_key k =
   if default then Arg.(value & vflag true [false, i])
   else Arg.(value & flag i)
 
+let pconv (parse, pp) =
+  let parse str = match parse str with
+    | Ok x           -> `Ok x
+    | Error (`Msg e) -> `Error e
+  in
+  parse, pp
+
 let key k default =
   let doc = Irmin.Private.Conf.doc k in
   let docs = Irmin.Private.Conf.docs k in
   let docv = Irmin.Private.Conf.docv k in
-  let conv = Irmin.Private.Conf.conv k in
+  let conv = pconv (Irmin.Private.Conf.conv k) in
   let name = Irmin.Private.Conf.name k in
   let i = Arg.info ?docv ?doc ?docs [name] in
   Arg.(value & opt conv default i)
@@ -161,8 +168,8 @@ let read_config_file (): t option =
     in
     let module S = (val store) in
     let branch = assoc "branch" (fun x -> match S.Branch.of_string x with
-        | `Ok x    -> x
-        | `Error e -> failwith e)
+        | Ok x           -> x
+        | Error (`Msg e) -> failwith e)
     in
     let config =
       let root = assoc "root" (fun x -> x) in
@@ -207,8 +214,8 @@ let store =
       let t = match branch with
         | None   -> mk_master ()
         | Some t -> mk_branch (match S.Branch.of_string t with
-            | `Ok x    -> x
-            | `Error e -> failwith e)
+            | Ok x           -> x
+            | Error (`Msg e) -> failwith e)
       in
       S ((module S), t)
     | None ->

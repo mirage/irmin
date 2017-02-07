@@ -1,4 +1,4 @@
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 
 module Store =
@@ -12,15 +12,15 @@ let config =
   let head = Git.Reference.of_raw "refs/heads/upstream" in
   Irmin_git.config ~root:Config.root ~head ~bare:false ()
 
-let task ~user msg =
+let info ~user msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let owner = user in
-  Irmin.Task.v ~date ~owner msg
+  Irmin.Info.v ~date ~owner msg
 
 (* 1. Cloning the gold image. *)
 let provision repo =
   Config.init ();
-  let provision = task ~user:"Automatic VM provisioning" in
+  let provision = info ~user:"Automatic VM provisioning" in
 
   Store.of_branch repo "upstream" >>= fun t ->
 
@@ -35,7 +35,7 @@ let provision repo =
   Store.setv t (provision "Cloning Ubuntu 14.04 Gold Image.") [] v
 
 (* 2. VM configuration. *)
-let sysadmin = task ~user:"Bob the sysadmin"
+let sysadmin = info ~user:"Bob the sysadmin"
 let configure repo =
   Store.of_branch repo "upstream" >>= fun t ->
 
@@ -51,20 +51,20 @@ let configure repo =
   Lwt.return_unit
 
 let attack repo =
-  let task = task ~user:"Remote connection from 132.443.12.444" in
+  let info = info ~user:"Remote connection from 132.443.12.444" in
 
   (* 3. Attacker. *)
   Store.of_branch repo "prod" >>= fun t ->
 
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.set t (task "$ vim /etc/resolv.conf")
+  Store.set t (info "$ vim /etc/resolv.conf")
     ["etc";"resolv.conf"]
     "domain mydomain.com\n\
      nameserver 12.221.130.23"
   >>= fun () ->
 
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.set t (task "$ gcc -c /tmp/sh.c -o /bin/sh")
+  Store.set t (info "$ gcc -c /tmp/sh.c -o /bin/sh")
     ["bin";"sh"]
     "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
 

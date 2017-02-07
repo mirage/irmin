@@ -11,7 +11,7 @@ let what =
   \  - interleave `l1` and `l2` by ordering the timestamps; This gives `l3`;\n\
   \  - concatenate `lca` and `l3`; This gives the final result."
 
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 open Astring
 
@@ -52,10 +52,10 @@ end = struct
 
   let of_string str =
     match String.cut ~sep:": " str with
-    | None -> `Error ("invalid entry: " ^ str)
+    | None -> Error (`Msg ("invalid entry: " ^ str))
     | Some (x, message) ->
-      try `Ok { timestamp = int_of_string x; message }
-      with Failure e -> `Error e
+      try Ok { timestamp = int_of_string x; message }
+      with Failure e -> Error (`Msg e)
 
 end
 
@@ -78,12 +78,12 @@ end = struct
     try
       List.fold_left (fun acc l ->
           match Entry.of_string l with
-          | `Ok x    -> x :: acc
-          | `Error e -> failwith e
+          | Ok x           -> x :: acc
+          | Error (`Msg e) -> failwith e
         ) [] lines
-      |> fun l -> `Ok l
+      |> fun l -> Ok l
     with Failure e ->
-      `Error e
+      Error (`Msg e)
 
   let timestamp = function
     | [] -> 0
@@ -99,7 +99,7 @@ end = struct
 
   let merge ~old t1 t2 =
     let open Irmin.Merge.Infix in
-    old () >>| fun old ->
+    old () >>=* fun old ->
     let old = match old with None -> [] | Some o -> o in
     let ts = timestamp old in
     let t1 = newer_than ts t1 in
@@ -125,8 +125,8 @@ let log_file = [ "local"; "debug" ]
 
 let all_logs t =
   Store.find t log_file >>= function
-  | None   -> return Log.empty
-  | Some l -> return l
+  | None   -> Lwt.return Log.empty
+  | Some l -> Lwt.return l
 
 (* Persist a new entry in the log. Pretty inefficient as it
    reads/writes the whole file every time. *)
@@ -134,7 +134,7 @@ let log t fmt =
   Printf.ksprintf (fun message ->
       all_logs t >>= fun logs ->
       let logs = Log.add logs (Entry.v message) in
-      Store.set t (task "Adding a new entry") log_file logs
+      Store.set t (info "Adding a new entry") log_file logs
     ) fmt
 
 let print_logs name t =
@@ -169,7 +169,7 @@ let main () =
 
   print_logs "branch 2" t >>= fun () ->
 
-  Store.merge (task "Merging x into t") x ~into:t  >>= function
+  Store.merge (info "Merging x into t") x ~into:t  >>= function
   | Ok ()   -> print_logs "merge" t
   | Error _ -> failwith "conflict!"
 
