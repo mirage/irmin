@@ -2236,20 +2236,20 @@ module type S = sig
     (** [mem t k] is true iff [k] is associated to some contents in
         [t]. *)
 
-    val findm: tree -> key -> (contents * metadata) option Lwt.t
-    (** [find t k] is [Some (b, m)] if [k] is associated to the contents
-        [b] and metadata [m] in [t] and [None] if [k] is not present in
-        [t]. *)
+    val find_all: tree -> key -> (contents * metadata) option Lwt.t
+    (** [find_all t k] is [Some (b, m)] if [k] is associated to the
+        contents [b] and metadata [m] in [t] and [None] if [k] is not
+        present in [t]. *)
 
     val find: tree -> key -> contents option Lwt.t
-    (** [find] is similar to {!find} but it discards metadata. *)
+    (** [find] is similar to {!find_all} but it discards metadata. *)
 
-    val getm: tree -> key -> (contents * metadata) Lwt.t
-    (** Same as {!find} but raise [Invalid_arg] if [k] is not present
-        in [t]. *)
+    val get_all: tree -> key -> (contents * metadata) Lwt.t
+    (** Same as {!find_all} but raise [Invalid_arg] if [k] is not
+        present in [t]. *)
 
     val get: tree -> key -> contents Lwt.t
-    (** Same as {!get} but ignore the metadata. *)
+    (** Same as {!get_all} but ignore the metadata. *)
 
     val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
     (** [add t k c] is the tree where the key [k] is bound to the
@@ -2261,15 +2261,15 @@ module type S = sig
 
     (** {1 Manipulating Subtrees} *)
 
-    val memv: tree -> key -> bool Lwt.t
-    (** [memv t k] is false iff [getv k = `Empty]. *)
+    val mem_tree: tree -> key -> bool Lwt.t
+    (** [mem_tree t k] is false iff [find_tree k = `Empty]. *)
 
-    val getv: tree -> key -> tree Lwt.t
-    (** [getv t k] is [v] if [k] is associated to [v] in [t].  It is
-        [`Empty] if [k] is not present in [t]. *)
+    val find_tree: tree -> key -> tree Lwt.t
+    (** [find_tree t k] is [v] if [k] is associated to [v] in [t].  It
+        is [`Empty] if [k] is not present in [t]. *)
 
-    val addv: tree -> key -> tree -> tree Lwt.t
-    (** [addv t k v] is the tree where the key [k] is bound to the
+    val add_tree: tree -> key -> tree -> tree Lwt.t
+    (** [add_tree t k v] is the tree where the key [k] is bound to the
         tree [v] but is similar to [t] for other bindings *)
 
     val merge: tree Merge.t
@@ -2336,28 +2336,29 @@ module type S = sig
   val mem: t -> key -> bool Lwt.t
   (** [mem t] is {!Tree.mem} applied to [t]'s root tree. *)
 
-  val memv: t -> key -> bool Lwt.t
-  (** [memv t] is {!Tree.memv} applied to [t]'s root tree. *)
+  val mem_tree: t -> key -> bool Lwt.t
+  (** [mem_tree t] is {!Tree.mem_tree} applied to [t]'s root tree. *)
 
-  val findm: t -> key -> (contents * metadata) option Lwt.t
-  (** [findm t] is {!Tree.findm} applied to [t]'s root tree. *)
+  val find_all: t -> key -> (contents * metadata) option Lwt.t
+  (** [find_all t] is {!Tree.find_all} applied to [t]'s root tree. *)
 
   val find: t -> key -> contents option Lwt.t
   (** [find t] is {!Tree.find} applied to [t]'s root tree. *)
 
-  val getm: t -> key -> (contents * metadata) Lwt.t
-  (** [getm t] is {!Tree.getm} applied on [t]'s root tree. *)
+  val get_all: t -> key -> (contents * metadata) Lwt.t
+  (** [get_all t] is {!Tree.get_all} applied on [t]'s root tree. *)
 
   val get: t -> key -> contents Lwt.t
   (** [get t] is {!Tree.get} applied to [t]'s root tree. *)
 
-  val getv: t -> key -> tree Lwt.t
-  (** [getv t] is {!Tree.getv} applied to [t]'s root tree. *)
+  val find_tree: t -> key -> tree Lwt.t
+  (** [find_tree t] is {!Tree.find_tree} applied to [t]'s root
+      tree. *)
 
   (** {1 Writes} *)
 
-  val setv: t -> info -> ?parents:commit list -> key -> tree -> unit Lwt.t
-  (** [set t i ?parents p v] {e replaces} the sub-tree under [p] in
+  val set_tree: t -> info -> ?parents:commit list -> key -> tree -> unit Lwt.t
+  (** [set_tree t i ?parents p v] {e replaces} the sub-tree under [p] in
       the branch [t] by the contents of the tree [v], using the info
       [i]. If [parents] is not set, use [t]'s current head as
       parent. *)
@@ -2369,13 +2370,13 @@ module type S = sig
       new to be created and [metadata] is not provided,
       {!Metadata.default} is used. *)
 
-  val mergev: t -> info -> parents:commit list -> ?max_depth:int -> ?n:int ->
-    key -> tree -> (unit, Merge.conflict) result Lwt.t
-  (** [mergev t i ~parents k v] {e merges} the tree [v] with the contents of
-      the sub-tree under [p] in [t]. Merging means applying the 3-way
-      merge between [v] and [t]'s sub-tree under [k]. Automatically
-      adds the lca to [parents]. If [parents] is not set, use [t]'s
-      and the [lca] heads. *)
+  val merge_tree: t -> info -> parents:commit list -> ?max_depth:int ->
+    ?n:int -> key -> tree -> (unit, Merge.conflict) result Lwt.t
+  (** [merge_tree t i ~parents k v] {e merges} the tree [v] with the
+      contents of the sub-tree under [p] in [t]. Merging means
+      applying the 3-way merge between [v] and [t]'s sub-tree under
+      [k]. Automatically adds the lca to [parents]. If [parents] is
+      not set, use [t]'s and the [lca] heads. *)
 
   val remove: t -> info -> key -> unit Lwt.t
   (** [remove t i k] remove the bindings of [k] in [t]. Use the commit

@@ -326,15 +326,15 @@ module type TREE = sig
   val list: tree -> key -> (step * [`Contents | `Node]) list Lwt.t
   val diff: tree -> tree -> (key * (contents * metadata) diff) list Lwt.t
   val mem: tree -> key -> bool Lwt.t
-  val findm: tree -> key -> (contents * metadata) option Lwt.t
+  val find_all: tree -> key -> (contents * metadata) option Lwt.t
   val find: tree -> key -> contents option Lwt.t
-  val getm: tree -> key -> (contents * metadata) Lwt.t
+  val get_all: tree -> key -> (contents * metadata) Lwt.t
   val get: tree -> key -> contents Lwt.t
   val add: tree -> key -> ?metadata:metadata -> contents -> tree Lwt.t
   val remove: tree -> key -> tree Lwt.t
-  val memv: tree -> key -> bool Lwt.t
-  val getv: tree -> key -> tree Lwt.t
-  val addv: tree -> key -> tree -> tree Lwt.t
+  val mem_tree: tree -> key -> bool Lwt.t
+  val find_tree: tree -> key -> tree Lwt.t
+  val add_tree: tree -> key -> tree -> tree Lwt.t
   val merge: tree Ir_merge.t
 
   type concrete =
@@ -424,16 +424,16 @@ module type STORE = sig
   val kind: t -> key -> [`Contents | `Node | `Empty] Lwt.t
   val list: t -> key -> (step * [`Contents | `Node]) list Lwt.t
   val mem: t -> key -> bool Lwt.t
-  val memv: t -> key -> bool Lwt.t
-  val findm: t -> key -> (contents * metadata) option Lwt.t
+  val mem_tree: t -> key -> bool Lwt.t
+  val find_all: t -> key -> (contents * metadata) option Lwt.t
   val find: t -> key -> contents option Lwt.t
-  val getm: t -> key -> (contents * metadata) Lwt.t
+  val get_all: t -> key -> (contents * metadata) Lwt.t
   val get: t -> key -> contents Lwt.t
-  val getv: t -> key -> tree Lwt.t
-  val setv: t -> info -> ?parents:commit list -> key -> tree -> unit Lwt.t
+  val find_tree: t -> key -> tree Lwt.t
+  val set_tree: t -> info -> ?parents:commit list -> key -> tree -> unit Lwt.t
   val set: t -> info -> ?parents:commit list -> key ->
     ?metadata:metadata -> contents -> unit Lwt.t
-  val mergev: t -> info -> parents:commit list -> ?max_depth:int -> ?n:int ->
+  val merge_tree: t -> info -> parents:commit list -> ?max_depth:int -> ?n:int ->
     key -> tree -> (unit, Merge.conflict) result Lwt.t
   val remove: t -> info -> key -> unit Lwt.t
   val clone: src:t -> dst:branch -> t Lwt.t

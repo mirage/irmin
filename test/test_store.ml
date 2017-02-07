@@ -945,17 +945,17 @@ module Make (S: Test_S) = struct
       let vy = "VY" in
       S.master repo >>= fun t ->
       S.set t (infof "add x/y/z") ["x";"y";"z"] vx >>= fun () ->
-      S.getv t ["x"] >>= fun view ->
-      S.setv t (infof "update") ["u"] view >>= fun () ->
+      S.find_tree t ["x"] >>= fun view ->
+      S.set_tree t (infof "update") ["u"] view >>= fun () ->
       S.find t ["u";"y";"z"] >>= fun vx' ->
       check_val "vx" (Some vx) vx';
 
       S.Head.get t >>= fun head ->
-      S.getv t ["u"] >>= fun view ->
+      S.find_tree t ["u"] >>= fun view ->
       S.set t (infof "add u/x/y") ["u";"x";"y"] vy >>= fun () ->
       S.Tree.add view ["x";"z"] vx >>= fun view' ->
 
-      S.mergev t (infof "merge") ["u"] ~parents:[head] view' >>= fun v ->
+      S.merge_tree t (infof "merge") ["u"] ~parents:[head] view' >>= fun v ->
       merge_exn "v" v >>= fun () ->
       S.find t ["u";"x";"y"] >>= fun vy' ->
       check_val "vy after merge" (Some vy) vy';
@@ -1082,7 +1082,7 @@ module Make (S: Test_S) = struct
       S.Tree.remove v1 ["foo";"1"] >>= fun v1 ->
       S.Tree.remove v1 ["foo";"2"] >>= fun v1 ->
 
-      S.setv t (infof "empty view") [] v1 >>= fun () ->
+      S.set_tree t (infof "empty view") [] v1 >>= fun () ->
       S.Head.get t >>= fun head ->
       S.Commit.hash head |> fun head ->
       P.Commit.find (ct repo) head >>= fun commit ->
@@ -1104,7 +1104,7 @@ module Make (S: Test_S) = struct
       S.Tree.empty |> fun v1 ->
       S.Tree.empty |> fun v2 ->
       S.Tree.add v1 ["foo";"1"] foo1 >>= fun v1 ->
-      S.Tree.findm v1 ["foo"; "1"] >>= fun f ->
+      S.Tree.find_all v1 ["foo"; "1"] >>= fun f ->
       check_val "view udate" (normal foo1) f;
 
       S.Tree.add v2 ["foo";"1"] foo2 >>= fun v2 ->
@@ -1125,23 +1125,23 @@ module Make (S: Test_S) = struct
       S.Tree.empty |> fun v0 ->
 
       S.Tree.add v0 [] foo1 >>= fun v0 ->
-      S.Tree.findm v0 [] >>= fun foo1' ->
+      S.Tree.find_all v0 [] >>= fun foo1' ->
       check_val "read /" (normal foo1) foo1';
 
       S.Tree.add v0 ["foo";"1"] foo1 >>= fun v0 ->
-      S.Tree.findm v0 ["foo";"1"] >>= fun foo1' ->
+      S.Tree.find_all v0 ["foo";"1"] >>= fun foo1' ->
       check_val "read foo/1" (normal foo1) foo1';
 
       S.Tree.add v0 ["foo";"2"] foo2 >>= fun v0 ->
-      S.Tree.findm v0 ["foo";"2"] >>= fun foo2' ->
+      S.Tree.find_all v0 ["foo";"2"] >>= fun foo2' ->
       check_val "read foo/2" (normal foo2) foo2';
 
       let check_view v =
         S.Tree.list v ["foo"] >>= fun ls ->
         check_ls "path1" [ ("1", `Contents); ("2", `Contents) ] ls;
-        S.Tree.findm v ["foo";"1"] >>= fun foo1' ->
+        S.Tree.find_all v ["foo";"1"] >>= fun foo1' ->
         check_val "foo1" (normal foo1) foo1';
-        S.Tree.findm v ["foo";"2"] >>= fun foo2' ->
+        S.Tree.find_all v ["foo";"2"] >>= fun foo2' ->
         check_val "foo2" (normal foo2) foo2';
         Lwt.return_unit
       in
@@ -1151,55 +1151,55 @@ module Make (S: Test_S) = struct
         ) v0 nodes >>= fun v0 ->
       check_view v0 >>= fun () ->
 
-      S.setv t (infof "update_path b/") ["b"] v0 >>= fun () ->
-      S.setv t (infof "update_path a/") ["a"] v0 >>= fun () ->
+      S.set_tree t (infof "update_path b/") ["b"] v0 >>= fun () ->
+      S.set_tree t (infof "update_path a/") ["a"] v0 >>= fun () ->
 
       S.list t ["b";"foo"] >>= fun ls ->
       check_ls "path2" [ "1", `Contents; "2", `Contents] ls;
-      S.findm t ["b";"foo";"1"] >>= fun foo1' ->
+      S.find_all t ["b";"foo";"1"] >>= fun foo1' ->
       check_val "foo1" (normal foo1) foo1';
-      S.findm t ["a";"foo";"2"] >>= fun foo2' ->
+      S.find_all t ["a";"foo";"2"] >>= fun foo2' ->
       check_val "foo2" (normal foo2) foo2';
 
       S.Head.get t >>= fun head ->
-      S.getv t ["b"] >>= fun v1 ->
+      S.find_tree t ["b"] >>= fun v1 ->
       check_view v1 >>= fun () ->
 
       S.set t (infof "update b/x") ["b";"x"] foo1 >>= fun () ->
       S.Tree.add v1 ["y"] foo2 >>= fun v1 ->
-      S.mergev t (infof "merge_path") ~parents:[head] ["b"] v1 >>=
+      S.merge_tree t (infof "merge_path") ~parents:[head] ["b"] v1 >>=
       merge_exn "merge_path" >>= fun () ->
-      S.findm t ["b";"x"] >>= fun foo1' ->
-      S.findm t ["b";"y"] >>= fun foo2' ->
+      S.find_all t ["b";"x"] >>= fun foo1' ->
+      S.find_all t ["b";"y"] >>= fun foo2' ->
       check_val "merge: b/x" (normal foo1) foo1';
       check_val "merge: b/y" (normal foo2) foo2';
 
       Lwt_list.iteri_s (fun i (k, v) ->
-          S.findm t ("a" :: k) >>= fun v' ->
+          S.find_all t ("a" :: k) >>= fun v' ->
           check_val ("a"^string_of_int i) (normal v) v';
-          S.findm t ("b" ::  k) >>= fun v' ->
+          S.find_all t ("b" ::  k) >>= fun v' ->
           check_val ("b"^string_of_int i) (normal v) v';
           Lwt.return_unit
         ) nodes >>= fun () ->
 
-      S.getv t ["b"] >>= fun v2 ->
-      S.Tree.findm v2 ["foo"; "1"] >>= fun _ ->
+      S.find_tree t ["b"] >>= fun v2 ->
+      S.Tree.find_all v2 ["foo"; "1"] >>= fun _ ->
       S.Tree.add v2 ["foo"; "1"] foo2 >>= fun v2 ->
-      S.setv t (infof"v2") ["b"] v2 >>= fun () ->
-      S.findm t ["b";"foo";"1"] >>= fun foo2' ->
+      S.set_tree t (infof"v2") ["b"] v2 >>= fun () ->
+      S.find_all t ["b";"foo";"1"] >>= fun foo2' ->
       check_val "update view" (normal foo2) foo2';
 
-      S.getv t ["b"] >>= fun v3 ->
-      S.Tree.findm v3 ["foo"; "1"] >>= fun _ ->
+      S.find_tree t ["b"] >>= fun v3 ->
+      S.Tree.find_all v3 ["foo"; "1"] >>= fun _ ->
       S.Tree.remove v3 ["foo"; "1"] >>= fun v3 ->
-      S.setv t (infof "v3") ["b"] v3 >>= fun () ->
-      S.findm t ["b";"foo";"1"] >>= fun foo2' ->
+      S.set_tree t (infof "v3") ["b"] v3 >>= fun () ->
+      S.find_all t ["b";"foo";"1"] >>= fun foo2' ->
       check_val "remove view" None foo2';
 
       r1 ~repo >>= fun r1 ->
       r2 ~repo >>= fun r2 ->
       let i0 = Irmin.Info.empty in
-      S.setv t Irmin.Info.empty ~parents:[r1;r2] [] v3 >>= fun () ->
+      S.set_tree t Irmin.Info.empty ~parents:[r1;r2] [] v3 >>= fun () ->
       S.Head.get t >>= fun h ->
 
       S.Commit.info h |> fun i ->
@@ -1210,20 +1210,20 @@ module Make (S: Test_S) = struct
       let pred = S.History.pred g h in
       checks (S.commit_t repo) "head" [r1;r2] pred;
 
-      S.findm tt ["b";"foo";"1"] >>= fun foo2'' ->
+      S.find_all tt ["b";"foo";"1"] >>= fun foo2'' ->
       check_val "remove tt" None foo2'';
 
       let vx = "VX" in
       let px = ["x";"y";"z"] in
       S.set tt (infof "update") px vx >>= fun () ->
-      S.getv tt [] >>= fun view ->
-      S.Tree.findm view px >>= fun vx' ->
+      S.find_tree tt [] >>= fun view ->
+      S.Tree.find_all view px >>= fun vx' ->
       check_val "updates" (normal vx) vx';
 
       S.Tree.empty |> fun v ->
       S.Tree.add v [] vx >>= fun v ->
-      S.setv t (infof "update file as view") ["a"] v >>= fun () ->
-      S.findm t ["a"] >>= fun vx' ->
+      S.set_tree t (infof "update file as view") ["a"] v >>= fun () ->
+      S.find_all t ["a"] >>= fun vx' ->
       check_val "update file as view" (normal vx) vx';
 
       Lwt.return_unit

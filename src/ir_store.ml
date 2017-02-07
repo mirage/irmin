@@ -395,7 +395,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   let watch_key t key ?init fn =
     Log.info (fun f -> f "watch-key %a" Key.pp key);
-    let tree c = Commit.tree c >>= fun tree -> Tree.getv tree key in
+    let tree c = Commit.tree c >>= fun tree -> Tree.find_tree tree key in
     watch t ?init (lift_tree_diff tree fn)
 
   module Head = struct
@@ -537,13 +537,13 @@ module Make (P: Ir_s.PRIVATE) = struct
     tree t >>= fun tree ->
     Tree.mem tree k
 
-  let memv t k =
+  let mem_tree t k =
     tree t >>= fun tree ->
-    Tree.memv tree k
+    Tree.mem_tree tree k
 
-  let findm t k =
+  let find_all t k =
     tree t >>= fun tree ->
-    Tree.findm tree k
+    Tree.find_all tree k
 
   let find t k =
     tree t >>= fun tree ->
@@ -553,13 +553,13 @@ module Make (P: Ir_s.PRIVATE) = struct
     tree t >>= fun tree ->
     Tree.get tree k
 
-  let getv t k =
+  let find_tree t k =
     tree t >>= fun tree ->
-    Tree.getv tree k
+    Tree.find_tree tree k
 
-  let getm t k =
+  let get_all t k =
     tree t >>= fun tree ->
-    Tree.getm tree k
+    Tree.get_all tree k
 
   let list t k =
     tree t >>= fun tree ->
@@ -569,10 +569,10 @@ module Make (P: Ir_s.PRIVATE) = struct
     tree t >>= fun tree ->
     Tree.kind tree k
 
-  let setv t info ?parents path (v:tree) =
+  let set_tree t info ?parents path (v:tree) =
     Log.debug (fun f -> f "setv %a" Key.pp path);
     with_commit t info ?parents ~msg:"setv" (fun tree ->
-        Tree.addv tree path v
+        Tree.add_tree tree path v
       )
 
   let set t info ?parents path ?metadata (c:contents) =
@@ -642,8 +642,8 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   exception Conflict of Ir_merge.conflict
 
-  let mergev t info ~parents ?max_depth ?n path tree1 =
-    Log.debug (fun l -> l "mergev");
+  let merge_tree t info ~parents ?max_depth ?n path tree1 =
+    Log.debug (fun l -> l "merge_tree");
     let old () =
       let parents = List.map (fun c -> c.Commit.h) parents in
       H.lca (history_t t) ~info ?max_depth ?n parents >>= function
@@ -654,18 +654,18 @@ module Make (P: Ir_s.PRIVATE) = struct
         | None   -> Lwt.return (Ok None) (* FIXME: what should we raise? *)
         | Some h ->
           of_commit h >>= fun t ->
-          getv t path >|= fun tree ->
+          find_tree t path >|= fun tree ->
           Ok (Some tree)
     in
     Lwt.catch
       (fun () ->
          with_commit t info ~parents ~msg:"mergev" (fun root ->
-             Tree.getv root path >>= fun tree2 ->
+             Tree.find_tree root path >>= fun tree2 ->
              (Ir_merge.(f Tree.merge) ~old tree1 tree2 >>= function
                | Ok tree -> Lwt.return tree
                | Error e -> Lwt.fail (Conflict e))
              >>= fun tree_m ->
-             Tree.addv root path tree_m
+             Tree.add_tree root path tree_m
            ) >>= Ir_merge.ok
       ) (function
           | Conflict e -> Lwt.return (Error e)
