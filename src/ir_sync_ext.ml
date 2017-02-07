@@ -107,7 +107,7 @@ module Make (S: Ir_s.STORE) = struct
         | Ok ()   ->
           match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
           | Ok h    -> Ok h
-          | Error e -> Error (`Msg e)
+          | Error e -> Error (e :> fetch_error)
 
   let pp_fetch_error ppf = function
     | `No_head       -> Fmt.string ppf "empty head!"
@@ -172,7 +172,7 @@ module Make (S: Ir_s.STORE) = struct
         | Error e -> Lwt.return (Error (e :> push_error))
         | Ok ()   ->
           match conv S.(commit_t s_repo) R.(commit_t r_repo) h with
-          | Error e -> Lwt.return (Error (`Msg e))
+          | Error e -> Lwt.return (Error (e :> push_error))
           | Ok h    -> R.Head.set r h >|= fun () -> Ok ()
 
   let push_exn t ?depth remote =

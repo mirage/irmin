@@ -67,5 +67,6 @@ val compare: 'a t -> 'a -> 'a -> int
 
 val pp_json: ?minify:bool -> 'a t -> 'a Fmt.t
 val encode_json: 'a t -> Jsonm.encoder -> 'a -> unit
-val decode_json: 'a t -> Jsonm.decoder -> ('a, string) result
-val decode_json_lexemes: 'a t -> Jsonm.lexeme list -> ('a, string) result
+val decode_json: 'a t -> Jsonm.decoder -> ('a, [`Msg of string]) result
+val decode_json_lexemes:
+  'a t -> Jsonm.lexeme list -> ('a, [`Msg of string]) result

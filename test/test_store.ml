@@ -928,11 +928,9 @@ module Make (S: Test_S) = struct
       S.Repo.export repo >>= fun slice ->
       let str = Fmt.(to_to_string @@ T.pp_json P.Slice.t) slice in
       let slice' =
-        match
-          T.decode_json P.Slice.t (Jsonm.decoder (`String str))
-        with
-        | Ok t    -> t
-        | Error e -> Alcotest.fail e
+        match T.decode_json P.Slice.t (Jsonm.decoder (`String str)) with
+        | Ok t          -> t
+        | Error (`Msg e) -> Alcotest.fail e
       in
       check P.Slice.t "slices" slice slice';
 

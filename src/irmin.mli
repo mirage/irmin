@@ -356,11 +356,12 @@ module Type: sig
       responsibility of the caller to ensure that the encoded JSON
       fragment fits properly into a well-formed JSON object. *)
 
-  val decode_json: 'a t -> Jsonm.decoder -> ('a, string) result
+  val decode_json: 'a t -> Jsonm.decoder -> ('a, [`Msg of string]) result
   (** [decode_json t e] decodes values of type [t] from the
       {{:http://erratique.ch/software/jsonm}jsonm} decoder [e]. *)
 
-  val decode_json_lexemes: 'a t -> Jsonm.lexeme list -> ('a, string) result
+  val decode_json_lexemes: 'a t -> Jsonm.lexeme list ->
+    ('a, [`Msg of string]) result
   (** [decode_json_lexemes] is similar to {!decode_json} but use an
       already decoded list of JSON lexemes instead of a decoder. *)
 
@@ -800,7 +801,7 @@ module Path: sig
     val pp: t Fmt.t
     (** [pp] is the pretty-printer for paths. *)
 
-    val of_string: string -> (t, string) result
+    val of_string: string -> (t, [`Msg of string]) result
     (** [of_string] parses paths. *)
 
     type step
@@ -835,7 +836,7 @@ module Path: sig
     val pp_step: step Fmt.t
     (** [pp_step] is pretty-printer for path steps. *)
 
-    val step_of_string: string -> (step, string) result
+    val step_of_string: string -> (step, [`Msg of string]) result
     (** [step_of_string] parses path steps. *)
 
     (** {1 Value Types} *)
@@ -876,7 +877,7 @@ module Hash: sig
     val pp: t Fmt.t
     (** [pp] is the user-facing pretty-printer for paths. *)
 
-    val of_string: string -> (t, string) result
+    val of_string: string -> (t, [`Msg of string]) result
     (** [of_string] parses paths. *)
 
     val digest: Cstruct.t -> t
@@ -950,7 +951,7 @@ module Contents: sig
     val pp: t Fmt.t
     (** [pp] pretty-prints contents. *)
 
-    val of_string: string -> (t, string) result
+    val of_string: string -> (t, [`Msg of string]) result
     (** [of_string] parses contents. *)
 
   end
@@ -979,7 +980,7 @@ module Contents: sig
     val pp: t Fmt.t
     (** [pp] pretty-prints contents. *)
 
-    val of_string: string -> (t, string) result
+    val of_string: string -> (t, [`Msg of string]) result
     (** [of_string] parses contents. *)
 
     val merge: t option Merge.t
@@ -1059,7 +1060,7 @@ module Branch: sig
     val pp: t Fmt.t
     (** [pp] pretty-prints branches. *)
 
-    val of_string: string -> (t, string) result
+    val of_string: string -> (t, [`Msg of string]) result
     (** [of_string] parses branch names. *)
 
     val master: t
@@ -1144,7 +1145,7 @@ module Private: sig
         value and vice-versa. There are a few
         {{!builtin_converters}built-in converters}. *)
 
-    type 'a parser = string -> ('a, string) result
+    type 'a parser = string -> ('a, [`Msg of string]) result
     (** The type for configuration converter parsers. *)
 
     type 'a printer = 'a Fmt.t
@@ -2083,7 +2084,7 @@ module type S = sig
     val pp: t Fmt.t
     (** [pp] is the pretty-printer for store status. *)
 
-    val of_string: Repo.t -> string -> (t, string) result
+    val of_string: Repo.t -> string -> (t, [`Msg of string]) result
     (** [of_string r str] parses the store status from the string
         [str], using the base repository [r]. *)
 
@@ -2155,7 +2156,7 @@ module type S = sig
     (** [pp] is the pretty-printer for commit. Display only the
         hash. *)
 
-    val of_string: Repo.t -> string -> (t, string) result
+    val of_string: Repo.t -> string -> (t, [`Msg of string]) result
     (** [of_string r str] parsing the commit from the string [str],
         using the base repository [r]. *)
 
