@@ -61,13 +61,13 @@ module Irmin_git: sig
 
 end
 
-module Task (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
+module Info (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
 
-  (** {1 Task creators} *)
+  (** {1 Commit info creators} *)
 
-  val f: C.t -> string Irmin.Task.f
-  (** Task creators, using [N.name] and [C.now_d_ps] provided in the
-      functor arguments. *)
+  val f: C.t -> string Irmin.Info.f
+  (** Commit info creators, using [N.name] and [C.now_d_ps] provided
+      in the functor arguments. *)
 
 end
 
