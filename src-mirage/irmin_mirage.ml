@@ -33,11 +33,11 @@ module Irmin_git = struct
   module Memory (C: CONTEXT) = Irmin_git.Memory_ext(Context(C))(IO)
 end
 
-module Task (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
+module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
   let f c msg =
     C.now_d_ps c |>
     Ptime.v |> Ptime.to_float_s |> Int64.of_float |> fun date ->
-    Irmin.Task.v ~date ~owner:N.name msg
+    Irmin.Info.v ~date ~owner:N.name msg
 end
 
 module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
@@ -63,22 +63,20 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
   let pp_error = Mirage_kv.pp_error
 
   let read_head t =
-    S.Head.find t.t >>= function
-    | None   -> Lwt.return "empty HEAD"
+    S.Head.find t.t >|= function
+    | None   -> "empty HEAD"
     | Some h ->
-      S.Repo.task_of_commit (S.repo t.t) h >|= function
-      | None      -> "invalid HEAD"
-      | Some task ->
-        Fmt.strf
-          "commit: %a\n\
-           Author: %s\n\
-           Date: %Ld\n\
-           \n\
-           %s\n"
-          S.Commit.pp h
-          (Irmin.Task.owner task)
-          (Irmin.Task.date task)
-          (String.concat ~sep:"\n" @@ Irmin.Task.messages task)
+      let info = S.Commit.info h in
+      Fmt.strf
+        "commit: %a\n\
+         Author: %s\n\
+         Date: %Ld\n\
+         \n\
+         %s\n"
+        S.Commit.pp h
+        (Irmin.Info.owner info)
+        (Irmin.Info.date info)
+        (Irmin.Info.message info)
 
   let mk_path t path =
     String.cuts path ~sep:"/"
