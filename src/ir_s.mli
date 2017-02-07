@@ -281,16 +281,11 @@ module type SYNC = sig
   type t
   type commit
   type branch
-  type fetch_error = [
-    | `No_head
-    | `Not_available
-    | `Msg of string
-  ]
   val fetch: t -> ?depth:int -> uri:string -> branch ->
-    (commit, fetch_error) result Lwt.t
-  type push_error = [ fetch_error | `Detached_head ]
-  val push : t -> ?depth:int -> uri:string -> branch ->
-    (unit, push_error) result Lwt.t
+    (commit, [`No_head | `Not_available | `Msg of string]) result Lwt.t
+  val push: t -> ?depth:int -> uri:string -> branch ->
+    (unit, [`No_head | `Not_available | `Msg of string | `Detached_head])
+      result Lwt.t
 end
 
 module type PRIVATE = sig

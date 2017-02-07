@@ -193,7 +193,7 @@ module Type: sig
 
   val (|~):
     ('a, 'b, 'c -> 'd) open_variant -> ('a, 'c) case -> ('a, 'b, 'd) open_variant
-  (** [v |~ c] is [v] augmented with the case [c]. *)
+  (** [v |~ c] is the map [v] augmented with the case [c]. *)
 
   val variant: string -> 'b -> ('a, 'b, 'b) open_variant
   (** [variant n c p] is a representation of a variant type containing
@@ -1844,25 +1844,16 @@ module Private: sig
       type branch
       (** The type for branch IDs. *)
 
-      type fetch_error = [
-        | `No_head
-        | `Not_available
-        | `Msg of string
-      ]
-      (** The type for fetch errors. *)
-
       val fetch: t -> ?depth:int -> uri:string -> branch ->
-        (commit, fetch_error) result Lwt.t
+        (commit, [`No_head | `Not_available | `Msg of string]) result Lwt.t
       (** [fetch t uri] fetches the contents of the remote store
           located at [uri] into the local store [t]. Return the head
           of the remote branch with the same name, which is now in the
           local store. [No_head] means no such branch exists. *)
 
-      type push_error = [ fetch_error | `Detached_head ]
-      (** The type for push errors. *)
-
       val push: t -> ?depth:int -> uri:string -> branch ->
-        (unit, push_error) result Lwt.t
+        (unit, [`No_head | `Not_available | `Msg of string | `Detached_head])
+          result Lwt.t
       (** [push t uri] pushes the contents of the local store [t] into
           the remote store located at [uri]. *)
 
