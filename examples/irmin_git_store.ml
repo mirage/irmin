@@ -1,5 +1,5 @@
 (* Simple example of reading and writing in a Git repository *)
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 open Printf
 
@@ -13,7 +13,7 @@ module Store =
 let update t k v =
   let msg = sprintf "Updating /%s" (String.concat "/" k) in
   print_endline msg;
-  Store.set t (task msg) k v
+  Store.set t (info msg) k v
 
 let read_exn t k =
   let msg = sprintf "Reading /%s" (String.concat "/" k) in
@@ -37,7 +37,7 @@ let main () =
   update t ["root";"misc";"3.txt"] "Hohoho" >>= fun () ->
   update x ["root";"misc";"2.txt"] "Cool!"  >>= fun () ->
 
-  Store.merge (task "t: Merge with 'x'") x ~into:t >>= function
+  Store.merge (info "t: Merge with 'x'") x ~into:t >>= function
   | Error _ -> failwith "conflict!"
   | Ok () ->
     print_endline "merging ...";
@@ -45,7 +45,7 @@ let main () =
     read_exn t ["root";"misc";"2.txt"]  >>= fun _ ->
     read_exn t ["root";"misc";"3.txt"]  >>= fun _ ->
 
-    return_unit
+    Lwt.return_unit
 
 let () =
   Printf.printf

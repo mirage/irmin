@@ -1,4 +1,4 @@
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 
 let path =
@@ -28,9 +28,8 @@ let test () =
   Store.getv t [] >>= fun view ->
   Store.Tree.add view ["BAR.md"] "Hoho!" >>= fun view ->
   Store.Tree.add view ["FOO.md"] "Hihi!" >>= fun view ->
-  Store.setv t (task "merge") [] view >>= fun () ->
-  Printf.printf "%s\n%!" readme;
-  return_unit
+  Store.setv t (info "merge") [] view >|= fun () ->
+  Printf.printf "%s\n%!" readme
 
 let () =
   Lwt_main.run (test ())

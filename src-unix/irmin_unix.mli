@@ -35,11 +35,12 @@
 
 *)
 
-val task: string -> Irmin.task
-(** [task fmt] creates a fresh task, with the {{!Irmin.Task.date}date}
-    set to [Unix.gettimeoday ()] and a task {{!Irmin.Task.owner}owner}
-    based on the local Git configuration {b FIXME:} not implemented,
-    use [Unix.gethostname()] and [Unix.getpid()] for now on.  *)
+val info: string -> Irmin.info
+(** [info fmt] creates a fresh commit info, with the
+    {{!Irmin.Info.date}date} set to [Unix.gettimeoday ()] and the
+    {{!Irmin.Info.owner}owner} based on the local Git configuration {b
+    FIXME:} not implemented, use [Unix.gethostname()] and
+    [Unix.getpid()] for now on.  *)
 
 (** File system backends, using
     {{:https://github.com/janestreet/bin_prot}bin_prot}. *)

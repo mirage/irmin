@@ -1,6 +1,6 @@
 (* Connect to http://localhost:8080/dump *)
 
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 open Printf
 
@@ -8,7 +8,7 @@ let fin () =
   let _ =
     Sys.command (sprintf "cd %s && git reset HEAD --hard" Config.root)
   in
-  return_unit
+  Lwt.return_unit
 
 type action = {
   message: string;
@@ -81,10 +81,10 @@ let config = Irmin_git.config
     ~head:(Git.Reference.of_raw ("refs/heads/" ^ branch images.(0)))
     ()
 
-let task image msg =
+let info image msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let owner = image.name in
-  Irmin.Task.v ~date ~owner msg
+  Irmin.Info.v ~date ~owner msg
 
 let master = branch images.(0)
 
@@ -92,7 +92,7 @@ let init () =
   Config.init ();
   Store.Repo.v config >>= fun repo ->
   Store.of_branch repo master >>= fun t ->
-  Store.set t (task images.(0) "init") ["0"] "0" >>= fun () ->
+  Store.set t (info images.(0) "init") ["0"] "0" >>= fun () ->
   Lwt_list.iter_s (fun i ->
       Store.clone ~src:t ~dst:(branch i) >>= fun _ ->
       Lwt.return_unit
@@ -113,14 +113,14 @@ let rec process image =
   in
   Store.Repo.v config >>= fun repo ->
   Store.of_branch repo id >>= fun t ->
-  Store.set t (task image actions.message) key (value ()) >>= fun () ->
+  Store.set t (info image actions.message) key (value ()) >>= fun () ->
 
   begin if Random.int 3 = 0 then
     let branch = branch (random_array images) in
     if branch <> id then (
       Printf.printf "Merging ...%!";
       Store.merge_with_branch t
-        (task image @@ Fmt.strf "Merging with %s" branch) branch >>= function
+        (info image @@ Fmt.strf "Merging with %s" branch) branch >>= function
       | Ok () ->
         Printf.printf "ok!\n%!";
         Lwt.return_unit
@@ -128,7 +128,7 @@ let rec process image =
     ) else
       Lwt.return_unit
   else
-    return_unit
+    Lwt.return_unit
   end >>= fun () ->
 
   Lwt_unix.sleep (max 0.1 (Random.float 0.3)) >>= fun () ->

@@ -88,9 +88,9 @@ module Git = struct
     let config = Irmin_git.config ~root:test_db ~bare:false () in
     S.Repo.v config >>= fun repo ->
     S.master repo >>= fun t ->
-    S.set t (Irmin_unix.task "fst one") ["fst"] "ok" >>= fun () ->
-    S.set t (Irmin_unix.task "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
-    S.set t (Irmin_unix.task "fst one") ["fst"] "hoho"
+    S.set t (Irmin_unix.info "fst one") ["fst"] "ok" >>= fun () ->
+    S.set t (Irmin_unix.info "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
+    S.set t (Irmin_unix.info "fst one") ["fst"] "hoho"
 
   let misc = "non-bare", `Quick, (fun () -> Lwt_main.run (test_non_bare ()))
 

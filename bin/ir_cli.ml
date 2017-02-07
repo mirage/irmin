@@ -21,7 +21,7 @@ open Ir_resolver
 
 let () = Irmin_unix.set_listen_dir_hook ()
 
-let taskf fmt = Fmt.kstrf task fmt
+let infof fmt = Fmt.kstrf info fmt
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
@@ -146,8 +146,8 @@ let init = {
 let print fmt = Fmt.kstrf print_endline fmt
 
 let get name f x = match f x with
-  | `Ok x    -> x
-  | `Error e -> Fmt.kstrf invalid_arg "invalid %s: %s" name e
+  | Ok x           -> x
+  | Error (`Msg e) -> Fmt.kstrf invalid_arg "invalid %s: %s" name e
 
 let key f x = get "key" f x
 let value f x = get "value" f x
@@ -262,7 +262,7 @@ let write = {
           | [path; value] -> key S.Key.of_string path, mk value
           | _             -> failwith "Too many arguments"
         in
-        S.set t (task "write") path value
+        S.set t (infof "write") path value
       end
     in
     Term.(mk write $ store $ args);
@@ -277,7 +277,7 @@ let rm = {
     let rm (S ((module S), store)) path =
       run begin
         store >>= fun t ->
-        S.remove t (taskf "rm %s." path) (key S.Key.of_string path)
+        S.remove t (infof "rm %s." path) (key S.Key.of_string path)
       end
     in
     Term.(mk rm $ store $ path);
@@ -295,9 +295,8 @@ let clone = {
         store >>= fun t ->
         remote >>= fun remote ->
         Sync.fetch t ?depth remote >>= function
-        | `Head d  -> S.Head.set t d
-        | `No_head -> Lwt.return_unit
-        | `Error   -> Printf.eprintf "Error!\n"; exit 1
+        | Ok d    -> S.Head.set t d
+        | Error e -> Format.eprintf "Error: %a!\n" Sync.pp_fetch_error e; exit 1
       end
     in
     Term.(mk clone $ store $ remote $ depth);
@@ -333,7 +332,7 @@ let pull = {
       run begin
         store >>= fun t ->
         remote >>= fun r ->
-        Sync.pull_exn t r (`Merge (task "Pulling."))
+        Sync.pull_exn t r (`Merge (info "Pulling."))
       end
     in
     Term.(mk pull $ store $ remote);
@@ -385,7 +384,7 @@ let revert = {
     let revert (S ((module S), store)) snapshot =
       run begin
         store >>= fun t ->
-        let s = commit S.Commit.of_string snapshot in
+        let s = commit (S.Commit.of_string @@ S.repo t) snapshot in
         S.Head.set t s
       end
     in
@@ -411,7 +410,7 @@ let watch = {
               print "%s%a" v S.Key.pp k
             in
             let view (c, _) =
-              S.of_commit (S.repo t) c >>= fun t ->
+              S.of_commit c >>= fun t ->
               S.getv t path
             in
             let empty = Lwt.return S.Tree.empty in
