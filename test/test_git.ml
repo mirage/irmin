@@ -45,7 +45,7 @@ let test_sort_order (module S: Test_S) =
   let node_t = S.Private.Repo.node_t repo in
   let head_tree_id branch =
     S.Head.get branch >>= fun head ->
-    S.Private.Commit.find commit_t head >|= fun commit ->
+    S.Private.Commit.find commit_t (S.Commit.hash head) >|= fun commit ->
     S.Private.Commit.Val.node (get commit)
   in
   let ls branch =
@@ -53,7 +53,7 @@ let test_sort_order (module S: Test_S) =
     S.Private.Node.find node_t tree_id >|= fun tree ->
     S.Private.Node.Val.list (get tree) |> List.map fst
   in
-  let nope = Irmin.Task.empty in
+  let nope = Irmin.Info.empty in
   S.master repo >>= fun master ->
   S.set master nope ["foo.c"] "foo.c" >>= fun () ->
   S.set master nope ["foo1"] "foo1" >>= fun () ->
