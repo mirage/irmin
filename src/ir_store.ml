@@ -67,8 +67,11 @@ module Make (P: Ir_s.PRIVATE) = struct
       |+ field "value" P.Commit.Val.t (fun t -> t.v)
       |> sealr
 
-    let v r ~info ~parents (tree:tree) =
-      let parents = List.map (fun c -> c.h) parents in
+    let compare_hash x y = Cstruct.compare (Hash.to_raw x) (Hash.to_raw y)
+
+    let v r ~info ~parents tree =
+      let parents = List.rev_map (fun c -> c.h) parents in
+      let parents = List.sort compare_hash parents in
       (match tree with
        | `Node n     -> Tree.export r n
        | `Empty      -> P.Node.add (P.Repo.node_t r) P.Node.Val.empty
