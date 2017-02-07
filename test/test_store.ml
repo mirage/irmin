@@ -336,7 +336,7 @@ module Make (S: Test_S) = struct
   let test_branches x () =
     let test repo =
       let check_keys = checks S.Branch.t in
-      let check_val = check (T.option S.Commit.t) in
+      let check_val = check (T.option @@ S.commit_t repo) in
 
       r1 ~repo >>= fun kv1 ->
       r2 ~repo >>= fun kv2 ->
@@ -372,7 +372,7 @@ module Make (S: Test_S) = struct
       let v1  = "bar" in
       let v2  = "foo" in
       let r = ref 0 in
-      let eq = Irmin.Type.(equal (Irmin.Diff.t S.commit_t)) in
+      let eq = Irmin.Type.(equal (Irmin.Diff.t @@ S.commit_t repo)) in
       let old_head = ref h in
       let check x =
         S.Head.get t >|= fun h2 ->
@@ -807,11 +807,11 @@ module Make (S: Test_S) = struct
           | Error `Too_many_lcas     -> failf "%s: Too many LCAs" msg
           | Error `Max_depth_reached -> failf "%s: max depth reached" msg
         in
-        checks S.Commit.t msg l1 l2
+        checks (S.commit_t repo) msg l1 l2
       in
       let assert_lcas msg ~max_depth n a b expected =
-        S.of_commit repo a >>= fun a ->
-        S.of_commit repo b >>= fun b ->
+        S.of_commit a >>= fun a ->
+        S.of_commit b >>= fun b ->
         S.lcas ~max_depth ~n a b >>= fun lcas ->
         assert_lcas msg expected lcas;
         S.lcas ~max_depth:(max_depth - 1) ~n a b >>= fun lcas ->
@@ -885,21 +885,21 @@ module Make (S: Test_S) = struct
       assert_lcas "weird lcas 4" ~max_depth:3 3 k15 k16 [k11] >>= fun () ->
 
       (* fast-forward *)
-      S.of_commit repo k12 >>= fun t12  ->
+      S.of_commit k12 >>= fun t12  ->
       S.Head.fast_forward t12 k16 >>= fun b1 ->
       Alcotest.(check bool) "ff 1.1" false b1;
       S.Head.get t12 >>= fun k12' ->
-      check S.Commit.t "ff 1.2" k12 k12';
+      check (S.commit_t repo) "ff 1.2" k12 k12';
 
       S.Head.fast_forward t12 ~n:1 k14 >>= fun b2 ->
       Alcotest.(check bool) "ff 2.1" false b2;
       S.Head.get t12 >>= fun k12'' ->
-      check S.Commit.t "ff 2.3" k12 k12'';
+      check (S.commit_t repo) "ff 2.2" k12 k12'';
 
       S.Head.fast_forward t12 k14 >>= fun b3 ->
       Alcotest.(check bool) "ff 2.2" true b3;
       S.Head.get t12 >>= fun k14' ->
-      check S.Commit.t "ff 2.3" k14 k14';
+      check (S.commit_t repo) "ff 2.3" k14 k14';
 
       Lwt.return_unit
     in
@@ -909,11 +909,11 @@ module Make (S: Test_S) = struct
     let test repo =
       S.empty repo >>= fun t ->
       S.Head.find t >>= fun h ->
-      check T.(option S.Commit.t) "empty" None h;
+      check T.(option @@ S.commit_t repo) "empty" None h;
       r1 ~repo >>= fun r1 ->
       S.set t (dummy_info ()) ["b"; "x"] v1 >>= fun () ->
       S.Head.find t >>= fun h ->
-      check T.(option S.Commit.t) "not empty" (Some r1) h;
+      check T.(option @@ S.commit_t repo) "not empty" (Some r1) h;
       Lwt.return_unit
     in
     run x test
@@ -1061,8 +1061,8 @@ module Make (S: Test_S) = struct
 
       S.status tx |> fun tagx' ->
       S.status ty |> fun tagy' ->
-      check S.Status.t "tagx" (`Branch tagx) tagx';
-      check S.Status.t "tagy" (`Branch tagy) tagy';
+      check (S.Status.t repo) "tagx" (`Branch tagx) tagx';
+      check (S.Status.t repo) "tagy" (`Branch tagy) tagy';
 
       Lwt.return_unit
     in
@@ -1086,7 +1086,7 @@ module Make (S: Test_S) = struct
 
       S.setv t (infof "empty view") [] v1 >>= fun () ->
       S.Head.get t >>= fun head ->
-      S.Commit.hash repo head >>= fun head ->
+      S.Commit.hash head |> fun head ->
       P.Commit.find (ct repo) head >>= fun commit ->
       let node = P.Commit.Val.node (get commit) in
       P.Node.find (n repo) node >>= fun node ->
@@ -1204,13 +1204,13 @@ module Make (S: Test_S) = struct
       S.setv t Irmin.Info.empty ~parents:[r1;r2] [] v3 >>= fun () ->
       S.Head.get t >>= fun h ->
 
-      S.Commit.info h >>= fun i ->
+      S.Commit.info h |> fun i ->
       check Irmin.Info.t "commit info" i0 i;
 
-      S.of_commit repo h >>= fun tt ->
+      S.of_commit h >>= fun tt ->
       S.history tt >>= fun g ->
       let pred = S.History.pred g h in
-      checks S.commit_t "head" [r1;r2] pred;
+      checks (S.commit_t repo) "head" [r1;r2] pred;
 
       S.findm tt ["b";"foo";"1"] >>= fun foo2'' ->
       check_val "remove tt" None foo2'';
@@ -1363,7 +1363,7 @@ module Make (S: Test_S) = struct
       let read =
         read
           (fun _i -> S.Branch.find repo k >|= get)
-          (fun i  -> check S.commit_t (Fmt.strf "tag %d" i) v)
+          (fun i  -> check (S.commit_t repo) (Fmt.strf "tag %d" i) v)
       in
       write 1 >>= fun () ->
       Lwt.join [ write 10; read 10; write 10; read 10; ]

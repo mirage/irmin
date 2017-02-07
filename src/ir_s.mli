@@ -374,13 +374,16 @@ module type STORE = sig
   val empty: Repo.t -> t Lwt.t
   val master: Repo.t -> t Lwt.t
   val of_branch: Repo.t -> branch -> t Lwt.t
-  val of_commit: Repo.t -> commit -> t Lwt.t
+  val of_commit: commit -> t Lwt.t
   val repo: t -> Repo.t
   val tree: t -> tree Lwt.t
-  val status: t -> [ `Empty | `Branch of branch | `Commit of commit ]
-  module Status: CONV with
+  module Status: sig
     type t = [ `Empty | `Branch of branch | `Commit of commit ]
-
+    val t: Repo.t -> t Ir_type.t
+    val pp: t Fmt.t
+    val of_string: Repo.t -> string -> (t, string) result
+  end
+  val status: t -> Status.t
   module Head: sig
     val list: Repo.t -> commit list Lwt.t
     val find: t -> commit option Lwt.t
@@ -393,14 +396,16 @@ module type STORE = sig
       (unit, Merge.conflict) result Lwt.t
   end
   module Commit: sig
-    include S0 with type t = commit
+    type t = commit
+    val t: Repo.t -> t Ir_type.t
     val pp: t Fmt.t
+    val of_string: Repo.t -> string -> (t, string) result
     val v: Repo.t -> info:info -> parents:commit list -> tree -> commit Lwt.t
-    val tree: Repo.t -> commit -> tree Lwt.t
-    val parents: Repo.t -> commit -> commit list Lwt.t
-    val info: commit -> info Lwt.t
+    val tree: commit -> tree Lwt.t
+    val parents: commit -> commit list Lwt.t
+    val info: commit -> info
     module Hash: HASH
-    val hash: Repo.t -> commit -> Hash.t Lwt.t
+    val hash: commit -> Hash.t
     val of_hash: Repo.t -> Hash.t -> commit option Lwt.t
   end
   module Tree: sig
@@ -484,12 +489,12 @@ module type STORE = sig
   val contents_t: contents Type.t
   val node_t: node Type.t
   val tree_t: tree Type.t
-  val commit_t: commit Type.t
+  val commit_t: Repo.t -> commit Type.t
   val branch_t: branch Type.t
   val slice_t: slice Type.t
   val kind_t: [`Contents | `Node] Type.t
   val kinde_t: [`Empty | `Contents | `Node] Type.t
-  val lca_t: (commit list, [`Max_depth_reached | `Too_many_lcas]) result Type.t
+  val lca_error_t: [`Max_depth_reached | `Too_many_lcas] Type.t
 
   module Private: sig
     include PRIVATE
