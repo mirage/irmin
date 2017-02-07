@@ -131,8 +131,8 @@ module Make (S: Ir_s.STORE) = struct
     | Ok k     ->
       match kind with
       | `Update     -> S.Head.set t k >|= fun () -> Ok ()
-      | `Merge task ->
-        S.Head.merge ~into:t task k >|= fun x ->
+      | `Merge info ->
+        S.Head.merge ~into:t info k >|= fun x ->
         (x :> (unit, pull_error) result)
 
   let pull_exn t ?depth remote kind =

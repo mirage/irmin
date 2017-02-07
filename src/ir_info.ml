@@ -22,7 +22,7 @@ type t = {
 
 let t =
   let open Ir_type in
-  record "task" (fun date owner message -> { date; owner; message })
+  record "info" (fun date owner message -> { date; owner; message })
   |+ field "date"    int64  (fun t -> t.date)
   |+ field "owner"   string (fun t -> t.owner)
   |+ field "message" string (fun t -> t.message)
