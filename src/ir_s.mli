@@ -532,6 +532,7 @@ module type SYNC_STORE = sig
     | `Not_available
     | `Msg of string
   ]
+  val pp_fetch_error: fetch_error Fmt.t
   type push_error = [ fetch_error | `Detached_head ]
   val fetch: db -> ?depth:int -> remote ->
     (commit, fetch_error) result Lwt.t
@@ -540,6 +541,7 @@ module type SYNC_STORE = sig
     (unit, [fetch_error | Ir_merge.conflict]) result Lwt.t
   val pull_exn: db -> ?depth:int -> remote -> [`Merge of info|`Update] ->
     unit Lwt.t
+  val pp_push_error: push_error Fmt.t
   val push: db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t
   val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
 end
