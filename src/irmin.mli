@@ -2614,10 +2614,10 @@ val remote_uri: string -> remote
     the missing contents is downloaded.
 
 {[
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 
-module S = Irmin_git.FS(Irmin.Contents.String)(Irmin.Branch.String)(Irmin.Hash.SHA1)
+module S = Irmin_git.FS(Irmin.Contents.String)
 module Sync = Irmin.Sync(S)
 let config = Irmin_git.config ~root:"/tmp/test" ()
 
@@ -2626,14 +2626,12 @@ let upstream =
   else (Printf.eprintf "Usage: sync [uri]\n%!"; exit 1)
 
 let test () =
-  S.Repo.v config
-  >>= fun r  -> S.master r info
-  >>= fun t  -> Sync.pull_exn (t "Syncing with upstream store") upstream `Update
+  S.Repo.v config >>= S.master
+  >>= fun t  -> Sync.pull_exn t upstream `Update
   >>= fun () -> S.get t ["README.md"]
-  >>= fun r  -> Printf.printf "%s\n%!" r; return_unit
+  >|= fun r  -> Printf.printf "%s\n%!" r
 
-let () =
-  Lwt_main.run (test ())
+let () = Lwt_main.run (test ())
 ]}
 
     {3 Mergeable logs}
@@ -2644,11 +2642,39 @@ let () =
     exposed by {{:https://github.com/mirage/mirage-tc}mirage-tc}:
 
 {[
-  module Entry = struct
-    include Tc.Pair (Tc.Int)(Tc.String)
-    let compare (x, _) (y, _) = Pervasives.compare x y
-    let time = ref 0
-    let v message = incr time; !time, message
+  module Entry = sig
+    include Irmin.Contents.Conv
+    val v: string -> t
+    val compare: t -> t -> int
+    val timestamp: t -> int
+  end = struct
+
+    type t = { timestamp: int; message : string; }
+
+    let compare x y = compare x.timestamp y.timestamp
+
+    let v message =
+      incr time;
+      { timestamp = !time; message }
+
+    let t =
+      let open Irmin.Type in
+      record "entry" (fun timestamp message -> { timestamp; message })
+      |+ field "timestamp" int    (fun t -> t.timestamp)
+      |+ field "message"   string (fun t -> t.message)
+      |> sealr
+
+    let timestamp t = t.timestamp
+
+    let pp ppf { timestamp; message } =
+      Fmt.pf ppf  "%04d: %s\n" timestamp message
+
+    let of_string str =
+      match String.cut ~sep:": " str with
+      | None -> Error (`Msg ("invalid entry: " ^ str))
+      | Some (x, message) ->
+        try Ok { timestamp = int_of_string x; message }
+        with Failure e -> Error (`Msg e)
   end
 ]}
 
@@ -2658,45 +2684,64 @@ let () =
     to the common ancestor's ones.
 
 {[
-  module Log: Irmin.Contents.S with type t = Entry.t list = struct
-    module Path = Irmin.Path.String_list
-    module S = Tc.List(Entry)
-    include S
+(* A log file *)
+module Log: sig
+  include Irmin.Contents.S
+  val add: t -> Entry.t -> t
+  val empty: t
+end = struct
 
-    (* Get the timestamp of the latest entry. *)
-    let timestamp = function
-      | [] -> 0
-      | (timestamp, _ ) :: _ -> timestamp
+  type t = Entry.t list
+  let t = Irmin.Type.(list Entry.t)
 
-    (* Compute the entries newer than the given timestamp. *)
-    let newer_than timestamp entries =
-      let rec aux acc = function
-        | [] -> List.rev acc
-        | (h, _) :: _ when h <= timestamp -> List.rev acc
-        | h::t -> aux (h::acc) t
-      in
-      aux [] entries
+  let empty = []
 
-    let merge_log _path ~old t1 t2 =
-      let open Irmin.Merge.OP in
-      old () >>| fun old ->
-      let old = match old with None -> [] | Some o -> o in
-      let ts = timestamp old in
-      let t1 = newer_than ts t1 in
-      let t2 = newer_than ts t2 in
-      let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
-      ok (List.rev_append t3 old)
+  let pp ppf l = List.iter (Fmt.pf ppf "%a\n" Entry.pp ) (List.rev l)
 
-    let merge path = Irmin.Merge.option (module S) (merge_log path)
+  let of_string str =
+    let lines = String.cuts ~sep:"\n" str in
+    try
+      List.fold_left (fun acc l ->
+          match Entry.of_string l with
+          | Ok x           -> x :: acc
+          | Error (`Msg e) -> failwith e
+        ) [] lines
+      |> fun l -> Ok l
+    with Failure e ->
+      Error (`Msg e)
 
-  end
-]}
+  let timestamp = function
+    | [] -> 0
+    | e :: _ -> Entry.timestamp e
 
-    {b Note:} The serialisation primitives provided by
-    {{:https://github.com/mirage/mirage-tc}mirage-tc}: are not very
-    efficient in this case as they parse the file every-time. For real
-    usage, you would write buffered versions of [Log.read] and
-    [Log.write].
+  let newer_than timestamp file =
+    let rec aux acc = function
+      | [] -> List.rev acc
+      | h:: _ when Entry.timestamp h <= timestamp -> List.rev acc
+      | h::t -> aux (h::acc) t
+    in
+    aux [] file
+
+  let merge ~old t1 t2 =
+    let open Irmin.Merge.Infix in
+    old () >>=* fun old ->
+    let old = match old with None -> [] | Some o -> o in
+    let ts = timestamp old in
+    let t1 = newer_than ts t1 in
+    let t2 = newer_than ts t2 in
+    let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
+    Irmin.Merge.ok (List.rev_append t3 old)
+
+  let merge = Irmin.Merge.(option (v t merge))
+
+  let add t e = e :: t
+
+end ]}
+
+    {b Note:} The serialisation primitives used in that example are
+    not very efficient in this case as they parse the file
+    every-time. For real usage, you would write buffered versions of
+    [Log.pp] and [Log.of_string].
 
     To persist the log file on disk, we need to choose a backend. We
     show here how to use the on-disk [Git] backend on Unix.
@@ -2706,7 +2751,7 @@ let () =
   open Irmin_unix
 
   (* Build an Irmin store containing log files. *)
-  module S = Irmin_git.FS(Log)(Irmin.Branch.String)(Irmin.Hash.SHA1)
+  module S = Irmin_git.FS(Log)
 
   (* Set-up the local configuration of the Git repository. *)
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
@@ -2715,38 +2760,37 @@ let () =
   We can now define a toy example to use our mergeable log files.
 
 {[
-  open Lwt
+  open Lwt.Infix
 
   (* Name of the log file. *)
   let file = [ "local"; "debug" ]
 
   (* Read the entire log file. *)
   let read_file t =
-    S.find t file >>= function
-    | None   -> return_nil
-    | Some l -> return l
+    S.find t file >|= function
+    | None   -> []
+    | Some l -> l
 
   (* Persist a new entry in the log. *)
   let log t fmt =
-    Printf.ksprintf (fun message ->
+    Fmt.kstrf (fun message ->
         read_file t >>= fun logs ->
-        let logs = Entry.v message :: logs in
-        S.update (t "Adding a new entry") file logs
+        let logs = Log.add logs (Entry.v message) in
+        S.set t (info "Adding a new entry") file logs
       ) fmt
 
   let () =
     Lwt_main.run begin
-      S.Repo.v config
-      >>= fun r -> S.master r
+      S.Repo.v config >>= S.master
       >>= fun t  -> log t "Adding a new log entry"
-      >>= fun () -> Irmin.clone_force info (t "Cloning the store") "x"
+      >>= fun () -> Irmin.clone_force ~src:t ~dst:"x"
       >>= fun x  -> log x "Adding new stuff to x"
       >>= fun () -> log x "Adding more stuff to x"
       >>= fun () -> log x "More. Stuff. To x."
       >>= fun () -> log t "I can add stuff on t also"
       >>= fun () -> log t "Yes. On t!"
-      >>= fun () -> Irmin.merge "Merging x into t" x ~into:t
-      >>= function Ok () -> return_unit | Errror _ -> failwith "merge conflict!"
+      >>= fun () -> S.merge (info "Merging x into t") x ~into:t
+      >|= function Ok () -> () | Errror _ -> failwith "merge conflict!"
     end
 ]}
 
