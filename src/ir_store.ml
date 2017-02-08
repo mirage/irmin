@@ -46,7 +46,7 @@ module Make (P: Ir_s.PRIVATE) = struct
     let hash r = function
       | `Node n     -> export r n
       | `Empty      -> P.Node.add (P.Repo.node_t r) P.Node.Val.empty
-      | `Contents _ -> Lwt.fail_with "Cannot hash tree leafs"
+      | `Contents _ -> Lwt.fail_invalid_arg "Cannot hash tree leafs"
   end
 
   type node = Tree.node
@@ -75,7 +75,7 @@ module Make (P: Ir_s.PRIVATE) = struct
       (match tree with
        | `Node n     -> Tree.export r n
        | `Empty      -> P.Node.add (P.Repo.node_t r) P.Node.Val.empty
-       | `Contents _ -> Lwt.fail_with "cannot add contents at the root")
+       | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root")
       >>= fun node ->
       let v = P.Commit.Val.v info ~node ~parents in
       P.Commit.add (P.Repo.commit_t r) v >|= fun h ->
@@ -99,6 +99,12 @@ module Make (P: Ir_s.PRIVATE) = struct
 
     let of_string repo str =
       Ir_type.decode_json (t repo) (Jsonm.decoder (`String str))
+
+    let equal_opt x y =
+      match x, y with
+      | None  , None   -> true
+      | Some x, Some y -> equal x y
+      | _ -> false
 
   end
 
@@ -247,12 +253,12 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   end
 
-  type tree_root = [ `Empty | `Node of node ]
+  type root_tree = [ `Empty | `Node of node ]
 
   type t = {
     repo: Repo.t;
     head_ref: head_ref;
-    mutable tree: (commit * tree_root) option; (* cache for the store tree *)
+    mutable tree: (commit * root_tree) option; (* cache for the store tree *)
     lock: Lwt_mutex.t;
   }
 
@@ -260,8 +266,6 @@ module Make (P: Ir_s.PRIVATE) = struct
   let repo t = t.repo
   let branch_t t = P.Repo.branch_t t.repo
   let commit_t t = P.Repo.commit_t t.repo
-  let node_t t = P.Repo.node_t t.repo
-  let graph_t t = node_t t
   let history_t t = commit_t t
 
   let status t = match t.head_ref with
@@ -412,17 +416,11 @@ module Make (P: Ir_s.PRIVATE) = struct
       | `Head h      -> h := Some c; Lwt.return_unit
       | `Branch name -> Branch_store.set (branch_t t) name c.Commit.h
 
-    let equal_commit_opt x y =
-      match x, y with
-      | None  , None   -> true
-      | Some x, Some y -> Commit.equal x y
-      | _ -> false
-
     let test_and_set_unsafe t ~test ~set =
       match t.head_ref with
       | `Head head ->
         (* [head] is protected by [t.lock]. *)
-        if equal_commit_opt !head test then (head := set; Lwt.return true)
+        if Commit.equal_opt !head test then (head := set; Lwt.return true)
         else Lwt.return false
       | `Branch name ->
         let h = function None -> None | Some c -> Some c.Commit.h in
@@ -486,7 +484,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   (* Retry an operation until the optimistic lock is happy. *)
   let retry name fn =
     let rec aux i =
-      fn () >>= function
+      fn i >>= function
       | true  -> Lwt.return_unit
       | false ->
         Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
@@ -494,44 +492,141 @@ module Make (P: Ir_s.PRIVATE) = struct
     in
     aux 1
 
-  let tree_root = function
+  let root_tree = function
     | `Empty | `Node _ as n -> n
     | `Contents _ -> assert false
 
-  let with_commit t info ?parents ~msg (f: tree -> tree Lwt.t) =
-    let aux () =
-      (tree_and_head t >|= function
-        | None           -> None, `Empty, []
-        | Some (c, tree) ->
-          let parents = match parents with None -> [c] | Some p -> p in
-          Some c, tree, parents
-      ) >>= fun (head, tree, parents) ->
-      f (tree :> tree) >>= fun tree ->
-      (match tree with
-       | `Empty      -> Graph.empty (graph_t t)
-       | `Node n     -> Tree.export (repo t) n
-       | `Contents _ -> Lwt.fail_invalid_arg "The tree root cannot be contents"
-      ) >>= fun node ->
-      let parents = List.map (fun c -> c.Commit.h) parents in
-      H.v (history_t t) ~node ~parents ~info >>= fun (key, commit) ->
-      let c = { r = t.repo; Commit.h = key; v = commit } in
-      match t.head_ref with
-      | `Head head ->
-        (* [head] is protected by [t.lock] *)
-        head := Some c;
-        t.tree <- Some (c, tree_root tree);
-        Lwt.return true
-      | `Branch name   ->
-        (* concurrent handle and/or process can modify the
-           branch. Need to check that we are still working on the same
-           head. *)
-        let test = match head with None -> None | Some c -> Some c.Commit.h in
-        let set = Some key in
-        Branch_store.test_and_set (branch_t t) name ~test ~set >|= fun r ->
-        if r then t.tree <- Some (c, tree_root tree);
-        r
+  let add_commit t old_head (c, _ as tree) =
+    match t.head_ref with
+    | `Head head ->
+      Lwt_mutex.with_lock t.lock (fun () ->
+          if not (Commit.equal_opt old_head !head) then
+            Lwt.return false
+          else (
+            (* [head] is protected by [t.lock] *)
+            head := Some c;
+            t.tree <- Some tree;
+            Lwt.return true
+          ))
+    | `Branch name   ->
+      (* concurrent handlers and/or process can modify the
+         branch. Need to check that we are still working on the same
+         head. *)
+      let test = match old_head with
+        | None   -> None
+        | Some c -> Some (Commit.hash c)
+      in
+      let set = Some (Commit.hash c) in
+      Branch_store.test_and_set (branch_t t) name ~test ~set >|= fun r ->
+      if r then t.tree <- Some tree;
+      r
+
+  type 'a transation = t ->
+    ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
+    ?max_depth:int -> ?n:int ->
+    (int -> Ir_info.t) -> key -> 'a -> unit Lwt.t
+
+  type snapshot = {
+    head   : commit option;
+    root   : tree;
+    tree   : tree; (* the subtree used by the transaction *)
+    parents: commit list;
+  }
+
+  let snapshot t key =
+    tree_and_head t >>= function
+    | None           ->
+      Lwt.return { head = None; root = `Empty; tree = `Empty; parents = [] }
+    | Some (c, root) ->
+      let root = (root :> tree) in
+      Tree.find_tree root key >|= fun tree ->
+      { head = Some c; root; tree; parents = [c] }
+
+  let with_tree t ?(allow_empty=false) ?(strategy=`Test_and_set)
+      ?max_depth ?n info key (f:tree -> tree Lwt.t) =
+    let aux i =
+      snapshot t key >>= fun s1 ->
+      (* this might take a very long time *)
+      f s1.tree >>= fun new_tree ->
+      Tree.equal s1.tree new_tree >>= fun same_tree ->
+      (* if no change and [allow_empty = true] then, do nothing *)
+      if same_tree && not allow_empty && s1.head <> None then Lwt.return true
+      else
+        (* take a new snapshot as the store could have changed while
+           [f] was executing. *)
+        snapshot t key >>= fun s2 ->
+        let set () =
+          Tree.add_tree s2.root key new_tree >>= fun root ->
+          Commit.v (repo t) ~info:(info i) ~parents:s2.parents root >>= fun c ->
+          add_commit t s2.head (c, root_tree root)
+        in
+        match strategy with
+        | `Set ->
+          (* we don't care about tree2, the last writer (us) wins. *)
+          set ()
+
+        | `Test_and_set ->
+          Tree.equal s1.tree s2.tree >>= fun same_tree ->
+          (* if the subtree has changed, restart the transaction *)
+          if same_tree then set () else Lwt.return false
+
+        | `Merge ->
+          (* if the subtree has changed, merge it *)
+          Tree.equal s1.tree s2.tree >>= fun same_tree ->
+          if same_tree then set () else
+            (* we create an intermediate commit to hold the pre-merge
+               state:
+
+               s1 --> pre_merge ---> merge
+                                       ^
+                                       |
+               s2 ------------------- /
+            *)
+            Tree.add_tree s1.root key new_tree >>= fun root ->
+            Commit.v (repo t) ~info:(info i) ~parents:s1.parents root
+            >>= fun pre_merge ->
+            let parents = pre_merge :: s2.parents in
+            let parents_h = List.map Commit.hash parents in
+            H.lca (history_t t) ~info:(info i) ?max_depth ?n parents_h
+            >>= function
+            | Error _     -> Lwt.return false
+            | Ok None     -> Lwt.return true
+            | Ok (Some h) ->
+              Commit.of_hash t.repo h >>= function
+              | None   -> Lwt.return false
+              | Some h ->
+                let old () =
+                  of_commit h >>= tree >>= fun tree ->
+                  Tree.find_tree tree key >|= fun x ->
+                  Ok (Some x)
+                in
+                Ir_merge.f Tree.merge ~old s2.tree new_tree >>= function
+                | Error _ -> Lwt.return false
+                | Ok m    ->
+                  let info = Ir_info.with_message (info i) "Merge" in
+                  Tree.add_tree s2.root key m >>= fun root ->
+                  Commit.v (repo t) ~info ~parents root >>= fun c ->
+                  add_commit t s2.head (c, root_tree root)
     in
-    Lwt_mutex.with_lock t.lock (fun () -> retry msg aux)
+    retry "with_tree" aux
+
+  let set ?metadata t ?allow_empty ?strategy ?max_depth ?n info k v =
+    Log.debug (fun l -> l "set %a" Key.pp k);
+    with_tree t ?allow_empty ?strategy ?max_depth ?n info k
+      (fun tree -> Tree.add tree Key.empty ?metadata v)
+
+  let set_tree t ?allow_empty ?strategy ?max_depth ?n info k v =
+    Log.debug (fun l -> l "set_tree %a" Key.pp k);
+    with_tree t ?allow_empty ?strategy ?max_depth ?n info k
+      (fun tree -> Tree.add_tree tree Key.empty v)
+
+  type strategy = [ `Test_and_set | `Set | `Merge ]
+
+  let remove t ?allow_empty ?(strategy=`Test_and_set) ?max_depth ?n info k =
+    Log.debug (fun l -> l "remove %a" Key.pp k);
+    let strategy = (strategy :> strategy) in
+    with_tree t ?allow_empty ~strategy ?max_depth ?n info k
+      (fun tree -> Tree.remove tree Key.empty)
 
   let mem t k =
     tree t >>= fun tree ->
@@ -569,24 +664,6 @@ module Make (P: Ir_s.PRIVATE) = struct
     tree t >>= fun tree ->
     Tree.kind tree k
 
-  let set_tree t info ?parents path (v:tree) =
-    Log.debug (fun f -> f "setv %a" Key.pp path);
-    with_commit t info ?parents ~msg:"setv" (fun tree ->
-        Tree.add_tree tree path v
-      )
-
-  let set t info ?parents path ?metadata (c:contents) =
-    Log.debug (fun f -> f "set %a" Key.pp path);
-    with_commit t info ?parents ~msg:"set" (fun tree ->
-        Tree.add tree path ?metadata c
-      )
-
-  let remove t info path =
-    Log.debug (fun f -> f "remove %a" Key.pp path);
-    with_commit t info ~msg:"remove" (fun tree ->
-        Tree.remove tree path
-      )
-
   let clone ~src ~dst =
     (Head.find src >>= function
       | None   -> Branch_store.remove (branch_t src) dst
@@ -623,11 +700,12 @@ module Make (P: Ir_s.PRIVATE) = struct
     Log.debug (fun f -> f "merge_with_branch %a" Branch_store.Key.pp other);
     Branch_store.find (branch_t t) other >>= function
     | None  ->
-      Fmt.kstrf Lwt.fail_with "merge_with_branch: %a is not a valid branch ID"
+      Fmt.kstrf Lwt.fail_invalid_arg
+        "merge_with_branch: %a is not a valid branch ID"
         Branch_store.Key.pp other
     | Some c ->
       Commit.of_hash t.repo c >>= function
-      | None   -> Lwt.fail_with "invalid commit"
+      | None   -> Lwt.fail_invalid_arg "invalid commit"
       | Some c -> Head.merge ~into:t info ?max_depth ?n c
 
   let merge_with_commit t info ?max_depth ?n other =
@@ -639,37 +717,6 @@ module Make (P: Ir_s.PRIVATE) = struct
     | `Branch name -> merge_with_branch into info ?max_depth ?n name
     | `Head h      -> merge_with_commit into info ?max_depth ?n h
     | `Empty       -> Ir_merge.ok ()
-
-  exception Conflict of Ir_merge.conflict
-
-  let merge_tree t info ~parents ?max_depth ?n path tree1 =
-    Log.debug (fun l -> l "merge_tree");
-    let old () =
-      let parents = List.map (fun c -> c.Commit.h) parents in
-      H.lca (history_t t) ~info ?max_depth ?n parents >>= function
-      | Error _ as e -> Lwt.return e
-      | Ok None       -> Lwt.return (Ok None)
-      | Ok (Some h)  ->
-        Commit.of_hash t.repo h >>= function
-        | None   -> Lwt.return (Ok None) (* FIXME: what should we raise? *)
-        | Some h ->
-          of_commit h >>= fun t ->
-          find_tree t path >|= fun tree ->
-          Ok (Some tree)
-    in
-    Lwt.catch
-      (fun () ->
-         with_commit t info ~parents ~msg:"mergev" (fun root ->
-             Tree.find_tree root path >>= fun tree2 ->
-             (Ir_merge.(f Tree.merge) ~old tree1 tree2 >>= function
-               | Ok tree -> Lwt.return tree
-               | Error e -> Lwt.fail (Conflict e))
-             >>= fun tree_m ->
-             Tree.add_tree root path tree_m
-           ) >>= Ir_merge.ok
-      ) (function
-          | Conflict e -> Lwt.return (Error e)
-          | e -> Lwt.fail e)
 
   module History =
     OCamlGraph.Persistent.Digraph.ConcreteBidirectional(struct

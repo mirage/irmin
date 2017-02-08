@@ -430,12 +430,16 @@ module type STORE = sig
   val get_all: t -> key -> (contents * metadata) Lwt.t
   val get: t -> key -> contents Lwt.t
   val find_tree: t -> key -> tree Lwt.t
-  val set_tree: t -> info -> ?parents:commit list -> key -> tree -> unit Lwt.t
-  val set: t -> info -> ?parents:commit list -> key ->
-    ?metadata:metadata -> contents -> unit Lwt.t
-  val merge_tree: t -> info -> parents:commit list -> ?max_depth:int -> ?n:int ->
-    key -> tree -> (unit, Merge.conflict) result Lwt.t
-  val remove: t -> info -> key -> unit Lwt.t
+  type 'a transation = t ->
+    ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
+    ?max_depth:int -> ?n:int ->
+    (int -> Ir_info.t) -> key -> 'a -> unit Lwt.t
+  val with_tree: (tree -> tree Lwt.t) transation
+  val set: ?metadata:metadata -> contents transation
+  val set_tree: tree transation
+  val remove: t -> ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set] ->
+    ?max_depth:int -> ?n:int ->
+    (int -> Ir_info.t) -> key -> unit Lwt.t
   val clone: src:t -> dst:branch -> t Lwt.t
   type watch
   val watch:
@@ -537,9 +541,9 @@ module type SYNC_STORE = sig
   val fetch: db -> ?depth:int -> remote ->
     (commit, fetch_error) result Lwt.t
   val fetch_exn: db -> ?depth:int -> remote -> commit Lwt.t
-  val pull: db -> ?depth:int -> remote -> [`Merge of info|`Update] ->
+  val pull: db -> ?depth:int -> remote -> [`Merge of (unit -> info)|`Set] ->
     (unit, [fetch_error | Ir_merge.conflict]) result Lwt.t
-  val pull_exn: db -> ?depth:int -> remote -> [`Merge of info|`Update] ->
+  val pull_exn: db -> ?depth:int -> remote -> [`Merge of (unit -> info)|`Set] ->
     unit Lwt.t
   val pp_push_error: push_error Fmt.t
   val push: db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t

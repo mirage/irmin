@@ -2210,11 +2210,10 @@ module type S = sig
         tree emptiness, unless you really know what you are doing.  *)
 
     val of_contents: ?metadata:metadata -> contents -> tree
-    (** [of_contents c] is the sub-tree built from the contents
-        [c]. *)
+    (** [of_contents c] is the subtree built from the contents [c]. *)
 
     val of_node: node -> tree
-    (** [of_node n] is the sub-tree built from the node [n]. *)
+    (** [of_node n] is the subtree built from the node [n]. *)
 
     val kind: tree -> key -> [`Contents | `Node | `Empty] Lwt.t
     (** [kind t k] is the type of [s] in [t]. It could either be a
@@ -2355,32 +2354,56 @@ module type S = sig
   (** [find_tree t] is {!Tree.find_tree} applied to [t]'s root
       tree. *)
 
-  (** {1 Writes} *)
+  (** {1 Transactions} *)
 
-  val set_tree: t -> info -> ?parents:commit list -> key -> tree -> unit Lwt.t
-  (** [set_tree t i ?parents p v] {e replaces} the sub-tree under [p] in
-      the branch [t] by the contents of the tree [v], using the info
-      [i]. If [parents] is not set, use [t]'s current head as
-      parent. *)
+  type 'a transation = t ->
+    ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
+    ?max_depth:int -> ?n:int ->
+    (int -> info) -> key -> 'a -> unit Lwt.t
+  (** The type for transactions. *)
 
-  val set: t -> info -> ?parents:commit list -> key ->
-    ?metadata:metadata -> contents -> unit Lwt.t
-  (** Same as {!setv} but for contents. If [metadata] is not givent
-      (default) pre-existing metadata is kept as is. If new metadata
-      new to be created and [metadata] is not provided,
-      {!Metadata.default} is used. *)
+  val with_tree: (tree -> tree Lwt.t) transation
+  (** [with_tree t i k f] replaces {i atomically} the subtree [v]
+      under [k] in the store [t] by the contents of the tree [f v],
+      using the commit info [i n] (when [n] is the number of time
+      the transaction has been restarted).
 
-  val merge_tree: t -> info -> parents:commit list -> ?max_depth:int ->
-    ?n:int -> key -> tree -> (unit, Merge.conflict) result Lwt.t
-  (** [merge_tree t i ~parents k v] {e merges} the tree [v] with the
-      contents of the sub-tree under [p] in [t]. Merging means
-      applying the 3-way merge between [v] and [t]'s sub-tree under
-      [k]. Automatically adds the lca to [parents]. If [parents] is
-      not set, use [t]'s and the [lca] heads. *)
+      If [v = f v] and [allow_empty] is unset (default) then, the
+      operation is a no-op.
 
-  val remove: t -> info -> key -> unit Lwt.t
-  (** [remove t i k] remove the bindings of [k] in [t]. Use the commit
-      info [i] to create update [t]'s head with a new commit. *)
+      If [v != f v] and no other changes happen concurrently, [f v]
+      becomes the new subtree under [k]. If other changes happen
+      concurrently to that operations, the semantics depend on the
+      value of [strategy]:
+
+      {u
+      {- if [strategy = `Set], the {e last write wins}. }
+      {- if [strategy = `Test_and_set] (default), the transaction is
+         restarted.}
+      {- if [strategy = `Merge], concurrent changes are merged with [f
+         v]. If the merge has a conflict, the transaction is
+         restarted.}  }
+
+      The commit info function [i] will be called with the number
+      of iterations.
+
+      {b Note:} Irmin transactions provides
+      {{:https://en.wikipedia.org/wiki/Snapshot_isolation}snapshot
+      isolation} guarantees: reads and writes are isolated in every
+      transaction, but only write conflicts are visible on commit. *)
+
+  val set: ?metadata:metadata -> contents transation
+  (** [set t i k v] is [with_tree t i k (fun tree -> Tree.add tree []
+      v)]. *)
+
+  val set_tree: tree transation
+  (** [set_tree t i k v] is [with_tree t i k (fun tree ->
+      Tree.add_tree tree [] v)]. *)
+
+  val remove: t -> ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set] ->
+    ?max_depth:int -> ?n:int -> (int -> info) -> key -> unit Lwt.t
+  (** [remove t i k] is [with_tree t i k (fun tree -> Tree.remove tree
+      [])]. *)
 
   (** {1 Clones} *)
 
@@ -2627,7 +2650,7 @@ let upstream =
 
 let test () =
   S.Repo.v config >>= S.master
-  >>= fun t  -> Sync.pull_exn t upstream `Update
+  >>= fun t  -> Sync.pull_exn t upstream `Set
   >>= fun () -> S.get t ["README.md"]
   >|= fun r  -> Printf.printf "%s\n%!" r
 
@@ -2837,20 +2860,21 @@ module type SYNC = sig
   (** Same as {!fetch} but raise [Invalid_argument] if either the
       local or remote store do not have a valid head. *)
 
-  val pull: db -> ?depth:int -> remote -> [`Merge of info | `Update] ->
+  val pull: db -> ?depth:int -> remote ->
+    [`Merge of (unit -> info) | `Set ] ->
     (unit, [fetch_error | Merge.conflict]) result Lwt.t
   (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
       also updates [t]'s current branch. [s] is the update strategy:
 
       {ul
-      {- [`Merge] uses {S.merge_head}. This strategy can return a conflict.}
-      {- [`Update] uses {S.update_head.}}
+      {- [`Merge] uses {S.Head.merge}. Can return a conflict.}
+      {- [`Set] uses {S.Head.set.}}
       } *)
 
-  val pull_exn: db -> ?depth:int -> remote -> [`Merge of info | `Update] ->
+  val pull_exn: db -> ?depth:int -> remote ->
+    [`Merge of (unit -> info) | `Set] ->
     unit Lwt.t
-  (** Same as {!pull} but raise {!Merge.Conflict} in case of
-      conflict. *)
+  (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
 
   type push_error = [ fetch_error | `Detached_head ]
   (** The type for push errors. *)
