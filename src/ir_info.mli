@@ -22,6 +22,8 @@ val v: date:int64 -> owner:string -> string -> t
 val date: t -> int64
 val owner: t -> string
 val message: t -> string
+val with_message: t -> string -> t
+
 val empty: t
 
 type 'a f = 'a -> t

@@ -49,7 +49,7 @@ module AO (K: Irmin.Hash.S) (V: Irmin.Contents.Raw) = struct
 
   let add t value =
     let key = K.digest (V.raw value) in
-    Log.debug (fun f -> f "add %a -> %a" V.pp value K.pp key);
+    Log.debug (fun f -> f "add -> %a" K.pp key);
     t.t <- KMap.add key value t.t;
     Lwt.return key
 

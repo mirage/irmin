@@ -31,7 +31,7 @@ let t =
 type 'a f = 'a -> t
 
 let create ~date ~owner message = { date; message; owner }
-
+let with_message t message = { t with message }
 let empty = { date=0L; owner=""; message = "" }
 
 let v ~date ~owner message =

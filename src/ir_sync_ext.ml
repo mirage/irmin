@@ -130,9 +130,9 @@ module Make (S: Ir_s.STORE) = struct
     | Error e  -> Lwt.return (Error (e :> pull_error))
     | Ok k     ->
       match kind with
-      | `Update     -> S.Head.set t k >|= fun () -> Ok ()
+      | `Set        -> S.Head.set t k >|= fun () -> Ok ()
       | `Merge info ->
-        S.Head.merge ~into:t info k >|= fun x ->
+        S.Head.merge ~into:t (info ()) k >|= fun x ->
         (x :> (unit, pull_error) result)
 
   let pull_exn t ?depth remote kind =
