@@ -86,12 +86,12 @@ module Git = struct
     let (module S: Test_S) = store in
     init () >>= fun () ->
     let config = Irmin_git.config ~root:test_db ~bare:false () in
-    let info str _i = Irmin_unix.info str in
+    let info = Irmin_unix.info in
     S.Repo.v config >>= fun repo ->
     S.master repo >>= fun t ->
-    S.set t (info "fst one") ["fst"] "ok" >>= fun () ->
-    S.set t (info "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
-    S.set t (info "fst one") ["fst"] "hoho"
+    S.set t ~info:(info "fst one") ["fst"] "ok" >>= fun () ->
+    S.set t ~info:(info "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
+    S.set t ~info:(info "fst one") ["fst"] "hoho"
 
   let misc = "non-bare", `Quick, (fun () -> Lwt_main.run (test_non_bare ()))
 

@@ -34,7 +34,7 @@ module Irmin_git = struct
 end
 
 module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
-  let f c msg =
+  let f c msg () =
     C.now_d_ps c |>
     Ptime.v |> Ptime.to_float_s |> Int64.of_float |> fun date ->
     Irmin.Info.v ~date ~owner:N.name msg
@@ -121,7 +121,7 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
     in
     S.Repo.v config >>= fun repo ->
     S.of_branch repo branch >>= fun t ->
-    Sync.pull_exn t ~depth uri `Update >|= fun () ->
+    Sync.pull_exn t ~depth uri `Set >|= fun () ->
     { t = t; path }
 
 end

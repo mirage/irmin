@@ -154,7 +154,7 @@ module Irmin_http_server = struct
   module Make = Irmin_http_server.Make (Cohttp_lwt_unix.Server)
 end
 
-let info msg =
+let info msg () =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let owner =
     (* XXX: get "git config user.name" *)

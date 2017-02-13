@@ -23,12 +23,12 @@ let test () =
   let config = Irmin_git.config ~root:Config.root () in
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
-  Sync.pull_exn t upstream `Update >>= fun () ->
+  Sync.pull_exn t upstream `Set >>= fun () ->
   Store.get t ["README.md"]>>= fun readme ->
   Store.find_tree t [] >>= fun view ->
   Store.Tree.add view ["BAR.md"] "Hoho!" >>= fun view ->
   Store.Tree.add view ["FOO.md"] "Hihi!" >>= fun view ->
-  Store.set_tree t (info "merge") [] view >|= fun () ->
+  Store.set_tree t ~info:(info "merge") [] view >|= fun () ->
   Printf.printf "%s\n%!" readme
 
 let () =
