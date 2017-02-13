@@ -169,7 +169,6 @@ module type NODE_STORE = sig
 end
 
 type config = Ir_conf.t
-type info = Ir_info.t
 type 'a diff = 'a Ir_diff.t
 module Merge = Ir_merge
 
@@ -177,10 +176,10 @@ module type COMMIT = sig
   type t
   type commit
   type node
-  val v: info -> node:node -> parents:commit list -> t
+  val v: info:Ir_info.t -> node:node -> parents:commit list -> t
   val node: t -> node
   val parents: t -> commit list
-  val info: t -> info
+  val info: t -> Ir_info.t
   val t: t Type.t
   val commit_t: commit Type.t
   val node_t: node Type.t
@@ -188,7 +187,7 @@ end
 
 module type COMMIT_STORE = sig
   include AO
-  val merge: t -> info:info -> key option Ir_merge.t
+  val merge: t -> info:Ir_info.f -> key option Ir_merge.t
   module Key: HASH with type t = key
   module Val: COMMIT
     with type t = value
@@ -201,14 +200,14 @@ module type COMMIT_HISTORY = sig
   type node
   type commit
   type v
-  val v: t -> node:node -> parents:commit list -> info:info -> (commit * v) Lwt.t
+  val v: t -> node:node -> parents:commit list -> info:Ir_info.t -> (commit * v) Lwt.t
   val parents: t -> commit -> commit list Lwt.t
-  val merge: t -> info:info -> commit Ir_merge.t
+  val merge: t -> info:Ir_info.f -> commit Ir_merge.t
   val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
     (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
-  val lca: t -> info:info -> ?max_depth:int -> ?n:int -> commit list ->
+  val lca: t -> info:Ir_info.f -> ?max_depth:int -> ?n:int -> commit list ->
     (commit option, Ir_merge.conflict) result Lwt.t
-  val three_way_merge: t -> info:info -> ?max_depth:int -> ?n:int ->
+  val three_way_merge: t -> info:Ir_info.f -> ?max_depth:int -> ?n:int ->
     commit -> commit -> (commit, Ir_merge.conflict) result Lwt.t
   val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
   val commit_t: commit Type.t
@@ -387,7 +386,7 @@ module type STORE = sig
     val fast_forward: t -> ?max_depth:int -> ?n:int -> commit -> bool Lwt.t
     val test_and_set:
       t -> test:commit option -> set:commit option -> bool Lwt.t
-    val merge: into:t -> info -> ?max_depth:int -> ?n:int -> commit ->
+    val merge: into:t -> info:Ir_info.f -> ?max_depth:int -> ?n:int -> commit ->
       (unit, Merge.conflict) result Lwt.t
   end
   module Commit: sig
@@ -395,10 +394,10 @@ module type STORE = sig
     val t: Repo.t -> t Ir_type.t
     val pp: t Fmt.t
     val of_string: Repo.t -> string -> (t, [`Msg of string]) result
-    val v: Repo.t -> info:info -> parents:commit list -> tree -> commit Lwt.t
+    val v: Repo.t -> info:Ir_info.t -> parents:commit list -> tree -> commit Lwt.t
     val tree: commit -> tree Lwt.t
     val parents: commit -> commit list Lwt.t
-    val info: commit -> info
+    val info: commit -> Ir_info.t
     module Hash: HASH
     val hash: commit -> Hash.t
     val of_hash: Repo.t -> Hash.t -> commit option Lwt.t
@@ -430,16 +429,13 @@ module type STORE = sig
   val get_all: t -> key -> (contents * metadata) Lwt.t
   val get: t -> key -> contents Lwt.t
   val find_tree: t -> key -> tree Lwt.t
-  type 'a transation = t ->
+  type 'a transaction =
     ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
-    ?max_depth:int -> ?n:int ->
-    (int -> Ir_info.t) -> key -> 'a -> unit Lwt.t
-  val with_tree: (tree -> tree Lwt.t) transation
-  val set: ?metadata:metadata -> contents transation
-  val set_tree: tree transation
-  val remove: t -> ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set] ->
-    ?max_depth:int -> ?n:int ->
-    (int -> Ir_info.t) -> key -> unit Lwt.t
+    ?max_depth:int -> ?n:int -> info:Ir_info.f -> 'a -> unit Lwt.t
+  val with_tree: t -> key -> (tree -> tree Lwt.t) transaction
+  val set: t -> key -> ?metadata:metadata -> contents transaction
+  val set_tree: t -> key -> tree transaction
+  val remove: t -> key transaction
   val clone: src:t -> dst:branch -> t Lwt.t
   type watch
   val watch:
@@ -447,12 +443,13 @@ module type STORE = sig
   val watch_key: t -> key -> ?init:commit ->
     ((commit * tree) diff -> unit Lwt.t) -> watch Lwt.t
   val unwatch: watch -> unit Lwt.t
-  val merge: into:t -> info -> ?max_depth:int -> ?n:int -> t ->
-    (unit, Merge.conflict) result Lwt.t
-  val merge_with_branch: t -> info -> ?max_depth:int -> ?n:int -> branch ->
-    (unit, Merge.conflict) result Lwt.t
-  val merge_with_commit: t -> info -> ?max_depth:int -> ?n:int -> commit ->
-    (unit, Merge.conflict) result Lwt.t
+
+  type 'a merge = info:Ir_info.f -> ?max_depth:int -> ?n:int -> 'a ->
+    (unit, Ir_merge.conflict) result Lwt.t
+  val merge: into:t -> t merge
+  val merge_with_branch: t -> branch merge
+  val merge_with_commit: t -> commit merge
+
   val lcas: ?max_depth:int -> ?n:int -> t -> t ->
     (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
   val lcas_with_branch: t -> ?max_depth:int -> ?n:int -> branch ->
@@ -541,9 +538,9 @@ module type SYNC_STORE = sig
   val fetch: db -> ?depth:int -> remote ->
     (commit, fetch_error) result Lwt.t
   val fetch_exn: db -> ?depth:int -> remote -> commit Lwt.t
-  val pull: db -> ?depth:int -> remote -> [`Merge of (unit -> info)|`Set] ->
+  val pull: db -> ?depth:int -> remote -> [`Merge of Ir_info.f|`Set] ->
     (unit, [fetch_error | Ir_merge.conflict]) result Lwt.t
-  val pull_exn: db -> ?depth:int -> remote -> [`Merge of (unit -> info)|`Set] ->
+  val pull_exn: db -> ?depth:int -> remote -> [`Merge of Ir_info.f|`Set] ->
     unit Lwt.t
   val pp_push_error: push_error Fmt.t
   val push: db -> ?depth:int -> remote -> (unit, push_error) result Lwt.t

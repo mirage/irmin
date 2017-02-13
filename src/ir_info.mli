@@ -26,5 +26,5 @@ val with_message: t -> string -> t
 
 val empty: t
 
-type 'a f = 'a -> t
-val none: unit f
+type f = unit -> t
+val none: f

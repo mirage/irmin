@@ -77,7 +77,7 @@ module Make (P: Ir_s.PRIVATE) = struct
        | `Empty      -> P.Node.add (P.Repo.node_t r) P.Node.Val.empty
        | `Contents _ -> Lwt.fail_invalid_arg "cannot add contents at the root")
       >>= fun node ->
-      let v = P.Commit.Val.v info ~node ~parents in
+      let v = P.Commit.Val.v ~info ~node ~parents in
       P.Commit.add (P.Repo.commit_t r) v >|= fun h ->
       { r; h; v }
 
@@ -463,7 +463,7 @@ module Make (P: Ir_s.PRIVATE) = struct
 
     (* FIXME: we might want to keep the new commit in case of conflict,
          and use it as a base for the next merge. *)
-    let merge ~into:t info ?max_depth ?n c1 =
+    let merge ~into:t ~info ?max_depth ?n c1 =
       Log.debug (fun f -> f "merge_head");
       let aux () =
         head t >>= fun head ->
@@ -484,7 +484,7 @@ module Make (P: Ir_s.PRIVATE) = struct
   (* Retry an operation until the optimistic lock is happy. *)
   let retry name fn =
     let rec aux i =
-      fn i >>= function
+      fn () >>= function
       | true  -> Lwt.return_unit
       | false ->
         Log.debug (fun f -> f "Irmin.%s: conflict, retrying (%d)." name i);
@@ -521,10 +521,9 @@ module Make (P: Ir_s.PRIVATE) = struct
       if r then t.tree <- Some tree;
       r
 
-  type 'a transation = t ->
+  type 'a transaction =
     ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
-    ?max_depth:int -> ?n:int ->
-    (int -> Ir_info.t) -> key -> 'a -> unit Lwt.t
+    ?max_depth:int -> ?n:int -> info:Ir_info.f -> 'a -> unit Lwt.t
 
   type snapshot = {
     head   : commit option;
@@ -542,9 +541,9 @@ module Make (P: Ir_s.PRIVATE) = struct
       Tree.find_tree root key >|= fun tree ->
       { head = Some c; root; tree; parents = [c] }
 
-  let with_tree t ?(allow_empty=false) ?(strategy=`Test_and_set)
-      ?max_depth ?n info key (f:tree -> tree Lwt.t) =
-    let aux i =
+  let with_tree t key ?(allow_empty=false) ?(strategy=`Test_and_set)
+      ?max_depth ?n ~info (f:tree -> tree Lwt.t) =
+    let aux () =
       snapshot t key >>= fun s1 ->
       (* this might take a very long time *)
       f s1.tree >>= fun new_tree ->
@@ -557,7 +556,8 @@ module Make (P: Ir_s.PRIVATE) = struct
         snapshot t key >>= fun s2 ->
         let set () =
           Tree.add_tree s2.root key new_tree >>= fun root ->
-          Commit.v (repo t) ~info:(info i) ~parents:s2.parents root >>= fun c ->
+          let info = info () in
+          Commit.v (repo t) ~info ~parents:s2.parents root >>= fun c ->
           add_commit t s2.head (c, root_tree root)
         in
         match strategy with
@@ -583,12 +583,11 @@ module Make (P: Ir_s.PRIVATE) = struct
                s2 ------------------- /
             *)
             Tree.add_tree s1.root key new_tree >>= fun root ->
-            Commit.v (repo t) ~info:(info i) ~parents:s1.parents root
+            Commit.v (repo t) ~info:(info ()) ~parents:s1.parents root
             >>= fun pre_merge ->
             let parents = pre_merge :: s2.parents in
             let parents_h = List.map Commit.hash parents in
-            H.lca (history_t t) ~info:(info i) ?max_depth ?n parents_h
-            >>= function
+            H.lca (history_t t) ~info ?max_depth ?n parents_h >>= function
             | Error _     -> Lwt.return false
             | Ok None     -> Lwt.return true
             | Ok (Some h) ->
@@ -603,29 +602,29 @@ module Make (P: Ir_s.PRIVATE) = struct
                 Ir_merge.f Tree.merge ~old s2.tree new_tree >>= function
                 | Error _ -> Lwt.return false
                 | Ok m    ->
-                  let info = Ir_info.with_message (info i) "Merge" in
+                  let info = Ir_info.with_message (info ()) "Merge" in
                   Tree.add_tree s2.root key m >>= fun root ->
                   Commit.v (repo t) ~info ~parents root >>= fun c ->
                   add_commit t s2.head (c, root_tree root)
     in
     retry "with_tree" aux
 
-  let set ?metadata t ?allow_empty ?strategy ?max_depth ?n info k v =
+  let set t k ?metadata ?allow_empty ?strategy ?max_depth ?n ~info v =
     Log.debug (fun l -> l "set %a" Key.pp k);
-    with_tree t ?allow_empty ?strategy ?max_depth ?n info k
+    with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k
       (fun tree -> Tree.add tree Key.empty ?metadata v)
 
-  let set_tree t ?allow_empty ?strategy ?max_depth ?n info k v =
+  let set_tree t k ?allow_empty ?strategy ?max_depth ?n ~info v =
     Log.debug (fun l -> l "set_tree %a" Key.pp k);
-    with_tree t ?allow_empty ?strategy ?max_depth ?n info k
+    with_tree t ?allow_empty ?strategy ?max_depth ?n ~info k
       (fun tree -> Tree.add_tree tree Key.empty v)
 
   type strategy = [ `Test_and_set | `Set | `Merge ]
 
-  let remove t ?allow_empty ?(strategy=`Test_and_set) ?max_depth ?n info k =
+  let remove t ?allow_empty ?(strategy=`Test_and_set) ?max_depth ?n ~info k =
     Log.debug (fun l -> l "remove %a" Key.pp k);
     let strategy = (strategy :> strategy) in
-    with_tree t ?allow_empty ~strategy ?max_depth ?n info k
+    with_tree t ?allow_empty ~strategy ?max_depth ?n ~info k
       (fun tree -> Tree.remove tree Key.empty)
 
   let mem t k =
@@ -696,7 +695,10 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   module Private = P
 
-  let merge_with_branch t info ?max_depth ?n other =
+  type 'a merge = info:Ir_info.f -> ?max_depth:int -> ?n:int -> 'a ->
+    (unit, Ir_merge.conflict) result Lwt.t
+
+  let merge_with_branch t ~info ?max_depth ?n other =
     Log.debug (fun f -> f "merge_with_branch %a" Branch_store.Key.pp other);
     Branch_store.find (branch_t t) other >>= function
     | None  ->
@@ -706,16 +708,16 @@ module Make (P: Ir_s.PRIVATE) = struct
     | Some c ->
       Commit.of_hash t.repo c >>= function
       | None   -> Lwt.fail_invalid_arg "invalid commit"
-      | Some c -> Head.merge ~into:t info ?max_depth ?n c
+      | Some c -> Head.merge ~into:t ~info ?max_depth ?n c
 
-  let merge_with_commit t info ?max_depth ?n other =
-    Head.merge ~into:t info ?max_depth ?n other
+  let merge_with_commit t ~info ?max_depth ?n other =
+    Head.merge ~into:t ~info ?max_depth ?n other
 
-  let merge ~into info ?max_depth ?n t =
+  let merge ~into ~info ?max_depth ?n t =
     Log.debug (fun l -> l "merge");
     match head_ref t with
-    | `Branch name -> merge_with_branch into info ?max_depth ?n name
-    | `Head h      -> merge_with_commit into info ?max_depth ?n h
+    | `Branch name -> merge_with_branch into ~info ?max_depth ?n name
+    | `Head h      -> merge_with_commit into ~info ?max_depth ?n h
     | `Empty       -> Ir_merge.ok ()
 
   module History =

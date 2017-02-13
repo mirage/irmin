@@ -28,7 +28,7 @@ let t =
   |+ field "message" string (fun t -> t.message)
   |> sealr
 
-type 'a f = 'a -> t
+type f = unit -> t
 
 let create ~date ~owner message = { date; message; owner }
 let with_message t message = { t with message }
