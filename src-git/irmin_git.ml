@@ -465,7 +465,7 @@ module Irmin_value_store
         let message = Irmin.Info.message info in
         { Git.Commit.tree; parents; author; committer = author; message }
 
-      let v info ~node ~parents = to_git info node parents
+      let v ~info ~node ~parents = to_git info node parents
       let xnode { Git.Commit.tree; _ } = node_key_of_git tree
       let node t = xnode t
       let parents { Git.Commit.parents; _ } = List.map commit_key_of_git parents
@@ -477,7 +477,7 @@ module Irmin_value_store
 
       let to_c t =
         let info, node, parents = of_git t in
-        C.v info ~node ~parents
+        C.v ~info ~node ~parents
 
       let t = Irmin.Type.like C.t of_c to_c
     end
