@@ -65,7 +65,7 @@ module Info (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
 
   (** {1 Commit info creators} *)
 
-  val f: C.t -> string Irmin.Info.f
+  val f: C.t -> string -> Irmin.Info.f
   (** Commit info creators, using [N.name] and [C.now_d_ps] provided
       in the functor arguments. *)
 

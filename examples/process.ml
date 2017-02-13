@@ -81,7 +81,7 @@ let config = Irmin_git.config
     ~head:(Git.Reference.of_raw ("refs/heads/" ^ branch images.(0)))
     ()
 
-let info image msg =
+let info image msg () =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let owner = image.name in
   Irmin.Info.v ~date ~owner msg
@@ -92,7 +92,7 @@ let init () =
   Config.init ();
   Store.Repo.v config >>= fun repo ->
   Store.of_branch repo master >>= fun t ->
-  Store.set t (info images.(0) "init") ["0"] "0" >>= fun () ->
+  Store.set t ~info:(info images.(0) "init") ["0"] "0" >>= fun () ->
   Lwt_list.iter_s (fun i ->
       Store.clone ~src:t ~dst:(branch i) >>= fun _ ->
       Lwt.return_unit
@@ -113,14 +113,15 @@ let rec process image =
   in
   Store.Repo.v config >>= fun repo ->
   Store.of_branch repo id >>= fun t ->
-  Store.set t (info image actions.message) key (value ()) >>= fun () ->
+  Store.set t ~info:(info image actions.message) key (value ()) >>= fun () ->
 
   begin if Random.int 3 = 0 then
     let branch = branch (random_array images) in
     if branch <> id then (
       Printf.printf "Merging ...%!";
       Store.merge_with_branch t
-        (info image @@ Fmt.strf "Merging with %s" branch) branch >>= function
+        ~info:(info image @@ Fmt.strf "Merging with %s" branch) branch
+      >>= function
       | Ok () ->
         Printf.printf "ok!\n%!";
         Lwt.return_unit
