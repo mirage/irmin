@@ -53,7 +53,7 @@ let test_sort_order (module S: Test_S) =
     S.Private.Node.find node_t tree_id >|= fun tree ->
     S.Private.Node.Val.list (get tree) |> List.map fst
   in
-  let nope = Irmin.Info.empty in
+  let nope _ = Irmin.Info.empty in
   S.master repo >>= fun master ->
   S.set master nope ["foo.c"] "foo.c" >>= fun () ->
   S.set master nope ["foo1"] "foo1" >>= fun () ->
