@@ -34,7 +34,7 @@ module Make (C: Ir_s.S0) (N: Ir_s.S0) = struct
   let parents t = t.parents
   let node t = t.node
   let info t = t.info
-  let v info ~node ~parents = { node; parents; info }
+  let v ~info ~node ~parents = { node; parents; info }
 
   let t =
     let open Ir_type in
@@ -112,7 +112,7 @@ module Store
         >>=* fun node ->
         empty_if_none t node >>= fun node ->
         let parents = [k1; k2] in
-        let commit = S.Val.v ~node ~parents info in
+        let commit = S.Val.v ~node ~parents ~info:(info ()) in
         add t commit >>= fun key ->
         Ir_merge.ok key
 
@@ -143,7 +143,7 @@ module History (S: Ir_s.COMMIT_STORE) = struct
     Ir_merge.v S.Key.t f
 
   let v t ~node ~parents ~info =
-    let commit = S.Val.v ~node ~parents info in
+    let commit = S.Val.v ~node ~parents ~info in
     S.add t commit >|= fun hash ->
     (hash, commit)
 

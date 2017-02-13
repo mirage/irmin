@@ -406,10 +406,10 @@ module Info: sig
 
   (** {1 Info Functions} *)
 
-  type 'a f = 'a -> t
+  type f = unit -> t
   (** Alias for functions which can build commit info. *)
 
-  val none: unit f
+  val none: f
   (** The empty info function. [none ()] is [empty] *)
 
   (** {1 Value Types} *)
@@ -649,9 +649,6 @@ type config
 
     Every backend has different configuration options, which are kept
     abstract to the user. *)
-
-type info = Info.t
-(** The type for commit info. See {{!Info}Info}. *)
 
 type 'a diff = 'a Diff.t
 (** The type for representing differences betwen values. *)
@@ -1629,7 +1626,7 @@ module Private: sig
       type node
       (** Type for node keys. *)
 
-      val v: info -> node:node -> parents:commit list -> t
+      val v: info:Info.t -> node:node -> parents:commit list -> t
       (** Create a commit. *)
 
       val node: t -> node
@@ -1638,7 +1635,7 @@ module Private: sig
       val parents: t -> commit list
       (** The commit parents. *)
 
-      val info: t -> info
+      val info: t -> Info.t
       (** The commit info. *)
 
       (** {1 Value Types} *)
@@ -1666,7 +1663,7 @@ module Private: sig
 
       include AO
 
-      val merge: t -> info:info -> key option Merge.t
+      val merge: t -> info:Info.f -> key option Merge.t
       (** [merge] is the 3-way merge function for commit keys. *)
 
       module Key: Hash.S with type t = key
@@ -1718,7 +1715,7 @@ module Private: sig
       type v
       (** The type for commit objects. *)
 
-      val v: t -> node:node -> parents:commit list -> info:info ->
+      val v: t -> node:node -> parents:commit list -> info:Info.t ->
         (commit * v) Lwt.t
       (** Create a new commit. *)
 
@@ -1729,7 +1726,7 @@ module Private: sig
           data-structure: every commit carries the list of its
           immediate predecessors. *)
 
-      val merge: t -> info:info -> commit Merge.t
+      val merge: t -> info:Info.f -> commit Merge.t
       (** [merge t] is the 3-way merge function for commit.  *)
 
       val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
@@ -1738,7 +1735,7 @@ module Private: sig
           {{:http://en.wikipedia.org/wiki/Lowest_common_ancestor}lca}
           between two commits. *)
 
-      val lca: t -> info:info -> ?max_depth:int -> ?n:int -> commit list ->
+      val lca: t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit list ->
         (commit option, Merge.conflict) result Lwt.t
       (** Compute the lowest common ancestors ancestor of a list of
           commits by recursively calling {!lcas} and merging the
@@ -1749,7 +1746,7 @@ module Private: sig
           `Too_many_lcas] then the function returns the same error. *)
 
       val three_way_merge:
-        t -> info:info -> ?max_depth:int -> ?n:int -> commit -> commit ->
+        t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit -> commit ->
         (commit, Merge.conflict) result Lwt.t
       (** Compute the {!lcas} of the two commit and 3-way merge the
           result. *)
@@ -2131,7 +2128,7 @@ module type S = sig
         is the maximum number of lowest common ancestors. If present,
         [max_depth] or [n] are used to limit the search space of the
         lowest common ancestors (see {!lcas}). *)
-    val merge: into:t -> info -> ?max_depth:int -> ?n:int -> commit ->
+    val merge: into:t -> info:Info.f -> ?max_depth:int -> ?n:int -> commit ->
       (unit, Merge.conflict) result Lwt.t
 
   end
@@ -2153,7 +2150,7 @@ module type S = sig
     (** [of_string r str] parsing the commit from the string [str],
         using the base repository [r]. *)
 
-    val v: Repo.t -> info:info -> parents:commit list -> tree -> commit Lwt.t
+    val v: Repo.t -> info:Info.t -> parents:commit list -> tree -> commit Lwt.t
     (** [v r i ~parents:p t] is the commit [c] such that:
         {ul
         {- [info c = i]}
@@ -2167,7 +2164,7 @@ module type S = sig
     val parents: commit -> commit list Lwt.t
     (** [parents c] are [c]'s parents. *)
 
-    val info: commit -> info
+    val info: commit -> Info.t
     (** [info c] is [c]'s info. *)
 
     (** {1 Import/Export} *)
@@ -2356,17 +2353,15 @@ module type S = sig
 
   (** {1 Transactions} *)
 
-  type 'a transation = t ->
+  type 'a transaction =
     ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set | `Merge] ->
-    ?max_depth:int -> ?n:int ->
-    (int -> info) -> key -> 'a -> unit Lwt.t
+    ?max_depth:int -> ?n:int -> info:Info.f -> 'a -> unit Lwt.t
   (** The type for transactions. *)
 
-  val with_tree: (tree -> tree Lwt.t) transation
-  (** [with_tree t i k f] replaces {i atomically} the subtree [v]
+  val with_tree: t -> key -> (tree -> tree Lwt.t) transaction
+  (** [with_tree t k ~info f] replaces {i atomically} the subtree [v]
       under [k] in the store [t] by the contents of the tree [f v],
-      using the commit info [i n] (when [n] is the number of time
-      the transaction has been restarted).
+      using the commit info [info ()].
 
       If [v = f v] and [allow_empty] is unset (default) then, the
       operation is a no-op.
@@ -2384,24 +2379,20 @@ module type S = sig
          v]. If the merge has a conflict, the transaction is
          restarted.}  }
 
-      The commit info function [i] will be called with the number
-      of iterations.
-
       {b Note:} Irmin transactions provides
       {{:https://en.wikipedia.org/wiki/Snapshot_isolation}snapshot
       isolation} guarantees: reads and writes are isolated in every
       transaction, but only write conflicts are visible on commit. *)
 
-  val set: ?metadata:metadata -> contents transation
-  (** [set t i k v] is [with_tree t i k (fun tree -> Tree.add tree []
-      v)]. *)
+  val set: t -> key -> ?metadata:metadata -> contents transaction
+  (** [set t k ~info v] is [with_tree t k ~info (fun tree -> Tree.add
+      tree [] v)]. *)
 
-  val set_tree: tree transation
-  (** [set_tree t i k v] is [with_tree t i k (fun tree ->
+  val set_tree: t -> key -> tree transaction
+  (** [set_tree t k ~info v] is [with_tree t k ~info (fun tree ->
       Tree.add_tree tree [] v)]. *)
 
-  val remove: t -> ?allow_empty:bool -> ?strategy:[`Set | `Test_and_set] ->
-    ?max_depth:int -> ?n:int -> (int -> info) -> key -> unit Lwt.t
+  val remove: t -> key transaction
   (** [remove t i k] is [with_tree t i k (fun tree -> Tree.remove tree
       [])]. *)
 
@@ -2439,18 +2430,19 @@ module type S = sig
 
   (** {1 Merges and Common Ancestors.} *)
 
-  val merge: into:t -> info -> ?max_depth:int -> ?n:int -> t ->
+  type 'a merge = info:Info.f -> ?max_depth:int -> ?n:int -> 'a ->
     (unit, Merge.conflict) result Lwt.t
+  (** The type for merge functions. *)
+
+  val merge: into:t -> t merge
   (** [merge ~into i t] merges [t]'s current branch into [x]'s current
       branch using the info [i]. After that operation, the two stores
       are still independent. Similar to [git merge <branch>]. *)
 
-  val merge_with_branch: t -> info -> ?max_depth:int -> ?n:int -> branch ->
-    (unit, Merge.conflict) result Lwt.t
+  val merge_with_branch: t -> branch merge
   (** Same as {!merge} but with a branch ID. *)
 
-  val merge_with_commit: t -> info -> ?max_depth:int -> ?n:int -> commit ->
-    (unit, Merge.conflict) result Lwt.t
+  val merge_with_commit: t -> commit merge
   (** Same as {!merge} but with a commit ID. *)
 
   val lcas: ?max_depth:int -> ?n:int -> t -> t ->
@@ -2860,8 +2852,7 @@ module type SYNC = sig
   (** Same as {!fetch} but raise [Invalid_argument] if either the
       local or remote store do not have a valid head. *)
 
-  val pull: db -> ?depth:int -> remote ->
-    [`Merge of (unit -> info) | `Set ] ->
+  val pull: db -> ?depth:int -> remote -> [`Merge of Info.f | `Set ] ->
     (unit, [fetch_error | Merge.conflict]) result Lwt.t
   (** [pull t ?depth r s] is similar to {{!Sync.fetch}fetch} but it
       also updates [t]'s current branch. [s] is the update strategy:
@@ -2871,8 +2862,7 @@ module type SYNC = sig
       {- [`Set] uses {S.Head.set.}}
       } *)
 
-  val pull_exn: db -> ?depth:int -> remote ->
-    [`Merge of (unit -> info) | `Set] ->
+  val pull_exn: db -> ?depth:int -> remote -> [`Merge of Info.f | `Set] ->
     unit Lwt.t
   (** Same as {!pull} but raise [Invalid_arg] in case of conflict. *)
 
