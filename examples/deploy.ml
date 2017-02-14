@@ -10,7 +10,7 @@ module Store =
 
 let config =
   let head = Git.Reference.of_raw "refs/heads/upstream" in
-  Irmin_git.config ~root:Config.root ~head ~bare:false ()
+  Irmin_git.config ~head ~bare:false Config.root
 
 let info ~user msg () =
   let date = Int64.of_float (Unix.gettimeofday ()) in

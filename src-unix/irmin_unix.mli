@@ -48,7 +48,7 @@ module Irmin_fs: sig
 
   (** {1 File-system Store} *)
 
-  val config: ?config:Irmin.config -> ?root:string -> unit -> Irmin.config
+  val config: ?config:Irmin.config -> string -> Irmin.config
   (** Create a configuration value. [root] is the location of local
   repository's root.*)
 
@@ -100,7 +100,7 @@ module Irmin_git: sig
   (** {1 Git Store} *)
 
   val config: ?config:Irmin.config ->
-    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
+    ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> string ->
     Irmin.config
   (** Create a configuration value.
 
@@ -187,19 +187,6 @@ module Irmin_http_server: sig
       {{!module:Irmin_http}clients}. *)
 
 end
-
-module type LOCK = sig
-
-  (** {1 Filesystem {i dotlocking}} *)
-
-  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
-  (** [with_lock file fn] runs [fn] while holding a lock on the file
-      [file]. *)
-
-end
-
-module Lock: LOCK
-(** An implementation of filesystem dotlocking. *)
 
 val set_listen_dir_hook: unit -> unit
 (** Install {!Irmin_watcher.hook} as the listen hook for watching

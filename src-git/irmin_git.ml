@@ -69,9 +69,9 @@ module Conf = struct
 
 end
 
-let config ?(config=Irmin.Private.Conf.empty) ?root ?head ?bare ?level () =
+let config ?(config=Irmin.Private.Conf.empty) ?head ?bare ?level root =
   let module C = Irmin.Private.Conf in
-  let config = C.add config Conf.root root in
+  let config = C.add config Conf.root (Some root) in
   let config = match bare with
     | None   -> C.add config Conf.bare (C.default Conf.bare)
     | Some b -> C.add config Conf.bare b
@@ -79,10 +79,6 @@ let config ?(config=Irmin.Private.Conf.empty) ?root ?head ?bare ?level () =
   let config = C.add config Conf.head head in
   let config = C.add config Conf.level level in
   config
-
-module type LOCK = sig
-  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
-end
 
 module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
 
@@ -497,7 +493,7 @@ module Irmin_value_store
 end
 
 module Irmin_branch_store
-    (L: LOCK) (G: Git.Store.S) (B: Irmin.Branch.S) (H: Irmin.Hash.S) =
+    (G: Git.Store.S) (B: Irmin.Branch.S) (H: Irmin.Hash.S) =
 struct
 
   module Key = B
@@ -618,55 +614,38 @@ struct
     ) else
       Lwt.return_unit
 
-  let lock_file t r = t.git_root / "lock" / Fmt.to_to_string Key.pp r
-
   let set t r k =
     Log.debug (fun f -> f "update %a" B.pp r);
     let gr = git_of_branch r in
     let gk = git_of_commit k in
-    let lock = lock_file t r in
-    let write () = G.write_reference t.t gr gk in
-    L.with_lock lock write >>= fun () ->
+    G.write_reference t.t gr gk >>= fun () ->
     W.notify t.w r (Some k) >>= fun () ->
     write_index t gr (Git.Hash.to_commit gk)
 
   let remove t r =
     Log.debug (fun f -> f "remove %a" B.pp r);
-    let lock = lock_file t r in
-    let remove () = G.remove_reference t.t (git_of_branch r) in
-    L.with_lock lock remove >>= fun () ->
+    G.remove_reference t.t (git_of_branch r) >>= fun () ->
     W.notify t.w r None
 
   let test_and_set t r ~test ~set =
     Log.debug (fun f -> f "test_and_set");
     let gr = git_of_branch r in
-    let lock = lock_file t r in
-    L.with_lock lock (fun () ->
-        find t r >>= fun v ->
-        if Irmin.Type.(equal (option Val.t)) v test then (
-          let action () = match set with
-            | None   -> G.remove_reference t.t gr
-            | Some v -> G.write_reference t.t gr (git_of_commit v)
-          in
-          action () >>= fun () ->
-          Lwt.return true
-        ) else
-          Lwt.return false
-      ) >>= fun updated ->
-    (if updated then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
+    let c = function None -> None | Some h -> Some (git_of_commit h) in
+    G.test_and_set_reference t.t gr ~test:(c test) ~set:(c set) >>= fun b ->
+    (if b then W.notify t.w r set else Lwt.return_unit) >>= fun () ->
     begin
       (* We do not protect [write_index] because it can take a log
          time and we don't want to hold the lock for too long. Would
          be safer to grab a lock, although the expanded filesystem
          is not critical for Irmin consistency (it's only a
          convenience for the user). *)
-      if updated then match set with
+      if b then match set with
         | None   -> Lwt.return_unit
         | Some v -> write_index t gr (Git.Hash.to_commit (git_of_commit v))
       else
         Lwt.return_unit
     end >|= fun () ->
-    updated
+    b
 
 end
 
@@ -729,7 +708,6 @@ end
 module Make_ext
     (Ctx: CONTEXT)
     (IO: Git.Sync.IO with type ctx = Ctx.t)
-    (L: LOCK)
     (G: Git.Store.S)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
@@ -737,7 +715,7 @@ module Make_ext
     (H: Irmin.Hash.S)
 = struct
 
-  module XBranch = Irmin_branch_store(L)(G)(B)(H)
+  module XBranch = Irmin_branch_store(G)(B)(H)
 
   type repo = {
     config: Irmin.config;
@@ -812,10 +790,6 @@ module Make_ext
 
 end
 
-module NoL = struct
-  let with_lock _ f = f ()
-end
-
 module Digest (H: Irmin.Hash.S): Git.Hash.DIGEST = struct
   (* FIXME: lots of allocations ... *)
   let cstruct buf =
@@ -831,12 +805,12 @@ end
 
 module Make (IO: Git.Sync.IO) = Make_ext (NoC(IO))(IO)
 
-module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (L: LOCK) (FS: Git.FS.IO)
+module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (FS: Git.FS.IO)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
     (B: Irmin.Branch.S)
     (H: Irmin.Hash.S) =
-  Make (IO) (L) (Git.FS.Make(FS)(Digest(H))(I)) (C) (P) (B) (H)
+  Make (IO) (Git.FS.Make(FS)(Digest(H))(I)) (C) (P) (B) (H)
 
 module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S)
     (C: Irmin.Contents.S)
@@ -844,7 +818,7 @@ module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S)
     (B: Irmin.Branch.S)
     (H: Irmin.Hash.S) = struct
   module Git_mem = Git.Memory.Make(Digest(H))(I)
-  include Make (IO) (NoL) (Git_mem) (C) (P) (B) (H)
+  include Make (IO) (Git_mem) (C) (P) (B) (H)
 end
 
 module Memory_ext (Ctx: CONTEXT)
@@ -854,7 +828,7 @@ module Memory_ext (Ctx: CONTEXT)
     (B: Irmin.Branch.S)
     (H: Irmin.Hash.S) = struct
   module Git_mem = Git.Memory.Make(Digest(H))(I)
-  include Make_ext (Ctx) (IO) (NoL) (Git_mem) (C) (P) (B) (H)
+  include Make_ext (Ctx) (IO) (Git_mem) (C) (P) (B) (H)
 end
 
 module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) = struct
@@ -867,7 +841,7 @@ module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) = struct
   include M.Contents
 end
 
-module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Branch.S) (V: Irmin.Hash.S) =
+module RW (G: Git.Store.S) (K: Irmin.Branch.S) (V: Irmin.Hash.S) =
 struct
   module K = struct
     include K
@@ -875,7 +849,7 @@ struct
       | Ok x           -> x
       | Error (`Msg e) -> failwith e
   end
-  include Irmin_branch_store (L)(G)(K)(V)
+  include Irmin_branch_store (G)(K)(V)
 end
 
 module type S = sig

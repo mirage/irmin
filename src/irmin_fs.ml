@@ -29,22 +29,25 @@ module type Config = sig
 end
 
 module type IO = sig
-  val getcwd: unit -> string Lwt.t
-  val mkdir: string -> unit Lwt.t
-  val remove: ?temp_dir:string -> string -> unit Lwt.t
-  val rec_files: string -> string list Lwt.t
-  val file_exists: string -> bool Lwt.t
-  val read_file: string -> Cstruct.t Lwt.t
-  val write_file: ?temp_dir:string -> string -> Cstruct.t -> unit Lwt.t
-  val test_and_set: ?temp_dir:string -> string ->
-    test:Cstruct.t option -> set:Cstruct.t option -> bool Lwt.t
+  type path = string
+  val rec_files: path -> string list Lwt.t
+  val file_exists: path -> bool Lwt.t
+  val read_file: path -> Cstruct.t option Lwt.t
+  val mkdir: path -> unit Lwt.t
+  type lock
+  val lock_file: string -> lock
+  val write_file: ?temp_dir:path -> ?lock:lock ->
+    path -> Cstruct.t -> unit Lwt.t
+  val test_and_set_file: ?temp_dir:path -> lock:lock ->
+    string -> test:Cstruct.t option -> set:Cstruct.t option -> bool Lwt.t
+  val remove_file: ?lock:lock -> path -> unit Lwt.t
 end
 
 (* ~path *)
 let root_key = Irmin.Private.Conf.root
 
-let config ?(config=Irmin.Private.Conf.empty) ?root () =
-  Irmin.Private.Conf.add config root_key root
+let config ?(config=Irmin.Private.Conf.empty) root =
+  Irmin.Private.Conf.add config root_key (Some root)
 
 module RO_ext (IO: IO) (S: Config)
     (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) =
@@ -58,18 +61,20 @@ struct
     path: string;
   }
 
-  let get_path config =
-    match Irmin.Private.Conf.get config root_key with
-    | None   -> IO.getcwd ()
-    | Some p -> Lwt.return p
+  let get_path config = match Irmin.Private.Conf.get config root_key with
+    | Some r -> r
+    | None   -> invalid_arg "The `root` config key is missing"
 
   let v config =
-    get_path config >>= fun path ->
+    let path = get_path config in
     IO.mkdir path >|= fun () ->
     { path }
 
   let file_of_key { path; _ } key =
     path / S.file_of_key (Fmt.to_to_string K.pp key)
+
+  let lock_of_key { path; _ } key =
+    IO.lock_file (path / "lock" / S.file_of_key (Fmt.to_to_string K.pp key))
 
   let mem t key =
     let file = file_of_key t key in
@@ -84,9 +89,9 @@ struct
 
   let find t key =
     Log.debug (fun f -> f "read");
-    mem t key >>= function
-    | false -> Lwt.return_none
-    | true  -> IO.read_file (file_of_key t key) >|= fun x -> value x
+    IO.read_file (file_of_key t key) >|= function
+    | None   -> None
+    | Some x -> value x
 
   let list t =
     Log.debug (fun f -> f "list");
@@ -164,7 +169,7 @@ struct
   type value = RO.value
   type watch = W.watch * (unit -> unit Lwt.t)
 
-  let temp_dir t = t.t.RO.path / "lock"
+  let temp_dir t = t.t.RO.path / "tmp"
 
   (* FIXME: do we really want a global state here?
      maybe we should use a weak map? *)
@@ -216,21 +221,25 @@ struct
     Log.debug (fun f -> f "update");
     let temp_dir = temp_dir t in
     let file = RO.file_of_key t.t key in
-    IO.write_file ~temp_dir file (raw_value value) >>= fun () ->
+    let lock = RO.lock_of_key t.t key in
+    IO.write_file ~temp_dir file ~lock (raw_value value) >>= fun () ->
     W.notify t.w key (Some value)
 
   let remove t key =
     Log.debug (fun f -> f "remove");
     let file = RO.file_of_key t.t key in
-    IO.remove file >>= fun () ->
+    let lock = RO.lock_of_key t.t key in
+    IO.remove_file ~lock file >>= fun () ->
     W.notify t.w key None
 
   let test_and_set t key ~test ~set =
     Log.debug (fun f -> f "test_and_set");
     let temp_dir = temp_dir t in
     let file = RO.file_of_key t.t key in
+    let lock = RO.lock_of_key t.t key in
     let raw_value = function None -> None | Some v -> Some (raw_value v) in
-    IO.test_and_set file ~temp_dir ~test:(raw_value test) ~set:(raw_value set)
+    IO.test_and_set_file file ~temp_dir ~lock
+      ~test:(raw_value test) ~set:(raw_value set)
     >>= fun b ->
     (if b then W.notify t.w key set else Lwt.return_unit) >|= fun () ->
     b
@@ -310,6 +319,22 @@ module IO_mem = struct
     files   = Hashtbl.create 13;
   }
 
+  type path = string
+  type lock = Lwt_mutex.t
+
+  let locks = Hashtbl.create 10
+
+  let lock_file file =
+    try Hashtbl.find locks file
+    with Not_found ->
+      let l = Lwt_mutex.create () in
+      Hashtbl.add locks file l;
+      l
+
+  let with_lock l f = match l with
+    | None   -> f ()
+    | Some l -> Lwt_mutex.with_lock l f
+
   let set_listen_hook () =
     let h _ dir f =
       Hashtbl.replace t.watches dir f;
@@ -324,9 +349,13 @@ module IO_mem = struct
       ) t.watches []
     |> Lwt_list.iter_p (fun x -> x)
 
-  let getcwd () = Lwt.return ""
   let mkdir _ = Lwt.return_unit
-  let remove ?temp_dir:_ file = Hashtbl.remove t.files file |> Lwt.return
+
+  let remove_file ?lock file =
+    with_lock lock (fun () ->
+        Hashtbl.remove t.files file;
+        Lwt.return_unit;
+      )
 
   let rec_files dir =
     Hashtbl.fold (fun k _ acc ->
@@ -335,10 +364,16 @@ module IO_mem = struct
   |> Lwt.return
 
   let file_exists file = Hashtbl.mem t.files file |> Lwt.return
-  let read_file file = Hashtbl.find t.files file |> Lwt.return
 
-  let write_file ?temp_dir:_ file v =
-    Hashtbl.replace t.files file v;
+  let read_file file =
+    try let buf = Hashtbl.find t.files file in Lwt.return (Some buf)
+    with Not_found -> Lwt.return_none
+
+  let write_file ?temp_dir:_ ?lock file v =
+    with_lock lock (fun () ->
+        Hashtbl.replace t.files file v;
+        Lwt.return_unit;
+      ) >>= fun () ->
     notify file
 
   let equal x y = match x, y with
@@ -346,19 +381,22 @@ module IO_mem = struct
     | Some x, Some y -> Cstruct.equal x y
     | _ -> false
 
-  let test_and_set ?temp_dir:_ file ~test ~set =
-    let old =
-      try Some (Hashtbl.find t.files file)
-      with Not_found -> None
+  let test_and_set_file ?temp_dir:_ ~lock file ~test ~set =
+    let f () =
+      let old =
+        try Some (Hashtbl.find t.files file)
+        with Not_found -> None
+      in
+      let b =
+        if not (equal old test) then false
+        else match set with
+          | None   -> Hashtbl.remove t.files file; true
+          | Some v -> Hashtbl.replace t.files file v; true
+      in
+      (if b then notify file else Lwt.return_unit) >|= fun () ->
+      b
     in
-    let b =
-      if not (equal old test) then false
-      else match set with
-        | None   -> Hashtbl.remove t.files file; true
-        | Some v -> Hashtbl.replace t.files file v; true
-    in
-    (if b then notify file else Lwt.return_unit) >|= fun () ->
-    b
+    with_lock (Some lock) f
 
   let clear () =
     Hashtbl.clear t.files;

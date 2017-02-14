@@ -76,10 +76,9 @@ module Store =
     (Irmin.Hash.SHA1)
 
 let config = Irmin_git.config
-    ~root:Config.root
     ~bare:true
     ~head:(Git.Reference.of_raw ("refs/heads/" ^ branch images.(0)))
-    ()
+    Config.root
 
 let info image msg () =
   let date = Int64.of_float (Unix.gettimeofday ()) in

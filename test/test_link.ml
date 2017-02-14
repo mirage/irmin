@@ -52,4 +52,4 @@ let test (module M: S) () =
 
 let run f () = Lwt_main.run (f ())
 
-let test m = "link store", `Quick, run (test m)
+let test msg m = "link store: " ^ msg, `Quick, run (test m)

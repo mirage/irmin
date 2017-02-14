@@ -119,7 +119,7 @@ module Store =
     (Irmin.Branch.String)
     (Irmin.Hash.SHA1)
 
-let config = Irmin_git.config ~root:Config.root ~bare:true ()
+let config = Irmin_git.config ~bare:true Config.root
 
 let log_file = [ "local"; "debug" ]
 

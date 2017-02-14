@@ -25,7 +25,7 @@ module Irmin_git: sig
 
   val config:
     ?config:Irmin.config ->
-    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
+    ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> string ->
     Irmin.config
   (** Create a configuration value.
 
