@@ -22,7 +22,7 @@ module Metadata: Irmin.Metadata.S with type t = [`Normal | `Exec | `Link]
 
 val config:
   ?config:Irmin.config ->
-  ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
+  ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> string ->
   Irmin.config
 
 val bare: bool Irmin.Private.Conf.key
@@ -69,16 +69,12 @@ module Irmin_value_store
      and type Val.node = Node.key
 end
 
-module type LOCK = sig
-  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
-end
-
 module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) : Irmin.AO
   with type t = G.t
    and type key = K.t
    and type value = V.t
 
-module RW (L: LOCK) (G: Git.Store.S) (K: Irmin.Branch.S) (V: Irmin.Hash.S):
+module RW (G: Git.Store.S) (K: Irmin.Branch.S) (V: Irmin.Hash.S):
   Irmin.RW with type key = K.t and type value = V.t
 
 module type S = sig
@@ -118,8 +114,7 @@ module type S_MAKER =
        and type Tree.Hash.t = H.t
        and type Contents.Hash.t = H.t
 
-module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (L: LOCK) (FS: Git.FS.IO):
-  S_MAKER
+module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (FS: Git.FS.IO): S_MAKER
 
 module type S_mem = sig
   include S

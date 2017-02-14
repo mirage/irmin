@@ -20,7 +20,7 @@ let upstream = Irmin.remote_uri path
 
 let test () =
   Config.init ();
-  let config = Irmin_git.config ~root:Config.root () in
+  let config = Irmin_git.config Config.root in
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
   Sync.pull_exn t upstream `Set >>= fun () ->

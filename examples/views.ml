@@ -42,7 +42,7 @@ let t_of_view v =
 
 let main () =
   Config.init ();
-  let config = Irmin_git.config ~root:Config.root ~bare:false () in
+  let config = Irmin_git.config ~bare:false Config.root in
   let t = [
     { x = "foo"; y = 3 };
     { x = "bar"; y = 5 };

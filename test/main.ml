@@ -16,8 +16,8 @@
 
 let misc = [
   "link", [
-    Test_link.test Test_mem.link;
-    Test_link.test Test_fs.link;
+    Test_link.test "mem" Test_mem.link;
+    Test_link.test "fs"  Test_fs.link;
   ]
 ]
 

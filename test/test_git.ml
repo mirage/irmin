@@ -21,7 +21,7 @@ let test_db = "test_db_git"
 
 let config =
   let head = Git.Reference.of_raw "refs/heads/test" in
-  Irmin_git.config ~root:test_db ~head ~bare:true ()
+  Irmin_git.config ~head ~bare:true test_db
 
 module Memory = Irmin_git.Memory (Git_unix.Sync.IO) (Git_unix.Zlib)
     (Irmin.Contents.String)
@@ -40,7 +40,8 @@ let get = function
   | None   -> Alcotest.fail "get"
 
 let test_sort_order (module S: Test_S) =
-  S.Repo.v (Irmin_git.config ()) >>= fun repo ->
+  init () >>= fun () ->
+  S.Repo.v (Irmin_git.config test_db) >>= fun repo ->
   let commit_t = S.Private.Repo.commit_t repo in
   let node_t = S.Private.Repo.node_t repo in
   let head_tree_id branch =

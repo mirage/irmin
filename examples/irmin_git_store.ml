@@ -22,7 +22,7 @@ let read_exn t k =
 
 let main () =
   Config.init ();
-  let config = Irmin_git.config ~root:Config.root ~bare:true () in
+  let config = Irmin_git.config ~bare:true Config.root in
   Store.Repo.v config >>= fun repo ->
   Store.master repo >>= fun t ->
 

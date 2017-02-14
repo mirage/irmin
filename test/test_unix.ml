@@ -47,7 +47,7 @@ module FS = struct
 
   module Link = struct
     include Irmin_unix.Irmin_fs.Link(Irmin.Hash.SHA1)
-    let v () = v (Irmin_mem.config ())
+    let v () = v (Irmin_fs.config test_db)
   end
 
   let link = (module Link: Test_link.S)
@@ -66,7 +66,7 @@ module Git = struct
       failwith "The Git test should be run in the _build/ directory."
     else if Sys.file_exists test_db then
       Git_unix.FS.create ~root:test_db () >>= fun t ->
-      Git_unix.FS.remove t
+      Git_unix.FS.reset t
     else
       Lwt.return_unit)
     >|= fun () ->
@@ -78,14 +78,14 @@ module Git = struct
 
   let config =
     let head = Git.Reference.of_raw "refs/heads/test" in
-    Irmin_git.config ~root:test_db ~head ~bare:true ()
+    Irmin_git.config ~head ~bare:true test_db
 
   let suite = { name = "GIT"; kind = `Unix; clean; init; store; stats; config }
 
   let test_non_bare () =
     let (module S: Test_S) = store in
     init () >>= fun () ->
-    let config = Irmin_git.config ~root:test_db ~bare:false () in
+    let config = Irmin_git.config ~bare:false test_db in
     let info = Irmin_unix.info in
     S.Repo.v config >>= fun repo ->
     S.master repo >>= fun t ->

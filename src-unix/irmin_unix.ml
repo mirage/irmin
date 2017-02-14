@@ -16,107 +16,14 @@
 
 open Lwt.Infix
 
-let src = Logs.Src.create "irmin.unix" ~doc:"Irmin Unix bindings"
-module Log = (val Logs.src_log src : Logs.LOG)
-
-module type LOCK = sig
-  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
-end
-
-module Lock = struct
-
-  module IO = Git_unix.FS.IO
-
-  let is_stale max_age file =
-    IO.file_exists file >>= fun exists ->
-    if exists then (
-      Lwt.catch (fun () ->
-          Lwt_unix.stat file >>= fun s ->
-          let stale = Unix.gettimeofday () -. s.Unix.st_mtime > max_age in
-          Lwt.return stale)
-        (function
-          | Unix.Unix_error (Unix.ENOENT, _, _) -> Lwt.return false
-          | e -> Lwt.fail e)
-    ) else
-      Lwt.return false
-
-  let unlock file =
-    IO.remove file
-
-  let lock ?(max_age = 2.) ?(sleep = 0.001) file =
-    let rec aux i =
-      Log.debug (fun f -> f "lock %d" i);
-      is_stale max_age file >>= fun is_stale ->
-      if is_stale then (
-        Log.err (fun f -> f "%s is stale, removing it." file);
-        unlock file >>= fun () ->
-        aux 1
-      ) else
-        let create () =
-          let pid = Unix.getpid () in
-          IO.mkdir (Filename.dirname file) >>= fun () ->
-          Lwt_unix.openfile file [Unix.O_CREAT; Unix.O_RDWR; Unix.O_EXCL] 0o600
-          >>= fun fd ->
-          let oc = Lwt_io.of_fd ~mode:Lwt_io.Output fd in
-          Lwt_io.write_int oc pid >>= fun () ->
-          Lwt_unix.close fd
-        in
-        Lwt.catch create (function
-            | Unix.Unix_error(Unix.EEXIST, _, _) ->
-              let backoff = 1. +. Random.float (let i = float i in i *. i) in
-              Lwt_unix.sleep (sleep *. backoff) >>= fun () ->
-              aux (i+1)
-            | e -> Lwt.fail e)
-    in
-    aux 1
-
-  let with_lock file fn =
-    lock file >>= fun () ->
-    Lwt.finalize fn (fun () -> unlock file)
-
-end
-
 module IO = struct
-
-  open Lock
-
-  let getcwd = IO.getcwd
-  let mkdir = IO.mkdir
-  let read_file = IO.read_file
-  let rec_files = IO.rec_files
-  let file_exists = IO.file_exists
-
-  let lock_file dir file = Filename.concat dir (file ^ ".lock")
-
-  let remove ?(temp_dir=Filename.get_temp_dir_name ()) file =
-    let lock_file = lock_file temp_dir file in
-    with_lock lock_file (fun () -> IO.remove file)
-
-  let write_file ?(temp_dir=Filename.get_temp_dir_name ()) file v =
-    let lock_file = lock_file temp_dir file in
-    with_lock lock_file (fun () -> IO.write_file file v)
-
-  let test_and_set ?(temp_dir=Filename.get_temp_dir_name ()) file ~test ~set =
-    let lock_file = lock_file temp_dir file in
-    with_lock lock_file (fun () ->
-        (file_exists file >>= function
-          | false -> Lwt.return_none
-          | true  -> read_file file >|= fun v -> Some v)
-        >>= fun v ->
-        let equal = match test, v with
-          | None  , None   -> true
-          | Some x, Some y -> Cstruct.equal x y
-          | _ -> false
-        in
-        if not equal then Lwt.return false
-        else
-          (match set with
-           | None   -> IO.remove file
-           | Some v -> IO.write_file ~temp_dir file v)
-          >|= fun () ->
-          true
-      )
-
+  include Git_unix.FS.IO
+  let rec_files dir =
+    let rec aux accu dir =
+      directories dir >>= fun ds ->
+      files dir       >>= fun fs ->
+      Lwt_list.fold_left_s aux (fs @ accu) ds in
+    aux [] dir
 end
 
 module Irmin_fs = struct
@@ -137,10 +44,9 @@ module Irmin_git = struct
   let bare = Irmin_git.bare
   let level = Irmin_git.level
   module AO = Irmin_git.AO
-  module RW = Irmin_git.RW(Lock)
+  module RW = Irmin_git.RW
   module Memory = Irmin_git.Memory(Git_unix.Sync.IO)(Git_unix.Zlib)
-  module FS =
-    Irmin_git.FS(Git_unix.Sync.IO)(Git_unix.Zlib)(Lock)(Git_unix.FS.IO)
+  module FS = Irmin_git.FS(Git_unix.Sync.IO)(Git_unix.Zlib)(Git_unix.FS.IO)
 end
 
 module Irmin_http = struct

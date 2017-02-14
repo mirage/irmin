@@ -15,8 +15,8 @@
  *)
 
 let misc = [
-  "LINK", [Test_link.test Test_unix.FS.link];
-  "GIT" , [Test_unix.Git.misc];
+  "LINK"     , [Test_link.test "unix" Test_unix.FS.link];
+  "GIT-BARE" , [Test_unix.Git.misc];
 ]
 
 let () =
