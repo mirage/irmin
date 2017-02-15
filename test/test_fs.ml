@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,29 +15,24 @@
  *)
 
 open Test_common
+open Lwt.Infix
+
+module IO = Irmin_fs.IO_mem
 
 let test_db = "test-db"
 
-let config = Irmin_fs.config ~root:test_db ()
+module Link = struct
+  include Irmin_fs.Link(IO)(Irmin.Hash.SHA1)
+  let v () = v (Irmin_fs.config test_db)
+end
 
 let init () =
-  if Sys.file_exists test_db then begin
-    let cmd = Printf.sprintf "rm -rf %s" test_db in
-    let _ = Sys.command cmd in ()
-  end;
-  Irmin_unix.set_listen_dir_hook ();
-  Lwt.return_unit
+  IO.clear () >|= fun () ->
+  IO.set_listen_hook ()
 
-let clean () =
-  Irmin.Private.Watch.(set_listen_dir_hook none);
-  Lwt.return_unit
-
-let suite k =
-  {
-    name = "FS" ^ string_of_contents k;
-    kind = `Fs;
-    cont = k;
-    init; clean;
-    config;
-    store  =  irf_store k;
-  }
+let config = Irmin_fs.config test_db
+let link = (module Link: Test_link.S)
+let clean () = Lwt.return_unit
+let stats = None
+let store = store (module Irmin_fs.Make(IO))
+let suite = { name = "FS"; kind = `Core; init; clean; config; store; stats }

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,21 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Test_common
-let (>>=) = Lwt.(>>=)
+type 'a t = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
 
-let clean config (module S: Test_S) () =
-  S.Repo.create config >>= fun repo ->
-  S.Repo.branches repo >>= Lwt_list.iter_p (S.Repo.remove_branch repo)
-
-let suite k =
-  let config = Irmin_mem.config () in
-  let store = mem_store k in
-  {
-    name   = "MEM" ^ string_of_contents k;
-    kind   = `Mem;
-    cont   = k;
-    init   = none;
-    clean  = clean config store;
-    config; store;
-}
+let t a =
+  let open Ir_type in
+  variant "diff" (fun updated removed added -> function
+      | `Updated x -> updated x
+      | `Removed x -> removed x
+      | `Added x   -> added x)
+  |~ case1 "updated" (pair a a) (fun x -> `Updated x)
+  |~ case1 "removed" a (fun x -> `Removed x)
+  |~ case1 "added" a (fun x -> `Added x)
+  |> sealv

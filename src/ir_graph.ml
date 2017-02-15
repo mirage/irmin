@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,10 +15,19 @@
  *)
 
 open Lwt
-open Ir_misc.OP
 
 let src = Logs.Src.create "irmin.graph" ~doc:"Irmin graph support"
 module Log = (val Logs.src_log src : Logs.LOG)
+
+let list_partition_map f t =
+  let rec aux fst snd = function
+    | []   -> List.rev fst, List.rev snd
+    | h::t ->
+      match f h with
+      | `Fst x -> aux (x :: fst) snd t
+      | `Snd x -> aux fst (x :: snd) t
+  in
+  aux [] [] t
 
 module type S = sig
   include Graph.Sig.I
@@ -44,83 +53,41 @@ module type S = sig
   type dump = vertex list * (vertex * vertex) list
   val export: t -> dump
   val import: dump -> t
-  module Dump: Tc.S0 with type t = dump
+  module Dump: Ir_s.S0 with type t = dump
 end
 
 module Make
-    (Contents: Ir_hum.S)
-    (Node: Ir_hum.S)
-    (Commit: Ir_hum.S)
-    (Ref: Ir_hum.S)
+    (Contents: Ir_s.S0)
+    (Metadata: Ir_s.S0)
+    (Node:     Ir_s.S0)
+    (Commit:   Ir_s.S0)
+    (Branch:   Ir_s.S0)
 = struct
 
   module X = struct
 
     type t =
-      [ `Contents of Contents.t
+      [ `Contents of Contents.t * Metadata.t
       | `Node of Node.t
       | `Commit of Commit.t
-      | `Branch of Ref.t ]
+      | `Branch of Branch.t ]
 
-    let hash = Hashtbl.hash
+    let t =
+      let open Ir_type in
+      variant "vertex" (fun contents node commit branch -> function
+          | `Contents x -> contents x
+          | `Node x     -> node x
+          | `Commit x   -> commit x
+          | `Branch x   -> branch x)
+      |~ case1 "contents" (pair Contents.t Metadata.t) (fun x -> `Contents x)
+      |~ case1 "node"     Node.t   (fun x -> `Node x)
+      |~ case1 "commit"   Commit.t (fun x -> `Commit x)
+      |~ case1 "branch"   Branch.t (fun x -> `Branch x)
+      |> sealv
 
-    let compare x y = match x, y with
-      | `Contents x, `Contents y -> Contents.compare x y
-      | `Node x, `Node y -> Node.compare x y
-      | `Commit x, `Commit y -> Commit.compare x y
-      | `Branch x, `Branch y -> Ref.compare x y
-      | `Contents _, _ -> 1
-      | _, `Contents _ -> -1
-      | `Node _, _ -> 1
-      | _, `Node _ -> -1
-      | `Commit _, _ -> 1
-      | _, `Commit _ -> -1
-
-    let equal x y = match x, y with
-      | `Contents x, `Contents y -> Contents.equal x y
-      | `Node x, `Node y -> Node.equal x y
-      | `Commit x, `Commit y -> Commit.equal x y
-      | `Branch x, `Branch y -> Ref.equal x y
-      | _ -> false
-
-    let to_json = function
-      | `Contents x -> `O [ "contents", Contents.to_json x ]
-      | `Node x -> `O [ "node", Node.to_json x ]
-      | `Commit x -> `O [ "commit", Commit.to_json x ]
-      | `Branch x -> `O [ "tag", Ref.to_json x ]
-
-    let of_json = function
-      | `O [ "contents", x ] -> `Contents (Contents.of_json x)
-      | `O [ "node", x ] -> `Node (Node.of_json x)
-      | `O [ "commit", x ] -> `Commit (Commit.of_json x)
-      | `O [ "tag", x ] -> `Branch (Ref.of_json x)
-      | j -> Ezjsonm.parse_error j "Vertex.of_json"
-
-    let write t buf = match t with
-      | `Contents x -> Contents.write x (Ir_misc.tag buf 0)
-      | `Node x -> Node.write x (Ir_misc.tag buf 1)
-      | `Commit x -> Commit.write x (Ir_misc.tag buf 2)
-      | `Branch x -> Ref.write x (Ir_misc.tag buf 3)
-
-    let size_of t = 1 + match t with
-      | `Contents x -> Contents.size_of x
-      | `Node x -> Node.size_of x
-      | `Commit x -> Commit.size_of x
-      | `Branch x -> Ref.size_of x
-
-    let read buf = match Ir_misc.untag buf with
-      | 0 -> `Contents (Contents.read buf)
-      | 1 -> `Node (Node.read buf)
-      | 2 -> `Commit (Commit.read buf)
-      | 3 -> `Branch (Ref.read buf)
-      | n -> Tc.Reader.error "Vertex.read parse error (tag=%d)" n
-
-    let to_hum = function
-      | `Contents x -> Contents.to_hum x
-      | `Node x -> Node.to_hum x
-      | `Commit x -> Commit.to_hum x
-      | `Branch x -> Ref.to_hum x
-
+    let equal = Ir_type.equal t
+    let compare = Ir_type.compare t
+    let hash x = Hashtbl.hash (Fmt.to_to_string Ir_type.(dump t) x)
   end
 
   module G = Graph.Imperative.Digraph.ConcreteBidirectional(X)
@@ -135,7 +102,10 @@ module Make
 
   (* XXX: for the binary format, we can use offsets in the vertex list
      to save space. *)
-  module Dump = Tc.Pair( Tc.List(X) )( Tc.List(Tc.Pair(X)(X)) )
+  module Dump = struct
+    type t = X.t list * (X.t * X.t) list
+    let t = Ir_type.(pair (list X.t) (list (pair X.t X.t)))
+  end
 
   let vertex g =
     G.fold_vertex (fun k set -> k :: set) g []
@@ -161,7 +131,7 @@ module Make
         else if has_mark key then add ()
         else (
           mark key level;
-          Log.debug (fun f -> f "ADD %a %d" (show (module X)) key level);
+          Log.debug (fun f -> f "ADD %a %d" Ir_type.(dump X.t) key level);
           if not (G.mem_vertex g key) then G.add_vertex g key;
           pred key >>= fun keys ->
           List.iter (fun k -> G.add_edge g k key) keys;
@@ -192,7 +162,7 @@ module Make
       include G
       let edge_attributes k = !edge_attributes k
       let default_edge_attributes _ = []
-      let vertex_name k = Printf.sprintf "%S" (X.to_hum k)
+      let vertex_name k = Fmt.strf "%a" Ir_type.(dump X.t) k
       let vertex_attributes k = !vertex_attributes k
       let default_vertex_attributes _ = []
       let get_subgraph _ = None
@@ -221,7 +191,8 @@ module Make
         let l = List.filter (fun (x,_,y) -> x=v1 && y=v2) edges in
         let l = List.fold_left (fun acc (_,l,_) -> l @ acc) [] l in
         let labels, others =
-          Ir_misc.list_partition_map (function `Label l -> `Fst l | x -> `Snd x) l in
+          list_partition_map (function `Label l -> `Fst l | x -> `Snd x) l
+        in
         match labels with
         | []  -> others
         | [l] -> `Label l :: others

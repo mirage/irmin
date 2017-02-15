@@ -14,8 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
-
-exception Invalid of string
-
-module SHA1: Ir_s.HASH
+let () =
+  Test_http.(with_server servers) (fun () ->
+    Test_store.run "irmin-http" ~misc:[] Test_http.(suites servers)
+    )

@@ -14,8 +14,24 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
+open Lwt.Infix
+open Test_common
 
-exception Invalid of string
+let store = store (module Irmin_mem.Make)
 
-module SHA1: Ir_s.HASH
+module Link = struct
+  include Irmin_mem.Link(Irmin.Hash.SHA1)
+  let v () = v (Irmin_mem.config ())
+end
+
+let link = (module Link: Test_link.S)
+let config = Irmin_mem.config ()
+
+let clean () =
+  let (module S: Test_S) = store in
+  S.Repo.v config >>= fun repo ->
+  S.Repo.branches repo >>= Lwt_list.iter_p (S.Branch.remove repo)
+
+let init () = Lwt.return_unit
+let stats = None
+let suite = { name = "MEM"; kind = `Core; init; clean; config; store; stats }

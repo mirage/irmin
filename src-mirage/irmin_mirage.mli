@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,7 +25,7 @@ module Irmin_git: sig
 
   val config:
     ?config:Irmin.config ->
-    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
+    ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> string ->
     Irmin.config
   (** Create a configuration value.
 
@@ -48,10 +48,10 @@ module Irmin_git: sig
   (** The configuration key to set the local Git repository's bare
       attribute. See {!Irmin_git.config}.*)
 
-  module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) : Irmin.AO
-    with type t = G.t
-     and type key = K.t
-     and type value = V.t
+  module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv):
+    Irmin.AO with type t = G.t
+              and type key = K.t
+              and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
       be written in {i .git/objects/} and might be cleaned up if you
       run {i git gc} manually. *)
@@ -61,13 +61,13 @@ module Irmin_git: sig
 
 end
 
-module Task (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
+module Info (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
 
-  (** {1 Task creators} *)
+  (** {1 Commit info creators} *)
 
-  val f: C.t -> string Irmin.Task.f
-  (** Task creators, using [N.name] and [C.now_d_ps] provided in the
-      functor arguments. *)
+  val f: C.t -> string -> Irmin.Info.f
+  (** Commit info creators, using [N.name] and [C.now_d_ps] provided
+      in the functor arguments. *)
 
 end
 

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,8 +16,6 @@
 
 (** Watches *)
 
-type 'a diff = [`Updated of 'a * 'a | `Removed of 'a | `Added of 'a]
-
 module type S = sig
   type key
   type value
@@ -25,11 +23,11 @@ module type S = sig
   type t
   val stats: t -> int * int
   val notify: t -> key -> value option -> unit Lwt.t
-  val create: unit -> t
+  val v: unit -> t
   val clear: t -> unit Lwt.t
-  val watch_key: t -> key -> ?init:value -> (value diff -> unit Lwt.t) -> watch Lwt.t
+  val watch_key: t -> key -> ?init:value -> (value Ir_diff.t -> unit Lwt.t) -> watch Lwt.t
   val watch: t -> ?init:(key * value) list ->
-    (key -> value diff -> unit Lwt.t) -> watch Lwt.t
+    (key -> value Ir_diff.t -> unit Lwt.t) -> watch Lwt.t
   val unwatch: t -> watch -> unit Lwt.t
   val listen_dir: t -> string
     -> key:(string -> key option)
@@ -37,7 +35,10 @@ module type S = sig
     -> (unit -> unit Lwt.t) Lwt.t
 end
 
-module Make(K: Tc.S0) (V: Tc.S0): S with type key = K.t and type value = V.t
+module Make
+    (K: sig type t val t: t Ir_type.t end)
+    (V: sig type t val t: t Ir_type.t end)
+  : S with type key = K.t and type value = V.t
 
 type hook = int -> string -> (string -> unit Lwt.t) -> (unit -> unit Lwt.t) Lwt.t
 val set_listen_dir_hook: hook -> unit

@@ -1,6 +1,6 @@
 (*
- * Copyright (c) 2015 Daniel C. Bünzli
- * Copyright (c) 2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2017 Daniel C. Bünzli
+ * Copyright (c) 2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,7 +15,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type 'a parser = string -> [ `Error of string | `Ok of 'a ]
+open Result
+
+type 'a parser = string -> ('a, [`Msg of string]) result
 type 'a printer = 'a Fmt.t
 type 'a converter = 'a parser * 'a printer
 

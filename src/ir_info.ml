@@ -14,8 +14,31 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
+type t = {
+  date   : int64;
+  owner  : string;
+  message: string;
+}
 
-exception Invalid of string
+let t =
+  let open Ir_type in
+  record "info" (fun date owner message -> { date; owner; message })
+  |+ field "date"    int64  (fun t -> t.date)
+  |+ field "owner"   string (fun t -> t.owner)
+  |+ field "message" string (fun t -> t.message)
+  |> sealr
 
-module SHA1: Ir_s.HASH
+type f = unit -> t
+
+let create ~date ~owner message = { date; message; owner }
+let with_message t message = { t with message }
+let empty = { date=0L; owner=""; message = "" }
+
+let v ~date ~owner message =
+  if date = 0L && owner = "" && message = "" then empty
+  else create ~date ~owner message
+
+let date t = t.date
+let owner t = t.owner
+let message t = t.message
+let none = fun () -> empty

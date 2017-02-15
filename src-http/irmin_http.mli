@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,17 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** JSON CRUD interface. *)
+(** JSON REST/CRUD interface. *)
 
-val config:
-  ?config:Irmin.config -> ?content_type:[`Raw|`Json] -> Uri.t ->
-  Irmin.config
+val config: ?config:Irmin.config -> Uri.t -> Irmin.config
 
 val uri: Uri.t option Irmin.Private.Conf.key
-val content_type: string option Irmin.Private.Conf.key
-
-module AO (C: Cohttp_lwt.Client): Irmin.AO_MAKER
-module RW (C: Cohttp_lwt.Client): Irmin.RW_MAKER
 
 module Make (C: Cohttp_lwt.Client) (M: Irmin.Metadata.S): Irmin.S_MAKER
-module Low (C: Cohttp_lwt.Client) (M: Irmin.Metadata.S): Irmin.S_MAKER

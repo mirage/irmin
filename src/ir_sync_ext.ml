@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,143 +14,170 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
+
+let invalid_argf fmt = Fmt.kstrf Lwt.fail_invalid_arg fmt
 
 let src = Logs.Src.create "irmin.sync" ~doc:"Irmin remote sync"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-type remote =
-  | Store: (module Ir_s.STORE_EXT with type t = 'a) * 'a -> remote
-  | URI of string
+let remote_store m x = Ir_s.Store (m, x)
+let remote_uri s = Ir_s.URI s
 
-let remote_store m x = Store (m, x)
-let remote_uri s = URI s
-
-module type STORE = sig
-  type db
-  type commit_id
-  val fetch: db -> ?depth:int -> remote ->
-    [`Head of commit_id | `No_head | `Error] Lwt.t
-  val fetch_exn: db -> ?depth:int -> remote -> commit_id Lwt.t
-  val pull: db -> ?depth:int -> remote -> [`Merge|`Update] ->
-    [`Ok | `No_head | `Error] Ir_merge.result Lwt.t
-  val pull_exn: db -> ?depth:int -> remote -> [`Merge|`Update] -> unit Lwt.t
-  val push: db -> ?depth:int -> remote -> [`Ok | `Error] Lwt.t
-  val push_exn: db -> ?depth:int -> remote -> unit Lwt.t
-end
-
-module Make (S: Ir_s.STORE_EXT) = struct
+module Make (S: Ir_s.STORE) = struct
 
   module B = S.Private.Sync
   type db = S.t
-  type commit_id = S.commit_id
+  type commit = S.commit
 
-  let conv (type x) (type y)
-      (module X: Tc.S0 with type t = x) (module Y: Tc.S0 with type t = y)
-      (x:x): y =
-    Y.of_json (X.to_json x)
+  let conv dx dy x =
+    let str = Fmt.to_to_string (Ir_type.pp_json dx) x in
+    Ir_type.decode_json dy (Jsonm.decoder (`String str))
 
   let convert_slice (type r) (type s)
       (module RP: Ir_s.PRIVATE with type Slice.t = r)
       (module SP: Ir_s.PRIVATE with type Slice.t = s)
       r
     =
-    SP.Slice.create () >>= fun s ->
-    RP.Slice.iter_contents r (fun (k, v) ->
-        let k = conv (module RP.Contents.Key) (module SP.Contents.Key) k in
-        let v = conv (module RP.Contents.Val) (module SP.Contents.Val) v in
-        SP.Slice.add_contents s (k, v)
-      ) >>= fun () ->
-    RP.Slice.iter_nodes r (fun (k, v) ->
-        let k = conv (module RP.Node.Key) (module SP.Node.Key) k in
-        let v = conv (module RP.Node.Val) (module SP.Node.Val) v in
-        SP.Slice.add_node s (k, v)
-      ) >>= fun () ->
-    RP.Slice.iter_commits r (fun (k, v) ->
-        let k = conv (module RP.Commit.Key) (module SP.Commit.Key) k in
-        let v = conv (module RP.Commit.Val) (module SP.Commit.Val) v in
-        SP.Slice.add_commit s (k, v)
+    SP.Slice.empty () >>= fun s ->
+    RP.Slice.iter r (function
+        | `Contents (k, v) ->
+          let k = conv RP.Contents.Key.t SP.Contents.Key.t k in
+          let v = conv RP.Contents.Val.t SP.Contents.Val.t v in
+          (match k, v with
+           | Ok k, Ok v -> SP.Slice.add s (`Contents (k, v))
+           | _ -> Lwt.return_unit)
+        | `Node (k, v) ->
+          let k = conv RP.Node.Key.t SP.Node.Key.t k in
+          let v = conv RP.Node.Val.t SP.Node.Val.t v in
+          (match k, v with
+           | Ok k, Ok v -> SP.Slice.add s (`Node (k, v))
+           | _ -> Lwt.return_unit)
+        | `Commit (k, v) ->
+          let k = conv RP.Commit.Key.t SP.Commit.Key.t k in
+          let v = conv RP.Commit.Val.t SP.Commit.Val.t v in
+          (match k, v with
+           | Ok k, Ok v -> SP.Slice.add s (`Commit (k, v))
+           | _ -> Lwt.return_unit)
       ) >>= fun () ->
     Lwt.return s
 
-  let fetch t ?depth remote =
+  let convs src dst l =
+    List.fold_left (fun acc x ->
+        match conv src dst x with
+        | Ok x -> x::acc
+        | _    -> acc
+      ) [] l
+
+  type fetch_error = [
+    | `No_head
+    | `Not_available
+    | `Msg of string
+  ]
+
+  let fetch t ?depth remote: (commit, fetch_error) result Lwt.t =
     match remote with
-    | URI uri ->
+    | Ir_s.URI uri ->
       Log.debug (fun f -> f "fetch URI %s" uri);
-      begin S.name t >>= function
-        | None     -> Lwt.return `No_head
-        | Some branch_id ->
-          B.create (S.repo t) >>= fun g ->
-          B.fetch g ?depth ~uri branch_id
+      begin match S.status t with
+        | `Empty | `Commit _  -> Lwt.return (Error `No_head)
+        | `Branch b ->
+          B.v (S.repo t) >>= fun g ->
+          B.fetch g ?depth ~uri b >>= function
+          | Error _ as e -> Lwt.return e
+          | Ok c         ->
+            S.Commit.of_hash (S.repo t) c >|= function
+            | None   -> Error `No_head
+            | Some x -> Ok x
       end
-    | Store ((module R), r) ->
+    | Ir_s.Store ((module R), r) ->
       Log.debug (fun f -> f "fetch store");
       let s_repo = S.repo t in
+      let r_repo = R.repo r in
       S.Repo.heads s_repo >>= fun min ->
-      let min = List.map (conv (module S.Hash) (module R.Hash) ) min in
-      R.head r >>= function
-      | None   -> Lwt.return `No_head
+      let min = convs S.(commit_t s_repo) R.(commit_t r_repo) min in
+      R.Head.find r >>= function
+      | None   -> Lwt.return (Error `No_head)
       | Some h ->
-         R.Repo.export (R.repo r) ?depth ~min ~max:[h] >>= fun r_slice ->
-         convert_slice (module R.Private) (module S.Private) r_slice >>= fun s_slice ->
-         S.Repo.import s_repo s_slice >>= function
-         | `Error -> Lwt.return `Error
-         | `Ok    ->
-           let h = conv (module R.Hash) (module S.Hash) h in
-           return (`Head h)
+        R.Repo.export (R.repo r) ?depth ~min ~max:[h] >>= fun r_slice ->
+        convert_slice (module R.Private) (module S.Private) r_slice
+        >>= fun s_slice ->
+        S.Repo.import s_repo s_slice >|= function
+        | Error e -> Error (e :> fetch_error)
+        | Ok ()   ->
+          match conv R.(commit_t r_repo) S.(commit_t s_repo) h with
+          | Ok h    -> Ok h
+          | Error e -> Error (e :> fetch_error)
+
+  let pp_fetch_error ppf = function
+    | `No_head       -> Fmt.string ppf "empty head!"
+    | `Not_available -> Fmt.string ppf "not available!"
+    | `Msg m         -> Fmt.string ppf m
 
   let fetch_exn t ?depth remote =
     fetch t ?depth remote >>= function
-    | `Head h  -> Lwt.return h
-    | `No_head -> Lwt.fail (Failure "Sync.fetch_exn: no head!")
-    | `Error   -> Lwt.fail (Failure "Sync.fetch_exn: fetch error!")
+    | Ok h    -> Lwt.return h
+    | Error e -> invalid_argf "Sync.fetch_exn: %a" pp_fetch_error e
+
+  type pull_error = [ fetch_error | Ir_merge.conflict ]
+
+  let pp_pull_error ppf = function
+    | #fetch_error as e -> pp_fetch_error ppf e
+    | `Conflict c      -> Fmt.pf ppf "conflict: %s" c
 
   let pull t ?depth remote kind =
-    let open Ir_merge.OP in
     fetch t ?depth remote >>= function
-    | `Error   -> ok `Error
-    | `No_head -> ok `No_head
-    | `Head k  ->
+    | Error e  -> Lwt.return (Error (e :> pull_error))
+    | Ok k     ->
       match kind with
-      | `Merge  -> S.merge_head t k  >>| fun () -> ok `Ok
-      | `Update -> S.update_head t k >>= fun () -> ok `Ok
+      | `Set        -> S.Head.set t k >|= fun () -> Ok ()
+      | `Merge info ->
+        S.Head.merge ~into:t ~info k >|= fun x ->
+        (x :> (unit, pull_error) result)
 
   let pull_exn t ?depth remote kind =
-    pull t ?depth remote kind >>= Ir_merge.exn >>= function
-    | `Ok      -> Lwt.return_unit
-    | `No_head -> Lwt.fail (Failure "Sync.pull_exn: no head!")
-    | `Error   -> Lwt.fail (Failure "Sync.pull_exn: pull error!")
+    pull t ?depth remote kind >>= function
+    | Ok ()   -> Lwt.return_unit
+    | Error e -> invalid_argf "Sync.pull_exn: %a" pp_pull_error e
+
+  type push_error = [ fetch_error | `Detached_head ]
+
+  let pp_push_error ppf = function
+    | #fetch_error as e -> pp_fetch_error ppf e
+    | `Detached_head    -> Fmt.string ppf "cannot push to a non-persistent store"
 
   let push t ?depth remote =
     Log.debug (fun f -> f "push");
     match remote with
-    | URI uri ->
-      begin S.name t >>= function
-        | None     -> return `Error
-        | Some branch_id ->
-          B.create (S.repo t) >>= fun g ->
-          B.push g ?depth ~uri branch_id
+    | Ir_s.URI uri ->
+      begin match S.status t with
+        | `Empty    -> Lwt.return (Error `No_head)
+        | `Commit _ -> Lwt.return (Error `Detached_head)
+        | `Branch br ->
+          B.v (S.repo t) >>= fun g ->
+          (B.push g ?depth ~uri br :> (unit, push_error) result Lwt.t)
       end
-    | Store ((module R), r) ->
-      S.head t >>= function
-      | None   -> return `Error
+    | Ir_s.Store ((module R), r) ->
+      S.Head.find t >>= function
+      | None   -> Lwt.return (Error (`No_head))
       | Some h ->
         Log.debug (fun f -> f "push store");
         R.Repo.heads (R.repo r) >>= fun min ->
-        let min = List.map (conv (module R.Hash) (module S.Hash)) min in
+        let r_repo = R.repo r in
+        let s_repo = S.repo t in
+        let min = convs R.(commit_t r_repo) S.(commit_t s_repo) min in
         S.Repo.export (S.repo t) ?depth ~min >>= fun s_slice ->
         convert_slice (module S.Private) (module R.Private) s_slice
         >>= fun r_slice -> R.Repo.import (R.repo r) r_slice >>= function
-        | `Error -> Log.debug (fun f -> f "ERROR!"); Lwt.return `Error
-        | `Ok    ->
-          Log.debug (fun f -> f "OK!");
-          let h = conv (module S.Hash) (module R.Hash) h in
-          R.update_head r h >>= fun () ->
-          Lwt.return `Ok
+        | Error e -> Lwt.return (Error (e :> push_error))
+        | Ok ()   ->
+          match conv S.(commit_t s_repo) R.(commit_t r_repo) h with
+          | Error e -> Lwt.return (Error (e :> push_error))
+          | Ok h    -> R.Head.set r h >|= fun () -> Ok ()
 
   let push_exn t ?depth remote =
     push t ?depth remote >>= function
-    | `Ok    -> return_unit
-    | `Error -> fail (Failure "Sync.push_exn")
+    | Ok ()   -> Lwt.return_unit
+    | Error e -> invalid_argf "Sync.push_exn: %a" pp_push_error e
 
 end

@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,61 +14,44 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Ir_misc.OP
-open Lwt
-open Ir_merge.OP
+open Lwt.Infix
+open Ir_merge.Infix
 
 let src = Logs.Src.create "irmin.commit" ~doc:"Irmin commits"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (C: Tc.S0) (N: Tc.S0) = struct
+module Make (C: Ir_s.S0) (N: Ir_s.S0) = struct
 
-  module T = Ir_task
   type node = N.t
   type commit = C.t
 
   type t = {
     node   : N.t;
     parents: C.t list;
-    task : Ir_task.t;
+    info   : Ir_info.t;
   }
 
   let parents t = t.parents
   let node t = t.node
-  let task t = t.task
-  let create task ~node ~parents = { node; parents; task }
+  let info t = t.info
+  let v ~info ~node ~parents = { node; parents; info }
 
-  let to_json t =
-    `O [
-      ("node"   , N.to_json t.node);
-      ("parents", Ezjsonm.list C.to_json t.parents);
-      ("task"   , T.to_json t.task);
-    ]
+  let t =
+    let open Ir_type in
+    record "commit" (fun node parents info -> { node; parents; info })
+    |+ field "node"    N.t        (fun t -> t.node)
+    |+ field "parents" (list C.t) (fun t -> t.parents)
+    |+ field "info"    Ir_info.t  (fun t -> t.info)
+    |> sealr
 
-  let of_json j =
-    let node    = Ezjsonm.find j ["node"]    |> N.of_json in
-    let parents = Ezjsonm.find j ["parents"] |> Ezjsonm.get_list C.of_json in
-    let task    = Ezjsonm.find j ["task"]    |> T.of_json in
-    { node; parents; task }
-
-  module X = Tc.Triple(N)(Tc.List(C))(T)
-  let explode t = t.node, t.parents, t.task
-  let implode (node, parents, task) = { node; parents; task }
-  let x = Tc.biject (module X) implode explode
-
-  let hash = Tc.hash x
-  let compare = Tc.compare x
-  let equal = Tc.equal x
-  let size_of = Tc.size_of x
-  let write = Tc.write x
-  let read = Tc.read x
-
+  let node_t = N.t
+  let commit_t = C.t
 end
 
 module Store
     (N: Ir_s.NODE_STORE)
     (S: sig
-       include Ir_s.AO_STORE
+       include Ir_s.AO
        module Key: Ir_s.HASH with type t = key
        module Val: Ir_s.COMMIT with type t = value
                                 and type commit = key
@@ -83,68 +66,60 @@ module Store
 
   let add (_, t) = S.add t
   let mem (_, t) = S.mem t
-  let read (_, t) = S.read t
-  let read_exn (_, t) = S.read_exn t
-  let merge_node path (n, _) = N.merge path n
+  let find (_, t) = S.find t
+  let merge_node (n, _) = Ir_merge.f (N.merge n)
+
+  let err_not_found k =
+    Fmt.kstrf invalid_arg "Commit.get: %a not found" S.Key.pp k
+
+  let get (_, t) k =
+    S.find t k >>= function
+    | None   -> err_not_found k
+    | Some v -> Lwt.return v
 
   let empty_if_none (n, _) = function
     | None -> N.add n N.Val.empty
     | Some node -> Lwt.return node
 
-  let merge_commit task t ~old k1 k2 =
-    read_exn t k1  >>= fun v1   ->
-    read_exn t k2  >>= fun v2   ->
-    if List.mem k1 (S.Val.parents v2) then ok k2
-    else if List.mem k2 (S.Val.parents v1) then ok k1
+  let equal_opt_keys = Ir_type.(equal (option S.Key.t))
+
+  let merge_commit info t ~old k1 k2 =
+    get t k1 >>= fun v1   ->
+    get t k2 >>= fun v2   ->
+    if List.mem k1 (S.Val.parents v2) then Ir_merge.ok k2
+    else if List.mem k2 (S.Val.parents v1) then Ir_merge.ok k1
     else
       (* If we get an error while looking the the lca, then we
          assume that there is no common ancestor. Maybe we want to
          expose this to the user in a more structured way. But maybe
          that's too much low-level details. *)
       begin old () >>= function
-        | `Conflict msg ->
+        | Error (`Conflict msg) ->
           Log.debug (fun f -> f "old: conflict %s" msg);
           Lwt.return None
-        | `Ok o -> Lwt.return o
+        | Ok o -> Lwt.return o
       end >>= fun old ->
-      if Tc.O1.equal S.Key.equal old (Some k1) then ok k2
-      else if Tc.O1.equal S.Key.equal old (Some k2) then ok k1
+      if equal_opt_keys old (Some k1) then Ir_merge.ok k2
+      else if equal_opt_keys old (Some k2) then Ir_merge.ok k1
       else
         let old () = match old with
-          | None     -> ok None
+          | None     -> Ir_merge.ok None
           | Some old ->
-            read_exn t old >>= fun vold ->
-            ok (Some (Some (S.Val.node vold)))
+            get t old >>= fun vold ->
+            Ir_merge.ok (Some (Some (S.Val.node vold)))
         in
-        merge_node N.Path.empty t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
-        >>| fun node ->
+        merge_node t ~old (Some (S.Val.node v1)) (Some (S.Val.node v2))
+        >>=* fun node ->
         empty_if_none t node >>= fun node ->
         let parents = [k1; k2] in
-        let commit = S.Val.create ~node ~parents task in
+        let commit = S.Val.v ~node ~parents ~info:(info ()) in
         add t commit >>= fun key ->
-        ok key
+        Ir_merge.ok key
 
-  let merge task t = Ir_merge.option (module S.Key) (merge_commit task t)
-
-  let iter (_, t) fn = S.iter t fn
+  let merge t ~info = Ir_merge.(option (v S.Key.t (merge_commit info t)))
 
   module Key = S.Key
   module Val = S.Val
-end
-
-module type HISTORY = sig
-  type t
-  type node
-  type commit
-  val create: t -> node:node -> parents:commit list -> task:Ir_task.t -> commit Lwt.t
-  val node: t -> commit -> node Lwt.t
-  val parents: t -> commit -> commit list Lwt.t
-  val merge: t -> task:Ir_task.t -> commit Ir_merge.t
-  val lcas: t -> ?max_depth:int -> ?n:int -> commit -> commit ->
-    [`Ok of commit list | `Max_depth_reached | `Too_many_lcas] Lwt.t
-  val lca: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit list -> commit option Ir_merge.result Lwt.t
-  val three_way_merge: t -> task:Ir_task.t -> ?max_depth:int -> ?n:int -> commit -> commit -> commit Ir_merge.result Lwt.t
-  val closure: t -> min:commit list -> max:commit list -> commit list Lwt.t
 end
 
 module History (S: Ir_s.COMMIT_STORE) = struct
@@ -153,30 +128,34 @@ module History (S: Ir_s.COMMIT_STORE) = struct
   type node = S.Node.key
 
   type t = S.t
+  type v = S.Val.t
 
-  let merge t ~task ~old c1 c2 =
-    let open Ir_merge.OP in
-    let somify = Ir_merge.promise_map (fun x -> Some x) in
-    S.merge task t ~old:(somify old) (Some c1) (Some c2) >>| function
-    | None   -> conflict "History.merge"
-    | Some x -> ok x
+  let commit_t = S.Key.t
 
-  let node t c =
-    Log.debug (fun f -> f "node %a" (show (module S.Key)) c);
-    S.read_exn t c >|= S.Val.node
+  let merge t ~info =
+    let f ~old c1 c2 =
+      let somify = Ir_merge.map_promise (fun x -> Some x) in
+      let merge = S.merge t ~info in
+      Ir_merge.f merge ~old:(somify old) (Some c1) (Some c2) >>=* function
+      | None   -> Ir_merge.conflict "History.merge"
+      | Some x -> Ir_merge.ok x
+    in
+    Ir_merge.v S.Key.t f
 
-  let create t ~node ~parents ~task =
-    let commit = S.Val.create ~node ~parents task in
-    S.add t commit >>= fun key ->
-    return key
+  let v t ~node ~parents ~info =
+    let commit = S.Val.v ~node ~parents ~info in
+    S.add t commit >|= fun hash ->
+    (hash, commit)
 
   let parents t c =
-    Log.debug (fun f -> f "parents %a" (show (module S.Key)) c);
-    S.read t c >>= function
-    | None   -> return_nil
-    | Some c -> return (S.Val.parents c)
+    Log.debug (fun f -> f "parents %a" S.Key.pp c);
+    S.find t c >|= function
+    | None   -> []
+    | Some c -> S.Val.parents c
 
-  module Graph = Ir_graph.Make(Ir_hum.Unit)(S.Node.Key)(S.Key)(Ir_hum.Unit)
+  module Graph = Ir_graph.Make
+      (S.Node.Contents.Key)(S.Node.Metadata)(S.Node.Key)(S.Key)
+      (struct type t = unit let t = Ir_type.unit end)
 
   let edges t =
     Log.debug (fun f -> f "edges");
@@ -186,29 +165,40 @@ module History (S: Ir_s.COMMIT_STORE) = struct
   let closure t ~min ~max =
     Log.debug (fun f -> f "closure");
     let pred = function
-      | `Commit k -> S.read_exn t k >>= fun r -> return (edges r)
-      | _         -> return_nil in
+      | `Commit k -> (S.find t k >|= function Some r -> edges r | None -> [])
+      | _         -> Lwt.return_nil in
     let min = List.map (fun k -> `Commit k) min in
     let max = List.map (fun k -> `Commit k) max in
-    Graph.closure ~pred ~min ~max () >>= fun g ->
-    let keys =
-      Ir_misc.list_filter_map
-        (function `Commit k -> Some k | _ -> None)
-        (Graph.vertex g)
-    in
-    return keys
+    Graph.closure ~pred ~min ~max () >|= fun g ->
+    List.fold_left (fun acc -> function
+        | `Commit k -> k :: acc
+        | _ -> acc
+      ) [] (Graph.vertex g)
 
-  module KSet = Ir_misc.Set(S.Key)
-  module KHashtbl = Hashtbl.Make(S.Key)
+  module K = struct
+    type t = S.Key.t
+    let compare = Ir_type.compare S.Key.t
+    let hash x = Hashtbl.hash (S.Key.to_raw x)
+    let equal = Ir_type.equal S.Key.t
+  end
+  module KSet = Set.Make(K)
+  module KHashtbl = Hashtbl.Make(K)
 
   let read_parents t commit =
-    S.read_exn t commit >|= fun c ->
-    KSet.of_list (S.Val.parents c)
+    S.find t commit >|= function
+    | None   -> KSet.empty
+    | Some c -> KSet.of_list (S.Val.parents c)
 
-  let pp_key k = String.sub (S.Key.to_hum k) 0 4
-  let pp_keys keys =
-    let keys = KSet.to_list keys in
-    Printf.sprintf "[%s]" @@ String.concat " " (List.map pp_key keys)
+  let equal_keys = Ir_type.equal S.Key.t
+
+  let str_key k = String.sub (Fmt.to_to_string S.Key.pp k) 0 4
+  let pp_key = Fmt.of_to_string str_key
+
+  let pp_keys ppf keys =
+    let keys = KSet.elements keys in
+    Fmt.pf ppf "[%a]" Fmt.(list ~sep:(unit " ") pp_key) keys
+
+  let str_keys = Fmt.to_to_string pp_keys
 
   let lca_calls = ref 0
 
@@ -228,7 +218,7 @@ module History (S: Ir_s.COMMIT_STORE) = struct
     let add_todo d x = Queue.add (d, x) todo in
     KSet.iter (add_todo 0) init;
     let rec aux seen = match check () with
-      | `Too_many_lcas | `Max_depth_reached as x -> Lwt.return x
+      | `Too_many_lcas | `Max_depth_reached as x -> Lwt.return (Error x)
       | `Stop -> return ()
       | `Continue ->
         match unqueue todo seen with
@@ -271,15 +261,15 @@ module History (S: Ir_s.COMMIT_STORE) = struct
 
   let pp_state t = lazy (
     let pp m =
-      KHashtbl.fold (fun k v acc -> if v = m then pp_key k :: acc else acc)
+      KHashtbl.fold (fun k v acc -> if v = m then str_key k :: acc else acc)
         t.marks []
       |> String.concat " "
     in
-    Printf.sprintf "d: %d, seen1: %s, seen2: %s, seenboth: %s, lcas: %s (%d) %s"
+    Fmt.strf "d: %d, seen1: %s, seen2: %s, seenboth: %s, lcas: %s (%d) %s"
       t.depth (pp Seen1) (pp Seen2) (pp SeenBoth) (pp LCA) t.lcas
       (String.concat " | " (
           (Hashtbl.fold (fun d ks acc ->
-               Printf.sprintf "(%d: %s)" d (pp_keys ks) :: acc
+               Fmt.strf "(%d: %s)" d (str_keys ks) :: acc
              ) t.layers [])))
   )
 
@@ -320,7 +310,7 @@ module History (S: Ir_s.COMMIT_STORE) = struct
       | _ -> SeenBoth
     in
     (* check for fast-forwards *)
-    let is_init () = S.Key.equal commit t.c1 || S.Key.equal commit t.c2 in
+    let is_init () = equal_keys commit t.c1 || equal_keys commit t.c2 in
     let is_shared () = new_mark = SeenBoth || new_mark = LCA in
     if is_shared () && is_init () then (
       Log.debug (fun f -> f "fast-forward");
@@ -376,17 +366,18 @@ module History (S: Ir_s.COMMIT_STORE) = struct
     else if t.lcas = n || t.complete then `Stop
     else `Continue
 
+
   let lcas t ?(max_depth=max_int) ?(n=max_int) c1 c2 =
     incr lca_calls;
-    if max_depth < 0 then Lwt.return `Max_depth_reached
-    else if n <= 0 then Lwt.return `Too_many_lcas
-    else if S.Key.equal c1 c2 then Lwt.return (`Ok [c1])
+    if max_depth < 0 then Lwt.return (Error `Max_depth_reached)
+    else if n <= 0 then Lwt.return (Error `Too_many_lcas)
+    else if equal_keys c1 c2 then Lwt.return (Ok [c1])
     else (
       let init = KSet.of_list [c1; c2] in
       let s = empty_state c1 c2 in
       let check () = check ~max_depth ~n s in
       let pp () = pp_state s in
-      let return () = Lwt.return (`Ok (lcas s)) in
+      let return () = Lwt.return (Ok (lcas s)) in
       let t0 = Sys.time () in
       Lwt.finalize
         (fun () -> traverse_bfs t ~f:(update_parents s) ~pp ~check ~init ~return)
@@ -396,56 +387,58 @@ module History (S: Ir_s.COMMIT_STORE) = struct
            Lwt.return_unit)
     )
 
-  let rec three_way_merge t ~task ?max_depth ?n c1 c2 =
-    Log.debug (fun f -> f "3-way merge between %a and %a"
-      (show (module S.Key)) c1
-      (show (module S.Key)) c2);
-    if S.Key.equal c1 c2 then ok c1
+  let rec three_way_merge t ~info ?max_depth ?n c1 c2 =
+    Log.debug (fun f -> f "3-way merge between %a and %a" pp_key c1 pp_key c2);
+    if equal_keys c1 c2 then Ir_merge.ok c1
     else (
       lcas t ?max_depth ?n c1 c2 >>= fun lcas ->
       let old () = match lcas with
-        | `Too_many_lcas     -> conflict "Too many lcas"
-        | `Max_depth_reached -> conflict "Max depth reached"
-        | `Ok []             -> ok None (* no common ancestor *)
-        | `Ok (old :: olds)  ->
+        | Error `Too_many_lcas     -> Ir_merge.conflict "Too many lcas"
+        | Error `Max_depth_reached -> Ir_merge.conflict "Max depth reached"
+        | Ok []                    -> Ir_merge.ok None (* no common ancestor *)
+        | Ok (old :: olds)         ->
         let rec aux acc = function
-          | []        -> ok (Some acc)
+          | []        -> Ir_merge.ok (Some acc)
           | old::olds ->
-            three_way_merge t ~task acc old >>| fun acc ->
+            three_way_merge t ~info acc old >>=* fun acc ->
             aux acc olds
         in
         aux old olds
       in
-      try merge t ~task ~old:old c1 c2
-      with Ir_merge.Conflict msg ->
-        conflict "Recursive merging of common ancestors: %s" msg
+      let merge =
+        merge t ~info
+        |> Ir_merge.with_conflict
+          (fun msg -> Fmt.strf "Recursive merging of common ancestors: %s" msg)
+        |> Ir_merge.f
+      in
+      merge ~old:old c1 c2
     )
 
-  let lca_aux t ~task ?max_depth ?n c1 c2 =
-    if S.Key.equal c1 c2 then ok (Some c1)
+  let lca_aux t ~info ?max_depth ?n c1 c2 =
+    if equal_keys c1 c2 then Ir_merge.ok (Some c1)
     else (
       lcas t ?max_depth ?n c1 c2 >>= function
-      | `Too_many_lcas     -> conflict "Too many lcas"
-      | `Max_depth_reached -> conflict "Max depth reached"
-      | `Ok []             -> ok None (* no common ancestor *)
-      | `Ok [x]            -> ok (Some x)
-      | `Ok (c :: cs)  ->
+      | Error `Too_many_lcas     -> Ir_merge.conflict "Too many lcas"
+      | Error `Max_depth_reached -> Ir_merge.conflict "Max depth reached"
+      | Ok []                    -> Ir_merge.ok None (* no common ancestor *)
+      | Ok [x]                   -> Ir_merge.ok (Some x)
+      | Ok (c :: cs)             ->
         let rec aux acc = function
-          | []    -> ok (Some acc)
+          | []    -> Ir_merge.ok (Some acc)
           | c::cs ->
-            three_way_merge t ~task ?max_depth ?n acc c >>= function
-            | `Conflict _ -> ok None
-            | `Ok acc     -> aux acc cs
+            three_way_merge t ~info ?max_depth ?n acc c >>= function
+            | Error (`Conflict _) -> Ir_merge.ok None
+            | Ok acc              -> aux acc cs
         in
         aux c cs
     )
 
-  let rec lca t ~task ?max_depth ?n = function
-    | []  -> conflict "History.lca: empty"
-    | [c] -> ok (Some c)
+  let rec lca t ~info ?max_depth ?n = function
+    | []  -> Ir_merge.conflict "History.lca: empty"
+    | [c] -> Ir_merge.ok (Some c)
     | c1::c2::cs ->
-      lca_aux t ~task ?max_depth ?n c1 c2 >>| function
-      | None   -> ok None
-      | Some c -> lca t ~task ?max_depth ?n (c::cs)
+      lca_aux t ~info ?max_depth ?n c1 c2 >>=* function
+      | None   -> Ir_merge.ok None
+      | Some c -> lca t ~info ?max_depth ?n (c::cs)
 
 end

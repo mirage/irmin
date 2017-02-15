@@ -1,82 +1,86 @@
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 
-module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
-module View = Irmin.View(Store)
+module Store =
+  Irmin_git.FS
+    (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)
 
 let config =
   let head = Git.Reference.of_raw "refs/heads/upstream" in
-  Irmin_git.config ~root:Config.root ~head ~bare:false ()
+  Irmin_git.config ~head ~bare:false Config.root
 
-let task ~user msg =
+let info ~user msg () =
   let date = Int64.of_float (Unix.gettimeofday ()) in
   let owner = user in
-  Irmin.Task.create ~date ~owner msg
+  Irmin.Info.v ~date ~owner msg
 
 (* 1. Cloning the gold image. *)
 let provision repo =
   Config.init ();
-  let provision = task ~user:"Automatic VM provisioning" in
+  let provision = info ~user:"Automatic VM provisioning" in
 
-  Store.of_branch_id provision "upstream" repo >>= fun t ->
+  Store.of_branch repo "upstream" >>= fun t ->
 
-  View.empty () >>= fun v ->
-  View.update v ["etc"; "manpath"]
+  Store.Tree.empty |> fun v ->
+  Store.Tree.add v ["etc"; "manpath"]
     "/usr/share/man\n\
      /usr/local/share/man"
-  >>= fun () ->
-  View.update v ["bin"; "sh"]
+  >>= fun v ->
+  Store.Tree.add v ["bin"; "sh"]
     "�����XpN ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
-  >>= fun () ->
-  View.merge_path_exn (t "Cloning Ubuntu 14.04 Gold Image.") [] v
+  >>= fun v ->
+  Store.set_tree t ~info:(provision "Cloning Ubuntu 14.04 Gold Image.") [] v
 
 (* 2. VM configuration. *)
-let sysadmin = task ~user:"Bob the sysadmin"
+let sysadmin = info ~user:"Bob the sysadmin"
 let configure repo =
-  Store.of_branch_id sysadmin "upstream" repo >>= fun t ->
+  Store.of_branch repo "upstream" >>= fun t ->
 
   Lwt_unix.sleep 2.  >>= fun () ->
-  Store.clone_force sysadmin (t "Cloning upstream") "dev" >>= fun t ->
+  Store.clone ~src:t ~dst:"dev" >>= fun t ->
 
   Lwt_unix.sleep 2.  >>= fun () ->
-  Store.update (t "DNS configuration") ["etc";"resolv.conf"]
+  Store.set t ~info:(sysadmin "DNS configuration") ["etc";"resolv.conf"]
     "domain mydomain.com\nnameserver 128.221.130.23" >>= fun () ->
 
   Lwt_unix.sleep 2.  >>= fun () ->
-  Store.clone_force sysadmin (t "Stable") "prod" >>= fun _ ->
+  Store.clone ~src:t ~dst:"prod" >>= fun _ ->
   Lwt.return_unit
 
 let attack repo =
-  let task = task ~user:"Remote connection from 132.443.12.444" in
+  let info = info ~user:"Remote connection from 132.443.12.444" in
 
   (* 3. Attacker. *)
-  Store.of_branch_id task "prod" repo >>= fun t ->
+  Store.of_branch repo "prod" >>= fun t ->
 
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.update (t "$ vim /etc/resolv.conf")
+  Store.set t ~info:(info "$ vim /etc/resolv.conf")
     ["etc";"resolv.conf"]
     "domain mydomain.com\n\
      nameserver 12.221.130.23"
   >>= fun () ->
 
   Lwt_unix.sleep 2. >>= fun () ->
-  Store.update (t "$ gcc -c /tmp/sh.c -o /bin/sh")
+  Store.set t ~info:(info "$ gcc -c /tmp/sh.c -o /bin/sh")
     ["bin";"sh"]
     "�����XpNx ������� H__PAGEZERO(__TEXT__text__TEXT [...]"
 
 let revert repo =
-  Store.of_branch_id sysadmin "prod" repo >>= fun prod ->
-  Store.of_branch_id sysadmin "dev"  repo >>= fun dev ->
+  Store.of_branch repo "prod" >>= fun prod ->
+  Store.of_branch repo "dev"  >>= fun dev ->
 
-  Store.head_exn (prod "head") >>= fun h1 ->
-  Store.head_exn (dev  "head") >>= fun h2 ->
+  Store.Head.get prod >>= fun h1 ->
+  Store.Head.get dev  >>= fun h2 ->
   if h1 <> h2 then (
     Printf.printf
       "WARNING: the filesystem is different in dev and prod, \
        intrusion detected!\n\
        Reverting the production system to the dev environment.\n%!";
     Lwt_unix.sleep 2. >>= fun () ->
-    Store.update_head (prod "rev") h2
+    Store.Head.set prod h2
   ) else
     Lwt.return_unit
 
@@ -106,24 +110,24 @@ let () =
   else match Sys.argv.(1) with
 
     | "provision" ->
-      Lwt_main.run (Store.Repo.create config >>= provision);
+      Lwt_main.run (Store.Repo.v config >>= provision);
       Printf.printf
         "The VM is now provisioned. Run `%s configure` to simulate a sysadmin \n\
          configuration.\n" cmd
 
     | "configure" ->
-      Lwt_main.run (Store.Repo.create config >>= configure);
+      Lwt_main.run (Store.Repo.v config >>= configure);
       Printf.printf
         "The VM is now configured. Run `%s attack` to simulate an attack by an \n\
          intruder.\n" cmd
 
     | "attack" ->
-      Lwt_main.run (Store.Repo.create config >>= attack);
+      Lwt_main.run (Store.Repo.v config >>= attack);
       Printf.printf
         "The VM has been attacked. Run `%s revert` to revert the VM state to a \
           safe one.\n" cmd
 
     | "revert" ->
-      Lwt_main.run (Store.Repo.create config >>= revert)
+      Lwt_main.run (Store.Repo.v config >>= revert)
 
     | _  -> help ()

@@ -14,8 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
+let misc = [
+  "link", [
+    Test_link.test "mem" Test_mem.link;
+    Test_link.test "fs"  Test_fs.link;
+  ]
+]
 
-exception Invalid of string
-
-module SHA1: Ir_s.HASH
+let () =
+  Test_store.run "irmin" ~misc [
+    `Quick , Test_mem.suite;
+    `Quick , Test_fs.suite;
+  ]

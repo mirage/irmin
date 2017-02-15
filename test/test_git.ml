@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,86 +19,55 @@ open Test_common
 
 let test_db = "test_db_git"
 
-let init_disk () =
-  if Filename.basename (Sys.getcwd ()) <> "_build" then
-    failwith "The Git test should be run in the _build/ directory."
-  else if Sys.file_exists test_db then
-    Git_unix.FS.create ~root:test_db () >>= fun t ->
-    Git_unix.FS.remove t
-  else
-    Lwt.return_unit
+let config =
+  let head = Git.Reference.of_raw "refs/heads/test" in
+  Irmin_git.config ~head ~bare:true test_db
 
-let init () =
-  init_disk () >|= fun () ->
-  Irmin_unix.set_listen_dir_hook ()
+module Memory = Irmin_git.Memory (Git_unix.Sync.IO) (Git_unix.Zlib)
+    (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)
 
-let clean () =
-  Irmin.Private.Watch.(set_listen_dir_hook none);
-  Lwt.return_unit
+let store = (module Memory: Test_S)
+let stats = None
+let init () = Memory.Git_mem.clear_all (); Lwt.return_unit
+let clean () = Lwt.return_unit
+let suite = { name = "GIT"; kind = `Git; clean; init; store; stats; config }
 
-let suite k =
-  let module S = (val git_store k) in
-  {
-    name   = "GIT" ^ string_of_contents k;
-    cont   = k;
-    kind   = `Git;
-    init; clean;
-    store  = (module S: Test_S);
-    config =
-      let head = Git.Reference.of_raw "refs/heads/test" in
-      Irmin_git.config ~root:test_db ~head ~bare:true ()
-  }
+let get = function
+  | Some x -> x
+  | None   -> Alcotest.fail "get"
 
-let test_non_bare () =
-  let open Irmin_unix in
-  init_disk () >>= fun () ->
-  let module Store =
-    Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
-  in
-  let config = Irmin_git.config ~root:test_db ~bare:false () in
-  Store.Repo.create config >>= Store.master task >>= fun t ->
-  Store.update (t "fst one") ["fst"] "ok" >>= fun () ->
-  Store.update (t "snd one") ["fst"; "snd"] "maybe?" >>= fun () ->
-  Store.update (t "fst one") ["fst"] "hoho"
-
-let test_sort_order () =
-  let module Memory =
-    Irmin_unix.Irmin_git.Memory
-      (Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
-  in
-  Memory.Repo.create (Irmin_git.config ()) >>= fun repo ->
-  let commit_t = Memory.Private.Repo.commit_t repo in
-  let node_t = Memory.Private.Repo.node_t repo in
+let test_sort_order (module S: Test_S) =
+  init () >>= fun () ->
+  S.Repo.v (Irmin_git.config test_db) >>= fun repo ->
+  let commit_t = S.Private.Repo.commit_t repo in
+  let node_t = S.Private.Repo.node_t repo in
   let head_tree_id branch =
-    Memory.head_exn branch >>= fun head ->
-    Memory.Private.Commit.read_exn commit_t head >|= fun commit ->
-    Memory.Private.Commit.Val.node commit
+    S.Head.get branch >>= fun head ->
+    S.Private.Commit.find commit_t (S.Commit.hash head) >|= fun commit ->
+    S.Private.Commit.Val.node (get commit)
   in
   let ls branch =
     head_tree_id branch >>= fun tree_id ->
-    Memory.Private.Node.read_exn node_t tree_id >|= fun tree ->
-    Memory.Private.Node.Val.alist tree |> List.map fst
+    S.Private.Node.find node_t tree_id >|= fun tree ->
+    S.Private.Node.Val.list (get tree) |> List.map fst
   in
-  Memory.master (fun () -> Irmin.Task.empty) repo >>= fun master ->
-  let master = master () in
-  Memory.update master ["foo.c"] "foo.c" >>= fun () ->
-  Memory.update master ["foo1"] "foo1" >>= fun () ->
-  Memory.update master ["foo"; "foo.o"] "foo.o" >>= fun () ->
+  let info = Irmin.Info.none in
+  S.master repo >>= fun master ->
+  S.set master ~info ["foo.c"] "foo.c" >>= fun () ->
+  S.set master ~info ["foo1"] "foo1" >>= fun () ->
+  S.set master ~info ["foo"; "foo.o"] "foo.o" >>= fun () ->
   ls master >>= fun items ->
   Alcotest.(check (list string)) "Sort order" ["foo.c"; "foo"; "foo1"] items;
   head_tree_id master >>= fun tree_id ->
   Alcotest.(check string) "Sort hash" "00c5f5e40e37fde61911f71373813c0b6cad1477"
-    (Memory.Private.Node.Key.to_hum tree_id);
+    (Fmt.to_to_string S.Private.Node.Key.pp tree_id);
   (* Convert dir to file; changes order in listing *)
-  Memory.update master ["foo"] "foo" >>= fun () ->
+  S.set master ~info ["foo"] "foo" >>= fun () ->
   ls master >>= fun items ->
   Alcotest.(check (list string)) "Sort order" ["foo"; "foo.c"; "foo1"] items;
   Lwt.return ()
 
-let run f () = Lwt_main.run (f ())
-
-let misc =
-  "GIT.misc", [
-    "Testing git non-bare repostiories", `Quick, run test_non_bare;
-    "Testing sort order", `Quick, run test_sort_order;
-  ]
+let test_sort_order store () = Lwt_main.run (test_sort_order store)

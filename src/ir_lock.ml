@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,11 +19,17 @@ let (>>=) = Lwt.bind
 module type S = sig
   type key
   type t
-  val create: unit -> t
+  val v: unit -> t
   val with_lock: t -> key -> (unit -> 'a Lwt.t) -> 'a Lwt.t
 end
 
-module Make (K: Tc.S0) = struct
+module Make (K: Ir_s.S0) = struct
+
+  module K = struct
+    type t = K.t
+    let hash = Hashtbl.hash
+    let equal = Ir_type.equal K.t
+  end
 
   module KHashtbl = Hashtbl.Make(K)
 
@@ -34,7 +40,7 @@ module Make (K: Tc.S0) = struct
     locks : Lwt_mutex.t KHashtbl.t;
   }
 
-  let create () = {
+  let v () = {
     global = Lwt_mutex.create ();
     locks  = KHashtbl.create 1024;
   }

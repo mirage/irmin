@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Tags handling. *)
+let misc = [
+  "LINK"     , [Test_link.test "unix" Test_unix.FS.link];
+  "GIT-BARE" , [Test_unix.Git.misc];
+]
 
-module String: Ir_s.REF with type t = string
-
+let () =
+  Test_http.with_server Test_unix.Http.servers (fun () ->
+      Test_store.run "irmin-unix" ~misc ([
+          `Quick , Test_unix.FS.suite;
+          `Quick , Test_unix.Git.suite;
+        ] @ Test_http.suites Test_unix.Http.servers)
+    )

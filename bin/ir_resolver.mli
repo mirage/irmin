@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,7 +24,7 @@ val contents: contents Cmdliner.Term.t
 
 (** {1 Global Configuration} *)
 
-type t = S: (module Irmin.S with type t = 'a) * (string -> 'a) Lwt.t -> t
+type t = S: (module Irmin.S with type t = 'a) * 'a Lwt.t -> t
 (** The type for store configurations. A configuration value contains:
     the store implementation a creator of store's state. *)
 

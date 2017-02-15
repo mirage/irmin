@@ -14,8 +14,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of keys *)
+(** Provenance tracking. *)
 
-exception Invalid of string
+type t
+val t: t Ir_type.t
+val v: date:int64 -> owner:string -> string -> t
+val date: t -> int64
+val owner: t -> string
+val message: t -> string
+val with_message: t -> string -> t
 
-module SHA1: Ir_s.HASH
+val empty: t
+
+type f = unit -> t
+val none: f

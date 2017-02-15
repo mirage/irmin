@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Lwt
+open Lwt.Infix
 open Printf
 open Astring
 
@@ -28,16 +28,29 @@ module type S = sig
     Buffer.t -> unit Lwt.t
 end
 
-module Make (S: Ir_s.STORE_EXT) = struct
+exception Utf8_failure
+let is_valid_utf8 str =
+  try
+    Uutf.String.fold_utf_8 (fun _ _ -> function
+        | `Malformed _ -> raise (Utf8_failure)
+        | _ -> ()
+      ) () str;
+    true
+  with Utf8_failure -> false
+
+module type PP = sig type t val pp: t Fmt.t end
+
+module Make (S: Ir_s.STORE) = struct
 
   type db = S.t
 
-  module Ref = S.Private.Ref
+  module Branch = S.Private.Branch
   module Contents = S.Private.Contents
   module Node = S.Private.Node
   module Commit = S.Private.Commit
   module Slice = S.Private.Slice
-  module Graph = Ir_graph.Make(Contents.Key)(Node.Key)(Commit.Key)(Ref.Key)
+  module Graph = Ir_graph.Make
+      (Contents.Key)(Node.Metadata)(Node.Key)(Commit.Key)(Branch.Key)
 
   let fprintf (t:db) ?depth ?(html=false) ?full ~date name =
     Log.debug (fun f -> f "fprintf depth=%s html=%b full=%s"
@@ -52,15 +65,15 @@ module Make (S: Ir_s.STORE_EXT) = struct
     let add_edge v1 l v2 =
       if mem_vertex v1 && mem_vertex v2 then edges := (v1, l, v2) :: !edges
     in
-    let string_of_key (type t) (module M: Ir_hum.S with type t = t) (k:t) =
-      let s = M.to_hum k in
+    let string_of_key (type t) (module M: PP with type t = t) (k:t) =
+      let s = Fmt.to_to_string M.pp k in
       if String.length s <= 8 then s else String.with_range s ~len:8 in
     let string_of_contents s =
       let s =
         if String.length s <= 10 then s
         else String.with_range s ~len:10 in
       let s =
-        if Ir_misc.is_valid_utf8 s then s
+        if is_valid_utf8 s then s
         else (let `Hex s = Hex.of_string s in s) in
       s in
     let label_of_node k _ =
@@ -72,7 +85,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
           (string_of_key (module Node.Key) k) in
       `Label s in
     let label_of_step l =
-      let l = S.Key.Step.to_hum l in
+      let l = Fmt.to_to_string S.Key.pp_step l in
       let s =
         (if html then
           sprintf "<div class='path'>%s</div>"
@@ -82,7 +95,7 @@ module Make (S: Ir_s.STORE_EXT) = struct
       `Label s in
     let label_of_commit k c =
       let k = string_of_key (module Commit.Key) k in
-      let o = Commit.Val.task c in
+      let o = Commit.Val.info c in
       let s =
         if html then
           sprintf
@@ -94,10 +107,9 @@ module Make (S: Ir_s.STORE_EXT) = struct
             \  <div>&nbsp</div>\n\
              </div>"
             k
-            (Ir_task.owner o)
-            (date (Ir_task.date o))
-            (String.concat ~sep:"\n"
-               (List.map String.Ascii.escape @@ Ir_task.messages o))
+            (Ir_info.owner o)
+            (date (Ir_info.date o))
+            (String.Ascii.escape (Ir_info.message o))
         else
           sprintf "%s" k
       in
@@ -111,59 +123,69 @@ module Make (S: Ir_s.STORE_EXT) = struct
                   \  <div>&nbsp</div>\n\
                    </div>" k
         else
-           let v = string_of_contents (Tc.show (module S.Val) v) in
+           let v = string_of_contents (Fmt.to_to_string Contents.Val.pp v) in
            sprintf "%s (%s)" k (String.Ascii.escape_string v) in
       `Label s in
     let label_of_tag t =
       let s =
         if html then
-          sprintf "<div class='tag'>%s</div>" (Ref.Key.to_hum t)
+          sprintf "<div class='tag'>%s</div>" (Fmt.to_to_string Branch.Key.pp t)
         else
-          Ref.Key.to_hum t
+          Fmt.to_to_string Branch.Key.pp t
       in
-      `Label s in
-    Slice.iter_contents slice (fun (k, b) ->
-        add_vertex (`Contents k) [`Shape `Box; label_of_contents k b];
-        return_unit
+      `Label s
+    in
+    let contents = ref [] in
+    let nodes = ref [] in
+    let commits = ref [] in
+    Slice.iter slice (function
+        | `Contents c -> contents := c :: !contents; Lwt.return_unit
+        | `Node n     -> nodes := n :: !nodes; Lwt.return_unit
+        | `Commit c   -> commits := c :: !commits; Lwt.return_unit
       ) >>= fun () ->
-    Slice.iter_nodes slice (fun (k, t) ->
-        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t];
-        return_unit
-      ) >>= fun () ->
-    Slice.iter_commits slice (fun (k, r) ->
-        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r];
-        return_unit
-      ) >>= fun () ->
-    Slice.iter_nodes slice (fun (k, t) ->
-        Node.Val.iter_contents t (fun l (v, _meta) ->
-            add_edge (`Node k) [`Style `Dotted; label_of_step l] (`Contents v)
-          );
-        Node.Val.iter_succ t (fun l n ->
-            add_edge (`Node k) [`Style `Solid; label_of_step l] (`Node n)
-          );
-        return_unit
-      ) >>= fun () ->
-    Slice.iter_commits slice (fun (k, r) ->
+    List.iter (fun (k, c) ->
+        add_vertex (`Contents k) [`Shape `Box; label_of_contents k c]
+      ) !contents;
+    List.iter (fun (k, t) ->
+        add_vertex (`Node k) [`Shape `Box; `Style `Dotted; label_of_node k t]
+      ) !nodes;
+    List.iter (fun (k, r) ->
+        add_vertex (`Commit k) [`Shape `Box; `Style `Bold; label_of_commit k r]
+      ) !commits;
+    List.iter (fun (k, t) ->
+        List.iter (fun (l, v) -> match v with
+            | `Contents (v, _meta) ->
+              add_edge (`Node k) [`Style `Dotted; label_of_step l] (`Contents v)
+            | `Node n ->
+              add_edge (`Node k) [`Style `Solid; label_of_step l] (`Node n)
+          ) (Node.Val.list t);
+      ) !nodes;
+    List.iter (fun (k, r) ->
         List.iter (fun c ->
             add_edge (`Commit k) [`Style `Bold] (`Commit c)
           ) (Commit.Val.parents r);
         add_edge (`Commit k) [`Style `Dashed] (`Node (Commit.Val.node r));
-        return_unit
-      ) >>= fun () ->
-    let ref_t = S.Private.Repo.ref_t (S.repo t) in
-    Ref.iter ref_t (fun r k ->
-        k () >>= fun k ->
-        add_vertex (`Branch r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
-        add_edge (`Branch r) [`Style `Bold] (`Commit k);
-        return_unit
-      ) >>= fun () ->
-    let vertex = Hashtbl.fold (fun k v acc -> (k, v) :: acc) vertex [] in
-    return (fun ppf -> Graph.output ppf vertex !edges name)
+      ) !commits;
+    let branch_t = S.Private.Repo.branch_t (S.repo t) in
+    Branch.list branch_t >>= fun bs ->
+    Lwt_list.iter_s (fun r ->
+        Branch.find branch_t r >|= function
+        | None   -> ()
+        | Some k ->
+          add_vertex (`Branch r) [`Shape `Plaintext; label_of_tag r; `Style `Filled];
+          add_edge (`Branch r) [`Style `Bold] (`Commit k)
+      ) bs >|= fun () ->
+    let map = function
+      | `Contents c -> `Contents (c, Node.Metadata.default)
+      | `Commit _ | `Node _ | `Branch _ as k -> k
+    in
+    let vertex = Hashtbl.fold (fun k v acc -> (map k, v) :: acc) vertex [] in
+    let edges = List.map (fun (k, l, v) -> map k, l, map v) !edges in
+    fun ppf -> Graph.output ppf vertex edges name
 
   let output_buffer t ?html ?depth ?full ~date buf =
-    fprintf t ?depth ?full ?html ~date "graph" >>= fun fprintf ->
+    fprintf t ?depth ?full ?html ~date "graph" >|= fun fprintf ->
     let ppf = Format.formatter_of_buffer buf in
-    fprintf ppf;
-    return_unit
+    fprintf ppf
 
 end

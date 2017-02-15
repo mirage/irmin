@@ -1,5 +1,6 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2017 Grégoire Henry <gregoire.henry@ocamlpro.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,16 +15,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Provenance tracking. *)
+module Make (P: Ir_s.PRIVATE): sig
+  include Ir_s.TREE with type key = P.Node.Path.t
+                     and type step = P.Node.Path.step
+                     and type metadata = P.Node.Val.metadata
+                     and type contents = P.Contents.value
 
-include Tc.S0
-val create: date:int64 -> owner:string -> ?uid:int64 -> string -> t
-val date: t -> int64
-val uid: t -> int64
-val owner: t -> string
-val messages: t -> string list
-val add: t -> string -> unit
-val empty: t
-
-type 'a f = 'a -> t
-val none: unit f
+  val import: P.Repo.t -> P.Node.key -> node Lwt.t
+  val export: P.Repo.t -> node -> P.Node.key Lwt.t
+  val dump: tree Fmt.t
+  val equal: tree -> tree -> bool Lwt.t
+  val node_t: node Ir_type.t
+  val tree_t: tree Ir_type.t
+end

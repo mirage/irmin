@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,33 +16,23 @@
 
 (** HTTP server *)
 
-type hooks = {
-  update: unit -> unit Lwt.t;
-}
-
 module type S = sig
 
+  type repo
+  (** The type for Irmin repository. *)
+
   type t
-  (** Database type. *)
+  (** The type for HTTP configuration. *)
 
-  type spec
-  (** HTTP configuration. *)
-
-  val http_spec: ?strict:bool -> ?hooks:hooks -> t -> spec
-  (** [http_spec t] returns the configuration for a server serving the contents of [t].
-      If [strict] is set, incoming connections will fail if they do not have the right
-      {i X-IrminVersion} headers. *)
+  val v: ?strict:bool -> repo -> t
+  (** [v repo] returns the configuration for a server serving the
+      contents of [repo]. If [strict] is set, incoming connections
+      will fail if they do not have the right {i X-IrminVersion}
+      headers. *)
 
 end
 
-(** {2 Constructor} *)
-
-module type DATE = sig
-  val pretty: int64 -> string
-  (** Pretty print a raw date format. *)
-end
-
-module Make (HTTP: Cohttp_lwt.Server) (D: DATE) (S: Irmin.S): S with
-  type t = S.t and
-  type spec = HTTP.t
+module Make (HTTP: Cohttp_lwt.Server) (S: Irmin.S): S with
+  type repo = S.Repo.t and
+  type t = HTTP.t
 (** Create an HTTP server, serving the contents of an Irmin database. *)

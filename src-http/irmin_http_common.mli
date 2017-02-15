@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,58 +16,18 @@
 
 (** HTTP helpers *)
 
-val truncate: string -> int -> string
-
-val ok_or_error: [`Ok | `Error] Tc.t
-val ok_or_duplicated_branch_id: [`Ok | `Duplicated_branch | `Empty_head] Tc.t
-val lca: 'a Tc.t -> [`Ok of 'a list | `Max_depth_reached | `Too_many_lcas] Tc.t
-
-val start_stream: string
-val stop_stream: string
 val irmin_version: string
 
-val content_type_header: string
-val application_json: string
-val application_octet_stream: string
+type 'a set = {
+  test: 'a option;
+  set : 'a option;
+  v   : 'a option;
+}
 
-val json_headers: Cohttp.Header.t
-val html_headers: Cohttp.Header.t
-val raw_headers: Cohttp.Header.t
+val status_t: string Irmin.Type.t
+val set_t: 'a Irmin.Type.t -> 'a set Irmin.Type.t
 
-type ct = [`Json | `Raw]
+val event_t:
+  'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b Irmin.Diff.t) Irmin.Type.t
 
-val ct_of_header: Cohttp.Header.t -> ct
-val header_of_ct: ct -> string
-
-val string_of_ct: ct -> string
-val ct_of_string: string -> ct option
-
-type contents
-
-val raw_contents: 'a Tc.t -> 'a -> contents
-val json_contents: 'a Tc.t -> 'a -> contents
-val json: Ezjsonm.value -> contents
-
-val ct_of_contents: contents option -> ct
-val contents: 'a Tc.t -> contents -> 'a
-
-module Request: sig
-  type t = Irmin.task option * contents option
-
-  val to_body: ct -> t -> Cohttp_lwt_body.t
-  val of_body: meth:string -> ct -> Cohttp_lwt_body.t -> t option Lwt.t
-
-end
-
-module Response: sig
-
-  exception Server_error of string
-  exception Client_error of string
-
-  type t = [ `Error of exn | `Ok of contents ]
-
-  val to_body: ct -> t -> Cohttp.Header.t * Cohttp_lwt_body.t
-  val of_body: ct -> Cohttp_lwt_body.t -> t Lwt.t
-
-  val of_json: version:bool -> Ezjsonm.value -> t
-end
+val init_t: 'a Irmin.Type.t -> 'b Irmin.Type.t -> ('a * 'b) Irmin.Type.t

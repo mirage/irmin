@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,61 +14,43 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let (>>=) = Lwt.bind
+open Lwt.Infix
 
 let src = Logs.Src.create "irmin.mem" ~doc:"Irmin in-memory store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module RO (K: Irmin.Hum.S) (V: Tc.S0) = struct
+module RO (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
 
-  module KHashtbl = Hashtbl.Make(K)
-
-  let err_not_found n k =
-    let str = Printf.sprintf "Irmin_mem.%s: %s not found" n (K.to_hum k) in
-    Lwt.fail (Invalid_argument str)
+  module KMap = Map.Make(struct
+      type t = K.t
+      let compare = Irmin.Type.compare K.t
+    end)
 
   type key = K.t
-
   type value = V.t
+  type t = { mutable t: value KMap.t }
+  let map = { t = KMap.empty }
+  let v _config = Lwt.return map
 
-  type t = { t: value KHashtbl.t }
-
-  let table = KHashtbl.create 23
-
-  let create _config =
-    Lwt.return { t = table }
-
-  let read { t; _ } key =
-    Log.debug (fun f -> f "read");
-    try Lwt.return (Some (KHashtbl.find t key))
+  let find { t; _ } key =
+    Log.debug (fun f -> f "find %a" K.pp key);
+    try Lwt.return (Some (KMap.find key t))
     with Not_found -> Lwt.return_none
 
-  let read_exn { t; _ } key =
-    Log.debug (fun f -> f "read");
-    try Lwt.return (KHashtbl.find t key)
-    with Not_found -> err_not_found "read" key
-
   let mem { t; _ } key =
-    Log.debug (fun f -> f "mem");
-    Lwt.return (KHashtbl.mem t key)
-
-  let iter { t; _ } fn =
-    Log.debug (fun f -> f "iter");
-    let todo = ref [] in
-    let return v () = Lwt.return v in
-    KHashtbl.iter (fun k v -> todo := (fn k (return v)) :: !todo) t;
-    Lwt_list.iter_p (fun x -> x) !todo
+    Log.debug (fun f -> f "mem %a" K.pp key);
+    Lwt.return (KMap.mem key t)
 
 end
 
-module AO (K: Irmin.Hash.S) (V: Tc.S0) = struct
+module AO (K: Irmin.Hash.S) (V: Irmin.Contents.Raw) = struct
 
   include RO(K)(V)
 
-  let add { t; _ } value =
-    Log.debug (fun f -> f "add");
-    let key = K.digest (Tc.write_cstruct (module V) value) in
-    KHashtbl.replace t key value;
+  let add t value =
+    let key = K.digest (V.raw value) in
+    Log.debug (fun f -> f "add -> %a" K.pp key);
+    t.t <- KMap.add key value t.t;
     Lwt.return key
 
 end
@@ -77,14 +59,14 @@ module Link (K: Irmin.Hash.S) = struct
 
   include RO(K)(K)
 
-  let add { t; _ } index key =
+  let add t index key =
     Log.debug (fun f -> f "add link");
-    KHashtbl.replace t index key;
+    t.t <- KMap.add index key t.t;
     Lwt.return_unit
 
 end
 
-module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
+module RW (K: Irmin.Contents.Conv) (V: Irmin.Contents.Conv) = struct
 
   module RO = RO(K)(V)
   module W = Irmin.Private.Watch.Make(K)(V)
@@ -95,25 +77,28 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   type value = RO.value
   type watch = W.watch
 
-  let watches = W.create ()
-  let lock = L.create ()
+  let watches = W.v ()
+  let lock = L.v ()
 
-  let create config =
-    RO.create config >>= fun t ->
+  let v config =
+    RO.v config >>= fun t ->
     Lwt.return { t; w = watches; lock }
 
-  let read t = RO.read t.t
-  let read_exn t = RO.read_exn t.t
+  let find t = RO.find t.t
   let mem t = RO.mem t.t
-  let iter t = RO.iter t.t
   let watch_key t = W.watch_key t.w
   let watch t = W.watch t.w
   let unwatch t = W.unwatch t.w
 
-  let update t key value =
+  let list t =
+    Log.debug (fun f -> f "list");
+    RO.KMap.fold (fun k _ acc -> k :: acc) t.t.RO.t []
+    |> Lwt.return
+
+  let set t key value =
     Log.debug (fun f -> f "update");
     L.with_lock t.lock key (fun () ->
-        RO.KHashtbl.replace t.t.RO.t key value;
+        t.t.RO.t <- RO.KMap.add key value t.t.RO.t;
         Lwt.return_unit
       ) >>= fun () ->
     W.notify t.w key (Some value)
@@ -121,19 +106,19 @@ module RW (K: Irmin.Hum.S) (V: Tc.S0) = struct
   let remove t key =
     Log.debug (fun f -> f "remove");
     L.with_lock t.lock key (fun () ->
-        RO.KHashtbl.remove t.t.RO.t key;
+        t.t.RO.t <- RO.KMap.remove key t.t.RO.t ;
         Lwt.return_unit
       ) >>= fun () ->
     W.notify t.w key None
 
-  let compare_and_set t key ~test ~set =
-    Log.debug (fun f -> f "compare_and_set");
+  let test_and_set t key ~test ~set =
+    Log.debug (fun f -> f "test_and_set");
     L.with_lock t.lock key (fun () ->
-        read t key >>= fun v ->
-        if Tc.O1.equal V.equal test v then (
+        find t key >>= fun v ->
+        if Irmin.Type.(equal (option V.t)) test v then (
           let () = match set with
-            | None   -> RO.KHashtbl.remove t.t.RO.t key
-            | Some v -> RO.KHashtbl.replace t.t.RO.t key v
+            | None   -> t.t.RO.t <- RO.KMap.remove key t.t.RO.t
+            | Some v -> t.t.RO.t <- RO.KMap.add key v t.t.RO.t
           in
           Lwt.return true
         ) else

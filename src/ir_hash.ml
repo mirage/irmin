@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,8 +13,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
-
-open Sexplib.Std
 
 exception Invalid of string
 
@@ -154,28 +152,11 @@ module SHA1 = struct
     else
       raise (Invalid hex)
 
-  let to_json x = `String (to_hex x)
-
-  let of_json = function
-    | `String x -> of_hex x
-    | j -> Ezjsonm.parse_error j "Hash.of_json"
-
-  let size_of = Tc.Cstruct.size_of
-  let write = Tc.Cstruct.write
-  let read buf =
-    let t = Tc.Cstruct.read buf in
-    if Cstruct.len t <> digest_size then raise (Invalid (Cstruct.to_string t))
-    else t
-
-  let equal = Cstruct.equal
-  let compare = Cstruct.compare
-
-  (* FIXME: a faster version of this should go into Cstruct *)
-  let hash t = Hashtbl.hash (Cstruct.to_bigarray t)
+  let t = Ir_type.(like string) of_hex to_hex
 
   let digest = sha_1
-  let to_hum = to_hex
-  let of_hum = of_hex
+  let pp ppf x = Fmt.string ppf (to_hex x)
+  let of_string x = Ok (of_hex x)
 
   let has_kind = function
     | `SHA1 -> true

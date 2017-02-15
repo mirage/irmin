@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2013-2015 Thomas Gazagnaire <thomas@gazagnaire.org>
+ * Copyright (c) 2013-2017 Thomas Gazagnaire <thomas@gazagnaire.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -35,11 +35,12 @@
 
 *)
 
-val task: string -> Irmin.task
-(** [task fmt] creates a fresh task, with the {{!Irmin.Task.date}date}
-    set to [Unix.gettimeoday ()] and a task {{!Irmin.Task.owner}owner}
-    based on the local Git configuration {b FIXME:} not implemented,
-    use [Unix.gethostname()] and [Unix.getpid()] for now on.  *)
+val info: string -> Irmin.Info.f
+(** [info message ()] creates a fresh commit info, with the
+    {{!Irmin.Info.date}date} set to [Unix.gettimeoday ()] and the
+    {{!Irmin.Info.owner}owner} based on the local Git configuration {b
+    FIXME:} not implemented, use [Unix.gethostname()] and
+    [Unix.getpid()] for now on.  *)
 
 (** File system backends, using
     {{:https://github.com/janestreet/bin_prot}bin_prot}. *)
@@ -47,7 +48,7 @@ module Irmin_fs: sig
 
   (** {1 File-system Store} *)
 
-  val config: ?config:Irmin.config -> ?root:string -> unit -> Irmin.config
+  val config: ?config:Irmin.config -> string -> Irmin.config
   (** Create a configuration value. [root] is the location of local
   repository's root.*)
 
@@ -99,7 +100,7 @@ module Irmin_git: sig
   (** {1 Git Store} *)
 
   val config: ?config:Irmin.config ->
-    ?root:string -> ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> unit ->
+    ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> string ->
     Irmin.config
   (** Create a configuration value.
 
@@ -130,15 +131,15 @@ module Irmin_git: sig
   (** [level] is the Zlib compression level used to compress
       persisting values. *)
 
-  module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Tc.S0) : Irmin.AO
-    with type t = G.t
-     and type key = K.t
-     and type value = V.t
+  module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv):
+    Irmin.AO with type t = G.t
+              and type key = K.t
+              and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module RW (G: Git.Store.S) (K: Irmin.Ref.S) (V: Irmin.Hash.S): Irmin.RW
+  module RW (G: Git.Store.S) (K: Irmin.Branch.S) (V: Irmin.Hash.S): Irmin.RW
     with type key = K.t and type value = V.t
   (** Embed a read-write store into a Git repository. Contents will be
       written in {i .git/refs}. *)
@@ -156,8 +157,7 @@ module Irmin_http: sig
 
   (** {1 HTTP client} *)
 
-  val config: ?config:Irmin.config ->
-    ?content_type:[`Json|`Raw] -> Uri.t -> Irmin.config
+  val config: ?config:Irmin.config -> Uri.t -> Irmin.config
   (** Create a configuration value. [uri] it the location of the
       remote HTTP {{!module:Irmin_http_server}server}. *)
 
@@ -165,30 +165,8 @@ module Irmin_http: sig
   (** The configuration key to set the location of the remote HTTP
       {{!module:Irmin_http_server}server}. *)
 
-  val content_type: string option Irmin.Private.Conf.key
-  (** The configuraion key to set the content-type set by the client
-      (and that the server will try to conform too if it can). The
-      supported modes are ["json"] and ["raw"]. *)
-
-  module AO: Irmin.AO_MAKER
-  (** An HTTP client using a REST API for an append-only store. *)
-
-  module RW: Irmin.RW_MAKER
-  (** An HTTP client using a REST API for a read-write store. *)
-
   module Make (M:Irmin.Metadata.S): Irmin.S_MAKER
-  (** [Make] provides high-level bindings to the remote HTTP server.
-
-      Most of the computation are done on the server, the client is
-      (almost) stateless. The only thing that the client needs to
-      remember is the ID of the current branch or the current head if
-      the branch is detached.
-
-      All of the low-level and high-level operations take only one
-      RTT. *)
-
-  module Low (M:Irmin.Metadata.S): Irmin.S_MAKER
-  (** [Low] provides low-level bindings to the remote HTTP server.
+  (** [Make] provides bindings to the remote HTTP server.
 
       Only the {{!Irmin.S.Private}low-level operations} are forwarded
       to the server, all the high-level logic is done on the
@@ -202,31 +180,13 @@ module Irmin_http_server: sig
 
   (** {1 HTTP server} *)
 
-  type hooks = {
-    update: unit -> unit Lwt.t;
-  }
-  (** Server hooks. *)
-
   module Make (S: Irmin.S): Irmin_http_server.S with
-    type t = S.t and
-    type spec = Cohttp_lwt_unix.Server.t
+    type repo = S.Repo.t and
+    type t = Cohttp_lwt_unix.Server.t
   (** [Make] exposes an Irmin store as a REST API for HTTP
       {{!module:Irmin_http}clients}. *)
 
 end
-
-module type LOCK = sig
-
-  (** {1 Filesystem {i dotlocking}} *)
-
-  val with_lock: string -> (unit -> 'a Lwt.t) -> 'a Lwt.t
-  (** [with_lock file fn] runs [fn] while holding a lock on the file
-      [file]. *)
-
-end
-
-module Lock: LOCK
-(** An implementation of filesystem dotlocking. *)
 
 val set_listen_dir_hook: unit -> unit
 (** Install {!Irmin_watcher.hook} as the listen hook for watching
