@@ -105,6 +105,10 @@ module Type: sig
   (** [triple x y z] is a representation of values of type [x * y *
       z]. *)
 
+  val result: 'a t -> 'b t -> ('a, 'b) result t
+  (** [result a b] is a representation of values of type [(a, b)
+      result]. *)
+
   (** {1:records Records} *)
 
   type ('a, 'b) field
