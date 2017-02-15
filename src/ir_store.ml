@@ -26,6 +26,9 @@ module Make (P: Ir_s.PRIVATE) = struct
 
   type branch = Branch_store.key
 
+  type lca_error = [`Max_depth_reached | `Too_many_lcas]
+  type ff_error = [`No_change | `Rejected | lca_error]
+
   module Key = P.Node.Path
   type key = Key.t
 
@@ -431,29 +434,26 @@ module Make (P: Ir_s.PRIVATE) = struct
           test_and_set_unsafe t ~test ~set
         )
 
+    type ff_error = [`Rejected | `No_change | lca_error]
+
     let fast_forward t ?max_depth ?n new_head =
+      let return x = if x then Ok () else Error (`Rejected :> ff_error) in
       find t >>= function
-      | None  -> test_and_set t ~test:None ~set:(Some new_head)
+      | None  -> test_and_set t ~test:None ~set:(Some new_head) >|= return
       | Some old_head ->
         Log.debug (fun f -> f "fast-forward-head old=%a new=%a"
                       Commit.pp old_head Commit.pp new_head);
         if Commit.equal new_head old_head then
           (* we only update if there is a change *)
-          Lwt.return_false
+          Lwt.return (Error `No_change)
         else
           H.lcas (history_t t) ?max_depth ?n new_head.Commit.h old_head.Commit.h
           >>= function
           | Ok [x] when Ir_type.equal Commit.Hash.t x old_head.Commit.h ->
             (* we only update if new_head > old_head *)
-            test_and_set t ~test:(Some old_head) ~set:(Some new_head)
-          | Error `Too_many_lcas ->
-            Log.debug (fun f -> f "ff: too many LCAs");
-            Lwt.return false
-          | Error `Max_depth_reached ->
-            Log.debug (fun f -> f "ff: max depth reached");
-            Lwt.return false
-          | Ok _ ->
-            Lwt.return false
+            test_and_set t ~test:(Some old_head) ~set:(Some new_head) >|= return
+          | Ok _    -> Lwt.return (Error `Rejected)
+          | Error e -> Lwt.return (Error (e :> ff_error))
 
     (* Merge two commits:
        - Search for common ancestors
@@ -850,12 +850,19 @@ module Make (P: Ir_s.PRIVATE) = struct
   let kind_t = Ir_type.enum "kind" [ "contents", `Contents; "node", `Node ]
   let kinde_t =
     Ir_type.enum "kinde" [ "empty", `Empty; "contents", `Contents; "node", `Node ]
+
   let lca_error_t =
-    let open Ir_type in
-    variant "lca" (fun mdr tml -> function
-        | `Max_depth_reached -> mdr
-        | `Too_many_lcas     -> tml)
-    |~ case0 "max-depth-reached" `Max_depth_reached
-    |~ case0 "too-many-lcas"     `Too_many_lcas
-    |> sealv
+    Ir_type.enum "lca-error" [
+      "max-depth-reached", `Max_depth_reached;
+      "too-many-lcas"    , `Too_many_lcas;
+    ]
+
+  let ff_error_t =
+    Ir_type.enum "ff-error" [
+      "max-depth-reached", `Max_depth_reached;
+      "too-many-lcas"    , `Too_many_lcas;
+      "no-change"        , `No_change;
+      "rejected"         , `Rejected;
+    ]
+
 end
