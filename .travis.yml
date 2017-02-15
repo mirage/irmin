@@ -6,12 +6,12 @@ env:
   global:
   - ALCOTEST_SHOW_ERRORS=1
   - REVDEPS="irmin-indexeddb"
-  - PINS="irmin.1.0.0:. irmin-http.1.0.0:. irmin-git.1.0.0:. irmin-mirage.1.0.0:. irmin-unix.1.0.0:."
+  - PINS="irmin.dev:. irmin-http.dev:. irmin-git.dev:. irmin-mirage.dev:. irmin-unix.dev:."
   - EXTRA_REMOTES="https://github.com/mirage/mirageos-3-beta.git"
   matrix:
-  - OCAML_VERSION=4.03 PACKAGE="irmin-unix" TESTS=true EXTRA_DEPS=inotify
-  - OCAML_VERSION=4.03 PACKAGE="irmin-git"
-  - OCAML_VERSION=4.03 PACKAGE="irmin-mirage"
-  - OCAML_VERSION=4.04 PACKAGE="irmin-http"
-  - OCAML_VERSION=4.04 PACKAGE="irmin-unix" TESTS=true EXTRA_DEPS=inotify
-  - OCAML_VERSION=4.04 PACKAGE="irmin-mirage"
+  - OCAML_VERSION=4.03 PACKAGE="irmin-unix.dev" TESTS=true EXTRA_DEPS=inotify
+  - OCAML_VERSION=4.03 PACKAGE="irmin-git.dev"
+  - OCAML_VERSION=4.03 PACKAGE="irmin-mirage.dev"
+  - OCAML_VERSION=4.04 PACKAGE="irmin-http.dev"
+  - OCAML_VERSION=4.04 PACKAGE="irmin-unix.dev" TESTS=true EXTRA_DEPS=inotify
+  - OCAML_VERSION=4.04 PACKAGE="irmin-mirage.dev"
