@@ -7,7 +7,7 @@ environment:
   PINS: "irmin.1.0.0:. irmin-http.1.0.0:. irmin-git.1.0.0:. irmin-mirage.1.0.0:. irmin-unix.1.0.0:."
   PACKAGE: "irmin-unix"
   TESTS: "false"
-  EXTRA_REMOTES: "https://github.com/mirage/mirage-dev.git"
+  EXTRA_REMOTES: "https://github.com/mirage/mirageos-3-beta.git"
 
 install:
   - appveyor DownloadFile https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/appveyor-opam.sh
