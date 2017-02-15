@@ -19,14 +19,6 @@ let misc = [
   Test_link.misc;
 ]
 
-let http_suites =
-  if Sys.os_type = "Win32" then
-    (* it's a bit hard to test client/server stuff on windows because
-       we can't fork. Can work around that later if needed. *)
-    []
-  else
-    Test_http.suites
-
 let suite k =
   [
     `Quick , Test_memory.suite k;
@@ -40,4 +32,5 @@ let () =
     Logs.set_reporter (Test_common.reporter ~prefix:"S" ());
     Test_http.serve n
   else
-    Test_store.run "irmin" ~misc (suite `String @ suite `Json @ http_suites)
+    Test_store.run "irmin" ~misc
+      (suite `String @ suite `Json @ Test_http.suites)

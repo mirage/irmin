@@ -2,16 +2,20 @@ platform:
   - x86
 
 environment:
-  CYG_ROOT: "C:\\cygwin"
-  CYG_BASH: "%CYG_ROOT%\\bin\\bash -lc"
-  PINS: "irmin.1.0.0:. irmin-http.1.0.0:. irmin-git.1.0.0:. irmin-mirage.1.0.0:. irmin-unix.1.0.0:."
-  PACKAGE: "irmin-unix"
-  TESTS: "false"
-  EXTRA_REMOTES: "https://github.com/mirage/mirageos-3-beta.git"
+  global:
+    CYG_ROOT: "C:\\cygwin"
+    CYG_BASH: "%CYG_ROOT%\\bin\\bash -lc"
+    EXTRA_REMOTES: "https://github.com/mirage/mirageos-3-beta.git"
+    PINS: "irmin.dev:. irmin-http.dev:. irmin-git.dev:. irmin-mirage.dev:. irmin-unix.dev:."
+    ALCOTEST_SHOW_ERRORS: "true"
+  matrix:
+  - PACKAGE: "irmin-unix.dev"
+  - PACKAGE: "irmin-mirage.dev"
 
 install:
   - appveyor DownloadFile https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/appveyor-opam.sh
   - "%CYG_ROOT%\\setup-x86.exe -qnNdO -R %CYG_ROOT% -s http://cygwin.mirror.constant.com -l C:/cygwin/var/cache/setup -P rsync -P patch -P make -P unzip -P git -P perl -P mingw64-x86_64-gcc-core"
+  - curl -L -o C:/cygwin/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.5/jq-win32.exe
 
 build_script:
   - "%CYG_BASH% '${APPVEYOR_BUILD_FOLDER}/appveyor-opam.sh'"
