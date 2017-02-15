@@ -355,6 +355,8 @@ module type STORE = sig
   type commit
   type branch
   type slice
+  type lca_error = [`Max_depth_reached | `Too_many_lcas]
+  type ff_error = [`No_change | `Rejected | lca_error]
   module Repo: sig
     type t
     val v: config -> t Lwt.t
@@ -383,7 +385,8 @@ module type STORE = sig
     val find: t -> commit option Lwt.t
     val get: t -> commit Lwt.t
     val set: t -> commit -> unit Lwt.t
-    val fast_forward: t -> ?max_depth:int -> ?n:int -> commit -> bool Lwt.t
+    val fast_forward: t -> ?max_depth:int -> ?n:int -> commit ->
+      (unit, ff_error) result Lwt.t
     val test_and_set:
       t -> test:commit option -> set:commit option -> bool Lwt.t
     val merge: into:t -> info:Ir_info.f -> ?max_depth:int -> ?n:int -> commit ->
@@ -451,11 +454,11 @@ module type STORE = sig
   val merge_with_commit: t -> commit merge
 
   val lcas: ?max_depth:int -> ?n:int -> t -> t ->
-    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
+    (commit list, lca_error) result Lwt.t
   val lcas_with_branch: t -> ?max_depth:int -> ?n:int -> branch ->
-    (commit list, [ `Max_depth_reached | `Too_many_lcas]) result Lwt.t
+    (commit list, lca_error) result Lwt.t
   val lcas_with_commit: t -> ?max_depth:int -> ?n:int -> commit ->
-    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
+    (commit list, lca_error) result Lwt.t
   module History: Graph.Sig.P with type V.t = commit
   val history:
     ?depth:int -> ?min:commit list -> ?max:commit list -> t ->
@@ -490,7 +493,8 @@ module type STORE = sig
   val slice_t: slice Type.t
   val kind_t: [`Contents | `Node] Type.t
   val kinde_t: [`Empty | `Contents | `Node] Type.t
-  val lca_error_t: [`Max_depth_reached | `Too_many_lcas] Type.t
+  val lca_error_t: lca_error Type.t
+  val ff_error_t: ff_error Type.t
 
   module Private: sig
     include PRIVATE
