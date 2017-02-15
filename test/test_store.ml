@@ -621,8 +621,9 @@ module Make (S: Test_S) = struct
         ) in
 
       S.remove t1 ~info:(infof "clean") [] >>= fun () ->
+      S.Head.get t1 >>= fun init ->
 
-      S.watch_key t1 path1 (State.process state) >>= fun u ->
+      S.watch_key t1 ~init path1 (State.process state) >>= fun u ->
 
       add    true (0, 0 , 0) 1  ~first:true >>= fun () ->
       update true (1, 0 , 0) 10 >>= fun () ->
