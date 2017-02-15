@@ -30,6 +30,7 @@ val array: 'a t -> 'a array t
 val option: 'a t -> 'a option t
 val pair: 'a t -> 'b t -> ('a * 'b) t
 val triple: 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
+val result: 'a t -> 'b t -> ('a, 'b) result t
 
 type ('a, 'b) field
 type ('a, 'b, 'c) open_record
