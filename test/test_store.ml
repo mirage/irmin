@@ -64,7 +64,7 @@ module Make (S: Test_S) = struct
   let normal x = `Contents (x, S.Metadata.default)
 
   let b1 = "foo"
-  let b2 = "bar" / "toto"
+  let b2 = "bar/toto"
 
   let n1 ~repo =
     kv1 ~repo >>= fun kv1 ->

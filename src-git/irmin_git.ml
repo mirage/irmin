@@ -33,8 +33,6 @@ end
 let src = Logs.Src.create "irmin.git" ~doc:"Irmin Git-format store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let (/) = Filename.concat
-
 let string_chop_prefix t ~prefix =
   let lt = String.length t in
   let lp = String.length prefix in
@@ -518,7 +516,7 @@ struct
 
   let branch_of_git r =
     let str = String.trim @@ Git.Reference.to_raw r in
-    match string_chop_prefix ~prefix:("refs" / "heads" / "") str with
+    match string_chop_prefix ~prefix:("refs/heads/") str with
     | None   -> None
     | Some r -> match Key.of_string r with
       | Ok x           -> Some x
@@ -526,7 +524,7 @@ struct
         Log.err (fun l -> l "invalid branch name: %s" e);
         None
 
-  let git_of_branch_str str = Git.Reference.of_raw ("refs" / "heads" / str)
+  let git_of_branch_str str = Git.Reference.of_raw ("refs/heads/" ^ str)
 
   let git_of_branch r = git_of_branch_str (Fmt.to_to_string Key.pp r)
   let commit_of_git k = Val.of_raw (Git_hash.to_raw k)
@@ -540,6 +538,7 @@ struct
     | Some k -> Some (commit_of_git k)
 
   let listen_dir t =
+    let (/) = Filename.concat in
     if G.kind = `Disk then
       let dir = t.git_root / "refs" / "heads" in
       let key file = match Key.of_string file with
@@ -567,7 +566,7 @@ struct
     W.unwatch t.w w
 
   let v t ~head ~bare =
-    let git_root = G.root t / ".git" in
+    let git_root = Filename.concat (G.root t) ".git" in
     let write_head head =
       let head = Git.Reference.Ref head in
       begin
@@ -663,7 +662,7 @@ struct
   type commit = H.t
   type branch = B.t
 
-  let git_of_branch_str str = Git.Reference.of_raw ("refs/heads" / str)
+  let git_of_branch_str str = Git.Reference.of_raw ("refs/heads/" ^ str)
   let git_of_branch r = git_of_branch_str (Fmt.to_to_string B.pp r)
   let commit_of_git key = H.of_raw (Git_hash.to_raw key)
 
