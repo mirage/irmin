@@ -1,3 +1,133 @@
+### 1.0.0 (unreleased)
+
+Major API changes:
+
+- It is now simpler to define mergeable contents, using new
+  combinators to describe data-types (see `Type`).
+
+- The mutable views have been replaced by immutable trees, and made
+  first-class citizen in the API (see available `S.Tree`).
+  Transactions now only ensure snapshot isolation instead of full
+  serialisability.
+
+- the backend and user-facing API are now totally independant (instead
+  of being half-included in each other in `irmin.0.*`), so that
+  backends have to implement the minimum set of functions to be
+  Irmin-compatible, and users can have many convenient high-level
+  functions when using the Irmin API. The backends implement
+  `AO` and `RW`, the frontend provides `S`.
+
+The package is also now split into 5 opam packages: `irmin`, irmin-git`,
+`irmin-http`, `irmin-unix` and `irmin-mirage` with similarly named
+`ocamlfind` libraries.
+
+More detailled changes:
+
+* use result type everywhere (#397, @samoht)
+* use `Fmt` everywhere (#397, @samoht)
+* rename `create` functions into `v` (#397, @samoht)
+
+**irmin**
+
+* [info] rename `Task` into `Info` to denote commit info (#397, @samoht)
+* [info] remove `Task.uid` (#397, @samoht)
+* [info] Commit messages are now plain strings (instead of a lists of
+  strings): change `Task.messages` into `Info.message`, take a string
+  instead of a list of strings as parameter and remove `Task.add`
+  (#397, @samoht)
+* [info] change `Info.f` to only takes `unit` as argument. Previously
+  it was taken an `'a` which was used by the update functions. The
+  update functions now take a full `Info.f` function as parameter,
+  which should be less confusing (#397, @samoht)
+
+* [merge] replace the dependency to `mirage-tc` by a new internal module
+  `Type` using type-based combinators. This makes defining new mergeable
+  data-types much easier, especially records and variants (#397, @samoht)
+* [merge] change [Merge.t] to be an abstract type (#397, @samoht)
+* [merge] add [Merge.f] to transform a [Merge.t] value into a merge function
+  (#397, @samoht)
+* [merge] add base merge combinators: `Merge.unit`, `Merge.bool`,
+  `Merge.char`, `Merge.int`, `Merge.int32`, `Merge.int64`,
+  `Merge.float` (#397, @samoht)
+* [merge] simplify the type of `Merge.option`, `Merge.pair`, Merge.triple` and
+  `Merge.alist` (#397, @samoht)
+* [merge] simplify and rename `Merge.MSet` into `Merge.MultiSet` (#397, @samoht)
+* [merge] simplify and rename `Merge.set` into `Merge.Set` (#397, @samoht)
+* [merge] rename `Merge.OP` into `Merge.Infix` and rename operators to
+  avoid name-clashing with other monads (#397, @samoht)
+* [merge] remove the `path` argument from the merge functions (#397, @samoht)
+* [merge] remove the need to defined a `Path` submodule in `Contents.S`
+  (#397, @samoht)
+* [merge] add a (very simple at the moment) `Diff` module (#397, @samoht)
+
+* [api] read operations do not take a task parameter anymore (#397, @samoht)
+* [api] write operations not take a full commit info instead of a confusing
+  `'a` parameter (#397, @samoht)
+* [api] rename [Ref] into [Branch] (#397, @samoht)
+* [api] replace `S.read` by `S.find` (#397, @samoht)
+* [api] replace `S.read_exn` by `S.get` (#397, @samoht)
+* [api] add `S.kind` to check the kind of store entries (files, directories)
+  (#397, @samoht)
+* [api] remove the `View` functor, replaced by first-class support for
+  immutable trees `S.Tree` (#397, @samoht)
+* [api] add `S.find_tree` to find immutable subtrees (#397, @samoht)
+* [api] add `S.find_all` to find contents and metadat (#397, @samoht)
+* [api] change `S.mem` to only check for contents, not subtree (#397, @samoht)
+* [api] add `S.mem_tree` to check for subtrees (similar behavior to
+  `S.mem` in `irmin.0.*`) (#397, @samoht)
+* [api] add `S.with_tree` for atomic update of subtrees. This
+  operation replaces `with_hrw_view`, but a weaker consistency
+  guarantee: instead of providing full seriasilabilty, `S.with_tree`
+  provides snapshot isolation, which is consistent enough for most of
+  the users. (#397, @samoht)
+* [api] rename `S.update` into `S.set` and ensure that the operation is
+  atomic by using a combination of test-and-set and optimistic concurrency
+  control. (#397, @samoht)
+* [api] change `S.remove` to ensure the operation is atomtic.
+* [api] add `S.status` to mimick `git status`. (#397, @samoht)
+* [api] remove all the `_id` suffixes. (#397, @samoht)
+* [api] add `S.merge_with_commit` and `S.merge_with_branch` (#397, @samoht)
+* [api] more precise return type for `S.Head.fast_forward` (#401, @samoht)
+* [api] add `S.Commit`, `S.Branch` (#401, @samoht)
+
+
+* [backend] replace `RO.read` by `RO.find` (#397, @samoht)
+* [backend] no more `RO.read_exn` (#397, @samoht)
+* [backend] no more `RO.iter`, replaced by `RW.list` (#397, @samoht)
+* [backend] replace `RW.update` by `RW.set` (#397, @samoht)
+* [backend] rename `RW.compare_and_set` into `RW.test_and_set` (#397, @samoht)
+* [backend] new `RW.watch`, `RW.watch_key` and `RW.unwatch` functions
+  to set-up low-level notifications (#397, @samoht)
+
+**irmin-git**
+
+- Adapt to `git.0.10.0` (#397, @samoht)
+- Remove the `LOCK` modules (#397, @samoht)
+- Change `Irmin_git.config` to require a `root` parameter (it was
+  optional in `irmin.0.*`) (#397, @samoht)
+- Rename `S.Internals` into `S.Git` (#397, @samoht)
+- Rename `S.Internals.commit_of_id` into `S.Git.git_commit` (#397, @samoht)
+- Add `S.Git.of_repo` to convert an Irmin repo into a Git repo (#397, @samoht)
+- Add `S.Git.to_repo` to convert a Git repo into an Irmin repo (#397, @samoht)
+- Expose `S.Git_mem.clear` and `S.Git_mem.clear_all` for in-memory Git
+  backends (#397, @samoht)
+
+**irmin-mirage**
+
+- Adapt to Mirage3 (@hannesm, @yomimono, @samoht)
+- Change `Irmin_git.config` to require a `root` parameter (it was
+  optional in `irmin.0.*`) (#397, @samoht)
+
+**irmin-http**
+
+- Remove the high-level HTTP API (#397, @samoht)
+- Rewrite the low-level (backend) API using `ocaml-webmachine` (#397, @samoht)
+
+**irmin-unix**
+
+- Rename `Irmin_unix.task` into `Irmin_unix.info` (#397, @samoht)
+- Remove `LOCK`  (#397, @samoht)
+
 ### 0.12.0 (2016-11-17)
 
 * Depends on irmin-watcher 0.2.0 to use portable file-system watches
