@@ -885,19 +885,21 @@ module Make (S: Test_S) = struct
       assert_lcas "weird lcas 4" ~max_depth:3 3 k15 k16 [k11] >>= fun () ->
 
       (* fast-forward *)
+      let ff = testable (Irmin.Type.(result unit S.ff_error_t)) in
+
       S.of_commit k12 >>= fun t12  ->
       S.Head.fast_forward t12 k16 >>= fun b1 ->
-      Alcotest.(check bool) "ff 1.1" false b1;
+      Alcotest.(check ff) "ff 1.1" (Error `Rejected) b1;
       S.Head.get t12 >>= fun k12' ->
       check (S.commit_t repo) "ff 1.2" k12 k12';
 
       S.Head.fast_forward t12 ~n:1 k14 >>= fun b2 ->
-      Alcotest.(check bool) "ff 2.1" false b2;
+      Alcotest.(check ff) "ff 2.1" (Error `Rejected) b2;
       S.Head.get t12 >>= fun k12'' ->
       check (S.commit_t repo) "ff 2.2" k12 k12'';
 
       S.Head.fast_forward t12 k14 >>= fun b3 ->
-      Alcotest.(check bool) "ff 2.2" true b3;
+      Alcotest.(check ff) "ff 2.2" (Ok ()) b3;
       S.Head.get t12 >>= fun k14' ->
       check (S.commit_t repo) "ff 2.3" k14 k14';
 

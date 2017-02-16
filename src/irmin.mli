@@ -105,6 +105,10 @@ module Type: sig
   (** [triple x y z] is a representation of values of type [x * y *
       z]. *)
 
+  val result: 'a t -> 'b t -> ('a, 'b) result t
+  (** [result a b] is a representation of values of type [(a, b)
+      result]. *)
+
   (** {1:records Records} *)
 
   type ('a, 'b) field
@@ -1986,6 +1990,13 @@ module type S = sig
   type slice
   (** Type for store slices. *)
 
+  type lca_error = [`Max_depth_reached | `Too_many_lcas]
+  (** The type for errors associated with functions computing least
+      common ancestors *)
+
+  type ff_error = [`No_change | `Rejected | lca_error]
+  (** The type for errors for {!fast_forward}. *)
+
   (** Repositories. *)
   module Repo: sig
 
@@ -2109,12 +2120,25 @@ module type S = sig
         commit [h]. Can cause data loss as it discards the current
         contents. Similar to [git reset --hard <hash>]. *)
 
-    val fast_forward: t -> ?max_depth:int -> ?n:int -> commit -> bool Lwt.t
+    val fast_forward: t -> ?max_depth:int -> ?n:int -> commit ->
+      (unit, [`No_change | `Rejected | lca_error ]) result Lwt.t
     (** [fast_forward t h] is similar to {!update} but the [t]'s head
         is updated to [h] only if [h] is stricly in the future of
-        [t]'s current head. Return [false] if it is not the case. If
-        present, [max_depth] or [n] are used to limit the search space
-        of the lowest common ancestors (see {!lcas}). *)
+        [t]'s current head. [max_depth] or [n] are used to limit the
+        search space of the lowest common ancestors (see {!lcas}).
+
+        The result is:
+        {ul
+        {- [Ok ()] if the operation is succesfull;}
+        {- [Error `No_change] if [h] is already [t]'s head;}
+        {- [Error `Rejected] if [h] is not in the strict future of [t]'s head.}
+        {- [Error e] if the history exploration has been cut before
+           getting useful results. In that case. the operation can be
+           retried using different parameters of [n] and [max_depth]
+           to get better results.}
+        }
+
+    *)
 
     val test_and_set:
       t -> test:commit option -> set:commit option -> bool Lwt.t
@@ -2446,7 +2470,7 @@ module type S = sig
   (** Same as {!merge} but with a commit ID. *)
 
   val lcas: ?max_depth:int -> ?n:int -> t -> t ->
-    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
+    (commit list, lca_error) result Lwt.t
   (** [lca ?max_depth ?n msg t1 t2] returns the collection of least
       common ancestors between the heads of [t1] and [t2] branches.
 
@@ -2461,11 +2485,11 @@ module type S = sig
   *)
 
   val lcas_with_branch: t -> ?max_depth:int -> ?n:int -> branch ->
-    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
+    (commit list, lca_error) result Lwt.t
   (** Same as {!lcas} but takes a branch ID as argument. *)
 
   val lcas_with_commit: t -> ?max_depth:int -> ?n:int -> commit ->
-    (commit list, [`Max_depth_reached | `Too_many_lcas]) result Lwt.t
+    (commit list, lca_error) result Lwt.t
   (** Same as {!lcas} but takes a commit ID as argument. *)
 
   (** {1 History} *)
@@ -2567,8 +2591,11 @@ module type S = sig
   val kinde_t: [`Empty | `Node | `Contents] Type.t
   (** [kind_t] is like {!kind_t} but also allow [`Empty] values. *)
 
-  val lca_error_t: [`Max_depth_reached | `Too_many_lcas] Type.t
-  (** [lca_error_t] is the value type for {!lca} errors. *)
+  val lca_error_t: lca_error Type.t
+  (** [lca_error_t] is the value type for {!lca_error}. *)
+
+  val ff_error_t: ff_error Type.t
+  (** [ff_error_t] is the value type for {!ff_error}. *)
 
   (** Private functions, which might be used by the backends. *)
   module Private: sig

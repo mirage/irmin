@@ -277,6 +277,14 @@ let rec fields_aux: type a b. (a, b) fields -> a a_field list = function
 let fields r = match r.rfields with
   | Fields (f, _) -> fields_aux f
 
+let result a b =
+  variant "result" (fun ok error -> function
+      | Ok x    -> ok x
+      | Error x -> error x)
+  |~ case1 "ok"    a (fun a -> Ok a)
+  |~ case1 "error" b (fun b -> Error b)
+  |> sealv
+
 module Dump = struct
 
   let unit ppf () = Fmt.string ppf "()"
