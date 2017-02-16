@@ -96,12 +96,14 @@ struct
   let list t =
     Log.debug (fun f -> f "list");
     IO.rec_files (S.dir t.path) >|= fun files ->
-    let files  =
+    let files =
       let p = String.length t.path in
-      List.map (fun file ->
+      List.fold_left (fun acc file ->
           let n = String.length file in
-          if n <= p + 1 then "" else String.with_range file ~first:(p+1)
-        ) files
+          if n <= p + 1 then acc else
+            let file = String.with_range file ~first:(p+1) in
+            file :: acc
+        ) [] files
     in
     List.fold_left (fun acc file -> match K.of_string (S.key_of_file file) with
         | Ok k           -> k :: acc
@@ -264,8 +266,23 @@ let string_chop_prefix ~prefix str =
 
 module Ref = struct
   let dir p = p / "refs"
-  let file_of_key key = "refs" / key
-  let key_of_file file = string_chop_prefix ~prefix:("refs" / "") file
+
+  (* separator for branch names is '/', so need to rewrite the path on
+     Windows. *)
+
+  let file_of_key key =
+    let file =
+      if Sys.os_type <> "Win32"
+      then key
+      else String.concat ~sep:Filename.dir_sep (String.cuts ~sep:"/" key)
+    in
+    "refs" / file
+
+  let key_of_file file =
+    let key = string_chop_prefix ~prefix:("refs" / "") file in
+    if Sys.os_type <> "Win32"
+    then key
+    else String.concat ~sep:"/" (String.cuts ~sep:Filename.dir_sep key)
 end
 
 module Obj = struct
@@ -279,7 +296,7 @@ module Obj = struct
 
   let key_of_file path =
     let path = string_chop_prefix ~prefix:("objects" / "") path in
-    let path = String.cuts ~sep:"/" path in
+    let path = String.cuts ~sep:Filename.dir_sep path in
     let path = String.concat ~sep:"" path in
     path
 
@@ -296,7 +313,7 @@ module Links = struct
 
   let key_of_file path =
     let path = string_chop_prefix ~prefix:("links" / "") path in
-    let path = String.cuts ~sep:"/" path in
+    let path = String.cuts ~sep:Filename.dir_sep path in
     let path = String.concat ~sep:"" path in
     path
 
