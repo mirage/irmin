@@ -11,118 +11,79 @@ let what =
   \  - interleave `l1` and `l2` by ordering the timestamps; This gives `l3`;\n\
   \  - concatenate `lca` and `l3`; This gives the final result."
 
-open Lwt
+open Lwt.Infix
 open Irmin_unix
+open Astring
 
 let time = ref 0
 
-let failure fmt = Printf.ksprintf failwith fmt
+let failure fmt = Fmt.kstrf failwith fmt
 
 (* A log entry *)
 module Entry: sig
-  include Tc.S0
-  val pretty: Buffer.t -> t -> unit
-  val create: string -> t
+  include Irmin.Contents.Conv
+  val v: string -> t
+  val compare: t -> t -> int
   val timestamp: t -> int
 end = struct
-
-  let err_malformed_timestamp = failure "malformed timestamp: %S"
 
   type t = {
     timestamp: int;
     message  : string;
   }
 
-  let timestamp t = t.timestamp
-  let compare x y = Pervasives.compare x.timestamp y.timestamp
-  let hash = Hashtbl.hash
-  let equal = (=)
+  let compare x y = compare x.timestamp y.timestamp
 
-  let pretty buf { timestamp; message } =
-    Printf.bprintf buf "%04d: %s\n" timestamp message
-
-  let to_json t =
-    `O [
-      "timestamp", Ezjsonm.int t.timestamp;
-      "message"  , Ezjsonm.string t.message;
-    ]
-
-  let of_json j =
-    let timestamp = Ezjsonm.find j ["timestamp"] |> Ezjsonm.get_int in
-    let message   = Ezjsonm.find j ["message"]   |> Ezjsonm.get_string in
-    { timestamp; message }
-
-  let header_len = 19
-
-  let to_timestamp i = Printf.sprintf "%.*d" header_len i
-  let of_timestamp s =
-    if String.length s <> header_len then err_malformed_timestamp s
-    else
-      try int_of_string s
-      with Failure _ -> err_malformed_timestamp s
-
-  let read buf =
-    let timestamp = Mstruct.get_string buf header_len |> of_timestamp in
-    let message =
-      match Mstruct.get_string_delim buf '\n' with
-      | None   -> Mstruct.to_string buf
-      | Some m -> m
-    in
-    let message = String.trim message in
-    { timestamp; message }
-
-  let size_of { message; _ } = header_len + String.length message + 2
-
-  let write t buf0 =
-    let buf = Mstruct.of_cstruct buf0 in
-    let timestamp = to_timestamp t.timestamp in
-    Mstruct.set_string buf timestamp;
-    Mstruct.set_char buf ' ';
-    Mstruct.set_string buf t.message;
-    Mstruct.set_char buf '\n';
-    Cstruct.shift buf0 (size_of t)
-
-  let create message =
+  let v message =
     incr time;
     { timestamp = !time; message }
+
+  let t =
+    let open Irmin.Type in
+    record "entry" (fun timestamp message -> { timestamp; message })
+    |+ field "timestamp" int    (fun t -> t.timestamp)
+    |+ field "message"   string (fun t -> t.message)
+    |> sealr
+
+  let timestamp t = t.timestamp
+
+  let pp ppf { timestamp; message } =
+    Fmt.pf ppf  "%04d: %s\n" timestamp message
+
+  let of_string str =
+    match String.cut ~sep:": " str with
+    | None -> Error (`Msg ("invalid entry: " ^ str))
+    | Some (x, message) ->
+      try Ok { timestamp = int_of_string x; message }
+      with Failure e -> Error (`Msg e)
 
 end
 
 (* A log file *)
 module Log: sig
-  include Irmin.Contents.S with type Path.t = string list
-  val pretty: t -> string
+  include Irmin.Contents.S
   val add: t -> Entry.t -> t
   val empty: t
 end = struct
 
-  module Path = Irmin.Path.String_list
-  module S = Tc.List(Entry)
-
   type t = Entry.t list
-  let hash = Hashtbl.hash
-  let compare = S.compare
-  let equal = S.equal
+  let t = Irmin.Type.(list Entry.t)
+
   let empty = []
-  let to_json = S.to_json
-  let of_json = S.of_json
 
-  let size_of l = List.fold_left (fun acc e -> acc + Entry.size_of e) 0 l
+  let pp ppf l = List.iter (Fmt.pf ppf "%a\n" Entry.pp ) (List.rev l)
 
-  let write l buf =
-    List.fold_left (fun buf e -> Entry.write e buf) buf (List.rev l)
-
-  let read buf =
-    let rec aux acc =
-      if Mstruct.length buf = 0 then List.rev acc
-      else aux (Entry.read buf :: acc)
-    in
-    List.rev (aux [])
-
-  let pretty l =
-    let buf = Buffer.create 1024 in
-    List.iter (Entry.pretty buf) (List.rev l);
-    Buffer.contents buf
+  let of_string str =
+    let lines = String.cuts ~sep:"\n" str in
+    try
+      List.fold_left (fun acc l ->
+          match Entry.of_string l with
+          | Ok x           -> x :: acc
+          | Error (`Msg e) -> failwith e
+        ) [] lines
+      |> fun l -> Ok l
+    with Failure e ->
+      Error (`Msg e)
 
   let timestamp = function
     | [] -> 0
@@ -136,49 +97,54 @@ end = struct
     in
     aux [] file
 
-  let merge _path ~old t1 t2 =
-    let open Irmin.Merge.OP in
-    old () >>| fun old ->
+  let merge ~old t1 t2 =
+    let open Irmin.Merge.Infix in
+    old () >>=* fun old ->
     let old = match old with None -> [] | Some o -> o in
     let ts = timestamp old in
     let t1 = newer_than ts t1 in
     let t2 = newer_than ts t2 in
     let t3 = List.sort Entry.compare (List.rev_append t1 t2) in
-    ok (List.rev_append t3 old)
+    Irmin.Merge.ok (List.rev_append t3 old)
 
-  let merge path = Irmin.Merge.option (module S) (merge path)
+  let merge = Irmin.Merge.(option (v t merge))
 
   let add t e = e :: t
 
 end
 
-module Store = Irmin_git.FS(Log)(Irmin.Ref.String)(Irmin.Hash.SHA1)
-let config = Irmin_git.config ~root:Config.root ~bare:true ()
+module Store =
+  Irmin_git.FS(Log)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)
+
+let config = Irmin_git.config ~bare:true Config.root
 
 let log_file = [ "local"; "debug" ]
 
 let all_logs t =
-  Store.read (t "Reading the log file") log_file >>= function
-  | None   -> return Log.empty
-  | Some l -> return l
+  Store.find t log_file >>= function
+  | None   -> Lwt.return Log.empty
+  | Some l -> Lwt.return l
 
 (* Persist a new entry in the log. Pretty inefficient as it
    reads/writes the whole file every time. *)
 let log t fmt =
   Printf.ksprintf (fun message ->
       all_logs t >>= fun logs ->
-      let logs = Log.add logs (Entry.create message) in
-      Store.update (t "Adding a new entry") log_file logs
+      let logs = Log.add logs (Entry.v message) in
+      Store.set t ~info:(info "Adding a new entry") log_file logs
     ) fmt
 
 let print_logs name t =
-  all_logs t >>= fun logs ->
-  Printf.printf "-----------\n%s:\n-----------\n%s%!" name (Log.pretty logs);
-  Lwt.return_unit
+  all_logs t >|= fun logs ->
+  Fmt.pr "-----------\n%s:\n-----------\n%a%!" name Log.pp logs
 
 let main () =
   Config.init ();
-  Store.Repo.create config >>= Store.master task >>= fun t ->
+  Store.Repo.v config >>= fun repo ->
+  Store.master repo >>= fun t ->
 
   (* populate the log with some random messages *)
   Lwt_list.iter_s (fun msg ->
@@ -190,7 +156,7 @@ let main () =
 
   print_logs "lca" t >>= fun () ->
 
-  Store.clone_force task (t "Cloning the store") "test" >>= fun x ->
+  Store.clone ~src:t ~dst:"test" >>= fun x ->
 
   log x "Adding new stuff to x"  >>= fun () ->
   log x "Adding more stuff to x" >>= fun () ->
@@ -203,9 +169,9 @@ let main () =
 
   print_logs "branch 2" t >>= fun () ->
 
-  Store.merge_exn "Merging x into t" x ~into:t  >>= fun () ->
-
-  print_logs "merge" t
+  Store.merge ~info:(info "Merging x into t") x ~into:t  >>= function
+  | Ok ()   -> print_logs "merge" t
+  | Error _ -> failwith "conflict!"
 
 let () =
   Lwt_main.run (main ())

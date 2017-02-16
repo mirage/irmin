@@ -1,10 +1,14 @@
-open Lwt
+open Lwt.Infix
 open Irmin_unix
 
-module Store = Irmin_git.FS(Irmin.Contents.String)(Irmin.Ref.String)(Irmin.Hash.SHA1)
-module View = Irmin.View(Store)
+module Store =
+  Irmin_git.FS
+    (Irmin.Contents.String)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)
 
-let fmt t x = Printf.ksprintf (fun str -> t str) x
+module Tree = Store.Tree
 
 type t1 = int
 
@@ -16,31 +20,29 @@ type t2 = {
 type t = t2 list
 
 let view_of_t t =
-  View.empty () >>= fun v ->
-  Lwt_list.iteri_s (fun i t2 ->
-      let i = string_of_int i in
-      View.update v [i;"x"] t2.x >>= fun () ->
-      View.update v [i;"y"] (string_of_int t2.y);
-    ) t >>= fun () ->
-  return v
+  Lwt_list.fold_left_s (fun (v, i) t2 ->
+      let si = string_of_int i in
+      Tree.add v [si;"x"] t2.x >>= fun v ->
+      Tree.add v [si;"y"] (string_of_int t2.y) >|= fun v ->
+      (v, i + 1)
+    ) (Tree.empty, 0) t
+  >|= fun (v, _) -> v
 
 let t_of_view v =
   let aux acc i =
     let i = string_of_int i in
-    View.read_exn v [i;"x"] >>= fun x ->
-    View.read_exn v [i;"y"] >>= fun y ->
-    return ({ x; y = int_of_string y } :: acc) in
-  View.list v [] >>= fun t2s ->
-  let t2s = List.map (function
-      | [i] -> int_of_string i
-      | _   -> assert false
-    ) t2s in
+    Tree.get v [i;"x"] >>= fun x ->
+    Tree.get v [i;"y"] >|= fun y ->
+    { x; y = int_of_string y } :: acc
+  in
+  Tree.list v [] >>= fun t2s ->
+  let t2s = List.map (fun (i, _) -> int_of_string i) t2s in
   let t2s = List.rev (List.sort compare t2s) in
   Lwt_list.fold_left_s aux [] t2s
 
 let main () =
   Config.init ();
-  let config = Irmin_git.config ~root:Config.root ~bare:false () in
+  let config = Irmin_git.config ~bare:false Config.root in
   let t = [
     { x = "foo"; y = 3 };
     { x = "bar"; y = 5 };
@@ -48,19 +50,17 @@ let main () =
   ] in
   view_of_t t >>= fun v ->
 
-  Store.Repo.create config >>= Store.master task >>= fun t ->
-  View.update_path (t "update a/b") ["a";"b"] v >>= fun () ->
-  View.of_path (t "of-path a/b") ["a";"b"] >>= fun v ->
+  Store.Repo.v config >>= fun repo ->
+  Store.master repo >>= fun t ->
+  Store.set_tree t ~info:(info "update a/b") ["a";"b"] v >>= fun () ->
+  Store.find_tree t ["a";"b"] >>= fun v ->
   t_of_view v >>= fun tt ->
 
-  View.update_path (t "update a/c") ["a";"c"] v >>= fun () ->
+  Store.set_tree t ~info:(info "update a/c") ["a";"c"] v >>= fun () ->
 
   let tt = tt @ [ { x = "ggg"; y = 4 } ] in
   view_of_t tt >>= fun vv ->
-  View.rebase_exn vv ~into:v >>= fun () ->
-  View.merge_path_exn (t "merge view into a/b") ["a";"b"] v >>= fun () ->
-
-  return_unit
+  Store.set_tree t ~info:(info "merge view into a/b") ["a";"b"] vv
 
 let () =
   Lwt_main.run (main ())

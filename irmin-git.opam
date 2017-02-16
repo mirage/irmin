@@ -1,0 +1,27 @@
+opam-version: "1.2"
+maintainer:   "thomas@gazagnaire.org"
+authors:      ["Thomas Gazagnaire" "Thomas Leonard"]
+license:      "ISC"
+homepage:     "https://github.com/mirage/irmin"
+bug-reports:  "https://github.com/mirage/irmin/issues"
+dev-repo:     "https://github.com/mirage/irmin.git"
+doc:          "https://mirage.github.io/irmin/"
+
+build: ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name]
+
+build-test: [
+  ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%" "-n" name "--tests" "true"]
+  ["ocaml" "pkg/pkg.ml" "test"]
+]
+
+depends: [
+  "ocamlbuild" {build}
+  "ocamlfind"  {build}
+  "topkg"      {build & >= "0.7.8"}
+  "irmin" {>= "1.0.0"}
+  "git"   {>= "1.10.0"}
+  "alcotest" {test}
+  "git-unix" {test & >= "1.10.0"}
+]
+
+available: [ocaml-version >= "4.01.0"]

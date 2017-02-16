@@ -1,19 +1,33 @@
-HTTP   ?= $(shell opam config var cohttp:installed)
-GIT    ?= $(shell opam config var git:installed)
-UNIX   ?= $(shell opam config var git-unix:installed)
-MIRAGE ?= $(shell opam config var mirage-git:installed)
-TESTS  ?= true
-
-OPTIONS=--with-http ${HTTP} --with-git ${GIT} --with-unix ${UNIX} \
-	--with-mirage ${MIRAGE} --tests ${TESTS}
-
 all:
-	ocaml pkg/pkg.ml build ${OPTIONS}
+	$(MAKE) core
+	$(MAKE) git
+	$(MAKE) http
+	$(MAKE) mirage
+	$(MAKE) unix
+
+core:
+	ocaml pkg/pkg.ml build -n irmin -q --tests true
+	ocaml pkg/pkg.ml test
+
+git:
+	ocaml pkg/pkg.ml build -n irmin-git -q --tests true
+	ocaml pkg/pkg.ml test
+
+http:
+	ocaml pkg/pkg.ml build -n irmin-http -q --tests true
+	ocaml pkg/pkg.ml test
+
+mirage:
+	ocaml pkg/pkg.ml build -n irmin-mirage -q --tests true
+	ocaml pkg/pkg.ml test
+
+unix:
+	ocaml pkg/pkg.ml build -n irmin-unix -q --tests true
+	ocaml pkg/pkg.ml test
 
 clean:
-	rm -rf _build lib_test/_tests lib_test/test-db lib_test/test_db_git
-	ocaml pkg/pkg.ml clean
-
-test:
-	ocaml pkg/pkg.ml build ${OPTIONS}
-	ocaml pkg/pkg.ml test -- -e
+	ocaml pkg/pkg.ml clean -n irmin
+	ocaml pkg/pkg.ml clean -n irmin-git
+	ocaml pkg/pkg.ml clean -n irmin-http
+	ocaml pkg/pkg.ml clean -n irmin-mirage
+	ocaml pkg/pkg.ml clean -n irmin-unix

@@ -1,0 +1,8 @@
+description = "Unix backends for Irmin"
+version = "%%VERSION_NUM%%"
+requires = "irmin irmin-git irmin-http git-unix cohttp.lwt irmin-watcher"
+archive(byte)   = "irmin-unix.cma"
+archive(native) = "irmin-unix.cmxa"
+plugin(byte)    = "irmin-unix.cma"
+plugin(native)  = "irmin-unix.cmxs"
+exists_if       = "irmin-unix.cma"
