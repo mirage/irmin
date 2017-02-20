@@ -35,12 +35,12 @@
 
 *)
 
-val info: string -> Irmin.Info.f
-(** [info message ()] creates a fresh commit info, with the
+val info: ?author:string ->
+  ('a, Format.formatter, unit, Irmin.Info.f) format4 -> 'a
+(** [info fmt ()] creates a fresh commit info, with the
     {{!Irmin.Info.date}date} set to [Unix.gettimeoday ()] and the
-    {{!Irmin.Info.owner}owner} based on the local Git configuration {b
-    FIXME:} not implemented, use [Unix.gethostname()] and
-    [Unix.getpid()] for now on.  *)
+    {{!Irmin.Info.author}author} built using [Unix.gethostname()] and
+    [Unix.getpid()] if [author] is not provided.  *)
 
 (** File system backends, using
     {{:https://github.com/janestreet/bin_prot}bin_prot}. *)

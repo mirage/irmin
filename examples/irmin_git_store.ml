@@ -9,7 +9,7 @@ module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 let update t k v =
   let msg = sprintf "Updating /%s" (String.concat "/" k) in
   print_endline msg;
-  Store.set t ~info:(info msg) k v
+  Store.set t ~info:(info "%s" msg) k v
 
 let read_exn t k =
   let msg = sprintf "Reading /%s" (String.concat "/" k) in

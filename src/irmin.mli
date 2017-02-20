@@ -381,7 +381,7 @@ module Info: sig
   type t
   (** The type for commit info. *)
 
-  val v: date:int64 -> owner:string -> string -> t
+  val v: date:int64 -> author:string -> string -> t
   (** Create a new commit info. *)
 
   val date: t -> int64
@@ -395,10 +395,10 @@ module Info: sig
       expected to be the number of POSIX seconds (thus not counting
       leap seconds) since the Epoch. *)
 
-  val owner: t -> string
-  (** [owner t] is [t]'s commit owner.
+  val author: t -> string
+  (** [author t] is [t]'s commit author.
 
-      The owner identifies the entity (human, unikernel, process,
+      The author identifies the entity (human, unikernel, process,
       thread, etc) performing an operation. For the Git backend, this
       will be directly translated into the {e Author} field. *)
 

@@ -8,8 +8,8 @@ let config =
 
 let info ~user msg () =
   let date = Int64.of_float (Unix.gettimeofday ()) in
-  let owner = user in
-  Irmin.Info.v ~date ~owner msg
+  let author = user in
+  Irmin.Info.v ~date ~author msg
 
 (* 1. Cloning the gold image. *)
 let provision repo =

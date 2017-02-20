@@ -76,8 +76,8 @@ let config = Irmin_git.config
 
 let info image msg () =
   let date = Int64.of_float (Unix.gettimeofday ()) in
-  let owner = image.name in
-  Irmin.Info.v ~date ~owner msg
+  let author = image.name in
+  Irmin.Info.v ~date ~author msg
 
 let master = branch images.(0)
 

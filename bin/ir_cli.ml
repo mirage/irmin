@@ -20,7 +20,7 @@ open Ir_resolver
 
 let () = Irmin_unix.set_listen_dir_hook ()
 
-let infof fmt = Fmt.kstrf (fun msg () -> Irmin_unix.info msg ()) fmt
+let info fmt = Irmin_unix.info ~author:"irmin" fmt
 
 (* Help sections common to all commands *)
 let global_option_section = "COMMON OPTIONS"
@@ -261,7 +261,7 @@ let write = {
           | [path; value] -> key S.Key.of_string path, mk value
           | _             -> failwith "Too many arguments"
         in
-        S.set t ~info:(infof "write") path value
+        S.set t ~info:(info "write") path value
       end
     in
     Term.(mk write $ store $ args);
@@ -276,7 +276,7 @@ let rm = {
     let rm (S ((module S), store)) path =
       run begin
         store >>= fun t ->
-        S.remove t ~info:(infof "rm %s." path) (key S.Key.of_string path)
+        S.remove t ~info:(info "rm %s." path) (key S.Key.of_string path)
       end
     in
     Term.(mk rm $ store $ path);
