@@ -133,5 +133,10 @@ let config () = Irmin.Private.Conf.empty
 
 module Make = Irmin.Make(AO)(RW)
 
-module Make_with_metadata (M: Irmin.Metadata.S) =
-  Irmin.Make_with_metadata(M)(AO)(RW)
+module KV (C: Irmin.Contents.S) =
+  Make
+    (Irmin.Metadata.None)
+    (C)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)

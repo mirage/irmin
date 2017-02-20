@@ -249,6 +249,7 @@ struct
 end
 
 module Make_ext (IO: IO) (Obj: Config) (Ref: Config)
+    (M: Irmin.Metadata.S)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
     (B: Irmin.Branch.S)
@@ -256,7 +257,7 @@ module Make_ext (IO: IO) (Obj: Config) (Ref: Config)
 = struct
   module AO = AO_ext(IO)(Obj)
   module RW = RW_ext(IO)(Ref)
-  include Irmin.Make(AO)(RW)(C)(P)(B)(H)
+  include Irmin.Make(AO)(RW)(M)(C)(P)(B)(H)
 end
 
 let string_chop_prefix ~prefix str =
@@ -323,6 +324,14 @@ module AO (IO: IO) = AO_ext (IO)(Obj)
 module Link (IO: IO) = Link_ext (IO)(Links)
 module RW (IO: IO) = RW_ext (IO)(Ref)
 module Make (IO: IO) = Make_ext (IO)(Obj)(Ref)
+
+module KV (IO: IO) (C: Irmin.Contents.S) =
+  Make (IO)
+    (Irmin.Metadata.None)
+    (C)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)
 
 module IO_mem = struct
 

@@ -1,7 +1,6 @@
 (* Connect to http://localhost:8080/dump *)
 
 open Lwt.Infix
-open Irmin_unix
 open Printf
 
 let fin () =
@@ -68,12 +67,7 @@ let branch image =
 
 let images = [| (*ubuntu; *) wordpress; mysql |]
 
-module Store =
-  Irmin_git.FS
-    (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
+module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 let config = Irmin_git.config
     ~bare:true

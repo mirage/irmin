@@ -14,12 +14,37 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Bidirectional Git backends. *)
+(** MirageOS backend, with bi-directional compatibility with Git *)
 
-module type CONTEXT = sig val v: unit -> Git_mirage.Sync.IO.ctx option Lwt.t end
 (** The context to use for synchronisation. *)
+val context: Git_mirage.Sync.IO.ctx -> (module Irmin_git.IO)
 
-module Irmin_git: sig
+module Info (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
+
+  (** {1 Commit info creators} *)
+
+  val f: C.t -> string -> Irmin.Info.f
+  (** Commit info creators, using [N.name] and [C.now_d_ps] provided
+      in the functor arguments. *)
+
+end
+
+(** Functor to create a MirageOS' KV_RO store from a Git
+    repository. *)
+module KV_RO (IO: Irmin_git.IO) (I: Git.Inflate.S): sig
+
+  include Mirage_kv_lwt.RO
+
+  val connect: ?depth:int -> ?branch:string -> ?path:string ->
+    Uri.t -> t Lwt.t
+  (** [connect ?depth ?branch ?path uri] clones the given [uri] using
+      the given [branch], [depth] and ['/']-separated sub-[path]. By
+      default, [branch] is master, [depth] is [1] and [path] is empty,
+      ie. reads will be relative to the root of the repository. *)
+
+end
+
+module Git: sig
 
   (** {1 Git Store} *)
 
@@ -48,40 +73,21 @@ module Irmin_git: sig
   (** The configuration key to set the local Git repository's bare
       attribute. See {!Irmin_git.config}.*)
 
-  module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv):
+  module AO (G: Git.Store.S) (V: Irmin.Contents.Conv):
     Irmin.AO with type t = G.t
-              and type key = K.t
+              and type key = Irmin.Hash.SHA1.t
               and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
       be written in {i .git/objects/} and might be cleaned up if you
       run {i git gc} manually. *)
 
-  module Memory (C: CONTEXT) (I: Git.Inflate.S): Irmin_git.S_MAKER
-  (** Embed an Irmin store into an in-memory Git repository. *)
+  module Mem: sig
 
-end
+    module Make (C: Irmin_git.IO) (I: Git.Inflate.S): Irmin_git.S_MAKER
+    (** Embed an Irmin store into an in-memory Git repository. *)
 
-module Info (N: sig val name: string end)(C: Mirage_clock.PCLOCK): sig
+    module KV (C: Irmin_git.IO) (I: Git.Inflate.S): Irmin_git.KV_MAKER
 
-  (** {1 Commit info creators} *)
-
-  val f: C.t -> string -> Irmin.Info.f
-  (** Commit info creators, using [N.name] and [C.now_d_ps] provided
-      in the functor arguments. *)
-
-end
-
-(** Functor to create a MirageOS' KV_RO store from a Git
-    repository. *)
-module KV_RO (C: CONTEXT) (I: Git.Inflate.S): sig
-
-  include Mirage_kv_lwt.RO
-
-  val connect: ?depth:int -> ?branch:string -> ?path:string ->
-    Uri.t -> t Lwt.t
-  (** [connect ?depth ?branch ?path uri] clones the given [uri] using
-      the given [branch], [depth] and ['/']-separated sub-[path]. By
-      default, [branch] is master, [depth] is [1] and [path] is empty,
-      ie. reads will be relative to the root of the repository. *)
+  end
 
 end

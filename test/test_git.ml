@@ -23,15 +23,16 @@ let config =
   let head = Git.Reference.of_raw "refs/heads/test" in
   Irmin_git.config ~head ~bare:true test_db
 
-module Memory = Irmin_git.Memory (Git_unix.Sync.IO) (Git_unix.Zlib)
-    (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
+module IO = struct
+  include Git_unix.Sync.IO
+  let ctx () = Lwt.return_none
+end
 
-let store = (module Memory: Test_S)
+module Mem = Irmin_git.Mem.KV (IO) (Git_unix.Zlib) (Irmin.Contents.String)
+
+let store = (module Mem: Test_S)
 let stats = None
-let init () = Memory.Git_mem.clear_all (); Lwt.return_unit
+let init () = Mem.Git_mem.clear_all (); Lwt.return_unit
 let clean () = Lwt.return_unit
 let suite = { name = "GIT"; kind = `Git; clean; init; store; stats; config }
 

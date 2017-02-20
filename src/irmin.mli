@@ -2613,23 +2613,36 @@ module type S = sig
 end
 
 (** [S_MAKER] is the signature exposed by any backend providing {!S}
-    implementations. [C] is the implementation for user-defined
-    contents, [B] is the implementation for branches and [H] is the
-    implementation for object (blobs, trees, commits) hashes. It does
-    not use any native synchronization primitives. *)
+    implementations. [M] is the implementation of user-defined
+    metadata, [C] is the one for user-defined contents, [B] is the
+    implementation for branches and [H] is the implementation for
+    object (blobs, trees, commits) hashes. It does not use any native
+    synchronization primitives. *)
 module type S_MAKER =
+  functor (M: Metadata.S) ->
   functor (C: Contents.S) ->
   functor (P: Path.S) ->
   functor (B: Branch.S) ->
   functor (H: Hash.S) ->
     S with type key = P.t
        and type step = P.step
-       and module Key = P
+       and type metadata = M.t
        and type contents = C.t
        and type branch = B.t
        and type Commit.Hash.t = H.t
        and type Tree.Hash.t = H.t
        and type Contents.Hash.t = H.t
+
+(** [KV] is similar to {!S} but choose sensible implementations for
+    path and branch. *)
+module type KV =
+  S with type key = string list
+     and type step = string
+     and type branch = string
+
+(** [KV_MAKER] is like {!S_MAKER} but where everything except the
+    contents is replaced by sensible default implementations. *)
+module type KV_MAKER = functor (C: Contents.S) -> KV with type contents = C.t
 
 (** {2 Synchronization} *)
 
@@ -2650,16 +2663,15 @@ val remote_uri: string -> remote
     {3 Synchronization}
 
     A simple synchronization example, using the
-    {{!Irmin_unix.Irmin_git}Git} backend and the {!Sync} helpers. The
+    {{!Irmin_unix.Git}Git} backend and the {!Sync} helpers. The
     code clones a fresh repository if the repository does not exist
     locally, otherwise it performs a fetch: in this case, only
     the missing contents is downloaded.
 
 {[
 open Lwt.Infix
-open Irmin_unix
 
-module S = Irmin_git.FS(Irmin.Contents.String)
+module S = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 module Sync = Irmin.Sync(S)
 let config = Irmin_git.config ~root:"/tmp/test" ()
 
@@ -2789,14 +2801,14 @@ end ]}
     show here how to use the on-disk [Git] backend on Unix.
 
 {[
-  (* Bring [Irmin_unix.info] and [Irmin_unix.Irmin_git] in scope. *)
-  open Irmin_unix
-
   (* Build an Irmin store containing log files. *)
-  module S = Irmin_git.FS(Log)
+  module S = Irmin_unix.Git.FS.KV(Log)
 
   (* Set-up the local configuration of the Git repository. *)
   let config = Irmin_git.config ~root:"/tmp/irmin/test" ~bare:true ()
+
+  (* Set-up the commit info function *)
+  let info fmt = Irmin_unix.info ~author:"logger <irmin@example.com>" fmt
 ]}
 
   We can now define a toy example to use our mergeable log files.
@@ -2954,13 +2966,10 @@ end
     format based on {{:https://github.com/janestreet/bin_prot}bin_prot},
     with no native synchronization primitives: it is usually what is
     needed to quickly create a new backend.}
-    {- {!Make_with_metadata} is similar to {!Make} but allows to
-    specify the kind of metadata stored in the nodes.}
     {- {!Make_ext} creates a store with a {e deep} embedding of each
     of the internal stores into separate store, with a total control over
     the binary format and using the native synchronization protocols
-    when available. This is mainly used by the Git backend, but could
-    be used for other similar backends as well in the future.}
+    when available.}
     }
 *)
 
@@ -3004,10 +3013,6 @@ end
 module Make (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
 (** Simple store creator. Use the same type of all of the internal
     keys and store all the values in the same store. *)
-
-module Make_with_metadata (M: Metadata.S) (AO: AO_MAKER) (RW: RW_MAKER): S_MAKER
-(** Similar to {!Make} but allows to specify the kind of metadata
-    stored in the nodes. *)
 
 (** Advanced store creator. *)
 module Make_ext (P: Private.S): S

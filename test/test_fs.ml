@@ -34,5 +34,5 @@ let config = Irmin_fs.config test_db
 let link = (module Link: Test_link.S)
 let clean () = Lwt.return_unit
 let stats = None
-let store = store (module Irmin_fs.Make(IO))
+let store = store (module Irmin_fs.Make(IO)) (module Irmin.Metadata.None)
 let suite = { name = "FS"; kind = `Core; init; clean; config; store; stats }

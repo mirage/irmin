@@ -26,38 +26,55 @@ module IO = struct
     aux [] dir
 end
 
-module Irmin_fs = struct
+module FS = struct
   let config = Irmin_fs.config
   module AO = Irmin_fs.AO(IO)
   module Link = Irmin_fs.Link(IO)
   module RW = Irmin_fs.RW(IO)
   module Make = Irmin_fs.Make(IO)
+  module KV = Irmin_fs.KV(IO)
   module type Config = Irmin_fs.Config
   module AO_ext = Irmin_fs.AO_ext(IO)
   module RW_ext = Irmin_fs.RW_ext(IO)
   module Make_ext = Irmin_fs.Make_ext(IO)
 end
 
-module Irmin_git = struct
+module Git = struct
   let config = Irmin_git.config
   let head = Irmin_git.head
   let bare = Irmin_git.bare
   let level = Irmin_git.level
   module AO = Irmin_git.AO
   module RW = Irmin_git.RW
-  module Memory = Irmin_git.Memory(Git_unix.Sync.IO)(Git_unix.Zlib)
-  module FS = Irmin_git.FS(Git_unix.Sync.IO)(Git_unix.Zlib)(Git_unix.FS.IO)
+  module IO = struct
+    include Git_unix.Sync.IO
+    let ctx () = Lwt.return_none
+  end
+  module Mem = struct
+    module Make = Irmin_git.Mem.Make(IO)(Git_unix.Zlib)
+    module KV   = Irmin_git.Mem.KV(IO)(Git_unix.Zlib)
+  end
+  module FS = struct
+    module Make = Irmin_git.FS.Make(IO)(Git_unix.Zlib)(Git_unix.FS.IO)
+    module KV   = Irmin_git.FS.KV(IO)(Git_unix.Zlib)(Git_unix.FS.IO)
+  end
 end
 
-module Irmin_http = struct
+module Http = struct
+
   let config = Irmin_http.config
   let uri = Irmin_http.uri
   module Make = Irmin_http.Make(Cohttp_lwt_unix.Client)
-end
+  module KV (C: Irmin.Contents.S) =
+    Make
+      (Irmin.Metadata.None)
+      (C)
+      (Irmin.Path.String_list)
+      (Irmin.Branch.String)
+      (Irmin.Hash.SHA1)
 
-module Irmin_http_server = struct
-  module type S = Irmin_http_server.S
-  module Make = Irmin_http_server.Make (Cohttp_lwt_unix.Server)
+  module Server = Irmin_http_server.Make (Cohttp_lwt_unix.Server)
+
 end
 
 let info msg () =

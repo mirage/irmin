@@ -78,8 +78,6 @@ let config ?(config=Irmin.Private.Conf.empty) ?head ?bare ?level root =
   let config = C.add config Conf.level level in
   config
 
-module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
-
 module type VALUE_STORE = sig
   type t
   val read: t -> Git.Hash.t -> Git.Value.t option Lwt.t
@@ -105,16 +103,13 @@ module Hash (G: VALUE_STORE) = struct
     with Git.Hash.Ambiguous s -> Error (`Msg ("ambiguous " ^ s))
 end
 
+module H = Irmin.Hash.SHA1
+
 module Irmin_value_store
     (G: VALUE_STORE)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
-    (H: Irmin.Hash.S)   (* Why do we need both H and G.Digest? *)
 = struct
-
-  let () =
-    if not (H.has_kind `SHA1) then
-      failwith "The Git backend only support SHA1 hashes."
 
   module type V = sig
     type t
@@ -490,9 +485,7 @@ module Irmin_value_store
 
 end
 
-module Irmin_branch_store
-    (G: Git.Store.S) (B: Irmin.Branch.S) (H: Irmin.Hash.S) =
-struct
+module Irmin_branch_store (G: Git.Store.S) (B: Irmin.Branch.S) = struct
 
   module Key = B
   module Val = H
@@ -648,11 +641,12 @@ struct
 
 end
 
-module Irmin_sync_store
-    (Ctx: CONTEXT) (IO: Git.Sync.IO with type ctx = Ctx.t)
-    (G: Git.Store.S)
-    (B: Irmin.Branch.S) (H: Irmin.Hash.S) =
-struct
+module type IO = sig
+  include Git.Sync.IO
+  val ctx: unit -> ctx option Lwt.t
+end
+
+module Irmin_sync_store (IO: IO) (G: Git.Store.S) (B: Irmin.Branch.S) = struct
 
   (* FIXME: should not need to pass G.Digest and G.Inflate... *)
   module Sync = Git.Sync.Make(IO)(G)
@@ -684,7 +678,7 @@ struct
       in
       o_head_of_git key
     in
-    Ctx.v () >>= fun ctx ->
+    IO.ctx () >>= fun ctx ->
     Sync.fetch t ?ctx ?deepen gri >>=
     result
 
@@ -698,23 +692,21 @@ struct
       | `Ok      -> Ok ()
       | `Error e -> Error (`Msg e)
     in
-    Ctx.v () >>= fun ctx ->
+    IO.ctx () >>= fun ctx ->
     Sync.push t ?ctx ~branch gri >|=
     result
 
 end
 
 module Make_ext
-    (Ctx: CONTEXT)
-    (IO: Git.Sync.IO with type ctx = Ctx.t)
+    (IO: IO)
     (G: Git.Store.S)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
     (B: Irmin.Branch.S)
-    (H: Irmin.Hash.S)
 = struct
 
-  module XBranch = Irmin_branch_store(G)(B)(H)
+  module XBranch = Irmin_branch_store(G)(B)
 
   type repo = {
     config: Irmin.config;
@@ -723,12 +715,12 @@ module Make_ext
   }
 
   module XSync = struct
-    include Irmin_sync_store(Ctx)(IO)(G)(B)(H)
+    include Irmin_sync_store(IO)(G)(B)
     let v repo = Lwt.return repo.g
   end
 
   module P = struct
-    include Irmin_value_store(G)(C)(P)(H)
+    include Irmin_value_store(G)(C)(P)
     module Branch = XBranch
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
@@ -797,50 +789,46 @@ module Digest (H: Irmin.Hash.S): Git.Hash.DIGEST = struct
   let length = Cstruct.len @@ H.to_raw (H.digest (Cstruct.of_string ""))
 end
 
-module NoC (IO: Git.Sync.IO) = struct
-  type t = IO.ctx
-  let v () = Lwt.return None
+module FS = struct
+  module Make (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO)
+      (C: Irmin.Contents.S)
+      (P: Irmin.Path.S)
+      (B: Irmin.Branch.S) = struct
+    module Git_mem = struct
+      let clear ?root:_ _ = ()
+      let clear_all () = ()
+    end
+    include Make_ext (IO) (Git.FS.Make(FS)(Digest(H))(I)) (C) (P) (B)
+  end
+  module KV  (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO) (C: Irmin.Contents.S) =
+    Make(IO)(I)(FS)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
 end
 
-module Make (IO: Git.Sync.IO) = Make_ext (NoC(IO))(IO)
-
-module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (FS: Git.FS.IO)
-    (C: Irmin.Contents.S)
-    (P: Irmin.Path.S)
-    (B: Irmin.Branch.S)
-    (H: Irmin.Hash.S) =
-  Make (IO) (Git.FS.Make(FS)(Digest(H))(I)) (C) (P) (B) (H)
-
-module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S)
-    (C: Irmin.Contents.S)
-    (P: Irmin.Path.S)
-    (B: Irmin.Branch.S)
-    (H: Irmin.Hash.S) = struct
-  module Git_mem = Git.Memory.Make(Digest(H))(I)
-  include Make (IO) (Git_mem) (C) (P) (B) (H)
+module Mem = struct
+  module Make
+      (IO: IO) (I: Git.Inflate.S)
+      (C: Irmin.Contents.S)
+      (P: Irmin.Path.S)
+      (B: Irmin.Branch.S) =
+  struct
+    module Git_mem = Git.Memory.Make(Digest(H))(I)
+    include Make_ext (IO) (Git_mem) (C) (P) (B)
+  end
+  module KV (IO: IO) (I: Git.Inflate.S) (C: Irmin.Contents.S) =
+    Make(IO)(I)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
 end
 
-module Memory_ext (Ctx: CONTEXT)
-    (IO: Git.Sync.IO with type ctx = Ctx.t) (I: Git.Inflate.S)
-    (C: Irmin.Contents.S)
-    (P: Irmin.Path.S)
-    (B: Irmin.Branch.S)
-    (H: Irmin.Hash.S) = struct
-  module Git_mem = Git.Memory.Make(Digest(H))(I)
-  include Make_ext (Ctx) (IO) (Git_mem) (C) (P) (B) (H)
-end
-
-module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) = struct
+module AO (G: Git.Store.S) (V: Irmin.Contents.Conv) = struct
   module V = struct
     include V
     let merge = Irmin.Merge.default Irmin.Type.(option V.t)
   end
   module P = Irmin.Path.String_list
-  module M = Irmin_value_store (G)(V)(P)(K)
+  module M = Irmin_value_store (G)(V)(P)
   include M.Contents
 end
 
-module RW (G: Git.Store.S) (K: Irmin.Branch.S) (V: Irmin.Hash.S) =
+module RW (G: Git.Store.S) (K: Irmin.Branch.S) =
 struct
   module K = struct
     include K
@@ -848,16 +836,23 @@ struct
       | Ok x           -> x
       | Error (`Msg e) -> failwith e
   end
-  include Irmin_branch_store (G)(K)(V)
+  include Irmin_branch_store (G)(K)
 end
 
 module type S = sig
-  include Irmin.S
+  include Irmin.S with type metadata = Metadata.t
+                   and module Commit.Hash = Irmin.Hash.SHA1
+                   and module Contents.Hash = Irmin.Hash.SHA1
+                   and module Tree.Hash = Irmin.Hash.SHA1
   module Git: sig
     include Git.Store.S
     val git_commit: Repo.t -> commit -> Git.Commit.t option Lwt.t
     val of_repo: Repo.t -> t
     val to_repo: ?head:Git.Reference.t -> ?bare:bool -> t -> Repo.t Lwt.t
+  end
+  module Git_mem: sig
+    val clear: ?root:string -> unit -> unit
+    val clear_all: unit -> unit
   end
 end
 
@@ -865,38 +860,17 @@ module type S_MAKER =
   functor (C: Irmin.Contents.S) ->
   functor (P: Irmin.Path.S) ->
   functor (B: Irmin.Branch.S) ->
-  functor (H: Irmin.Hash.S) ->
     S with type key = P.t
        and type step = P.step
        and module Key = P
        and type contents = C.t
        and type branch = B.t
-       and type metadata = Metadata.t
-       and type Commit.Hash.t = H.t
-       and type Tree.Hash.t = H.t
-       and type Contents.Hash.t = H.t
 
-module type S_mem = sig
-  include S
-  module Git_mem: sig
-    val clear: ?root:string -> unit -> unit
-    val clear_all: unit -> unit
-  end
-end
-
-module type S_MAKER_mem =
+module type KV_MAKER =
   functor (C: Irmin.Contents.S) ->
-  functor (P: Irmin.Path.S) ->
-  functor (B: Irmin.Branch.S) ->
-  functor (H: Irmin.Hash.S) ->
-    S_mem with type key = P.t
-           and type step = P.step
-           and module Key = P
-           and type contents = C.t
-           and type branch = B.t
-           and type metadata = Metadata.t
-           and type Commit.Hash.t = H.t
-           and type Tree.Hash.t = H.t
-           and type Contents.Hash.t = H.t
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = string
 
 include Conf

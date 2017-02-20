@@ -12,8 +12,9 @@ let what =
   \  - concatenate `lca` and `l3`; This gives the final result."
 
 open Lwt.Infix
-open Irmin_unix
 open Astring
+
+let info = Irmin_unix.info
 
 let time = ref 0
 
@@ -113,11 +114,7 @@ end = struct
 
 end
 
-module Store =
-  Irmin_git.FS(Log)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
+module Store = Irmin_unix.Git.FS.KV(Log)
 
 let config = Irmin_git.config ~bare:true Config.root
 

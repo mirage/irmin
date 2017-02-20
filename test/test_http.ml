@@ -24,7 +24,7 @@ let uri = Uri.of_string "http://127.0.0.1:8080"
 let pid_file = Filename.get_temp_dir_name () / "irmin-test.pid"
 
 let http_store (module S: Test_S) =
-  store (module Irmin_http.Make(Cohttp_lwt_unix.Client)(S.Metadata))
+  store (module Irmin_http.Make(Cohttp_lwt_unix.Client)) (module S.Metadata)
 
 (* See https://github.com/mirage/ocaml-cohttp/issues/511 *)
 let () = Lwt.async_exception_hook := (fun e ->

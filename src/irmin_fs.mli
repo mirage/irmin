@@ -69,6 +69,7 @@ module AO (IO: IO): Irmin.AO_MAKER
 module Link (IO: IO): Irmin.LINK_MAKER
 module RW (IO: IO): Irmin.RW_MAKER
 module Make (IO: IO): Irmin.S_MAKER
+module KV (IO: IO): Irmin.KV_MAKER
 
 (** {2 Advanced configuration} *)
 

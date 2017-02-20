@@ -60,10 +60,10 @@ struct
   include Conv2Raw(C)
 end
 
-module Make_with_metadata
-    (M: Ir_s.METADATA)
+module Make
     (AO: Ir_s.AO_MAKER)
     (RW: Ir_s.RW_MAKER)
+    (M: Ir_s.METADATA)
     (C: Ir_s.CONTENTS)
     (P: Ir_s.PATH)
     (B: Ir_s.BRANCH)
@@ -128,7 +128,6 @@ struct
   include Ir_store.Make(X)
 end
 
-module Make = Make_with_metadata(Ir_node.No_metadata)
 module Make_ext = Ir_store.Make
 
 module type RO = Ir_s.RO
@@ -147,6 +146,13 @@ module type LINK_MAKER = Ir_s.LINK_MAKER
 
 module type RW_MAKER = Ir_s.RW_MAKER
 module type S_MAKER = Ir_s.MAKER
+
+module type KV =
+  S with type key = string list
+     and type step = string
+     and type branch = string
+
+module type KV_MAKER = functor (C: Contents.S) -> KV with type contents = C.t
 
 module Private = struct
   module Conf = Ir_conf

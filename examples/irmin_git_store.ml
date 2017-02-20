@@ -1,14 +1,10 @@
 (* Simple example of reading and writing in a Git repository *)
 open Lwt.Infix
-open Irmin_unix
 open Printf
 
-module Store =
-  Irmin_git.FS
-    (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
+let info = Irmin_unix.info
+
+module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 let update t k v =
   let msg = sprintf "Updating /%s" (String.concat "/" k) in

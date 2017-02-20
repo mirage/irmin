@@ -17,7 +17,7 @@
 open Lwt.Infix
 open Test_common
 
-let store = store (module Irmin_mem.Make)
+let store = store (module Irmin_mem.Make) (module Irmin.Metadata.None)
 
 module Link = struct
   include Irmin_mem.Link(Irmin.Hash.SHA1)
