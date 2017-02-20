@@ -33,14 +33,6 @@ end
 let src = Logs.Src.create "irmin.git" ~doc:"Irmin Git-format store"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-let string_chop_prefix t ~prefix =
-  let lt = String.length t in
-  let lp = String.length prefix in
-  if lt < lp then None else
-    let p = String.sub t 0 lp in
-    if String.compare p prefix <> 0 then None
-    else Some (String.sub t lp (lt - lp))
-
 module Conf = struct
 
   let root = Irmin.Private.Conf.root
@@ -485,7 +477,24 @@ module Irmin_value_store
 
 end
 
-module Irmin_branch_store (G: Git.Store.S) (B: Irmin.Branch.S) = struct
+module type Branch = sig
+  include Irmin.Branch.S
+  val pp_ref: t Fmt.t
+  val of_ref: string -> (t, [`Msg of string]) result
+end
+
+module Branch (B: Irmin.Branch.S): Branch with type t = B.t = struct
+  open Astring
+  include B
+  let pp_ref ppf b = Fmt.pf ppf "refs/heads/%a" B.pp b
+
+  let of_ref str = match String.cuts ~sep:"/" str with
+    | "refs" :: "heads" :: b -> B.of_string (String.concat ~sep:"/" b)
+    | _ -> Error (`Msg (Fmt.strf "%s is not a valid branch" str))
+end
+
+
+module Irmin_branch_store (G: Git.Store.S) (B: Branch) = struct
 
   module Key = B
   module Val = H
@@ -509,17 +518,13 @@ module Irmin_branch_store (G: Git.Store.S) (B: Irmin.Branch.S) = struct
 
   let branch_of_git r =
     let str = String.trim @@ Git.Reference.to_raw r in
-    match string_chop_prefix ~prefix:("refs/heads/") str with
-    | None   -> None
-    | Some r -> match Key.of_string r with
-      | Ok x           -> Some x
-      | Error (`Msg e) ->
-        Log.err (fun l -> l "invalid branch name: %s" e);
-        None
+    match B.of_ref str with
+    | Ok r           -> Some r
+    | Error (`Msg e) ->
+      Log.err (fun l -> l "invalid branch name: %s" e);
+      None
 
-  let git_of_branch_str str = Git.Reference.of_raw ("refs/heads/" ^ str)
-
-  let git_of_branch r = git_of_branch_str (Fmt.to_to_string Key.pp r)
+  let git_of_branch r = Git.Reference.of_raw (Fmt.to_to_string B.pp_ref r)
   let commit_of_git k = Val.of_raw (Git_hash.to_raw k)
   let git_of_commit k = Git_hash.of_raw (Val.to_raw k)
 
@@ -533,7 +538,7 @@ module Irmin_branch_store (G: Git.Store.S) (B: Irmin.Branch.S) = struct
   let listen_dir t =
     let (/) = Filename.concat in
     if G.kind = `Disk then
-      let dir = t.git_root / "refs" / "heads" in
+      let dir = t.git_root / "refs" in
       let key file = match Key.of_string file with
         | Ok x           -> Some x
         | Error (`Msg e) ->
@@ -698,30 +703,87 @@ module Irmin_sync_store (IO: IO) (G: Git.Store.S) (B: Irmin.Branch.S) = struct
 
 end
 
+type reference = [
+  | `Branch of string
+  | `Remote of string
+  | `Tag of string
+  | `Other of string
+]
+
+module Ref: Branch with type t = reference = struct
+
+  open Astring
+
+  type t = [
+    | `Branch of string
+    | `Remote of string
+    | `Tag of string
+    | `Other of string
+  ]
+
+  let pp_ref ppf = function
+    | `Branch b -> Fmt.pf ppf "refs/heads/%s" b
+    | `Remote r -> Fmt.pf ppf "refs/remotes/%s" r
+    | `Tag t    -> Fmt.pf ppf "refs/tags/%s" t
+    | `Other o  -> Fmt.pf ppf "refs/%s" o
+
+  let pp = pp_ref
+
+  let path l = String.concat ~sep:"/" l
+
+  let of_ref str = match String.cuts ~sep:"/" str with
+    | "refs" :: "heads"   :: b -> Ok (`Branch (path b))
+    | "refs" :: "remotes" :: r -> Ok (`Remote (path r))
+    | "refs" :: "tags"    :: t -> Ok (`Tag (path t))
+    | "refs" :: o              -> Ok (`Other (path o))
+    | _ -> Error (`Msg (Fmt.strf "%s is not a valid reference" str))
+
+  let of_string = of_ref
+
+  let t =
+    let open Irmin.Type in
+    variant "reference" (fun branch remote tag other -> function
+        | `Branch x -> branch x
+        | `Remote x -> remote x
+        | `Tag x    -> tag x
+        | `Other x  -> other x)
+    |~ case1 "branch" string (fun t -> `Branch t)
+    |~ case1 "remote" string (fun t -> `Remote t)
+    |~ case1 "tag"    string (fun t -> `Tag t)
+    |~ case1 "other"  string (fun t -> `Other t)
+    |> sealv
+
+  let master = `Branch Irmin.Branch.String.master
+
+  let is_valid = function
+    | `Branch s | `Tag s | `Remote s | `Other s ->
+      Irmin.Branch.String.is_valid s
+
+end
+
 module Make_ext
     (IO: IO)
     (G: Git.Store.S)
     (C: Irmin.Contents.S)
     (P: Irmin.Path.S)
-    (B: Irmin.Branch.S)
+    (B: Branch)
 = struct
 
-  module XBranch = Irmin_branch_store(G)(B)
+  module R = Irmin_branch_store(G)(B)
 
   type repo = {
     config: Irmin.config;
     g: G.t;
-    b: XBranch.t;
+    b: R.t;
   }
 
-  module XSync = struct
-    include Irmin_sync_store(IO)(G)(B)
-    let v repo = Lwt.return repo.g
-  end
-
   module P = struct
+    module XSync = struct
+      include Irmin_sync_store(IO)(G)(R.Key)
+      let v repo = Lwt.return repo.g
+    end
     include Irmin_value_store(G)(C)(P)
-    module Branch = XBranch
+    module Branch = R
     module Slice = Irmin.Private.Slice.Make(Contents)(Node)(Commit)
     module Sync = XSync
     module Repo = struct
@@ -748,12 +810,12 @@ module Make_ext
       let v conf =
         let { root; level; head; bare } = config conf in
         G.create ?root ?level () >>= fun g ->
-        XBranch.v ~head ~bare g >|= fun b ->
+        R.v ~head ~bare g >|= fun b ->
         { g; b; config = conf }
 
     end
-
   end
+
   include Irmin.Make_ext(P)
 
   module Git = struct
@@ -774,7 +836,7 @@ module Make_ext
     let of_repo r = r.g
 
     let to_repo ?head ?(bare=true) g =
-      XBranch.v ~head ~bare g >|= fun b ->
+      R.v ~head ~bare g >|= fun b ->
       { config = Irmin.Private.Conf.empty; g; b }
 
   end
@@ -790,21 +852,30 @@ module Digest (H: Irmin.Hash.S): Git.Hash.DIGEST = struct
 end
 
 module FS = struct
+
   module Make (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO)
       (C: Irmin.Contents.S)
       (P: Irmin.Path.S)
-      (B: Irmin.Branch.S) = struct
-    module Git_mem = struct
-      let clear ?root:_ _ = ()
-      let clear_all () = ()
-    end
-    include Make_ext (IO) (Git.FS.Make(FS)(Digest(H))(I)) (C) (P) (B)
+      (B: Irmin.Branch.S) =
+  struct
+    module Git_mem = struct let clear ?root:_ _ = () let clear_all () = () end
+    module G = Git.FS.Make(FS)(Digest(H))(I)
+    include Make_ext (IO) (G) (C) (P) (Branch(B))
   end
-  module KV  (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO) (C: Irmin.Contents.S) =
+
+  module KV (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO) (C: Irmin.Contents.S) =
     Make(IO)(I)(FS)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
+
+  module Ref (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO) (C: Irmin.Contents.S) =
+  struct
+    module Git_mem = struct let clear ?root:_ _ = () let clear_all () = () end
+    module G = Git.FS.Make(FS)(Digest(H))(I)
+    include Make_ext (IO) (G) (C) (Irmin.Path.String_list) (Ref)
+  end
 end
 
 module Mem = struct
+
   module Make
       (IO: IO) (I: Git.Inflate.S)
       (C: Irmin.Contents.S)
@@ -812,10 +883,17 @@ module Mem = struct
       (B: Irmin.Branch.S) =
   struct
     module Git_mem = Git.Memory.Make(Digest(H))(I)
-    include Make_ext (IO) (Git_mem) (C) (P) (B)
+    include Make_ext (IO) (Git_mem) (C) (P) (Branch(B))
   end
+
   module KV (IO: IO) (I: Git.Inflate.S) (C: Irmin.Contents.S) =
     Make(IO)(I)(C)(Irmin.Path.String_list)(Irmin.Branch.String)
+
+  module Ref (IO: IO) (I: Git.Inflate.S) (C: Irmin.Contents.S) = struct
+    module Git_mem = Git.Memory.Make(Digest(H))(I)
+    include Make_ext (IO) (Git_mem) (C) (Irmin.Path.String_list) (Ref)
+  end
+
 end
 
 module AO (G: Git.Store.S) (V: Irmin.Contents.Conv) = struct
@@ -836,7 +914,8 @@ struct
       | Ok x           -> x
       | Error (`Msg e) -> failwith e
   end
-  include Irmin_branch_store (G)(K)
+  module B = Branch(K)
+  include Irmin_branch_store (G)(B)
 end
 
 module type S = sig
@@ -872,5 +951,12 @@ module type KV_MAKER =
        and type step = string
        and type contents = C.t
        and type branch = string
+
+module type REF_MAKER =
+  functor (C: Irmin.Contents.S) ->
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = reference
 
 include Conf
