@@ -29,9 +29,6 @@ module String = struct
        | 'A' .. 'Z'
        | '0' .. '9'
        | '-'| '_' | '.' -> ()
-       | '/'  -> if Sys.os_type = "Win32" then ok := false
-       | '\\' ->
-         if Sys.os_type = "Win32" && !i + 1 < n && s.[!i+1] = '\\' then incr i;
        | _ -> ok := false
       );
       incr i;
