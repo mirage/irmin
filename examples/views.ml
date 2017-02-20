@@ -1,12 +1,8 @@
 open Lwt.Infix
-open Irmin_unix
 
-module Store =
-  Irmin_git.FS
-    (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
+let info = Irmin_unix.info
+
+module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 module Tree = Store.Tree
 

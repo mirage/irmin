@@ -29,7 +29,7 @@ module FS = struct
 
   let test_db = Test_fs.test_db
   let config = Test_fs.config
-  let store = store (module Irmin_unix.Irmin_fs.Make)
+  let store = store (module Irmin_unix.FS.Make) (module Irmin.Metadata.None)
 
   let init () =
     if Sys.file_exists test_db then begin
@@ -46,7 +46,7 @@ module FS = struct
   let suite = { name = "FS"; kind = `Unix; clean; init; store; stats; config }
 
   module Link = struct
-    include Irmin_unix.Irmin_fs.Link(Irmin.Hash.SHA1)
+    include Irmin_unix.FS.Link(Irmin.Hash.SHA1)
     let v () = v (Irmin_fs.config test_db)
   end
 
@@ -58,7 +58,7 @@ end
 
 module Git = struct
 
-  let store = store (module Irmin_unix.Irmin_git.FS)
+  let store = (module Irmin_unix.Git.FS.KV(Irmin.Contents.String): Test_S)
   let test_db = Test_git.test_db
 
   let init () =

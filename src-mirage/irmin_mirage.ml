@@ -17,20 +17,22 @@
 open Astring
 open Result
 
-module IO = Git_mirage.Sync.IO
+let context ctx =
+  let module M = struct
+    include Git_mirage.Sync.IO
+    let ctx () = Lwt.return (Some ctx)
+  end in
+  (module M: Irmin_git.IO)
 
-module type CONTEXT = sig val v: unit -> IO.ctx option Lwt.t end
-module Context (C: CONTEXT) = struct
-  type t = IO.ctx
-  let v = C.v
-end
-
-module Irmin_git = struct
+module G = struct
   let config = Irmin_git.config
   let head = Irmin_git.head
   let bare = Irmin_git.bare
   module AO = Irmin_git.AO
-  module Memory (C: CONTEXT) = Irmin_git.Memory_ext(Context(C))(IO)
+  module Mem = struct
+    module Make (IO: Irmin_git.IO) = Irmin_git.Mem.Make(IO)
+    module KV   (IO: Irmin_git.IO) = Irmin_git.Mem.KV(IO)
+  end
 end
 
 module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
@@ -40,15 +42,11 @@ module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
     Irmin.Info.v ~date ~owner:N.name msg
 end
 
-module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
+module KV_RO (IO: Irmin_git.IO) (I: Git.Inflate.S) = struct
 
   open Lwt.Infix
 
-  module S = Irmin_git.Memory(C)(I)
-      (Irmin.Contents.Cstruct)
-      (Irmin.Path.String_list)
-      (Irmin.Branch.String)
-      (Irmin.Hash.SHA1)
+  module S = G.Mem.KV (IO)(I)(Irmin.Contents.Cstruct)
 
   module Sync = Irmin.Sync(S)
   let config = Irmin_mem.config ()
@@ -125,3 +123,5 @@ module KV_RO (C: CONTEXT) (I: Git.Inflate.S) = struct
     { t = t; path }
 
 end
+
+module Git = G

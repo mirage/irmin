@@ -44,7 +44,7 @@ val info: string -> Irmin.Info.f
 
 (** File system backends, using
     {{:https://github.com/janestreet/bin_prot}bin_prot}. *)
-module Irmin_fs: sig
+module FS: sig
 
   (** {1 File-system Store} *)
 
@@ -63,6 +63,10 @@ module Irmin_fs: sig
 
   module Make: Irmin.S_MAKER
   (** Irmin store maker. *)
+
+  module KV: Irmin.KV_MAKER
+  (** Irmin store make, where only the Contents have to be specified:
+      branches are strings and paths are string lists. *)
 
   (** {1 Extended configuration} *)
 
@@ -95,7 +99,7 @@ module Irmin_fs: sig
 end
 
 (** Bidirectional Git backends. *)
-module Irmin_git: sig
+module Git: sig
 
   (** {1 Git Store} *)
 
@@ -131,29 +135,35 @@ module Irmin_git: sig
   (** [level] is the Zlib compression level used to compress
       persisting values. *)
 
-  module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv):
+  module AO (G: Git.Store.S) (V: Irmin.Contents.Conv):
     Irmin.AO with type t = G.t
-              and type key = K.t
+              and type key = Irmin.Hash.SHA1.t
               and type value = V.t
   (** Embed an append-only store into a Git repository. Contents will
       be written in {i .git/objects/} and might be cleaned-up if you
       run {i git gc} manually. *)
 
-  module RW (G: Git.Store.S) (K: Irmin.Branch.S) (V: Irmin.Hash.S): Irmin.RW
-    with type key = K.t and type value = V.t
+  module RW (G: Git.Store.S) (K: Irmin.Branch.S): Irmin.RW
+    with type key = K.t and type value = Irmin.Hash.SHA1.t
   (** Embed a read-write store into a Git repository. Contents will be
       written in {i .git/refs}. *)
 
-  module Memory: Irmin_git.S_MAKER
   (** Embed an Irmin store into an in-memory Git repository. *)
+  module Mem: sig
+    module Make: Irmin_git.S_MAKER
+    module KV: Irmin_git.KV_MAKER
+  end
 
-  module FS: Irmin_git.S_MAKER
   (** Embed an Irmin store into a local Git repository. *)
+  module FS: sig
+    module Make: Irmin_git.S_MAKER
+    module KV: Irmin_git.KV_MAKER
+  end
 
 end
 
 (** REST (over HTTP) backend.. *)
-module Irmin_http: sig
+module Http: sig
 
   (** {1 HTTP client} *)
 
@@ -163,9 +173,9 @@ module Irmin_http: sig
 
   val uri: Uri.t option Irmin.Private.Conf.key
   (** The configuration key to set the location of the remote HTTP
-      {{!module:Irmin_http_server}server}. *)
+      {{!module:Server}server}. *)
 
-  module Make (M:Irmin.Metadata.S): Irmin.S_MAKER
+  module Make: Irmin.S_MAKER
   (** [Make] provides bindings to the remote HTTP server.
 
       Only the {{!Irmin.S.Private}low-level operations} are forwarded
@@ -173,18 +183,14 @@ module Irmin_http: sig
       client. Hence a high-level operation might take multiple
       RTTs. *)
 
-end
-
-(** Server-side of the REST API over HTTP. *)
-module Irmin_http_server: sig
+  module KV: Irmin.KV_MAKER
 
   (** {1 HTTP server} *)
 
-  module Make (S: Irmin.S): Irmin_http_server.S with
-    type repo = S.Repo.t and
-    type t = Cohttp_lwt_unix.Server.t
-  (** [Make] exposes an Irmin store as a REST API for HTTP
-      {{!module:Irmin_http}clients}. *)
+  (** Server-side of the REST API over HTTP. *)
+  module Server (S: Irmin.S): Irmin_http_server.S
+    with type repo = S.Repo.t
+     and type t = Cohttp_lwt_unix.Server.t
 
 end
 

@@ -57,19 +57,22 @@ let line msg =
   Logs.info (fun f -> f "ASSERT %s" msg);
   line ()
 
-let store: (module Irmin.S_MAKER) -> (module Test_S) = fun (module B) ->
-  let module S = struct
-    include
-      B (Irmin.Contents.String)
-        (Irmin.Path.String_list)
-        (Irmin.Branch.String)
-        (Irmin.Hash.SHA1)
+let store:
+  (module Irmin.S_MAKER) -> (module Irmin.Metadata.S) -> (module Test_S) =
+  fun (module B) (module M) ->
+    let module S = struct
+      include
+        B (M)
+          (Irmin.Contents.String)
+          (Irmin.Path.String_list)
+          (Irmin.Branch.String)
+          (Irmin.Hash.SHA1)
 
-    module Git = struct
-      let git_commit _t _id = failwith "Only used for testing Git stores"
+      module Git = struct
+        let git_commit _t _id = failwith "Only used for testing Git stores"
+      end
     end
-  end
-  in (module S)
+    in (module S)
 
 type kind = [
   | `Core

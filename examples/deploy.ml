@@ -1,12 +1,6 @@
 open Lwt.Infix
-open Irmin_unix
 
-module Store =
-  Irmin_git.FS
-    (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
+module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 let config =
   let head = Git.Reference.of_raw "refs/heads/upstream" in

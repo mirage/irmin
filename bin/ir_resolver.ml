@@ -16,7 +16,6 @@
 
 open Lwt.Infix
 open Cmdliner
-open Irmin_unix
 open Astring
 
 type contents = (module Irmin.Contents.S)
@@ -24,7 +23,7 @@ type contents = (module Irmin.Contents.S)
 let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
   fun (module S) (module C) ->
     let module S =
-      S(C)
+      S(Irmin.Metadata.None)(C)
         (Irmin.Path.String_list)
         (Irmin.Branch.String)
         (Irmin.Hash.SHA1)
@@ -32,9 +31,11 @@ let create: (module Irmin.S_MAKER) -> contents -> (module Irmin.S) =
     (module S)
 
 let mem_store = create (module Irmin_mem.Make)
-let irf_store = create (module Irmin_fs.Make)
-let http_store = create (module Irmin_http.Make(Irmin.Metadata.None))
-let git_store = create (module Irmin_git.FS)
+let irf_store = create (module Irmin_unix.FS.Make)
+let http_store = create (module Irmin_unix.Http.Make)
+
+let git_store (module C: Irmin.Contents.S) =
+  (module Irmin_unix.Git.FS.KV(C) : Irmin.S)
 
 let mk_store = function
   | `Mem  -> mem_store

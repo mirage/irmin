@@ -16,7 +16,6 @@
 
 open Lwt.Infix
 open Cmdliner
-open Irmin_unix
 open Ir_resolver
 
 let () = Irmin_unix.set_listen_dir_hook ()
@@ -115,7 +114,7 @@ let init = {
     let init (S ((module S), store)) daemon uri =
       run begin
         store >>= fun t ->
-        let module HTTP = Irmin_http_server.Make(S) in
+        let module HTTP = Irmin_unix.Http.Server(S) in
         if daemon then
           let uri = Uri.of_string uri in
           let spec = HTTP.v (S.repo t) in

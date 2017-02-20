@@ -49,36 +49,42 @@ module Hash (G: VALUE_STORE): Irmin.Hash.S with type t = Git.Hash.t
 module Irmin_value_store
     (G: VALUE_STORE)
     (C: Irmin.Contents.S)
-    (P: Irmin.Path.S)
-    (H: Irmin.Hash.S) : sig
+    (P: Irmin.Path.S) : sig
 
   module Contents: Irmin.Contents.STORE
-    with type key = H.t
+    with type key = Irmin.Hash.SHA1.t
      and type value = C.t
-     and module Key = H
 
   module Node: Irmin.Private.Node.STORE
-    with type key = H.t
+    with type key = Irmin.Hash.SHA1.t
      and type Val.contents = Contents.key
-     and module Key = H
      and module Metadata = Metadata
 
   module Commit: Irmin.Private.Commit.STORE
-    with type key = H.t
-     and module Key = H
+    with type key = Irmin.Hash.SHA1.t
      and type Val.node = Node.key
 end
 
-module AO (G: Git.Store.S) (K: Irmin.Hash.S) (V: Irmin.Contents.Conv) : Irmin.AO
+module AO (G: Git.Store.S) (V: Irmin.Contents.Conv) : Irmin.AO
   with type t = G.t
-   and type key = K.t
+   and type key = Irmin.Hash.SHA1.t
    and type value = V.t
 
-module RW (G: Git.Store.S) (K: Irmin.Branch.S) (V: Irmin.Hash.S):
-  Irmin.RW with type key = K.t and type value = V.t
+module RW (G: Git.Store.S) (K: Irmin.Branch.S):
+  Irmin.RW with type key = K.t and type value = Irmin.Hash.SHA1.t
 
 module type S = sig
-  include Irmin.S
+
+  (** The Git backed specialized a few types:
+
+      {ul
+      {- the allowed metdata are {Metadata.t}.
+      {- the object hashes is SHA1}. *)
+
+  include Irmin.S with type metadata = Metadata.t
+                   and module Commit.Hash = Irmin.Hash.SHA1
+                   and module Contents.Hash = Irmin.Hash.SHA1
+                   and module Tree.Hash = Irmin.Hash.SHA1
 
   (** {1 Access to the Git objects} *)
   module Git: sig
@@ -97,55 +103,49 @@ module type S = sig
 
   end
 
+  (** Only valid for in-memory Git stores. *)
+  module Git_mem: sig
+
+    val clear: ?root:string -> unit -> unit
+    (** [clear ?root ()] clear the store located at [root]. Do nothing
+        if the store is not an in-memory Git store. *)
+
+    val clear_all: unit -> unit
+    (** [clear_all] clears all the known stores. Do nothing is the
+        store is not an in-memory Git store. *)
+
+  end
+
 end
 
 module type S_MAKER =
   functor (C: Irmin.Contents.S) ->
   functor (P: Irmin.Path.S) ->
   functor (B: Irmin.Branch.S) ->
-  functor (H: Irmin.Hash.S) ->
     S with type key = P.t
        and type step = P.step
        and module Key = P
        and type contents = C.t
        and type branch = B.t
-       and type metadata = Metadata.t
-       and type Commit.Hash.t = H.t
-       and type Tree.Hash.t = H.t
-       and type Contents.Hash.t = H.t
 
-module FS (IO: Git.Sync.IO) (I: Git.Inflate.S) (FS: Git.FS.IO): S_MAKER
+module type KV_MAKER =
+  functor (C: Irmin.Contents.S) ->
+    S with type key = string list
+       and type step = string
+       and type contents = C.t
+       and type branch = string
 
-module type S_mem = sig
-  include S
-  module Git_mem: sig
-    val clear: ?root:string -> unit -> unit
-    (** [clear ?root ()] clear the store located at [root]. *)
-
-    val clear_all: unit -> unit
-    (** [clear_all] clears all the known store.  *)
-  end
+module type IO = sig
+  include Git.Sync.IO
+  val ctx: unit -> ctx option Lwt.t
 end
 
-module type S_MAKER_mem =
-  functor (C: Irmin.Contents.S) ->
-  functor (P: Irmin.Path.S) ->
-  functor (B: Irmin.Branch.S) ->
-  functor (H: Irmin.Hash.S) ->
-    S_mem with type key = P.t
-           and type step = P.step
-           and module Key = P
-           and type contents = C.t
-           and type branch = B.t
-           and type metadata = Metadata.t
-           and type Commit.Hash.t = H.t
-           and type Tree.Hash.t = H.t
-           and type Contents.Hash.t = H.t
+module FS: sig
+  module Make (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO): S_MAKER
+  module KV (IO: IO) (I: Git.Inflate.S) (FS: Git.FS.IO): KV_MAKER
+end
 
-module Memory (IO: Git.Sync.IO) (I: Git.Inflate.S): S_MAKER_mem
-
-module type CONTEXT = sig type t val v: unit -> t option Lwt.t end
-
-module Memory_ext (C: CONTEXT)
-    (IO: Git.Sync.IO with type ctx = C.t) (I: Git.Inflate.S):
-  S_MAKER_mem
+module Mem: sig
+  module Make (IO: IO) (I: Git.Inflate.S): S_MAKER
+  module KV (IO: IO) (I: Git.Inflate.S): KV_MAKER
+end

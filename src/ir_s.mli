@@ -511,6 +511,7 @@ module type STORE = sig
 end
 
 module type MAKER =
+  functor (M: METADATA) ->
   functor (C: CONTENTS) ->
   functor (P: PATH) ->
   functor (B: BRANCH) ->
@@ -519,6 +520,7 @@ module type MAKER =
   with type key = P.t
    and type step = P.step
    and module Key = P
+   and type metadata = M.t
    and type contents = C.t
    and type branch = B.t
    and type Commit.Hash.t = H.t

@@ -1,19 +1,13 @@
 open Lwt.Infix
-open Irmin_unix
 
+let info = Irmin_unix.info
 let path =
   if Array.length Sys.argv = 2 then
     Sys.argv.(1)
   else
     "git://github.com/mirage/ocaml-git.git"
 
-module Store =
-  Irmin_git.FS
-    (Irmin.Contents.String)
-    (Irmin.Path.String_list)
-    (Irmin.Branch.String)
-    (Irmin.Hash.SHA1)
-
+module Store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 module Sync = Irmin.Sync(Store)
 
 let upstream = Irmin.remote_uri path

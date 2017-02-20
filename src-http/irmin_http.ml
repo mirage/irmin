@@ -438,3 +438,11 @@ struct
   end
   include Irmin.Make_ext(X)
 end
+
+module KV (H: Cohttp_lwt.Client) (C: Irmin.Contents.S) =
+  Make (H)
+    (Irmin.Metadata.None)
+    (C)
+    (Irmin.Path.String_list)
+    (Irmin.Branch.String)
+    (Irmin.Hash.SHA1)
