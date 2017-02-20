@@ -79,11 +79,11 @@ end
 
 let info msg () =
   let date = Int64.of_float (Unix.gettimeofday ()) in
-  let owner =
+  let author =
     (* XXX: get "git config user.name" *)
     Printf.sprintf "Irmin %s.[%d]" (Unix.gethostname()) (Unix.getpid())
   in
-  Irmin.Info.v ~date ~owner msg
+  Irmin.Info.v ~date ~author msg
 
 let set_listen_dir_hook () =
   Irmin.Private.Watch.set_listen_dir_hook Irmin_watcher.hook

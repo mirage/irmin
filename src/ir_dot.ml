@@ -107,7 +107,7 @@ module Make (S: Ir_s.STORE) = struct
             \  <div>&nbsp</div>\n\
              </div>"
             k
-            (Ir_info.owner o)
+            (Ir_info.author o)
             (date (Ir_info.date o))
             (String.Ascii.escape (Ir_info.message o))
         else

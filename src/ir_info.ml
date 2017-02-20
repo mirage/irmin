@@ -16,29 +16,29 @@
 
 type t = {
   date   : int64;
-  owner  : string;
+  author : string;
   message: string;
 }
 
 let t =
   let open Ir_type in
-  record "info" (fun date owner message -> { date; owner; message })
+  record "info" (fun date author message -> { date; author; message })
   |+ field "date"    int64  (fun t -> t.date)
-  |+ field "owner"   string (fun t -> t.owner)
+  |+ field "author"  string (fun t -> t.author)
   |+ field "message" string (fun t -> t.message)
   |> sealr
 
 type f = unit -> t
 
-let create ~date ~owner message = { date; message; owner }
+let create ~date ~author message = { date; message; author }
 let with_message t message = { t with message }
-let empty = { date=0L; owner=""; message = "" }
+let empty = { date=0L; author=""; message = "" }
 
-let v ~date ~owner message =
-  if date = 0L && owner = "" && message = "" then empty
-  else create ~date ~owner message
+let v ~date ~author message =
+  if date = 0L && author = "" && message = "" then empty
+  else create ~date ~author message
 
 let date t = t.date
-let owner t = t.owner
+let author t = t.author
 let message t = t.message
 let none = fun () -> empty

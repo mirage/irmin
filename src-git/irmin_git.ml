@@ -415,7 +415,7 @@ module Irmin_value_store
       let info_of_git author message =
         let id = author.Git.User.name in
         let date, _ = author.Git.User.date in (* FIXME: tz offset is ignored *)
-        Irmin.Info.v ~date ~owner:id message
+        Irmin.Info.v ~date ~author:id message
 
       let name_email name =
         let name = String.trim name in
@@ -447,7 +447,7 @@ module Irmin_value_store
         let parents = List.fast_sort Git.Hash.Commit.compare parents in
         let author =
           let date = Irmin.Info.date info in
-          let name, email = name_email (Irmin.Info.owner info) in
+          let name, email = name_email (Irmin.Info.author info) in
           Git.User.({ name; email;
                       date  = date, None;
                     }) in

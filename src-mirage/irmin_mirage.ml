@@ -39,7 +39,7 @@ module Info (N: sig val name: string end) (C: Mirage_clock.PCLOCK) = struct
   let f c msg () =
     C.now_d_ps c |>
     Ptime.v |> Ptime.to_float_s |> Int64.of_float |> fun date ->
-    Irmin.Info.v ~date ~owner:N.name msg
+    Irmin.Info.v ~date ~author:N.name msg
 end
 
 module KV_RO (IO: Irmin_git.IO) (I: Git.Inflate.S) = struct
@@ -72,7 +72,7 @@ module KV_RO (IO: Irmin_git.IO) (I: Git.Inflate.S) = struct
          \n\
          %s\n"
         S.Commit.pp h
-        (Irmin.Info.owner info)
+        (Irmin.Info.author info)
         (Irmin.Info.date info)
         (Irmin.Info.message info)
 

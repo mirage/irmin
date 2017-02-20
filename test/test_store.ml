@@ -29,8 +29,8 @@ let merge_exn msg x = match x with
 
 let info msg =
   let date = Int64.of_float (Unix.gettimeofday ()) in
-  let owner = Printf.sprintf "TESTS" in
-  Irmin.Info.v ~date ~owner msg
+  let author = Printf.sprintf "TESTS" in
+  Irmin.Info.v ~date ~author msg
 
 let infof fmt = Fmt.kstrf (fun str () -> info str) fmt
 
@@ -280,7 +280,7 @@ module Make (S: Test_S) = struct
 
       let info date =
         let msg = Fmt.strf "Test commit: %d" date in
-        Irmin.Info.v ~date:(Int64.of_int date) ~owner:"test" msg
+        Irmin.Info.v ~date:(Int64.of_int date) ~author:"test" msg
       in
 
       kv1 ~repo >>= fun kv1 ->
@@ -747,7 +747,7 @@ module Make (S: Test_S) = struct
 
       let info date =
         let i = Int64.of_int date in
-        Irmin.Info.v ~date:i ~owner:"test" "Test commit"
+        Irmin.Info.v ~date:i ~author:"test" "Test commit"
       in
 
       let h = h repo and c = P.Repo.commit_t repo in
@@ -787,7 +787,7 @@ module Make (S: Test_S) = struct
     let test repo =
       let info date =
         let i = Int64.of_int date in
-        Irmin.Info.v ~date:i ~owner:"test" "Test commit"
+        Irmin.Info.v ~date:i ~author:"test" "Test commit"
       in
       let tree = S.Tree.empty in
       let assert_lcas_err msg err l2 =
