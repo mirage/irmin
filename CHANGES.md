@@ -1,4 +1,4 @@
-### 1.0.0 (unreleased)
+### 1.0.0 (2017-02-21)
 
 Major API changes:
 
@@ -9,6 +9,10 @@ Major API changes:
   first-class citizen in the API (see available `S.Tree`).
   Transactions now only ensure snapshot isolation instead of full
   serialisability.
+
+- Creating a store with default path and branch implementations
+  is now easier using the `KV` functors which just take one parameter:
+  the contents.
 
 - the backend and user-facing API are now totally independant (instead
   of being half-included in each other in `irmin.0.*`), so that
@@ -89,7 +93,8 @@ More detailled changes:
 * [api] add `S.merge_with_commit` and `S.merge_with_branch` (#397, @samoht)
 * [api] more precise return type for `S.Head.fast_forward` (#401, @samoht)
 * [api] add `S.Commit`, `S.Branch` (#401, @samoht)
-
+* [api] add `KV_MAKER` to ease the creation of store with string lists
+  as paths and strings as branches (#405, @samoht)
 
 * [backend] replace `RO.read` by `RO.find` (#397, @samoht)
 * [backend] no more `RO.read_exn` (#397, @samoht)
@@ -103,30 +108,45 @@ More detailled changes:
 
 - Adapt to `git.0.10.0` (#397, @samoht)
 - Remove the `LOCK` modules (#397, @samoht)
-- Change `Irmin_git.config` to require a `root` parameter (it was
-  optional in `irmin.0.*`) (#397, @samoht)
 - Rename `S.Internals` into `S.Git` (#397, @samoht)
 - Rename `S.Internals.commit_of_id` into `S.Git.git_commit` (#397, @samoht)
 - Add `S.Git.of_repo` to convert an Irmin repo into a Git repo (#397, @samoht)
 - Add `S.Git.to_repo` to convert a Git repo into an Irmin repo (#397, @samoht)
 - Expose `S.Git_mem.clear` and `S.Git_mem.clear_all` for in-memory Git
   backends (#397, @samoht)
+- Rename `Memory` into `Mem.Make` (#405, @samoht)
+- Rename `FS` into `FS.Make` (#405, @samoht)
+- Remove `CONTEXT` and fold it into `IO`  (#405, @samoht)
+- Add `Mem.KV` and `FS.KV` to ease creatin of store with default
+  implementations for branches and paths (#405, @samoht)
+- Add `Mem.Ref` and `FS.Ref` access tags, remotes and other Git references
+  (#407, @samoht)
+- Allow to set-up a custom `.git` path (#409, @samoht)
 
 **irmin-mirage**
 
 - Adapt to Mirage3 (@hannesm, @yomimono, @samoht)
-- Change `Irmin_git.config` to require a `root` parameter (it was
-  optional in `irmin.0.*`) (#397, @samoht)
+- Rename the `Task` module into `Info` to reflect the core API changes
+- Change `Info.f` to accept an optional `author` argument and a format
+  string as a message parameter (#261, #406 @samoht)
+- Rename `Irmin_git` into `Git` (#405, @samoht)
 
 **irmin-http**
 
 - Remove the high-level HTTP API (#397, @samoht)
 - Rewrite the low-level (backend) API using `ocaml-webmachine` (#397, @samoht)
+- Add `KV` to ease creatin of store with default implementations for
+  branches and paths (#405, @samoht)
 
 **irmin-unix**
 
 - Rename `Irmin_unix.task` into `Irmin_unix.info` (#397, @samoht)
 - Remove `LOCK`  (#397, @samoht)
+- Change `Irmin_unix.info` to take an optional `author` argument and accept
+  a format string as message parameter (#261, #406 @samoht)
+- Rename `Irmin_fs` into `FS` (#405, @samoht)
+- Rename `Irmin_git` into `Git` (#405, @samoht)
+- Rename `Irmin_http` into `Http` (#405, @samoht)
 
 ### 0.12.0 (2016-11-17)
 
