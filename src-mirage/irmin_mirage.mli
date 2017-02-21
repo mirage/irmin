@@ -46,33 +46,6 @@ end
 
 module Git: sig
 
-  (** {1 Git Store} *)
-
-  val config:
-    ?config:Irmin.config ->
-    ?head:Git.Reference.t -> ?bare:bool -> ?level:int -> string ->
-    Irmin.config
-  (** Create a configuration value.
-
-      {ul
-      {- [root] is the local Git repository's root (the parent of the
-      {e .git/} directory).}
-      {- [head] is the name of the local Git repository's current
-      branch. If set, this will cause the file {i [root]/.git/HEAD} to
-      be modified to contain {i ref: refs/heads/[branch]}.}
-      {- If [bare] is set (default is {e unset}), then the local Git
-      repository's contents will be expanded into the filesystem on
-      each update. This might cause some performance issues.}
-      } *)
-
-  val head: Git.Reference.t option Irmin.Private.Conf.key
-  (** The configuration key to set the local Git repository's current
-      branch. See {!Irmin_git.config}. *)
-
-  val bare: bool Irmin.Private.Conf.key
-  (** The configuration key to set the local Git repository's bare
-      attribute. See {!Irmin_git.config}.*)
-
   module AO (G: Git.Store.S) (V: Irmin.Contents.Conv):
     Irmin.AO with type t = G.t
               and type key = Irmin.Hash.SHA1.t

@@ -25,9 +25,6 @@ let context ctx =
   (module M: Irmin_git.IO)
 
 module G = struct
-  let config = Irmin_git.config
-  let head = Irmin_git.head
-  let bare = Irmin_git.bare
   module AO = Irmin_git.AO
   module Mem = struct
     module Make (IO: Irmin_git.IO) = Irmin_git.Mem.Make(IO)
